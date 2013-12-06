@@ -839,10 +839,23 @@ public:
 
 
 // record thread
-class RecordThread : public ThreadBase, public AudioBufferProvider
-                        // derives from AudioBufferProvider interface for use by resampler
+class RecordThread : public ThreadBase
 {
 public:
+
+    class RecordTrack;
+    class ResamplerBufferProvider : public AudioBufferProvider
+                        // derives from AudioBufferProvider interface for use by resampler
+    {
+    public:
+        ResamplerBufferProvider(RecordTrack* recordTrack) : mRecordTrack(recordTrack) { }
+        virtual ~ResamplerBufferProvider() { }
+        // AudioBufferProvider interface
+        virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
+        virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
+    private:
+        RecordTrack * const mRecordTrack;
+    };
 
 #include "RecordTracks.h"
 
@@ -898,9 +911,6 @@ public:
             AudioStreamIn* clearInput();
             virtual audio_stream_t* stream() const;
 
-    // AudioBufferProvider interface
-    virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
-    virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
 
     virtual bool        checkForNewParameters_l();
     virtual String8     getParameters(const String8& keys);
@@ -921,13 +931,13 @@ public:
     virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
 
     static void syncStartEventCallback(const wp<SyncEvent>& event);
-           void handleSyncStartEvent(const sp<SyncEvent>& event);
+           void handleSyncStartEvent(RecordTrack *recordTrack, const sp<SyncEvent>& event);
 
     virtual size_t      frameCount() const { return mFrameCount; }
             bool        hasFastRecorder() const { return false; }
 
 private:
-            void    clearSyncStartEvent();
+            void    clearSyncStartEvent(RecordTrack* recordTrack);
 
             // Enter standby if not already in standby, and set mStandby flag
             void    standbyIfNotAlreadyInStandby();
@@ -944,34 +954,17 @@ private:
             int                                 mActiveTracksGen;
             Condition                           mStartStopCond;
 
-            // updated by RecordThread::readInputParameters()
-            AudioResampler                      *mResampler;
-            // interleaved stereo pairs of fixed-point signed Q19.12
-            int32_t                             *mRsmpOutBuffer;
-
             // resampler converts input at HAL Hz to output at AudioRecord client Hz
             int16_t                             *mRsmpInBuffer; // see new[] for details on the size
             size_t                              mRsmpInFrames;  // size of resampler input in frames
             size_t                              mRsmpInFramesP2;// size rounded up to a power-of-2
-            size_t                              mRsmpInUnrel;   // unreleased frames remaining from
-                                                                // most recent getNextBuffer
-            // these are rolling counters that are never cleared
-            int32_t                             mRsmpInFront;   // next available frame
+
+            // rolling index that is never cleared
             int32_t                             mRsmpInRear;    // last filled frame + 1
-            size_t                              mRsmpInIndex;   // FIXME legacy
 
             // client's requested configuration, which may differ from the HAL configuration
             const uint32_t                      mReqChannelCount;
             const uint32_t                      mReqSampleRate;
-
-            ssize_t                             mBytesRead;
-            // sync event triggering actual audio capture. Frames read before this event will
-            // be dropped and therefore not read by the application.
-            sp<SyncEvent>                       mSyncStartEvent;
-            // number of captured frames to drop after the start sync event has been received.
-            // when < 0, maximum frames to drop before starting capture even if sync event is
-            // not received
-            ssize_t                             mFramestoDrop;
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;

@@ -1785,17 +1785,34 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             int uid)
     :   TrackBase(thread, client, sampleRate, format,
                   channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid, false /*isOut*/),
-        mOverflow(false)
+        mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
+        // See real initialization of mRsmpInFront at RecordThread::start()
+        mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
 {
     ALOGV("RecordTrack constructor");
     if (mCblk != NULL) {
         mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount, mFrameSize);
+    }
+
+    uint32_t channelCount = popcount(channelMask);
+    // FIXME I don't understand either of the channel count checks
+    if (thread->mSampleRate != sampleRate && thread->mChannelCount <= FCC_2 &&
+            channelCount <= FCC_2) {
+        // sink SR
+        mResampler = AudioResampler::create(16, thread->mChannelCount, sampleRate);
+        // source SR
+        mResampler->setSampleRate(thread->mSampleRate);
+        mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
+        mResamplerBufferProvider = new ResamplerBufferProvider(this);
     }
 }
 
 AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
 {
     ALOGV("%s", __func__);
+    delete mResampler;
+    delete[] mRsmpOutBuffer;
+    delete mResamplerBufferProvider;
 }
 
 // AudioBufferProvider interface
@@ -1868,12 +1885,12 @@ void AudioFlinger::RecordThread::RecordTrack::invalidate()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("    Active Client Fmt Chn mask Session S   Server fCount\n");
+    result.append("    Active Client Fmt Chn mask Session S   Server fCount Resampling\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bool active)
 {
-    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6zu\n",
+    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6zu %10d\n",
             active ? "yes" : "no",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,
@@ -1881,7 +1898,9 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bo
             mSessionId,
             mState,
             mCblk->mServer,
-            mFrameCount);
+            mFrameCount,
+            mResampler != NULL);
+
 }
 
 }; // namespace android

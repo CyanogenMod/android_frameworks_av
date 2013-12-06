@@ -34,7 +34,9 @@ public:
         RESUMING,
         ACTIVE,
         PAUSING,
-        PAUSED
+        PAUSED,
+        STARTING_1,     // for RecordTrack only
+        STARTING_2,     // for RecordTrack only
     };
 
                         TrackBase(ThreadBase *thread,

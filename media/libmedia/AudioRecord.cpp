@@ -462,7 +462,9 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     audio_io_handle_t input = AudioSystem::getInput(mInputSource, mSampleRate, mFormat,
             mChannelMask, mSessionId);
     if (input == 0) {
-        ALOGE("Could not get audio input for record source %d", mInputSource);
+        ALOGE("Could not get audio input for record source %d, sample rate %u, format %#x, "
+              "channel mask %#x, session %d",
+              mInputSource, mSampleRate, mFormat, mChannelMask, mSessionId);
         return BAD_VALUE;
     }
     {

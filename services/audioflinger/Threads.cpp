@@ -4460,14 +4460,12 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 #endif
                                          ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
-    mInput(input), mActiveTracksGen(0), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpInBuffer(NULL),
-    // mRsmpInFrames, mRsmpInFramesP2, mRsmpInUnrel, mRsmpInFront, and mRsmpInRear
-    //      are set by readInputParameters()
-    // mRsmpInIndex LEGACY
+    mInput(input), mActiveTracksGen(0), mRsmpInBuffer(NULL),
+    // mRsmpInFrames and mRsmpInFramesP2 are set by readInputParameters()
+    mRsmpInRear(0),
+    // FIXME these should be per-track, so this is only the initial track?
     mReqChannelCount(popcount(channelMask)),
     mReqSampleRate(sampleRate)
-    // mBytesRead is only meaningful while active, and so is cleared in start()
-    // (but might be better to also clear here for dump?)
 #ifdef TEE_SINK
     , mTeeSink(teeSink)
 #endif
@@ -4483,8 +4481,6 @@ AudioFlinger::RecordThread::~RecordThread()
 {
     mAudioFlinger->unregisterWriter(mNBLogWriter);
     delete[] mRsmpInBuffer;
-    delete mResampler;
-    delete[] mRsmpOutBuffer;
 }
 
 void AudioFlinger::RecordThread::onFirstRef()
@@ -4497,12 +4493,6 @@ bool AudioFlinger::RecordThread::threadLoop()
     nsecs_t lastWarning = 0;
 
     inputStandBy();
-
-    // used to verify we've read at least once before evaluating how many bytes were read
-    bool readOnce = false;
-
-    // used to request a deferred sleep, to be executed later while mutex is unlocked
-    bool doSleep = false;
 
 reacquire_wakelock:
     sp<RecordTrack> activeTrack;
@@ -4527,16 +4517,21 @@ reacquire_wakelock:
         }
     }
 
-    // start recording
+    // used to request a deferred sleep, to be executed later while mutex is unlocked
+    uint32_t sleepUs = 0;
+
+    // loop while there is work to do
     for (;;) {
-        TrackBase::track_state activeTrackState;
         Vector< sp<EffectChain> > effectChains;
 
         // sleep with mutex unlocked
-        if (doSleep) {
-            doSleep = false;
-            usleep(kRecordThreadSleepUs);
+        if (sleepUs > 0) {
+            usleep(sleepUs);
+            sleepUs = 0;
         }
+
+        // activeTracks accumulates a copy of a subset of mActiveTracks
+        Vector< sp<RecordTrack> > activeTracks;
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
@@ -4571,236 +4566,292 @@ reacquire_wakelock:
                     tmp.add(mActiveTracks[i]->uid());
                 }
                 updateWakeLockUids_l(tmp);
-                // FIXME an arbitrary choice
-                activeTrack = mActiveTracks[0];
             }
 
-            if (activeTrack->isTerminated()) {
-                removeTrack_l(activeTrack);
-                mActiveTracks.remove(activeTrack);
-                mActiveTracksGen++;
-                continue;
-            }
+            bool doBroadcast = false;
+            for (size_t i = 0; i < size; ) {
 
-            activeTrackState = activeTrack->mState;
-            switch (activeTrackState) {
-            case TrackBase::PAUSING:
-                standbyIfNotAlreadyInStandby();
-                mActiveTracks.remove(activeTrack);
-                mActiveTracksGen++;
-                mStartStopCond.broadcast();
-                doSleep = true;
-                continue;
-
-            case TrackBase::RESUMING:
-                mStandby = false;
-                if (mReqChannelCount != activeTrack->channelCount()) {
+                activeTrack = mActiveTracks[i];
+                if (activeTrack->isTerminated()) {
+                    removeTrack_l(activeTrack);
                     mActiveTracks.remove(activeTrack);
                     mActiveTracksGen++;
-                    mStartStopCond.broadcast();
+                    size--;
                     continue;
                 }
-                if (readOnce) {
-                    mStartStopCond.broadcast();
-                    // record start succeeds only if first read from audio input succeeds
-                    if (mBytesRead < 0) {
+
+                TrackBase::track_state activeTrackState = activeTrack->mState;
+                switch (activeTrackState) {
+
+                case TrackBase::PAUSING:
+                    mActiveTracks.remove(activeTrack);
+                    mActiveTracksGen++;
+                    doBroadcast = true;
+                    size--;
+                    continue;
+
+                case TrackBase::STARTING_1:
+                    sleepUs = 10000;
+                    i++;
+                    continue;
+
+                case TrackBase::STARTING_2:
+                    doBroadcast = true;
+                    if (mReqChannelCount != activeTrack->channelCount()) {
+                        ALOGW("wrong channel count");
                         mActiveTracks.remove(activeTrack);
                         mActiveTracksGen++;
+                        size--;
                         continue;
                     }
+                    mStandby = false;
                     activeTrack->mState = TrackBase::ACTIVE;
+                    break;
+
+                case TrackBase::ACTIVE:
+                    break;
+
+                case TrackBase::IDLE:
+                    i++;
+                    continue;
+
+                default:
+                    LOG_FATAL("Unexpected activeTrackState %d", activeTrackState);
                 }
-                break;
 
-            case TrackBase::ACTIVE:
-                break;
+                activeTracks.add(activeTrack);
+                i++;
 
-            case TrackBase::IDLE:
-                doSleep = true;
-                continue;
-
-            default:
-                LOG_FATAL("Unexpected activeTrackState %d", activeTrackState);
             }
+            if (doBroadcast) {
+                mStartStopCond.broadcast();
+            }
+
+            // sleep if there are no active tracks to process
+            if (activeTracks.size() == 0) {
+                if (sleepUs == 0) {
+                    sleepUs = kRecordThreadSleepUs;
+                }
+                continue;
+            }
+            sleepUs = 0;
 
             lockEffectChains_l(effectChains);
         }
 
-        // thread mutex is now unlocked, mActiveTracks unknown, activeTrack != 0, kept, immutable
-        // activeTrack->mState unknown, activeTrackState immutable and is ACTIVE or RESUMING
+        // thread mutex is now unlocked, mActiveTracks unknown, activeTracks.size() > 0
 
-        for (size_t i = 0; i < effectChains.size(); i ++) {
+        size_t size = effectChains.size();
+        for (size_t i = 0; i < size; i++) {
             // thread mutex is not locked, but effect chain is locked
             effectChains[i]->process_l();
         }
 
-        AudioBufferProvider::Buffer buffer;
-        buffer.frameCount = mFrameCount;
-        status_t status = activeTrack->getNextBuffer(&buffer);
-        if (status == NO_ERROR) {
-            readOnce = true;
-            size_t framesOut = buffer.frameCount;
-            if (mResampler == NULL) {
-                // no resampling
-                while (framesOut) {
-                    size_t framesIn = mFrameCount - mRsmpInIndex;
-                    if (framesIn > 0) {
-                        int8_t *src = (int8_t *)mRsmpInBuffer + mRsmpInIndex * mFrameSize;
-                        int8_t *dst = buffer.i8 + (buffer.frameCount - framesOut) *
-                                activeTrack->mFrameSize;
-                        if (framesIn > framesOut) {
-                            framesIn = framesOut;
-                        }
-                        mRsmpInIndex += framesIn;
-                        framesOut -= framesIn;
-                        if (mChannelCount == mReqChannelCount) {
-                            memcpy(dst, src, framesIn * mFrameSize);
-                        } else {
-                            if (mChannelCount == 1) {
-                                upmix_to_stereo_i16_from_mono_i16((int16_t *)dst,
-                                        (int16_t *)src, framesIn);
-                            } else {
-                                downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
-                                        (int16_t *)src, framesIn);
-                            }
-                        }
-                    }
-                    if (framesOut > 0 && mFrameCount == mRsmpInIndex) {
-                        void *readInto;
-                        if (framesOut == mFrameCount && mChannelCount == mReqChannelCount) {
-                            readInto = buffer.raw;
-                            framesOut = 0;
-                        } else {
-                            readInto = mRsmpInBuffer;
-                            mRsmpInIndex = 0;
-                        }
-                        mBytesRead = mInput->stream->read(mInput->stream, readInto, mBufferSize);
-                        if (mBytesRead <= 0) {
-                            // TODO: verify that it's benign to use a stale track state
-                            if ((mBytesRead < 0) && (activeTrackState == TrackBase::ACTIVE))
-                            {
-                                ALOGE("Error reading audio input");
-                                // Force input into standby so that it tries to
-                                // recover at next read attempt
-                                inputStandBy();
-                                doSleep = true;
-                            }
-                            mRsmpInIndex = mFrameCount;
-                            framesOut = 0;
-                            buffer.frameCount = 0;
-                        }
-#ifdef TEE_SINK
-                        else if (mTeeSink != 0) {
-                            (void) mTeeSink->write(readInto,
-                                    mBytesRead >> Format_frameBitShift(mTeeSink->format()));
-                        }
-#endif
-                    }
-                }
-            } else {
-                // resampling
+        // Read from HAL to keep up with fastest client if multiple active tracks, not slowest one.
+        // Only the client(s) that are too slow will overrun. But if even the fastest client is too
+        // slow, then this RecordThread will overrun by not calling HAL read often enough.
+        // If destination is non-contiguous, first read past the nominal end of buffer, then
+        // copy to the right place.  Permitted because mRsmpInBuffer was over-allocated.
 
-                // avoid busy-waiting if client doesn't keep up
-                bool madeProgress = false;
-
-                // keep mRsmpInBuffer full so resampler always has sufficient input
-                for (;;) {
-                    int32_t rear = mRsmpInRear;
-                    ssize_t filled = rear - mRsmpInFront;
-                    ALOG_ASSERT(0 <= filled && (size_t) filled <= mRsmpInFramesP2);
-                    // exit once there is enough data in buffer for resampler
-                    if ((size_t) filled >= mRsmpInFrames) {
-                        break;
-                    }
-                    size_t avail = mRsmpInFramesP2 - filled;
-                    // Only try to read full HAL buffers.
-                    // But if the HAL read returns a partial buffer, use it.
-                    if (avail < mFrameCount) {
-                        ALOGE("insufficient space to read: avail %d < mFrameCount %d",
-                                avail, mFrameCount);
-                        break;
-                    }
-                    // If 'avail' is non-contiguous, first read past the nominal end of buffer, then
-                    // copy to the right place.  Permitted because mRsmpInBuffer was over-allocated.
-                    rear &= mRsmpInFramesP2 - 1;
-                    mBytesRead = mInput->stream->read(mInput->stream,
-                            &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
-                    if (mBytesRead <= 0) {
-                        ALOGE("read failed: mBytesRead=%d < %u", mBytesRead, mBufferSize);
-                        break;
-                    }
-                    ALOG_ASSERT((size_t) mBytesRead <= mBufferSize);
-                    size_t framesRead = mBytesRead / mFrameSize;
-                    ALOG_ASSERT(framesRead > 0);
-                    madeProgress = true;
-                    // If 'avail' was non-contiguous, we now correct for reading past end of buffer.
-                    size_t part1 = mRsmpInFramesP2 - rear;
-                    if (framesRead > part1) {
-                        memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
-                                (framesRead - part1) * mFrameSize);
-                    }
-                    mRsmpInRear += framesRead;
-                }
-
-                if (!madeProgress) {
-                    ALOGV("Did not make progress");
-                    usleep(((mFrameCount * 1000) / mSampleRate) * 1000);
-                }
-
-                // resampler accumulates, but we only have one source track
-                memset(mRsmpOutBuffer, 0, framesOut * FCC_2 * sizeof(int32_t));
-                mResampler->resample(mRsmpOutBuffer, framesOut,
-                        this /* AudioBufferProvider* */);
-                // ditherAndClamp() works as long as all buffers returned by
-                // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
-                if (mReqChannelCount == 1) {
-                    // temporarily type pun mRsmpOutBuffer from Q19.12 to int16_t
-                    ditherAndClamp(mRsmpOutBuffer, mRsmpOutBuffer, framesOut);
-                    // the resampler always outputs stereo samples:
-                    // do post stereo to mono conversion
-                    downmix_to_mono_i16_from_stereo_i16(buffer.i16, (int16_t *)mRsmpOutBuffer,
-                            framesOut);
-                } else {
-                    ditherAndClamp((int32_t *)buffer.raw, mRsmpOutBuffer, framesOut);
-                }
-                // now done with mRsmpOutBuffer
-
-            }
-            if (mFramestoDrop == 0) {
-                activeTrack->releaseBuffer(&buffer);
-            } else {
-                if (mFramestoDrop > 0) {
-                    mFramestoDrop -= buffer.frameCount;
-                    if (mFramestoDrop <= 0) {
-                        clearSyncStartEvent();
-                    }
-                } else {
-                    mFramestoDrop += buffer.frameCount;
-                    if (mFramestoDrop >= 0 || mSyncStartEvent == 0 ||
-                            mSyncStartEvent->isCancelled()) {
-                        ALOGW("Synced record %s, session %d, trigger session %d",
-                              (mFramestoDrop >= 0) ? "timed out" : "cancelled",
-                              activeTrack->sessionId(),
-                              (mSyncStartEvent != 0) ? mSyncStartEvent->triggerSession() : 0);
-                        clearSyncStartEvent();
-                    }
-                }
-            }
-            activeTrack->clearOverflow();
+        int32_t rear = mRsmpInRear & (mRsmpInFramesP2 - 1);
+        ssize_t bytesRead = mInput->stream->read(mInput->stream,
+                &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
+        if (bytesRead <= 0) {
+            ALOGE("read failed: bytesRead=%d < %u", bytesRead, mBufferSize);
+            // Force input into standby so that it tries to recover at next read attempt
+            inputStandBy();
+            sleepUs = kRecordThreadSleepUs;
+            continue;
         }
-        // client isn't retrieving buffers fast enough
-        else {
-            if (!activeTrack->setOverflow()) {
-                nsecs_t now = systemTime();
-                if ((now - lastWarning) > kWarningThrottleNs) {
-                    ALOGW("RecordThread: buffer overflow");
-                    lastWarning = now;
+        ALOG_ASSERT((size_t) bytesRead <= mBufferSize);
+        size_t framesRead = bytesRead / mFrameSize;
+        ALOG_ASSERT(framesRead > 0);
+        if (mTeeSink != 0) {
+            (void) mTeeSink->write(&mRsmpInBuffer[rear * mChannelCount], framesRead);
+        }
+        // If destination is non-contiguous, we now correct for reading past end of buffer.
+        size_t part1 = mRsmpInFramesP2 - rear;
+        if (framesRead > part1) {
+            memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
+                    (framesRead - part1) * mFrameSize);
+        }
+        rear = mRsmpInRear += framesRead;
+
+        size = activeTracks.size();
+        // loop over each active track
+        for (size_t i = 0; i < size; i++) {
+            activeTrack = activeTracks[i];
+
+            enum {
+                OVERRUN_UNKNOWN,
+                OVERRUN_TRUE,
+                OVERRUN_FALSE
+            } overrun = OVERRUN_UNKNOWN;
+
+            // loop over getNextBuffer to handle circular sink
+            for (;;) {
+
+                activeTrack->mSink.frameCount = ~0;
+                status_t status = activeTrack->getNextBuffer(&activeTrack->mSink);
+                size_t framesOut = activeTrack->mSink.frameCount;
+                LOG_ALWAYS_FATAL_IF((status == OK) != (framesOut > 0));
+
+                int32_t front = activeTrack->mRsmpInFront;
+                ssize_t filled = rear - front;
+                size_t framesIn;
+
+                if (filled < 0) {
+                    // should not happen, but treat like a massive overrun and re-sync
+                    framesIn = 0;
+                    activeTrack->mRsmpInFront = rear;
+                    overrun = OVERRUN_TRUE;
+                } else if ((size_t) filled <= mRsmpInFramesP2) {
+                    framesIn = (size_t) filled;
+                } else {
+                    // client is not keeping up with server, but give it latest data
+                    framesIn = mRsmpInFramesP2;
+                    activeTrack->mRsmpInFront = rear - framesIn;
+                    overrun = OVERRUN_TRUE;
+                }
+
+                if (activeTrack->mResampler == NULL) {
+                    // no resampling
+                    if (framesIn > framesOut) {
+                        framesIn = framesOut;
+                    } else {
+                        framesOut = framesIn;
+                    }
+                    int8_t *dst = activeTrack->mSink.i8;
+                    while (framesIn > 0) {
+                        front &= mRsmpInFramesP2 - 1;
+                        size_t part1 = mRsmpInFramesP2 - front;
+                        if (part1 > framesIn) {
+                            part1 = framesIn;
+                        }
+                        int8_t *src = (int8_t *)mRsmpInBuffer + (front * mFrameSize);
+                        if (mChannelCount == mReqChannelCount) {
+                            memcpy(dst, src, part1 * mFrameSize);
+                        } else if (mChannelCount == 1) {
+                            upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (int16_t *)src,
+                                    part1);
+                        } else {
+                            downmix_to_mono_i16_from_stereo_i16((int16_t *)dst, (int16_t *)src,
+                                    part1);
+                        }
+                        dst += part1 * activeTrack->mFrameSize;
+                        front += part1;
+                        framesIn -= part1;
+                    }
+                    activeTrack->mRsmpInFront += framesOut;
+
+                } else {
+                    // resampling
+                    // FIXME framesInNeeded should really be part of resampler API, and should
+                    //       depend on the SRC ratio
+                    //       to keep mRsmpInBuffer full so resampler always has sufficient input
+                    size_t framesInNeeded;
+                    // FIXME only re-calculate when it changes, and optimize for common ratios
+                    double inOverOut = (double) mSampleRate / activeTrack->mSampleRate;
+                    double outOverIn = (double) activeTrack->mSampleRate / mSampleRate;
+                    framesInNeeded = framesOut * inOverOut;
+                    if (framesIn < framesInNeeded) {
+                        ALOGV("not enough to resample: have %u but need %u to produce %u",
+                                framesIn, framesInNeeded, framesOut);
+                        size_t newFramesOut = framesIn * outOverIn;
+                        size_t newFramesInNeeded = newFramesOut * inOverOut;
+                        LOG_ALWAYS_FATAL_IF(framesIn < newFramesInNeeded);
+                        framesOut = newFramesOut;
+                    }
+
+                    // reallocate mRsmpOutBuffer as needed; we will grow but never shrink
+                    if (activeTrack->mRsmpOutFrameCount < framesOut) {
+                        delete[] activeTrack->mRsmpOutBuffer;
+                        // resampler always outputs stereo
+                        activeTrack->mRsmpOutBuffer = new int32_t[framesOut * FCC_2];
+                        activeTrack->mRsmpOutFrameCount = framesOut;
+                    }
+
+                    // resampler accumulates, but we only have one source track
+                    memset(activeTrack->mRsmpOutBuffer, 0, framesOut * FCC_2 * sizeof(int32_t));
+                    activeTrack->mResampler->resample(activeTrack->mRsmpOutBuffer, framesOut,
+                            activeTrack->mResamplerBufferProvider
+                            /*this*/ /* AudioBufferProvider* */);
+                    // ditherAndClamp() works as long as all buffers returned by
+                    // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
+                    if (mReqChannelCount == 1) {
+                        // temporarily type pun mRsmpOutBuffer from Q19.12 to int16_t
+                        ditherAndClamp(activeTrack->mRsmpOutBuffer, activeTrack->mRsmpOutBuffer,
+                                framesOut);
+                        // the resampler always outputs stereo samples:
+                        // do post stereo to mono conversion
+                        downmix_to_mono_i16_from_stereo_i16(activeTrack->mSink.i16,
+                                (int16_t *)activeTrack->mRsmpOutBuffer, framesOut);
+                    } else {
+                        ditherAndClamp((int32_t *)activeTrack->mSink.raw,
+                                activeTrack->mRsmpOutBuffer, framesOut);
+                    }
+                    // now done with mRsmpOutBuffer
+
+                }
+
+                if (framesOut > 0 && (overrun == OVERRUN_UNKNOWN)) {
+                    overrun = OVERRUN_FALSE;
+                }
+
+                if (activeTrack->mFramesToDrop == 0) {
+                    if (framesOut > 0) {
+                        activeTrack->mSink.frameCount = framesOut;
+                        activeTrack->releaseBuffer(&activeTrack->mSink);
+                    }
+                } else {
+                    // FIXME could do a partial drop of framesOut
+                    if (activeTrack->mFramesToDrop > 0) {
+                        activeTrack->mFramesToDrop -= framesOut;
+                        if (activeTrack->mFramesToDrop <= 0) {
+                            clearSyncStartEvent(activeTrack.get());
+                        }
+                    } else {
+                        activeTrack->mFramesToDrop += framesOut;
+                        if (activeTrack->mFramesToDrop >= 0 || activeTrack->mSyncStartEvent == 0 ||
+                                activeTrack->mSyncStartEvent->isCancelled()) {
+                            ALOGW("Synced record %s, session %d, trigger session %d",
+                                  (activeTrack->mFramesToDrop >= 0) ? "timed out" : "cancelled",
+                                  activeTrack->sessionId(),
+                                  (activeTrack->mSyncStartEvent != 0) ?
+                                          activeTrack->mSyncStartEvent->triggerSession() : 0);
+                            clearSyncStartEvent(activeTrack.get());
+                        }
+                    }
+                }
+
+                if (framesOut == 0) {
+                    if (overrun == OVERRUN_UNKNOWN) {
+                        overrun = OVERRUN_TRUE;
+                    }
+                    break;
                 }
             }
-            // Release the processor for a while before asking for a new buffer.
-            // This will give the application more chance to read from the buffer and
-            // clear the overflow.
-            doSleep = true;
+
+            switch (overrun) {
+            case OVERRUN_TRUE:
+                // client isn't retrieving buffers fast enough
+                if (!activeTrack->setOverflow()) {
+                    nsecs_t now = systemTime();
+                    // FIXME should lastWarning per track?
+                    if ((now - lastWarning) > kWarningThrottleNs) {
+                        ALOGW("RecordThread: buffer overflow");
+                        lastWarning = now;
+                    }
+                }
+                break;
+            case OVERRUN_FALSE:
+                activeTrack->clearOverflow();
+                break;
+            case OVERRUN_UNKNOWN:
+                LOG_FATAL("OVERRUN_UNKNOWN");
+                break;
+            }
+
         }
 
         // enable changes in effect chain
@@ -4959,96 +5010,87 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
     status_t status = NO_ERROR;
 
     if (event == AudioSystem::SYNC_EVENT_NONE) {
-        clearSyncStartEvent();
+        // FIXME hmm should be per-track
+        clearSyncStartEvent(recordTrack);
     } else if (event != AudioSystem::SYNC_EVENT_SAME) {
-        mSyncStartEvent = mAudioFlinger->createSyncEvent(event,
+        recordTrack->mSyncStartEvent = mAudioFlinger->createSyncEvent(event,
                                        triggerSession,
                                        recordTrack->sessionId(),
                                        syncStartEventCallback,
-                                       this);
+                                       recordTrack);
         // Sync event can be cancelled by the trigger session if the track is not in a
         // compatible state in which case we start record immediately
-        if (mSyncStartEvent->isCancelled()) {
-            clearSyncStartEvent();
+        if (recordTrack->mSyncStartEvent->isCancelled()) {
+            clearSyncStartEvent(recordTrack);
         } else {
             // do not wait for the event for more than AudioSystem::kSyncRecordStartTimeOutMs
-            mFramestoDrop = - ((AudioSystem::kSyncRecordStartTimeOutMs * mReqSampleRate) / 1000);
+            recordTrack->mFramesToDrop = -
+                    ((AudioSystem::kSyncRecordStartTimeOutMs * mReqSampleRate) / 1000);
         }
     }
 
     {
         // This section is a rendezvous between binder thread executing start() and RecordThread
         AutoMutex lock(mLock);
-        if (mActiveTracks.size() > 0) {
-            // FIXME does not work for multiple active tracks
-            if (mActiveTracks.indexOf(recordTrack) != 0) {
-                status = -EBUSY;
-            } else if (recordTrack->mState == TrackBase::PAUSING) {
+        if (mActiveTracks.indexOf(recordTrack) >= 0) {
+            if (recordTrack->mState == TrackBase::PAUSING) {
+                ALOGV("active record track PAUSING -> ACTIVE");
                 recordTrack->mState = TrackBase::ACTIVE;
+            } else {
+                ALOGV("active record track state %d", recordTrack->mState);
             }
             return status;
         }
 
-        // FIXME why? already set in constructor, 'STARTING_1' would be more accurate
-        recordTrack->mState = TrackBase::IDLE;
+        recordTrack->mState = TrackBase::STARTING_1;
         mActiveTracks.add(recordTrack);
         mActiveTracksGen++;
         mLock.unlock();
         status_t status = AudioSystem::startInput(mId);
         mLock.lock();
-        // FIXME should verify that mActiveTrack is still == recordTrack
+        // FIXME should verify that recordTrack is still in mActiveTracks
         if (status != NO_ERROR) {
             mActiveTracks.remove(recordTrack);
             mActiveTracksGen++;
-            clearSyncStartEvent();
+            clearSyncStartEvent(recordTrack);
             return status;
         }
-        // FIXME LEGACY
-        mRsmpInIndex = mFrameCount;
-        mRsmpInFront = 0;
-        mRsmpInRear = 0;
-        mRsmpInUnrel = 0;
-        mBytesRead = 0;
-        if (mResampler != NULL) {
-            mResampler->reset();
+        // Catch up with current buffer indices if thread is already running.
+        // This is what makes a new client discard all buffered data.  If the track's mRsmpInFront
+        // was initialized to some value closer to the thread's mRsmpInFront, then the track could
+        // see previously buffered data before it called start(), but with greater risk of overrun.
+
+        recordTrack->mRsmpInFront = mRsmpInRear;
+        recordTrack->mRsmpInUnrel = 0;
+        // FIXME why reset?
+        if (recordTrack->mResampler != NULL) {
+            recordTrack->mResampler->reset();
         }
-        // FIXME hijacking a playback track state name which was intended for start after pause;
-        //       here 'STARTING_2' would be more accurate
-        recordTrack->mState = TrackBase::RESUMING;
+        recordTrack->mState = TrackBase::STARTING_2;
         // signal thread to start
-        ALOGV("Signal record thread");
         mWaitWorkCV.broadcast();
-        // do not wait for mStartStopCond if exiting
-        if (exitPending()) {
-            mActiveTracks.remove(recordTrack);
-            mActiveTracksGen++;
-            status = INVALID_OPERATION;
-            goto startError;
-        }
-        // FIXME incorrect usage of wait: no explicit predicate or loop
-        mStartStopCond.wait(mLock);
         if (mActiveTracks.indexOf(recordTrack) < 0) {
             ALOGV("Record failed to start");
             status = BAD_VALUE;
             goto startError;
         }
-        ALOGV("Record started OK");
         return status;
     }
 
 startError:
     AudioSystem::stopInput(mId);
-    clearSyncStartEvent();
+    clearSyncStartEvent(recordTrack);
+    // FIXME I wonder why we do not reset the state here?
     return status;
 }
 
-void AudioFlinger::RecordThread::clearSyncStartEvent()
+void AudioFlinger::RecordThread::clearSyncStartEvent(RecordThread::RecordTrack* recordTrack)
 {
-    if (mSyncStartEvent != 0) {
-        mSyncStartEvent->cancel();
+    if (recordTrack->mSyncStartEvent != 0) {
+        recordTrack->mSyncStartEvent->cancel();
+        recordTrack->mSyncStartEvent.clear();
     }
-    mSyncStartEvent.clear();
-    mFramestoDrop = 0;
+    recordTrack->mFramesToDrop = 0;
 }
 
 void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& event)
@@ -5056,17 +5098,22 @@ void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& eve
     sp<SyncEvent> strongEvent = event.promote();
 
     if (strongEvent != 0) {
-        RecordThread *me = (RecordThread *)strongEvent->cookie();
-        me->handleSyncStartEvent(strongEvent);
+        RecordTrack *recordTrack = (RecordTrack *)strongEvent->cookie();
+        sp<ThreadBase> threadBase = recordTrack->mThread.promote();
+        if (threadBase != 0) {
+            RecordThread *me = (RecordThread *) threadBase.get();
+            me->handleSyncStartEvent(recordTrack, strongEvent);
+        }
     }
 }
 
-void AudioFlinger::RecordThread::handleSyncStartEvent(const sp<SyncEvent>& event)
+void AudioFlinger::RecordThread::handleSyncStartEvent(
+        RecordThread::RecordTrack* recordTrack, const sp<SyncEvent>& event)
 {
-    if (event == mSyncStartEvent) {
+    if (event == recordTrack->mSyncStartEvent) {
         // TODO: use actual buffer filling status instead of 2 buffers when info is available
         // from audio HAL
-        mFramestoDrop = mFrameCount * 2;
+        recordTrack->mFramesToDrop = mFrameCount * 2;
     }
 }
 
@@ -5151,13 +5198,11 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     fdprintf(fd, "\nInput thread %p:\n", this);
 
     if (mActiveTracks.size() > 0) {
-        fdprintf(fd, "  In index: %zu\n", mRsmpInIndex);
         fdprintf(fd, "  Buffer size: %zu bytes\n", mBufferSize);
-        fdprintf(fd, "  Resampling: %d\n", (mResampler != NULL));
         fdprintf(fd, "  Out channel count: %u\n", mReqChannelCount);
         fdprintf(fd, "  Out sample rate: %u\n", mReqSampleRate);
     } else {
-        fdprintf(fd, "  No active record client\n");
+        fdprintf(fd, "  No active record clients\n");
     }
 
     dumpBase(fd, args);
@@ -5209,15 +5254,25 @@ void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args
 }
 
 // AudioBufferProvider interface
-status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts __unused)
+status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
+        AudioBufferProvider::Buffer* buffer, int64_t pts __unused)
 {
-    int32_t rear = mRsmpInRear;
-    int32_t front = mRsmpInFront;
+    RecordTrack *activeTrack = mRecordTrack;
+    sp<ThreadBase> threadBase = activeTrack->mThread.promote();
+    if (threadBase == 0) {
+        buffer->frameCount = 0;
+        return NOT_ENOUGH_DATA;
+    }
+    RecordThread *recordThread = (RecordThread *) threadBase.get();
+    int32_t rear = recordThread->mRsmpInRear;
+    int32_t front = activeTrack->mRsmpInFront;
     ssize_t filled = rear - front;
-    ALOG_ASSERT(0 <= filled && (size_t) filled <= mRsmpInFramesP2);
+    // FIXME should not be P2 (don't want to increase latency)
+    // FIXME if client not keeping up, discard
+    ALOG_ASSERT(0 <= filled && (size_t) filled <= recordThread->mRsmpInFramesP2);
     // 'filled' may be non-contiguous, so return only the first contiguous chunk
-    front &= mRsmpInFramesP2 - 1;
-    size_t part1 = mRsmpInFramesP2 - front;
+    front &= recordThread->mRsmpInFramesP2 - 1;
+    size_t part1 = recordThread->mRsmpInFramesP2 - front;
     if (part1 > (size_t) filled) {
         part1 = filled;
     }
@@ -5231,26 +5286,28 @@ status_t AudioFlinger::RecordThread::getNextBuffer(AudioBufferProvider::Buffer* 
         ALOGE("RecordThread::getNextBuffer() starved");
         buffer->raw = NULL;
         buffer->frameCount = 0;
-        mRsmpInUnrel = 0;
+        activeTrack->mRsmpInUnrel = 0;
         return NOT_ENOUGH_DATA;
     }
 
-    buffer->raw = mRsmpInBuffer + front * mChannelCount;
+    buffer->raw = recordThread->mRsmpInBuffer + front * recordThread->mChannelCount;
     buffer->frameCount = part1;
-    mRsmpInUnrel = part1;
+    activeTrack->mRsmpInUnrel = part1;
     return NO_ERROR;
 }
 
 // AudioBufferProvider interface
-void AudioFlinger::RecordThread::releaseBuffer(AudioBufferProvider::Buffer* buffer)
+void AudioFlinger::RecordThread::ResamplerBufferProvider::releaseBuffer(
+        AudioBufferProvider::Buffer* buffer)
 {
+    RecordTrack *activeTrack = mRecordTrack;
     size_t stepCount = buffer->frameCount;
     if (stepCount == 0) {
         return;
     }
-    ALOG_ASSERT(stepCount <= mRsmpInUnrel);
-    mRsmpInUnrel -= stepCount;
-    mRsmpInFront += stepCount;
+    ALOG_ASSERT(stepCount <= activeTrack->mRsmpInUnrel);
+    activeTrack->mRsmpInUnrel -= stepCount;
+    activeTrack->mRsmpInFront += stepCount;
     buffer->raw = NULL;
     buffer->frameCount = 0;
 }
@@ -5410,15 +5467,9 @@ void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param __unu
     mAudioFlinger->audioConfigChanged_l(event, mId, param2);
 }
 
+//FIXME should be renamed to _l
 void AudioFlinger::RecordThread::readInputParameters()
 {
-    delete[] mRsmpInBuffer;
-    // mRsmpInBuffer is always assigned a new[] below
-    delete[] mRsmpOutBuffer;
-    mRsmpOutBuffer = NULL;
-    delete mResampler;
-    mResampler = NULL;
-
     mSampleRate = mInput->stream->common.get_sample_rate(&mInput->stream->common);
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
     mChannelCount = popcount(mChannelMask);
@@ -5429,24 +5480,20 @@ void AudioFlinger::RecordThread::readInputParameters()
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
+    // This is the formula for calculating the temporary buffer size.
     // With 3 HAL buffers, we can guarantee ability to down-sample the input by ratio of 2:1 to
     // 1 full output buffer, regardless of the alignment of the available input.
+    // The "3" is somewhat arbitrary, and could probably be larger.
+    // A larger value should allow more old data to be read after a track calls start(),
+    // without increasing latency.
     mRsmpInFrames = mFrameCount * 3;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
+    delete[] mRsmpInBuffer;
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
     mRsmpInBuffer = new int16_t[(mRsmpInFramesP2 + mFrameCount - 1) * mChannelCount];
-    mRsmpInFront = 0;
-    mRsmpInRear = 0;
-    mRsmpInUnrel = 0;
 
-    if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2) {
-        mResampler = AudioResampler::create(16, (int) mChannelCount, mReqSampleRate);
-        mResampler->setSampleRate(mSampleRate);
-        mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
-        // resampler always outputs stereo
-        mRsmpOutBuffer = new int32_t[mFrameCount * FCC_2];
-    }
-    mRsmpInIndex = mFrameCount;
+    // mReqSampleRate and mReqChannelCount are constant due to AudioRecord API constraints.
+    // But if mSampleRate or mChannelCount changes, how will that affect active tracks?
 }
 
 uint32_t AudioFlinger::RecordThread::getInputFramesLost()
