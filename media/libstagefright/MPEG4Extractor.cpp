@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -2389,6 +2392,11 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         objectType = 32 + br.getBits(6);
     }
 
+    if(objectType == 1) { //AAC Main profile
+        ALOGD("\n >>> Found AAC mainprofile in MPEG4 Extractor... \n");
+    }
+
+    mLastTrack->meta->setInt32(kKeyAACProfile, objectType);
     uint32_t freqIndex = br.getBits(4);
 
     int32_t sampleRate = 0;
