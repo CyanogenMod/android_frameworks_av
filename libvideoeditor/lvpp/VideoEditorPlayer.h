@@ -62,6 +62,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         virtual void            pause();
         virtual void            close();
         void setAudioStreamType(audio_stream_type_t streamType) { mStreamType = streamType; }
+        virtual audio_stream_type_t getAudioStreamType() const { return mStreamType; }
                 void            setVolume(float left, float right);
         virtual status_t        dump(int fd,const Vector<String16>& args) const;
 

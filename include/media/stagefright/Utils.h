@@ -57,7 +57,8 @@ status_t mapMimeToAudioFormat(audio_format_t& format, const char* mime);
 status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink, const sp<MetaData>& meta);
 
 // Check whether the stream defined by meta can be offloaded to hardware
-bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, bool isStreaming);
+bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
+                      bool isStreaming, audio_stream_type_t streamType);
 
 }  // namespace android
 

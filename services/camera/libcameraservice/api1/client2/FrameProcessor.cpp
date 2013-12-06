@@ -29,13 +29,27 @@ namespace android {
 namespace camera2 {
 
 FrameProcessor::FrameProcessor(wp<CameraDeviceBase> device,
-                               wp<Camera2Client> client) :
+                               sp<Camera2Client> client) :
     FrameProcessorBase(device),
     mClient(client),
-    mLastFrameNumberOfFaces(0) {
+    mLastFrameNumberOfFaces(0),
+    mLast3AFrameNumber(-1) {
 
     sp<CameraDeviceBase> d = device.promote();
     mSynthesize3ANotify = !(d->willNotify3A());
+
+    {
+        SharedParameters::Lock l(client->getParameters());
+        mUsePartialQuirk = l.mParameters.quirks.partialResults;
+
+        // Initialize starting 3A state
+        m3aState.afTriggerId = l.mParameters.afTriggerCounter;
+        m3aState.aeTriggerId = l.mParameters.precaptureTriggerCounter;
+        // Check if lens is fixed-focus
+        if (l.mParameters.focusMode == Parameters::FOCUS_MODE_FIXED) {
+            m3aState.afMode = ANDROID_CONTROL_AF_MODE_OFF;
+        }
+    }
 }
 
 FrameProcessor::~FrameProcessor() {
@@ -49,20 +63,25 @@ bool FrameProcessor::processSingleFrame(CameraMetadata &frame,
         return false;
     }
 
-    if (processFaceDetect(frame, client) != OK) {
+    bool partialResult = false;
+    if (mUsePartialQuirk) {
+        camera_metadata_entry_t entry;
+        entry = frame.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+        if (entry.count > 0 &&
+                entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+            partialResult = true;
+        }
+    }
+
+    if (!partialResult && processFaceDetect(frame, client) != OK) {
         return false;
     }
 
     if (mSynthesize3ANotify) {
-        // Ignoring missing fields for now
         process3aState(frame, client);
     }
 
-    if (!FrameProcessorBase::processSingleFrame(frame, device)) {
-        return false;
-    }
-
-    return true;
+    return FrameProcessorBase::processSingleFrame(frame, device);
 }
 
 status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
@@ -198,91 +217,113 @@ status_t FrameProcessor::process3aState(const CameraMetadata &frame,
 
     ATRACE_CALL();
     camera_metadata_ro_entry_t entry;
-    int mId = client->getCameraId();
+    int cameraId = client->getCameraId();
 
     entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
     int32_t frameNumber = entry.data.i32[0];
+
+    // Don't send 3A notifications for the same frame number twice
+    if (frameNumber <= mLast3AFrameNumber) {
+        ALOGV("%s: Already sent 3A for frame number %d, skipping",
+                __FUNCTION__, frameNumber);
+        return OK;
+    }
+
+    mLast3AFrameNumber = frameNumber;
 
     // Get 3A states from result metadata
     bool gotAllStates = true;
 
     AlgState new3aState;
 
-    entry = frame.find(ANDROID_CONTROL_AE_STATE);
-    if (entry.count == 0) {
-        ALOGE("%s: Camera %d: No AE state provided by HAL for frame %d!",
-                __FUNCTION__, mId, frameNumber);
-        gotAllStates = false;
-    } else {
-        new3aState.aeState =
-                static_cast<camera_metadata_enum_android_control_ae_state>(
-                    entry.data.u8[0]);
-    }
+    // TODO: Also use AE mode, AE trigger ID
 
-    entry = frame.find(ANDROID_CONTROL_AF_STATE);
-    if (entry.count == 0) {
-        ALOGE("%s: Camera %d: No AF state provided by HAL for frame %d!",
-                __FUNCTION__, mId, frameNumber);
-        gotAllStates = false;
-    } else {
-        new3aState.afState =
-                static_cast<camera_metadata_enum_android_control_af_state>(
-                    entry.data.u8[0]);
-    }
+    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AF_MODE,
+            &new3aState.afMode, frameNumber, cameraId);
 
-    entry = frame.find(ANDROID_CONTROL_AWB_STATE);
-    if (entry.count == 0) {
-        ALOGE("%s: Camera %d: No AWB state provided by HAL for frame %d!",
-                __FUNCTION__, mId, frameNumber);
-        gotAllStates = false;
-    } else {
-        new3aState.awbState =
-                static_cast<camera_metadata_enum_android_control_awb_state>(
-                    entry.data.u8[0]);
-    }
+    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AWB_MODE,
+            &new3aState.awbMode, frameNumber, cameraId);
 
-    int32_t afTriggerId = 0;
-    entry = frame.find(ANDROID_CONTROL_AF_TRIGGER_ID);
-    if (entry.count == 0) {
-        ALOGE("%s: Camera %d: No AF trigger ID provided by HAL for frame %d!",
-                __FUNCTION__, mId, frameNumber);
-        gotAllStates = false;
-    } else {
-        afTriggerId = entry.data.i32[0];
-    }
+    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AE_STATE,
+            &new3aState.aeState, frameNumber, cameraId);
 
-    int32_t aeTriggerId = 0;
-    entry = frame.find(ANDROID_CONTROL_AE_PRECAPTURE_ID);
-    if (entry.count == 0) {
-        ALOGE("%s: Camera %d: No AE precapture trigger ID provided by HAL"
-                " for frame %d!",
-                __FUNCTION__, mId, frameNumber);
-        gotAllStates = false;
-    } else {
-        aeTriggerId = entry.data.i32[0];
-    }
+    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AF_STATE,
+            &new3aState.afState, frameNumber, cameraId);
+
+    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AWB_STATE,
+            &new3aState.awbState, frameNumber, cameraId);
+
+    gotAllStates &= get3aResult<int32_t>(frame, ANDROID_CONTROL_AF_TRIGGER_ID,
+            &new3aState.afTriggerId, frameNumber, cameraId);
+
+    gotAllStates &= get3aResult<int32_t>(frame, ANDROID_CONTROL_AE_PRECAPTURE_ID,
+            &new3aState.aeTriggerId, frameNumber, cameraId);
 
     if (!gotAllStates) return BAD_VALUE;
 
     if (new3aState.aeState != m3aState.aeState) {
-        ALOGV("%s: AE state changed from 0x%x to 0x%x",
-                __FUNCTION__, m3aState.aeState, new3aState.aeState);
-        client->notifyAutoExposure(new3aState.aeState, aeTriggerId);
+        ALOGV("%s: Camera %d: AE state %d->%d",
+                __FUNCTION__, cameraId,
+                m3aState.aeState, new3aState.aeState);
+        client->notifyAutoExposure(new3aState.aeState, new3aState.aeTriggerId);
     }
-    if (new3aState.afState != m3aState.afState) {
-        ALOGV("%s: AF state changed from 0x%x to 0x%x",
-                __FUNCTION__, m3aState.afState, new3aState.afState);
-        client->notifyAutoFocus(new3aState.afState, afTriggerId);
+
+    if (new3aState.afState != m3aState.afState ||
+        new3aState.afMode != m3aState.afMode ||
+        new3aState.afTriggerId != m3aState.afTriggerId) {
+        ALOGV("%s: Camera %d: AF state %d->%d. AF mode %d->%d. Trigger %d->%d",
+                __FUNCTION__, cameraId,
+                m3aState.afState, new3aState.afState,
+                m3aState.afMode, new3aState.afMode,
+                m3aState.afTriggerId, new3aState.afTriggerId);
+        client->notifyAutoFocus(new3aState.afState, new3aState.afTriggerId);
     }
-    if (new3aState.awbState != m3aState.awbState) {
-        ALOGV("%s: AWB state changed from 0x%x to 0x%x",
-                __FUNCTION__, m3aState.awbState, new3aState.awbState);
-        client->notifyAutoWhitebalance(new3aState.awbState, aeTriggerId);
+    if (new3aState.awbState != m3aState.awbState ||
+        new3aState.awbMode != m3aState.awbMode) {
+        ALOGV("%s: Camera %d: AWB state %d->%d. AWB mode %d->%d",
+                __FUNCTION__, cameraId,
+                m3aState.awbState, new3aState.awbState,
+                m3aState.awbMode, new3aState.awbMode);
+        client->notifyAutoWhitebalance(new3aState.awbState,
+                new3aState.aeTriggerId);
     }
 
     m3aState = new3aState;
 
     return OK;
+}
+
+template<typename Src, typename T>
+bool FrameProcessor::get3aResult(const CameraMetadata& result, int32_t tag,
+        T* value, int32_t frameNumber, int cameraId) {
+    camera_metadata_ro_entry_t entry;
+    if (value == NULL) {
+        ALOGE("%s: Camera %d: Value to write to is NULL",
+                __FUNCTION__, cameraId);
+        return false;
+    }
+
+    entry = result.find(tag);
+    if (entry.count == 0) {
+        ALOGE("%s: Camera %d: No %s provided by HAL for frame %d!",
+                __FUNCTION__, cameraId,
+                get_camera_metadata_tag_name(tag), frameNumber);
+        return false;
+    } else {
+        switch(sizeof(Src)){
+            case sizeof(uint8_t):
+                *value = static_cast<T>(entry.data.u8[0]);
+                break;
+            case sizeof(int32_t):
+                *value = static_cast<T>(entry.data.i32[0]);
+                break;
+            default:
+                ALOGE("%s: Camera %d: Unsupported source",
+                        __FUNCTION__, cameraId);
+                return false;
+        }
+    }
+    return true;
 }
 
 

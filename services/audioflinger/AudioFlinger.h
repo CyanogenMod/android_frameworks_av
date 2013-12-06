@@ -122,6 +122,7 @@ public:
                                 pid_t tid,
                                 int *sessionId,
                                 String8& name,
+                                int clientUid,
                                 status_t *status);
 #ifdef QCOM_HARDWARE
     virtual sp<IDirectTrack> createDirectTrack(

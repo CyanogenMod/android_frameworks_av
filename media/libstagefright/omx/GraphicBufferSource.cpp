@@ -148,6 +148,18 @@ void GraphicBufferSource::omxExecuting() {
     }
 }
 
+void GraphicBufferSource::omxIdle() {
+    ALOGV("omxIdle");
+
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mExecuting) {
+        // We are only interested in the transition from executing->idle,
+        // not loaded->idle.
+        mExecuting = false;
+    }
+}
+
 void GraphicBufferSource::omxLoaded(){
     Mutex::Autolock autoLock(mMutex);
     if (!mExecuting) {
@@ -194,7 +206,9 @@ void GraphicBufferSource::addCodecBuffer(OMX_BUFFERHEADERTYPE* header) {
 void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     Mutex::Autolock autoLock(mMutex);
 
-    CHECK(mExecuting);  // could this happen if app stop()s early?
+    if (!mExecuting) {
+        return;
+    }
 
     int cbi = findMatchingCodecBuffer_l(header);
     if (cbi < 0) {
@@ -213,7 +227,12 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     // see if the GraphicBuffer reference was null, which should only ever
     // happen for EOS.
     if (codecBuffer.mGraphicBuffer == NULL) {
-        CHECK(mEndOfStream && mEndOfStreamSent);
+        if (!(mEndOfStream && mEndOfStreamSent)) {
+            // This can happen when broken code sends us the same buffer
+            // twice in a row.
+            ALOGE("ERROR: codecBufferEmptied on non-EOS null buffer "
+                    "(buffer emptied twice?)");
+        }
         // No GraphicBuffer to deal with, no additional input or output is
         // expected, so just return.
         return;
@@ -382,6 +401,23 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
     CHECK(mExecuting && mNumFramesAvailable == 0);
 
     if (mLatestSubmittedBufferId < 0 || mSuspended) {
+        return false;
+    }
+    if (mBufferSlot[mLatestSubmittedBufferId] == NULL) {
+        // This can happen if the remote side disconnects, causing
+        // onBuffersReleased() to NULL out our copy of the slots.  The
+        // buffer is gone, so we have nothing to show.
+        //
+        // To be on the safe side we try to release the buffer.
+        ALOGD("repeatLatestSubmittedBuffer_l: slot was NULL");
+        mBufferQueue->releaseBuffer(
+                mLatestSubmittedBufferId,
+                mLatestSubmittedBufferFrameNum,
+                EGL_NO_DISPLAY,
+                EGL_NO_SYNC_KHR,
+                Fence::NO_FENCE);
+        mLatestSubmittedBufferId = -1;
+        mLatestSubmittedBufferFrameNum = 0;
         return false;
     }
 

@@ -41,6 +41,7 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 
+#include "utils/CameraTraces.h"
 #include "device3/Camera3Device.h"
 #include "device3/Camera3OutputStream.h"
 #include "device3/Camera3InputStream.h"
@@ -54,6 +55,7 @@ Camera3Device::Camera3Device(int id):
         mId(id),
         mHal3Device(NULL),
         mStatus(STATUS_UNINITIALIZED),
+        mUsePartialResultQuirk(false),
         mNextResultFrameNumber(0),
         mNextShutterFrameNumber(0),
         mListener(NULL)
@@ -191,6 +193,15 @@ status_t Camera3Device::initialize(camera_module_t *module)
     mNextStreamId = 0;
     mNeedConfig = true;
     mPauseStateNotify = false;
+
+    /** Check for quirks */
+
+    // Will the HAL be sending in early partial result metadata?
+    camera_metadata_entry partialResultsQuirk =
+            mDeviceInfo.find(ANDROID_QUIRKS_USE_PARTIAL_RESULT);
+    if (partialResultsQuirk.count > 0 && partialResultsQuirk.data.u8[0] == 1) {
+        mUsePartialResultQuirk = true;
+    }
 
     return OK;
 }
@@ -1363,6 +1374,10 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
     // But only do error state transition steps for the first error
     if (mStatus == STATUS_ERROR || mStatus == STATUS_UNINITIALIZED) return;
 
+    // Save stack trace. View by dumping it later.
+    CameraTraces::saveTrace();
+    // TODO: consider adding errorCause and client pid/procname
+
     mErrorCause = errorCause;
 
     mRequestThread->setPaused(true);
@@ -1386,6 +1401,175 @@ status_t Camera3Device::registerInFlight(int32_t frameNumber,
 }
 
 /**
+ * QUIRK(partial results)
+ * Check if all 3A fields are ready, and send off a partial 3A-only result
+ * to the output frame queue
+ */
+bool Camera3Device::processPartial3AQuirk(
+        int32_t frameNumber, int32_t requestId,
+        const CameraMetadata& partial) {
+
+    // Check if all 3A states are present
+    // The full list of fields is
+    //   android.control.afMode
+    //   android.control.awbMode
+    //   android.control.aeState
+    //   android.control.awbState
+    //   android.control.afState
+    //   android.control.afTriggerID
+    //   android.control.aePrecaptureID
+    // TODO: Add android.control.aeMode
+
+    bool gotAllStates = true;
+
+    uint8_t afMode;
+    uint8_t awbMode;
+    uint8_t aeState;
+    uint8_t afState;
+    uint8_t awbState;
+    int32_t afTriggerId;
+    int32_t aeTriggerId;
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_MODE,
+        &afMode, frameNumber);
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AWB_MODE,
+        &awbMode, frameNumber);
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AE_STATE,
+        &aeState, frameNumber);
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_STATE,
+        &afState, frameNumber);
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AWB_STATE,
+        &awbState, frameNumber);
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_TRIGGER_ID,
+        &afTriggerId, frameNumber);
+
+    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AE_PRECAPTURE_ID,
+        &aeTriggerId, frameNumber);
+
+    if (!gotAllStates) return false;
+
+    ALOGVV("%s: Camera %d: Frame %d, Request ID %d: AF mode %d, AWB mode %d, "
+        "AF state %d, AE state %d, AWB state %d, "
+        "AF trigger %d, AE precapture trigger %d",
+        __FUNCTION__, mId, frameNumber, requestId,
+        afMode, awbMode,
+        afState, aeState, awbState,
+        afTriggerId, aeTriggerId);
+
+    // Got all states, so construct a minimal result to send
+    // In addition to the above fields, this means adding in
+    //   android.request.frameCount
+    //   android.request.requestId
+    //   android.quirks.partialResult
+
+    const size_t kMinimal3AResultEntries = 10;
+
+    Mutex::Autolock l(mOutputLock);
+
+    CameraMetadata& min3AResult =
+            *mResultQueue.insert(
+                mResultQueue.end(),
+                CameraMetadata(kMinimal3AResultEntries, /*dataCapacity*/ 0));
+
+    if (!insert3AResult(min3AResult, ANDROID_REQUEST_FRAME_COUNT,
+            &frameNumber, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_REQUEST_ID,
+            &requestId, frameNumber)) {
+        return false;
+    }
+
+    static const uint8_t partialResult = ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL;
+    if (!insert3AResult(min3AResult, ANDROID_QUIRKS_PARTIAL_RESULT,
+            &partialResult, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AF_MODE,
+            &afMode, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AWB_MODE,
+            &awbMode, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AE_STATE,
+            &aeState, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AF_STATE,
+            &afState, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AWB_STATE,
+            &awbState, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AF_TRIGGER_ID,
+            &afTriggerId, frameNumber)) {
+        return false;
+    }
+
+    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AE_PRECAPTURE_ID,
+            &aeTriggerId, frameNumber)) {
+        return false;
+    }
+
+    mResultSignal.signal();
+
+    return true;
+}
+
+template<typename T>
+bool Camera3Device::get3AResult(const CameraMetadata& result, int32_t tag,
+        T* value, int32_t frameNumber) {
+    (void) frameNumber;
+
+    camera_metadata_ro_entry_t entry;
+
+    entry = result.find(tag);
+    if (entry.count == 0) {
+        ALOGVV("%s: Camera %d: Frame %d: No %s provided by HAL!", __FUNCTION__,
+            mId, frameNumber, get_camera_metadata_tag_name(tag));
+        return false;
+    }
+
+    if (sizeof(T) == sizeof(uint8_t)) {
+        *value = entry.data.u8[0];
+    } else if (sizeof(T) == sizeof(int32_t)) {
+        *value = entry.data.i32[0];
+    } else {
+        ALOGE("%s: Unexpected type", __FUNCTION__);
+        return false;
+    }
+    return true;
+}
+
+template<typename T>
+bool Camera3Device::insert3AResult(CameraMetadata& result, int32_t tag,
+        const T* value, int32_t frameNumber) {
+    if (result.update(tag, value, 1) != NO_ERROR) {
+        mResultQueue.erase(--mResultQueue.end(), mResultQueue.end());
+        SET_ERR("Frame %d: Failed to set %s in partial metadata",
+                frameNumber, get_camera_metadata_tag_name(tag));
+        return false;
+    }
+    return true;
+}
+
+/**
  * Camera HAL device callback methods
  */
 
@@ -1400,6 +1584,8 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 frameNumber);
         return;
     }
+    bool partialResultQuirk = false;
+    CameraMetadata collectedQuirkResult;
 
     // Get capture timestamp from list of in-flight requests, where it was added
     // by the shutter notification for this frame. Then update the in-flight
@@ -1415,23 +1601,57 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             return;
         }
         InFlightRequest &request = mInFlightMap.editValueAt(idx);
+
+        // Check if this result carries only partial metadata
+        if (mUsePartialResultQuirk && result->result != NULL) {
+            camera_metadata_ro_entry_t partialResultEntry;
+            res = find_camera_metadata_ro_entry(result->result,
+                    ANDROID_QUIRKS_PARTIAL_RESULT, &partialResultEntry);
+            if (res != NAME_NOT_FOUND &&
+                    partialResultEntry.count > 0 &&
+                    partialResultEntry.data.u8[0] ==
+                    ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+                // A partial result. Flag this as such, and collect this
+                // set of metadata into the in-flight entry.
+                partialResultQuirk = true;
+                request.partialResultQuirk.collectedResult.append(
+                    result->result);
+                request.partialResultQuirk.collectedResult.erase(
+                    ANDROID_QUIRKS_PARTIAL_RESULT);
+                // Fire off a 3A-only result if possible
+                if (!request.partialResultQuirk.haveSent3A) {
+                    request.partialResultQuirk.haveSent3A =
+                            processPartial3AQuirk(frameNumber,
+                                    request.requestId,
+                                    request.partialResultQuirk.collectedResult);
+                }
+            }
+        }
+
         timestamp = request.captureTimestamp;
         /**
-         * One of the following must happen before it's legal to call process_capture_result:
+         * One of the following must happen before it's legal to call process_capture_result,
+         * unless partial metadata is being provided:
          * - CAMERA3_MSG_SHUTTER (expected during normal operation)
          * - CAMERA3_MSG_ERROR (expected during flush)
          */
-        if (request.requestStatus == OK && timestamp == 0) {
+        if (request.requestStatus == OK && timestamp == 0 && !partialResultQuirk) {
             SET_ERR("Called before shutter notify for frame %d",
                     frameNumber);
             return;
         }
 
-        if (result->result != NULL) {
+        // Did we get the (final) result metadata for this capture?
+        if (result->result != NULL && !partialResultQuirk) {
             if (request.haveResultMetadata) {
                 SET_ERR("Called multiple times with metadata for frame %d",
                         frameNumber);
                 return;
+            }
+            if (mUsePartialResultQuirk &&
+                    !request.partialResultQuirk.collectedResult.isEmpty()) {
+                collectedQuirkResult.acquire(
+                    request.partialResultQuirk.collectedResult);
             }
             request.haveResultMetadata = true;
         }
@@ -1444,6 +1664,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             return;
         }
 
+        // Check if everything has arrived for this result (buffers and metadata)
         if (request.haveResultMetadata && request.numBuffersLeft == 0) {
             ATRACE_ASYNC_END("frame capture", frameNumber);
             mInFlightMap.removeItemsAt(idx, 1);
@@ -1458,8 +1679,11 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     }
 
     // Process the result metadata, if provided
-    if (result->result != NULL) {
+    bool gotResult = false;
+    if (result->result != NULL && !partialResultQuirk) {
         Mutex::Autolock l(mOutputLock);
+
+        gotResult = true;
 
         if (frameNumber != mNextResultFrameNumber) {
             SET_ERR("Out-of-order capture result metadata submitted! "
@@ -1469,18 +1693,25 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
         mNextResultFrameNumber++;
 
-        CameraMetadata &captureResult =
-                *mResultQueue.insert(mResultQueue.end(), CameraMetadata());
-
+        CameraMetadata captureResult;
         captureResult = result->result;
+
         if (captureResult.update(ANDROID_REQUEST_FRAME_COUNT,
                         (int32_t*)&frameNumber, 1) != OK) {
             SET_ERR("Failed to set frame# in metadata (%d)",
                     frameNumber);
+            gotResult = false;
         } else {
             ALOGVV("%s: Camera %d: Set frame# in metadata (%d)",
                     __FUNCTION__, mId, frameNumber);
         }
+
+        // Append any previous partials to form a complete result
+        if (mUsePartialResultQuirk && !collectedQuirkResult.isEmpty()) {
+            captureResult.append(collectedQuirkResult);
+        }
+
+        captureResult.sort();
 
         // Check that there's a timestamp in the result metadata
 
@@ -1489,10 +1720,19 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         if (entry.count == 0) {
             SET_ERR("No timestamp provided by HAL for frame %d!",
                     frameNumber);
+            gotResult = false;
         } else if (timestamp != entry.data.i64[0]) {
             SET_ERR("Timestamp mismatch between shutter notify and result"
                     " metadata for frame %d (%lld vs %lld respectively)",
                     frameNumber, timestamp, entry.data.i64[0]);
+            gotResult = false;
+        }
+
+        if (gotResult) {
+            // Valid result, insert into queue
+            CameraMetadata& queuedResult =
+                *mResultQueue.insert(mResultQueue.end(), CameraMetadata());
+            queuedResult.swap(captureResult);
         }
     } // scope for mOutputLock
 
@@ -1512,7 +1752,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
     // Finally, signal any waiters for new frames
 
-    if (result->result != NULL) {
+    if (gotResult) {
         mResultSignal.signal();
     }
 

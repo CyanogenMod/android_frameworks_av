@@ -89,6 +89,9 @@ bool MetaData::setRect(
     return setData(key, TYPE_RECT, &r, sizeof(r));
 }
 
+/**
+ * Note that the returned pointer becomes invalid when additional metadata is set.
+ */
 bool MetaData::findCString(uint32_t key, const char **value) {
     uint32_t type;
     const void *data;
