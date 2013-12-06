@@ -519,7 +519,7 @@ public:
 
                 void        setMasterVolume(float value);
                 void        setMasterMute(bool muted);
-
+                void        setPostPro();
                 void        setStreamVolume(audio_stream_type_t stream, float value);
                 void        setStreamMute(audio_stream_type_t stream, bool muted);
 
