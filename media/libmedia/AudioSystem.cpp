@@ -617,11 +617,7 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return 0;
-#ifdef STE_HARDWARE
-    return aps->getOutput(stream, samplingRate, format, channelMask, flags, NULL);
-#else
     return aps->getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
-#endif
 }
 
 extern "C" audio_io_handle_t _ZN7android11AudioSystem9getOutputE19audio_stream_type_tjjj27audio_policy_output_flags_t(audio_stream_type_t stream,
