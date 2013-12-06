@@ -486,7 +486,7 @@ uint32_t AudioTrack::latency() const
         if (0 != mSampleRate){
             newLatency = afLatency + (1000*mCblk->frameCount_) / mSampleRate;
         }
-        ALOGD("latency() mLatency = %d, newLatency = %d", mLatency, newLatency);
+        ALOGV("latency() mLatency = %d, newLatency = %d", mLatency, newLatency);
         return newLatency;
     }
     return mLatency;
