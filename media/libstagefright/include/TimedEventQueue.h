@@ -33,13 +33,21 @@ struct TimedEventQueue {
 
     struct Event : public RefBase {
         Event()
-            : mEventID(0) {
+            : mEventID(0), mHasWakeLock(false) {
         }
 
         virtual ~Event() {}
 
         event_id eventID() {
             return mEventID;
+        }
+
+        void setWakeLock() {
+            mHasWakeLock = true;
+        }
+
+        bool hasWakeLock() {
+            return mHasWakeLock;
         }
 
     protected:
@@ -49,6 +57,7 @@ struct TimedEventQueue {
         friend class TimedEventQueue;
 
         event_id mEventID;
+        bool mHasWakeLock;
 
         void setEventID(event_id id) {
             mEventID = id;
@@ -118,7 +127,6 @@ private:
     struct QueueItem {
         sp<Event> event;
         int64_t realtime_us;
-        bool has_wakelock;
     };
 
     struct StopEvent : public TimedEventQueue::Event {
