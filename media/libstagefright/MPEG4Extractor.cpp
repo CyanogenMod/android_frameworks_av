@@ -2408,6 +2408,10 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
     }
 
     mLastTrack->meta->setInt32(kKeyAACProfile, objectType);
+
+    //keep AOT type
+    mLastTrack->meta->setInt32(kKeyAACAOT, objectType);
+
     uint32_t freqIndex = br.getBits(4);
 
     int32_t sampleRate = 0;
