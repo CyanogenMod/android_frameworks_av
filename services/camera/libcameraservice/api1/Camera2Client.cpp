@@ -76,13 +76,15 @@ status_t Camera2Client::initialize(camera_module_t *module)
         return res;
     }
 
-    SharedParameters::Lock l(mParameters);
+    {
+        SharedParameters::Lock l(mParameters);
 
-    res = l.mParameters.initialize(&(mDevice->info()));
-    if (res != OK) {
-        ALOGE("%s: Camera %d: unable to build defaults: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return NO_INIT;
+        res = l.mParameters.initialize(&(mDevice->info()));
+        if (res != OK) {
+            ALOGE("%s: Camera %d: unable to build defaults: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return NO_INIT;
+        }
     }
 
     String8 threadName;
@@ -135,6 +137,7 @@ status_t Camera2Client::initialize(camera_module_t *module)
     mCallbackProcessor->run(threadName.string());
 
     if (gLogLevel >= 1) {
+        SharedParameters::Lock l(mParameters);
         ALOGD("%s: Default parameters converted from camera %d:", __FUNCTION__,
               mCameraId);
         ALOGD("%s", l.mParameters.paramsFlattened.string());
@@ -351,6 +354,10 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     }
     if (p.quirks.meteringCropRegion) {
         result.appendFormat("    meteringCropRegion\n");
+        haveQuirk = true;
+    }
+    if (p.quirks.partialResults) {
+        result.appendFormat("    usePartialResult\n");
         haveQuirk = true;
     }
     if (!haveQuirk) {

@@ -45,6 +45,7 @@
 #include "api1/Camera2Client.h"
 #include "api_pro/ProCamera2Client.h"
 #include "api2/CameraDeviceClient.h"
+#include "utils/CameraTraces.h"
 #include "CameraDeviceFactory.h"
 
 namespace android {
@@ -1257,6 +1258,10 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         }
 
         if (locked) mServiceLock.unlock();
+
+        // Dump camera traces if there were any
+        write(fd, "\n", 1);
+        camera3::CameraTraces::dump(fd, args);
 
         // change logging level
         int n = args.size();
