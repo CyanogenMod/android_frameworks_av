@@ -41,6 +41,9 @@ public:
         MED_QUALITY=2,
         HIGH_QUALITY=3,
         VERY_HIGH_QUALITY=4,
+        DYN_LOW_QUALITY=5,
+        DYN_MED_QUALITY=6,
+        DYN_HIGH_QUALITY=7,
     };
 
     static AudioResampler* create(int bitDepth, int inChannelCount,

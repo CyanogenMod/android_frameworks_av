@@ -23,7 +23,8 @@ LOCAL_SRC_FILES:=               \
     AudioPolicyService.cpp      \
     ServiceUtilities.cpp        \
     AudioResamplerCubic.cpp.arm \
-    AudioResamplerSinc.cpp.arm
+    AudioResamplerSinc.cpp.arm  \
+    AudioResamplerDyn.cpp.arm
 
 LOCAL_SRC_FILES += StateQueue.cpp
 
@@ -74,10 +75,11 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
-	test-resample.cpp 			\
+    test-resample.cpp           \
     AudioResampler.cpp.arm      \
-	AudioResamplerCubic.cpp.arm \
-    AudioResamplerSinc.cpp.arm
+    AudioResamplerCubic.cpp.arm \
+    AudioResamplerSinc.cpp.arm  \
+    AudioResamplerDyn.cpp.arm
 
 LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-utils)
