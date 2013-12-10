@@ -4350,6 +4350,9 @@ void AudioFlinger::OffloadThread::flushHw_l()
     mBytesRemaining = 0;
     mPausedWriteLength = 0;
     mPausedBytesRemaining = 0;
+    // Treat flush as moving OffloadThread state back to Idle.
+    mHwPaused = false;
+
     if (mUseAsyncWrite) {
         // discard any pending drain or write ack by incrementing sequence
         mWriteAckSequence = (mWriteAckSequence + 2) & ~1;
