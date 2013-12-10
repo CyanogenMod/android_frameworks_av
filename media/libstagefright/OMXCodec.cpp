@@ -2327,7 +2327,12 @@ OMXCodec::BufferInfo* OMXCodec::dequeueBufferFromNativeWindow() {
     // Dequeue the next buffer from the native window.
     ANativeWindowBuffer* buf;
     int fenceFd = -1;
+
+    // dequeue-and-wait can block. relinquish mLock to
+    // let other thread (CallbackDispatcher) do some useful work
+    mLock.unlock();
     int err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
+    mLock.lock();
     if (err != 0) {
       CODEC_LOGE("dequeueBuffer failed w/ error 0x%08x", err);
 
