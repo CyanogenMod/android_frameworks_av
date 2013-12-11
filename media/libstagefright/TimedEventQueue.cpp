@@ -127,6 +127,7 @@ TimedEventQueue::event_id TimedEventQueue::postTimedEvent(
     QueueItem item;
     item.event = event;
     item.realtime_us = realtime_us;
+    item.has_wakelock = false;
 
     if (it == mQueue.begin()) {
         mQueueHeadChangedCondition.signal();
@@ -134,7 +135,7 @@ TimedEventQueue::event_id TimedEventQueue::postTimedEvent(
 
     if (realtime_us > ALooper::GetNowUs() + kWakelockMinDelay) {
         acquireWakeLock_l();
-        event->setWakeLock();
+        item.has_wakelock = true;
     }
     mQueue.insert(it, item);
 
@@ -190,7 +191,7 @@ void TimedEventQueue::cancelEvents(
         ALOGV("cancelling event %d", (*it).event->eventID());
 
         (*it).event->setEventID(0);
-        if ((*it).event->hasWakeLock()) {
+        if ((*it).has_wakelock) {
             releaseWakeLock_l();
         }
         it = mQueue.erase(it);
@@ -288,9 +289,6 @@ void TimedEventQueue::threadEntry() {
         if (event != NULL) {
             // Fire event with the lock NOT held.
             event->fire(this, now_us);
-            if (event->hasWakeLock()) {
-                releaseWakeLock_l();
-            }
         }
     }
 }
@@ -302,6 +300,9 @@ sp<TimedEventQueue::Event> TimedEventQueue::removeEventFromQueue_l(
         if ((*it).event->eventID() == id) {
             sp<Event> event = (*it).event;
             event->setEventID(0);
+            if ((*it).has_wakelock) {
+                releaseWakeLock_l();
+            }
             mQueue.erase(it);
             return event;
         }
