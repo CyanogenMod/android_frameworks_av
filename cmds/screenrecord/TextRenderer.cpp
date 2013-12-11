@@ -102,8 +102,9 @@ status_t TextRenderer::loadIntoTexture() {
     }
 
     uint32_t potHeight = powerOfTwoCeil(FontBitmap::height);
-    uint32_t* rgbaPixels = new uint32_t[FontBitmap::width * potHeight];
+    uint8_t* rgbaPixels = new uint8_t[FontBitmap::width * potHeight * 4];
     memset(rgbaPixels, 0, FontBitmap::width * potHeight * 4);
+    uint8_t* pix = rgbaPixels;
 
     for (unsigned int i = 0; i < FontBitmap::width * FontBitmap::height; i++) {
         uint8_t alpha, color;
@@ -116,7 +117,10 @@ status_t TextRenderer::loadIntoTexture() {
             color = FontBitmap::pixels[i] & ~1;
             alpha = 0xff;
         }
-        rgbaPixels[i] = (alpha << 24) | (color << 16) | (color << 8) | color;
+        *pix++ = color;
+        *pix++ = color;
+        *pix++ = color;
+        *pix++ = alpha;
     }
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, FontBitmap::width, potHeight, 0,
@@ -151,11 +155,20 @@ float TextRenderer::computeScaledStringWidth(const String8& str8) const {
     return computeScaledStringWidth(str, strlen(str));
 }
 
+size_t TextRenderer::glyphIndex(char ch) const {
+    size_t chi = ch - FontBitmap::firstGlyphChar;
+    if (chi >= FontBitmap::numGlyphs) {
+        chi = '?' - FontBitmap::firstGlyphChar;
+    }
+    assert(chi < FontBitmap::numGlyphs);
+    return chi;
+}
+
 float TextRenderer::computeScaledStringWidth(const char* str,
         size_t len) const {
     float width = 0.0f;
     for (size_t i = 0; i < len; i++) {
-        size_t chi = str[i] - FontBitmap::firstGlyphChar;
+        size_t chi = glyphIndex(str[i]);
         float glyphWidth = FontBitmap::glyphWidth[chi];
         width += (glyphWidth - 1 - FontBitmap::outlineWidth) * mScale;
     }
@@ -182,11 +195,7 @@ void TextRenderer::drawString(const Program& program, const float* texMatrix,
     float fullTexWidth = FontBitmap::width;
     float fullTexHeight = powerOfTwoCeil(FontBitmap::height);
     for (size_t i = 0; i < len; i++) {
-        size_t chi = str[i] - FontBitmap::firstGlyphChar;
-        if (chi >= FontBitmap::numGlyphs) {
-            chi = '?' - FontBitmap::firstGlyphChar;
-            assert(chi < FontBitmap::numGlyphs);
-        }
+        size_t chi = glyphIndex(str[i]);
         float glyphWidth = FontBitmap::glyphWidth[chi];
         float glyphHeight = FontBitmap::maxGlyphHeight;
 
