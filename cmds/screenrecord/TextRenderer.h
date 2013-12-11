@@ -109,6 +109,10 @@ private:
     // Like getGlyphHeight(), but result is scaled.
     float getScaledGlyphHeight() const { return getGlyphHeight() * mScale; }
 
+    // Convert an ASCII character to a glyph index.  Returns the glyph for
+    // '?' if we have no glyph for the specified character.
+    size_t glyphIndex(char ch) const;
+
     GLuint mTextureName;
     float mScale;
 
