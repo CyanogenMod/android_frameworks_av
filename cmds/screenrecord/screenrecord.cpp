@@ -45,6 +45,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <sys/wait.h>
+#include <assert.h>
 
 #include "screenrecord.h"
 #include "Overlay.h"
@@ -532,9 +533,10 @@ static status_t recordScreen(const char* fileName) {
 
     // Configure optional overlay.
     sp<IGraphicBufferProducer> bufferProducer;
-    sp<Overlay> overlay = new Overlay();
+    sp<Overlay> overlay;
     if (gWantFrameTime) {
         // Send virtual display frames to an external texture.
+        overlay = new Overlay();
         err = overlay->start(encoderInputSurface, &bufferProducer);
         if (err != NO_ERROR) {
             encoder->release();
@@ -578,7 +580,9 @@ static status_t recordScreen(const char* fileName) {
     // Shut everything down, starting with the producer side.
     encoderInputSurface = NULL;
     SurfaceComposerClient::destroyDisplay(dpy);
-    overlay->stop();
+    if (overlay != NULL) {
+        overlay->stop();
+    }
     encoder->stop();
     // If we don't stop muxer explicitly, i.e. let the destructor run,
     // it may hang (b/11050628).
@@ -717,8 +721,8 @@ static void usage() {
         "    display resolution (if supported), 1280x720 if not.  For best results,\n"
         "    use a size supported by the AVC encoder.\n"
         "--bit-rate RATE\n"
-        "    Set the video bit rate, in megabits per second.  Value may be specified\n"
-        "    in bits or megabits, e.g. '4000000' is equivalent to '4M'.  Default %dMbps.\n"
+        "    Set the video bit rate, in bits per second.  Value may be specified as\n"
+        "    bits or megabits, e.g. '4000000' is equivalent to '4M'.  Default %dMbps.\n"
         "--bugreport\n"
         "    Add additional information, such as a timestamp overlay, that is helpful\n"
         "    in videos captured to illustrate bugs.\n"
