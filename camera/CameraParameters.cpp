@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <camera/CameraParameters.h>
+#include <utils/threads.h>
 
 namespace android {
 // Parameter keys to communicate between camera application and driver.
@@ -100,7 +101,7 @@ const char CameraParameters::KEY_SUPPORTED_SCENE_MODES[] = "scene-mode-values";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::KEY_SCENE_DETECT[] = "scene-detect";
 const char CameraParameters::KEY_SUPPORTED_SCENE_DETECT[] = "scene-detect-values";
-#endif QCOM_HARDWARE
+#endif // QCOM_HARDWARE
 const char CameraParameters::KEY_FLASH_MODE[] = "flash-mode";
 const char CameraParameters::KEY_SUPPORTED_FLASH_MODES[] = "flash-mode-values";
 const char CameraParameters::KEY_FOCUS_MODE[] = "focus-mode";
@@ -515,6 +516,8 @@ const char CameraParameters::SCENE_MODE_TEXT[] = "text";
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
+static Mutex gCameraParamsLock;
+
 int CameraParameters::getOrientation() const
 {
     const char* orientation = get("orientation");
@@ -548,6 +551,8 @@ CameraParameters::~CameraParameters()
 
 String8 CameraParameters::flatten() const
 {
+    Mutex::Autolock lock(gCameraParamsLock);
+
     String8 flattened("");
     size_t size = mMap.size();
 
@@ -568,6 +573,8 @@ String8 CameraParameters::flatten() const
 
 void CameraParameters::unflatten(const String8 &params)
 {
+    Mutex::Autolock lock(gCameraParamsLock);
+
     const char *a = params.string();
     const char *b;
 
