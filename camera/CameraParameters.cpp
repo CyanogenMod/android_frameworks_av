@@ -100,7 +100,7 @@ const char CameraParameters::KEY_SUPPORTED_SCENE_MODES[] = "scene-mode-values";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::KEY_SCENE_DETECT[] = "scene-detect";
 const char CameraParameters::KEY_SUPPORTED_SCENE_DETECT[] = "scene-detect-values";
-#endif QCOM_HARDWARE
+#endif // QCOM_HARDWARE
 const char CameraParameters::KEY_FLASH_MODE[] = "flash-mode";
 const char CameraParameters::KEY_SUPPORTED_FLASH_MODES[] = "flash-mode-values";
 const char CameraParameters::KEY_FOCUS_MODE[] = "focus-mode";
@@ -568,7 +568,9 @@ String8 CameraParameters::flatten() const
 
 void CameraParameters::unflatten(const String8 &params)
 {
-    const char *a = params.string();
+    String8 copy(params);
+
+    const char *a = copy.string();
     const char *b;
 
     mMap.clear();
