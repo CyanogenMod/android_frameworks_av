@@ -526,7 +526,7 @@ void AudioResamplerOrder1::AsmMono16Loop(int16_t *in, int32_t* maxOutPt, int32_t
         "   ldr r8, [sp, #" MO_PARAM5 " + 4]\n"     // out
         "   ldr r0, [sp, #" MO_PARAM5 " + 0]\n"     // &outputIndex
         "   ldr r0, [r0]\n"                         // outputIndex
-        "   add r8, r0, asl #2\n"                   // curOut
+        "   add r8, r8, r0, asl #2\n"               // curOut
         "   ldr r9, [sp, #" MO_PARAM5 " + 24]\n"    // phaseIncrement
         "   ldr r10, [sp, #" MO_PARAM5 " + 12]\n"   // vl
         "   ldr r11, [sp, #" MO_PARAM5 " + 16]\n"   // vr
@@ -636,7 +636,7 @@ void AudioResamplerOrder1::AsmStereo16Loop(int16_t *in, int32_t* maxOutPt, int32
         "   ldr r8, [sp, #" ST_PARAM5 " + 4]\n"     // out
         "   ldr r0, [sp, #" ST_PARAM5 " + 0]\n"     // &outputIndex
         "   ldr r0, [r0]\n"                         // outputIndex
-        "   add r8, r0, asl #2\n"                   // curOut
+        "   add r8, r8, r0, asl #2\n"               // curOut
         "   ldr r9, [sp, #" ST_PARAM5 " + 24]\n"    // phaseIncrement
         "   ldr r10, [sp, #" ST_PARAM5 " + 12]\n"   // vl
         "   ldr r11, [sp, #" ST_PARAM5 " + 16]\n"   // vr
