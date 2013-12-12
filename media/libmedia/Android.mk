@@ -44,7 +44,7 @@ LOCAL_SRC_FILES:= \
     IAudioPolicyService.cpp \
     MediaScanner.cpp \
     MediaScannerClient.cpp \
-    autodetect.cpp \
+    CharacterEncodingDetector.cpp \
     IMediaDeathNotifier.cpp \
     MediaProfiles.cpp \
     IEffect.cpp \
@@ -65,7 +65,7 @@ LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiat
 # Consider a separate a library for SingleStateQueueInstantiations.
 
 LOCAL_SHARED_LIBRARIES := \
-	libui liblog libcutils libutils libbinder libsonivox libicuuc libexpat \
+	libui liblog libcutils libutils libbinder libsonivox libicuuc libicui18n libexpat \
         libcamera_client libstagefright_foundation \
         libgui libdl libaudioutils
 
@@ -77,6 +77,7 @@ LOCAL_C_INCLUDES := \
     $(call include-path-for, graphics corecg) \
     $(TOP)/frameworks/native/include/media/openmax \
     external/icu4c/common \
+    external/icu4c/i18n \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
