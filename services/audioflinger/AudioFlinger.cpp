@@ -1616,7 +1616,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
                                                   frameCount, lSessionId,
                                                   IPCThreadState::self()->getCallingUid(),
                                                   flags, tid, &lStatus);
-        LOG_ALWAYS_FATAL_IF((recordTrack != 0) != (lStatus == NO_ERROR));
+        LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (recordTrack == 0));
     }
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the
