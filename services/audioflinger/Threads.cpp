@@ -1406,6 +1406,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         }
         if (track == 0 || track->getCblk() == NULL || track->name() < 0) {
             lStatus = NO_MEMORY;
+            // track must be cleared from the caller as the caller has the AF lock
             goto Exit;
         }
 
