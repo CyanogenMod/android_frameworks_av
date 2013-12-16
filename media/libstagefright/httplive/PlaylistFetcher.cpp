@@ -47,6 +47,7 @@ namespace android {
 
 // static
 const int64_t PlaylistFetcher::kMinBufferedDurationUs = 10000000ll;
+const int64_t PlaylistFetcher::kMaxMonitorDelayUs = 3000000ll;
 
 PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
@@ -61,6 +62,7 @@ PlaylistFetcher::PlaylistFetcher(
       mSeqNumber(-1),
       mNumRetries(0),
       mStartup(true),
+      mPrepared(false),
       mNextPTSTimeUs(-1ll),
       mMonitorQueueGeneration(0),
       mRefreshState(INITIAL_MINIMUM_RELOAD_DELAY),
@@ -103,10 +105,16 @@ int64_t PlaylistFetcher::getSegmentStartTimeUs(int32_t seqNumber) const {
     return segmentStartUs;
 }
 
-bool PlaylistFetcher::timeToRefreshPlaylist(int64_t nowUs) const {
-    if (mPlaylist == NULL) {
+int64_t PlaylistFetcher::delayUsToRefreshPlaylist() const {
+    int64_t nowUs = ALooper::GetNowUs();
+
+    if (mPlaylist == NULL || mLastPlaylistFetchTimeUs < 0ll) {
         CHECK_EQ((int)mRefreshState, (int)INITIAL_MINIMUM_RELOAD_DELAY);
-        return true;
+        return 0ll;
+    }
+
+    if (mPlaylist->isComplete()) {
+        return (~0llu >> 1);
     }
 
     int32_t targetDurationSecs;
@@ -157,7 +165,8 @@ bool PlaylistFetcher::timeToRefreshPlaylist(int64_t nowUs) const {
             break;
     }
 
-    return mLastPlaylistFetchTimeUs + minPlaylistAgeUs <= nowUs;
+    int64_t delayUs = mLastPlaylistFetchTimeUs + minPlaylistAgeUs - nowUs;
+    return delayUs > 0ll ? delayUs : 0ll;
 }
 
 status_t PlaylistFetcher::decryptBuffer(
@@ -274,7 +283,15 @@ status_t PlaylistFetcher::decryptBuffer(
     return OK;
 }
 
-void PlaylistFetcher::postMonitorQueue(int64_t delayUs) {
+void PlaylistFetcher::postMonitorQueue(int64_t delayUs, int64_t minDelayUs) {
+    int64_t maxDelayUs = delayUsToRefreshPlaylist();
+    if (maxDelayUs < minDelayUs) {
+        maxDelayUs = minDelayUs;
+    }
+    if (delayUs > maxDelayUs) {
+        ALOGV("Need to refresh playlist in %lld", maxDelayUs);
+        delayUs = maxDelayUs;
+    }
     sp<AMessage> msg = new AMessage(kWhatMonitorQueue, id());
     msg->setInt32("generation", mMonitorQueueGeneration);
     msg->post(delayUs);
@@ -415,6 +432,7 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
     if (mStartTimeUs >= 0ll) {
         mSeqNumber = -1;
         mStartup = true;
+        mPrepared = false;
     }
 
     postMonitorQueue();
@@ -456,40 +474,62 @@ void PlaylistFetcher::queueDiscontinuity(
 
 void PlaylistFetcher::onMonitorQueue() {
     bool downloadMore = false;
+    refreshPlaylist();
 
-    status_t finalResult;
+    int32_t targetDurationSecs;
+    int64_t targetDurationUs = kMinBufferedDurationUs;
+    if (mPlaylist != NULL) {
+        CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
+        targetDurationUs = targetDurationSecs * 1000000ll;
+    }
+
+    // buffer at least 3 times the target duration, or up to 10 seconds
+    int64_t durationToBufferUs = targetDurationUs * 3;
+    if (durationToBufferUs > kMinBufferedDurationUs)  {
+        durationToBufferUs = kMinBufferedDurationUs;
+    }
+
+    int64_t bufferedDurationUs = 0ll;
+    status_t finalResult = NOT_ENOUGH_DATA;
     if (mStreamTypeMask == LiveSession::STREAMTYPE_SUBTITLES) {
         sp<AnotherPacketSource> packetSource =
             mPacketSources.valueFor(LiveSession::STREAMTYPE_SUBTITLES);
 
-        int64_t bufferedDurationUs =
+        bufferedDurationUs =
                 packetSource->getBufferedDurationUs(&finalResult);
-
-        downloadMore = (bufferedDurationUs < kMinBufferedDurationUs);
         finalResult = OK;
     } else {
         bool first = true;
-        int64_t minBufferedDurationUs = 0ll;
 
         for (size_t i = 0; i < mPacketSources.size(); ++i) {
             if ((mStreamTypeMask & mPacketSources.keyAt(i)) == 0) {
                 continue;
             }
 
-            int64_t bufferedDurationUs =
+            int64_t bufferedStreamDurationUs =
                 mPacketSources.valueAt(i)->getBufferedDurationUs(&finalResult);
-
-            if (first || bufferedDurationUs < minBufferedDurationUs) {
-                minBufferedDurationUs = bufferedDurationUs;
+            if (first || bufferedStreamDurationUs < bufferedDurationUs) {
+                bufferedDurationUs = bufferedStreamDurationUs;
                 first = false;
             }
         }
+    }
+    downloadMore = (bufferedDurationUs < durationToBufferUs);
 
-        downloadMore =
-            !first && (minBufferedDurationUs < kMinBufferedDurationUs);
+    // signal start if buffered up at least the target size
+    if (!mPrepared && bufferedDurationUs > targetDurationUs && downloadMore) {
+        mPrepared = true;
+
+        ALOGV("prepared, buffered=%lld > %lld",
+                bufferedDurationUs, targetDurationUs);
+        sp<AMessage> msg = mNotify->dup();
+        msg->setInt32("what", kWhatTemporarilyDoneFetching);
+        msg->post();
     }
 
     if (finalResult == OK && downloadMore) {
+        ALOGV("monitoring, buffered=%lld < %lld",
+                bufferedDurationUs, durationToBufferUs);
         onDownloadNext();
     } else {
         // Nothing to do yet, try again in a second.
@@ -498,15 +538,17 @@ void PlaylistFetcher::onMonitorQueue() {
         msg->setInt32("what", kWhatTemporarilyDoneFetching);
         msg->post();
 
-        postMonitorQueue(1000000ll);
+        int64_t delayUs = mPrepared ? kMaxMonitorDelayUs : targetDurationUs / 2;
+        ALOGV("pausing for %lld, buffered=%lld > %lld",
+                delayUs, bufferedDurationUs, durationToBufferUs);
+        // :TRICKY: need to enforce minimum delay because the delay to
+        // refresh the playlist will become 0
+        postMonitorQueue(delayUs, mPrepared ? targetDurationUs * 2 : 0);
     }
 }
 
-void PlaylistFetcher::onDownloadNext() {
-    int64_t nowUs = ALooper::GetNowUs();
-
-    if (mLastPlaylistFetchTimeUs < 0ll
-            || (!mPlaylist->isComplete() && timeToRefreshPlaylist(nowUs))) {
+status_t PlaylistFetcher::refreshPlaylist() {
+    if (delayUsToRefreshPlaylist() <= 0) {
         bool unchanged;
         sp<M3UParser> playlist = mSession->fetchPlaylist(
                 mURI.c_str(), mPlaylistHash, &unchanged);
@@ -522,7 +564,7 @@ void PlaylistFetcher::onDownloadNext() {
             } else {
                 ALOGE("failed to load playlist at url '%s'", mURI.c_str());
                 notifyError(ERROR_IO);
-                return;
+                return ERROR_IO;
             }
         } else {
             mRefreshState = INITIAL_MINIMUM_RELOAD_DELAY;
@@ -534,6 +576,13 @@ void PlaylistFetcher::onDownloadNext() {
         }
 
         mLastPlaylistFetchTimeUs = ALooper::GetNowUs();
+    }
+    return OK;
+}
+
+void PlaylistFetcher::onDownloadNext() {
+    if (refreshPlaylist() != OK) {
+        return;
     }
 
     int32_t firstSeqNumberInPlaylist;
@@ -553,12 +602,18 @@ void PlaylistFetcher::onDownloadNext() {
 
         if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
             mSeqNumber = getSeqNumberForTime(mStartTimeUs);
+            ALOGV("Initial sequence number for time %lld is %ld from (%ld .. %ld)",
+                    mStartTimeUs, mSeqNumber, firstSeqNumberInPlaylist,
+                    lastSeqNumberInPlaylist);
         } else {
             // If this is a live session, start 3 segments from the end.
             mSeqNumber = lastSeqNumberInPlaylist - 3;
             if (mSeqNumber < firstSeqNumberInPlaylist) {
                 mSeqNumber = firstSeqNumberInPlaylist;
             }
+            ALOGV("Initial sequence number for live event %ld from (%ld .. %ld)",
+                    mSeqNumber, firstSeqNumberInPlaylist,
+                    lastSeqNumberInPlaylist);
         }
 
         mStartTimeUs = -1ll;
@@ -570,16 +625,34 @@ void PlaylistFetcher::onDownloadNext() {
             ++mNumRetries;
 
             if (mSeqNumber > lastSeqNumberInPlaylist) {
-                mLastPlaylistFetchTimeUs = -1;
-                postMonitorQueue(3000000ll);
+                // refresh in increasing fraction (1/2, 1/3, ...) of the
+                // playlist's target duration or 3 seconds, whichever is less
+                int32_t targetDurationSecs;
+                CHECK(mPlaylist->meta()->findInt32(
+                        "target-duration", &targetDurationSecs));
+                int64_t delayUs = mPlaylist->size() * targetDurationSecs *
+                        1000000ll / (1 + mNumRetries);
+                if (delayUs > kMaxMonitorDelayUs) {
+                    delayUs = kMaxMonitorDelayUs;
+                }
+                ALOGV("sequence number high: %ld from (%ld .. %ld), monitor in %lld (retry=%d)",
+                        mSeqNumber, firstSeqNumberInPlaylist,
+                        lastSeqNumberInPlaylist, delayUs, mNumRetries);
+                postMonitorQueue(delayUs);
                 return;
             }
 
             // we've missed the boat, let's start from the lowest sequence
             // number available and signal a discontinuity.
 
-            ALOGI("We've missed the boat, restarting playback.");
-            mSeqNumber = lastSeqNumberInPlaylist;
+            ALOGI("We've missed the boat, restarting playback."
+                  "  mStartup=%d, was  looking for %d in %d-%d",
+                    mStartup, mSeqNumber, firstSeqNumberInPlaylist,
+                    lastSeqNumberInPlaylist);
+            mSeqNumber = lastSeqNumberInPlaylist - 3;
+            if (mSeqNumber < firstSeqNumberInPlaylist) {
+                mSeqNumber = firstSeqNumberInPlaylist;
+            }
             explicitDiscontinuity = true;
 
             // fall through
