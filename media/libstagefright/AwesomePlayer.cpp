@@ -3458,15 +3458,16 @@ void AwesomePlayer::checkTunnelExceptions()
         return;
     }
 
-    /* exception 4: check for  AAC mainprofile , it is not supported */
+    /* exception 4: check for  AAC main/AAC ELD profiles, it is not supported */
     sp<MetaData> metaData  = mAudioTrack->getFormat();
     const char * mime;
     int32_t objecttype = 0;
 
     if (metaData->findCString(kKeyMIMEType, &mime) &&
            !strcmp(mime, MEDIA_MIMETYPE_AUDIO_AAC) &&
-           (metaData->findInt32(kKeyAACProfile, &objecttype) && (1 == objecttype))) {
-        ALOGD("FOUND AAC Main Profile, disable tunnel mode");
+           (metaData->findInt32(kKeyAACProfile, &objecttype) &&
+           ((1 == objecttype) || (39 == objecttype)))) {
+        ALOGD("FOUND unsupported AAC profiletype(%d) , disable tunnel mode\n",objecttype);
         mIsTunnelAudio = false;
         return;
     }
