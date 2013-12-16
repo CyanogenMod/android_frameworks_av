@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2010 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +35,7 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 #include <utils/String8.h>
+#include <media/stagefright/foundation/ABitReader.h>
 
 namespace android {
 
@@ -736,6 +740,21 @@ static void addESDSFromCodecPrivate(
 
     // Make sure all sizes can be coded in a single byte.
     CHECK(privSize + 22 - 2 < 128);
+
+    if(isAudio) {
+        ABitReader br((const uint8_t *)priv, privSize);
+        uint32_t objectType = br.getBits(5);
+
+        if (objectType == 31) {  // AAC-ELD => additional 6 bits
+            objectType = 32 + br.getBits(6);
+        }
+
+        if(objectType == 1) { //AAC Main profile
+            ALOGD("\n  Found AAC mainprofile in Matroska Extractor \n");
+        }
+
+        meta->setInt32(kKeyAACProfile, objectType);
+    }
     size_t esdsSize = sizeof(kStaticESDS) + privSize + 1;
     uint8_t *esds = new uint8_t[esdsSize];
     memcpy(esds, kStaticESDS, sizeof(kStaticESDS));
