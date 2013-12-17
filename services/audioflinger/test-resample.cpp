@@ -26,42 +26,11 @@
 #include <errno.h>
 #include <time.h>
 #include <math.h>
+#include <audio_utils/sndfile.h>
 
 using namespace android;
 
 bool gVerbose = false;
-
-struct HeaderWav {
-    HeaderWav(size_t size, int nc, int sr, int bits) {
-        strncpy(RIFF, "RIFF", 4);
-        chunkSize = size + sizeof(HeaderWav);
-        strncpy(WAVE, "WAVE", 4);
-        strncpy(fmt,  "fmt ", 4);
-        fmtSize = 16;
-        audioFormat = 1;
-        numChannels = nc;
-        samplesRate = sr;
-        byteRate = sr * numChannels * (bits/8);
-        align = nc*(bits/8);
-        bitsPerSample = bits;
-        strncpy(data, "data", 4);
-        dataSize = size;
-    }
-
-    char RIFF[4];           // RIFF
-    uint32_t chunkSize;     // File size
-    char WAVE[4];        // WAVE
-    char fmt[4];            // fmt\0
-    uint32_t fmtSize;       // fmt size
-    uint16_t audioFormat;   // 1=PCM
-    uint16_t numChannels;   // num channels
-    uint32_t samplesRate;   // sample rate in hz
-    uint32_t byteRate;      // Bps
-    uint16_t align;         // 2=16-bit mono, 4=16-bit stereo
-    uint16_t bitsPerSample; // bits per sample
-    char data[4];           // "data"
-    uint32_t dataSize;      // size
-};
 
 static int usage(const char* name) {
     fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq}] [-i input-sample-rate] "
@@ -306,20 +275,29 @@ int main(int argc, char* argv[]) {
     }
 
     // write output to disk
-    int output_fd = open(file_out, O_WRONLY | O_CREAT | O_TRUNC,
-            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    if (output_fd < 0) {
-        fprintf(stderr, "open: %s\n", strerror(errno));
-        return -1;
-    }
-
     if (writeHeader) {
-        HeaderWav wav(out_frames * channels * sizeof(int16_t), channels, output_freq, 16);
-        write(output_fd, &wav, sizeof(wav));
+        SF_INFO info;
+        info.frames = 0;
+        info.samplerate = output_freq;
+        info.channels = channels;
+        info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+        SNDFILE *sf = sf_open(file_out, SFM_WRITE, &info);
+        if (sf == NULL) {
+            perror(file_out);
+            return EXIT_FAILURE;
+        }
+        (void) sf_writef_short(sf, convert, out_frames);
+        sf_close(sf);
+    } else {
+        int output_fd = open(file_out, O_WRONLY | O_CREAT | O_TRUNC,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        if (output_fd < 0) {
+            perror(file_out);
+            return EXIT_FAILURE;
+        }
+        write(output_fd, convert, out_frames * channels * sizeof(int16_t));
+        close(output_fd);
     }
 
-    write(output_fd, convert, out_frames * channels * sizeof(int16_t));
-    close(output_fd);
-
-    return 0;
+    return EXIT_SUCCESS;
 }

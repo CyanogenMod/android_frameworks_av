@@ -79,7 +79,14 @@ LOCAL_SRC_FILES:=               \
 	AudioResamplerCubic.cpp.arm \
     AudioResamplerSinc.cpp.arm
 
+LOCAL_C_INCLUDES := \
+    $(call include-path-for, audio-utils)
+
+LOCAL_STATIC_LIBRARIES := \
+    libsndfile
+
 LOCAL_SHARED_LIBRARIES := \
+    libaudioutils \
     libdl \
     libcutils \
     libutils \
