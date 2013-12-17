@@ -145,7 +145,7 @@ private:
     static void *ThreadWrapper(void *me);
     void threadEntry();
 
-    sp<Event> removeEventFromQueue_l(event_id id);
+    sp<Event> removeEventFromQueue_l(event_id id, bool *wakeLocked);
 
     void acquireWakeLock_l();
     void releaseWakeLock_l(bool force = false);
