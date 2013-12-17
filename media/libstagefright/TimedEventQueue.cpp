@@ -217,6 +217,7 @@ void TimedEventQueue::threadEntry() {
     for (;;) {
         int64_t now_us = 0;
         sp<Event> event;
+        bool wakeLocked = false;
 
         {
             Mutex::Autolock autoLock(mLock);
@@ -283,26 +284,28 @@ void TimedEventQueue::threadEntry() {
             // removeEventFromQueue_l will return NULL.
             // Otherwise, the QueueItem will be removed
             // from the queue and the referenced event returned.
-            event = removeEventFromQueue_l(eventID);
+            event = removeEventFromQueue_l(eventID, &wakeLocked);
         }
 
         if (event != NULL) {
             // Fire event with the lock NOT held.
             event->fire(this, now_us);
+            if (wakeLocked) {
+                Mutex::Autolock autoLock(mLock);
+                releaseWakeLock_l();
+            }
         }
     }
 }
 
 sp<TimedEventQueue::Event> TimedEventQueue::removeEventFromQueue_l(
-        event_id id) {
+        event_id id, bool *wakeLocked) {
     for (List<QueueItem>::iterator it = mQueue.begin();
          it != mQueue.end(); ++it) {
         if ((*it).event->eventID() == id) {
             sp<Event> event = (*it).event;
             event->setEventID(0);
-            if ((*it).has_wakelock) {
-                releaseWakeLock_l();
-            }
+            *wakeLocked = (*it).has_wakelock;
             mQueue.erase(it);
             return event;
         }
