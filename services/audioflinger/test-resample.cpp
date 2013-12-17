@@ -38,14 +38,14 @@ static int usage(const char* name) {
     fprintf(stderr,"    -p    enable profiling\n");
     fprintf(stderr,"    -h    create wav file\n");
     fprintf(stderr,"    -v    verbose : log buffer provider calls\n");
-    fprintf(stderr,"    -s    stereo\n");
+    fprintf(stderr,"    -s    stereo (ignored if input file is specified)\n");
     fprintf(stderr,"    -q    resampler quality\n");
     fprintf(stderr,"              dq  : default quality\n");
     fprintf(stderr,"              lq  : low quality\n");
     fprintf(stderr,"              mq  : medium quality\n");
     fprintf(stderr,"              hq  : high quality\n");
     fprintf(stderr,"              vhq : very high quality\n");
-    fprintf(stderr,"    -i    input file sample rate\n");
+    fprintf(stderr,"    -i    input file sample rate (ignored if input file is specified)\n");
     fprintf(stderr,"    -o    output file sample rate\n");
     return -1;
 }
@@ -123,24 +123,19 @@ int main(int argc, char* argv[]) {
     size_t input_size;
     void* input_vaddr;
     if (argc == 2) {
-        struct stat st;
-        if (stat(file_in, &st) < 0) {
-            fprintf(stderr, "stat: %s\n", strerror(errno));
-            return -1;
+        SF_INFO info;
+        info.format = 0;
+        SNDFILE *sf = sf_open(file_in, SFM_READ, &info);
+        if (sf == NULL) {
+            perror(file_in);
+            return EXIT_FAILURE;
         }
-
-        int input_fd = open(file_in, O_RDONLY);
-        if (input_fd < 0) {
-            fprintf(stderr, "open: %s\n", strerror(errno));
-            return -1;
-        }
-
-        input_size = st.st_size;
-        input_vaddr = mmap(0, input_size, PROT_READ, MAP_PRIVATE, input_fd, 0);
-        if (input_vaddr == MAP_FAILED ) {
-            fprintf(stderr, "mmap: %s\n", strerror(errno));
-            return -1;
-        }
+        input_size = info.frames * info.channels * sizeof(short);
+        input_vaddr = malloc(input_size);
+        (void) sf_readf_short(sf, (short *) input_vaddr, info.frames);
+        sf_close(sf);
+        channels = info.channels;
+        input_freq = info.samplerate;
     } else {
         double k = 1000; // Hz / s
         double time = (input_freq / 2) / k;
