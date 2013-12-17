@@ -603,6 +603,19 @@ uint32_t AudioTrack::getSampleRate() const
     }
 
     AutoMutex lock(mLock);
+
+    // sample rate can be updated during playback by the offloaded decoder so we need to
+    // query the HAL and update if needed.
+// FIXME use Proxy return channel to update the rate from server and avoid polling here
+    if (isOffloaded()) {
+        if (mOutput != 0) {
+            uint32_t sampleRate = 0;
+            status_t status = AudioSystem::getSamplingRate(mOutput, mStreamType, &sampleRate);
+            if (status == NO_ERROR) {
+                mSampleRate = sampleRate;
+            }
+        }
+    }
     return mSampleRate;
 }
 
