@@ -29,6 +29,8 @@
 
 using namespace android;
 
+bool gVerbose = false;
+
 struct HeaderWav {
     HeaderWav(size_t size, int nc, int sr, int bits) {
         strncpy(RIFF, "RIFF", 4);
@@ -62,10 +64,11 @@ struct HeaderWav {
 };
 
 static int usage(const char* name) {
-    fprintf(stderr,"Usage: %s [-p] [-h] [-s] [-q {dq|lq|mq|hq|vhq}] [-i input-sample-rate] "
+    fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq}] [-i input-sample-rate] "
                    "[-o output-sample-rate] [<input-file>] <output-file>\n", name);
     fprintf(stderr,"    -p    enable profiling\n");
     fprintf(stderr,"    -h    create wav file\n");
+    fprintf(stderr,"    -v    verbose : log buffer provider calls\n");
     fprintf(stderr,"    -s    stereo\n");
     fprintf(stderr,"    -q    resampler quality\n");
     fprintf(stderr,"              dq  : default quality\n");
@@ -89,13 +92,16 @@ int main(int argc, char* argv[]) {
     AudioResampler::src_quality quality = AudioResampler::DEFAULT_QUALITY;
 
     int ch;
-    while ((ch = getopt(argc, argv, "phsq:i:o:")) != -1) {
+    while ((ch = getopt(argc, argv, "phvsq:i:o:")) != -1) {
         switch (ch) {
         case 'p':
             profiling = true;
             break;
         case 'h':
             writeHeader = true;
+            break;
+        case 'v':
+            gVerbose = true;
             break;
         case 's':
             channels = 2;
@@ -186,24 +192,59 @@ int main(int argc, char* argv[]) {
     // ----------------------------------------------------------
 
     class Provider: public AudioBufferProvider {
-        int16_t* mAddr;
-        size_t mNumFrames;
+        int16_t* const  mAddr;      // base address
+        const size_t    mNumFrames; // total frames
+        const int       mChannels;
+        size_t          mNextFrame; // index of next frame to provide
+        size_t          mUnrel;     // number of frames not yet released
     public:
-        Provider(const void* addr, size_t size, int channels) {
-            mAddr = (int16_t*) addr;
-            mNumFrames = size / (channels*sizeof(int16_t));
+        Provider(const void* addr, size_t size, int channels)
+          : mAddr((int16_t*) addr),
+            mNumFrames(size / (channels*sizeof(int16_t))),
+            mChannels(channels),
+            mNextFrame(0), mUnrel(0) {
         }
         virtual status_t getNextBuffer(Buffer* buffer,
                 int64_t pts = kInvalidPTS) {
-            buffer->frameCount = mNumFrames;
-            buffer->i16 = mAddr;
-            return NO_ERROR;
+            size_t requestedFrames = buffer->frameCount;
+            if (requestedFrames > mNumFrames - mNextFrame) {
+                buffer->frameCount = mNumFrames - mNextFrame;
+            }
+            if (gVerbose) {
+                printf("getNextBuffer() requested %u frames out of %u frames available,"
+                        " and returned %u frames\n",
+                        requestedFrames, mNumFrames - mNextFrame, buffer->frameCount);
+            }
+            mUnrel = buffer->frameCount;
+            if (buffer->frameCount > 0) {
+                buffer->i16 = &mAddr[mChannels * mNextFrame];
+                return NO_ERROR;
+            } else {
+                buffer->i16 = NULL;
+                return NOT_ENOUGH_DATA;
+            }
         }
         virtual void releaseBuffer(Buffer* buffer) {
+            if (buffer->frameCount > mUnrel) {
+                fprintf(stderr, "ERROR releaseBuffer() released %u frames but only %u available "
+                        "to release\n", buffer->frameCount, mUnrel);
+                mNextFrame += mUnrel;
+                mUnrel = 0;
+            } else {
+                if (gVerbose) {
+                    printf("releaseBuffer() released %u frames out of %u frames available "
+                            "to release\n", buffer->frameCount, mUnrel);
+                }
+                mNextFrame += buffer->frameCount;
+                mUnrel -= buffer->frameCount;
+            }
         }
     } provider(input_vaddr, input_size, channels);
 
     size_t input_frames = input_size / (channels * sizeof(int16_t));
+    if (gVerbose) {
+        printf("%u input frames\n", input_frames);
+    }
     size_t output_size = 2 * 4 * ((int64_t) input_frames * output_freq) / input_freq;
     output_size &= ~7; // always stereo, 32-bits
 
@@ -240,7 +281,17 @@ int main(int argc, char* argv[]) {
     resampler->setVolume(0x1000, 0x1000);
 
     memset(output_vaddr, 0, output_size);
+    if (gVerbose) {
+        printf("resample() %u output frames\n", out_frames);
+    }
     resampler->resample((int*) output_vaddr, out_frames, &provider);
+    if (gVerbose) {
+        printf("resample() complete\n");
+    }
+    resampler->reset();
+    if (gVerbose) {
+        printf("reset() complete\n");
+    }
 
     // down-mix (we just truncate and keep the left channel)
     int32_t* out = (int32_t*) output_vaddr;
