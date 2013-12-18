@@ -1140,9 +1140,8 @@ status_t StagefrightRecorder::startRawAudioRecording() {
         mWriter->setMaxFileSize(mMaxFileSizeBytes);
     }
     mWriter->setListener(mListener);
-    mWriter->start();
-
-    return OK;
+    status = mWriter->start();
+    return status;
 }
 
 status_t StagefrightRecorder::startRTPRecording() {
