@@ -184,6 +184,10 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
         LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media/mm-core/inc
     endif
+
+    ifeq ($(TARGET_QCOM_MEDIA_VARIANT),caf-new)
+        LOCAL_SRC_FILES += ExtendedPrefetchSource.cpp
+    endif
 endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 LOCAL_SRC_FILES += \

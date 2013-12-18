@@ -71,6 +71,7 @@
 #include <OMX_TI_IVCommon.h>
 #include <ctype.h>
 #endif
+#include "include/ExtendedPrefetchSource.h"
 
 namespace android {
 
@@ -1713,7 +1714,6 @@ OMXCodec::OMXCodec(
       mIsVideo(!strncasecmp("video/", mime, 6)),
       mMIME(strdup(mime)),
       mComponentName(strdup(componentName)),
-      mSource(source),
       mCodecSpecificDataIndex(0),
       mState(LOADED),
       mInitialBufferSubmit(true),
@@ -1743,6 +1743,16 @@ OMXCodec::OMXCodec(
     mPortStatus[kPortIndexOutput] = ENABLING;
 
     setComponentRole();
+    // cascade a prefetching-source for video playback excluding secure and
+    // thumbnail modes
+    if (mIsVideo && !mIsEncoder && !(mFlags & kUseSecureInputBuffers) &&
+            (mNativeWindow != NULL) && PrefetchSource::isPrefetchEnabled()) {
+        ALOGI("Creating Prefetching source for video");
+        mSource = new PrefetchSource(source,
+                PrefetchSource::MODE_FRAME_BY_FRAME, "VideoPrefetch");
+    } else {
+        mSource = source;
+    }
 }
 
 // static
