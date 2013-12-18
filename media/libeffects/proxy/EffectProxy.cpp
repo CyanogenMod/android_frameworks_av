@@ -329,11 +329,11 @@ int Effect_getDescriptor(effect_handle_t   self,
 
 __attribute__ ((visibility ("default")))
 audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
-    tag : AUDIO_EFFECT_LIBRARY_TAG,
-    version : EFFECT_LIBRARY_API_VERSION,
-    name : "Effect Proxy",
-    implementor : "AOSP",
-    create_effect : android::EffectProxyCreate,
-    release_effect : android::EffectProxyRelease,
-    get_descriptor : android::EffectProxyGetDescriptor,
+    .tag = AUDIO_EFFECT_LIBRARY_TAG,
+    .version = EFFECT_LIBRARY_API_VERSION,
+    .name = "Effect Proxy",
+    .implementor = "AOSP",
+    .create_effect = android::EffectProxyCreate,
+    .release_effect = android::EffectProxyRelease,
+    .get_descriptor = android::EffectProxyGetDescriptor,
 };
