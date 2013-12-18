@@ -174,7 +174,7 @@ LOCAL_SRC_FILES += ExtendedCodec.cpp ExtendedExtractor.cpp ExtendedUtils.cpp
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
-    LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedWriter.cpp
+    LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedPrefetchSource.cpp ExtendedWriter.cpp
     LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
     LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
@@ -185,6 +185,7 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
         LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media/mm-core/inc
     endif
+
 endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 LOCAL_SRC_FILES += \

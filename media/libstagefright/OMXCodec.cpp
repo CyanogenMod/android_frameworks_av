@@ -52,6 +52,7 @@
 #ifdef QCOM_HARDWARE
 #include <media/stagefright/ExtendedCodec.h>
 #include "include/ExtendedUtils.h"
+#include "include/ExtendedPrefetchSource.h"
 #endif
 
 #include "include/avc_utils.h"
@@ -1831,7 +1832,6 @@ OMXCodec::OMXCodec(
       mIsVideo(!strncasecmp("video/", mime, 6)),
       mMIME(strdup(mime)),
       mComponentName(strdup(componentName)),
-      mSource(source),
       mCodecSpecificDataIndex(0),
       mState(LOADED),
       mInitialBufferSubmit(true),
@@ -1862,6 +1862,17 @@ OMXCodec::OMXCodec(
     mPortStatus[kPortIndexOutput] = ENABLING;
 
     setComponentRole();
+#ifdef ENABLE_AV_ENHANCEMENTS
+    // cascade a prefetching-source for video playback excluding secure and
+    // thumbnail modes
+    if (mIsVideo && !mIsEncoder && !(mFlags & kUseSecureInputBuffers) &&
+            (mNativeWindow != NULL) && PrefetchSource::isPrefetchEnabled()) {
+        ALOGI("Creating Prefetching source for video");
+        mSource = new PrefetchSource(source,
+                PrefetchSource::MODE_FRAME_BY_FRAME, "VideoPrefetch");
+    } else
+#endif
+        mSource = source;
 }
 
 // static
