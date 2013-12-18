@@ -202,6 +202,8 @@ int main(int argc, char* argv[]) {
                 mNextFrame += buffer->frameCount;
                 mUnrel -= buffer->frameCount;
             }
+            buffer->frameCount = 0;
+            buffer->i16 = NULL;
         }
     } provider(input_vaddr, input_size, channels);
 

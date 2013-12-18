@@ -61,6 +61,17 @@ public:
     //  buffer->frameCount  0
     virtual status_t getNextBuffer(Buffer* buffer, int64_t pts = kInvalidPTS) = 0;
 
+    // Release (a portion of) the buffer previously obtained by getNextBuffer().
+    // It is permissible to call releaseBuffer() multiple times per getNextBuffer().
+    // On entry:
+    //  buffer->frameCount  number of frames to release, must be <= number of frames
+    //                      obtained but not yet released
+    //  buffer->raw         unused
+    // On return:
+    //  buffer->frameCount  0; implementation MUST set to zero
+    //  buffer->raw         undefined; implementation is PERMITTED to set to any value,
+    //                      so if caller needs to continue using this buffer it must
+    //                      keep track of the pointer itself
     virtual void releaseBuffer(Buffer* buffer) = 0;
 };
 
