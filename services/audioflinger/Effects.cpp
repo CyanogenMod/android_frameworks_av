@@ -318,6 +318,7 @@ void AudioFlinger::EffectModule::reset_l()
 status_t AudioFlinger::EffectModule::configure()
 {
     status_t status;
+    status_t cmdStatus = 0;
     sp<ThreadBase> thread;
     uint32_t size;
     audio_channel_mask_t channelMask;
@@ -383,7 +384,6 @@ status_t AudioFlinger::EffectModule::configure()
     ALOGV("configure() %p thread %p buffer %p framecount %d",
             this, thread.get(), mConfig.inputCfg.buffer.raw, mConfig.inputCfg.buffer.frameCount);
 
-    status_t cmdStatus;
     size = sizeof(int);
     status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_SET_CONFIG,
@@ -434,7 +434,7 @@ status_t AudioFlinger::EffectModule::init()
     if (mEffectInterface == NULL) {
         return NO_INIT;
     }
-    status_t cmdStatus;
+    status_t cmdStatus = 0;
     uint32_t size = sizeof(status_t);
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_INIT,
@@ -476,7 +476,7 @@ status_t AudioFlinger::EffectModule::start_l()
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
-    status_t cmdStatus;
+    status_t cmdStatus = 0;
     uint32_t size = sizeof(status_t);
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_ENABLE,
@@ -677,7 +677,7 @@ status_t AudioFlinger::EffectModule::setVolume(uint32_t *left, uint32_t *right, 
     if (isProcessEnabled() &&
             ((mDescriptor.flags & EFFECT_FLAG_VOLUME_MASK) == EFFECT_FLAG_VOLUME_CTRL ||
             (mDescriptor.flags & EFFECT_FLAG_VOLUME_MASK) == EFFECT_FLAG_VOLUME_IND)) {
-        status_t cmdStatus;
+        status_t cmdStatus = 0;
         uint32_t volume[2];
         uint32_t *pVolume = NULL;
         uint32_t size = sizeof(volume);
@@ -712,7 +712,7 @@ status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
     }
     status_t status = NO_ERROR;
     if ((mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
-        status_t cmdStatus;
+        status_t cmdStatus = 0;
         uint32_t size = sizeof(status_t);
         uint32_t cmd = audio_is_output_devices(device) ? EFFECT_CMD_SET_DEVICE :
                             EFFECT_CMD_SET_INPUT_DEVICE;
@@ -734,7 +734,7 @@ status_t AudioFlinger::EffectModule::setMode(audio_mode_t mode)
     }
     status_t status = NO_ERROR;
     if ((mDescriptor.flags & EFFECT_FLAG_AUDIO_MODE_MASK) == EFFECT_FLAG_AUDIO_MODE_IND) {
-        status_t cmdStatus;
+        status_t cmdStatus = 0;
         uint32_t size = sizeof(status_t);
         status = (*mEffectInterface)->command(mEffectInterface,
                                               EFFECT_CMD_SET_AUDIO_MODE,
