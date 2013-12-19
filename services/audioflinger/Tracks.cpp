@@ -133,7 +133,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     if (mCblk != NULL) {
         new(mCblk) audio_track_cblk_t();
         // clear all buffers
-        mCblk->frameCount_ = frameCount;
         if (sharedBuffer == 0) {
             mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
             memset(mBuffer, 0, bufferSize);
@@ -1516,9 +1515,9 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
         ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, "
-                "mCblk->frameCount_ %u, mChannelMask 0x%08x",
+                "frameCount %u, mChannelMask 0x%08x",
                 mCblk, mBuffer,
-                mCblk->frameCount_, mChannelMask);
+                frameCount, mChannelMask);
         // since client and server are in the same process,
         // the buffer has the same virtual address on both sides
         mClientProxy = new AudioTrackClientProxy(mCblk, mBuffer, mFrameCount, mFrameSize);
