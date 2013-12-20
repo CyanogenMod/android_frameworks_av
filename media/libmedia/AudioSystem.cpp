@@ -419,7 +419,7 @@ void AudioSystem::releaseAudioSessionId(int audioSession) {
 
 // ---------------------------------------------------------------------------
 
-void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who) {
+void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who __unused) {
     Mutex::Autolock _l(AudioSystem::gLock);
 
     AudioSystem::gAudioFlinger.clear();
@@ -804,7 +804,7 @@ bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
 
 // ---------------------------------------------------------------------------
 
-void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who) {
+void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused) {
     Mutex::Autolock _l(AudioSystem::gLock);
     AudioSystem::gAudioPolicyService.clear();
 

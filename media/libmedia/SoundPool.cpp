@@ -199,7 +199,7 @@ SoundChannel* SoundPool::findNextChannel(int channelID)
     return NULL;
 }
 
-int SoundPool::load(const char* path, int priority)
+int SoundPool::load(const char* path, int priority __unused)
 {
     ALOGV("load: path=%s, priority=%d", path, priority);
     Mutex::Autolock lock(&mLock);
@@ -209,7 +209,7 @@ int SoundPool::load(const char* path, int priority)
     return sample->sampleID();
 }
 
-int SoundPool::load(int fd, int64_t offset, int64_t length, int priority)
+int SoundPool::load(int fd, int64_t offset, int64_t length, int priority __unused)
 {
     ALOGV("load: fd=%d, offset=%lld, length=%lld, priority=%d",
             fd, offset, length, priority);

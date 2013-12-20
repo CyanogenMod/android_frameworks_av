@@ -692,7 +692,7 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize)
 
 // -------------------------------------------------------------------------
 
-nsecs_t AudioRecord::processAudioBuffer(const sp<AudioRecordThread>& thread)
+nsecs_t AudioRecord::processAudioBuffer()
 {
     mLock.lock();
     if (mAwaitBoost) {
@@ -954,7 +954,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
 
 // =========================================================================
 
-void AudioRecord::DeathNotifier::binderDied(const wp<IBinder>& who)
+void AudioRecord::DeathNotifier::binderDied(const wp<IBinder>& who __unused)
 {
     sp<AudioRecord> audioRecord = mAudioRecord.promote();
     if (audioRecord != 0) {
@@ -993,7 +993,7 @@ bool AudioRecord::AudioRecordThread::threadLoop()
             return true;
         }
     }
-    nsecs_t ns =  mReceiver.processAudioBuffer(this);
+    nsecs_t ns =  mReceiver.processAudioBuffer();
     switch (ns) {
     case 0:
         return true;

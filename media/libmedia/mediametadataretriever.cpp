@@ -157,7 +157,7 @@ sp<IMemory> MediaMetadataRetriever::extractAlbumArt()
     return mRetriever->extractAlbumArt();
 }
 
-void MediaMetadataRetriever::DeathNotifier::binderDied(const wp<IBinder>& who) {
+void MediaMetadataRetriever::DeathNotifier::binderDied(const wp<IBinder>& who __unused) {
     Mutex::Autolock lock(MediaMetadataRetriever::sServiceLock);
     MediaMetadataRetriever::sService.clear();
     ALOGW("MediaMetadataRetriever server died!");
