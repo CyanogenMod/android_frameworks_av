@@ -765,7 +765,7 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
     return (ssize_t) position;
 }
 
-status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
+status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush __unused)
 {
     if (mIsShutdown) {
         buffer->mFrameCount = 0;
@@ -847,7 +847,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     buffer->mNonContig = 0;
 }
 
-void StaticAudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
+void StaticAudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount __unused)
 {
     // Unlike AudioTrackServerProxy::tallyUnderrunFrames() used for streaming tracks,
     // we don't have a location to count underrun frames.  The underrun frame counter

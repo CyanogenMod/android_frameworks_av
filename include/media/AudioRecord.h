@@ -422,7 +422,7 @@ private:
             //      NS_INACTIVE inactive so don't run again until re-started
             //      NS_NEVER    never again
             static const nsecs_t NS_WHENEVER = -1, NS_INACTIVE = -2, NS_NEVER = -3;
-            nsecs_t processAudioBuffer(const sp<AudioRecordThread>& thread);
+            nsecs_t processAudioBuffer();
 
             // caller must hold lock on mLock for all _l methods
             status_t openRecord_l(size_t epoch);
