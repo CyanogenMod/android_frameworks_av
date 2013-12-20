@@ -79,8 +79,12 @@ public:
     // set/get audio hardware parameters. The function accepts a list of parameters
     // key value pairs in the form: key1=value1;key2=value2;...
     // Some keys are reserved for standard parameters (See AudioParameter class).
+    // The versions with audio_io_handle_t are intended for internal media framework use only.
     static status_t setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs);
     static String8  getParameters(audio_io_handle_t ioHandle, const String8& keys);
+    // The versions without audio_io_handle_t are intended for JNI.
+    static status_t setParameters(const String8& keyValuePairs);
+    static String8  getParameters(const String8& keys);
 
     static void setErrorCallback(audio_error_callback cb);
 

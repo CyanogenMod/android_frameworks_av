@@ -190,6 +190,16 @@ String8 AudioSystem::getParameters(audio_io_handle_t ioHandle, const String8& ke
     return result;
 }
 
+status_t AudioSystem::setParameters(const String8& keyValuePairs)
+{
+    return setParameters((audio_io_handle_t) 0, keyValuePairs);
+}
+
+String8 AudioSystem::getParameters(const String8& keys)
+{
+    return getParameters((audio_io_handle_t) 0, keys);
+}
+
 // convert volume steps to natural log scale
 
 // change this value to change volume scaling
