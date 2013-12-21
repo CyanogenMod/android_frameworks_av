@@ -3036,15 +3036,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 (mMixerStatusIgnoringFastTracks == MIXER_TRACKS_READY)) {
             minFrames = desiredFrames;
         }
-        // It's not safe to call framesReady() for a static buffer track, so assume it's ready
-        size_t framesReady;
-        if (track->sharedBuffer() == 0) {
-            framesReady = track->framesReady();
-        } else if (track->isStopped()) {
-            framesReady = 0;
-        } else {
-            framesReady = 1;
-        }
+
+        size_t framesReady = track->framesReady();
         if ((framesReady >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
