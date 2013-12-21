@@ -138,6 +138,8 @@ status_t AudioRecord::set(
         transfer_type transferType,
         audio_input_flags_t flags)
 {
+    ALOGV("sampleRate %u, channelMask %#x, format %d", sampleRate, channelMask, format);
+    ALOGV("inputSource %d", inputSource);
     switch (transferType) {
     case TRANSFER_DEFAULT:
         if (cbf == NULL || threadCanCallJava) {
