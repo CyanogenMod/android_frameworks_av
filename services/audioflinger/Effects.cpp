@@ -336,6 +336,10 @@ status_t AudioFlinger::EffectModule::configure()
 
     // TODO: handle configuration of effects replacing track process
     channelMask = thread->channelMask();
+    if(popcount(channelMask) > 2) {
+        ALOGE("Error: Trying to apply effect on  %d channel content",popcount(channelMask));
+        return INVALID_OPERATION;
+    }
 
     if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_AUXILIARY) {
         mConfig.inputCfg.channels = AUDIO_CHANNEL_OUT_MONO;
