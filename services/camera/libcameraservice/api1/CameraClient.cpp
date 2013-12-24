@@ -610,7 +610,17 @@ status_t CameraClient::takePicture(int msgType) {
     mBurstCnt = mHardware->getParameters().getInt("num-snaps-per-shutter");
     if(mBurstCnt <= 0)
         mBurstCnt = 1;
+
     LOG1("mBurstCnt = %d", mBurstCnt);
+
+    // HTC HDR mode requires that we snap multiple times, but only get one jpeg
+    int numJpegs = mHardware->getParameters().getInt("num-jpegs-per-shutter");
+    if (numJpegs == 1 && mBurstCnt > 1) {
+        while (mBurstCnt > 1) {
+            result = mHardware->takePicture();
+            mBurstCnt--;
+        }
+    }
 #endif
 
     return mHardware->takePicture();
@@ -985,8 +995,8 @@ void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
     if (mBurstCnt)
         mBurstCnt--;
 
+    LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
     if (!mBurstCnt && !mLongshotEnabled) {
-        LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
 #endif
         disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
 #ifdef QCOM_HARDWARE
