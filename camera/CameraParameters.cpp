@@ -234,6 +234,26 @@ const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
 const char CameraParameters::FOCUS_DISTANCE_INFINITY[] = "Infinity";
 
+#ifdef SONY_CAM_PARAMS
+const char CameraParameters::KEY_SONY_ISO[] = "sony-iso";
+const char CameraParameters::KEY_SONY_METERING_MODE[] = "sony-metering-mode";
+const char CameraParameters::KEY_SONY_VS[] = "sony-vs";
+const char CameraParameters::KEY_SONY_MAX_BURST_SHOT_SIZE[] = "sony-max-burst-shot-size";
+const char CameraParameters::KEY_SONY_BURST_SHOT_VALUES[] = "sony-burst-shot-values";
+const char CameraParameters::KEY_SONY_VS_VALUES[] = "sony-vs-values";
+const char CameraParameters::KEY_SONY_METERING_MODE_VALUES[] = "sony-metering-mode-values";
+const char CameraParameters::KEY_SONY_AE_MODE[] = "sony-ae-mode";
+const char CameraParameters::KEY_SONY_AE_MODE_VALUES[] = "sony-ae-mode-values";
+const char CameraParameters::KEY_SONY_ISO_VALUES[] = "sony-iso-values";
+const char CameraParameters::KEY_SONY_IS[] = "sony-is";
+const char CameraParameters::KEY_SONY_IS_VALUES[] = "sony-is-values";
+const char CameraParameters::KEY_SONY_EXTENSION_VERSION[] = "sony-extension-version";
+const char CameraParameters::KEY_SONY_FOCUS_AREA[] = "sony-focus-area";
+const char CameraParameters::KEY_SONY_FOCUS_AREA_VALUES[] = "sony-focus-area-values";
+const char CameraParameters::KEY_SONY_MAX_MULTI_FOCUS_NUM[] = "sony-max-multi-focus-num";
+const char CameraParameters::KEY_SONY_SCENE_DETECT_SUPPORTED[] = "sony-scene-detect-supported";
+#endif
+
 // Values for white balance settings.
 const char CameraParameters::WHITE_BALANCE_AUTO[] = "auto";
 const char CameraParameters::WHITE_BALANCE_INCANDESCENT[] = "incandescent";
