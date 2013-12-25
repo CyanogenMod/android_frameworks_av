@@ -734,6 +734,26 @@ public:
     // Value for KEY_FOCUS_DISTANCES.
     static const char FOCUS_DISTANCE_INFINITY[];
 
+#ifdef SONY_CAM_PARAMS
+    static const char KEY_SONY_ISO[];
+    static const char KEY_SONY_METERING_MODE[];
+    static const char KEY_SONY_VS[];
+    static const char KEY_SONY_MAX_BURST_SHOT_SIZE[];
+    static const char KEY_SONY_BURST_SHOT_VALUES[];
+    static const char KEY_SONY_VS_VALUES[];
+    static const char KEY_SONY_METERING_MODE_VALUES[];
+    static const char KEY_SONY_AE_MODE[];
+    static const char KEY_SONY_AE_MODE_VALUES[];
+    static const char KEY_SONY_ISO_VALUES[];
+    static const char KEY_SONY_IS[];
+    static const char KEY_SONY_IS_VALUES[];
+    static const char KEY_SONY_EXTENSION_VERSION[];
+    static const char KEY_SONY_FOCUS_AREA[];
+    static const char KEY_SONY_FOCUS_AREA_VALUES[];
+    static const char KEY_SONY_MAX_MULTI_FOCUS_NUM[];
+    static const char KEY_SONY_SCENE_DETECT_SUPPORTED[];
+#endif
+
 #ifdef QCOM_HARDWARE
     // DENOISE
     static const char KEY_DENOISE[];
