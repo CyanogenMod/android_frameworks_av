@@ -143,6 +143,7 @@ public:
         INTERNAL_OPTION_SUSPEND,  // data is a bool
         INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY,  // data is an int64_t
         INTERNAL_OPTION_MAX_TIMESTAMP_GAP, // data is int64_t
+        INTERNAL_OPTION_START_TIME, // data is an int64_t
     };
     virtual status_t setInternalOption(
             node_id node,

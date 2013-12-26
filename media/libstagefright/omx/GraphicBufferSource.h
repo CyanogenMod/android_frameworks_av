@@ -118,6 +118,10 @@ public:
     // of suspension on input.
     status_t setMaxTimestampGapUs(int64_t maxGapUs);
 
+    // Sets the start time us (in system time), samples before which should
+    // be dropped and not submitted to encoder
+    void setSkipFramesBeforeUs(int64_t startTimeUs);
+
 protected:
     // BufferQueue::ConsumerListener interface, called when a new frame of
     // data is available.  If we're executing and a codec buffer is
@@ -223,16 +227,17 @@ private:
     enum {
         kRepeatLastFrameCount = 10,
     };
-    int64_t mRepeatAfterUs;
-    int64_t mMaxTimestampGapUs;
 
     KeyedVector<int64_t, int64_t> mOriginalTimeUs;
+    int64_t mMaxTimestampGapUs;
     int64_t mPrevOriginalTimeUs;
     int64_t mPrevModifiedTimeUs;
+    int64_t mSkipFramesBeforeNs;
 
     sp<ALooper> mLooper;
     sp<AHandlerReflector<GraphicBufferSource> > mReflector;
 
+    int64_t mRepeatAfterUs;
     int32_t mRepeatLastFrameGeneration;
     int64_t mRepeatLastFrameTimestamp;
     int32_t mRepeatLastFrameCount;
