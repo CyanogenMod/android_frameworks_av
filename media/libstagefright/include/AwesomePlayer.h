@@ -207,7 +207,7 @@ private:
 
     bool mWatchForAudioSeekComplete;
     bool mWatchForAudioEOS;
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     static int mTunnelAliveAP;
 #endif
 
@@ -319,7 +319,7 @@ private:
         ASSIGN
     };
     void modifyFlags(unsigned value, FlagMode mode);
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     void checkTunnelExceptions();
 #endif
     void logFirstFrame();
@@ -390,7 +390,7 @@ private:
 
     size_t countTracks() const;
 
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     bool inSupportedTunnelFormats(const char * mime);
     //Flag to check if tunnel mode audio is enabled
     bool mIsTunnelAudio;

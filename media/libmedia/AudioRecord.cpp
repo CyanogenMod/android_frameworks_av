@@ -59,15 +59,11 @@ status_t AudioRecord::getMinFrameCount(
 
     // We double the size of input buffer for ping pong use of record buffer.
     size <<= 1;
-
-#ifdef QCOM_HARDWARE
-    if (audio_is_linear_pcm(format) || format == AUDIO_FORMAT_AMR_WB) {
-#endif
     uint32_t channelCount = popcount(channelMask);
-    size /= channelCount * audio_bytes_per_sample(format);
-#ifdef QCOM_HARDWARE
-    }
-#endif
+    if (audio_is_linear_pcm(format))
+        size /= channelCount * audio_bytes_per_sample(format);
+    else
+        size /= sizeof(uint8_t);
 
     *frameCount = size;
     return NO_ERROR;
@@ -201,13 +197,18 @@ status_t AudioRecord::set(
         ALOGE("Invalid format %d", format);
         return BAD_VALUE;
     }
-#ifndef QCOM_HARDWARE
+#ifdef QCOM_HARDWARE
+    if (format != AUDIO_FORMAT_PCM_16_BIT &&
+           !audio_is_compress_voip_format(format) &&
+           !audio_is_compress_capture_format(format)) {
+#else
     // Temporary restriction: AudioFlinger currently supports 16-bit PCM only
     if (format != AUDIO_FORMAT_PCM_16_BIT) {
+#endif
         ALOGE("Format %d is not supported", format);
         return BAD_VALUE;
     }
-#endif
+
     mFormat = format;
 
     if (!audio_is_input_channel(channelMask)) {
@@ -223,7 +224,7 @@ status_t AudioRecord::set(
 #endif
     mChannelCount = channelCount;
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     mFrameSize = frameSize();
 
     size_t inputBuffSizeInBytes = -1;
@@ -242,7 +243,14 @@ status_t AudioRecord::set(
     int minFrameCount = (inputBuffSizeInBytes * 2)/mFrameSize;
 #else
     // Assumes audio_is_linear_pcm(format), else sizeof(uint8_t)
+#ifdef QCOM_HARDWARE
+    if (audio_is_linear_pcm(format))
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+    else
+        mFrameSize = sizeof(uint8_t);
+#else
     mFrameSize = channelCount * audio_bytes_per_sample(format);
+#endif
 
     // validate framecount
     size_t minFrameCount = 0;
@@ -310,7 +318,7 @@ status_t AudioRecord::set(
     return NO_ERROR;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 audio_source_t AudioRecord::inputSource() const
 {
     return mInputSource;
@@ -504,7 +512,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
 
     int originalSessionId = mSessionId;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if (inputSource() == AUDIO_SOURCE_VOICE_COMMUNICATION) {
         ALOGV("Notify use of Voice Communication");
         trackFlags |= IAudioFlinger::TRACK_VOICE_COMMUNICATION;
@@ -569,7 +577,11 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     // update proxy
+#ifdef QCOM_DIRECTTRACK
     mProxy = new AudioRecordClientProxy(cblk, buffers, mCblk->frameCount_, mFrameSize);
+#else
+    mProxy = new AudioRecordClientProxy(cblk, buffers, mFrameCount, mFrameSize);
+#endif
     mProxy->setEpoch(epoch);
     mProxy->setMinimum(mNotificationFramesAct);
 
@@ -999,7 +1011,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     return result;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 size_t AudioRecord::frameSize() const
 {
     if (inputSource() == AUDIO_SOURCE_VOICE_COMMUNICATION) {

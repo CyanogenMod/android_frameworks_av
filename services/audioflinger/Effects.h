@@ -69,7 +69,7 @@ public:
                      void *pReplyData);
 
     void reset_l();
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     status_t configure(bool isForLPA = false,
                        int sampleRate = 0,
                        int channelCount = 0,
@@ -127,7 +127,7 @@ public:
                         { return (mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0; }
     status_t         setOffloaded(bool offloaded, audio_io_handle_t io);
     bool             isOffloaded() const;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     bool             isOnLPA() { return mIsForLPA;}
     void             setLPAFlag(bool isForLPA) {mIsForLPA = isForLPA; }
 #endif
@@ -165,7 +165,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     uint32_t mDisableWaitCnt;       // current process() calls count during disable period.
     bool     mSuspended;            // effect is suspended: temporarily disabled by framework
     bool     mOffloaded;            // effect is currently offloaded to the audio DSP
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     bool     mIsForLPA;
 #endif
 };
@@ -277,7 +277,7 @@ public:
 
     status_t addEffect_l(const sp<EffectModule>& handle);
     size_t removeEffect_l(const sp<EffectModule>& handle);
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     size_t getNumEffects() { return mEffects.size(); }
 #endif
 
@@ -286,7 +286,7 @@ public:
 
     sp<EffectModule> getEffectFromDesc_l(effect_descriptor_t *descriptor);
     sp<EffectModule> getEffectFromId_l(int id);
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     sp<EffectModule> getEffectFromIndex_l(int idx);
 #endif
     sp<EffectModule> getEffectFromType_l(const effect_uuid_t *type);
@@ -338,7 +338,7 @@ public:
 
 
     void dump(int fd, const Vector<String16>& args);
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     bool isForLPATrack() {return mIsForLPATrack; }
     void setLPAFlag(bool flag) {mIsForLPATrack = flag;}
 #endif
@@ -390,7 +390,7 @@ protected:
     uint32_t mNewLeftVolume;       // new volume on left channel
     uint32_t mNewRightVolume;      // new volume on right channel
     uint32_t mStrategy; // strategy for this effect chain
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     bool     mIsForLPATrack;
 #endif
     // mSuspendedEffects lists all effects currently suspended in the chain.
