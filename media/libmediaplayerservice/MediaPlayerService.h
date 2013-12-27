@@ -85,7 +85,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual ssize_t         channelCount() const;
         virtual ssize_t         frameSize() const;
         virtual uint32_t        latency() const;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         virtual audio_stream_type_t streamType() const;
 #endif
         virtual float           msecsPerFrame() const;
@@ -125,7 +125,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual status_t        setParameters(const String8& keyValuePairs);
         virtual String8         getParameters(const String8& keys);
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         virtual ssize_t         sampleRate() const;
         virtual status_t        getTimeStamp(uint64_t *tstamp);
 #endif
@@ -227,7 +227,7 @@ class MediaPlayerService : public BnMediaPlayerService
 
                 void            setVolume(float left, float right) {}
         virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         virtual ssize_t         sampleRate() const;
 #else
                 uint32_t        sampleRate() const { return mSampleRate; }
