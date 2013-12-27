@@ -823,10 +823,10 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
 
     int64_t nowUs = -1;
     int64_t realTimeUs;
+    int64_t mediaTimeUs;
     if (mFlags & FLAG_REAL_TIME) {
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &realTimeUs));
     } else {
-        int64_t mediaTimeUs;
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
         nowUs = ALooper::GetNowUs();
