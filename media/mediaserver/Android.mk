@@ -33,6 +33,12 @@ ifeq ($(BOARD_USE_SECTVOUT),true)
 	LOCAL_SHARED_LIBRARIES += libTVOut
 endif
 
+ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
+    ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+        LOCAL_CFLAGS += -DQCOM_DIRECTTRACK
+    endif
+endif
+
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
     frameworks/av/services/medialog \
