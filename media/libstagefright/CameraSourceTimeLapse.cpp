@@ -28,6 +28,7 @@
 #include <camera/CameraParameters.h>
 #include <utils/String8.h>
 #include <utils/Vector.h>
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -58,6 +59,15 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
     return source;
 }
 
+bool useMeta = true;
+#ifdef QCOM_HARDWARE
+char value[PROPERTY_VALUE_MAX];
+if (property_get("debug.camcorder.disablemeta", value, NULL) &&
+    atoi(value)) {
+    useMeta = false;
+}
+#endif
+
 CameraSourceTimeLapse::CameraSourceTimeLapse(
         const sp<ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
@@ -69,7 +79,7 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
         const sp<IGraphicBufferProducer>& surface,
         int64_t timeBetweenFrameCaptureUs)
       : CameraSource(camera, proxy, cameraId, clientName, clientUid,
-                videoSize, videoFrameRate, surface, true),
+                videoSize, videoFrameRate, surface, useMeta),
       mTimeBetweenTimeLapseVideoFramesUs(1E6/videoFrameRate),
       mLastTimeLapseFrameRealTimestampUs(0),
       mSkipCurrentFrame(false) {
