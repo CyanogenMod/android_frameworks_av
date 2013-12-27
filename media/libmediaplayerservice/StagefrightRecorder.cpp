@@ -877,7 +877,7 @@ status_t StagefrightRecorder::start() {
 }
 
 sp<MediaSource> StagefrightRecorder::createAudioSource() {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     bool tunneledSource = false;
     const char *tunnelMime;
     {
