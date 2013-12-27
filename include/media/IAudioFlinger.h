@@ -26,7 +26,7 @@
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 #include <media/IDirectTrack.h>
 #include <media/IDirectTrackClient.h>
 #endif
@@ -56,7 +56,7 @@ public:
         TRACK_TIMED   = 1,  // client requests a TimedAudioTrack
         TRACK_FAST    = 2,  // client requests a fast AudioTrack or AudioRecord
         TRACK_OFFLOAD = 4,  // client requests offload to hw codec
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         TRACK_VOICE_COMMUNICATION = 8, //client uses voice communication
 #endif
     };
@@ -86,7 +86,7 @@ public:
                                 int clientUid,
                                 status_t *status) = 0;
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     /* create a direct audio track and registers it with AudioFlinger.
      * return null if the track cannot be created.
      */
