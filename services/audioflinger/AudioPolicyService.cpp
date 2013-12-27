@@ -1033,12 +1033,12 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(AudioCommand *comma
             } else {
                 data2->mKeyValuePairs = param2.toString();
             }
-            if (!strcmp(data2->mKeyValuePairs.string(), data->mKeyValuePairs.string())){
+            if (!data2->mKeyValuePairs.compare(data->mKeyValuePairs)){
                 command->mTime = command2->mTime;
+                // force delayMs to non 0 so that code below does not request to wait for
+                // command status as the command is now delayed
+                delayMs = 1;
             }
-            // force delayMs to non 0 so that code below does not request to wait for
-            // command status as the command is now delayed
-            delayMs = 1;
         } break;
 
         case SET_VOLUME: {

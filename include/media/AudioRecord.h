@@ -210,7 +210,7 @@ public:
             audio_format_t format() const   { return mFormat; }
             uint32_t    channelCount() const    { return mChannelCount; }
             size_t      frameCount() const  { return mFrameCount; }
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
             size_t      frameSize() const;
             audio_source_t inputSource() const;
 #else
