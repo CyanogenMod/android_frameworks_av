@@ -273,6 +273,15 @@ status_t ZslProcessor3::pushToReprocess(int32_t requestId) {
             return INVALID_OPERATION;
         }
 
+        // Flush device to clear out all in-flight requests pending in HAL.
+        res = client->getCameraDevice()->flush();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Failed to flush device: "
+                "%s (%d)",
+                __FUNCTION__, client->getCameraId(), strerror(-res), res);
+            return res;
+        }
+
         // Update JPEG settings
         {
             SharedParameters::Lock l(client->getParameters());

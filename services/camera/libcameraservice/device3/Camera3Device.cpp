@@ -1124,7 +1124,14 @@ status_t Camera3Device::flush() {
     Mutex::Autolock l(mLock);
 
     mRequestThread->clear();
-    return mHal3Device->ops->flush(mHal3Device);
+    status_t res;
+    if (mHal3Device->common.version >= CAMERA_DEVICE_API_VERSION_3_1) {
+        res = mHal3Device->ops->flush(mHal3Device);
+    } else {
+        res = waitUntilDrained();
+    }
+
+    return res;
 }
 
 /**
