@@ -75,7 +75,7 @@ enum {
     GET_PRIMARY_OUTPUT_SAMPLING_RATE,
     GET_PRIMARY_OUTPUT_FRAME_COUNT,
     SET_LOW_RAM_DEVICE,
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     CREATE_DIRECT_TRACK,
 #endif
 };
@@ -149,7 +149,7 @@ public:
         return track;
     }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     virtual sp<IDirectTrack> createDirectTrack(
                                 pid_t pid,
                                 uint32_t sampleRate,
@@ -832,7 +832,7 @@ status_t BnAudioFlinger::onTransact(
             reply->writeStrongBinder(track->asBinder());
             return NO_ERROR;
         } break;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         case CREATE_DIRECT_TRACK: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             pid_t pid = data.readInt32();

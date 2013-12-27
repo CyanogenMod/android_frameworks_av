@@ -102,7 +102,7 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 #define DIRECT_TRACK_EOS 1
 #define DIRECT_TRACK_HW_FAIL 6
 static const char lockName[] = "DirectTrack";
@@ -369,7 +369,7 @@ status_t AudioFlinger::ThreadBase::setParameters(const String8& keyValuePairs)
     return status;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 void AudioFlinger::ThreadBase::effectConfigChanged() {
     ALOGV("New effect is being added to LPA chain, Notifying LPA Direct Track");
     mAudioFlinger->audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
@@ -829,7 +829,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             addEffectChain_l(chain);
             chain->setStrategy(getStrategyForSession_l(sessionId));
             chainCreated = true;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
             if(sessionId == mAudioFlinger->mLPASessionId) {
                 // Clear reference to previous effect chain if any
                 if(mAudioFlinger->mLPAEffectChain.get()) {
@@ -872,7 +872,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             }
             effectCreated = true;
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
             effect->setDevice(mAudioFlinger->mLPASessionId == sessionId ? mAudioFlinger->mDirectDevice:mOutDevice);
 #else
             effect->setDevice(mOutDevice);
@@ -991,16 +991,16 @@ void AudioFlinger::ThreadBase::lockEffectChains_l(
         Vector< sp<AudioFlinger::EffectChain> >& effectChains)
 {
     effectChains = mEffectChains;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     mAudioFlinger->mAllChainsLocked = true;
 #endif
     for (size_t i = 0; i < mEffectChains.size(); i++) {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain) {
 #else
             mEffectChains[i]->lock();
 #endif
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         } else {
             mAudioFlinger-> mAllChainsLocked = false;
         }
@@ -1012,7 +1012,7 @@ void AudioFlinger::ThreadBase::unlockEffectChains(
         const Vector< sp<AudioFlinger::EffectChain> >& effectChains)
 {
     for (size_t i = 0; i < effectChains.size(); i++) {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         if (mAudioFlinger->mAllChainsLocked || effectChains[i] != mAudioFlinger->mLPAEffectChain)
 #endif
             effectChains[i]->unlock();
@@ -1086,7 +1086,9 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mDrainSequence(0),
         mSignalPending(false),
         mScreenState(AudioFlinger::mScreenState),
+#ifdef QCOM_DIRECTTRACK
         mOutputFlags(AUDIO_OUTPUT_FLAG_NONE),
+#endif
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
         // mLatchD, mLatchQ,
@@ -1334,13 +1336,8 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
     if (mType == DIRECT) {
 #ifdef QCOM_HARDWARE
-        if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM)
-               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_NB)
-               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AMR_WB)
-               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRC)
-               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRCB)
-               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRCWB)
-               ||((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_EVRCNW)) {
+        if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) ||
+                audio_is_compress_voip_format(format)) {
 #else
         if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
 #endif
@@ -2414,11 +2411,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // only process effects if we're going to write
             if (sleepTime == 0 && mType != OFFLOAD) {
                 for (size_t i = 0; i < effectChains.size(); i ++) {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
                     if (effectChains[i] != mAudioFlinger->mLPAEffectChain) {
 #endif
                         effectChains[i]->process_l();
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
                   }
 #endif
                }
@@ -3870,7 +3867,12 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
         } else {
             sleepTime = idleSleepTime;
         }
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+    } else if (mBytesWritten != 0 && (audio_is_linear_pcm(mFormat) ||
+                audio_is_compress_voip_format(mFormat))) {
+#else
     } else if (mBytesWritten != 0 && audio_is_linear_pcm(mFormat)) {
+#endif
         memset(mMixBuffer, 0, mFrameCount * mFrameSize);
         sleepTime = 0;
     }
@@ -4683,7 +4685,13 @@ bool AudioFlinger::RecordThread::threadLoop()
                                 framesIn = framesOut;
                             mRsmpInIndex += framesIn;
                             framesOut -= framesIn;
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+                            if (mChannelCount == mReqChannelCount ||
+                                    audio_is_compress_capture_format(mFormat) ||
+                                    audio_is_compress_voip_format(mFormat)) {
+#else
                             if (mChannelCount == mReqChannelCount) {
+#endif
                                 memcpy(dst, src, framesIn * mFrameSize);
                             } else {
                                 if (mChannelCount == 1) {
@@ -4697,7 +4705,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                         }
                         if (framesOut && (mFrameCount == mRsmpInIndex)) {
                             void *readInto;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
                             int InputBytes;
                             /*Fix me: How does framesOut become 0 in this condition */
                             if (( framesOut != mFrameCount) &&
@@ -4727,7 +4735,7 @@ bool AudioFlinger::RecordThread::threadLoop()
                             }
 #endif
                             mBytesRead = mInput->stream->read(mInput->stream, readInto,
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
                                     InputBytes);
 #else
                                     mBufferSize);
@@ -4939,7 +4947,7 @@ sp<AudioFlinger::RecordThread::RecordTrack>  AudioFlinger::RecordThread::createR
         Mutex::Autolock _l(mLock);
 
         track = new RecordTrack(this, client, sampleRate,
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
                       format, channelMask, frameCount, *flags, sessionId, uid);
 #else
                       format, channelMask, frameCount, sessionId, uid);
@@ -5426,7 +5434,13 @@ void AudioFlinger::RecordThread::readInputParameters()
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
     mChannelCount = (uint16_t)getInputChannelCount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
-#ifndef QCOM_HARDWARE
+#ifdef QCOM_HARDWARE
+    if (mFormat != AUDIO_FORMAT_PCM_16_BIT &&
+            !audio_is_compress_voip_format(mFormat) &&
+            !audio_is_compress_capture_format(mFormat)) {
+        ALOGE("HAL format %d not supported", mFormat);
+    }
+#else
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
         ALOGE("HAL format %d not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
     }
@@ -5550,7 +5564,7 @@ size_t AudioFlinger::RecordThread::removeEffectChain_l(const sp<EffectChain>& ch
     return 0;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 // ----------------------------------------------------------------------------
 
 AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
