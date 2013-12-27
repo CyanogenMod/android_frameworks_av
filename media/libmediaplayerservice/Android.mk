@@ -61,6 +61,12 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
     LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media/mm-core/inc
     endif
+    ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
+        ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+            LOCAL_SRC_FILES += IDirectTrack.cpp IDirectTrackClient.cpp
+            LOCAL_CFLAGS += -DQCOM_DIRECTTRACK
+        endif
+    endif
 endif
 
 LOCAL_MODULE:= libmediaplayerservice

@@ -88,6 +88,14 @@ ifeq ($(BOARD_HAVE_PRE_KITKAT_AUDIO_BLOB),true)
     LOCAL_CFLAGS += -DHAVE_PRE_KITKAT_AUDIO_BLOB
 endif
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+    ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
+        ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+            LOCAL_CFLAGS += -DQCOM_DIRECTTRACK
+        endif
+    endif
+endif
+
 LOCAL_CFLAGS += -fvisibility=hidden
 ifeq ($(strip $(BOARD_USES_SRS_TRUEMEDIA)),true)
 LOCAL_SHARED_LIBRARIES += libsrsprocessing
