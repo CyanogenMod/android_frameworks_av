@@ -55,7 +55,7 @@ static void AudioRecordCallbackFunction(int event, void *user, void *info) {
 
 AudioSource::AudioSource(
         audio_source_t inputSource, uint32_t sampleRate, uint32_t channelCount)
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     : mRecord(NULL),
       mStarted(false),
 #else
@@ -147,15 +147,16 @@ AudioSource::AudioSource( audio_source_t inputSource, const sp<MetaData>& meta )
     int32_t channels = 0;      //for the below tunnel formats
     CHECK( meta->findInt32( kKeyChannelCount, &channels ) );
     CHECK( meta->findInt32( kKeySampleRate, &sampleRate ) );
-    int32_t frameSize = -1;
     mSampleRate = sampleRate;
+#ifdef QCOM_DIRECTTRACK
+    int32_t frameSize = -1;
     if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_AMR_NB ) ) {
         mFormat = AUDIO_FORMAT_AMR_NB;
         frameSize = AMR_FRAMESIZE;
         mMaxBufferSize = AMR_FRAMESIZE*10;
-    }
+    } else
 #ifdef ENABLE_AV_ENHANCEMENTS
-    else if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_QCELP ) ) {
+    if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_QCELP ) ) {
         mFormat = AUDIO_FORMAT_QCELP;
         frameSize = QCELP_FRAMESIZE;
         mMaxBufferSize = QCELP_FRAMESIZE*10;
@@ -164,11 +165,14 @@ AudioSource::AudioSource( audio_source_t inputSource, const sp<MetaData>& meta )
         mFormat = AUDIO_FORMAT_EVRC;
         frameSize = EVRC_FRAMESIZE;
         mMaxBufferSize = EVRC_FRAMESIZE*10;
-    }
+    } else
 #endif
-    else if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_AMR_WB ) ) {
+#endif
+    if ( !strcasecmp( mime, MEDIA_MIMETYPE_AUDIO_AMR_WB ) ) {
         mFormat = AUDIO_FORMAT_AMR_WB;
+#ifdef QCOM_DIRECTTRACK
         frameSize = AMR_WB_FRAMESIZE;
+#endif
         mMaxBufferSize = AMR_WB_FRAMESIZE*10;
     }
     else {
