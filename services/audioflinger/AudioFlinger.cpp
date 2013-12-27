@@ -14,6 +14,24 @@
 ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
+**
+** This file was modified by DTS, Inc. The portions of the
+** code that are surrounded by "DTS..." are copyrighted and
+** licensed separately, as follows:
+**
+**  (C) 2013 DTS, Inc.
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**    http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License
 */
 
 
@@ -63,10 +81,8 @@
 #include <media/nbaio/PipeReader.h>
 #include <media/AudioParameter.h>
 #include <private/android_filesystem_config.h>
-
 #ifdef SRS_PROCESSING
-#include "srs_processing.h"
-#include "postpro_patch_ics.h"
+#include "postpro_patch.h"
 #endif
 
 // ----------------------------------------------------------------------------
@@ -1067,12 +1083,15 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
     // ioHandle == 0 means the parameters are global to the audio hardware interface
     if (ioHandle == 0) {
         Mutex::Autolock _l(mLock);
-#ifdef SRS_PROCESSING
-        POSTPRO_PATCH_ICS_PARAMS_SET(keyValuePairs);
-        if (!mDirectAudioTracks.isEmpty())
-            audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
-#endif
         status_t final_result = NO_ERROR;
+
+#ifdef SRS_PROCESSING
+        POSTPRO_PATCH_PARAMS_SET(keyValuePairs);
+        for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+            PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
+            thread->setPostPro();
+        }
+#endif
         {
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_PARAMETER;
@@ -1150,12 +1169,6 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             int device;
             if (param.getInt(key, device) == NO_ERROR) {
                 mDirectDevice = device;
-#ifdef SRS_PROCESSING
-                ALOGV("setParameters:: routing change to device %d", device);
-                POSTPRO_PATCH_ICS_OUTPROC_MIX_ROUTE(desc->trackRefPtr, param, device);
-                if(desc->flag & AUDIO_OUTPUT_FLAG_TUNNEL)
-                    audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
-#endif
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
                     audioConfigChanged_l(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
@@ -1202,8 +1215,9 @@ String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& k
         String8 out_s8;
 
 #ifdef SRS_PROCESSING
-        POSTPRO_PATCH_ICS_PARAMS_GET(keys, out_s8);
+        POSTPRO_PATCH_PARAMS_GET(keys, out_s8);
 #endif
+
         for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
             char *s;
             {
@@ -1923,10 +1937,6 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
             ALOGI("Using module %d has the primary audio interface", module);
             mPrimaryHardwareDev = outHwDev;
-#ifdef SRS_PROCESSING
-            SRS_Processing::RawDataSet(NULL, "qdsp hook", &mPrimaryHardwareDev,
-                sizeof(&mPrimaryHardwareDev));
-#endif
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_MODE;
             hwDevHal->set_mode(hwDevHal, mMode);
