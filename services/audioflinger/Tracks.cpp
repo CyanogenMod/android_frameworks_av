@@ -564,7 +564,7 @@ size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
-    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
+    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing() || isStopping()) {
         return true;
     }
 
