@@ -99,6 +99,11 @@ class CameraMetadata {
     status_t append(const CameraMetadata &other);
 
     /**
+     * Append metadata from a raw camera_metadata buffer
+     */
+    status_t append(const camera_metadata* other);
+
+    /**
      * Number of metadata entries.
      */
     size_t entryCount() const;

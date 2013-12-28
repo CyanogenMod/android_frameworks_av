@@ -112,7 +112,8 @@ AudioTrack::AudioTrack(
         int notificationFrames,
         int sessionId,
         transfer_type transferType,
-        const audio_offload_info_t *offloadInfo)
+        const audio_offload_info_t *offloadInfo,
+        int uid)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -127,7 +128,8 @@ AudioTrack::AudioTrack(
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
-            0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo);
+            0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
+            offloadInfo, uid);
 }
 
 AudioTrack::AudioTrack(
@@ -142,7 +144,8 @@ AudioTrack::AudioTrack(
         int notificationFrames,
         int sessionId,
         transfer_type transferType,
-        const audio_offload_info_t *offloadInfo)
+        const audio_offload_info_t *offloadInfo,
+        int uid)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -158,7 +161,7 @@ AudioTrack::AudioTrack(
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
-            sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo);
+            sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo, uid);
 }
 
 AudioTrack::~AudioTrack()
@@ -208,8 +211,11 @@ status_t AudioTrack::set(
         bool threadCanCallJava,
         int sessionId,
         transfer_type transferType,
-        const audio_offload_info_t *offloadInfo)
+        const audio_offload_info_t *offloadInfo,
+        int uid)
 {
+    ALOGV("sampleRate %u, channelMask %#x, format %d", sampleRate, channelMask, format);
+    ALOGV("streamType %d", streamType);
     switch (transferType) {
     case TRANSFER_DEFAULT:
         if (sharedBuffer != 0) {
@@ -312,6 +318,10 @@ status_t AudioTrack::set(
                 // FIXME why can't we allow direct AND fast?
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
+    // do not allow FAST flag for Voice Call stream type
+    if (streamType == AUDIO_STREAM_VOICE_CALL) {
+        flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_FAST);
+    }
     // only allow deep buffering for music stream type
     if (streamType != AUDIO_STREAM_MUSIC) {
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
@@ -380,6 +390,11 @@ status_t AudioTrack::set(
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
     mSessionId = sessionId;
+    if (uid == -1 || (IPCThreadState::self()->getCallingPid() != getpid())) {
+        mClientUid = IPCThreadState::self()->getCallingUid();
+    } else {
+        mClientUid = uid;
+    }
     mAuxEffectId = 0;
     mFlags = flags;
     mCbf = cbf;
@@ -1031,7 +1046,8 @@ status_t AudioTrack::createTrack_l(
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
-    //  n = 1   fast track; nBuffering is ignored
+    //  n = 1   fast track with single buffering; nBuffering is ignored
+    //  n = 2   fast track with double buffering
     //  n = 2   normal track, no sample rate conversion
     //  n = 3   normal track, with sample rate conversion
     //          (pessimistic; some non-1:1 conversion ratios don't actually need triple-buffering)
@@ -1046,7 +1062,8 @@ status_t AudioTrack::createTrack_l(
             // Same comment as below about ignoring frameCount parameter for set()
             frameCount = sharedBuffer->size();
         } else if (frameCount == 0) {
-            frameCount = afFrameCount;
+            frameCount = afFrameCount * 2;
+            ALOGV("Offload: new frameCount = %d", frameCount);
         }
         if (mNotificationFramesAct != frameCount) {
             mNotificationFramesAct = frameCount;
@@ -1140,6 +1157,7 @@ status_t AudioTrack::createTrack_l(
                                                       tid,
                                                       &mSessionId,
                                                       mName,
+                                                      mClientUid,
                                                       &status);
 
     if (track == 0) {
@@ -1174,9 +1192,11 @@ status_t AudioTrack::createTrack_l(
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", frameCount);
             mAwaitBoost = true;
             if (sharedBuffer == 0) {
-                // double-buffering is not required for fast tracks, due to tighter scheduling
-                if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount) {
-                    mNotificationFramesAct = frameCount;
+                // Theoretically double-buffering is not required for fast tracks,
+                // due to tighter scheduling.  But in practice, to accommodate kernels with
+                // scheduling jitter, and apps with computation jitter, we use double-buffering.
+                if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
+                    mNotificationFramesAct = frameCount/nBuffering;
                 }
             }
         } else {

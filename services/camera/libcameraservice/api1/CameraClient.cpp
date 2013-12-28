@@ -51,6 +51,8 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
     mPreviewWindow = 0;
     mDestructionStarted = false;
 
+    mIsOrientationSetByApp = false;
+
     // Callback is disabled by default
     mPreviewCallbackFlag = CAMERA_FRAME_CALLBACK_FLAG_NOOP;
     mOrientation = getOrientation(0, mCameraFacing == CAMERA_FACING_FRONT);
@@ -408,8 +410,13 @@ status_t CameraClient::startPreviewMode() {
     if (mPreviewWindow != 0) {
         native_window_set_scaling_mode(mPreviewWindow.get(),
                 NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-        native_window_set_buffers_transform(mPreviewWindow.get(),
-                mOrientation);
+        if (!mIsOrientationSetByApp) {
+            int orientationCorrection = getOrientation(0,mCameraFacing == CAMERA_FACING_FRONT);
+            native_window_set_buffers_transform(mPreviewWindow.get(),
+                                                mOrientation + orientationCorrection);
+        } else {
+            native_window_set_buffers_transform(mPreviewWindow.get(), mOrientation);
+        }
     }
 
 #if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
@@ -468,6 +475,8 @@ void CameraClient::stopPreview() {
     // lockIfMessageWanted().
     disableMsgType(CAMERA_MSG_POSTVIEW_FRAME);
 #endif
+
+    mIsOrientationSetByApp = false;
 
     disableMsgType(CAMERA_MSG_PREVIEW_FRAME);
 #ifdef QCOM_HARDWARE
@@ -601,7 +610,17 @@ status_t CameraClient::takePicture(int msgType) {
     mBurstCnt = mHardware->getParameters().getInt("num-snaps-per-shutter");
     if(mBurstCnt <= 0)
         mBurstCnt = 1;
+
     LOG1("mBurstCnt = %d", mBurstCnt);
+
+    // HTC HDR mode requires that we snap multiple times, but only get one jpeg
+    int numJpegs = mHardware->getParameters().getInt("num-jpegs-per-shutter");
+    if (numJpegs == 1 && mBurstCnt > 1) {
+        while (mBurstCnt > 1) {
+            result = mHardware->takePicture();
+            mBurstCnt--;
+        }
+    }
 #endif
 
     return mHardware->takePicture();
@@ -669,6 +688,8 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         // Mirror the preview if the camera is front-facing.
         orientation = getOrientation(arg1, mCameraFacing == CAMERA_FACING_FRONT);
         if (orientation == -1) return BAD_VALUE;
+
+        mIsOrientationSetByApp = true;
 
         if (mOrientation != orientation) {
             mOrientation = orientation;
@@ -974,8 +995,8 @@ void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
     if (mBurstCnt)
         mBurstCnt--;
 
+    LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
     if (!mBurstCnt && !mLongshotEnabled) {
-        LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
 #endif
         disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
 #ifdef QCOM_HARDWARE

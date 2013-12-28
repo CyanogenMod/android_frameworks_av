@@ -201,7 +201,16 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
     switch (what) {
         case LiveSession::kWhatPrepared:
         {
-            notifyVideoSizeChanged(0, 0);
+            // notify the current size here if we have it, otherwise report an initial size of (0,0)
+            sp<AMessage> format = getFormat(false /* audio */);
+            int32_t width;
+            int32_t height;
+            if (format != NULL &&
+                    format->findInt32("width", &width) && format->findInt32("height", &height)) {
+                notifyVideoSizeChanged(width, height);
+            } else {
+                notifyVideoSizeChanged(0, 0);
+            }
 
             uint32_t flags = FLAG_CAN_PAUSE;
             if (mLiveSession->isSeekable()) {

@@ -247,7 +247,6 @@ private:
     sp<DecryptHandle> mDecryptHandle;
 
     int64_t mLastVideoTimeUs;
-    int64_t mFrameDurationUs;
     TimedTextDriver *mTextDriver;
 
     sp<WVMExtractor> mWVMExtractor;
@@ -330,7 +329,6 @@ private:
     void printStats();
     int64_t getTimeOfDayUs();
     bool mStatistics;
-    int64_t mLateAVSyncMargin;
 
     struct TrackStat {
         String8 mMIME;

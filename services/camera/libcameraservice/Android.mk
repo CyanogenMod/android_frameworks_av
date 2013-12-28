@@ -35,6 +35,7 @@ LOCAL_SRC_FILES:=               \
     device3/Camera3ZslStream.cpp \
     device3/StatusTracker.cpp \
     gui/RingBufferConsumer.cpp \
+    utils/CameraTraces.cpp \
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \

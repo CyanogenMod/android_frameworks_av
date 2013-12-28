@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
+ *
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1448,19 +1451,33 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             } else {
                 // No size was specified. Pick a conservatively large size.
                 int32_t width, height;
-                if (mLastTrack->meta->findInt32(kKeyWidth, &width) &&
-                        mLastTrack->meta->findInt32(kKeyHeight, &height)) {
-                    mLastTrack->meta->setInt32(kKeyMaxInputSize, width * height * 3 / 2);
-                } else {
+                if (!mLastTrack->meta->findInt32(kKeyWidth, &width) ||
+                    !mLastTrack->meta->findInt32(kKeyHeight, &height)) {
                     ALOGE("No width or height, assuming worst case 1080p");
-                    mLastTrack->meta->setInt32(kKeyMaxInputSize, 3110400);
+                    width = 1920;
+                    height = 1080;
                 }
+
+                const char *mime;
+                CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
+                if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                    // AVC requires compression ratio of at least 2, and uses
+                    // macroblocks
+                    max_size = ((width + 15) / 16) * ((height + 15) / 16) * 192;
+                } else {
+                    // For all other formats there is no minimum compression
+                    // ratio. Use compression ratio of 1.
+                    max_size = width * height * 3 / 2;
+                }
+                mLastTrack->meta->setInt32(kKeyMaxInputSize, max_size);
             }
             *offset += chunk_size;
 
-            // Calculate average frame rate.
+            // NOTE: setting another piece of metadata invalidates any pointers (such as the
+            // mimetype) previously obtained, so don't cache them.
             const char *mime;
             CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
+            // Calculate average frame rate.
             if (!strncasecmp("video/", mime, 6)) {
                 size_t nSamples = mLastTrack->sampleTable->countSamples();
                 int64_t durationUs;
@@ -2375,6 +2392,11 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         objectType = 32 + br.getBits(6);
     }
 
+    if(objectType == 1) { //AAC Main profile
+        ALOGD("\n >>> Found AAC mainprofile in MPEG4 Extractor... \n");
+    }
+
+    mLastTrack->meta->setInt32(kKeyAACProfile, objectType);
     uint32_t freqIndex = br.getBits(4);
 
     int32_t sampleRate = 0;

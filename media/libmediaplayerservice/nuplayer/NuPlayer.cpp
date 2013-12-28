@@ -666,7 +666,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     // Take into account sample aspect ratio if necessary:
                     int32_t sarWidth, sarHeight;
-                    if (videoInputFormat->findInt32("sar-width", &sarWidth)
+                    if (videoInputFormat != NULL
+                            && videoInputFormat->findInt32(
+                                "sar-width", &sarWidth)
                             && videoInputFormat->findInt32(
                                 "sar-height", &sarHeight)) {
                         ALOGV("Sample aspect ratio %d : %d",

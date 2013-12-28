@@ -188,6 +188,9 @@ class Camera3Device :
     // Need to hold on to stream references until configure completes.
     Vector<sp<camera3::Camera3StreamInterface> > mDeletedStreams;
 
+    // Whether quirk ANDROID_QUIRKS_USE_PARTIAL_RESULT is enabled
+    bool                       mUsePartialResultQuirk;
+
     /**** End scope for mLock ****/
 
     class CaptureRequest : public LightRefBase<CaptureRequest> {
@@ -445,6 +448,18 @@ class Camera3Device :
         // buffers
         int     numBuffersLeft;
 
+        // Fields used by the partial result quirk only
+        struct PartialResultQuirkInFlight {
+            // Set by process_capture_result once 3A has been sent to clients
+            bool    haveSent3A;
+            // Result metadata collected so far, when partial results are in use
+            CameraMetadata collectedResult;
+
+            PartialResultQuirkInFlight():
+                    haveSent3A(false) {
+            }
+        } partialResultQuirk;
+
         // Default constructor needed by KeyedVector
         InFlightRequest() :
                 requestId(0),
@@ -471,6 +486,22 @@ class Camera3Device :
     status_t registerInFlight(int32_t frameNumber, int32_t requestId,
             int32_t numBuffers);
 
+    /**
+     * For the partial result quirk, check if all 3A state fields are available
+     * and if so, queue up 3A-only result to the client. Returns true if 3A
+     * is sent.
+     */
+    bool processPartial3AQuirk(int32_t frameNumber, int32_t requestId,
+            const CameraMetadata& partial);
+
+    // Helpers for reading and writing 3A metadata into to/from partial results
+    template<typename T>
+    bool get3AResult(const CameraMetadata& result, int32_t tag,
+            T* value, int32_t frameNumber);
+
+    template<typename T>
+    bool insert3AResult(CameraMetadata &result, int32_t tag, const T* value,
+            int32_t frameNumber);
     /**
      * Tracking for idle detection
      */

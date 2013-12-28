@@ -183,8 +183,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     // still have to do something sane for them
 
     // NOTE: Not scaled like FPS range values are.
-    previewFps = fpsFromRange(previewFpsRange[0], previewFpsRange[1]);
-    lastSetPreviewFps = previewFps;
+    int previewFps = fpsFromRange(previewFpsRange[0], previewFpsRange[1]);
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
             previewFps);
 
@@ -1047,6 +1046,11 @@ status_t Parameters::buildQuirks() {
     ALOGV_IF(quirks.meteringCropRegion, "Camera %d: Quirk meteringCropRegion"
                 " enabled", cameraId);
 
+    entry = info->find(ANDROID_QUIRKS_USE_PARTIAL_RESULT);
+    quirks.partialResults = (entry.count != 0 && entry.data.u8[0] == 1);
+    ALOGV_IF(quirks.partialResults, "Camera %d: Quirk usePartialResult"
+                " enabled", cameraId);
+
     return OK;
 }
 
@@ -1129,13 +1133,22 @@ status_t Parameters::set(const String8& paramString) {
 
     // PREVIEW_FPS_RANGE
     bool fpsRangeChanged = false;
+    int32_t lastSetFpsRange[2];
+
+    params.getPreviewFpsRange(&lastSetFpsRange[0], &lastSetFpsRange[1]);
+    lastSetFpsRange[0] /= kFpsToApiScale;
+    lastSetFpsRange[1] /= kFpsToApiScale;
+
     newParams.getPreviewFpsRange(&validatedParams.previewFpsRange[0],
             &validatedParams.previewFpsRange[1]);
     validatedParams.previewFpsRange[0] /= kFpsToApiScale;
     validatedParams.previewFpsRange[1] /= kFpsToApiScale;
 
-    if (validatedParams.previewFpsRange[0] != previewFpsRange[0] ||
-            validatedParams.previewFpsRange[1] != previewFpsRange[1]) {
+    // Compare the FPS range value from the last set() to the current set()
+    // to determine if the client has changed it
+    if (validatedParams.previewFpsRange[0] != lastSetFpsRange[0] ||
+            validatedParams.previewFpsRange[1] != lastSetFpsRange[1]) {
+
         fpsRangeChanged = true;
         camera_metadata_ro_entry_t availablePreviewFpsRanges =
             staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
@@ -1153,16 +1166,6 @@ status_t Parameters::set(const String8& paramString) {
                     validatedParams.previewFpsRange[1]);
             return BAD_VALUE;
         }
-        validatedParams.previewFps =
-            fpsFromRange(validatedParams.previewFpsRange[0],
-                         validatedParams.previewFpsRange[1]);
-
-        // Update our last-seen single preview FPS, needed for disambiguating
-        // when the application is intending to use the deprecated single-FPS
-        // setting vs. the range FPS setting
-        validatedParams.lastSetPreviewFps = newParams.getPreviewFrameRate();
-
-        newParams.setPreviewFrameRate(validatedParams.previewFps);
     }
 
     // PREVIEW_FORMAT
@@ -1200,12 +1203,11 @@ status_t Parameters::set(const String8& paramString) {
     // PREVIEW_FRAME_RATE Deprecated, only use if the preview fps range is
     // unchanged this time.  The single-value FPS is the same as the minimum of
     // the range.  To detect whether the application has changed the value of
-    // previewFps, compare against their last-set preview FPS instead of the
-    // single FPS we may have synthesized from a range FPS set.
+    // previewFps, compare against their last-set preview FPS.
     if (!fpsRangeChanged) {
-        validatedParams.previewFps = newParams.getPreviewFrameRate();
-        if (validatedParams.previewFps != lastSetPreviewFps ||
-                recordingHintChanged) {
+        int previewFps = newParams.getPreviewFrameRate();
+        int lastSetPreviewFps = params.getPreviewFrameRate();
+        if (previewFps != lastSetPreviewFps || recordingHintChanged) {
             camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
             /**
@@ -1218,8 +1220,8 @@ status_t Parameters::set(const String8& paramString) {
               * Either way, in case of multiple ranges, break the tie by
               * selecting the smaller range.
               */
-            int targetFps = validatedParams.previewFps;
-            // all ranges which have targetFps
+
+            // all ranges which have previewFps
             Vector<Range> candidateRanges;
             for (i = 0; i < availableFrameRates.count; i+=2) {
                 Range r = {
@@ -1227,13 +1229,13 @@ status_t Parameters::set(const String8& paramString) {
                             availableFrameRates.data.i32[i+1]
                 };
 
-                if (r.min <= targetFps && targetFps <= r.max) {
+                if (r.min <= previewFps && previewFps <= r.max) {
                     candidateRanges.push(r);
                 }
             }
             if (candidateRanges.isEmpty()) {
                 ALOGE("%s: Requested preview frame rate %d is not supported",
-                        __FUNCTION__, validatedParams.previewFps);
+                        __FUNCTION__, previewFps);
                 return BAD_VALUE;
             }
             // most applicable range with targetFps
@@ -1272,14 +1274,6 @@ status_t Parameters::set(const String8& paramString) {
                 validatedParams.previewFpsRange[1],
                 validatedParams.recordingHint);
         }
-        newParams.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
-                String8::format("%d,%d",
-                        validatedParams.previewFpsRange[0] * kFpsToApiScale,
-                        validatedParams.previewFpsRange[1] * kFpsToApiScale));
-        // Update our last-seen single preview FPS, needed for disambiguating
-        // when the application is intending to use the deprecated single-FPS
-        // setting vs. the range FPS setting
-        validatedParams.lastSetPreviewFps = validatedParams.previewFps;
     }
 
     // PICTURE_SIZE

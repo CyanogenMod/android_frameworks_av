@@ -473,6 +473,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         pid_t tid,
         int *sessionId,
         String8& name,
+        int clientUid,
         status_t *status)
 {
     sp<PlaybackThread::Track> track;
@@ -508,6 +509,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         }
 
         pid_t pid = IPCThreadState::self()->getCallingPid();
+
         client = registerPid_l(pid);
 
         ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
@@ -535,7 +537,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         ALOGV("createTrack() lSessionId: %d", lSessionId);
 
         track = thread->createTrack_l(client, streamType, sampleRate, format,
-                channelMask, frameCount, sharedBuffer, lSessionId, flags, tid, &lStatus);
+                channelMask, frameCount, sharedBuffer, lSessionId, flags, tid, clientUid, &lStatus);
 
         // move effect chain to this output thread if an effect on same session was waiting
         // for a track to be created
@@ -1081,9 +1083,28 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             }
             mHardwareStatus = AUDIO_HW_IDLE;
         }
-        // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
+
+        // invalidate all tracks of type MUSIC. This is handled in the player as a teardown
+        // event and can be used for fallback and retry.
         AudioParameter param = AudioParameter(keyValuePairs);
-        String8 value;
+        String8 value, key;
+        int i = 0;
+
+        key = String8(AudioParameter::keySoundCardStatus);
+        if (param.get(key, value) == NO_ERROR) {
+            ALOGV("Set keySoundCardStatus:%s", value.string());
+            if ((value.find("OFFLINE", 0) != -1) ) {
+                ALOGV("OFFLINE detected - call InvalidateTracks()");
+                for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+                    PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
+                    thread->invalidateTracks(AUDIO_STREAM_MUSIC);
+                }
+           } else if ((value.find("OFFLINE", 0) != -1) ) {
+                ALOGV("ONLINE detected - what should I do?");
+           }
+        }
+
+        // disable AEC and NS if the device is a BT SCO headset supporting those pre processings
         if (param.get(String8(AUDIO_PARAMETER_KEY_BT_NREC), value) == NO_ERROR) {
             bool btNrecIsOff = (value == AUDIO_PARAMETER_VALUE_OFF);
             if (mBtNrecIsOff != btNrecIsOff) {
@@ -1590,8 +1611,11 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
         // create new record track.
         // The record track uses one track in mHardwareMixerThread by convention.
+        // TODO: the uid should be passed in as a parameter to openRecord
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
-                                                  frameCount, lSessionId, flags, tid, &lStatus);
+                                                  frameCount, lSessionId,
+                                                  IPCThreadState::self()->getCallingUid(),
+                                                  flags, tid, &lStatus);
         LOG_ALWAYS_FATAL_IF((recordTrack != 0) != (lStatus == NO_ERROR));
     }
     if (lStatus != NO_ERROR) {
@@ -1867,6 +1891,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         }
         if (thread != NULL) {
             mPlaybackThreads.add(id, thread);
+            thread->mOutputFlags = flags;
         }
 
         if (pSamplingRate != NULL) {
@@ -2242,7 +2267,11 @@ status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_hand
 
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
-        thread->invalidateTracks(stream);
+#ifdef QCOM_HARDWARE
+        // Do not invalidate voip stream which uses directoutput thread
+        if(!(thread->type() == ThreadBase::DIRECT && (thread->mOutputFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)))
+#endif
+            thread->invalidateTracks(stream);
     }
 
     return NO_ERROR;
@@ -2734,6 +2763,7 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
                                         strategy,
                                         sessionId,
                                         effect->id());
+            AudioSystem::setEffectEnabled(effect->id(), effect->isEnabled());
         }
         effect = chain->getEffectFromId_l(0);
     }
@@ -2748,6 +2778,7 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
                                             strategy,
                                             sessionId,
                                             removed[i]->id());
+                AudioSystem::setEffectEnabled(effect->id(), effect->isEnabled());
             }
         }
     }

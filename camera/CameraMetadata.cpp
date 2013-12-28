@@ -133,11 +133,19 @@ void CameraMetadata::acquire(CameraMetadata &other) {
 }
 
 status_t CameraMetadata::append(const CameraMetadata &other) {
+    return append(other.mBuffer);
+}
+
+status_t CameraMetadata::append(const camera_metadata_t* other) {
     if (mLocked) {
         ALOGE("%s: CameraMetadata is locked", __FUNCTION__);
         return INVALID_OPERATION;
     }
-    return append_camera_metadata(mBuffer, other.mBuffer);
+    size_t extraEntries = get_camera_metadata_entry_count(other);
+    size_t extraData = get_camera_metadata_data_count(other);
+    resizeIfNeeded(extraEntries, extraData);
+
+    return append_camera_metadata(mBuffer, other);
 }
 
 size_t CameraMetadata::entryCount() const {
