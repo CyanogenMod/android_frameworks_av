@@ -114,6 +114,10 @@ ifneq ($(filter caf bfam legacy,$(TARGET_QCOM_AUDIO_VARIANT)),)
             LOCAL_SRC_FILES += LPAPlayer.cpp
             LOCAL_CFLAGS += -DLEGACY_LPA -DUSE_LPA_MODE
         endif
+        ifeq ($(call is-chipset-in-board-platform,msm7x27a),true)
+            LOCAL_SRC_FILES += LPAPlayer.cpp
+            LOCAL_CFLAGS += -DLEGACY_LPA -DUSE_LPA_MODE
+        endif
         ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
             LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
         endif
