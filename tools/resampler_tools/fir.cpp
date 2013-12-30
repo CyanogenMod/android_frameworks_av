@@ -32,7 +32,7 @@ static inline double sqr(double x) {
 static inline int64_t toint(double x, int64_t maxval) {
     int64_t v;
 
-    v = static_cast<int64_t>(floor(y * maxval + 0.5));
+    v = static_cast<int64_t>(floor(x * maxval + 0.5));
     if (v >= maxval) {
         return maxval - 1; // error!
     }
