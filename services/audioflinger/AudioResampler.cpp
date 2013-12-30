@@ -25,6 +25,7 @@
 #include "AudioResampler.h"
 #include "AudioResamplerSinc.h"
 #include "AudioResamplerCubic.h"
+#include "AudioResamplerDyn.h"
 
 #ifdef __arm__
 #include <machine/cpu-features.h>
@@ -85,6 +86,9 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
     case MED_QUALITY:
     case HIGH_QUALITY:
     case VERY_HIGH_QUALITY:
+    case DYN_LOW_QUALITY:
+    case DYN_MED_QUALITY:
+    case DYN_HIGH_QUALITY:
         return true;
     default:
         return false;
@@ -105,7 +109,7 @@ void AudioResampler::init_routine()
         if (*endptr == '\0') {
             defaultQuality = (src_quality) l;
             ALOGD("forcing AudioResampler quality to %d", defaultQuality);
-            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > VERY_HIGH_QUALITY) {
+            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > DYN_HIGH_QUALITY) {
                 defaultQuality = DEFAULT_QUALITY;
             }
         }
@@ -125,6 +129,12 @@ uint32_t AudioResampler::qualityMHz(src_quality quality)
         return 20;
     case VERY_HIGH_QUALITY:
         return 34;
+    case DYN_LOW_QUALITY:
+        return 4;
+    case DYN_MED_QUALITY:
+        return 6;
+    case DYN_HIGH_QUALITY:
+        return 12;
     }
 }
 
@@ -175,6 +185,15 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         case VERY_HIGH_QUALITY:
             quality = HIGH_QUALITY;
             break;
+        case DYN_LOW_QUALITY:
+            atFinalQuality = true;
+            break;
+        case DYN_MED_QUALITY:
+            quality = DYN_LOW_QUALITY;
+            break;
+        case DYN_HIGH_QUALITY:
+            quality = DYN_MED_QUALITY;
+            break;
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -199,6 +218,12 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
     case VERY_HIGH_QUALITY:
         ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d", quality);
         resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate, quality);
+        break;
+    case DYN_LOW_QUALITY:
+    case DYN_MED_QUALITY:
+    case DYN_HIGH_QUALITY:
+        ALOGV("Create dynamic Resampler = %d", quality);
+        resampler = new AudioResamplerDyn(bitDepth, inChannelCount, sampleRate, quality);
         break;
     }
 

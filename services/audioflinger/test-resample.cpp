@@ -33,8 +33,9 @@ using namespace android;
 bool gVerbose = false;
 
 static int usage(const char* name) {
-    fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq}] [-i input-sample-rate] "
-                   "[-o output-sample-rate] [<input-file>] <output-file>\n", name);
+    fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
+                   " [-i input-sample-rate] [-o output-sample-rate] [<input-file>]"
+                   " <output-file>\n", name);
     fprintf(stderr,"    -p    enable profiling\n");
     fprintf(stderr,"    -h    create wav file\n");
     fprintf(stderr,"    -v    verbose : log buffer provider calls\n");
@@ -45,6 +46,9 @@ static int usage(const char* name) {
     fprintf(stderr,"              mq  : medium quality\n");
     fprintf(stderr,"              hq  : high quality\n");
     fprintf(stderr,"              vhq : very high quality\n");
+    fprintf(stderr,"              dlq : dynamic low quality\n");
+    fprintf(stderr,"              dmq : dynamic medium quality\n");
+    fprintf(stderr,"              dhq : dynamic high quality\n");
     fprintf(stderr,"    -i    input file sample rate (ignored if input file is specified)\n");
     fprintf(stderr,"    -o    output file sample rate\n");
     return -1;
@@ -86,6 +90,12 @@ int main(int argc, char* argv[]) {
                 quality = AudioResampler::HIGH_QUALITY;
             else if (!strcmp(optarg, "vhq"))
                 quality = AudioResampler::VERY_HIGH_QUALITY;
+            else if (!strcmp(optarg, "dlq"))
+                quality = AudioResampler::DYN_LOW_QUALITY;
+            else if (!strcmp(optarg, "dmq"))
+                quality = AudioResampler::DYN_MED_QUALITY;
+            else if (!strcmp(optarg, "dhq"))
+                quality = AudioResampler::DYN_HIGH_QUALITY;
             else {
                 usage(progname);
                 return -1;
@@ -137,6 +147,8 @@ int main(int argc, char* argv[]) {
         channels = info.channels;
         input_freq = info.samplerate;
     } else {
+        // data for testing is exactly (input sampling rate/1000)/2 seconds
+        // so 44.1khz input is 22.05 seconds
         double k = 1000; // Hz / s
         double time = (input_freq / 2) / k;
         size_t input_frames = size_t(input_freq * time);
@@ -148,7 +160,7 @@ int main(int argc, char* argv[]) {
             double y = sin(M_PI * k * t * t);
             int16_t yi = floor(y * 32767.0 + 0.5);
             for (size_t j=0 ; j<(size_t)channels ; j++) {
-                in[i*channels + j] = yi / (1+j);
+                in[i*channels + j] = yi / (1+j); // right ch. 1/2 left ch.
             }
         }
     }
@@ -170,6 +182,7 @@ int main(int argc, char* argv[]) {
         }
         virtual status_t getNextBuffer(Buffer* buffer,
                 int64_t pts = kInvalidPTS) {
+            (void)pts; // suppress warning
             size_t requestedFrames = buffer->frameCount;
             if (requestedFrames > mNumFrames - mNextFrame) {
                 buffer->frameCount = mNumFrames - mNextFrame;
@@ -205,6 +218,9 @@ int main(int argc, char* argv[]) {
             buffer->frameCount = 0;
             buffer->i16 = NULL;
         }
+        void reset() {
+            mNextFrame = 0;
+        }
     } provider(input_vaddr, input_size, channels);
 
     size_t input_frames = input_size / (channels * sizeof(int16_t));
@@ -215,36 +231,28 @@ int main(int argc, char* argv[]) {
     output_size &= ~7; // always stereo, 32-bits
 
     void* output_vaddr = malloc(output_size);
-
-    if (profiling) {
-        AudioResampler* resampler = AudioResampler::create(16, channels,
-                output_freq, quality);
-
-        size_t out_frames = output_size/8;
-        resampler->setSampleRate(input_freq);
-        resampler->setVolume(0x1000, 0x1000);
-
-        memset(output_vaddr, 0, output_size);
-        timespec start, end;
-        clock_gettime(CLOCK_MONOTONIC, &start);
-        resampler->resample((int*) output_vaddr, out_frames, &provider);
-        resampler->resample((int*) output_vaddr, out_frames, &provider);
-        resampler->resample((int*) output_vaddr, out_frames, &provider);
-        resampler->resample((int*) output_vaddr, out_frames, &provider);
-        clock_gettime(CLOCK_MONOTONIC, &end);
-        int64_t start_ns = start.tv_sec * 1000000000LL + start.tv_nsec;
-        int64_t end_ns = end.tv_sec * 1000000000LL + end.tv_nsec;
-        int64_t time = (end_ns - start_ns)/4;
-        printf("%f Mspl/s\n", out_frames/(time/1e9)/1e6);
-
-        delete resampler;
-    }
-
     AudioResampler* resampler = AudioResampler::create(16, channels,
             output_freq, quality);
     size_t out_frames = output_size/8;
     resampler->setSampleRate(input_freq);
     resampler->setVolume(0x1000, 0x1000);
+
+    if (profiling) {
+        const int looplimit = 100;
+        timespec start, end;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        for (int i = 0; i < looplimit; ++i) {
+            resampler->resample((int*) output_vaddr, out_frames, &provider);
+            provider.reset(); //  reset only provider as benchmarking
+        }
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        int64_t start_ns = start.tv_sec * 1000000000LL + start.tv_nsec;
+        int64_t end_ns = end.tv_sec * 1000000000LL + end.tv_nsec;
+        int64_t time = end_ns - start_ns;
+        printf("time(ns):%lld  channels:%d  quality:%d\n", time, channels, quality);
+        printf("%f Mspl/s\n", out_frames * looplimit / (time / 1e9) / 1e6);
+        resampler->reset();
+    }
 
     memset(output_vaddr, 0, output_size);
     if (gVerbose) {
@@ -259,14 +267,18 @@ int main(int argc, char* argv[]) {
         printf("reset() complete\n");
     }
 
-    // down-mix (we just truncate and keep the left channel)
+    // mono takes left channel only
+    // stereo right channel is half amplitude of stereo left channel (due to input creation)
     int32_t* out = (int32_t*) output_vaddr;
     int16_t* convert = (int16_t*) malloc(out_frames * channels * sizeof(int16_t));
+
     for (size_t i = 0; i < out_frames; i++) {
-        for (int j=0 ; j<channels ; j++) {
+        for (int j = 0; j < channels; j++) {
             int32_t s = out[i * 2 + j] >> 12;
-            if (s > 32767)       s =  32767;
-            else if (s < -32768) s = -32768;
+            if (s > 32767)
+                s = 32767;
+            else if (s < -32768)
+                s = -32768;
             convert[i * channels + j] = int16_t(s);
         }
     }

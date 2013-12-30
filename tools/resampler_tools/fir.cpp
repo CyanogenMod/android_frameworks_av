@@ -20,13 +20,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-static double sinc(double x) {
+static inline double sinc(double x) {
     if (fabs(x) == 0.0f) return 1.0f;
     return sin(x) / x;
 }
 
-static double sqr(double x) {
+static inline double sqr(double x) {
     return x*x;
+}
+
+static inline int64_t toint(double x, int64_t maxval) {
+    int64_t v;
+
+    v = static_cast<int64_t>(floor(y * maxval + 0.5));
+    if (v >= maxval) {
+        return maxval - 1; // error!
+    }
+    return v;
 }
 
 static double I0(double x) {
@@ -54,11 +64,12 @@ static double kaiser(int k, int N, double beta) {
     return I0(beta * sqrt(1.0 - sqr((2.0*k)/N - 1.0))) / I0(beta);
 }
 
-
 static void usage(char* name) {
     fprintf(stderr,
-            "usage: %s [-h] [-d] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings] [-f {float|fixed}] [-b beta] [-v dBFS] [-l lerp]\n"
-            "       %s [-h] [-d] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings] [-f {float|fixed}] [-b beta] [-v dBFS] -p M/N\n"
+            "usage: %s [-h] [-d] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings]"
+            " [-f {float|fixed|fixed16}] [-b beta] [-v dBFS] [-l lerp]\n"
+            "       %s [-h] [-d] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings]"
+            " [-f {float|fixed|fixed16}] [-b beta] [-v dBFS] -p M/N\n"
             "    -h    this help message\n"
             "    -d    debug, print comma-separated coefficient table\n"
             "    -p    generate poly-phase filter coefficients, with sample increment M/N\n"
@@ -66,6 +77,7 @@ static void usage(char* name) {
             "    -c    cut-off frequency (20478)\n"
             "    -n    number of zero-crossings on one side (8)\n"
             "    -l    number of lerping bits (4)\n"
+            "    -m    number of polyphases (related to -l, default 16)\n"
             "    -f    output format, can be fixed-point or floating-point (fixed)\n"
             "    -b    kaiser window parameter beta (7.865 [-80dB])\n"
             "    -v    attenuation in dBFS (0)\n",
@@ -77,8 +89,7 @@ static void usage(char* name) {
 int main(int argc, char** argv)
 {
     // nc is the number of bits to store the coefficients
-    const int nc = 32;
-
+    int nc = 32;
     bool polyphase = false;
     unsigned int polyM = 160;
     unsigned int polyN = 147;
@@ -87,7 +98,6 @@ int main(int argc, char** argv)
     double Fc = 20478;
     double atten = 1;
     int format = 0;
-
 
     // in order to keep the errors associated with the linear
     // interpolation of the coefficients below the quantization error
@@ -104,7 +114,6 @@ int main(int argc, char** argv)
     // Smith, J.O. Digital Audio Resampling Home Page
     // https://ccrma.stanford.edu/~jos/resample/, 2011-03-29
     //
-    int nz = 4;
 
     //         | 0.1102*(A - 8.7)                         A > 50
     //  beta = | 0.5842*(A - 21)^0.4 + 0.07886*(A - 21)   21 <= A <= 50
@@ -122,7 +131,6 @@ int main(int argc, char** argv)
     //    90 dB    8.960
     //   100 dB   10.056
     double beta = 7.865;
-
 
     // 2*nzc = (A - 8) / (2.285 * dw)
     //      with dw the transition width = 2*pi*dF/Fs
@@ -148,8 +156,9 @@ int main(int argc, char** argv)
     // nzc  = 20
     //
 
+    int M = 1 << 4; // number of phases for interpolation
     int ch;
-    while ((ch = getopt(argc, argv, ":hds:c:n:f:l:b:p:v:")) != -1) {
+    while ((ch = getopt(argc, argv, ":hds:c:n:f:l:m:b:p:v:z:")) != -1) {
         switch (ch) {
             case 'd':
                 debug = true;
@@ -169,13 +178,26 @@ int main(int argc, char** argv)
             case 'n':
                 nzc = atoi(optarg);
                 break;
+            case 'm':
+                M = atoi(optarg);
+                break;
             case 'l':
-                nz = atoi(optarg);
+                M = 1 << atoi(optarg);
                 break;
             case 'f':
-                if (!strcmp(optarg,"fixed")) format = 0;
-                else if (!strcmp(optarg,"float")) format = 1;
-                else usage(argv[0]);
+                if (!strcmp(optarg, "fixed")) {
+                    format = 0;
+                }
+                else if (!strcmp(optarg, "fixed16")) {
+                    format = 0;
+                    nc = 16;
+                }
+                else if (!strcmp(optarg, "float")) {
+                    format = 1;
+                }
+                else {
+                    usage(argv[0]);
+                }
                 break;
             case 'b':
                 beta = atof(optarg);
@@ -193,11 +215,14 @@ int main(int argc, char** argv)
     // cut off frequency ratio Fc/Fs
     double Fcr = Fc / Fs;
 
-
     // total number of coefficients (one side)
-    const int M = (1 << nz);
+
     const int N = M * nzc;
 
+    // lerp (which is most useful if M is a power of 2)
+
+    int nz = 0; // recalculate nz as the bits needed to represent M
+    for (int i = M-1 ; i; i>>=1, nz++);
     // generate the right half of the filter
     if (!debug) {
         printf("// cmd-line: ");
@@ -207,7 +232,7 @@ int main(int argc, char** argv)
         printf("\n");
         if (!polyphase) {
             printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", N);
-            printf("const int32_t RESAMPLE_FIR_LERP_INT_BITS  = %d;\n", nz);
+            printf("const int32_t RESAMPLE_FIR_INT_PHASES     = %d;\n", M);
             printf("const int32_t RESAMPLE_FIR_NUM_COEF       = %d;\n", nzc);
         } else {
             printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", 2*nzc*polyN);
@@ -224,7 +249,7 @@ int main(int argc, char** argv)
         for (int i=0 ; i<=M ; i++) { // an extra set of coefs for interpolation
             for (int j=0 ; j<nzc ; j++) {
                 int ix = j*M + i;
-                double x = (2.0 * M_PI * ix * Fcr) / (1 << nz);
+                double x = (2.0 * M_PI * ix * Fcr) / M;
                 double y = kaiser(ix+N, 2*N, beta) * sinc(x) * 2.0 * Fcr;
                 y *= atten;
 
@@ -232,11 +257,13 @@ int main(int argc, char** argv)
                     if (j == 0)
                         printf("\n    ");
                 }
-
                 if (!format) {
-                    int64_t yi = floor(y * ((1ULL<<(nc-1))) + 0.5);
-                    if (yi >= (1LL<<(nc-1))) yi = (1LL<<(nc-1))-1;
-                    printf("0x%08x, ", int32_t(yi));
+                    int64_t yi = toint(y, 1ULL<<(nc-1));
+                    if (nc > 16) {
+                        printf("0x%08x, ", int32_t(yi));
+                    } else {
+                        printf("0x%04x, ", int32_t(yi)&0xffff);
+                    }
                 } else {
                     printf("%.9g%s ", y, debug ? "," : "f,");
                 }
@@ -254,9 +281,12 @@ int main(int argc, char** argv)
                 double y = kaiser(i+N, 2*N, beta) * sinc(x) * 2.0 * Fcr;;
                 y *= atten;
                 if (!format) {
-                    int64_t yi = floor(y * ((1ULL<<(nc-1))) + 0.5);
-                    if (yi >= (1LL<<(nc-1))) yi = (1LL<<(nc-1))-1;
-                    printf("0x%08x", int32_t(yi));
+                    int64_t yi = toint(y, 1ULL<<(nc-1));
+                    if (nc > 16) {
+                        printf("0x%08x, ", int32_t(yi));
+                    } else {
+                        printf("0x%04x, ", int32_t(yi)&0xffff);
+                    }
                 } else {
                     printf("%.9g%s", y, debug ? "" : "f");
                 }
@@ -277,5 +307,3 @@ int main(int argc, char** argv)
 }
 
 // http://www.csee.umbc.edu/help/sound/AFsp-V2R1/html/audio/ResampAudio.html
-
-
