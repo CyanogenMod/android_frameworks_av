@@ -410,13 +410,17 @@ status_t CameraClient::startPreviewMode() {
     if (mPreviewWindow != 0) {
         native_window_set_scaling_mode(mPreviewWindow.get(),
                 NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+#ifdef QCOM_HARDWARE
         if (!mIsOrientationSetByApp) {
             int orientationCorrection = getOrientation(0,mCameraFacing == CAMERA_FACING_FRONT);
             native_window_set_buffers_transform(mPreviewWindow.get(),
                                                 mOrientation + orientationCorrection);
         } else {
+#endif
             native_window_set_buffers_transform(mPreviewWindow.get(), mOrientation);
+#ifdef QCOM_HARDWARE
         }
+#endif
     }
 
 #if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
