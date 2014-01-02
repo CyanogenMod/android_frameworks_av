@@ -84,6 +84,7 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
             LOCAL_SRC_FILES += IDirectTrack.cpp IDirectTrackClient.cpp
         endif
     endif
+    LOCAL_SHARED_LIBRARIES += libaudioparameter
 endif
 
 # for <cutils/atomic-inline.h>
@@ -92,10 +93,10 @@ LOCAL_SRC_FILES += SingleStateQueue.cpp
 LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
 # Consider a separate a library for SingleStateQueueInstantiations.
 
-LOCAL_SHARED_LIBRARIES := \
+LOCAL_SHARED_LIBRARIES += \
 	libui liblog libcutils libutils libbinder libsonivox libicuuc libexpat \
         libcamera_client libstagefright_foundation \
-        libgui libdl libaudioutils libaudioparameter
+        libgui libdl libaudioutils
 
 LOCAL_WHOLE_STATIC_LIBRARY := libmedia_helper
 

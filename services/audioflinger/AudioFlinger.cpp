@@ -1554,6 +1554,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
+#ifdef QCOM_HARDWARE
 #ifdef QCOM_DIRECTTRACK
     // Check that audio input stream accepts requested audio parameters
     inputBufferSize = getInputBufferSize(sampleRate, format, channelCount);
@@ -1563,18 +1564,21 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 #else
-#ifdef QCOM_HARDWARE
     if (format != AUDIO_FORMAT_PCM_16_BIT &&
             !audio_is_compress_voip_format(format) &&
             !audio_is_compress_capture_format(format)) {
-#else 
-    if (format != AUDIO_FORMAT_PCM_16_BIT) {
-#endif
         ALOGE("openRecord() invalid format %d", format);
         lStatus = BAD_VALUE;
         goto Exit;
     }
-
+#endif
+#else 
+    if (format != AUDIO_FORMAT_PCM_16_BIT) {
+        ALOGE("openRecord() invalid format %d", format);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+#endif
 
     // add client to list
     { // scope for mLock
