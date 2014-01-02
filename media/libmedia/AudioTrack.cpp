@@ -392,7 +392,6 @@ status_t AudioTrack::set(
         mFrameSize = sizeof(uint8_t);
         mFrameSizeAF = sizeof(uint8_t);
     }
-#endif
 
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
