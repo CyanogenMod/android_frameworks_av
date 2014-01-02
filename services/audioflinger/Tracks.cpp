@@ -120,7 +120,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
-    size_t bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
     size_t size = sizeof(audio_track_cblk_t);
 #ifdef QCOM_HARDWARE
 #ifdef QCOM_DIRECTTRACK
