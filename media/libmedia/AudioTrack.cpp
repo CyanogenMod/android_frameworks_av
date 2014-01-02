@@ -394,7 +394,7 @@ status_t AudioTrack::set(
             }
         }
     }
-#else
+#endif
 
     if (audio_is_linear_pcm(format)) {
         mFrameSize = channelCount * audio_bytes_per_sample(format);
