@@ -1573,7 +1573,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         lStatus = BAD_VALUE;
         goto Exit;
     }
-#endif
 
 
     // add client to list
