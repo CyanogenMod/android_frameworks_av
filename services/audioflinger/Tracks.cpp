@@ -120,9 +120,9 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
-    size_t bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
     size_t size = sizeof(audio_track_cblk_t);
 #ifdef QCOM_HARDWARE
+    size_t bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
 #ifdef QCOM_DIRECTTRACK
     uint8_t channelCount = popcount(channelMask);
     if (flags & IAudioFlinger::TRACK_VOICE_COMMUNICATION) {
@@ -143,8 +143,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
           bufferSize = roundup(frameCount) * channelCount * AMR_WB_FRAMESIZE; // full rate frame size
        }
     }
-#else
-    size_t bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
 #endif
 #else
     size_t bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
