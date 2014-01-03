@@ -108,11 +108,7 @@ ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
             LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
             LOCAL_CFLAGS += -DUSE_TUNNEL_MODE -DUSE_LPA_MODE
         endif
-        ifeq ($(call is-chipset-in-board-platform,msm8660),true)
-            LOCAL_SRC_FILES += LPAPlayer.cpp
-            LOCAL_CFLAGS += -DLEGACY_LPA -DUSE_LPA_MODE
-        endif
-        ifeq ($(call is-chipset-in-board-platform,msm7x30),true)
+        ifneq ($(filter msm8660 msm7x30 msm7x27a,$(TARGET_BOARD_PLATFORM)),)
             LOCAL_SRC_FILES += LPAPlayer.cpp
             LOCAL_CFLAGS += -DLEGACY_LPA -DUSE_LPA_MODE
         endif
