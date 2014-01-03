@@ -2652,7 +2652,7 @@ void MPEG4Writer::Track::bufferChunk(int64_t timestampUs) {
 }
 
 int64_t MPEG4Writer::Track::getDurationUs() const {
-    return mTrackDurationUs;
+    return mTrackDurationUs * mHFRRatio;
 }
 
 int64_t MPEG4Writer::Track::getEstimatedTrackSizeBytes() const {
@@ -2979,7 +2979,7 @@ void MPEG4Writer::Track::writeMdhdBox(uint32_t now) {
 
     int32_t timeScale = mTimeScale / mHFRRatio;
     mOwner->writeInt32(timeScale);    // media timescale
-    int32_t mdhdDuration = (trakDurationUs * mTimeScale + 5E5) / 1E6;
+    int32_t mdhdDuration = (trakDurationUs * timeScale + 5E5) / 1E6;
     mOwner->writeInt32(mdhdDuration);  // use media timescale
     // Language follows the three letter standard ISO-639-2/T
     // 'e', 'n', 'g' for "English", for instance.
