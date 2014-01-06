@@ -30,7 +30,7 @@
 #define DRC_DEFAULT_MOBILE_REF_LEVEL 64  /* 64*-0.25dB = -16 dB below full scale for mobile conf */
 #define DRC_DEFAULT_MOBILE_DRC_CUT   127 /* maximum compression of dynamic range for mobile conf */
 #define DRC_DEFAULT_MOBILE_DRC_BOOST 127 /* maximum compression of dynamic range for mobile conf */
-#define MAX_CHANNEL_COUNT            6  /* maximum number of audio channels that can be decoded */
+#define MAX_CHANNEL_COUNT            8  /* maximum number of audio channels that can be decoded */
 // names of properties that can be used to override the default DRC settings
 #define PROP_DRC_OVERRIDE_REF_LEVEL  "aac_drc_reference_level"
 #define PROP_DRC_OVERRIDE_CUT        "aac_drc_cut"
@@ -296,8 +296,11 @@ void SoftAAC2::maybeConfigureDownmix() const {
         if (!(property_get("media.aac_51_output_enabled", value, NULL) &&
                 (!strcmp(value, "1") || !strcasecmp(value, "true")))) {
             ALOGI("Downmixing multichannel AAC to stereo");
-            aacDecoder_SetParam(mAACDecoder, AAC_PCM_OUTPUT_CHANNELS, 2);
+            aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, 2);
             mStreamInfo->numChannels = 2;
+            // By default, the decoder creates a 5.1 channel downmix signal
+            // for seven and eight channel input streams. To enable 6.1 and 7.1 channel output
+            // use aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, -1)
         }
     }
 }
