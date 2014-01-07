@@ -292,7 +292,7 @@ void AudioPlayer::pause(bool playPendingSamples) {
 
         mPinnedTimeUs = ALooper::GetNowUs();
     }
-
+    mSourcePaused = true;
     mPlaying = false;
 #ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
@@ -314,6 +314,7 @@ status_t AudioPlayer::resume() {
     }
 #endif
     status_t err;
+    mSourcePaused = false;
 
     if (mAudioSink.get() != NULL) {
         err = mAudioSink->start();
@@ -374,6 +375,7 @@ void AudioPlayer::reset() {
         mInputBuffer->release();
         mInputBuffer = NULL;
     }
+
 #ifdef QCOM_HARDWARE
     mSourcePaused = false;
 #endif
@@ -574,11 +576,25 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
 
                 mIsFirstBuffer = false;
             } else {
-                err = mSource->read(&mInputBuffer, &options);
 #ifdef QCOM_HARDWARE
-                if (err == OK && mInputBuffer == NULL && mSourcePaused) {
-                    ALOGV("mSourcePaused, return 0 from fillBuffer");
-                    return 0;
+                if(!mSourcePaused) {
+#endif
+                    err = mSource->read(&mInputBuffer, &options);
+#ifdef QCOM_HARDWARE
+                    if (err == OK && mInputBuffer == NULL && mSourcePaused) {
+                        ALOGV("mSourcePaused, return 0 from fillBuffer");
+                        return 0;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            if(err == -EAGAIN) {
+                if(mSourcePaused){
+                    break;
+                } else {
+                    continue;
                 }
 #endif
             }
