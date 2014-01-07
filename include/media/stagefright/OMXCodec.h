@@ -384,12 +384,17 @@ private:
 
     OMXCodec(const OMXCodec &);
     OMXCodec &operator=(const OMXCodec &);
+    bool hasDisabledPorts();
 
 #ifdef QCOM_HARDWARE
     int32_t mNumBFrames;
 #endif
     bool mInSmoothStreamingMode;
     bool mOutputCropChanged;
+    bool mSignalledReadTryAgain;
+    bool mReturnedRetry;
+    int64_t mLastSeekTimeUs;
+    ReadOptions::SeekMode mLastSeekMode;
 };
 
 struct CodecCapabilities {
