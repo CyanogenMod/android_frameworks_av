@@ -2372,6 +2372,58 @@ status_t MPEG4Extractor::verifyTrack(Track *track) {
     return OK;
 }
 
+typedef enum {
+    //AOT_NONE             = -1,
+    //AOT_NULL_OBJECT      = 0,
+    //AOT_AAC_MAIN         = 1, /**< Main profile                              */
+    AOT_AAC_LC           = 2,   /**< Low Complexity object                     */
+    //AOT_AAC_SSR          = 3,
+    //AOT_AAC_LTP          = 4,
+    AOT_SBR              = 5,
+    //AOT_AAC_SCAL         = 6,
+    //AOT_TWIN_VQ          = 7,
+    //AOT_CELP             = 8,
+    //AOT_HVXC             = 9,
+    //AOT_RSVD_10          = 10, /**< (reserved)                                */
+    //AOT_RSVD_11          = 11, /**< (reserved)                                */
+    //AOT_TTSI             = 12, /**< TTSI Object                               */
+    //AOT_MAIN_SYNTH       = 13, /**< Main Synthetic object                     */
+    //AOT_WAV_TAB_SYNTH    = 14, /**< Wavetable Synthesis object                */
+    //AOT_GEN_MIDI         = 15, /**< General MIDI object                       */
+    //AOT_ALG_SYNTH_AUD_FX = 16, /**< Algorithmic Synthesis and Audio FX object */
+    AOT_ER_AAC_LC        = 17,   /**< Error Resilient(ER) AAC Low Complexity    */
+    //AOT_RSVD_18          = 18, /**< (reserved)                                */
+    //AOT_ER_AAC_LTP       = 19, /**< Error Resilient(ER) AAC LTP object        */
+    AOT_ER_AAC_SCAL      = 20,   /**< Error Resilient(ER) AAC Scalable object   */
+    //AOT_ER_TWIN_VQ       = 21, /**< Error Resilient(ER) TwinVQ object         */
+    AOT_ER_BSAC          = 22,   /**< Error Resilient(ER) BSAC object           */
+    AOT_ER_AAC_LD        = 23,   /**< Error Resilient(ER) AAC LowDelay object   */
+    //AOT_ER_CELP          = 24, /**< Error Resilient(ER) CELP object           */
+    //AOT_ER_HVXC          = 25, /**< Error Resilient(ER) HVXC object           */
+    //AOT_ER_HILN          = 26, /**< Error Resilient(ER) HILN object           */
+    //AOT_ER_PARA          = 27, /**< Error Resilient(ER) Parametric object     */
+    //AOT_RSVD_28          = 28, /**< might become SSC                          */
+    AOT_PS               = 29,   /**< PS, Parametric Stereo (includes SBR)      */
+    //AOT_MPEGS            = 30, /**< MPEG Surround                             */
+
+    AOT_ESCAPE           = 31,   /**< Signal AOT uses more than 5 bits          */
+
+    //AOT_MP3ONMP4_L1      = 32, /**< MPEG-Layer1 in mp4                        */
+    //AOT_MP3ONMP4_L2      = 33, /**< MPEG-Layer2 in mp4                        */
+    //AOT_MP3ONMP4_L3      = 34, /**< MPEG-Layer3 in mp4                        */
+    //AOT_RSVD_35          = 35, /**< might become DST                          */
+    //AOT_RSVD_36          = 36, /**< might become ALS                          */
+    //AOT_AAC_SLS          = 37, /**< AAC + SLS                                 */
+    //AOT_SLS              = 38, /**< SLS                                       */
+    //AOT_ER_AAC_ELD       = 39, /**< AAC Enhanced Low Delay                    */
+
+    //AOT_USAC             = 42, /**< USAC                                      */
+    //AOT_SAOC             = 43, /**< SAOC                                      */
+    //AOT_LD_MPEGS         = 44, /**< Low Delay MPEG Surround                   */
+
+    //AOT_RSVD50           = 50,  /**< Interim AOT for Rsvd50                   */
+} AUDIO_OBJECT_TYPE;
+
 status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         const void *esds_data, size_t esds_size) {
     ESDS esds(esds_data, esds_size);
@@ -2454,7 +2506,7 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         sampleRate = kSamplingRate[freqIndex];
     }
 
-    if (objectType == 5 || objectType == 29) { // SBR specific config per 14496-3 table 1.13
+    if (objectType == AOT_SBR || objectType == AOT_PS) {//SBR specific config per 14496-3 table 1.13
         uint32_t extFreqIndex = br.getBits(4);
         int32_t extSampleRate;
         if (extFreqIndex == 15) {
@@ -2470,6 +2522,111 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         }
         //TODO: save the extension sampling rate value in meta data =>
         //      mLastTrack->meta->setInt32(kKeyExtSampleRate, extSampleRate);
+    }
+
+    switch (numChannels) {
+        // values defined in 14496-3_2009 amendment-4 Table 1.19 - Channel Configuration
+        case 0:
+        case 1:// FC
+        case 2:// FL FR
+        case 3:// FC, FL FR
+        case 4:// FC, FL FR, RC
+        case 5:// FC, FL FR, SL SR
+        case 6:// FC, FL FR, SL SR, LFE
+            //numChannels already contains the right value
+            break;
+        case 11:// FC, FL FR, SL SR, RC, LFE
+            numChannels = 7;
+            break;
+        case 7: // FC, FCL FCR, FL FR, SL SR, LFE
+        case 12:// FC, FL  FR,  SL SR, RL RR, LFE
+        case 14:// FC, FL  FR,  SL SR, LFE, FHL FHR
+            numChannels = 8;
+            break;
+        default:
+            return ERROR_UNSUPPORTED;
+    }
+
+    {
+        if (objectType == AOT_SBR || objectType == AOT_PS) {
+            const int32_t extensionSamplingFrequency = br.getBits(4);
+            objectType = br.getBits(5);
+
+            if (objectType == AOT_ESCAPE) {
+                objectType = 32 + br.getBits(6);
+            }
+        }
+        if (objectType == AOT_AAC_LC || objectType == AOT_ER_AAC_LC ||
+                objectType == AOT_ER_AAC_LD || objectType == AOT_ER_AAC_SCAL ||
+                objectType == AOT_ER_BSAC) {
+            const int32_t frameLengthFlag = br.getBits(1);
+
+            const int32_t dependsOnCoreCoder = br.getBits(1);
+
+            if (dependsOnCoreCoder ) {
+                const int32_t coreCoderDelay = br.getBits(14);
+            }
+
+            const int32_t extensionFlag = br.getBits(1);
+
+            if (numChannels == 0 ) {
+                int32_t channelsEffectiveNum = 0;
+                int32_t channelsNum = 0;
+                const int32_t ElementInstanceTag = br.getBits(4);
+                const int32_t Profile = br.getBits(2);
+                const int32_t SamplingFrequencyIndex = br.getBits(4);
+                const int32_t NumFrontChannelElements = br.getBits(4);
+                const int32_t NumSideChannelElements = br.getBits(4);
+                const int32_t NumBackChannelElements = br.getBits(4);
+                const int32_t NumLfeChannelElements = br.getBits(2);
+                const int32_t NumAssocDataElements = br.getBits(3);
+                const int32_t NumValidCcElements = br.getBits(4);
+
+                const int32_t MonoMixdownPresent = br.getBits(1);
+                if (MonoMixdownPresent != 0) {
+                    const int32_t MonoMixdownElementNumber = br.getBits(4);
+                }
+
+                const int32_t StereoMixdownPresent = br.getBits(1);
+                if (StereoMixdownPresent != 0) {
+                    const int32_t StereoMixdownElementNumber = br.getBits(4);
+                }
+
+                const int32_t MatrixMixdownIndexPresent = br.getBits(1);
+                if (MatrixMixdownIndexPresent != 0) {
+                    const int32_t MatrixMixdownIndex = br.getBits(2);
+                    const int32_t PseudoSurroundEnable = br.getBits(1);
+                }
+
+                int i;
+                for (i=0; i < NumFrontChannelElements; i++) {
+                    const int32_t FrontElementIsCpe = br.getBits(1);
+                    const int32_t FrontElementTagSelect = br.getBits(4);
+                    channelsNum += FrontElementIsCpe ? 2 : 1;
+                }
+
+                for (i=0; i < NumSideChannelElements; i++) {
+                    const int32_t SideElementIsCpe = br.getBits(1);
+                    const int32_t SideElementTagSelect = br.getBits(4);
+                    channelsNum += SideElementIsCpe ? 2 : 1;
+                }
+
+                for (i=0; i < NumBackChannelElements; i++) {
+                    const int32_t BackElementIsCpe = br.getBits(1);
+                    const int32_t BackElementTagSelect = br.getBits(4);
+                    channelsNum += BackElementIsCpe ? 2 : 1;
+                }
+                channelsEffectiveNum = channelsNum;
+
+                for (i=0; i < NumLfeChannelElements; i++) {
+                    const int32_t LfeElementTagSelect = br.getBits(4);
+                    channelsNum += 1;
+                }
+                ALOGV("mpeg4 audio channelsNum = %d", channelsNum);
+                ALOGV("mpeg4 audio channelsEffectiveNum = %d", channelsEffectiveNum);
+                numChannels = channelsNum;
+            }
+        }
     }
 
     if (numChannels == 0) {
