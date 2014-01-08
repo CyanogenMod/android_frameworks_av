@@ -989,6 +989,12 @@ status_t AudioTrack::getPosition(uint32_t *position) const
     if (isOffloaded()) {
         uint32_t dspFrames = 0;
 
+        if ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING)) {
+            ALOGV("getPosition called in paused state, return cached position %u", mPausedPosition);
+            *position = mPausedPosition;
+            return NO_ERROR;
+        }
+
         if (mOutput != 0) {
             uint32_t halFrames;
             AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
