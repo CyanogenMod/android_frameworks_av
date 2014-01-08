@@ -318,7 +318,7 @@ status_t AudioTrack::set(
     mVolume[LEFT] = 1.0f;
     mVolume[RIGHT] = 1.0f;
     mSendLevel = 0.0f;
-    mFrameCount = frameCount;
+    // mFrameCount is initialized in createTrack_l
     mReqFrameCount = frameCount;
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
