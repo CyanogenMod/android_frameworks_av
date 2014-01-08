@@ -475,8 +475,9 @@ audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stre
 
 audio_io_handle_t AudioPolicyService::getOutputForEffect(const effect_descriptor_t *desc)
 {
+    // FIXME change return type to status_t, and return NO_INIT here
     if (mpAudioPolicy == NULL) {
-        return NO_INIT;
+        return 0;
     }
     Mutex::Autolock _l(mLock);
     return mpAudioPolicy->get_output_for_effect(mpAudioPolicy, desc);
