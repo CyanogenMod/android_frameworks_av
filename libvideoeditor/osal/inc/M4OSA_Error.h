@@ -57,7 +57,7 @@ typedef M4OSA_UInt32   M4OSA_ERR;
   * @arg coreID: (IN) [M4OSA_UInt32] CoreID to put in the error code
   * @arg errorID: (IN) [M4OSA_UInt32] ErrorID to put in the error code*/
 #define M4OSA_ERR_CREATE(severity, coreID, errorID)\
-   (M4OSA_Int32)((((M4OSA_UInt32)severity)<<30)+((((M4OSA_UInt32)coreID)&0x003FFF)<<16)+(((M4OSA_UInt32)errorID)&0x00FFFF))
+   (M4OSA_UInt32)((((M4OSA_UInt32)severity)<<30)+((((M4OSA_UInt32)coreID)&0x003FFF)<<16)+(((M4OSA_UInt32)errorID)&0x00FFFF))
 
 /** This macro extracts the 3 fields from the error:
   * @arg error: (IN) [M4OSA_ERR] Error code
