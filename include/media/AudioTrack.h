@@ -123,6 +123,8 @@ public:
      *  - NO_ERROR: successful operation
      *  - NO_INIT: audio server or audio hardware not initialized
      *  - BAD_VALUE: unsupported configuration
+     * frameCount is guaranteed to be non-zero if status is NO_ERROR,
+     * and is undefined otherwise.
      */
 
     static status_t getMinFrameCount(size_t* frameCount,

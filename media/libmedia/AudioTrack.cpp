@@ -44,9 +44,6 @@ status_t AudioTrack::getMinFrameCount(
         return BAD_VALUE;
     }
 
-    // default to 0 in case of error
-    *frameCount = 0;
-
     // FIXME merge with similar code in createTrack_l(), except we're missing
     //       some information here that is available in createTrack_l():
     //          audio_io_handle_t output
@@ -54,16 +51,20 @@ status_t AudioTrack::getMinFrameCount(
     //          audio_channel_mask_t channelMask
     //          audio_output_flags_t flags
     uint32_t afSampleRate;
-    if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
-        return NO_INIT;
+    status_t status;
+    status = AudioSystem::getOutputSamplingRate(&afSampleRate, streamType);
+    if (status != NO_ERROR) {
+        return status;
     }
     size_t afFrameCount;
-    if (AudioSystem::getOutputFrameCount(&afFrameCount, streamType) != NO_ERROR) {
-        return NO_INIT;
+    status = AudioSystem::getOutputFrameCount(&afFrameCount, streamType);
+    if (status != NO_ERROR) {
+        return status;
     }
     uint32_t afLatency;
-    if (AudioSystem::getOutputLatency(&afLatency, streamType) != NO_ERROR) {
-        return NO_INIT;
+    status = AudioSystem::getOutputLatency(&afLatency, streamType);
+    if (status != NO_ERROR) {
+        return status;
     }
 
     // Ensure that buffer depth covers at least audio hardware latency
@@ -74,6 +75,13 @@ status_t AudioTrack::getMinFrameCount(
 
     *frameCount = (sampleRate == 0) ? afFrameCount * minBufCount :
             afFrameCount * minBufCount * sampleRate / afSampleRate;
+    // The formula above should always produce a non-zero value, but return an error
+    // in the unlikely event that it does not, as that's part of the API contract.
+    if (*frameCount == 0) {
+        ALOGE("AudioTrack::getMinFrameCount failed for streamType %d, sampleRate %d",
+                streamType, sampleRate);
+        return BAD_VALUE;
+    }
     ALOGV("getMinFrameCount=%d: afFrameCount=%d, minBufCount=%d, afSampleRate=%d, afLatency=%d",
             *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
     return NO_ERROR;
