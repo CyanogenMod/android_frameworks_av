@@ -259,6 +259,11 @@ status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
         *samplingRate = outputDesc->samplingRate;
         gLock.unlock();
     }
+    if (*samplingRate == 0) {
+        ALOGE("AudioSystem::getSamplingRate failed for output %d stream type %d",
+                output, streamType);
+        return BAD_VALUE;
+    }
 
     ALOGV("getSamplingRate() streamType %d, output %d, sampling rate %u", streamType, output,
             *samplingRate);
@@ -298,6 +303,11 @@ status_t AudioSystem::getFrameCount(audio_io_handle_t output,
     } else {
         *frameCount = outputDesc->frameCount;
         gLock.unlock();
+    }
+    if (*frameCount == 0) {
+        ALOGE("AudioSystem::getFrameCount failed for output %d stream type %d",
+                output, streamType);
+        return BAD_VALUE;
     }
 
     ALOGV("getFrameCount() streamType %d, output %d, frameCount %d", streamType, output,
