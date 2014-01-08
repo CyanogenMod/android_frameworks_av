@@ -67,12 +67,12 @@ public:
 
     // returns true in *state if tracks are active on the specified stream or have been active
     // in the past inPastMs milliseconds
-    static status_t isStreamActive(audio_stream_type_t stream, bool *state, uint32_t inPastMs = 0);
+    static status_t isStreamActive(audio_stream_type_t stream, bool *state, uint32_t inPastMs);
     // returns true in *state if tracks are active for what qualifies as remote playback
     // on the specified stream or have been active in the past inPastMs milliseconds. Remote
     // playback isn't mutually exclusive with local playback.
     static status_t isStreamActiveRemotely(audio_stream_type_t stream, bool *state,
-            uint32_t inPastMs = 0);
+            uint32_t inPastMs);
     // returns true in *state if a recorder is currently recording with the specified source
     static status_t isSourceActive(audio_source_t source, bool *state);
 
@@ -95,11 +95,11 @@ public:
     static int logToLinear(float volume);
 
     static status_t getOutputSamplingRate(uint32_t* samplingRate,
-            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+            audio_stream_type_t stream);
     static status_t getOutputFrameCount(size_t* frameCount,
-            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+            audio_stream_type_t stream);
     static status_t getOutputLatency(uint32_t* latency,
-            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+            audio_stream_type_t stream);
     static status_t getSamplingRate(audio_io_handle_t output,
                                           audio_stream_type_t streamType,
                                           uint32_t* samplingRate);
@@ -206,16 +206,16 @@ public:
                                         const audio_offload_info_t *offloadInfo = NULL);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
-                                int session = 0);
+                                int session);
     static status_t stopOutput(audio_io_handle_t output,
                                audio_stream_type_t stream,
-                               int session = 0);
+                               int session);
     static void releaseOutput(audio_io_handle_t output);
     static audio_io_handle_t getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate = 0,
-                                    audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    audio_channel_mask_t channelMask = AUDIO_CHANNEL_IN_MONO,
-                                    int sessionId = 0);
+                                    uint32_t samplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    int sessionId);
     static status_t startInput(audio_io_handle_t input);
     static status_t stopInput(audio_io_handle_t input);
     static void releaseInput(audio_io_handle_t input);
