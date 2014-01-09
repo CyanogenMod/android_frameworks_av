@@ -608,7 +608,7 @@ status_t M3UParser::parseMetaDataDuration(
     if (meta->get() == NULL) {
         *meta = new AMessage;
     }
-    (*meta)->setInt64(key, (int64_t)x * 1E6);
+    (*meta)->setInt64(key, (int64_t)(x * 1E6));
 
     return OK;
 }
