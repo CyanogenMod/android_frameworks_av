@@ -40,10 +40,10 @@ audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
 DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSystem::gOutputs(0);
 
 // Cached values for recording queries, all protected by gLock
-uint32_t AudioSystem::gPrevInSamplingRate = 16000;
-audio_format_t AudioSystem::gPrevInFormat = AUDIO_FORMAT_PCM_16_BIT;
-audio_channel_mask_t AudioSystem::gPrevInChannelMask = AUDIO_CHANNEL_IN_MONO;
-size_t AudioSystem::gInBuffSize = 0;
+uint32_t AudioSystem::gPrevInSamplingRate;
+audio_format_t AudioSystem::gPrevInFormat;
+audio_channel_mask_t AudioSystem::gPrevInChannelMask;
+size_t AudioSystem::gInBuffSize = 0;    // zero indicates cache is invalid
 
 
 // establish binder interface to AudioFlinger service
@@ -369,6 +369,12 @@ status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t for
             return PERMISSION_DENIED;
         }
         inBuffSize = af->getInputBufferSize(sampleRate, format, channelMask);
+        if (inBuffSize == 0) {
+            ALOGE("AudioSystem::getInputBufferSize failed sampleRate %d format %x channelMask %x",
+                    sampleRate, format, channelMask);
+            return BAD_VALUE;
+        }
+        // A benign race is possible here: we could overwrite a fresher cache entry
         gLock.lock();
         // save the request params
         gPrevInSamplingRate = sampleRate;
