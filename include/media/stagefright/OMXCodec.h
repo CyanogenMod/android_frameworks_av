@@ -370,6 +370,10 @@ private:
     status_t applyRotation();
     status_t waitForBufferFilled_l();
 
+#ifdef QCOM_HARDWARE
+    status_t resumeLocked(bool drainInputBuf);
+#endif
+
     int64_t getDecodingTimeUs();
 
     status_t parseAVCCodecSpecificData(
