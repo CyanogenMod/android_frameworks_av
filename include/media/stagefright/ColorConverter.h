@@ -66,6 +66,11 @@ private:
 
     status_t convertCbYCrY(
             const BitmapParams &src, const BitmapParams &dst);
+            
+#ifdef STE_HARDWARE
+    status_t convertSTEYUV420PackedSemiPlanarMB(
+            const BitmapParams &src, const BitmapParams &dst);
+#endif
 
     status_t convertYUV420Planar(
             const BitmapParams &src, const BitmapParams &dst);
