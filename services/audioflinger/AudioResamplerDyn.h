@@ -113,7 +113,8 @@ private:
     Constants mConstants;  // current set of coefficient parameters
     int32_t __attribute__ ((aligned (8))) mVolumeSimd[2];
     int32_t mResampleType; // contains the resample type.
-    int32_t mFilterSampleRate; // designed sample rate for the filter
+    int32_t mFilterSampleRate; // designed filter sample rate.
+    src_quality mFilterQuality; // designed filter quality.
     void* mCoefBuffer; // if a filter is created, this is not null
 };
 

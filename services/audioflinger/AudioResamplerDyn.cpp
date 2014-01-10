@@ -161,7 +161,8 @@ void AudioResamplerDyn::Constants::set(
 AudioResamplerDyn::AudioResamplerDyn(int bitDepth,
         int inChannelCount, int32_t sampleRate, src_quality quality)
     : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
-    mResampleType(0), mFilterSampleRate(0), mCoefBuffer(NULL)
+    mResampleType(0), mFilterSampleRate(0), mFilterQuality(DEFAULT_QUALITY),
+    mCoefBuffer(NULL)
 {
     mVolumeSimd[0] = mVolumeSimd[1] = 0;
     mConstants.set(128, 8, mSampleRate, mSampleRate); // TODO: set better
@@ -213,19 +214,16 @@ void AudioResamplerDyn::createKaiserFir(Constants &c, double stopBandAtten,
     // test the filter and report results
     double fp = (fcr - tbw/2)/c.mL;
     double fs = (fcr + tbw/2)/c.mL;
-    double fmin, fmax;
-    testFir(buf, c.mL, c.mHalfNumCoefs, 0., fp, 100, fmin, fmax);
-    double d1 = (fmax - fmin)/2.;
-    double ap = -20.*log10(1. - d1); // passband ripple
-    printf("passband(%lf, %lf): %.8lf %.8lf %.8lf\n", 0., fp, (fmax + fmin)/2., d1, ap);
-    testFir(buf, c.mL, c.mHalfNumCoefs, fs, 0.5, 100, fmin, fmax);
-    double d2 = fmax;
-    double as = -20.*log10(d2); // stopband attenuation
-    printf("stopband(%lf, %lf): %.8lf %.8lf %.3lf\n", fs, 0.5, (fmax + fmin)/2., d2, as);
+    double passMin, passMax, passRipple;
+    double stopMax, stopRipple;
+    testFir(buf, c.mL, c.mHalfNumCoefs, fp, fs, /*passSteps*/ 1000, /*stopSteps*/ 100000,
+            passMin, passMax, passRipple, stopMax, stopRipple);
+    printf("passband(%lf, %lf): %.8lf %.8lf %.8lf\n", 0., fp, passMin, passMax, passRipple);
+    printf("stopband(%lf, %lf): %.8lf %.3lf\n", fs, 0.5, stopMax, stopRipple);
 #endif
 }
 
-// recursive gcd (TODO: verify tail recursion elimination should make this iterate)
+// recursive gcd. Using objdump, it appears the tail recursion is converted to a while loop.
 static int gcd(int n, int m) {
     if (m == 0) {
         return n;
@@ -233,7 +231,16 @@ static int gcd(int n, int m) {
     return gcd(m, n % m);
 }
 
-static bool isClose(int32_t newSampleRate, int32_t prevSampleRate, int32_t filterSampleRate) {
+static bool isClose(int32_t newSampleRate, int32_t prevSampleRate,
+        int32_t filterSampleRate, int32_t outSampleRate) {
+
+    // different upsampling ratios do not need a filter change.
+    if (filterSampleRate != 0
+            && filterSampleRate < outSampleRate
+            && newSampleRate < outSampleRate)
+        return true;
+
+    // check design criteria again if downsampling is detected.
     int pdiff = absdiff(newSampleRate, prevSampleRate);
     int adiff = absdiff(newSampleRate, filterSampleRate);
 
@@ -255,8 +262,10 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
 
     // TODO: Add precalculated Equiripple filters
 
-    if (!isClose(inSampleRate, oldSampleRate, mFilterSampleRate)) {
+    if (mFilterQuality != getQuality() ||
+            !isClose(inSampleRate, oldSampleRate, mFilterSampleRate, mSampleRate)) {
         mFilterSampleRate = inSampleRate;
+        mFilterQuality = getQuality();
 
         // Begin Kaiser Filter computation
         //
@@ -270,12 +279,12 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
         double stopBandAtten;
         double tbwCheat = 1.; // how much we "cheat" into aliasing
         int halfLength;
-        if (getQuality() == DYN_HIGH_QUALITY) {
+        if (mFilterQuality == DYN_HIGH_QUALITY) {
             // 32b coefficients, 64 length
             useS32 = true;
             stopBandAtten = 98.;
             halfLength = 32;
-        } else if (getQuality() == DYN_LOW_QUALITY) {
+        } else if (mFilterQuality == DYN_LOW_QUALITY) {
             // 16b coefficients, 16-32 length
             useS32 = false;
             stopBandAtten = 80.;
@@ -289,8 +298,9 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
             } else {
                 tbwCheat = 1.03;
             }
-        } else { // medium quality
+        } else { // DYN_MED_QUALITY
             // 16b coefficients, 32-64 length
+            // note: > 64 length filters with 16b coefs can have quantization noise problems
             useS32 = false;
             stopBandAtten = 84.;
             if (mSampleRate >= inSampleRate * 4) {
@@ -315,9 +325,20 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
 
         int phases = mSampleRate / gcd(mSampleRate, inSampleRate);
 
-        while (phases<63) { // too few phases, allow room for interpolation
+        // TODO: Once dynamic sample rate change is an option, the code below
+        // should be modified to execute only when dynamic sample rate change is enabled.
+        //
+        // as above, #phases less than 63 is too few phases for accurate linear interpolation.
+        // we increase the phases to compensate, but more phases means more memory per
+        // filter and more time to compute the filter.
+        //
+        // if we know that the filter will be used for dynamic sample rate changes,
+        // that would allow us skip this part for fixed sample rate resamplers.
+        //
+        while (phases<63) {
             phases *= 2; // this code only needed to support dynamic rate changes
         }
+
         if (phases>=256) {  // too many phases, always interpolate
             phases = 127;
         }

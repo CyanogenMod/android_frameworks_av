@@ -57,7 +57,8 @@ static int usage(const char* name) {
 int main(int argc, char* argv[]) {
 
     const char* const progname = argv[0];
-    bool profiling = false;
+    bool profileResample = false;
+    bool profileFilter = false;
     bool writeHeader = false;
     int channels = 1;
     int input_freq = 0;
@@ -65,10 +66,13 @@ int main(int argc, char* argv[]) {
     AudioResampler::src_quality quality = AudioResampler::DEFAULT_QUALITY;
 
     int ch;
-    while ((ch = getopt(argc, argv, "phvsq:i:o:")) != -1) {
+    while ((ch = getopt(argc, argv, "pfhvsq:i:o:")) != -1) {
         switch (ch) {
         case 'p':
-            profiling = true;
+            profileResample = true;
+            break;
+        case 'f':
+            profileFilter = true;
             break;
         case 'h':
             writeHeader = true;
@@ -230,27 +234,108 @@ int main(int argc, char* argv[]) {
     size_t output_size = 2 * 4 * ((int64_t) input_frames * output_freq) / input_freq;
     output_size &= ~7; // always stereo, 32-bits
 
-    void* output_vaddr = malloc(output_size);
-    AudioResampler* resampler = AudioResampler::create(16, channels,
-            output_freq, quality);
-    size_t out_frames = output_size/8;
-    resampler->setSampleRate(input_freq);
-    resampler->setVolume(0x1000, 0x1000);
-
-    if (profiling) {
-        const int looplimit = 100;
+    if (profileFilter) {
+        // Check how fast sample rate changes are that require filter changes.
+        // The delta sample rate changes must indicate a downsampling ratio,
+        // and must be larger than 10% changes.
+        //
+        // On fast devices, filters should be generated between 0.1ms - 1ms.
+        // (single threaded).
+        AudioResampler* resampler = AudioResampler::create(16, channels,
+                8000, quality);
+        int looplimit = 100;
         timespec start, end;
         clock_gettime(CLOCK_MONOTONIC, &start);
         for (int i = 0; i < looplimit; ++i) {
-            resampler->resample((int*) output_vaddr, out_frames, &provider);
-            provider.reset(); //  reset only provider as benchmarking
+            resampler->setSampleRate(9000);
+            resampler->setSampleRate(12000);
+            resampler->setSampleRate(20000);
+            resampler->setSampleRate(30000);
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
         int64_t start_ns = start.tv_sec * 1000000000LL + start.tv_nsec;
         int64_t end_ns = end.tv_sec * 1000000000LL + end.tv_nsec;
         int64_t time = end_ns - start_ns;
-        printf("time(ns):%lld  channels:%d  quality:%d\n", time, channels, quality);
-        printf("%f Mspl/s\n", out_frames * looplimit / (time / 1e9) / 1e6);
+        printf("%.2f sample rate changes with filter calculation/sec\n",
+                looplimit * 4 / (time / 1e9));
+
+        // Check how fast sample rate changes are without filter changes.
+        // This should be very fast, probably 0.1us - 1us per sample rate
+        // change.
+        resampler->setSampleRate(1000);
+        looplimit = 1000;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        for (int i = 0; i < looplimit; ++i) {
+            resampler->setSampleRate(1000+i);
+        }
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        start_ns = start.tv_sec * 1000000000LL + start.tv_nsec;
+        end_ns = end.tv_sec * 1000000000LL + end.tv_nsec;
+        time = end_ns - start_ns;
+        printf("%.2f sample rate changes without filter calculation/sec\n",
+                looplimit / (time / 1e9));
+        resampler->reset();
+        delete resampler;
+    }
+
+    void* output_vaddr = malloc(output_size);
+    AudioResampler* resampler = AudioResampler::create(16, channels,
+            output_freq, quality);
+    size_t out_frames = output_size/8;
+
+    /* set volume precision to 12 bits, so the volume scale is 1<<12.
+     * This means the "integer" part fits in the Q19.12 precision
+     * representation of output int32_t.
+     *
+     * Generally 0 < volumePrecision <= 14 (due to the limits of
+     * int16_t values for Volume). volumePrecision cannot be 0 due
+     * to rounding and shifts.
+     */
+    const int volumePrecision = 12; // in bits
+
+    resampler->setSampleRate(input_freq);
+    resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
+
+    if (profileResample) {
+        /*
+         * For profiling on mobile devices, upon experimentation
+         * it is better to run a few trials with a shorter loop limit,
+         * and take the minimum time.
+         *
+         * Long tests can cause CPU temperature to build up and thermal throttling
+         * to reduce CPU frequency.
+         *
+         * For frequency checks (index=0, or 1, etc.):
+         * "cat /sys/devices/system/cpu/cpu${index}/cpufreq/scaling_*_freq"
+         *
+         * For temperature checks (index=0, or 1, etc.):
+         * "cat /sys/class/thermal/thermal_zone${index}/temp"
+         *
+         * Another way to avoid thermal throttling is to fix the CPU frequency
+         * at a lower level which prevents excessive temperatures.
+         */
+        const int trials = 4;
+        const int looplimit = 4;
+        timespec start, end;
+        int64_t time;
+
+        for (int n = 0; n < trials; ++n) {
+            clock_gettime(CLOCK_MONOTONIC, &start);
+            for (int i = 0; i < looplimit; ++i) {
+                resampler->resample((int*) output_vaddr, out_frames, &provider);
+                provider.reset(); //  during benchmarking reset only the provider
+            }
+            clock_gettime(CLOCK_MONOTONIC, &end);
+            int64_t start_ns = start.tv_sec * 1000000000LL + start.tv_nsec;
+            int64_t end_ns = end.tv_sec * 1000000000LL + end.tv_nsec;
+            int64_t diff_ns = end_ns - start_ns;
+            if (n == 0 || diff_ns < time) {
+                time = diff_ns;   // save the best out of our trials.
+            }
+        }
+        // Mfrms/s is "Millions of output frames per second".
+        printf("quality: %d  channels: %d  msec: %lld  Mfrms/s: %.2lf\n",
+                quality, channels, time/1000000, out_frames * looplimit / (time / 1e9) / 1e6);
         resampler->reset();
     }
 
@@ -266,19 +351,31 @@ int main(int argc, char* argv[]) {
     if (gVerbose) {
         printf("reset() complete\n");
     }
+    delete resampler;
+    resampler = NULL;
 
     // mono takes left channel only
     // stereo right channel is half amplitude of stereo left channel (due to input creation)
     int32_t* out = (int32_t*) output_vaddr;
     int16_t* convert = (int16_t*) malloc(out_frames * channels * sizeof(int16_t));
 
+    // round to half towards zero and saturate at int16 (non-dithered)
+    const int roundVal = (1<<(volumePrecision-1)) - 1; // volumePrecision > 0
+
     for (size_t i = 0; i < out_frames; i++) {
         for (int j = 0; j < channels; j++) {
-            int32_t s = out[i * 2 + j] >> 12;
-            if (s > 32767)
-                s = 32767;
-            else if (s < -32768)
-                s = -32768;
+            int32_t s = out[i * 2 + j] + roundVal; // add offset here
+            if (s < 0) {
+                s = (s + 1) >> volumePrecision; // round to 0
+                if (s < -32768) {
+                    s = -32768;
+                }
+            } else {
+                s = s >> volumePrecision;
+                if (s > 32767) {
+                    s = 32767;
+                }
+            }
             convert[i * channels + j] = int16_t(s);
         }
     }
