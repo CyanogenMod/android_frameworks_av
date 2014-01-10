@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (c) 2010 - 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2010 - 2014, The Linux Foundation. All rights reserved.
  *
  * Not a Contribution
  *
@@ -76,6 +76,10 @@
 #include <ctype.h>
 #endif
 
+#ifdef QTI_FLAC_DECODER
+#include "include/FLACDecoder.h"
+#endif
+
 namespace android {
 
 #ifdef USE_SAMSUNG_COLORFORMAT
@@ -120,9 +124,14 @@ static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaDa
 
 #define FACTORY_REF(name) { #name, Make##name },
 
+#ifdef QTI_FLAC_DECODER
+FACTORY_CREATE(FLACDecoder)
+#endif
+
 #ifdef QCOM_DIRECTTRACK
 FACTORY_CREATE(MP3Decoder)
 #endif
+
 FACTORY_CREATE_ENCODER(AACEncoder)
 
 static sp<MediaSource> InstantiateSoftwareEncoder(
@@ -146,7 +155,7 @@ static sp<MediaSource> InstantiateSoftwareEncoder(
     return NULL;
 }
 
-#ifdef QCOM_DIRECTTRACK
+#if defined(QCOM_DIRECTTRACK) || defined (QTI_FLAC_DECODER)
 static sp<MediaSource> InstantiateSoftwareDecoder(
         const char *name, const sp<MediaSource> &source) {
     struct FactoryInfo {
@@ -154,7 +163,12 @@ static sp<MediaSource> InstantiateSoftwareDecoder(
         sp<MediaSource> (*CreateFunc)(const sp<MediaSource> &);
     };
     static const FactoryInfo kFactoryInfo[] = {
+#ifdef QCOM_DIRECTTRACK
         FACTORY_REF(MP3Decoder)
+#endif
+#ifdef QTI_FLAC_DECODER
+        FACTORY_REF(FLACDecoder)
+#endif
     };
     for (size_t i = 0;
          i < sizeof(kFactoryInfo) / sizeof(kFactoryInfo[0]); ++i) {
@@ -165,6 +179,7 @@ static sp<MediaSource> InstantiateSoftwareDecoder(
     return NULL;
 }
 #endif
+
 #undef FACTORY_CREATE_ENCODER
 #undef FACTORY_REF
 
@@ -509,14 +524,20 @@ sp<MediaSource> OMXCodec::Create(
             componentName = tmp.c_str();
         }
 
+        sp<MediaSource> softwareCodec;
         if (createEncoder) {
-            sp<MediaSource> softwareCodec =
-                InstantiateSoftwareEncoder(componentName, source, meta);
-            if (softwareCodec != NULL) {
-                ALOGV("Successfully allocated software codec '%s'", componentName);
+            softwareCodec = InstantiateSoftwareEncoder(componentName, source, meta);
+        }
+#ifdef QTI_FLAC_DECODER
+        else {
+            softwareCodec = InstantiateSoftwareDecoder(componentName, source);
+        }
+#endif
 
-                return softwareCodec;
-            }
+        if (softwareCodec != NULL) {
+            ALOGV("Successfully allocated software codec '%s'", componentName);
+
+            return softwareCodec;
         }
 
 #ifdef QCOM_HARDWARE
