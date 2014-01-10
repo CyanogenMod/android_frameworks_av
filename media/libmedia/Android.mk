@@ -97,7 +97,7 @@ endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 #QTI Resampler
 ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(strip $(BOARD_USES_QCOM_RESAMPLER)),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)),true)
 LOCAL_CFLAGS += -DQTI_RESAMPLER
 endif
 endif

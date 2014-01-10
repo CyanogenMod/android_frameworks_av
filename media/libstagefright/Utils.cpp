@@ -509,6 +509,7 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     int32_t delaySamples = 0;
     int32_t paddingSamples = 0;
     int32_t isADTS = 0;
+    int32_t minBlkSize, maxBlkSize, minFrmSize, maxFrmSize; //FLAC params
 
     AudioParameter param = AudioParameter();
 
@@ -530,6 +531,20 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     if (meta->findInt32(kKeyIsADTS, &isADTS)) {
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_FORMAT), 0x02 /*SND_AUDIOSTREAMFORMAT_MP4ADTS*/);
     }
+#ifdef ENABLE_AV_ENHANCEMENTS
+    if (meta->findInt32(kKeyMinBlkSize, &minBlkSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
+    }
+    if (meta->findInt32(kKeyMaxBlkSize, &maxBlkSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
+    }
+    if (meta->findInt32(kKeyMinFrmSize, &minFrmSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
+    }
+    if (meta->findInt32(kKeyMaxFrmSize, &maxFrmSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
+    }
+#endif
 
     ALOGV("sendMetaDataToHal: bitRate %d, sampleRate %d, chanMask %d,"
           "delaySample %d, paddingSample %d", bitRate, sampleRate,
@@ -561,6 +576,7 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_QCELP,       AUDIO_FORMAT_QCELP },
     { MEDIA_MIMETYPE_AUDIO_WMA,         AUDIO_FORMAT_WMA },
     { MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II, AUDIO_FORMAT_MP2 },
+    { MEDIA_MIMETYPE_CONTAINER_QTIFLAC, AUDIO_FORMAT_FLAC },
 #endif
     { 0, AUDIO_FORMAT_INVALID }
 };
