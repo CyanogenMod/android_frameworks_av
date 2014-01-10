@@ -1433,6 +1433,14 @@ status_t AudioPolicyService::loadPreProcessorConfig(const char *path)
     loadEffects(root, effects);
     loadInputSources(root, effects);
 
+    // delete effects to fix memory leak.
+    // as effects is local var and valgrind would treat this as memory leak
+    // and although it only did in mediaserver init, but free it in case mediaserver reboot
+    size_t i;
+    for (i = 0; i < effects.size(); i++) {
+      delete effects[i];
+    }
+
     config_free(root);
     free(root);
     free(data);
