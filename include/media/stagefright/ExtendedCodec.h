@@ -141,6 +141,8 @@ struct ExtendedCodec {
 
     static bool useHWAACDecoder(const char *mime);
 
+    static bool isSourcePauseRequired(const char *componentName);
+
 private:
     static const char* getMsgKey(int key );
 
