@@ -4146,9 +4146,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     // if resume is received before pause is executed.
     if (!mStandby && (doHwPause || (mFlushPending && !mHwPaused && (count != 0)))) {
         mOutput->stream->pause(mOutput->stream);
-        if (!doHwPause) {
-            doHwResume = true;
-        }
     }
     if (mFlushPending) {
         flushHw_l();
@@ -4209,6 +4206,8 @@ void AudioFlinger::OffloadThread::flushHw_l()
     mBytesRemaining = 0;
     mPausedWriteLength = 0;
     mPausedBytesRemaining = 0;
+    mHwPaused = false;
+
     if (mUseAsyncWrite) {
         // discard any pending drain or write ack by incrementing sequence
         mWriteAckSequence = (mWriteAckSequence + 2) & ~1;
