@@ -183,7 +183,7 @@ ssize_t MonoPipe::write(const void *buffer, size_t count)
             }
         }
         if (ns > 0) {
-            const struct timespec req = {0, ns};
+            const struct timespec req = {0, static_cast<long>(ns)};
             nanosleep(&req, NULL);
         }
         // record the time that this write() completed

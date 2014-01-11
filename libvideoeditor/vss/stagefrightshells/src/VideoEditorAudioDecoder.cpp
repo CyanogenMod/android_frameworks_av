@@ -809,7 +809,7 @@ M4OSA_ERR VideoEditorAudioDecoder_setOption(M4AD_Context pContext,
     pDecoderContext = (VideoEditorAudioDecoder_Context*)pContext;
 
     switch( optionID ) {
-        case M4AD_kOptionID_UserParam:
+        case static_cast<M4OSA_UInt32>(M4AD_kOptionID_UserParam):
             ALOGV("VideoEditorAudioDecodersetOption UserParam is not supported");
             err = M4ERR_NOT_IMPLEMENTED;
             break;
