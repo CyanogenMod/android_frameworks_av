@@ -1248,7 +1248,7 @@ void VideoEditorPreviewController::notify(
         case MEDIA_SET_VIDEO_SIZE:
             ALOGV("MEDIA_SET_VIDEO_SIZE; New video size %d x %d", ext1, ext2);
             break;
-        case 0xAAAAAAAA:
+        case static_cast<int>(0xAAAAAAAA):
             ALOGV("VIDEO PLAYBACK ALMOST over, prepare next player");
             // Select next player and prepare it
             // If there is a clip after this one
@@ -1268,7 +1268,7 @@ void VideoEditorPreviewController::notify(
                 }
             }
             break;
-        case 0xBBBBBBBB:
+        case static_cast<int>(0xBBBBBBBB):
         {
             ALOGV("VIDEO PLAYBACK, Update Overlay");
             int overlayIndex = ext2;
