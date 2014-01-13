@@ -244,7 +244,7 @@ status_t AudioRecord::set(
 
     // create the IAudioRecord
     status = openRecord_l(0 /*epoch*/);
-    if (status) {
+    if (status != NO_ERROR) {
         return status;
     }
 
@@ -463,6 +463,9 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         ALOGE("Could not get audio input for record source %d", mInputSource);
         return BAD_VALUE;
     }
+    {
+    // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
+    // we must release it ourselves if anything goes wrong.
 
     size_t temp = mFrameCount;  // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
@@ -480,9 +483,11 @@ status_t AudioRecord::openRecord_l(size_t epoch)
 
     if (record == 0 || status != NO_ERROR) {
         ALOGE("AudioFlinger could not create record track, status: %d", status);
-        AudioSystem::releaseInput(input);
-        return status;
+        goto release;
     }
+    // AudioFlinger now owns the reference to the I/O handle,
+    // so we are no longer responsible for releasing it.
+
     sp<IMemory> iMem = record->getCblk();
     if (iMem == 0) {
         ALOGE("Could not get control block");
@@ -497,6 +502,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mDeathNotifier.clear();
     }
+
+    // We retain a copy of the I/O handle, but don't own the reference
     mInput = input;
     mAudioRecord = record;
     mCblkMemory = iMem;
@@ -540,6 +547,14 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     mAudioRecord->asBinder()->linkToDeath(mDeathNotifier, this);
 
     return NO_ERROR;
+    }
+
+release:
+    AudioSystem::releaseInput(input);
+    if (status == NO_ERROR) {
+        status = NO_INIT;
+    }
+    return status;
 }
 
 status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
