@@ -216,6 +216,7 @@ status_t AudioTrack::set(
         ALOGE("Invalid transfer type %d", transferType);
         return BAD_VALUE;
     }
+    mSharedBuffer = sharedBuffer;
     mTransfer = transferType;
 
     // FIXME "int" here is legacy and will be replaced by size_t later
@@ -244,6 +245,11 @@ status_t AudioTrack::set(
     if (streamType == AUDIO_STREAM_DEFAULT) {
         streamType = AUDIO_STREAM_MUSIC;
     }
+    if (uint32_t(streamType) >= AUDIO_STREAM_CNT) {
+        ALOGE("Invalid stream type %d", streamType);
+        return BAD_VALUE;
+    }
+    mStreamType = streamType;
 
     status_t status;
     if (sampleRate == 0) {
@@ -266,6 +272,7 @@ status_t AudioTrack::set(
         ALOGE("Invalid format %d", format);
         return BAD_VALUE;
     }
+    mFormat = format;
 
     if (!audio_is_output_channel(channelMask)) {
         ALOGE("Invalid channel mask %#x", channelMask);
@@ -363,9 +370,6 @@ status_t AudioTrack::set(
     }
 
     mStatus = NO_ERROR;
-    mStreamType = streamType;
-    mFormat = format;
-    mSharedBuffer = sharedBuffer;
     mState = STATE_STOPPED;
     mUserData = user;
     mLoopPeriod = 0;
