@@ -392,7 +392,7 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         ALOGV("video late by %lld us (%.2f secs)",
              mVideoLateByUs, mVideoLateByUs / 1E6);
     } else {
-        ALOGV("rendering video at media time %.2f secs", mediaTimeUs / 1E6);
+        ALOGV("rendering video at real time %.2f secs", realTimeUs / 1E6);
     }
 
     entry->mNotifyConsumed->setInt32("render", !tooLate);
