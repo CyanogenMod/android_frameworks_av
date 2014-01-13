@@ -1768,8 +1768,9 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
 String8 AudioTrack::getParameters(const String8& keys)
 {
-    if (mOutput) {
-        return AudioSystem::getParameters(mOutput, keys);
+    audio_io_handle_t output = getOutput();
+    if (output != 0) {
+        return AudioSystem::getParameters(output, keys);
     } else {
         return String8::empty();
     }
