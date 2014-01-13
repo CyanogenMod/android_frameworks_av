@@ -160,7 +160,7 @@ public:
      * sampleRate:         Data source sampling rate in Hz.
      * format:             Audio format (e.g AUDIO_FORMAT_PCM_16_BIT for signed
      *                     16 bits per sample).
-     * channelMask:        Channel mask.
+     * channelMask:        Channel mask, such that audio_is_output_channel(channelMask) is true.
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
      *                     application's contribution to the
      *                     latency of the track. The actual size selected by the AudioTrack could be
@@ -338,7 +338,7 @@ public:
      */
             status_t    setSampleRate(uint32_t sampleRate);
 
-    /* Return current source sample rate in Hz, or 0 if unknown */
+    /* Return current source sample rate in Hz */
             uint32_t    getSampleRate() const;
 
     /* Enables looping and sets the start and end points of looping.
@@ -363,7 +363,7 @@ public:
     /* Sets marker position. When playback reaches the number of frames specified, a callback with
      * event type EVENT_MARKER is called. Calling setMarkerPosition with marker == 0 cancels marker
      * notification callback.  To set a marker at a position which would compute as 0,
-     * a workaround is to the set the marker at a nearby position such as ~0 or 1.
+     * a workaround is to set the marker at a nearby position such as ~0 or 1.
      * If the AudioTrack has been opened with no callback function associated, the operation will
      * fail.
      *
@@ -664,9 +664,10 @@ protected:
     float                   mVolume[2];
     float                   mSendLevel;
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it.
-    size_t                  mFrameCount;            // corresponds to current IAudioTrack
-    size_t                  mReqFrameCount;         // frame count to request the next time a new
-                                                    // IAudioTrack is needed
+    size_t                  mFrameCount;            // corresponds to current IAudioTrack, value is
+                                                    // reported back by AudioFlinger to the client
+    size_t                  mReqFrameCount;         // frame count to request the first or next time
+                                                    // a new IAudioTrack is needed, non-decreasing
 
     // constant after constructor or set()
     audio_format_t          mFormat;                // as requested by client, not forced to 16-bit
@@ -716,6 +717,7 @@ protected:
 
     sp<IMemory>             mSharedBuffer;
     uint32_t                mLoopPeriod;            // in frames, zero means looping is disabled
+
     uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
     bool                    mMarkerReached;
     uint32_t                mNewPosition;           // in frames
