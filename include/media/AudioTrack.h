@@ -661,6 +661,7 @@ protected:
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
 
     sp<AudioTrackThread>    mAudioTrackThread;
+
     float                   mVolume[2];
     float                   mSendLevel;
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it.
@@ -676,6 +677,8 @@ protected:
     audio_channel_mask_t    mChannelMask;
     sp<IMemory>             mSharedBuffer;
     transfer_type           mTransfer;
+    audio_offload_info_t    mOffloadInfoCopy;
+    const audio_offload_info_t* mOffloadInfo;
 
     // mFrameSize is equal to mFrameSizeAF for non-PCM or 16-bit PCM data.  For 8-bit PCM data, it's
     // twice as large as mFrameSize because data is expanded to 16-bit before it's stored in buffer.

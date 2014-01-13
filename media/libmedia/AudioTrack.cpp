@@ -324,6 +324,16 @@ status_t AudioTrack::set(
         return BAD_VALUE;
     }
 
+    // Make copy of input parameter offloadInfo so that in the future:
+    //  (a) createTrack_l doesn't need it as an input parameter
+    //  (b) we can support re-creation of offloaded tracks
+    if (offloadInfo != NULL) {
+        mOffloadInfoCopy = *offloadInfo;
+        mOffloadInfo = &mOffloadInfoCopy;
+    } else {
+        mOffloadInfo = NULL;
+    }
+
     mVolume[LEFT] = 1.0f;
     mVolume[RIGHT] = 1.0f;
     mSendLevel = 0.0f;
