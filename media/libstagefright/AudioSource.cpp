@@ -278,7 +278,7 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
 
     // Drop retrieved and previously lost audio data.
     if (mNumFramesReceived == 0 && timeUs < mStartTimeUs) {
-        mRecord->getInputFramesLost();
+        (void) mRecord->getInputFramesLost();
         ALOGV("Drop audio data at %lld/%lld us", timeUs, mStartTimeUs);
         return OK;
     }

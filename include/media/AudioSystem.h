@@ -138,7 +138,7 @@ public:
                                       audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
 
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
-    static size_t getInputFramesLost(audio_io_handle_t ioHandle);
+    static uint32_t getInputFramesLost(audio_io_handle_t ioHandle);
 
     static int newAudioSessionId();
     static void acquireAudioSessionId(int audioSession);

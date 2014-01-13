@@ -5371,7 +5371,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mRsmpInIndex = mFrameCount;
 }
 
-unsigned int AudioFlinger::RecordThread::getInputFramesLost()
+uint32_t AudioFlinger::RecordThread::getInputFramesLost()
 {
     Mutex::Autolock _l(mLock);
     if (initCheck() != NO_ERROR) {

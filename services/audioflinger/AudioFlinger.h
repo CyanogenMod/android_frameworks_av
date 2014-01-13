@@ -189,7 +189,7 @@ public:
     virtual status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
                                        audio_io_handle_t output) const;
 
-    virtual     unsigned int  getInputFramesLost(audio_io_handle_t ioHandle) const;
+    virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const;
 
     virtual int newAudioSessionId();
 

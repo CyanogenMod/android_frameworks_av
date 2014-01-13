@@ -907,7 +907,7 @@ public:
     virtual String8     getParameters(const String8& keys);
     virtual void        audioConfigChanged_l(int event, int param = 0);
             void        readInputParameters();
-    virtual unsigned int  getInputFramesLost();
+    virtual uint32_t    getInputFramesLost();
 
     virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
     virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);

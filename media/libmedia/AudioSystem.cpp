@@ -413,9 +413,9 @@ status_t AudioSystem::getRenderPosition(audio_io_handle_t output, size_t *halFra
     return af->getRenderPosition(halFrames, dspFrames, output);
 }
 
-size_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle) {
+uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle) {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-    unsigned int result = 0;
+    uint32_t result = 0;
     if (af == 0) return result;
     if (ioHandle == 0) return result;
 
