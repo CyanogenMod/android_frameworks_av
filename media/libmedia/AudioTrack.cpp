@@ -245,12 +245,14 @@ status_t AudioTrack::set(
         streamType = AUDIO_STREAM_MUSIC;
     }
 
+    status_t status;
     if (sampleRate == 0) {
-        uint32_t afSampleRate;
-        if (AudioSystem::getOutputSamplingRate(&afSampleRate, streamType) != NO_ERROR) {
-            return NO_INIT;
+        status = AudioSystem::getOutputSamplingRate(&sampleRate, streamType);
+        if (status != NO_ERROR) {
+            ALOGE("Could not get output sample rate for stream type %d; status %d",
+                    streamType, status);
+            return status;
         }
-        sampleRate = afSampleRate;
     }
     mSampleRate = sampleRate;
 
@@ -338,7 +340,7 @@ status_t AudioTrack::set(
     }
 
     // create the IAudioTrack
-    status_t status = createTrack_l(streamType,
+    status = createTrack_l(streamType,
                                   sampleRate,
                                   format,
                                   frameCount,
