@@ -39,7 +39,7 @@ ssize_t MonoPipeReader::availableToRead()
         return NEGOTIATE;
     }
     ssize_t ret = android_atomic_acquire_load(&mPipe->mRear) - mPipe->mFront;
-    ALOG_ASSERT((0 <= ret) && (ret <= mMaxFrames));
+    ALOG_ASSERT((0 <= ret) && (ret <= mPipe->mMaxFrames));
     return ret;
 }
 
