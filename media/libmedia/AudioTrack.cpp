@@ -457,7 +457,7 @@ void AudioTrack::stop()
         return;
     }
 
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
         mState = STATE_STOPPING;
     } else {
         mState = STATE_STOPPED;
@@ -479,7 +479,7 @@ void AudioTrack::stop()
 
     sp<AudioTrackThread> t = mAudioTrackThread;
     if (t != 0) {
-        if (!isOffloaded()) {
+        if (!isOffloaded_l()) {
             t->pause();
         }
     } else {
@@ -517,7 +517,7 @@ void AudioTrack::flush_l()
     mRefreshRemaining = true;
 
     mState = STATE_FLUSHED;
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
         mProxy->interrupt();
     }
     mProxy->flush();
@@ -550,7 +550,7 @@ status_t AudioTrack::setVolume(float left, float right)
 
     mProxy->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
 
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
         mAudioTrack->signal();
     }
     return NO_ERROR;
@@ -614,7 +614,7 @@ uint32_t AudioTrack::getSampleRate() const
     // sample rate can be updated during playback by the offloaded decoder so we need to
     // query the HAL and update if needed.
 // FIXME use Proxy return channel to update the rate from server and avoid polling here
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
         if (mOutput != 0) {
             uint32_t sampleRate = 0;
             status_t status = AudioSystem::getSamplingRate(mOutput, mStreamType, &sampleRate);
@@ -751,7 +751,7 @@ status_t AudioTrack::getPosition(uint32_t *position) const
     }
 
     AutoMutex lock(mLock);
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
         uint32_t dspFrames = 0;
 
         if (mOutput != 0) {
@@ -1389,7 +1389,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         // for offloaded tracks restoreTrack_l() will just update the sequence and clear
         // AudioSystem cache. We should not exit here but after calling the callback so
         // that the upper layers can recreate the track
-        if (!isOffloaded() || (mSequence == mObservedSequence)) {
+        if (!isOffloaded_l() || (mSequence == mObservedSequence)) {
             status_t status = restoreTrack_l("processAudioBuffer");
             mLock.unlock();
             // Run again immediately, but with a new IAudioTrack
@@ -1676,7 +1676,7 @@ nsecs_t AudioTrack::processAudioBuffer()
 status_t AudioTrack::restoreTrack_l(const char *from)
 {
     ALOGW("dead IAudioTrack, %s, creating a new one from %s()",
-          isOffloaded() ? "Offloaded" : "PCM", from);
+          isOffloaded_l() ? "Offloaded" : "PCM", from);
     ++mSequence;
     status_t result;
 
@@ -1684,7 +1684,8 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // output parameters in getOutput_l() and createTrack_l()
     AudioSystem::clearAudioConfigCache();
 
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
+        // FIXME re-creation of offloaded tracks is not yet implemented
         return DEAD_OBJECT;
     }
 
@@ -1776,6 +1777,12 @@ String8 AudioTrack::getParameters(const String8& keys)
     } else {
         return String8::empty();
     }
+}
+
+bool AudioTrack::isOffloaded() const
+{
+    AutoMutex lock(mLock);
+    return isOffloaded_l();
 }
 
 status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const

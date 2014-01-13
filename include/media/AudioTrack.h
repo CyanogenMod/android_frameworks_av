@@ -568,7 +568,7 @@ public:
             uint32_t    getUnderrunFrames() const;
 
     /* Get the flags */
-            audio_output_flags_t getFlags() const { return mFlags; }
+            audio_output_flags_t getFlags() const { AutoMutex _l(mLock); return mFlags; }
 
     /* Set parameters - only possible when using direct output */
             status_t    setParameters(const String8& keyValuePairs);
@@ -630,6 +630,8 @@ protected:
             static const nsecs_t NS_WHENEVER = -1, NS_INACTIVE = -2, NS_NEVER = -3;
             nsecs_t processAudioBuffer();
 
+            bool     isOffloaded() const;
+
             // caller must hold lock on mLock for all _l methods
 
             status_t createTrack_l(audio_stream_type_t streamType,
@@ -650,7 +652,7 @@ protected:
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from);
 
-            bool     isOffloaded() const
+            bool     isOffloaded_l() const
                 { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
 
     // Next 3 fields may be changed if IAudioTrack is re-created, but always != 0
@@ -720,6 +722,9 @@ protected:
     uint32_t                mUpdatePeriod;          // in frames, zero means no EVENT_NEW_POS
 
     audio_output_flags_t    mFlags;
+        // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
+        // mLock must be held to read or write those bits reliably.
+
     int                     mSessionId;
     int                     mAuxEffectId;
 
