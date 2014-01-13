@@ -412,6 +412,7 @@ private:
         bool                mPaused;    // whether thread is requested to pause at next loop entry
         bool                mPausedInt; // whether thread internally requests pause
         nsecs_t             mPausedNs;  // if mPausedInt then associated timeout, otherwise ignored
+        bool                mIgnoreNextPausedInt;   // whether to ignore next mPausedInt request
     };
 
             // body of AudioRecordThread::threadLoop()
