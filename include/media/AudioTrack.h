@@ -629,8 +629,6 @@ protected:
             //      NS_NEVER    never again
             static const nsecs_t NS_WHENEVER = -1, NS_INACTIVE = -2, NS_NEVER = -3;
             nsecs_t processAudioBuffer();
-            status_t processStreamEnd(int32_t waitCount);
-
 
             // caller must hold lock on mLock for all _l methods
 
