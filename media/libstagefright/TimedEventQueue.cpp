@@ -318,7 +318,7 @@ sp<TimedEventQueue::Event> TimedEventQueue::removeEventFromQueue_l(
 
 void TimedEventQueue::acquireWakeLock_l()
 {
-    if (mWakeLockCount++ == 0) {
+    if (mWakeLockCount == 0) {
         CHECK(mWakeLockToken == 0);
         if (mPowerManager == 0) {
             // use checkService() to avoid blocking if power service is not up yet
@@ -341,21 +341,23 @@ void TimedEventQueue::acquireWakeLock_l()
             IPCThreadState::self()->restoreCallingIdentity(token);
             if (status == NO_ERROR) {
                 mWakeLockToken = binder;
+                mWakeLockCount++;
             }
         }
+    } else {
+        mWakeLockCount++;
     }
 }
 
 void TimedEventQueue::releaseWakeLock_l(bool force)
 {
+    if (mWakeLockCount == 0) {
+        return;
+    }
     if (force) {
-        if (mWakeLockCount == 0) {
-            return;
-        }
         // Force wakelock release below by setting reference count to 1.
         mWakeLockCount = 1;
     }
-    CHECK(mWakeLockCount != 0);
     if (--mWakeLockCount == 0) {
         CHECK(mWakeLockToken != 0);
         if (mPowerManager != 0) {
