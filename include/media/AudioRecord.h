@@ -453,7 +453,7 @@ private:
     // These are private to processAudioBuffer(), and are not protected by a lock
     uint32_t                mRemainingFrames;       // number of frames to request in obtainBuffer()
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
-    int                     mObservedSequence;      // last observed value of mSequence
+    uint32_t                mObservedSequence;      // last observed value of mSequence
 
     uint32_t                mMarkerPosition;    // in wrapping (overflow) frame units
     bool                    mMarkerReached;

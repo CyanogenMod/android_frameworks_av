@@ -767,7 +767,7 @@ nsecs_t AudioRecord::processAudioBuffer()
         mRetryOnPartialBuffer = false;
     }
     size_t misalignment = mProxy->getMisalignment();
-    int32_t sequence = mSequence;
+    uint32_t sequence = mSequence;
 
     // These fields don't need to be cached, because they are assigned only by set():
     //      mTransfer, mCbf, mUserData, mSampleRate
