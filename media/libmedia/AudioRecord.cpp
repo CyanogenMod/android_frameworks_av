@@ -591,6 +591,9 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, const struct timespec *r
                 if (newSequence == oldSequence) {
                     status = restoreRecord_l("obtainBuffer");
                     if (status != NO_ERROR) {
+                        buffer.mFrameCount = 0;
+                        buffer.mRaw = NULL;
+                        buffer.mNonContig = 0;
                         break;
                     }
                 }
