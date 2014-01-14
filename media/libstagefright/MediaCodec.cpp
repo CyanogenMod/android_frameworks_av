@@ -1680,7 +1680,7 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
         return -EACCES;
     }
 
-    if (render && (info->mData == NULL || info->mData->size() != 0)) {
+    if (render && info->mData != NULL && info->mData->size() != 0) {
         info->mNotify->setInt32("render", true);
 
         if (mSoftRenderer != NULL) {
