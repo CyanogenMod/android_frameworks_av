@@ -54,16 +54,22 @@ status_t AudioTrack::getMinFrameCount(
     status_t status;
     status = AudioSystem::getOutputSamplingRate(&afSampleRate, streamType);
     if (status != NO_ERROR) {
+        ALOGE("Unable to query output sample rate for stream type %d; status %d",
+                streamType, status);
         return status;
     }
     size_t afFrameCount;
     status = AudioSystem::getOutputFrameCount(&afFrameCount, streamType);
     if (status != NO_ERROR) {
+        ALOGE("Unable to query output frame count for stream type %d; status %d",
+                streamType, status);
         return status;
     }
     uint32_t afLatency;
     status = AudioSystem::getOutputLatency(&afLatency, streamType);
     if (status != NO_ERROR) {
+        ALOGE("Unable to query output latency for stream type %d; status %d",
+                streamType, status);
         return status;
     }
 
