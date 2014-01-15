@@ -350,13 +350,7 @@ status_t AudioTrack::set(
     }
 
     // create the IAudioTrack
-    status = createTrack_l(streamType,
-                                  sampleRate,
-                                  format,
-                                  frameCount,
-                                  flags,
-                                  sharedBuffer,
-                                  0 /*epoch*/);
+    status = createTrack_l(0 /*epoch*/);
 
     if (status != NO_ERROR) {
         if (mAudioTrackThread != 0) {
@@ -831,14 +825,7 @@ status_t AudioTrack::attachAuxEffect(int effectId)
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
-status_t AudioTrack::createTrack_l(
-        audio_stream_type_t streamType,
-        uint32_t sampleRate,
-        audio_format_t format,
-        size_t frameCount,
-        audio_output_flags_t flags,
-        const sp<IMemory>& sharedBuffer,
-        size_t epoch)
+status_t AudioTrack::createTrack_l(size_t epoch)
 {
     status_t status;
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
@@ -862,38 +849,37 @@ status_t AudioTrack::createTrack_l(
     // Not all of these values are needed under all conditions, but it is easier to get them all
 
     uint32_t afLatency;
-    status = AudioSystem::getLatency(output, streamType, &afLatency);
+    status = AudioSystem::getLatency(output, mStreamType, &afLatency);
     if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
         goto release;
     }
 
     size_t afFrameCount;
-    status = AudioSystem::getFrameCount(output, streamType, &afFrameCount);
+    status = AudioSystem::getFrameCount(output, mStreamType, &afFrameCount);
     if (status != NO_ERROR) {
-        ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, streamType, status);
+        ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, mStreamType, status);
         goto release;
     }
 
     uint32_t afSampleRate;
-    status = AudioSystem::getSamplingRate(output, streamType, &afSampleRate);
+    status = AudioSystem::getSamplingRate(output, mStreamType, &afSampleRate);
     if (status != NO_ERROR) {
-        ALOGE("getSamplingRate(output=%d, streamType=%d) status %d", output, streamType, status);
+        ALOGE("getSamplingRate(output=%d, streamType=%d) status %d", output, mStreamType, status);
         goto release;
     }
 
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.
-    if ((flags & AUDIO_OUTPUT_FLAG_FAST) && !(
+    if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) && !(
             // either of these use cases:
             // use case 1: shared buffer
-            (sharedBuffer != 0) ||
+            (mSharedBuffer != 0) ||
             // use case 2: callback handler
             (mCbf != NULL))) {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client");
         // once denied, do not request again if IAudioTrack is re-created
-        flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
-        mFlags = flags;
+        mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
@@ -904,33 +890,34 @@ status_t AudioTrack::createTrack_l(
     //  n = 3   normal track, with sample rate conversion
     //          (pessimistic; some non-1:1 conversion ratios don't actually need triple-buffering)
     //  n > 3   very high latency or very small notification interval; nBuffering is ignored
-    const uint32_t nBuffering = (sampleRate == afSampleRate) ? 2 : 3;
+    const uint32_t nBuffering = (mSampleRate == afSampleRate) ? 2 : 3;
 
     mNotificationFramesAct = mNotificationFramesReq;
 
-    if (!audio_is_linear_pcm(format)) {
+    size_t frameCount = mReqFrameCount;
+    if (!audio_is_linear_pcm(mFormat)) {
 
-        if (sharedBuffer != 0) {
+        if (mSharedBuffer != 0) {
             // Same comment as below about ignoring frameCount parameter for set()
-            frameCount = sharedBuffer->size();
+            frameCount = mSharedBuffer->size();
         } else if (frameCount == 0) {
             frameCount = afFrameCount;
         }
         if (mNotificationFramesAct != frameCount) {
             mNotificationFramesAct = frameCount;
         }
-    } else if (sharedBuffer != 0) {
+    } else if (mSharedBuffer != 0) {
 
         // Ensure that buffer alignment matches channel count
         // 8-bit data in shared memory is not currently supported by AudioFlinger
-        size_t alignment = /* format == AUDIO_FORMAT_PCM_8_BIT ? 1 : */ 2;
+        size_t alignment = /* mFormat == AUDIO_FORMAT_PCM_8_BIT ? 1 : */ 2;
         if (mChannelCount > 1) {
             // More than 2 channels does not require stronger alignment than stereo
             alignment <<= 1;
         }
-        if (((size_t)sharedBuffer->pointer() & (alignment - 1)) != 0) {
+        if (((size_t)mSharedBuffer->pointer() & (alignment - 1)) != 0) {
             ALOGE("Invalid buffer alignment: address %p, channel count %u",
-                    sharedBuffer->pointer(), mChannelCount);
+                    mSharedBuffer->pointer(), mChannelCount);
             status = BAD_VALUE;
             goto release;
         }
@@ -939,9 +926,9 @@ status_t AudioTrack::createTrack_l(
         // there's no frameCount parameter.
         // But when initializing a shared buffer AudioTrack via set(),
         // there _is_ a frameCount parameter.  We silently ignore it.
-        frameCount = sharedBuffer->size()/mChannelCount/sizeof(int16_t);
+        frameCount = mSharedBuffer->size()/mChannelCount/sizeof(int16_t);
 
-    } else if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
+    } else if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
 
         // FIXME move these calculations and associated checks to server
 
@@ -953,10 +940,10 @@ status_t AudioTrack::createTrack_l(
             minBufCount = nBuffering;
         }
 
-        size_t minFrameCount = (afFrameCount*sampleRate*minBufCount)/afSampleRate;
+        size_t minFrameCount = (afFrameCount*mSampleRate*minBufCount)/afSampleRate;
         ALOGV("minFrameCount: %u, afFrameCount=%d, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
                 ", afLatency=%d",
-                minFrameCount, afFrameCount, minBufCount, sampleRate, afSampleRate, afLatency);
+                minFrameCount, afFrameCount, minBufCount, mSampleRate, afSampleRate, afLatency);
 
         if (frameCount == 0) {
             frameCount = minFrameCount;
@@ -981,28 +968,28 @@ status_t AudioTrack::createTrack_l(
     }
 
     pid_t tid = -1;
-    if (flags & AUDIO_OUTPUT_FLAG_FAST) {
+    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         trackFlags |= IAudioFlinger::TRACK_FAST;
         if (mAudioTrackThread != 0) {
             tid = mAudioTrackThread->getTid();
         }
     }
 
-    if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+    if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
-    sp<IAudioTrack> track = audioFlinger->createTrack(streamType,
-                                                      sampleRate,
+    sp<IAudioTrack> track = audioFlinger->createTrack(mStreamType,
+                                                      mSampleRate,
                                                       // AudioFlinger only sees 16-bit PCM
-                                                      format == AUDIO_FORMAT_PCM_8_BIT ?
-                                                              AUDIO_FORMAT_PCM_16_BIT : format,
+                                                      mFormat == AUDIO_FORMAT_PCM_8_BIT ?
+                                                              AUDIO_FORMAT_PCM_16_BIT : mFormat,
                                                       mChannelMask,
                                                       &temp,
                                                       &trackFlags,
-                                                      sharedBuffer,
+                                                      mSharedBuffer,
                                                       output,
                                                       tid,
                                                       &mSessionId,
@@ -1045,11 +1032,11 @@ status_t AudioTrack::createTrack_l(
     }
     frameCount = temp;
     mAwaitBoost = false;
-    if (flags & AUDIO_OUTPUT_FLAG_FAST) {
+    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", frameCount);
             mAwaitBoost = true;
-            if (sharedBuffer == 0) {
+            if (mSharedBuffer == 0) {
                 // Theoretically double-buffering is not required for fast tracks,
                 // due to tighter scheduling.  But in practice, to accommodate kernels with
                 // scheduling jitter, and apps with computation jitter, we use double-buffering.
@@ -1060,22 +1047,20 @@ status_t AudioTrack::createTrack_l(
         } else {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
             // once denied, do not request again if IAudioTrack is re-created
-            flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
-            mFlags = flags;
-            if (sharedBuffer == 0) {
+            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
+            if (mSharedBuffer == 0) {
                 if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
                     mNotificationFramesAct = frameCount/nBuffering;
                 }
             }
         }
     }
-    if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+    if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
         if (trackFlags & IAudioFlinger::TRACK_OFFLOAD) {
             ALOGV("AUDIO_OUTPUT_FLAG_OFFLOAD successful");
         } else {
             ALOGW("AUDIO_OUTPUT_FLAG_OFFLOAD denied by server");
-            flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
-            mFlags = flags;
+            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
             // FIXME This is a warning, not an error, so don't return error status
             //return NO_INIT;
         }
@@ -1090,15 +1075,15 @@ status_t AudioTrack::createTrack_l(
     // immediately after the control block.  This address is for the mapping within client
     // address space.  AudioFlinger::TrackBase::mBuffer is for the server address space.
     void* buffers;
-    if (sharedBuffer == 0) {
+    if (mSharedBuffer == 0) {
         buffers = (char*)cblk + sizeof(audio_track_cblk_t);
     } else {
-        buffers = sharedBuffer->pointer();
+        buffers = mSharedBuffer->pointer();
     }
 
     mAudioTrack->attachAuxEffect(mAuxEffectId);
     // FIXME don't believe this lie
-    mLatency = afLatency + (1000*frameCount) / sampleRate;
+    mLatency = afLatency + (1000*frameCount) / mSampleRate;
     mFrameCount = frameCount;
     // If IAudioTrack is re-created, don't let the requested frameCount
     // decrease.  This can confuse clients that cache frameCount().
@@ -1107,7 +1092,7 @@ status_t AudioTrack::createTrack_l(
     }
 
     // update proxy
-    if (sharedBuffer == 0) {
+    if (mSharedBuffer == 0) {
         mStaticProxy.clear();
         mProxy = new AudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
     } else {
@@ -1729,13 +1714,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // take the frames that will be lost by track recreation into account in saved position
     size_t position = mProxy->getPosition() + mProxy->getFramesFilled();
     size_t bufferPosition = mStaticProxy != NULL ? mStaticProxy->getBufferPosition() : 0;
-    result = createTrack_l(mStreamType,
-                           mSampleRate,
-                           mFormat,
-                           mReqFrameCount,  // so that frame count never goes down
-                           mFlags,
-                           mSharedBuffer,
-                           position /*epoch*/);
+    result = createTrack_l(position /*epoch*/);
 
     if (result == NO_ERROR) {
         // continue playback from last known position, but
