@@ -394,7 +394,7 @@ protected:
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
-
+    virtual     void        onAddNewTrack_l();
 
     // ThreadBase virtuals
     virtual     void        preExit();
@@ -753,6 +753,7 @@ protected:
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
+    virtual     void        onAddNewTrack_l();
 
 private:
                 void        flushHw_l();
