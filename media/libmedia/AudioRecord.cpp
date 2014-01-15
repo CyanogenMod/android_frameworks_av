@@ -71,7 +71,7 @@ status_t AudioRecord::getMinFrameCount(
 // ---------------------------------------------------------------------------
 
 AudioRecord::AudioRecord()
-    : mStatus(NO_INIT), mSessionId(0),
+    : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
 {
 }
@@ -88,7 +88,7 @@ AudioRecord::AudioRecord(
         int sessionId,
         transfer_type transferType,
         audio_input_flags_t flags)
-    : mStatus(NO_INIT), mSessionId(0),
+    : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mProxy(NULL)
@@ -233,7 +233,7 @@ status_t AudioRecord::set(
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
 
-    if (sessionId == 0 ) {
+    if (sessionId == AUDIO_SESSION_ALLOCATE) {
         mSessionId = AudioSystem::newAudioSessionId();
     } else {
         mSessionId = sessionId;
@@ -471,7 +471,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
                                                        tid,
                                                        &mSessionId,
                                                        &status);
-    ALOGE_IF(originalSessionId != 0 && mSessionId != originalSessionId,
+    ALOGE_IF(originalSessionId != AUDIO_SESSION_ALLOCATE && mSessionId != originalSessionId,
             "session ID changed from %d to %d", originalSessionId, mSessionId);
 
     if (record == 0 || status != NO_ERROR) {

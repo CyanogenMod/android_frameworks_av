@@ -534,7 +534,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         client = registerPid_l(pid);
 
         ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
-        if (sessionId != NULL && *sessionId != AUDIO_SESSION_OUTPUT_MIX) {
+        if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
             // check if an effect chain with the same session ID is present on another
             // output thread and move it here.
             for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
@@ -1324,7 +1324,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         client = registerPid_l(pid);
 
         // If no audio session id is provided, create one here
-        if (sessionId != NULL && *sessionId != AUDIO_SESSION_OUTPUT_MIX) {
+        if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
             lSessionId = *sessionId;
         } else {
             lSessionId = nextUniqueId();
