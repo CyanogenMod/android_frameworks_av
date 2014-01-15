@@ -735,7 +735,8 @@ audio_devices_t AudioSystem::getDevicesForStream(audio_stream_type_t stream)
 audio_io_handle_t AudioSystem::getOutputForEffect(const effect_descriptor_t *desc)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-    if (aps == 0) return PERMISSION_DENIED;
+    // FIXME change return type to status_t, and return PERMISSION_DENIED here
+    if (aps == 0) return 0;
     return aps->getOutputForEffect(desc);
 }
 
