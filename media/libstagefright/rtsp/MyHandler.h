@@ -769,6 +769,7 @@ struct MyHandler : public AHandler {
                     request.append(mSessionID);
                     request.append("\r\n");
 
+                    request.append(StringPrintf("Range: npt=0-\r\n"));
                     request.append("\r\n");
 
                     sp<AMessage> reply = new AMessage('play', id());
