@@ -713,7 +713,7 @@ const struct aac_format_conv_t* p = &profileLookup[0];
     return;
 }
 
-bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
+bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData>& vMeta,
                       bool isStreaming, audio_stream_type_t streamType)
 {
     const char *mime;
@@ -721,6 +721,17 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
         return false;
     }
     CHECK(meta->findCString(kKeyMIMEType, &mime));
+
+    if (hasVideo) {
+        const char *vMime;
+        CHECK(vMeta->findCString(kKeyMIMEType, &vMime));
+#ifdef ENABLE_AV_ENHANCEMENTS
+        if (!strncmp(vMime, MEDIA_MIMETYPE_VIDEO_HEVC, strlen(MEDIA_MIMETYPE_VIDEO_HEVC))) {
+            ALOGD("Do not offload HEVC audio+video playback");
+            return false;
+        }
+#endif
+    }
 
     audio_offload_info_t info = AUDIO_INFO_INITIALIZER;
 

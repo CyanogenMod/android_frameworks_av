@@ -611,9 +611,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
+            sp<MetaData> vMeta = new MetaData;
+            convertMessageToMetaData(videoFormat, vMeta);
 
             mOffloadAudio =
-                canOffloadStream(audioMeta, (videoFormat != NULL),
+                canOffloadStream(audioMeta, (videoFormat != NULL), vMeta,
                                  true /* is_streaming */, streamType);
             if (mOffloadAudio) {
                 flags |= Renderer::FLAG_OFFLOAD_AUDIO;
