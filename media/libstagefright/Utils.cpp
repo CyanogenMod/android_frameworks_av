@@ -451,6 +451,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 char avcc[1024]; // that oughta be enough, right?
                 size_t outsize = reassembleAVCC(csd0, csd1, avcc);
                 meta->setData(kKeyAVCC, kKeyAVCC, avcc, outsize);
+            } else {
+                int csd0size = csd0->size();
+                char esds[csd0size + 31];
+                reassembleESDS(csd0, esds);
+                meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
             }
         } else if (mime.startsWith("audio/")) {
             int csd0size = csd0->size();
