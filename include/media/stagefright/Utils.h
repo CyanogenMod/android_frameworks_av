@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +59,7 @@ status_t mapMimeToAudioFormat(audio_format_t& format, const char* mime);
 status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink, const sp<MetaData>& meta);
 
 // Check whether the stream defined by meta can be offloaded to hardware
-bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
+bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData>& vMeta,
                       bool isStreaming, audio_stream_type_t streamType);
 
 }  // namespace android
