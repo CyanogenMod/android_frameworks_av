@@ -1004,6 +1004,11 @@ status_t AudioTrack::createTrack_l(
         ALOGE("Could not get control block");
         return NO_INIT;
     }
+    void *iMemPointer = iMem->pointer();
+    if (iMemPointer == NULL) {
+        ALOGE("Could not get control block pointer");
+        return NO_INIT;
+    }
     // invariant that mAudioTrack != 0 is true only after set() returns successfully
     if (mAudioTrack != 0) {
         mAudioTrack->asBinder()->unlinkToDeath(mDeathNotifier, this);
@@ -1011,7 +1016,7 @@ status_t AudioTrack::createTrack_l(
     }
     mAudioTrack = track;
     mCblkMemory = iMem;
-    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMem->pointer());
+    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
     size_t temp = cblk->frameCount_;
     if (temp < frameCount || (frameCount == 0 && temp == 0)) {

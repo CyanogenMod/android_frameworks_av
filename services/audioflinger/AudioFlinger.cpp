@@ -559,6 +559,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
         track = thread->createTrack_l(client, streamType, sampleRate, format,
                 channelMask, frameCount, sharedBuffer, lSessionId, flags, tid, clientUid, &lStatus);
+        LOG_ALWAYS_FATAL_IF((track != 0) != (lStatus == NO_ERROR));
         // we don't abort yet if lStatus != NO_ERROR; there is still work to be done regardless
 
         // move effect chain to this output thread if an effect on same session was waiting
