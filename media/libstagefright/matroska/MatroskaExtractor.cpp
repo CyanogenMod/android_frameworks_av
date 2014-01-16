@@ -750,10 +750,9 @@ static void addESDSFromCodecPrivate(
         }
 
         if(objectType == 1) { //AAC Main profile
-            ALOGD("\n  Found AAC mainprofile in Matroska Extractor \n");
+            ALOGV("Found AAC mainprofile in Matroska Extractor");
         }
-
-        meta->setInt32(kKeyAACProfile, objectType);
+        meta->setInt32(kKeyAACAOT, objectType);
     }
     size_t esdsSize = sizeof(kStaticESDS) + privSize + 1;
     uint8_t *esds = new uint8_t[esdsSize];
