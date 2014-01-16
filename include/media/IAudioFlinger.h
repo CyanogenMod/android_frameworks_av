@@ -67,6 +67,9 @@ public:
                                 size_t frameCount,
                                 track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
+                                // On successful return, AudioFlinger takes over the handle
+                                // reference and will release it when the track is destroyed.
+                                // However on failure, the client is responsible for release.
                                 audio_io_handle_t output,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
@@ -78,6 +81,9 @@ public:
                                 status_t *status) = 0;
 
     virtual sp<IAudioRecord> openRecord(
+                                // On successful return, AudioFlinger takes over the handle
+                                // reference and will release it when the track is destroyed.
+                                // However on failure, the client is responsible for release.
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
@@ -188,6 +194,7 @@ public:
                                     effect_descriptor_t *pDesc,
                                     const sp<IEffectClient>& client,
                                     int32_t priority,
+                                    // AudioFlinger doesn't take over handle reference from client
                                     audio_io_handle_t output,
                                     int sessionId,
                                     status_t *status,
