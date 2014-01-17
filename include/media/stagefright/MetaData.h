@@ -215,6 +215,8 @@ public:
     bool findData(uint32_t key, uint32_t *type,
                   const void **data, size_t *size) const;
 
+    bool hasData(uint32_t key) const;
+
     void dumpToLog() const;
 
 protected:
