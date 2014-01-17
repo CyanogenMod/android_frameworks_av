@@ -2089,7 +2089,7 @@ AudioFlinger::RecordThread *AudioFlinger::checkRecordThread_l(audio_io_handle_t 
 
 uint32_t AudioFlinger::nextUniqueId()
 {
-    return android_atomic_inc(&mNextUniqueId);
+    return (uint32_t) android_atomic_inc(&mNextUniqueId);
 }
 
 AudioFlinger::PlaybackThread *AudioFlinger::primaryPlaybackThread_l() const

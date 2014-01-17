@@ -454,7 +454,14 @@ private:
                                 { return mStreamTypes[stream].volume; }
               void audioConfigChanged_l(int event, audio_io_handle_t ioHandle, const void *param2);
 
-              // allocate an audio_io_handle_t, session ID, or effect ID
+              // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
+              // They all share the same ID space, but the namespaces are actually independent
+              // because there are separate KeyedVectors for each kind of ID.
+              // The return value is uint32_t, but is cast to signed for some IDs.
+              // FIXME This API does not handle rollover to zero (for unsigned IDs),
+              //       or from positive to negative (for signed IDs).
+              //       Thus it may fail by returning an ID of the wrong sign,
+              //       or by returning a non-unique ID.
               uint32_t nextUniqueId();
 
               status_t moveEffectChain_l(int sessionId,
@@ -590,7 +597,11 @@ private:
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
                 DefaultKeyedVector< pid_t, sp<NotificationClient> >    mNotificationClients;
+
                 volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
+                // nextUniqueId() returns uint32_t, but this is declared int32_t
+                // because the atomic operations require an int32_t
+
                 audio_mode_t                        mMode;
                 bool                                mBtNrecIsOff;
 
