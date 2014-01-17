@@ -24,7 +24,6 @@
 
 namespace android {
 
-struct ACodec;
 struct MetaData;
 struct NuPlayerDriver;
 

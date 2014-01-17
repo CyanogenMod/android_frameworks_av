@@ -25,12 +25,14 @@
 namespace android {
 
 struct ABuffer;
+struct MediaCodec;
 
 struct NuPlayer::Decoder : public AHandler {
     Decoder(const sp<AMessage> &notify,
             const sp<NativeWindowWrapper> &nativeWindow = NULL);
 
     void configure(const sp<AMessage> &format);
+    void init();
 
     void signalFlush();
     void signalResume();
@@ -38,7 +40,18 @@ struct NuPlayer::Decoder : public AHandler {
 
     bool supportsSeamlessFormatChange(const sp<AMessage> &to) const;
 
+    enum {
+        kWhatFillThisBuffer      = 'flTB',
+        kWhatDrainThisBuffer     = 'drTB',
+        kWhatOutputFormatChanged = 'fmtC',
+        kWhatFlushCompleted      = 'flsC',
+        kWhatShutdownCompleted   = 'shDC',
+        kWhatEOS                 = 'eos ',
+        kWhatError               = 'err ',
+    };
+
 protected:
+
     virtual ~Decoder();
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -46,21 +59,40 @@ protected:
 private:
     enum {
         kWhatCodecNotify        = 'cdcN',
+        kWhatConfigure          = 'conf',
+        kWhatInputBufferFilled  = 'inpF',
+        kWhatRenderBuffer       = 'rndr',
+        kWhatFlush              = 'flus',
+        kWhatShutdown           = 'shuD',
     };
 
     sp<AMessage> mNotify;
     sp<NativeWindowWrapper> mNativeWindow;
 
-    sp<AMessage> mFormat;
-    sp<ACodec> mCodec;
+    sp<AMessage> mInputFormat;
+    sp<AMessage> mOutputFormat;
+    sp<MediaCodec> mCodec;
     sp<ALooper> mCodecLooper;
+    sp<ALooper> mDecoderLooper;
 
-    Vector<sp<ABuffer> > mCSD;
-    size_t mCSDIndex;
+    Vector<sp<ABuffer> > mInputBuffers;
+    Vector<sp<ABuffer> > mOutputBuffers;
 
-    sp<AMessage> makeFormat(const sp<MetaData> &meta);
+    void handleError(int32_t err);
+    bool handleAnInputBuffer();
+    bool handleAnOutputBuffer();
 
-    void onFillThisBuffer(const sp<AMessage> &msg);
+    void requestCodecNotification();
+    bool isStaleReply(const sp<AMessage> &msg);
+
+    void onConfigure(const sp<AMessage> &format);
+    void onFlush();
+    void onInputBufferFilled(const sp<AMessage> &msg);
+    void onRenderBuffer(const sp<AMessage> &msg);
+    void onShutdown();
+
+    int32_t mBufferGeneration;
+    AString mComponentName;
 
     bool supportsSeamlessAudioFormatChange(const sp<AMessage> &targetFormat) const;
 
