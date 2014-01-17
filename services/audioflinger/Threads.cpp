@@ -2564,6 +2564,7 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
     if (mNormalSink != 0) {
         return mNormalSink->getTimestamp(timestamp);
     }
+#ifndef HAVE_PRE_KITKAT_AUDIO_BLOB
     if (mType == OFFLOAD && mOutput->stream->get_presentation_position) {
         uint64_t position64;
         int ret = mOutput->stream->get_presentation_position(
@@ -2573,6 +2574,7 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
             return NO_ERROR;
         }
     }
+#endif
     return INVALID_OPERATION;
 }
 // ----------------------------------------------------------------------------
