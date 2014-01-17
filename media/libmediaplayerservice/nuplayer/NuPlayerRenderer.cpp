@@ -422,7 +422,9 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         ALOGV("video late by %lld us (%.2f secs)",
              mVideoLateByUs, mVideoLateByUs / 1E6);
     } else {
-        ALOGV("rendering video at media time %.2f secs", mediaTimeUs / 1E6);
+        ALOGV("rendering video at media time %.2f secs",
+                (mFlags & FLAG_REAL_TIME ? realTimeUs :
+                (realTimeUs + mAnchorTimeMediaUs - mAnchorTimeRealUs)) / 1E6);
         if (mSoftRenderer != NULL) {
             mSoftRenderer->render(entry->mBuffer->data(), entry->mBuffer->size(), NULL);
         }
