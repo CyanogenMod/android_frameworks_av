@@ -56,14 +56,14 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(MemorySource);
 };
 
-ID3::ID3(const sp<DataSource> &source, bool ignoreV1)
+ID3::ID3(const sp<DataSource> &source, bool ignoreV1, off64_t offset)
     : mIsValid(false),
       mData(NULL),
       mSize(0),
       mFirstFrameOffset(0),
       mVersion(ID3_UNKNOWN),
       mRawSize(0) {
-    mIsValid = parseV2(source);
+    mIsValid = parseV2(source, offset);
 
     if (!mIsValid && !ignoreV1) {
         mIsValid = parseV1(source);
@@ -79,7 +79,7 @@ ID3::ID3(const uint8_t *data, size_t size, bool ignoreV1)
       mRawSize(0) {
     sp<MemorySource> source = new MemorySource(data, size);
 
-    mIsValid = parseV2(source);
+    mIsValid = parseV2(source, 0);
 
     if (!mIsValid && !ignoreV1) {
         mIsValid = parseV1(source);
@@ -115,7 +115,7 @@ bool ID3::ParseSyncsafeInteger(const uint8_t encoded[4], size_t *x) {
     return true;
 }
 
-bool ID3::parseV2(const sp<DataSource> &source) {
+bool ID3::parseV2(const sp<DataSource> &source, off64_t offset) {
 struct id3_header {
     char id[3];
     uint8_t version_major;
@@ -126,7 +126,7 @@ struct id3_header {
 
     id3_header header;
     if (source->readAt(
-                0, &header, sizeof(header)) != (ssize_t)sizeof(header)) {
+                offset, &header, sizeof(header)) != (ssize_t)sizeof(header)) {
         return false;
     }
 
@@ -185,7 +185,7 @@ struct id3_header {
     mSize = size;
     mRawSize = mSize + sizeof(header);
 
-    if (source->readAt(sizeof(header), mData, mSize) != (ssize_t)mSize) {
+    if (source->readAt(offset + sizeof(header), mData, mSize) != (ssize_t)mSize) {
         free(mData);
         mData = NULL;
 

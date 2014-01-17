@@ -39,6 +39,7 @@
 #include <utils/String8.h>
 
 #include <byteswap.h>
+#include "include/ID3.h"
 
 namespace android {
 
@@ -1787,6 +1788,18 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             break;
         }
 
+        case FOURCC('I', 'D', '3', '2'):
+        {
+            if (chunk_data_size < 6) {
+                return ERROR_MALFORMED;
+            }
+
+            parseID3v2MetaData(data_offset + 6);
+
+            *offset += chunk_size;
+            break;
+        }
+
         case FOURCC('-', '-', '-', '-'):
         {
             mLastCommentMean.clear();
@@ -2167,7 +2180,7 @@ status_t MPEG4Extractor::parseITunesMetaData(off64_t offset, size_t size) {
             break;
     }
 
-    if (size >= 8 && metadataKey) {
+    if (size >= 8 && metadataKey && !mFileMetaData->hasData(metadataKey)) {
         if (metadataKey == kKeyAlbumArt) {
             mFileMetaData->setData(
                     kKeyAlbumArt, MetaData::TYPE_NONE,
@@ -2314,6 +2327,62 @@ status_t MPEG4Extractor::parse3GPPMetaData(off64_t offset, size_t size, int dept
     buffer = NULL;
 
     return OK;
+}
+
+void MPEG4Extractor::parseID3v2MetaData(off64_t offset) {
+    ID3 id3(mDataSource, true /* ignorev1 */, offset);
+
+    if (id3.isValid()) {
+        struct Map {
+            int key;
+            const char *tag1;
+            const char *tag2;
+        };
+        static const Map kMap[] = {
+            { kKeyAlbum, "TALB", "TAL" },
+            { kKeyArtist, "TPE1", "TP1" },
+            { kKeyAlbumArtist, "TPE2", "TP2" },
+            { kKeyComposer, "TCOM", "TCM" },
+            { kKeyGenre, "TCON", "TCO" },
+            { kKeyTitle, "TIT2", "TT2" },
+            { kKeyYear, "TYE", "TYER" },
+            { kKeyAuthor, "TXT", "TEXT" },
+            { kKeyCDTrackNumber, "TRK", "TRCK" },
+            { kKeyDiscNumber, "TPA", "TPOS" },
+            { kKeyCompilation, "TCP", "TCMP" },
+        };
+        static const size_t kNumMapEntries = sizeof(kMap) / sizeof(kMap[0]);
+
+        for (size_t i = 0; i < kNumMapEntries; ++i) {
+            if (!mFileMetaData->hasData(kMap[i].key)) {
+                ID3::Iterator *it = new ID3::Iterator(id3, kMap[i].tag1);
+                if (it->done()) {
+                    delete it;
+                    it = new ID3::Iterator(id3, kMap[i].tag2);
+                }
+
+                if (it->done()) {
+                    delete it;
+                    continue;
+                }
+
+                String8 s;
+                it->getString(&s);
+                delete it;
+
+                mFileMetaData->setCString(kMap[i].key, s);
+            }
+        }
+
+        size_t dataSize;
+        String8 mime;
+        const void *data = id3.getAlbumArt(&dataSize, &mime);
+
+        if (data) {
+            mFileMetaData->setData(kKeyAlbumArt, MetaData::TYPE_NONE, data, dataSize);
+            mFileMetaData->setCString(kKeyAlbumArtMIME, mime.string());
+        }
+    }
 }
 
 sp<MediaSource> MPEG4Extractor::getTrack(size_t index) {
