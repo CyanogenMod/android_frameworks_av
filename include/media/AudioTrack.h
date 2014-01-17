@@ -36,11 +36,6 @@ class StaticAudioTrackClientProxy;
 class AudioTrack : public RefBase
 {
 public:
-    enum channel_index {
-        MONO   = 0,
-        LEFT   = 0,
-        RIGHT  = 1
-    };
 
     /* Events used by AudioTrack callback function (callback_t).
      * Keep in sync with frameworks/base/media/java/android/media/AudioTrack.java NATIVE_EVENT_*.

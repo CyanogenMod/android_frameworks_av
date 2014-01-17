@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
     }
 
     sp<IMediaPlayer> player =
-        service->create(client, 0);
+        service->create(client, AUDIO_SESSION_ALLOCATE);
 
     if (player != NULL && player->setDataSource(source) == NO_ERROR) {
         player->setVideoSurfaceTexture(surface->getIGraphicBufferProducer());

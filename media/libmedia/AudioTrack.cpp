@@ -333,8 +333,8 @@ status_t AudioTrack::set(
         mOffloadInfo = NULL;
     }
 
-    mVolume[LEFT] = 1.0f;
-    mVolume[RIGHT] = 1.0f;
+    mVolume[AUDIO_INTERLEAVE_LEFT] = 1.0f;
+    mVolume[AUDIO_INTERLEAVE_RIGHT] = 1.0f;
     mSendLevel = 0.0f;
     // mFrameCount is initialized in createTrack_l
     mReqFrameCount = frameCount;
@@ -573,8 +573,8 @@ status_t AudioTrack::setVolume(float left, float right)
     }
 
     AutoMutex lock(mLock);
-    mVolume[LEFT] = left;
-    mVolume[RIGHT] = right;
+    mVolume[AUDIO_INTERLEAVE_LEFT] = left;
+    mVolume[AUDIO_INTERLEAVE_RIGHT] = right;
 
     mProxy->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
 
@@ -1134,8 +1134,8 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         mStaticProxy = new StaticAudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
         mProxy = mStaticProxy;
     }
-    mProxy->setVolumeLR((uint32_t(uint16_t(mVolume[RIGHT] * 0x1000)) << 16) |
-            uint16_t(mVolume[LEFT] * 0x1000));
+    mProxy->setVolumeLR((uint32_t(uint16_t(mVolume[AUDIO_INTERLEAVE_RIGHT] * 0x1000)) << 16) |
+            uint16_t(mVolume[AUDIO_INTERLEAVE_LEFT] * 0x1000));
     mProxy->setSendLevel(mSendLevel);
     mProxy->setSampleRate(mSampleRate);
     mProxy->setEpoch(epoch);
