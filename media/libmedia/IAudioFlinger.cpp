@@ -109,6 +109,7 @@ public:
         data.writeInt32(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
+        // haveSharedBuffer
         if (sharedBuffer != 0) {
             data.writeInt32(true);
             data.writeStrongBinder(sharedBuffer->asBinder());
@@ -424,6 +425,7 @@ public:
         data.writeInt32(channelMask);
         data.writeInt32(latency);
         data.writeInt32((int32_t) flags);
+        // hasOffloadInfo
         if (offloadInfo == NULL) {
             data.writeInt32(0);
         } else {

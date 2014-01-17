@@ -77,6 +77,7 @@ public:
                                   // (currently ignored, but will make the primary field in future)
 
         size_t      size;         // input/output in bytes == frameCount * frameSize
+                                  // on input it is unused
                                   // on output is the number of bytes actually filled
                                   // FIXME this is redundant with respect to frameCount,
                                   // and TRANSFER_OBTAIN mode is broken for 8-bit data
@@ -86,7 +87,7 @@ public:
             void*       raw;
             short*      i16;      // signed 16-bit
             int8_t*     i8;       // unsigned 8-bit, offset by 0x80
-        };
+        };                        // input: unused, output: pointer to buffer
     };
 
     /* As a convenience, if a callback is supplied, a handler thread
@@ -527,15 +528,6 @@ private:
             status_t    obtainBuffer(Buffer* audioBuffer, const struct timespec *requested,
                                      struct timespec *elapsed = NULL, size_t *nonContig = NULL);
 public:
-
-//EL_FIXME to be reconciled with new obtainBuffer() return codes and control block proxy
-//            enum {
-//            NO_MORE_BUFFERS = 0x80000001,   // same name in AudioFlinger.h, ok to be different value
-//            TEAR_DOWN       = 0x80000002,
-//            STOPPED = 1,
-//            STREAM_END_WAIT,
-//            STREAM_END
-//        };
 
     /* Release a filled buffer of "audioBuffer->frameCount" frames for AudioFlinger to process. */
     // FIXME make private when obtainBuffer() for TRANSFER_OBTAIN is removed

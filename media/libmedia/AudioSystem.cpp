@@ -35,8 +35,8 @@ Mutex AudioSystem::gLock;
 sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
-// Cached values
 
+// Cached values for output handles
 DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSystem::gOutputs(NULL);
 
 // Cached values for recording queries, all protected by gLock

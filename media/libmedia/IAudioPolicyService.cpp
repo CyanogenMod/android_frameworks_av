@@ -137,6 +137,7 @@ public:
         data.writeInt32(static_cast <uint32_t>(format));
         data.writeInt32(channelMask);
         data.writeInt32(static_cast <uint32_t>(flags));
+        // hasOffloadInfo
         if (offloadInfo == NULL) {
             data.writeInt32(0);
         } else {

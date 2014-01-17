@@ -534,7 +534,8 @@ status_t VideoEditorAudioPlayer::start(bool sourceAlreadyStarted) {
         mAudioTrack = new AudioTrack(
                 AUDIO_STREAM_MUSIC, mSampleRate, AUDIO_FORMAT_PCM_16_BIT,
                 audio_channel_out_mask_from_count(numChannels),
-                0, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
+                0 /*frameCount*/, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this,
+                0 /*notificationFrames*/);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
             mAudioTrack.clear();
