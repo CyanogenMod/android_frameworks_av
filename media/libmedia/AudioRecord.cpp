@@ -414,7 +414,7 @@ status_t AudioRecord::getPosition(uint32_t *position) const
     return NO_ERROR;
 }
 
-unsigned int AudioRecord::getInputFramesLost() const
+uint32_t AudioRecord::getInputFramesLost() const
 {
     // no need to check mActive, because if inactive this will return 0, which is what we want
     return AudioSystem::getInputFramesLost(getInput());

@@ -564,13 +564,16 @@ public:
         return status;
     }
 
-    virtual size_t getInputFramesLost(audio_io_handle_t ioHandle) const
+    virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32((int32_t) ioHandle);
-        remote()->transact(GET_INPUT_FRAMES_LOST, data, &reply);
-        return reply.readInt32();
+        status_t status = remote()->transact(GET_INPUT_FRAMES_LOST, data, &reply);
+        if (status != NO_ERROR) {
+            return 0;
+        }
+        return (uint32_t) reply.readInt32();
     }
 
     virtual int newAudioSessionId()
@@ -1044,7 +1047,7 @@ status_t BnAudioFlinger::onTransact(
         case GET_INPUT_FRAMES_LOST: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_io_handle_t ioHandle = (audio_io_handle_t) data.readInt32();
-            reply->writeInt32(getInputFramesLost(ioHandle));
+            reply->writeInt32((int32_t) getInputFramesLost(ioHandle));
             return NO_ERROR;
         } break;
         case NEW_AUDIO_SESSION_ID: {
