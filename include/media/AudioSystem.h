@@ -200,12 +200,16 @@ public:
     static status_t setPhoneState(audio_mode_t state);
     static status_t setForceUse(audio_policy_force_use_t usage, audio_policy_forced_cfg_t config);
     static audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage);
+
+    // Client must successfully hand off the handle reference to AudioFlinger via createTrack(),
+    // or release it with releaseOutput().
     static audio_io_handle_t getOutput(audio_stream_type_t stream,
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL);
+
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
                                 int session);
@@ -213,11 +217,15 @@ public:
                                audio_stream_type_t stream,
                                int session);
     static void releaseOutput(audio_io_handle_t output);
+
+    // Client must successfully hand off the handle reference to AudioFlinger via openRecord(),
+    // or release it with releaseInput().
     static audio_io_handle_t getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
                                     int sessionId);
+
     static status_t startInput(audio_io_handle_t input);
     static status_t stopInput(audio_io_handle_t input);
     static void releaseInput(audio_io_handle_t input);
