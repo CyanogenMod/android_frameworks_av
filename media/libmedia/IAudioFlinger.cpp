@@ -599,7 +599,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         status_t status = remote()->transact(NEW_AUDIO_SESSION_ID, data, &reply);
-        int id = 0;
+        int id = AUDIO_SESSION_ALLOCATE;
         if (status == NO_ERROR) {
             id = reply.readInt32();
         }
