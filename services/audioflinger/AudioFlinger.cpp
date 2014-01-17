@@ -1561,7 +1561,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     ALOGV("openOutput(), offloadInfo %p version 0x%04x",
           offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version);
 
-    if (pDevices == NULL || *pDevices == 0) {
+    if (pDevices == NULL || *pDevices == AUDIO_DEVICE_NONE) {
         return 0;
     }
 
@@ -1775,7 +1775,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_format_t reqFormat = config.format;
     audio_channel_mask_t reqChannelMask = config.channel_mask;
 
-    if (pDevices == NULL || *pDevices == 0) {
+    if (pDevices == NULL || *pDevices == AUDIO_DEVICE_NONE) {
         return 0;
     }
 
