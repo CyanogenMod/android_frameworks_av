@@ -355,7 +355,7 @@ status_t AudioTrack::set(
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
-        //Use of direct and offloaded output streams is ref counted by audio policy manager.
+        // Use of direct and offloaded output streams is ref counted by audio policy manager.
         // As getOutput was called above and resulted in an output stream to be opened,
         // we need to release it.
         AudioSystem::releaseOutput(output);
@@ -698,6 +698,7 @@ status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
     AutoMutex lock(mLock);
     mNewPosition = mProxy->getPosition() + updatePeriod;
     mUpdatePeriod = updatePeriod;
+
     return NO_ERROR;
 }
 
@@ -1735,7 +1736,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
         }
     }
     if (result != NO_ERROR) {
-        //Use of direct and offloaded output streams is ref counted by audio policy manager.
+        // Use of direct and offloaded output streams is ref counted by audio policy manager.
         // As getOutput was called above and resulted in an output stream to be opened,
         // we need to release it.
         AudioSystem::releaseOutput(output);

@@ -352,6 +352,7 @@ bool AudioRecord::stopped() const
 
 status_t AudioRecord::setMarkerPosition(uint32_t marker)
 {
+    // The only purpose of setting marker position is to get a callback
     if (mCbf == NULL) {
         return INVALID_OPERATION;
     }
@@ -377,6 +378,7 @@ status_t AudioRecord::getMarkerPosition(uint32_t *marker) const
 
 status_t AudioRecord::setPositionUpdatePeriod(uint32_t updatePeriod)
 {
+    // The only purpose of setting position update period is to get a callback
     if (mCbf == NULL) {
         return INVALID_OPERATION;
     }
@@ -770,7 +772,7 @@ nsecs_t AudioRecord::processAudioBuffer()
     int32_t sequence = mSequence;
 
     // These fields don't need to be cached, because they are assigned only by set():
-    //      mTransfer, mCbf, mUserData, mSampleRate
+    //      mTransfer, mCbf, mUserData, mSampleRate, mFrameSize
 
     mLock.unlock();
 
@@ -844,8 +846,8 @@ nsecs_t AudioRecord::processAudioBuffer()
                 "obtainBuffer() err=%d frameCount=%u", err, audioBuffer.frameCount);
         requested = &ClientProxy::kNonBlocking;
         size_t avail = audioBuffer.frameCount + nonContig;
-        ALOGV("obtainBuffer(%u) returned %u = %u + %u",
-                mRemainingFrames, avail, audioBuffer.frameCount, nonContig);
+        ALOGV("obtainBuffer(%u) returned %u = %u + %u err %d",
+                mRemainingFrames, avail, audioBuffer.frameCount, nonContig, err);
         if (err != NO_ERROR) {
             if (err == TIMED_OUT || err == WOULD_BLOCK || err == -EINTR) {
                 break;

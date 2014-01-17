@@ -39,8 +39,12 @@ public:
      * Keep in sync with frameworks/base/media/java/android/media/AudioRecord.java NATIVE_EVENT_*.
      */
     enum event_type {
-        EVENT_MORE_DATA = 0,        // Request to read more data from PCM buffer.
-        EVENT_OVERRUN = 1,          // PCM buffer overrun occurred.
+        EVENT_MORE_DATA = 0,        // Request to read available data from buffer.
+                                    // If this event is delivered but the callback handler
+                                    // does not want to read the available data, the handler must
+                                    // explicitly
+                                    // ignore the event by setting frameCount to zero.
+        EVENT_OVERRUN = 1,          // Buffer overrun occurred.
         EVENT_MARKER = 2,           // Record head is at the specified marker position
                                     // (See setMarkerPosition()).
         EVENT_NEW_POS = 3,          // Record head is at a new position
@@ -63,6 +67,7 @@ public:
                                     // (currently ignored but will make the primary field in future)
 
         size_t      size;           // input/output in bytes == frameCount * frameSize
+                                    // on output is the number of bytes actually drained
                                     // FIXME this is redundant with respect to frameCount,
                                     // and TRANSFER_OBTAIN mode is broken for 8-bit data
                                     // since we don't define the frame format
@@ -76,7 +81,7 @@ public:
 
     /* As a convenience, if a callback is supplied, a handler thread
      * is automatically created with the appropriate priority. This thread
-     * invokes the callback when a new buffer becomes ready or various conditions occur.
+     * invokes the callback when a new buffer becomes available or various conditions occur.
      * Parameters:
      *
      * event:   type of event notified (see enum AudioRecord::event_type).
@@ -99,6 +104,8 @@ public:
      *  - NO_ERROR: successful operation
      *  - NO_INIT: audio server or audio hardware not initialized
      *  - BAD_VALUE: unsupported configuration
+     * frameCount is guaranteed to be non-zero if status is NO_ERROR,
+     * and is undefined otherwise.
      */
 
      static status_t getMinFrameCount(size_t* frameCount,
@@ -109,7 +116,7 @@ public:
     /* How data is transferred from AudioRecord
      */
     enum transfer_type {
-        TRANSFER_DEFAULT,   // not specified explicitly; determine from other parameters
+        TRANSFER_DEFAULT,   // not specified explicitly; determine from the other parameters
         TRANSFER_CALLBACK,  // callback EVENT_MORE_DATA
         TRANSFER_OBTAIN,    // FIXME deprecated: call obtainBuffer() and releaseBuffer()
         TRANSFER_SYNC,      // synchronous read()
@@ -137,7 +144,7 @@ public:
      *                     be larger if the requested size is not compatible with current audio HAL
      *                     latency.  Zero means to use a default value.
      * cbf:                Callback function. If not null, this function is called periodically
-     *                     to consume new PCM data and inform of marker, position updates, etc.
+     *                     to consume new data and inform of marker, position updates, etc.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames are ready in record track output buffer.
@@ -171,9 +178,10 @@ public:
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful intialization
      *  - INVALID_OPERATION: AudioRecord is already initialized or record device is already in use
-     *  - BAD_VALUE: invalid parameter (channels, format, sampleRate...)
+     *  - BAD_VALUE: invalid parameter (channelMask, format, sampleRate...)
      *  - NO_INIT: audio server or audio hardware not initialized
      *  - PERMISSION_DENIED: recording is not allowed for the requesting process
+     * If status is not equal to NO_ERROR, don't call any other APIs on this AudioRecord.
      *
      * Parameters not listed in the AudioRecord constructors above:
      *
@@ -192,7 +200,7 @@ public:
                             transfer_type transferType = TRANSFER_DEFAULT,
                             audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE);
 
-    /* Result of constructing the AudioRecord. This must be checked
+    /* Result of constructing the AudioRecord. This must be checked for successful initialization
      * before using any AudioRecord API (except for set()), because using
      * an uninitialized AudioRecord produces undefined results.
      * See set() method above for possible return codes.
@@ -221,7 +229,7 @@ public:
             status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
                               int triggerSession = 0);
 
-    /* Stop a track. If set, the callback will cease being called.  Note that obtainBuffer() still
+    /* Stop a track.  The callback will cease being called.  Note that obtainBuffer() still
      * works and will drain buffers until the pool is exhausted, and then will return WOULD_BLOCK.
      */
             void        stop();
@@ -236,7 +244,7 @@ public:
      * a callback with event type EVENT_MARKER is called. Calling setMarkerPosition
      * with marker == 0 cancels marker notification callback.
      * To set a marker at a position which would compute as 0,
-     * a workaround is to the set the marker at a nearby position such as ~0 or 1.
+     * a workaround is to set the marker at a nearby position such as ~0 or 1.
      * If the AudioRecord has been opened with no callback function associated,
      * the operation will fail.
      *
@@ -426,6 +434,7 @@ private:
             nsecs_t processAudioBuffer();
 
             // caller must hold lock on mLock for all _l methods
+
             status_t openRecord_l(size_t epoch);
 
             // FIXME enum is faster than strcmp() for parameter 'from'
@@ -477,7 +486,7 @@ private:
 
     audio_io_handle_t       mInput;             // returned by AudioSystem::getInput()
 
-    // may be changed if IAudioRecord object is re-created
+    // Next 3 fields may be changed if IAudioRecord is re-created, but always != 0
     sp<IAudioRecord>        mAudioRecord;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;              // re-load after mLock.unlock()
