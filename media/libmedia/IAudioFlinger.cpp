@@ -138,6 +138,17 @@ public:
             name = reply.readString8();
             lStatus = reply.readInt32();
             track = interface_cast<IAudioTrack>(reply.readStrongBinder());
+            if (lStatus == NO_ERROR) {
+                if (track == 0) {
+                    ALOGE("createTrack should have returned an IAudioTrack");
+                    lStatus = UNKNOWN_ERROR;
+                }
+            } else {
+                if (track != 0) {
+                    ALOGE("createTrack returned an IAudioTrack but with status %d", lStatus);
+                    track.clear();
+                }
+            }
         }
         if (status != NULL) {
             *status = lStatus;
@@ -798,6 +809,7 @@ status_t BnAudioFlinger::onTransact(
                         (audio_stream_type_t) streamType, sampleRate, format,
                         channelMask, frameCount, &flags, buffer, output, tid,
                         &sessionId, name, clientUid, &status);
+                LOG_ALWAYS_FATAL_IF((track != 0) != (status == NO_ERROR));
             }
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);

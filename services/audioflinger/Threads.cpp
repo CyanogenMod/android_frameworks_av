@@ -1339,6 +1339,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         // but TimedTrack::create() is a factory that could fail by returning NULL
         lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
         if (lStatus != NO_ERROR) {
+            ALOGE("createTrack_l() initCheck failed %d; no control block?", lStatus);
             track.clear();
             goto Exit;
         }
