@@ -674,6 +674,7 @@ protected:
     audio_stream_type_t     mStreamType;
     uint32_t                mChannelCount;
     audio_channel_mask_t    mChannelMask;
+    sp<IMemory>             mSharedBuffer;
     transfer_type           mTransfer;
 
     // mFrameSize is equal to mFrameSizeAF for non-PCM or 16-bit PCM data.  For 8-bit PCM data, it's
@@ -715,7 +716,6 @@ protected:
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
     uint32_t                mObservedSequence;      // last observed value of mSequence
 
-    sp<IMemory>             mSharedBuffer;
     uint32_t                mLoopPeriod;            // in frames, zero means looping is disabled
 
     uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
