@@ -97,6 +97,7 @@ private:
     status_t parseChunk(off64_t *offset, int depth);
     status_t parseITunesMetaData(off64_t offset, size_t size);
     status_t parse3GPPMetaData(off64_t offset, size_t size, int depth);
+    void parseID3v2MetaData(off64_t offset);
 
     status_t updateAudioTrackInfoFromESDS_MPEG4Audio(
             const void *esds_data, size_t esds_size);
