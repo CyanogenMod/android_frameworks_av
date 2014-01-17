@@ -1617,7 +1617,6 @@ nsecs_t AudioTrack::processAudioBuffer()
         size_t reqSize = audioBuffer.size;
         mCbf(EVENT_MORE_DATA, mUserData, &audioBuffer);
         size_t writtenSize = audioBuffer.size;
-        size_t writtenFrames = writtenSize / mFrameSize;
 
         // Sanity check on returned size
         if (ssize_t(writtenSize) < 0 || writtenSize > reqSize) {
