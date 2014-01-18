@@ -237,7 +237,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
 
     result.append("    Scene mode: ");
     switch (p.sceneMode) {
-        case ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED:
+        case ANDROID_CONTROL_SCENE_MODE_DISABLED:
             result.append("AUTO\n"); break;
         CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_ACTION)
         CASE_APPEND_ENUM(ANDROID_CONTROL_SCENE_MODE_PORTRAIT)
@@ -1143,7 +1143,7 @@ status_t Camera2Client::autoFocus() {
          * Handle quirk mode for AF in scene modes
          */
         if (l.mParameters.quirks.triggerAfWithAuto &&
-                l.mParameters.sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED &&
+                l.mParameters.sceneMode != ANDROID_CONTROL_SCENE_MODE_DISABLED &&
                 l.mParameters.focusMode != Parameters::FOCUS_MODE_AUTO &&
                 !l.mParameters.focusingAreas[0].isEmpty()) {
             ALOGV("%s: Quirk: Switching from focusMode %d to AUTO",

@@ -466,7 +466,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
                 supportedAntibanding);
     }
 
-    sceneMode = ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
+    sceneMode = ANDROID_CONTROL_SCENE_MODE_DISABLED;
     params.set(CameraParameters::KEY_SCENE_MODE,
             CameraParameters::SCENE_MODE_AUTO);
 
@@ -482,7 +482,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
             if (addComma) supportedSceneModes += ",";
             addComma = true;
             switch (availableSceneModes.data.u8[i]) {
-                case ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED:
+                case ANDROID_CONTROL_SCENE_MODE_DISABLED:
                     noSceneModes = true;
                     break;
                 case ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY:
@@ -1446,7 +1446,7 @@ status_t Parameters::set(const String8& paramString) {
         newParams.get(CameraParameters::KEY_SCENE_MODE) );
     if (validatedParams.sceneMode != sceneMode &&
             validatedParams.sceneMode !=
-            ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED) {
+            ANDROID_CONTROL_SCENE_MODE_DISABLED) {
         camera_metadata_ro_entry_t availableSceneModes =
             staticInfo(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
         for (i = 0; i < availableSceneModes.count; i++) {
@@ -1461,7 +1461,7 @@ status_t Parameters::set(const String8& paramString) {
         }
     }
     bool sceneModeSet =
-            validatedParams.sceneMode != ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
+            validatedParams.sceneMode != ANDROID_CONTROL_SCENE_MODE_DISABLED;
 
     // FLASH_MODE
     if (sceneModeSet) {
@@ -1776,7 +1776,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     // (face detection statistics and face priority scene mode). Map from other
     // to the other.
     bool sceneModeActive =
-            sceneMode != (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
+            sceneMode != (uint8_t)ANDROID_CONTROL_SCENE_MODE_DISABLED;
     uint8_t reqControlMode = ANDROID_CONTROL_MODE_AUTO;
     if (enableFaceDetect || sceneModeActive) {
         reqControlMode = ANDROID_CONTROL_MODE_USE_SCENE_MODE;
@@ -1788,7 +1788,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     uint8_t reqSceneMode =
             sceneModeActive ? sceneMode :
             enableFaceDetect ? (uint8_t)ANDROID_CONTROL_SCENE_MODE_FACE_PRIORITY :
-            (uint8_t)ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED;
+            (uint8_t)ANDROID_CONTROL_SCENE_MODE_DISABLED;
     res = request->update(ANDROID_CONTROL_SCENE_MODE,
             &reqSceneMode, 1);
     if (res != OK) return res;
@@ -2149,9 +2149,9 @@ int Parameters::abModeStringToEnum(const char *abMode) {
 int Parameters::sceneModeStringToEnum(const char *sceneMode) {
     return
         !sceneMode ?
-            ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED :
+            ANDROID_CONTROL_SCENE_MODE_DISABLED :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_AUTO) ?
-            ANDROID_CONTROL_SCENE_MODE_UNSUPPORTED :
+            ANDROID_CONTROL_SCENE_MODE_DISABLED :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_ACTION) ?
             ANDROID_CONTROL_SCENE_MODE_ACTION :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_PORTRAIT) ?
