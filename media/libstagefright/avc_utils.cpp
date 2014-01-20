@@ -44,11 +44,7 @@ unsigned parseUE(ABitReader *br) {
 void FindAVCDimensions(
         const sp<ABuffer> &seqParamSet,
         int32_t *width, int32_t *height,
-#ifdef QCOM_HARDWARE
-        int32_t *sarWidth, int32_t *sarHeight, int32_t *isInterlaced) {
-#else
         int32_t *sarWidth, int32_t *sarHeight) {
-#endif
     ABitReader br(seqParamSet->data() + 1, seqParamSet->size() - 1);
 
     unsigned profile_idc = br.getBits(8);
@@ -67,13 +63,7 @@ void FindAVCDimensions(
         parseUE(&br);  // bit_depth_luma_minus8
         parseUE(&br);  // bit_depth_chroma_minus8
         br.skipBits(1);  // qpprime_y_zero_transform_bypass_flag
-#ifdef QCOM_HARDWARE
-        bool seq_scaling_matrix_present = (br.getBits(1) != 0u);
-        if (isInterlaced != NULL && seq_scaling_matrix_present) {
-            return;
-        }
-        CHECK_EQ(seq_scaling_matrix_present, false);  // seq_scaling_matrix_present_flag
-#endif
+        CHECK_EQ(br.getBits(1), 0u);  // seq_scaling_matrix_present_flag
     }
 
     parseUE(&br);  // log2_max_frame_num_minus4
@@ -142,12 +132,6 @@ void FindAVCDimensions(
         *height -=
             (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
     }
-
-#ifdef QCOM_HARDWARE
-    if (isInterlaced != NULL) {
-        *isInterlaced = !frame_mbs_only_flag;
-    }
-#endif
 
     if (sarWidth != NULL) {
         *sarWidth = 0;
