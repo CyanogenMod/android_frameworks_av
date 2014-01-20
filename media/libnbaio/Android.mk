@@ -36,4 +36,8 @@ LOCAL_SHARED_LIBRARIES := \
 # This dependency on libmedia is for SingleStateQueueInstantiations.
 # Consider a separate a library for SingleStateQueueInstantiations.
 
+ifeq ($(BOARD_HAVE_PRE_KITKAT_AUDIO_BLOB),true)
+    LOCAL_CFLAGS += -DHAVE_PRE_KITKAT_AUDIO_BLOB
+endif
+
 include $(BUILD_SHARED_LIBRARY)
