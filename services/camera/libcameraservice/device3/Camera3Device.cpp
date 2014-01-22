@@ -840,16 +840,20 @@ status_t Camera3Device::deleteStream(int id) {
     }
 
     sp<Camera3StreamInterface> deletedStream;
+    ssize_t outputStreamIdx = mOutputStreams.indexOfKey(id);
     if (mInputStream != NULL && id == mInputStream->getId()) {
         deletedStream = mInputStream;
         mInputStream.clear();
     } else {
-        ssize_t idx = mOutputStreams.indexOfKey(id);
-        if (idx == NAME_NOT_FOUND) {
+        if (outputStreamIdx == NAME_NOT_FOUND) {
             CLOGE("Stream %d does not exist", id);
             return BAD_VALUE;
         }
-        deletedStream = mOutputStreams.editValueAt(idx);
+    }
+
+    // Delete output stream or the output part of a bi-directional stream.
+    if (outputStreamIdx != NAME_NOT_FOUND) {
+        deletedStream = mOutputStreams.editValueAt(outputStreamIdx);
         mOutputStreams.removeItem(id);
     }
 
