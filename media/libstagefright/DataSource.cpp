@@ -125,29 +125,42 @@ status_t DataSource::getSize(off64_t *size) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Mutex DataSource::gSnifferMutex;
-List<DataSource::SnifferFunc> DataSource::gSniffers;
-bool DataSource::gSniffersRegistered = false;
-
 bool DataSource::sniff(
         String8 *mimeType, float *confidence, sp<AMessage> *meta) {
+
+    return  mSniffer->sniff(this, mimeType, confidence, meta);
+}
+
+// static
+void DataSource::RegisterSniffer_l(SnifferFunc func) {
+    return;
+}
+
+// static
+void DataSource::RegisterDefaultSniffers() {
+    return;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Sniffer::Sniffer() {
+    registerDefaultSniffers();
+}
+
+bool Sniffer::sniff(
+        DataSource *source,String8 *mimeType, float *confidence, sp<AMessage> *meta) {
+
     *mimeType = "";
     *confidence = 0.0f;
     meta->clear();
 
-    {
-        Mutex::Autolock autoLock(gSnifferMutex);
-        if (!gSniffersRegistered) {
-            return false;
-        }
-    }
-
-    for (List<SnifferFunc>::iterator it = gSniffers.begin();
-         it != gSniffers.end(); ++it) {
+    Mutex::Autolock autoLock(mSnifferMutex);
+    for (List<SnifferFunc>::iterator it = mSniffers.begin();
+         it != mSniffers.end(); ++it) {
         String8 newMimeType;
         float newConfidence;
         sp<AMessage> newMeta;
-        if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
+        if ((*it)(source, &newMimeType, &newConfidence, &newMeta)) {
             if (newConfidence > *confidence) {
                 *mimeType = newMimeType;
                 *confidence = newConfidence;
@@ -159,51 +172,45 @@ bool DataSource::sniff(
     return *confidence > 0.0;
 }
 
-// static
-void DataSource::RegisterSniffer_l(SnifferFunc func) {
-    for (List<SnifferFunc>::iterator it = gSniffers.begin();
-         it != gSniffers.end(); ++it) {
+void Sniffer::registerSniffer_l(SnifferFunc func) {
+
+    for (List<SnifferFunc>::iterator it = mSniffers.begin();
+         it != mSniffers.end(); ++it) {
         if (*it == func) {
             return;
         }
     }
 
-    gSniffers.push_back(func);
+    mSniffers.push_back(func);
 }
 
-// static
-void DataSource::RegisterDefaultSniffers() {
-    Mutex::Autolock autoLock(gSnifferMutex);
-    if (gSniffersRegistered) {
-        return;
-    }
+void Sniffer::registerDefaultSniffers() {
+    Mutex::Autolock autoLock(mSnifferMutex);
 
-    RegisterSniffer_l(SniffMPEG4);
-    RegisterSniffer_l(SniffMatroska);
-    RegisterSniffer_l(SniffOgg);
-    RegisterSniffer_l(SniffWAV);
-    RegisterSniffer_l(SniffFLAC);
-    RegisterSniffer_l(SniffAMR);
-    RegisterSniffer_l(SniffMPEG2TS);
-    RegisterSniffer_l(SniffMP3);
-    RegisterSniffer_l(SniffAAC);
-    RegisterSniffer_l(SniffMPEG2PS);
-    RegisterSniffer_l(SniffWVM);
-#ifdef QCOM_HARDWARE
-    RegisterSniffer_l(ExtendedExtractor::Sniff);
+    registerSniffer_l(SniffMPEG4);
+    registerSniffer_l(SniffMatroska);
+    registerSniffer_l(SniffOgg);
+    registerSniffer_l(SniffWAV);
+    registerSniffer_l(SniffFLAC);
+    registerSniffer_l(SniffAMR);
+    registerSniffer_l(SniffMPEG2TS);
+    registerSniffer_l(SniffMP3);
+    registerSniffer_l(SniffAAC);
+    registerSniffer_l(SniffMPEG2PS);
+    registerSniffer_l(SniffWVM);
+#ifdef ENABLE_AV_ENHANCEMENTS
+    registerSniffer_l(ExtendedExtractor::Sniff);
 #endif
-    RegisterSnifferPlugin();
+    registerSnifferPlugin();
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)
             && (!strcmp(value, "1") || !strcasecmp(value, "true"))) {
-        RegisterSniffer_l(SniffDRM);
+        registerSniffer_l(SniffDRM);
     }
-    gSniffersRegistered = true;
 }
 
-// static
-void DataSource::RegisterSnifferPlugin() {
+void Sniffer::registerSnifferPlugin() {
     static void (*getExtractorPlugin)(MediaExtractor::Plugin *) =
             (void (*)(MediaExtractor::Plugin *))loadExtractorPlugin();
 
@@ -212,7 +219,7 @@ void DataSource::RegisterSnifferPlugin() {
         getExtractorPlugin(plugin);
     }
     if (plugin->sniff) {
-        RegisterSniffer_l(plugin->sniff);
+        registerSniffer_l(plugin->sniff);
     }
 }
 
