@@ -4175,8 +4175,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 track->mFillingUpStatus = Track::FS_ACTIVE;
                 // make sure processVolume_l() will apply new volume even if 0
                 mLeftVolFloat = mRightVolFloat = -1.0;
-                if (track->mState == TrackBase::RESUMING) {
-                    track->mState = TrackBase::ACTIVE;
+                if (track->isResumePending()) {
+                    track->resumeAck();
                     if (last) {
                         if (mPausedBytesRemaining) {
                             // Need to continue write that was interrupted

@@ -93,6 +93,8 @@ protected:
     bool isReady() const;
     void setPaused() { mState = PAUSED; }
     void reset();
+    bool isResumePending();
+    void resumeAck();
 
     bool isOutputTrack() const {
         return (mStreamType == AUDIO_STREAM_CNT);
