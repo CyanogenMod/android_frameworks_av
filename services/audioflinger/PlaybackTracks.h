@@ -97,6 +97,7 @@ protected:
     void resumeAck();
     bool isFlushPending() const { return mFlushHwPending; }
     void flushAck();
+    void signalError();
 
     bool isOutputTrack() const {
         return (mStreamType == AUDIO_STREAM_CNT);
