@@ -846,6 +846,20 @@ void AudioFlinger::PlaybackThread::Track::flushAck()
     mFlushHwPending = false;
 }
 
+void AudioFlinger::PlaybackThread::Track::signalError()
+{
+    // TBD, is this needed for pcm too?
+    if (!isOffloaded())
+        return;
+
+    // FIXME should use proxy, and needs work
+    audio_track_cblk_t* cblk = mCblk;
+    android_atomic_or(CBLK_STREAM_FATAL_ERROR, &cblk->mFlags);
+    android_atomic_release_store(0x40000000, &cblk->mFutex);
+    // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
+    (void) syscall(__NR_futex, &cblk->mFutex, FUTEX_WAKE, INT_MAX);
+}
+
 void AudioFlinger::PlaybackThread::Track::reset()
 {
     // Do not reset twice to avoid discarding data written just after a flush and before

@@ -543,13 +543,13 @@ status_t AudioTrack::start()
     }
 
     status_t status = NO_ERROR;
-    if (!(flags & CBLK_INVALID)) {
+    if (!(flags & (CBLK_INVALID | CBLK_STREAM_FATAL_ERROR))) {
         status = mAudioTrack->start();
         if (status == DEAD_OBJECT) {
             flags |= CBLK_INVALID;
         }
     }
-    if (flags & CBLK_INVALID) {
+    if (flags & (CBLK_INVALID | CBLK_STREAM_FATAL_ERROR)) {
         status = restoreTrack_l("start");
     }
 
@@ -1597,6 +1597,13 @@ nsecs_t AudioTrack::processAudioBuffer()
     int32_t flags = android_atomic_and(
         ~(CBLK_UNDERRUN | CBLK_LOOP_CYCLE | CBLK_LOOP_FINAL | CBLK_BUFFER_END), &mCblk->mFlags);
 
+    if (flags & CBLK_STREAM_FATAL_ERROR) {
+        ALOGE("clbk sees STREAM_FATAL_ERROR.. close session");
+        mLock.unlock();
+        mCbf(EVENT_STREAM_END, mUserData, NULL);
+        return NS_INACTIVE;
+    }
+
     // Check for track invalidation
     if (flags & CBLK_INVALID) {
         // for offloaded tracks restoreTrack_l() will just update the sequence and clear
@@ -1731,6 +1738,46 @@ nsecs_t AudioTrack::processAudioBuffer()
         // for offloaded tracks, just wait for the upper layers to recreate the track
         if (isOffloadedOrDirect()) {
             return NS_INACTIVE;
+        }
+    }
+
+
+    if (waitStreamEnd) {
+        AutoMutex lock(mLock);
+
+        sp<AudioTrackClientProxy> proxy = mProxy;
+        sp<IMemory> iMem = mCblkMemory;
+
+        struct timespec timeout;
+        timeout.tv_sec = WAIT_STREAM_END_TIMEOUT_SEC;
+        timeout.tv_nsec = 0;
+
+        mLock.unlock();
+        status_t status = mProxy->waitStreamEndDone(&timeout);
+        mLock.lock();
+        switch (status) {
+        case NO_ERROR:
+        case DEAD_OBJECT:
+        case TIMED_OUT:
+            if (isOffloaded()) {
+                if (mCblk->mFlags & (CBLK_INVALID | CBLK_STREAM_FATAL_ERROR)) {
+                    // will trigger EVENT_NEW_IAUDIOTRACK/STREAM_END in next iteration
+                    return 0;
+                }
+            }
+
+            mLock.unlock();
+            mCbf(EVENT_STREAM_END, mUserData, NULL);
+            mLock.lock();
+            if (mState == STATE_STOPPING) {
+                mState = STATE_STOPPED;
+                if (status != DEAD_OBJECT) {
+                   return NS_INACTIVE;
+                }
+            }
+            return 0;
+        default:
+            return 0;
         }
     }
 
