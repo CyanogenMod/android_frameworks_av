@@ -363,6 +363,7 @@ ACodec::ACodec()
       mIsEncoder(false),
       mUseMetadataOnEncoderOutput(false),
       mShutdownInProgress(false),
+      mIsConfiguredForAdaptivePlayback(false),
       mEncoderDelay(0),
       mEncoderPadding(0),
       mChannelMaskPresent(false),
@@ -1115,6 +1116,7 @@ status_t ACodec::configureCodec(
     int32_t haveNativeWindow = msg->findObject("native-window", &obj) &&
             obj != NULL;
     mStoreMetaDataInOutputBuffers = false;
+    mIsConfiguredForAdaptivePlayback = false;
     if (!encoder && video && haveNativeWindow) {
         err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
         if (err != OK) {
@@ -1159,12 +1161,14 @@ status_t ACodec::configureCodec(
                 ALOGW_IF(err != OK,
                         "[%s] prepareForAdaptivePlayback failed w/ err %d",
                         mComponentName.c_str(), err);
+                mIsConfiguredForAdaptivePlayback = (err == OK);
             }
             // allow failure
             err = OK;
         } else {
             ALOGV("[%s] storeMetaDataInBuffers succeeded", mComponentName.c_str());
             mStoreMetaDataInOutputBuffers = true;
+            mIsConfiguredForAdaptivePlayback = true;
         }
 
         int32_t push;
@@ -3702,6 +3706,7 @@ void ACodec::LoadedState::stateEntered() {
     mCodec->mDequeueCounter = 0;
     mCodec->mMetaDataBuffersToSubmit = 0;
     mCodec->mRepeatFrameDelayUs = -1ll;
+    mCodec->mIsConfiguredForAdaptivePlayback = false;
 
     if (mCodec->mShutdownInProgress) {
         bool keepComponentAllocated = mCodec->mKeepComponentAllocated;
