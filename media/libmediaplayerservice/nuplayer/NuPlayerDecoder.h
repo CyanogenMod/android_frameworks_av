@@ -36,6 +36,8 @@ struct NuPlayer::Decoder : public AHandler {
     void signalResume();
     void initiateShutdown();
 
+    bool supportsSeamlessFormatChange(const sp<AMessage> &to) const;
+
 protected:
     virtual ~Decoder();
 
@@ -49,6 +51,7 @@ private:
     sp<AMessage> mNotify;
     sp<NativeWindowWrapper> mNativeWindow;
 
+    sp<AMessage> mFormat;
     sp<ACodec> mCodec;
     sp<ALooper> mCodecLooper;
 
@@ -58,6 +61,8 @@ private:
     sp<AMessage> makeFormat(const sp<MetaData> &meta);
 
     void onFillThisBuffer(const sp<AMessage> &msg);
+
+    bool supportsSeamlessAudioFormatChange(const sp<AMessage> &targetFormat) const;
 
     DISALLOW_EVIL_CONSTRUCTORS(Decoder);
 };
