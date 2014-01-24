@@ -255,9 +255,6 @@ status_t AudioRecord::set(
 
     mStatus = NO_ERROR;
 
-    // Update buffer size in case it has been limited by AudioFlinger during track creation
-    mFrameCount = mCblk->frameCount_;
-
     mActive = false;
     mCbf = cbf;
     mRefreshRemaining = true;
@@ -467,11 +464,13 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         return BAD_VALUE;
     }
 
+    size_t temp = mFrameCount;  // temp may be replaced by a revised value of frameCount,
+                                // but we will still need the original value also
     int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        mSampleRate, mFormat,
                                                        mChannelMask,
-                                                       mFrameCount,
+                                                       &temp,
                                                        &trackFlags,
                                                        tid,
                                                        &mSessionId,
@@ -503,6 +502,12 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
+    // note that temp is the (possibly revised) value of mFrameCount
+    if (temp < mFrameCount || (mFrameCount == 0 && temp == 0)) {
+        ALOGW("Requested frameCount %u but received frameCount %u", mFrameCount, temp);
+    }
+    mFrameCount = temp;
+
     // FIXME missing fast track frameCount logic
     mAwaitBoost = false;
     if (mFlags & AUDIO_INPUT_FLAG_FAST) {

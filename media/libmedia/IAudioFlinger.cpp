@@ -89,7 +89,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
@@ -106,6 +106,7 @@ public:
         data.writeInt32(sampleRate);
         data.writeInt32(format);
         data.writeInt32(channelMask);
+        size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
         data.writeInt32(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
@@ -127,6 +128,10 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack error: %s", strerror(-lStatus));
         } else {
+            frameCount = reply.readInt32();
+            if (pFrameCount != NULL) {
+                *pFrameCount = frameCount;
+            }
             lFlags = reply.readInt32();
             if (flags != NULL) {
                 *flags = lFlags;
@@ -161,7 +166,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
@@ -174,6 +179,7 @@ public:
         data.writeInt32(sampleRate);
         data.writeInt32(format);
         data.writeInt32(channelMask);
+        size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
         data.writeInt32(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
@@ -187,6 +193,10 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("openRecord error: %s", strerror(-lStatus));
         } else {
+            frameCount = reply.readInt32();
+            if (pFrameCount != NULL) {
+                *pFrameCount = frameCount;
+            }
             lFlags = reply.readInt32();
             if (flags != NULL) {
                 *flags = lFlags;
@@ -807,10 +817,11 @@ status_t BnAudioFlinger::onTransact(
             } else {
                 track = createTrack(
                         (audio_stream_type_t) streamType, sampleRate, format,
-                        channelMask, frameCount, &flags, buffer, output, tid,
+                        channelMask, &frameCount, &flags, buffer, output, tid,
                         &sessionId, name, clientUid, &status);
                 LOG_ALWAYS_FATAL_IF((track != 0) != (status == NO_ERROR));
             }
+            reply->writeInt32(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeString8(name);
@@ -830,8 +841,9 @@ status_t BnAudioFlinger::onTransact(
             int sessionId = data.readInt32();
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
-                    sampleRate, format, channelMask, frameCount, &flags, tid, &sessionId, &status);
+                    sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId, &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
+            reply->writeInt32(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);

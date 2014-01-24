@@ -1190,7 +1190,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        size_t frameCount,
+        size_t *pFrameCount,
         const sp<IMemory>& sharedBuffer,
         int sessionId,
         IAudioFlinger::track_flags_t *flags,
@@ -1198,6 +1198,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         int uid,
         status_t *status)
 {
+    size_t frameCount = *pFrameCount;
     sp<Track> track;
     status_t lStatus;
 
@@ -1266,6 +1267,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         }
       }
     }
+    *pFrameCount = frameCount;
 
     if (mType == DIRECT) {
         if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
@@ -3038,10 +3040,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             // add frames already consumed but not yet released by the resampler
             // because mAudioTrackServerProxy->framesReady() will include these frames
             desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
+#if 0
             // the minimum track buffer size is normally twice the number of frames necessary
             // to fill one buffer and the resampler should not leave more than one buffer worth
             // of unreleased frames after each pass, but just in case...
             ALOG_ASSERT(desiredFrames <= cblk->frameCount_);
+#endif
         }
         uint32_t minFrames = 1;
         if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing() &&
@@ -4772,13 +4776,14 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        size_t frameCount,
+        size_t *pFrameCount,
         int sessionId,
         int uid,
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         status_t *status)
 {
+    size_t frameCount = *pFrameCount;
     sp<RecordTrack> track;
     status_t lStatus;
 
@@ -4837,6 +4842,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         }
       }
     }
+    *pFrameCount = frameCount;
 
     // FIXME use flags and tid similar to createTrack_l()
 

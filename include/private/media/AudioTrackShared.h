@@ -96,11 +96,7 @@ struct audio_track_cblk_t
                                         // The value should be used "for entertainment purposes only",
                                         // which means don't make important decisions based on it.
 
-                size_t      frameCount_;    // used during creation to pass actual track buffer size
-                                            // from AudioFlinger to client, and not referenced again
-                                            // FIXME remove here and replace by createTrack() in/out
-                                            // parameter
-                                            // renamed to "_" to detect incorrect use
+                uint32_t    mPad1;      // unused
 
     volatile    int32_t     mFutex;     // event flag: down (P) by client,
                                         // up (V) by server or binderDied() or interrupt()

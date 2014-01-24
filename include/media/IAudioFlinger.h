@@ -64,7 +64,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 // On successful return, AudioFlinger takes over the handle
@@ -88,7 +88,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 track_flags_t *flags,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,

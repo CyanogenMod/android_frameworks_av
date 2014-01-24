@@ -1000,13 +1000,15 @@ status_t AudioTrack::createTrack_l(
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
+    size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
+                                // but we will still need the original value also
     sp<IAudioTrack> track = audioFlinger->createTrack(streamType,
                                                       sampleRate,
                                                       // AudioFlinger only sees 16-bit PCM
                                                       format == AUDIO_FORMAT_PCM_8_BIT ?
                                                               AUDIO_FORMAT_PCM_16_BIT : format,
                                                       mChannelMask,
-                                                      frameCount,
+                                                      &temp,
                                                       &trackFlags,
                                                       sharedBuffer,
                                                       output,
@@ -1039,7 +1041,7 @@ status_t AudioTrack::createTrack_l(
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
-    size_t temp = cblk->frameCount_;
+    // note that temp is the (possibly revised) value of frameCount
     if (temp < frameCount || (frameCount == 0 && temp == 0)) {
         // In current design, AudioTrack client checks and ensures frame count validity before
         // passing it to AudioFlinger so AudioFlinger should not return a different value except
