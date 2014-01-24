@@ -67,6 +67,7 @@ void NuPlayer::Decoder::configure(const sp<AMessage> &format) {
     // queue.
     bool needDedicatedLooper = !strncasecmp(mime.c_str(), "video/", 6);
 
+    mFormat = format;
     mCodec = new ACodec;
 
     if (needDedicatedLooper && mCodecLooper == NULL) {
@@ -145,6 +146,66 @@ void NuPlayer::Decoder::initiateShutdown() {
     if (mCodec != NULL) {
         mCodec->initiateShutdown();
     }
+}
+
+bool NuPlayer::Decoder::supportsSeamlessAudioFormatChange(const sp<AMessage> &targetFormat) const {
+    if (targetFormat == NULL) {
+        return true;
+    }
+
+    AString mime;
+    if (!targetFormat->findString("mime", &mime)) {
+        return false;
+    }
+
+    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)) {
+        // field-by-field comparison
+        const char * keys[] = { "channel-count", "sample-rate", "is-adts" };
+        for (unsigned int i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+            int32_t oldVal, newVal;
+            if (!mFormat->findInt32(keys[i], &oldVal) || !targetFormat->findInt32(keys[i], &newVal)
+                    || oldVal != newVal) {
+                return false;
+            }
+        }
+
+        sp<ABuffer> oldBuf, newBuf;
+        if (mFormat->findBuffer("csd-0", &oldBuf) && targetFormat->findBuffer("csd-0", &newBuf)) {
+            if (oldBuf->size() != newBuf->size()) {
+                return false;
+            }
+            return !memcmp(oldBuf->data(), newBuf->data(), oldBuf->size());
+        }
+    }
+    return false;
+}
+
+bool NuPlayer::Decoder::supportsSeamlessFormatChange(const sp<AMessage> &targetFormat) const {
+    if (mFormat == NULL) {
+        return false;
+    }
+
+    if (targetFormat == NULL) {
+        return true;
+    }
+
+    AString oldMime, newMime;
+    if (!mFormat->findString("mime", &oldMime)
+            || !targetFormat->findString("mime", &newMime)
+            || !(oldMime == newMime)) {
+        return false;
+    }
+
+    bool audio = !strncasecmp(oldMime.c_str(), "audio/", strlen("audio/"));
+    bool seamless;
+    if (audio) {
+        seamless = supportsSeamlessAudioFormatChange(targetFormat);
+    } else {
+        seamless = mCodec != NULL && mCodec->isConfiguredForAdaptivePlayback();
+    }
+
+    ALOGV("%s seamless support for %s", seamless ? "yes" : "no", oldMime.c_str());
+    return seamless;
 }
 
 }  // namespace android
