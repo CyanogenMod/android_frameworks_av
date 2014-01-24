@@ -634,13 +634,7 @@ protected:
 
             // caller must hold lock on mLock for all _l methods
 
-            status_t createTrack_l(audio_stream_type_t streamType,
-                                 uint32_t sampleRate,
-                                 audio_format_t format,
-                                 size_t frameCount,
-                                 audio_output_flags_t flags,
-                                 const sp<IMemory>& sharedBuffer,
-                                 size_t epoch);
+            status_t createTrack_l(size_t epoch);
 
             // can only be called when mState != STATE_ACTIVE
             void flush_l();
