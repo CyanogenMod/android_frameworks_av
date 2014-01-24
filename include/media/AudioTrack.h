@@ -454,7 +454,7 @@ public:
      * Returned value:
      *  handle on audio hardware output
      */
-            audio_io_handle_t    getOutput();
+            audio_io_handle_t    getOutput() const;
 
     /* Returns the unique session ID associated with this track.
      *
@@ -640,14 +640,12 @@ protected:
                                  size_t frameCount,
                                  audio_output_flags_t flags,
                                  const sp<IMemory>& sharedBuffer,
-                                 audio_io_handle_t output,
                                  size_t epoch);
 
             // can only be called when mState != STATE_ACTIVE
             void flush_l();
 
             void setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount);
-            audio_io_handle_t getOutput_l();
 
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from);
@@ -655,10 +653,11 @@ protected:
             bool     isOffloaded_l() const
                 { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
 
-    // Next 3 fields may be changed if IAudioTrack is re-created, but always != 0
+    // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
+    audio_io_handle_t       mOutput;                // returned by AudioSystem::getOutput()
 
     sp<AudioTrackThread>    mAudioTrackThread;
 
@@ -763,7 +762,6 @@ private:
 
     sp<DeathNotifier>       mDeathNotifier;
     uint32_t                mSequence;              // incremented for each new IAudioTrack attempt
-    audio_io_handle_t       mOutput;                // cached output io handle
     int                     mClientUid;
 };
 

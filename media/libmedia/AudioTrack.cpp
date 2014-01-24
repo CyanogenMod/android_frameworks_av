@@ -245,8 +245,6 @@ status_t AudioTrack::set(
         return INVALID_OPERATION;
     }
 
-    mOutput = 0;
-
     // handle default values first.
     if (streamType == AUDIO_STREAM_DEFAULT) {
         streamType = AUDIO_STREAM_MUSIC;
@@ -319,17 +317,6 @@ status_t AudioTrack::set(
         mFrameSizeAF = sizeof(uint8_t);
     }
 
-    audio_io_handle_t output = AudioSystem::getOutput(
-                                    streamType,
-                                    sampleRate, format, channelMask,
-                                    flags,
-                                    offloadInfo);
-
-    if (output == 0) {
-        ALOGE("Could not get audio output for stream type %d", streamType);
-        return BAD_VALUE;
-    }
-
     // Make copy of input parameter offloadInfo so that in the future:
     //  (a) createTrack_l doesn't need it as an input parameter
     //  (b) we can support re-creation of offloaded tracks
@@ -369,7 +356,6 @@ status_t AudioTrack::set(
                                   frameCount,
                                   flags,
                                   sharedBuffer,
-                                  output,
                                   0 /*epoch*/);
 
     if (status != NO_ERROR) {
@@ -379,9 +365,15 @@ status_t AudioTrack::set(
             mAudioTrackThread.clear();
         }
         // Use of direct and offloaded output streams is ref counted by audio policy manager.
+#if 0   // FIXME This should no longer be needed
+        //Use of direct and offloaded output streams is ref counted by audio policy manager.
         // As getOutput was called above and resulted in an output stream to be opened,
         // we need to release it.
-        AudioSystem::releaseOutput(output);
+        if (mOutput != 0) {
+            AudioSystem::releaseOutput(mOutput);
+            mOutput = 0;
+        }
+#endif
         return status;
     }
 
@@ -397,7 +389,6 @@ status_t AudioTrack::set(
     mSequence = 1;
     mObservedSequence = mSequence;
     mInUnderrun = false;
-    mOutput = output;
 
     return NO_ERROR;
 }
@@ -821,21 +812,10 @@ status_t AudioTrack::reload()
     return NO_ERROR;
 }
 
-audio_io_handle_t AudioTrack::getOutput()
+audio_io_handle_t AudioTrack::getOutput() const
 {
     AutoMutex lock(mLock);
     return mOutput;
-}
-
-// must be called with mLock held
-audio_io_handle_t AudioTrack::getOutput_l()
-{
-    if (mOutput) {
-        return mOutput;
-    } else {
-        return AudioSystem::getOutput(mStreamType,
-                                      mSampleRate, mFormat, mChannelMask, mFlags);
-    }
 }
 
 status_t AudioTrack::attachAuxEffect(int effectId)
@@ -858,7 +838,6 @@ status_t AudioTrack::createTrack_l(
         size_t frameCount,
         audio_output_flags_t flags,
         const sp<IMemory>& sharedBuffer,
-        audio_io_handle_t output,
         size_t epoch)
 {
     status_t status;
@@ -868,27 +847,39 @@ status_t AudioTrack::createTrack_l(
         return NO_INIT;
     }
 
+    audio_io_handle_t output = AudioSystem::getOutput(mStreamType, mSampleRate, mFormat,
+            mChannelMask, mFlags, mOffloadInfo);
+    if (output == 0) {
+        ALOGE("Could not get audio output for stream type %d, sample rate %u, format %#x, "
+              "channel mask %#x, flags %#x",
+              mStreamType, mSampleRate, mFormat, mChannelMask, mFlags);
+        return BAD_VALUE;
+    }
+    {
+    // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
+    // we must release it ourselves if anything goes wrong.
+
     // Not all of these values are needed under all conditions, but it is easier to get them all
 
     uint32_t afLatency;
     status = AudioSystem::getLatency(output, streamType, &afLatency);
     if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
-        return NO_INIT;
+        goto release;
     }
 
     size_t afFrameCount;
     status = AudioSystem::getFrameCount(output, streamType, &afFrameCount);
     if (status != NO_ERROR) {
         ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, streamType, status);
-        return NO_INIT;
+        goto release;
     }
 
     uint32_t afSampleRate;
     status = AudioSystem::getSamplingRate(output, streamType, &afSampleRate);
     if (status != NO_ERROR) {
         ALOGE("getSamplingRate(output=%d, streamType=%d) status %d", output, streamType, status);
-        return NO_INIT;
+        goto release;
     }
 
     // Client decides whether the track is TIMED (see below), but can only express a preference
@@ -940,7 +931,8 @@ status_t AudioTrack::createTrack_l(
         if (((size_t)sharedBuffer->pointer() & (alignment - 1)) != 0) {
             ALOGE("Invalid buffer alignment: address %p, channel count %u",
                     sharedBuffer->pointer(), mChannelCount);
-            return BAD_VALUE;
+            status = BAD_VALUE;
+            goto release;
         }
 
         // When initializing a shared buffer AudioTrack via constructors,
@@ -1020,8 +1012,11 @@ status_t AudioTrack::createTrack_l(
 
     if (track == 0) {
         ALOGE("AudioFlinger could not create track, status: %d", status);
-        return status;
+        goto release;
     }
+    // AudioFlinger now owns the reference to the I/O handle,
+    // so we are no longer responsible for releasing it.
+
     sp<IMemory> iMem = track->getCblk();
     if (iMem == 0) {
         ALOGE("Could not get control block");
@@ -1081,10 +1076,13 @@ status_t AudioTrack::createTrack_l(
             ALOGW("AUDIO_OUTPUT_FLAG_OFFLOAD denied by server");
             flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
             mFlags = flags;
-            return NO_INIT;
+            // FIXME This is a warning, not an error, so don't return error status
+            //return NO_INIT;
         }
     }
 
+    // We retain a copy of the I/O handle, but don't own the reference
+    mOutput = output;
     mRefreshRemaining = true;
 
     // Starting address of buffers in shared memory.  If there is a shared buffer, buffers
@@ -1127,6 +1125,14 @@ status_t AudioTrack::createTrack_l(
     mAudioTrack->asBinder()->linkToDeath(mDeathNotifier, this);
 
     return NO_ERROR;
+    }
+
+release:
+    AudioSystem::releaseOutput(output);
+    if (status == NO_ERROR) {
+        status = NO_INIT;
+    }
+    return status;
 }
 
 status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
@@ -1708,17 +1714,13 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     status_t result;
 
     // refresh the audio configuration cache in this process to make sure we get new
-    // output parameters in getOutput_l() and createTrack_l()
+    // output parameters in createTrack_l()
     AudioSystem::clearAudioConfigCache();
 
     if (isOffloaded_l()) {
         // FIXME re-creation of offloaded tracks is not yet implemented
         return DEAD_OBJECT;
     }
-
-    // force new output query from audio policy manager;
-    mOutput = 0;
-    audio_io_handle_t output = getOutput_l();
 
     // if the new IAudioTrack is created, createTrack_l() will modify the
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
@@ -1733,7 +1735,6 @@ status_t AudioTrack::restoreTrack_l(const char *from)
                            mReqFrameCount,  // so that frame count never goes down
                            mFlags,
                            mSharedBuffer,
-                           output,
                            position /*epoch*/);
 
     if (result == NO_ERROR) {
@@ -1763,9 +1764,15 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     }
     if (result != NO_ERROR) {
         // Use of direct and offloaded output streams is ref counted by audio policy manager.
+#if 0   // FIXME This should no longer be needed
+        //Use of direct and offloaded output streams is ref counted by audio policy manager.
         // As getOutput was called above and resulted in an output stream to be opened,
         // we need to release it.
-        AudioSystem::releaseOutput(output);
+        if (mOutput != 0) {
+            AudioSystem::releaseOutput(mOutput);
+            mOutput = 0;
+        }
+#endif
         ALOGW("restoreTrack_l() failed status %d", result);
         mState = STATE_STOPPED;
     }
