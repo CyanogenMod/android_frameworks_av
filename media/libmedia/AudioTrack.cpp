@@ -1680,36 +1680,6 @@ nsecs_t AudioTrack::processAudioBuffer()
 
     mLock.unlock();
 
-    if (waitStreamEnd) {
-        struct timespec timeout;
-        timeout.tv_sec = WAIT_STREAM_END_TIMEOUT_SEC;
-        timeout.tv_nsec = 0;
-
-        status_t status = proxy->waitStreamEndDone(&timeout);
-        switch (status) {
-        case NO_ERROR:
-        case DEAD_OBJECT:
-        case TIMED_OUT:
-            mCbf(EVENT_STREAM_END, mUserData, NULL);
-            {
-                AutoMutex lock(mLock);
-                // The previously assigned value of waitStreamEnd is no longer valid,
-                // since the mutex has been unlocked and either the callback handler
-                // or another thread could have re-started the AudioTrack during that time.
-                waitStreamEnd = mState == STATE_STOPPING;
-                if (waitStreamEnd) {
-                    mState = STATE_STOPPED;
-                    mReleased = 0;
-                }
-            }
-            if (waitStreamEnd && status != DEAD_OBJECT) {
-               return NS_INACTIVE;
-            }
-            break;
-        }
-        return 0;
-    }
-
     // perform callbacks while unlocked
     if (newUnderrun) {
         mCbf(EVENT_UNDERRUN, mUserData, NULL);
@@ -1759,7 +1729,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         case NO_ERROR:
         case DEAD_OBJECT:
         case TIMED_OUT:
-            if (isOffloaded()) {
+            if (isOffloaded_l()) {
                 if (mCblk->mFlags & (CBLK_INVALID | CBLK_STREAM_FATAL_ERROR)) {
                     // will trigger EVENT_NEW_IAUDIOTRACK/STREAM_END in next iteration
                     return 0;
