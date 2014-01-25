@@ -13,7 +13,7 @@ LOCAL_CFLAGS += -fvisibility=hidden
 
 LOCAL_MODULE:= libbundlewrapper
 
-LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/soundfx
+LOCAL_MODULE_RELATIVE_PATH := soundfx
 
 LOCAL_STATIC_LIBRARIES += libmusicbundle
 
@@ -42,7 +42,7 @@ LOCAL_CFLAGS += -fvisibility=hidden
 
 LOCAL_MODULE:= libreverbwrapper
 
-LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/soundfx
+LOCAL_MODULE_RELATIVE_PATH := soundfx
 
 LOCAL_STATIC_LIBRARIES += libreverb
 
