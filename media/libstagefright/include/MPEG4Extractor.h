@@ -82,6 +82,7 @@ private:
     sp<DataSource> mDataSource;
     status_t mInitCheck;
     bool mHasVideo;
+    uint32_t mHeaderTimescale;
 
     Track *mFirstTrack, *mLastTrack;
 
