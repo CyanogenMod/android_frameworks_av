@@ -1740,6 +1740,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
                 mFrameCount);
     }
 
+#ifndef AUDIO_LEGACY_HACK
     if ((mOutput->flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING) &&
             (mOutput->stream->set_callback != NULL)) {
         if (mOutput->stream->set_callback(mOutput->stream,
@@ -1748,6 +1749,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
             mCallbackThread = new AudioFlinger::AsyncCallbackThread(this);
         }
     }
+#endif
 
     // Calculate size of normal mix buffer relative to the HAL output buffer size
     double multiplier = 1.0;
@@ -2036,6 +2038,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
 
 void AudioFlinger::PlaybackThread::threadLoop_drain()
 {
+#ifndef AUDIO_LEGACY_HACK
     if (mOutput->stream->drain) {
         ALOGD("copl(%d):draining %s", mId,
             (mMixerStatus == MIXER_DRAIN_TRACK) ? "early" : "full");
@@ -2049,6 +2052,7 @@ void AudioFlinger::PlaybackThread::threadLoop_drain()
             (mMixerStatus == MIXER_DRAIN_TRACK) ? AUDIO_DRAIN_EARLY_NOTIFY
                                                 : AUDIO_DRAIN_ALL);
     }
+#endif
 }
 
 void AudioFlinger::PlaybackThread::threadLoop_exit()
@@ -2593,6 +2597,7 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
     if (mNormalSink != 0) {
         return mNormalSink->getTimestamp(timestamp);
     }
+#ifndef AUDIO_LEGACY_HACK
     if (mType == OFFLOAD && mOutput->stream->get_presentation_position) {
         uint64_t position64;
         int ret = mOutput->stream->get_presentation_position(
@@ -2602,6 +2607,7 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
             return NO_ERROR;
         }
     }
+#endif
     return INVALID_OPERATION;
 }
 // ----------------------------------------------------------------------------
@@ -4139,13 +4145,17 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
 
 void AudioFlinger::OffloadThread::threadLoop_exit()
 {
+#ifndef AUDIO_LEGACY_HACK
     if (mFlushPending || mHwPaused) {
         // If a flush is pending or track was paused, just discard buffered data
         flushHw_l();
     } else {
+#endif
         mMixerStatus = MIXER_DRAIN_ALL;
         threadLoop_drain();
+#ifndef AUDIO_LEGACY_HACK
     }
+#endif
     if (mCallbackThread != NULL) {
         mCallbackThread->exit();
     }
@@ -4339,6 +4349,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     // If a flush is pending and a track is active but the HW is not paused, force a HW pause
     // before flush and then resume HW. This can happen in case of pause/flush/resume
     // if resume is received before pause is executed.
+#ifndef AUDIO_LEGACY_HACK
     if (!mStandby && (doHwPause || (mFlushPending && !mHwPaused && (count != 0)))) {
         ALOGD("copl(%d):pause hal", mId);
         mOutput->stream->pause(mOutput->stream);
@@ -4351,6 +4362,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         ALOGD("copl(%d):resume hal", mId);
         mOutput->stream->resume(mOutput->stream);
     }
+#endif
 
     // remove all the tracks that need to be...
     removeTracks_l(*tracksToRemove);
@@ -4392,6 +4404,7 @@ bool AudioFlinger::OffloadThread::waitingAsyncCallback()
 
 void AudioFlinger::OffloadThread::flushHw_l()
 {
+#ifndef AUDIO_LEGACY_HACK
     ALOGD("copl(%d): flush hal", mId);
     mOutput->stream->flush(mOutput->stream);
     // Flush anything still waiting in the mixbuffer
@@ -4410,6 +4423,7 @@ void AudioFlinger::OffloadThread::flushHw_l()
         mCallbackThread->setWriteBlocked(mWriteAckSequence);
         mCallbackThread->setDraining(mDrainSequence);
     }
+#endif
 }
 
 void AudioFlinger::OffloadThread::onAddNewTrack_l()
