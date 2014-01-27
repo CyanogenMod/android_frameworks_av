@@ -411,12 +411,13 @@ status_t AudioTrack::set(
         mAudioFlinger = audioFlinger;
         status_t status = NO_ERROR;
         mAudioDirectOutput = output;
+        mDirectClient = new DirectClient(this);
         mDirectTrack = audioFlinger->createDirectTrack( getpid(),
                                                         sampleRate,
                                                         channelMask,
                                                         mAudioDirectOutput,
                                                         &mSessionId,
-                                                        this,
+                                                        mDirectClient.get(),
                                                         streamType,
                                                         &status);
         if(status != NO_ERROR) {
@@ -2023,6 +2024,16 @@ status_t AudioTrack::getTimeStamp(uint64_t *tstamp) {
         ALOGE("Timestamp %lld ", *tstamp);
     }
     return NO_ERROR;
+}
+
+void AudioTrack::DirectClient::notify(int msg) {
+    sp<AudioTrack> track = mAudioTrack.promote();
+    if (track == 0) {
+        ALOGE("AudioTrack dead?");
+        return;
+    }
+
+    return track->notify(msg);
 }
 #endif
 
