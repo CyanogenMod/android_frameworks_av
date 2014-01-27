@@ -49,7 +49,7 @@ struct MyString8 {
     }
 
     void append(const char *s) {
-        strcat(mPtr, s);
+        strncat(mPtr, s, MAX_SIZE - size() - 1);
     }
 
     const char *string() const {
@@ -58,6 +58,10 @@ struct MyString8 {
 
     size_t size() const {
         return strlen(mPtr);
+    }
+
+    void clear() {
+        *mPtr = '\0';
     }
 
 private:
@@ -139,6 +143,9 @@ void dumpMemoryAddresses(int fd)
             }
         } while (moved);
 
+        write(fd, result.string(), result.size());
+        result.clear();
+
         for (size_t i = 0; i < count; i++) {
             AllocEntry *e = &entries[i];
 
@@ -152,13 +159,14 @@ void dumpMemoryAddresses(int fd)
                 result.append(buffer);
             }
             result.append("\n");
+
+            write(fd, result.string(), result.size());
+            result.clear();
         }
 
         delete[] entries;
         free_malloc_leak_info(info);
     }
-
-    write(fd, result.string(), result.size());
 }
 
 #else
