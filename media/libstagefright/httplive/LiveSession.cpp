@@ -632,8 +632,7 @@ sp<M3UParser> LiveSession::fetchPlaylist(
         // playlist unchanged
         *unchanged = true;
 
-        ALOGV("Playlist unchanged, refresh state is now %d",
-             (int)mRefreshState);
+        ALOGV("Playlist unchanged");
 
         return NULL;
     }

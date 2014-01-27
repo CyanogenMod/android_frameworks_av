@@ -67,6 +67,9 @@
 #include "ARTPWriter.h"
 #include <cutils/properties.h>
 
+#define RES_720P (720*1280)
+#define DUR_30MIN (30*60*1000*1000)
+#define DUR_10MIN (10*60*1000*1000)
 namespace android {
 
 // To collect the encoder usage for the battery app
@@ -119,7 +122,7 @@ status_t StagefrightRecorder::setAudioSource(audio_source_t as) {
         return BAD_VALUE;
     }
 #ifdef QCOM_HARDWARE
-    if (ExtendedUtils::ShellProp::isAudioDisabled()) {
+    if (ExtendedUtils::ShellProp::isAudioDisabled(true)) {
         return OK;
     }
 #endif
@@ -176,10 +179,11 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
     }
 
 #ifdef QCOM_HARDWARE
-    if (ExtendedUtils::ShellProp::isAudioDisabled()) {
+    if (ExtendedUtils::ShellProp::isAudioDisabled(true)) {
         return OK;
     }
 #endif
+
     if (ae == AUDIO_ENCODER_DEFAULT) {
         mAudioEncoder = AUDIO_ENCODER_AMR_NB;
     } else {
@@ -792,17 +796,16 @@ status_t StagefrightRecorder::setClientName(const String16& clientName) {
 }
 
 status_t StagefrightRecorder::prepare() {
-  ALOGV(" %s E", __func__ );
 
-  if(mVideoSource != VIDEO_SOURCE_LIST_END && mVideoEncoder != VIDEO_ENCODER_LIST_END && mVideoHeight && mVideoWidth &&             /*Video recording*/
-         (mMaxFileDurationUs <=0 ||             /*Max duration is not set*/
-         (mVideoHeight * mVideoWidth < 720 * 1280 && mMaxFileDurationUs > 30*60*1000*1000) ||
-         (mVideoHeight * mVideoWidth >= 720 * 1280 && mMaxFileDurationUs > 10*60*1000*1000))) {
-    /*Above Check can be further optimized for lower resolutions to reduce file size*/
-    ALOGV("File is huge so setting 64 bit file offsets");
-    setParam64BitFileOffset(true);
+  if (mVideoSource != VIDEO_SOURCE_LIST_END && mVideoEncoder != VIDEO_ENCODER_LIST_END &&
+        mVideoHeight && mVideoWidth &&  /*Video recording*/
+        (mMaxFileDurationUs <=0 ||      /*Max duration is not set*/
+        (mVideoHeight * mVideoWidth < RES_720P && mMaxFileDurationUs > DUR_30MIN) ||
+        (mVideoHeight * mVideoWidth >= RES_720P && mMaxFileDurationUs > DUR_10MIN))) {
+        /*Above Check can be further optimized for lower resolutions to reduce file size*/
+        ALOGV("File is huge so setting 64 bit file offsets");
+        setParam64BitFileOffset(true);
   }
-  ALOGV(" %s X", __func__ );
   return OK;
 }
 

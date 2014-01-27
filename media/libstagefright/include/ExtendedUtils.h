@@ -97,7 +97,7 @@ struct ExtendedUtils {
      */
     struct ShellProp {
         // check if shell property to disable audio is set
-        static bool isAudioDisabled();
+        static bool isAudioDisabled(bool isEncoder);
 
         //helper function to set encoding profiles
         static void setEncoderProfile(video_encoder &videoEncoder,
@@ -141,10 +141,6 @@ struct ExtendedUtils {
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 
-    static void setArbitraryModeIfInterlaced(
-            const uint8_t *ptr, const sp<MetaData> &meta);
-
-    static int32_t checkIsInterlace(sp<MetaData> &meta);
 };
 
 }
