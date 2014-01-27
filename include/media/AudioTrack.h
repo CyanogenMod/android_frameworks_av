@@ -36,8 +36,7 @@ class StaticAudioTrackClientProxy;
 
 // ----------------------------------------------------------------------------
 
-class AudioTrack : public BnDirectTrackClient,
-                   virtual public RefBase
+class AudioTrack : public RefBase
 {
 public:
 
@@ -807,6 +806,15 @@ private:
     uint32_t                mSequence;              // incremented for each new IAudioTrack attempt
     int                     mClientUid;
     pid_t                   mClientPid;
+
+    class DirectClient : public BnDirectTrackClient {
+    public:
+        DirectClient(AudioTrack * audioTrack) : mAudioTrack(audioTrack) { }
+        virtual void notify(int msg);
+    private:
+        const wp<AudioTrack> mAudioTrack;
+    };
+    sp<DirectClient>       mDirectClient;
 };
 
 class TimedAudioTrack : public AudioTrack
