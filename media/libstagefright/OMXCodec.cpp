@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -62,6 +61,10 @@
 #include <QOMX_AudioExtensions.h>
 #endif
 
+#ifdef QTI_FLAC_DECODER
+#include "include/FLACDecoder.h"
+#endif
+
 namespace android {
 
 // Treat time out as an error if we have not received any output
@@ -75,6 +78,10 @@ const static int64_t kBufferFilledEventTimeOutNs = 3000000000LL;
 // component in question is buggy or not.
 const static uint32_t kMaxColorFormatSupported = 1000;
 
+#define FACTORY_CREATE(name) \
+static sp<MediaSource> Make##name(const sp<MediaSource> &source) { \
+    return new name(source); \
+}
 #define FACTORY_CREATE_ENCODER(name) \
 static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaData> &meta) { \
     return new name(source, meta); \
@@ -82,6 +89,9 @@ static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaDa
 
 #define FACTORY_REF(name) { #name, Make##name },
 
+#ifdef QTI_FLAC_DECODER
+FACTORY_CREATE(FLACDecoder)
+#endif
 FACTORY_CREATE_ENCODER(AACEncoder)
 
 static sp<MediaSource> InstantiateSoftwareEncoder(
@@ -104,6 +114,29 @@ static sp<MediaSource> InstantiateSoftwareEncoder(
 
     return NULL;
 }
+
+#ifdef QTI_FLAC_DECODER
+static sp<MediaSource> InstantiateSoftwareDecoder(
+        const char *name, const sp<MediaSource> &source) {
+    struct FactoryInfo {
+        const char *name;
+        sp<MediaSource> (*CreateFunc)(const sp<MediaSource> &);
+    };
+
+    static const FactoryInfo kFactoryInfo[] = {
+        FACTORY_REF(FLACDecoder)
+    };
+    for (size_t i = 0;
+         i < sizeof(kFactoryInfo) / sizeof(kFactoryInfo[0]); ++i) {
+        if (!strcmp(name, kFactoryInfo[i].name)) {
+            return (*kFactoryInfo[i].CreateFunc)(source);
+        }
+
+    }
+
+    return NULL;
+}
+#endif
 
 #undef FACTORY_CREATE_ENCODER
 #undef FACTORY_REF
@@ -353,15 +386,20 @@ sp<MediaSource> OMXCodec::Create(
             componentName = tmp.c_str();
         }
 
+        sp<MediaSource> softwareCodec;
         if (createEncoder) {
-            sp<MediaSource> softwareCodec =
-                InstantiateSoftwareEncoder(componentName, source, meta);
+            softwareCodec = InstantiateSoftwareEncoder(componentName, source, meta);
+        }
+#ifdef QTI_FLAC_DECODER
+        else {
+            softwareCodec = InstantiateSoftwareDecoder(componentName, source);
+        }
+#endif
 
-            if (softwareCodec != NULL) {
-                ALOGV("Successfully allocated software codec '%s'", componentName);
+        if (softwareCodec != NULL) {
+            ALOGV("Successfully allocated software codec '%s'", componentName);
 
-                return softwareCodec;
-            }
+            return softwareCodec;
         }
 
         const char* ext_componentName = ExtendedCodec::overrideComponentName(quirks, meta);
