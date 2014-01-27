@@ -292,7 +292,7 @@ void AudioPlayer::pause(bool playPendingSamples) {
 
         mPinnedTimeUs = ALooper::GetNowUs();
     }
-    mSourcePaused = true;
+
     mPlaying = false;
 #ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
@@ -314,7 +314,6 @@ status_t AudioPlayer::resume() {
     }
 #endif
     status_t err;
-    mSourcePaused = false;
 
     if (mAudioSink.get() != NULL) {
         err = mAudioSink->start();
