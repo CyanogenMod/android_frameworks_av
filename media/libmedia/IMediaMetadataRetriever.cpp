@@ -94,7 +94,7 @@ public:
             data.writeInt32(0);
         } else {
             // serialize the headers
-            data.writeInt32(headers->size());
+            data.writeInt64(headers->size());
             for (size_t i = 0; i < headers->size(); ++i) {
                 data.writeString8(headers->keyAt(i));
                 data.writeString8(headers->valueAt(i));
@@ -198,8 +198,8 @@ status_t BnMediaMetadataRetriever::onTransact(
             const char* srcUrl = data.readCString();
 
             KeyedVector<String8, String8> headers;
-            int32_t numHeaders = data.readInt32();
-            for (int i = 0; i < numHeaders; ++i) {
+            size_t numHeaders = (size_t) data.readInt64();
+            for (size_t i = 0; i < numHeaders; ++i) {
                 String8 key = data.readString8();
                 String8 value = data.readString8();
                 headers.add(key, value);
