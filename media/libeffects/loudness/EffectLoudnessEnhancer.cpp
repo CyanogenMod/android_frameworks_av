@@ -453,13 +453,13 @@ const struct effect_interface_s gLEInterface = {
 // This is the only symbol that needs to be exported
 __attribute__ ((visibility ("default")))
 audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM = {
-    tag : AUDIO_EFFECT_LIBRARY_TAG,
-    version : EFFECT_LIBRARY_API_VERSION,
-    name : "Loudness Enhancer Library",
-    implementor : "The Android Open Source Project",
-    create_effect : LELib_Create,
-    release_effect : LELib_Release,
-    get_descriptor : LELib_GetDescriptor,
+    .tag = AUDIO_EFFECT_LIBRARY_TAG,
+    .version = EFFECT_LIBRARY_API_VERSION,
+    .name = "Loudness Enhancer Library",
+    .implementor = "The Android Open Source Project",
+    .create_effect = LELib_Create,
+    .release_effect = LELib_Release,
+    .get_descriptor = LELib_GetDescriptor,
 };
 
 }; // extern "C"
