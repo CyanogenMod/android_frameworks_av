@@ -541,6 +541,16 @@ void AudioResamplerOrder1::AsmMono16Loop(int16_t *in, int32_t* maxOutPt, int32_t
             size_t &outputIndex, int32_t* out, size_t &inputIndex, int32_t vl, int32_t vr,
             uint32_t &phaseFraction, uint32_t phaseIncrement)
 {
+    (void)maxOutPt; // remove unused parameter warnings
+    (void)maxInIdx;
+    (void)outputIndex;
+    (void)out;
+    (void)inputIndex;
+    (void)vl;
+    (void)vr;
+    (void)phaseFraction;
+    (void)phaseIncrement;
+    (void)in;
 #define MO_PARAM5   "36"        // offset of parameter 5 (outputIndex)
 
     asm(
@@ -652,6 +662,16 @@ void AudioResamplerOrder1::AsmStereo16Loop(int16_t *in, int32_t* maxOutPt, int32
             size_t &outputIndex, int32_t* out, size_t &inputIndex, int32_t vl, int32_t vr,
             uint32_t &phaseFraction, uint32_t phaseIncrement)
 {
+    (void)maxOutPt; // remove unused parameter warnings
+    (void)maxInIdx;
+    (void)outputIndex;
+    (void)out;
+    (void)inputIndex;
+    (void)vl;
+    (void)vr;
+    (void)phaseFraction;
+    (void)phaseIncrement;
+    (void)in;
 #define ST_PARAM5    "40"     // offset of parameter 5 (outputIndex)
     asm(
         "stmfd  sp!, {r4, r5, r6, r7, r8, r9, r10, r11, r12, lr}\n"
