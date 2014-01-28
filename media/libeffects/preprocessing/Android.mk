@@ -5,7 +5,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE:= libaudiopreprocessing
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/soundfx
+LOCAL_MODULE_RELATIVE_PATH := soundfx
 
 LOCAL_SRC_FILES:= \
     PreProcessing.cpp
