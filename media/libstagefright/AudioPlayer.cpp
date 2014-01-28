@@ -606,6 +606,20 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
             if (err != OK) {
                 if (!mReachedEOS) {
                     if (useOffload()) {
+                        // After seek there is a possible race condition if
+                        // OffloadThread is observing state_stopping_1 before
+                        // framesReady() > 0. Ensure sink stop is called
+                        // after last buffer is released. This ensures the
+                        // partial buffer is written to the driver before
+                        // stopping one is observed.The drawback is that
+                        // there will be an unnecessary call to the parser
+                        // after parser signalled EOS.
+                        if (size_done > 0) {
+                             ALOGW("send Partial buffer down\n");
+                             ALOGW("skip calling stop till next fillBuffer\n");
+                             break;
+                        }
+
                         // no more buffers to push - stop() and wait for STREAM_END
                         // don't set mReachedEOS until stream end received
                         if (mAudioSink != NULL) {
