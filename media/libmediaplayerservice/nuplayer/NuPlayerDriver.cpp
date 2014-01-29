@@ -70,7 +70,9 @@ status_t NuPlayerDriver::setUID(uid_t uid) {
 }
 
 status_t NuPlayerDriver::setDataSource(
-        const char *url, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *url,
+        const KeyedVector<String8, String8> *headers) {
     Mutex::Autolock autoLock(mLock);
 
     if (mState != STATE_IDLE) {
@@ -79,7 +81,7 @@ status_t NuPlayerDriver::setDataSource(
 
     mState = STATE_SET_DATASOURCE_PENDING;
 
-    mPlayer->setDataSourceAsync(url, headers);
+    mPlayer->setDataSourceAsync(httpService, url, headers);
 
     while (mState == STATE_SET_DATASOURCE_PENDING) {
         mCondition.wait(mLock);

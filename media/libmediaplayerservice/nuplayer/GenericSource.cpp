@@ -33,6 +33,7 @@ namespace android {
 
 NuPlayer::GenericSource::GenericSource(
         const sp<AMessage> &notify,
+        const sp<IMediaHTTPService> &httpService,
         const char *url,
         const KeyedVector<String8, String8> *headers,
         bool uidValid,
@@ -43,7 +44,7 @@ NuPlayer::GenericSource::GenericSource(
     DataSource::RegisterDefaultSniffers();
 
     sp<DataSource> dataSource =
-        DataSource::CreateFromURI(url, headers);
+        DataSource::CreateFromURI(httpService, url, headers);
     CHECK(dataSource != NULL);
 
     initFromDataSource(dataSource);

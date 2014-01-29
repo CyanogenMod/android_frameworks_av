@@ -58,7 +58,9 @@ NuMediaExtractor::~NuMediaExtractor() {
 }
 
 status_t NuMediaExtractor::setDataSource(
-        const char *path, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *path,
+        const KeyedVector<String8, String8> *headers) {
     Mutex::Autolock autoLock(mLock);
 
     if (mImpl != NULL) {
@@ -66,7 +68,7 @@ status_t NuMediaExtractor::setDataSource(
     }
 
     sp<DataSource> dataSource =
-        DataSource::CreateFromURI(path, headers);
+        DataSource::CreateFromURI(httpService, path, headers);
 
     if (dataSource == NULL) {
         return -ENOENT;

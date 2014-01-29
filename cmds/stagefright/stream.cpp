@@ -21,6 +21,7 @@
 #include <binder/ProcessState.h>
 #include <cutils/properties.h> // for property_get
 
+#include <media/IMediaHTTPService.h>
 #include <media/IStreamSource.h>
 #include <media/mediaplayer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -159,7 +160,9 @@ private:
 MyConvertingStreamSource::MyConvertingStreamSource(const char *filename)
     : mCurrentBufferIndex(-1),
       mCurrentBufferOffset(0) {
-    sp<DataSource> dataSource = DataSource::CreateFromURI(filename);
+    sp<DataSource> dataSource =
+        DataSource::CreateFromURI(NULL /* httpService */, filename);
+
     CHECK(dataSource != NULL);
 
     sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);

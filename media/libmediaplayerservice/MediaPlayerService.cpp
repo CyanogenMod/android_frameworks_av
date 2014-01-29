@@ -44,6 +44,7 @@
 #include <utils/SystemClock.h>
 #include <utils/Vector.h>
 
+#include <media/IMediaHTTPService.h>
 #include <media/IRemoteDisplay.h>
 #include <media/IRemoteDisplayClient.h>
 #include <media/MediaPlayerInterface.h>
@@ -622,7 +623,9 @@ void MediaPlayerService::Client::setDataSource_post(
 }
 
 status_t MediaPlayerService::Client::setDataSource(
-        const char *url, const KeyedVector<String8, String8> *headers)
+        const sp<IMediaHTTPService> &httpService,
+        const char *url,
+        const KeyedVector<String8, String8> *headers)
 {
     ALOGV("setDataSource(%s)", url);
     if (url == NULL)
@@ -657,7 +660,7 @@ status_t MediaPlayerService::Client::setDataSource(
             return NO_INIT;
         }
 
-        setDataSource_post(p, p->setDataSource(url, headers));
+        setDataSource_post(p, p->setDataSource(httpService, url, headers));
         return mStatus;
     }
 }
@@ -1176,9 +1179,14 @@ int Antagonizer::callbackThread(void* user)
 }
 #endif
 
-status_t MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, int* pNumChannels,
-                                       audio_format_t* pFormat,
-                                       const sp<IMemoryHeap>& heap, size_t *pSize)
+status_t MediaPlayerService::decode(
+        const sp<IMediaHTTPService> &httpService,
+        const char* url,
+        uint32_t *pSampleRate,
+        int* pNumChannels,
+        audio_format_t* pFormat,
+        const sp<IMemoryHeap>& heap,
+        size_t *pSize)
 {
     ALOGV("decode(%s)", url);
     sp<MediaPlayerBase> player;
@@ -1206,7 +1214,7 @@ status_t MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, int*
     static_cast<MediaPlayerInterface*>(player.get())->setAudioSink(cache);
 
     // set data source
-    if (player->setDataSource(url) != NO_ERROR) goto Exit;
+    if (player->setDataSource(httpService, url) != NO_ERROR) goto Exit;
 
     ALOGV("prepare");
     player->prepareAsync();

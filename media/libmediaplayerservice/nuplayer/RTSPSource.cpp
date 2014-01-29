@@ -24,6 +24,7 @@
 #include "MyHandler.h"
 #include "SDPLoader.h"
 
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 
@@ -33,12 +34,14 @@ const int64_t kNearEOSTimeoutUs = 2000000ll; // 2 secs
 
 NuPlayer::RTSPSource::RTSPSource(
         const sp<AMessage> &notify,
+        const sp<IMediaHTTPService> &httpService,
         const char *url,
         const KeyedVector<String8, String8> *headers,
         bool uidValid,
         uid_t uid,
         bool isSDP)
     : Source(notify),
+      mHTTPService(httpService),
       mURL(url),
       mUIDValid(uidValid),
       mUID(uid),
@@ -92,6 +95,7 @@ void NuPlayer::RTSPSource::prepareAsync() {
     if (mIsSDP) {
         mSDPLoader = new SDPLoader(notify,
                 (mFlags & kFlagIncognito) ? SDPLoader::kFlagIncognito : 0,
+                mHTTPService,
                 mUIDValid, mUID);
 
         mSDPLoader->load(

@@ -66,7 +66,9 @@ class TestPlayerStub : public MediaPlayerInterface {
 
     // @param url Should be a test url. See class comment.
     virtual status_t setDataSource(
-            const char* url, const KeyedVector<String8, String8> *headers);
+            const sp<IMediaHTTPService> &httpService,
+            const char* url,
+            const KeyedVector<String8, String8> *headers);
 
     // Test player for a file descriptor source is not supported.
     virtual status_t setDataSource(int, int64_t, int64_t)  {

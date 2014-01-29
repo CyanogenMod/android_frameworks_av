@@ -18,11 +18,13 @@
 #define LOG_TAG "SDPLoader"
 #include <utils/Log.h>
 
-#include "SDPLoader.h"
+#include "include/SDPLoader.h"
 
 #include "ASessionDescription.h"
-#include "HTTPBase.h"
 
+#include <media/IMediaHTTPConnection.h>
+#include <media/IMediaHTTPService.h>
+#include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 
@@ -30,18 +32,19 @@
 
 namespace android {
 
-SDPLoader::SDPLoader(const sp<AMessage> &notify, uint32_t flags, bool uidValid, uid_t uid)
+SDPLoader::SDPLoader(
+        const sp<AMessage> &notify,
+        uint32_t flags,
+        const sp<IMediaHTTPService> &httpService,
+        bool uidValid,
+        uid_t uid)
     : mNotify(notify),
       mFlags(flags),
       mUIDValid(uidValid),
       mUID(uid),
       mNetLooper(new ALooper),
       mCancelled(false),
-      mHTTPDataSource(
-              HTTPBase::Create(
-                  (mFlags & kFlagIncognito)
-                    ? HTTPBase::kFlagIncognito
-                    : 0)) {
+      mHTTPDataSource(new MediaHTTP(httpService->makeHTTPConnection())) {
     if (mUIDValid) {
         mHTTPDataSource->setUID(mUID);
     }

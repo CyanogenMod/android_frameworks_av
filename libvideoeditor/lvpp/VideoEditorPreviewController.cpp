@@ -19,6 +19,7 @@
 #include <utils/Log.h>
 
 #include <gui/Surface.h>
+#include <media/IMediaHTTPService.h>
 
 #include "VideoEditorAudioPlayer.h"
 #include "PreviewRenderer.h"
@@ -967,7 +968,8 @@ M4OSA_ERR VideoEditorPreviewController::preparePlayer(
     ALOGV("preparePlayer: instance %d file %d", playerInstance, index);
 
     const char* fileName = (const char*) pController->mClipList[index]->pFile;
-    pController->mVePlayer[playerInstance]->setDataSource(fileName, NULL);
+    pController->mVePlayer[playerInstance]->setDataSource(
+            NULL /* httpService */, fileName, NULL);
 
     ALOGV("preparePlayer: setDataSource instance %s",
      (const char *)pController->mClipList[index]->pFile);

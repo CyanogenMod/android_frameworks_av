@@ -46,21 +46,6 @@ HTTPBase::HTTPBase()
 }
 
 // static
-sp<HTTPBase> HTTPBase::Create(uint32_t flags) {
-#if CHROMIUM_AVAILABLE
-        HTTPBase *dataSource = createChromiumHTTPDataSource(flags);
-        if (dataSource) {
-           return dataSource;
-        }
-#endif
-    {
-        TRESPASS();
-
-        return NULL;
-    }
-}
-
-// static
 status_t HTTPBase::UpdateProxyConfig(
         const char *host, int32_t port, const char *exclusionList) {
 #if CHROMIUM_AVAILABLE

@@ -23,6 +23,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <media/ICrypto.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -75,7 +76,7 @@ static int decode(
     static int64_t kTimeout = 500ll;
 
     sp<NuMediaExtractor> extractor = new NuMediaExtractor;
-    if (extractor->setDataSource(path) != OK) {
+    if (extractor->setDataSource(NULL /* httpService */, path) != OK) {
         fprintf(stderr, "unable to instantiate extractor.\n");
         return 1;
     }

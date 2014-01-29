@@ -57,6 +57,7 @@ status_t VideoEditorPlayer::setAudioPlayer(VideoEditorAudioPlayer *audioPlayer) 
 
 
 status_t VideoEditorPlayer::setDataSource(
+        const sp<IMediaHTTPService> &httpService,
         const char *url, const KeyedVector<String8, String8> *headers) {
     ALOGI("setDataSource('%s')", url);
     if (headers != NULL) {

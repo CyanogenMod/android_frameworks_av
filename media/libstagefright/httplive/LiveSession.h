@@ -28,6 +28,7 @@ struct ABuffer;
 struct AnotherPacketSource;
 struct DataSource;
 struct HTTPBase;
+struct IMediaHTTPService;
 struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
@@ -40,7 +41,10 @@ struct LiveSession : public AHandler {
     };
     LiveSession(
             const sp<AMessage> &notify,
-            uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
+            uint32_t flags,
+            const sp<IMediaHTTPService> &httpService,
+            bool uidValid = false,
+            uid_t uid = 0);
 
     enum StreamType {
         STREAMTYPE_AUDIO        = 1,
@@ -107,6 +111,7 @@ private:
 
     sp<AMessage> mNotify;
     uint32_t mFlags;
+    sp<IMediaHTTPService> mHTTPService;
     bool mUIDValid;
     uid_t mUID;
 

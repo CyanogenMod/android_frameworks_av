@@ -63,6 +63,7 @@ struct AwesomePlayer {
     void setUID(uid_t uid);
 
     status_t setDataSource(
+            const sp<IMediaHTTPService> &httpService,
             const char *uri,
             const KeyedVector<String8, String8> *headers = NULL);
 
@@ -159,6 +160,7 @@ private:
     SystemTimeSource mSystemTimeSource;
     TimeSource *mTimeSource;
 
+    sp<IMediaHTTPService> mHTTPService;
     String8 mUri;
     KeyedVector<String8, String8> mUriHeaders;
 
@@ -247,6 +249,7 @@ private:
     sp<MediaExtractor> mExtractor;
 
     status_t setDataSource_l(
+            const sp<IMediaHTTPService> &httpService,
             const char *uri,
             const KeyedVector<String8, String8> *headers = NULL);
 

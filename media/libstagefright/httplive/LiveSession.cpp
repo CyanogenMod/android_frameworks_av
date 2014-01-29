@@ -27,6 +27,8 @@
 #include "mpeg2ts/AnotherPacketSource.h"
 
 #include <cutils/properties.h>
+#include <media/IMediaHTTPConnection.h>
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -34,6 +36,7 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
@@ -44,17 +47,16 @@
 namespace android {
 
 LiveSession::LiveSession(
-        const sp<AMessage> &notify, uint32_t flags, bool uidValid, uid_t uid)
+        const sp<AMessage> &notify, uint32_t flags,
+        const sp<IMediaHTTPService> &httpService,
+        bool uidValid, uid_t uid)
     : mNotify(notify),
       mFlags(flags),
+      mHTTPService(httpService),
       mUIDValid(uidValid),
       mUID(uid),
       mInPreparationPhase(true),
-      mHTTPDataSource(
-              HTTPBase::Create(
-                  (mFlags & kFlagIncognito)
-                    ? HTTPBase::kFlagIncognito
-                    : 0)),
+      mHTTPDataSource(new MediaHTTP(mHTTPService->makeHTTPConnection())),
       mPrevBandwidthIndex(-1),
       mStreamMask(0),
       mCheckBandwidthGeneration(0),
