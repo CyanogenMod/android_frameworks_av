@@ -4474,12 +4474,16 @@ reacquire_wakelock:
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
-            if (exitPending()) {
-                break;
-            }
+
             processConfigEvents_l();
             // return value 'reconfig' is currently unused
             bool reconfig = checkForNewParameters_l();
+
+            // check exitPending here because checkForNewParameters_l() and
+            // checkForNewParameters_l() can temporarily release mLock
+            if (exitPending()) {
+                break;
+            }
 
             // if no active track(s), then standby and release wakelock
             size_t size = mActiveTracks.size();
