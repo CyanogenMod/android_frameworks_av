@@ -81,6 +81,7 @@ LOCAL_SHARED_LIBRARIES := \
         libicuuc \
         liblog \
         libmedia \
+        libopus \
         libsonivox \
         libssl \
         libstagefright_omx \

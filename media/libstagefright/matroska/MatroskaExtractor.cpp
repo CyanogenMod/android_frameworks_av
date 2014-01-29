@@ -313,7 +313,7 @@ void BlockIterator::seek(
 
     *actualFrameTimeUs = -1ll;
 
-    const int64_t seekTimeNs = seekTimeUs * 1000ll;
+    const int64_t seekTimeNs = seekTimeUs * 1000ll - mExtractor->mSeekPreRollNs;
 
     mkvparser::Segment* const pSegment = mExtractor->mSegment;
 
@@ -628,7 +628,8 @@ MatroskaExtractor::MatroskaExtractor(const sp<DataSource> &source)
       mReader(new DataSourceReader(mDataSource)),
       mSegment(NULL),
       mExtractedThumbnails(false),
-      mIsWebm(false) {
+      mIsWebm(false),
+      mSeekPreRollNs(0) {
     off64_t size;
     mIsLiveStreaming =
         (mDataSource->flags()
@@ -919,6 +920,12 @@ void MatroskaExtractor::addTracks() {
 
                     err = addVorbisCodecInfo(
                             meta, codecPrivate, codecPrivateSize);
+                } else if (!strcmp("A_OPUS", codecID)) {
+                    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_OPUS);
+                    meta->setData(kKeyOpusHeader, 0, codecPrivate, codecPrivateSize);
+                    meta->setInt64(kKeyOpusCodecDelay, track->GetCodecDelay());
+                    meta->setInt64(kKeyOpusSeekPreRoll, track->GetSeekPreRoll());
+                    mSeekPreRollNs = track->GetSeekPreRoll();
                 } else if (!strcmp("A_MPEG/L3", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG);
                 } else {

@@ -50,6 +50,7 @@ static const struct {
     { "OMX.google.mpeg4.encoder", "mpeg4enc", "video_encoder.mpeg4" },
     { "OMX.google.mp3.decoder", "mp3dec", "audio_decoder.mp3" },
     { "OMX.google.vorbis.decoder", "vorbisdec", "audio_decoder.vorbis" },
+    { "OMX.google.opus.decoder", "opusdec", "audio_decoder.opus" },
     { "OMX.google.vp8.decoder", "vpxdec", "video_decoder.vp8" },
     { "OMX.google.vp9.decoder", "vpxdec", "video_decoder.vp9" },
     { "OMX.google.vp8.encoder", "vpxenc", "video_encoder.vp8" },

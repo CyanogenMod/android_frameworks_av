@@ -489,6 +489,13 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
 
             CHECK(meta->findData(kKeyVorbisBooks, &type, &data, &size));
             addCodecSpecificData(data, size);
+        } else if (meta->findData(kKeyOpusHeader, &type, &data, &size)) {
+            addCodecSpecificData(data, size);
+
+            CHECK(meta->findData(kKeyOpusCodecDelay, &type, &data, &size));
+            addCodecSpecificData(data, size);
+            CHECK(meta->findData(kKeyOpusSeekPreRoll, &type, &data, &size));
+            addCodecSpecificData(data, size);
         }
     }
 
@@ -1387,6 +1394,8 @@ void OMXCodec::setComponentRole(
             "audio_decoder.aac", "audio_encoder.aac" },
         { MEDIA_MIMETYPE_AUDIO_VORBIS,
             "audio_decoder.vorbis", "audio_encoder.vorbis" },
+        { MEDIA_MIMETYPE_AUDIO_OPUS,
+            "audio_decoder.opus", "audio_encoder.opus" },
         { MEDIA_MIMETYPE_AUDIO_G711_MLAW,
             "audio_decoder.g711mlaw", "audio_encoder.g711mlaw" },
         { MEDIA_MIMETYPE_AUDIO_G711_ALAW,
@@ -4125,6 +4134,7 @@ static const char *audioCodingTypeString(OMX_AUDIO_CODINGTYPE type) {
         "OMX_AUDIO_CodingMP3",
         "OMX_AUDIO_CodingSBC",
         "OMX_AUDIO_CodingVORBIS",
+        "OMX_AUDIO_CodingOPUS",
         "OMX_AUDIO_CodingWMA",
         "OMX_AUDIO_CodingRA",
         "OMX_AUDIO_CodingMIDI",
