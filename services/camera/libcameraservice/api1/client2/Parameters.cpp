@@ -1858,23 +1858,23 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
 
     size_t reqFocusingAreasSize = focusingAreas.size() * 5;
     int32_t *reqFocusingAreas = new int32_t[reqFocusingAreasSize];
-    for (size_t i = 0; i < reqFocusingAreasSize; i += 5) {
-        if (focusingAreas[i].weight != 0) {
+    for (size_t i = 0, j = 0; i < reqFocusingAreasSize; i += 5, j++) {
+        if (focusingAreas[j].weight != 0) {
             reqFocusingAreas[i + 0] =
-                    normalizedXToArray(focusingAreas[i].left);
+                    normalizedXToArray(focusingAreas[j].left);
             reqFocusingAreas[i + 1] =
-                    normalizedYToArray(focusingAreas[i].top);
+                    normalizedYToArray(focusingAreas[j].top);
             reqFocusingAreas[i + 2] =
-                    normalizedXToArray(focusingAreas[i].right);
+                    normalizedXToArray(focusingAreas[j].right);
             reqFocusingAreas[i + 3] =
-                    normalizedYToArray(focusingAreas[i].bottom);
+                    normalizedYToArray(focusingAreas[j].bottom);
         } else {
             reqFocusingAreas[i + 0] = 0;
             reqFocusingAreas[i + 1] = 0;
             reqFocusingAreas[i + 2] = 0;
             reqFocusingAreas[i + 3] = 0;
         }
-        reqFocusingAreas[i + 4] = focusingAreas[i].weight;
+        reqFocusingAreas[i + 4] = focusingAreas[j].weight;
     }
     res = request->update(ANDROID_CONTROL_AF_REGIONS,
             reqFocusingAreas, reqFocusingAreasSize);
@@ -1887,23 +1887,23 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
 
     size_t reqMeteringAreasSize = meteringAreas.size() * 5;
     int32_t *reqMeteringAreas = new int32_t[reqMeteringAreasSize];
-    for (size_t i = 0; i < reqMeteringAreasSize; i += 5) {
-        if (meteringAreas[i].weight != 0) {
+    for (size_t i = 0, j = 0; i < reqMeteringAreasSize; i += 5, j++) {
+        if (meteringAreas[j].weight != 0) {
             reqMeteringAreas[i + 0] =
-                normalizedXToArray(meteringAreas[i].left);
+                normalizedXToArray(meteringAreas[j].left);
             reqMeteringAreas[i + 1] =
-                normalizedYToArray(meteringAreas[i].top);
+                normalizedYToArray(meteringAreas[j].top);
             reqMeteringAreas[i + 2] =
-                normalizedXToArray(meteringAreas[i].right);
+                normalizedXToArray(meteringAreas[j].right);
             reqMeteringAreas[i + 3] =
-                normalizedYToArray(meteringAreas[i].bottom);
+                normalizedYToArray(meteringAreas[j].bottom);
         } else {
             reqMeteringAreas[i + 0] = 0;
             reqMeteringAreas[i + 1] = 0;
             reqMeteringAreas[i + 2] = 0;
             reqMeteringAreas[i + 3] = 0;
         }
-        reqMeteringAreas[i + 4] = meteringAreas[i].weight;
+        reqMeteringAreas[i + 4] = meteringAreas[j].weight;
     }
     res = request->update(ANDROID_CONTROL_AE_REGIONS,
             reqMeteringAreas, reqMeteringAreasSize);
