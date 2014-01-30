@@ -229,7 +229,7 @@ status_t AudioMixer::initTrackDownmix(track_t* pTrack, int trackNum, audio_chann
     return status;
 }
 
-void AudioMixer::unprepareTrackForDownmix(track_t* pTrack, int trackName) {
+void AudioMixer::unprepareTrackForDownmix(track_t* pTrack, int trackName __unused) {
     ALOGV("AudioMixer::unprepareTrackForDownmix(%d)", trackName);
 
     if (pTrack->downmixerBufferProvider != NULL) {
@@ -783,8 +783,8 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
     }
 }
 
-void AudioMixer::track__nop(track_t* t, int32_t* out, size_t outFrameCount, int32_t* temp,
-        int32_t* aux)
+void AudioMixer::track__nop(track_t* t __unused, int32_t* out __unused,
+        size_t outFrameCount __unused, int32_t* temp __unused, int32_t* aux __unused)
 {
 }
 
@@ -860,8 +860,8 @@ void AudioMixer::volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32
     }
 }
 
-void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
-        int32_t* aux)
+void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount,
+        int32_t* temp __unused, int32_t* aux)
 {
     const int16_t *in = static_cast<const int16_t *>(t->in);
 
@@ -951,8 +951,8 @@ void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount
     t->in = in;
 }
 
-void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
-        int32_t* aux)
+void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount,
+        int32_t* temp __unused, int32_t* aux)
 {
     const int16_t *in = static_cast<int16_t const *>(t->in);
 
