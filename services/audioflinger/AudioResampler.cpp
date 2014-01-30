@@ -158,6 +158,16 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         atFinalQuality = true;
     }
 
+    /* if the caller requests DEFAULT_QUALITY and af.resampler.property
+     * has not been set, the target resampler quality is set to DYN_MED_QUALITY,
+     * and allowed to "throttle" down to DYN_LOW_QUALITY if necessary
+     * due to estimated CPU load of having too many active resamplers
+     * (the code below the if).
+     */
+    if (quality == DEFAULT_QUALITY) {
+        quality = DYN_MED_QUALITY;
+    }
+
     // naive implementation of CPU load throttling doesn't account for whether resampler is active
     pthread_mutex_lock(&mutex);
     for (;;) {
@@ -172,7 +182,6 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         // not enough CPU available for proposed quality level, so try next lowest level
         switch (quality) {
         default:
-        case DEFAULT_QUALITY:
         case LOW_QUALITY:
             atFinalQuality = true;
             break;
@@ -202,7 +211,6 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
 
     switch (quality) {
     default:
-    case DEFAULT_QUALITY:
     case LOW_QUALITY:
         ALOGV("Create linear Resampler");
         resampler = new AudioResamplerOrder1(bitDepth, inChannelCount, sampleRate);
