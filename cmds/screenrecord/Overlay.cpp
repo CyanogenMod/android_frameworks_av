@@ -47,7 +47,7 @@ const char* Overlay::kPropertyNames[] = {
         "ro.revision",
         "dalvik.vm.heapgrowthlimit",
         "dalvik.vm.heapsize",
-        "persist.sys.dalvik.vm.lib",
+        "persist.sys.dalvik.vm.lib.1",
         //"ro.product.cpu.abi",
         //"ro.bootloader",
         //"this-never-appears!",
