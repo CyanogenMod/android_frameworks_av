@@ -972,13 +972,16 @@ void MPEG4Writer::writeFtypBox(MetaData *param) {
     if (param && param->findInt32(kKeyFileType, &fileType) &&
         fileType != OUTPUT_FORMAT_MPEG_4) {
         writeFourcc("3gp4");
-    } else {
+        writeInt32(0);
         writeFourcc("isom");
+        writeFourcc("3gp4");
+    } else {
+        writeFourcc("mp42");
+        writeInt32(0);
+        writeFourcc("isom");
+        writeFourcc("mp42");
     }
 
-    writeInt32(0);
-    writeFourcc("isom");
-    writeFourcc("3gp4");
     endBox();
 }
 
