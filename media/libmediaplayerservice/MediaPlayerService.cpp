@@ -1214,6 +1214,7 @@ status_t MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, int*
     ALOGV("decode(%s)", url);
     sp<MediaPlayerBase> player;
     status_t status = BAD_VALUE;
+    status_t err = OK;
 
     // Protect our precious, precious DRMd ringtones by only allowing
     // decoding of http, but not filesystem paths or content Uris.
@@ -1246,7 +1247,11 @@ status_t MediaPlayerService::decode(const char* url, uint32_t *pSampleRate, int*
     if (cache->wait() != NO_ERROR) goto Exit;
 
     ALOGV("start");
-    player->start();
+    err = player->start();
+    if (err != NO_ERROR) {
+        ALOGE("Error: %d Starting player in decode", err);
+        goto Exit;
+    }
 
     ALOGV("wait for playback complete");
     cache->wait();
@@ -1276,6 +1281,7 @@ status_t MediaPlayerService::decode(int fd, int64_t offset, int64_t length,
     ALOGV("decode(%d, %lld, %lld)", fd, offset, length);
     sp<MediaPlayerBase> player;
     status_t status = BAD_VALUE;
+    status_t err = OK;
 
     player_type playerType = MediaPlayerFactory::getPlayerType(NULL /* client */,
                                                                fd,
@@ -1301,7 +1307,11 @@ status_t MediaPlayerService::decode(int fd, int64_t offset, int64_t length,
     if (cache->wait() != NO_ERROR) goto Exit;
 
     ALOGV("start");
-    player->start();
+    err = player->start();
+    if (err != NO_ERROR) {
+        ALOGE("Error: %d Starting player in decode", err);
+        goto Exit;
+    }
 
     ALOGV("wait for playback complete");
     cache->wait();
