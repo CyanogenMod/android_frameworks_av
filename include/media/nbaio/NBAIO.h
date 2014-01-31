@@ -66,6 +66,7 @@ size_t Format_frameSize(const NBAIO_Format& format);
 size_t Format_frameBitShift(const NBAIO_Format& format);
 
 // Convert a sample rate in Hz and channel count to an NBAIO_Format
+// FIXME The sample format is hard-coded to AUDIO_FORMAT_PCM_16_BIT
 NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount);
 
 // Return the sample rate in Hz of an NBAIO_Format
