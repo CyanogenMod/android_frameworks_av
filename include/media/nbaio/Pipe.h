@@ -30,7 +30,7 @@ class Pipe : public NBAIO_Sink {
 
 public:
     // maxFrames will be rounded up to a power of 2, and all slots are available. Must be >= 2.
-    Pipe(size_t maxFrames, NBAIO_Format format);
+    Pipe(size_t maxFrames, const NBAIO_Format& format);
     virtual ~Pipe();
 
     // NBAIO_Port interface

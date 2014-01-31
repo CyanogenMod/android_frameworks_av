@@ -24,7 +24,7 @@
 namespace android {
 
 AudioBufferProviderSource::AudioBufferProviderSource(AudioBufferProvider *provider,
-                                                     NBAIO_Format format) :
+                                                     const NBAIO_Format& format) :
     NBAIO_Source(format), mProvider(provider), mConsumed(0)
 {
     ALOG_ASSERT(provider != NULL);

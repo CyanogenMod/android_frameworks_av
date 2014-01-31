@@ -25,7 +25,7 @@
 
 namespace android {
 
-Pipe::Pipe(size_t maxFrames, NBAIO_Format format) :
+Pipe::Pipe(size_t maxFrames, const NBAIO_Format& format) :
         NBAIO_Sink(format),
         mMaxFrames(roundup(maxFrames)),
         mBuffer(malloc(mMaxFrames * Format_frameSize(format))),

@@ -58,19 +58,19 @@ enum {
 };
 
 // Return the frame size of an NBAIO_Format in bytes
-size_t Format_frameSize(NBAIO_Format format);
+size_t Format_frameSize(const NBAIO_Format& format);
 
 // Return the frame size of an NBAIO_Format as a bit shift
-size_t Format_frameBitShift(NBAIO_Format format);
+size_t Format_frameBitShift(const NBAIO_Format& format);
 
 // Convert a sample rate in Hz and channel count to an NBAIO_Format
 NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount);
 
 // Return the sample rate in Hz of an NBAIO_Format
-unsigned Format_sampleRate(NBAIO_Format format);
+unsigned Format_sampleRate(const NBAIO_Format& format);
 
 // Return the channel count of an NBAIO_Format
-unsigned Format_channelCount(NBAIO_Format format);
+unsigned Format_channelCount(const NBAIO_Format& format);
 
 // Callbacks used by NBAIO_Sink::writeVia() and NBAIO_Source::readVia() below.
 typedef ssize_t (*writeVia_t)(void *user, void *buffer, size_t count);
@@ -115,8 +115,8 @@ public:
     virtual NBAIO_Format format() const { return mNegotiated ? mFormat : Format_Invalid; }
 
 protected:
-    NBAIO_Port(NBAIO_Format format) : mNegotiated(false), mFormat(format),
-                                      mBitShift(Format_frameBitShift(format)) { }
+    NBAIO_Port(const NBAIO_Format& format) : mNegotiated(false), mFormat(format),
+                                             mBitShift(Format_frameBitShift(format)) { }
     virtual ~NBAIO_Port() { }
 
     // Implementations are free to ignore these if they don't need them
@@ -220,7 +220,7 @@ public:
     virtual status_t getTimestamp(AudioTimestamp& timestamp) { return INVALID_OPERATION; }
 
 protected:
-    NBAIO_Sink(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0) { }
+    NBAIO_Sink(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0) { }
     virtual ~NBAIO_Sink() { }
 
     // Implementations are free to ignore these if they don't need them
@@ -311,7 +311,7 @@ public:
     virtual void    onTimestamp(const AudioTimestamp& timestamp) { }
 
 protected:
-    NBAIO_Source(NBAIO_Format format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0) { }
+    NBAIO_Source(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0) { }
     virtual ~NBAIO_Source() { }
 
     // Implementations are free to ignore these if they don't need them

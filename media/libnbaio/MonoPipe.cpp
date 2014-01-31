@@ -30,7 +30,7 @@
 
 namespace android {
 
-MonoPipe::MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock) :
+MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBlock) :
         NBAIO_Sink(format),
         mUpdateSeq(0),
         mReqFrames(reqFrames),
