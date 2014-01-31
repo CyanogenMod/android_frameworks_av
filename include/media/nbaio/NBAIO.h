@@ -52,7 +52,10 @@ enum {
 // the combinations that are actually needed within AudioFlinger.  If the list of combinations grows
 // too large, then this decision should be re-visited.
 // Sample rate and channel count are explicit, PCM interleaved 16-bit is assumed.
-typedef unsigned NBAIO_Format;
+struct NBAIO_Format {
+//private:
+    unsigned    mPacked;
+};
 
 extern const NBAIO_Format Format_Invalid;
 

@@ -58,7 +58,7 @@ unsigned Format_sampleRate(const NBAIO_Format& format)
     if (!Format_isValid(format)) {
         return 0;
     }
-    switch (format & Format_SR_Mask) {
+    switch (format.mPacked & Format_SR_Mask) {
     case Format_SR_8000:
         return 8000;
     case Format_SR_11025:
@@ -85,7 +85,7 @@ unsigned Format_channelCount(const NBAIO_Format& format)
     if (!Format_isValid(format)) {
         return 0;
     }
-    switch (format & Format_C_Mask) {
+    switch (format.mPacked & Format_C_Mask) {
     case Format_C_1:
         return 1;
     case Format_C_2:
@@ -97,7 +97,7 @@ unsigned Format_channelCount(const NBAIO_Format& format)
 
 NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount)
 {
-    NBAIO_Format format;
+    unsigned format;
     switch (sampleRate) {
     case 8000:
         format = Format_SR_8000;
@@ -136,7 +136,9 @@ NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount)
     default:
         return Format_Invalid;
     }
-    return format;
+    NBAIO_Format ret;
+    ret.mPacked = format;
+    return ret;
 }
 
 // This is a default implementation; it is expected that subclasses will optimize this.
@@ -237,12 +239,12 @@ ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
 
 bool Format_isValid(const NBAIO_Format& format)
 {
-    return format != Format_Invalid;
+    return format.mPacked != Format_Invalid.mPacked;
 }
 
 bool Format_isEqual(const NBAIO_Format& format1, const NBAIO_Format& format2)
 {
-    return format1 == format2;
+    return format1.mPacked == format2.mPacked;
 }
 
 }   // namespace android
