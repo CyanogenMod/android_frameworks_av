@@ -197,7 +197,8 @@ NuCachedSource2::NuCachedSource2(
       mHighwaterThresholdBytes(kDefaultHighWaterThreshold),
       mLowwaterThresholdBytes(kDefaultLowWaterThreshold),
       mKeepAliveIntervalUs(kDefaultKeepAliveIntervalUs),
-      mDisconnectAtHighwatermark(disconnectAtHighwatermark) {
+      mDisconnectAtHighwatermark(disconnectAtHighwatermark),
+      mSuspended(false) {
     // We are NOT going to support disconnect-at-highwatermark indefinitely
     // and we are not guaranteeing support for client-specified cache
     // parameters. Both of these are temporary measures to solve a specific
@@ -323,7 +324,7 @@ void NuCachedSource2::fetchInternal() {
         }
     }
 
-    if (reconnect) {
+    if (reconnect && !mSuspended) {
         status_t err =
             mSource->reconnectAtOffset(mCacheOffset + mCache->totalSize());
 
@@ -431,6 +432,12 @@ void NuCachedSource2::onFetch() {
         }
     } else {
         delayUs = 100000ll;
+    }
+
+    if (mSuspended) {
+        static_cast<HTTPBase *>(mSource.get())->disconnect();
+        mFinalStatus = -EAGAIN;
+        return;
     }
 
     (new AMessage(kWhatFetchMore, mReflector->id()))->post(delayUs);
@@ -758,6 +765,27 @@ void NuCachedSource2::RemoveCacheSpecificHeaders(
 
         ALOGV("Client requested disconnection at highwater mark");
     }
+}
+
+status_t NuCachedSource2::disconnectWhileSuspend() {
+    if (mSource != NULL) {
+        static_cast<HTTPBase *>(mSource.get())->disconnect();
+        mFinalStatus = -EAGAIN;
+        mSuspended = true;
+    } else {
+        return ERROR_UNSUPPORTED;
+    }
+
+    return OK;
+}
+
+status_t NuCachedSource2::connectWhileResume() {
+    mSuspended = false;
+
+    // Begin to connect again and fetch more data
+    (new AMessage(kWhatFetchMore, mReflector->id()))->post();
+
+    return OK;
 }
 
 }  // namespace android
