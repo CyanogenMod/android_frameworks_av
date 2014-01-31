@@ -1147,6 +1147,22 @@ void MediaPlayerService::Client::addNewMetadataUpdate(media::Metadata::Type meta
     }
 }
 
+status_t MediaPlayerService::Client::suspend()
+{
+    ALOGV("[%d] suspend", mConnId);
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == NULL) return NO_INIT;
+    return p->suspend();
+}
+
+status_t MediaPlayerService::Client::resume()
+{
+    ALOGV("[%d] resume", mConnId);
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == NULL) return NO_INIT;
+    return p->resume();
+}
+
 #if CALLBACK_ANTAGONIZER
 const int Antagonizer::interval = 10000; // 10 msecs
 

@@ -227,6 +227,9 @@ public:
         return INVALID_OPERATION;
     }
 
+    virtual status_t suspend() { return INVALID_OPERATION; }
+    virtual status_t resume() { return INVALID_OPERATION; }
+
     virtual status_t updateProxyConfig(
             const char *host, int32_t port, const char *exclusionList) {
         return INVALID_OPERATION;
