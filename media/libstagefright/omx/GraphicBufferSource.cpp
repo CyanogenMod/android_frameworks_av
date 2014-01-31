@@ -609,6 +609,12 @@ void GraphicBufferSource::onFrameAvailable() {
         BufferQueue::BufferItem item;
         status_t err = mBufferQueue->acquireBuffer(&item, 0);
         if (err == OK) {
+            // If this is the first time we're seeing this buffer, add it to our
+            // slot table.
+            if (item.mGraphicBuffer != NULL) {
+                ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mBuf);
+                mBufferSlot[item.mBuf] = item.mGraphicBuffer;
+            }
             mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
                     EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
         }
