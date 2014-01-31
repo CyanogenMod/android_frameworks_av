@@ -40,7 +40,7 @@ AudioStreamInSource::~AudioStreamInSource()
 ssize_t AudioStreamInSource::negotiate(const NBAIO_Format offers[], size_t numOffers,
                                       NBAIO_Format counterOffers[], size_t& numCounterOffers)
 {
-    if (mFormat == Format_Invalid) {
+    if (!Format_isValid(mFormat)) {
         mStreamBufferSizeBytes = mStream->common.get_buffer_size(&mStream->common);
         audio_format_t streamFormat = mStream->common.get_format(&mStream->common);
         if (streamFormat == AUDIO_FORMAT_PCM_16_BIT) {
@@ -67,7 +67,7 @@ size_t AudioStreamInSource::framesOverrun()
 
 ssize_t AudioStreamInSource::read(void *buffer, size_t count)
 {
-    if (CC_UNLIKELY(mFormat == Format_Invalid)) {
+    if (CC_UNLIKELY(!Format_isValid(mFormat))) {
         return NEGOTIATE;
     }
     ssize_t bytesRead = mStream->read(mStream, buffer, count << mBitShift);
