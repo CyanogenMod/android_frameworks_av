@@ -53,9 +53,8 @@ enum {
 // too large, then this decision should be re-visited.
 // Sample rate and channel count are explicit, PCM interleaved 16-bit is assumed.
 typedef unsigned NBAIO_Format;
-enum {
-    Format_Invalid
-};
+
+extern const NBAIO_Format Format_Invalid;
 
 // Return the frame size of an NBAIO_Format in bytes
 size_t Format_frameSize(const NBAIO_Format& format);
