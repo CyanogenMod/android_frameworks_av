@@ -96,6 +96,16 @@ public:
     virtual status_t        getMetadata(bool update_only,
                                         bool apply_filter,
                                         Parcel *metadata) = 0;
+
+    // Suspend the video player
+    // In other words, just release the audio decoder and the video decoder
+    // @return OK if the video player was suspended successfully
+    virtual status_t        suspend() = 0;
+
+    // Resume the video player
+    // Init the audio decoder and the video decoder
+    // @return OK if the video player was resumed successfully
+    virtual status_t        resume() = 0;
 };
 
 // ----------------------------------------------------------------------------

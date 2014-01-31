@@ -67,6 +67,8 @@ struct NuCachedSource2 : public DataSource {
     virtual ssize_t readAtInternal(off64_t offset, void *data, size_t size, int32_t isNonBlocking);
 
     virtual void enableNonBlockingRead(bool flag);
+    virtual status_t disconnectWhileSuspend();
+    virtual status_t connectWhileResume();
 
 protected:
     virtual ~NuCachedSource2();
@@ -113,6 +115,8 @@ private:
 
     size_t mHighwaterThresholdBytes;
     size_t mLowwaterThresholdBytes;
+
+    bool mSuspended;
 
     // If the keep-alive interval is 0, keep-alives are disabled.
     int64_t mKeepAliveIntervalUs;
