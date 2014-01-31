@@ -29,9 +29,6 @@
 // uncomment to display CPU load adjusted for CPU frequency
 //#define CPU_FREQUENCY_STATISTICS
 
-// uncomment to enable fast threads to take performance samples for later statistical analysis
-#define FAST_THREAD_STATISTICS
-
 // uncomment for debugging timing problems related to StateQueue::push()
 //#define STATE_QUEUE_DUMP
 
