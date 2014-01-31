@@ -2341,19 +2341,6 @@ status_t MPEG4Writer::Track::threadEntry() {
 
 #if 0
         if (mResumed) {
-            int64_t durExcludingEarlierPausesUs = timestampUs - previousPausedDurationUs;
-            if (WARN_UNLESS(durExcludingEarlierPausesUs >= 0ll, "for %s track", trackName)) {
-                copy->release();
-                return ERROR_MALFORMED;
-            }
-
-            int64_t pausedDurationUs = durExcludingEarlierPausesUs - mTrackDurationUs;
-            if (WARN_UNLESS(pausedDurationUs >= lastDurationUs, "for %s track", trackName)) {
-                copy->release();
-                return ERROR_MALFORMED;
-            }
-
-            previousPausedDurationUs += pausedDurationUs - lastDurationUs;
             mResumed = false;
         }
 #endif

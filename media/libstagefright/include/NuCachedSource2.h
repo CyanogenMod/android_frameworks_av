@@ -66,6 +66,9 @@ struct NuCachedSource2 : public DataSource {
             String8 *cacheConfig,
             bool *disconnectAtHighwatermark);
 
+    virtual status_t disconnectWhileSuspend();
+    virtual status_t connectWhileResume();
+
 protected:
     virtual ~NuCachedSource2();
 
@@ -122,6 +125,8 @@ protected:
     int64_t mKeepAliveIntervalUs;
 
     bool mDisconnectAtHighwatermark;
+
+    bool mSuspended;
 
     void onMessageReceived(const sp<AMessage> &msg);
     void onFetch();

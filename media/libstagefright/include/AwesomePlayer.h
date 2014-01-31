@@ -109,6 +109,9 @@ struct AwesomePlayer {
     void postAudioTearDown();
     status_t dump(int fd, const Vector<String16> &args) const;
 
+    status_t suspend();
+    status_t resume();
+
 private:
     friend struct AwesomeEvent;
     friend struct PreviewPlayer;
@@ -355,6 +358,8 @@ private:
     bool    mAudioTearDown;
     bool    mAudioTearDownWasPlaying;
     int64_t mAudioTearDownPosition;
+
+    bool mIsFirstFrameAfterResume;
 
     status_t setVideoScalingMode(int32_t mode);
     status_t setVideoScalingMode_l(int32_t mode);

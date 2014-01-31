@@ -54,6 +54,7 @@ AudioPlayer::AudioPlayer(
       mFinalStatus(OK),
       mSeekTimeUs(0),
       mStarted(false),
+      mSourcePaused(false),
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
@@ -62,7 +63,8 @@ AudioPlayer::AudioPlayer(
       mPinnedTimeUs(-1ll),
       mPlaying(false),
       mStartPosUs(0),
-      mCreateFlags(flags) {
+      mCreateFlags(flags),
+      mPauseRequired(false) {
 }
 
 AudioPlayer::~AudioPlayer() {
@@ -82,6 +84,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     status_t err;
     if (!sourceAlreadyStarted) {
+        mSourcePaused = false;
         err = mSource->start();
 
         if (err != OK) {
@@ -257,13 +260,16 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     mStarted = true;
     mPlaying = true;
     mPinnedTimeUs = -1ll;
-
+    const char *componentName;
+    if (!(format->findCString(kKeyDecoderComponent, &componentName))) {
+          componentName = "none";
+    }
+    mPauseRequired = !strncmp(componentName, "OMX.qcom.", 9);
     return OK;
 }
 
 void AudioPlayer::pause(bool playPendingSamples) {
     CHECK(mStarted);
-
     if (playPendingSamples) {
         if (mAudioSink.get() != NULL) {
             mAudioSink->stop();
@@ -284,10 +290,21 @@ void AudioPlayer::pause(bool playPendingSamples) {
     }
 
     mPlaying = false;
+    CHECK(mSource != NULL);
+    if (mPauseRequired) {
+        if (mSource->pause() == OK) {
+            mSourcePaused = true;
+        }
+    }
 }
 
 status_t AudioPlayer::resume() {
     CHECK(mStarted);
+    CHECK(mSource != NULL);
+    if (mSourcePaused == true) {
+        mSourcePaused = false;
+        mSource->start();
+    }
     status_t err;
 
     if (mAudioSink.get() != NULL) {
@@ -349,7 +366,7 @@ void AudioPlayer::reset() {
         mInputBuffer->release();
         mInputBuffer = NULL;
     }
-
+    mSourcePaused = false;
     mSource->stop();
 
     // The following hack is necessary to ensure that the OMX
@@ -379,6 +396,7 @@ void AudioPlayer::reset() {
     mStarted = false;
     mPlaying = false;
     mStartPosUs = 0;
+    mPauseRequired = false;
 }
 
 // static
@@ -549,6 +567,10 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                 mIsFirstBuffer = false;
             } else {
                 err = mSource->read(&mInputBuffer, &options);
+                if (err == OK && mInputBuffer == NULL && mSourcePaused) {
+                    ALOGV("mSourcePaused, return 0 from fillBuffer");
+                    return 0;
+                }
             }
 
             CHECK((err == OK && mInputBuffer != NULL)

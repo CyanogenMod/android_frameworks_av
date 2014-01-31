@@ -79,7 +79,8 @@ StagefrightRecorder::StagefrightRecorder(const String16 &opPackageName)
       mOutputFd(-1),
       mAudioSource(AUDIO_SOURCE_CNT),
       mVideoSource(VIDEO_SOURCE_LIST_END),
-      mStarted(false) {
+      mStarted(false),
+      mRecPaused(false) {
 
     ALOGV("Constructor");
     reset();
@@ -846,6 +847,22 @@ status_t StagefrightRecorder::start() {
         return INVALID_OPERATION;
     }
 
+    if (mRecPaused == true) {
+        status_t err = mWriter->start();
+        if (err != OK) {
+            ALOGE("Writer start in StagefrightRecorder pause failed");
+            return err;
+        }
+
+        err = setSourcePause(false);
+        if (err != OK) {
+            ALOGE("Source start after pause failed");
+            return err;
+        }
+
+        mRecPaused = false;
+        return OK;
+    }
     status_t status = OK;
 
     if (mVideoSource != VIDEO_SOURCE_SURFACE) {
@@ -1010,6 +1027,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         ALOGE("Failed to create audio encoder");
     }
 
+    mAudioEncoderOMX = audioEncoder;
     return audioEncoder;
 }
 
@@ -1625,6 +1643,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
         mGraphicBufferProducer = encoder->getGraphicBufferProducer();
     }
 
+    mVideoSourceNode = cameraSource;
+    mVideoEncoderOMX = encoder;
     *source = encoder;
 
     return OK;
@@ -1759,10 +1779,23 @@ void StagefrightRecorder::setupMPEG4orWEBMMetaData(sp<MetaData> *meta) {
 
 status_t StagefrightRecorder::pause() {
     ALOGV("pause");
+    status_t err = OK;
     if (mWriter == NULL) {
         return UNKNOWN_ERROR;
     }
-    mWriter->pause();
+    err = setSourcePause(true);
+    if (err != OK) {
+        ALOGE("StagefrightRecorder pause failed");
+        return err;
+    }
+
+    err = mWriter->pause();
+    if (err != OK) {
+        ALOGE("Writer pause failed");
+        return err;
+    }
+
+    mRecPaused = true;
 
     if (mStarted) {
         mStarted = false;
@@ -1789,6 +1822,16 @@ status_t StagefrightRecorder::stop() {
     if (mCaptureFpsEnable && mCameraSourceTimeLapse != NULL) {
         mCameraSourceTimeLapse->startQuickReadReturns();
         mCameraSourceTimeLapse = NULL;
+    }
+
+    if (mRecPaused) {
+        status_t err = setSourcePause(false);
+        if (err != OK) {
+            ALOGE("Source start after pause in StagefrightRecorder stop failed");
+            return err;
+        }
+
+        mRecPaused = false;
     }
 
     if (mWriter != NULL) {
@@ -1959,5 +2002,69 @@ status_t StagefrightRecorder::dump(
     result.append(buffer);
     ::write(fd, result.string(), result.size());
     return OK;
+}
+
+status_t StagefrightRecorder::setSourcePause(bool pause) {
+    status_t err = OK;
+    if (pause) {
+        if (mVideoEncoderOMX != NULL) {
+            err = mVideoEncoderOMX->pause();
+            if (err != OK) {
+                ALOGE("OMX VideoEncoder pause failed");
+                return err;
+            }
+        }
+        if (mAudioEncoderOMX != NULL) {
+            err = mAudioEncoderOMX->pause();
+            if (err != OK) {
+                ALOGE("OMX AudioEncoder pause failed");
+                return err;
+            }
+        }
+        if (mVideoSourceNode != NULL) {
+            err = mVideoSourceNode->pause();
+            if (err != OK) {
+                ALOGE("OMX VideoSourceNode pause failed");
+                return err;
+            }
+        }
+        if (mAudioSourceNode != NULL) {
+            err = mAudioSourceNode->pause();
+            if (err != OK) {
+                ALOGE("OMX AudioSourceNode pause failed");
+                return err;
+            }
+        }
+    } else {
+        if (mVideoSourceNode != NULL) {
+            err = mVideoSourceNode->start();
+            if (err != OK) {
+                ALOGE("OMX VideoSourceNode start failed");
+                return err;
+            }
+        }
+        if (mAudioSourceNode != NULL) {
+            err = mAudioSourceNode->start();
+            if (err != OK) {
+                ALOGE("OMX AudioSourceNode start failed");
+                return err;
+            }
+        }
+        if (mVideoEncoderOMX != NULL) {
+            err = mVideoEncoderOMX->start();
+            if (err != OK) {
+                ALOGE("OMX VideoEncoder start failed");
+                return err;
+            }
+        }
+        if (mAudioEncoderOMX != NULL) {
+            err = mAudioEncoderOMX->start();
+            if (err != OK) {
+                ALOGE("OMX AudioEncoder start failed");
+                return err;
+            }
+        }
+    }
+    return err;
 }
 }  // namespace android

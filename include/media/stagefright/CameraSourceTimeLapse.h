@@ -67,6 +67,9 @@ protected:
 
     // Real timestamp of the last encoded time lapse frame
     int64_t mLastTimeLapseFrameRealTimestampUs;
+    // Adjusted continuous timestamp based on recording fps
+    // of the last encoded time lapse frame
+    int64_t mLastTimeLapseFrameTimeStampUs;
 
     // Variable set in dataCallbackTimestamp() to help skipCurrentFrame()
     // to know if current frame needs to be skipped.
