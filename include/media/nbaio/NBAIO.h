@@ -76,6 +76,12 @@ typedef ssize_t (*writeVia_t)(void *user, void *buffer, size_t count);
 typedef ssize_t (*readVia_t)(void *user, const void *buffer,
                              size_t count, int64_t readPTS);
 
+// Check whether an NBAIO_Format is valid
+bool Format_isValid(const NBAIO_Format& format);
+
+// Compare two NBAIO_Format values
+bool Format_isEqual(const NBAIO_Format& format1, const NBAIO_Format& format2);
+
 // Abstract class (interface) representing a data port.
 class NBAIO_Port : public RefBase {
 
