@@ -211,12 +211,12 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual void            flush() {}
         virtual void            pause() {}
         virtual void            close() {}
-                void            setAudioStreamType(audio_stream_type_t streamType) {}
+                void            setAudioStreamType(audio_stream_type_t streamType __unused) {}
                 // stream type is not used for AudioCache
         virtual audio_stream_type_t getAudioStreamType() const { return AUDIO_STREAM_DEFAULT; }
 
-                void            setVolume(float left, float right) {}
-        virtual status_t        setPlaybackRatePermille(int32_t ratePermille) { return INVALID_OPERATION; }
+                void            setVolume(float left __unused, float right __unused) {}
+        virtual status_t        setPlaybackRatePermille(int32_t ratePermille __unused) { return INVALID_OPERATION; }
                 uint32_t        sampleRate() const { return mSampleRate; }
                 audio_format_t  format() const { return mFormat; }
                 size_t          size() const { return mSize; }

@@ -81,8 +81,14 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"timelapseqvga", CAMCORDER_QUALITY_TIME_LAPSE_QVGA},
 };
 
+#if LOG_NDEBUG
+#define UNUSED __unused
+#else
+#define UNUSED
+#endif
+
 /*static*/ void
-MediaProfiles::logVideoCodec(const MediaProfiles::VideoCodec& codec)
+MediaProfiles::logVideoCodec(const MediaProfiles::VideoCodec& codec UNUSED)
 {
     ALOGV("video codec:");
     ALOGV("codec = %d", codec.mCodec);
@@ -93,7 +99,7 @@ MediaProfiles::logVideoCodec(const MediaProfiles::VideoCodec& codec)
 }
 
 /*static*/ void
-MediaProfiles::logAudioCodec(const MediaProfiles::AudioCodec& codec)
+MediaProfiles::logAudioCodec(const MediaProfiles::AudioCodec& codec UNUSED)
 {
     ALOGV("audio codec:");
     ALOGV("codec = %d", codec.mCodec);
@@ -103,7 +109,7 @@ MediaProfiles::logAudioCodec(const MediaProfiles::AudioCodec& codec)
 }
 
 /*static*/ void
-MediaProfiles::logVideoEncoderCap(const MediaProfiles::VideoEncoderCap& cap)
+MediaProfiles::logVideoEncoderCap(const MediaProfiles::VideoEncoderCap& cap UNUSED)
 {
     ALOGV("video encoder cap:");
     ALOGV("codec = %d", cap.mCodec);
@@ -114,7 +120,7 @@ MediaProfiles::logVideoEncoderCap(const MediaProfiles::VideoEncoderCap& cap)
 }
 
 /*static*/ void
-MediaProfiles::logAudioEncoderCap(const MediaProfiles::AudioEncoderCap& cap)
+MediaProfiles::logAudioEncoderCap(const MediaProfiles::AudioEncoderCap& cap UNUSED)
 {
     ALOGV("audio encoder cap:");
     ALOGV("codec = %d", cap.mCodec);
@@ -124,21 +130,21 @@ MediaProfiles::logAudioEncoderCap(const MediaProfiles::AudioEncoderCap& cap)
 }
 
 /*static*/ void
-MediaProfiles::logVideoDecoderCap(const MediaProfiles::VideoDecoderCap& cap)
+MediaProfiles::logVideoDecoderCap(const MediaProfiles::VideoDecoderCap& cap UNUSED)
 {
     ALOGV("video decoder cap:");
     ALOGV("codec = %d", cap.mCodec);
 }
 
 /*static*/ void
-MediaProfiles::logAudioDecoderCap(const MediaProfiles::AudioDecoderCap& cap)
+MediaProfiles::logAudioDecoderCap(const MediaProfiles::AudioDecoderCap& cap UNUSED)
 {
     ALOGV("audio codec cap:");
     ALOGV("codec = %d", cap.mCodec);
 }
 
 /*static*/ void
-MediaProfiles::logVideoEditorCap(const MediaProfiles::VideoEditorCap& cap)
+MediaProfiles::logVideoEditorCap(const MediaProfiles::VideoEditorCap& cap UNUSED)
 {
     ALOGV("videoeditor cap:");
     ALOGV("mMaxInputFrameWidth = %d", cap.mMaxInputFrameWidth);
