@@ -868,9 +868,9 @@ static bool charMatchesEncoding(int ch, const CharRange* encodingRanges, int ran
 extern uint32_t findPossibleEncodings(int ch)
 {
     // ASCII matches everything
-    if (ch < 256) return kEncodingAll;
+    if (ch < 128) return kEncodingAll;
 
-    int result = kEncodingNone;
+    int result = kEncodingCP1252;
 
     if (charMatchesEncoding(ch, kShiftJISRanges, ARRAY_SIZE(kShiftJISRanges)))
         result |= kEncodingShiftJIS;

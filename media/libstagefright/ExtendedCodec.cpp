@@ -388,6 +388,9 @@ status_t ExtendedCodec::setSupportedRole(
           "audio_decoder.ac3", NULL },
         { MEDIA_MIMETYPE_AUDIO_WMA,
           "audio_decoder.wma" , NULL },
+        { MEDIA_MIMETYPE_VIDEO_HEVC,
+          "video_decoder.hevc" , NULL },
+
         };
 
     static const size_t kNumMimeToRole =
@@ -912,6 +915,14 @@ bool ExtendedCodec::useHWAACDecoder(const char *mime) {
     return false;
 }
 
+bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
+    /* pause is required for hardware component to release adsp resources */
+    if (!strncmp(componentName, "OMX.qcom.", 9)) {
+        return true;
+    }
+    return false;
+}
+
 } //namespace android
 
 #else //ENABLE_AV_ENHANCEMENTS
@@ -1072,6 +1083,9 @@ namespace android {
         return;
     }
 
+    bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
+        return false;
+    }
 } //namespace android
 
 #endif //ENABLE_AV_ENHANCEMENTS

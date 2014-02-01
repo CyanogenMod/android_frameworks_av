@@ -32,6 +32,10 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
+#ifdef QCOM_HARDWARE
+#include <media/stagefright/ExtendedCodec.h>
+#endif
+
 #include "include/AwesomePlayer.h"
 
 namespace android {
@@ -63,7 +67,11 @@ AudioPlayer::AudioPlayer(
       mPinnedTimeUs(-1ll),
       mPlaying(false),
       mStartPosUs(0),
-      mCreateFlags(flags) {
+      mCreateFlags(flags)
+#ifdef QCOM_HARDWARE
+      ,mPauseRequired(false)
+#endif
+      {
 }
 
 AudioPlayer::~AudioPlayer() {
@@ -254,7 +262,13 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     mStarted = true;
     mPlaying = true;
     mPinnedTimeUs = -1ll;
-
+#ifdef QCOM_HARDWARE
+    const char *componentName;
+    if (!(format->findCString(kKeyDecoderComponent, &componentName))) {
+          componentName = "none";
+    }
+    mPauseRequired = ExtendedCodec::isSourcePauseRequired(componentName);
+#endif
     return OK;
 }
 
@@ -282,8 +296,10 @@ void AudioPlayer::pause(bool playPendingSamples) {
     mPlaying = false;
 #ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
-    if (mSource->pause() == OK) {
-        mSourcePaused = true;
+    if (mPauseRequired) {
+        if (mSource->pause() == OK) {
+            mSourcePaused = true;
+        }
     }
 #endif
 }
@@ -390,6 +406,9 @@ void AudioPlayer::reset() {
     mStarted = false;
     mPlaying = false;
     mStartPosUs = 0;
+#ifdef QCOM_HARDWARE
+    mPauseRequired = false;
+#endif
 }
 
 // static
@@ -436,7 +455,7 @@ size_t AudioPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink::cb_event_t event) {
     AudioPlayer *me = (AudioPlayer *)cookie;
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if (buffer == NULL) {
         //Not applicable for AudioPlayer
         ALOGE("This indicates the event underrun case for LPA/Tunnel");

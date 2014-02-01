@@ -118,6 +118,9 @@ private:
     bool mPlaying;
     int64_t mStartPosUs;
     const uint32_t mCreateFlags;
+#ifdef QCOM_HARDWARE
+    bool mPauseRequired;
+#endif
 
     static void AudioCallback(int event, void *user, void *info);
     void AudioCallback(int event, void *info);

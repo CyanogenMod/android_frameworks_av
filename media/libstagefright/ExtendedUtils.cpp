@@ -156,11 +156,13 @@ void ExtendedUtils::HFR::copyHFRParams(
     outputFormat->setInt32(kKeyFrameRate, frameRate);
 }
 
-bool ExtendedUtils::ShellProp::isAudioDisabled() {
+bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
     bool retVal = false;
     char disableAudio[PROPERTY_VALUE_MAX];
     property_get("persist.debug.sf.noaudio", disableAudio, "0");
-    if (atoi(disableAudio) == 1) {
+    if (isEncoder && (atoi(disableAudio) & 0x02)) {
+        retVal = true;
+    } else if (atoi(disableAudio) & 0x01) {
         retVal = true;
     }
     return retVal;
@@ -514,38 +516,6 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
     return isInThumbnailMode;
 }
 
-void ExtendedUtils::setArbitraryModeIfInterlaced(
-        const uint8_t *ptr, const sp<MetaData> &meta) {
-
-    if (ptr == NULL) {
-        return;
-    }
-    uint16_t spsSize = (((uint16_t)ptr[6]) << 8) + (uint16_t)(ptr[7]);
-    int32_t width = 0, height = 0, isInterlaced = 0;
-    const uint8_t *spsStart = &ptr[8];
-
-    sp<ABuffer> seqParamSet = new ABuffer(spsSize);
-    memcpy(seqParamSet->data(), spsStart, spsSize);
-    FindAVCDimensions(seqParamSet, &width, &height, NULL, NULL, &isInterlaced);
-
-    ALOGV("height is %d, width is %d, isInterlaced is %d\n", height, width, isInterlaced);
-    if (isInterlaced) {
-        meta->setInt32(kKeyUseArbitraryMode, 1);
-        meta->setInt32(kKeyInterlace, 1);
-    }
-    return;
-}
-
-int32_t ExtendedUtils::checkIsInterlace(sp<MetaData> &meta) {
-    int32_t isInterlaceFormat = 0;
-
-    if(meta->findInt32(kKeyInterlace, &isInterlaceFormat)) {
-        ALOGI("interlace format detected");
-    }
-
-    return isInterlaceFormat;
-}
-
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -576,7 +546,7 @@ void ExtendedUtils::HFR::copyHFRParams(
         sp<MetaData> &outputFormat) {
 }
 
-bool ExtendedUtils::ShellProp::isAudioDisabled() {
+bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
     return false;
 }
 
@@ -634,14 +604,6 @@ void ExtendedUtils::updateNativeWindowBufferGeometry(ANativeWindow* anw,
 }
 
 bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentName) {
-    return false;
-}
-
-void ExtendedUtils::setArbitraryModeIfInterlaced(
-        const uint8_t *ptr, const sp<MetaData> &meta) {
-}
-
-int32_t ExtendedUtils::checkIsInterlace(sp<MetaData> &meta) {
     return false;
 }
 

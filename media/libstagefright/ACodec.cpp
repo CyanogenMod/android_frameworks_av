@@ -384,12 +384,7 @@ ACodec::ACodec()
       mDequeueCounter(0),
       mStoreMetaDataInOutputBuffers(false),
       mMetaDataBuffersToSubmit(0),
-#ifdef QCOM_HARDWARE
-      mRepeatFrameDelayUs(-1ll),
-      mInSmoothStreamingMode(false) {
-#else
       mRepeatFrameDelayUs(-1ll) {
-#endif
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -1172,11 +1167,21 @@ status_t ACodec::configureCodec(
     int32_t haveNativeWindow = msg->findObject("native-window", &obj) &&
             obj != NULL;
     mStoreMetaDataInOutputBuffers = false;
+    bool bAdaptivePlaybackMode = false;
     if (!encoder && video && haveNativeWindow) {
-        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
-        if (err != OK) {
-            ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
-                  mComponentName.c_str(), err);
+        int32_t preferAdaptive = 0;
+        if (msg->findInt32("prefer-adaptive-playback", &preferAdaptive)
+                && preferAdaptive == 1) {
+            ALOGI("[%s] Adaptive playback preferred", mComponentName.c_str());
+        } else {
+            preferAdaptive = 0;
+            err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
+        }
+        if (err != OK || preferAdaptive) {
+            if (!preferAdaptive) {
+                ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                      mComponentName.c_str(), err);
+            }
 
             // if adaptive playback has been requested, try JB fallback
             // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
@@ -1208,7 +1213,7 @@ status_t ACodec::configureCodec(
             if (canDoAdaptivePlayback &&
                 msg->findInt32("max-width", &maxWidth) &&
                 msg->findInt32("max-height", &maxHeight)) {
-                ALOGV("[%s] prepareForAdaptivePlayback(%ldx%ld)",
+                ALOGI("[%s] prepareForAdaptivePlayback(%ldx%ld)",
                       mComponentName.c_str(), maxWidth, maxHeight);
 
                 err = mOMX->prepareForAdaptivePlayback(
@@ -1216,6 +1221,15 @@ status_t ACodec::configureCodec(
                 ALOGW_IF(err != OK,
                         "[%s] prepareForAdaptivePlayback failed w/ err %d",
                         mComponentName.c_str(), err);
+                bAdaptivePlaybackMode = (err == OK);
+            }
+            // if Adaptive mode was tried first and codec failed it, try dynamic mode
+            if (err != OK && preferAdaptive) {
+                err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
+                if (err != OK) {
+                    ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
+                          mComponentName.c_str(), err);
+                }
             }
             // allow failure
             err = OK;
@@ -1223,6 +1237,9 @@ status_t ACodec::configureCodec(
             ALOGV("[%s] storeMetaDataInBuffers succeeded", mComponentName.c_str());
             mStoreMetaDataInOutputBuffers = true;
         }
+
+        ALOGI("DRC Mode: %s",(mStoreMetaDataInOutputBuffers ? "Dynamic Buffer Mode" :
+                (bAdaptivePlaybackMode ? "Adaptive Mode" : "Port Reconfig Mode")));
 
         int32_t push;
         if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
@@ -1857,11 +1874,6 @@ status_t ACodec::setupVideoDecoder(
     if (err != OK) {
         return err;
     }
-
-#ifdef QCOM_HARDWARE
-    ExtendedCodec::enableSmoothStreaming(
-            mOMX, mNode, &mInSmoothStreamingMode, mComponentName.c_str());
-#endif
 
     return OK;
 }
@@ -2644,11 +2656,6 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
                             rect.nTop,
                             rect.nLeft + rect.nWidth,
                             rect.nTop + rect.nHeight);
-#ifdef QCOM_HARDWARE
-                    reply->setInt32(
-                            "color-format",
-                            (int)(videoDef->eColorFormat));
-#endif
                 }
             }
             break;
@@ -3539,15 +3546,6 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     android_native_rect_t crop;
     if (msg->findRect("crop",
             &crop.left, &crop.top, &crop.right, &crop.bottom)) {
-#ifdef QCOM_HARDWARE
-        if (mCodec->mInSmoothStreamingMode) {
-            OMX_COLOR_FORMATTYPE eColorFormat = OMX_COLOR_FormatUnused;
-            CHECK(msg->findInt32("color-format", (int32_t*)&eColorFormat));
-            ExtendedUtils::updateNativeWindowBufferGeometry(
-                    mCodec->mNativeWindow.get(), crop.right,
-                    crop.bottom, eColorFormat);
-        }
-#endif
         CHECK_EQ(0, native_window_set_crop(
                 mCodec->mNativeWindow.get(), &crop));
     }

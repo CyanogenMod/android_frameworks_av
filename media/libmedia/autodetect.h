@@ -24,10 +24,13 @@ enum {
     kEncodingNone               = 0,
     kEncodingShiftJIS           = (1 << 0),
     kEncodingGBK                = (1 << 1),
-    kEncodingBig5               = (1 << 2),
-    kEncodingEUCKR              = (1 << 3),
+    kEncodingEUCKR              = (1 << 2),
+    kEncodingBig5               = (1 << 3),
+    kEncodingUTF8               = (1 << 4),
+    kEncodingCP1252             = (1 << 5),
 
-    kEncodingAll                = (kEncodingShiftJIS | kEncodingGBK | kEncodingBig5 | kEncodingEUCKR),
+    kEncodingAll                = (kEncodingShiftJIS | kEncodingGBK | kEncodingEUCKR
+                                   | kEncodingBig5 | kEncodingUTF8 | kEncodingCP1252),
 };
 
 

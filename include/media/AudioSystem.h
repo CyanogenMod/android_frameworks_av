@@ -25,9 +25,6 @@
 #include <system/audio_policy.h>
 #include <utils/Errors.h>
 #include <utils/Mutex.h>
-#ifdef QCOM_HARDWARE
-#include <media/AudioParameter.h>
-#endif
 
 namespace android {
 
@@ -152,7 +149,7 @@ public:
         INPUT_CLOSED,
         INPUT_CONFIG_CHANGED,
         STREAM_CONFIG_CHANGED,
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         EFFECT_CONFIG_CHANGED,
 #endif
         NUM_CONFIG_EVENTS

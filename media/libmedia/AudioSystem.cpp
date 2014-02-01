@@ -316,7 +316,7 @@ status_t AudioSystem::getLatency(audio_io_handle_t output,
                                  audio_stream_type_t streamType,
                                  uint32_t* latency)
 {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
     *latency = af->latency(output);

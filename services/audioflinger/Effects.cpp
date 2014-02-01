@@ -30,11 +30,6 @@
 #include "AudioFlinger.h"
 #include "ServiceUtilities.h"
 
-#ifdef SRS_PROCESSING
-#include "srs_processing.h"
-#include "postpro_patch_ics.h"
-#endif
-
 // ----------------------------------------------------------------------------
 
 // Note: the following macro is used for extremely verbose logging message.  In
@@ -72,7 +67,7 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
       mStatus(NO_INIT), mState(IDLE),
       // mMaxDisableWaitCnt is set by configure() and not used before then
       // mDisableWaitCnt is set by process() and updateState() and not used before then
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
       mSuspended(false), mIsForLPA(false)
 #else
       mSuspended(false)
@@ -311,7 +306,7 @@ void AudioFlinger::EffectModule::reset_l()
     (*mEffectInterface)->command(mEffectInterface, EFFECT_CMD_RESET, 0, NULL, 0, NULL);
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 status_t AudioFlinger::EffectModule::configure(bool isForLPA, int sampleRate, int channelCount, int frameCount)
 #else
 status_t AudioFlinger::EffectModule::configure()
@@ -322,7 +317,7 @@ status_t AudioFlinger::EffectModule::configure()
     sp<ThreadBase> thread;
     uint32_t size;
     audio_channel_mask_t channelMask;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     uint32_t channels;
 #endif
 
@@ -339,7 +334,7 @@ status_t AudioFlinger::EffectModule::configure()
 
     // TODO: handle configuration of effects replacing track process
     channelMask = thread->channelMask();
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if(popcount(channelMask) > 2) {
         ALOGE("Error: Trying to apply effect on  %d channel content",popcount(channelMask));
         return INVALID_OPERATION;
@@ -368,13 +363,13 @@ status_t AudioFlinger::EffectModule::configure()
     mConfig.outputCfg.channels = channelMask;
     mConfig.inputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
     mConfig.outputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if(isForLPA){
         mConfig.inputCfg.samplingRate = sampleRate;
     } else {
 #endif
         mConfig.inputCfg.samplingRate = thread->sampleRate();
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     }
 #endif
     mConfig.outputCfg.samplingRate = mConfig.inputCfg.samplingRate;
@@ -401,13 +396,13 @@ status_t AudioFlinger::EffectModule::configure()
     }
     mConfig.inputCfg.mask = EFFECT_CONFIG_ALL;
     mConfig.outputCfg.mask = EFFECT_CONFIG_ALL;
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if(isForLPA) {
         mConfig.inputCfg.buffer.frameCount = frameCount;
     } else {
 #endif
         mConfig.inputCfg.buffer.frameCount = thread->frameCount();
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     }
 #endif
     mConfig.outputCfg.buffer.frameCount = mConfig.inputCfg.buffer.frameCount;
@@ -606,13 +601,13 @@ status_t AudioFlinger::EffectModule::setEnabled(bool enabled)
 // must be called with EffectModule::mLock held
 status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
 {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     bool effectStateChanged = false;
 #endif
     ALOGV("setEnabled %p enabled %d", this, enabled);
 
     if (enabled != isEnabled()) {
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
         effectStateChanged = true;
 #endif
         status_t status = AudioSystem::setEffectEnabled(mId, enabled);
@@ -652,7 +647,7 @@ status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
             }
         }
     }
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     /*
        Send notification event to LPA Player when an effect for
        LPA output is enabled or disabled.
@@ -1208,7 +1203,7 @@ status_t AudioFlinger::EffectHandle::command(uint32_t cmdCode,
         return disable();
     }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if(mEffect->isOnLPA() &&
        ((cmdCode == EFFECT_CMD_SET_PARAM) || (cmdCode == EFFECT_CMD_SET_PARAM_DEFERRED) ||
         (cmdCode == EFFECT_CMD_SET_PARAM_COMMIT) || (cmdCode == EFFECT_CMD_SET_DEVICE) ||
@@ -1286,7 +1281,7 @@ AudioFlinger::EffectChain::EffectChain(ThreadBase *thread,
                                         int sessionId)
     : mThread(thread), mSessionId(sessionId), mActiveTrackCnt(0), mTrackCnt(0), mTailBufferCount(0),
       mOwnInBuffer(false), mVolumeCtrlIdx(-1), mLeftVolume(UINT_MAX), mRightVolume(UINT_MAX),
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
       mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX), mIsForLPATrack(false)
 #else
       mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX)
@@ -1336,7 +1331,7 @@ sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromId_l(int 
     return 0;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromIndex_l(int idx)
 {
     sp<EffectModule> effect = NULL;
@@ -1415,7 +1410,7 @@ void AudioFlinger::EffectChain::process_l()
     }
 
     size_t size = mEffects.size();
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
     if (doProcess || isForLPATrack()) {
 #else
     if (doProcess) {
@@ -1897,7 +1892,7 @@ bool AudioFlinger::EffectChain::isNonOffloadableEnabled()
     return false;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 #define DEAFULT_FRAME_COUNT 1200
 bool AudioFlinger::applyEffectsOn(void *token, int16_t *inBuffer,
                             int16_t *outBuffer, int size, bool force)
@@ -1908,9 +1903,6 @@ bool AudioFlinger::applyEffectsOn(void *token, int16_t *inBuffer,
     mIsEffectConfigChanged = false;
 
     volatile size_t numEffects = 0;
-#ifdef SRS_PROCESSING
-    POSTPRO_PATCH_ICS_OUTPROC_DIRECT_SAMPLES(token, AUDIO_FORMAT_PCM_16_BIT, outBuffer, size, mLPASampleRate, mLPANumChannels);
-#endif
 
     if(mLPAEffectChain != NULL) {
         numEffects = mLPAEffectChain->getNumEffects();
@@ -2035,17 +2027,6 @@ void AudioFlinger::DirectAudioTrack::EffectsThreadEntry() {
                         break;
                     }
             }
-#ifdef SRS_PROCESSING
-            } else if (mFlag & AUDIO_OUTPUT_FLAG_TUNNEL) {
-                ALOGV("applying effects for TUNNEL");
-                char buffer[2];
-                    //dummy buffer to ensure the SRS processing takes place
-                    // The API mandates Sample rate and channel mode. Hence
-                    // defaulted the sample rate channel mode to 48000 and 2 respectively
-                POSTPRO_PATCH_ICS_OUTPROC_DIRECT_SAMPLES(static_cast<void *>(this),
-                                                         AUDIO_FORMAT_PCM_16_BIT,
-                                                        (int16_t*)buffer, 2, 48000, 2);
-#endif
             }
         }
         mEffectLock.unlock();

@@ -42,7 +42,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/timedtext/TimedTextDriver.h>
 #include <media/stagefright/AudioPlayer.h>
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
 #ifdef LEGACY_LPA
 #include <media/stagefright/LPAPlayerLegacy.h>
 #else
@@ -61,6 +61,9 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/Utils.h>
+#ifdef QCOM_HARDWARE
+#include "include/ExtendedUtils.h"
+#endif
 
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
@@ -82,9 +85,10 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 static const size_t kLowWaterMarkBytes = 40000;
 static const size_t kHighWaterMarkBytes = 200000;
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
 int AwesomePlayer::mTunnelAliveAP = 0;
 #endif
+static int64_t kVideoEarlyMarginUs = -10000LL;
 
 // maximum time in paused state when offloading audio decompression. When elapsed, the AudioPlayer
 // is destroyed to allow the audio DSP to power down.
@@ -251,8 +255,12 @@ AwesomePlayer::AwesomePlayer()
     mAudioTearDownPosition = 0;
 
     reset();
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     mIsTunnelAudio = false;
+#endif
+
+#ifdef QCOM_HARDWARE
+    mLateAVSyncMargin = ExtendedUtils::ShellProp::getMaxAVSyncLateMargin();
 #endif
 }
 
@@ -263,7 +271,7 @@ AwesomePlayer::~AwesomePlayer() {
 
     reset();
 
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     // Disable Tunnel Mode Audio
     if (mIsTunnelAudio) {
         if (mTunnelAliveAP > 0) {
@@ -531,7 +539,11 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
                     &mStats.mTracks.editItemAt(mStats.mVideoTrackIndex);
                 stat->mMIME = mime.string();
             }
-        } else if (!haveAudio && !strncasecmp(mime.string(), "audio/", 6)) {
+        } else if (!haveAudio &&
+#ifdef QCOM_HARDWARE
+                !ExtendedUtils::ShellProp::isAudioDisabled(false) &&
+#endif
+                !strncasecmp(mime.string(), "audio/", 6)) {
             setAudioSource(extractor->getTrack(i));
             haveAudio = true;
             mActiveAudioTrackIndex = i;
@@ -1038,7 +1050,7 @@ status_t AwesomePlayer::play_l() {
             // We don't want to post an error notification at this point,
             // the error returned from MediaPlayer::start() will suffice.
             bool sendErrorNotification = false;
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
             if(mIsTunnelAudio) {
                 // For tunnel Audio error has to be posted to the client
                 sendErrorNotification = true;
@@ -1047,33 +1059,7 @@ status_t AwesomePlayer::play_l() {
             status_t err = startAudioPlayer_l(sendErrorNotification);
 
             if ((err != OK) && mOffloadAudio) {
-                ALOGI("play_l() cannot create offload output, fallback to sw decode");
-                int64_t curTimeUs;
-                getPosition(&curTimeUs);
-
-                delete mAudioPlayer;
-                mAudioPlayer = NULL;
-                // if the player was started it will take care of stopping the source when destroyed
-                if (!(mFlags & AUDIOPLAYER_STARTED)) {
-                    mAudioSource->stop();
-                }
-                modifyFlags((AUDIO_RUNNING | AUDIOPLAYER_STARTED), CLEAR);
-                mOffloadAudio = false;
-                mAudioSource = mOmxSource;
-                if (mAudioSource != NULL) {
-                    err = mAudioSource->start();
-
-                    if (err != OK) {
-                        mAudioSource.clear();
-                    } else {
-                        mSeekNotificationSent = true;
-                        if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
-                            seekTo_l(curTimeUs);
-                        }
-                        createAudioPlayer_l();
-                        err = startAudioPlayer_l(false);
-                    }
-                }
+                 err = fallbackToSWDecoder();
             }
 
             if (err != OK) {
@@ -1137,12 +1123,46 @@ status_t AwesomePlayer::play_l() {
     return OK;
 }
 
+status_t AwesomePlayer::fallbackToSWDecoder() {
+    int64_t curTimeUs;
+    status_t err = OK;
+
+    ALOGI("play_l() cannot create offload output, fallback to sw decode");
+    getPosition(&curTimeUs);
+
+    delete mAudioPlayer;
+    mAudioPlayer = NULL;
+    // if the player was started it will take care of stopping the source when destroyed
+    if (!(mFlags & AUDIOPLAYER_STARTED)) {
+        mAudioSource->stop();
+    }
+    modifyFlags((AUDIO_RUNNING | AUDIOPLAYER_STARTED), CLEAR);
+    mOffloadAudio = false;
+    mAudioSource = mOmxSource;
+    if (mAudioSource != NULL) {
+        err = mAudioSource->start();
+
+        if (err != OK) {
+            mAudioSource.clear();
+        } else {
+            mSeekNotificationSent = true;
+            if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
+                seekTo_l(curTimeUs);
+            }
+            createAudioPlayer_l();
+            err = startAudioPlayer_l(false);
+        }
+    }
+
+    return err;
+}
+
 void AwesomePlayer::createAudioPlayer_l()
 {
     uint32_t flags = 0;
     int64_t cachedDurationUs;
     bool eos;
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     sp<MetaData> format = mAudioTrack->getFormat();
     const char *mime;
     bool success = format->findCString(kKeyMIMEType, &mime);
@@ -1163,7 +1183,7 @@ void AwesomePlayer::createAudioPlayer_l()
     if (mVideoSource != NULL) {
         flags |= AudioPlayer::HAS_VIDEO;
     }
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
 #ifdef USE_TUNNEL_MODE
     // Create tunnel player if tunnel mode is enabled
     ALOGW("Trying to create tunnel player mIsTunnelAudio %d, \
@@ -1734,7 +1754,7 @@ status_t AwesomePlayer::initAudioDecoder() {
                                      isStreamingHTTP(), streamType);
     }
 
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
     int32_t nchannels = 0;
     int32_t isADTS = 0;
     meta->findInt32( kKeyChannelCount, &nchannels );
@@ -1862,7 +1882,7 @@ status_t AwesomePlayer::initAudioDecoder() {
         if (mOffloadAudio) {
             ALOGV("createAudioPlayer: bypass OMX (offload)");
             mAudioSource = mAudioTrack;
-#ifndef QCOM_ENHANCED_AUDIO
+#ifndef QCOM_DIRECTTRACK
         } else {
             mAudioSource = mOmxSource;
 #endif
@@ -2205,9 +2225,24 @@ void AwesomePlayer::onVideoEvent() {
     finishSeekIfNecessary(timeUs);
 
     if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING | SEEK_PREVIEW))) {
-        status_t err = startAudioPlayer_l();
+        status_t err = startAudioPlayer_l(false /* sendErrorNotification */);
+        if ((err != OK) && mOffloadAudio) {
+            err = fallbackToSWDecoder();
+        }
+
         if (err != OK) {
-            ALOGE("Starting the audio player failed w/ err %d", err);
+            ALOGE("Failed to fallback to SW decoder err = %d", err);
+            notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+
+            delete mAudioPlayer;
+            mAudioPlayer = NULL;
+
+            modifyFlags((PLAYING | FIRST_FRAME), CLEAR);
+
+            if (mDecryptHandle != NULL) {
+               mDrmManagerClient->setPlaybackStatus(
+                       mDecryptHandle, Playback::STOP, 0);
+            }
             return;
         }
     }
@@ -2288,7 +2323,7 @@ void AwesomePlayer::onVideoEvent() {
             }
         }
 
-        if (latenessUs > 40000) {
+        if (latenessUs > mLateAVSyncMargin) {
             // We're more than 40ms late.
             ALOGV("we're late by %lld us (%.2f secs)",
                  latenessUs, latenessUs / 1E6);
@@ -2326,7 +2361,8 @@ void AwesomePlayer::onVideoEvent() {
                 Mutex::Autolock autoLock(mStatsLock);
                 mStats.mConsecutiveFramesDropped = 0;
             }
-            postVideoEvent_l(10000);
+            postVideoEvent_l((kVideoEarlyMarginUs - latenessUs) > 40000LL ?
+                                40000LL : (kVideoEarlyMarginUs - latenessUs));
             return;
         }
     }
@@ -2511,7 +2547,10 @@ void AwesomePlayer::onCheckAudioStatus() {
             mSeekNotificationSent = true;
         }
 
-        mSeeking = NO_SEEK;
+        if (mVideoSource == NULL) {
+            // For video the mSeeking flag is always reset in finishSeekIfNecessary
+            mSeeking = NO_SEEK;
+        }
 
         notifyIfMediaStarted_l();
     }
@@ -3357,7 +3396,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
     beginPrepareAsync_l();
 }
 
-#ifdef QCOM_ENHANCED_AUDIO
+#ifdef QCOM_DIRECTTRACK
 bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
     const char * tunnelFormats [ ] = {
         MEDIA_MIMETYPE_AUDIO_MPEG,
