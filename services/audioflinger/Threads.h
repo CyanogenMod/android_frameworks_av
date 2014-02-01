@@ -65,7 +65,7 @@ public:
     class IoConfigEvent : public ConfigEvent {
     public:
         IoConfigEvent(int event, int param) :
-            ConfigEvent(CFG_EVENT_IO), mEvent(event), mParam(event) {}
+            ConfigEvent(CFG_EVENT_IO), mEvent(event), mParam(param) {}
         virtual ~IoConfigEvent() {}
 
                 int event() const { return mEvent; }
