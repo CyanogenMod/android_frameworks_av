@@ -264,7 +264,7 @@ AudioFlinger::AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
     return NULL;
 }
 
-void AudioFlinger::dumpClients(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpClients(int fd, const Vector<String16>& args __unused)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -296,7 +296,7 @@ void AudioFlinger::dumpClients(int fd, const Vector<String16>& args)
 }
 
 
-void AudioFlinger::dumpInternals(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpInternals(int fd, const Vector<String16>& args __unused)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -311,7 +311,7 @@ void AudioFlinger::dumpInternals(int fd, const Vector<String16>& args)
     write(fd, result.string(), result.size());
 }
 
-void AudioFlinger::dumpPermissionDenial(int fd, const Vector<String16>& args)
+void AudioFlinger::dumpPermissionDenial(int fd, const Vector<String16>& args __unused)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1259,7 +1259,7 @@ AudioFlinger::NotificationClient::~NotificationClient()
 {
 }
 
-void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who)
+void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who __unused)
 {
     sp<NotificationClient> keep(this);
     mAudioFlinger->removeNotificationClient(mPid);

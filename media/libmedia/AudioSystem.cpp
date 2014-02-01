@@ -333,7 +333,7 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
 }
 
 status_t AudioSystem::getLatency(audio_io_handle_t output,
-                                 audio_stream_type_t streamType,
+                                 audio_stream_type_t streamType __unused,
                                  uint32_t* latency)
 {
     OutputDescriptor *outputDesc;

@@ -805,7 +805,7 @@ bool AudioFlinger::EffectModule::isOffloaded() const
     return mOffloaded;
 }
 
-void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args)
+void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unused)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];

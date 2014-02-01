@@ -54,7 +54,7 @@ void MediaLogService::unregisterWriter(const sp<IMemory>& shared)
     }
 }
 
-status_t MediaLogService::dump(int fd, const Vector<String16>& args)
+status_t MediaLogService::dump(int fd, const Vector<String16>& args __unused)
 {
     // FIXME merge with similar but not identical code at services/audioflinger/ServiceUtilities.cpp
     static const String16 sDump("android.permission.DUMP");

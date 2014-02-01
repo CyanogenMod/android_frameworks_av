@@ -59,7 +59,7 @@ ssize_t PipeReader::availableToRead()
     return avail;
 }
 
-ssize_t PipeReader::read(void *buffer, size_t count, int64_t readPTS)
+ssize_t PipeReader::read(void *buffer, size_t count, int64_t readPTS __unused)
 {
     ssize_t avail = availableToRead();
     if (CC_UNLIKELY(avail <= 0)) {
