@@ -20,7 +20,7 @@
 #include <cutils/log.h>
 #include <pthread.h>
 #include <dirent.h>
-#include <media/EffectsFactoryApi.h>
+#include <hardware/audio_effect.h>
 
 #if __cplusplus
 extern "C" {
@@ -65,6 +65,32 @@ typedef struct sub_effect_entry_s {
     lib_entry_t *lib;
     void *object;
 } sub_effect_entry_t;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//    Function:       EffectGetSubEffects
+//
+//    Description:    Returns the descriptors of the sub effects of the effect
+//                    whose uuid is pointed to by first argument.
+//
+//    Input:
+//          pEffectUuid:    pointer to the effect uuid.
+//          size:           max number of sub_effect_entry_t * in pSube.
+//
+//    Input/Output:
+//          pSube:          address where to return the sub effect structures.
+//    Output:
+//        returned value:    0          successful operation.
+//                          -ENODEV     factory failed to initialize
+//                          -EINVAL     invalid pEffectUuid or pDescriptor
+//                          -ENOENT     no effect with this uuid found
+//        *pDescriptor:     updated with the sub effect descriptors.
+//
+////////////////////////////////////////////////////////////////////////////////
+int EffectGetSubEffects(const effect_uuid_t *pEffectUuid,
+                        sub_effect_entry_t **pSube,
+                        size_t size);
 
 #if __cplusplus
 }  // extern "C"
