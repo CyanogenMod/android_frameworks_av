@@ -67,6 +67,8 @@ struct ACodec : public AHierarchicalStateMachine {
 
     void signalRequestIDRFrame();
 
+    bool isConfiguredForAdaptivePlayback() { return mIsConfiguredForAdaptivePlayback; }
+
     struct PortDescription : public RefBase {
         size_t countBuffers();
         IOMX::buffer_id bufferIDAt(size_t index) const;
@@ -187,6 +189,7 @@ private:
     bool mIsEncoder;
     bool mUseMetadataOnEncoderOutput;
     bool mShutdownInProgress;
+    bool mIsConfiguredForAdaptivePlayback;
 
     // If "mKeepComponentAllocated" we only transition back to Loaded state
     // and do not release the component instance.
