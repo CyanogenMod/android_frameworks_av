@@ -475,9 +475,14 @@ void StaticAudioTrackClientProxy::flush()
 
 void StaticAudioTrackClientProxy::setLoop(size_t loopStart, size_t loopEnd, int loopCount)
 {
+    // This can only happen on a 64-bit client
+    if (loopStart > UINT32_MAX || loopEnd > UINT32_MAX) {
+        // FIXME Should return an error status
+        return;
+    }
     StaticAudioTrackState newState;
-    newState.mLoopStart = loopStart;
-    newState.mLoopEnd = loopEnd;
+    newState.mLoopStart = (uint32_t) loopStart;
+    newState.mLoopEnd = (uint32_t) loopEnd;
     newState.mLoopCount = loopCount;
     mBufferPosition = loopStart;
     (void) mMutator.push(newState);
@@ -487,7 +492,7 @@ size_t StaticAudioTrackClientProxy::getBufferPosition()
 {
     size_t bufferPosition;
     if (mMutator.ack()) {
-        bufferPosition = mCblk->u.mStatic.mBufferPosition;
+        bufferPosition = (size_t) mCblk->u.mStatic.mBufferPosition;
         if (bufferPosition > mFrameCount) {
             bufferPosition = mFrameCount;
         }
@@ -622,7 +627,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
     if (half == 0) {
         half = 1;
     }
-    size_t minimum = cblk->mMinimum;
+    size_t minimum = (size_t) cblk->mMinimum;
     if (minimum == 0) {
         minimum = mIsOut ? half : 1;
     } else if (minimum > half) {
@@ -760,7 +765,8 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
             mIsShutdown = true;
             return (ssize_t) NO_INIT;
         }
-        mCblk->u.mStatic.mBufferPosition = position;
+        // This may overflow, but client is not supposed to rely on it
+        mCblk->u.mStatic.mBufferPosition = (uint32_t) position;
     }
     return (ssize_t) position;
 }
@@ -836,7 +842,8 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     mPosition = newPosition;
 
     cblk->mServer += stepCount;
-    cblk->u.mStatic.mBufferPosition = newPosition;
+    // This may overflow, but client is not supposed to rely on it
+    cblk->u.mStatic.mBufferPosition = (uint32_t) newPosition;
     if (setFlags != 0) {
         (void) android_atomic_or(setFlags, &cblk->mFlags);
         // this would be a good place to wake a futex
