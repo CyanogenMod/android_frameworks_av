@@ -33,7 +33,7 @@ static void hexdump(const void *_data, size_t size) {
     const uint8_t *data = (const uint8_t *)_data;
     size_t offset = 0;
     while (offset < size) {
-        printf("0x%04x  ", offset);
+        printf("0x%04zx  ", offset);
 
         size_t n = size - offset;
         if (n > 16) {
@@ -101,7 +101,7 @@ void scanFile(const char *path) {
         const void *data = tag.getAlbumArt(&dataSize, &mime);
 
         if (data) {
-            printf("found album art: size=%d mime='%s'\n", dataSize,
+            printf("found album art: size=%zu mime='%s'\n", dataSize,
                    mime.string());
 
             hexdump(data, dataSize > 128 ? 128 : dataSize);

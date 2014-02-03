@@ -19,6 +19,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AwesomePlayer"
 #define ATRACE_TAG ATRACE_TAG_VIDEO
+#include <inttypes.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -725,7 +726,7 @@ void AwesomePlayer::onBufferingUpdate() {
 
                 if ((mFlags & PLAYING) && !eos
                         && (cachedDataRemaining < kLowWaterMarkBytes)) {
-                    ALOGI("cache is running low (< %d) , pausing.",
+                    ALOGI("cache is running low (< %zu) , pausing.",
                          kLowWaterMarkBytes);
                     modifyFlags(CACHE_UNDERRUN, SET);
                     pause_l();
@@ -734,12 +735,12 @@ void AwesomePlayer::onBufferingUpdate() {
                     notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
                 } else if (eos || cachedDataRemaining > kHighWaterMarkBytes) {
                     if (mFlags & CACHE_UNDERRUN) {
-                        ALOGI("cache has filled up (> %d), resuming.",
+                        ALOGI("cache has filled up (> %zu), resuming.",
                              kHighWaterMarkBytes);
                         modifyFlags(CACHE_UNDERRUN, CLEAR);
                         play_l();
                     } else if (mFlags & PREPARING) {
-                        ALOGV("cache has filled up (> %d), prepare is done",
+                        ALOGV("cache has filled up (> %zu), prepare is done",
                              kHighWaterMarkBytes);
                         finishAsyncPrepare_l();
                     }
@@ -2295,8 +2296,8 @@ status_t AwesomePlayer::finishSetDataSource_l() {
                         sniffedMIME = tmp.string();
 
                         if (meta == NULL
-                                || !meta->findInt64(
-                                    "meta-data-size", &metaDataSize)) {
+                                || !meta->findInt64("meta-data-size",
+                                     reinterpret_cast<int64_t*>(&metaDataSize))) {
                             metaDataSize = kHighWaterMarkBytes;
                         }
 
@@ -2583,12 +2584,12 @@ status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
 status_t AwesomePlayer::selectAudioTrack_l(
         const sp<MediaSource>& source, size_t trackIndex) {
 
-    ALOGI("selectAudioTrack_l: trackIndex=%d, mFlags=0x%x", trackIndex, mFlags);
+    ALOGI("selectAudioTrack_l: trackIndex=%zu, mFlags=0x%x", trackIndex, mFlags);
 
     {
         Mutex::Autolock autoLock(mStatsLock);
         if ((ssize_t)trackIndex == mActiveAudioTrackIndex) {
-            ALOGI("Track %d is active. Does nothing.", trackIndex);
+            ALOGI("Track %zu is active. Does nothing.", trackIndex);
             return OK;
         }
         //mStats.mFlags = mFlags;
@@ -2661,7 +2662,7 @@ status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
         trackCount += mTextDriver->countExternalTracks();
     }
     if (trackIndex >= trackCount) {
-        ALOGE("Track index (%d) is out of range [0, %d)", trackIndex, trackCount);
+        ALOGE("Track index (%zu) is out of range [0, %zu)", trackIndex, trackCount);
         return ERROR_OUT_OF_RANGE;
     }
 
@@ -2673,14 +2674,14 @@ status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
         isAudioTrack = !strncasecmp(mime, "audio/", 6);
 
         if (!isAudioTrack && strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP) != 0) {
-            ALOGE("Track %d is not either audio or timed text", trackIndex);
+            ALOGE("Track %zu is not either audio or timed text", trackIndex);
             return ERROR_UNSUPPORTED;
         }
     }
 
     if (isAudioTrack) {
         if (!select) {
-            ALOGE("Deselect an audio track (%d) is not supported", trackIndex);
+            ALOGE("Deselect an audio track (%zu) is not supported", trackIndex);
             return ERROR_UNSUPPORTED;
         }
         return selectAudioTrack_l(mExtractor->getTrack(trackIndex), trackIndex);
@@ -2818,7 +2819,7 @@ status_t AwesomePlayer::dump(int fd, const Vector<String16> &args) const {
     fprintf(out, ", flags(0x%08x)", mStats.mFlags);
 
     if (mStats.mBitrate >= 0) {
-        fprintf(out, ", bitrate(%lld bps)", mStats.mBitrate);
+        fprintf(out, ", bitrate(%" PRId64 " bps)", mStats.mBitrate);
     }
 
     fprintf(out, "\n");
@@ -2826,7 +2827,7 @@ status_t AwesomePlayer::dump(int fd, const Vector<String16> &args) const {
     for (size_t i = 0; i < mStats.mTracks.size(); ++i) {
         const TrackStat &stat = mStats.mTracks.itemAt(i);
 
-        fprintf(out, "  Track %d\n", i + 1);
+        fprintf(out, "  Track %zu\n", i + 1);
         fprintf(out, "   MIME(%s)", stat.mMIME.string());
 
         if (!stat.mDecoderName.isEmpty()) {
@@ -2838,8 +2839,8 @@ status_t AwesomePlayer::dump(int fd, const Vector<String16> &args) const {
         if ((ssize_t)i == mStats.mVideoTrackIndex) {
             fprintf(out,
                     "   videoDimensions(%d x %d), "
-                    "numVideoFramesDecoded(%lld), "
-                    "numVideoFramesDropped(%lld)\n",
+                    "numVideoFramesDecoded(%" PRId64 "), "
+                    "numVideoFramesDropped(%" PRId64 ")\n",
                     mStats.mVideoWidth,
                     mStats.mVideoHeight,
                     mStats.mNumVideoFramesDecoded,

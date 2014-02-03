@@ -16,6 +16,7 @@
 
 #include "SineSource.h"
 
+#include <inttypes.h>
 #include <binder/ProcessState.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/AudioPlayer.h>
@@ -312,7 +313,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "record failed: %d\n", err);
         return 1;
     }
-    fprintf(stderr, "encoding %d frames in %lld us\n", nFrames, (end-start)/1000);
+    fprintf(stderr, "encoding %d frames in %" PRId64 " us\n", nFrames, (end-start)/1000);
     fprintf(stderr, "encoding speed is: %.2f fps\n", (nFrames * 1E9) / (end-start));
     return 0;
 }

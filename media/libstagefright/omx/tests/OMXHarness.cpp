@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "OMXHarness"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include "OMXHarness.h"
@@ -711,11 +712,11 @@ status_t Harness::testSeek(
             int64_t bufferTimeUs;
             CHECK(buffer->meta_data()->findInt64(kKeyTime, &bufferTimeUs));
             if (!CloseEnough(bufferTimeUs, actualSeekTimeUs)) {
-                printf("\n  * Attempted seeking to %lld us (%.2f secs)",
+                printf("\n  * Attempted seeking to %" PRId64 " us (%.2f secs)",
                        requestedSeekTimeUs, requestedSeekTimeUs / 1E6);
-                printf("\n  * Nearest keyframe is at %lld us (%.2f secs)",
+                printf("\n  * Nearest keyframe is at %" PRId64 " us (%.2f secs)",
                        actualSeekTimeUs, actualSeekTimeUs / 1E6);
-                printf("\n  * Returned buffer was at %lld us (%.2f secs)\n\n",
+                printf("\n  * Returned buffer was at %" PRId64 " us (%.2f secs)\n\n",
                        bufferTimeUs, bufferTimeUs / 1E6);
 
                 buffer->release();

@@ -572,7 +572,7 @@ Int Sad8x8(UChar *cur, UChar *prev, Int width)
         cur2    = cur2 & (mask << 8);   /* mask first and third bytes */
         sum2    = sum2 + ((UInt)cur2 >> 8);
     }
-    while ((UInt)curInt < (UInt)end);
+    while ((uintptr_t)curInt < (uintptr_t)end);
 
     cur1 = sum4 - (sum2 << 8);  /* get even-sum */
     cur1 = cur1 + sum2;         /* add 16 bit even-sum and odd-sum*/
@@ -611,7 +611,7 @@ Int getBlockSum(UChar *cur, Int width)
         load2 = load2 & (mask << 8); /* even bytes */
         sum2 += ((UInt)load2 >> 8); /* sum even bytes, 16 bit */
     }
-    while ((UInt)curInt < (UInt)end);
+    while ((uintptr_t)curInt < (uintptr_t)end);
     load1 = sum4 - (sum2 << 8);     /* get even-sum */
     load1 = load1 + sum2;           /* add 16 bit even-sum and odd-sum*/
     load1 = load1 + (load1 << 16);  /* add upper and lower 16 bit sum */
