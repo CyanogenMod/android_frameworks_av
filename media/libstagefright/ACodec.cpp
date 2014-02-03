@@ -3429,7 +3429,7 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     int32_t render;
     if (mCodec->mNativeWindow != NULL
             && msg->findInt32("render", &render) && render != 0
-            && (info->mData == NULL || info->mData->size() != 0)) {
+            && info->mData != NULL && info->mData->size() != 0) {
         // The client wants this buffer to be rendered.
 
         status_t err;
