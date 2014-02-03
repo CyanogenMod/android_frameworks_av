@@ -22,12 +22,12 @@
 
 namespace android {
 
-size_t Format_frameSize(NBAIO_Format format)
+size_t Format_frameSize(const NBAIO_Format& format)
 {
     return Format_channelCount(format) * sizeof(short);
 }
 
-size_t Format_frameBitShift(NBAIO_Format format)
+size_t Format_frameBitShift(const NBAIO_Format& format)
 {
     // sizeof(short) == 2, so frame size == 1 << channels
     return Format_channelCount(format);
@@ -51,7 +51,7 @@ enum {
     Format_C_Mask = 0x18
 };
 
-unsigned Format_sampleRate(NBAIO_Format format)
+unsigned Format_sampleRate(const NBAIO_Format& format)
 {
     if (format == Format_Invalid) {
         return 0;
@@ -78,7 +78,7 @@ unsigned Format_sampleRate(NBAIO_Format format)
     }
 }
 
-unsigned Format_channelCount(NBAIO_Format format)
+unsigned Format_channelCount(const NBAIO_Format& format)
 {
     if (format == Format_Invalid) {
         return 0;

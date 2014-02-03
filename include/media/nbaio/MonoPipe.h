@@ -41,7 +41,7 @@ public:
     // Note: whatever shares this object with another thread needs to do so in an SMP-safe way (like
     // creating it the object before creating the other thread, or storing the object with a
     // release_store). Otherwise the other thread could see a partially-constructed object.
-    MonoPipe(size_t reqFrames, NBAIO_Format format, bool writeCanBlock = false);
+    MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBlock = false);
     virtual ~MonoPipe();
 
     // NBAIO_Port interface

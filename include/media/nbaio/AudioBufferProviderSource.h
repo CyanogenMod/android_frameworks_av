@@ -27,7 +27,7 @@ namespace android {
 class AudioBufferProviderSource : public NBAIO_Source {
 
 public:
-    AudioBufferProviderSource(AudioBufferProvider *provider, NBAIO_Format format);
+    AudioBufferProviderSource(AudioBufferProvider *provider, const NBAIO_Format& format);
     virtual ~AudioBufferProviderSource();
 
     // NBAIO_Port interface
