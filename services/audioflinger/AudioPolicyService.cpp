@@ -1598,15 +1598,14 @@ static int aps_close_input(void *service __unused, audio_io_handle_t input)
     return af->closeInput(input);
 }
 
-static int aps_set_stream_output(void *service __unused, audio_stream_type_t stream,
-                                     audio_io_handle_t output)
+static int aps_invalidate_stream(void *service __unused, audio_stream_type_t stream)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
         return PERMISSION_DENIED;
     }
 
-    return af->setStreamOutput(stream, output);
+    return af->invalidateStream(stream);
 }
 
 static int aps_move_effects(void *service __unused, int session,
@@ -1680,7 +1679,7 @@ namespace {
         .open_input            = aps_open_input,
         .close_input           = aps_close_input,
         .set_stream_volume     = aps_set_stream_volume,
-        .set_stream_output     = aps_set_stream_output,
+        .invalidate_stream     = aps_invalidate_stream,
         .set_parameters        = aps_set_parameters,
         .get_parameters        = aps_get_parameters,
         .start_tone            = aps_start_tone,

@@ -169,7 +169,7 @@ public:
                                         audio_channel_mask_t *pChannelMask) = 0;
     virtual status_t closeInput(audio_io_handle_t input) = 0;
 
-    virtual status_t setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output) = 0;
+    virtual status_t invalidateStream(audio_stream_type_t stream) = 0;
 
     virtual status_t setVoiceVolume(float volume) = 0;
 

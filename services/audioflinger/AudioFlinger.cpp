@@ -1940,10 +1940,10 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
     return NO_ERROR;
 }
 
-status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output)
+status_t AudioFlinger::invalidateStream(audio_stream_type_t stream)
 {
     Mutex::Autolock _l(mLock);
-    ALOGV("setStreamOutput() stream %d to output %d", stream, output);
+    ALOGV("invalidateStream() stream %d", stream);
 
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();

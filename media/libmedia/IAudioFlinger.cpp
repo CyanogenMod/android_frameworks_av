@@ -58,7 +58,7 @@ enum {
     RESTORE_OUTPUT,
     OPEN_INPUT,
     CLOSE_INPUT,
-    SET_STREAM_OUTPUT,
+    INVALIDATE_STREAM,
     SET_VOICE_VOLUME,
     GET_RENDER_POSITION,
     GET_INPUT_FRAMES_LOST,
@@ -545,13 +545,12 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output)
+    virtual status_t invalidateStream(audio_stream_type_t stream)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32((int32_t) stream);
-        data.writeInt32((int32_t) output);
-        remote()->transact(SET_STREAM_OUTPUT, data, &reply);
+        remote()->transact(INVALIDATE_STREAM, data, &reply);
         return reply.readInt32();
     }
 
@@ -1044,11 +1043,10 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(closeInput((audio_io_handle_t) data.readInt32()));
             return NO_ERROR;
         } break;
-        case SET_STREAM_OUTPUT: {
+        case INVALIDATE_STREAM: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            uint32_t stream = data.readInt32();
-            audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
-            reply->writeInt32(setStreamOutput((audio_stream_type_t) stream, output));
+            audio_stream_type_t stream = (audio_stream_type_t) data.readInt32();
+            reply->writeInt32(invalidateStream(stream));
             return NO_ERROR;
         } break;
         case SET_VOICE_VOLUME: {
