@@ -87,7 +87,7 @@ AudioRecord::AudioRecord(
         int notificationFrames,
         int sessionId,
         transfer_type transferType,
-        audio_input_flags_t flags)
+        audio_input_flags_t flags __unused)
     : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),

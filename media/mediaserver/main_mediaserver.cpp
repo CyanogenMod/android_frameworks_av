@@ -37,7 +37,7 @@
 
 using namespace android;
 
-int main(int argc, char** argv)
+int main(int argc __unused, char** argv)
 {
     signal(SIGPIPE, SIG_IGN);
     char value[PROPERTY_VALUE_MAX];

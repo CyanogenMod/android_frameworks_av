@@ -526,7 +526,7 @@ uint32_t AudioFlinger::PlaybackThread::Track::sampleRate() const {
 
 // AudioBufferProvider interface
 status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
-        AudioBufferProvider::Buffer* buffer, int64_t pts)
+        AudioBufferProvider::Buffer* buffer, int64_t pts __unused)
 {
     ServerProxy::Buffer buf;
     size_t desiredFrames = buffer->frameCount;
@@ -576,8 +576,8 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
     return false;
 }
 
-status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t event,
-                                                    int triggerSession)
+status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t event __unused,
+                                                    int triggerSession __unused)
 {
     status_t status = NO_ERROR;
     ALOGV("start(%d), calling pid %d session %d",
@@ -1163,7 +1163,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::trimTimedBufferQueueHead_l(
 
 void AudioFlinger::PlaybackThread::TimedTrack::updateFramesPendingAfterTrim_l(
         const TimedBuffer& buf,
-        const char* logTag) {
+        const char* logTag __unused) {
     uint32_t bufBytes        = buf.buffer()->size();
     uint32_t consumedAlready = buf.position();
 
@@ -1786,7 +1786,7 @@ AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
 
 // AudioBufferProvider interface
 status_t AudioFlinger::RecordThread::RecordTrack::getNextBuffer(AudioBufferProvider::Buffer* buffer,
-        int64_t pts)
+        int64_t pts __unused)
 {
     ServerProxy::Buffer buf;
     buf.mFrameCount = buffer->frameCount;

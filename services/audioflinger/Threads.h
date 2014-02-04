@@ -201,13 +201,13 @@ public:
                 // effect
                 void removeEffect_l(const sp< EffectModule>& effect);
                 // detach all tracks connected to an auxiliary effect
-    virtual     void detachAuxEffect_l(int effectId) {}
+    virtual     void detachAuxEffect_l(int effectId __unused) {}
                 // returns either EFFECT_SESSION if effects on this audio session exist in one
                 // chain, or TRACK_SESSION if tracks on this audio session exist, or both
                 virtual uint32_t hasAudioSession(int sessionId) const = 0;
                 // the value returned by default implementation is not important as the
                 // strategy is only meaningful for PlaybackThread which implements this method
-                virtual uint32_t getStrategyForSession_l(int sessionId) { return 0; }
+                virtual uint32_t getStrategyForSession_l(int sessionId __unused) { return 0; }
 
                 // suspend or restore effect according to the type of effect passed. a NULL
                 // type pointer means suspend all effects in the session
@@ -625,7 +625,7 @@ private:
     sp<NBLog::Writer>       mFastMixerNBLogWriter;
 public:
     virtual     bool        hasFastMixer() const = 0;
-    virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const
+    virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex __unused) const
                                 { FastTrackUnderruns dummy; return dummy; }
 
 protected:
