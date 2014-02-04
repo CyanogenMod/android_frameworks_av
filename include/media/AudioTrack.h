@@ -556,8 +556,11 @@ public:
      *      WOULD_BLOCK         when obtainBuffer() returns same, or
      *                          AudioTrack was stopped during the write
      *      or any other error code returned by IAudioTrack::start() or restoreTrack_l().
+     * Default behavior is to only return until all data has been transferred. Set 'blocking' to
+     * false for the method to return immediately without waiting to try multiple times to write
+     * the full content of the buffer.
      */
-            ssize_t     write(const void* buffer, size_t size);
+            ssize_t     write(const void* buffer, size_t size, bool blocking = true);
 
     /*
      * Dumps the state of an audio track.

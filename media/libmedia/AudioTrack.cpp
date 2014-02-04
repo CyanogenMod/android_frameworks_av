@@ -1270,7 +1270,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 
 // -------------------------------------------------------------------------
 
-ssize_t AudioTrack::write(const void* buffer, size_t userSize)
+ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
 {
     if (mTransfer != TRANSFER_SYNC || mIsTimed) {
         return INVALID_OPERATION;
@@ -1289,7 +1289,8 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
     while (userSize >= mFrameSize) {
         audioBuffer.frameCount = userSize / mFrameSize;
 
-        status_t err = obtainBuffer(&audioBuffer, &ClientProxy::kForever);
+        status_t err = obtainBuffer(&audioBuffer,
+                blocking ? &ClientProxy::kForever : &ClientProxy::kNonBlocking);
         if (err < 0) {
             if (written > 0) {
                 break;
