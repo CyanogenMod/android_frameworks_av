@@ -672,6 +672,7 @@ public:
     static const char CAPTURE_MODE_HDR[];
     static const char CAPTURE_MODE_PANORAMA[];
     static const char CAPTURE_MODE_ZOE[];
+    static const char CAPTURE_MODE_EIS[];
     static const char KEY_CONTI_BURST_STATE[];
     static const char KEY_SUPPORTED_CAPTURE_MODES[];
     static const char KEY_MIN_CONTRAST[];

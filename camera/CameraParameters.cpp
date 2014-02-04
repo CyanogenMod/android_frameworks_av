@@ -203,6 +203,7 @@ const char CameraParameters::CAPTURE_MODE_CONTI_BURST_ONE_SHOT[] = "contiburst-o
 const char CameraParameters::CAPTURE_MODE_HDR[] = "hdr";
 const char CameraParameters::CAPTURE_MODE_PANORAMA[] = "panorama";
 const char CameraParameters::CAPTURE_MODE_ZOE[] = "zoe";
+const char CameraParameters::CAPTURE_MODE_EIS[] = "eis";
 const char CameraParameters::KEY_CONTI_BURST_STATE[] = "contiburst-state";
 const char CameraParameters::KEY_SUPPORTED_CAPTURE_MODES[] = "capture-mode-values";
 const char CameraParameters::KEY_MIN_CONTRAST[] = "contrast-min";
