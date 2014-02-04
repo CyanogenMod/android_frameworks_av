@@ -372,11 +372,7 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
     if (locked) {
         mPhaseFraction = mPhaseFraction >> c.mShift << c.mShift; // remove fractional phase
     }
-    if (!USE_NEON) {
-        stride = 2; // C version only
-    }
-    // TODO: Remove this for testing
-    //stride = 2;
+
     mResampleType = RESAMPLETYPE(mChannelCount, locked, stride, !!useS32);
 #ifdef DEBUG_RESAMPLER
     printf("channels:%d  %s  stride:%d  %s  coef:%d  shift:%d\n",
@@ -392,7 +388,7 @@ void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
     // 24 cases - this perhaps can be reduced later, as testing might take too long
     switch (mResampleType) {
 
-    // stride 16 (stride 2 for machines that do not support NEON)
+    // stride 16 (falls back to stride 2 for machines that do not support NEON)
     case RESAMPLETYPE(1, true, 16, 0):
         return resample<1, true, 16>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
     case RESAMPLETYPE(2, true, 16, 0):
