@@ -35,7 +35,9 @@
 
 #include <media/hardware/HardwareAPI.h>
 
+#include <OMX_AudioExt.h>
 #include <OMX_Component.h>
+#include <OMX_IndexExt.h>
 
 #include "include/avc_utils.h"
 
@@ -979,6 +981,8 @@ status_t ACodec::setComponentRole(
             "audio_decoder.gsm", "audio_encoder.gsm" },
         { MEDIA_MIMETYPE_VIDEO_MPEG2,
             "video_decoder.mpeg2", "video_encoder.mpeg2" },
+        { MEDIA_MIMETYPE_AUDIO_AC3,
+            "audio_decoder.ac3", "audio_encoder.ac3" },
     };
 
     static const size_t kNumMimeToRole =
@@ -1270,6 +1274,15 @@ status_t ACodec::configureCodec(
         } else {
             err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
         }
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3)) {
+        int32_t numChannels;
+        int32_t sampleRate;
+        if (!msg->findInt32("channel-count", &numChannels)
+                || !msg->findInt32("sample-rate", &sampleRate)) {
+            err = INVALID_OPERATION;
+        } else {
+            err = setupAC3Codec(encoder, numChannels, sampleRate);
+        }
     }
 
     if (err != OK) {
@@ -1464,6 +1477,44 @@ status_t ACodec::setupAACCodec(
 
     return mOMX->setParameter(
             mNode, OMX_IndexParamAudioAac, &profile, sizeof(profile));
+}
+
+status_t ACodec::setupAC3Codec(
+        bool encoder, int32_t numChannels, int32_t sampleRate) {
+    status_t err = setupRawAudioFormat(
+            encoder ? kPortIndexInput : kPortIndexOutput, sampleRate, numChannels);
+
+    if (err != OK) {
+        return err;
+    }
+
+    if (encoder) {
+        ALOGW("AC3 encoding is not supported.");
+        return INVALID_OPERATION;
+    }
+
+    OMX_AUDIO_PARAM_ANDROID_AC3TYPE def;
+    InitOMXParams(&def);
+    def.nPortIndex = kPortIndexInput;
+
+    err = mOMX->getParameter(
+            mNode,
+            (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3,
+            &def,
+            sizeof(def));
+
+    if (err != OK) {
+        return err;
+    }
+
+    def.nChannels = numChannels;
+    def.nSampleRate = sampleRate;
+
+    return mOMX->setParameter(
+            mNode,
+            (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3,
+            &def,
+            sizeof(def));
 }
 
 static OMX_AUDIO_AMRBANDMODETYPE pickModeFromBitRate(
@@ -2560,7 +2611,7 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
         {
             OMX_AUDIO_PORTDEFINITIONTYPE *audioDef = &def.format.audio;
 
-            switch (audioDef->eEncoding) {
+            switch ((int)audioDef->eEncoding) {
                 case OMX_AUDIO_CodingPCM:
                 {
                     OMX_AUDIO_PARAM_PCMMODETYPE params;
@@ -2661,6 +2712,24 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
                              (status_t)OK);
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
+                    notify->setInt32("channel-count", params.nChannels);
+                    notify->setInt32("sample-rate", params.nSampleRate);
+                    break;
+                }
+
+                case OMX_AUDIO_CodingAndroidAC3:
+                {
+                    OMX_AUDIO_PARAM_ANDROID_AC3TYPE params;
+                    InitOMXParams(&params);
+                    params.nPortIndex = kPortIndexOutput;
+
+                    CHECK_EQ((status_t)OK, mOMX->getParameter(
+                            mNode,
+                            (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3,
+                            &params,
+                            sizeof(params)));
+
+                    notify->setString("mime", MEDIA_MIMETYPE_AUDIO_AC3);
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSampleRate);
                     break;
