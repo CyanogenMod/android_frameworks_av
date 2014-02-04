@@ -33,6 +33,8 @@ size_t Format_frameBitShift(const NBAIO_Format& format)
     return Format_channelCount(format);
 }
 
+const NBAIO_Format Format_Invalid = { 0 };
+
 enum {
     Format_SR_8000,
     Format_SR_11025,
