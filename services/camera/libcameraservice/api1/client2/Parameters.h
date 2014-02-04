@@ -113,6 +113,14 @@ struct Parameters {
     bool autoExposureLock;
     bool autoWhiteBalanceLock;
 
+    // 3A region types, for use with ANDROID_CONTROL_MAX_REGIONS
+    enum region_t {
+        REGION_AE = 0,
+        REGION_AWB,
+        REGION_AF,
+        NUM_REGION // Number of region types
+    } region;
+
     Vector<Area> meteringAreas;
 
     int zoom;

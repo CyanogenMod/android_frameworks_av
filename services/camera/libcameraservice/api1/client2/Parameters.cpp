@@ -664,13 +664,13 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     focusState = ANDROID_CONTROL_AF_STATE_INACTIVE;
     shadowFocusMode = FOCUS_MODE_INVALID;
 
-    camera_metadata_ro_entry_t max3aRegions =
-        staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1);
-    if (!max3aRegions.count) return NO_INIT;
+    camera_metadata_ro_entry_t max3aRegions = staticInfo(ANDROID_CONTROL_MAX_REGIONS,
+            Parameters::NUM_REGION, Parameters::NUM_REGION);
+    if (max3aRegions.count != Parameters::NUM_REGION) return NO_INIT;
 
     int32_t maxNumFocusAreas = 0;
     if (focusMode != Parameters::FOCUS_MODE_FIXED) {
-        maxNumFocusAreas = max3aRegions.data.i32[0];
+        maxNumFocusAreas = max3aRegions.data.i32[Parameters::REGION_AF];
     }
     params.set(CameraParameters::KEY_MAX_NUM_FOCUS_AREAS, maxNumFocusAreas);
     params.set(CameraParameters::KEY_FOCUS_AREAS,
@@ -730,7 +730,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
     meteringAreas.add(Parameters::Area(0, 0, 0, 0, 0));
     params.set(CameraParameters::KEY_MAX_NUM_METERING_AREAS,
-            max3aRegions.data.i32[0]);
+            max3aRegions.data.i32[Parameters::REGION_AE]);
     params.set(CameraParameters::KEY_METERING_AREAS,
             "(0,0,0,0,0)");
 
@@ -1591,10 +1591,11 @@ status_t Parameters::set(const String8& paramString) {
     // FOCUS_AREAS
     res = parseAreas(newParams.get(CameraParameters::KEY_FOCUS_AREAS),
             &validatedParams.focusingAreas);
-    size_t max3aRegions =
-        (size_t)staticInfo(ANDROID_CONTROL_MAX_REGIONS, 1, 1).data.i32[0];
+    size_t maxAfRegions = (size_t)staticInfo(ANDROID_CONTROL_MAX_REGIONS,
+              Parameters::NUM_REGION, Parameters::NUM_REGION).
+              data.i32[Parameters::REGION_AF];
     if (res == OK) res = validateAreas(validatedParams.focusingAreas,
-            max3aRegions, AREA_KIND_FOCUS);
+            maxAfRegions, AREA_KIND_FOCUS);
     if (res != OK) {
         ALOGE("%s: Requested focus areas are malformed: %s",
                 __FUNCTION__, newParams.get(CameraParameters::KEY_FOCUS_AREAS));
@@ -1624,10 +1625,13 @@ status_t Parameters::set(const String8& paramString) {
         newParams.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK));
 
     // METERING_AREAS
+    size_t maxAeRegions = (size_t)staticInfo(ANDROID_CONTROL_MAX_REGIONS,
+            Parameters::NUM_REGION, Parameters::NUM_REGION).
+            data.i32[Parameters::REGION_AE];
     res = parseAreas(newParams.get(CameraParameters::KEY_METERING_AREAS),
             &validatedParams.meteringAreas);
     if (res == OK) {
-        res = validateAreas(validatedParams.meteringAreas, max3aRegions,
+        res = validateAreas(validatedParams.meteringAreas, maxAeRegions,
                             AREA_KIND_METERING);
     }
     if (res != OK) {
@@ -1908,6 +1912,23 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     res = request->update(ANDROID_CONTROL_AE_REGIONS,
             reqMeteringAreas, reqMeteringAreasSize);
     if (res != OK) return res;
+
+    // Set awb regions to be the same as the metering regions if allowed
+    size_t maxAwbRegions = (size_t)staticInfo(ANDROID_CONTROL_MAX_REGIONS,
+            Parameters::NUM_REGION, Parameters::NUM_REGION).
+            data.i32[Parameters::REGION_AWB];
+    if (maxAwbRegions > 0) {
+        if (maxAwbRegions >= meteringAreas.size()) {
+            res = request->update(ANDROID_CONTROL_AWB_REGIONS,
+                    reqMeteringAreas, reqMeteringAreasSize);
+        } else {
+            // Ensure the awb regions are zeroed if the region count is too high.
+            int32_t zeroedAwbAreas[5] = {0, 0, 0, 0, 0};
+            res = request->update(ANDROID_CONTROL_AWB_REGIONS,
+                    zeroedAwbAreas, sizeof(zeroedAwbAreas)/sizeof(int32_t));
+        }
+        if (res != OK) return res;
+    }
 
     delete[] reqMeteringAreas;
 
