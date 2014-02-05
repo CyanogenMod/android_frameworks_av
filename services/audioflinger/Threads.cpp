@@ -1346,7 +1346,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack_l() initCheck failed %d; no control block?", lStatus);
-            track.clear();
+            // track must be cleared from the caller as the caller has the AF lock
             goto Exit;
         }
 
@@ -4863,7 +4863,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         lStatus = track->initCheck();
         if (lStatus != NO_ERROR) {
             ALOGE("createRecordTrack_l() initCheck failed %d; no control block?", lStatus);
-            track.clear();
+            // track must be cleared from the caller as the caller has the AF lock
             goto Exit;
         }
         mTracks.add(track);
