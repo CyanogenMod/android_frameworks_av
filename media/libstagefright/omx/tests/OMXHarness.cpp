@@ -25,6 +25,7 @@
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryDealer.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -241,7 +242,8 @@ private:
 };
 
 static sp<MediaExtractor> CreateExtractorFromURI(const char *uri) {
-    sp<DataSource> source = DataSource::CreateFromURI(uri);
+    sp<DataSource> source =
+        DataSource::CreateFromURI(NULL /* httpService */, uri);
 
     if (source == NULL) {
         return NULL;

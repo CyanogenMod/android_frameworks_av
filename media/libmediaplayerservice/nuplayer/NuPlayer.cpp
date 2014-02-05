@@ -212,7 +212,9 @@ static bool IsHTTPLiveURL(const char *url) {
 }
 
 void NuPlayer::setDataSourceAsync(
-        const char *url, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *url,
+        const KeyedVector<String8, String8> *headers) {
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
     size_t len = strlen(url);
 
@@ -220,16 +222,20 @@ void NuPlayer::setDataSourceAsync(
 
     sp<Source> source;
     if (IsHTTPLiveURL(url)) {
-        source = new HTTPLiveSource(notify, url, headers, mUIDValid, mUID);
+        source = new HTTPLiveSource(
+                notify, httpService, url, headers, mUIDValid, mUID);
     } else if (!strncasecmp(url, "rtsp://", 7)) {
-        source = new RTSPSource(notify, url, headers, mUIDValid, mUID);
+        source = new RTSPSource(
+                notify, httpService, url, headers, mUIDValid, mUID);
     } else if ((!strncasecmp(url, "http://", 7)
                 || !strncasecmp(url, "https://", 8))
                     && ((len >= 4 && !strcasecmp(".sdp", &url[len - 4]))
                     || strstr(url, ".sdp?"))) {
-        source = new RTSPSource(notify, url, headers, mUIDValid, mUID, true);
+        source = new RTSPSource(
+                notify, httpService, url, headers, mUIDValid, mUID, true);
     } else {
-        source = new GenericSource(notify, url, headers, mUIDValid, mUID);
+        source = new GenericSource(
+                notify, httpService, url, headers, mUIDValid, mUID);
     }
 
     msg->setObject("source", source);

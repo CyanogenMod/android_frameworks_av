@@ -34,6 +34,8 @@
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
+#include <media/IMediaHTTPConnection.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -44,6 +46,7 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
+#include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
@@ -276,15 +279,20 @@ void AwesomePlayer::setUID(uid_t uid) {
 }
 
 status_t AwesomePlayer::setDataSource(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *uri,
+        const KeyedVector<String8, String8> *headers) {
     Mutex::Autolock autoLock(mLock);
-    return setDataSource_l(uri, headers);
+    return setDataSource_l(httpService, uri, headers);
 }
 
 status_t AwesomePlayer::setDataSource_l(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *uri,
+        const KeyedVector<String8, String8> *headers) {
     reset_l();
 
+    mHTTPService = httpService;
     mUri = uri;
 
     if (headers) {
@@ -581,6 +589,7 @@ void AwesomePlayer::reset_l() {
     mSeekNotificationSent = true;
     mSeekTimeUs = 0;
 
+    mHTTPService.clear();
     mUri.setTo("");
     mUriHeaders.clear();
 
@@ -1482,7 +1491,7 @@ void AwesomePlayer::addTextSource_l(size_t trackIndex, const sp<MediaSource>& so
     CHECK(source != NULL);
 
     if (mTextDriver == NULL) {
-        mTextDriver = new TimedTextDriver(mListener);
+        mTextDriver = new TimedTextDriver(mListener, mHTTPService);
     }
 
     mTextDriver->addInBandTextSource(trackIndex, source);
@@ -2192,14 +2201,13 @@ status_t AwesomePlayer::finishSetDataSource_l() {
     if (!strncasecmp("http://", mUri.string(), 7)
             || !strncasecmp("https://", mUri.string(), 8)
             || isWidevineStreaming) {
-        mConnectingDataSource = HTTPBase::Create(
-                (mFlags & INCOGNITO)
-                    ? HTTPBase::kFlagIncognito
-                    : 0);
-
-        if (mUIDValid) {
-            mConnectingDataSource->setUID(mUID);
+        if (mHTTPService == NULL) {
+            ALOGE("Attempt to play media from http URI without HTTP service.");
+            return UNKNOWN_ERROR;
         }
+
+        sp<IMediaHTTPConnection> conn = mHTTPService->makeHTTPConnection();
+        mConnectingDataSource = new MediaHTTP(conn);
 
         String8 cacheConfig;
         bool disconnectAtHighwatermark;
@@ -2316,7 +2324,8 @@ status_t AwesomePlayer::finishSetDataSource_l() {
             }
         }
     } else {
-        dataSource = DataSource::CreateFromURI(mUri.string(), &mUriHeaders);
+        dataSource = DataSource::CreateFromURI(
+                mHTTPService, mUri.string(), &mUriHeaders);
     }
 
     if (dataSource == NULL) {
@@ -2758,7 +2767,7 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         {
             Mutex::Autolock autoLock(mLock);
             if (mTextDriver == NULL) {
-                mTextDriver = new TimedTextDriver(mListener);
+                mTextDriver = new TimedTextDriver(mListener, mHTTPService);
             }
             // String values written in Parcel are UTF-16 values.
             String8 uri(request.readString16());
@@ -2770,7 +2779,7 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         {
             Mutex::Autolock autoLock(mLock);
             if (mTextDriver == NULL) {
-                mTextDriver = new TimedTextDriver(mListener);
+                mTextDriver = new TimedTextDriver(mListener, mHTTPService);
             }
             int fd         = request.readFileDescriptor();
             off64_t offset = request.readInt64();
@@ -2899,6 +2908,8 @@ void AwesomePlayer::onAudioTearDownEvent() {
     // get current position so we can start recreated stream from here
     getPosition(&mAudioTearDownPosition);
 
+    sp<IMediaHTTPService> savedHTTPService = mHTTPService;
+
     // Reset and recreate
     reset_l();
 
@@ -2908,7 +2919,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
         mFileSource = fileSource;
         err = setDataSource_l(fileSource);
     } else {
-        err = setDataSource_l(uri, &uriHeaders);
+        err = setDataSource_l(savedHTTPService, uri, &uriHeaders);
     }
 
     mFlags |= PREPARING;

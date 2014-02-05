@@ -31,6 +31,7 @@
 namespace android {
 
 struct AMessage;
+struct IMediaHTTPService;
 class String8;
 
 class DataSource : public RefBase {
@@ -43,6 +44,7 @@ public:
     };
 
     static sp<DataSource> CreateFromURI(
+            const sp<IMediaHTTPService> &httpService,
             const char *uri,
             const KeyedVector<String8, String8> *headers = NULL);
 

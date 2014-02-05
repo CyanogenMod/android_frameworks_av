@@ -38,7 +38,9 @@ struct NuPlayer : public AHandler {
     void setDataSourceAsync(const sp<IStreamSource> &source);
 
     void setDataSourceAsync(
-            const char *url, const KeyedVector<String8, String8> *headers);
+            const sp<IMediaHTTPService> &httpService,
+            const char *url,
+            const KeyedVector<String8, String8> *headers);
 
     void setDataSourceAsync(int fd, int64_t offset, int64_t length);
 

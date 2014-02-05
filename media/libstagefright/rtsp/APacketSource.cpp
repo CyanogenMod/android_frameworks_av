@@ -23,7 +23,7 @@
 #include "ARawAudioAssembler.h"
 #include "ASessionDescription.h"
 
-#include "avc_utils.h"
+#include "include/avc_utils.h"
 
 #include <ctype.h>
 

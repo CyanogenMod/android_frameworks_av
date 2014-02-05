@@ -21,6 +21,7 @@
 
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -1160,7 +1161,8 @@ status_t PreviewPlayer::finishSetDataSource_l() {
     sp<DataSource> dataSource;
     sp<MediaExtractor> extractor;
 
-    dataSource = DataSource::CreateFromURI(mUri.string(), NULL);
+    dataSource = DataSource::CreateFromURI(
+            NULL /* httpService */, mUri.string(), NULL);
 
     if (dataSource == NULL) {
         return UNKNOWN_ERROR;

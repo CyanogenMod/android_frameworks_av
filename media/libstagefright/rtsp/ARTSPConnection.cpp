@@ -33,7 +33,7 @@
 #include <openssl/md5.h>
 #include <sys/socket.h>
 
-#include "HTTPBase.h"
+#include "include/HTTPBase.h"
 
 namespace android {
 

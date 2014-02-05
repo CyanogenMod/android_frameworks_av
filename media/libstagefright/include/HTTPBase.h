@@ -54,8 +54,6 @@ struct HTTPBase : public DataSource {
     void setUID(uid_t uid);
     bool getUID(uid_t *uid) const;
 
-    static sp<HTTPBase> Create(uint32_t flags = 0);
-
     static void RegisterSocketUserTag(int sockfd, uid_t uid, uint32_t kTag);
     static void UnRegisterSocketUserTag(int sockfd);
 

@@ -24,6 +24,7 @@
 #include "LiveDataSource.h"
 #include "LiveSession.h"
 
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -34,10 +35,12 @@ namespace android {
 
 NuPlayer::HTTPLiveSource::HTTPLiveSource(
         const sp<AMessage> &notify,
+        const sp<IMediaHTTPService> &httpService,
         const char *url,
         const KeyedVector<String8, String8> *headers,
         bool uidValid, uid_t uid)
     : Source(notify),
+      mHTTPService(httpService),
       mURL(url),
       mUIDValid(uidValid),
       mUID(uid),
@@ -79,6 +82,7 @@ void NuPlayer::HTTPLiveSource::prepareAsync() {
     mLiveSession = new LiveSession(
             notify,
             (mFlags & kFlagIncognito) ? LiveSession::kFlagIncognito : 0,
+            mHTTPService,
             mUIDValid,
             mUID);
 

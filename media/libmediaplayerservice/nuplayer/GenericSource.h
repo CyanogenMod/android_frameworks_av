@@ -33,6 +33,7 @@ struct MediaSource;
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(
             const sp<AMessage> &notify,
+            const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers,
             bool uidValid = false,

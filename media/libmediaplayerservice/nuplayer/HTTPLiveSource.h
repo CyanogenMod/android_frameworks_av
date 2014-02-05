@@ -28,6 +28,7 @@ struct LiveSession;
 struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
     HTTPLiveSource(
             const sp<AMessage> &notify,
+            const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers,
             bool uidValid = false,
@@ -61,6 +62,7 @@ private:
         kWhatFetchSubtitleData,
     };
 
+    sp<IMediaHTTPService> mHTTPService;
     AString mURL;
     KeyedVector<String8, String8> mExtraHeaders;
     bool mUIDValid;

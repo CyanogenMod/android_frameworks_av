@@ -32,6 +32,7 @@
 #include <gui/Surface.h>
 #include <hardware/hardware.h>
 #include <media/AudioSystem.h>
+#include <media/IMediaHTTPService.h>
 #include <media/mediaplayer.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
@@ -866,7 +867,7 @@ void CameraService::setCameraFree(int cameraId) {
 
 MediaPlayer* CameraService::newMediaPlayer(const char *file) {
     MediaPlayer* mp = new MediaPlayer();
-    if (mp->setDataSource(file, NULL) == NO_ERROR) {
+    if (mp->setDataSource(NULL /* httpService */, file, NULL) == NO_ERROR) {
         mp->setAudioStreamType(AUDIO_STREAM_ENFORCED_AUDIBLE);
         mp->prepare();
     } else {

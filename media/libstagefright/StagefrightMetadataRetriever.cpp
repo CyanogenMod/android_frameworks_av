@@ -20,6 +20,7 @@
 
 #include "include/StagefrightMetadataRetriever.h"
 
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/ColorConverter.h>
 #include <media/stagefright/DataSource.h>
@@ -50,7 +51,9 @@ StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
 }
 
 status_t StagefrightMetadataRetriever::setDataSource(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *uri,
+        const KeyedVector<String8, String8> *headers) {
     ALOGV("setDataSource(%s)", uri);
 
     mParsedMetaData = false;
@@ -58,7 +61,7 @@ status_t StagefrightMetadataRetriever::setDataSource(
     delete mAlbumArt;
     mAlbumArt = NULL;
 
-    mSource = DataSource::CreateFromURI(uri, headers);
+    mSource = DataSource::CreateFromURI(httpService, uri, headers);
 
     if (mSource == NULL) {
         ALOGE("Unable to create data source for '%s'.", uri);

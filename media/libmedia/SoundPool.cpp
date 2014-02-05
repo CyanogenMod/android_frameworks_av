@@ -21,6 +21,7 @@
 #define USE_SHARED_MEM_BUFFER
 
 #include <media/AudioTrack.h>
+#include <media/IMediaHTTPService.h>
 #include <media/mediaplayer.h>
 #include <media/SoundPool.h>
 #include "SoundPoolThread.h"
@@ -496,7 +497,14 @@ status_t Sample::doLoad()
 
     ALOGV("Start decode");
     if (mUrl) {
-        status = MediaPlayer::decode(mUrl, &sampleRate, &numChannels, &format, mHeap, &mSize);
+        status = MediaPlayer::decode(
+                NULL /* httpService */,
+                mUrl,
+                &sampleRate,
+                &numChannels,
+                &format,
+                mHeap,
+                &mSize);
     } else {
         status = MediaPlayer::decode(mFd, mOffset, mLength, &sampleRate, &numChannels, &format,
                                      mHeap, &mSize);

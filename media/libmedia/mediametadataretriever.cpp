@@ -21,6 +21,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
 #include <media/mediametadataretriever.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <utils/Log.h>
 #include <dlfcn.h>
@@ -93,7 +94,9 @@ void MediaMetadataRetriever::disconnect()
 }
 
 status_t MediaMetadataRetriever::setDataSource(
-        const char *srcUrl, const KeyedVector<String8, String8> *headers)
+        const sp<IMediaHTTPService> &httpService,
+        const char *srcUrl,
+        const KeyedVector<String8, String8> *headers)
 {
     ALOGV("setDataSource");
     Mutex::Autolock _l(mLock);
@@ -106,7 +109,7 @@ status_t MediaMetadataRetriever::setDataSource(
         return UNKNOWN_ERROR;
     }
     ALOGV("data source (%s)", srcUrl);
-    return mRetriever->setDataSource(srcUrl, headers);
+    return mRetriever->setDataSource(httpService, srcUrl, headers);
 }
 
 status_t MediaMetadataRetriever::setDataSource(int fd, int64_t offset, int64_t length)

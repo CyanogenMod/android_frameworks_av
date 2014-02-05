@@ -28,6 +28,7 @@
 
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include "include/NuCachedSource2.h"
@@ -958,7 +959,8 @@ int main(int argc, char **argv) {
 
         const char *filename = argv[k];
 
-        sp<DataSource> dataSource = DataSource::CreateFromURI(filename);
+        sp<DataSource> dataSource =
+            DataSource::CreateFromURI(NULL /* httpService */, filename);
 
         if (strncasecmp(filename, "sine:", 5) && dataSource == NULL) {
             fprintf(stderr, "Unable to create data source.\n");

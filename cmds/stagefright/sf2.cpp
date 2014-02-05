@@ -22,6 +22,8 @@
 
 #include <binder/ProcessState.h>
 
+#include <media/IMediaHTTPService.h>
+
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -111,7 +113,8 @@ protected:
 #endif
 
                 sp<DataSource> dataSource =
-                    DataSource::CreateFromURI(mURI.c_str());
+                    DataSource::CreateFromURI(
+                            NULL /* httpService */, mURI.c_str());
 
                 sp<MediaExtractor> extractor =
                     MediaExtractor::Create(dataSource);

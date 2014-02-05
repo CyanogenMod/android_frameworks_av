@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <binder/Parcel.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaMetadataRetriever.h>
 #include <utils/String8.h>
 #include <utils/KeyedVector.h>
@@ -84,10 +85,16 @@ public:
     }
 
     status_t setDataSource(
-            const char *srcUrl, const KeyedVector<String8, String8> *headers)
+            const sp<IMediaHTTPService> &httpService,
+            const char *srcUrl,
+            const KeyedVector<String8, String8> *headers)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaMetadataRetriever::getInterfaceDescriptor());
+        data.writeInt32(httpService != NULL);
+        if (httpService != NULL) {
+            data.writeStrongBinder(httpService->asBinder());
+        }
         data.writeCString(srcUrl);
 
         if (headers == NULL) {
@@ -195,6 +202,13 @@ status_t BnMediaMetadataRetriever::onTransact(
         } break;
         case SET_DATA_SOURCE_URL: {
             CHECK_INTERFACE(IMediaMetadataRetriever, data, reply);
+
+            sp<IMediaHTTPService> httpService;
+            if (data.readInt32()) {
+                httpService =
+                    interface_cast<IMediaHTTPService>(data.readStrongBinder());
+            }
+
             const char* srcUrl = data.readCString();
 
             KeyedVector<String8, String8> headers;
@@ -206,7 +220,8 @@ status_t BnMediaMetadataRetriever::onTransact(
             }
 
             reply->writeInt32(
-                    setDataSource(srcUrl, numHeaders > 0 ? &headers : NULL));
+                    setDataSource(
+                        httpService, srcUrl, numHeaders > 0 ? &headers : NULL));
 
             return NO_ERROR;
         } break;

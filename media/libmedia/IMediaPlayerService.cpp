@@ -23,6 +23,7 @@
 #include <media/ICrypto.h>
 #include <media/IDrm.h>
 #include <media/IHDCP.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
 #include <media/IOMX.h>
@@ -86,12 +87,21 @@ public:
         return interface_cast<IMediaRecorder>(reply.readStrongBinder());
     }
 
-    virtual status_t decode(const char* url, uint32_t *pSampleRate, int* pNumChannels,
-                               audio_format_t* pFormat,
-                               const sp<IMemoryHeap>& heap, size_t *pSize)
+    virtual status_t decode(
+            const sp<IMediaHTTPService> &httpService,
+            const char* url,
+            uint32_t *pSampleRate,
+            int* pNumChannels,
+            audio_format_t* pFormat,
+            const sp<IMemoryHeap>& heap,
+            size_t *pSize)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        data.writeInt32(httpService != NULL);
+        if (httpService != NULL) {
+            data.writeStrongBinder(httpService->asBinder());
+        }
         data.writeCString(url);
         data.writeStrongBinder(heap->asBinder());
         status_t status = remote()->transact(DECODE_URL, data, &reply);
@@ -222,13 +232,25 @@ status_t BnMediaPlayerService::onTransact(
         } break;
         case DECODE_URL: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            sp<IMediaHTTPService> httpService;
+            if (data.readInt32()) {
+                httpService =
+                    interface_cast<IMediaHTTPService>(data.readStrongBinder());
+            }
             const char* url = data.readCString();
             sp<IMemoryHeap> heap = interface_cast<IMemoryHeap>(data.readStrongBinder());
             uint32_t sampleRate;
             int numChannels;
             audio_format_t format;
             size_t size;
-            status_t status = decode(url, &sampleRate, &numChannels, &format, heap, &size);
+            status_t status =
+                decode(httpService,
+                       url,
+                       &sampleRate,
+                       &numChannels,
+                       &format,
+                       heap,
+                       &size);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
                 reply->writeInt32(sampleRate);

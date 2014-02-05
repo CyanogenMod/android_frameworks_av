@@ -25,6 +25,8 @@ LOCAL_SRC_FILES:= \
     AudioRecord.cpp \
     AudioSystem.cpp \
     mediaplayer.cpp \
+    IMediaHTTPConnection.cpp \
+    IMediaHTTPService.cpp \
     IMediaLogService.cpp \
     IMediaPlayerService.cpp \
     IMediaPlayerClient.cpp \

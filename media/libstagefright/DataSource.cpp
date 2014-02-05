@@ -35,10 +35,13 @@
 
 #include "matroska/MatroskaExtractor.h"
 
+#include <media/IMediaHTTPConnection.h>
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/MediaHTTP.h>
 #include <utils/String8.h>
 
 #include <cutils/properties.h>
@@ -180,7 +183,9 @@ void DataSource::RegisterDefaultSniffers() {
 
 // static
 sp<DataSource> DataSource::CreateFromURI(
-        const char *uri, const KeyedVector<String8, String8> *headers) {
+        const sp<IMediaHTTPService> &httpService,
+        const char *uri,
+        const KeyedVector<String8, String8> *headers) {
     bool isWidevine = !strncasecmp("widevine://", uri, 11);
 
     sp<DataSource> source;
@@ -189,7 +194,7 @@ sp<DataSource> DataSource::CreateFromURI(
     } else if (!strncasecmp("http://", uri, 7)
             || !strncasecmp("https://", uri, 8)
             || isWidevine) {
-        sp<HTTPBase> httpSource = HTTPBase::Create();
+        sp<HTTPBase> httpSource = new MediaHTTP(httpService->makeHTTPConnection());
 
         String8 tmp;
         if (isWidevine) {

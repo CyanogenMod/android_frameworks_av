@@ -213,7 +213,14 @@ NuCachedSource2::NuCachedSource2(
 
     mLooper->setName("NuCachedSource2");
     mLooper->registerHandler(mReflector);
-    mLooper->start();
+
+    // Since it may not be obvious why our looper thread needs to be
+    // able to call into java since it doesn't appear to do so at all...
+    // IMediaHTTPConnection may be (and most likely is) implemented in JAVA
+    // and a local JAVA IBinder will call directly into JNI methods.
+    // So whenever we call DataSource::readAt it may end up in a call to
+    // IMediaHTTPConnection::readAt and therefore call back into JAVA.
+    mLooper->start(false /* runOnCallingThread */, true /* canCallJava */);
 
     Mutex::Autolock autoLock(mLock);
     (new AMessage(kWhatFetchMore, mReflector->id()))->post();

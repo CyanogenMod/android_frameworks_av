@@ -24,6 +24,7 @@
 
 #include <media/stagefright/StagefrightMediaScanner.h>
 
+#include <media/IMediaHTTPService.h>
 #include <media/mediametadataretriever.h>
 #include <private/media/VideoFrame.h>
 
@@ -147,7 +148,7 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
     status_t status;
     if (fd < 0) {
         // couldn't open it locally, maybe the media server can?
-        status = mRetriever->setDataSource(path);
+        status = mRetriever->setDataSource(NULL /* httpService */, path);
     } else {
         status = mRetriever->setDataSource(fd, 0, 0x7ffffffffffffffL);
         close(fd);
