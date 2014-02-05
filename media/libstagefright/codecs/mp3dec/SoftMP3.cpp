@@ -335,6 +335,9 @@ void SoftMP3::onPortFlushCompleted(OMX_U32 portIndex) {
         // depend on fragments from the last one decoded.
         pvmp3_InitDecoder(mConfig, mDecoderBuf);
         mIsFirst = true;
+        mSignalledError = false;
+        mSawInputEos = false;
+        mSignalledOutputEos = false;
     }
 }
 
