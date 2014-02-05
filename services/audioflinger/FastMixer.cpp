@@ -236,7 +236,6 @@ bool FastMixer::threadLoop()
                     sampleRate = Format_sampleRate(format);
                     ALOG_ASSERT(Format_channelCount(format) == FCC_2);
                 }
-                dumpState->mSampleRate = sampleRate;
             }
 
             if ((format != previousFormat) || (frameCount != previous->mFrameCount)) {
@@ -321,10 +320,6 @@ bool FastMixer::threadLoop()
                         mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                                 (void *) mixBuffer);
                         // newly allocated track names default to full scale volume
-                        if (fastTrack->mSampleRate != 0 && fastTrack->mSampleRate != sampleRate) {
-                            mixer->setParameter(name, AudioMixer::RESAMPLE,
-                                    AudioMixer::SAMPLE_RATE, (void*) fastTrack->mSampleRate);
-                        }
                         mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
                                 (void *) fastTrack->mChannelMask);
                         mixer->enable(name);
@@ -353,14 +348,8 @@ bool FastMixer::threadLoop()
                                 mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
                                         (void *)0x1000);
                             }
-                            if (fastTrack->mSampleRate != 0 &&
-                                    fastTrack->mSampleRate != sampleRate) {
-                                mixer->setParameter(name, AudioMixer::RESAMPLE,
-                                        AudioMixer::SAMPLE_RATE, (void*) fastTrack->mSampleRate);
-                            } else {
-                                mixer->setParameter(name, AudioMixer::RESAMPLE,
-                                        AudioMixer::REMOVE, NULL);
-                            }
+                            mixer->setParameter(name, AudioMixer::RESAMPLE,
+                                    AudioMixer::REMOVE, NULL);
                             mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
                                     (void *) fastTrack->mChannelMask);
                             // already enabled
@@ -392,16 +381,8 @@ bool FastMixer::threadLoop()
 
                 // Refresh the per-track timestamp
                 if (timestampStatus == NO_ERROR) {
-                    uint32_t trackFramesWrittenButNotPresented;
-                    uint32_t trackSampleRate = fastTrack->mSampleRate;
-                    // There is currently no sample rate conversion for fast tracks currently
-                    if (trackSampleRate != 0 && trackSampleRate != sampleRate) {
-                        trackFramesWrittenButNotPresented =
-                                ((int64_t) nativeFramesWrittenButNotPresented * trackSampleRate) /
-                                sampleRate;
-                    } else {
-                        trackFramesWrittenButNotPresented = nativeFramesWrittenButNotPresented;
-                    }
+                    uint32_t trackFramesWrittenButNotPresented =
+                        nativeFramesWrittenButNotPresented;
                     uint32_t trackFramesWritten = fastTrack->mBufferProvider->framesReleased();
                     // Can't provide an AudioTimestamp before first frame presented,
                     // or during the brief 32-bit wraparound window
