@@ -104,13 +104,6 @@ LOCAL_STATIC_LIBRARIES := \
         libFLAC \
         libmedia_helper
 
-LOCAL_SRC_FILES += \
-        chromium_http_stub.cpp
-LOCAL_CPPFLAGS += -DCHROMIUM_AVAILABLE=1
-
-LOCAL_SHARED_LIBRARIES += libstlport
-include external/stlport/libstlport.mk
-
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \
         libstagefright_avc_common \

@@ -38,9 +38,7 @@ struct SDPLoader : public AHandler {
     SDPLoader(
             const sp<AMessage> &notify,
             uint32_t flags,
-            const sp<IMediaHTTPService> &httpService,
-            bool uidValid = false,
-            uid_t uid = 0);
+            const sp<IMediaHTTPService> &httpService);
 
     void load(const char* url, const KeyedVector<String8, String8> *headers);
 
@@ -61,8 +59,6 @@ private:
     sp<AMessage> mNotify;
     const char* mUrl;
     uint32_t mFlags;
-    bool mUIDValid;
-    uid_t mUID;
     sp<ALooper> mNetLooper;
     bool mCancelled;
 

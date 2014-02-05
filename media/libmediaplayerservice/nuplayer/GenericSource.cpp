@@ -35,9 +35,7 @@ NuPlayer::GenericSource::GenericSource(
         const sp<AMessage> &notify,
         const sp<IMediaHTTPService> &httpService,
         const char *url,
-        const KeyedVector<String8, String8> *headers,
-        bool uidValid,
-        uid_t uid)
+        const KeyedVector<String8, String8> *headers)
     : Source(notify),
       mDurationUs(0ll),
       mAudioIsVorbis(false) {

@@ -278,9 +278,6 @@ public:
             const String8& iface);
     virtual status_t            dump(int fd, const Vector<String16>& args);
 
-    virtual status_t        updateProxyConfig(
-            const char *host, int32_t port, const char *exclusionList);
-
             void                removeClient(wp<Client> client);
 
     // For battery usage tracking purpose

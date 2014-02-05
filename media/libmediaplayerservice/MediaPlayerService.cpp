@@ -307,11 +307,6 @@ sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
     return new RemoteDisplay(client, iface.string());
 }
 
-status_t MediaPlayerService::updateProxyConfig(
-        const char *host, int32_t port, const char *exclusionList) {
-    return HTTPBase::UpdateProxyConfig(host, port, exclusionList);
-}
-
 status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& args) const
 {
     const size_t SIZE = 256;

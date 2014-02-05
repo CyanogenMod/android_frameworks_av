@@ -37,13 +37,10 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
         const sp<AMessage> &notify,
         const sp<IMediaHTTPService> &httpService,
         const char *url,
-        const KeyedVector<String8, String8> *headers,
-        bool uidValid, uid_t uid)
+        const KeyedVector<String8, String8> *headers)
     : Source(notify),
       mHTTPService(httpService),
       mURL(url),
-      mUIDValid(uidValid),
-      mUID(uid),
       mFlags(0),
       mFinalResult(OK),
       mOffset(0),
@@ -82,9 +79,7 @@ void NuPlayer::HTTPLiveSource::prepareAsync() {
     mLiveSession = new LiveSession(
             notify,
             (mFlags & kFlagIncognito) ? LiveSession::kFlagIncognito : 0,
-            mHTTPService,
-            mUIDValid,
-            mUID);
+            mHTTPService);
 
     mLiveLooper->registerHandler(mLiveSession);
 

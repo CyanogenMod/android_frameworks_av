@@ -48,13 +48,10 @@ namespace android {
 
 LiveSession::LiveSession(
         const sp<AMessage> &notify, uint32_t flags,
-        const sp<IMediaHTTPService> &httpService,
-        bool uidValid, uid_t uid)
+        const sp<IMediaHTTPService> &httpService)
     : mNotify(notify),
       mFlags(flags),
       mHTTPService(httpService),
-      mUIDValid(uidValid),
-      mUID(uid),
       mInPreparationPhase(true),
       mHTTPDataSource(new MediaHTTP(mHTTPService->makeHTTPConnection())),
       mPrevBandwidthIndex(-1),
@@ -64,10 +61,6 @@ LiveSession::LiveSession(
       mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
       mDisconnectReplyID(0) {
-    if (mUIDValid) {
-        mHTTPDataSource->setUID(mUID);
-    }
-
     mPacketSources.add(
             STREAMTYPE_AUDIO, new AnotherPacketSource(NULL /* meta */));
 

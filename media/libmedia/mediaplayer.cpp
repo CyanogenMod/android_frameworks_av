@@ -838,15 +838,4 @@ status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
     return mPlayer->setNextPlayer(next == NULL ? NULL : next->mPlayer);
 }
 
-status_t MediaPlayer::updateProxyConfig(
-        const char *host, int32_t port, const char *exclusionList) {
-    const sp<IMediaPlayerService>& service = getMediaPlayerService();
-
-    if (service != NULL) {
-        return service->updateProxyConfig(host, port, exclusionList);
-    }
-
-    return INVALID_OPERATION;
-}
-
 }; // namespace android

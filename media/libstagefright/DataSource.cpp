@@ -16,10 +16,6 @@
 
 #include "include/AMRExtractor.h"
 
-#if CHROMIUM_AVAILABLE
-#include "include/chromium_http_stub.h"
-#endif
-
 #include "include/AACExtractor.h"
 #include "include/DRMExtractor.h"
 #include "include/FLACExtractor.h"
@@ -225,11 +221,6 @@ sp<DataSource> DataSource::CreateFromURI(
             // in the widevine:// case.
             source = httpSource;
         }
-
-# if CHROMIUM_AVAILABLE
-    } else if (!strncasecmp("data:", uri, 5)) {
-        source = createDataUriSource(uri);
-#endif
     } else {
         // Assume it's a filename.
         source = new FileSource(uri);

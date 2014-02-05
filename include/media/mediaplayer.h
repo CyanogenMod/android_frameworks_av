@@ -250,9 +250,6 @@ public:
             status_t        setRetransmitEndpoint(const char* addrString, uint16_t port);
             status_t        setNextMediaPlayer(const sp<MediaPlayer>& player);
 
-            status_t updateProxyConfig(
-                    const char *host, int32_t port, const char *exclusionList);
-
 private:
             void            clear_l();
             status_t        seekTo_l(int msec);
