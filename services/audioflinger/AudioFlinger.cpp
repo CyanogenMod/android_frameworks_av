@@ -527,9 +527,24 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         goto Exit;
     }
 
+    // further sample rate checks are performed by createTrack_l() depending on the thread type
+    if (sampleRate == 0) {
+        ALOGE("createTrack() invalid sample rate %u", sampleRate);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
+    // further channel mask checks are performed by createTrack_l() depending on the thread type
+    if (!audio_is_output_channel(channelMask)) {
+        ALOGE("createTrack() invalid channel mask %#x", channelMask);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
     // client is responsible for conversion of 8-bit PCM to 16-bit PCM,
     // and we don't yet support 8.24 or 32-bit PCM
-    if (audio_is_linear_pcm(format) && format != AUDIO_FORMAT_PCM_16_BIT) {
+    if (!audio_is_valid_format(format) ||
+            (audio_is_linear_pcm(format) && format != AUDIO_FORMAT_PCM_16_BIT)) {
         ALOGE("createTrack() invalid format %#x", format);
         lStatus = BAD_VALUE;
         goto Exit;
@@ -1320,8 +1335,24 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
+    // further sample rate checks are performed by createRecordTrack_l()
+    if (sampleRate == 0) {
+        ALOGE("openRecord() invalid sample rate %u", sampleRate);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
+    // FIXME when we support more formats, add audio_is_valid_format(format)
+    //       and any explicit restrictions if audio_is_linear_pcm(format)
     if (format != AUDIO_FORMAT_PCM_16_BIT) {
         ALOGE("openRecord() invalid format %#x", format);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
+    // further channel mask checks are performed by createRecordTrack_l()
+    if (!audio_is_input_channel(channelMask)) {
+        ALOGE("openRecord() invalid channel mask %#x", channelMask);
         lStatus = BAD_VALUE;
         goto Exit;
     }
