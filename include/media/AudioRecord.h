@@ -473,9 +473,13 @@ private:
 
     status_t                mStatus;
 
+    size_t                  mFrameCount;            // corresponds to current IAudioRecord, value is
+                                                    // reported back by AudioFlinger to the client
+    size_t                  mReqFrameCount;         // frame count to request the first or next time
+                                                    // a new IAudioRecord is needed, non-decreasing
+
     // constant after constructor or set()
     uint32_t                mSampleRate;
-    size_t                  mFrameCount;
     audio_format_t          mFormat;
     uint32_t                mChannelCount;
     size_t                  mFrameSize;         // app-level frame size == AudioFlinger frame size

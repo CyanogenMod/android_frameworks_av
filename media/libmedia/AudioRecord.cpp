@@ -228,7 +228,8 @@ status_t AudioRecord::set(
         ALOGE("frameCount %u < minFrameCount %u", frameCount, minFrameCount);
         return BAD_VALUE;
     }
-    mFrameCount = frameCount;
+    // mFrameCount is initialized in openRecord_l
+    mReqFrameCount = frameCount;
 
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
@@ -449,11 +450,12 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
 
     mNotificationFramesAct = mNotificationFramesReq;
+    size_t frameCount = mReqFrameCount;
 
     if (!(mFlags & AUDIO_INPUT_FLAG_FAST)) {
         // Make sure that application is notified with sufficient margin before overrun
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > mFrameCount/2) {
-            mNotificationFramesAct = mFrameCount/2;
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
+            mNotificationFramesAct = frameCount/2;
         }
     }
 
@@ -467,7 +469,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
     // we must release it ourselves if anything goes wrong.
 
-    size_t temp = mFrameCount;  // temp may be replaced by a revised value of frameCount,
+    size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
     int originalSessionId = mSessionId;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
@@ -510,10 +512,15 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
     // note that temp is the (possibly revised) value of mFrameCount
-    if (temp < mFrameCount || (mFrameCount == 0 && temp == 0)) {
-        ALOGW("Requested frameCount %u but received frameCount %u", mFrameCount, temp);
+    if (temp < frameCount || (frameCount == 0 && temp == 0)) {
+        ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
     }
-    mFrameCount = temp;
+    frameCount = temp;
+    // If IAudioRecord is re-created, don't let the requested frameCount
+    // decrease.  This can confuse clients that cache frameCount().
+    if (frameCount > mReqFrameCount) {
+        mReqFrameCount = frameCount;
+    }
 
     // FIXME missing fast track frameCount logic
     mAwaitBoost = false;
@@ -537,6 +544,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
 
     // starting address of buffers in shared memory
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
+
+    mFrameCount = frameCount;
 
     // update proxy
     mProxy = new AudioRecordClientProxy(cblk, buffers, mFrameCount, mFrameSize);
