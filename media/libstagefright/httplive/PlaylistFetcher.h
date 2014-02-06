@@ -119,8 +119,23 @@ private:
     uint64_t mFirstPTS;
     int64_t mAbsoluteTimeAnchorUs;
 
+    // Stores the initialization vector to decrypt the next block of cipher text, which can
+    // either be derived from the sequence number, read from the manifest, or copied from
+    // the last block of cipher text (cipher-block chaining).
+    unsigned char mAESInitVec[16];
+
+    // Set first to true if decrypting the first segment of a playlist segment. When
+    // first is true, reset the initialization vector based on the available
+    // information in the manifest; otherwise, use the initialization vector as
+    // updated by the last call to AES_cbc_encrypt.
+    //
+    // For the input to decrypt correctly, decryptBuffer must be called on
+    // consecutive byte ranges on block boundaries, e.g. 0..15, 16..47, 48..63,
+    // and so on.
     status_t decryptBuffer(
-            size_t playlistIndex, const sp<ABuffer> &buffer);
+            size_t playlistIndex, const sp<ABuffer> &buffer,
+            bool first = true);
+    status_t checkDecryptPadding(const sp<ABuffer> &buffer);
 
     void postMonitorQueue(int64_t delayUs = 0, int64_t minDelayUs = 0);
     void cancelMonitorQueue();
