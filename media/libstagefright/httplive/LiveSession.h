@@ -145,9 +145,25 @@ private:
     status_t onSeek(const sp<AMessage> &msg);
     void onFinishDisconnect2();
 
+    // If given a non-zero block_size (default 0), it is used to cap the number of
+    // bytes read in from the DataSource. If given a non-NULL buffer, new content
+    // is read into the end.
+    //
+    // The DataSource we read from is responsible for signaling error or EOF to help us
+    // break out of the read loop. The DataSource can be returned to the caller, so
+    // that the caller can reuse it for subsequent fetches (within the initially
+    // requested range).
+    //
+    // For reused HTTP sources, the caller must download a file sequentially without
+    // any overlaps or gaps to prevent reconnection.
     status_t fetchFile(
             const char *url, sp<ABuffer> *out,
-            int64_t range_offset = 0, int64_t range_length = -1);
+            /* request/open a file starting at range_offset for range_length bytes */
+            int64_t range_offset = 0, int64_t range_length = -1,
+            /* download block size */
+            uint32_t block_size = 0,
+            /* reuse DataSource if doing partial fetch */
+            sp<DataSource> *source = NULL);
 
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
