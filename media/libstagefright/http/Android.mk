@@ -1,5 +1,7 @@
 LOCAL_PATH:= $(call my-dir)
 
+ifneq ($(TARGET_BUILD_PDK), true)
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=       \
@@ -20,3 +22,5 @@ LOCAL_MODULE:= libstagefright_http_support
 LOCAL_CFLAGS += -Wno-multichar
 
 include $(BUILD_SHARED_LIBRARY)
+
+endif
