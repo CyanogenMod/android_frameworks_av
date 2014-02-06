@@ -30,6 +30,7 @@ LOCAL_SRC_FILES:=                         \
         MediaBufferGroup.cpp              \
         MediaCodec.cpp                    \
         MediaCodecList.cpp                \
+        MediaCodecSource.cpp              \
         MediaDefs.cpp                     \
         MediaExtractor.cpp                \
         http/MediaHTTP.cpp                \

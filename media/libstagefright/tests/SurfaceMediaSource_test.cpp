@@ -746,9 +746,8 @@ TEST_F(SurfaceMediaSourceTest, DISABLED_EncodingFromCpuYV12BufferNpotWriteMediaS
     CHECK(fd >= 0);
 
     sp<MediaRecorder> mr = SurfaceMediaSourceGLTest::setUpMediaRecorder(fd,
-            VIDEO_SOURCE_GRALLOC_BUFFER,
-            OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264, mYuvTexWidth,
-            mYuvTexHeight, 30);
+            VIDEO_SOURCE_SURFACE, OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264,
+            mYuvTexWidth, mYuvTexHeight, 30);
     // get the reference to the surfacemediasource living in
     // mediaserver that is created by stagefrightrecorder
     sp<IGraphicBufferProducer> iST = mr->querySurfaceMediaSourceFromMediaServer();
@@ -880,7 +879,7 @@ TEST_F(SurfaceMediaSourceGLTest, EncodingFromGLRgbaSameImageEachBufNpotWrite) {
     }
     CHECK(fd >= 0);
 
-    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_GRALLOC_BUFFER,
+    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_SURFACE,
             OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264, mYuvTexWidth, mYuvTexHeight, 30);
 
     // get the reference to the surfacemediasource living in
@@ -923,7 +922,7 @@ TEST_F(SurfaceMediaSourceGLTest, EncodingFromGLRgbaDiffImageEachBufNpotWrite) {
     }
     CHECK(fd >= 0);
 
-    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_GRALLOC_BUFFER,
+    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_SURFACE,
             OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264, mYuvTexWidth, mYuvTexHeight, 30);
 
     // get the reference to the surfacemediasource living in

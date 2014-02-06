@@ -39,7 +39,7 @@ typedef void (*media_completion_f)(status_t status, void *cookie);
 enum video_source {
     VIDEO_SOURCE_DEFAULT = 0,
     VIDEO_SOURCE_CAMERA = 1,
-    VIDEO_SOURCE_GRALLOC_BUFFER = 2,
+    VIDEO_SOURCE_SURFACE = 2,
 
     VIDEO_SOURCE_LIST_END  // must be last - used to validate audio source type
 };
