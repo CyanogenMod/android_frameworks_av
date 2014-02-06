@@ -507,53 +507,80 @@ sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
     return info.mFetcher;
 }
 
+/*
+ * Illustration of parameters:
+ *
+ * 0      `range_offset`
+ * +------------+-------------------------------------------------------+--+--+
+ * |            |                                 | next block to fetch |  |  |
+ * |            | `source` handle => `out` buffer |                     |  |  |
+ * | `url` file |<--------- buffer size --------->|<--- `block_size` -->|  |  |
+ * |            |<----------- `range_length` / buffer capacity ----------->|  |
+ * |<------------------------------ file_size ------------------------------->|
+ *
+ * Special parameter values:
+ * - range_length == -1 means entire file
+ * - block_size == 0 means entire range
+ *
+ */
 status_t LiveSession::fetchFile(
         const char *url, sp<ABuffer> *out,
-        int64_t range_offset, int64_t range_length) {
-    *out = NULL;
-
-    sp<DataSource> source;
-
-    if (!strncasecmp(url, "file://", 7)) {
-        source = new FileSource(url + 7);
-    } else if (strncasecmp(url, "http://", 7)
-            && strncasecmp(url, "https://", 8)) {
-        return ERROR_UNSUPPORTED;
-    } else {
-        KeyedVector<String8, String8> headers = mExtraHeaders;
-        if (range_offset > 0 || range_length >= 0) {
-            headers.add(
-                    String8("Range"),
-                    String8(
-                        StringPrintf(
-                            "bytes=%lld-%s",
-                            range_offset,
-                            range_length < 0
-                                ? "" : StringPrintf("%lld", range_offset + range_length - 1).c_str()).c_str()));
-        }
-        status_t err = mHTTPDataSource->connect(url, &headers);
-
-        if (err != OK) {
-            return err;
-        }
-
-        source = mHTTPDataSource;
+        int64_t range_offset, int64_t range_length,
+        uint32_t block_size, /* download block size */
+        sp<DataSource> *source /* to return and reuse source */) {
+    off64_t size;
+    sp<DataSource> temp_source;
+    if (source == NULL) {
+        source = &temp_source;
     }
 
-    off64_t size;
-    status_t err = source->getSize(&size);
+    if (*source == NULL) {
+        if (!strncasecmp(url, "file://", 7)) {
+            *source = new FileSource(url + 7);
+        } else if (strncasecmp(url, "http://", 7)
+                && strncasecmp(url, "https://", 8)) {
+            return ERROR_UNSUPPORTED;
+        } else {
+            KeyedVector<String8, String8> headers = mExtraHeaders;
+            if (range_offset > 0 || range_length >= 0) {
+                headers.add(
+                        String8("Range"),
+                        String8(
+                            StringPrintf(
+                                "bytes=%lld-%s",
+                                range_offset,
+                                range_length < 0
+                                    ? "" : StringPrintf("%lld",
+                                            range_offset + range_length - 1).c_str()).c_str()));
+            }
+            status_t err = mHTTPDataSource->connect(url, &headers);
 
-    if (err != OK) {
+            if (err != OK) {
+                return err;
+            }
+
+            *source = mHTTPDataSource;
+        }
+    }
+
+    status_t getSizeErr = (*source)->getSize(&size);
+    if (getSizeErr != OK) {
         size = 65536;
     }
 
-    sp<ABuffer> buffer = new ABuffer(size);
-    buffer->setRange(0, 0);
+    sp<ABuffer> buffer = *out != NULL ? *out : new ABuffer(size);
+    if (*out == NULL) {
+        buffer->setRange(0, 0);
+    }
 
+    // adjust range_length if only reading partial block
+    if (block_size > 0 && (range_length == -1 || buffer->size() + block_size < range_length)) {
+        range_length = buffer->size() + block_size;
+    }
     for (;;) {
+        // Only resize when we don't know the size.
         size_t bufferRemaining = buffer->capacity() - buffer->size();
-
-        if (bufferRemaining == 0) {
+        if (bufferRemaining == 0 && getSizeErr != OK) {
             bufferRemaining = 32768;
 
             ALOGV("increasing download buffer to %d bytes",
@@ -578,7 +605,9 @@ status_t LiveSession::fetchFile(
             }
         }
 
-        ssize_t n = source->readAt(
+        // The DataSource is responsible for informing us of error (n < 0) or eof (n == 0)
+        // to help us break out of the loop.
+        ssize_t n = (*source)->readAt(
                 buffer->size(), buffer->data() + buffer->size(),
                 maxBytesToRead);
 
