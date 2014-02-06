@@ -216,7 +216,7 @@ private:
         NBLog::Writer*  mLog;
         int32_t         reserved[1];
         // FIXME allocate dynamically to save some memory when maxNumTracks < MAX_NUM_TRACKS
-        track_t         tracks[MAX_NUM_TRACKS]; __attribute__((aligned(32)));
+        track_t         tracks[MAX_NUM_TRACKS] __attribute__((aligned(32)));
     };
 
     // AudioBufferProvider that wraps a track AudioBufferProvider by a call to a downmix effect

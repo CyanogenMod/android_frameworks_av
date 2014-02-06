@@ -26,7 +26,7 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
-class audio_track_cblk_t;
+struct audio_track_cblk_t;
 class AudioRecordClientProxy;
 
 // ----------------------------------------------------------------------------

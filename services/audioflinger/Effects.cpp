@@ -876,7 +876,7 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
     for (size_t i = 0; i < mHandles.size(); ++i) {
         EffectHandle *handle = mHandles[i];
         if (handle != NULL && !handle->destroyed_l()) {
-            handle->dump(buffer, SIZE);
+            handle->dumpToBuffer(buffer, SIZE);
             result.append(buffer);
         }
     }
@@ -1182,7 +1182,7 @@ status_t AudioFlinger::EffectHandle::onTransact(
 }
 
 
-void AudioFlinger::EffectHandle::dump(char* buffer, size_t size)
+void AudioFlinger::EffectHandle::dumpToBuffer(char* buffer, size_t size)
 {
     bool locked = mCblk != NULL && AudioFlinger::dumpTryLock(mCblk->lock);
 

@@ -84,7 +84,7 @@ protected:
     static const uint32_t kPhaseMask = (1LU<<kNumPhaseBits)-1;
 
     // multiplier to calculate fixed point phase increment
-    static const double kPhaseMultiplier = 1L << kNumPhaseBits;
+    static const double kPhaseMultiplier;
 
     AudioResampler(int bitDepth, int inChannelCount, int32_t sampleRate, src_quality quality);
 

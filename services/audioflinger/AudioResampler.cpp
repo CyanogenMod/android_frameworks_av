@@ -78,6 +78,9 @@ private:
     int mX0R;
 };
 
+/*static*/
+const double AudioResampler::kPhaseMultiplier = 1L << AudioResampler::kNumPhaseBits;
+
 bool AudioResampler::qualityIsSupported(src_quality quality)
 {
     switch (quality) {
