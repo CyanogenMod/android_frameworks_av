@@ -49,7 +49,6 @@ enum {
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA,
     LISTEN_FOR_REMOTE_DISPLAY,
-    UPDATE_PROXY_CONFIG,
 };
 
 class BpMediaPlayerService: public BpInterface<IMediaPlayerService>
@@ -192,25 +191,6 @@ public:
         remote()->transact(LISTEN_FOR_REMOTE_DISPLAY, data, &reply);
         return interface_cast<IRemoteDisplay>(reply.readStrongBinder());
     }
-
-    virtual status_t updateProxyConfig(
-            const char *host, int32_t port, const char *exclusionList) {
-        Parcel data, reply;
-
-        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        if (host == NULL) {
-            data.writeInt32(0);
-        } else {
-            data.writeInt32(1);
-            data.writeCString(host);
-            data.writeInt32(port);
-            data.writeCString(exclusionList);
-        }
-
-        remote()->transact(UPDATE_PROXY_CONFIG, data, &reply);
-
-        return reply.readInt32();
-    }
 };
 
 IMPLEMENT_META_INTERFACE(MediaPlayerService, "android.media.IMediaPlayerService");
@@ -338,24 +318,6 @@ status_t BnMediaPlayerService::onTransact(
             reply->writeStrongBinder(display->asBinder());
             return NO_ERROR;
         } break;
-        case UPDATE_PROXY_CONFIG:
-        {
-            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-
-            const char *host = NULL;
-            int32_t port = 0;
-            const char *exclusionList = NULL;
-
-            if (data.readInt32()) {
-                host = data.readCString();
-                port = data.readInt32();
-                exclusionList = data.readCString();
-            }
-
-            reply->writeInt32(updateProxyConfig(host, port, exclusionList));
-
-            return OK;
-        }
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

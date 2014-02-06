@@ -95,8 +95,7 @@ void NuPlayer::RTSPSource::prepareAsync() {
     if (mIsSDP) {
         mSDPLoader = new SDPLoader(notify,
                 (mFlags & kFlagIncognito) ? SDPLoader::kFlagIncognito : 0,
-                mHTTPService,
-                mUIDValid, mUID);
+                mHTTPService);
 
         mSDPLoader->load(
                 mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);

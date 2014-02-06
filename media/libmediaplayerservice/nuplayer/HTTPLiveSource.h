@@ -30,9 +30,7 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
             const sp<AMessage> &notify,
             const sp<IMediaHTTPService> &httpService,
             const char *url,
-            const KeyedVector<String8, String8> *headers,
-            bool uidValid = false,
-            uid_t uid = 0);
+            const KeyedVector<String8, String8> *headers);
 
     virtual void prepareAsync();
     virtual void start();
@@ -65,8 +63,6 @@ private:
     sp<IMediaHTTPService> mHTTPService;
     AString mURL;
     KeyedVector<String8, String8> mExtraHeaders;
-    bool mUIDValid;
-    uid_t mUID;
     uint32_t mFlags;
     status_t mFinalResult;
     off64_t mOffset;

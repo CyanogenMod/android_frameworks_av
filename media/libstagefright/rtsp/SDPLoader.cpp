@@ -35,20 +35,12 @@ namespace android {
 SDPLoader::SDPLoader(
         const sp<AMessage> &notify,
         uint32_t flags,
-        const sp<IMediaHTTPService> &httpService,
-        bool uidValid,
-        uid_t uid)
+        const sp<IMediaHTTPService> &httpService)
     : mNotify(notify),
       mFlags(flags),
-      mUIDValid(uidValid),
-      mUID(uid),
       mNetLooper(new ALooper),
       mCancelled(false),
       mHTTPDataSource(new MediaHTTP(httpService->makeHTTPConnection())) {
-    if (mUIDValid) {
-        mHTTPDataSource->setUID(mUID);
-    }
-
     mNetLooper->setName("sdp net");
     mNetLooper->start(false /* runOnCallingThread */,
                       false /* canCallJava */,
@@ -133,7 +125,7 @@ void SDPLoader::onLoad(const sp<AMessage> &msg) {
         ssize_t readSize = mHTTPDataSource->readAt(0, buffer->data(), sdpSize);
 
         if (readSize < 0) {
-            ALOGE("Failed to read SDP, error code = %ld", readSize);
+            ALOGE("Failed to read SDP, error code = %d", readSize);
             err = UNKNOWN_ERROR;
         } else {
             desc = new ASessionDescription;

@@ -99,9 +99,6 @@ public:
 
     virtual void addBatteryData(uint32_t params) = 0;
     virtual status_t pullBatteryData(Parcel* reply) = 0;
-
-    virtual status_t updateProxyConfig(
-            const char *host, int32_t port, const char *exclusionList) = 0;
 };
 
 // ----------------------------------------------------------------------------
