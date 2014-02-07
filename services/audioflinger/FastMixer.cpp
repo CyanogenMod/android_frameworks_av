@@ -239,7 +239,7 @@ bool FastMixer::threadLoop()
                 dumpState->mSampleRate = sampleRate;
             }
 
-            if ((format != previousFormat) || (frameCount != previous->mFrameCount)) {
+            if ((!Format_isEqual(format, previousFormat)) || (frameCount != previous->mFrameCount)) {
                 // FIXME to avoid priority inversion, don't delete here
                 delete mixer;
                 mixer = NULL;

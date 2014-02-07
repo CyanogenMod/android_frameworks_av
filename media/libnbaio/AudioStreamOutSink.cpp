@@ -37,7 +37,7 @@ AudioStreamOutSink::~AudioStreamOutSink()
 ssize_t AudioStreamOutSink::negotiate(const NBAIO_Format offers[], size_t numOffers,
                                       NBAIO_Format counterOffers[], size_t& numCounterOffers)
 {
-    if (mFormat == Format_Invalid) {
+    if (!Format_isValid(mFormat)) {
         mStreamBufferSizeBytes = mStream->common.get_buffer_size(&mStream->common);
         audio_format_t streamFormat = mStream->common.get_format(&mStream->common);
         if (streamFormat == AUDIO_FORMAT_PCM_16_BIT) {
@@ -56,7 +56,7 @@ ssize_t AudioStreamOutSink::write(const void *buffer, size_t count)
     if (!mNegotiated) {
         return NEGOTIATE;
     }
-    ALOG_ASSERT(mFormat != Format_Invalid);
+    ALOG_ASSERT(Format_isValid(mFormat));
     ssize_t ret = mStream->write(mStream, buffer, count << mBitShift);
     if (ret > 0) {
         ret >>= mBitShift;

@@ -55,7 +55,7 @@ enum {
 
 unsigned Format_sampleRate(const NBAIO_Format& format)
 {
-    if (format == Format_Invalid) {
+    if (!Format_isValid(format)) {
         return 0;
     }
     switch (format & Format_SR_Mask) {
@@ -82,7 +82,7 @@ unsigned Format_sampleRate(const NBAIO_Format& format)
 
 unsigned Format_channelCount(const NBAIO_Format& format)
 {
-    if (format == Format_Invalid) {
+    if (!Format_isValid(format)) {
         return 0;
     }
     switch (format & Format_C_Mask) {
@@ -218,9 +218,9 @@ ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
 {
     ALOGV("negotiate offers=%p numOffers=%u countersOffers=%p numCounterOffers=%u",
             offers, numOffers, counterOffers, numCounterOffers);
-    if (mFormat != Format_Invalid) {
+    if (Format_isValid(mFormat)) {
         for (size_t i = 0; i < numOffers; ++i) {
-            if (offers[i] == mFormat) {
+            if (Format_isEqual(offers[i], mFormat)) {
                 mNegotiated = true;
                 return i;
             }

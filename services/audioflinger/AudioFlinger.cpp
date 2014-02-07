@@ -1783,7 +1783,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                         popcount(inStream->common.get_channels(&inStream->common)));
         if (!mTeeSinkInputEnabled) {
             kind = TEE_SINK_NO;
-        } else if (format == Format_Invalid) {
+        } else if (!Format_isValid(format)) {
             kind = TEE_SINK_NO;
         } else if (mRecordTeeSink == 0) {
             kind = TEE_SINK_NEW;

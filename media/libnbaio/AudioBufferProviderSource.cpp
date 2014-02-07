@@ -28,7 +28,7 @@ AudioBufferProviderSource::AudioBufferProviderSource(AudioBufferProvider *provid
     NBAIO_Source(format), mProvider(provider), mConsumed(0)
 {
     ALOG_ASSERT(provider != NULL);
-    ALOG_ASSERT(format != Format_Invalid);
+    ALOG_ASSERT(Format_isValid(format));
 }
 
 AudioBufferProviderSource::~AudioBufferProviderSource()
