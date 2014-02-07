@@ -478,6 +478,15 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
             mime);
         return ERROR_UNSUPPORTED;
     }
+    if ((isVideo && strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)
+                && strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)
+                && strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) ||
+          (isAudio && strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)
+                   && strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime)
+                   && strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime))) {
+         ALOGE("Track (%s) is not supported in MP4 container.", mime);
+         return ERROR_UNSUPPORTED;
+    }
 
     // At this point, we know the track to be added is either
     // video or audio. Thus, we only need to check whether it
