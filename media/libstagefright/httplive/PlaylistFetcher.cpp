@@ -1321,6 +1321,18 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
             | (adtsHeader[4] << 3)
             | (adtsHeader[5] >> 5);
 
+        if (aac_frame_length == 0) {
+            const uint8_t *id3Header = adtsHeader;
+            if (!memcmp(id3Header, "ID3", 3)) {
+                ID3 id3(id3Header, buffer->size() - offset, true);
+                if (id3.isValid()) {
+                    offset += id3.rawSize();
+                    continue;
+                };
+            }
+            return ERROR_MALFORMED;
+        }
+
         CHECK_LE(offset + aac_frame_length, buffer->size());
 
         sp<ABuffer> unit = new ABuffer(aac_frame_length);
