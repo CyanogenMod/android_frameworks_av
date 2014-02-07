@@ -2360,20 +2360,20 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         (mMixerStatus == MIXER_DRAIN_ALL)) {
                     threadLoop_drain();
                 }
-if (mType == MIXER) {
-                // write blocked detection
-                nsecs_t now = systemTime();
-                nsecs_t delta = now - mLastWriteTime;
-                if (!mStandby && delta > maxPeriod) {
-                    mNumDelayedWrites++;
-                    if ((now - lastWarning) > kWarningThrottleNs) {
-                        ATRACE_NAME("underrun");
-                        ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
-                                ns2ms(delta), mNumDelayedWrites, this);
-                        lastWarning = now;
+                if (mType == MIXER) {
+                    // write blocked detection
+                    nsecs_t now = systemTime();
+                    nsecs_t delta = now - mLastWriteTime;
+                    if (!mStandby && delta > maxPeriod) {
+                        mNumDelayedWrites++;
+                        if ((now - lastWarning) > kWarningThrottleNs) {
+                            ATRACE_NAME("underrun");
+                            ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
+                                    ns2ms(delta), mNumDelayedWrites, this);
+                            lastWarning = now;
+                        }
                     }
                 }
-}
 
             } else {
                 usleep(sleepTime);
@@ -4631,8 +4631,7 @@ reacquire_wakelock:
                             readInto = mRsmpInBuffer;
                             mRsmpInIndex = 0;
                         }
-                        mBytesRead = mInput->stream->read(mInput->stream, readInto,
-                                mBufferSize);
+                        mBytesRead = mInput->stream->read(mInput->stream, readInto, mBufferSize);
                         if (mBytesRead <= 0) {
                             // TODO: verify that it's benign to use a stale track state
                             if ((mBytesRead < 0) && (activeTrackState == TrackBase::ACTIVE))
@@ -4819,6 +4818,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         ALOGE("createRecordTrack_l() audio driver not initialized");
         goto Exit;
     }
+
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (

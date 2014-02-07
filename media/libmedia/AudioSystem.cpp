@@ -84,13 +84,15 @@ const sp<IAudioFlinger>& AudioSystem::get_audio_flinger()
     return DEAD_OBJECT;
 }
 
-status_t AudioSystem::muteMicrophone(bool state) {
+status_t AudioSystem::muteMicrophone(bool state)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
     return af->setMicMute(state);
 }
 
-status_t AudioSystem::isMicrophoneMuted(bool* state) {
+status_t AudioSystem::isMicrophoneMuted(bool* state)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
     *state = af->getMicMute();
@@ -175,13 +177,15 @@ status_t AudioSystem::setMode(audio_mode_t mode)
     return af->setMode(mode);
 }
 
-status_t AudioSystem::setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs) {
+status_t AudioSystem::setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
     return af->setParameters(ioHandle, keyValuePairs);
 }
 
-String8 AudioSystem::getParameters(audio_io_handle_t ioHandle, const String8& keys) {
+String8 AudioSystem::getParameters(audio_io_handle_t ioHandle, const String8& keys)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     String8 result = String8("");
     if (af == 0) return result;
@@ -413,7 +417,8 @@ status_t AudioSystem::getRenderPosition(audio_io_handle_t output, size_t *halFra
     return af->getRenderPosition(halFrames, dspFrames, output);
 }
 
-uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle) {
+uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     uint32_t result = 0;
     if (af == 0) return result;
@@ -423,20 +428,23 @@ uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle) {
     return result;
 }
 
-int AudioSystem::newAudioSessionId() {
+int AudioSystem::newAudioSessionId()
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return 0;
     return af->newAudioSessionId();
 }
 
-void AudioSystem::acquireAudioSessionId(int audioSession) {
+void AudioSystem::acquireAudioSessionId(int audioSession)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af != 0) {
         af->acquireAudioSessionId(audioSession);
     }
 }
 
-void AudioSystem::releaseAudioSessionId(int audioSession) {
+void AudioSystem::releaseAudioSessionId(int audioSession)
+{
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af != 0) {
         af->releaseAudioSessionId(audioSession);
@@ -445,7 +453,8 @@ void AudioSystem::releaseAudioSessionId(int audioSession) {
 
 // ---------------------------------------------------------------------------
 
-void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who __unused) {
+void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who __unused)
+{
     Mutex::Autolock _l(AudioSystem::gLock);
 
     AudioSystem::gAudioFlinger.clear();
@@ -522,12 +531,14 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
     }
 }
 
-void AudioSystem::setErrorCallback(audio_error_callback cb) {
+void AudioSystem::setErrorCallback(audio_error_callback cb)
+{
     Mutex::Autolock _l(gLock);
     gAudioErrorCallback = cb;
 }
 
-bool AudioSystem::routedToA2dpOutput(audio_stream_type_t streamType) {
+bool AudioSystem::routedToA2dpOutput(audio_stream_type_t streamType)
+{
     switch (streamType) {
     case AUDIO_STREAM_MUSIC:
     case AUDIO_STREAM_VOICE_CALL:
@@ -831,7 +842,8 @@ bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
 
 // ---------------------------------------------------------------------------
 
-void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused) {
+void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
+{
     Mutex::Autolock _l(AudioSystem::gLock);
     AudioSystem::gAudioPolicyService.clear();
 

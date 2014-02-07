@@ -60,7 +60,7 @@ namespace {
 // ----------------------------------------------------------------------------
 
 AudioPolicyService::AudioPolicyService()
-    : BnAudioPolicyService() , mpAudioPolicyDev(NULL) , mpAudioPolicy(NULL)
+    : BnAudioPolicyService(), mpAudioPolicyDev(NULL), mpAudioPolicy(NULL)
 {
     char value[PROPERTY_VALUE_MAX];
     const struct hw_module_t *module;
