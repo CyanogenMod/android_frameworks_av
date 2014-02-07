@@ -417,7 +417,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mCachedVolume(1.0),
     mIsInvalid(false),
     mAudioTrackServerProxy(NULL),
-    mResumeToStopping(false)
+    mResumeToStopping(false),
+    mFlushHwPending(false)
 {
     if (mCblk != NULL) {
         if (sharedBuffer == 0) {
@@ -804,6 +805,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
                 mRetryCount = PlaybackThread::kMaxTrackRetriesOffload;
             }
 
+            mFlushHwPending = true;
             mResumeToStopping = false;
         } else {
             if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED &&
@@ -824,9 +826,17 @@ void AudioFlinger::PlaybackThread::Track::flush()
         // Prevent flush being lost if the track is flushed and then resumed
         // before mixer thread can run. This is important when offloading
         // because the hardware buffer could hold a large amount of audio
-        playbackThread->flushOutput_l();
         playbackThread->broadcast_l();
     }
+}
+
+// must be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::flushAck()
+{
+    if (!isOffloaded())
+        return;
+
+    mFlushHwPending = false;
 }
 
 void AudioFlinger::PlaybackThread::Track::reset()
