@@ -24,11 +24,13 @@ namespace android {
 
 size_t Format_frameSize(const NBAIO_Format& format)
 {
+    // FIXME The sample format is hard-coded to AUDIO_FORMAT_PCM_16_BIT
     return Format_channelCount(format) * sizeof(short);
 }
 
 size_t Format_frameBitShift(const NBAIO_Format& format)
 {
+    // FIXME The sample format is hard-coded to AUDIO_FORMAT_PCM_16_BIT
     // sizeof(short) == 2, so frame size == 1 << channels
     return Format_channelCount(format);
 }
