@@ -4809,7 +4809,7 @@ reacquire_wakelock:
                     if (activeTrack->mFramesToDrop > 0) {
                         activeTrack->mFramesToDrop -= framesOut;
                         if (activeTrack->mFramesToDrop <= 0) {
-                            clearSyncStartEvent(activeTrack.get());
+                            activeTrack->clearSyncStartEvent();
                         }
                     } else {
                         activeTrack->mFramesToDrop += framesOut;
@@ -4820,7 +4820,7 @@ reacquire_wakelock:
                                   activeTrack->sessionId(),
                                   (activeTrack->mSyncStartEvent != 0) ?
                                           activeTrack->mSyncStartEvent->triggerSession() : 0);
-                            clearSyncStartEvent(activeTrack.get());
+                            activeTrack->clearSyncStartEvent();
                         }
                     }
                 }
@@ -5011,8 +5011,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
     status_t status = NO_ERROR;
 
     if (event == AudioSystem::SYNC_EVENT_NONE) {
-        // FIXME hmm should be per-track
-        clearSyncStartEvent(recordTrack);
+        recordTrack->clearSyncStartEvent();
     } else if (event != AudioSystem::SYNC_EVENT_SAME) {
         recordTrack->mSyncStartEvent = mAudioFlinger->createSyncEvent(event,
                                        triggerSession,
@@ -5022,7 +5021,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         // Sync event can be cancelled by the trigger session if the track is not in a
         // compatible state in which case we start record immediately
         if (recordTrack->mSyncStartEvent->isCancelled()) {
-            clearSyncStartEvent(recordTrack);
+            recordTrack->clearSyncStartEvent();
         } else {
             // do not wait for the event for more than AudioSystem::kSyncRecordStartTimeOutMs
             recordTrack->mFramesToDrop = -
@@ -5053,7 +5052,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         if (status != NO_ERROR) {
             mActiveTracks.remove(recordTrack);
             mActiveTracksGen++;
-            clearSyncStartEvent(recordTrack);
+            recordTrack->clearSyncStartEvent();
             return status;
         }
         // Catch up with current buffer indices if thread is already running.
@@ -5080,18 +5079,9 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
 
 startError:
     AudioSystem::stopInput(mId);
-    clearSyncStartEvent(recordTrack);
+    recordTrack->clearSyncStartEvent();
     // FIXME I wonder why we do not reset the state here?
     return status;
-}
-
-void AudioFlinger::RecordThread::clearSyncStartEvent(RecordThread::RecordTrack* recordTrack)
-{
-    if (recordTrack->mSyncStartEvent != 0) {
-        recordTrack->mSyncStartEvent->cancel();
-        recordTrack->mSyncStartEvent.clear();
-    }
-    recordTrack->mFramesToDrop = 0;
 }
 
 void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& event)
@@ -5100,21 +5090,7 @@ void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& eve
 
     if (strongEvent != 0) {
         RecordTrack *recordTrack = (RecordTrack *)strongEvent->cookie();
-        sp<ThreadBase> threadBase = recordTrack->mThread.promote();
-        if (threadBase != 0) {
-            RecordThread *me = (RecordThread *) threadBase.get();
-            me->handleSyncStartEvent(recordTrack, strongEvent);
-        }
-    }
-}
-
-void AudioFlinger::RecordThread::handleSyncStartEvent(
-        RecordThread::RecordTrack* recordTrack, const sp<SyncEvent>& event)
-{
-    if (event == recordTrack->mSyncStartEvent) {
-        // TODO: use actual buffer filling status instead of 2 buffers when info is available
-        // from audio HAL
-        recordTrack->mFramesToDrop = mFrameCount * 2;
+        recordTrack->handleSyncStartEvent(strongEvent);
     }
 }
 

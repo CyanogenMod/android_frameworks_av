@@ -1903,4 +1903,27 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bo
 
 }
 
+void AudioFlinger::RecordThread::RecordTrack::handleSyncStartEvent(const sp<SyncEvent>& event)
+{
+    if (event == mSyncStartEvent) {
+        ssize_t framesToDrop = 0;
+        sp<ThreadBase> threadBase = mThread.promote();
+        if (threadBase != 0) {
+            // TODO: use actual buffer filling status instead of 2 buffers when info is available
+            // from audio HAL
+            framesToDrop = threadBase->mFrameCount * 2;
+        }
+        mFramesToDrop = framesToDrop;
+    }
+}
+
+void AudioFlinger::RecordThread::RecordTrack::clearSyncStartEvent()
+{
+    if (mSyncStartEvent != 0) {
+        mSyncStartEvent->cancel();
+        mSyncStartEvent.clear();
+    }
+    mFramesToDrop = 0;
+}
+
 }; // namespace android

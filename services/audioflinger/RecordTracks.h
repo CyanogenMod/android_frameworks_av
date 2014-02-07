@@ -47,6 +47,9 @@ public:
     static  void        appendDumpHeader(String8& result);
             void        dump(char* buffer, size_t size, bool active);
 
+            void        handleSyncStartEvent(const sp<SyncEvent>& event);
+            void        clearSyncStartEvent();
+
 private:
     friend class AudioFlinger;  // for mState
 

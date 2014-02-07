@@ -931,14 +931,11 @@ public:
     virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
 
     static void syncStartEventCallback(const wp<SyncEvent>& event);
-           void handleSyncStartEvent(RecordTrack *recordTrack, const sp<SyncEvent>& event);
 
     virtual size_t      frameCount() const { return mFrameCount; }
             bool        hasFastRecorder() const { return false; }
 
 private:
-            void    clearSyncStartEvent(RecordTrack* recordTrack);
-
             // Enter standby if not already in standby, and set mStandby flag
             void    standbyIfNotAlreadyInStandby();
 
