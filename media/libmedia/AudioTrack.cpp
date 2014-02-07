@@ -476,33 +476,33 @@ status_t AudioTrack::set(
     }
     else {
 #endif
-    if (cbf != NULL) {
-        mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
-        mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
-    }
+        // create the IAudioTrack
+        status_t status = createTrack_l(streamType,
+                                      sampleRate,
+                                      format,
+                                      frameCount,
+                                      flags,
+                                      sharedBuffer,
+                                      output,
+                                      0 /*epoch*/);
 
-    // create the IAudioTrack
-    status_t status = createTrack_l(streamType,
-                                  sampleRate,
-                                  format,
-                                  frameCount,
-                                  flags,
-                                  sharedBuffer,
-                                  output,
-                                  0 /*epoch*/);
-
-    if (status != NO_ERROR) {
-        if (mAudioTrackThread != 0) {
-            mAudioTrackThread->requestExit();   // see comment in AudioTrack.h
-            mAudioTrackThread->requestExitAndWait();
-            mAudioTrackThread.clear();
+        if (cbf != NULL && status == NO_ERROR) {
+            mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
+            mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
         }
-        //Use of direct and offloaded output streams is ref counted by audio policy manager.
-        // As getOutput was called above and resulted in an output stream to be opened,
-        // we need to release it.
-        AudioSystem::releaseOutput(output);
-        return status;
-    }
+
+        if (status != NO_ERROR) {
+            if (mAudioTrackThread != 0) {
+                mAudioTrackThread->requestExit();   // see comment in AudioTrack.h
+                mAudioTrackThread->requestExitAndWait();
+                mAudioTrackThread.clear();
+            }
+            //Use of direct and offloaded output streams is ref counted by audio policy manager.
+            // As getOutput was called above and resulted in an output stream to be opened,
+            // we need to release it.
+            AudioSystem::releaseOutput(output);
+            return status;
+        }
 #ifdef QCOM_DIRECTTRACK
         AudioSystem::acquireAudioSessionId(mSessionId);
         mAudioDirectOutput = -1;
@@ -511,7 +511,6 @@ status_t AudioTrack::set(
     }
     mUserData = user;
 #endif
-
     mStatus = NO_ERROR;
     mStreamType = streamType;
     mFormat = format;
@@ -1621,7 +1620,10 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
     // Currently the AudioTrack thread is not created if there are no callbacks.
     // Would it ever make sense to run the thread, even without callbacks?
     // If so, then replace this by checks at each use for mCbf != NULL.
-    LOG_ALWAYS_FATAL_IF(mCblk == NULL);
+    if (mCblk == NULL) {
+        ALOGE("mCblk is NULL");
+        return NS_NEVER;
+    }
 
     mLock.lock();
     if (mAwaitBoost) {
