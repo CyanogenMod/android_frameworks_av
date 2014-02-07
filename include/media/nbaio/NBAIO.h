@@ -63,7 +63,8 @@ extern const NBAIO_Format Format_Invalid;
 size_t Format_frameSize(const NBAIO_Format& format);
 
 // Return the frame size of an NBAIO_Format as a bit shift
-size_t Format_frameBitShift(const NBAIO_Format& format);
+// or -1 if frame size is not a power of 2
+int Format_frameBitShift(const NBAIO_Format& format);
 
 // Convert a sample rate in Hz and channel count to an NBAIO_Format
 // FIXME The sample format is hard-coded to AUDIO_FORMAT_PCM_16_BIT
