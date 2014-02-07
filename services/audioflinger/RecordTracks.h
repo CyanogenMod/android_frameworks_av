@@ -45,7 +45,7 @@ public:
                                                 return tmp; }
 
     static  void        appendDumpHeader(String8& result);
-            void        dump(char* buffer, size_t size);
+            void        dump(char* buffer, size_t size, bool active);
 
 private:
     friend class AudioFlinger;  // for mState

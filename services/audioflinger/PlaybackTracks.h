@@ -37,7 +37,7 @@ public:
     virtual status_t    initCheck() const;
 
     static  void        appendDumpHeader(String8& result);
-            void        dump(char* buffer, size_t size);
+            void        dump(char* buffer, size_t size, bool active);
     virtual status_t    start(AudioSystem::sync_event_t event =
                                     AudioSystem::SYNC_EVENT_NONE,
                              int triggerSession = 0);

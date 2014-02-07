@@ -435,17 +435,19 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 /*static*/ void AudioFlinger::PlaybackThread::Track::appendDumpHeader(String8& result)
 {
-    result.append("   Name Client Type      Fmt Chn mask Session fCount S F SRate  "
+    result.append("    Name Active Client Type      Fmt Chn mask Session fCount S F SRate  "
                   "L dB  R dB    Server Main buf  Aux Buf Flags UndFrmCnt\n");
 }
 
-void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
+void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size, bool active)
 {
     uint32_t vlr = mAudioTrackServerProxy->getVolumeLR();
     if (isFastTrack()) {
-        sprintf(buffer, "   F %2d", mFastIndex);
+        sprintf(buffer, "    F %2d", mFastIndex);
+    } else if (mName >= AudioMixer::TRACK0) {
+        sprintf(buffer, "    %4d", mName - AudioMixer::TRACK0);
     } else {
-        sprintf(buffer, "   %4d", mName - AudioMixer::TRACK0);
+        sprintf(buffer, "    none");
     }
     track_state state = mState;
     char stateChar;
@@ -500,8 +502,9 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size)
         nowInUnderrun = '?';
         break;
     }
-    snprintf(&buffer[7], size-7, " %6u %4u %08X %08X %7u %6u %1c %1d %5u %5.2g %5.2g  "
+    snprintf(&buffer[8], size-8, " %6s %6u %4u %08X %08X %7u %6u %1c %1d %5u %5.2g %5.2g  "
                                  "%08X %08X %08X 0x%03X %9u%c\n",
+            active ? "yes" : "no",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
             mFormat,
@@ -1864,12 +1867,13 @@ void AudioFlinger::RecordThread::RecordTrack::invalidate()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("Client Fmt Chn mask Session S   Server fCount\n");
+    result.append("    Active Client Fmt Chn mask Session S   Server fCount\n");
 }
 
-void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size)
+void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bool active)
 {
-    snprintf(buffer, size, "%6u %3u %08X %7u %1d %08X %6u\n",
+    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6u\n",
+            active ? "yes" : "no",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,
             mChannelMask,

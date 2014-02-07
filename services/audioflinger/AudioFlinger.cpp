@@ -104,6 +104,27 @@ static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
 
 // ----------------------------------------------------------------------------
 
+const char *formatToString(audio_format_t format) {
+    switch(format) {
+    case AUDIO_FORMAT_PCM_SUB_8_BIT: return "pcm8";
+    case AUDIO_FORMAT_PCM_SUB_16_BIT: return "pcm16";
+    case AUDIO_FORMAT_PCM_SUB_32_BIT: return "pcm32";
+    case AUDIO_FORMAT_PCM_SUB_8_24_BIT: return "pcm8.24";
+    case AUDIO_FORMAT_PCM_SUB_24_BIT_PACKED: return "pcm24";
+    case AUDIO_FORMAT_PCM_SUB_FLOAT: return "pcmfloat";
+    case AUDIO_FORMAT_MP3: return "mp3";
+    case AUDIO_FORMAT_AMR_NB: return "amr-nb";
+    case AUDIO_FORMAT_AMR_WB: return "amr-wb";
+    case AUDIO_FORMAT_AAC: return "aac";
+    case AUDIO_FORMAT_HE_AAC_V1: return "he-aac-v1";
+    case AUDIO_FORMAT_HE_AAC_V2: return "he-aac-v2";
+    case AUDIO_FORMAT_VORBIS: return "vorbis";
+    default:
+        break;
+    }
+    return "unknown";
+}
+
 static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
 {
     const hw_module_t *mod;
@@ -286,10 +307,10 @@ void AudioFlinger::dumpClients(int fd, const Vector<String16>& args __unused)
     }
 
     result.append("Global session refs:\n");
-    result.append(" session pid count\n");
+    result.append("  session   pid count\n");
     for (size_t i = 0; i < mAudioSessionRefs.size(); i++) {
         AudioSessionRef *r = mAudioSessionRefs[i];
-        snprintf(buffer, SIZE, " %7d %3d %3d\n", r->mSessionid, r->mPid, r->mCnt);
+        snprintf(buffer, SIZE, "  %7d %5d %5d\n", r->mSessionid, r->mPid, r->mCnt);
         result.append(buffer);
     }
     write(fd, result.string(), result.size());

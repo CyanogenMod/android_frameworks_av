@@ -715,7 +715,7 @@ static int compare_uint32_t(const void *pa, const void *pb)
 void FastMixerDumpState::dump(int fd) const
 {
     if (mCommand == FastMixerState::INITIAL) {
-        fdprintf(fd, "FastMixer not initialized\n");
+        fdprintf(fd, "  FastMixer not initialized\n");
         return;
     }
 #define COMMAND_MAX 32
@@ -749,10 +749,10 @@ void FastMixerDumpState::dump(int fd) const
     double measuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
             (mMeasuredWarmupTs.tv_nsec / 1000000.0);
     double mixPeriodSec = (double) mFrameCount / (double) mSampleRate;
-    fdprintf(fd, "FastMixer command=%s writeSequence=%u framesWritten=%u\n"
-                 "          numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
-                 "          sampleRate=%u frameCount=%u measuredWarmup=%.3g ms, warmupCycles=%u\n"
-                 "          mixPeriod=%.2f ms\n",
+    fdprintf(fd, "  FastMixer command=%s writeSequence=%u framesWritten=%u\n"
+                 "            numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
+                 "            sampleRate=%u frameCount=%u measuredWarmup=%.3g ms, warmupCycles=%u\n"
+                 "            mixPeriod=%.2f ms\n",
                  string, mWriteSequence, mFramesWritten,
                  mNumTracks, mWriteErrors, mUnderruns, mOverruns,
                  mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
@@ -803,14 +803,20 @@ void FastMixerDumpState::dump(int fd) const
         previousCpukHz = sampleCpukHz;
 #endif
     }
-    fdprintf(fd, "Simple moving statistics over last %.1f seconds:\n", wall.n() * mixPeriodSec);
-    fdprintf(fd, "  wall clock time in ms per mix cycle:\n"
-                 "    mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
-                 wall.mean()*1e-6, wall.minimum()*1e-6, wall.maximum()*1e-6, wall.stddev()*1e-6);
-    fdprintf(fd, "  raw CPU load in us per mix cycle:\n"
-                 "    mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
-                 loadNs.mean()*1e-3, loadNs.minimum()*1e-3, loadNs.maximum()*1e-3,
-                 loadNs.stddev()*1e-3);
+    if (n) {
+        fdprintf(fd, "  Simple moving statistics over last %.1f seconds:\n",
+                     wall.n() * mixPeriodSec);
+        fdprintf(fd, "    wall clock time in ms per mix cycle:\n"
+                     "      mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
+                     wall.mean()*1e-6, wall.minimum()*1e-6, wall.maximum()*1e-6,
+                     wall.stddev()*1e-6);
+        fdprintf(fd, "    raw CPU load in us per mix cycle:\n"
+                     "      mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
+                     loadNs.mean()*1e-3, loadNs.minimum()*1e-3, loadNs.maximum()*1e-3,
+                     loadNs.stddev()*1e-3);
+    } else {
+        fdprintf(fd, "  No FastMixer statistics available currently\n");
+    }
 #ifdef CPU_FREQUENCY_STATISTICS
     fdprintf(fd, "  CPU clock frequency in MHz:\n"
                  "    mean=%.0f min=%.0f max=%.0f stddev=%.0f\n",
@@ -828,9 +834,9 @@ void FastMixerDumpState::dump(int fd) const
             left.sample(tail[i]);
             right.sample(tail[n - (i + 1)]);
         }
-        fdprintf(fd, "Distribution of mix cycle times in ms for the tails (> ~3 stddev outliers):\n"
-                     "  left tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n"
-                     "  right tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
+        fdprintf(fd, "  Distribution of mix cycle times in ms for the tails (> ~3 stddev outliers):\n"
+                     "    left tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n"
+                     "    right tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
                      left.mean()*1e-6, left.minimum()*1e-6, left.maximum()*1e-6, left.stddev()*1e-6,
                      right.mean()*1e-6, right.minimum()*1e-6, right.maximum()*1e-6,
                      right.stddev()*1e-6);
@@ -843,9 +849,9 @@ void FastMixerDumpState::dump(int fd) const
     // Instead we always display all tracks, with an indication
     // of whether we think the track is active.
     uint32_t trackMask = mTrackMask;
-    fdprintf(fd, "Fast tracks: kMaxFastTracks=%u activeMask=%#x\n",
+    fdprintf(fd, "  Fast tracks: kMaxFastTracks=%u activeMask=%#x\n",
             FastMixerState::kMaxFastTracks, trackMask);
-    fdprintf(fd, "Index Active Full Partial Empty  Recent Ready\n");
+    fdprintf(fd, "  Index Active Full Partial Empty  Recent Ready\n");
     for (uint32_t i = 0; i < FastMixerState::kMaxFastTracks; ++i, trackMask >>= 1) {
         bool isActive = trackMask & 1;
         const FastTrackDump *ftDump = &mTracks[i];
@@ -865,7 +871,7 @@ void FastMixerDumpState::dump(int fd) const
             mostRecent = "?";
             break;
         }
-        fdprintf(fd, "%5u %6s %4u %7u %5u %7s %5u\n", i, isActive ? "yes" : "no",
+        fdprintf(fd, "  %5u %6s %4u %7u %5u %7s %5u\n", i, isActive ? "yes" : "no",
                 (underruns.mBitFields.mFull) & UNDERRUN_MASK,
                 (underruns.mBitFields.mPartial) & UNDERRUN_MASK,
                 (underruns.mBitFields.mEmpty) & UNDERRUN_MASK,
