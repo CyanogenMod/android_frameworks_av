@@ -235,4 +235,14 @@ ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
     return (ssize_t) NEGOTIATE;
 }
 
+bool Format_isValid(const NBAIO_Format& format)
+{
+    return format != Format_Invalid;
+}
+
+bool Format_isEqual(const NBAIO_Format& format1, const NBAIO_Format& format2)
+{
+    return format1 == format2;
+}
+
 }   // namespace android
