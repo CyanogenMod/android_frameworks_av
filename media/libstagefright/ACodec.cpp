@@ -3914,19 +3914,6 @@ bool ACodec::LoadedState::onConfigureComponent(
 
     CHECK(mCodec->mNode != NULL);
 
-    AString mime;
-    CHECK(msg->findString("mime", &mime));
-
-    status_t err = mCodec->configureCodec(mime.c_str(), msg);
-
-    if (err != OK) {
-        ALOGE("[%s] configureCodec returning error %d",
-              mCodec->mComponentName.c_str(), err);
-
-        mCodec->signalError(OMX_ErrorUndefined, err);
-        return false;
-    }
-
     sp<RefBase> obj;
     if (msg->findObject("native-window", &obj)
             && strncmp("OMX.google.", mCodec->mComponentName.c_str(), 11)) {
@@ -3940,6 +3927,19 @@ bool ACodec::LoadedState::onConfigureComponent(
                 NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
     }
     CHECK_EQ((status_t)OK, mCodec->initNativeWindow());
+
+    AString mime;
+    CHECK(msg->findString("mime", &mime));
+
+    status_t err = mCodec->configureCodec(mime.c_str(), msg);
+
+    if (err != OK) {
+        ALOGE("[%s] configureCodec returning error %d",
+              mCodec->mComponentName.c_str(), err);
+
+        mCodec->signalError(OMX_ErrorUndefined, err);
+        return false;
+    }
 
     {
         sp<AMessage> notify = mCodec->mNotify->dup();
