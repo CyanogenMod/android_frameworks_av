@@ -185,7 +185,7 @@ void OMX::binderDied(const wp<IBinder> &the_late_who) {
     instance->onObserverDied(mMaster);
 }
 
-bool OMX::livesLocally(node_id node, pid_t pid) {
+bool OMX::livesLocally(node_id /* node */, pid_t pid) {
     return pid == getpid();
 }
 
@@ -424,7 +424,7 @@ OMX_ERRORTYPE OMX::OnEvent(
         OMX_IN OMX_EVENTTYPE eEvent,
         OMX_IN OMX_U32 nData1,
         OMX_IN OMX_U32 nData2,
-        OMX_IN OMX_PTR pEventData) {
+        OMX_IN OMX_PTR /* pEventData */) {
     ALOGV("OnEvent(%d, %ld, %ld)", eEvent, nData1, nData2);
 
     // Forward to OMXNodeInstance.

@@ -68,19 +68,19 @@ struct NuPlayer::Source : public AHandler {
     virtual status_t dequeueAccessUnit(
             bool audio, sp<ABuffer> *accessUnit) = 0;
 
-    virtual status_t getDuration(int64_t *durationUs) {
+    virtual status_t getDuration(int64_t * /* durationUs */) {
         return INVALID_OPERATION;
     }
 
-    virtual status_t getTrackInfo(Parcel* reply) const {
+    virtual status_t getTrackInfo(Parcel* /* reply */) const {
         return INVALID_OPERATION;
     }
 
-    virtual status_t selectTrack(size_t trackIndex, bool select) {
+    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */) {
         return INVALID_OPERATION;
     }
 
-    virtual status_t seekTo(int64_t seekTimeUs) {
+    virtual status_t seekTo(int64_t /* seekTimeUs */) {
         return INVALID_OPERATION;
     }
 
@@ -93,7 +93,7 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
-    virtual sp<MetaData> getFormatMeta(bool audio) { return NULL; }
+    virtual sp<MetaData> getFormatMeta(bool /* audio */) { return NULL; }
 
     sp<AMessage> dupNotify() const { return mNotify->dup(); }
 

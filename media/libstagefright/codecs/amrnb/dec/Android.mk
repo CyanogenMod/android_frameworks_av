@@ -47,6 +47,8 @@ LOCAL_C_INCLUDES := \
 LOCAL_CFLAGS := \
         -DOSCL_UNUSED_ARG= -DOSCL_IMPORT_REF=
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_MODULE := libstagefright_amrnbdec
 
 include $(BUILD_STATIC_LIBRARY)
@@ -67,6 +69,8 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/../common/include \
 
 LOCAL_CFLAGS := -DOSCL_IMPORT_REF=
+
+LOCAL_CFLAGS += -Werror
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrnbdec libstagefright_amrwbdec

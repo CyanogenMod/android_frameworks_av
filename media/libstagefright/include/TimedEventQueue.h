@@ -122,7 +122,7 @@ private:
     };
 
     struct StopEvent : public TimedEventQueue::Event {
-        virtual void fire(TimedEventQueue *queue, int64_t now_us) {
+        virtual void fire(TimedEventQueue *queue, int64_t /* now_us */) {
             queue->mStopped = true;
         }
     };

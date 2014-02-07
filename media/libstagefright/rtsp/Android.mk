@@ -30,6 +30,8 @@ ifeq ($(TARGET_ARCH),arm)
     LOCAL_CFLAGS += -Wno-psabi
 endif
 
+LOCAL_CFLAGS += -Werror
+
 include $(BUILD_STATIC_LIBRARY)
 
 ################################################################################

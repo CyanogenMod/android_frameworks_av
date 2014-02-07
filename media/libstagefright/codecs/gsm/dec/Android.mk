@@ -9,6 +9,8 @@ LOCAL_C_INCLUDES := \
         frameworks/native/include/media/openmax \
         external/libgsm/inc
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_SHARED_LIBRARIES := \
         libstagefright libstagefright_omx libstagefright_foundation libutils liblog
 

@@ -32,6 +32,11 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 
+#if LOG_NDEBUG
+#define UNUSED_UNLESS_VERBOSE(x) (void)(x)
+#else
+#define UNUSED_UNLESS_VERBOSE(x)
+#endif
 
 namespace android {
 
@@ -463,7 +468,9 @@ void FragmentedMP4Parser::onMessageReceived(const sp<AMessage> &msg) {
                     mBuffer->data() + mBuffer->size(), needed);
 
             if (n < (ssize_t)needed) {
-                ALOGV("Reached EOF when reading %d @ %d + %d", needed, mBufferPos, mBuffer->size());
+                ALOGV("Reached EOF when reading %d @ %ld + %zu",
+                      needed, mBufferPos, mBuffer->size());
+
                 if (n < 0) {
                     mFinalResult = n;
                 } else if (n == 0) {
@@ -636,7 +643,7 @@ status_t FragmentedMP4Parser::onProceed() {
         // This is a container box.
         if (type == FOURCC('m', 'o', 'o', 'f')) {
             if (mFirstMoofOffset == 0) {
-                ALOGV("first moof @ %08x", mBufferPos + offset);
+                ALOGV("first moof @ %08lx", mBufferPos + offset);
                 mFirstMoofOffset = mBufferPos + offset - 8; // point at the size
             }
         }
@@ -1137,7 +1144,7 @@ void FragmentedMP4Parser::skip(off_t distance) {
 }
 
 status_t FragmentedMP4Parser::parseTrackHeader(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     if (offset + 4 > size) {
         return -EINVAL;
     }
@@ -1188,7 +1195,7 @@ status_t FragmentedMP4Parser::parseTrackHeader(
 }
 
 status_t FragmentedMP4Parser::parseMediaHeader(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     if (offset + 4 > size) {
         return -EINVAL;
     }
@@ -1221,7 +1228,7 @@ status_t FragmentedMP4Parser::parseMediaHeader(
 }
 
 status_t FragmentedMP4Parser::parseMediaHandler(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     if (offset + 12 > size) {
         return -EINVAL;
     }
@@ -1388,7 +1395,7 @@ status_t FragmentedMP4Parser::parseChunkOffsets64(
 }
 
 status_t FragmentedMP4Parser::parseAVCCodecSpecificData(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     TrackInfo *trackInfo = editTrack(mCurrentTrackID);
 
     SampleDescription *sampleDesc =
@@ -1471,7 +1478,7 @@ status_t FragmentedMP4Parser::parseAVCCodecSpecificData(
 }
 
 status_t FragmentedMP4Parser::parseESDSCodecSpecificData(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     TrackInfo *trackInfo = editTrack(mCurrentTrackID);
 
     SampleDescription *sampleDesc =
@@ -1576,7 +1583,7 @@ status_t FragmentedMP4Parser::parseESDSCodecSpecificData(
 }
 
 status_t FragmentedMP4Parser::parseMediaData(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     ALOGV("skipping 'mdat' chunk at offsets 0x%08lx-0x%08llx.",
           mBufferPos + offset, mBufferPos + size);
 
@@ -1598,6 +1605,7 @@ status_t FragmentedMP4Parser::parseMediaData(
 
 status_t FragmentedMP4Parser::parseSegmentIndex(
         uint32_t type, size_t offset, uint64_t size) {
+    UNUSED_UNLESS_VERBOSE(type);
     ALOGV("sidx box type %d, offset %d, size %d", type, int(offset), int(size));
 //    AString sidxstr;
 //    hexdump(mBuffer->data() + offset, size, 0 /* indent */, &sidxstr);
@@ -1684,7 +1692,7 @@ status_t FragmentedMP4Parser::parseSegmentIndex(
 }
 
 status_t FragmentedMP4Parser::parseTrackExtends(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     if (offset + 24 > size) {
         return -EINVAL;
     }
@@ -1735,7 +1743,7 @@ FragmentedMP4Parser::TrackInfo *FragmentedMP4Parser::editTrack(
 }
 
 status_t FragmentedMP4Parser::parseTrackFragmentHeader(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return -EINVAL;
     }
@@ -1825,7 +1833,7 @@ status_t FragmentedMP4Parser::parseTrackFragmentHeader(
 }
 
 status_t FragmentedMP4Parser::parseTrackFragmentRun(
-        uint32_t type, size_t offset, uint64_t size) {
+        uint32_t /* type */, size_t offset, uint64_t size) {
     if (offset + 8 > size) {
         return -EINVAL;
     }

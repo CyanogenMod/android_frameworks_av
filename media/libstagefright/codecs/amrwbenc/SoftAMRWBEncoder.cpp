@@ -317,7 +317,7 @@ OMX_ERRORTYPE SoftAMRWBEncoder::internalSetParameter(
     }
 }
 
-void SoftAMRWBEncoder::onQueueFilled(OMX_U32 portIndex) {
+void SoftAMRWBEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError) {
         return;
     }

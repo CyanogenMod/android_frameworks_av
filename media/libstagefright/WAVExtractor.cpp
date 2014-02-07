@@ -127,7 +127,7 @@ sp<MediaSource> WAVExtractor::getTrack(size_t index) {
 }
 
 sp<MetaData> WAVExtractor::getTrackMetaData(
-        size_t index, uint32_t flags) {
+        size_t index, uint32_t /* flags */) {
     if (mInitCheck != OK || index > 0) {
         return NULL;
     }
@@ -358,7 +358,7 @@ WAVSource::~WAVSource() {
     }
 }
 
-status_t WAVSource::start(MetaData *params) {
+status_t WAVSource::start(MetaData * /* params */) {
     ALOGV("WAVSource::start");
 
     CHECK(!mStarted);

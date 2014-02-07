@@ -38,6 +38,8 @@
 #include "tns_func.h"
 #include "memalign.h"
 
+#define UNUSED(x) (void)(x)
+
 /*                                    long       start       short       stop */
 static Word16 blockType2windowShape[] = {KBD_WINDOW,SINE_WINDOW,SINE_WINDOW,KBD_WINDOW};
 
@@ -170,7 +172,9 @@ Word16 PsyOutNew(PSY_OUT *hPsyOut, VO_MEM_OPERATOR *pMemOP)
 *****************************************************************************/
 Word16 PsyOutDelete(PSY_OUT *hPsyOut, VO_MEM_OPERATOR *pMemOP)
 {
-  hPsyOut=NULL;
+  UNUSED(hPsyOut);
+  UNUSED(pMemOP);
+
   return 0;
 }
 

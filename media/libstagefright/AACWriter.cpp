@@ -111,7 +111,7 @@ status_t AACWriter::addSource(const sp<MediaSource> &source) {
     return OK;
 }
 
-status_t AACWriter::start(MetaData *params) {
+status_t AACWriter::start(MetaData * /* params */) {
     if (mInitCheck != OK) {
         return mInitCheck;
     }

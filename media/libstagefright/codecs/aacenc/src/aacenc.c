@@ -27,6 +27,8 @@
 #include "cmnMemory.h"
 #include "memalign.h"
 
+#define UNUSED(x) (void)(x)
+
 /**
 * Init the audio codec module and return codec handle
 * \param phCodec [OUT] Return the video codec handle
@@ -45,6 +47,8 @@ VO_U32 VO_API voAACEncInit(VO_HANDLE * phCodec,VO_AUDIO_CODINGTYPE vType, VO_COD
 #endif
 	VO_MEM_OPERATOR *pMemOP;
 	int interMem;
+
+        UNUSED(vType);
 
 	interMem = 0;
 	error = 0;
@@ -471,6 +475,10 @@ VO_U32 VO_API voAACEncSetParam(VO_HANDLE hCodec, VO_S32 uParamID, VO_PTR pData)
 */
 VO_U32 VO_API voAACEncGetParam(VO_HANDLE hCodec, VO_S32 uParamID, VO_PTR pData)
 {
+        UNUSED(hCodec);
+        UNUSED(uParamID);
+        UNUSED(pData);
+
 	return VO_ERR_NONE;
 }
 

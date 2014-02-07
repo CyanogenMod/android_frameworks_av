@@ -602,7 +602,7 @@ void PlaylistFetcher::onDownloadNext() {
 
         if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
             mSeqNumber = getSeqNumberForTime(mStartTimeUs);
-            ALOGV("Initial sequence number for time %lld is %ld from (%ld .. %ld)",
+            ALOGV("Initial sequence number for time %lld is %d from (%d .. %d)",
                     mStartTimeUs, mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
         } else {
@@ -611,7 +611,7 @@ void PlaylistFetcher::onDownloadNext() {
             if (mSeqNumber < firstSeqNumberInPlaylist) {
                 mSeqNumber = firstSeqNumberInPlaylist;
             }
-            ALOGV("Initial sequence number for live event %ld from (%ld .. %ld)",
+            ALOGV("Initial sequence number for live event %d from (%d .. %d)",
                     mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
         }
@@ -635,7 +635,8 @@ void PlaylistFetcher::onDownloadNext() {
                 if (delayUs > kMaxMonitorDelayUs) {
                     delayUs = kMaxMonitorDelayUs;
                 }
-                ALOGV("sequence number high: %ld from (%ld .. %ld), monitor in %lld (retry=%d)",
+                ALOGV("sequence number high: %d from (%d .. %d), "
+                      "monitor in %lld (retry=%d)",
                         mSeqNumber, firstSeqNumberInPlaylist,
                         lastSeqNumberInPlaylist, delayUs, mNumRetries);
                 postMonitorQueue(delayUs);

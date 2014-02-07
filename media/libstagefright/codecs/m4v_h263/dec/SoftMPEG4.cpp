@@ -91,7 +91,7 @@ status_t SoftMPEG4::initDecoder() {
     return OK;
 }
 
-void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
+void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError || mOutputPortSettingsChange != NONE) {
         return;
     }

@@ -85,7 +85,7 @@ status_t SoftVPX::initDecoder() {
     return OK;
 }
 
-void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
+void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mOutputPortSettingsChange != NONE) {
         return;
     }
