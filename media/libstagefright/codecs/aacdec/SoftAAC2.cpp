@@ -377,7 +377,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                 mNumSamplesOutput = 0;
             }
 
-            if (mIsADTS) {
+            if (mIsADTS && inHeader->nFilledLen) {
                 size_t adtsHeaderSize = 0;
                 // skip 30 bits, aac_frame_length follows.
                 // ssssssss ssssiiip ppffffPc ccohCCll llllllll lll?????
