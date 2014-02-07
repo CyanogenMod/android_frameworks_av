@@ -202,6 +202,9 @@ status_t SurfaceMediaSource::stop()
         return OK;
     }
 
+    mStarted = false;
+    mFrameAvailableCondition.signal();
+
     while (mNumPendingBuffers > 0) {
         ALOGI("Still waiting for %d buffers to be returned.",
                 mNumPendingBuffers);
@@ -215,8 +218,6 @@ status_t SurfaceMediaSource::stop()
         mMediaBuffersAvailableCondition.wait(mMutex);
     }
 
-    mStarted = false;
-    mFrameAvailableCondition.signal();
     mMediaBuffersAvailableCondition.signal();
 
     return mBufferQueue->consumerDisconnect();
