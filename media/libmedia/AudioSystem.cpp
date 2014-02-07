@@ -370,7 +370,7 @@ status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t for
         }
         inBuffSize = af->getInputBufferSize(sampleRate, format, channelMask);
         if (inBuffSize == 0) {
-            ALOGE("AudioSystem::getInputBufferSize failed sampleRate %d format %x channelMask %x",
+            ALOGE("AudioSystem::getInputBufferSize failed sampleRate %d format %#x channelMask %x",
                     sampleRate, format, channelMask);
             return BAD_VALUE;
         }
@@ -481,7 +481,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
 
         OutputDescriptor *outputDesc =  new OutputDescriptor(*desc);
         gOutputs.add(ioHandle, outputDesc);
-        ALOGV("ioConfigChanged() new output samplingRate %u, format %d channel mask %#x frameCount %u "
+        ALOGV("ioConfigChanged() new output samplingRate %u, format %#x channel mask %#x frameCount %u "
                 "latency %d",
                 outputDesc->samplingRate, outputDesc->format, outputDesc->channelMask,
                 outputDesc->frameCount, outputDesc->latency);
@@ -505,7 +505,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         if (param2 == NULL) break;
         desc = (const OutputDescriptor *)param2;
 
-        ALOGV("ioConfigChanged() new config for output %d samplingRate %u, format %d channel mask %#x "
+        ALOGV("ioConfigChanged() new config for output %d samplingRate %u, format %#x channel mask %#x "
                 "frameCount %d latency %d",
                 ioHandle, desc->samplingRate, desc->format,
                 desc->channelMask, desc->frameCount, desc->latency);

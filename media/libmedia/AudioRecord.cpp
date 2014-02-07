@@ -52,7 +52,7 @@ status_t AudioRecord::getMinFrameCount(
     }
 
     if (size == 0) {
-        ALOGE("Unsupported configuration: sampleRate %u, format %d, channelMask %#x",
+        ALOGE("Unsupported configuration: sampleRate %u, format %#x, channelMask %#x",
             sampleRate, format, channelMask);
         return BAD_VALUE;
     }
@@ -191,12 +191,12 @@ status_t AudioRecord::set(
 
     // validate parameters
     if (!audio_is_valid_format(format)) {
-        ALOGE("Invalid format %d", format);
+        ALOGE("Invalid format %#x", format);
         return BAD_VALUE;
     }
     // Temporary restriction: AudioFlinger currently supports 16-bit PCM only
     if (format != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("Format %d is not supported", format);
+        ALOGE("Format %#x is not supported", format);
         return BAD_VALUE;
     }
     mFormat = format;

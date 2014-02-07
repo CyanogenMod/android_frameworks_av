@@ -508,7 +508,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
     // client is responsible for conversion of 8-bit PCM to 16-bit PCM,
     // and we don't yet support 8.24 or 32-bit PCM
     if (audio_is_linear_pcm(format) && format != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("createTrack() invalid format %d", format);
+        ALOGE("createTrack() invalid format %#x", format);
         lStatus = BAD_VALUE;
         goto Exit;
     }
@@ -1299,7 +1299,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     }
 
     if (format != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("openRecord() invalid format %d", format);
+        ALOGE("openRecord() invalid format %#x", format);
         lStatus = BAD_VALUE;
         goto Exit;
     }
@@ -1746,7 +1746,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_stream_in_t *inStream = NULL;
     status_t status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config,
                                         &inStream);
-    ALOGV("openInput() openInputStream returned input %p, SamplingRate %d, Format %d, Channels %x, "
+    ALOGV("openInput() openInputStream returned input %p, SamplingRate %d, Format %#x, Channels %x, "
             "status %d",
             inStream,
             config.sample_rate,
