@@ -270,8 +270,8 @@ protected:
 
                 const sp<AudioFlinger>  mAudioFlinger;
 
-                // updated by PlaybackThread::readOutputParameters() or
-                // RecordThread::readInputParameters()
+                // updated by PlaybackThread::readOutputParameters_l() or
+                // RecordThread::readInputParameters_l()
                 uint32_t                mSampleRate;
                 size_t                  mFrameCount;       // output HAL, direct output, record
                 audio_channel_mask_t    mChannelMask;
@@ -478,7 +478,7 @@ public:
                 status_t         getTimestamp_l(AudioTimestamp& timestamp);
 
 protected:
-    // updated by readOutputParameters()
+    // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
     int16_t*                        mMixBuffer;         // frame size aligned mix buffer
@@ -541,7 +541,7 @@ private:
     void        removeTrack_l(const sp<Track>& track);
     void        broadcast_l();
 
-    void        readOutputParameters();
+    void        readOutputParameters_l();
 
     virtual void dumpInternals(int fd, const Vector<String16>& args);
     void        dumpTracks(int fd, const Vector<String16>& args);
@@ -915,7 +915,7 @@ public:
     virtual bool        checkForNewParameters_l();
     virtual String8     getParameters(const String8& keys);
     virtual void        audioConfigChanged_l(int event, int param = 0);
-            void        readInputParameters();
+            void        readInputParameters_l();
     virtual uint32_t    getInputFramesLost();
 
     virtual status_t addEffectChain_l(const sp<EffectChain>& chain);

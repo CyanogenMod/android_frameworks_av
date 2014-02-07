@@ -274,7 +274,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mType(type),
         mAudioFlinger(audioFlinger),
         // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, mFormat, mBufferSize
-        // are set by PlaybackThread::readOutputParameters() or RecordThread::readInputParameters()
+        // are set by PlaybackThread::readOutputParameters_l() or
+        // RecordThread::readInputParameters_l()
         mParamStatus(NO_ERROR),
         //FIXME: mStandby should be true here. Is this some kind of hack?
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
@@ -1108,7 +1109,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         }
     }
 
-    readOutputParameters();
+    readOutputParameters_l();
 
     // mStreamTypes[AUDIO_STREAM_CNT] is initialized by stream_type_t default constructor
     // There is no AUDIO_STREAM_MIN, and ++ operator does not compile
@@ -1677,7 +1678,7 @@ int AudioFlinger::PlaybackThread::asyncCallback(stream_callback_event_t event,
     return 0;
 }
 
-void AudioFlinger::PlaybackThread::readOutputParameters()
+void AudioFlinger::PlaybackThread::readOutputParameters_l()
 {
     // unfortunately we have no way of recovering from errors here, hence the LOG_FATAL
     mSampleRate = mOutput->stream->common.get_sample_rate(&mOutput->stream->common);
@@ -1765,7 +1766,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
 
     // force reconfiguration of effect chains and engines to take new buffer size and audio
     // parameters into account
-    // Note that mLock is not held when readOutputParameters() is called from the constructor
+    // Note that mLock is not held when readOutputParameters_l() is called from the constructor
     // but in this case nothing is done below as no audio sessions have effect yet so it doesn't
     // matter.
     // create a copy of mEffectChains as calling moveEffectChain_l() can reorder some effect chains
@@ -3485,7 +3486,7 @@ bool AudioFlinger::MixerThread::checkForNewParameters_l()
                                                        keyValuePair.string());
             }
             if (status == NO_ERROR && reconfig) {
-                readOutputParameters();
+                readOutputParameters_l();
                 delete mAudioMixer;
                 mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
                 for (size_t i = 0; i < mTracks.size() ; i++) {
@@ -3827,7 +3828,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameters_l()
                                                        keyValuePair.string());
             }
             if (status == NO_ERROR && reconfig) {
-                readOutputParameters();
+                readOutputParameters_l();
                 sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
             }
         }
@@ -4461,7 +4462,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          ) :
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mActiveTracksGen(0), mRsmpInBuffer(NULL),
-    // mRsmpInFrames and mRsmpInFramesP2 are set by readInputParameters()
+    // mRsmpInFrames and mRsmpInFramesP2 are set by readInputParameters_l()
     mRsmpInRear(0),
     // FIXME these should be per-track, so this is only the initial track?
     mReqChannelCount(popcount(channelMask)),
@@ -4473,7 +4474,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     snprintf(mName, kNameLength, "AudioIn_%X", id);
     mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
 
-    readInputParameters();
+    readInputParameters_l();
 }
 
 
@@ -5415,7 +5416,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                     status = NO_ERROR;
                 }
                 if (status == NO_ERROR) {
-                    readInputParameters();
+                    readInputParameters_l();
                     sendIoConfigEvent_l(AudioSystem::INPUT_CONFIG_CHANGED);
                 }
             }
@@ -5467,8 +5468,7 @@ void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param __unu
     mAudioFlinger->audioConfigChanged_l(event, mId, param2);
 }
 
-//FIXME should be renamed to _l
-void AudioFlinger::RecordThread::readInputParameters()
+void AudioFlinger::RecordThread::readInputParameters_l()
 {
     mSampleRate = mInput->stream->common.get_sample_rate(&mInput->stream->common);
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);

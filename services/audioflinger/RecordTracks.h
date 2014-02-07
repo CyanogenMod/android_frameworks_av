@@ -60,7 +60,7 @@ private:
 
     bool                mOverflow;  // overflow on most recent attempt to fill client buffer
 
-           // updated by RecordThread::readInputParameters()
+           // updated by RecordThread::readInputParameters_l()
             AudioResampler                      *mResampler;
 
             // interleaved stereo pairs of fixed-point signed Q19.12
