@@ -2547,10 +2547,7 @@ void AwesomePlayer::onCheckAudioStatus() {
             mSeekNotificationSent = true;
         }
 
-        if (mVideoSource == NULL) {
-            // For video the mSeeking flag is always reset in finishSeekIfNecessary
-            mSeeking = NO_SEEK;
-        }
+        mSeeking = NO_SEEK;
 
         notifyIfMediaStarted_l();
     }
