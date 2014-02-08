@@ -261,6 +261,8 @@ AwesomePlayer::AwesomePlayer()
 
 #ifdef QCOM_HARDWARE
     mLateAVSyncMargin = ExtendedUtils::ShellProp::getMaxAVSyncLateMargin();
+#else
+    mLateAVSyncMargin = 40000;
 #endif
 }
 
