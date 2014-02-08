@@ -16,6 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaMuxer"
+
+#include "webm/WebmWriter.h"
+
 #include <utils/Log.h>
 
 #include <media/stagefright/MediaMuxer.h>
@@ -36,19 +39,30 @@
 namespace android {
 
 MediaMuxer::MediaMuxer(const char *path, OutputFormat format)
-    : mState(UNINITIALIZED) {
+    : mFormat(format),
+      mState(UNINITIALIZED) {
     if (format == OUTPUT_FORMAT_MPEG_4) {
         mWriter = new MPEG4Writer(path);
+    } else if (format == OUTPUT_FORMAT_WEBM) {
+        mWriter = new WebmWriter(path);
+    }
+
+    if (mWriter != NULL) {
         mFileMeta = new MetaData;
         mState = INITIALIZED;
     }
-
 }
 
 MediaMuxer::MediaMuxer(int fd, OutputFormat format)
-    : mState(UNINITIALIZED) {
+    : mFormat(format),
+      mState(UNINITIALIZED) {
     if (format == OUTPUT_FORMAT_MPEG_4) {
         mWriter = new MPEG4Writer(fd);
+    } else if (format == OUTPUT_FORMAT_WEBM) {
+        mWriter = new WebmWriter(fd);
+    }
+
+    if (mWriter != NULL) {
         mFileMeta = new MetaData;
         mState = INITIALIZED;
     }
@@ -109,8 +123,13 @@ status_t MediaMuxer::setLocation(int latitude, int longitude) {
         ALOGE("setLocation() must be called before start().");
         return INVALID_OPERATION;
     }
+    if (mFormat != OUTPUT_FORMAT_MPEG_4) {
+        ALOGE("setLocation() is only supported for .mp4 output.");
+        return INVALID_OPERATION;
+    }
+
     ALOGV("Setting location: latitude = %d, longitude = %d", latitude, longitude);
-    return mWriter->setGeoData(latitude, longitude);
+    return static_cast<MPEG4Writer*>(mWriter.get())->setGeoData(latitude, longitude);
 }
 
 status_t MediaMuxer::start() {

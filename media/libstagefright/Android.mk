@@ -97,6 +97,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libstagefright_aacenc \
         libstagefright_matroska \
+        libstagefright_webm \
         libstagefright_timedtext \
         libvpx \
         libwebm \
