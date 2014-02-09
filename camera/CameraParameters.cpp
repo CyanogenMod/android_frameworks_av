@@ -70,7 +70,6 @@ const char CameraParameters::PANORAMA_MODE_INPROGRESS[] = "in-progress";
 const char CameraParameters::KEY_PICTURE_SIZE[] = "picture-size";
 const char CameraParameters::KEY_SUPPORTED_PICTURE_SIZES[] = "picture-size-values";
 const char CameraParameters::KEY_PICTURE_FORMAT[] = "picture-format";
-const char CameraParameters::KEY_SUPPORTED_3D_FILE_FORMAT[] = "3d-file-format";
 const char CameraParameters::KEY_SUPPORTED_PICTURE_FORMATS[] = "picture-format-values";
 const char CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH[] = "jpeg-thumbnail-width";
 const char CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT[] = "jpeg-thumbnail-height";
@@ -385,9 +384,6 @@ const char CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE[] = "continuous-pictu
 const char CameraParameters::FOCUS_MODE_MANUAL_POSITION[] = "manual";
 #endif
 #if defined(QCOM_HARDWARE)
-#ifdef QCOM_LEGACY_CAM_PARAMS
-const char CameraParameters::FOCUS_MODE_CONTINUOUS_CAMERA[] = "continuous-camera";
-#endif
 const char CameraParameters::FOCUS_MODE_NORMAL[] = "normal";
 
 
@@ -431,26 +427,11 @@ const char CameraParameters::SKIN_TONE_ENHANCEMENT_ENABLE[] = "enable";
 const char CameraParameters::SKIN_TONE_ENHANCEMENT_DISABLE[] = "disable";
 
 const char CameraParameters::KEY_SHARPNESS[] = "sharpness";
-#ifdef QCOM_LEGACY_CAM_PARAMS
-const char CameraParameters::KEY_MAX_SHARPNESS[] = "sharpness-max";
-const char CameraParameters::KEY_MIN_SHARPNESS[] = "sharpness-min";
-#else
 const char CameraParameters::KEY_MAX_SHARPNESS[] = "max-sharpness";
-#endif
 const char CameraParameters::KEY_CONTRAST[] = "contrast";
-#ifdef QCOM_LEGACY_CAM_PARAMS
-const char CameraParameters::KEY_MAX_CONTRAST[] = "contrast-max";
-const char CameraParameters::KEY_MIN_CONTRAST[] = "contrast-min";
-#else
 const char CameraParameters::KEY_MAX_CONTRAST[] = "max-contrast";
-#endif
 const char CameraParameters::KEY_SATURATION[] = "saturation";
-#ifdef QCOM_LEGACY_CAM_PARAMS
-const char CameraParameters::KEY_MAX_SATURATION[] = "saturation-max";
-const char CameraParameters::KEY_MIN_SATURATION[] = "saturation-min";
-#else
 const char CameraParameters::KEY_MAX_SATURATION[] = "max-saturation";
-#endif
 
 //Values for DENOISE
 const char CameraParameters::DENOISE_OFF[] = "denoise-off";
@@ -464,9 +445,6 @@ const char CameraParameters::SELECTABLE_ZONE_AF_FRAME_AVERAGE[] = "frame-average
 // Values for Face Detection settings.
 const char CameraParameters::FACE_DETECTION_OFF[] = "off";
 const char CameraParameters::FACE_DETECTION_ON[] = "on";
-
-const char CameraParameters::FILE_FORMAT_MPO[] = "mpo";
-const char CameraParameters::FILE_FORMAT_JPS[] = "jps";
 
 // Values for MCE settings.
 const char CameraParameters::MCE_ENABLE[] = "enable";
@@ -782,13 +760,6 @@ void CameraParameters::getSupportedPreviewSizes(Vector<Size> &sizes) const
 }
 
 #ifdef QCOM_HARDWARE
-#ifdef QCOM_LEGACY_CAM_PARAMS
-void CameraParameters::setPostviewSize(int width, int height)
-{
-    // dummy
-}
-#endif
-
 void CameraParameters::getSupportedHfrSizes(Vector<Size> &sizes) const
 {
     const char *hfrSizesStr = get(KEY_SUPPORTED_HFR_SIZES);
@@ -884,11 +855,6 @@ void CameraParameters::getSupportedPictureSizes(Vector<Size> &sizes) const
 {
     const char *pictureSizesStr = get(KEY_SUPPORTED_PICTURE_SIZES);
     parseSizesList(pictureSizesStr, sizes);
-}
-
-void CameraParameters::set3DFileFormat(const char *format)
-{
-    set(KEY_SUPPORTED_3D_FILE_FORMAT, format);
 }
 
 void CameraParameters::setPictureFormat(const char *format)
