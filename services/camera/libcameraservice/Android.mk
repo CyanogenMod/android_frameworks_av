@@ -78,6 +78,10 @@ ifeq ($(BOARD_CAMERA_MSG_MGMT),true)
     LOCAL_CFLAGS += -DCAMERA_MSG_MGMT
 endif
 
+ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
+    LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)
