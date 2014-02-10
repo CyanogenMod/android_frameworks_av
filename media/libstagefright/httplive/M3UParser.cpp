@@ -425,7 +425,7 @@ static bool MakeURL(const char *baseURL, const char *url, AString *out) {
             end = strlen(baseURL);
         }
         // Check for the last slash before a potential query string
-        for (ssize_t pos - 1 = end; pos >= 0; pos--) {
+        for (ssize_t pos = end - 1; pos >= 0; pos--) {
             if (baseURL[pos] == '/') {
                 end = pos;
                 break;
