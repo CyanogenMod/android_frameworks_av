@@ -641,7 +641,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
                                                     int triggerSession)
 {
     status_t status = NO_ERROR;
-    ALOGV("start(%d), calling pid %d session %d",
+    ALOGD("start(%d), calling pid %d session %d",
             mName, IPCThreadState::self()->getCallingPid(), mSessionId);
 
     sp<ThreadBase> thread = mThread.promote();
@@ -653,6 +653,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             if (thread->mAudioFlinger->isNonOffloadableGlobalEffectEnabled_l() ||
                     (ec != 0 && ec->isNonOffloadableEnabled())) {
                 invalidate();
+                ALOGD("copl:offload denied");
                 return PERMISSION_DENIED;
             }
         }
@@ -665,14 +666,14 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             if (mResumeToStopping) {
                 // happened we need to resume to STOPPING_1
                 mState = TrackBase::STOPPING_1;
-                ALOGV("PAUSED => STOPPING_1 (%d) on thread %p", mName, this);
+                ALOGD("PAUSED => STOPPING_1 (%d) on thread %p", mName, this);
             } else {
                 mState = TrackBase::RESUMING;
-                ALOGV("PAUSED => RESUMING (%d) on thread %p", mName, this);
+                ALOGD("PAUSED => RESUMING (%d) on thread %p", mName, this);
             }
         } else {
             mState = TrackBase::ACTIVE;
-            ALOGV("? => ACTIVE (%d) on thread %p", mName, this);
+            ALOGD("? => ACTIVE (%d) on thread %p", mName, this);
         }
 
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
@@ -733,7 +734,7 @@ void AudioFlinger::PlaybackThread::Track::stop()
 
 void AudioFlinger::PlaybackThread::Track::pause()
 {
-    ALOGV("pause(%d), calling pid %d", mName, IPCThreadState::self()->getCallingPid());
+    ALOGD("pause(%d), calling pid %d", mName, IPCThreadState::self()->getCallingPid());
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
@@ -779,16 +780,18 @@ void AudioFlinger::PlaybackThread::Track::flush()
                 return;
             }
 
-            ALOGV("flush: offload flush");
+            ALOGD("copl(%d):flush: offload flush", mSessionId);
             reset();
 
             if (mState == STOPPING_1 || mState == STOPPING_2) {
-                ALOGV("flushed in STOPPING_1 or 2 state, change state to ACTIVE");
+                ALOGD("copl(%d):flushed in STOPPING_1 or 2 state, change state to ACTIVE",
+                    mSessionId);
                 mState = ACTIVE;
             }
 
             if (mState == ACTIVE) {
-                ALOGV("flush called in active state, resetting buffer time out retry count");
+                ALOGD("copl(%d):flush called in active state, resetting buffer time out retry count",
+                    mSessionId);
                 mRetryCount = PlaybackThread::kMaxTrackRetriesOffload;
             }
 

@@ -1146,7 +1146,7 @@ status_t AwesomePlayer::fallbackToSWDecoder() {
     int64_t curTimeUs;
     status_t err = OK;
 
-    ALOGI("play_l() cannot create offload output, fallback to sw decode");
+    ALOGD("copl:play_l() cannot create offload output, fallback to sw decode");
     getPosition(&curTimeUs);
 
     delete mAudioPlayer;
@@ -1499,6 +1499,7 @@ status_t AwesomePlayer::pause_l(bool at_eos) {
         mAudioPlayer->pause(at_eos /* playPendingSamples */);
         // send us a reminder to tear down the AudioPlayer if paused for too long.
         if (mOffloadAudio) {
+            ALOGD("copl: pause, arm a tear down timer for %lld us", kOffloadPauseMaxUs);
             postAudioTearDownEvent(kOffloadPauseMaxUs);
         }
         modifyFlags(AUDIO_RUNNING, CLEAR);
@@ -1899,7 +1900,7 @@ status_t AwesomePlayer::initAudioDecoder() {
 #endif
 
         if (mOffloadAudio) {
-            ALOGV("createAudioPlayer: bypass OMX (offload)");
+            ALOGD("use compress offload playback path(copl)");
             mAudioSource = mAudioTrack;
 #ifndef QCOM_DIRECTTRACK
         } else {
@@ -3407,7 +3408,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
     }
     mAudioTearDownEventPending = false;
 
-    ALOGV("onAudioTearDownEvent");
+    ALOGD("copl:onAudioTearDownEvent");
 
     // stream info is cleared by reset_l() so copy what we need
     mAudioTearDownWasPlaying = (mFlags & PLAYING);
