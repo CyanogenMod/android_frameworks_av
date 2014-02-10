@@ -1276,8 +1276,8 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     if (mType == DIRECT) {
         if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
             if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
-                ALOGE("createTrack_l() Bad parameter: sampleRate %u format %d, channelMask 0x%08x "
-                        "for output %p with format %d",
+                ALOGE("createTrack_l() Bad parameter: sampleRate %u format %#x, channelMask 0x%08x "
+                        "for output %p with format %#x",
                         sampleRate, format, channelMask, mOutput, mFormat);
                 lStatus = BAD_VALUE;
                 goto Exit;
@@ -1285,16 +1285,16 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         }
     } else if (mType == OFFLOAD) {
         if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
-            ALOGE("createTrack_l() Bad parameter: sampleRate %d format %d, channelMask 0x%08x \""
-                    "for output %p with format %d",
+            ALOGE("createTrack_l() Bad parameter: sampleRate %d format %#x, channelMask 0x%08x \""
+                    "for output %p with format %#x",
                     sampleRate, format, channelMask, mOutput, mFormat);
             lStatus = BAD_VALUE;
             goto Exit;
         }
     } else {
         if ((format & AUDIO_FORMAT_MAIN_MASK) != AUDIO_FORMAT_PCM) {
-                ALOGE("createTrack_l() Bad parameter: format %d \""
-                        "for output %p with format %d",
+                ALOGE("createTrack_l() Bad parameter: format %#x \""
+                        "for output %p with format %#x",
                         format, mOutput, mFormat);
                 lStatus = BAD_VALUE;
                 goto Exit;
@@ -1650,10 +1650,10 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
     mChannelCount = popcount(mChannelMask);
     mFormat = mOutput->stream->common.get_format(&mOutput->stream->common);
     if (!audio_is_valid_format(mFormat)) {
-        LOG_FATAL("HAL format %d not valid for output", mFormat);
+        LOG_FATAL("HAL format %#x not valid for output", mFormat);
     }
     if ((mType == MIXER || mType == DUPLICATING) && mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-        LOG_FATAL("HAL format %d not supported for mixed output; must be AUDIO_FORMAT_PCM_16_BIT",
+        LOG_FATAL("HAL format %#x not supported for mixed output; must be AUDIO_FORMAT_PCM_16_BIT",
                 mFormat);
     }
     mFrameSize = audio_stream_frame_size(&mOutput->stream->common);
@@ -5380,7 +5380,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mChannelCount = popcount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("HAL format %d not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
+        ALOGE("HAL format %#x not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
     }
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);

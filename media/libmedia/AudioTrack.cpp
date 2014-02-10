@@ -273,7 +273,7 @@ status_t AudioTrack::set(
 
     // validate parameters
     if (!audio_is_valid_format(format)) {
-        ALOGE("Invalid format %d", format);
+        ALOGE("Invalid format %#x", format);
         return BAD_VALUE;
     }
     mFormat = format;
