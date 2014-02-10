@@ -416,22 +416,32 @@ static bool MakeURL(const char *baseURL, const char *url, AString *out) {
     } else {
         // URL is a relative path
 
-        size_t n = strlen(baseURL);
-        if (baseURL[n - 1] == '/') {
-            out->setTo(baseURL);
-            out->append(url);
+        // Check for a possible query string
+        const char *qsPos = strchr(baseURL, '?');
+        size_t end;
+        if (qsPos != NULL) {
+            end = qsPos - baseURL;
         } else {
-            const char *slashPos = strrchr(baseURL, '/');
-
-            if (slashPos > &baseURL[6]) {
-                out->setTo(baseURL, slashPos - baseURL);
-            } else {
-                out->setTo(baseURL);
-            }
-
-            out->append("/");
-            out->append(url);
+            end = strlen(baseURL);
         }
+        // Check for the last slash before a potential query string
+        for (ssize_t pos - 1 = end; pos >= 0; pos--) {
+            if (baseURL[pos] == '/') {
+                end = pos;
+                break;
+            }
+        }
+
+        // Check whether the found slash actually is part of the path
+        // and not part of the "http://".
+        if (end > 6) {
+            out->setTo(baseURL, end);
+        } else {
+            out->setTo(baseURL);
+        }
+
+        out->append("/");
+        out->append(url);
     }
 
     ALOGV("base:'%s', url:'%s' => '%s'", baseURL, url, out->c_str());
