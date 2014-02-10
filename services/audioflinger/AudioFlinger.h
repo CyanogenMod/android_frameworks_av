@@ -655,6 +655,8 @@ private:
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
 
+const char *formatToString(audio_format_t format);
+
 // ----------------------------------------------------------------------------
 
 }; // namespace android

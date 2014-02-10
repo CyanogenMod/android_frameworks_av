@@ -425,6 +425,53 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
     }
 }
 
+String8 channelMaskToString(audio_channel_mask_t mask, bool output) {
+    String8 s;
+    if (output) {
+        if (mask & AUDIO_CHANNEL_OUT_FRONT_LEFT) s.append("front-left, ");
+        if (mask & AUDIO_CHANNEL_OUT_FRONT_RIGHT) s.append("front-right, ");
+        if (mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) s.append("front-center, ");
+        if (mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) s.append("low freq, ");
+        if (mask & AUDIO_CHANNEL_OUT_BACK_LEFT) s.append("back-left, ");
+        if (mask & AUDIO_CHANNEL_OUT_BACK_RIGHT) s.append("back-right, ");
+        if (mask & AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER) s.append("front-left-of-center, ");
+        if (mask & AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER) s.append("front-right-of-center, ");
+        if (mask & AUDIO_CHANNEL_OUT_BACK_CENTER) s.append("back-center, ");
+        if (mask & AUDIO_CHANNEL_OUT_SIDE_LEFT) s.append("side-left, ");
+        if (mask & AUDIO_CHANNEL_OUT_SIDE_RIGHT) s.append("side-right, ");
+        if (mask & AUDIO_CHANNEL_OUT_TOP_CENTER) s.append("top-center ,");
+        if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_LEFT) s.append("top-front-left, ");
+        if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_CENTER) s.append("top-front-center, ");
+        if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_RIGHT) s.append("top-front-right, ");
+        if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_LEFT) s.append("top-back-left, ");
+        if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_CENTER) s.append("top-back-center, " );
+        if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_RIGHT) s.append("top-back-right, " );
+        if (mask & ~AUDIO_CHANNEL_OUT_ALL) s.append("unknown,  ");
+    } else {
+        if (mask & AUDIO_CHANNEL_IN_LEFT) s.append("left, ");
+        if (mask & AUDIO_CHANNEL_IN_RIGHT) s.append("right, ");
+        if (mask & AUDIO_CHANNEL_IN_FRONT) s.append("front, ");
+        if (mask & AUDIO_CHANNEL_IN_BACK) s.append("back, ");
+        if (mask & AUDIO_CHANNEL_IN_LEFT_PROCESSED) s.append("left-processed, ");
+        if (mask & AUDIO_CHANNEL_IN_RIGHT_PROCESSED) s.append("right-processed, ");
+        if (mask & AUDIO_CHANNEL_IN_FRONT_PROCESSED) s.append("front-processed, ");
+        if (mask & AUDIO_CHANNEL_IN_BACK_PROCESSED) s.append("back-processed, ");
+        if (mask & AUDIO_CHANNEL_IN_PRESSURE) s.append("pressure, ");
+        if (mask & AUDIO_CHANNEL_IN_X_AXIS) s.append("X, ");
+        if (mask & AUDIO_CHANNEL_IN_Y_AXIS) s.append("Y, ");
+        if (mask & AUDIO_CHANNEL_IN_Z_AXIS) s.append("Z, ");
+        if (mask & AUDIO_CHANNEL_IN_VOICE_UPLINK) s.append("voice-uplink, ");
+        if (mask & AUDIO_CHANNEL_IN_VOICE_DNLINK) s.append("voice-dnlink, ");
+        if (mask & ~AUDIO_CHANNEL_IN_ALL) s.append("unknown,  ");
+    }
+    int len = s.length();
+    if (s.length() > 2) {
+        char *str = s.lockBuffer(len);
+        s.unlockBuffer(len - 2);
+    }
+    return s;
+}
+
 void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __unused)
 {
     const size_t SIZE = 256;
@@ -433,49 +480,43 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
 
     bool locked = AudioFlinger::dumpTryLock(mLock);
     if (!locked) {
-        snprintf(buffer, SIZE, "thread %p maybe dead locked\n", this);
-        write(fd, buffer, strlen(buffer));
+        fdprintf(fd, "thread %p maybe dead locked\n", this);
     }
 
-    snprintf(buffer, SIZE, "io handle: %d\n", mId);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "TID: %d\n", getTid());
-    result.append(buffer);
-    snprintf(buffer, SIZE, "standby: %d\n", mStandby);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Sample rate: %u\n", mSampleRate);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "HAL frame count: %d\n", mFrameCount);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "HAL buffer size: %u bytes\n", mBufferSize);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Channel Count: %u\n", mChannelCount);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Channel Mask: 0x%08x\n", mChannelMask);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Format: %d\n", mFormat);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Frame size: %u\n", mFrameSize);
-    result.append(buffer);
-
-    snprintf(buffer, SIZE, "\nPending setParameters commands: \n");
-    result.append(buffer);
-    result.append(" Index Command");
-    for (size_t i = 0; i < mNewParameters.size(); ++i) {
-        snprintf(buffer, SIZE, "\n %02d    ", i);
-        result.append(buffer);
-        result.append(mNewParameters[i]);
+    fdprintf(fd, "  I/O handle: %d\n", mId);
+    fdprintf(fd, "  TID: %d\n", getTid());
+    fdprintf(fd, "  Standby: %s\n", mStandby ? "yes" : "no");
+    fdprintf(fd, "  Sample rate: %u\n", mSampleRate);
+    fdprintf(fd, "  HAL frame count: %d\n", mFrameCount);
+    fdprintf(fd, "  HAL buffer size: %u bytes\n", mBufferSize);
+    fdprintf(fd, "  Channel Count: %u\n", mChannelCount);
+    fdprintf(fd, "  Channel Mask: 0x%08x (%s)\n", mChannelMask,
+            channelMaskToString(mChannelMask, mType != RECORD).string());
+    fdprintf(fd, "  Format: 0x%x (%s)\n", mFormat, formatToString(mFormat));
+    fdprintf(fd, "  Frame size: %u\n", mFrameSize);
+    fdprintf(fd, "  Pending setParameters commands:");
+    size_t numParams = mNewParameters.size();
+    if (numParams) {
+        fdprintf(fd, "\n   Index Command");
+        for (size_t i = 0; i < numParams; ++i) {
+            fdprintf(fd, "\n   %02d    ", i);
+            fdprintf(fd, mNewParameters[i]);
+        }
+        fdprintf(fd, "\n");
+    } else {
+        fdprintf(fd, " none\n");
     }
-
-    snprintf(buffer, SIZE, "\n\nPending config events: \n");
-    result.append(buffer);
-    for (size_t i = 0; i < mConfigEvents.size(); i++) {
-        mConfigEvents[i]->dump(buffer, SIZE);
-        result.append(buffer);
+    fdprintf(fd, "  Pending config events:");
+    size_t numConfig = mConfigEvents.size();
+    if (numConfig) {
+        for (size_t i = 0; i < numConfig; i++) {
+            mConfigEvents[i]->dump(buffer, SIZE);
+            fdprintf(fd, "\n    %s", buffer);
+        }
+        fdprintf(fd, "\n");
+    } else {
+        fdprintf(fd, " none\n");
     }
-    result.append("\n");
-
-    write(fd, result.string(), result.size());
 
     if (locked) {
         mLock.unlock();
@@ -488,10 +529,11 @@ void AudioFlinger::ThreadBase::dumpEffectChains(int fd, const Vector<String16>& 
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, "\n- %d Effect Chains:\n", mEffectChains.size());
+    size_t numEffectChains = mEffectChains.size();
+    snprintf(buffer, SIZE, "  %d Effect Chains\n", numEffectChains);
     write(fd, buffer, strlen(buffer));
 
-    for (size_t i = 0; i < mEffectChains.size(); ++i) {
+    for (size_t i = 0; i < numEffectChains; ++i) {
         sp<EffectChain> chain = mEffectChains[i];
         if (chain != 0) {
             chain->dump(fd, args);
@@ -1098,7 +1140,7 @@ void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& ar
     char buffer[SIZE];
     String8 result;
 
-    result.appendFormat("Output thread %p stream volumes in dB:\n    ", this);
+    result.appendFormat("  Stream volumes in dB: ");
     for (int i = 0; i < AUDIO_STREAM_CNT; ++i) {
         const stream_type_t *st = &mStreamTypes[i];
         if (i > 0) {
@@ -1113,60 +1155,62 @@ void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& ar
     write(fd, result.string(), result.length());
     result.clear();
 
-    snprintf(buffer, SIZE, "Output thread %p tracks\n", this);
-    result.append(buffer);
-    Track::appendDumpHeader(result);
-    for (size_t i = 0; i < mTracks.size(); ++i) {
-        sp<Track> track = mTracks[i];
-        if (track != 0) {
-            track->dump(buffer, SIZE);
-            result.append(buffer);
-        }
-    }
-
-    snprintf(buffer, SIZE, "Output thread %p active tracks\n", this);
-    result.append(buffer);
-    Track::appendDumpHeader(result);
-    for (size_t i = 0; i < mActiveTracks.size(); ++i) {
-        sp<Track> track = mActiveTracks[i].promote();
-        if (track != 0) {
-            track->dump(buffer, SIZE);
-            result.append(buffer);
-        }
-    }
-    write(fd, result.string(), result.size());
-
     // These values are "raw"; they will wrap around.  See prepareTracks_l() for a better way.
     FastTrackUnderruns underruns = getFastTrackUnderruns(0);
-    fdprintf(fd, "Normal mixer raw underrun counters: partial=%u empty=%u\n",
+    fdprintf(fd, "  Normal mixer raw underrun counters: partial=%u empty=%u\n",
             underruns.mBitFields.mPartial, underruns.mBitFields.mEmpty);
+
+    size_t numtracks = mTracks.size();
+    size_t numactive = mActiveTracks.size();
+    fdprintf(fd, "  %d Tracks", numtracks);
+    size_t numactiveseen = 0;
+    if (numtracks) {
+        fdprintf(fd, " of which %d are active\n", numactive);
+        Track::appendDumpHeader(result);
+        for (size_t i = 0; i < numtracks; ++i) {
+            sp<Track> track = mTracks[i];
+            if (track != 0) {
+                bool active = mActiveTracks.indexOf(track) >= 0;
+                if (active) {
+                    numactiveseen++;
+                }
+                track->dump(buffer, SIZE, active);
+                result.append(buffer);
+            }
+        }
+    } else {
+        result.append("\n");
+    }
+    if (numactiveseen != numactive) {
+        // some tracks in the active list were not in the tracks list
+        snprintf(buffer, SIZE, "  The following tracks are in the active list but"
+                " not in the track list\n");
+        result.append(buffer);
+        Track::appendDumpHeader(result);
+        for (size_t i = 0; i < numactive; ++i) {
+            sp<Track> track = mActiveTracks[i].promote();
+            if (track != 0 && mTracks.indexOf(track) < 0) {
+                track->dump(buffer, SIZE, true);
+                result.append(buffer);
+            }
+        }
+    }
+
+    write(fd, result.string(), result.size());
+
 }
 
 void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>& args)
 {
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    snprintf(buffer, SIZE, "\nOutput thread %p internals\n", this);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "Normal frame count: %d\n", mNormalFrameCount);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "last write occurred (msecs): %llu\n",
-            ns2ms(systemTime() - mLastWriteTime));
-    result.append(buffer);
-    snprintf(buffer, SIZE, "total writes: %d\n", mNumWrites);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "delayed writes: %d\n", mNumDelayedWrites);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "blocked in write: %d\n", mInWrite);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "suspend count: %d\n", mSuspended);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "mix buffer : %p\n", mMixBuffer);
-    result.append(buffer);
-    write(fd, result.string(), result.size());
-    fdprintf(fd, "Fast track availMask=%#x\n", mFastTrackAvailMask);
+    fdprintf(fd, "\nOutput thread %p:\n", this);
+    fdprintf(fd, "  Normal frame count: %d\n", mNormalFrameCount);
+    fdprintf(fd, "  Last write occurred (msecs): %llu\n", ns2ms(systemTime() - mLastWriteTime));
+    fdprintf(fd, "  Total writes: %d\n", mNumWrites);
+    fdprintf(fd, "  Delayed writes: %d\n", mNumDelayedWrites);
+    fdprintf(fd, "  Blocked in write: %s\n", mInWrite ? "yes" : "no");
+    fdprintf(fd, "  Suspend count: %d\n", mSuspended);
+    fdprintf(fd, "  Mix buffer : %p\n", mMixBuffer);
+    fdprintf(fd, "  Fast track availMask=%#x\n", mFastTrackAvailMask);
 
     dumpBase(fd, args);
 }
@@ -3485,9 +3529,7 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
 
     PlaybackThread::dumpInternals(fd, args);
 
-    snprintf(buffer, SIZE, "AudioMixer tracks: %08x\n", mAudioMixer->trackNames());
-    result.append(buffer);
-    write(fd, result.string(), result.size());
+    fdprintf(fd, "  AudioMixer tracks: 0x%08x\n", mAudioMixer->trackNames());
 
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
     const FastMixerDumpState copy(mFastMixerDumpState);
@@ -5105,29 +5147,17 @@ void AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
 
 void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& args)
 {
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    snprintf(buffer, SIZE, "\nInput thread %p internals\n", this);
-    result.append(buffer);
+    fdprintf(fd, "\nInput thread %p:\n", this);
 
     if (mActiveTracks.size() > 0) {
-        snprintf(buffer, SIZE, "In index: %d\n", mRsmpInIndex);
-        result.append(buffer);
-        snprintf(buffer, SIZE, "Buffer size: %u bytes\n", mBufferSize);
-        result.append(buffer);
-        snprintf(buffer, SIZE, "Resampling: %d\n", (mResampler != NULL));
-        result.append(buffer);
-        snprintf(buffer, SIZE, "Out channel count: %u\n", mReqChannelCount);
-        result.append(buffer);
-        snprintf(buffer, SIZE, "Out sample rate: %u\n", mReqSampleRate);
-        result.append(buffer);
+        fdprintf(fd, "  In index: %d\n", mRsmpInIndex);
+        fdprintf(fd, "  Buffer size: %u bytes\n", mBufferSize);
+        fdprintf(fd, "  Resampling: %d\n", (mResampler != NULL));
+        fdprintf(fd, "  Out channel count: %u\n", mReqChannelCount);
+        fdprintf(fd, "  Out sample rate: %u\n", mReqSampleRate);
     } else {
-        result.append("No active record client\n");
+        fdprintf(fd, "  No active record client\n");
     }
-
-    write(fd, result.string(), result.size());
 
     dumpBase(fd, args);
 }
@@ -5138,26 +5168,39 @@ void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, "Input thread %p tracks\n", this);
-    result.append(buffer);
-    RecordTrack::appendDumpHeader(result);
-    for (size_t i = 0; i < mTracks.size(); ++i) {
-        sp<RecordTrack> track = mTracks[i];
-        if (track != 0) {
-            track->dump(buffer, SIZE);
-            result.append(buffer);
+    size_t numtracks = mTracks.size();
+    size_t numactive = mActiveTracks.size();
+    size_t numactiveseen = 0;
+    fdprintf(fd, "  %d Tracks", numtracks);
+    if (numtracks) {
+        fdprintf(fd, " of which %d are active\n", numactive);
+        RecordTrack::appendDumpHeader(result);
+        for (size_t i = 0; i < numtracks ; ++i) {
+            sp<RecordTrack> track = mTracks[i];
+            if (track != 0) {
+                bool active = mActiveTracks.indexOf(track) >= 0;
+                if (active) {
+                    numactiveseen++;
+                }
+                track->dump(buffer, SIZE, active);
+                result.append(buffer);
+            }
         }
+    } else {
+        fdprintf(fd, "\n");
     }
 
-    size_t size = mActiveTracks.size();
-    if (size > 0) {
-        snprintf(buffer, SIZE, "\nInput thread %p active tracks\n", this);
+    if (numactiveseen != numactive) {
+        snprintf(buffer, SIZE, "  The following tracks are in the active list but"
+                " not in the track list\n");
         result.append(buffer);
         RecordTrack::appendDumpHeader(result);
-        for (size_t i = 0; i < size; ++i) {
+        for (size_t i = 0; i < numactive; ++i) {
             sp<RecordTrack> track = mActiveTracks[i];
-            track->dump(buffer, SIZE);
-            result.append(buffer);
+            if (mTracks.indexOf(track) < 0) {
+                track->dump(buffer, SIZE, true);
+                result.append(buffer);
+            }
         }
 
     }

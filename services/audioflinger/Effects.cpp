@@ -805,6 +805,111 @@ bool AudioFlinger::EffectModule::isOffloaded() const
     return mOffloaded;
 }
 
+String8 effectFlagsToString(uint32_t flags) {
+    String8 s;
+
+    s.append("conn. mode: ");
+    switch (flags & EFFECT_FLAG_TYPE_MASK) {
+    case EFFECT_FLAG_TYPE_INSERT: s.append("insert"); break;
+    case EFFECT_FLAG_TYPE_AUXILIARY: s.append("auxiliary"); break;
+    case EFFECT_FLAG_TYPE_REPLACE: s.append("replace"); break;
+    case EFFECT_FLAG_TYPE_PRE_PROC: s.append("preproc"); break;
+    case EFFECT_FLAG_TYPE_POST_PROC: s.append("postproc"); break;
+    default: s.append("unknown/reserved"); break;
+    }
+    s.append(", ");
+
+    s.append("insert pref: ");
+    switch (flags & EFFECT_FLAG_INSERT_MASK) {
+    case EFFECT_FLAG_INSERT_ANY: s.append("any"); break;
+    case EFFECT_FLAG_INSERT_FIRST: s.append("first"); break;
+    case EFFECT_FLAG_INSERT_LAST: s.append("last"); break;
+    case EFFECT_FLAG_INSERT_EXCLUSIVE: s.append("exclusive"); break;
+    default: s.append("unknown/reserved"); break;
+    }
+    s.append(", ");
+
+    s.append("volume mgmt: ");
+    switch (flags & EFFECT_FLAG_VOLUME_MASK) {
+    case EFFECT_FLAG_VOLUME_NONE: s.append("none"); break;
+    case EFFECT_FLAG_VOLUME_CTRL: s.append("implements control"); break;
+    case EFFECT_FLAG_VOLUME_IND: s.append("requires indication"); break;
+    default: s.append("unknown/reserved"); break;
+    }
+    s.append(", ");
+
+    uint32_t devind = flags & EFFECT_FLAG_DEVICE_MASK;
+    if (devind) {
+        s.append("device indication: ");
+        switch (devind) {
+        case EFFECT_FLAG_DEVICE_IND: s.append("requires updates"); break;
+        default: s.append("unknown/reserved"); break;
+        }
+        s.append(", ");
+    }
+
+    s.append("input mode: ");
+    switch (flags & EFFECT_FLAG_INPUT_MASK) {
+    case EFFECT_FLAG_INPUT_DIRECT: s.append("direct"); break;
+    case EFFECT_FLAG_INPUT_PROVIDER: s.append("provider"); break;
+    case EFFECT_FLAG_INPUT_BOTH: s.append("direct+provider"); break;
+    default: s.append("not set"); break;
+    }
+    s.append(", ");
+
+    s.append("output mode: ");
+    switch (flags & EFFECT_FLAG_OUTPUT_MASK) {
+    case EFFECT_FLAG_OUTPUT_DIRECT: s.append("direct"); break;
+    case EFFECT_FLAG_OUTPUT_PROVIDER: s.append("provider"); break;
+    case EFFECT_FLAG_OUTPUT_BOTH: s.append("direct+provider"); break;
+    default: s.append("not set"); break;
+    }
+    s.append(", ");
+
+    uint32_t accel = flags & EFFECT_FLAG_HW_ACC_MASK;
+    if (accel) {
+        s.append("hardware acceleration: ");
+        switch (accel) {
+        case EFFECT_FLAG_HW_ACC_SIMPLE: s.append("non-tunneled"); break;
+        case EFFECT_FLAG_HW_ACC_TUNNEL: s.append("tunneled"); break;
+        default: s.append("unknown/reserved"); break;
+        }
+        s.append(", ");
+    }
+
+    uint32_t modeind = flags & EFFECT_FLAG_AUDIO_MODE_MASK;
+    if (modeind) {
+        s.append("mode indication: ");
+        switch (modeind) {
+        case EFFECT_FLAG_AUDIO_MODE_IND: s.append("required"); break;
+        default: s.append("unknown/reserved"); break;
+        }
+        s.append(", ");
+    }
+
+    uint32_t srcind = flags & EFFECT_FLAG_AUDIO_SOURCE_MASK;
+    if (srcind) {
+        s.append("source indication: ");
+        switch (srcind) {
+        case EFFECT_FLAG_AUDIO_SOURCE_IND: s.append("required"); break;
+        default: s.append("unknown/reserved"); break;
+        }
+        s.append(", ");
+    }
+
+    if (flags & EFFECT_FLAG_OFFLOAD_MASK) {
+        s.append("offloadable, ");
+    }
+
+    int len = s.length();
+    if (s.length() > 2) {
+        char *str = s.lockBuffer(len);
+        s.unlockBuffer(len - 2);
+    }
+    return s;
+}
+
+
 void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unused)
 {
     const size_t SIZE = 256;
@@ -839,9 +944,10 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
                     mDescriptor.type.node[2],
                 mDescriptor.type.node[3],mDescriptor.type.node[4],mDescriptor.type.node[5]);
     result.append(buffer);
-    snprintf(buffer, SIZE, "\t\t- apiVersion: %08X\n\t\t- flags: %08X\n",
+    snprintf(buffer, SIZE, "\t\t- apiVersion: %08X\n\t\t- flags: %08X (%s)\n",
             mDescriptor.apiVersion,
-            mDescriptor.flags);
+            mDescriptor.flags,
+            effectFlagsToString(mDescriptor.flags).string());
     result.append(buffer);
     snprintf(buffer, SIZE, "\t\t- name: %s\n",
             mDescriptor.name);
@@ -851,28 +957,30 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
     result.append(buffer);
 
     result.append("\t\t- Input configuration:\n");
-    result.append("\t\t\tBuffer     Frames  Smp rate Channels Format\n");
-    snprintf(buffer, SIZE, "\t\t\t0x%08x %05d   %05d    %08x %d\n",
+    result.append("\t\t\tBuffer     Frames  SRate Channels Format\n");
+    snprintf(buffer, SIZE, "\t\t\t0x%08x  %5d  %5d %08x %6x (%s)\n",
             (uint32_t)mConfig.inputCfg.buffer.raw,
             mConfig.inputCfg.buffer.frameCount,
             mConfig.inputCfg.samplingRate,
             mConfig.inputCfg.channels,
-            mConfig.inputCfg.format);
+            mConfig.inputCfg.format,
+            formatToString((audio_format_t)mConfig.inputCfg.format));
     result.append(buffer);
 
     result.append("\t\t- Output configuration:\n");
-    result.append("\t\t\tBuffer     Frames  Smp rate Channels Format\n");
-    snprintf(buffer, SIZE, "\t\t\t0x%08x %05d   %05d    %08x %d\n",
+    result.append("\t\t\tBuffer     Frames  SRate Channels Format\n");
+    snprintf(buffer, SIZE, "\t\t\t0x%08x  %5d  %5d %08x %6x (%s)\n",
             (uint32_t)mConfig.outputCfg.buffer.raw,
             mConfig.outputCfg.buffer.frameCount,
             mConfig.outputCfg.samplingRate,
             mConfig.outputCfg.channels,
-            mConfig.outputCfg.format);
+            mConfig.outputCfg.format,
+            formatToString((audio_format_t)mConfig.outputCfg.format));
     result.append(buffer);
 
     snprintf(buffer, SIZE, "\t\t%d Clients:\n", mHandles.size());
     result.append(buffer);
-    result.append("\t\t\tPid   Priority Ctrl Locked client server\n");
+    result.append("\t\t\t  Pid Priority Ctrl Locked client server\n");
     for (size_t i = 0; i < mHandles.size(); ++i) {
         EffectHandle *handle = mHandles[i];
         if (handle != NULL && !handle->destroyed_l()) {
@@ -880,8 +988,6 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
             result.append(buffer);
         }
     }
-
-    result.append("\n");
 
     write(fd, result.string(), result.length());
 
@@ -1186,11 +1292,11 @@ void AudioFlinger::EffectHandle::dump(char* buffer, size_t size)
 {
     bool locked = mCblk != NULL && AudioFlinger::dumpTryLock(mCblk->lock);
 
-    snprintf(buffer, size, "\t\t\t%05d %05d    %01u    %01u      %05u  %05u\n",
+    snprintf(buffer, size, "\t\t\t%5d    %5d  %3s    %3s  %5u  %5u\n",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mPriority,
-            mHasControl,
-            !locked,
+            mHasControl ? "yes" : "no",
+            locked ? "yes" : "no",
             mCblk ? mCblk->clientIndex : 0,
             mCblk ? mCblk->serverIndex : 0
             );
@@ -1571,33 +1677,35 @@ void AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, "Effects for session %d:\n", mSessionId);
+    size_t numEffects = mEffects.size();
+    snprintf(buffer, SIZE, "    %d effects for session %d\n", numEffects, mSessionId);
     result.append(buffer);
 
-    bool locked = AudioFlinger::dumpTryLock(mLock);
-    // failed to lock - AudioFlinger is probably deadlocked
-    if (!locked) {
-        result.append("\tCould not lock mutex:\n");
-    }
-
-    result.append("\tNum fx In buffer   Out buffer   Active tracks:\n");
-    snprintf(buffer, SIZE, "\t%02d     0x%08x  0x%08x   %d\n",
-            mEffects.size(),
-            (uint32_t)mInBuffer,
-            (uint32_t)mOutBuffer,
-            mActiveTrackCnt);
-    result.append(buffer);
-    write(fd, result.string(), result.size());
-
-    for (size_t i = 0; i < mEffects.size(); ++i) {
-        sp<EffectModule> effect = mEffects[i];
-        if (effect != 0) {
-            effect->dump(fd, args);
+    if (numEffects) {
+        bool locked = AudioFlinger::dumpTryLock(mLock);
+        // failed to lock - AudioFlinger is probably deadlocked
+        if (!locked) {
+            result.append("\tCould not lock mutex:\n");
         }
-    }
 
-    if (locked) {
-        mLock.unlock();
+        result.append("\tIn buffer   Out buffer   Active tracks:\n");
+        snprintf(buffer, SIZE, "\t0x%08x  0x%08x   %d\n",
+                (uint32_t)mInBuffer,
+                (uint32_t)mOutBuffer,
+                mActiveTrackCnt);
+        result.append(buffer);
+        write(fd, result.string(), result.size());
+
+        for (size_t i = 0; i < numEffects; ++i) {
+            sp<EffectModule> effect = mEffects[i];
+            if (effect != 0) {
+                effect->dump(fd, args);
+            }
+        }
+
+        if (locked) {
+            mLock.unlock();
+        }
     }
 }
 
