@@ -60,8 +60,8 @@
 
 namespace android {
 
-class audio_track_cblk_t;
-class effect_param_cblk_t;
+struct audio_track_cblk_t;
+struct effect_param_cblk_t;
 class AudioMixer;
 class AudioBuffer;
 class AudioResampler;

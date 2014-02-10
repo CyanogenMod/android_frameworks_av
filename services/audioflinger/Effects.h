@@ -209,7 +209,7 @@ public:
     // destroyed_l() must be called with the associated EffectModule mLock held
     bool destroyed_l() const { return mDestroyed; }
 
-    void dump(char* buffer, size_t size);
+    void dumpToBuffer(char* buffer, size_t size);
 
 protected:
     friend class AudioFlinger;          // for mEffect, mHasControl, mEnabled
