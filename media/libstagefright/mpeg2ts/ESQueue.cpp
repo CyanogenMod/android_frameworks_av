@@ -794,7 +794,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
                 dstOffset += pos.nalSize + 4;
             }
 
+#if !LOG_NDEBUG
             ALOGV("accessUnit contains nal types %s", out.c_str());
+#endif
 
             const NALPosition &pos = nals.itemAt(nals.size() - 1);
             size_t nextScan = pos.nalOffset + pos.nalSize;
