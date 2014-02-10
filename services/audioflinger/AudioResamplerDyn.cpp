@@ -283,17 +283,25 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
             // 32b coefficients, 64 length
             useS32 = true;
             stopBandAtten = 98.;
-            halfLength = 32;
+            if (inSampleRate >= mSampleRate * 4) {
+                halfLength = 48;
+            } else if (inSampleRate >= mSampleRate * 2) {
+                halfLength = 40;
+            } else {
+                halfLength = 32;
+            }
         } else if (mFilterQuality == DYN_LOW_QUALITY) {
             // 16b coefficients, 16-32 length
             useS32 = false;
             stopBandAtten = 80.;
-            if (mSampleRate >= inSampleRate * 2) {
+            if (inSampleRate >= mSampleRate * 4) {
+                halfLength = 24;
+            } else if (inSampleRate >= mSampleRate * 2) {
                 halfLength = 16;
             } else {
                 halfLength = 8;
             }
-            if (mSampleRate >= inSampleRate) {
+            if (inSampleRate <= mSampleRate) {
                 tbwCheat = 1.05;
             } else {
                 tbwCheat = 1.03;
@@ -303,14 +311,14 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
             // note: > 64 length filters with 16b coefs can have quantization noise problems
             useS32 = false;
             stopBandAtten = 84.;
-            if (mSampleRate >= inSampleRate * 4) {
+            if (inSampleRate >= mSampleRate * 4) {
                 halfLength = 32;
-            } else if (mSampleRate >= inSampleRate * 2) {
+            } else if (inSampleRate >= mSampleRate * 2) {
                 halfLength = 24;
             } else {
                 halfLength = 16;
             }
-            if (mSampleRate >= inSampleRate) {
+            if (inSampleRate <= mSampleRate) {
                 tbwCheat = 1.03;
             } else {
                 tbwCheat = 1.01;
