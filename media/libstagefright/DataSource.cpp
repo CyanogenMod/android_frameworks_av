@@ -35,6 +35,7 @@
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
+#include <media/stagefright/DataURISource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaHTTP.h>
@@ -221,6 +222,8 @@ sp<DataSource> DataSource::CreateFromURI(
             // in the widevine:// case.
             source = httpSource;
         }
+    } else if (!strncasecmp("data:", uri, 5)) {
+        source = DataURISource::Create(uri);
     } else {
         // Assume it's a filename.
         source = new FileSource(uri);
