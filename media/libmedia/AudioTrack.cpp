@@ -878,6 +878,12 @@ status_t AudioTrack::createTrack_l(
     }
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
+    if ((flags & AUDIO_OUTPUT_FLAG_FAST) && sampleRate != afSampleRate) {
+        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client due to mismatching sample rate (%d vs %d)",
+              sampleRate, afSampleRate);
+        flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
+    }
+
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
     //  n = 1   fast track with single buffering; nBuffering is ignored
     //  n = 2   fast track with double buffering
