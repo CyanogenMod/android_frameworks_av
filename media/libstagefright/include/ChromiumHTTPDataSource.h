@@ -113,6 +113,7 @@ private:
     void onConnectionFailed(status_t err);
     void onReadCompleted(ssize_t size);
     void onDisconnectComplete();
+    void onRedirect(const char *url);
 
     void clearDRMState_l();
 
