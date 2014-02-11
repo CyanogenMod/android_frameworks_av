@@ -340,7 +340,7 @@ void NBLog::Reader::dump(int fd, size_t indent)
     if (i > 0) {
         lost += i;
         if (fd >= 0) {
-            fdprintf(fd, "%*swarning: lost %u bytes worth of events\n", indent, "", lost);
+            fdprintf(fd, "%*swarning: lost %zu bytes worth of events\n", indent, "", lost);
         } else {
             ALOGI("%*swarning: lost %u bytes worth of events\n", indent, "", lost);
         }

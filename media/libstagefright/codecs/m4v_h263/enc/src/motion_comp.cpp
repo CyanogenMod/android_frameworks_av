@@ -1959,7 +1959,7 @@ void PutSkippedBlock(UChar *rec, UChar *prev, Int lx)
         dst += offset;
         src += offset;
     }
-    while ((UInt)src < (UInt)end);
+    while ((uintptr_t)src < (uintptr_t)end);
 
     return ;
 }

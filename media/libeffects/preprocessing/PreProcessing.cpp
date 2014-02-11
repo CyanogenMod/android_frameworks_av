@@ -1233,8 +1233,8 @@ int PreProcessingFx_Process(effect_handle_t     self,
             if (session->framesIn < session->frameCount) {
                 return 0;
             }
-            size_t frIn = session->framesIn;
-            size_t frOut = session->apmFrameCount;
+            spx_uint32_t frIn = session->framesIn;
+            spx_uint32_t frOut = session->apmFrameCount;
             if (session->inChannelCount == 1) {
                 speex_resampler_process_int(session->inResampler,
                                             0,
@@ -1290,8 +1290,8 @@ int PreProcessingFx_Process(effect_handle_t     self,
         }
 
         if (session->outResampler != NULL) {
-            size_t frIn = session->apmFrameCount;
-            size_t frOut = session->frameCount;
+            spx_uint32_t frIn = session->apmFrameCount;
+            spx_uint32_t frOut = session->frameCount;
             if (session->inChannelCount == 1) {
                 speex_resampler_process_int(session->outResampler,
                                     0,
@@ -1754,8 +1754,8 @@ int PreProcessingFx_ProcessReverse(effect_handle_t     self,
             if (session->framesRev < session->frameCount) {
                 return 0;
             }
-            size_t frIn = session->framesRev;
-            size_t frOut = session->apmFrameCount;
+            spx_uint32_t frIn = session->framesRev;
+            spx_uint32_t frOut = session->apmFrameCount;
             if (session->inChannelCount == 1) {
                 speex_resampler_process_int(session->revResampler,
                                             0,

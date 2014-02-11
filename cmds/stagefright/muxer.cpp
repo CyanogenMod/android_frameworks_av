@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "muxer"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include <binder/ProcessState.h>
@@ -198,7 +199,7 @@ static int muxing(
     trackIndexMap.clear();
 
     int64_t elapsedTimeUs = ALooper::GetNowUs() - muxerStartTimeUs;
-    fprintf(stderr, "SUCCESS: muxer generate the video in %lld ms\n",
+    fprintf(stderr, "SUCCESS: muxer generate the video in %" PRId64 " ms\n",
             elapsedTimeUs / 1000);
 
     return 0;

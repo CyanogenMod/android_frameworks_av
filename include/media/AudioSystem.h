@@ -127,8 +127,8 @@ public:
     // NOTE: this feature is not supported on all hardware platforms and it is
     // necessary to check returned status before using the returned values.
     static status_t getRenderPosition(audio_io_handle_t output,
-                                      size_t *halFrames,
-                                      size_t *dspFrames,
+                                      uint32_t *halFrames,
+                                      uint32_t *dspFrames,
                                       audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
 
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid

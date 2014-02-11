@@ -370,8 +370,8 @@ status_t AudioSystem::setVoiceVolume(float value)
     return af->setVoiceVolume(value);
 }
 
-status_t AudioSystem::getRenderPosition(audio_io_handle_t output, size_t *halFrames,
-                                        size_t *dspFrames, audio_stream_type_t stream)
+status_t AudioSystem::getRenderPosition(audio_io_handle_t output, uint32_t *halFrames,
+                                        uint32_t *dspFrames, audio_stream_type_t stream)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;

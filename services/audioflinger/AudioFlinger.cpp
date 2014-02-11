@@ -1010,7 +1010,7 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
     return size;
 }
 
-unsigned int AudioFlinger::getInputFramesLost(audio_io_handle_t ioHandle) const
+uint32_t AudioFlinger::getInputFramesLost(audio_io_handle_t ioHandle) const
 {
     Mutex::Autolock _l(mLock);
 
@@ -1042,7 +1042,7 @@ status_t AudioFlinger::setVoiceVolume(float value)
     return ret;
 }
 
-status_t AudioFlinger::getRenderPosition(size_t *halFrames, size_t *dspFrames,
+status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
         audio_io_handle_t output) const
 {
     status_t status;
