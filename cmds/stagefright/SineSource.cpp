@@ -24,7 +24,7 @@ SineSource::~SineSource() {
     }
 }
 
-status_t SineSource::start(MetaData *params) {
+status_t SineSource::start(MetaData * /* params */) {
     CHECK(!mStarted);
 
     mGroup = new MediaBufferGroup;
@@ -58,7 +58,7 @@ sp<MetaData> SineSource::getFormat() {
 }
 
 status_t SineSource::read(
-        MediaBuffer **out, const ReadOptions *options) {
+        MediaBuffer **out, const ReadOptions * /* options */) {
     *out = NULL;
 
     MediaBuffer *buffer;

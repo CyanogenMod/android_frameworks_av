@@ -527,7 +527,8 @@ void SurfaceMediaSourceTest::oneBufferPass(int width, int height ) {
 }
 
 // Dequeuing and queuing the buffer without really filling it in.
-void SurfaceMediaSourceTest::oneBufferPassNoFill(int width, int height ) {
+void SurfaceMediaSourceTest::oneBufferPassNoFill(
+        int /* width */, int /* height  */) {
     ANativeWindowBuffer* anb;
     ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(), &anb));
     ASSERT_TRUE(anb != NULL);
