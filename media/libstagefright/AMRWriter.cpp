@@ -162,7 +162,7 @@ status_t AMRWriter::reset() {
     void *dummy;
     pthread_join(mThread, &dummy);
 
-    status_t err = (status_t) dummy;
+    status_t err = static_cast<status_t>(reinterpret_cast<uintptr_t>(dummy));
     {
         status_t status = mSource->stop();
         if (err == OK &&
@@ -191,7 +191,7 @@ bool AMRWriter::exceedsFileDurationLimit() {
 
 // static
 void *AMRWriter::ThreadWrapper(void *me) {
-    return (void *) static_cast<AMRWriter *>(me)->threadFunc();
+    return (void *)(uintptr_t) static_cast<AMRWriter *>(me)->threadFunc();
 }
 
 status_t AMRWriter::threadFunc() {

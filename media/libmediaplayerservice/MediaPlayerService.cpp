@@ -315,7 +315,7 @@ status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& ar
 
     result.append(" AudioCache\n");
     if (mHeap != 0) {
-        snprintf(buffer, 255, "  heap base(%p), size(%d), flags(%d)\n",
+        snprintf(buffer, 255, "  heap base(%p), size(%zu), flags(%d)\n",
                 mHeap->getBase(), mHeap->getSize(), mHeap->getFlags());
         result.append(buffer);
     }

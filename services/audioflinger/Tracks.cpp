@@ -502,8 +502,8 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size, bool a
         nowInUnderrun = '?';
         break;
     }
-    snprintf(&buffer[8], size-8, " %6s %6u %4u %08X %08X %7u %6u %1c %1d %5u %5.2g %5.2g  "
-                                 "%08X %08X %08X 0x%03X %9u%c\n",
+    snprintf(&buffer[8], size-8, " %6s %6u %4u %08X %08X %7u %6zu %1c %1d %5u %5.2g %5.2g  "
+                                 "%08X %p %p 0x%03X %9u%c\n",
             active ? "yes" : "no",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mStreamType,
@@ -517,8 +517,8 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size, bool a
             20.0 * log10((vlr & 0xFFFF) / 4096.0),
             20.0 * log10((vlr >> 16) / 4096.0),
             mCblk->mServer,
-            (int)mMainBuffer,
-            (int)mAuxBuffer,
+            mMainBuffer,
+            mAuxBuffer,
             mCblk->mFlags,
             mAudioTrackServerProxy->getUnderrunFrames(),
             nowInUnderrun);
@@ -1873,7 +1873,7 @@ void AudioFlinger::RecordThread::RecordTrack::invalidate()
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bool active)
 {
-    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6u\n",
+    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6zu\n",
             active ? "yes" : "no",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,

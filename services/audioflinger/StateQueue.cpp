@@ -58,7 +58,11 @@ template<typename T> StateQueue<T>::~StateQueue()
 
 template<typename T> const T* StateQueue<T>::poll()
 {
+#ifdef __LP64__
+    const T *next = (const T *) android_atomic_acquire_load64((volatile int64_t *) &mNext);
+#else
     const T *next = (const T *) android_atomic_acquire_load((volatile int32_t *) &mNext);
+#endif
     if (next != mCurrent) {
         mAck = next;    // no additional barrier needed
         mCurrent = next;
@@ -140,7 +144,11 @@ template<typename T> bool StateQueue<T>::push(StateQueue<T>::block_t block)
         }
 
         // publish
+#ifdef __LP64__
+        android_atomic_release_store64((int64_t) mMutating, (volatile int64_t *) &mNext);
+#else
         android_atomic_release_store((int32_t) mMutating, (volatile int32_t *) &mNext);
+#endif
         mExpecting = mMutating;
 
         // copy with circular wraparound

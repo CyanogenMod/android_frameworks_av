@@ -540,7 +540,7 @@ void ZslProcessor::dumpZslQueue(int fd) const {
             if (entry.count > 0) frameAeState = entry.data.u8[0];
         }
         String8 result =
-                String8::format("   %d: b: %lld\tf: %lld, AE state: %d", i,
+                String8::format("   %zu: b: %lld\tf: %lld, AE state: %d", i,
                         bufferTimestamp, frameTimestamp, frameAeState);
         ALOGV("%s", result.string());
         if (fd != -1) {

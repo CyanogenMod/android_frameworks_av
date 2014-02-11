@@ -449,7 +449,7 @@ public:
 
     virtual     String8     getParameters(const String8& keys);
     virtual     void        audioConfigChanged_l(int event, int param = 0);
-                status_t    getRenderPosition(size_t *halFrames, size_t *dspFrames);
+                status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
                 int16_t     *mixBuffer() const { return mMixBuffer; };
 
     virtual     void detachAuxEffect_l(int effectId);

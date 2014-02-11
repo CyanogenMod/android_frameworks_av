@@ -707,7 +707,7 @@ int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, size_t siz
 
       case DOWNMIX_PARAM_TYPE:
         if (size != sizeof(downmix_type_t)) {
-            ALOGE("Downmix_setParameter(DOWNMIX_PARAM_TYPE) invalid size %d, should be %d",
+            ALOGE("Downmix_setParameter(DOWNMIX_PARAM_TYPE) invalid size %zu, should be %zu",
                     size, sizeof(downmix_type_t));
             return -EINVAL;
         }
@@ -760,7 +760,7 @@ int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, size_t *pS
 
     case DOWNMIX_PARAM_TYPE:
       if (*pSize < sizeof(int16_t)) {
-          ALOGE("Downmix_getParameter invalid parameter size %d for DOWNMIX_PARAM_TYPE", *pSize);
+          ALOGE("Downmix_getParameter invalid parameter size %zu for DOWNMIX_PARAM_TYPE", *pSize);
           return -EINVAL;
       }
       pValue16 = (int16_t *)pValue;

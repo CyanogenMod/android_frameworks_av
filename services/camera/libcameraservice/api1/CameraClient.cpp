@@ -85,7 +85,7 @@ status_t CameraClient::initialize(camera_module_t *module) {
     mHardware->setCallbacks(notifyCallback,
             dataCallback,
             dataCallbackTimestamp,
-            (void *)mCameraId);
+            (void *)(uintptr_t)mCameraId);
 
     // Enable zoom, error, focus, and metadata messages by default
     enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS |

@@ -16,6 +16,7 @@
 
 #define LOG_TAG "MtpProperty"
 
+#include <inttypes.h>
 #include "MtpDataPacket.h"
 #include "MtpDebug.h"
 #include "MtpProperty.h"
@@ -385,10 +386,10 @@ void MtpProperty::print(MtpPropertyValue& value, MtpString& buffer) {
             buffer.appendFormat("%d", value.u.u32);
             break;
         case MTP_TYPE_INT64:
-            buffer.appendFormat("%lld", value.u.i64);
+            buffer.appendFormat("%" PRId64, value.u.i64);
             break;
         case MTP_TYPE_UINT64:
-            buffer.appendFormat("%lld", value.u.u64);
+            buffer.appendFormat("%" PRIu64, value.u.u64);
             break;
         case MTP_TYPE_INT128:
             buffer.appendFormat("%08X%08X%08X%08X", value.u.i128[0], value.u.i128[1],

@@ -70,12 +70,12 @@ void Camera3IOStreamBase::dump(int fd, const Vector<String16> &args) const {
     lines.appendFormat("      Dims: %d x %d, format 0x%x\n",
             camera3_stream::width, camera3_stream::height,
             camera3_stream::format);
-    lines.appendFormat("      Max size: %d\n", mMaxSize);
+    lines.appendFormat("      Max size: %zu\n", mMaxSize);
     lines.appendFormat("      Usage: %d, max HAL buffers: %d\n",
             camera3_stream::usage, camera3_stream::max_buffers);
     lines.appendFormat("      Frames produced: %d, last timestamp: %lld ns\n",
             mFrameCount, mLastTimestamp);
-    lines.appendFormat("      Total buffers: %d, currently dequeued: %d\n",
+    lines.appendFormat("      Total buffers: %zu, currently dequeued: %zu\n",
             mTotalBufferCount, mDequeuedBufferCount);
     write(fd, lines.string(), lines.size());
 }

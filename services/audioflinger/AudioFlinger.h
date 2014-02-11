@@ -186,7 +186,7 @@ public:
 
     virtual status_t setVoiceVolume(float volume);
 
-    virtual status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
+    virtual status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
                                        audio_io_handle_t output) const;
 
     virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const;

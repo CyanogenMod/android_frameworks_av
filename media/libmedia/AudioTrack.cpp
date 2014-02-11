@@ -773,7 +773,7 @@ status_t AudioTrack::getPosition(uint32_t *position) const
     return NO_ERROR;
 }
 
-status_t AudioTrack::getBufferPosition(size_t *position)
+status_t AudioTrack::getBufferPosition(uint32_t *position)
 {
     if (mSharedBuffer == 0 || mIsTimed) {
         return INVALID_OPERATION;
@@ -917,7 +917,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
             // More than 2 channels does not require stronger alignment than stereo
             alignment <<= 1;
         }
-        if (((size_t)mSharedBuffer->pointer() & (alignment - 1)) != 0) {
+        if (((uintptr_t)mSharedBuffer->pointer() & (alignment - 1)) != 0) {
             ALOGE("Invalid buffer alignment: address %p, channel count %u",
                     mSharedBuffer->pointer(), mChannelCount);
             status = BAD_VALUE;
@@ -1266,7 +1266,7 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize)
     if (ssize_t(userSize) < 0 || (buffer == NULL && userSize != 0)) {
         // Sanity-check: user is most-likely passing an error code, and it would
         // make the return value ambiguous (actualSize vs error).
-        ALOGE("AudioTrack::write(buffer=%p, size=%u (%d)", buffer, userSize, userSize);
+        ALOGE("AudioTrack::write(buffer=%p, size=%zu (%zd)", buffer, userSize, userSize);
         return BAD_VALUE;
     }
 
@@ -1811,7 +1811,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
     snprintf(buffer, 255, "  stream type(%d), left - right volume(%f, %f)\n", mStreamType,
             mVolume[0], mVolume[1]);
     result.append(buffer);
-    snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%d)\n", mFormat,
+    snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%zu)\n", mFormat,
             mChannelCount, mFrameCount);
     result.append(buffer);
     snprintf(buffer, 255, "  sample rate(%u), status(%d)\n", mSampleRate, mStatus);

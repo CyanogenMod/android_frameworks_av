@@ -1112,7 +1112,7 @@ status_t AudioFlinger::setVoiceVolume(float value)
     return ret;
 }
 
-status_t AudioFlinger::getRenderPosition(size_t *halFrames, size_t *dspFrames,
+status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
         audio_io_handle_t output) const
 {
     status_t status;

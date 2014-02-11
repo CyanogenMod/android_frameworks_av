@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MPEG4Writer"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include <arpa/inet.h>
@@ -417,7 +418,7 @@ status_t MPEG4Writer::Track::dump(
     result.append(buffer);
     snprintf(buffer, SIZE, "       frames encoded : %d\n", mStszTableEntries->count());
     result.append(buffer);
-    snprintf(buffer, SIZE, "       duration encoded : %lld us\n", mTrackDurationUs);
+    snprintf(buffer, SIZE, "       duration encoded : %" PRId64 " us\n", mTrackDurationUs);
     result.append(buffer);
     ::write(fd, result.string(), result.size());
     return OK;
@@ -1407,7 +1408,7 @@ void MPEG4Writer::Track::addOneSttsTableEntry(
         size_t sampleCount, int32_t duration) {
 
     if (duration == 0) {
-        ALOGW("0-duration samples found: %d", sampleCount);
+        ALOGW("0-duration samples found: %zu", sampleCount);
     }
     mSttsTableEntries->add(htonl(sampleCount));
     mSttsTableEntries->add(htonl(duration));
@@ -1587,7 +1588,7 @@ void MPEG4Writer::writeAllChunks() {
     sendSessionSummary();
 
     mChunkInfos.clear();
-    ALOGD("%d chunks are written in the last batch", outstandingChunks);
+    ALOGD("%zu chunks are written in the last batch", outstandingChunks);
 }
 
 bool MPEG4Writer::findChunkToWrite(Chunk *chunk) {
@@ -1780,7 +1781,7 @@ status_t MPEG4Writer::Track::stop() {
 
     void *dummy;
     pthread_join(mThread, &dummy);
-    status_t err = (status_t) dummy;
+    status_t err = static_cast<status_t>(reinterpret_cast<uintptr_t>(dummy));
 
     ALOGD("%s track stopped", mIsAudio? "Audio": "Video");
     return err;
@@ -1795,7 +1796,7 @@ void *MPEG4Writer::Track::ThreadWrapper(void *me) {
     Track *track = static_cast<Track *>(me);
 
     status_t err = track->threadEntry();
-    return (void *) err;
+    return (void *)(uintptr_t)err;
 }
 
 static void getNalUnitType(uint8_t byte, uint8_t* type) {
@@ -1867,7 +1868,7 @@ status_t MPEG4Writer::Track::copyAVCCodecSpecificData(
     // 2 bytes for each of the parameter set length field
     // plus the 7 bytes for the header
     if (size < 4 + 7) {
-        ALOGE("Codec specific data length too short: %d", size);
+        ALOGE("Codec specific data length too short: %zu", size);
         return ERROR_MALFORMED;
     }
 
@@ -1936,7 +1937,7 @@ status_t MPEG4Writer::Track::parseAVCCodecSpecificData(
         }
 
         if (nSeqParamSets > 0x1F) {
-            ALOGE("Too many seq parameter sets (%d) found", nSeqParamSets);
+            ALOGE("Too many seq parameter sets (%zu) found", nSeqParamSets);
             return ERROR_MALFORMED;
         }
     }
@@ -1949,7 +1950,7 @@ status_t MPEG4Writer::Track::parseAVCCodecSpecificData(
             return ERROR_MALFORMED;
         }
         if (nPicParamSets > 0xFF) {
-            ALOGE("Too many pic parameter sets (%d) found", nPicParamSets);
+            ALOGE("Too many pic parameter sets (%zd) found", nPicParamSets);
             return ERROR_MALFORMED;
         }
     }
@@ -1979,7 +1980,7 @@ status_t MPEG4Writer::Track::makeAVCCodecSpecificData(
     }
 
     if (size < 4) {
-        ALOGE("Codec specific data length too short: %d", size);
+        ALOGE("Codec specific data length too short: %zu", size);
         return ERROR_MALFORMED;
     }
 

@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NuPlayerDriver"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include "NuPlayerDriver.h"
@@ -501,7 +502,7 @@ status_t NuPlayerDriver::dump(int fd, const Vector<String16> &args) const {
     FILE *out = fdopen(dup(fd), "w");
 
     fprintf(out, " NuPlayer\n");
-    fprintf(out, "  numFramesTotal(%lld), numFramesDropped(%lld), "
+    fprintf(out, "  numFramesTotal(%" PRId64 "), numFramesDropped(%" PRId64 "), "
                  "percentageDropped(%.2f)\n",
                  mNumFramesTotal,
                  mNumFramesDropped,

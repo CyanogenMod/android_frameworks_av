@@ -564,7 +564,7 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t getRenderPosition(size_t *halFrames, size_t *dspFrames,
+    virtual status_t getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
             audio_io_handle_t output) const
     {
         Parcel data, reply;
@@ -1058,8 +1058,8 @@ status_t BnAudioFlinger::onTransact(
         case GET_RENDER_POSITION: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
-            size_t halFrames;
-            size_t dspFrames;
+            uint32_t halFrames;
+            uint32_t dspFrames;
             status_t status = getRenderPosition(&halFrames, &dspFrames, output);
             reply->writeInt32(status);
             if (status == NO_ERROR) {

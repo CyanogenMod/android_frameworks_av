@@ -926,8 +926,8 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
     }
 
     result.append("\t\tSession Status State Engine:\n");
-    snprintf(buffer, SIZE, "\t\t%05d   %03d    %03d   0x%08x\n",
-            mSessionId, mStatus, mState, (uint32_t)mEffectInterface);
+    snprintf(buffer, SIZE, "\t\t%05d   %03d    %03d   %p\n",
+            mSessionId, mStatus, mState, mEffectInterface);
     result.append(buffer);
 
     result.append("\t\tDescriptor:\n");
@@ -957,20 +957,20 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
     result.append(buffer);
 
     result.append("\t\t- Input configuration:\n");
-    result.append("\t\t\tBuffer     Frames  SRate Channels Format\n");
-    snprintf(buffer, SIZE, "\t\t\t0x%08x  %5d  %5d %08x %6x (%s)\n",
-            (uint32_t)mConfig.inputCfg.buffer.raw,
+    result.append("\t\t\tFrames  Smp rate Channels Format Buffer\n");
+    snprintf(buffer, SIZE, "\t\t\t%05zu   %05d    %08x %6d (%s) %p\n",
             mConfig.inputCfg.buffer.frameCount,
             mConfig.inputCfg.samplingRate,
             mConfig.inputCfg.channels,
             mConfig.inputCfg.format,
-            formatToString((audio_format_t)mConfig.inputCfg.format));
+            formatToString((audio_format_t)mConfig.inputCfg.format),
+            mConfig.inputCfg.buffer.raw);
     result.append(buffer);
 
     result.append("\t\t- Output configuration:\n");
-    result.append("\t\t\tBuffer     Frames  SRate Channels Format\n");
-    snprintf(buffer, SIZE, "\t\t\t0x%08x  %5d  %5d %08x %6x (%s)\n",
-            (uint32_t)mConfig.outputCfg.buffer.raw,
+    result.append("\t\t\tBuffer     Frames  Smp rate Channels Format\n");
+    snprintf(buffer, SIZE, "\t\t\t%p %05zu   %05d    %08x %d (%s)\n",
+            mConfig.outputCfg.buffer.raw,
             mConfig.outputCfg.buffer.frameCount,
             mConfig.outputCfg.samplingRate,
             mConfig.outputCfg.channels,
@@ -978,7 +978,7 @@ void AudioFlinger::EffectModule::dump(int fd, const Vector<String16>& args __unu
             formatToString((audio_format_t)mConfig.outputCfg.format));
     result.append(buffer);
 
-    snprintf(buffer, SIZE, "\t\t%d Clients:\n", mHandles.size());
+    snprintf(buffer, SIZE, "\t\t%zu Clients:\n", mHandles.size());
     result.append(buffer);
     result.append("\t\t\t  Pid Priority Ctrl Locked client server\n");
     for (size_t i = 0; i < mHandles.size(); ++i) {
@@ -1689,9 +1689,9 @@ void AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)
         }
 
         result.append("\tIn buffer   Out buffer   Active tracks:\n");
-        snprintf(buffer, SIZE, "\t0x%08x  0x%08x   %d\n",
-                (uint32_t)mInBuffer,
-                (uint32_t)mOutBuffer,
+        snprintf(buffer, SIZE, "\t%p  %p   %d\n",
+                mInBuffer,
+                mOutBuffer,
                 mActiveTrackCnt);
         result.append(buffer);
         write(fd, result.string(), result.size());

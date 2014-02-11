@@ -487,19 +487,19 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
     fdprintf(fd, "  TID: %d\n", getTid());
     fdprintf(fd, "  Standby: %s\n", mStandby ? "yes" : "no");
     fdprintf(fd, "  Sample rate: %u\n", mSampleRate);
-    fdprintf(fd, "  HAL frame count: %d\n", mFrameCount);
+    fdprintf(fd, "  HAL frame count: %zu\n", mFrameCount);
     fdprintf(fd, "  HAL buffer size: %u bytes\n", mBufferSize);
     fdprintf(fd, "  Channel Count: %u\n", mChannelCount);
     fdprintf(fd, "  Channel Mask: 0x%08x (%s)\n", mChannelMask,
             channelMaskToString(mChannelMask, mType != RECORD).string());
     fdprintf(fd, "  Format: 0x%x (%s)\n", mFormat, formatToString(mFormat));
-    fdprintf(fd, "  Frame size: %u\n", mFrameSize);
+    fdprintf(fd, "  Frame size: %zu\n", mFrameSize);
     fdprintf(fd, "  Pending setParameters commands:");
     size_t numParams = mNewParameters.size();
     if (numParams) {
         fdprintf(fd, "\n   Index Command");
         for (size_t i = 0; i < numParams; ++i) {
-            fdprintf(fd, "\n   %02d    ", i);
+            fdprintf(fd, "\n   %02zu    ", i);
             fdprintf(fd, mNewParameters[i]);
         }
         fdprintf(fd, "\n");
@@ -530,7 +530,7 @@ void AudioFlinger::ThreadBase::dumpEffectChains(int fd, const Vector<String16>& 
     String8 result;
 
     size_t numEffectChains = mEffectChains.size();
-    snprintf(buffer, SIZE, "  %d Effect Chains\n", numEffectChains);
+    snprintf(buffer, SIZE, "  %zu Effect Chains\n", numEffectChains);
     write(fd, buffer, strlen(buffer));
 
     for (size_t i = 0; i < numEffectChains; ++i) {
@@ -1203,7 +1203,7 @@ void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& ar
 void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>& args)
 {
     fdprintf(fd, "\nOutput thread %p:\n", this);
-    fdprintf(fd, "  Normal frame count: %d\n", mNormalFrameCount);
+    fdprintf(fd, "  Normal frame count: %zu\n", mNormalFrameCount);
     fdprintf(fd, "  Last write occurred (msecs): %llu\n", ns2ms(systemTime() - mLastWriteTime));
     fdprintf(fd, "  Total writes: %d\n", mNumWrites);
     fdprintf(fd, "  Delayed writes: %d\n", mNumDelayedWrites);
@@ -1776,7 +1776,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters()
 }
 
 
-status_t AudioFlinger::PlaybackThread::getRenderPosition(size_t *halFrames, size_t *dspFrames)
+status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames)
 {
     if (halFrames == NULL || dspFrames == NULL) {
         return BAD_VALUE;
@@ -1794,7 +1794,11 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(size_t *halFrames, size
         *dspFrames = framesWritten >= latencyFrames ? framesWritten - latencyFrames : 0;
         return NO_ERROR;
     } else {
-        return mOutput->stream->get_render_position(mOutput->stream, dspFrames);
+        status_t status;
+        uint32_t frames;
+        status = mOutput->stream->get_render_position(mOutput->stream, &frames);
+        *dspFrames = (size_t)frames;
+        return status;
     }
 }
 
@@ -3209,9 +3213,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             mAudioMixer->setBufferProvider(name, track);
             mAudioMixer->enable(name);
 
-            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME0, (void *)vl);
-            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME1, (void *)vr);
-            mAudioMixer->setParameter(name, param, AudioMixer::AUXLEVEL, (void *)va);
+            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME0, (void *)(uintptr_t)vl);
+            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME1, (void *)(uintptr_t)vr);
+            mAudioMixer->setParameter(name, param, AudioMixer::AUXLEVEL, (void *)(uintptr_t)va);
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::TRACK,
@@ -3219,7 +3223,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::TRACK,
-                AudioMixer::CHANNEL_MASK, (void *)track->channelMask());
+                AudioMixer::CHANNEL_MASK, (void *)(uintptr_t)track->channelMask());
             // limit track sample rate to 2 x output sample rate, which changes at re-configuration
             uint32_t maxSampleRate = mSampleRate * 2;
             uint32_t reqSampleRate = track->mAudioTrackServerProxy->getSampleRate();
@@ -3232,7 +3236,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 name,
                 AudioMixer::RESAMPLE,
                 AudioMixer::SAMPLE_RATE,
-                (void *)reqSampleRate);
+                (void *)(uintptr_t)reqSampleRate);
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::TRACK,
@@ -5147,8 +5151,8 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     fdprintf(fd, "\nInput thread %p:\n", this);
 
     if (mActiveTracks.size() > 0) {
-        fdprintf(fd, "  In index: %d\n", mRsmpInIndex);
-        fdprintf(fd, "  Buffer size: %u bytes\n", mBufferSize);
+        fdprintf(fd, "  In index: %zu\n", mRsmpInIndex);
+        fdprintf(fd, "  Buffer size: %zu bytes\n", mBufferSize);
         fdprintf(fd, "  Resampling: %d\n", (mResampler != NULL));
         fdprintf(fd, "  Out channel count: %u\n", mReqChannelCount);
         fdprintf(fd, "  Out sample rate: %u\n", mReqSampleRate);

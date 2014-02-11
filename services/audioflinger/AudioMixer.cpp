@@ -398,15 +398,16 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
     ALOG_ASSERT(uint32_t(name) < MAX_NUM_TRACKS, "bad track name %d", name);
     track_t& track = mState.tracks[name];
 
-    int valueInt = (int)value;
-    int32_t *valueBuf = (int32_t *)value;
+    int valueInt = static_cast<int>(reinterpret_cast<uintptr_t>(value));
+    int32_t *valueBuf = reinterpret_cast<int32_t*>(value);
 
     switch (target) {
 
     case TRACK:
         switch (param) {
         case CHANNEL_MASK: {
-            audio_channel_mask_t mask = (audio_channel_mask_t) value;
+            audio_channel_mask_t mask =
+                static_cast<audio_channel_mask_t>(reinterpret_cast<uintptr_t>(value));
             if (track.channelMask != mask) {
                 uint32_t channelCount = popcount(mask);
                 ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);
