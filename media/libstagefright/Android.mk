@@ -112,7 +112,7 @@ LOCAL_SHARED_LIBRARIES += \
         libstagefright_foundation \
         libdl
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
 
 LOCAL_MODULE:= libstagefright
 

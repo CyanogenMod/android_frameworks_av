@@ -186,7 +186,7 @@ u32 h264bsdMoreRbspData(strmData_t *pStrmData)
         return(HANTRO_FALSE);
 
     if ( (bits > 8) ||
-         ((h264bsdShowBits32(pStrmData)>>(32-bits)) != (1 << (bits-1))) )
+         ((h264bsdShowBits32(pStrmData)>>(32-bits)) != (1ul << (bits-1))) )
         return(HANTRO_TRUE);
     else
         return(HANTRO_FALSE);

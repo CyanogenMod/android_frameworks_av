@@ -30,6 +30,8 @@
 #include "psy_configuration.h"
 #include "tns_func.h"
 
+#define UNUSED(x) (void)(x)
+
 #define TNS_MODIFY_BEGIN         2600  /* Hz */
 #define RATIO_PATCH_LOWER_BORDER 380   /* Hz */
 #define TNS_GAIN_THRESH			 141   /* 1.41*100 */
@@ -642,6 +644,8 @@ static Word16 CalcTnsFilter(const Word16 *signal,
   Word32 predictionGain;
   Word32 i;
   Word32 tnsOrderPlus1 = tnsOrder + 1;
+
+  UNUSED(window);
 
   assert(tnsOrder <= TNS_MAX_ORDER);      /* remove asserts later? (btg) */
 

@@ -193,7 +193,7 @@ MatroskaSource::~MatroskaSource() {
     clearPendingFrames();
 }
 
-status_t MatroskaSource::start(MetaData *params) {
+status_t MatroskaSource::start(MetaData * /* params */) {
     mBlockIter.reset();
 
     return OK;
@@ -410,7 +410,7 @@ void BlockIterator::seek(
             // Accept the first key frame
             *actualFrameTimeUs = (block()->GetTime(mCluster) + 500LL) / 1000LL;
             ALOGV("Requested seek point: %lld actual: %lld",
-                  seekTimeUs, actualFrameTimeUs);
+                  seekTimeUs, *actualFrameTimeUs);
             break;
         }
     }

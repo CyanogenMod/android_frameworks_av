@@ -410,7 +410,7 @@ status_t AudioPlayer::setPlaybackRatePermille(int32_t ratePermille) {
 
 // static
 size_t AudioPlayer::AudioSinkCallback(
-        MediaPlayerBase::AudioSink *audioSink,
+        MediaPlayerBase::AudioSink * /* audioSink */,
         void *buffer, size_t size, void *cookie,
         MediaPlayerBase::AudioSink::cb_event_t event) {
     AudioPlayer *me = (AudioPlayer *)cookie;

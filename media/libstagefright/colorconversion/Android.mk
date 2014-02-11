@@ -11,4 +11,6 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_MODULE:= libstagefright_color_conversion
 
+LOCAL_CFLAGS += -Werror
+
 include $(BUILD_STATIC_LIBRARY)

@@ -367,7 +367,7 @@ status_t NuPlayerDriver::reset() {
     return OK;
 }
 
-status_t NuPlayerDriver::setLooping(int loop) {
+status_t NuPlayerDriver::setLooping(int /* loop */) {
     return INVALID_OPERATION;
 }
 
@@ -423,16 +423,17 @@ void NuPlayerDriver::setAudioSink(const sp<AudioSink> &audioSink) {
     mPlayer->setAudioSink(audioSink);
 }
 
-status_t NuPlayerDriver::setParameter(int key, const Parcel &request) {
+status_t NuPlayerDriver::setParameter(
+        int /* key */, const Parcel & /* request */) {
     return INVALID_OPERATION;
 }
 
-status_t NuPlayerDriver::getParameter(int key, Parcel *reply) {
+status_t NuPlayerDriver::getParameter(int /* key */, Parcel * /* reply */) {
     return INVALID_OPERATION;
 }
 
 status_t NuPlayerDriver::getMetadata(
-        const media::Metadata::Filter& ids, Parcel *records) {
+        const media::Metadata::Filter& /* ids */, Parcel *records) {
     Mutex::Autolock autoLock(mLock);
 
     using media::Metadata;
@@ -496,7 +497,8 @@ void NuPlayerDriver::notifyFrameStats(
     mNumFramesDropped = numFramesDropped;
 }
 
-status_t NuPlayerDriver::dump(int fd, const Vector<String16> &args) const {
+status_t NuPlayerDriver::dump(
+        int fd, const Vector<String16> & /* args */) const {
     Mutex::Autolock autoLock(mLock);
 
     FILE *out = fdopen(dup(fd), "w");

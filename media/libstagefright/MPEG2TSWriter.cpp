@@ -555,7 +555,7 @@ status_t MPEG2TSWriter::addSource(const sp<MediaSource> &source) {
     return OK;
 }
 
-status_t MPEG2TSWriter::start(MetaData *param) {
+status_t MPEG2TSWriter::start(MetaData * /* param */) {
     CHECK(!mStarted);
 
     mStarted = true;
@@ -596,7 +596,8 @@ bool MPEG2TSWriter::reachedEOS() {
     return !mStarted || (mNumSourcesDone == mSources.size() ? true : false);
 }
 
-status_t MPEG2TSWriter::dump(int fd, const Vector<String16> &args) {
+status_t MPEG2TSWriter::dump(
+        int /* fd */, const Vector<String16> & /* args */) {
     return OK;
 }
 

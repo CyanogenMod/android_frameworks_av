@@ -685,9 +685,8 @@ status_t RTPSender::onRTCPData(const sp<ABuffer> &buffer) {
     return OK;
 }
 
-status_t RTPSender::parseReceiverReport(const uint8_t *data, size_t size) {
-    // hexdump(data, size);
-
+status_t RTPSender::parseReceiverReport(
+        const uint8_t *data, size_t /* size */) {
     float fractionLost = data[12] / 256.0f;
 
     ALOGI("lost %.2f %% of packets during report interval.",

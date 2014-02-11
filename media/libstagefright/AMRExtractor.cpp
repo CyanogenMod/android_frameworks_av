@@ -189,7 +189,7 @@ sp<MediaSource> AMRExtractor::getTrack(size_t index) {
             mOffsetTable, mOffsetTableLength);
 }
 
-sp<MetaData> AMRExtractor::getTrackMetaData(size_t index, uint32_t flags) {
+sp<MetaData> AMRExtractor::getTrackMetaData(size_t index, uint32_t /* flags */) {
     if (mInitCheck != OK || index != 0) {
         return NULL;
     }
@@ -221,7 +221,7 @@ AMRSource::~AMRSource() {
     }
 }
 
-status_t AMRSource::start(MetaData *params) {
+status_t AMRSource::start(MetaData * /* params */) {
     CHECK(!mStarted);
 
     mOffset = mIsWide ? 9 : 6;
@@ -258,7 +258,7 @@ status_t AMRSource::read(
         int64_t seekFrame = seekTimeUs / 20000ll;  // 20ms per frame.
         mCurrentTimeUs = seekFrame * 20000ll;
 
-        int index = seekFrame / 50;
+        size_t index = seekFrame < 0 ? 0 : seekFrame / 50;
         if (index >= mOffsetTableLength) {
             index = mOffsetTableLength - 1;
         }

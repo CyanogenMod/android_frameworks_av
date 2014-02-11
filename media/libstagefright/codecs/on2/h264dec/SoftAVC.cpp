@@ -98,7 +98,7 @@ status_t SoftAVC::initDecoder() {
     return UNKNOWN_ERROR;
 }
 
-void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
+void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError || mOutputPortSettingsChange != NONE) {
         return;
     }

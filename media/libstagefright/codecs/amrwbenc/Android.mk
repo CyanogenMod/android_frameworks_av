@@ -112,6 +112,8 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV5E
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV7
 endif
 
+LOCAL_CFLAGS += -Werror
+
 include $(BUILD_STATIC_LIBRARY)
 
 ################################################################################
@@ -125,6 +127,8 @@ LOCAL_C_INCLUDES := \
 	frameworks/av/media/libstagefright/include \
 	frameworks/av/media/libstagefright/codecs/common/include \
 	frameworks/native/include/media/openmax
+
+LOCAL_CFLAGS += -Werror
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrwbenc

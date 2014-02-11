@@ -125,7 +125,7 @@ void M3UParser::MediaGroup::pickRandomMediaItems() {
                 mSelectedIndex = strtoul(value, &end, 10);
                 CHECK(end > value && *end == '\0');
 
-                if (mSelectedIndex >= mMediaItems.size()) {
+                if (mSelectedIndex >= (ssize_t)mMediaItems.size()) {
                     mSelectedIndex = mMediaItems.size() - 1;
                 }
             } else {
@@ -165,14 +165,14 @@ status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
             ALOGE("track %d does not exist", index);
             return INVALID_OPERATION;
         }
-        if (mSelectedIndex == index) {
+        if (mSelectedIndex == (ssize_t)index) {
             ALOGE("track %d already selected", index);
             return BAD_VALUE;
         }
         ALOGV("selected track %d", index);
         mSelectedIndex = index;
     } else {
-        if (mSelectedIndex != index) {
+        if (mSelectedIndex != (ssize_t)index) {
             ALOGE("track %d is not selected", index);
             return BAD_VALUE;
         }

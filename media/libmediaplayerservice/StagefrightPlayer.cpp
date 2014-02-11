@@ -189,7 +189,7 @@ status_t StagefrightPlayer::getParameter(int key, Parcel *reply) {
 }
 
 status_t StagefrightPlayer::getMetadata(
-        const media::Metadata::Filter& ids, Parcel *records) {
+        const media::Metadata::Filter& /* ids */, Parcel *records) {
     using media::Metadata;
 
     uint32_t flags = mPlayer->flags();

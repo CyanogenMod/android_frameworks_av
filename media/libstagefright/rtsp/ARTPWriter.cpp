@@ -114,7 +114,7 @@ bool ARTPWriter::reachedEOS() {
     return (mFlags & kFlagEOS) != 0;
 }
 
-status_t ARTPWriter::start(MetaData *params) {
+status_t ARTPWriter::start(MetaData * /* params */) {
     Mutex::Autolock autoLock(mLock);
     if (mFlags & kFlagStarted) {
         return INVALID_OPERATION;
