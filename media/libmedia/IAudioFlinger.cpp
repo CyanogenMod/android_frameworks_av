@@ -609,19 +609,21 @@ public:
         return id;
     }
 
-    virtual void acquireAudioSessionId(int audioSession)
+    virtual void acquireAudioSessionId(int audioSession, int pid)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(audioSession);
+        data.writeInt32(pid);
         remote()->transact(ACQUIRE_AUDIO_SESSION_ID, data, &reply);
     }
 
-    virtual void releaseAudioSessionId(int audioSession)
+    virtual void releaseAudioSessionId(int audioSession, int pid)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32(audioSession);
+        data.writeInt32(pid);
         remote()->transact(RELEASE_AUDIO_SESSION_ID, data, &reply);
     }
 
@@ -1082,13 +1084,15 @@ status_t BnAudioFlinger::onTransact(
         case ACQUIRE_AUDIO_SESSION_ID: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             int audioSession = data.readInt32();
-            acquireAudioSessionId(audioSession);
+            int pid = data.readInt32();
+            acquireAudioSessionId(audioSession, pid);
             return NO_ERROR;
         } break;
         case RELEASE_AUDIO_SESSION_ID: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             int audioSession = data.readInt32();
-            releaseAudioSessionId(audioSession);
+            int pid = data.readInt32();
+            releaseAudioSessionId(audioSession, pid);
             return NO_ERROR;
         } break;
         case QUERY_NUM_EFFECTS: {

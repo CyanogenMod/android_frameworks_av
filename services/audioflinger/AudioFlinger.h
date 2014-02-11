@@ -193,9 +193,9 @@ public:
 
     virtual int newAudioSessionId();
 
-    virtual void acquireAudioSessionId(int audioSession);
+    virtual void acquireAudioSessionId(int audioSession, pid_t pid);
 
-    virtual void releaseAudioSessionId(int audioSession);
+    virtual void releaseAudioSessionId(int audioSession, pid_t pid);
 
     virtual status_t queryNumberEffects(uint32_t *numEffects) const;
 

@@ -1929,18 +1929,21 @@ int AudioFlinger::newAudioSessionId()
     return nextUniqueId();
 }
 
-void AudioFlinger::acquireAudioSessionId(int audioSession)
+void AudioFlinger::acquireAudioSessionId(int audioSession, pid_t pid)
 {
     Mutex::Autolock _l(mLock);
     pid_t caller = IPCThreadState::self()->getCallingPid();
-    ALOGV("acquiring %d from %d", audioSession, caller);
+    ALOGV("acquiring %d from %d, for %d", audioSession, caller, pid);
+    if (pid != -1 && (caller == getpid_cached)) {
+        caller = pid;
+    }
 
     // Ignore requests received from processes not known as notification client. The request
     // is likely proxied by mediaserver (e.g CameraService) and releaseAudioSessionId() can be
     // called from a different pid leaving a stale session reference.  Also we don't know how
     // to clear this reference if the client process dies.
     if (mNotificationClients.indexOfKey(caller) < 0) {
-        ALOGV("acquireAudioSessionId() unknown client %d for session %d", caller, audioSession);
+        ALOGW("acquireAudioSessionId() unknown client %d for session %d", caller, audioSession);
         return;
     }
 
@@ -1957,11 +1960,14 @@ void AudioFlinger::acquireAudioSessionId(int audioSession)
     ALOGV(" added new entry for %d", audioSession);
 }
 
-void AudioFlinger::releaseAudioSessionId(int audioSession)
+void AudioFlinger::releaseAudioSessionId(int audioSession, pid_t pid)
 {
     Mutex::Autolock _l(mLock);
     pid_t caller = IPCThreadState::self()->getCallingPid();
-    ALOGV("releasing %d from %d", audioSession, caller);
+    ALOGV("releasing %d from %d for %d", audioSession, caller, pid);
+    if (pid != -1 && (caller == getpid_cached)) {
+        caller = pid;
+    }
     size_t num = mAudioSessionRefs.size();
     for (size_t i = 0; i< num; i++) {
         AudioSessionRef *ref = mAudioSessionRefs.itemAt(i);

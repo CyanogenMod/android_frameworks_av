@@ -116,7 +116,8 @@ AudioTrack::AudioTrack(
         int sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
-        int uid)
+        int uid,
+        pid_t pid)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -125,7 +126,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
-            offloadInfo, uid);
+            offloadInfo, uid, pid);
 }
 
 AudioTrack::AudioTrack(
@@ -141,7 +142,8 @@ AudioTrack::AudioTrack(
         int sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
-        int uid)
+        int uid,
+        pid_t pid)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -149,7 +151,8 @@ AudioTrack::AudioTrack(
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
-            sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo, uid);
+            sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo,
+            uid, pid);
 }
 
 AudioTrack::~AudioTrack()
@@ -168,7 +171,9 @@ AudioTrack::~AudioTrack()
         mAudioTrack->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mAudioTrack.clear();
         IPCThreadState::self()->flushCommands();
-        AudioSystem::releaseAudioSessionId(mSessionId);
+        ALOGV("~AudioTrack, releasing session id from %d on behalf of %d",
+                IPCThreadState::self()->getCallingPid(), mClientPid);
+        AudioSystem::releaseAudioSessionId(mSessionId, mClientPid);
     }
 }
 
@@ -187,7 +192,8 @@ status_t AudioTrack::set(
         int sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
-        int uid)
+        int uid,
+        pid_t pid)
 {
     switch (transferType) {
     case TRANSFER_DEFAULT:
@@ -335,10 +341,17 @@ status_t AudioTrack::set(
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
     mSessionId = sessionId;
-    if (uid == -1 || (IPCThreadState::self()->getCallingPid() != getpid())) {
+    int callingpid = IPCThreadState::self()->getCallingPid();
+    int mypid = getpid();
+    if (uid == -1 || (callingpid != mypid)) {
         mClientUid = IPCThreadState::self()->getCallingUid();
     } else {
         mClientUid = uid;
+    }
+    if (pid == -1 || (callingpid != mypid)) {
+        mClientPid = callingpid;
+    } else {
+        mClientPid = pid;
     }
     mAuxEffectId = 0;
     mFlags = flags;
@@ -379,7 +392,7 @@ status_t AudioTrack::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-    AudioSystem::acquireAudioSessionId(mSessionId);
+    AudioSystem::acquireAudioSessionId(mSessionId, mClientPid);
     mSequence = 1;
     mObservedSequence = mSequence;
     mInUnderrun = false;

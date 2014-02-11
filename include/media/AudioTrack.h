@@ -190,7 +190,8 @@ public:
                                     int sessionId        = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
-                                    int uid = -1);
+                                    int uid = -1,
+                                    pid_t pid = -1);
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
@@ -215,7 +216,8 @@ public:
                                     int sessionId       = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
-                                    int uid = -1);
+                                    int uid = -1,
+                                    pid_t pid = -1);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -253,7 +255,8 @@ public:
                             int sessionId       = AUDIO_SESSION_ALLOCATE,
                             transfer_type transferType = TRANSFER_DEFAULT,
                             const audio_offload_info_t *offloadInfo = NULL,
-                            int uid = -1);
+                            int uid = -1,
+                            pid_t pid = -1);
 
     /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using
@@ -757,6 +760,7 @@ private:
     sp<DeathNotifier>       mDeathNotifier;
     uint32_t                mSequence;              // incremented for each new IAudioTrack attempt
     int                     mClientUid;
+    pid_t                   mClientPid;
 };
 
 class TimedAudioTrack : public AudioTrack

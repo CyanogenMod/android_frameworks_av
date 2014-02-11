@@ -435,19 +435,19 @@ int AudioSystem::newAudioSessionId()
     return af->newAudioSessionId();
 }
 
-void AudioSystem::acquireAudioSessionId(int audioSession)
+void AudioSystem::acquireAudioSessionId(int audioSession, pid_t pid)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af != 0) {
-        af->acquireAudioSessionId(audioSession);
+        af->acquireAudioSessionId(audioSession, pid);
     }
 }
 
-void AudioSystem::releaseAudioSessionId(int audioSession)
+void AudioSystem::releaseAudioSessionId(int audioSession, pid_t pid)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af != 0) {
-        af->releaseAudioSessionId(audioSession);
+        af->releaseAudioSessionId(audioSession, pid);
     }
 }
 
