@@ -207,6 +207,9 @@ private:
     int64_t mRepeatFrameDelayUs;
     int64_t mMaxPtsGapUs;
 
+    int64_t mTimePerFrameUs;
+    int64_t mTimePerCaptureUs;
+
     bool mCreateInputBuffersSuspended;
 
     status_t setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_t mode);

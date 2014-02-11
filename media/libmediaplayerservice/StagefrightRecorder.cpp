@@ -690,10 +690,10 @@ status_t StagefrightRecorder::setParameter(
             return setParamTimeLapseEnable(timeLapseEnable);
         }
     } else if (key == "time-between-time-lapse-frame-capture") {
-        int64_t timeBetweenTimeLapseFrameCaptureMs;
-        if (safe_strtoi64(value.string(), &timeBetweenTimeLapseFrameCaptureMs)) {
+        int64_t timeBetweenTimeLapseFrameCaptureUs;
+        if (safe_strtoi64(value.string(), &timeBetweenTimeLapseFrameCaptureUs)) {
             return setParamTimeBetweenTimeLapseFrameCapture(
-                    1000LL * timeBetweenTimeLapseFrameCaptureMs);
+                    timeBetweenTimeLapseFrameCaptureUs);
         }
     } else {
         ALOGE("setParameter: failed to find key %s", key.string());
@@ -1436,6 +1436,17 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("stride", mVideoWidth);
         format->setInt32("slice-height", mVideoWidth);
         format->setInt32("color-format", OMX_COLOR_FormatAndroidOpaque);
+
+        // set up time lapse/slow motion for surface source
+        if (mCaptureTimeLapse) {
+            if (mTimeBetweenTimeLapseFrameCaptureUs <= 0) {
+                ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %lld",
+                    mTimeBetweenTimeLapseFrameCaptureUs);
+                return BAD_VALUE;
+            }
+            format->setInt64("time-lapse",
+                    mTimeBetweenTimeLapseFrameCaptureUs);
+        }
     }
 
     format->setInt32("bitrate", mVideoBitRate);

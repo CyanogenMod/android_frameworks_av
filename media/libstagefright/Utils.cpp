@@ -452,6 +452,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         }
     }
 
+    int32_t timeScale;
+    if (msg->findInt32("time-scale", &timeScale)) {
+        meta->setInt32(kKeyTimeScale, timeScale);
+    }
+
     // XXX TODO add whatever other keys there are
 
 #if 0
