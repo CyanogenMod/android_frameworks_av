@@ -16,8 +16,6 @@ LOCAL_C_INCLUDES += \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax
 
-LOCAL_CFLAGS += -Werror
-
 LOCAL_SHARED_LIBRARIES :=               \
         libbinder                       \
         libmedia                        \
