@@ -260,7 +260,7 @@ static void hexdump(const void *_data, size_t size) {
     const uint8_t *data = (const uint8_t *)_data;
     size_t offset = 0;
     while (offset < size) {
-        printf("0x%04x  ", offset);
+        printf("0x%04zx  ", offset);
 
         size_t n = size - offset;
         if (n > 16) {

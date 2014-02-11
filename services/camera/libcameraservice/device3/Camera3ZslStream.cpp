@@ -271,7 +271,7 @@ void Camera3ZslStream::dump(int fd, const Vector<String16> &args) const {
     Camera3IOStreamBase::dump(fd, args);
 
     lines = String8();
-    lines.appendFormat("      Input buffers pending: %d, in flight %d\n",
+    lines.appendFormat("      Input buffers pending: %zu, in flight %zu\n",
             mInputBufferQueue.size(), mBuffersInFlight.size());
     write(fd, lines.string(), lines.size());
 }

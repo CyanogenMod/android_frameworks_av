@@ -210,7 +210,7 @@ M4OSA_ERR M4DECODER_NULL_setOption(M4OSA_Context context,
             break;
 
         case M4DECODER_kOptionID_EnableYuvWithEffect:
-            pStreamContext->bYuvWithEffectSet = (M4OSA_Bool)pValue;
+            pStreamContext->bYuvWithEffectSet = (M4OSA_Bool)(intptr_t)pValue;
             break;
 
         case M4DECODER_kOptionID_YuvWithEffectNonContiguous:

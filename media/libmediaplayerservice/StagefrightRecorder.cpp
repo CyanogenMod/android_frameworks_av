@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "StagefrightRecorder"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include "StagefrightRecorder.h"
@@ -1747,15 +1748,15 @@ status_t StagefrightRecorder::dump(
     result.append(buffer);
     snprintf(buffer, SIZE, "     File format: %d\n", mOutputFormat);
     result.append(buffer);
-    snprintf(buffer, SIZE, "     Max file size (bytes): %lld\n", mMaxFileSizeBytes);
+    snprintf(buffer, SIZE, "     Max file size (bytes): %" PRId64 "\n", mMaxFileSizeBytes);
     result.append(buffer);
-    snprintf(buffer, SIZE, "     Max file duration (us): %lld\n", mMaxFileDurationUs);
+    snprintf(buffer, SIZE, "     Max file duration (us): %" PRId64 "\n", mMaxFileDurationUs);
     result.append(buffer);
     snprintf(buffer, SIZE, "     File offset length (bits): %d\n", mUse64BitFileOffset? 64: 32);
     result.append(buffer);
     snprintf(buffer, SIZE, "     Interleave duration (us): %d\n", mInterleaveDurationUs);
     result.append(buffer);
-    snprintf(buffer, SIZE, "     Progress notification: %lld us\n", mTrackEveryTimeDurationUs);
+    snprintf(buffer, SIZE, "     Progress notification: %" PRId64 " us\n", mTrackEveryTimeDurationUs);
     result.append(buffer);
     snprintf(buffer, SIZE, "   Audio\n");
     result.append(buffer);

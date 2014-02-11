@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "jpeg.h"
 #include "SineSource.h"
@@ -89,8 +90,8 @@ static void displayDecodeHistogram(Vector<int64_t> *decodeTimesUs) {
     int64_t minUs = decodeTimesUs->itemAt(0);
     int64_t maxUs = decodeTimesUs->itemAt(n - 1);
 
-    printf("min decode time %lld us (%.2f secs)\n", minUs, minUs / 1E6);
-    printf("max decode time %lld us (%.2f secs)\n", maxUs, maxUs / 1E6);
+    printf("min decode time %" PRId64 " us (%.2f secs)\n", minUs, minUs / 1E6);
+    printf("max decode time %" PRId64 " us (%.2f secs)\n", maxUs, maxUs / 1E6);
 
     size_t counts[100];
     for (size_t i = 0; i < 100; ++i) {
@@ -110,7 +111,7 @@ static void displayDecodeHistogram(Vector<int64_t> *decodeTimesUs) {
         int64_t slotUs = minUs + (i * (maxUs - minUs) / 100);
 
         double fps = 1E6 / slotUs;
-        printf("[%.2f fps]: %d\n", fps, counts[i]);
+        printf("[%.2f fps]: %zu\n", fps, counts[i]);
     }
 }
 
@@ -262,7 +263,7 @@ static void playSource(OMXClient *client, sp<MediaSource> &source) {
                     }
                 }
 
-                printf("buffer has timestamp %lld us (%.2f secs)\n",
+                printf("buffer has timestamp %" PRId64 " us (%.2f secs)\n",
                        timestampUs, timestampUs / 1E6);
 
                 buffer->release();
@@ -285,7 +286,7 @@ static void playSource(OMXClient *client, sp<MediaSource> &source) {
                 seekTimeUs = (rand() * (float)durationUs) / RAND_MAX;
                 options.setSeekTo(seekTimeUs);
 
-                printf("seeking to %lld us (%.2f secs)\n",
+                printf("seeking to %" PRId64 " us (%.2f secs)\n",
                        seekTimeUs, seekTimeUs / 1E6);
             }
         }
@@ -388,7 +389,7 @@ static void playSource(OMXClient *client, sp<MediaSource> &source) {
         // sizes may be different across decoders.
         printf("avg. %.2f KB/sec\n", totalBytes / 1024 * 1E6 / delay);
 
-        printf("decoded a total of %lld bytes\n", totalBytes);
+        printf("decoded a total of %" PRId64 " bytes\n", totalBytes);
     }
 }
 
@@ -574,7 +575,8 @@ static void performSeekTest(const sp<MediaSource> &source) {
             int64_t timeUs;
             CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
 
-            printf("%lld\t%lld\t%lld\n", seekTimeUs, timeUs, seekTimeUs - timeUs);
+            printf("%" PRId64 "\t%" PRId64 "\t%" PRId64 "\n",
+                   seekTimeUs, timeUs, seekTimeUs - timeUs);
 
             buffer->release();
             buffer = NULL;
@@ -1071,7 +1073,7 @@ int main(int argc, char **argv) {
 
                 int64_t thumbTimeUs;
                 if (meta->findInt64(kKeyThumbnailTime, &thumbTimeUs)) {
-                    printf("thumbnailTime: %lld us (%.2f secs)\n",
+                    printf("thumbnailTime: %" PRId64 " us (%.2f secs)\n",
                            thumbTimeUs, thumbTimeUs / 1E6);
                 }
 

@@ -308,7 +308,7 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
     if (numLostBytes > 0) {
         // Loss of audio frames should happen rarely; thus the LOGW should
         // not cause a logging spam
-        ALOGW("Lost audio record data: %d bytes", numLostBytes);
+        ALOGW("Lost audio record data: %zu bytes", numLostBytes);
     }
 
     while (numLostBytes > 0) {

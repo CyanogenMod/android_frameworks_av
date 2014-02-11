@@ -250,7 +250,7 @@ extern "C"
             out[40] = k4 ;   /* row 5 */
             out++;
         }
-        while ((UInt)out < (UInt)dst) ;
+        while ((uintptr_t)out < (uintptr_t)dst) ;
 
         return ;
     }
@@ -455,7 +455,7 @@ extern "C"
             out[8] = k5 ;       /* row 1 */
             out++;
         }
-        while ((UInt)out < (UInt)dst) ;
+        while ((uintptr_t)out < (uintptr_t)dst) ;
 
         return ;
     }
@@ -635,7 +635,7 @@ extern "C"
             out[8] = k5 ;       /* row 1 */
             out++;
         }
-        while ((UInt)out < (UInt)dst) ;
+        while ((uintptr_t)out < (uintptr_t)dst) ;
 
         return ;
     }
@@ -846,7 +846,7 @@ extern "C"
             out[40] = k4 ;   /* row 5 */
             out++;
         }
-        while ((UInt)out < (UInt)dst) ;
+        while ((uintptr_t)out < (uintptr_t)dst) ;
 
         return ;
     }
@@ -1033,7 +1033,7 @@ extern "C"
             out[8] = k5 ;       /* row 1 */
             out++;
         }
-        while ((UInt)out < (UInt)dst) ;
+        while ((uintptr_t)out < (uintptr_t)dst) ;
 
         return ;
     }
@@ -1195,7 +1195,7 @@ extern "C"
             out[8] = k5 ;       /* row 1 */
             out++;
         }
-        while ((UInt)out < (UInt)dst) ;
+        while ((uintptr_t)out < (uintptr_t)dst) ;
 
         return ;
     }
