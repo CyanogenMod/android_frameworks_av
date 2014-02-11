@@ -60,7 +60,7 @@ void ElementaryStreamQueue::clear(bool clearFormat) {
 // update metadata only applicable, and return the payload size
 static unsigned parseAC3SyncFrame(
         const uint8_t *ptr, size_t size, sp<MetaData> *metaData) {
-    static const unsigned channelCountTable[] = {2, 1, 2, 3, 4, 4, 5, 6};
+    static const unsigned channelCountTable[] = {2, 1, 2, 3, 3, 4, 4, 5};
     static const unsigned samplingRateTable[] = {48000, 44100, 32000};
     static const unsigned rates[] = {32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256,
             320, 384, 448, 512, 576, 640};
