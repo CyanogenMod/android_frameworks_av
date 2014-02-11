@@ -103,6 +103,15 @@ AVCEnc_Status AVCBitstreamSaveWord(AVCEncBitstream *stream)
     {
         num_bits -= 8;
         byte = (current_word >> num_bits) & 0xFF;
+        if (stream->count_zeros == 2)
+        {   /* for num_bits = 32, this can add 2 more bytes extra for EPBS */
+            if (byte <= 3)
+            {
+                *write_pnt++ = 0x3;
+                stream->write_pos++;
+                stream->count_zeros = 0;
+            }
+        }
         if (byte != 0)
         {
             *write_pnt++ = byte;
@@ -114,12 +123,6 @@ AVCEnc_Status AVCBitstreamSaveWord(AVCEncBitstream *stream)
             stream->count_zeros++;
             *write_pnt++ = byte;
             stream->write_pos++;
-            if (stream->count_zeros == 2)
-            {   /* for num_bits = 32, this can add 2 more bytes extra for EPBS */
-                *write_pnt++ = 0x3;
-                stream->write_pos++;
-                stream->count_zeros = 0;
-            }
         }
     }
 
