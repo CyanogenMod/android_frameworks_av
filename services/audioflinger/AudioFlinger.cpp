@@ -2004,25 +2004,25 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
 {
     // keep strong reference on the playback thread so that
     // it is not destroyed while exit() is executed
-#ifdef QCOM_DIRECTTRACK
-    AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
-    if (desc) {
-        ALOGV("Closing DirectTrack output %d", output);
-        desc->mActive = false;
-        desc->stream->common.standby(&desc->stream->common);
-        desc->hwDev->close_output_stream(desc->hwDev, desc->stream);
-        desc->trackRefPtr = NULL;
-        desc->stream = NULL;
-        mDirectAudioTracks.removeItem(output);
-        audioConfigChanged_l(AudioSystem::OUTPUT_CLOSED, output, NULL);
-        delete desc;
-        return NO_ERROR;
-    }
-#endif
-
     sp<PlaybackThread> thread;
     {
         Mutex::Autolock _l(mLock);
+#ifdef QCOM_DIRECTTRACK
+        AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(output);
+        if (desc) {
+            ALOGV("Closing DirectTrack output %d", output);
+            desc->mActive = false;
+            desc->stream->common.standby(&desc->stream->common);
+            desc->hwDev->close_output_stream(desc->hwDev, desc->stream);
+            desc->trackRefPtr = NULL;
+            desc->stream = NULL;
+            mDirectAudioTracks.removeItem(output);
+            audioConfigChanged_l(AudioSystem::OUTPUT_CLOSED, output, NULL);
+            delete desc;
+            return NO_ERROR;
+        }
+#endif
+
         thread = checkPlaybackThread_l(output);
         if (thread == NULL) {
             return BAD_VALUE;
