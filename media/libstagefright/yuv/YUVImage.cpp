@@ -226,8 +226,8 @@ void YUVImage::fastCopyRectangle420Planar(
             &ySrcOffsetIncrement, &uSrcOffsetIncrement, &vSrcOffsetIncrement);
 
     int32_t yDestOffsetIncrement;
-    int32_t uDestOffsetIncrement;
-    int32_t vDestOffsetIncrement;
+    int32_t uDestOffsetIncrement = 0;
+    int32_t vDestOffsetIncrement = 0;
     destImage.getOffsetIncrementsPerDataRow(
             &yDestOffsetIncrement, &uDestOffsetIncrement, &vDestOffsetIncrement);
 
@@ -309,7 +309,7 @@ void YUVImage::fastCopyRectangle420SemiPlanar(
 
     int32_t yDestOffsetIncrement;
     int32_t uDestOffsetIncrement;
-    int32_t vDestOffsetIncrement;
+    int32_t vDestOffsetIncrement = 0;
     destImage.getOffsetIncrementsPerDataRow(
             &yDestOffsetIncrement, &uDestOffsetIncrement, &vDestOffsetIncrement);
 
@@ -393,9 +393,9 @@ bool YUVImage::writeToPPM(const char *filename) const {
     fprintf(fp, "255\n");
     for (int32_t y = 0; y < mHeight; ++y) {
         for (int32_t x = 0; x < mWidth; ++x) {
-            uint8_t yValue;
-            uint8_t uValue;
-            uint8_t vValue;
+            uint8_t yValue = 0u;
+            uint8_t uValue = 0u;
+            uint8_t vValue = 0u;
             getPixelValue(x, y, &yValue, &uValue, & vValue);
 
             uint8_t rValue;
