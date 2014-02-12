@@ -801,7 +801,7 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
             }
         }
 
-        buffer_handle_t srcBuffer; // for MetaDataMode only
+        buffer_handle_t srcBuffer = NULL; // for MetaDataMode only
 
         // Get next input video frame
         if (mReadyForNextFrame) {

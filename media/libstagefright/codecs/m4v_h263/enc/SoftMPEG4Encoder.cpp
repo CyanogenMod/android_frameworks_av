@@ -677,7 +677,7 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
             mSawInputEOS = true;
         }
 
-        buffer_handle_t srcBuffer; // for MetaDataMode only
+        buffer_handle_t srcBuffer = NULL; // for MetaDataMode only
         if (inHeader->nFilledLen > 0) {
             uint8_t *inputData = NULL;
             if (mStoreMetaDataInBuffers) {

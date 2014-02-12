@@ -31,6 +31,8 @@
 #define UP_SAMP      4
 #define L_INTERPOL1  4
 
+#define UNUSED(x) (void)(x)
+
 /* Local functions */
 
 #ifdef ASM_OPT
@@ -171,6 +173,7 @@ static void Norm_Corr(
 	Word32 corr, exp_corr, norm, exp, scale;
 	Word16 exp_norm, excf[L_SUBFR], tmp;
 	Word32 L_tmp, L_tmp1, L_tmp2;
+        UNUSED(L_subfr);
 
 	/* compute the filtered excitation for the first delay t_min */
 	k = -t_min;

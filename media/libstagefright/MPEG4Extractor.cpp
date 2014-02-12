@@ -3735,7 +3735,7 @@ status_t MPEG4Source::fragmentedRead(
     }
 
     off64_t offset = 0;
-    size_t size;
+    size_t size = 0;
     uint32_t cts = 0;
     bool isSyncSample = false;
     bool newBuffer = false;
