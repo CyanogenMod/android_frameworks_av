@@ -19,8 +19,6 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/frameworks/av/media/libstagefright/mpeg2ts \
 
-LOCAL_CFLAGS += -Werror
-
 LOCAL_SHARED_LIBRARIES:= \
         libbinder                       \
         libcutils                       \
