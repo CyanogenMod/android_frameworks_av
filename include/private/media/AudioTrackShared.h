@@ -65,7 +65,9 @@ typedef SingleStateQueue<StaticAudioTrackState> StaticAudioTrackSingleStateQueue
 struct AudioTrackSharedStatic {
     StaticAudioTrackSingleStateQueue::Shared
                     mSingleStateQueue;
-    size_t          mBufferPosition;    // updated asynchronously by server,
+    // This field should be a size_t, but since it is located in shared memory we
+    // force to 32-bit.  The client and server may have different typedefs for size_t.
+    uint32_t        mBufferPosition;    // updated asynchronously by server,
                                         // "for entertainment purposes only"
 };
 
@@ -108,7 +110,9 @@ struct audio_track_cblk_t
 
 private:
 
-                size_t      mMinimum;       // server wakes up client if available >= mMinimum
+                // This field should be a size_t, but since it is located in shared memory we
+                // force to 32-bit.  The client and server may have different typedefs for size_t.
+                uint32_t    mMinimum;       // server wakes up client if available >= mMinimum
 
                 // Channel volumes are fixed point U4.12, so 0x1000 means 1.0.
                 // Left channel is in [0:15], right channel is in [16:31].
@@ -245,7 +249,11 @@ public:
     }
 
     void        setMinimum(size_t minimum) {
-        mCblk->mMinimum = minimum;
+        // This can only happen on a 64-bit client
+        if (minimum > UINT32_MAX) {
+            minimum = UINT32_MAX;
+        }
+        mCblk->mMinimum = (uint32_t) minimum;
     }
 
     // Return the number of frames that would need to be obtained and released
