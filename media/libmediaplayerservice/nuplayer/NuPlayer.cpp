@@ -28,13 +28,11 @@
 #include "RTSPSource.h"
 #include "StreamingSource.h"
 #include "GenericSource.h"
-#include "mp4/MP4Source.h"
 
 #include "ATSParser.h"
 
 #include "SoftwareRenderer.h"
 
-#include <cutils/properties.h> // for property_get
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -183,14 +181,7 @@ void NuPlayer::setDataSourceAsync(const sp<IStreamSource> &source) {
 
     sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
 
-    char prop[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.use-mp4source", prop, NULL)
-            && (!strcmp(prop, "1") || !strcasecmp(prop, "true"))) {
-        msg->setObject("source", new MP4Source(notify, source));
-    } else {
-        msg->setObject("source", new StreamingSource(notify, source));
-    }
-
+    msg->setObject("source", new StreamingSource(notify, source));
     msg->post();
 }
 
