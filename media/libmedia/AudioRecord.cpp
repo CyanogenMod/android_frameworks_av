@@ -115,7 +115,7 @@ AudioRecord::~AudioRecord()
             mAudioRecord.clear();
         }
         IPCThreadState::self()->flushCommands();
-        AudioSystem::releaseAudioSessionId(mSessionId);
+        AudioSystem::releaseAudioSessionId(mSessionId, -1);
     }
 }
 
@@ -266,7 +266,7 @@ status_t AudioRecord::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-    AudioSystem::acquireAudioSessionId(mSessionId);
+    AudioSystem::acquireAudioSessionId(mSessionId, -1);
     mSequence = 1;
     mObservedSequence = mSequence;
     mInOverrun = false;

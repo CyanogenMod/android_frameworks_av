@@ -180,8 +180,8 @@ public:
 
     virtual int newAudioSessionId() = 0;
 
-    virtual void acquireAudioSessionId(int audioSession) = 0;
-    virtual void releaseAudioSessionId(int audioSession) = 0;
+    virtual void acquireAudioSessionId(int audioSession, pid_t pid) = 0;
+    virtual void releaseAudioSessionId(int audioSession, pid_t pid) = 0;
 
     virtual status_t queryNumberEffects(uint32_t *numEffects) const = 0;
 

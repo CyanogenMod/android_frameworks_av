@@ -72,7 +72,7 @@ class MediaPlayerService : public BnMediaPlayerService
         class CallbackData;
 
      public:
-                                AudioOutput(int sessionId, int uid);
+                                AudioOutput(int sessionId, int uid, int pid);
         virtual                 ~AudioOutput();
 
         virtual bool            ready() const { return mTrack != 0; }
@@ -140,6 +140,7 @@ class MediaPlayerService : public BnMediaPlayerService
         float                   mMsecsPerFrame;
         int                     mSessionId;
         int                     mUid;
+        int                     mPid;
         float                   mSendLevel;
         int                     mAuxEffectId;
         static bool             mIsOnEmulator;

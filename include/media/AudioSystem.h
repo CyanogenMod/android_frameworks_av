@@ -141,8 +141,8 @@ public:
     static uint32_t getInputFramesLost(audio_io_handle_t ioHandle);
 
     static int newAudioSessionId();
-    static void acquireAudioSessionId(int audioSession);
-    static void releaseAudioSessionId(int audioSession);
+    static void acquireAudioSessionId(int audioSession, pid_t pid);
+    static void releaseAudioSessionId(int audioSession, pid_t pid);
 
     // types of io configuration change events received with ioConfigChanged()
     enum io_config_event {
