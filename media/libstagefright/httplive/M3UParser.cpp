@@ -388,18 +388,6 @@ bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
     return true;
 }
 
-bool M3UParser::getAudioURI(size_t index, AString *uri) const {
-    return getTypeURI(index, "audio", uri);
-}
-
-bool M3UParser::getVideoURI(size_t index, AString *uri) const {
-    return getTypeURI(index, "video", uri);
-}
-
-bool M3UParser::getSubtitleURI(size_t index, AString *uri) const {
-    return getTypeURI(index, "subtitles", uri);
-}
-
 static bool MakeURL(const char *baseURL, const char *url, AString *out) {
     out->clear();
 

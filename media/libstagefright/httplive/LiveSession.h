@@ -42,10 +42,17 @@ struct LiveSession : public AHandler {
             const sp<AMessage> &notify,
             uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
 
+    enum StreamIndex {
+        kAudioIndex    = 0,
+        kVideoIndex    = 1,
+        kSubtitleIndex = 2,
+        kMaxStreams    = 3,
+    };
+
     enum StreamType {
-        STREAMTYPE_AUDIO        = 1,
-        STREAMTYPE_VIDEO        = 2,
-        STREAMTYPE_SUBTITLES    = 4,
+        STREAMTYPE_AUDIO        = 1 << kAudioIndex,
+        STREAMTYPE_VIDEO        = 1 << kVideoIndex,
+        STREAMTYPE_SUBTITLES    = 1 << kSubtitleIndex,
     };
     status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
@@ -105,6 +112,19 @@ private:
         bool mIsPrepared;
     };
 
+    struct StreamItem {
+        const char *mType;
+        AString mUri;
+        StreamItem() : mType("") {}
+        StreamItem(const char *type) : mType(type) {}
+        AString uriKey() {
+            AString key(mType);
+            key.append("URI");
+            return key;
+        }
+    };
+    StreamItem mStreams[kMaxStreams];
+
     sp<AMessage> mNotify;
     uint32_t mFlags;
     bool mUIDValid;
@@ -123,7 +143,6 @@ private:
     sp<M3UParser> mPlaylist;
 
     KeyedVector<AString, FetcherInfo> mFetcherInfos;
-    AString mAudioURI, mVideoURI, mSubtitleURI;
     uint32_t mStreamMask;
 
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources;
@@ -171,6 +190,7 @@ private:
     size_t getBandwidthIndex();
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
+    static StreamType indexToType(int idx);
 
     void changeConfiguration(
             int64_t timeUs, size_t bandwidthIndex, bool pickTrack = false);

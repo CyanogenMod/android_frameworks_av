@@ -66,14 +66,13 @@ LiveSession::LiveSession(
         mHTTPDataSource->setUID(mUID);
     }
 
-    mPacketSources.add(
-            STREAMTYPE_AUDIO, new AnotherPacketSource(NULL /* meta */));
+    mStreams[kAudioIndex] = StreamItem("audio");
+    mStreams[kVideoIndex] = StreamItem("video");
+    mStreams[kSubtitleIndex] = StreamItem("subtitle");
 
-    mPacketSources.add(
-            STREAMTYPE_VIDEO, new AnotherPacketSource(NULL /* meta */));
-
-    mPacketSources.add(
-            STREAMTYPE_SUBTITLES, new AnotherPacketSource(NULL /* meta */));
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
+    }
 }
 
 LiveSession::~LiveSession() {
@@ -372,6 +371,12 @@ int LiveSession::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b)
     }
 
     return 1;
+}
+
+// static
+LiveSession::StreamType LiveSession::indexToType(int idx) {
+    CHECK(idx >= 0 && idx < kMaxStreams);
+    return (StreamType)(1 << idx);
 }
 
 void LiveSession::onConnect(const sp<AMessage> &msg) {
@@ -858,19 +863,11 @@ void LiveSession::changeConfiguration(
 
     uint32_t streamMask = 0;
 
-    AString audioURI;
-    if (mPlaylist->getAudioURI(item.mPlaylistIndex, &audioURI)) {
-        streamMask |= STREAMTYPE_AUDIO;
-    }
-
-    AString videoURI;
-    if (mPlaylist->getVideoURI(item.mPlaylistIndex, &videoURI)) {
-        streamMask |= STREAMTYPE_VIDEO;
-    }
-
-    AString subtitleURI;
-    if (mPlaylist->getSubtitleURI(item.mPlaylistIndex, &subtitleURI)) {
-        streamMask |= STREAMTYPE_SUBTITLES;
+    AString URIs[kMaxStreams];
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        if (mPlaylist->getTypeURI(item.mPlaylistIndex, mStreams[i].mType, &URIs[i])) {
+            streamMask |= indexToType(i);
+        }
     }
 
     // Step 1, stop and discard fetchers that are no longer needed.
@@ -882,10 +879,10 @@ void LiveSession::changeConfiguration(
 
         // If we're seeking all current fetchers are discarded.
         if (timeUs < 0ll) {
-            if (((streamMask & STREAMTYPE_AUDIO) && uri == audioURI)
-                    || ((streamMask & STREAMTYPE_VIDEO) && uri == videoURI)
-                    || ((streamMask & STREAMTYPE_SUBTITLES) && uri == subtitleURI)) {
-                discardFetcher = false;
+            for (size_t j = 0; j < kMaxStreams; ++j) {
+                if ((streamMask & indexToType(j)) && uri == URIs[j]) {
+                    discardFetcher = false;
+                }
             }
         }
 
@@ -899,14 +896,10 @@ void LiveSession::changeConfiguration(
     sp<AMessage> msg = new AMessage(kWhatChangeConfiguration2, id());
     msg->setInt32("streamMask", streamMask);
     msg->setInt64("timeUs", timeUs);
-    if (streamMask & STREAMTYPE_AUDIO) {
-        msg->setString("audioURI", audioURI.c_str());
-    }
-    if (streamMask & STREAMTYPE_VIDEO) {
-        msg->setString("videoURI", videoURI.c_str());
-    }
-    if (streamMask & STREAMTYPE_SUBTITLES) {
-        msg->setString("subtitleURI", subtitleURI.c_str());
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        if (streamMask & indexToType(i)) {
+            msg->setString(mStreams[i].uriKey().c_str(), URIs[i].c_str());
+        }
     }
 
     // Every time a fetcher acknowledges the stopAsync or pauseAsync request
@@ -937,18 +930,13 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
     uint32_t streamMask;
     CHECK(msg->findInt32("streamMask", (int32_t *)&streamMask));
 
-    AString audioURI, videoURI, subtitleURI;
-    if (streamMask & STREAMTYPE_AUDIO) {
-        CHECK(msg->findString("audioURI", &audioURI));
-        ALOGV("audioURI = '%s'", audioURI.c_str());
-    }
-    if (streamMask & STREAMTYPE_VIDEO) {
-        CHECK(msg->findString("videoURI", &videoURI));
-        ALOGV("videoURI = '%s'", videoURI.c_str());
-    }
-    if (streamMask & STREAMTYPE_SUBTITLES) {
-        CHECK(msg->findString("subtitleURI", &subtitleURI));
-        ALOGV("subtitleURI = '%s'", subtitleURI.c_str());
+    AString URIs[kMaxStreams];
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        if (streamMask & indexToType(i)) {
+            const AString &uriKey = mStreams[i].uriKey();
+            CHECK(msg->findString(uriKey.c_str(), &URIs[i]));
+            ALOGV("%s = '%s'", uriKey.c_str(), URIs[i].c_str());
+        }
     }
 
     // Determine which decoders to shutdown on the player side,
@@ -958,15 +946,12 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
     // 2) its streamtype was already active and still is but the URI
     //    has changed.
     uint32_t changedMask = 0;
-    if (((mStreamMask & streamMask & STREAMTYPE_AUDIO)
-                && !(audioURI == mAudioURI))
-        || (mStreamMask & ~streamMask & STREAMTYPE_AUDIO)) {
-        changedMask |= STREAMTYPE_AUDIO;
-    }
-    if (((mStreamMask & streamMask & STREAMTYPE_VIDEO)
-                && !(videoURI == mVideoURI))
-        || (mStreamMask & ~streamMask & STREAMTYPE_VIDEO)) {
-        changedMask |= STREAMTYPE_VIDEO;
+    for (size_t i = 0; i < kMaxStreams && i != kSubtitleIndex; ++i) {
+        if (((mStreamMask & streamMask & indexToType(i))
+                && !(URIs[i] == mStreams[i].mUri))
+                || (mStreamMask & ~streamMask & indexToType(i))) {
+            changedMask |= indexToType(i);
+        }
     }
 
     if (changedMask == 0) {
@@ -998,15 +983,10 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     uint32_t streamMask;
     CHECK(msg->findInt32("streamMask", (int32_t *)&streamMask));
 
-    AString audioURI, videoURI, subtitleURI;
-    if (streamMask & STREAMTYPE_AUDIO) {
-        CHECK(msg->findString("audioURI", &audioURI));
-    }
-    if (streamMask & STREAMTYPE_VIDEO) {
-        CHECK(msg->findString("videoURI", &videoURI));
-    }
-    if (streamMask & STREAMTYPE_SUBTITLES) {
-        CHECK(msg->findString("subtitleURI", &subtitleURI));
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        if (streamMask & indexToType(i)) {
+            CHECK(msg->findString(mStreams[i].uriKey().c_str(), &mStreams[i].mUri));
+        }
     }
 
     int64_t timeUs;
@@ -1018,9 +998,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     mRealTimeBaseUs = ALooper::GetNowUs() - timeUs;
 
     mStreamMask = streamMask;
-    mAudioURI = audioURI;
-    mVideoURI = videoURI;
-    mSubtitleURI = subtitleURI;
 
     // Resume all existing fetchers and assign them packet sources.
     for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
@@ -1028,22 +1005,12 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
 
         uint32_t resumeMask = 0;
 
-        sp<AnotherPacketSource> audioSource;
-        if ((streamMask & STREAMTYPE_AUDIO) && uri == audioURI) {
-            audioSource = mPacketSources.valueFor(STREAMTYPE_AUDIO);
-            resumeMask |= STREAMTYPE_AUDIO;
-        }
-
-        sp<AnotherPacketSource> videoSource;
-        if ((streamMask & STREAMTYPE_VIDEO) && uri == videoURI) {
-            videoSource = mPacketSources.valueFor(STREAMTYPE_VIDEO);
-            resumeMask |= STREAMTYPE_VIDEO;
-        }
-
-        sp<AnotherPacketSource> subtitleSource;
-        if ((streamMask & STREAMTYPE_SUBTITLES) && uri == subtitleURI) {
-            subtitleSource = mPacketSources.valueFor(STREAMTYPE_SUBTITLES);
-            resumeMask |= STREAMTYPE_SUBTITLES;
+        sp<AnotherPacketSource> sources[kMaxStreams];
+        for (size_t j = 0; j < kMaxStreams; ++j) {
+            if ((streamMask & indexToType(j)) && uri == mStreams[j].mUri) {
+                sources[j] = mPacketSources.valueFor(indexToType(j));
+                resumeMask |= indexToType(j);
+            }
         }
 
         CHECK_NE(resumeMask, 0u);
@@ -1053,7 +1020,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         streamMask &= ~resumeMask;
 
         mFetcherInfos.valueAt(i).mFetcher->startAsync(
-                audioSource, videoSource, subtitleSource);
+                sources[kAudioIndex], sources[kVideoIndex], sources[kSubtitleIndex]);
     }
 
     // streamMask now only contains the types that need a new fetcher created.
@@ -1062,52 +1029,33 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         ALOGV("creating new fetchers for mask 0x%08x", streamMask);
     }
 
-    while (streamMask != 0) {
-        StreamType streamType = (StreamType)(streamMask & ~(streamMask - 1));
+    for (size_t i = 0; i < kMaxStreams; i++) {
+        if (!(indexToType(i) & streamMask)) {
+            continue;
+        }
 
         AString uri;
-        switch (streamType) {
-            case STREAMTYPE_AUDIO:
-                uri = audioURI;
-                break;
-            case STREAMTYPE_VIDEO:
-                uri = videoURI;
-                break;
-            case STREAMTYPE_SUBTITLES:
-                uri = subtitleURI;
-                break;
-            default:
-                TRESPASS();
-        }
+        uri = mStreams[i].mUri;
 
         sp<PlaylistFetcher> fetcher = addFetcher(uri.c_str());
         CHECK(fetcher != NULL);
 
-        sp<AnotherPacketSource> audioSource;
-        if ((streamMask & STREAMTYPE_AUDIO) && uri == audioURI) {
-            audioSource = mPacketSources.valueFor(STREAMTYPE_AUDIO);
-            audioSource->clear();
+        sp<AnotherPacketSource> sources[kMaxStreams];
+        // TRICKY: looping from i as earlier streams are already removed from streamMask
+        for (size_t j = i; j < kMaxStreams; ++j) {
+            if ((streamMask & indexToType(j)) && uri == mStreams[j].mUri) {
+                sources[j] = mPacketSources.valueFor(indexToType(j));
+                sources[j]->clear();
 
-            streamMask &= ~STREAMTYPE_AUDIO;
+                streamMask &= ~indexToType(j);
+            }
         }
 
-        sp<AnotherPacketSource> videoSource;
-        if ((streamMask & STREAMTYPE_VIDEO) && uri == videoURI) {
-            videoSource = mPacketSources.valueFor(STREAMTYPE_VIDEO);
-            videoSource->clear();
-
-            streamMask &= ~STREAMTYPE_VIDEO;
-        }
-
-        sp<AnotherPacketSource> subtitleSource;
-        if ((streamMask & STREAMTYPE_SUBTITLES) && uri == subtitleURI) {
-            subtitleSource = mPacketSources.valueFor(STREAMTYPE_SUBTITLES);
-            subtitleSource->clear();
-
-            streamMask &= ~STREAMTYPE_SUBTITLES;
-        }
-
-        fetcher->startAsync(audioSource, videoSource, subtitleSource, timeUs);
+        fetcher->startAsync(
+                sources[kAudioIndex],
+                sources[kVideoIndex],
+                sources[kSubtitleIndex],
+                timeUs);
     }
 
     // All fetchers have now been started, the configuration change
