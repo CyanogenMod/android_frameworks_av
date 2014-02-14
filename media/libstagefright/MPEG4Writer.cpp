@@ -2280,6 +2280,22 @@ status_t MPEG4Writer::Track::threadEntry() {
             return UNKNOWN_ERROR;
         }
 
+        // if the duration is different for this sample, see if it is close enough to the previous
+        // duration that we can fudge it and use the same value, to avoid filling the stts table
+        // with lots of near-identical entries.
+        // "close enough" here means that the current duration needs to be adjusted by less
+        // than 0.1 milliseconds
+        if (lastDurationTicks && (currDurationTicks != lastDurationTicks)) {
+            int64_t deltaUs = ((lastDurationTicks - currDurationTicks) * 1000000LL
+                    + (mTimeScale / 2)) / mTimeScale;
+            if (deltaUs > -100 && deltaUs < 100) {
+                // use previous ticks, and adjust timestamp as if it was actually that number
+                // of ticks
+                currDurationTicks = lastDurationTicks;
+                timestampUs += deltaUs;
+            }
+        }
+
         mStszTableEntries->add(htonl(sampleSize));
         if (mStszTableEntries->count() > 2) {
 
