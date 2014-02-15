@@ -170,7 +170,8 @@ int64_t PlaylistFetcher::delayUsToRefreshPlaylist() const {
 }
 
 status_t PlaylistFetcher::decryptBuffer(
-        size_t playlistIndex, const sp<ABuffer> &buffer) {
+        size_t playlistIndex, const sp<ABuffer> &buffer,
+        bool first) {
     sp<AMessage> itemMeta;
     bool found = false;
     AString method;
@@ -188,6 +189,7 @@ status_t PlaylistFetcher::decryptBuffer(
     if (!found) {
         method = "NONE";
     }
+    buffer->meta()->setString("cipher-method", method.c_str());
 
     if (method == "NONE") {
         return OK;
@@ -227,59 +229,77 @@ status_t PlaylistFetcher::decryptBuffer(
         return UNKNOWN_ERROR;
     }
 
-    unsigned char aes_ivec[16];
+    size_t n = buffer->size();
+    if (!n) {
+        return OK;
+    }
+    CHECK(n % 16 == 0);
 
-    AString iv;
-    if (itemMeta->findString("cipher-iv", &iv)) {
-        if ((!iv.startsWith("0x") && !iv.startsWith("0X"))
-                || iv.size() != 16 * 2 + 2) {
-            ALOGE("malformed cipher IV '%s'.", iv.c_str());
-            return ERROR_MALFORMED;
-        }
+    if (first) {
+        // If decrypting the first block in a file, read the iv from the manifest
+        // or derive the iv from the file's sequence number.
 
-        memset(aes_ivec, 0, sizeof(aes_ivec));
-        for (size_t i = 0; i < 16; ++i) {
-            char c1 = tolower(iv.c_str()[2 + 2 * i]);
-            char c2 = tolower(iv.c_str()[3 + 2 * i]);
-            if (!isxdigit(c1) || !isxdigit(c2)) {
+        AString iv;
+        if (itemMeta->findString("cipher-iv", &iv)) {
+            if ((!iv.startsWith("0x") && !iv.startsWith("0X"))
+                    || iv.size() != 16 * 2 + 2) {
                 ALOGE("malformed cipher IV '%s'.", iv.c_str());
                 return ERROR_MALFORMED;
             }
-            uint8_t nibble1 = isdigit(c1) ? c1 - '0' : c1 - 'a' + 10;
-            uint8_t nibble2 = isdigit(c2) ? c2 - '0' : c2 - 'a' + 10;
 
-            aes_ivec[i] = nibble1 << 4 | nibble2;
+            memset(mAESInitVec, 0, sizeof(mAESInitVec));
+            for (size_t i = 0; i < 16; ++i) {
+                char c1 = tolower(iv.c_str()[2 + 2 * i]);
+                char c2 = tolower(iv.c_str()[3 + 2 * i]);
+                if (!isxdigit(c1) || !isxdigit(c2)) {
+                    ALOGE("malformed cipher IV '%s'.", iv.c_str());
+                    return ERROR_MALFORMED;
+                }
+                uint8_t nibble1 = isdigit(c1) ? c1 - '0' : c1 - 'a' + 10;
+                uint8_t nibble2 = isdigit(c2) ? c2 - '0' : c2 - 'a' + 10;
+
+                mAESInitVec[i] = nibble1 << 4 | nibble2;
+            }
+        } else {
+            memset(mAESInitVec, 0, sizeof(mAESInitVec));
+            mAESInitVec[15] = mSeqNumber & 0xff;
+            mAESInitVec[14] = (mSeqNumber >> 8) & 0xff;
+            mAESInitVec[13] = (mSeqNumber >> 16) & 0xff;
+            mAESInitVec[12] = (mSeqNumber >> 24) & 0xff;
         }
-    } else {
-        memset(aes_ivec, 0, sizeof(aes_ivec));
-        aes_ivec[15] = mSeqNumber & 0xff;
-        aes_ivec[14] = (mSeqNumber >> 8) & 0xff;
-        aes_ivec[13] = (mSeqNumber >> 16) & 0xff;
-        aes_ivec[12] = (mSeqNumber >> 24) & 0xff;
     }
 
     AES_cbc_encrypt(
             buffer->data(), buffer->data(), buffer->size(),
-            &aes_key, aes_ivec, AES_DECRYPT);
+            &aes_key, mAESInitVec, AES_DECRYPT);
 
-    // hexdump(buffer->data(), buffer->size());
+    return OK;
+}
 
-    size_t n = buffer->size();
-    CHECK_GT(n, 0u);
-
-    size_t pad = buffer->data()[n - 1];
-
-    CHECK_GT(pad, 0u);
-    CHECK_LE(pad, 16u);
-    CHECK_GE((size_t)n, pad);
-    for (size_t i = 0; i < pad; ++i) {
-        CHECK_EQ((unsigned)buffer->data()[n - 1 - i], pad);
+status_t PlaylistFetcher::checkDecryptPadding(const sp<ABuffer> &buffer) {
+    status_t err;
+    AString method;
+    CHECK(buffer->meta()->findString("cipher-method", &method));
+    if (method == "NONE") {
+        return OK;
     }
 
-    n -= pad;
+    uint8_t padding = 0;
+    if (buffer->size() > 0) {
+        padding = buffer->data()[buffer->size() - 1];
+    }
 
-    buffer->setRange(buffer->offset(), n);
+    if (padding > 16) {
+        return ERROR_MALFORMED;
+    }
 
+    for (size_t i = buffer->size() - padding; i < padding; i++) {
+        if (buffer->data()[i] != padding) {
+            return ERROR_MALFORMED;
+        }
+    }
+
+    buffer->setRange(buffer->offset(), buffer->size() - padding);
     return OK;
 }
 
@@ -707,6 +727,9 @@ void PlaylistFetcher::onDownloadNext() {
     CHECK(buffer != NULL);
 
     err = decryptBuffer(mSeqNumber - firstSeqNumberInPlaylist, buffer);
+    if (err == OK) {
+        err = checkDecryptPadding(buffer);
+    }
 
     if (err != OK) {
         ALOGE("decryptBuffer failed w/ error %d", err);
