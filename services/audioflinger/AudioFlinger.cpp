@@ -1847,8 +1847,6 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         // pre processing modules
         RecordThread *thread = new RecordThread(this,
                                   input,
-                                  reqSamplingRate,
-                                  reqChannelMask,
                                   id,
                                   primaryOutputDevice_l(),
                                   *pDevices

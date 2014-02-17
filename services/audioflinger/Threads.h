@@ -861,8 +861,6 @@ public:
 
             RecordThread(const sp<AudioFlinger>& audioFlinger,
                     AudioStreamIn *input,
-                    uint32_t sampleRate,
-                    audio_channel_mask_t channelMask,
                     audio_io_handle_t id,
                     audio_devices_t outDevice,
                     audio_devices_t inDevice
@@ -958,10 +956,6 @@ private:
 
             // rolling index that is never cleared
             int32_t                             mRsmpInRear;    // last filled frame + 1
-
-            // client's requested configuration, which may differ from the HAL configuration
-            const uint32_t                      mReqChannelCount;
-            const uint32_t                      mReqSampleRate;
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;

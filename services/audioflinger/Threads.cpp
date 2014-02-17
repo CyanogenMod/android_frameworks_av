@@ -4451,8 +4451,6 @@ void AudioFlinger::DuplicatingThread::cacheParameters_l()
 
 AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          AudioStreamIn *input,
-                                         uint32_t sampleRate,
-                                         audio_channel_mask_t channelMask,
                                          audio_io_handle_t id,
                                          audio_devices_t outDevice,
                                          audio_devices_t inDevice
@@ -4463,10 +4461,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
     mInput(input), mActiveTracksGen(0), mRsmpInBuffer(NULL),
     // mRsmpInFrames and mRsmpInFramesP2 are set by readInputParameters_l()
-    mRsmpInRear(0),
-    // FIXME these should be per-track, so this is only the initial track?
-    mReqChannelCount(popcount(channelMask)),
-    mReqSampleRate(sampleRate)
+    mRsmpInRear(0)
 #ifdef TEE_SINK
     , mTeeSink(teeSink)
 #endif
@@ -4598,13 +4593,6 @@ reacquire_wakelock:
 
                 case TrackBase::STARTING_2:
                     doBroadcast = true;
-                    if (mReqChannelCount != activeTrack->channelCount()) {
-                        ALOGW("wrong channel count");
-                        mActiveTracks.remove(activeTrack);
-                        mActiveTracksGen++;
-                        size--;
-                        continue;
-                    }
                     mStandby = false;
                     activeTrack->mState = TrackBase::ACTIVE;
                     break;
@@ -4715,6 +4703,10 @@ reacquire_wakelock:
                     overrun = OVERRUN_TRUE;
                 }
 
+                if (framesOut == 0 || framesIn == 0) {
+                    break;
+                }
+
                 if (activeTrack->mResampler == NULL) {
                     // no resampling
                     if (framesIn > framesOut) {
@@ -4730,7 +4722,7 @@ reacquire_wakelock:
                             part1 = framesIn;
                         }
                         int8_t *src = (int8_t *)mRsmpInBuffer + (front * mFrameSize);
-                        if (mChannelCount == mReqChannelCount) {
+                        if (mChannelCount == activeTrack->mChannelCount) {
                             memcpy(dst, src, part1 * mFrameSize);
                         } else if (mChannelCount == 1) {
                             upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (int16_t *)src,
@@ -4754,14 +4746,29 @@ reacquire_wakelock:
                     // FIXME only re-calculate when it changes, and optimize for common ratios
                     double inOverOut = (double) mSampleRate / activeTrack->mSampleRate;
                     double outOverIn = (double) activeTrack->mSampleRate / mSampleRate;
-                    framesInNeeded = framesOut * inOverOut;
+                    framesInNeeded = ceil(framesOut * inOverOut) + 1;
                     if (framesIn < framesInNeeded) {
-                        ALOGV("not enough to resample: have %u but need %u to produce %u",
-                                framesIn, framesInNeeded, framesOut);
-                        size_t newFramesOut = framesIn * outOverIn;
-                        size_t newFramesInNeeded = newFramesOut * inOverOut;
-                        LOG_ALWAYS_FATAL_IF(framesIn < newFramesInNeeded);
-                        framesOut = newFramesOut;
+                        ALOGV("not enough to resample: have %u but need %u to produce %u "
+                                "given in/out ratio of %.4g",
+                                framesIn, framesInNeeded, framesOut, inOverOut);
+                        size_t newFramesOut = framesIn > 0 ? floor((framesIn - 1) * outOverIn) : 0;
+                        size_t newFramesInNeeded = ceil(newFramesOut * inOverOut) + 1;
+                        ALOGV("now need %u frames to produce %u given out/in ratio of %.4g",
+                                newFramesInNeeded, newFramesOut, outOverIn);
+                        if (framesIn < newFramesInNeeded) {
+                            ALOGE("failure: have %u but need %u", framesIn, newFramesInNeeded);
+                            framesOut = 0;
+                        } else {
+                            ALOGV("success 2: have %u and need %u to produce %u "
+                                  "given in/out ratio of %.4g",
+                                  framesIn, newFramesInNeeded, newFramesOut, inOverOut);
+                            LOG_ALWAYS_FATAL_IF(newFramesOut > framesOut);
+                            framesOut = newFramesOut;
+                        }
+                    } else {
+                        ALOGI("success 1: have %u and need %u to produce %u "
+                            "given in/out ratio of %.4g",
+                            framesIn, framesInNeeded, framesOut, inOverOut);
                     }
 
                     // reallocate mRsmpOutBuffer as needed; we will grow but never shrink
@@ -4779,7 +4786,7 @@ reacquire_wakelock:
                             /*this*/ /* AudioBufferProvider* */);
                     // ditherAndClamp() works as long as all buffers returned by
                     // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
-                    if (mReqChannelCount == 1) {
+                    if (activeTrack->mChannelCount == 1) {
                         // temporarily type pun mRsmpOutBuffer from Q19.12 to int16_t
                         ditherAndClamp(activeTrack->mRsmpOutBuffer, activeTrack->mRsmpOutBuffer,
                                 framesOut);
@@ -4826,9 +4833,6 @@ reacquire_wakelock:
                 }
 
                 if (framesOut == 0) {
-                    if (overrun == OVERRUN_UNKNOWN) {
-                        overrun = OVERRUN_TRUE;
-                    }
                     break;
                 }
             }
@@ -4849,7 +4853,6 @@ reacquire_wakelock:
                 activeTrack->clearOverflow();
                 break;
             case OVERRUN_UNKNOWN:
-                LOG_FATAL("OVERRUN_UNKNOWN");
                 break;
             }
 
@@ -5025,7 +5028,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         } else {
             // do not wait for the event for more than AudioSystem::kSyncRecordStartTimeOutMs
             recordTrack->mFramesToDrop = -
-                    ((AudioSystem::kSyncRecordStartTimeOutMs * mReqSampleRate) / 1000);
+                    ((AudioSystem::kSyncRecordStartTimeOutMs * recordTrack->mSampleRate) / 1000);
         }
     }
 
@@ -5042,6 +5045,9 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
             return status;
         }
 
+        // TODO consider other ways of handling this, such as changing the state to :STARTING and
+        //      adding the track to mActiveTracks after returning from AudioSystem::startInput(),
+        //      or using a separate command thread
         recordTrack->mState = TrackBase::STARTING_1;
         mActiveTracks.add(recordTrack);
         mActiveTracksGen++;
@@ -5176,8 +5182,6 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
 
     if (mActiveTracks.size() > 0) {
         fdprintf(fd, "  Buffer size: %zu bytes\n", mBufferSize);
-        fdprintf(fd, "  Out channel count: %u\n", mReqChannelCount);
-        fdprintf(fd, "  Out sample rate: %u\n", mReqSampleRate);
     } else {
         fdprintf(fd, "  No active record clients\n");
     }
@@ -5260,7 +5264,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
     }
     if (part1 == 0) {
         // Higher-level should keep mRsmpInBuffer full, and not call resampler if empty
-        ALOGE("RecordThread::getNextBuffer() starved");
+        LOG_FATAL("RecordThread::getNextBuffer() starved");
         buffer->raw = NULL;
         buffer->frameCount = 0;
         activeTrack->mRsmpInUnrel = 0;
@@ -5299,11 +5303,14 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
         AudioParameter param = AudioParameter(keyValuePair);
         int value;
         audio_format_t reqFormat = mFormat;
-        uint32_t reqSamplingRate = mReqSampleRate;
-        audio_channel_mask_t reqChannelMask = audio_channel_in_mask_from_count(mReqChannelCount);
+        uint32_t samplingRate = mSampleRate;
+        audio_channel_mask_t channelMask = audio_channel_in_mask_from_count(mChannelCount);
 
+        // TODO Investigate when this code runs. Check with audio policy when a sample rate and
+        //      channel count change can be requested. Do we mandate the first client defines the
+        //      HAL sampling rate and channel count or do we allow changes on the fly?
         if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
-            reqSamplingRate = value;
+            samplingRate = value;
             reconfig = true;
         }
         if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
@@ -5319,7 +5326,7 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
             if (mask != AUDIO_CHANNEL_IN_MONO && mask != AUDIO_CHANNEL_IN_STEREO) {
                 status = BAD_VALUE;
             } else {
-                reqChannelMask = mask;
+                channelMask = mask;
                 reconfig = true;
             }
         }
@@ -5384,11 +5391,11 @@ bool AudioFlinger::RecordThread::checkForNewParameters_l()
                     reqFormat == mInput->stream->common.get_format(&mInput->stream->common) &&
                     reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
                     (mInput->stream->common.get_sample_rate(&mInput->stream->common)
-                            <= (2 * reqSamplingRate)) &&
+                            <= (2 * samplingRate)) &&
                     popcount(mInput->stream->common.get_channels(&mInput->stream->common))
                             <= FCC_2 &&
-                    (reqChannelMask == AUDIO_CHANNEL_IN_MONO ||
-                            reqChannelMask == AUDIO_CHANNEL_IN_STEREO)) {
+                    (channelMask == AUDIO_CHANNEL_IN_MONO ||
+                            channelMask == AUDIO_CHANNEL_IN_STEREO)) {
                     status = NO_ERROR;
                 }
                 if (status == NO_ERROR) {
@@ -5468,8 +5475,8 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
     mRsmpInBuffer = new int16_t[(mRsmpInFramesP2 + mFrameCount - 1) * mChannelCount];
 
-    // mReqSampleRate and mReqChannelCount are constant due to AudioRecord API constraints.
-    // But if mSampleRate or mChannelCount changes, how will that affect active tracks?
+    // AudioRecord mSampleRate and mChannelCount are constant due to AudioRecord API constraints.
+    // But if thread's mSampleRate or mChannelCount changes, how will that affect active tracks?
 }
 
 uint32_t AudioFlinger::RecordThread::getInputFramesLost()
