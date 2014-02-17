@@ -625,6 +625,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
 
             if (mFormat == NULL) {
                 mFormat = MakeAVCCodecSpecificData(accessUnit);
+                mFormat->setInt32(kKeyMaxInputSize, (8192 * 10));
             }
 
             return accessUnit;
