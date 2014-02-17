@@ -34,7 +34,7 @@ bool gVerbose = false;
 
 static int usage(const char* name) {
     fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
-                   " [-i input-sample-rate] [-o output-sample-rate] [<input-file>]"
+                   " [-i input-sample-rate] [-o output-sample-rate] [-O #] [<input-file>]"
                    " <output-file>\n", name);
     fprintf(stderr,"    -p    enable profiling\n");
     fprintf(stderr,"    -h    create wav file\n");
@@ -51,6 +51,7 @@ static int usage(const char* name) {
     fprintf(stderr,"              dhq : dynamic high quality\n");
     fprintf(stderr,"    -i    input file sample rate (ignored if input file is specified)\n");
     fprintf(stderr,"    -o    output file sample rate\n");
+    fprintf(stderr,"    -O    # frames output per call to resample()\n");
     return -1;
 }
 
@@ -64,9 +65,10 @@ int main(int argc, char* argv[]) {
     int input_freq = 0;
     int output_freq = 0;
     AudioResampler::src_quality quality = AudioResampler::DEFAULT_QUALITY;
+    size_t framesPerCall = 0;
 
     int ch;
-    while ((ch = getopt(argc, argv, "pfhvsq:i:o:")) != -1) {
+    while ((ch = getopt(argc, argv, "pfhvsq:i:o:O:")) != -1) {
         switch (ch) {
         case 'p':
             profileResample = true;
@@ -110,6 +112,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'o':
             output_freq = atoi(optarg);
+            break;
+        case 'O':
+            framesPerCall = atoi(optarg);
             break;
         case '?':
         default:
@@ -343,7 +348,14 @@ int main(int argc, char* argv[]) {
     if (gVerbose) {
         printf("resample() %u output frames\n", out_frames);
     }
-    resampler->resample((int*) output_vaddr, out_frames, &provider);
+    if (framesPerCall == 0 || framesPerCall > out_frames) {
+        framesPerCall = out_frames;
+    }
+    for (size_t i = 0; i < out_frames; ) {
+        size_t thisFrames = framesPerCall <= out_frames - i ? framesPerCall : out_frames - i;
+        resampler->resample((int*) output_vaddr + 2*i, thisFrames, &provider);
+        i += thisFrames;
+    }
     if (gVerbose) {
         printf("resample() complete\n");
     }
