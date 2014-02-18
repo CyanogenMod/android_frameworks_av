@@ -988,7 +988,7 @@ status_t BnAudioFlinger::onTransact(
                                                  &latency,
                                                  flags,
                                                  hasOffloadInfo ? &offloadInfo : NULL);
-            ALOGV("OPEN_OUTPUT output, %p", output);
+            ALOGV("OPEN_OUTPUT output, %d", output);
             reply->writeInt32((int32_t) output);
             reply->writeInt32(devices);
             reply->writeInt32(samplingRate);
