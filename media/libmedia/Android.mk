@@ -63,8 +63,7 @@ LOCAL_SRC_FILES += ../libnbaio/roundup.c
 LOCAL_SHARED_LIBRARIES := \
 	libui liblog libcutils libutils libbinder libsonivox libicuuc libicui18n libexpat \
         libcamera_client libstagefright_foundation \
-        libgui libdl libaudioutils
-LOCAL_SHARED_LIBRARIES += libnbaio
+        libgui libdl libaudioutils libnbaio
 
 LOCAL_STATIC_LIBRARIES += libinstantssq
 
@@ -88,7 +87,6 @@ include $(CLEAR_VARS)
 LOCAL_CFLAGS += -DANDROID_SMP=$(if $(findstring true,$(TARGET_CPU_SMP)),1,0)
 LOCAL_SRC_FILES += SingleStateQueue.cpp
 LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
-# Consider a separate a library for SingleStateQueueInstantiations.
 
 LOCAL_MODULE := libinstantssq
 LOCAL_MODULE_TAGS := optional
