@@ -341,8 +341,8 @@ void NBLog::Reader::dump(int fd, size_t indent)
     mFd = fd;
     mIndent = indent;
     String8 timestamp, body;
-    if (i > 0) {
-        lost += i;
+    lost += i;
+    if (lost > 0) {
         body.appendFormat("warning: lost %u bytes worth of events", lost);
         // TODO timestamp empty here, only other choice to wait for the first timestamp event in the
         //      log to push it out.  Consider keeping the timestamp/body between calls to readAt().
