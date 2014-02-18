@@ -750,7 +750,7 @@ void Reverb_Reset(reverb_object_t *pReverb, bool init) {
  *
  *----------------------------------------------------------------------------
  */
-int Reverb_getParameter(reverb_object_t *pReverb, int32_t param, size_t *pSize,
+int Reverb_getParameter(reverb_object_t *pReverb, int32_t param, uint32_t *pSize,
         void *pValue) {
     int32_t *pValue32;
     int16_t *pValue16;
@@ -758,7 +758,7 @@ int Reverb_getParameter(reverb_object_t *pReverb, int32_t param, size_t *pSize,
     int32_t i;
     int32_t temp;
     int32_t temp2;
-    size_t size;
+    uint32_t size;
 
     if (pReverb->m_Preset) {
         if (param != REVERB_PARAM_PRESET || *pSize < sizeof(int16_t)) {
@@ -1033,7 +1033,7 @@ int Reverb_getParameter(reverb_object_t *pReverb, int32_t param, size_t *pSize,
  *
  *----------------------------------------------------------------------------
  */
-int Reverb_setParameter(reverb_object_t *pReverb, int32_t param, size_t size,
+int Reverb_setParameter(reverb_object_t *pReverb, int32_t param, uint32_t size,
         void *pValue) {
     int32_t value32;
     int16_t value16;
@@ -1044,7 +1044,7 @@ int Reverb_setParameter(reverb_object_t *pReverb, int32_t param, size_t size,
     reverb_preset_t *pPreset;
     int maxSamples;
     int32_t averageDelay;
-    size_t paramSize;
+    uint32_t paramSize;
 
     ALOGV("Reverb_setParameter, context %p, param %d, value16 %d, value32 %d",
             pReverb, param, *(int16_t *)pValue, *(int32_t *)pValue);

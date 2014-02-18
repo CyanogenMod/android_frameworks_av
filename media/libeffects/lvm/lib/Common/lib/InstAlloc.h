@@ -29,7 +29,7 @@ extern "C" {
 typedef struct
 {
     LVM_UINT32              TotalSize;      /*  Accumulative total memory size                      */
-    LVM_UINT32              pNextMember;    /*  Pointer to the next instance member to be allocated */
+    uintptr_t               pNextMember;    /*  Pointer to the next instance member to be allocated */
 }   INST_ALLOC;
 
 

@@ -330,8 +330,8 @@ int Reverb_setConfig(reverb_module_t *pRvbModule, effect_config_t *pConfig, bool
 void Reverb_getConfig(reverb_module_t *pRvbModule, effect_config_t *pConfig);
 void Reverb_Reset(reverb_object_t *pReverb, bool init);
 
-int Reverb_setParameter (reverb_object_t *pReverb, int32_t param, size_t size, void *pValue);
-int Reverb_getParameter(reverb_object_t *pReverb, int32_t param, size_t *pSize, void *pValue);
+int Reverb_setParameter (reverb_object_t *pReverb, int32_t param, uint32_t size, void *pValue);
+int Reverb_getParameter(reverb_object_t *pReverb, int32_t param, uint32_t *pSize, void *pValue);
 
 /*----------------------------------------------------------------------------
  * ReverbUpdateXfade
