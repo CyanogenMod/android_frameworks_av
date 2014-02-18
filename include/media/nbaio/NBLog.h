@@ -25,6 +25,8 @@
 
 namespace android {
 
+class String8;
+
 class NBLog {
 
 public:
@@ -187,6 +189,10 @@ private:
     const Shared* const mShared; // raw pointer to shared memory
     const sp<IMemory> mIMemory; // ref-counted version
     int32_t     mFront;         // index of oldest acknowledged Entry
+    int     mFd;                // file descriptor
+    int     mIndent;            // indentation level
+
+    void    dumpLine(const String8& timestamp, String8& body);
 
     static const size_t kSquashTimestamp = 5; // squash this many or more adjacent timestamps
 };
