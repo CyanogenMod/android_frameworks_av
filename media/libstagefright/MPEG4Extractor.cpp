@@ -3719,11 +3719,19 @@ status_t MPEG4Source::fragmentedRead(
                 totalTime += se->mDurationUs;
                 totalOffset += se->mSize;
             }
-        mCurrentMoofOffset = totalOffset;
-        mCurrentSamples.clear();
-        mCurrentSampleIndex = 0;
-        parseChunk(&totalOffset);
-        mCurrentTime = totalTime * mTimescale / 1000000ll;
+            mCurrentMoofOffset = totalOffset;
+            mCurrentSamples.clear();
+            mCurrentSampleIndex = 0;
+            parseChunk(&totalOffset);
+            mCurrentTime = totalTime * mTimescale / 1000000ll;
+        } else {
+            // without sidx boxes, we can only seek to 0
+            mCurrentMoofOffset = mFirstMoofOffset;
+            mCurrentSamples.clear();
+            mCurrentSampleIndex = 0;
+            off64_t tmp = mCurrentMoofOffset;
+            parseChunk(&tmp);
+            mCurrentTime = 0;
         }
 
         if (mBuffer != NULL) {
@@ -3744,15 +3752,14 @@ status_t MPEG4Source::fragmentedRead(
 
         if (mCurrentSampleIndex >= mCurrentSamples.size()) {
             // move to next fragment
-            Sample lastSample = mCurrentSamples[mCurrentSamples.size() - 1];
-            off64_t nextMoof = mNextMoofOffset; // lastSample.offset + lastSample.size;
+            off64_t nextMoof = mNextMoofOffset;
             mCurrentMoofOffset = nextMoof;
             mCurrentSamples.clear();
             mCurrentSampleIndex = 0;
             parseChunk(&nextMoof);
-                if (mCurrentSampleIndex >= mCurrentSamples.size()) {
-                    return ERROR_END_OF_STREAM;
-                }
+            if (mCurrentSampleIndex >= mCurrentSamples.size()) {
+                return ERROR_END_OF_STREAM;
+            }
         }
 
         const Sample *smpl = &mCurrentSamples[mCurrentSampleIndex];
