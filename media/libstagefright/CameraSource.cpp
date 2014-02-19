@@ -586,14 +586,15 @@ CameraSource::~CameraSource() {
     }
 }
 
-void CameraSource::startCameraRecording() {
+status_t CameraSource::startCameraRecording() {
     ALOGV("startCameraRecording");
     // Reset the identity to the current thread because media server owns the
     // camera and recording is started by the applications. The applications
     // will connect to the camera in ICameraRecordingProxy::startRecording.
     int64_t token = IPCThreadState::self()->clearCallingIdentity();
+    status_t err;
     if (mNumInputBuffers > 0) {
-        status_t err = mCamera->sendCommand(
+        err = mCamera->sendCommand(
             CAMERA_CMD_SET_VIDEO_BUFFER_COUNT, mNumInputBuffers, 0);
 
         // This could happen for CameraHAL1 clients; thus the failure is
@@ -604,17 +605,25 @@ void CameraSource::startCameraRecording() {
         }
     }
 
+    err = OK;
     if (mCameraFlags & FLAGS_HOT_CAMERA) {
         mCamera->unlock();
         mCamera.clear();
-        CHECK_EQ((status_t)OK,
-            mCameraRecordingProxy->startRecording(new ProxyListener(this)));
+        if ((err = mCameraRecordingProxy->startRecording(
+                new ProxyListener(this))) != OK) {
+            ALOGE("Failed to start recording, received error: %s (%d)",
+                    strerror(-err), err);
+        }
     } else {
         mCamera->setListener(new CameraSourceListener(this));
         mCamera->startRecording();
-        CHECK(mCamera->recordingEnabled());
+        if (!mCamera->recordingEnabled()) {
+            err = -EINVAL;
+            ALOGE("Failed to start recording");
+        }
     }
     IPCThreadState::self()->restoreCallingIdentity(token);
+    return err;
 }
 
 status_t CameraSource::start(MetaData *meta) {
@@ -646,10 +655,12 @@ status_t CameraSource::start(MetaData *meta) {
         }
     }
 
-    startCameraRecording();
+    status_t err;
+    if ((err = startCameraRecording()) == OK) {
+        mStarted = true;
+    }
 
-    mStarted = true;
-    return OK;
+    return err;
 }
 
 void CameraSource::stopCameraRecording() {
