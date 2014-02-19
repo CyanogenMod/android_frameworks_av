@@ -466,7 +466,7 @@ void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
     const uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;   // stereo output
-    size_t inFrameCount = (outFrameCount*mInSampleRate)/mSampleRate;
+    size_t inFrameCount = getInFrameCountRequired(outFrameCount);
     const uint32_t phaseWrapLimit = c.mL << c.mShift;
 
     // NOTE: be very careful when modifying the code here. register

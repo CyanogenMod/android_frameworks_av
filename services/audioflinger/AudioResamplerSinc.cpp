@@ -540,7 +540,7 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
     uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;
-    size_t inFrameCount = (outFrameCount*mInSampleRate)/mSampleRate;
+    size_t inFrameCount = getInFrameCountRequired(outFrameCount);
 
     while (outputIndex < outputSampleCount) {
         // buffer is empty, fetch a new one
