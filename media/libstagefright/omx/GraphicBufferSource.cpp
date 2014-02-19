@@ -574,7 +574,7 @@ int64_t GraphicBufferSource::getTimestamp(const BufferQueue::BufferItem &item) {
             if (originalTimeUs < mPrevOriginalTimeUs) {
                 // Drop the frame if it's going backward in time. Bad timestamp
                 // could disrupt encoder's rate control completely.
-                ALOGV("Dropping frame that's going backward in time");
+                ALOGW("Dropping frame that's going backward in time");
                 return -1;
             }
             int64_t timestampGapUs = originalTimeUs - mPrevOriginalTimeUs;
@@ -593,6 +593,12 @@ int64_t GraphicBufferSource::getTimestamp(const BufferQueue::BufferItem &item) {
 status_t GraphicBufferSource::submitBuffer_l(
         const BufferQueue::BufferItem &item, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
+
+    int64_t timeUs = getTimestamp(item);
+    if (timeUs < 0ll) {
+        return UNKNOWN_ERROR;
+    }
+
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
     codecBuffer.mGraphicBuffer = mBufferSlot[item.mBuf];
     codecBuffer.mBuf = item.mBuf;
@@ -605,12 +611,6 @@ status_t GraphicBufferSource::submitBuffer_l(
     buffer_handle_t handle = codecBuffer.mGraphicBuffer->handle;
     memcpy(data, &type, 4);
     memcpy(data + 4, &handle, sizeof(buffer_handle_t));
-
-    int64_t timeUs = getTimestamp(item);
-    if (timeUs < 0ll) {
-        ALOGE("Dropping frame with bad timestamp");
-        return UNKNOWN_ERROR;
-    }
 
     status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
             4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
