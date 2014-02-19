@@ -488,12 +488,12 @@ status_t MPEG4Extractor::readMetaData() {
             break;
         }
         uint32_t chunk_type = ntohl(hdr[1]);
-        if (chunk_type == FOURCC('s', 'i', 'd', 'x')) {
-            // parse the sidx box too
-            continue;
-        } else if (chunk_type == FOURCC('m', 'o', 'o', 'f')) {
+        if (chunk_type == FOURCC('m', 'o', 'o', 'f')) {
             // store the offset of the first segment
             mMoofOffset = offset;
+        } else if (chunk_type != FOURCC('m', 'd', 'a', 't')) {
+            // keep parsing until we get to the data
+            continue;
         }
         break;
     }
@@ -1921,9 +1921,10 @@ status_t MPEG4Extractor::parseSegmentIndex(off64_t offset, size_t size) {
             ALOGW("sub-sidx boxes not supported yet");
         }
         bool sap = d3 & 0x80000000;
-        bool saptype = d3 >> 28;
-        if (!sap || saptype > 2) {
-            ALOGW("not a stream access point, or unsupported type");
+        uint32_t saptype = (d3 >> 28) & 7;
+        if (!sap || (saptype != 1 && saptype != 2)) {
+            // type 1 and 2 are sync samples
+            ALOGW("not a stream access point, or unsupported type: %08x", d3);
         }
         total_duration += d2;
         offset += 12;
@@ -2899,9 +2900,20 @@ status_t MPEG4Source::parseChunk(off64_t *offset) {
                 }
             }
             if (chunk_type == FOURCC('m', 'o', 'o', 'f')) {
-                // *offset points to the mdat box following this moof
-                parseChunk(offset); // doesn't actually parse it, just updates offset
-                mNextMoofOffset = *offset;
+                // *offset points to the box following this moof. Find the next moof from there.
+
+                while (true) {
+                    if (mDataSource->readAt(*offset, hdr, 8) < 8) {
+                        return ERROR_END_OF_STREAM;
+                    }
+                    chunk_size = ntohl(hdr[0]);
+                    chunk_type = ntohl(hdr[1]);
+                    if (chunk_type == FOURCC('m', 'o', 'o', 'f')) {
+                        mNextMoofOffset = *offset;
+                        break;
+                    }
+                    *offset += chunk_size;
+                }
             }
             break;
         }
@@ -3706,7 +3718,7 @@ status_t MPEG4Source::fragmentedRead(
                 const SidxEntry *se = &mSegments[i];
                 if (totalTime + se->mDurationUs > seekTimeUs) {
                     // The requested time is somewhere in this segment
-                    if ((mode == ReadOptions::SEEK_NEXT_SYNC) ||
+                    if ((mode == ReadOptions::SEEK_NEXT_SYNC && seekTimeUs > totalTime) ||
                         (mode == ReadOptions::SEEK_CLOSEST_SYNC &&
                         (seekTimeUs - totalTime) > (totalTime + se->mDurationUs - seekTimeUs))) {
                         // requested next sync, or closest sync and it was closer to the end of
@@ -3751,7 +3763,10 @@ status_t MPEG4Source::fragmentedRead(
         newBuffer = true;
 
         if (mCurrentSampleIndex >= mCurrentSamples.size()) {
-            // move to next fragment
+            // move to next fragment if there is one
+            if (mNextMoofOffset <= mCurrentMoofOffset) {
+                return ERROR_END_OF_STREAM;
+            }
             off64_t nextMoof = mNextMoofOffset;
             mCurrentMoofOffset = nextMoof;
             mCurrentSamples.clear();
