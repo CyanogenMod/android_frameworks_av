@@ -341,7 +341,7 @@ void AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount,
     uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;
-    size_t inFrameCount = (outFrameCount*mInSampleRate)/mSampleRate;
+    size_t inFrameCount = getInFrameCountRequired(outFrameCount);
 
     // ALOGE("starting resample %d frames, inputIndex=%d, phaseFraction=%d, phaseIncrement=%d",
     //      outFrameCount, inputIndex, phaseFraction, phaseIncrement);
@@ -439,7 +439,7 @@ void AudioResamplerOrder1::resampleMono16(int32_t* out, size_t outFrameCount,
     uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;
-    size_t inFrameCount = (outFrameCount*mInSampleRate)/mSampleRate;
+    size_t inFrameCount = getInFrameCountRequired(outFrameCount);
 
     // ALOGE("starting resample %d frames, inputIndex=%d, phaseFraction=%d, phaseIncrement=%d",
     //      outFrameCount, inputIndex, phaseFraction, phaseIncrement);

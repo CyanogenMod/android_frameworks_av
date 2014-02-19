@@ -110,6 +110,38 @@ protected:
     uint64_t mLocalTimeFreq;
     int64_t mPTS;
 
+    // returns the inFrameCount required to generate outFrameCount frames.
+    //
+    // Placed here to be a consistent for all resamplers.
+    //
+    // Right now, we use the upper bound without regards to the current state of the
+    // input buffer using integer arithmetic, as follows:
+    //
+    // (static_cast<uint64_t>(outFrameCount)*mInSampleRate + (mSampleRate - 1))/mSampleRate;
+    //
+    // The double precision equivalent (float may not be precise enough):
+    // ceil(static_cast<double>(outFrameCount) * mInSampleRate / mSampleRate);
+    //
+    // this relies on the fact that the mPhaseIncrement is rounded down from
+    // #phases * mInSampleRate/mSampleRate and the fact that Sum(Floor(x)) <= Floor(Sum(x)).
+    // http://www.proofwiki.org/wiki/Sum_of_Floors_Not_Greater_Than_Floor_of_Sums
+    //
+    // (so long as double precision is computed accurately enough to be considered
+    // greater than or equal to the Floor(x) value in int32_t arithmetic; thus this
+    // will not necessarily hold for floats).
+    //
+    // TODO:
+    // Greater accuracy and a tight bound is obtained by:
+    // 1) subtract and adjust for the current state of the AudioBufferProvider buffer.
+    // 2) using the exact integer formula where (ignoring 64b casting)
+    //  inFrameCount = (mPhaseIncrement * (outFrameCount - 1) + mPhaseFraction) / phaseWrapLimit;
+    //  phaseWrapLimit is the wraparound (1 << kNumPhaseBits), if not specified explicitly.
+    //
+    inline size_t getInFrameCountRequired(size_t outFrameCount) {
+        return (static_cast<uint64_t>(outFrameCount)*mInSampleRate
+                + (mSampleRate - 1))/mSampleRate;
+    }
+
 private:
     const src_quality mQuality;
 
