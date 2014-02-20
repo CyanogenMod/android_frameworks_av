@@ -164,7 +164,8 @@ private:
             /* download block size */
             uint32_t block_size = 0,
             /* reuse DataSource if doing partial fetch */
-            sp<DataSource> *source = NULL);
+            sp<DataSource> *source = NULL,
+            String8 *actualUrl = NULL);
 
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
