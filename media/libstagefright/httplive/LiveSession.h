@@ -147,7 +147,8 @@ private:
 
     status_t fetchFile(
             const char *url, sp<ABuffer> *out,
-            int64_t range_offset = 0, int64_t range_length = -1);
+            int64_t range_offset = 0, int64_t range_length = -1,
+            String8 *actualUrl = NULL);
 
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
