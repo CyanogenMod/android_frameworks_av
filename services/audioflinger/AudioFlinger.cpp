@@ -183,6 +183,7 @@ AudioFlinger::AudioFlinger()
         (void) property_get("af.tee", value, "0");
         teeEnabled = atoi(value);
     }
+    // FIXME symbolic constants here
     if (teeEnabled & 1) {
         mTeeSinkInputEnabled = true;
     }
@@ -1810,7 +1811,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
             kind = TEE_SINK_NEW;
         } else if (mRecordTeeSink->getStrongCount() != 1) {
             kind = TEE_SINK_NO;
-        } else if (format == mRecordTeeSink->format()) {
+        } else if (Format_isEqual(format, mRecordTeeSink->format())) {
             kind = TEE_SINK_OLD;
         } else {
             kind = TEE_SINK_NEW;
