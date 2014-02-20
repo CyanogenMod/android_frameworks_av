@@ -59,6 +59,8 @@ static const int64_t kMaxAVSyncLateMargin     = 250000;
 #define MEM_DEVICE "/dev/ion"
 #define MEM_HEAP_ID ION_CP_MM_HEAP_ID
 
+#include <media/stagefright/foundation/ALooper.h>
+
 namespace android {
 
 void ExtendedUtils::HFR::setHFRIfEnabled(
@@ -671,6 +673,128 @@ void ExtendedUtils::drainSecurePool()
 #endif
 }
 
+VSyncLocker::VSyncLocker()
+    : mExitVsyncEvent(true),
+      mLooper(NULL),
+      mSyncState(PROFILE_FPS),
+      mStartTime(-1),
+      mProfileCount(0) {
+}
+
+VSyncLocker::~VSyncLocker() {
+    if(!mExitVsyncEvent) {
+        mExitVsyncEvent = true;
+        void *dummy;
+        pthread_join(mThread, &dummy);
+    }
+}
+
+bool VSyncLocker::isSyncRenderEnabled() {
+    char value[PROPERTY_VALUE_MAX];
+    bool ret = true;
+    property_get("mm.enable.vsync.render", value, "0");
+    if (atoi(value) == 0) {
+        ret = false;
+    }
+    return ret;
+}
+
+void VSyncLocker::updateSyncState() {
+    if (mSyncState == PROFILE_FPS) {
+        mProfileCount++;
+        if (mProfileCount == 1) {
+            mStartTime = ALooper::GetNowUs();
+        } else if (mProfileCount == kMaxProfileCount) {
+            int fps = (kMaxProfileCount * 1000000) /
+                      (ALooper::GetNowUs() - mStartTime);
+            if (fps > 35) {
+                ALOGI("Synchronized rendering blocked at %d fps", fps);
+                mSyncState = BLOCK_SYNC;
+                mExitVsyncEvent = true;
+            } else {
+                ALOGI("Synchronized rendering enabled at %d fps", fps);
+                mSyncState = ENABLE_SYNC;
+            }
+        }
+    }
+}
+
+void VSyncLocker::waitOnVSync() {
+    Mutex::Autolock autoLock(mVsyncLock);
+    mVSyncCondition.wait(mVsyncLock);
+}
+
+void VSyncLocker::resetProfile() {
+    if (mSyncState == PROFILE_FPS) {
+        mProfileCount = 0;
+    }
+}
+
+void VSyncLocker::blockSync() {
+    if (mSyncState == ENABLE_SYNC) {
+        ALOGI("Synchronized rendering blocked");
+        mSyncState = BLOCK_SYNC;
+        mExitVsyncEvent = true;
+    }
+}
+
+void VSyncLocker::blockOnVSync() {
+        if (mSyncState == PROFILE_FPS) {
+            updateSyncState();
+        } else if(mSyncState == ENABLE_SYNC) {
+            waitOnVSync();
+        }
+}
+
+void VSyncLocker::start() {
+    mExitVsyncEvent = false;
+    mLooper = new Looper(false);
+    mLooper->addFd(mDisplayEventReceiver.getFd(), 0,
+                   ALOOPER_EVENT_INPUT, receiver, (void *)this);
+    mDisplayEventReceiver.setVsyncRate(1);
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_create(&mThread, &attr, ThreadWrapper, (void *)this);
+    pthread_attr_destroy(&attr);
+}
+
+void VSyncLocker::VSyncEvent() {
+    do {
+        int ret = 0;
+        if (mLooper != NULL) {
+            ret = mLooper->pollOnce(-1);
+        }
+    } while (!mExitVsyncEvent);
+    mDisplayEventReceiver.setVsyncRate(0);
+    mLooper->removeFd(mDisplayEventReceiver.getFd());
+}
+
+void VSyncLocker::signalVSync() {
+   DisplayEventReceiver::Event buffer[1];
+   if(mDisplayEventReceiver.getEvents(buffer, 1)) {
+       if (buffer[0].header.type != DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
+           return;
+        }
+   }
+   mVsyncLock.lock();
+   mVSyncCondition.signal();
+   mVsyncLock.unlock();
+   ALOGV("Signalling VSync");
+}
+
+void *VSyncLocker::ThreadWrapper(void *context) {
+    VSyncLocker *renderer = (VSyncLocker *)context;
+    renderer->VSyncEvent();
+    return NULL;
+}
+
+int VSyncLocker::receiver(int fd, int events, void *context) {
+    VSyncLocker *locker = (VSyncLocker *)context;
+    locker->signalVSync();
+    return 1;
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -779,6 +903,38 @@ void ExtendedUtils::prefetchSecurePool() {}
 void ExtendedUtils::createSecurePool() {}
 
 void ExtendedUtils::drainSecurePool() {}
+
+VSyncLocker::VSyncLocker() {}
+
+VSyncLocker::~VSyncLocker() {}
+
+bool VSyncLocker::isSyncRenderEnabled() {
+    return false;
+}
+
+void *VSyncLocker::ThreadWrapper(void *context) {
+    return NULL;
+}
+
+int VSyncLocker::receiver(int fd, int events, void *context) {
+    return 0;
+}
+
+void VSyncLocker::updateSyncState() {}
+
+void VSyncLocker::waitOnVSync() {}
+
+void VSyncLocker::resetProfile() {}
+
+void VSyncLocker::blockSync() {}
+
+void VSyncLocker::blockOnVSync() {}
+
+void VSyncLocker::start() {}
+
+void VSyncLocker::VSyncEvent() {}
+
+void VSyncLocker::signalVSync() {}
 
 }
 #endif //ENABLE_AV_ENHANCEMENTS

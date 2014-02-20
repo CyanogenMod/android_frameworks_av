@@ -31,6 +31,8 @@
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
 
+#include "ExtendedUtils.h"
+
 namespace android {
 
 struct AudioPlayer;
@@ -413,6 +415,8 @@ private:
     AwesomePlayer &operator=(const AwesomePlayer &);
     bool mReadRetry;
     bool mCustomAVSync;
+
+    sp<VSyncLocker> mVSyncLocker;
 };
 
 }  // namespace android
