@@ -26,11 +26,17 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//#define LOG_NDEBUG 0
 #define LOG_TAG "FLACDecoder"
-#include <utils/Log.h>
+//#define LOG_NDEBUG 0
+//#define VERY_VERY_VERBOSE_LOGGING
+#ifdef VERY_VERY_VERBOSE_LOGGING
+#define ALOGVV ALOGV
+#else
+#define ALOGVV(a...) do { } while (0)
+#endif
 
-#include <dlfcn.h>  // for dlopen/dlclose
+#include <utils/Log.h>
+#include <dlfcn.h>
 
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMetaData.h>
@@ -43,36 +49,52 @@
 
 namespace android {
 
-typedef void* (*DecoderInit) (CFlacDecState* pFlacDecState, int* nRes);
-
-typedef int* (*DecoderLib_Process) (CFlacDecState* pFlacDecState, uint8* pInBitStream,
-                                    uint32 nActualDataLen, void *pOutSamples,
-                                    uint32* uFlacOutputBufSize, uint32* usedBitstream,
-                                    uint32* blockSize, uint32* bytesInInternalBuffer);
-
-typedef void* (*SetMetaData) (CFlacDecState* pFlacDecState,
-                      FLACDec_ParserInfo* parserInfoToPass);
-
 static const char* FLAC_DECODER_LIB = "libFlacSwDec.so";
 
 FLACDecoder::FLACDecoder(const sp<MediaSource> &source)
-    : mSource(source), mInputBuffer(NULL),
-      mStarted(false), mBufferGroup(NULL),
-      mNumFramesOutput(0), mAnchorTimeUs(0) {
-    init();
+    : mSource(source),
+      mInputBuffer(NULL),
+      mStarted(false),
+      mInitStatus(false),
+      mBufferGroup(NULL),
+      mNumFramesOutput(0),
+      mAnchorTimeUs(0),
+      mLibHandle(dlopen(FLAC_DECODER_LIB, RTLD_LAZY)),
+      mOutBuffer(NULL),
+      mDecoderInit(NULL),
+      mSetMetaData(NULL),
+      mProcessData(NULL) {
+    if (mLibHandle != NULL) {
+        mDecoderInit = (DecoderInit) dlsym (mLibHandle, "CFlacDecoderLib_Meminit");
+        mSetMetaData = (SetMetaData) dlsym (mLibHandle, "CFlacDecoderLib_SetMetaData");
+        mProcessData = (DecoderLib_Process) dlsym (mLibHandle, "CFlacDecoderLib_Process");
+        init();
+    }
 }
 
 FLACDecoder::~FLACDecoder() {
     if (mStarted) {
         stop();
     }
+    if (mLibHandle != NULL) {
+        dlclose(mLibHandle);
+    }
+    mLibHandle = NULL;
 }
 
 void FLACDecoder::init() {
     ALOGV("FLACDecoder::init");
-    int nRes;
+    int result;
     memset(&pFlacDecState,0,sizeof(CFlacDecState));
-    decoderInit(&pFlacDecState, &nRes);
+    (*mDecoderInit)(&pFlacDecState, &result);
+
+    if (result != DEC_SUCCESS) {
+        ALOGE("CSIM decoder init failed! Result %d", result);
+        return;
+    }
+    else {
+        mInitStatus = true;
+    }
 
     sp<MetaData> srcFormat = mSource->getFormat();
 
@@ -103,7 +125,7 @@ void FLACDecoder::init() {
     ALOGV("i32MinFrmSize = %d", parserInfoToPass.i32MinFrmSize);
     ALOGV("i32MaxFrmSize = %d", parserInfoToPass.i32MaxFrmSize);
 
-    setMetaData(&pFlacDecState, &parserInfoToPass);
+    (*mSetMetaData)(&pFlacDecState, &parserInfoToPass);
 
     mMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
 
@@ -116,15 +138,19 @@ void FLACDecoder::init() {
     mMeta->setCString(kKeyDecoderComponent, "FLACDecoder");
     mMeta->setInt32(kKeySampleRate, mSampleRate);
     mMeta->setInt32(kKeyChannelCount, mNumChannels);
+
+    mOutBuffer = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
+    mTmpBuf = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
 }
 
 status_t FLACDecoder::start(MetaData *params) {
     ALOGV("FLACDecoder::start");
 
     CHECK(!mStarted);
+    CHECK(mInitStatus);
 
     mBufferGroup = new MediaBufferGroup;
-    mBufferGroup->add_buffer(new MediaBuffer(MAXINPBUFFER));
+    mBufferGroup->add_buffer(new MediaBuffer(FLAC_INSTANCE_SIZE));
 
     mSource->start();
     mAnchorTimeUs = 0;
@@ -138,6 +164,8 @@ status_t FLACDecoder::stop() {
     ALOGV("FLACDecoder::stop");
 
     CHECK(mStarted);
+    CHECK(mInitStatus);
+
     if (mInputBuffer) {
         mInputBuffer->release();
         mInputBuffer = NULL;
@@ -149,75 +177,16 @@ status_t FLACDecoder::stop() {
     mSource->stop();
     mStarted = false;
 
+    free(mOutBuffer);
+    free(mTmpBuf);
+
     return OK;
 }
 
 sp<MetaData> FLACDecoder::getFormat() {
     ALOGV("FLACDecoder::getFormat");
+    CHECK(mInitStatus);
     return mMeta;
-}
-
-
-static void* loadFlacDecoderLib() {
-    static void* flacDecoderLib = NULL;
-    static bool alreadyTriedToLoadLib = false;
-
-    if (!alreadyTriedToLoadLib) {
-        alreadyTriedToLoadLib = true;
-        ALOGV("Opening the FLAC Decoder Library");
-        flacDecoderLib = ::dlopen(FLAC_DECODER_LIB, RTLD_LAZY);
-
-        if (flacDecoderLib == NULL) {
-            ALOGE("Failed to load %s, dlerror = %s",
-                FLAC_DECODER_LIB, dlerror());
-        }
-    }
-
-    return flacDecoderLib;
-}
-
-void FLACDecoder::decoderInit(CFlacDecState* pFlacDecState, int* nRes) {
-    static DecoderInit decoder_init = NULL;
-    void *flacDecoderLib = loadFlacDecoderLib();
-
-    if (flacDecoderLib != NULL) {
-        *(void **)(&decoder_init) = dlsym(flacDecoderLib, "CFlacDecoderLib_Meminit");
-
-        decoder_init(pFlacDecState, nRes);
-
-        if ((uint32) *nRes != (uint32) DEC_SUCCESS) {
-            ALOGE("Decoder init failed! nRes %d", *nRes);
-        }
-    }
-}
-
-void FLACDecoder::setMetaData(CFlacDecState* pFlacDecState,
-                      FLACDec_ParserInfo* parserInfoToPass) {
-    static SetMetaData set_meta_data = NULL;
-    void *flacDecoderLib = loadFlacDecoderLib();
-
-    if (flacDecoderLib != NULL) {
-        *(void **)(&set_meta_data) = dlsym(flacDecoderLib, "CFlacDecoderLib_SetMetaData");
-        set_meta_data(pFlacDecState, parserInfoToPass);
-    }
-}
-
-int* FLACDecoder::decoderLib_Process(CFlacDecState* pFlacDecState, uint8* pInBitStream,
-                             uint32 nActualDataLen, void *pOutSamples,
-                             uint32* uFlacOutputBufSize, uint32* usedBitstream,
-                             uint32* blockSize, uint32* bytesInInternalBuffer) {
-    static DecoderLib_Process decoderlib_process = NULL;
-    int* status = 0;
-    void *flacDecoderLib = loadFlacDecoderLib();
-
-    if (flacDecoderLib != NULL) {
-        *(void **)(&decoderlib_process) = dlsym(flacDecoderLib, "CFlacDecoderLib_Process");
-
-        status = decoderlib_process(pFlacDecState, pInBitStream, nActualDataLen,
-                                    pOutSamples, uFlacOutputBufSize, usedBitstream,
-                                    blockSize, bytesInInternalBuffer);
-    }
-    return status;
 }
 
 status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
@@ -225,10 +194,13 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
     *out = NULL;
     uint32 blockSize, usedBitstream, availLength = 0;
     uint32 flacOutputBufSize = FLAC_OUTPUT_BUFFER_SIZE;
-    uint32 instSize = FLAC_INSTANCE_SIZE;
     int *status = 0;
 
     bool seekSource = false, eos = false;
+
+    if (!mInitStatus) {
+        return NO_INIT;
+    }
 
     int64_t seekTimeUs;
     ReadOptions::SeekMode mode;
@@ -255,7 +227,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
     if (!eos) {
         err = mSource->read(&mInputBuffer, options);
         if (err != OK) {
-            ALOGV("Parser returned %d", err);
+            ALOGE("Parser returned %d", err);
             eos = true;
             return err;
         }
@@ -265,62 +237,57 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
     if (mInputBuffer->meta_data()->findInt64(kKeyTime, &timeUs)) {
         mAnchorTimeUs = timeUs;
         mNumFramesOutput = 0;
-        ALOGV("mAnchorTimeUs %lld", mAnchorTimeUs);
+        ALOGVV("mAnchorTimeUs %lld", mAnchorTimeUs);
     }
     else {
         CHECK(seekTimeUs < 0);
     }
 
-    void *pOutBuffer = NULL;
-    pOutBuffer = (int8*) malloc (instSize);
-
     if (!eos) {
         if (mInputBuffer) {
-            ALOGV("Parser filled %d bytes", mInputBuffer->range_length());
+            ALOGVV("Parser filled %d bytes", mInputBuffer->range_length());
             availLength = mInputBuffer->range_length();
-            status = decoderLib_Process(&pFlacDecState,
-                                        (uint8*)mInputBuffer->data(),
-                                        availLength,
-                                        pOutBuffer,
-                                        &flacOutputBufSize,
-                                        &usedBitstream,
-                                        &blockSize,
-                                        &(pFlacDecState.bytesInInternalBuffer));
+            status = (*mProcessData)(&pFlacDecState,
+                                     (uint8*)mInputBuffer->data(),
+                                     availLength,
+                                     mOutBuffer,
+                                     &flacOutputBufSize,
+                                     &usedBitstream,
+                                     &blockSize,
+                                     &(pFlacDecState.bytesInInternalBuffer));
         }
 
-        ALOGV("decoderlib_process returned %d, availLength %d, usedBitstream %d,\
+        ALOGVV("decoderlib_process returned %d, availLength %d, usedBitstream %d,\
                blockSize %d, bytesInInternalBuffer %d", (int)status, availLength,
                usedBitstream, blockSize, pFlacDecState.bytesInInternalBuffer);
 
-        MediaBuffer *buffer = new MediaBuffer(blockSize*mNumChannels*2);
+        MediaBuffer *buffer;
+        CHECK_EQ(mBufferGroup->acquire_buffer(&buffer), (status_t)OK);
 
-        uint16_t *tmpbuf = (uint16_t *) malloc (blockSize*mNumChannels*2);
+        buffer->set_range(0, blockSize*mNumChannels*2);
 
-        uint16_t *ptr = (uint16_t *) pOutBuffer;
+        uint16_t *ptr = (uint16_t *) mOutBuffer;
 
-        //Interleave the output from decoder for stereo clips.
+        //Interleave the output from decoder for multichannel clips.
         if (mNumChannels > 1) {
-            for (uint16_t i = 0, j = 0; i < blockSize*2; i += 2, j++) {
-                tmpbuf[i] = ptr[j];
-                tmpbuf[i+1] = ptr[j+(blockSize)];
+            for (uint16_t k = 0; k < blockSize; k++) {
+                for (uint16_t i = k, j = mNumChannels*k; i < blockSize*mNumChannels; i += blockSize, j++) {
+                    mTmpBuf[j] = ptr[i];
+                }
             }
-            memcpy((uint16_t *)buffer->data(), tmpbuf, blockSize*mNumChannels*2);
+            memcpy((uint16_t *)buffer->data(), mTmpBuf, blockSize*mNumChannels*2);
         }
         else {
-            memcpy((uint16_t *)buffer->data(), pOutBuffer, blockSize*mNumChannels*2);
+            memcpy((uint16_t *)buffer->data(), mOutBuffer, blockSize*mNumChannels*2);
         }
 
         int64_t time = 0;
         time = mAnchorTimeUs + (mNumFramesOutput*1000000)/mSampleRate;
         buffer->meta_data()->setInt64(kKeyTime, time);
         mNumFramesOutput += blockSize;
-        ALOGV("time = %lld", time);
+        ALOGVV("time = %lld", time);
 
         *out = buffer;
-        ALOGV("out->range = %d", buffer->range_length());
-        free(tmpbuf);
-        free(pOutBuffer);
-
     }
 
     return OK;

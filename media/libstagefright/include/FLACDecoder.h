@@ -41,11 +41,6 @@ struct MediaBufferGroup;
 
 class FLACDecoder : public MediaSource {
 public:
-    void decoderInit(CFlacDecState* pFlacDecState, int* nRes);
-    void setMetaData(CFlacDecState* pFlacDecState, FLACDec_ParserInfo* parserInfoToPass);
-    int* decoderLib_Process(CFlacDecState* pFlacDecState, uint8* pInBitStream, uint32 nActualDataLen,
-                            void *pOutSamples, uint32* uFlacOutputBufSize, uint32* usedBitstream,
-                            uint32* ui32BlockSize, uint32* bytesInInternalBuffer);
     FLACDecoder(const sp<MediaSource> &source);
     ~FLACDecoder();
     void init();
@@ -61,6 +56,7 @@ private:
     int32_t mNumChannels;
     int32_t mSampleRate;
     bool mStarted;
+    bool mInitStatus;
     MediaBufferGroup *mBufferGroup;
     int64_t mNumFramesOutput;
     int64_t mAnchorTimeUs;
@@ -68,6 +64,22 @@ private:
     CFlacDecState pFlacDecState;
     FLACDec_ParserInfo parserInfoToPass;
 
+    void *mLibHandle;
+    void *mOutBuffer;
+    uint16_t *mTmpBuf;
+
+    typedef void* (*DecoderInit) (CFlacDecState* pFlacDecState, int* nRes);
+
+    typedef int* (*DecoderLib_Process) (CFlacDecState* pFlacDecState, uint8* pInBitStream,
+                                        uint32 nActualDataLen, void *pOutSamples,
+                                        uint32* uFlacOutputBufSize, uint32* usedBitstream,
+                                        uint32* blockSize, uint32* bytesInInternalBuffer);
+
+    typedef void* (*SetMetaData) (CFlacDecState* pFlacDecState,
+                                  FLACDec_ParserInfo* parserInfoToPass);
+    DecoderInit mDecoderInit;
+    SetMetaData mSetMetaData;
+    DecoderLib_Process mProcessData;
 };
 
 }  // namespace android
