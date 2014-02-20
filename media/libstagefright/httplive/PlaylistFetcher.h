@@ -43,6 +43,7 @@ struct PlaylistFetcher : public AHandler {
         kWhatTemporarilyDoneFetching,
         kWhatPrepared,
         kWhatPreparationFailed,
+        kWhatStartedAt,
     };
 
     PlaylistFetcher(
@@ -56,11 +57,15 @@ struct PlaylistFetcher : public AHandler {
             const sp<AnotherPacketSource> &audioSource,
             const sp<AnotherPacketSource> &videoSource,
             const sp<AnotherPacketSource> &subtitleSource,
-            int64_t startTimeUs = -1ll);
+            int64_t startTimeUs = -1ll,
+            int64_t minStartTimeUs = 0ll /* start after this timestamp */,
+            int32_t startSeqNumberHint = -1 /* try starting at this sequence number */);
 
     void pauseAsync();
 
     void stopAsync();
+
+    void resumeUntilAsync(const sp<AMessage> &params);
 
 protected:
     virtual ~PlaylistFetcher();
@@ -76,17 +81,25 @@ private:
         kWhatPause          = 'paus',
         kWhatStop           = 'stop',
         kWhatMonitorQueue   = 'moni',
+        kWhatResumeUntil    = 'rsme',
+        kWhatDownloadNext   = 'dlnx',
     };
 
     static const int64_t kMinBufferedDurationUs;
     static const int64_t kMaxMonitorDelayUs;
+    static const int32_t kNumSkipFrames;
 
+    // notifications to mSession
     sp<AMessage> mNotify;
+    sp<AMessage> mStartTimeUsNotify;
+
     sp<LiveSession> mSession;
     AString mURI;
 
     uint32_t mStreamTypeMask;
     int64_t mStartTimeUs;
+    int64_t mMinStartTimeUs; // start fetching no earlier than this value
+    sp<AMessage> mStopParams; // message containing the latest timestamps we should fetch.
 
     KeyedVector<LiveSession::StreamType, sp<AnotherPacketSource> >
         mPacketSources;
@@ -153,6 +166,9 @@ private:
     void onMonitorQueue();
     void onDownloadNext();
 
+    // Resume a fetcher to continue until the stopping point stored in msg.
+    status_t onResumeUntil(const sp<AMessage> &msg);
+
     status_t extractAndQueueAccessUnits(
             const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta);
 
@@ -164,6 +180,10 @@ private:
     int32_t getSeqNumberForTime(int64_t timeUs) const;
 
     void updateDuration();
+
+    // Before resuming a fetcher in onResume, check the remaining duration is longer than that
+    // returned by resumeThreshold.
+    int64_t resumeThreshold(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaylistFetcher);
 };
