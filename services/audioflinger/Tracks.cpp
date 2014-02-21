@@ -1525,7 +1525,7 @@ void AudioFlinger::PlaybackThread::TimedTrack::releaseBuffer(
             mTrimQueueHeadOnRelease = false;
         }
     } else {
-        LOG_FATAL("TimedTrack::releaseBuffer of non-silence buffer with no"
+        LOG_ALWAYS_FATAL("TimedTrack::releaseBuffer of non-silence buffer with no"
                   " buffers in the timed buffer queue");
     }
 
