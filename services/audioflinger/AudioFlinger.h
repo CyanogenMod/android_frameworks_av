@@ -253,7 +253,7 @@ public:
                   int triggerSession,
                   int listenerSession,
                   sync_event_callback_t callBack,
-                  void *cookie)
+                  wp<RefBase> cookie)
         : mType(type), mTriggerSession(triggerSession), mListenerSession(listenerSession),
           mCallback(callBack), mCookie(cookie)
         {}
@@ -266,14 +266,14 @@ public:
         AudioSystem::sync_event_t type() const { return mType; }
         int triggerSession() const { return mTriggerSession; }
         int listenerSession() const { return mListenerSession; }
-        void *cookie() const { return mCookie; }
+        wp<RefBase> cookie() const { return mCookie; }
 
     private:
           const AudioSystem::sync_event_t mType;
           const int mTriggerSession;
           const int mListenerSession;
           sync_event_callback_t mCallback;
-          void * const mCookie;
+          const wp<RefBase> mCookie;
           mutable Mutex mLock;
     };
 
@@ -281,7 +281,7 @@ public:
                                         int triggerSession,
                                         int listenerSession,
                                         sync_event_callback_t callBack,
-                                        void *cookie);
+                                        wp<RefBase> cookie);
 
 private:
     class AudioHwDevice;    // fwd declaration for findSuitableHwDev_l
