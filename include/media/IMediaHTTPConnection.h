@@ -38,6 +38,7 @@ struct IMediaHTTPConnection : public IInterface {
     virtual ssize_t readAt(off64_t offset, void *data, size_t size) = 0;
     virtual off64_t getSize() = 0;
     virtual status_t getMIMEType(String8 *mimeType) = 0;
+    virtual status_t getUri(String8 *uri) = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(IMediaHTTPConnection);

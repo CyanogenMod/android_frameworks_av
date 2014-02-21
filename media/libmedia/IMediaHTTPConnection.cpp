@@ -33,6 +33,7 @@ enum {
     READ_AT,
     GET_SIZE,
     GET_MIME_TYPE,
+    GET_URI
 };
 
 struct BpMediaHTTPConnection : public BpInterface<IMediaHTTPConnection> {
@@ -143,6 +144,26 @@ struct BpMediaHTTPConnection : public BpInterface<IMediaHTTPConnection> {
         }
 
         *mimeType = String8(reply.readString16());
+
+        return OK;
+    }
+
+    virtual status_t getUri(String8 *uri) {
+        *uri = String8("");
+
+        Parcel data, reply;
+        data.writeInterfaceToken(
+                IMediaHTTPConnection::getInterfaceDescriptor());
+
+        remote()->transact(GET_URI, data, &reply);
+
+        int32_t exceptionCode = reply.readExceptionCode();
+
+        if (exceptionCode) {
+            return UNKNOWN_ERROR;
+        }
+
+        *uri = String8(reply.readString16());
 
         return OK;
     }

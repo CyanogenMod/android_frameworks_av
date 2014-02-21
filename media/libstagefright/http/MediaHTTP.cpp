@@ -171,6 +171,10 @@ void MediaHTTP::getDrmInfo(
 }
 
 String8 MediaHTTP::getUri() {
+    String8 uri;
+    if (OK == mHTTPConnection->getUri(&uri)) {
+        return uri;
+    }
     return String8(mLastURI.c_str());
 }
 
