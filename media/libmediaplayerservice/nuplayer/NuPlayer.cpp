@@ -31,8 +31,6 @@
 
 #include "ATSParser.h"
 
-#include "SoftwareRenderer.h"
-
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -146,7 +144,6 @@ NuPlayer::NuPlayer()
     : mUIDValid(false),
       mSourceFlags(0),
       mVideoIsAVC(false),
-      mNeedsSwRenderer(false),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -442,7 +439,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             ALOGV("kWhatStart");
 
             mVideoIsAVC = false;
-            mNeedsSwRenderer = false;
             mAudioEOS = false;
             mVideoEOS = false;
             mSkipRenderingAudioUntilMediaTimeUs = -1;
@@ -679,20 +675,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     notifyListener(
                             MEDIA_SET_VIDEO_SIZE, displayWidth, displayHeight);
-
-                    if (mNeedsSwRenderer && mNativeWindow != NULL) {
-                        int32_t colorFormat;
-                        CHECK(codecRequest->findInt32("color-format", &colorFormat));
-
-                        sp<MetaData> meta = new MetaData;
-                        meta->setInt32(kKeyWidth, width);
-                        meta->setInt32(kKeyHeight, height);
-                        meta->setRect(kKeyCropRect, cropLeft, cropTop, cropRight, cropBottom);
-                        meta->setInt32(kKeyColorFormat, colorFormat);
-
-                        mRenderer->setSoftRenderer(
-                                new SoftwareRenderer(mNativeWindow->getNativeWindow(), meta));
-                    }
                 }
             } else if (what == ACodec::kWhatShutdownCompleted) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");
@@ -716,13 +698,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mRenderer->queueEOS(audio, UNKNOWN_ERROR);
             } else if (what == ACodec::kWhatDrainThisBuffer) {
                 renderBuffer(audio, codecRequest);
-            } else if (what == ACodec::kWhatComponentAllocated) {
-                if (!audio) {
-                    AString name;
-                    CHECK(codecRequest->findString("componentName", &name));
-                    mNeedsSwRenderer = name.startsWith("OMX.google.");
-                }
-            } else if (what != ACodec::kWhatComponentConfigured
+            } else if (what != ACodec::kWhatComponentAllocated
+                    && what != ACodec::kWhatComponentConfigured
                     && what != ACodec::kWhatBuffersAllocated) {
                 ALOGV("Unhandled codec notification %d '%c%c%c%c'.",
                       what,
