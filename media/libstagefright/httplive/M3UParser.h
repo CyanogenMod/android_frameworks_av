@@ -45,9 +45,7 @@ struct M3UParser : public RefBase {
     status_t getTrackInfo(Parcel* reply) const;
     ssize_t getSelectedIndex() const;
 
-    bool getAudioURI(size_t index, AString *uri) const;
-    bool getVideoURI(size_t index, AString *uri) const;
-    bool getSubtitleURI(size_t index, AString *uri) const;
+    bool getTypeURI(size_t index, const char *key, AString *uri) const;
 
 protected:
     virtual ~M3UParser();
@@ -94,8 +92,6 @@ private:
             uint64_t *length, uint64_t *offset);
 
     status_t parseMedia(const AString &line);
-
-    bool getTypeURI(size_t index, const char *key, AString *uri) const;
 
     static status_t ParseInt32(const char *s, int32_t *x);
     static status_t ParseDouble(const char *s, double *x);
