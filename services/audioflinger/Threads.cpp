@@ -4694,12 +4694,12 @@ reacquire_wakelock:
                     framesIn = 0;
                     activeTrack->mRsmpInFront = rear;
                     overrun = OVERRUN_TRUE;
-                } else if ((size_t) filled <= mRsmpInFramesP2) {
+                } else if ((size_t) filled <= mRsmpInFrames) {
                     framesIn = (size_t) filled;
                 } else {
                     // client is not keeping up with server, but give it latest data
-                    framesIn = mRsmpInFramesP2;
-                    activeTrack->mRsmpInFront = rear - framesIn;
+                    framesIn = mRsmpInFrames;
+                    activeTrack->mRsmpInFront = front = rear - framesIn;
                     overrun = OVERRUN_TRUE;
                 }
 
@@ -4747,32 +4747,38 @@ reacquire_wakelock:
                     double inOverOut = (double) mSampleRate / activeTrack->mSampleRate;
                     double outOverIn = (double) activeTrack->mSampleRate / mSampleRate;
                     framesInNeeded = ceil(framesOut * inOverOut) + 1;
+                    ALOGV("need %u frames in to produce %u out given in/out ratio of %.4g",
+                                framesInNeeded, framesOut, inOverOut);
+                    // Although we theoretically have framesIn in circular buffer, some of those are
+                    // unreleased frames, and thus must be discounted for purpose of budgeting.
+                    size_t unreleased = activeTrack->mRsmpInUnrel;
+                    framesIn = framesIn > unreleased ? framesIn - unreleased : 0;
                     if (framesIn < framesInNeeded) {
-                        ALOGV("not enough to resample: have %u but need %u to produce %u "
-                                "given in/out ratio of %.4g",
+                        ALOGV("not enough to resample: have %u frames in but need %u in to "
+                                "produce %u out given in/out ratio of %.4g",
                                 framesIn, framesInNeeded, framesOut, inOverOut);
                         size_t newFramesOut = framesIn > 0 ? floor((framesIn - 1) * outOverIn) : 0;
-                        size_t newFramesInNeeded = ceil(newFramesOut * inOverOut) + 1;
-                        ALOGV("now need %u frames to produce %u given out/in ratio of %.4g",
-                                newFramesInNeeded, newFramesOut, outOverIn);
-                        if (framesIn < newFramesInNeeded) {
-                            ALOGE("failure: have %u but need %u", framesIn, newFramesInNeeded);
-                            framesOut = 0;
-                        } else {
-                            ALOGV("success 2: have %u and need %u to produce %u "
-                                  "given in/out ratio of %.4g",
-                                  framesIn, newFramesInNeeded, newFramesOut, inOverOut);
-                            LOG_ALWAYS_FATAL_IF(newFramesOut > framesOut);
-                            framesOut = newFramesOut;
+                        LOG_ALWAYS_FATAL_IF(newFramesOut >= framesOut);
+                        if (newFramesOut == 0) {
+                            break;
                         }
+                        framesInNeeded = ceil(newFramesOut * inOverOut) + 1;
+                        ALOGV("now need %u frames in to produce %u out given out/in ratio of %.4g",
+                                framesInNeeded, newFramesOut, outOverIn);
+                        LOG_ALWAYS_FATAL_IF(framesIn < framesInNeeded);
+                        ALOGV("success 2: have %u frames in and need %u in to produce %u out "
+                              "given in/out ratio of %.4g",
+                              framesIn, framesInNeeded, newFramesOut, inOverOut);
+                        framesOut = newFramesOut;
                     } else {
-                        ALOGI("success 1: have %u and need %u to produce %u "
+                        ALOGV("success 1: have %u in and need %u in to produce %u out "
                             "given in/out ratio of %.4g",
                             framesIn, framesInNeeded, framesOut, inOverOut);
                     }
 
                     // reallocate mRsmpOutBuffer as needed; we will grow but never shrink
                     if (activeTrack->mRsmpOutFrameCount < framesOut) {
+                        // FIXME why does each track need it's own mRsmpOutBuffer? can't they share?
                         delete[] activeTrack->mRsmpOutBuffer;
                         // resampler always outputs stereo
                         activeTrack->mRsmpOutBuffer = new int32_t[framesOut * FCC_2];
@@ -4782,6 +4788,7 @@ reacquire_wakelock:
                     // resampler accumulates, but we only have one source track
                     memset(activeTrack->mRsmpOutBuffer, 0, framesOut * FCC_2 * sizeof(int32_t));
                     activeTrack->mResampler->resample(activeTrack->mRsmpOutBuffer, framesOut,
+                            // FIXME how about having activeTrack implement this interface itself?
                             activeTrack->mResamplerBufferProvider
                             /*this*/ /* AudioBufferProvider* */);
                     // ditherAndClamp() works as long as all buffers returned by
@@ -5242,6 +5249,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
     sp<ThreadBase> threadBase = activeTrack->mThread.promote();
     if (threadBase == 0) {
         buffer->frameCount = 0;
+        buffer->raw = NULL;
         return NOT_ENOUGH_DATA;
     }
     RecordThread *recordThread = (RecordThread *) threadBase.get();
@@ -5250,7 +5258,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
     ssize_t filled = rear - front;
     // FIXME should not be P2 (don't want to increase latency)
     // FIXME if client not keeping up, discard
-    ALOG_ASSERT(0 <= filled && (size_t) filled <= recordThread->mRsmpInFramesP2);
+    LOG_ALWAYS_FATAL_IF(!(0 <= filled && (size_t) filled <= recordThread->mRsmpInFrames));
     // 'filled' may be non-contiguous, so return only the first contiguous chunk
     front &= recordThread->mRsmpInFramesP2 - 1;
     size_t part1 = recordThread->mRsmpInFramesP2 - front;
@@ -5264,7 +5272,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
     }
     if (part1 == 0) {
         // Higher-level should keep mRsmpInBuffer full, and not call resampler if empty
-        LOG_FATAL("RecordThread::getNextBuffer() starved");
+        LOG_ALWAYS_FATAL("RecordThread::getNextBuffer() starved");
         buffer->raw = NULL;
         buffer->frameCount = 0;
         activeTrack->mRsmpInUnrel = 0;
