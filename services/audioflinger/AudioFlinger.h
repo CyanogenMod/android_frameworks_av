@@ -638,7 +638,7 @@ public:
     // 0x200000 stereo 16-bit PCM frames = 47.5 seconds at 44.1 kHz, 8 megabytes
     static const size_t kTeeSinkInputFramesDefault = 0x200000;
     static const size_t kTeeSinkOutputFramesDefault = 0x200000;
-    static const size_t kTeeSinkTrackFramesDefault = 0x1000;
+    static const size_t kTeeSinkTrackFramesDefault = 0x200000;
 #endif
 
     // This method reads from a variable without mLock, but the variable is updated under mLock.  So
