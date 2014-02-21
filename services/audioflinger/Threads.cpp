@@ -5095,8 +5095,11 @@ void AudioFlinger::RecordThread::syncStartEventCallback(const wp<SyncEvent>& eve
     sp<SyncEvent> strongEvent = event.promote();
 
     if (strongEvent != 0) {
-        RecordTrack *recordTrack = (RecordTrack *)strongEvent->cookie();
-        recordTrack->handleSyncStartEvent(strongEvent);
+        sp<RefBase> ptr = strongEvent->cookie().promote();
+        if (ptr != 0) {
+            RecordTrack *recordTrack = (RecordTrack *)ptr.get();
+            recordTrack->handleSyncStartEvent(strongEvent);
+        }
     }
 }
 

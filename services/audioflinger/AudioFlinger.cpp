@@ -2094,7 +2094,7 @@ sp<AudioFlinger::SyncEvent> AudioFlinger::createSyncEvent(AudioSystem::sync_even
                                     int triggerSession,
                                     int listenerSession,
                                     sync_event_callback_t callBack,
-                                    void *cookie)
+                                    wp<RefBase> cookie)
 {
     Mutex::Autolock _l(mLock);
 
