@@ -1,24 +1,24 @@
 /*
-**
-** Copyright (C) 2008, The Android Open Source Project
-**
-** Licensed under the Apache License, Version 2.0 (the "License");
-** you may not use this file except in compliance with the License.
-** You may obtain a copy of the License at
-**
-**     http://www.apache.org/licenses/LICENSE-2.0
-**
-** Unless required by applicable law or agreed to in writing, software
-** distributed under the License is distributed on an "AS IS" BASIS,
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-** See the License for the specific language governing permissions and
-** limitations under the License.
-*/
+ * Copyright (C) 2008 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #define LOG_TAG "CameraService"
 //#define LOG_NDEBUG 0
 
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <pthread.h>
 
@@ -37,6 +37,8 @@
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
+#include <utils/Trace.h>
+#include <system/camera_vendor_tags.h>
 
 #include "CameraService.h"
 #include "api1/CameraClient.h"
@@ -131,6 +133,12 @@ void CameraService::onFirstRef()
             mModule->set_callbacks(this);
         }
 
+        VendorTagDescriptor::clearGlobalVendorTagDescriptor();
+
+        if (mModule->common.module_api_version >= CAMERA_MODULE_API_VERSION_2_2) {
+            setUpVendorTags();
+        }
+
         CameraDeviceFactory::registerService(this);
     }
 }
@@ -142,6 +150,7 @@ CameraService::~CameraService() {
         }
     }
 
+    VendorTagDescriptor::clearGlobalVendorTagDescriptor();
     gCameraService = NULL;
 }
 
@@ -270,6 +279,22 @@ status_t CameraService::getCameraCharacteristics(int cameraId,
     return ret;
 }
 
+status_t CameraService::getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescriptor>& desc) {
+    if (!mModule) {
+        ALOGE("%s: camera hardware module doesn't exist", __FUNCTION__);
+        return -ENODEV;
+    }
+
+    if (mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_2) {
+        // TODO: Remove this check once HAL1 shim is in place.
+        ALOGE("%s: Only HAL module version V2.2 or higher supports vendor tags", __FUNCTION__);
+        return -EOPNOTSUPP;
+    }
+
+    desc = VendorTagDescriptor::getGlobalVendorTagDescriptor();
+    return OK;
+}
+
 int CameraService::getDeviceVersion(int cameraId, int* facing) {
     struct camera_info info;
     if (mModule->get_camera_info(cameraId, &info) != OK) {
@@ -305,6 +330,44 @@ bool CameraService::isValidCameraId(int cameraId) {
     }
 
     return false;
+}
+
+bool CameraService::setUpVendorTags() {
+    vendor_tag_ops_t vOps = vendor_tag_ops_t();
+
+    // Check if vendor operations have been implemented
+    if (mModule->get_vendor_tag_ops == NULL) {
+        ALOGI("%s: No vendor tags defined for this device.", __FUNCTION__);
+        return false;
+    }
+
+    ATRACE_BEGIN("camera3->get_metadata_vendor_tag_ops");
+    mModule->get_vendor_tag_ops(&vOps);
+    ATRACE_END();
+
+    // Ensure all vendor operations are present
+    if (vOps.get_tag_count == NULL || vOps.get_all_tags == NULL ||
+            vOps.get_section_name == NULL || vOps.get_tag_name == NULL ||
+            vOps.get_tag_type == NULL) {
+        ALOGE("%s: Vendor tag operations not fully defined. Ignoring definitions."
+               , __FUNCTION__);
+        return false;
+    }
+
+    // Read all vendor tag definitions into a descriptor
+    sp<VendorTagDescriptor> desc;
+    status_t res;
+    if ((res = VendorTagDescriptor::createDescriptorFromOps(&vOps, /*out*/desc))
+            != OK) {
+        ALOGE("%s: Could not generate descriptor from vendor tag operations,"
+              "received error %s (%d). Camera clients will not be able to use"
+              "vendor tags", __FUNCTION__, strerror(res), res);
+        return false;
+    }
+
+    // Set the global descriptor to use with camera metadata
+    VendorTagDescriptor::setAsGlobalVendorTagDescriptor(desc);
+    return true;
 }
 
 status_t CameraService::validateConnect(int cameraId,
