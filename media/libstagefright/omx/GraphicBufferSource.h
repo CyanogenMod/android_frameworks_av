@@ -118,6 +118,13 @@ public:
     // of suspension on input.
     status_t setMaxTimestampGapUs(int64_t maxGapUs);
 
+    // Sets the time lapse (or slow motion) parameters.
+    // data[0] is the time (us) between two frames for playback
+    // data[1] is the time (us) between two frames for capture
+    // When set, the sample's timestamp will be modified to playback framerate,
+    // and capture timestamp will be modified to capture rate.
+    status_t setTimeLapseUs(int64_t* data);
+
     // Sets the start time us (in system time), samples before which should
     // be dropped and not submitted to encoder
     void setSkipFramesBeforeUs(int64_t startTimeUs);
@@ -249,6 +256,12 @@ private:
     // The previously submitted buffer should've been repeated but
     // no codec buffer was available at the time.
     bool mRepeatBufferDeferred;
+
+    // Time lapse / slow motion configuration
+    int64_t mTimePerCaptureUs;
+    int64_t mTimePerFrameUs;
+    int64_t mPrevCaptureUs;
+    int64_t mPrevFrameUs;
 
     void onMessageReceived(const sp<AMessage> &msg);
 

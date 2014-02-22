@@ -51,7 +51,11 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mLatestSubmittedBufferId(-1),
     mLatestSubmittedBufferFrameNum(0),
     mLatestSubmittedBufferUseCount(0),
-    mRepeatBufferDeferred(false) {
+    mRepeatBufferDeferred(false),
+    mTimePerCaptureUs(-1ll),
+    mTimePerFrameUs(-1ll),
+    mPrevCaptureUs(-1ll),
+    mPrevFrameUs(-1ll) {
 
     ALOGV("GraphicBufferSource w=%u h=%u c=%u",
             bufferWidth, bufferHeight, bufferCount);
@@ -560,7 +564,30 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
 int64_t GraphicBufferSource::getTimestamp(const BufferQueue::BufferItem &item) {
     int64_t timeUs = item.mTimestamp / 1000;
 
-    if (mMaxTimestampGapUs > 0ll) {
+    if (mTimePerCaptureUs > 0ll) {
+        // Time lapse or slow motion mode
+        if (mPrevCaptureUs < 0ll) {
+            // first capture
+            mPrevCaptureUs = timeUs;
+            mPrevFrameUs = timeUs;
+        } else {
+            // snap to nearest capture point
+            int64_t nFrames = (timeUs + mTimePerCaptureUs / 2 - mPrevCaptureUs)
+                    / mTimePerCaptureUs;
+            if (nFrames <= 0) {
+                // skip this frame as it's too close to previous capture
+                ALOGV("skipping frame, timeUs %lld", timeUs);
+                return -1;
+            }
+            mPrevCaptureUs = mPrevCaptureUs + nFrames * mTimePerCaptureUs;
+            mPrevFrameUs += mTimePerFrameUs * nFrames;
+        }
+
+        ALOGV("timeUs %lld, captureUs %lld, frameUs %lld",
+                timeUs, mPrevCaptureUs, mPrevFrameUs);
+
+        return mPrevFrameUs;
+    } else if (mMaxTimestampGapUs > 0ll) {
         /* Cap timestamp gap between adjacent frames to specified max
          *
          * In the scenario of cast mirroring, encoding could be suspended for
@@ -711,7 +738,7 @@ void GraphicBufferSource::onFrameAvailable() {
             // If this is the first time we're seeing this buffer, add it to our
             // slot table.
             if (item.mGraphicBuffer != NULL) {
-                ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mBuf);
+                ALOGV("onFrameAvailable: setting mBufferSlot %d", item.mBuf);
                 mBufferSlot[item.mBuf] = item.mGraphicBuffer;
             }
             mBufferQueue->releaseBuffer(item.mBuf, item.mFrameNumber,
@@ -780,6 +807,19 @@ void GraphicBufferSource::setSkipFramesBeforeUs(int64_t skipFramesBeforeUs) {
 
     mSkipFramesBeforeNs =
             (skipFramesBeforeUs > 0) ? (skipFramesBeforeUs * 1000) : -1ll;
+}
+
+status_t GraphicBufferSource::setTimeLapseUs(int64_t* data) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mExecuting || data[0] <= 0ll || data[1] <= 0ll) {
+        return INVALID_OPERATION;
+    }
+
+    mTimePerFrameUs = data[0];
+    mTimePerCaptureUs = data[1];
+
+    return OK;
 }
 
 void GraphicBufferSource::onMessageReceived(const sp<AMessage> &msg) {

@@ -374,7 +374,9 @@ ACodec::ACodec()
       mStoreMetaDataInOutputBuffers(false),
       mMetaDataBuffersToSubmit(0),
       mRepeatFrameDelayUs(-1ll),
-      mMaxPtsGapUs(-1l),
+      mMaxPtsGapUs(-1ll),
+      mTimePerCaptureUs(-1ll),
+      mTimePerFrameUs(-1ll),
       mCreateInputBuffersSuspended(false) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
@@ -1119,7 +1121,11 @@ status_t ACodec::configureCodec(
         }
 
         if (!msg->findInt64("max-pts-gap-to-encoder", &mMaxPtsGapUs)) {
-            mMaxPtsGapUs = -1l;
+            mMaxPtsGapUs = -1ll;
+        }
+
+        if (!msg->findInt64("time-lapse", &mTimePerCaptureUs)) {
+            mTimePerCaptureUs = -1ll;
         }
 
         if (!msg->findInt32(
@@ -1916,6 +1922,7 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
             return INVALID_OPERATION;
         }
         frameRate = (float)tmp;
+        mTimePerFrameUs = (int64_t) (1000000.0f / frameRate);
     }
 
     video_def->xFramerate = (OMX_U32)(frameRate * 65536.0f);
@@ -3939,7 +3946,7 @@ void ACodec::LoadedState::onCreateInputSurface(
         }
     }
 
-    if (err == OK && mCodec->mMaxPtsGapUs > 0l) {
+    if (err == OK && mCodec->mMaxPtsGapUs > 0ll) {
         err = mCodec->mOMX->setInternalOption(
                 mCodec->mNode,
                 kPortIndexInput,
@@ -3951,8 +3958,27 @@ void ACodec::LoadedState::onCreateInputSurface(
             ALOGE("[%s] Unable to configure max timestamp gap (err %d)",
                     mCodec->mComponentName.c_str(),
                     err);
-          }
-      }
+        }
+    }
+
+    if (err == OK && mCodec->mTimePerCaptureUs > 0ll
+            && mCodec->mTimePerFrameUs > 0ll) {
+        int64_t timeLapse[2];
+        timeLapse[0] = mCodec->mTimePerFrameUs;
+        timeLapse[1] = mCodec->mTimePerCaptureUs;
+        err = mCodec->mOMX->setInternalOption(
+                mCodec->mNode,
+                kPortIndexInput,
+                IOMX::INTERNAL_OPTION_TIME_LAPSE,
+                &timeLapse[0],
+                sizeof(timeLapse));
+
+        if (err != OK) {
+            ALOGE("[%s] Unable to configure time lapse (err %d)",
+                    mCodec->mComponentName.c_str(),
+                    err);
+        }
+    }
 
     if (err == OK && mCodec->mCreateInputBuffersSuspended) {
         bool suspend = true;
