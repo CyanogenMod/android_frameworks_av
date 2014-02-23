@@ -37,6 +37,9 @@
 #ifdef QCOM_HARDWARE
 #include <media/stagefright/ExtendedCodec.h>
 #endif
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include <QCMediaDefs.h>
+#endif
 
 namespace android {
 
@@ -540,6 +543,15 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_AMR_WB,      AUDIO_FORMAT_AMR_WB },
     { MEDIA_MIMETYPE_AUDIO_AAC,         AUDIO_FORMAT_AAC },
     { MEDIA_MIMETYPE_AUDIO_VORBIS,      AUDIO_FORMAT_VORBIS },
+#ifdef ENABLE_AV_ENHANCEMENTS
+    { MEDIA_MIMETYPE_AUDIO_AC3,         AUDIO_FORMAT_AC3 },
+    { MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, AUDIO_FORMAT_AMR_WB_PLUS },
+    { MEDIA_MIMETYPE_AUDIO_DTS,         AUDIO_FORMAT_DTS },
+    { MEDIA_MIMETYPE_AUDIO_EAC3,        AUDIO_FORMAT_EAC3 },
+    { MEDIA_MIMETYPE_AUDIO_EVRC,        AUDIO_FORMAT_EVRC },
+    { MEDIA_MIMETYPE_AUDIO_QCELP,       AUDIO_FORMAT_QCELP },
+    { MEDIA_MIMETYPE_AUDIO_WMA,         AUDIO_FORMAT_WMA },
+#endif
     { 0, AUDIO_FORMAT_INVALID }
 };
 

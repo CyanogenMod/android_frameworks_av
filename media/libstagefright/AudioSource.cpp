@@ -35,7 +35,6 @@
 
 namespace android {
 
-const static int64_t WaitLockEventTimeOutNs = 1000000000LL;
 static void AudioRecordCallbackFunction(int event, void *user, void *info) {
     AudioSource *source = (AudioSource *) user;
     switch (event) {
@@ -350,9 +349,7 @@ status_t AudioSource::read(
     }
 
     while (mStarted && mBuffersReceived.empty()) {
-       status_t err = mFrameAvailableCondition.waitRelative(mLock,WaitLockEventTimeOutNs);
-       if(err == -ETIMEDOUT)
-           return (status_t)err;
+        mFrameAvailableCondition.wait(mLock);
     }
     if (!mStarted) {
         return OK;
