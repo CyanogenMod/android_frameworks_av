@@ -4552,15 +4552,6 @@ status_t OMXCodec::read(
     while (mState != ERROR && !mNoMoreOutputData && mFilledBuffers.empty() &&
            !mOutputPortSettingsChangedPending) {
         if ((err = waitForBufferFilled_l()) != OK) {
-#ifdef QCOM_HARDWARE
-            if ((err == -ETIMEDOUT) && (mPaused == true) && !mIsVideo) {
-                // When the audio playback is paused, the fill buffer maybe timed out
-                // if input data is not available to decode. Hence, considering the
-                // timed out as a valid case.
-                ALOGV("returned OK instead of timedout from read() as mPaused is true");
-                err = OK;
-            } else
-#endif
             mReturnedRetry = (err == -EAGAIN);
             return err;
         }
