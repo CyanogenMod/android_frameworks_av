@@ -51,6 +51,7 @@
 #include <system/audio.h>
 #include <hardware/audio.h>
 #include <hardware/audio_policy.h>
+#include <hardware/power.h>
 
 #include <media/AudioBufferProvider.h>
 #include <media/ExtendedAudioBufferProvider.h>

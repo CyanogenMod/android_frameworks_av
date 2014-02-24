@@ -247,6 +247,7 @@ protected:
                 void        releaseWakeLock_l();
                 void        updateWakeLockUids(const SortedVector<int> &uids);
                 void        updateWakeLockUids_l(const SortedVector<int> &uids);
+                void        setPowerHint(bool active);
                 void        getPowerManager_l();
                 void setEffectSuspended_l(const effect_uuid_t *type,
                                           bool suspend,
@@ -331,6 +332,7 @@ protected:
                                         mSuspendedSessions;
                 static const size_t     kLogSize = 4 * 1024;
                 sp<NBLog::Writer>       mNBLogWriter;
+                power_module_t          *mPowerModule;
 };
 
 // --- PlaybackThread ---
