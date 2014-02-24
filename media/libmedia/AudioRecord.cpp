@@ -175,6 +175,7 @@ status_t AudioRecord::set(
         return INVALID_OPERATION;
     }
 
+    // handle default values first.
     if (inputSource == AUDIO_SOURCE_DEFAULT) {
         inputSource = AUDIO_SOURCE_MIC;
     }
@@ -518,7 +519,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
-    // note that temp is the (possibly revised) value of mFrameCount
+    // note that temp is the (possibly revised) value of frameCount
     if (temp < frameCount || (frameCount == 0 && temp == 0)) {
         ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
     }
