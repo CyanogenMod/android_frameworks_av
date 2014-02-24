@@ -523,11 +523,6 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
     }
     frameCount = temp;
-    // If IAudioRecord is re-created, don't let the requested frameCount
-    // decrease.  This can confuse clients that cache frameCount().
-    if (frameCount > mReqFrameCount) {
-        mReqFrameCount = frameCount;
-    }
 
     // FIXME missing fast track frameCount logic
     mAwaitBoost = false;
@@ -553,6 +548,11 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     mFrameCount = frameCount;
+    // If IAudioRecord is re-created, don't let the requested frameCount
+    // decrease.  This can confuse clients that cache frameCount().
+    if (frameCount > mReqFrameCount) {
+        mReqFrameCount = frameCount;
+    }
 
     // update proxy
     mProxy = new AudioRecordClientProxy(cblk, buffers, mFrameCount, mFrameSize);
