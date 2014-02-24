@@ -41,30 +41,22 @@ status_t AudioRecord::getMinFrameCount(
         return BAD_VALUE;
     }
 
-    // default to 0 in case of error
-    *frameCount = 0;
-
-    size_t size = 0;
+    size_t size;
     status_t status = AudioSystem::getInputBufferSize(sampleRate, format, channelMask, &size);
     if (status != NO_ERROR) {
-        ALOGE("AudioSystem could not query the input buffer size; status %d", status);
-        return NO_INIT;
+        ALOGE("AudioSystem could not query the input buffer size for sampleRate %u, format %#x, "
+              "channelMask %#x; status %d", sampleRate, format, channelMask, status);
+        return status;
     }
 
-    if (size == 0) {
+    // We double the size of input buffer for ping pong use of record buffer.
+    // Assumes audio_is_linear_pcm(format)
+    if ((*frameCount = (size * 2) / (popcount(channelMask) * audio_bytes_per_sample(format))) == 0) {
         ALOGE("Unsupported configuration: sampleRate %u, format %#x, channelMask %#x",
             sampleRate, format, channelMask);
         return BAD_VALUE;
     }
 
-    // We double the size of input buffer for ping pong use of record buffer.
-    size <<= 1;
-
-    // Assumes audio_is_linear_pcm(format)
-    uint32_t channelCount = popcount(channelMask);
-    size /= channelCount * audio_bytes_per_sample(format);
-
-    *frameCount = size;
     return NO_ERROR;
 }
 
@@ -213,11 +205,12 @@ status_t AudioRecord::set(
     mFrameSize = channelCount * audio_bytes_per_sample(format);
 
     // validate framecount
-    size_t minFrameCount = 0;
+    size_t minFrameCount;
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
             sampleRate, format, channelMask);
     if (status != NO_ERROR) {
-        ALOGE("getMinFrameCount() failed; status %d", status);
+        ALOGE("getMinFrameCount() failed for sampleRate %u, format %#x, channelMask %#x; status %d",
+                sampleRate, format, channelMask, status);
         return status;
     }
     ALOGV("AudioRecord::set() minFrameCount = %d", minFrameCount);
