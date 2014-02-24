@@ -1007,8 +1007,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         uint32_t resumeMask = 0;
 
         sp<AnotherPacketSource> sources[kMaxStreams];
-        // TRICKY: looping from i as earlier streams are already removed from streamMask
-        for (size_t j = i; j < kMaxStreams; ++j) {
+        for (size_t j = 0; j < kMaxStreams; ++j) {
             if ((streamMask & indexToType(j)) && uri == mStreams[j].mUri) {
                 sources[j] = mPacketSources.valueFor(indexToType(j));
                 resumeMask |= indexToType(j);
