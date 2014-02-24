@@ -27,6 +27,7 @@
 #include <time.h>
 #include <math.h>
 #include <audio_utils/sndfile.h>
+#include <utils/Vector.h>
 
 using namespace android;
 
@@ -34,7 +35,7 @@ bool gVerbose = false;
 
 static int usage(const char* name) {
     fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
-                   " [-i input-sample-rate] [-o output-sample-rate] [-O #] [<input-file>]"
+                   " [-i input-sample-rate] [-o output-sample-rate] [-O csv] [-P csv] [<input-file>]"
                    " <output-file>\n", name);
     fprintf(stderr,"    -p    enable profiling\n");
     fprintf(stderr,"    -h    create wav file\n");
@@ -51,8 +52,48 @@ static int usage(const char* name) {
     fprintf(stderr,"              dhq : dynamic high quality\n");
     fprintf(stderr,"    -i    input file sample rate (ignored if input file is specified)\n");
     fprintf(stderr,"    -o    output file sample rate\n");
-    fprintf(stderr,"    -O    # frames output per call to resample()\n");
+    fprintf(stderr,"    -O    # frames output per call to resample() in CSV format\n");
+    fprintf(stderr,"    -P    # frames provided per call to resample() in CSV format\n");
     return -1;
+}
+
+// Convert a list of integers in CSV format to a Vector of those values.
+// Returns the number of elements in the list, or -1 on error.
+int parseCSV(const char *string, Vector<int>& values)
+{
+    // pass 1: count the number of values and do syntax check
+    size_t numValues = 0;
+    bool hadDigit = false;
+    for (const char *p = string; ; ) {
+        switch (*p++) {
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
+            hadDigit = true;
+            break;
+        case '\0':
+            if (hadDigit) {
+                // pass 2: allocate and initialize vector of values
+                values.resize(++numValues);
+                values.editItemAt(0) = atoi(p = optarg);
+                for (size_t i = 1; i < numValues; ) {
+                    if (*p++ == ',') {
+                        values.editItemAt(i++) = atoi(p);
+                    }
+                }
+                return numValues;
+            }
+            // fall through
+        case ',':
+            if (hadDigit) {
+                hadDigit = false;
+                numValues++;
+                break;
+            }
+            // fall through
+        default:
+            return -1;
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -65,10 +106,11 @@ int main(int argc, char* argv[]) {
     int input_freq = 0;
     int output_freq = 0;
     AudioResampler::src_quality quality = AudioResampler::DEFAULT_QUALITY;
-    size_t framesPerCall = 0;
+    Vector<int> Ovalues;
+    Vector<int> Pvalues;
 
     int ch;
-    while ((ch = getopt(argc, argv, "pfhvsq:i:o:O:")) != -1) {
+    while ((ch = getopt(argc, argv, "pfhvsq:i:o:O:P:")) != -1) {
         switch (ch) {
         case 'p':
             profileResample = true;
@@ -114,7 +156,16 @@ int main(int argc, char* argv[]) {
             output_freq = atoi(optarg);
             break;
         case 'O':
-            framesPerCall = atoi(optarg);
+            if (parseCSV(optarg, Ovalues) < 0) {
+                fprintf(stderr, "incorrect syntax for -O option\n");
+                return -1;
+            }
+            break;
+        case 'P':
+            if (parseCSV(optarg, Pvalues) < 0) {
+                fprintf(stderr, "incorrect syntax for -P option\n");
+                return -1;
+            }
             break;
         case '?':
         default:
@@ -182,12 +233,14 @@ int main(int argc, char* argv[]) {
         const int       mChannels;
         size_t          mNextFrame; // index of next frame to provide
         size_t          mUnrel;     // number of frames not yet released
+        const Vector<int> mPvalues; // number of frames provided per call
+        size_t          mNextPidx;  // index of next entry in mPvalues to use
     public:
-        Provider(const void* addr, size_t size, int channels)
+        Provider(const void* addr, size_t size, int channels, const Vector<int>& Pvalues)
           : mAddr((int16_t*) addr),
             mNumFrames(size / (channels*sizeof(int16_t))),
             mChannels(channels),
-            mNextFrame(0), mUnrel(0) {
+            mNextFrame(0), mUnrel(0), mPvalues(Pvalues), mNextPidx(0) {
         }
         virtual status_t getNextBuffer(Buffer* buffer,
                 int64_t pts = kInvalidPTS) {
@@ -195,6 +248,16 @@ int main(int argc, char* argv[]) {
             size_t requestedFrames = buffer->frameCount;
             if (requestedFrames > mNumFrames - mNextFrame) {
                 buffer->frameCount = mNumFrames - mNextFrame;
+            }
+            if (!mPvalues.isEmpty()) {
+                size_t provided = mPvalues[mNextPidx++];
+                printf("mPvalue[%d]=%u not %u\n", mNextPidx-1, provided, buffer->frameCount);
+                if (provided < buffer->frameCount) {
+                    buffer->frameCount = provided;
+                }
+                if (mNextPidx >= mPvalues.size()) {
+                    mNextPidx = 0;
+                }
             }
             if (gVerbose) {
                 printf("getNextBuffer() requested %u frames out of %u frames available,"
@@ -230,7 +293,7 @@ int main(int argc, char* argv[]) {
         void reset() {
             mNextFrame = 0;
         }
-    } provider(input_vaddr, input_size, channels);
+    } provider(input_vaddr, input_size, channels, Pvalues);
 
     size_t input_frames = input_size / (channels * sizeof(int16_t));
     if (gVerbose) {
@@ -348,11 +411,17 @@ int main(int argc, char* argv[]) {
     if (gVerbose) {
         printf("resample() %u output frames\n", out_frames);
     }
-    if (framesPerCall == 0 || framesPerCall > out_frames) {
-        framesPerCall = out_frames;
+    if (Ovalues.isEmpty()) {
+        Ovalues.push(out_frames);
     }
-    for (size_t i = 0; i < out_frames; ) {
-        size_t thisFrames = framesPerCall <= out_frames - i ? framesPerCall : out_frames - i;
+    for (size_t i = 0, j = 0; i < out_frames; ) {
+        size_t thisFrames = Ovalues[j++];
+        if (j >= Ovalues.size()) {
+            j = 0;
+        }
+        if (thisFrames == 0 || thisFrames > out_frames - i) {
+            thisFrames = out_frames - i;
+        }
         resampler->resample((int*) output_vaddr + 2*i, thisFrames, &provider);
         i += thisFrames;
     }
