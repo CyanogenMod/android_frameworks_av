@@ -342,7 +342,6 @@ uint32_t OMXCodec::getComponentQuirks(
                 index, "output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
     }
-#ifdef QCOM_HARDWARE
     if (list->codecHasQuirk(
                 index, "requies-loaded-to-idle-after-allocation")) {
         quirks |= kRequiresLoadedToIdleAfterAllocation;
@@ -365,7 +364,6 @@ uint32_t OMXCodec::getComponentQuirks(
         quirks |= kRequiresFlushCompleteEmulation;
     }
 #endif // DOLBY_UDC
-#endif
 #ifdef OMAP_ENHANCEMENT
     if (list->codecHasQuirk(
                 index, "avoid-memcopy-input-recording-frames")) {
@@ -1687,9 +1685,6 @@ OMXCodec::OMXCodec(
       mState(LOADED),
       mInitialBufferSubmit(true),
       mSignalledEOS(false),
-#ifdef QCOM_HARDWARE
-      mFinalStatus(OK),
-#endif
       mNoMoreOutputData(false),
       mOutputPortSettingsHaveChanged(false),
       mSeekTimeUs(-1),
@@ -1886,10 +1881,8 @@ bool OMXCodec::isIntermediateState(State state) {
     return state == LOADED_TO_IDLE
         || state == IDLE_TO_EXECUTING
         || state == EXECUTING_TO_IDLE
-#ifdef QCOM_HARDWARE
         || state == PAUSING
         || state == FLUSHING
-#endif
         || state == IDLE_TO_LOADED
         || state == RECONFIGURING;
 }
@@ -2993,22 +2986,18 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
 
             CODEC_LOGV("FLUSH_DONE(%ld)", portIndex);
 
-#ifdef QCOM_HARDWARE
             if (portIndex == (OMX_U32) -1) {
                 CHECK_EQ((int)mPortStatus[kPortIndexInput], (int)SHUTTING_DOWN);
                 mPortStatus[kPortIndexInput] = ENABLED;
                 CHECK_EQ((int)mPortStatus[kPortIndexOutput], (int)SHUTTING_DOWN);
                 mPortStatus[kPortIndexOutput] = ENABLED;
             } else {
-#endif
-            CHECK_EQ((int)mPortStatus[portIndex], (int)SHUTTING_DOWN);
-            mPortStatus[portIndex] = ENABLED;
+                CHECK_EQ((int)mPortStatus[portIndex], (int)SHUTTING_DOWN);
+                mPortStatus[portIndex] = ENABLED;
 
-            CHECK_EQ(countBuffersWeOwn(mPortBuffers[portIndex]),
-                     mPortBuffers[portIndex].size());
-#ifdef QCOM_HARDWARE
+                CHECK_EQ(countBuffersWeOwn(mPortBuffers[portIndex]),
+                         mPortBuffers[portIndex].size());
             }
-#endif
 
             if (mSkipCutBuffer != NULL && mPortStatus[kPortIndexOutput] == ENABLED) {
                 mSkipCutBuffer->clear();
@@ -3158,7 +3147,6 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
             break;
         }
 
-#ifdef QCOM_HARDWARE
         case OMX_StatePause:
         {
             CODEC_LOGV("Now paused.");
@@ -3166,7 +3154,6 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
             setState(PAUSED);
             break;
         }
-#endif
 
         case OMX_StateInvalid:
         {
@@ -3282,35 +3269,29 @@ void OMXCodec::onPortSettingsChanged(OMX_U32 portIndex) {
 
 bool OMXCodec::flushPortAsync(OMX_U32 portIndex) {
     CHECK(mState == EXECUTING || mState == RECONFIGURING
-#ifdef QCOM_HARDWARE
             || mState == FLUSHING
-#endif
             || mState == EXECUTING_TO_IDLE);
 
-#ifdef QCOM_HARDWARE
     if (portIndex == (OMX_U32) -1 ) {
         mPortStatus[kPortIndexInput] = SHUTTING_DOWN;
         mPortStatus[kPortIndexOutput] = SHUTTING_DOWN;
     } else {
-#endif
-    CODEC_LOGV("flushPortAsync(%ld): we own %d out of %d buffers already.",
-         portIndex, countBuffersWeOwn(mPortBuffers[portIndex]),
-         mPortBuffers[portIndex].size());
+        CODEC_LOGV("flushPortAsync(%ld): we own %d out of %d buffers already.",
+             portIndex, countBuffersWeOwn(mPortBuffers[portIndex]),
+             mPortBuffers[portIndex].size());
 
-    CHECK_EQ((int)mPortStatus[portIndex], (int)ENABLED);
-    mPortStatus[portIndex] = SHUTTING_DOWN;
+        CHECK_EQ((int)mPortStatus[portIndex], (int)ENABLED);
+        mPortStatus[portIndex] = SHUTTING_DOWN;
 
-    if ((mQuirks & kRequiresFlushCompleteEmulation)
-        && countBuffersWeOwn(mPortBuffers[portIndex])
-                == mPortBuffers[portIndex].size()) {
-        // No flush is necessary and this component fails to send a
-        // flush-complete event in this case.
+        if ((mQuirks & kRequiresFlushCompleteEmulation)
+            && countBuffersWeOwn(mPortBuffers[portIndex])
+                    == mPortBuffers[portIndex].size()) {
+            // No flush is necessary and this component fails to send a
+            // flush-complete event in this case.
 
-        return false;
+            return false;
+        }
     }
-#ifdef QCOM_HARDWARE
-    }
-#endif
 
     status_t err =
         mOMX->sendCommand(mNode, OMX_CommandFlush, portIndex);
@@ -3344,11 +3325,7 @@ status_t OMXCodec::enablePortAsync(OMX_U32 portIndex) {
 }
 
 void OMXCodec::fillOutputBuffers() {
-#ifdef QCOM_HARDWARE
     CHECK(mState == EXECUTING || mState == FLUSHING);
-#else
-    CHECK_EQ((int)mState, (int)EXECUTING);
-#endif
 
     // This is a workaround for some decoders not properly reporting
     // end-of-output-stream. If we own all input buffers and also own
@@ -3376,11 +3353,7 @@ void OMXCodec::fillOutputBuffers() {
 }
 
 void OMXCodec::drainInputBuffers() {
-#ifdef QCOM_HARDWARE
     CHECK(mState == EXECUTING || mState == RECONFIGURING || mState == FLUSHING);
-#else
-    CHECK(mState == EXECUTING || mState == RECONFIGURING);
-#endif
 
     if (mFlags & kUseSecureInputBuffers) {
         Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexInput];
@@ -3831,17 +3804,13 @@ status_t OMXCodec::waitForBufferFilled_l() {
     }
 
     status_t err = mBufferFilled.waitRelative(mLock, kBufferFilledEventTimeOutNs);
-#ifdef QCOM_HARDWARE
     if ((err == -ETIMEDOUT) && (mPaused == true)){
         err = OK;
     }
-#endif
 
-#ifdef QCOM_HARDWARE
     if ((err == OK) && (mSignalledReadTryAgain == true) && (mState == EXECUTING || mState == FLUSHING)) {
         return -EAGAIN;
     }
-#endif
 
     if (err != OK) {
         CODEC_LOGE("Timed out waiting for output buffers: %d/%d",
@@ -4193,7 +4162,6 @@ void OMXCodec::clearCodecSpecificData() {
 status_t OMXCodec::start(MetaData *meta) {
     Mutex::Autolock autoLock(mLock);
 
-#ifdef QCOM_HARDWARE
     if(mPaused && mIsEncoder) {
         CODEC_LOGV("resume : S");
         mPaused = false;
@@ -4222,7 +4190,6 @@ status_t OMXCodec::start(MetaData *meta) {
         status_t err = resumeLocked(true);
         return err;
     }
-#endif
 
     if (mState != LOADED) {
         CODEC_LOGE("called start in the unexpected state: %d", mState);
@@ -4338,9 +4305,7 @@ status_t OMXCodec::stopOmxComponent_l() {
             isError = true;
         }
 
-#ifdef QCOM_HARDWARE
         case PAUSED:
-#endif
         case EXECUTING:
         {
             setState(EXECUTING_TO_IDLE);
@@ -4349,7 +4314,6 @@ status_t OMXCodec::stopOmxComponent_l() {
                 CODEC_LOGV("This component requires a flush before transitioning "
                      "from EXECUTING to IDLE...");
 
-#ifdef QCOM_HARDWARE
                 //DSP supports flushing of ports simultaneously.
                 //Flushing individual port is not supported.
                 if(mQuirks & kRequiresGlobalFlush) {
@@ -4358,23 +4322,20 @@ status_t OMXCodec::stopOmxComponent_l() {
                         onCmdComplete(OMX_CommandFlush, kPortIndexBoth);
                     }
                 } else {
-#endif
-                bool emulateInputFlushCompletion =
-                    !flushPortAsync(kPortIndexInput);
+                    bool emulateInputFlushCompletion =
+                        !flushPortAsync(kPortIndexInput);
 
-                bool emulateOutputFlushCompletion =
-                    !flushPortAsync(kPortIndexOutput);
+                    bool emulateOutputFlushCompletion =
+                        !flushPortAsync(kPortIndexOutput);
 
-                if (emulateInputFlushCompletion) {
-                    onCmdComplete(OMX_CommandFlush, kPortIndexInput);
-                }
+                    if (emulateInputFlushCompletion) {
+                        onCmdComplete(OMX_CommandFlush, kPortIndexInput);
+                    }
 
-                if (emulateOutputFlushCompletion) {
-                    onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+                    if (emulateOutputFlushCompletion) {
+                        onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+                    }
                 }
-#ifdef QCOM_HARDWARE
-                }
-#endif
             } else {
                 mPortStatus[kPortIndexInput] = SHUTTING_DOWN;
                 mPortStatus[kPortIndexOutput] = SHUTTING_DOWN;
@@ -4425,7 +4386,6 @@ status_t OMXCodec::read(
 
     Mutex::Autolock autoLock(mLock);
 
-#ifdef QCOM_HARDWARE
     if (mPaused && !mIsEncoder) {
         err = resumeLocked(false);
         if(err != OK) {
@@ -4433,7 +4393,6 @@ status_t OMXCodec::read(
             return err;
         }
     }
-#endif
 
     if (mState != EXECUTING && mState != RECONFIGURING) {
         if(mState == FLUSHING) {
@@ -4504,15 +4463,8 @@ status_t OMXCodec::read(
         mFilledBuffers.clear();
 
         CHECK_EQ((int)mState, (int)EXECUTING);
-#ifdef QCOM_HARDWARE
         setState(FLUSHING);
 
-        if(mQuirks & kRequiresGlobalFlush) {
-            bool emulateFlushCompletion = !flushPortAsync(kPortIndexBoth);
-            if (emulateFlushCompletion) {
-                onCmdComplete(OMX_CommandFlush, kPortIndexBoth);
-            }
-        } else {
         //DSP supports flushing of ports simultaneously.
         //Flushing individual port is not supported.
         if(mQuirks & kRequiresGlobalFlush) {
@@ -4521,21 +4473,17 @@ status_t OMXCodec::read(
                 onCmdComplete(OMX_CommandFlush, kPortIndexBoth);
             }
         } else {
-#endif
-        bool emulateInputFlushCompletion = !flushPortAsync(kPortIndexInput);
-        bool emulateOutputFlushCompletion = !flushPortAsync(kPortIndexOutput);
+            bool emulateInputFlushCompletion = !flushPortAsync(kPortIndexInput);
+            bool emulateOutputFlushCompletion = !flushPortAsync(kPortIndexOutput);
 
-        if (emulateInputFlushCompletion) {
-            onCmdComplete(OMX_CommandFlush, kPortIndexInput);
-        }
+            if (emulateInputFlushCompletion) {
+                onCmdComplete(OMX_CommandFlush, kPortIndexInput);
+            }
 
-        if (emulateOutputFlushCompletion) {
-            onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+            if (emulateOutputFlushCompletion) {
+                onCmdComplete(OMX_CommandFlush, kPortIndexOutput);
+            }
         }
-#ifdef QCOM_HARDWARE
-        }
-        }
-#endif
 
         while (mSeekTimeUs >= 0) {
             if ((err = waitForBufferFilled_l()) != OK) {
@@ -4561,11 +4509,9 @@ status_t OMXCodec::read(
         return UNKNOWN_ERROR;
     }
 
-#ifdef QCOM_HARDWARE
     if (seeking) {
         CHECK_EQ((int)mState, (int)EXECUTING);
     }
-#endif
 
     if (mFilledBuffers.empty()) {
         return mSignalledEOS ? mFinalStatus : ERROR_END_OF_STREAM;
@@ -5255,7 +5201,6 @@ status_t OMXCodec::pause() {
     CODEC_LOGV("pause mState=%d", mState);
 
     Mutex::Autolock autoLock(mLock);
-#ifdef QCOM_HARDWARE
     if (mState != EXECUTING) {
         return UNKNOWN_ERROR;
     }
@@ -5273,16 +5218,12 @@ status_t OMXCodec::pause() {
         }
         return mState == ERROR ? UNKNOWN_ERROR : OK;
     } else {
-#endif
         mPaused = true;
         return OK;
-#ifdef QCOM_HARDWARE
     }
-#endif
 
 }
 
-#ifdef QCOM_HARDWARE
 status_t OMXCodec::resumeLocked(bool drainInputBuf) {
    CODEC_LOGV("resume mState=%d", mState);
 
@@ -5307,7 +5248,6 @@ status_t OMXCodec::resumeLocked(bool drainInputBuf) {
         return OK;
     }
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
