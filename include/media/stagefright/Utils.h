@@ -62,6 +62,7 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink, const sp<MetaDa
 // Check whether the stream defined by meta can be offloaded to hardware
 bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData>& vMeta,
                       bool isStreaming, audio_stream_type_t streamType);
+void printFileName(int fd);
 
 AString uriDebugString(const AString &uri, bool incognito = false);
 

@@ -370,6 +370,10 @@ status_t AwesomePlayer::setDataSource_l(
 
     ALOGI("setDataSource_l(%s)", uriDebugString(mUri, mFlags & INCOGNITO).c_str());
 
+    if (mUri && !(mFlags & INCOGNITO)) {
+        ALOGD("printFileName %s",mUri.string());
+    }
+
     // The actual work will be done during preparation in the call to
     // ::finishSetDataSource_l to avoid blocking the calling thread in
     // setDataSource for any significant time.
@@ -388,6 +392,9 @@ status_t AwesomePlayer::setDataSource(
     Mutex::Autolock autoLock(mLock);
 
     reset_l();
+    if (fd) {
+       printFileName(fd);
+    }
 
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
