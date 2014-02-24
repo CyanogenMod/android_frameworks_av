@@ -133,6 +133,11 @@ status_t AudioRecord::set(
         transfer_type transferType,
         audio_input_flags_t flags)
 {
+    ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %d, "
+          "notificationFrames %d, sessionId %d, transferType %d, flags %#x",
+          inputSource, sampleRate, format, channelMask, frameCountInt, notificationFrames,
+          sessionId, transferType, flags);
+
     switch (transferType) {
     case TRANSFER_DEFAULT:
         if (cbf == NULL || threadCanCallJava) {
@@ -162,9 +167,6 @@ status_t AudioRecord::set(
         return BAD_VALUE;
     }
     size_t frameCount = frameCountInt;
-
-    ALOGV("set(): sampleRate %u, channelMask %#x, frameCount %u", sampleRate, channelMask,
-            frameCount);
 
     AutoMutex lock(mLock);
 
