@@ -407,12 +407,6 @@ void Camera2Client::disconnect() {
         l.mParameters.state = Parameters::DISCONNECTED;
     }
 
-    mStreamingProcessor->deletePreviewStream();
-    mStreamingProcessor->deleteRecordingStream();
-    mJpegProcessor->deleteStream();
-    mCallbackProcessor->deleteStream();
-    mZslProcessor->deleteStream();
-
     mStreamingProcessor->requestExit();
     mFrameProcessor->requestExit();
     mCaptureSequencer->requestExit();
@@ -428,6 +422,14 @@ void Camera2Client::disconnect() {
     mJpegProcessor->join();
     mZslProcessorThread->join();
     mCallbackProcessor->join();
+
+    ALOGV("Camera %d: Deleting streams", mCameraId);
+
+    mStreamingProcessor->deletePreviewStream();
+    mStreamingProcessor->deleteRecordingStream();
+    mJpegProcessor->deleteStream();
+    mCallbackProcessor->deleteStream();
+    mZslProcessor->deleteStream();
 
     ALOGV("Camera %d: Disconnecting device", mCameraId);
 
