@@ -56,9 +56,7 @@ AudioPlayer::AudioPlayer(
       mFinalStatus(OK),
       mSeekTimeUs(0),
       mStarted(false),
-#ifdef QCOM_HARDWARE
       mSourcePaused(false),
-#endif
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
@@ -67,10 +65,8 @@ AudioPlayer::AudioPlayer(
       mPinnedTimeUs(-1ll),
       mPlaying(false),
       mStartPosUs(0),
-      mCreateFlags(flags)
-#ifdef QCOM_HARDWARE
-      ,mPauseRequired(false)
-#endif
+      mCreateFlags(flags),
+      mPauseRequired(false)
       {
 }
 
@@ -91,9 +87,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     status_t err;
     if (!sourceAlreadyStarted) {
-#ifdef QCOM_HARDWARE
         mSourcePaused = false;
-#endif
         err = mSource->start();
 
         if (err != OK) {
@@ -262,13 +256,16 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     mStarted = true;
     mPlaying = true;
     mPinnedTimeUs = -1ll;
-#ifdef QCOM_HARDWARE
     const char *componentName;
     if (!(format->findCString(kKeyDecoderComponent, &componentName))) {
           componentName = "none";
     }
-    mPauseRequired = ExtendedCodec::isSourcePauseRequired(componentName);
-#endif
+    if (!strncmp(componentName, "OMX.qcom.", 9)) {
+        mPauseRequired = true;
+    } else {
+        mPauseRequired = false;
+    }
+
     return OK;
 }
 
@@ -294,25 +291,21 @@ void AudioPlayer::pause(bool playPendingSamples) {
     }
 
     mPlaying = false;
-#ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
     if (mPauseRequired) {
         if (mSource->pause() == OK) {
             mSourcePaused = true;
         }
     }
-#endif
 }
 
 status_t AudioPlayer::resume() {
     CHECK(mStarted);
-#ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
     if (mSourcePaused == true) {
         mSourcePaused = false;
         mSource->start();
     }
-#endif
     status_t err;
 
     if (mAudioSink.get() != NULL) {
@@ -375,9 +368,7 @@ void AudioPlayer::reset() {
         mInputBuffer = NULL;
     }
 
-#ifdef QCOM_HARDWARE
     mSourcePaused = false;
-#endif
     mSource->stop();
 
     // The following hack is necessary to ensure that the OMX
@@ -407,9 +398,7 @@ void AudioPlayer::reset() {
     mStarted = false;
     mPlaying = false;
     mStartPosUs = 0;
-#ifdef QCOM_HARDWARE
     mPauseRequired = false;
-#endif
 }
 
 // static
@@ -575,11 +564,8 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
 
                 mIsFirstBuffer = false;
             } else {
-#ifdef QCOM_HARDWARE
                 if(!mSourcePaused) {
-#endif
                     err = mSource->read(&mInputBuffer, &options);
-#ifdef QCOM_HARDWARE
                     if (err == OK && mInputBuffer == NULL && mSourcePaused) {
                         ALOGV("mSourcePaused, return 0 from fillBuffer");
                         return 0;
@@ -595,7 +581,6 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                 } else {
                     continue;
                 }
-#endif
             }
 
             CHECK((err == OK && mInputBuffer != NULL)
