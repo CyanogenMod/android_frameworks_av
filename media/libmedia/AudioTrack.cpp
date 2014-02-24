@@ -1016,10 +1016,12 @@ status_t AudioTrack::createTrack_l(size_t epoch)
                                                       mClientUid,
                                                       &status);
 
-    if (track == 0) {
+    if (status != NO_ERROR) {
         ALOGE("AudioFlinger could not create track, status: %d", status);
         goto release;
     }
+    ALOG_ASSERT(track != 0);
+
     // AudioFlinger now owns the reference to the I/O handle,
     // so we are no longer responsible for releasing it.
 
