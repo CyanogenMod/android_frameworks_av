@@ -110,10 +110,8 @@ AudioRecord::~AudioRecord()
             mAudioRecordThread->requestExitAndWait();
             mAudioRecordThread.clear();
         }
-        if (mAudioRecord != 0) {
-            mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
-            mAudioRecord.clear();
-        }
+        mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
+        mAudioRecord.clear();
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId, -1);
     }
@@ -170,6 +168,7 @@ status_t AudioRecord::set(
 
     AutoMutex lock(mLock);
 
+    // invariant that mAudioRecord != 0 is true only after set() returns successfully
     if (mAudioRecord != 0) {
         ALOGE("Track already in use");
         return INVALID_OPERATION;
@@ -508,6 +507,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         ALOGE("Could not get control block pointer");
         return NO_INIT;
     }
+    // invariant that mAudioRecord != 0 is true only after set() returns successfully
     if (mAudioRecord != 0) {
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mDeathNotifier.clear();
