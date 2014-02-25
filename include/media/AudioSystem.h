@@ -118,6 +118,7 @@ public:
 
     static bool routedToA2dpOutput(audio_stream_type_t streamType);
 
+    // return status NO_ERROR implies *buffSize > 0
     static status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
         audio_channel_mask_t channelMask, size_t* buffSize);
 
