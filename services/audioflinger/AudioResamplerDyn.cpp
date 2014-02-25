@@ -165,6 +165,10 @@ AudioResamplerDyn::AudioResamplerDyn(int bitDepth,
     mCoefBuffer(NULL)
 {
     mVolumeSimd[0] = mVolumeSimd[1] = 0;
+    // The AudioResampler base class assumes we are always ready for 1:1 resampling.
+    // We reset mInSampleRate to 0, so setSampleRate() will calculate filters for
+    // setSampleRate() for 1:1. (May be removed if precalculated filters are used.)
+    mInSampleRate = 0;
     mConstants.set(128, 8, mSampleRate, mSampleRate); // TODO: set better
 }
 
