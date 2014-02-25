@@ -195,6 +195,11 @@ status_t AudioTrack::set(
         int uid,
         pid_t pid)
 {
+    ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %d, "
+          "flags #%x, notificationFrames %d, sessionId %d, transferType %d",
+          streamType, sampleRate, format, channelMask, frameCountInt, flags, notificationFrames,
+          sessionId, transferType);
+
     switch (transferType) {
     case TRANSFER_DEFAULT:
         if (sharedBuffer != 0) {
