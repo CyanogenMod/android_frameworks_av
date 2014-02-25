@@ -293,6 +293,9 @@ status_t AudioTrack::set(
         ALOGE("Invalid channel mask %#x", channelMask);
         return BAD_VALUE;
     }
+    mChannelMask = channelMask;
+    uint32_t channelCount = popcount(channelMask);
+    mChannelCount = channelCount;
 
     // AudioFlinger does not currently support 8-bit data in shared memory
     if (format == AUDIO_FORMAT_PCM_8_BIT && sharedBuffer != 0) {
@@ -315,10 +318,6 @@ status_t AudioTrack::set(
     if (streamType != AUDIO_STREAM_MUSIC) {
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
-
-    mChannelMask = channelMask;
-    uint32_t channelCount = popcount(channelMask);
-    mChannelCount = channelCount;
 
     if (audio_is_linear_pcm(format)) {
         mFrameSize = channelCount * audio_bytes_per_sample(format);
