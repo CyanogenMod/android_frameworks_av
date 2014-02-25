@@ -27,6 +27,7 @@
 #include <system/audio.h>
 #include <system/audio_policy.h>
 #include <hardware/audio_policy.h>
+#include <hardware/power.h>
 #include <media/IAudioPolicyService.h>
 #include <media/ToneGenerator.h>
 #include <media/AudioEffect.h>
@@ -483,6 +484,7 @@ private:
     // Internal dump utilities.
     status_t dumpPermissionDenial(int fd);
 
+    void setPowerHint(bool active);
 
     mutable Mutex mLock;    // prevents concurrent access to AudioPolicy manager functions changing
                             // device connection state  or routing
@@ -499,6 +501,8 @@ private:
     // Manage all effects configured in audio_effects.conf
     sp<AudioPolicyEffects> mAudioPolicyEffects;
     audio_mode_t mPhoneState;
+
+    power_module_t *mPowerModule;
 };
 
 }; // namespace android

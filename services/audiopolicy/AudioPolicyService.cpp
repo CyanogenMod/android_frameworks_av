@@ -80,6 +80,9 @@ void AudioPolicyService::onFirstRef()
         // start output activity command thread
         mOutputCommandThread = new AudioCommandThread(String8("ApmOutput"), this);
 
+        rc = hw_get_module(POWER_HARDWARE_MODULE_ID, (const hw_module_t **)&mPowerModule);
+        ALOGW_IF(rc, "couldn't get power module (%s)", strerror(-rc));
+
 #ifdef USE_LEGACY_AUDIO_POLICY
         ALOGI("AudioPolicyService CSTOR in legacy mode");
 
@@ -261,6 +264,13 @@ void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
 void AudioPolicyService::binderDied(const wp<IBinder>& who) {
     ALOGW("binderDied() %p, calling pid %d", who.unsafe_get(),
             IPCThreadState::self()->getCallingPid());
+}
+
+void AudioPolicyService::setPowerHint(bool active) {
+    if (mPowerModule && mPowerModule->powerHint) {
+        mPowerModule->powerHint(mPowerModule, POWER_HINT_AUDIO,
+                active ? (void *)"state=1" : (void *)"state=0");
+    }
 }
 
 static bool tryLock(Mutex& mutex)

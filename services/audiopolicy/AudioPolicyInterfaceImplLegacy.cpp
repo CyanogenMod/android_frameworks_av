@@ -165,6 +165,7 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
     }
 
     Mutex::Autolock _l(mLock);
+    setPowerHint(true);
     return mpAudioPolicy->start_output(mpAudioPolicy, output, stream, session);
 }
 
@@ -198,7 +199,9 @@ status_t  AudioPolicyService::doStopOutput(audio_io_handle_t output,
         }
     }
     Mutex::Autolock _l(mLock);
-    return mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
+    status_t ret = mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
+    setPowerHint(false);
+    return ret;
 }
 
 void AudioPolicyService::releaseOutput(audio_io_handle_t output)
@@ -272,6 +275,7 @@ status_t AudioPolicyService::startInput(audio_io_handle_t input,
     }
     Mutex::Autolock _l(mLock);
 
+    setPowerHint(true);
     return mpAudioPolicy->start_input(mpAudioPolicy, input);
 }
 
@@ -283,7 +287,9 @@ status_t AudioPolicyService::stopInput(audio_io_handle_t input,
     }
     Mutex::Autolock _l(mLock);
 
-    return mpAudioPolicy->stop_input(mpAudioPolicy, input);
+    status_t ret = mpAudioPolicy->stop_input(mpAudioPolicy, input);
+    setPowerHint(false);
+    return ret;
 }
 
 void AudioPolicyService::releaseInput(audio_io_handle_t input,
