@@ -203,8 +203,11 @@ status_t AudioRecord::set(
     uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
 
-    // Assumes audio_is_linear_pcm(format), else sizeof(uint8_t)
-    mFrameSize = channelCount * audio_bytes_per_sample(format);
+    if (audio_is_linear_pcm(format)) {
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+    } else {
+        mFrameSize = sizeof(uint8_t);
+    }
 
     // validate framecount
     size_t minFrameCount;
