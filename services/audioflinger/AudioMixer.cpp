@@ -193,6 +193,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
         t->mainBuffer = NULL;
         t->auxBuffer = NULL;
         t->downmixerBufferProvider = NULL;
+        t->mSinkFormat = AUDIO_FORMAT_PCM_16_BIT;
 
         status_t status = initTrackDownmix(&mState.tracks[n], n, channelMask);
         if (status == OK) {
@@ -440,6 +441,13 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         //         for a specific track? or per mixer?
         /* case DOWNMIX_TYPE:
             break          */
+        case SINK_FORMAT: {
+            audio_format_t format = static_cast<audio_format_t>(valueInt);
+            if (track.mSinkFormat != format) {
+                track.mSinkFormat = format;
+                ALOGV("setParameter(TRACK, SINK_FORMAT, %#x)", format);
+            }
+            } break;
         default:
             LOG_FATAL("bad param");
         }
@@ -1043,7 +1051,7 @@ void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount,
 void AudioMixer::process__nop(state_t* state, int64_t pts)
 {
     uint32_t e0 = state->enabledTracks;
-    size_t bufSize = state->frameCount * sizeof(int16_t) * MAX_NUM_CHANNELS;
+    size_t sampleCount = state->frameCount * MAX_NUM_CHANNELS;
     while (e0) {
         // process by group of tracks with same output buffer to
         // avoid multiple memset() on same buffer
@@ -1062,7 +1070,8 @@ void AudioMixer::process__nop(state_t* state, int64_t pts)
             }
             e0 &= ~(e1);
 
-            memset(t1.mainBuffer, 0, bufSize);
+            memset(t1.mainBuffer, 0, sampleCount
+                    * audio_bytes_per_sample(t1.mSinkFormat));
         }
 
         while (e1) {
@@ -1170,8 +1179,18 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                     }
                 }
             }
-            ditherAndClamp(out, outTemp, BLOCKSIZE);
-            out += BLOCKSIZE;
+            switch (t1.mSinkFormat) {
+            case AUDIO_FORMAT_PCM_FLOAT:
+                memcpy_to_float_from_q19_12(reinterpret_cast<float *>(out), outTemp, BLOCKSIZE * 2);
+                out += BLOCKSIZE * 2; // output is 2 floats/frame.
+                break;
+            case AUDIO_FORMAT_PCM_16_BIT:
+                ditherAndClamp(out, outTemp, BLOCKSIZE);
+                out += BLOCKSIZE; // output is 1 int32_t (2 int16_t samples)/frame
+                break;
+            default:
+                LOG_ALWAYS_FATAL("bad sink format: %d", t1.mSinkFormat);
+            }
             numFrames += BLOCKSIZE;
         } while (numFrames < state->frameCount);
     }
@@ -1253,7 +1272,16 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
                 }
             }
         }
-        ditherAndClamp(out, outTemp, numFrames);
+        switch (t1.mSinkFormat) {
+        case AUDIO_FORMAT_PCM_FLOAT:
+            memcpy_to_float_from_q19_12(reinterpret_cast<float*>(out), outTemp, numFrames*2);
+            break;
+        case AUDIO_FORMAT_PCM_16_BIT:
+            ditherAndClamp(out, outTemp, numFrames);
+            break;
+        default:
+            LOG_ALWAYS_FATAL("bad sink format: %d", t1.mSinkFormat);
+        }
     }
 }
 
@@ -1294,27 +1322,45 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
         }
         size_t outFrames = b.frameCount;
 
-        if (CC_UNLIKELY(uint32_t(vl) > UNITY_GAIN || uint32_t(vr) > UNITY_GAIN)) {
-            // volume is boosted, so we might need to clamp even though
-            // we process only one track.
+        switch (t.mSinkFormat) {
+        case AUDIO_FORMAT_PCM_FLOAT: {
+            float *fout = reinterpret_cast<float*>(out);
+            static float scale = 1. / (32768. * 4096.); // exact when inverted
             do {
                 uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
                 in += 2;
-                int32_t l = mulRL(1, rl, vrl) >> 12;
-                int32_t r = mulRL(0, rl, vrl) >> 12;
-                // clamping...
-                l = clamp16(l);
-                r = clamp16(r);
-                *out++ = (r<<16) | (l & 0xFFFF);
+                int32_t l = mulRL(1, rl, vrl);
+                int32_t r = mulRL(0, rl, vrl);
+                *fout++ = static_cast<float>(l) * scale;
+                *fout++ = static_cast<float>(r) * scale;
             } while (--outFrames);
-        } else {
-            do {
-                uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
-                in += 2;
-                int32_t l = mulRL(1, rl, vrl) >> 12;
-                int32_t r = mulRL(0, rl, vrl) >> 12;
-                *out++ = (r<<16) | (l & 0xFFFF);
-            } while (--outFrames);
+            } break;
+        case AUDIO_FORMAT_PCM_16_BIT:
+            if (CC_UNLIKELY(uint32_t(vl) > UNITY_GAIN || uint32_t(vr) > UNITY_GAIN)) {
+                // volume is boosted, so we might need to clamp even though
+                // we process only one track.
+                do {
+                    uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
+                    in += 2;
+                    int32_t l = mulRL(1, rl, vrl) >> 12;
+                    int32_t r = mulRL(0, rl, vrl) >> 12;
+                    // clamping...
+                    l = clamp16(l);
+                    r = clamp16(r);
+                    *out++ = (r<<16) | (l & 0xFFFF);
+                } while (--outFrames);
+            } else {
+                do {
+                    uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
+                    in += 2;
+                    int32_t l = mulRL(1, rl, vrl) >> 12;
+                    int32_t r = mulRL(0, rl, vrl) >> 12;
+                    *out++ = (r<<16) | (l & 0xFFFF);
+                } while (--outFrames);
+            }
+            break;
+        default:
+            LOG_ALWAYS_FATAL("bad sink format: %d", t.mSinkFormat);
         }
         numFrames -= b.frameCount;
         t.bufferProvider->releaseBuffer(&b);
