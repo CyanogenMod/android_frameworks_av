@@ -352,6 +352,20 @@ status_t MediaCodec::getOutputFormat(sp<AMessage> *format) const {
     return OK;
 }
 
+status_t MediaCodec::getInputFormat(sp<AMessage> *format) const {
+    sp<AMessage> msg = new AMessage(kWhatGetInputFormat, id());
+
+    sp<AMessage> response;
+    status_t err;
+    if ((err = PostAndAwaitResponse(msg, &response)) != OK) {
+        return err;
+    }
+
+    CHECK(response->findMessage("format", format));
+
+    return OK;
+}
+
 status_t MediaCodec::getName(AString *name) const {
     sp<AMessage> msg = new AMessage(kWhatGetName, id());
 
@@ -641,6 +655,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     // reset input surface flag
                     mHaveInputSurface = false;
+
+                    CHECK(msg->findMessage("input-format", &mInputFormat));
+                    CHECK(msg->findMessage("output-format", &mOutputFormat));
 
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -1330,14 +1347,19 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatGetInputFormat:
         case kWhatGetOutputFormat:
         {
+            sp<AMessage> format =
+                (msg->what() == kWhatGetOutputFormat ? mOutputFormat : mInputFormat);
+
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if ((mState != STARTED && mState != FLUSHING)
+            if ((mState != CONFIGURED && mState != STARTING &&
+                 mState != STARTED && mState != FLUSHING)
                     || (mFlags & kFlagStickyError)
-                    || mOutputFormat == NULL) {
+                    || format == NULL) {
                 sp<AMessage> response = new AMessage;
                 response->setInt32("err", INVALID_OPERATION);
 
@@ -1346,7 +1368,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             sp<AMessage> response = new AMessage;
-            response->setMessage("format", mOutputFormat);
+            response->setMessage("format", format);
             response->postReply(replyID);
             break;
         }
