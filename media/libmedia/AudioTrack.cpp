@@ -1039,6 +1039,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         mDeathNotifier.clear();
     }
     mAudioTrack = track;
+
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
@@ -1050,6 +1051,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
     }
     frameCount = temp;
+
     mAwaitBoost = false;
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
@@ -1103,6 +1105,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
     mAudioTrack->attachAuxEffect(mAuxEffectId);
     // FIXME don't believe this lie
     mLatency = afLatency + (1000*frameCount) / mSampleRate;
+
     mFrameCount = frameCount;
     // If IAudioTrack is re-created, don't let the requested frameCount
     // decrease.  This can confuse clients that cache frameCount().
