@@ -256,7 +256,6 @@ status_t AudioRecord::set(
 
     mActive = false;
     mCbf = cbf;
-    mRefreshRemaining = true;
     mUserData = user;
     // TODO: add audio hardware input latency here
     mLatency = (1000*mFrameCount) / sampleRate;
@@ -537,6 +536,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
             }
         }
     }
+
+    mRefreshRemaining = true;
 
     // starting address of buffers in shared memory
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
