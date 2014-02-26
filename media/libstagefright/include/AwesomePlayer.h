@@ -387,6 +387,7 @@ private:
     status_t selectTrack(size_t trackIndex, bool select);
 
     size_t countTracks() const;
+    bool isWidevineContent() const;
 
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
