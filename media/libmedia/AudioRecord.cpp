@@ -504,10 +504,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mDeathNotifier.clear();
     }
-
-    // We retain a copy of the I/O handle, but don't own the reference
-    mInput = input;
     mAudioRecord = record;
+
     mCblkMemory = iMem;
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
@@ -537,6 +535,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         }
     }
 
+    // We retain a copy of the I/O handle, but don't own the reference
+    mInput = input;
     mRefreshRemaining = true;
 
     // Starting address of buffers in shared memory, immediately after the control block.  This
