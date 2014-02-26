@@ -539,7 +539,9 @@ status_t AudioRecord::openRecord_l(size_t epoch)
 
     mRefreshRemaining = true;
 
-    // starting address of buffers in shared memory
+    // Starting address of buffers in shared memory, immediately after the control block.  This
+    // address is for the mapping within client address space.  AudioFlinger::TrackBase::mBuffer
+    // is for the server address space.
     void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     mFrameCount = frameCount;
