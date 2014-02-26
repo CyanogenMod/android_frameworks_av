@@ -127,6 +127,7 @@ private:
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
     sp<ALooper> mLooper;
 
+    status_t prepareInternal();
     status_t setupMPEG4Recording();
     void setupMPEG4MetaData(sp<MetaData> *meta);
     status_t setupAMRRecording();
