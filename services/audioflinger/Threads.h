@@ -484,6 +484,29 @@ protected:
 
     int16_t*                        mSinkBuffer;         // frame size aligned sink buffer
 
+    // Mixer Buffer (mMixerBuffer*)
+    //
+    // In the case of floating point or multichannel data, which is not in the
+    // sink format, it is required to accumulate in a higher precision or greater channel count
+    // buffer before downmixing or data conversion to the sink buffer.
+
+    // Set to "true" to enable the Mixer Buffer otherwise mixer output goes to sink buffer.
+    bool                            mMixerBufferEnabled;
+
+    // Storage, 32 byte aligned (may make this alignment a requirement later).
+    // Due to constraints on mNormalFrameCount, the buffer size is a multiple of 16 frames.
+    void*                           mMixerBuffer;
+
+    // Size of mMixerBuffer in bytes: mNormalFrameCount * #channels * sampsize.
+    size_t                          mMixerBufferSize;
+
+    // The audio format of mMixerBuffer. Set to AUDIO_FORMAT_PCM_(FLOAT|16_BIT) only.
+    audio_format_t                  mMixerBufferFormat;
+
+    // An internal flag set to true by MixerThread::prepareTracks_l()
+    // when mMixerBuffer contains valid data after mixing.
+    bool                            mMixerBufferValid;
+
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
     // concurrent use of both of them, so Audio Policy Service suspends one of the threads to
