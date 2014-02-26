@@ -35,11 +35,16 @@ using namespace android;
 
 
 status_t EglWindow::createWindow(const sp<IGraphicBufferProducer>& surface) {
-    status_t err = eglSetupContext();
+    if (mEglSurface != EGL_NO_SURFACE) {
+        ALOGE("surface already created");
+        return UNKNOWN_ERROR;
+    }
+    status_t err = eglSetupContext(false);
     if (err != NO_ERROR) {
         return err;
     }
 
+    // Cache the current dimensions.  We're not expecting these to change.
     surface->query(NATIVE_WINDOW_WIDTH, &mWidth);
     surface->query(NATIVE_WINDOW_HEIGHT, &mHeight);
 
@@ -56,6 +61,34 @@ status_t EglWindow::createWindow(const sp<IGraphicBufferProducer>& surface) {
     return NO_ERROR;
 }
 
+status_t EglWindow::createPbuffer(int width, int height) {
+    if (mEglSurface != EGL_NO_SURFACE) {
+        ALOGE("surface already created");
+        return UNKNOWN_ERROR;
+    }
+    status_t err = eglSetupContext(true);
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    mWidth = width;
+    mHeight = height;
+
+    EGLint pbufferAttribs[] = {
+            EGL_WIDTH, width,
+            EGL_HEIGHT, height,
+            EGL_NONE
+    };
+    mEglSurface = eglCreatePbufferSurface(mEglDisplay, mEglConfig, pbufferAttribs);
+    if (mEglSurface == EGL_NO_SURFACE) {
+        ALOGE("eglCreatePbufferSurface error: %#x", eglGetError());
+        eglRelease();
+        return UNKNOWN_ERROR;
+    }
+
+    return NO_ERROR;
+}
+
 status_t EglWindow::makeCurrent() const {
     if (!eglMakeCurrent(mEglDisplay, mEglSurface, mEglSurface, mEglContext)) {
         ALOGE("eglMakeCurrent failed: %#x", eglGetError());
@@ -64,7 +97,7 @@ status_t EglWindow::makeCurrent() const {
     return NO_ERROR;
 }
 
-status_t EglWindow::eglSetupContext() {
+status_t EglWindow::eglSetupContext(bool forPbuffer) {
     EGLBoolean result;
 
     mEglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -82,17 +115,28 @@ status_t EglWindow::eglSetupContext() {
     ALOGV("Initialized EGL v%d.%d", majorVersion, minorVersion);
 
     EGLint numConfigs = 0;
-    EGLint configAttribs[] = {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_RECORDABLE_ANDROID, 1,
-        EGL_RED_SIZE, 8,
-        EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
-        EGL_NONE
+    EGLint windowConfigAttribs[] = {
+            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_RECORDABLE_ANDROID, 1,
+            EGL_RED_SIZE, 8,
+            EGL_GREEN_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
+            // no alpha
+            EGL_NONE
     };
-    result = eglChooseConfig(mEglDisplay, configAttribs, &mEglConfig, 1,
-            &numConfigs);
+    EGLint pbufferConfigAttribs[] = {
+            EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_RED_SIZE, 8,
+            EGL_GREEN_SIZE, 8,
+            EGL_BLUE_SIZE, 8,
+            EGL_ALPHA_SIZE, 8,
+            EGL_NONE
+    };
+    result = eglChooseConfig(mEglDisplay,
+            forPbuffer ? pbufferConfigAttribs : windowConfigAttribs,
+            &mEglConfig, 1, &numConfigs);
     if (result != EGL_TRUE) {
         ALOGE("eglChooseConfig error: %#x", eglGetError());
         return UNKNOWN_ERROR;

@@ -19,6 +19,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
 	screenrecord.cpp \
 	EglWindow.cpp \
+	FrameOutput.cpp \
 	TextRenderer.cpp \
 	Overlay.cpp \
 	Program.cpp

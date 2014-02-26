@@ -44,6 +44,9 @@ public:
     // Creates an EGL window for the supplied surface.
     status_t createWindow(const sp<IGraphicBufferProducer>& surface);
 
+    // Creates an EGL pbuffer surface.
+    status_t createPbuffer(int width, int height);
+
     // Return width and height values (obtained from IGBP).
     int getWidth() const { return mWidth; }
     int getHeight() const { return mHeight; }
@@ -65,7 +68,7 @@ private:
     EglWindow& operator=(const EglWindow&);
 
     // Init display, create config and context.
-    status_t eglSetupContext();
+    status_t eglSetupContext(bool forPbuffer);
     void eglRelease();
 
     // Basic EGL goodies.
