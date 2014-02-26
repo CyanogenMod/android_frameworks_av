@@ -482,10 +482,12 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     ALOGE_IF(originalSessionId != AUDIO_SESSION_ALLOCATE && mSessionId != originalSessionId,
             "session ID changed from %d to %d", originalSessionId, mSessionId);
 
-    if (record == 0 || status != NO_ERROR) {
+    if (status != NO_ERROR) {
         ALOGE("AudioFlinger could not create record track, status: %d", status);
         goto release;
     }
+    ALOG_ASSERT(record != 0);
+
     // AudioFlinger now owns the reference to the I/O handle,
     // so we are no longer responsible for releasing it.
 
