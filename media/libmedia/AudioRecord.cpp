@@ -451,6 +451,9 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         }
     }
 
+    // FIXME Assume double buffering, because we don't know the true HAL sample rate
+    const uint32_t nBuffering = 2;
+
     mNotificationFramesAct = mNotificationFramesReq;
     size_t frameCount = mReqFrameCount;
 
@@ -522,23 +525,21 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
     frameCount = temp;
 
-    // FIXME missing fast track frameCount logic
     mAwaitBoost = false;
     if (mFlags & AUDIO_INPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
-            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", mFrameCount);
+            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", frameCount);
             mAwaitBoost = true;
-            // double-buffering is not required for fast tracks, due to tighter scheduling
-            if (mNotificationFramesAct == 0 || mNotificationFramesAct > mFrameCount) {
-                mNotificationFramesAct = mFrameCount;
-            }
         } else {
-            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %u", mFrameCount);
+            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
             // once denied, do not request again if IAudioRecord is re-created
             mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
-            if (mNotificationFramesAct == 0 || mNotificationFramesAct > mFrameCount/2) {
-                mNotificationFramesAct = mFrameCount/2;
-            }
+        }
+        // Theoretically double-buffering is not required for fast tracks,
+        // due to tighter scheduling.  But in practice, to accomodate kernels with
+        // scheduling jitter, and apps with computation jitter, we use double-buffering.
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
+            mNotificationFramesAct = frameCount/nBuffering;
         }
     }
 
