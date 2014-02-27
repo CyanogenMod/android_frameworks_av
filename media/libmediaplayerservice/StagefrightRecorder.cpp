@@ -748,7 +748,7 @@ status_t StagefrightRecorder::setClientName(const String16& clientName) {
     return OK;
 }
 
-status_t StagefrightRecorder::prepare() {
+status_t StagefrightRecorder::prepareInternal() {
     ALOGV("prepare");
     if (mOutputFd < 0) {
         ALOGE("Output file descriptor is invalid");
@@ -794,6 +794,13 @@ status_t StagefrightRecorder::prepare() {
     return status;
 }
 
+status_t StagefrightRecorder::prepare() {
+    if (mVideoSource == VIDEO_SOURCE_SURFACE) {
+        return prepareInternal();
+    }
+    return OK;
+}
+
 status_t StagefrightRecorder::start() {
     ALOGV("start");
     if (mOutputFd < 0) {
@@ -801,14 +808,19 @@ status_t StagefrightRecorder::start() {
         return INVALID_OPERATION;
     }
 
-    // Get UID here for permission checking
-    mClientUid = IPCThreadState::self()->getCallingUid();
+    status_t status = OK;
+
+    if (mVideoSource != VIDEO_SOURCE_SURFACE) {
+        status = prepareInternal();
+        if (status != OK) {
+            return status;
+        }
+    }
+
     if (mWriter == NULL) {
         ALOGE("File writer is not avaialble");
         return UNKNOWN_ERROR;
     }
-
-    status_t status = OK;
 
     switch (mOutputFormat) {
         case OUTPUT_FORMAT_DEFAULT:
