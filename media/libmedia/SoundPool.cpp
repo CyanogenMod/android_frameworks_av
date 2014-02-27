@@ -587,7 +587,7 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
         uint32_t sampleRate = uint32_t(float(sample->sampleRate()) * rate + 0.5);
         uint32_t totalFrames = (kDefaultBufferCount * afFrameCount * sampleRate) / afSampleRate;
         uint32_t bufferFrames = (totalFrames + (kDefaultBufferCount - 1)) / kDefaultBufferCount;
-        uint32_t frameCount = 0;
+        size_t frameCount = 0;
 
         if (loop) {
             frameCount = sample->size()/numChannels/

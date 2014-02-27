@@ -108,7 +108,7 @@ AudioTrack::AudioTrack(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
@@ -182,7 +182,7 @@ status_t AudioTrack::set(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCountInt,
+        size_t frameCount,
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
@@ -195,9 +195,9 @@ status_t AudioTrack::set(
         int uid,
         pid_t pid)
 {
-    ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %d, "
+    ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "flags #%x, notificationFrames %u, sessionId %d, transferType %d",
-          streamType, sampleRate, format, channelMask, frameCountInt, flags, notificationFrames,
+          streamType, sampleRate, format, channelMask, frameCount, flags, notificationFrames,
           sessionId, transferType);
 
     switch (transferType) {
@@ -235,13 +235,6 @@ status_t AudioTrack::set(
     }
     mSharedBuffer = sharedBuffer;
     mTransfer = transferType;
-
-    // FIXME "int" here is legacy and will be replaced by size_t later
-    if (frameCountInt < 0) {
-        ALOGE("Invalid frame count %d", frameCountInt);
-        return BAD_VALUE;
-    }
-    size_t frameCount = frameCountInt;
 
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());

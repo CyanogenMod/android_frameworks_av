@@ -182,7 +182,7 @@ public:
                                     uint32_t sampleRate,
                                     audio_format_t format,
                                     audio_channel_mask_t,
-                                    int frameCount       = 0,
+                                    size_t frameCount    = 0,
                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                     callback_t cbf       = NULL,
                                     void* user           = NULL,
@@ -245,7 +245,7 @@ public:
                             uint32_t sampleRate,
                             audio_format_t format,
                             audio_channel_mask_t channelMask,
-                            int frameCount      = 0,
+                            size_t frameCount   = 0,
                             audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                             callback_t cbf      = NULL,
                             void* user          = NULL,
@@ -284,7 +284,7 @@ public:
             size_t      frameSize() const   { return mFrameSize; }
 
             uint32_t    channelCount() const { return mChannelCount; }
-            uint32_t    frameCount() const  { return mFrameCount; }
+            size_t      frameCount() const  { return mFrameCount; }
 
     /* Return the static buffer specified in constructor or set(), or 0 for streaming mode */
             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }

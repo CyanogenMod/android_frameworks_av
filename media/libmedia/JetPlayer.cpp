@@ -90,7 +90,7 @@ int JetPlayer::init()
             pLibConfig->sampleRate,
             AUDIO_FORMAT_PCM_16_BIT,
             audio_channel_out_mask_from_count(pLibConfig->numChannels),
-            mTrackBufferSize,
+            (size_t) mTrackBufferSize,
             AUDIO_OUTPUT_FLAG_NONE);
 
     // create render and playback thread

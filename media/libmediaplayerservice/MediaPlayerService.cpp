@@ -1455,7 +1455,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 format, bufferCount, mSessionId, flags);
     uint32_t afSampleRate;
     size_t afFrameCount;
-    uint32_t frameCount;
+    size_t frameCount;
 
     // offloading is only supported in callback mode for now.
     // offloadInfo must be present if offload flag is set

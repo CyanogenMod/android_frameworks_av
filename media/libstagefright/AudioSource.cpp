@@ -76,7 +76,7 @@ AudioSource::AudioSource(
         mRecord = new AudioRecord(
                     inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
                     audio_channel_in_mask_from_count(channelCount),
-                    bufCount * frameCount,
+                    (size_t) (bufCount * frameCount),
                     AudioRecordCallbackFunction,
                     this,
                     frameCount /*notificationFrames*/);

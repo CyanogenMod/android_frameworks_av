@@ -73,7 +73,7 @@ AudioRecord::AudioRecord(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCount,
+        size_t frameCount,
         callback_t cbf,
         void* user,
         uint32_t notificationFrames,
@@ -114,7 +114,7 @@ status_t AudioRecord::set(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
-        int frameCountInt,
+        size_t frameCount,
         callback_t cbf,
         void* user,
         uint32_t notificationFrames,
@@ -123,9 +123,9 @@ status_t AudioRecord::set(
         transfer_type transferType,
         audio_input_flags_t flags)
 {
-    ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %d, "
+    ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "notificationFrames %u, sessionId %d, transferType %d, flags %#x",
-          inputSource, sampleRate, format, channelMask, frameCountInt, notificationFrames,
+          inputSource, sampleRate, format, channelMask, frameCount, notificationFrames,
           sessionId, transferType, flags);
 
     switch (transferType) {
@@ -150,13 +150,6 @@ status_t AudioRecord::set(
         return BAD_VALUE;
     }
     mTransfer = transferType;
-
-    // FIXME "int" here is legacy and will be replaced by size_t later
-    if (frameCountInt < 0) {
-        ALOGE("Invalid frame count %d", frameCountInt);
-        return BAD_VALUE;
-    }
-    size_t frameCount = frameCountInt;
 
     AutoMutex lock(mLock);
 
