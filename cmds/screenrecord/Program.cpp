@@ -201,7 +201,7 @@ status_t Program::linkShaderProgram(GLuint vs, GLuint fs, GLuint* outPgm) {
 
 
 status_t Program::blit(GLuint texName, const float* texMatrix,
-        int32_t x, int32_t y, int32_t w, int32_t h) const {
+        int32_t x, int32_t y, int32_t w, int32_t h, bool invert) const {
     ALOGV("Program::blit %d xy=%d,%d wh=%d,%d", texName, x, y, w, h);
 
     const float pos[] = {
@@ -218,7 +218,7 @@ status_t Program::blit(GLuint texName, const float* texMatrix,
     };
     status_t err;
 
-    err = beforeDraw(texName, texMatrix, pos, uv);
+    err = beforeDraw(texName, texMatrix, pos, uv, invert);
     if (err == NO_ERROR) {
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         err = afterDraw();
@@ -232,7 +232,7 @@ status_t Program::drawTriangles(GLuint texName, const float* texMatrix,
 
     status_t err;
 
-    err = beforeDraw(texName, texMatrix, vertices, texes);
+    err = beforeDraw(texName, texMatrix, vertices, texes, false);
     if (err == NO_ERROR) {
         glDrawArrays(GL_TRIANGLES, 0, count);
         err = afterDraw();
@@ -241,7 +241,7 @@ status_t Program::drawTriangles(GLuint texName, const float* texMatrix,
 }
 
 status_t Program::beforeDraw(GLuint texName, const float* texMatrix,
-        const float* vertices, const float* texes) const {
+        const float* vertices, const float* texes, bool invert) const {
     // Create an orthographic projection matrix based on viewport size.
     GLint vp[4];
     glGetIntegerv(GL_VIEWPORT, vp);
@@ -251,6 +251,10 @@ status_t Program::beforeDraw(GLuint texName, const float* texMatrix,
         0.0f,               0.0f,               1.0f,   0.0f,
         -1.0f,              1.0f,               0.0f,   1.0f,
     };
+    if (invert) {
+        screenToNdc[5] = -screenToNdc[5];
+        screenToNdc[13] = -screenToNdc[13];
+    }
 
     glUseProgram(mProgram);
 
