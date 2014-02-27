@@ -95,7 +95,10 @@ struct BpMediaHTTPConnection : public BpInterface<IMediaHTTPConnection> {
         data.writeInt32(size);
 
         status_t err = remote()->transact(READ_AT, data, &reply);
-        CHECK_EQ(err, (status_t)OK);
+        if (err != OK) {
+            ALOGE("remote readAt failed");
+            return UNKNOWN_ERROR;
+        }
 
         int32_t exceptionCode = reply.readExceptionCode();
 
