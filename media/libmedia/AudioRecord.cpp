@@ -76,7 +76,7 @@ AudioRecord::AudioRecord(
         int frameCount,
         callback_t cbf,
         void* user,
-        int notificationFrames,
+        uint32_t notificationFrames,
         int sessionId,
         transfer_type transferType,
         audio_input_flags_t flags __unused)
@@ -117,14 +117,14 @@ status_t AudioRecord::set(
         int frameCountInt,
         callback_t cbf,
         void* user,
-        int notificationFrames,
+        uint32_t notificationFrames,
         bool threadCanCallJava,
         int sessionId,
         transfer_type transferType,
         audio_input_flags_t flags)
 {
     ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %d, "
-          "notificationFrames %d, sessionId %d, transferType %d, flags %#x",
+          "notificationFrames %u, sessionId %d, transferType %d, flags %#x",
           inputSource, sampleRate, format, channelMask, frameCountInt, notificationFrames,
           sessionId, transferType, flags);
 
@@ -803,7 +803,7 @@ nsecs_t AudioRecord::processAudioBuffer()
     }
 
     // Cache other fields that will be needed soon
-    size_t notificationFrames = mNotificationFramesAct;
+    uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
         mRefreshRemaining = false;
         mRemainingFrames = notificationFrames;

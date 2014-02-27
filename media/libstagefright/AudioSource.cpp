@@ -65,7 +65,7 @@ AudioSource::AudioSource(
     if (status == OK) {
         // make sure that the AudioRecord callback never returns more than the maximum
         // buffer size
-        int frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
+        uint32_t frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
 
         // make sure that the AudioRecord total buffer size is large enough
         size_t bufCount = 2;
@@ -79,7 +79,7 @@ AudioSource::AudioSource(
                     bufCount * frameCount,
                     AudioRecordCallbackFunction,
                     this,
-                    frameCount);
+                    frameCount /*notificationFrames*/);
         mInitCheck = mRecord->initCheck();
     } else {
         mInitCheck = status;

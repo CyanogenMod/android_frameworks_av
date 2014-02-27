@@ -112,7 +112,7 @@ AudioTrack::AudioTrack(
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
-        int notificationFrames,
+        uint32_t notificationFrames,
         int sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
@@ -138,7 +138,7 @@ AudioTrack::AudioTrack(
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
-        int notificationFrames,
+        uint32_t notificationFrames,
         int sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
@@ -186,7 +186,7 @@ status_t AudioTrack::set(
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
-        int notificationFrames,
+        uint32_t notificationFrames,
         const sp<IMemory>& sharedBuffer,
         bool threadCanCallJava,
         int sessionId,
@@ -196,7 +196,7 @@ status_t AudioTrack::set(
         pid_t pid)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %d, "
-          "flags #%x, notificationFrames %d, sessionId %d, transferType %d",
+          "flags #%x, notificationFrames %u, sessionId %d, transferType %d",
           streamType, sampleRate, format, channelMask, frameCountInt, flags, notificationFrames,
           sessionId, transferType);
 
@@ -1487,7 +1487,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     // Cache other fields that will be needed soon
     uint32_t loopPeriod = mLoopPeriod;
     uint32_t sampleRate = mSampleRate;
-    size_t notificationFrames = mNotificationFramesAct;
+    uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
         mRefreshRemaining = false;
         mRemainingFrames = notificationFrames;

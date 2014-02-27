@@ -161,7 +161,7 @@ public:
                                     int frameCount      = 0,
                                     callback_t cbf = NULL,
                                     void* user = NULL,
-                                    int notificationFrames = 0,
+                                    uint32_t notificationFrames = 0,
                                     int sessionId = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE);
@@ -194,7 +194,7 @@ public:
                             int frameCount      = 0,
                             callback_t cbf = NULL,
                             void* user = NULL,
-                            int notificationFrames = 0,
+                            uint32_t notificationFrames = 0,
                             bool threadCanCallJava = false,
                             int sessionId = AUDIO_SESSION_ALLOCATE,
                             transfer_type transferType = TRANSFER_DEFAULT,
