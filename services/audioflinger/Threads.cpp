@@ -1066,7 +1066,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              audio_devices_t device,
                                              type_t type)
     :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
-        mNormalFrameCount(0), mMixBuffer(NULL),
+        mNormalFrameCount(0), mSinkBuffer(NULL),
         mSuspended(0), mBytesWritten(0),
         mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
@@ -1125,7 +1125,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
 AudioFlinger::PlaybackThread::~PlaybackThread()
 {
     mAudioFlinger->unregisterWriter(mNBLogWriter);
-    delete[] mMixBuffer;
+    delete[] mSinkBuffer;
 }
 
 void AudioFlinger::PlaybackThread::dump(int fd, const Vector<String16>& args)
@@ -1210,7 +1210,7 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     fdprintf(fd, "  Delayed writes: %d\n", mNumDelayedWrites);
     fdprintf(fd, "  Blocked in write: %s\n", mInWrite ? "yes" : "no");
     fdprintf(fd, "  Suspend count: %d\n", mSuspended);
-    fdprintf(fd, "  Mix buffer : %p\n", mMixBuffer);
+    fdprintf(fd, "  Sink buffer : %p\n", mSinkBuffer);
     fdprintf(fd, "  Fast track availMask=%#x\n", mFastTrackAvailMask);
 
     dumpBase(fd, args);
@@ -1758,11 +1758,11 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     ALOGI("HAL output buffer size %u frames, normal mix buffer size %u frames", mFrameCount,
             mNormalFrameCount);
 
-    delete[] mMixBuffer;
+    delete[] mSinkBuffer;
     size_t normalBufferSize = mNormalFrameCount * mFrameSize;
-    // For historical reasons mMixBuffer is int16_t[], but mFrameSize can be odd (such as 1)
-    mMixBuffer = new int16_t[(normalBufferSize + 1) >> 1];
-    memset(mMixBuffer, 0, normalBufferSize);
+    // For historical reasons mSinkBuffer is int16_t[], but mFrameSize can be odd (such as 1)
+    mSinkBuffer = new int16_t[(normalBufferSize + 1) >> 1];
+    memset(mSinkBuffer, 0, normalBufferSize);
 
     // force reconfiguration of effect chains and engines to take new buffer size and audio
     // parameters into account
@@ -1958,7 +1958,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
                         (pipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
             }
         }
-        ssize_t framesWritten = mNormalSink->write(mMixBuffer + offset, count);
+        ssize_t framesWritten = mNormalSink->write(mSinkBuffer + offset, count);
         ATRACE_END();
         if (framesWritten > 0) {
             bytesWritten = framesWritten << mBitShift;
@@ -1987,7 +1987,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         // FIXME We should have an implementation of timestamps for direct output threads.
         // They are used e.g for multichannel PCM playback over HDMI.
         bytesWritten = mOutput->stream->write(mOutput->stream,
-                                                   (char *)mMixBuffer + offset, mBytesRemaining);
+                                                   (char *)mSinkBuffer + offset, mBytesRemaining);
         if (mUseAsyncWrite &&
                 ((bytesWritten < 0) || (bytesWritten == (ssize_t)mBytesRemaining))) {
             // do not wait for async callback in case of error of full write
@@ -2068,13 +2068,13 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
 status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& chain)
 {
     int session = chain->sessionId();
-    int16_t *buffer = mMixBuffer;
+    int16_t *buffer = mSinkBuffer;
     bool ownsBuffer = false;
 
     ALOGV("addEffectChain_l() %p on thread %p for session %d", chain.get(), this, session);
     if (session > 0) {
         // Only one effect chain can be present in direct output thread and it uses
-        // the mix buffer as input
+        // the sink buffer as input
         if (mType != DIRECT) {
             size_t numSamples = mNormalFrameCount * mChannelCount;
             buffer = new int16_t[numSamples];
@@ -2108,7 +2108,7 @@ status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& c
     }
 
     chain->setInBuffer(buffer, ownsBuffer);
-    chain->setOutBuffer(mMixBuffer);
+    chain->setOutBuffer(mSinkBuffer);
     // Effect chain for session AUDIO_SESSION_OUTPUT_STAGE is inserted at end of effect
     // chains list in order to be processed last as it contains output stage effects
     // Effect chain for session AUDIO_SESSION_OUTPUT_MIX is inserted before
@@ -2158,7 +2158,7 @@ size_t AudioFlinger::PlaybackThread::removeEffectChain_l(const sp<EffectChain>& 
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 sp<Track> track = mTracks[i];
                 if (session == track->sessionId()) {
-                    track->setMainBuffer(mMixBuffer);
+                    track->setMainBuffer(mSinkBuffer);
                     chain->decTrackCnt();
                 }
             }
@@ -2861,7 +2861,7 @@ void AudioFlinger::MixerThread::threadLoop_sleepTime()
             sleepTime = idleSleepTime;
         }
     } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
-        memset(mMixBuffer, 0, mixBufferSize);
+        memset(mSinkBuffer, 0, mixBufferSize);
         sleepTime = 0;
         ALOGV_IF(mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED),
                 "anticipated start");
@@ -3109,10 +3109,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
 
             mixedTracks++;
 
-            // track->mainBuffer() != mMixBuffer means there is an effect chain
+            // track->mainBuffer() != mSinkBuffer means there is an effect chain
             // connected to the track
             chain.clear();
-            if (track->mainBuffer() != mMixBuffer) {
+            if (track->mainBuffer() != mSinkBuffer) {
                 chain = getEffectChain_l(track->sessionId());
                 // Delegate volume control to effect in track effect chain if needed
                 if (chain != 0) {
@@ -3355,13 +3355,13 @@ track_is_ready: ;
     // remove all the tracks that need to be...
     removeTracks_l(*tracksToRemove);
 
-    // mix buffer must be cleared if all tracks are connected to an
+    // sink buffer must be cleared if all tracks are connected to an
     // effect chain as in this case the mixer will not write to
-    // mix buffer and track effects will accumulate into it
+    // sink buffer and track effects will accumulate into it
     if ((mBytesRemaining == 0) && ((mixedTracks != 0 && mixedTracks == tracksWithEffect) ||
             (mixedTracks == 0 && fastTracks > 0))) {
         // FIXME as a performance optimization, should remember previous zero status
-        memset(mMixBuffer, 0, mNormalFrameCount * mChannelCount * sizeof(int16_t));
+        memset(mSinkBuffer, 0, mNormalFrameCount * mChannelCount * sizeof(int16_t));
     }
 
     // if any fast tracks, then status is ready
@@ -3749,7 +3749,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 void AudioFlinger::DirectOutputThread::threadLoop_mix()
 {
     size_t frameCount = mFrameCount;
-    int8_t *curBuf = (int8_t *)mMixBuffer;
+    int8_t *curBuf = (int8_t *)mSinkBuffer;
     // output audio to hardware
     while (frameCount) {
         AudioBufferProvider::Buffer buffer;
@@ -3764,7 +3764,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
         curBuf += buffer.frameCount * mFrameSize;
         mActiveTrack->releaseBuffer(&buffer);
     }
-    mCurrentWriteLength = curBuf - (int8_t *)mMixBuffer;
+    mCurrentWriteLength = curBuf - (int8_t *)mSinkBuffer;
     sleepTime = 0;
     standbyTime = systemTime() + standbyDelay;
     mActiveTrack.clear();
@@ -3779,7 +3779,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
             sleepTime = idleSleepTime;
         }
     } else if (mBytesWritten != 0 && audio_is_linear_pcm(mFormat)) {
-        memset(mMixBuffer, 0, mFrameCount * mFrameSize);
+        memset(mSinkBuffer, 0, mFrameCount * mFrameSize);
         sleepTime = 0;
     }
 }
@@ -4306,7 +4306,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_mix()
     if (outputsReady(outputTracks)) {
         mAudioMixer->process(AudioBufferProvider::kInvalidPTS);
     } else {
-        memset(mMixBuffer, 0, mixBufferSize);
+        memset(mSinkBuffer, 0, mixBufferSize);
     }
     sleepTime = 0;
     writeFrames = mNormalFrameCount;
@@ -4325,7 +4325,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
     } else if (mBytesWritten != 0) {
         if (mMixerStatus == MIXER_TRACKS_ENABLED) {
             writeFrames = mNormalFrameCount;
-            memset(mMixBuffer, 0, mixBufferSize);
+            memset(mSinkBuffer, 0, mixBufferSize);
         } else {
             // flush remaining overflow buffers in output tracks
             writeFrames = 0;
@@ -4337,7 +4337,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
 ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
 {
     for (size_t i = 0; i < outputTracks.size(); i++) {
-        outputTracks[i]->write(mMixBuffer, writeFrames);
+        outputTracks[i]->write(mSinkBuffer, writeFrames);
     }
     mStandby = false;
     return (ssize_t)mixBufferSize;
