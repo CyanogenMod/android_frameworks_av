@@ -72,7 +72,6 @@ LOCAL_WHOLE_STATIC_LIBRARY := libmedia_helper
 LOCAL_MODULE:= libmedia
 
 LOCAL_C_INCLUDES := \
-    $(call include-path-for, graphics corecg) \
     $(TOP)/frameworks/native/include/media/openmax \
     external/icu4c/common \
     external/icu4c/i18n \

@@ -33,7 +33,6 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/media/libstagefright \
     $(TOP)/frameworks/av/media/libstagefright/include \
     $(TOP)/frameworks/av/media/libstagefright/rtsp \
-    $(call include-path-for, corecg graphics) \
     $(TOP)/frameworks/av/libvideoeditor/lvpp \
     $(TOP)/frameworks/av/libvideoeditor/osal/inc \
     $(TOP)/frameworks/av/libvideoeditor/vss/inc \

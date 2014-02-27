@@ -45,7 +45,6 @@ LOCAL_STATIC_LIBRARIES :=       \
     libstagefright_rtsp         \
 
 LOCAL_C_INCLUDES :=                                                 \
-    $(call include-path-for, graphics corecg)                       \
     $(TOP)/frameworks/av/media/libstagefright/include               \
     $(TOP)/frameworks/av/media/libstagefright/rtsp                  \
     $(TOP)/frameworks/av/media/libstagefright/wifi-display          \
