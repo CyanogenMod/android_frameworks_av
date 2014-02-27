@@ -430,18 +430,30 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         return NO_INIT;
     }
 
-    IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
-    pid_t tid = -1;
+    // Fast tracks must be at the primary _output_ [sic] sampling rate,
+    // because there is currently no concept of a primary input sampling rate
+    uint32_t afSampleRate = AudioSystem::getPrimaryOutputSamplingRate();
+    if (afSampleRate == 0) {
+        ALOGW("getPrimaryOutputSamplingRate failed");
+    }
 
     // Client can only express a preference for FAST.  Server will perform additional tests.
-    // The only supported use case for FAST is callback transfer mode.
+    if ((mFlags & AUDIO_INPUT_FLAG_FAST) && !(
+            // use case: callback transfer mode
+            (mTransfer == TRANSFER_CALLBACK) &&
+            // matching sample rate
+            (mSampleRate == afSampleRate))) {
+        ALOGW("AUDIO_INPUT_FLAG_FAST denied by client");
+        // once denied, do not request again if IAudioRecord is re-created
+        mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
+    }
+
+    IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
+
+    pid_t tid = -1;
     if (mFlags & AUDIO_INPUT_FLAG_FAST) {
-        if ((mTransfer != TRANSFER_CALLBACK) || (mAudioRecordThread == 0)) {
-            ALOGW("AUDIO_INPUT_FLAG_FAST denied by client");
-            // once denied, do not request again if IAudioRecord is re-created
-            mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
-        } else {
-            trackFlags |= IAudioFlinger::TRACK_FAST;
+        trackFlags |= IAudioFlinger::TRACK_FAST;
+        if (mAudioRecordThread != 0) {
             tid = mAudioRecordThread->getTid();
         }
     }
