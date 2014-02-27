@@ -561,7 +561,7 @@ private:
 
     // FIXME rename these former local variables of threadLoop to standard "m" names
     nsecs_t                         standbyTime;
-    size_t                          mixBufferSize;
+    size_t                          mSinkBufferSize;
 
     // cached copies of activeSleepTimeUs() and idleSleepTimeUs() made by cacheParameters_l()
     uint32_t                        activeSleepTime;
