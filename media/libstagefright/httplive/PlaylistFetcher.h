@@ -87,7 +87,10 @@ private:
 
     static const int64_t kMinBufferedDurationUs;
     static const int64_t kMaxMonitorDelayUs;
+    static const int32_t kDownloadBlockSize;
     static const int32_t kNumSkipFrames;
+
+    static bool bufferStartsWithTsSyncByte(const sp<ABuffer>& buffer);
 
     // notifications to mSession
     sp<AMessage> mNotify;
@@ -168,6 +171,8 @@ private:
 
     // Resume a fetcher to continue until the stopping point stored in msg.
     status_t onResumeUntil(const sp<AMessage> &msg);
+
+    status_t extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &buffer);
 
     status_t extractAndQueueAccessUnits(
             const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta);
