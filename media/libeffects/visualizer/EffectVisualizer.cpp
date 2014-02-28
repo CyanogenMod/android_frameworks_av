@@ -544,56 +544,57 @@ int Visualizer_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
         break;
 
 
-    case VISUALIZER_CMD_CAPTURE:
-        if (pReplyData == NULL || *replySize != pContext->mCaptureSize) {
-            ALOGV("VISUALIZER_CMD_CAPTURE() error *replySize %d pContext->mCaptureSize %d",
-                    *replySize, pContext->mCaptureSize);
+    case VISUALIZER_CMD_CAPTURE: {
+        int32_t captureSize = pContext->mCaptureSize;
+        if (pReplyData == NULL || *replySize != captureSize) {
+            ALOGV("VISUALIZER_CMD_CAPTURE() error *replySize %d captureSize %d",
+                    *replySize, captureSize);
             return -EINVAL;
         }
         if (pContext->mState == VISUALIZER_STATE_ACTIVE) {
-            int32_t latencyMs = pContext->mLatency;
             const uint32_t deltaMs = Visualizer_getDeltaTimeMsFromUpdatedTime(pContext);
-            latencyMs -= deltaMs;
-            if (latencyMs < 0) {
-                latencyMs = 0;
-            }
-            const uint32_t deltaSmpl = pContext->mConfig.inputCfg.samplingRate * latencyMs / 1000;
-
-            int32_t capturePoint = pContext->mCaptureIdx - pContext->mCaptureSize - deltaSmpl;
-            int32_t captureSize = pContext->mCaptureSize;
-            if (capturePoint < 0) {
-                int32_t size = -capturePoint;
-                if (size > captureSize) {
-                    size = captureSize;
-                }
-                memcpy(pReplyData,
-                       pContext->mCaptureBuf + CAPTURE_BUF_SIZE + capturePoint,
-                       size);
-                pReplyData = (char *)pReplyData + size;
-                captureSize -= size;
-                capturePoint = 0;
-            }
-            memcpy(pReplyData,
-                   pContext->mCaptureBuf + capturePoint,
-                   captureSize);
-
 
             // if audio framework has stopped playing audio although the effect is still
             // active we must clear the capture buffer to return silence
             if ((pContext->mLastCaptureIdx == pContext->mCaptureIdx) &&
-                    (pContext->mBufferUpdateTime.tv_sec != 0)) {
-                if (deltaMs > MAX_STALL_TIME_MS) {
+                    (pContext->mBufferUpdateTime.tv_sec != 0) &&
+                    (deltaMs > MAX_STALL_TIME_MS)) {
                     ALOGV("capture going to idle");
                     pContext->mBufferUpdateTime.tv_sec = 0;
-                    memset(pReplyData, 0x80, pContext->mCaptureSize);
+                    memset(pReplyData, 0x80, captureSize);
+            } else {
+                int32_t latencyMs = pContext->mLatency;
+                latencyMs -= deltaMs;
+                if (latencyMs < 0) {
+                    latencyMs = 0;
                 }
+                const uint32_t deltaSmpl =
+                    pContext->mConfig.inputCfg.samplingRate * latencyMs / 1000;
+                int32_t capturePoint = pContext->mCaptureIdx - captureSize - deltaSmpl;
+
+                if (capturePoint < 0) {
+                    int32_t size = -capturePoint;
+                    if (size > captureSize) {
+                        size = captureSize;
+                    }
+                    memcpy(pReplyData,
+                           pContext->mCaptureBuf + CAPTURE_BUF_SIZE + capturePoint,
+                           size);
+                    pReplyData = (char *)pReplyData + size;
+                    captureSize -= size;
+                    capturePoint = 0;
+                }
+                memcpy(pReplyData,
+                       pContext->mCaptureBuf + capturePoint,
+                       captureSize);
             }
+
             pContext->mLastCaptureIdx = pContext->mCaptureIdx;
         } else {
-            memset(pReplyData, 0x80, pContext->mCaptureSize);
+            memset(pReplyData, 0x80, captureSize);
         }
 
-        break;
+        } break;
 
     case VISUALIZER_CMD_MEASURE: {
         uint16_t peakU16 = 0;
