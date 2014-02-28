@@ -2026,7 +2026,7 @@ void AudioFlinger::PlaybackThread::threadLoop_exit()
 
 /*
 The derived values that are cached:
- - mixBufferSize from frame count * frame size
+ - mSinkBufferSize from frame count * frame size
  - activeSleepTime from activeSleepTimeUs()
  - idleSleepTime from idleSleepTimeUs()
  - standbyDelay from mActiveSleepTimeUs (DIRECT only)
@@ -2045,7 +2045,7 @@ The parameters that affect these derived values are:
 
 void AudioFlinger::PlaybackThread::cacheParameters_l()
 {
-    mixBufferSize = mNormalFrameCount * mFrameSize;
+    mSinkBufferSize = mNormalFrameCount * mFrameSize;
     activeSleepTime = activeSleepTimeUs();
     idleSleepTime = idleSleepTimeUs();
 }
@@ -2361,14 +2361,14 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 // must be written to HAL
                 threadLoop_sleepTime();
                 if (sleepTime == 0) {
-                    mCurrentWriteLength = mixBufferSize;
+                    mCurrentWriteLength = mSinkBufferSize;
                 }
             }
             mBytesRemaining = mCurrentWriteLength;
             if (isSuspended()) {
                 sleepTime = suspendSleepTimeUs();
                 // simulate write to HAL when suspended
-                mBytesWritten += mixBufferSize;
+                mBytesWritten += mSinkBufferSize;
                 mBytesRemaining = 0;
             }
 
@@ -2827,7 +2827,7 @@ void AudioFlinger::MixerThread::threadLoop_mix()
 
     // mix buffers...
     mAudioMixer->process(pts);
-    mCurrentWriteLength = mixBufferSize;
+    mCurrentWriteLength = mSinkBufferSize;
     // increase sleep time progressively when application underrun condition clears.
     // Only increase sleep time if the mixer is ready for two consecutive times to avoid
     // that a steady state of alternating ready/not ready conditions keeps the sleep time
@@ -2861,7 +2861,7 @@ void AudioFlinger::MixerThread::threadLoop_sleepTime()
             sleepTime = idleSleepTime;
         }
     } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
-        memset(mSinkBuffer, 0, mixBufferSize);
+        memset(mSinkBuffer, 0, mSinkBufferSize);
         sleepTime = 0;
         ALOGV_IF(mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED),
                 "anticipated start");
@@ -4306,11 +4306,11 @@ void AudioFlinger::DuplicatingThread::threadLoop_mix()
     if (outputsReady(outputTracks)) {
         mAudioMixer->process(AudioBufferProvider::kInvalidPTS);
     } else {
-        memset(mSinkBuffer, 0, mixBufferSize);
+        memset(mSinkBuffer, 0, mSinkBufferSize);
     }
     sleepTime = 0;
     writeFrames = mNormalFrameCount;
-    mCurrentWriteLength = mixBufferSize;
+    mCurrentWriteLength = mSinkBufferSize;
     standbyTime = systemTime() + standbyDelay;
 }
 
@@ -4325,7 +4325,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
     } else if (mBytesWritten != 0) {
         if (mMixerStatus == MIXER_TRACKS_ENABLED) {
             writeFrames = mNormalFrameCount;
-            memset(mSinkBuffer, 0, mixBufferSize);
+            memset(mSinkBuffer, 0, mSinkBufferSize);
         } else {
             // flush remaining overflow buffers in output tracks
             writeFrames = 0;
@@ -4340,7 +4340,7 @@ ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
         outputTracks[i]->write(mSinkBuffer, writeFrames);
     }
     mStandby = false;
-    return (ssize_t)mixBufferSize;
+    return (ssize_t)mSinkBufferSize;
 }
 
 void AudioFlinger::DuplicatingThread::threadLoop_standby()
