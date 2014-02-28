@@ -1325,14 +1325,15 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
         switch (t.mSinkFormat) {
         case AUDIO_FORMAT_PCM_FLOAT: {
             float *fout = reinterpret_cast<float*>(out);
-            static float scale = 1. / (32768. * 4096.); // exact when inverted
             do {
                 uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
                 in += 2;
                 int32_t l = mulRL(1, rl, vrl);
                 int32_t r = mulRL(0, rl, vrl);
-                *fout++ = static_cast<float>(l) * scale;
-                *fout++ = static_cast<float>(r) * scale;
+                *fout++ = float_from_q19_12(l);
+                *fout++ = float_from_q19_12(r);
+                // Note: In case of later int16_t sink output,
+                // conversion and clamping is done by memcpy_to_i16_from_float().
             } while (--outFrames);
             } break;
         case AUDIO_FORMAT_PCM_16_BIT:
