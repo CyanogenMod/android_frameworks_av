@@ -450,7 +450,8 @@ public:
     virtual     String8     getParameters(const String8& keys);
     virtual     void        audioConfigChanged_l(int event, int param = 0);
                 status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
-                int16_t     *mixBuffer() const { return mMixBuffer; };
+                // TODO: rename mixBuffer() to sinkBuffer() or try to remove external use.
+                int16_t     *mixBuffer() const { return mSinkBuffer; };
 
     virtual     void detachAuxEffect_l(int effectId);
                 status_t attachAuxEffect(const sp<AudioFlinger::PlaybackThread::Track> track,
@@ -481,7 +482,7 @@ protected:
     // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
-    int16_t*                        mMixBuffer;         // frame size aligned mix buffer
+    int16_t*                        mSinkBuffer;         // frame size aligned sink buffer
 
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
