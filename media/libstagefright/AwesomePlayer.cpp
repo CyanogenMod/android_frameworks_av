@@ -2217,6 +2217,10 @@ status_t AwesomePlayer::finishSetDataSource_l() {
 
         mLock.unlock();
         status_t err = mConnectingDataSource->connect(mUri, &mUriHeaders);
+        // force connection at this point, to avoid a race condition between getMIMEType and the
+        // caching datasource constructed below, which could result in multiple requests to the
+        // server, and/or failed connections.
+        String8 contentType = mConnectingDataSource->getMIMEType();
         mLock.lock();
 
         if (err != OK) {
@@ -2246,8 +2250,6 @@ status_t AwesomePlayer::finishSetDataSource_l() {
         }
 
         mConnectingDataSource.clear();
-
-        String8 contentType = dataSource->getMIMEType();
 
         if (strncasecmp(contentType.string(), "audio/", 6)) {
             // We're not doing this for streams that appear to be audio-only
