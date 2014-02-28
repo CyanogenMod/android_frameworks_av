@@ -48,6 +48,7 @@ class VideoEditorPlayer : public MediaPlayerInterface {
         virtual status_t        getPosition(uint32_t *position) const;
         virtual status_t        getFramesWritten(uint32_t*) const;
         virtual int             getSessionId() const;
+        virtual uint32_t        getSampleRate() const;
 
         virtual status_t        open(
                 uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,

@@ -171,30 +171,6 @@ int EffectGetDescriptor(const effect_uuid_t *pEffectUuid, effect_descriptor_t *p
 ////////////////////////////////////////////////////////////////////////////////
 int EffectIsNullUuid(const effect_uuid_t *pEffectUuid);
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//    Function:       EffectGetSubEffects
-//
-//    Description:    Returns the descriptors of the sub effects of the effect
-//                    whose uuid is pointed to by first argument.
-//
-//    Input:
-//          pEffectUuid:    pointer to the effect uuid.
-//          size:           size of the buffer pointed by pDescriptor.
-//
-//    Input/Output:
-//          pDescriptor:    address where to return the sub effect descriptors.
-//
-//    Output:
-//        returned value:    0          successful operation.
-//                          -ENODEV     factory failed to initialize
-//                          -EINVAL     invalid pEffectUuid or pDescriptor
-//                          -ENOENT     no effect with this uuid found
-//        *pDescriptor:     updated with the sub effect descriptors.
-//
-////////////////////////////////////////////////////////////////////////////////
-int EffectGetSubEffects(const effect_uuid_t *pEffectUuid, effect_descriptor_t *pDescriptors, size_t size);
-
 #if __cplusplus
 }  // extern "C"
 #endif

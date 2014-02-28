@@ -26,6 +26,9 @@
 #include <camera/CameraParameters.h>
 #include <system/window.h>
 #include <hardware/camera.h>
+#ifdef USE_MEMORY_HEAP_ION
+#include <binder/MemoryHeapIon.h>
+#endif
 
 namespace android {
 
@@ -493,7 +496,11 @@ private:
                          mBufSize(buf_size),
                          mNumBufs(num_buffers)
         {
+#ifdef USE_MEMORY_HEAP_ION
+            mHeap = new MemoryHeapIon(fd, buf_size * num_buffers);
+#else
             mHeap = new MemoryHeapBase(fd, buf_size * num_buffers);
+#endif
             commonInitialization();
         }
 
@@ -501,7 +508,11 @@ private:
                          mBufSize(buf_size),
                          mNumBufs(num_buffers)
         {
+#ifdef USE_MEMORY_HEAP_ION
+            mHeap = new MemoryHeapIon(buf_size * num_buffers);
+#else
             mHeap = new MemoryHeapBase(buf_size * num_buffers);
+#endif
             commonInitialization();
         }
 
@@ -533,14 +544,24 @@ private:
         camera_memory_t handle;
     };
 
+#ifdef USE_MEMORY_HEAP_ION
+    static camera_memory_t* __get_memory(int fd, size_t buf_size, uint_t num_bufs,
+                                         void *ion_fd)
+    {
+#else
     static camera_memory_t* __get_memory(int fd, size_t buf_size, uint_t num_bufs,
                                          void *user __attribute__((unused)))
     {
+#endif
         CameraHeapMemory *mem;
         if (fd < 0)
             mem = new CameraHeapMemory(buf_size, num_bufs);
         else
             mem = new CameraHeapMemory(fd, buf_size, num_bufs);
+#ifdef USE_MEMORY_HEAP_ION
+        if (ion_fd)
+            *((int *) ion_fd) = mem->mHeap->getHeapID();
+#endif
         mem->incStrong(mem);
         return &mem->handle;
     }
@@ -640,9 +661,6 @@ private:
 
     static int __set_usage(struct preview_stream_ops* w, int usage)
     {
-#ifdef HTC_3D_SUPPORT
-        usage |= GRALLOC_USAGE_PRIVATE_0;
-#endif
         ANativeWindow *a = anw(w);
         return native_window_set_usage(a, usage);
     }
@@ -661,14 +679,6 @@ private:
         return a->query(a, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, count);
     }
 
-#ifdef HTC_3D_SUPPORT
-    static int __set_3d_mode(
-                      const struct preview_stream_ops *w, int r1, int r2, int r3)
-    {
-        return 0;
-    }
-#endif
-
     void initHalPreviewWindow()
     {
         mHalPreviewWindow.nw.cancel_buffer = __cancel_buffer;
@@ -676,9 +686,6 @@ private:
         mHalPreviewWindow.nw.dequeue_buffer = __dequeue_buffer;
         mHalPreviewWindow.nw.enqueue_buffer = __enqueue_buffer;
         mHalPreviewWindow.nw.set_buffer_count = __set_buffer_count;
-#ifdef HTC_3D_SUPPORT
-        mHalPreviewWindow.nw.set_3d_mode = __set_3d_mode;
-#endif
         mHalPreviewWindow.nw.set_buffers_geometry = __set_buffers_geometry;
         mHalPreviewWindow.nw.set_crop = __set_crop;
         mHalPreviewWindow.nw.set_timestamp = __set_timestamp;

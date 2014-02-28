@@ -56,9 +56,7 @@ AudioPlayer::AudioPlayer(
       mFinalStatus(OK),
       mSeekTimeUs(0),
       mStarted(false),
-#ifdef QCOM_HARDWARE
       mSourcePaused(false),
-#endif
       mIsFirstBuffer(false),
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
@@ -67,10 +65,8 @@ AudioPlayer::AudioPlayer(
       mPinnedTimeUs(-1ll),
       mPlaying(false),
       mStartPosUs(0),
-      mCreateFlags(flags)
-#ifdef QCOM_HARDWARE
-      ,mPauseRequired(false)
-#endif
+      mCreateFlags(flags),
+      mPauseRequired(false)
       {
 }
 
@@ -91,9 +87,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     status_t err;
     if (!sourceAlreadyStarted) {
-#ifdef QCOM_HARDWARE
         mSourcePaused = false;
-#endif
         err = mSource->start();
 
         if (err != OK) {
@@ -262,13 +256,16 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     mStarted = true;
     mPlaying = true;
     mPinnedTimeUs = -1ll;
-#ifdef QCOM_HARDWARE
     const char *componentName;
     if (!(format->findCString(kKeyDecoderComponent, &componentName))) {
           componentName = "none";
     }
-    mPauseRequired = ExtendedCodec::isSourcePauseRequired(componentName);
-#endif
+    if (!strncmp(componentName, "OMX.qcom.", 9)) {
+        mPauseRequired = true;
+    } else {
+        mPauseRequired = false;
+    }
+
     return OK;
 }
 
@@ -294,25 +291,21 @@ void AudioPlayer::pause(bool playPendingSamples) {
     }
 
     mPlaying = false;
-#ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
     if (mPauseRequired) {
         if (mSource->pause() == OK) {
             mSourcePaused = true;
         }
     }
-#endif
 }
 
 status_t AudioPlayer::resume() {
     CHECK(mStarted);
-#ifdef QCOM_HARDWARE
     CHECK(mSource != NULL);
     if (mSourcePaused == true) {
         mSourcePaused = false;
         mSource->start();
     }
-#endif
     status_t err;
 
     if (mAudioSink.get() != NULL) {
@@ -374,9 +367,8 @@ void AudioPlayer::reset() {
         mInputBuffer->release();
         mInputBuffer = NULL;
     }
-#ifdef QCOM_HARDWARE
+
     mSourcePaused = false;
-#endif
     mSource->stop();
 
     // The following hack is necessary to ensure that the OMX
@@ -406,9 +398,7 @@ void AudioPlayer::reset() {
     mStarted = false;
     mPlaying = false;
     mStartPosUs = 0;
-#ifdef QCOM_HARDWARE
     mPauseRequired = false;
-#endif
 }
 
 // static
@@ -574,13 +564,23 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
 
                 mIsFirstBuffer = false;
             } else {
-                err = mSource->read(&mInputBuffer, &options);
-#ifdef QCOM_HARDWARE
-                if (err == OK && mInputBuffer == NULL && mSourcePaused) {
-                    ALOGV("mSourcePaused, return 0 from fillBuffer");
-                    return 0;
+                if(!mSourcePaused) {
+                    err = mSource->read(&mInputBuffer, &options);
+                    if (err == OK && mInputBuffer == NULL && mSourcePaused) {
+                        ALOGV("mSourcePaused, return 0 from fillBuffer");
+                        return 0;
+                    }
+                } else {
+                    break;
                 }
-#endif
+            }
+
+            if(err == -EAGAIN) {
+                if(mSourcePaused){
+                    break;
+                } else {
+                    continue;
+                }
             }
 
             CHECK((err == OK && mInputBuffer != NULL)
@@ -591,6 +591,20 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
             if (err != OK) {
                 if (!mReachedEOS) {
                     if (useOffload()) {
+                        // After seek there is a possible race condition if
+                        // OffloadThread is observing state_stopping_1 before
+                        // framesReady() > 0. Ensure sink stop is called
+                        // after last buffer is released. This ensures the
+                        // partial buffer is written to the driver before
+                        // stopping one is observed.The drawback is that
+                        // there will be an unnecessary call to the parser
+                        // after parser signalled EOS.
+                        if (size_done > 0) {
+                             ALOGW("send Partial buffer down\n");
+                             ALOGW("skip calling stop till next fillBuffer\n");
+                             break;
+                        }
+
                         // no more buffers to push - stop() and wait for STREAM_END
                         // don't set mReachedEOS until stream end received
                         if (mAudioSink != NULL) {
@@ -779,22 +793,33 @@ int64_t AudioPlayer::getRealTimeUsLocked() const {
 
     diffUs -= mNumFramesPlayedSysTimeUs;
 
-    if(result + diffUs <= mPositionTimeRealUs)
+    if((result + diffUs <= mPositionTimeRealUs) || (!mReachedEOS))
         return result + diffUs;
     else
         return mPositionTimeRealUs;
 }
 
-int64_t AudioPlayer::getOutputPlayPositionUs_l() const
+int64_t AudioPlayer::getOutputPlayPositionUs_l()
 {
     uint32_t playedSamples = 0;
+    uint32_t sampleRate;
     if (mAudioSink != NULL) {
         mAudioSink->getPosition(&playedSamples);
+        sampleRate = mAudioSink->getSampleRate();
     } else {
         mAudioTrack->getPosition(&playedSamples);
+        sampleRate = mAudioTrack->getSampleRate();
+    }
+    if (sampleRate != 0) {
+        mSampleRate = sampleRate;
     }
 
-    const int64_t playedUs = (static_cast<int64_t>(playedSamples) * 1000000 ) / mSampleRate;
+    int64_t playedUs;
+    if (mSampleRate != 0) {
+        playedUs = (static_cast<int64_t>(playedSamples) * 1000000 ) / mSampleRate;
+    } else {
+        playedUs = 0;
+    }
 
     // HAL position is relative to the first buffer we sent at mStartPosUs
     const int64_t renderedDuration = mStartPosUs + playedUs;

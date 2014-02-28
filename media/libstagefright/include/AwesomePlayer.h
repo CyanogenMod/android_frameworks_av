@@ -107,6 +107,9 @@ struct AwesomePlayer {
     void printFileName(int fd);
     status_t dump(int fd, const Vector<String16> &args) const;
 
+    status_t suspend();
+    status_t resume();
+
 private:
     friend struct AwesomeEvent;
     friend struct PreviewPlayer;
@@ -210,6 +213,8 @@ private:
 #ifdef QCOM_DIRECTTRACK
     static int mTunnelAliveAP;
 #endif
+
+    bool mIsFirstFrameAfterResume;
 
     sp<TimedEventQueue::Event> mVideoEvent;
     bool mVideoEventPending;
@@ -399,6 +404,7 @@ private:
 #endif
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
+    bool mReadRetry;
 };
 
 }  // namespace android

@@ -42,9 +42,6 @@ endif
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 	LOCAL_CFLAGS += -DQCOM_HARDWARE
 endif
-ifeq ($(BOARD_USES_QCOM_LEGACY_CAM_PARAMS),true)
-	LOCAL_CFLAGS += -DQCOM_LEGACY_CAM_PARAMS
-endif
 
 LOCAL_MODULE:= libcamera_client
 

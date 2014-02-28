@@ -21,8 +21,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <pthread.h>
-#include <unistd.h>
-#include <fcntl.h>
 
 #include <binder/AppOpsManager.h>
 #include <binder/IPCThreadState.h>
@@ -87,24 +85,6 @@ static void camera_device_status_change(
 } // extern "C"
 
 // ----------------------------------------------------------------------------
-
-#if defined(BOARD_HAVE_HTC_FFC)
-#define HTC_SWITCH_CAMERA_FILE_PATH "/sys/android_camera2/htcwc"
-static void htcCameraSwitch(int cameraId)
-{
-    char buffer[16];
-    int fd;
-
-    if (access(HTC_SWITCH_CAMERA_FILE_PATH, W_OK) == 0) {
-        snprintf(buffer, sizeof(buffer), "%d", cameraId);
-
-        fd = open(HTC_SWITCH_CAMERA_FILE_PATH, O_WRONLY);
-        write(fd, buffer, strlen(buffer));
-        close(fd);
-    }
-}
-#endif
-
 
 // This is ugly and only safe if we never re-create the CameraService, but
 // should be ok for now.
@@ -385,10 +365,6 @@ bool CameraService::canConnectUnsafe(int cameraId,
                                      sp<BasicClient> &client) {
     String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
-
-#if defined(BOARD_HAVE_HTC_FFC)
-    htcCameraSwitch(cameraId);
-#endif
 
     if (mClient[cameraId] != 0) {
         client = mClient[cameraId].promote();

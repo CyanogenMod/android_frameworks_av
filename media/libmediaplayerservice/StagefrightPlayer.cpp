@@ -217,4 +217,14 @@ status_t StagefrightPlayer::dump(int fd, const Vector<String16> &args) const {
     return mPlayer->dump(fd, args);
 }
 
+status_t StagefrightPlayer::suspend() {
+    ALOGV("suspend");
+    return mPlayer->suspend();
+}
+
+status_t StagefrightPlayer::resume() {
+    ALOGV("resume");
+    return mPlayer->resume();
+}
+
 }  // namespace android

@@ -1147,6 +1147,22 @@ void MediaPlayerService::Client::addNewMetadataUpdate(media::Metadata::Type meta
     }
 }
 
+status_t MediaPlayerService::Client::suspend()
+{
+    ALOGV("[%d] suspend", mConnId);
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == NULL) return NO_INIT;
+    return p->suspend();
+}
+
+status_t MediaPlayerService::Client::resume()
+{
+    ALOGV("[%d] resume", mConnId);
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == NULL) return NO_INIT;
+    return p->resume();
+}
+
 #if CALLBACK_ANTAGONIZER
 const int Antagonizer::interval = 10000; // 10 msecs
 
@@ -1930,6 +1946,12 @@ int MediaPlayerService::AudioOutput::getSessionId() const
     return mSessionId;
 }
 
+uint32_t MediaPlayerService::AudioOutput::getSampleRate() const
+{
+    if (mTrack == 0) return 0;
+    return mTrack->getSampleRate();
+}
+
 #undef LOG_TAG
 #define LOG_TAG "AudioCache"
 MediaPlayerService::AudioCache::AudioCache(const sp<IMemoryHeap>& heap) :
@@ -2137,6 +2159,14 @@ void MediaPlayerService::AudioCache::notify(
 int MediaPlayerService::AudioCache::getSessionId() const
 {
     return 0;
+}
+
+uint32_t MediaPlayerService::AudioCache::getSampleRate() const
+{
+    if (mMsecsPerFrame == 0) {
+        return 0;
+    }
+    return (uint32_t)(1.e3 / mMsecsPerFrame);
 }
 
 void MediaPlayerService::addBatteryData(uint32_t params)

@@ -110,6 +110,7 @@ public:
         virtual status_t    getFramesWritten(uint32_t *frameswritten) const = 0;
         virtual int         getSessionId() const = 0;
         virtual audio_stream_type_t getAudioStreamType() const = 0;
+        virtual uint32_t    getSampleRate() const = 0;
 
         // If no callback is specified, use the "write" API below to submit
         // audio data.
@@ -225,6 +226,9 @@ public:
     virtual status_t dump(int fd, const Vector<String16> &args) const {
         return INVALID_OPERATION;
     }
+
+    virtual status_t suspend() { return INVALID_OPERATION; }
+    virtual status_t resume() { return INVALID_OPERATION; }
 
     virtual status_t updateProxyConfig(
             const char *host, int32_t port, const char *exclusionList) {

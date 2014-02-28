@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
- * Not a Contribution.
  * Copyright (C) 2009 The Android Open Source Project
- * Copyright (c) 2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +34,10 @@
 #include "include/MPEG2TSExtractor.h"
 #include "include/WVMExtractor.h"
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include <QCMediaDefs.h>
+#endif
+
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <media/IMediaPlayerService.h>
@@ -64,6 +67,7 @@
 #ifdef QCOM_HARDWARE
 #include "include/ExtendedUtils.h"
 #endif
+
 
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
@@ -228,7 +232,9 @@ AwesomePlayer::AwesomePlayer()
       mLastVideoTimeUs(-1),
       mTextDriver(NULL),
       mOffloadAudio(false),
-      mAudioTearDown(false) {
+      mAudioTearDown(false),
+      mReadRetry(false),
+      mIsFirstFrameAfterResume(false) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
     DataSource::RegisterDefaultSniffers();
@@ -1697,6 +1703,7 @@ status_t AwesomePlayer::seekTo_l(int64_t timeUs) {
         }
     }
 
+    mReadRetry = false;
     return OK;
 }
 
@@ -1736,6 +1743,10 @@ status_t AwesomePlayer::initAudioDecoder() {
     ATRACE_CALL();
 
     sp<MetaData> meta = mAudioTrack->getFormat();
+    sp<MetaData> vMeta;
+    if (mVideoTrack != NULL && mVideoSource != NULL) {
+        vMeta = mVideoTrack->getFormat();
+    }
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
@@ -1748,13 +1759,8 @@ status_t AwesomePlayer::initAudioDecoder() {
         streamType = mAudioSink->getAudioStreamType();
     }
 
-    if (mDecryptHandle != NULL) {
-        ALOGV("Do not use offload playback for DRM contents");
-        mOffloadAudio = false;
-    } else {
-        mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL),
+    mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL), vMeta,
                                      isStreamingHTTP(), streamType);
-    }
 
 #ifdef QCOM_DIRECTTRACK
     int32_t nchannels = 0;
@@ -2115,7 +2121,7 @@ void AwesomePlayer::onVideoEvent() {
         mStats.mLastFrameUs = getTimeOfDayUs();
     }
 
-    if (mSeeking != NO_SEEK) {
+    if ((mSeeking != NO_SEEK) && (mReadRetry == false)) {
         if (mVideoBuffer) {
             mVideoBuffer->release();
             mVideoBuffer = NULL;
@@ -2145,16 +2151,29 @@ void AwesomePlayer::onVideoEvent() {
         if (mSeeking != NO_SEEK) {
             ALOGV("seeking to %lld us (%.2f secs)", mSeekTimeUs, mSeekTimeUs / 1E6);
 
+            MediaSource::ReadOptions::SeekMode seekmode = (mSeeking == SEEK_VIDEO_ONLY)
+                                                          ? MediaSource::ReadOptions::SEEK_NEXT_SYNC
+                                                          : MediaSource::ReadOptions::SEEK_CLOSEST_SYNC;
+            // Seek to the next key-frame after resume for http streaming
+            if (mCachedSource != NULL && mIsFirstFrameAfterResume) {
+                seekmode = MediaSource::ReadOptions::SEEK_NEXT_SYNC;
+                mIsFirstFrameAfterResume = false;
+            }
+
             options.setSeekTo(
                     mSeekTimeUs,
-                    mSeeking == SEEK_VIDEO_ONLY
-                        ? MediaSource::ReadOptions::SEEK_NEXT_SYNC
-                        : MediaSource::ReadOptions::SEEK_CLOSEST_SYNC);
+                    seekmode);
         }
         for (;;) {
             status_t err = mVideoSource->read(&mVideoBuffer, &options);
             options.clearSeekTo();
 
+            if(err == -EAGAIN) {
+                mReadRetry = true;
+                postVideoEvent_l(-1);
+                return;
+            }
+            mReadRetry = false;
             if (err != OK) {
                 CHECK(mVideoBuffer == NULL);
 
@@ -2755,6 +2774,13 @@ status_t AwesomePlayer::finishSetDataSource_l() {
 
                         CHECK_GE(metaDataSize, 0ll);
                         ALOGV("metaDataSize = %lld bytes", metaDataSize);
+#ifdef ENABLE_AV_ENHANCEMENTS
+                        if (!strcasecmp(sniffedMIME.c_str(), MEDIA_MIMETYPE_CONTAINER_QCMPEG4)) {
+                            if(mCachedSource->flags() && DataSource::kSupportNonBlockingRead) {
+                                mCachedSource->enableNonBlockingRead(true);
+                            }
+                        }
+#endif
                     }
 
                     usleep(200000);
@@ -3463,15 +3489,16 @@ void AwesomePlayer::checkTunnelExceptions()
         return;
     }
 
-    /* exception 4: check for  AAC mainprofile , it is not supported */
+    /* exception 4: check for  AAC main/AAC ELD profiles, it is not supported */
     sp<MetaData> metaData  = mAudioTrack->getFormat();
     const char * mime;
     int32_t objecttype = 0;
 
     if (metaData->findCString(kKeyMIMEType, &mime) &&
            !strcmp(mime, MEDIA_MIMETYPE_AUDIO_AAC) &&
-           (metaData->findInt32(kKeyAACProfile, &objecttype) && (1 == objecttype))) {
-        ALOGD("FOUND AAC Main Profile, disable tunnel mode");
+           (metaData->findInt32(kKeyAACProfile, &objecttype) &&
+           ((1 == objecttype) || (39 == objecttype)))) {
+        ALOGD("FOUND unsupported AAC profiletype(%d) , disable tunnel mode\n",objecttype);
         mIsTunnelAudio = false;
         return;
     }
@@ -3503,6 +3530,85 @@ void AwesomePlayer::checkTunnelExceptions()
     return;
 }
 #endif
+
+// suspend() will release the decoders, the renderers and the buffers allocated for decoders
+// Releasing decoders eliminates draining power in suspended state.
+status_t AwesomePlayer::suspend() {
+    ALOGV("suspend()");
+    Mutex::Autolock autoLock(mLock);
+
+    // Set PAUSE to DrmManagerClient which will be set START in play_l()
+    if (mDecryptHandle != NULL) {
+        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
+                    Playback::PAUSE, 0);
+    }
+
+    cancelPlayerEvents();
+    if (mQueueStarted) {
+        mQueue.stop();
+        mQueueStarted = false;
+    }
+
+    // Shutdown audio decoder first
+    if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+            && mAudioSource != NULL) {
+        mAudioSource->stop();
+    }
+    mAudioSource.clear();
+    mOmxSource.clear();
+    delete mAudioPlayer;
+    mAudioPlayer = NULL;
+    modifyFlags(AUDIO_RUNNING | AUDIOPLAYER_STARTED, CLEAR);
+
+    // Shutdown the video decoder
+    mVideoRenderer.clear();
+    if (mVideoSource != NULL) {
+        shutdownVideoDecoder_l();
+    }
+    modifyFlags(PLAYING, CLEAR);
+    mVideoRenderingStarted = false;
+
+    // Disconnect the source
+    if (mCachedSource != NULL) {
+        status_t err = mCachedSource->disconnectWhileSuspend();
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    return OK;
+}
+
+status_t AwesomePlayer::resume() {
+    ALOGV("resume()");
+    Mutex::Autolock autoLock(mLock);
+
+    // Reconnect the source
+    status_t err = mCachedSource->connectWhileResume();
+
+    if (mVideoTrack != NULL && mVideoSource == NULL) {
+        status_t err = initVideoDecoder();
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    if (mAudioTrack != NULL && mAudioSource == NULL) {
+        status_t err = initAudioDecoder();
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    mIsFirstFrameAfterResume = true;
+
+    if (!mQueueStarted) {
+        mQueue.start();
+        mQueueStarted = true;
+    }
+
+    return OK;
+}
 
 inline void AwesomePlayer::logFirstFrame() {
     mStats.mFirstFrameLatencyUs = getTimeOfDayUs()-mStats.mFirstFrameLatencyStartUs;

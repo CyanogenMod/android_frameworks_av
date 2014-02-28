@@ -103,8 +103,8 @@ struct OMXCodec : public MediaSource,
 #if defined(OMAP_ENHANCEMENT)
         kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
-#ifdef QCOM_HARDWARE
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
+#ifdef QCOM_HARDWARE
         kRequiresWMAProComponent              = 0x40000000, //2^30
 #endif
     };
@@ -146,18 +146,14 @@ private:
         EXECUTING_TO_IDLE,
         IDLE_TO_LOADED,
         RECONFIGURING,
-#ifdef QCOM_HARDWARE
         PAUSING,
         FLUSHING,
         PAUSED,
-#endif
         ERROR
     };
 
     enum {
-#ifdef QCOM_HARDWARE
         kPortIndexBoth   = -1,
-#endif
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };
@@ -370,9 +366,7 @@ private:
     status_t applyRotation();
     status_t waitForBufferFilled_l();
 
-#ifdef QCOM_HARDWARE
     status_t resumeLocked(bool drainInputBuf);
-#endif
 
     int64_t getDecodingTimeUs();
 
@@ -384,12 +378,17 @@ private:
 
     OMXCodec(const OMXCodec &);
     OMXCodec &operator=(const OMXCodec &);
+    bool hasDisabledPorts();
 
 #ifdef QCOM_HARDWARE
     int32_t mNumBFrames;
 #endif
     bool mInSmoothStreamingMode;
     bool mOutputCropChanged;
+    bool mSignalledReadTryAgain;
+    bool mReturnedRetry;
+    int64_t mLastSeekTimeUs;
+    ReadOptions::SeekMode mLastSeekMode;
 };
 
 struct CodecCapabilities {

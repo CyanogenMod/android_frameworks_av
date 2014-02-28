@@ -23,6 +23,7 @@
 #include <utils/String8.h>
 
 #include <system/audio.h>
+#include <binder/AppOpsManager.h>
 
 namespace android {
 
@@ -60,6 +61,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t prepare();
     virtual status_t start();
     virtual status_t pause();
+    virtual status_t setSourcePause(bool pause);
     virtual status_t stop();
     virtual status_t close();
     virtual status_t reset();
@@ -69,6 +71,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
 
 private:
+    AppOpsManager mAppOpsManager;
     sp<ICamera> mCamera;
     sp<ICameraRecordingProxy> mCameraProxy;
     sp<IGraphicBufferProducer> mPreviewSurface;
@@ -78,6 +81,9 @@ private:
     sp<MediaWriter> mWriter;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;
+    sp<MediaSource> mVideoSourceNode;
+    sp<MediaSource> mVideoEncoderOMX;
+    sp<MediaSource> mAudioEncoderOMX;
 
     audio_source_t mAudioSource;
     video_source mVideoSource;
@@ -118,6 +124,7 @@ private:
     MediaProfiles *mEncoderProfiles;
 
     bool mStarted;
+    bool mRecPaused;
     // Needed when GLFrames are encoded.
     // An <IGraphicBufferProducer> pointer
     // will be sent to the client side using which the

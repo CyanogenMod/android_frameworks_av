@@ -35,7 +35,6 @@
 
 namespace android {
 
-const static int64_t WaitLockEventTimeOutNs = 1000000000LL;
 static void AudioRecordCallbackFunction(int event, void *user, void *info) {
     AudioSource *source = (AudioSource *) user;
     switch (event) {
@@ -63,6 +62,7 @@ AudioSource::AudioSource(
 #endif
       mSampleRate(sampleRate),
       mPrevSampleTimeUs(0),
+      mRecPaused(false),
       mNumFramesReceived(0),
 #ifdef QCOM_HARDWARE
       mNumClientOwnedBuffers(0),
@@ -138,7 +138,9 @@ AudioSource::AudioSource( audio_source_t inputSource, const sp<MetaData>& meta )
       mNumFramesReceived(0),
       mNumClientOwnedBuffers(0),
       mFormat(AUDIO_FORMAT_PCM_16_BIT),
-      mMime(MEDIA_MIMETYPE_AUDIO_RAW) {
+      mMime(MEDIA_MIMETYPE_AUDIO_RAW),
+      mRecPaused(false) {
+
     const char * mime;
     ALOGE("SK: in AudioSource : inputSource: %d", inputSource);
     CHECK( meta->findCString( kKeyMIMEType, &mime ) );
@@ -207,6 +209,12 @@ status_t AudioSource::initCheck() const {
 
 status_t AudioSource::start(MetaData *params) {
     Mutex::Autolock autoLock(mLock);
+
+    if (mRecPaused) {
+        mRecPaused = false;
+        return OK;
+    }
+
     if (mStarted) {
         return UNKNOWN_ERROR;
     }
@@ -233,6 +241,11 @@ status_t AudioSource::start(MetaData *params) {
 
     return err;
 }
+status_t AudioSource::pause() {
+    ALOGV("AudioSource::Pause");
+    mRecPaused = true;
+    return OK;
+}
 
 void AudioSource::releaseQueuedFrames_l() {
     ALOGV("releaseQueuedFrames_l");
@@ -253,6 +266,7 @@ void AudioSource::waitOutstandingEncodingFrames_l() {
 
 status_t AudioSource::reset() {
     Mutex::Autolock autoLock(mLock);
+
     if (!mStarted) {
         return UNKNOWN_ERROR;
     }
@@ -335,9 +349,7 @@ status_t AudioSource::read(
     }
 
     while (mStarted && mBuffersReceived.empty()) {
-       status_t err = mFrameAvailableCondition.waitRelative(mLock,WaitLockEventTimeOutNs);
-       if(err == -ETIMEDOUT)
-           return (status_t)err;
+        mFrameAvailableCondition.wait(mLock);
     }
     if (!mStarted) {
         return OK;
@@ -473,6 +485,14 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
 }
 
 void AudioSource::queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs) {
+    if (mRecPaused) {
+        if (!mBuffersReceived.empty())
+            releaseQueuedFrames_l();
+
+        buffer->release();
+        return;
+    }
+
     const size_t bufferSize = buffer->range_length();
     const size_t frameSize = mRecord->frameSize();
 #ifdef QCOM_HARDWARE

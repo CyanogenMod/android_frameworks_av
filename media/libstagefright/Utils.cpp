@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +36,9 @@
 #include <media/AudioParameter.h>
 #ifdef QCOM_HARDWARE
 #include <media/stagefright/ExtendedCodec.h>
+#endif
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include <QCMediaDefs.h>
 #endif
 
 namespace android {
@@ -449,6 +454,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 char avcc[1024]; // that oughta be enough, right?
                 size_t outsize = reassembleAVCC(csd0, csd1, avcc);
                 meta->setData(kKeyAVCC, kKeyAVCC, avcc, outsize);
+            } else {
+                int csd0size = csd0->size();
+                char esds[csd0size + 31];
+                reassembleESDS(csd0, esds);
+                meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
             }
         } else if (mime.startsWith("audio/")) {
             int csd0size = csd0->size();
@@ -490,6 +500,7 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     int32_t channelMask = 0;
     int32_t delaySamples = 0;
     int32_t paddingSamples = 0;
+    int32_t isADTS = 0;
 
     AudioParameter param = AudioParameter();
 
@@ -507,6 +518,9 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     }
     if (meta->findInt32(kKeyEncoderPadding, &paddingSamples)) {
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES), paddingSamples);
+    }
+    if (meta->findInt32(kKeyIsADTS, &isADTS)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FORMAT), 0x02 /*SND_AUDIOSTREAMFORMAT_MP4ADTS*/);
     }
 
     ALOGV("sendMetaDataToHal: bitRate %d, sampleRate %d, chanMask %d,"
@@ -529,6 +543,15 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_AMR_WB,      AUDIO_FORMAT_AMR_WB },
     { MEDIA_MIMETYPE_AUDIO_AAC,         AUDIO_FORMAT_AAC },
     { MEDIA_MIMETYPE_AUDIO_VORBIS,      AUDIO_FORMAT_VORBIS },
+#ifdef ENABLE_AV_ENHANCEMENTS
+    { MEDIA_MIMETYPE_AUDIO_AC3,         AUDIO_FORMAT_AC3 },
+    { MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, AUDIO_FORMAT_AMR_WB_PLUS },
+    { MEDIA_MIMETYPE_AUDIO_DTS,         AUDIO_FORMAT_DTS },
+    { MEDIA_MIMETYPE_AUDIO_EAC3,        AUDIO_FORMAT_EAC3 },
+    { MEDIA_MIMETYPE_AUDIO_EVRC,        AUDIO_FORMAT_EVRC },
+    { MEDIA_MIMETYPE_AUDIO_QCELP,       AUDIO_FORMAT_QCELP },
+    { MEDIA_MIMETYPE_AUDIO_WMA,         AUDIO_FORMAT_WMA },
+#endif
     { 0, AUDIO_FORMAT_INVALID }
 };
 
@@ -546,11 +569,22 @@ const struct mime_conv_t* p = &mimeLookup[0];
     return BAD_VALUE;
 }
 
-bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
+bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData>& vMeta,
                       bool isStreaming, audio_stream_type_t streamType)
 {
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
+
+    if (hasVideo) {
+        const char *vMime;
+        CHECK(vMeta->findCString(kKeyMIMEType, &vMime));
+#ifdef ENABLE_AV_ENHANCEMENTS
+        if (!strncmp(vMime, MEDIA_MIMETYPE_VIDEO_HEVC, 10)) {
+            ALOGD("Do not offload HEVC audio+video playback");
+            return false;
+        }
+#endif
+    }
 
     audio_offload_info_t info = AUDIO_INFO_INITIALIZER;
 
@@ -566,6 +600,17 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
         // can't offload if we don't know what the source format is
         ALOGE("mime type \"%s\" not a known audio format", mime);
         return false;
+    }
+
+    // check whether it is ELD/LD/main content -> no offloading
+    // FIXME: this should depend on audio DSP capabilities. mapMimeToAudioFormat() should use the
+    // metadata to refine the AAC format and the audio HAL should only list supported profiles.
+    int32_t aacaot = -1;
+    if (meta->findInt32(kKeyAACAOT, &aacaot)) {
+        if (aacaot == 23 || aacaot == 39 || aacaot == 1) {
+            ALOGV("track of type '%s' is ELD/LD/main content", mime);
+            return false;
+        }
     }
 
     int32_t srate = -1;
