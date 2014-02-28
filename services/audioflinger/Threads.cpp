@@ -104,10 +104,10 @@ static const uint32_t kMinThreadSleepTimeUs = 5000;
 // maximum divider applied to the active sleep time in the mixer thread loop
 static const uint32_t kMaxThreadSleepTimeShift = 2;
 
-// minimum normal mix buffer size, expressed in milliseconds rather than frames
-static const uint32_t kMinNormalMixBufferSizeMs = 20;
-// maximum normal mix buffer size
-static const uint32_t kMaxNormalMixBufferSizeMs = 24;
+// minimum normal sink buffer size, expressed in milliseconds rather than frames
+static const uint32_t kMinNormalSinkBufferSizeMs = 20;
+// maximum normal sink buffer size
+static const uint32_t kMaxNormalSinkBufferSizeMs = 24;
 
 // Offloaded output thread standby delay: allows track transition without going to standby
 static const nsecs_t kOffloadStandbyDelayNs = seconds(1);
@@ -1716,12 +1716,12 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
         }
     }
 
-    // Calculate size of normal mix buffer relative to the HAL output buffer size
+    // Calculate size of normal sink buffer relative to the HAL output buffer size
     double multiplier = 1.0;
     if (mType == MIXER && (kUseFastMixer == FastMixer_Static ||
             kUseFastMixer == FastMixer_Dynamic)) {
-        size_t minNormalFrameCount = (kMinNormalMixBufferSizeMs * mSampleRate) / 1000;
-        size_t maxNormalFrameCount = (kMaxNormalMixBufferSizeMs * mSampleRate) / 1000;
+        size_t minNormalFrameCount = (kMinNormalSinkBufferSizeMs * mSampleRate) / 1000;
+        size_t maxNormalFrameCount = (kMaxNormalSinkBufferSizeMs * mSampleRate) / 1000;
         // round up minimum and round down maximum to nearest 16 frames to satisfy AudioMixer
         minNormalFrameCount = (minNormalFrameCount + 15) & ~15;
         maxNormalFrameCount = maxNormalFrameCount & ~15;
@@ -1739,7 +1739,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
             }
         } else {
             // prefer an even multiplier, for compatibility with doubling of fast tracks due to HAL
-            // SRC (it would be unusual for the normal mix buffer size to not be a multiple of fast
+            // SRC (it would be unusual for the normal sink buffer size to not be a multiple of fast
             // track, but we sometimes have to do this to satisfy the maximum frame count
             // constraint)
             // FIXME this rounding up should not be done if no HAL SRC
@@ -1755,7 +1755,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     mNormalFrameCount = multiplier * mFrameCount;
     // round up to nearest 16 frames to satisfy AudioMixer
     mNormalFrameCount = (mNormalFrameCount + 15) & ~15;
-    ALOGI("HAL output buffer size %u frames, normal mix buffer size %u frames", mFrameCount,
+    ALOGI("HAL output buffer size %u frames, normal sink buffer size %u frames", mFrameCount,
             mNormalFrameCount);
 
     delete[] mSinkBuffer;
