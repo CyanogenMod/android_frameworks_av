@@ -3293,7 +3293,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 mAudioMixer->setParameter(
                         name,
                         AudioMixer::TRACK,
-                        AudioMixer::SINK_FORMAT, (void *)mMixerBufferFormat);
+                        AudioMixer::MIXER_FORMAT, (void *)mMixerBufferFormat);
                 mAudioMixer->setParameter(
                         name,
                         AudioMixer::TRACK,
@@ -3304,7 +3304,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 mAudioMixer->setParameter(
                         name,
                         AudioMixer::TRACK,
-                        AudioMixer::SINK_FORMAT, (void *)AUDIO_FORMAT_PCM_16_BIT);
+                        AudioMixer::MIXER_FORMAT, (void *)AUDIO_FORMAT_PCM_16_BIT);
                 mAudioMixer->setParameter(
                         name,
                         AudioMixer::TRACK,

@@ -77,7 +77,7 @@ public:
         MAIN_BUFFER     = 0x4002,
         AUX_BUFFER      = 0x4003,
         DOWNMIX_TYPE    = 0X4004,
-        SINK_FORMAT     = 0x4005, // AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
+        MIXER_FORMAT    = 0x4005, // AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
         // for target RESAMPLE
         SAMPLE_RATE     = 0x4100, // Configure sample rate conversion on this track name;
                                   // parameter 'value' is the new sample rate in Hz.
@@ -194,7 +194,7 @@ private:
 
         int32_t     sessionId;
 
-        audio_format_t mSinkFormat; // at this time: AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
+        audio_format_t mMixerFormat; // at this time: AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
 
         int32_t     padding[1];
 

@@ -193,7 +193,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
         t->mainBuffer = NULL;
         t->auxBuffer = NULL;
         t->downmixerBufferProvider = NULL;
-        t->mSinkFormat = AUDIO_FORMAT_PCM_16_BIT;
+        t->mMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
 
         status_t status = initTrackDownmix(&mState.tracks[n], n, channelMask);
         if (status == OK) {
@@ -441,11 +441,11 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         //         for a specific track? or per mixer?
         /* case DOWNMIX_TYPE:
             break          */
-        case SINK_FORMAT: {
+        case MIXER_FORMAT: {
             audio_format_t format = static_cast<audio_format_t>(valueInt);
-            if (track.mSinkFormat != format) {
-                track.mSinkFormat = format;
-                ALOGV("setParameter(TRACK, SINK_FORMAT, %#x)", format);
+            if (track.mMixerFormat != format) {
+                track.mMixerFormat = format;
+                ALOGV("setParameter(TRACK, MIXER_FORMAT, %#x)", format);
             }
             } break;
         default:
@@ -1071,7 +1071,7 @@ void AudioMixer::process__nop(state_t* state, int64_t pts)
             e0 &= ~(e1);
 
             memset(t1.mainBuffer, 0, sampleCount
-                    * audio_bytes_per_sample(t1.mSinkFormat));
+                    * audio_bytes_per_sample(t1.mMixerFormat));
         }
 
         while (e1) {
@@ -1179,7 +1179,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                     }
                 }
             }
-            switch (t1.mSinkFormat) {
+            switch (t1.mMixerFormat) {
             case AUDIO_FORMAT_PCM_FLOAT:
                 memcpy_to_float_from_q19_12(reinterpret_cast<float *>(out), outTemp, BLOCKSIZE * 2);
                 out += BLOCKSIZE * 2; // output is 2 floats/frame.
@@ -1189,7 +1189,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                 out += BLOCKSIZE; // output is 1 int32_t (2 int16_t samples)/frame
                 break;
             default:
-                LOG_ALWAYS_FATAL("bad sink format: %d", t1.mSinkFormat);
+                LOG_ALWAYS_FATAL("bad mixer format: %d", t1.mMixerFormat);
             }
             numFrames += BLOCKSIZE;
         } while (numFrames < state->frameCount);
@@ -1272,7 +1272,7 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
                 }
             }
         }
-        switch (t1.mSinkFormat) {
+        switch (t1.mMixerFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
             memcpy_to_float_from_q19_12(reinterpret_cast<float*>(out), outTemp, numFrames*2);
             break;
@@ -1280,7 +1280,7 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
             ditherAndClamp(out, outTemp, numFrames);
             break;
         default:
-            LOG_ALWAYS_FATAL("bad sink format: %d", t1.mSinkFormat);
+            LOG_ALWAYS_FATAL("bad mixer format: %d", t1.mMixerFormat);
         }
     }
 }
@@ -1322,7 +1322,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
         }
         size_t outFrames = b.frameCount;
 
-        switch (t.mSinkFormat) {
+        switch (t.mMixerFormat) {
         case AUDIO_FORMAT_PCM_FLOAT: {
             float *fout = reinterpret_cast<float*>(out);
             do {
@@ -1361,7 +1361,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
             }
             break;
         default:
-            LOG_ALWAYS_FATAL("bad sink format: %d", t.mSinkFormat);
+            LOG_ALWAYS_FATAL("bad mixer format: %d", t.mMixerFormat);
         }
         numFrames -= b.frameCount;
         t.bufferProvider->releaseBuffer(&b);
