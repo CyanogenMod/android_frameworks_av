@@ -5555,12 +5555,12 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
     // This is the formula for calculating the temporary buffer size.
-    // With 3 HAL buffers, we can guarantee ability to down-sample the input by ratio of 2:1 to
+    // With 7 HAL buffers, we can guarantee ability to down-sample the input by ratio of 6:1 to
     // 1 full output buffer, regardless of the alignment of the available input.
-    // The "3" is somewhat arbitrary, and could probably be larger.
+    // The value is somewhat arbitrary, and could probably be even larger.
     // A larger value should allow more old data to be read after a track calls start(),
     // without increasing latency.
-    mRsmpInFrames = mFrameCount * 3;
+    mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
     delete[] mRsmpInBuffer;
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
