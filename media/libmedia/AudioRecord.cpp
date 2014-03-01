@@ -233,22 +233,27 @@ status_t AudioRecord::set(
     ALOGV("set(): mSessionId %d", mSessionId);
 
     mFlags = flags;
-
-    // create the IAudioRecord
-    status = openRecord_l(0 /*epoch*/);
-    if (status != NO_ERROR) {
-        return status;
-    }
+    mCbf = cbf;
 
     if (cbf != NULL) {
         mAudioRecordThread = new AudioRecordThread(*this, threadCanCallJava);
         mAudioRecordThread->run("AudioRecord", ANDROID_PRIORITY_AUDIO);
     }
 
-    mStatus = NO_ERROR;
+    // create the IAudioRecord
+    status = openRecord_l(0 /*epoch*/);
 
+    if (status != NO_ERROR) {
+        if (mAudioRecordThread != 0) {
+            mAudioRecordThread->requestExit();   // see comment in AudioRecord.h
+            mAudioRecordThread->requestExitAndWait();
+            mAudioRecordThread.clear();
+        }
+        return status;
+    }
+
+    mStatus = NO_ERROR;
     mActive = false;
-    mCbf = cbf;
     mUserData = user;
     // TODO: add audio hardware input latency here
     mLatency = (1000*mFrameCount) / sampleRate;
