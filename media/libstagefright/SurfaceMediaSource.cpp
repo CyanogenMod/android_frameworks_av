@@ -477,4 +477,8 @@ void SurfaceMediaSource::onBuffersReleased() {
     }
 }
 
+void SurfaceMediaSource::onSidebandStreamChanged() {
+    ALOG_ASSERT(false, "SurfaceMediaSource can't consume sideband streams");
+}
+
 } // end of namespace android

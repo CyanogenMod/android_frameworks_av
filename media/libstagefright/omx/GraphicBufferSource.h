@@ -143,6 +143,11 @@ protected:
     // set of mBufferSlot entries.
     virtual void onBuffersReleased();
 
+    // BufferQueue::ConsumerListener interface, called when the client has
+    // changed the sideband stream. GraphicBufferSource doesn't handle sideband
+    // streams so this is a no-op (and should never be called).
+    virtual void onSidebandStreamChanged();
+
 private:
     // Keep track of codec input buffers.  They may either be available
     // (mGraphicBuffer == NULL) or in use by the codec.
