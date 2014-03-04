@@ -484,6 +484,15 @@ protected:
 
     int16_t*                        mSinkBuffer;         // frame size aligned sink buffer
 
+    // TODO:
+    // Rearrange the buffer info into a struct/class with
+    // clear, copy, construction, destruction methods.
+    //
+    // mSinkBuffer also has associated with it:
+    //
+    // mSinkBufferSize: Sink Buffer Size
+    // mFormat: Sink Buffer Format
+
     // Mixer Buffer (mMixerBuffer*)
     //
     // In the case of floating point or multichannel data, which is not in the
@@ -506,6 +515,32 @@ protected:
     // An internal flag set to true by MixerThread::prepareTracks_l()
     // when mMixerBuffer contains valid data after mixing.
     bool                            mMixerBufferValid;
+
+    // Effects Buffer (mEffectsBuffer*)
+    //
+    // In the case of effects data, which is not in the sink format,
+    // it is required to accumulate in a different buffer before data conversion
+    // to the sink buffer.
+
+    // Set to "true" to enable the Effects Buffer otherwise effects output goes to sink buffer.
+    bool                            mEffectBufferEnabled;
+
+    // Storage, 32 byte aligned (may make this alignment a requirement later).
+    // Due to constraints on mNormalFrameCount, the buffer size is a multiple of 16 frames.
+    void*                           mEffectBuffer;
+
+    // Size of mEffectsBuffer in bytes: mNormalFrameCount * #channels * sampsize.
+    size_t                          mEffectBufferSize;
+
+    // The audio format of mEffectsBuffer. Set to AUDIO_FORMAT_PCM_16_BIT only.
+    audio_format_t                  mEffectBufferFormat;
+
+    // An internal flag set to true by MixerThread::prepareTracks_l()
+    // when mEffectsBuffer contains valid data after mixing.
+    //
+    // When this is set, all mixer data is routed into the effects buffer
+    // for any processing (including output processing).
+    bool                            mEffectBufferValid;
 
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
