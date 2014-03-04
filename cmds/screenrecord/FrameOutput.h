@@ -34,9 +34,6 @@ public:
         mExtTextureName(0),
         mPixelBuf(NULL)
         {}
-    virtual ~FrameOutput() {
-        delete[] mPixelBuf;
-    }
 
     // Create an "input surface", similar in purpose to a MediaCodec input
     // surface, that the virtual display can send buffers to.  Also configures
@@ -58,6 +55,11 @@ public:
 private:
     FrameOutput(const FrameOutput&);
     FrameOutput& operator=(const FrameOutput&);
+
+    // Destruction via RefBase.
+    virtual ~FrameOutput() {
+        delete[] mPixelBuf;
+    }
 
     // (overrides GLConsumer::FrameAvailableListener method)
     virtual void onFrameAvailable();
