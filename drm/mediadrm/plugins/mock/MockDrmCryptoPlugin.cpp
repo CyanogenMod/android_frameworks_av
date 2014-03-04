@@ -45,7 +45,7 @@ namespace android {
     // MockDrmFactory
     bool MockDrmFactory::isCryptoSchemeSupported(const uint8_t uuid[16])
     {
-        return (!memcmp(uuid, mock_uuid, sizeof(uuid)));
+        return (!memcmp(uuid, mock_uuid, sizeof(mock_uuid)));
     }
 
     bool MockDrmFactory::isContentTypeSupported(const String8 &mimeType)
@@ -65,7 +65,7 @@ namespace android {
     // MockCryptoFactory
     bool MockCryptoFactory::isCryptoSchemeSupported(const uint8_t uuid[16]) const
     {
-        return (!memcmp(uuid, mock_uuid, sizeof(uuid)));
+        return (!memcmp(uuid, mock_uuid, sizeof(mock_uuid)));
     }
 
     status_t MockCryptoFactory::createPlugin(const uint8_t uuid[16], const void *data,
@@ -254,7 +254,9 @@ namespace android {
         return OK;
     }
 
-    status_t MockDrmPlugin::getProvisionRequest(Vector<uint8_t> &request,
+    status_t MockDrmPlugin::getProvisionRequest(String8 const &certType,
+                                                String8 const &certAuthority,
+                                                Vector<uint8_t> &request,
                                                 String8 &defaultUrl)
     {
         Mutex::Autolock lock(mLock);
@@ -282,7 +284,9 @@ namespace android {
         return OK;
     }
 
-    status_t MockDrmPlugin::provideProvisionResponse(Vector<uint8_t> const &response)
+    status_t MockDrmPlugin::provideProvisionResponse(Vector<uint8_t> const &response,
+                                                     Vector<uint8_t> &certificate,
+                                                     Vector<uint8_t> &wrappedKey)
     {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::provideProvisionResponse(%s)",
@@ -597,6 +601,33 @@ namespace android {
         } else {
             match = atol(mStringProperties.valueAt(index).string());
         }
+        return OK;
+    }
+
+    status_t MockDrmPlugin::signRSA(Vector<uint8_t> const &sessionId,
+                                    String8 const &algorithm,
+                                    Vector<uint8_t> const &message,
+                                    Vector<uint8_t> const &wrappedKey,
+                                    Vector<uint8_t> &signature)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::signRSA(sessionId=%s, algorithm=%s, keyId=%s, "
+              "message=%s, signature=%s)",
+              vectorToString(sessionId).string(),
+              algorithm.string(),
+              vectorToString(message).string(),
+              vectorToString(wrappedKey).string(),
+              vectorToString(signature).string());
+
+        // Properties used in mock test, set by mock plugin and verifed cts test app
+        //   byte[] wrappedKey         -> mock-wrappedkey
+        //   byte[] message            -> mock-message
+        //   byte[] signature          -> mock-signature
+        mByteArrayProperties.add(String8("mock-sessionid"), sessionId);
+        mStringProperties.add(String8("mock-algorithm"), algorithm);
+        mByteArrayProperties.add(String8("mock-message"), message);
+        mByteArrayProperties.add(String8("mock-wrappedkey"), wrappedKey);
+        mByteArrayProperties.add(String8("mock-signature"), signature);
         return OK;
     }
 
