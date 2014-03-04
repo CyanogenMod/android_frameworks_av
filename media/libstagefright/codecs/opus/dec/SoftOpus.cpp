@@ -19,6 +19,8 @@
 #include <utils/Log.h>
 
 #include "SoftOpus.h"
+#include <OMX_AudioExt.h>
+#include <OMX_IndexExt.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaDefs.h>
@@ -90,7 +92,8 @@ void SoftOpus::initPorts() {
 
     def.format.audio.pNativeRender = NULL;
     def.format.audio.bFlagErrorConcealment = OMX_FALSE;
-    def.format.audio.eEncoding = OMX_AUDIO_CodingAndroidOPUS;
+    def.format.audio.eEncoding =
+        (OMX_AUDIO_CODINGTYPE)OMX_AUDIO_CodingAndroidOPUS;
 
     addPort(def);
 
@@ -119,7 +122,7 @@ status_t SoftOpus::initDecoder() {
 
 OMX_ERRORTYPE SoftOpus::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR params) {
-    switch (index) {
+    switch ((int)index) {
         case OMX_IndexParamAudioAndroidOpus:
         {
             OMX_AUDIO_PARAM_ANDROID_OPUSTYPE *opusParams =
@@ -176,7 +179,7 @@ OMX_ERRORTYPE SoftOpus::internalGetParameter(
 
 OMX_ERRORTYPE SoftOpus::internalSetParameter(
         OMX_INDEXTYPE index, const OMX_PTR params) {
-    switch (index) {
+    switch ((int)index) {
         case OMX_IndexParamStandardComponentRole:
         {
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
@@ -242,19 +245,19 @@ static const uint8_t kDefaultOpusChannelLayout[kMaxChannelsWithDefaultLayout] = 
 static bool ParseOpusHeader(const uint8_t *data, size_t data_size,
                             OpusHeader* header) {
     // Size of the Opus header excluding optional mapping information.
-    const int kOpusHeaderSize = 19;
+    const size_t kOpusHeaderSize = 19;
 
     // Offset to the channel count byte in the Opus header.
-    const int kOpusHeaderChannelsOffset = 9;
+    const size_t kOpusHeaderChannelsOffset = 9;
 
     // Offset to the pre-skip value in the Opus header.
-    const int kOpusHeaderSkipSamplesOffset = 10;
+    const size_t kOpusHeaderSkipSamplesOffset = 10;
 
     // Offset to the gain value in the Opus header.
-    const int kOpusHeaderGainOffset = 16;
+    const size_t kOpusHeaderGainOffset = 16;
 
     // Offset to the channel mapping byte in the Opus header.
-    const int kOpusHeaderChannelMappingOffset = 18;
+    const size_t kOpusHeaderChannelMappingOffset = 18;
 
     // Opus Header contains a stream map. The mapping values are in the header
     // beyond the always present |kOpusHeaderSize| bytes of data. The mapping
@@ -264,9 +267,9 @@ static bool ParseOpusHeader(const uint8_t *data, size_t data_size,
     //   - Byte 1: Number coupled.
     //   - Byte 2: Starting at byte 2 are |header->channels| uint8 mapping
     //             values.
-    const int kOpusHeaderNumStreamsOffset = kOpusHeaderSize;
-    const int kOpusHeaderNumCoupledOffset = kOpusHeaderNumStreamsOffset + 1;
-    const int kOpusHeaderStreamMapOffset = kOpusHeaderNumStreamsOffset + 2;
+    const size_t kOpusHeaderNumStreamsOffset = kOpusHeaderSize;
+    const size_t kOpusHeaderNumCoupledOffset = kOpusHeaderNumStreamsOffset + 1;
+    const size_t kOpusHeaderStreamMapOffset = kOpusHeaderNumStreamsOffset + 2;
 
     if (data_size < kOpusHeaderSize) {
         ALOGV("Header size is too small.");
