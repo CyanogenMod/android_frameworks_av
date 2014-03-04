@@ -47,7 +47,6 @@ public:
         mLastFrameNumber(-1),
         mTotalDroppedFrames(0)
         {}
-    virtual ~Overlay() { assert(mState == UNINITIALIZED || mState == STOPPED); }
 
     // Creates a thread that performs the overlay.  Pass in the surface that
     // output will be sent to.
@@ -70,6 +69,9 @@ public:
 private:
     Overlay(const Overlay&);
     Overlay& operator=(const Overlay&);
+
+    // Destruction via RefBase.
+    virtual ~Overlay() { assert(mState == UNINITIALIZED || mState == STOPPED); }
 
     // Draw the initial info screen.
     static void doDrawInfoPage(const EglWindow& window,
