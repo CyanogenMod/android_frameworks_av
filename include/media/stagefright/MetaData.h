@@ -56,6 +56,9 @@ enum {
     kKeyD263              = 'd263',  // raw data
     kKeyVorbisInfo        = 'vinf',  // raw data
     kKeyVorbisBooks       = 'vboo',  // raw data
+    kKeyOpusHeader        = 'ohdr',  // raw data
+    kKeyOpusCodecDelay    = 'ocod',  // uint64_t (codec delay in ns)
+    kKeyOpusSeekPreRoll   = 'ospr',  // uint64_t (seek preroll in ns)
     kKeyWantsNALFragments = 'NALf',
     kKeyIsSyncFrame       = 'sync',  // int32_t (bool)
     kKeyIsCodecConfig     = 'conf',  // int32_t (bool)
