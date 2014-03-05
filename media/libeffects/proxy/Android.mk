@@ -28,7 +28,8 @@ LOCAL_SHARED_LIBRARIES := liblog libcutils libutils libdl libeffects
 
 LOCAL_C_INCLUDES := \
         system/media/audio_effects/include \
-        bionic/libc/include
+        bionic/libc/include \
+        frameworks/av/media/libeffects/factory
 
 include $(BUILD_SHARED_LIBRARY)
 
