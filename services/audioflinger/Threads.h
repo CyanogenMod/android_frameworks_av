@@ -450,8 +450,11 @@ public:
     virtual     String8     getParameters(const String8& keys);
     virtual     void        audioConfigChanged_l(int event, int param = 0);
                 status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
-                // TODO: rename mixBuffer() to sinkBuffer() or try to remove external use.
-                int16_t     *mixBuffer() const { return mSinkBuffer; };
+                // FIXME rename mixBuffer() to sinkBuffer() and remove int16_t* dependency.
+                // Consider also removing and passing an explicit mMainBuffer initialization
+                // parameter to AF::PlaybackThread::Track::Track().
+                int16_t     *mixBuffer() const {
+                    return reinterpret_cast<int16_t *>(mSinkBuffer); };
 
     virtual     void detachAuxEffect_l(int effectId);
                 status_t attachAuxEffect(const sp<AudioFlinger::PlaybackThread::Track> track,
@@ -482,7 +485,7 @@ protected:
     // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
-    int16_t*                        mSinkBuffer;         // frame size aligned sink buffer
+    void*                           mSinkBuffer;         // frame size aligned sink buffer
 
     // TODO:
     // Rearrange the buffer info into a struct/class with
