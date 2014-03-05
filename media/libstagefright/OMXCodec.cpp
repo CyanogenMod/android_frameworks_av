@@ -3805,7 +3805,7 @@ void OMXCodec::setState(State newState) {
 
 status_t OMXCodec::waitForBufferFilled_l() {
 
-    if (mIsEncoder) {
+    if (mIsEncoder && mIsVideo) {
         // For timelapse video recording, the timelapse video recording may
         // not send an input frame for a _long_ time. Do not use timeout
         // for video encoding.
