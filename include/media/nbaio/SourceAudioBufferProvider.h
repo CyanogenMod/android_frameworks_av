@@ -42,6 +42,7 @@ public:
 private:
     const sp<NBAIO_Source> mSource;     // the wrapped source
     /*const*/ size_t    mFrameBitShift; // log2(frame size in bytes)
+    /*const*/ size_t    mFrameSize; // frame size in bytes
     void*               mAllocated; // pointer to base of allocated memory
     size_t              mSize;      // size of mAllocated in frames
     size_t              mOffset;    // frame offset within mAllocated of valid data

@@ -24,7 +24,7 @@ namespace android {
 
 SourceAudioBufferProvider::SourceAudioBufferProvider(const sp<NBAIO_Source>& source) :
     mSource(source),
-    // mFrameBitShiftFormat below
+    // mFrameSize below
     mAllocated(NULL), mSize(0), mOffset(0), mRemaining(0), mGetCount(0), mFramesReleased(0)
 {
     ALOG_ASSERT(source != 0);
@@ -38,6 +38,7 @@ SourceAudioBufferProvider::SourceAudioBufferProvider(const sp<NBAIO_Source>& sou
     index = source->negotiate(counterOffers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
     mFrameBitShift = Format_frameBitShift(source->format());
+    mFrameSize = Format_frameSize(source->format());
 }
 
 SourceAudioBufferProvider::~SourceAudioBufferProvider()
