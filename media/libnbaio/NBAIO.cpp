@@ -98,7 +98,8 @@ unsigned Format_channelCount(const NBAIO_Format& format)
     }
 }
 
-NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount)
+NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount,
+        audio_format_t format_ __unused)
 {
     unsigned format;
     switch (sampleRate) {

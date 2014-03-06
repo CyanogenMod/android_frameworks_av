@@ -29,6 +29,7 @@
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <media/AudioTimestamp.h>
+#include <system/audio.h>
 
 namespace android {
 
@@ -67,8 +68,9 @@ size_t Format_frameSize(const NBAIO_Format& format);
 int Format_frameBitShift(const NBAIO_Format& format);
 
 // Convert a sample rate in Hz and channel count to an NBAIO_Format
-// FIXME The sample format is hard-coded to AUDIO_FORMAT_PCM_16_BIT
-NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount);
+// FIXME Remove the default value of AUDIO_FORMAT_PCM_16_BIT, and rename
+NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount,
+        audio_format_t format = AUDIO_FORMAT_PCM_16_BIT);
 
 // Return the sample rate in Hz of an NBAIO_Format
 unsigned Format_sampleRate(const NBAIO_Format& format);
