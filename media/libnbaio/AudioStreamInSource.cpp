@@ -71,9 +71,9 @@ ssize_t AudioStreamInSource::read(void *buffer, size_t count)
     if (CC_UNLIKELY(!Format_isValid(mFormat))) {
         return NEGOTIATE;
     }
-    ssize_t bytesRead = mStream->read(mStream, buffer, count << mBitShift);
+    ssize_t bytesRead = mStream->read(mStream, buffer, count * mFrameSize);
     if (bytesRead > 0) {
-        size_t framesRead = bytesRead >> mBitShift;
+        size_t framesRead = bytesRead / mFrameSize;
         mFramesRead += framesRead;
         return framesRead;
     } else {

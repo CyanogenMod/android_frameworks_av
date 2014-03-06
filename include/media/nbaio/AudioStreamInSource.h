@@ -43,7 +43,7 @@ public:
 
     // This is an over-estimate, and could dupe the caller into making a blocking read()
     // FIXME Use an audio HAL API to query the buffer filling status when it's available.
-    virtual ssize_t availableToRead() { return mStreamBufferSizeBytes >> mBitShift; }
+    virtual ssize_t availableToRead() { return mStreamBufferSizeBytes / mFrameSize; }
 
     virtual ssize_t read(void *buffer, size_t count);
 

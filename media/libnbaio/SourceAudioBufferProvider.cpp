@@ -55,14 +55,14 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
         if (mRemaining < buffer->frameCount) {
             buffer->frameCount = mRemaining;
         }
-        buffer->raw = (char *) mAllocated + (mOffset << mFrameBitShift);
+        buffer->raw = (char *) mAllocated + (mOffset * mFrameSize);
         mGetCount = buffer->frameCount;
         return OK;
     }
     // do we need to reallocate?
     if (buffer->frameCount > mSize) {
         free(mAllocated);
-        mAllocated = malloc(buffer->frameCount << mFrameBitShift);
+        mAllocated = malloc(buffer->frameCount * mFrameSize);
         mSize = buffer->frameCount;
     }
     // read from source
@@ -85,7 +85,7 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
 void SourceAudioBufferProvider::releaseBuffer(Buffer *buffer)
 {
     ALOG_ASSERT((buffer != NULL) &&
-            (buffer->raw == (char *) mAllocated + (mOffset << mFrameBitShift)) &&
+            (buffer->raw == (char *) mAllocated + (mOffset * mFrameSize)) &&
             (buffer->frameCount <= mGetCount) &&
             (mGetCount <= mRemaining) &&
             (mOffset + mRemaining <= mSize));

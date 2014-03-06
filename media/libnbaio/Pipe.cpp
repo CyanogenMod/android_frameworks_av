@@ -52,13 +52,13 @@ ssize_t Pipe::write(const void *buffer, size_t count)
     if (CC_LIKELY(written > count)) {
         written = count;
     }
-    memcpy((char *) mBuffer + (rear << mBitShift), buffer, written << mBitShift);
+    memcpy((char *) mBuffer + (rear * mFrameSize), buffer, written * mFrameSize);
     if (CC_UNLIKELY(rear + written == mMaxFrames)) {
         if (CC_UNLIKELY((count -= written) > rear)) {
             count = rear;
         }
         if (CC_LIKELY(count > 0)) {
-            memcpy(mBuffer, (char *) buffer + (written << mBitShift), count << mBitShift);
+            memcpy(mBuffer, (char *) buffer + (written * mFrameSize), count * mFrameSize);
             written += count;
         }
     }
