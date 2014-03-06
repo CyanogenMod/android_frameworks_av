@@ -476,10 +476,11 @@ status_t BnAudioPolicyService::onTransact(
         case START_OUTPUT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_io_handle_t output = static_cast <audio_io_handle_t>(data.readInt32());
-            uint32_t stream = data.readInt32();
+            audio_stream_type_t stream =
+                                static_cast <audio_stream_type_t>(data.readInt32());
             int session = data.readInt32();
             reply->writeInt32(static_cast <uint32_t>(startOutput(output,
-                                                                 (audio_stream_type_t)stream,
+                                                                 stream,
                                                                  session)));
             return NO_ERROR;
         } break;
@@ -487,10 +488,11 @@ status_t BnAudioPolicyService::onTransact(
         case STOP_OUTPUT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_io_handle_t output = static_cast <audio_io_handle_t>(data.readInt32());
-            uint32_t stream = data.readInt32();
+            audio_stream_type_t stream =
+                                static_cast <audio_stream_type_t>(data.readInt32());
             int session = data.readInt32();
             reply->writeInt32(static_cast <uint32_t>(stopOutput(output,
-                                                                (audio_stream_type_t)stream,
+                                                                stream,
                                                                 session)));
             return NO_ERROR;
         } break;
@@ -633,7 +635,7 @@ status_t BnAudioPolicyService::onTransact(
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_stream_type_t stream = (audio_stream_type_t) data.readInt32();
             uint32_t inPastMs = (uint32_t)data.readInt32();
-            reply->writeInt32( isStreamActive((audio_stream_type_t) stream, inPastMs) );
+            reply->writeInt32( isStreamActive(stream, inPastMs) );
             return NO_ERROR;
         } break;
 
@@ -641,7 +643,7 @@ status_t BnAudioPolicyService::onTransact(
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_stream_type_t stream = (audio_stream_type_t) data.readInt32();
             uint32_t inPastMs = (uint32_t)data.readInt32();
-            reply->writeInt32( isStreamActiveRemotely((audio_stream_type_t) stream, inPastMs) );
+            reply->writeInt32( isStreamActiveRemotely(stream, inPastMs) );
             return NO_ERROR;
         } break;
 
