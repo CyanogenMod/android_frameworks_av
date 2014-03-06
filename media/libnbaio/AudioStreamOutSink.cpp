@@ -58,9 +58,9 @@ ssize_t AudioStreamOutSink::write(const void *buffer, size_t count)
         return NEGOTIATE;
     }
     ALOG_ASSERT(Format_isValid(mFormat));
-    ssize_t ret = mStream->write(mStream, buffer, count << mBitShift);
+    ssize_t ret = mStream->write(mStream, buffer, count * mFrameSize);
     if (ret > 0) {
-        ret >>= mBitShift;
+        ret /= mFrameSize;
         mFramesWritten += ret;
     } else {
         // FIXME verify HAL implementations are returning the correct error codes e.g. WOULD_BLOCK

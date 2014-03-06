@@ -68,7 +68,7 @@ ssize_t AudioBufferProviderSource::read(void *buffer,
     }
     // count could be zero, either because count was zero on entry or
     // available is zero, but both are unlikely so don't check for that
-    memcpy(buffer, (char *) mBuffer.raw + (mConsumed << mBitShift), count << mBitShift);
+    memcpy(buffer, (char *) mBuffer.raw + (mConsumed * mFrameSize), count * mFrameSize);
     if (CC_UNLIKELY((mConsumed += count) >= mBuffer.frameCount)) {
         mProvider->releaseBuffer(&mBuffer);
         mBuffer.raw = NULL;
@@ -120,7 +120,7 @@ ssize_t AudioBufferProviderSource::readVia(readVia_t via, size_t total, void *us
             count = available;
         }
         if (CC_LIKELY(count > 0)) {
-            char* readTgt = (char *) mBuffer.raw + (mConsumed << mBitShift);
+            char* readTgt = (char *) mBuffer.raw + (mConsumed * mFrameSize);
             ssize_t ret = via(user, readTgt, count, readPTS);
             if (CC_UNLIKELY(ret <= 0)) {
                 if (CC_LIKELY(accumulator > 0)) {
