@@ -74,21 +74,29 @@ void ExtendedUtils::HFR::setHFRIfEnabled(
     int32_t hfr = -1;
     if ( hfr_str != NULL ) {
         hfr = atoi(hfr_str);
-    }
-    if (hfr < 0) {
-        ALOGW("Invalid hfr value(%d) set from app. Disabling HFR.", hfr);
-        hfr = 0;
+        if(hfr > 0) {
+            ALOGI("HFR enabled, %d value provided", hfr);
+            meta->setInt32(kKeyHFR, hfr);
+            return;
+        } else {
+            ALOGI("Invalid hfr value(%d) set from app. Disabling HFR.", hfr);
+        }
     }
 
 #ifndef LEGACY_MEDIA
     const char *hsr_str = params.get("video-hsr");
-
-    if(hsr_str && !strncmp(hsr_str,"on",2)) {
-         ALOGI("HSR [%d] ON",hfr);
-         meta->setInt32(kKeyHSR, hfr);
-    } else
+    int32_t hsr = -1;
+    if(hsr_str != NULL ) {
+        hsr = atoi(hsr_str);
+        if(hsr > 0) {
+            ALOGI("HSR enabled, %d value provided", hsr);
+            meta->setInt32(kKeyHSR, hsr);
+            return;
+        } else {
+            ALOGI("Invalid hsr value(%d) set from app. Disabling HSR.", hsr);
+        }
+    }
 #endif
-         meta->setInt32(kKeyHFR, hfr);
 }
 
 status_t ExtendedUtils::HFR::initializeHFR(
