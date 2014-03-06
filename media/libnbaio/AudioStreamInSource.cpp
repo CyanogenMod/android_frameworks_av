@@ -48,7 +48,6 @@ ssize_t AudioStreamInSource::negotiate(const NBAIO_Format offers[], size_t numOf
             audio_channel_mask_t channelMask =
                     (audio_channel_mask_t) mStream->common.get_channels(&mStream->common);
             mFormat = Format_from_SR_C(sampleRate, popcount(channelMask));
-            mBitShift = Format_frameBitShift(mFormat);
             mFrameSize = Format_frameSize(mFormat);
         }
     }
