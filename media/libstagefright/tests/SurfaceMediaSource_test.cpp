@@ -35,7 +35,6 @@
 #include <gui/SurfaceComposerClient.h>
 
 #include <binder/ProcessState.h>
-#include <ui/FramebufferNativeWindow.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaBufferGroup.h>
