@@ -2285,6 +2285,11 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         return ERROR_MALFORMED;
     }
 
+    static uint32_t kSamplingRate[] = {
+        96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
+        16000, 12000, 11025, 8000, 7350
+    };
+
     ABitReader br(csd, csd_size);
     uint32_t objectType = br.getBits(5);
 
@@ -2304,29 +2309,30 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         numChannels = br.getBits(4);
     } else {
         numChannels = br.getBits(4);
-        if (objectType == 5) {
-            // SBR specific config per 14496-3 table 1.13
-            freqIndex = br.getBits(4);
-            if (freqIndex == 15) {
-                if (csd_size < 8) {
-                    return ERROR_MALFORMED;
-                }
-                sampleRate = br.getBits(24);
-            }
+
+        if (freqIndex == 13 || freqIndex == 14) {
+            return ERROR_MALFORMED;
         }
 
-        if (sampleRate == 0) {
-            static uint32_t kSamplingRate[] = {
-                96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
-                16000, 12000, 11025, 8000, 7350
-            };
+        sampleRate = kSamplingRate[freqIndex];
+    }
 
-            if (freqIndex == 13 || freqIndex == 14) {
+    if (objectType == 5 || objectType == 29) { // SBR specific config per 14496-3 table 1.13
+        uint32_t extFreqIndex = br.getBits(4);
+        int32_t extSampleRate;
+        if (extFreqIndex == 15) {
+            if (csd_size < 8) {
                 return ERROR_MALFORMED;
             }
-
-            sampleRate = kSamplingRate[freqIndex];
+            extSampleRate = br.getBits(24);
+        } else {
+            if (extFreqIndex == 13 || extFreqIndex == 14) {
+                return ERROR_MALFORMED;
+            }
+            extSampleRate = kSamplingRate[extFreqIndex];
         }
+        //TODO: save the extension sampling rate value in meta data =>
+        //      mLastTrack->meta->setInt32(kKeyExtSampleRate, extSampleRate);
     }
 
     if (numChannels == 0) {
