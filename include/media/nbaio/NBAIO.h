@@ -54,11 +54,12 @@ enum {
 // too large, then this decision should be re-visited.
 // Sample rate and channel count are explicit, PCM interleaved 16-bit is assumed.
 struct NBAIO_Format {
+// FIXME make this a class, and change Format_... global methods to class methods
 //private:
     unsigned    mSampleRate;
     unsigned    mChannelCount;
     audio_format_t  mFormat;
-    ssize_t     mFrameSize;
+    size_t      mFrameSize;
 };
 
 extern const NBAIO_Format Format_Invalid;
