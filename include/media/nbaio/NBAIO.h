@@ -55,7 +55,10 @@ enum {
 // Sample rate and channel count are explicit, PCM interleaved 16-bit is assumed.
 struct NBAIO_Format {
 //private:
-    unsigned    mPacked;
+    unsigned    mSampleRate;
+    unsigned    mChannelCount;
+    audio_format_t  mFormat;
+    ssize_t     mFrameSize;
 };
 
 extern const NBAIO_Format Format_Invalid;

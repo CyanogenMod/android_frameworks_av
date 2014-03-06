@@ -36,7 +36,7 @@ int Format_frameBitShift(const NBAIO_Format& format)
     // FIXME must return -1 for non-power of 2
 }
 
-const NBAIO_Format Format_Invalid = { 0 };
+const NBAIO_Format Format_Invalid = { 0, 0, AUDIO_FORMAT_INVALID, 0 };
 
 enum {
     Format_SR_8000,
@@ -61,26 +61,7 @@ unsigned Format_sampleRate(const NBAIO_Format& format)
     if (!Format_isValid(format)) {
         return 0;
     }
-    switch (format.mPacked & Format_SR_Mask) {
-    case Format_SR_8000:
-        return 8000;
-    case Format_SR_11025:
-        return 11025;
-    case Format_SR_16000:
-        return 16000;
-    case Format_SR_22050:
-        return 22050;
-    case Format_SR_24000:
-        return 24000;
-    case Format_SR_32000:
-        return 32000;
-    case Format_SR_44100:
-        return 44100;
-    case Format_SR_48000:
-        return 48000;
-    default:
-        return 0;
-    }
+    return format.mSampleRate;
 }
 
 unsigned Format_channelCount(const NBAIO_Format& format)
@@ -88,60 +69,21 @@ unsigned Format_channelCount(const NBAIO_Format& format)
     if (!Format_isValid(format)) {
         return 0;
     }
-    switch (format.mPacked & Format_C_Mask) {
-    case Format_C_1:
-        return 1;
-    case Format_C_2:
-        return 2;
-    default:
-        return 0;
-    }
+    return format.mChannelCount;
 }
 
 NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount,
-        audio_format_t format_ __unused)
+        audio_format_t format)
 {
-    unsigned format;
-    switch (sampleRate) {
-    case 8000:
-        format = Format_SR_8000;
-        break;
-    case 11025:
-        format = Format_SR_11025;
-        break;
-    case 16000:
-        format = Format_SR_16000;
-        break;
-    case 22050:
-        format = Format_SR_22050;
-        break;
-    case 24000:
-        format = Format_SR_24000;
-        break;
-    case 32000:
-        format = Format_SR_32000;
-        break;
-    case 44100:
-        format = Format_SR_44100;
-        break;
-    case 48000:
-        format = Format_SR_48000;
-        break;
-    default:
-        return Format_Invalid;
-    }
-    switch (channelCount) {
-    case 1:
-        format |= Format_C_1;
-        break;
-    case 2:
-        format |= Format_C_2;
-        break;
-    default:
+    if (sampleRate == 0 || channelCount == 0 || !audio_is_valid_format(format)) {
         return Format_Invalid;
     }
     NBAIO_Format ret;
-    ret.mPacked = format;
+    ret.mSampleRate = sampleRate;
+    ret.mChannelCount = channelCount;
+    ret.mFormat = format;
+    ret.mFrameSize = audio_is_linear_pcm(format) ?
+            channelCount * audio_bytes_per_sample(format) : sizeof(uint8_t);
     return ret;
 }
 
@@ -243,12 +185,15 @@ ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
 
 bool Format_isValid(const NBAIO_Format& format)
 {
-    return format.mPacked != Format_Invalid.mPacked;
+    return format.mSampleRate != 0 && format.mChannelCount != 0 &&
+            format.mFormat != AUDIO_FORMAT_INVALID && format.mFrameSize != 0;
 }
 
 bool Format_isEqual(const NBAIO_Format& format1, const NBAIO_Format& format2)
 {
-    return format1.mPacked == format2.mPacked;
+    return format1.mSampleRate == format2.mSampleRate &&
+            format1.mChannelCount == format2.mChannelCount && format1.mFormat == format2.mFormat &&
+            format1.mFrameSize == format2.mFrameSize;
 }
 
 }   // namespace android
