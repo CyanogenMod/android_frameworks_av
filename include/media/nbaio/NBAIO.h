@@ -126,7 +126,8 @@ public:
 
 protected:
     NBAIO_Port(const NBAIO_Format& format) : mNegotiated(false), mFormat(format),
-                                             mBitShift(Format_frameBitShift(format)) { }
+                                             mBitShift(Format_frameBitShift(format)),
+                                             mFrameSize(Format_frameSize(format)) { }
     virtual ~NBAIO_Port() { }
 
     // Implementations are free to ignore these if they don't need them
@@ -134,6 +135,7 @@ protected:
     bool            mNegotiated;    // mNegotiated implies (mFormat != Format_Invalid)
     NBAIO_Format    mFormat;        // (mFormat != Format_Invalid) does not imply mNegotiated
     size_t          mBitShift;      // assign in parallel with any assignment to mFormat
+    size_t          mFrameSize;     // assign in parallel with any assignment to mFormat
 };
 
 // Abstract class (interface) representing a non-blocking data sink, for use by a data provider.
