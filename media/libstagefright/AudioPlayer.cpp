@@ -875,7 +875,11 @@ bool AudioPlayer::getMediaTimeMapping(
 
     if (useOffload()) {
         int64_t playPosition = 0;
-        playPosition = getOutputPlayPositionUs_l();
+        if (mSeeking) {
+            playPosition = mSeekTimeUs;
+        } else {
+            playPosition = getOutputPlayPositionUs_l();
+        }
         if(!mReachedEOS)
             mPositionTimeRealUs = playPosition;
         mPositionTimeMediaUs = mPositionTimeRealUs;
