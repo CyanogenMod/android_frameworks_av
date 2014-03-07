@@ -77,7 +77,7 @@ LVEQNB_ReturnStatus_en LVEQNB_Process(LVEQNB_Handle_t       hInstance,
     }
 
     /* Check if the input and output data buffers are 32-bit aligned */
-    if ((((LVM_INT32)pInData % 4) != 0) || (((LVM_INT32)pOutData % 4) != 0))
+    if ((((uintptr_t)pInData % 4) != 0) || (((uintptr_t)pOutData % 4) != 0))
     {
         return LVEQNB_ALIGNMENTERROR;
     }

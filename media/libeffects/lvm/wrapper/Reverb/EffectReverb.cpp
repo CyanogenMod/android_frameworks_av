@@ -181,7 +181,7 @@ void Reverb_getConfig       (ReverbContext *pContext, effect_config_t *pConfig);
 int  Reverb_setParameter    (ReverbContext *pContext, void *pParam, void *pValue);
 int  Reverb_getParameter    (ReverbContext *pContext,
                              void          *pParam,
-                             size_t        *pValueSize,
+                             uint32_t      *pValueSize,
                              void          *pValue);
 int Reverb_LoadPreset       (ReverbContext   *pContext);
 
@@ -1534,7 +1534,7 @@ int Reverb_LoadPreset(ReverbContext   *pContext)
 
 int Reverb_getParameter(ReverbContext *pContext,
                         void          *pParam,
-                        size_t        *pValueSize,
+                        uint32_t      *pValueSize,
                         void          *pValue){
     int status = 0;
     int32_t *pParamTemp = (int32_t *)pParam;
@@ -1956,9 +1956,9 @@ int Reverb_command(effect_handle_t  self,
             //ALOGV("\tReverb_command cmdCode Case: "
             //        "EFFECT_CMD_GET_PARAM start");
             if (pCmdData == NULL ||
-                    cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+                    cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
                     pReplyData == NULL ||
-                    *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))){
+                    *replySize < (sizeof(effect_param_t) + sizeof(int32_t))){
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_GET_PARAM: ERROR");
                 return -EINVAL;
@@ -1973,7 +1973,7 @@ int Reverb_command(effect_handle_t  self,
 
             p->status = android::Reverb_getParameter(pContext,
                                                          (void *)p->data,
-                                                         (size_t  *)&p->vsize,
+                                                          &p->vsize,
                                                           p->data + voffset);
 
             *replySize = sizeof(effect_param_t) + voffset + p->vsize;
@@ -1994,8 +1994,8 @@ int Reverb_command(effect_handle_t  self,
             //        *replySize,
             //        *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) + sizeof(int32_t)));
 
-            if (pCmdData == NULL || (cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)))
-                    || pReplyData == NULL || *replySize != (int)sizeof(int32_t)) {
+            if (pCmdData == NULL || (cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)))
+                    || pReplyData == NULL || *replySize != sizeof(int32_t)) {
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_SET_PARAM: ERROR");
                 return -EINVAL;
