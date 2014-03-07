@@ -388,18 +388,6 @@ bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
     return true;
 }
 
-bool M3UParser::getAudioURI(size_t index, AString *uri) const {
-    return getTypeURI(index, "audio", uri);
-}
-
-bool M3UParser::getVideoURI(size_t index, AString *uri) const {
-    return getTypeURI(index, "video", uri);
-}
-
-bool M3UParser::getSubtitleURI(size_t index, AString *uri) const {
-    return getTypeURI(index, "subtitles", uri);
-}
-
 static bool MakeURL(const char *baseURL, const char *url, AString *out) {
     out->clear();
 
@@ -435,22 +423,32 @@ static bool MakeURL(const char *baseURL, const char *url, AString *out) {
     } else {
         // URL is a relative path
 
-        size_t n = strlen(baseURL);
-        if (baseURL[n - 1] == '/') {
-            out->setTo(baseURL);
-            out->append(url);
+        // Check for a possible query string
+        const char *qsPos = strchr(baseURL, '?');
+        size_t end;
+        if (qsPos != NULL) {
+            end = qsPos - baseURL;
         } else {
-            const char *slashPos = strrchr(baseURL, '/');
-
-            if (slashPos > &baseURL[6]) {
-                out->setTo(baseURL, slashPos - baseURL);
-            } else {
-                out->setTo(baseURL);
-            }
-
-            out->append("/");
-            out->append(url);
+            end = strlen(baseURL);
         }
+        // Check for the last slash before a potential query string
+        for (ssize_t pos = end - 1; pos >= 0; pos--) {
+            if (baseURL[pos] == '/') {
+                end = pos;
+                break;
+            }
+        }
+
+        // Check whether the found slash actually is part of the path
+        // and not part of the "http://".
+        if (end > 6) {
+            out->setTo(baseURL, end);
+        } else {
+            out->setTo(baseURL);
+        }
+
+        out->append("/");
+        out->append(url);
     }
 
     ALOGV("base:'%s', url:'%s' => '%s'", baseURL, url, out->c_str());
