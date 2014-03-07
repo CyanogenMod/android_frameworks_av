@@ -27,16 +27,6 @@ size_t Format_frameSize(const NBAIO_Format& format)
     return format.mFrameSize;
 }
 
-#if 0
-int Format_frameBitShift(const NBAIO_Format& format)
-{
-    // FIXME The sample format is hard-coded to AUDIO_FORMAT_PCM_16_BIT
-    // sizeof(short) == 2, so frame size == 1 << channels
-    return Format_channelCount(format);
-    // FIXME must return -1 for non-power of 2
-}
-#endif
-
 const NBAIO_Format Format_Invalid = { 0, 0, AUDIO_FORMAT_INVALID, 0 };
 
 unsigned Format_sampleRate(const NBAIO_Format& format)
