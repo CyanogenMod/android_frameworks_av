@@ -861,11 +861,12 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
                     && source->dequeueAccessUnit(&accessUnit) == OK) {
                 // Note that we do NOT dequeue any discontinuities.
 
+                // for simplicity, store a reference to the format in each unit
+                sp<MetaData> format = source->getFormat();
+                if (format != NULL) {
+                    accessUnit->meta()->setObject("format", format);
+                }
                 packetSource->queueAccessUnit(accessUnit);
-            }
-
-            if (packetSource->getFormat() == NULL) {
-                packetSource->setFormat(source->getFormat());
             }
         }
 
