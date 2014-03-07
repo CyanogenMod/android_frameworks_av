@@ -43,7 +43,6 @@ struct FastTrack {
 
     ExtendedAudioBufferProvider* mBufferProvider; // must be NULL if inactive, or non-NULL if active
     VolumeProvider*         mVolumeProvider; // optional; if NULL then full-scale
-    unsigned                mSampleRate;     // optional; if zero then use mixer sample rate
     audio_channel_mask_t    mChannelMask;    // AUDIO_CHANNEL_OUT_MONO or AUDIO_CHANNEL_OUT_STEREO
     int                     mGeneration;     // increment when any field is assigned
 };

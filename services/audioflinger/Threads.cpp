@@ -2973,7 +2973,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     VolumeProvider *vp = track;
                     fastTrack->mBufferProvider = eabp;
                     fastTrack->mVolumeProvider = vp;
-                    fastTrack->mSampleRate = track->mSampleRate;
                     fastTrack->mChannelMask = track->mChannelMask;
                     fastTrack->mGeneration++;
                     state->mTrackMask |= 1 << j;
