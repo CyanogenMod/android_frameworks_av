@@ -1094,9 +1094,13 @@ void AudioFlinger::PlaybackThread::Track::resumeAck() {
 
     if (mState == RESUMING)
         mState = ACTIVE;
+
     // Other possibility of  pending resume is stopping_1 state
     // Do not update the state from stopping as this prevents
-    //drain being called.
+    // drain being called.
+    if (mState == STOPPING_1) {
+        mResumeToStopping = false;
+    }
 }
 // ----------------------------------------------------------------------------
 
