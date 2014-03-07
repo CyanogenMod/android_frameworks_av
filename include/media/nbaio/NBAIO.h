@@ -67,9 +67,8 @@ extern const NBAIO_Format Format_Invalid;
 size_t Format_frameSize(const NBAIO_Format& format);
 
 // Convert a sample rate in Hz and channel count to an NBAIO_Format
-// FIXME Remove the default value of AUDIO_FORMAT_PCM_16_BIT, and rename
-NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount,
-        audio_format_t format = AUDIO_FORMAT_PCM_16_BIT);
+// FIXME rename
+NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount, audio_format_t format);
 
 // Return the sample rate in Hz of an NBAIO_Format
 unsigned Format_sampleRate(const NBAIO_Format& format);

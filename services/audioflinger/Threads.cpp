@@ -2567,7 +2567,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     // create an NBAIO sink for the HAL output stream, and negotiate
     mOutputSink = new AudioStreamOutSink(output->stream);
     size_t numCounterOffers = 0;
-    const NBAIO_Format offers[1] = {Format_from_SR_C(mSampleRate, mChannelCount)};
+    const NBAIO_Format offers[1] = {Format_from_SR_C(mSampleRate, mChannelCount, mFormat)};
     ssize_t index = mOutputSink->negotiate(offers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
 
