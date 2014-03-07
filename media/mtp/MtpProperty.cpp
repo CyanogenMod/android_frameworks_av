@@ -190,9 +190,9 @@ void MtpProperty::write(MtpDataPacket& packet) {
             if (deviceProp)
                 writeValue(packet, mCurrentValue);
     }
-    packet.putUInt32(mGroupCode);
     if (!deviceProp)
-        packet.putUInt8(mFormFlag);
+        packet.putUInt32(mGroupCode);
+    packet.putUInt8(mFormFlag);
     if (mFormFlag == kFormRange) {
             writeValue(packet, mMinimumValue);
             writeValue(packet, mMaximumValue);
