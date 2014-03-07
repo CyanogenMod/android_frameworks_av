@@ -39,24 +39,6 @@ int Format_frameBitShift(const NBAIO_Format& format)
 
 const NBAIO_Format Format_Invalid = { 0, 0, AUDIO_FORMAT_INVALID, 0 };
 
-enum {
-    Format_SR_8000,
-    Format_SR_11025,
-    Format_SR_16000,
-    Format_SR_22050,
-    Format_SR_24000,
-    Format_SR_32000,
-    Format_SR_44100,
-    Format_SR_48000,
-    Format_SR_Mask = 7
-};
-
-enum {
-    Format_C_1 = 0x08,
-    Format_C_2 = 0x10,
-    Format_C_Mask = 0x18
-};
-
 unsigned Format_sampleRate(const NBAIO_Format& format)
 {
     if (!Format_isValid(format)) {
