@@ -105,6 +105,148 @@
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
+#ifdef DOLBY_DAP_QDSP
+#include <dlfcn.h>
+
+#define DS_PARAM_PREGAIN 0x10
+#define DS_MIXER_OUTPUTS_TO_PROCESS (AUDIO_OUTPUT_FLAG_DIRECT|AUDIO_OUTPUT_FLAG_PRIMARY|AUDIO_OUTPUT_FLAG_DEEP_BUFFER)
+#define DS_NATIVE_OPEN_FN "_ZN7android8DsNative4openEv"
+#define DS_NATIVE_SET_PARMETER_FN "_ZN7android8DsNative12setParameterEiPKv"
+
+inline uint32_t max(uint32_t x, uint32_t y)
+{
+    return (x > y) ? x : y;
+}
+
+class DsNativeInterface {
+public:
+    static DsNativeInterface *instance();
+    // This function should only be called by Mixer thread associated with primary
+    // output, direct output thread and offload thread. If a thread has no active
+    // tracks then max volume should be set to 0, 0. This code assumes that there
+    // is only one thread for primary output, offload and direct output.
+    void setMaxThreadVolume(int thread_type, audio_output_flags_t flags, uint32_t max_vl, uint32_t max_vr);
+
+private:
+    DsNativeInterface();
+    void updateDsPregain();
+
+    // This enumeration is copied from Threads.h since it is private member of AudioFlinger.
+    enum type_t {
+        MIXER,              // Thread class is MixerThread
+        DIRECT,             // Thread class is DirectOutputThread
+        DUPLICATING,        // Thread class is DuplicatingThread
+        RECORD,             // Thread class is RecordThread
+        OFFLOAD             // Thread class is OffloadThread
+    };
+
+    // Pregain values sent to DSP
+    uint32_t mDsVolL, mDsVolR;
+
+    // Volumes for different output threads
+    uint32_t mMixerVolL, mMixerVolR;
+    uint32_t mDirectVolL, mDirectVolR;
+    uint32_t mOffloadVolL, mOffloadVolR;
+
+    // DsNative function types and pointers
+    typedef void (*DsOpenFn)();
+    typedef void (*DsSetParamFn)(int, const void *);
+    DsSetParamFn mDsNativeSetParam;
+};
+
+DsNativeInterface *DsNativeInterface::instance()
+{
+    static DsNativeInterface *mInstance = NULL;
+    if (mInstance == NULL) {
+        ALOGD("DsNativeInterface: Creating new instance.");
+        mInstance = new DsNativeInterface();
+    }
+    return mInstance;
+}
+
+DsNativeInterface::DsNativeInterface() :
+    mDsVolL(0), mDsVolR(0), mMixerVolL(0), mMixerVolR(0),
+    mDirectVolL(0), mDirectVolR(0), mOffloadVolL(0), mOffloadVolR(0)
+{
+    // Open the DS Native library
+    void *dsNativeLib = dlopen("libds_native.so", RTLD_NOW | RTLD_GLOBAL);
+    if (dsNativeLib == NULL) {
+        ALOGE("DsNativeInterface: Fail to open libds_native.so");
+        return;
+    }
+    ALOGV("DsNativeInterface: libds_native.so loaded");
+
+    // Get pointers to DsNative open and SetParam functions.
+    DsOpenFn dsNativeOpen = (DsOpenFn) dlsym(dsNativeLib, DS_NATIVE_OPEN_FN);
+    mDsNativeSetParam = (DsSetParamFn) dlsym(dsNativeLib, DS_NATIVE_SET_PARMETER_FN);
+
+    if (dsNativeOpen == NULL || mDsNativeSetParam == NULL) {
+        ALOGE("DsNativeInterface: Fail to get symbols from libds_native.so");
+        dlclose(dsNativeLib);
+        mDsNativeSetParam = NULL;
+        return;
+    }
+
+    // Initialize the Ds Native library
+    dsNativeOpen();
+    ALOGD("DsNativeInterface: libds_native.so initialized");
+}
+
+void DsNativeInterface::setMaxThreadVolume(int thread_type, audio_output_flags_t flags, uint32_t max_vl, uint32_t max_vr)
+{
+    ALOGVV("DsNativeInterface: setMaxThreadVolume(threadType=%d, flags=%d, max_vl=%d, max_vr=%d)", thread_type, flags, max_vl, max_vr);
+
+    // Do not bother with rest of the code if shared lib is not loaded
+    if (mDsNativeSetParam == NULL) {
+        return;
+    }
+
+    // Update correct gain variables
+    switch (thread_type) {
+    case MIXER:
+        if (!(flags & DS_MIXER_OUTPUTS_TO_PROCESS)) {
+            ALOGV("DsNativeInterface: setMaxThreadVolume mixer thread with output flags %d ignored.", flags);
+            return;
+        }
+        mMixerVolL = max_vl;
+        mMixerVolR = max_vr;
+        ALOGV("DsNativeInterface: Primary mixer thread pregain set to (%d, %d)", mMixerVolL, mMixerVolR);
+        break;
+    case DIRECT:
+        mDirectVolL = max_vl;
+        mDirectVolR = max_vr;
+        ALOGV("DsNativeInterface: Direct output thread pregain set to (%d, %d)", mDirectVolL, mDirectVolR);
+        break;
+    case OFFLOAD:
+        mOffloadVolL = max_vl;
+        mOffloadVolR = max_vr;
+        ALOGV("DsNativeInterface: Offload thread pregain set to (%d, %d)", mOffloadVolL, mOffloadVolR);
+        break;
+    default:
+        ALOGV("DsNativeInterface: setMaxThreadVolume called with unknown thread type: %d", thread_type);
+        return;
+    }
+    updateDsPregain();
+}
+
+void DsNativeInterface::updateDsPregain()
+{
+    ALOGVV("DsNativeInterface: updateDsPregain called");
+    // Calculate the maximum pregain applied to output streams
+    const uint32_t max_vl = max(mMixerVolL, max(mDirectVolL, mOffloadVolL));
+    const uint32_t max_vr = max(mMixerVolR, max(mDirectVolR, mOffloadVolR));
+    if (max_vl != mDsVolL || max_vr != mDsVolR) {
+        if (max_vl || max_vr) {
+            mDsVolL = max_vl;
+            mDsVolR = max_vr;
+            ALOGV("DsNativeInterface: updateDsPregain calling DsNative::setParameter(DS_PARAM_PREGAIN, [%d, %d])", mDsVolL, mDsVolR);
+            uint32_t pregain[2] = { mDsVolL, mDsVolR };
+            mDsNativeSetParam(DS_PARAM_PREGAIN, pregain);
+        }
+    }
+}
+#endif // DOLBY_END
+
 namespace android {
 
 // retry counts for buffer fill timeout
