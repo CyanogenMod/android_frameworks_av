@@ -79,6 +79,7 @@ private:
     };
 
     static const int64_t kMinBufferedDurationUs;
+    static const int64_t kMaxMonitorDelayUs;
 
     sp<AMessage> mNotify;
     sp<LiveSession> mSession;
@@ -97,6 +98,7 @@ private:
     int32_t mSeqNumber;
     int32_t mNumRetries;
     bool mStartup;
+    bool mPrepared;
     int64_t mNextPTSTimeUs;
 
     int32_t mMonitorQueueGeneration;
@@ -120,10 +122,11 @@ private:
     status_t decryptBuffer(
             size_t playlistIndex, const sp<ABuffer> &buffer);
 
-    void postMonitorQueue(int64_t delayUs = 0);
+    void postMonitorQueue(int64_t delayUs = 0, int64_t minDelayUs = 0);
     void cancelMonitorQueue();
 
-    bool timeToRefreshPlaylist(int64_t nowUs) const;
+    int64_t delayUsToRefreshPlaylist() const;
+    status_t refreshPlaylist();
 
     // Returns the media time in us of the segment specified by seqNumber.
     // This is computed by summing the durations of all segments before it.
