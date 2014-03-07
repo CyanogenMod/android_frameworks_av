@@ -671,8 +671,9 @@ size_t VideoEditorAudioPlayer::fillBuffer(void *data, size_t size) {
 
 
                         M4OSA_Void* ptr;
-                        ptr = (M4OSA_Void*)((unsigned int)mInputBuffer->data() +
-                        mInputBuffer->range_offset());
+                        ptr = reinterpret_cast<M4OSA_Void*>(
+                                reinterpret_cast<uintptr_t>(mInputBuffer->data()) +
+                                mInputBuffer->range_offset());
 
                         M4OSA_UInt32 len = mInputBuffer->range_length();
                         M4OSA_Context fp = M4OSA_NULL;

@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "sf2"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include <binder/ProcessState.h>
@@ -183,11 +184,11 @@ protected:
                     int64_t delayUs = ALooper::GetNowUs() - mStartTimeUs;
 
                     if (mDecodeAudio) {
-                        printf("%lld bytes received. %.2f KB/sec\n",
+                        printf("%" PRId64 " bytes received. %.2f KB/sec\n",
                                mTotalBytesReceived,
                                mTotalBytesReceived * 1E6 / 1024 / delayUs);
                     } else {
-                        printf("%d frames decoded, %.2f fps. %lld bytes "
+                        printf("%d frames decoded, %.2f fps. %" PRId64 " bytes "
                                "received. %.2f KB/sec\n",
                                mNumOutputBuffersReceived,
                                mNumOutputBuffersReceived * 1E6 / delayUs,

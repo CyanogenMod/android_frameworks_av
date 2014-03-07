@@ -18,6 +18,7 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <inttypes.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -193,7 +194,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
         result.appendFormat("    GPS lat x long x alt: %f x %f x %f\n",
                 p.gpsCoordinates[0], p.gpsCoordinates[1],
                 p.gpsCoordinates[2]);
-        result.appendFormat("    GPS timestamp: %lld\n",
+        result.appendFormat("    GPS timestamp: %" PRId64 "\n",
                 p.gpsTimestamp);
         result.appendFormat("    GPS processing method: %s\n",
                 p.gpsProcessingMethod.string());

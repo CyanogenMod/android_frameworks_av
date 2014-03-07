@@ -84,17 +84,17 @@ void displayMetaData(const sp<MetaData> meta) {
         LOG1("displayMetaData kKeyBitRate %d", int32Data);
     }
     if (meta->findData(kKeyESDS, &type, &data, &size)) {
-        LOG1("displayMetaData kKeyESDS type=%d size=%d", type, size);
+        LOG1("displayMetaData kKeyESDS type=%d size=%zu", type, size);
     }
     if (meta->findData(kKeyAVCC, &type, &data, &size)) {
-        LOG1("displayMetaData kKeyAVCC data=0x%X type=%d size=%d",
+        LOG1("displayMetaData kKeyAVCC data=0x%X type=%d size=%zu",
             *((unsigned int*)data), type, size);
     }
     if (meta->findData(kKeyVorbisInfo, &type, &data, &size)) {
-        LOG1("displayMetaData kKeyVorbisInfo type=%d size=%d", type, size);
+        LOG1("displayMetaData kKeyVorbisInfo type=%d size=%zu", type, size);
     }
     if (meta->findData(kKeyVorbisBooks, &type, &data, &size)) {
-        LOG1("displayMetaData kKeyVorbisBooks type=%d size=%d", type, size);
+        LOG1("displayMetaData kKeyVorbisBooks type=%d size=%zu", type, size);
     }
     if (meta->findInt32(kKeyWantsNALFragments, &int32Data)) {
         LOG1("displayMetaData kKeyWantsNALFragments %d", int32Data);
@@ -115,7 +115,7 @@ void displayMetaData(const sp<MetaData> meta) {
         LOG1("displayMetaData kKeyColorFormat %d", int32Data);
     }
     if (meta->findPointer(kKeyPlatformPrivate, &ptr)) {
-        LOG1("displayMetaData kKeyPlatformPrivate pointer=0x%x", (int32_t) ptr);
+        LOG1("displayMetaData kKeyPlatformPrivate pointer=%p", ptr);
     }
     if (meta->findCString(kKeyDecoderComponent, &charData)) {
         LOG1("displayMetaData kKeyDecoderComponent %s", charData);
@@ -151,7 +151,7 @@ void displayMetaData(const sp<MetaData> meta) {
         LOG1("displayMetaData kKeyYear %s", charData);
     }
     if (meta->findData(kKeyAlbumArt, &type, &data, &size)) {
-        LOG1("displayMetaData kKeyAlbumArt type=%d size=%d", type, size);
+        LOG1("displayMetaData kKeyAlbumArt type=%d size=%zu", type, size);
     }
     if (meta->findCString(kKeyAlbumArtMIME, &charData)) {
         LOG1("displayMetaData kKeyAlbumArtMIME %s", charData);
@@ -277,7 +277,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
     }
 
     if (size < 4) {
-        ALOGE("Codec specific data length too short: %d", size);
+        ALOGE("Codec specific data length too short: %zu", size);
         return ERROR_MALFORMED;
     }
 
@@ -286,7 +286,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         // 2 bytes for each of the parameter set length field
         // plus the 7 bytes for the header
         if (size < 4 + 7) {
-            ALOGE("Codec specific data length too short: %d", size);
+            ALOGE("Codec specific data length too short: %zu", size);
             return ERROR_MALFORMED;
         }
 
@@ -355,7 +355,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
         }
 
         if (nSeqParamSets > 0x1F) {
-            ALOGE("Too many seq parameter sets (%d) found", nSeqParamSets);
+            ALOGE("Too many seq parameter sets (%zu) found", nSeqParamSets);
             return ERROR_MALFORMED;
         }
     }
@@ -368,7 +368,7 @@ status_t buildAVCCodecSpecificData(uint8_t **pOutputData, size_t *pOutputSize,
             return ERROR_MALFORMED;
         }
         if (nPicParamSets > 0xFF) {
-            ALOGE("Too many pic parameter sets (%d) found", nPicParamSets);
+            ALOGE("Too many pic parameter sets (%zu) found", nPicParamSets);
             return ERROR_MALFORMED;
         }
     }

@@ -96,7 +96,7 @@ int GetPredAdvancedBy0x0(
     offset = width - B_SIZE; /* offset for prev */
     offset2 = (pred_width_rnd >> 1) - 4; /* offset for pred_block */
 
-    tmp = (uint32)prev & 0x3;
+    tmp = (uintptr_t)prev & 0x3;
     pred_block -= offset2; /* preset */
 
     if (tmp == 0)  /* word-aligned */
@@ -203,7 +203,7 @@ int GetPredAdvancedBy0x1(
     /* Branch based on pixel location (half-pel or full-pel) for x and y */
     pred_block -= offset2; /* preset */
 
-    tmp = (uint32)prev & 3;
+    tmp = (uintptr_t)prev & 3;
     mask = 254;
     mask |= (mask << 8);
     mask |= (mask << 16); /* 0xFEFEFEFE */
@@ -532,7 +532,7 @@ int GetPredAdvancedBy1x0(
     /* Branch based on pixel location (half-pel or full-pel) for x and y */
     pred_block -= offset2; /* preset */
 
-    tmp = (uint32)prev & 3;
+    tmp = (uintptr_t)prev & 3;
     mask = 254;
     mask |= (mask << 8);
     mask |= (mask << 16); /* 0xFEFEFEFE */
@@ -884,7 +884,7 @@ int GetPredAdvancedBy1x1(
     mask |= (mask << 8);
     mask |= (mask << 16); /* 0x3f3f3f3f */
 
-    tmp = (uint32)prev & 3;
+    tmp = (uintptr_t)prev & 3;
 
     pred_block -= 4; /* preset */
 

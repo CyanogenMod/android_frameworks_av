@@ -16,6 +16,7 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MetaData"
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include <stdlib.h>
@@ -307,7 +308,7 @@ String8 MetaData::typed_data::asString() const {
     const void *data = storage();
     switch(mType) {
         case TYPE_NONE:
-            out = String8::format("no type, size %d)", mSize);
+            out = String8::format("no type, size %zu)", mSize);
             break;
         case TYPE_C_STRING:
             out = String8::format("(char*) %s", (const char *)data);
@@ -316,7 +317,7 @@ String8 MetaData::typed_data::asString() const {
             out = String8::format("(int32_t) %d", *(int32_t *)data);
             break;
         case TYPE_INT64:
-            out = String8::format("(int64_t) %lld", *(int64_t *)data);
+            out = String8::format("(int64_t) %" PRId64, *(int64_t *)data);
             break;
         case TYPE_FLOAT:
             out = String8::format("(float) %f", *(float *)data);
@@ -333,7 +334,7 @@ String8 MetaData::typed_data::asString() const {
         }
 
         default:
-            out = String8::format("(unknown type %d, size %d)", mType, mSize);
+            out = String8::format("(unknown type %d, size %zu)", mType, mSize);
             if (mSize <= 48) { // if it's less than three lines of hex data, dump it
                 AString foo;
                 hexdump(data, mSize, 0, &foo);

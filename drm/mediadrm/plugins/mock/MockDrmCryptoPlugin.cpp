@@ -695,7 +695,7 @@ namespace android {
     {
         String8 result;
         for (size_t i = 0; i < numSubSamples; i++) {
-            result.appendFormat("[%d] {clear:%d, encrypted:%d} ", i,
+            result.appendFormat("[%zu] {clear:%zu, encrypted:%zu} ", i,
                                 subSamples[i].mNumBytesOfClearData,
                                 subSamples[i].mNumBytesOfEncryptedData);
         }

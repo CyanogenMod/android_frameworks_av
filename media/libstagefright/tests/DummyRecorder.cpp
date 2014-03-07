@@ -61,7 +61,7 @@ status_t DummyRecorder::stop() {
     mSource->stop();
     void *dummy;
     pthread_join(mThread, &dummy);
-    status_t err = (status_t) dummy;
+    status_t err = static_cast<status_t>(reinterpret_cast<uintptr_t>(dummy));
 
     ALOGV("Ending the reading thread");
     return err;

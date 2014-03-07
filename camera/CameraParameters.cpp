@@ -470,7 +470,7 @@ status_t CameraParameters::dump(int fd, const Vector<String16>& args) const
     const size_t SIZE = 256;
     char buffer[SIZE];
     String8 result;
-    snprintf(buffer, 255, "CameraParameters::dump: mMap.size = %d\n", mMap.size());
+    snprintf(buffer, 255, "CameraParameters::dump: mMap.size = %zu\n", mMap.size());
     result.append(buffer);
     for (size_t i = 0; i < mMap.size(); i++) {
         String8 k, v;
