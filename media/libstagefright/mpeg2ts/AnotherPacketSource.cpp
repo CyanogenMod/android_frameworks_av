@@ -70,7 +70,27 @@ status_t AnotherPacketSource::stop() {
 }
 
 sp<MetaData> AnotherPacketSource::getFormat() {
-    return mFormat;
+    Mutex::Autolock autoLock(mLock);
+    if (mFormat != NULL) {
+        return mFormat;
+    }
+
+    List<sp<ABuffer> >::iterator it = mBuffers.begin();
+    while (it != mBuffers.end()) {
+        sp<ABuffer> buffer = *it;
+        int32_t discontinuity;
+        if (buffer->meta()->findInt32("discontinuity", &discontinuity)) {
+            break;
+        }
+
+        sp<RefBase> object;
+        if (buffer->meta()->findObject("format", &object)) {
+            return static_cast<MetaData*>(object.get());
+        }
+
+        ++it;
+    }
+    return NULL;
 }
 
 status_t AnotherPacketSource::dequeueAccessUnit(sp<ABuffer> *buffer) {
@@ -92,6 +112,11 @@ status_t AnotherPacketSource::dequeueAccessUnit(sp<ABuffer> *buffer) {
             }
 
             return INFO_DISCONTINUITY;
+        }
+
+        sp<RefBase> object;
+        if ((*buffer)->meta()->findObject("format", &object)) {
+            mFormat = static_cast<MetaData*>(object.get());
         }
 
         return OK;
@@ -120,17 +145,22 @@ status_t AnotherPacketSource::read(
             }
 
             return INFO_DISCONTINUITY;
-        } else {
-            int64_t timeUs;
-            CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
-
-            MediaBuffer *mediaBuffer = new MediaBuffer(buffer);
-
-            mediaBuffer->meta_data()->setInt64(kKeyTime, timeUs);
-
-            *out = mediaBuffer;
-            return OK;
         }
+
+        sp<RefBase> object;
+        if (buffer->meta()->findObject("format", &object)) {
+            mFormat = static_cast<MetaData*>(object.get());
+        }
+
+        int64_t timeUs;
+        CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+
+        MediaBuffer *mediaBuffer = new MediaBuffer(buffer);
+
+        mediaBuffer->meta_data()->setInt64(kKeyTime, timeUs);
+
+        *out = mediaBuffer;
+        return OK;
     }
 
     return mEOSResult;
