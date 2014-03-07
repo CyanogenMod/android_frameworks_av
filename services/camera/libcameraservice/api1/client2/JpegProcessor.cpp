@@ -200,50 +200,59 @@ status_t JpegProcessor::processNewCapture() {
     ATRACE_CALL();
     status_t res;
     sp<Camera2Heap> captureHeap;
+    sp<MemoryBase> captureBuffer;
 
     CpuConsumer::LockedBuffer imgBuffer;
 
-    res = mCaptureConsumer->lockNextBuffer(&imgBuffer);
-    if (res != OK) {
-        if (res != BAD_VALUE) {
-            ALOGE("%s: Camera %d: Error receiving still image buffer: "
-                    "%s (%d)", __FUNCTION__,
-                    mId, strerror(-res), res);
+    {
+        Mutex::Autolock l(mInputMutex);
+        if (mCaptureStreamId == NO_STREAM) {
+            ALOGW("%s: Camera %d: No stream is available", __FUNCTION__, mId);
+            return INVALID_OPERATION;
         }
-        return res;
-    }
 
-    ALOGV("%s: Camera %d: Still capture available", __FUNCTION__,
-            mId);
+        res = mCaptureConsumer->lockNextBuffer(&imgBuffer);
+        if (res != OK) {
+            if (res != BAD_VALUE) {
+                ALOGE("%s: Camera %d: Error receiving still image buffer: "
+                        "%s (%d)", __FUNCTION__,
+                        mId, strerror(-res), res);
+            }
+            return res;
+        }
 
-    if (imgBuffer.format != HAL_PIXEL_FORMAT_BLOB) {
-        ALOGE("%s: Camera %d: Unexpected format for still image: "
-                "%x, expected %x", __FUNCTION__, mId,
-                imgBuffer.format,
-                HAL_PIXEL_FORMAT_BLOB);
+        ALOGV("%s: Camera %d: Still capture available", __FUNCTION__,
+                mId);
+
+        if (imgBuffer.format != HAL_PIXEL_FORMAT_BLOB) {
+            ALOGE("%s: Camera %d: Unexpected format for still image: "
+                    "%x, expected %x", __FUNCTION__, mId,
+                    imgBuffer.format,
+                    HAL_PIXEL_FORMAT_BLOB);
+            mCaptureConsumer->unlockBuffer(imgBuffer);
+            return OK;
+        }
+
+        // Find size of JPEG image
+        size_t jpegSize = findJpegSize(imgBuffer.data, imgBuffer.width);
+        if (jpegSize == 0) { // failed to find size, default to whole buffer
+            jpegSize = imgBuffer.width;
+        }
+        size_t heapSize = mCaptureHeap->getSize();
+        if (jpegSize > heapSize) {
+            ALOGW("%s: JPEG image is larger than expected, truncating "
+                    "(got %d, expected at most %d bytes)",
+                    __FUNCTION__, jpegSize, heapSize);
+            jpegSize = heapSize;
+        }
+
+        // TODO: Optimize this to avoid memcopy
+        captureBuffer = new MemoryBase(mCaptureHeap, 0, jpegSize);
+        void* captureMemory = mCaptureHeap->getBase();
+        memcpy(captureMemory, imgBuffer.data, jpegSize);
+
         mCaptureConsumer->unlockBuffer(imgBuffer);
-        return OK;
     }
-
-    // Find size of JPEG image
-    size_t jpegSize = findJpegSize(imgBuffer.data, imgBuffer.width);
-    if (jpegSize == 0) { // failed to find size, default to whole buffer
-        jpegSize = imgBuffer.width;
-    }
-    size_t heapSize = mCaptureHeap->getSize();
-    if (jpegSize > heapSize) {
-        ALOGW("%s: JPEG image is larger than expected, truncating "
-                "(got %d, expected at most %d bytes)",
-                __FUNCTION__, jpegSize, heapSize);
-        jpegSize = heapSize;
-    }
-
-    // TODO: Optimize this to avoid memcopy
-    sp<MemoryBase> captureBuffer = new MemoryBase(mCaptureHeap, 0, jpegSize);
-    void* captureMemory = mCaptureHeap->getBase();
-    memcpy(captureMemory, imgBuffer.data, jpegSize);
-
-    mCaptureConsumer->unlockBuffer(imgBuffer);
 
     sp<CaptureSequencer> sequencer = mSequencer.promote();
     if (sequencer != 0) {
