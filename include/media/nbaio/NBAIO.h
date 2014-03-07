@@ -66,10 +66,6 @@ extern const NBAIO_Format Format_Invalid;
 // Return the frame size of an NBAIO_Format in bytes
 size_t Format_frameSize(const NBAIO_Format& format);
 
-// Return the frame size of an NBAIO_Format as a bit shift
-// or -1 if frame size is not a power of 2
-int Format_frameBitShift(const NBAIO_Format& format);
-
 // Convert a sample rate in Hz and channel count to an NBAIO_Format
 // FIXME Remove the default value of AUDIO_FORMAT_PCM_16_BIT, and rename
 NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount,
@@ -131,7 +127,6 @@ public:
 
 protected:
     NBAIO_Port(const NBAIO_Format& format) : mNegotiated(false), mFormat(format),
-                                             mBitShift(Format_frameBitShift(format)),
                                              mFrameSize(Format_frameSize(format)) { }
     virtual ~NBAIO_Port() { }
 
@@ -139,7 +134,6 @@ protected:
 
     bool            mNegotiated;    // mNegotiated implies (mFormat != Format_Invalid)
     NBAIO_Format    mFormat;        // (mFormat != Format_Invalid) does not imply mNegotiated
-    size_t          mBitShift;      // assign in parallel with any assignment to mFormat
     size_t          mFrameSize;     // assign in parallel with any assignment to mFormat
 };
 

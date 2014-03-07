@@ -37,7 +37,6 @@ SourceAudioBufferProvider::SourceAudioBufferProvider(const sp<NBAIO_Source>& sou
     numCounterOffers = 0;
     index = source->negotiate(counterOffers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
-    mFrameBitShift = Format_frameBitShift(source->format());
     mFrameSize = Format_frameSize(source->format());
 }
 
