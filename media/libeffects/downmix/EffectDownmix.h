@@ -93,8 +93,8 @@ static int Downmix_GetDescriptor(effect_handle_t self,
 int Downmix_Init(downmix_module_t *pDwmModule);
 int Downmix_Configure(downmix_module_t *pDwmModule, effect_config_t *pConfig, bool init);
 int Downmix_Reset(downmix_object_t *pDownmixer, bool init);
-int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, size_t size, void *pValue);
-int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, size_t *pSize, void *pValue);
+int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t size, void *pValue);
+int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t *pSize, void *pValue);
 
 void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
