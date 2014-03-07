@@ -99,7 +99,7 @@ LVM_ReturnStatus_en LVM_Process(LVM_Handle_t                hInstance,
         /*
          * Check the buffer alignment
          */
-        if((((LVM_UINT32)pInData % 4) != 0) || (((LVM_UINT32)pOutData % 4) != 0))
+        if((((uintptr_t)pInData % 4) != 0) || (((uintptr_t)pOutData % 4) != 0))
         {
             return(LVM_ALIGNMENTERROR);
         }

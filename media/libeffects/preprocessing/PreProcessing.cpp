@@ -77,7 +77,7 @@ struct preproc_ops_s {
     void (* enable)(preproc_effect_t *fx);
     void (* disable)(preproc_effect_t *fx);
     int (* set_parameter)(preproc_effect_t *fx, void *param, void *value);
-    int (* get_parameter)(preproc_effect_t *fx, void *param, size_t *size, void *value);
+    int (* get_parameter)(preproc_effect_t *fx, void *param, uint32_t *size, void *value);
     int (* set_device)(preproc_effect_t *fx, uint32_t device);
 };
 
@@ -291,7 +291,7 @@ int  AgcCreate(preproc_effect_t *effect)
 
 int AgcGetParameter(preproc_effect_t *effect,
                     void *pParam,
-                    size_t *pValueSize,
+                    uint32_t *pValueSize,
                     void *pValue)
 {
     int status = 0;
@@ -452,9 +452,9 @@ int  AecCreate(preproc_effect_t *effect)
     return 0;
 }
 
-int AecGetParameter(preproc_effect_t     *effect,
+int AecGetParameter(preproc_effect_t  *effect,
                     void              *pParam,
-                    size_t            *pValueSize,
+                    uint32_t          *pValueSize,
                     void              *pValue)
 {
     int status = 0;
@@ -575,9 +575,9 @@ int  NsCreate(preproc_effect_t *effect)
     return 0;
 }
 
-int NsGetParameter(preproc_effect_t     *effect,
+int NsGetParameter(preproc_effect_t  *effect,
                    void              *pParam,
-                   size_t            *pValueSize,
+                   uint32_t          *pValueSize,
                    void              *pValue)
 {
     int status = 0;
@@ -1453,7 +1453,7 @@ int PreProcessingFx_Command(effect_handle_t  self,
 
             if (effect->ops->get_parameter) {
                 p->status = effect->ops->get_parameter(effect, p->data,
-                                                       (size_t  *)&p->vsize,
+                                                       &p->vsize,
                                                        p->data + voffset);
                 *replySize = sizeof(effect_param_t) + voffset + p->vsize;
             }

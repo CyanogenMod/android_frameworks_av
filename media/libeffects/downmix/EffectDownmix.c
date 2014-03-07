@@ -699,7 +699,7 @@ int Downmix_Reset(downmix_object_t *pDownmixer, bool init) {
  *
  *----------------------------------------------------------------------------
  */
-int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, size_t size, void *pValue) {
+int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t size, void *pValue) {
 
     int16_t value16;
     ALOGV("Downmix_setParameter, context %p, param %d, value16 %d, value32 %d",
@@ -709,7 +709,7 @@ int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, size_t siz
 
       case DOWNMIX_PARAM_TYPE:
         if (size != sizeof(downmix_type_t)) {
-            ALOGE("Downmix_setParameter(DOWNMIX_PARAM_TYPE) invalid size %zu, should be %zu",
+            ALOGE("Downmix_setParameter(DOWNMIX_PARAM_TYPE) invalid size %u, should be %zu",
                     size, sizeof(downmix_type_t));
             return -EINVAL;
         }
@@ -755,7 +755,7 @@ int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, size_t siz
  *
  *----------------------------------------------------------------------------
  */
-int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, size_t *pSize, void *pValue) {
+int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t *pSize, void *pValue) {
     int16_t *pValue16;
 
     switch (param) {
