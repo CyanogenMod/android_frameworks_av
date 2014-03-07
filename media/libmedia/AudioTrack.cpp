@@ -1507,6 +1507,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     }
     size_t misalignment = mProxy->getMisalignment();
     uint32_t sequence = mSequence;
+    sp<AudioTrackClientProxy> proxy = mProxy;
 
     // These fields don't need to be cached, because they are assigned only by set():
     //     mTransfer, mCbf, mUserData, mFormat, mFrameSize, mFrameSizeAF, mFlags
@@ -1515,35 +1516,32 @@ nsecs_t AudioTrack::processAudioBuffer()
     mLock.unlock();
 
     if (waitStreamEnd) {
-        AutoMutex lock(mLock);
-
-        sp<AudioTrackClientProxy> proxy = mProxy;
-        sp<IMemory> iMem = mCblkMemory;
-
         struct timespec timeout;
         timeout.tv_sec = WAIT_STREAM_END_TIMEOUT_SEC;
         timeout.tv_nsec = 0;
 
-        mLock.unlock();
-        status_t status = mProxy->waitStreamEndDone(&timeout);
-        mLock.lock();
+        status_t status = proxy->waitStreamEndDone(&timeout);
         switch (status) {
         case NO_ERROR:
         case DEAD_OBJECT:
         case TIMED_OUT:
-            mLock.unlock();
             mCbf(EVENT_STREAM_END, mUserData, NULL);
-            mLock.lock();
-            if (mState == STATE_STOPPING) {
-                mState = STATE_STOPPED;
-                if (status != DEAD_OBJECT) {
-                   return NS_INACTIVE;
+            {
+                AutoMutex lock(mLock);
+                // The previously assigned value of waitStreamEnd is no longer valid,
+                // since the mutex has been unlocked and either the callback handler
+                // or another thread could have re-started the AudioTrack during that time.
+                waitStreamEnd = mState == STATE_STOPPING;
+                if (waitStreamEnd) {
+                    mState = STATE_STOPPED;
                 }
             }
-            return 0;
-        default:
-            return 0;
+            if (waitStreamEnd && status != DEAD_OBJECT) {
+               return NS_INACTIVE;
+            }
+            break;
         }
+        return 0;
     }
 
     // perform callbacks while unlocked
