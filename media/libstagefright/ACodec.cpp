@@ -3247,11 +3247,11 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                 mCodec->mInputEOSResult = err;
             }
             break;
-
-            default:
-                CHECK_EQ((int)mode, (int)FREE_BUFFERS);
-                break;
         }
+
+        default:
+            CHECK_EQ((int)mode, (int)FREE_BUFFERS);
+            break;
     }
 }
 
