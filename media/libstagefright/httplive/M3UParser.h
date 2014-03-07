@@ -100,6 +100,10 @@ private:
     static status_t ParseInt32(const char *s, int32_t *x);
     static status_t ParseDouble(const char *s, double *x);
 
+    static bool isQuotedString(const AString &str);
+    static AString unquoteString(const AString &str);
+    static bool codecIsType(const AString &codec, const char *type);
+
     DISALLOW_EVIL_CONSTRUCTORS(M3UParser);
 };
 
