@@ -192,6 +192,10 @@ ifeq ($(TARGET_QCOM_LEGACY_OMX),true)
     LOCAL_SRC_FILES += ExtendedMediaDefs.cpp
 endif
 
+ifeq ($(TARGET_USES_ION),true)
+    LOCAL_CFLAGS += -DUSE_ION
+endif
+
 LOCAL_SRC_FILES += \
         chromium_http_stub.cpp
 LOCAL_CPPFLAGS += -DCHROMIUM_AVAILABLE=1
