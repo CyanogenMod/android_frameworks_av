@@ -66,7 +66,8 @@ LiveSession::LiveSession(
       mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
       mSwitchInProgress(false),
-      mDisconnectReplyID(0) {
+      mDisconnectReplyID(0),
+      mSeekReplyID(0) {
 
     mStreams[kAudioIndex] = StreamItem("audio");
     mStreams[kVideoIndex] = StreamItem("video");
@@ -230,6 +231,10 @@ status_t LiveSession::seekTo(int64_t timeUs) {
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
 
+    uint32_t replyID;
+    CHECK(response == mSeekReply && 0 != mSeekReplyID);
+    mSeekReply.clear();
+    mSeekReplyID = 0;
     return err;
 }
 
@@ -255,15 +260,12 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSeek:
         {
-            uint32_t replyID;
-            CHECK(msg->senderAwaitsResponse(&replyID));
+            CHECK(msg->senderAwaitsResponse(&mSeekReplyID));
 
             status_t err = onSeek(msg);
 
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", err);
-
-            response->postReply(replyID);
+            mSeekReply = new AMessage;
+            mSeekReply->setInt32("err", err);
             break;
         }
 
@@ -293,6 +295,11 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                         CHECK_GT(mContinuationCounter, 0);
                         if (--mContinuationCounter == 0) {
                             mContinuation->post();
+
+                            if (mSeekReplyID != 0) {
+                                CHECK(mSeekReply != NULL);
+                                mSeekReply->postReply(mSeekReplyID);
+                            }
                         }
                     }
                     break;
@@ -1028,6 +1035,11 @@ void LiveSession::changeConfiguration(
 
     if (mContinuationCounter == 0) {
         msg->post();
+
+        if (mSeekReplyID != 0) {
+            CHECK(mSeekReply != NULL);
+            mSeekReply->postReply(mSeekReplyID);
+        }
     }
 }
 
