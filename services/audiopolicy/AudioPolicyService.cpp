@@ -60,7 +60,8 @@ namespace {
 // ----------------------------------------------------------------------------
 
 AudioPolicyService::AudioPolicyService()
-    : BnAudioPolicyService(), mpAudioPolicyDev(NULL), mpAudioPolicy(NULL)
+    : BnAudioPolicyService(), mpAudioPolicyDev(NULL), mpAudioPolicy(NULL),
+      mAudioPolicyManager(NULL), mAudioPolicyClient(NULL)
 {
     char value[PROPERTY_VALUE_MAX];
     const struct hw_module_t *module;
@@ -75,12 +76,15 @@ AudioPolicyService::AudioPolicyService()
     mAudioCommandThread = new AudioCommandThread(String8("ApmAudio"), this);
     // start output activity command thread
     mOutputCommandThread = new AudioCommandThread(String8("ApmOutput"), this);
+
+#ifdef USE_LEGACY_AUDIO_POLICY
+    ALOGI("AudioPolicyService CSTOR in legacy mode");
+
     /* instantiate the audio policy manager */
     rc = hw_get_module(AUDIO_POLICY_HARDWARE_MODULE_ID, &module);
     if (rc) {
         return;
     }
-
     rc = audio_policy_dev_open(module, &mpAudioPolicyDev);
     ALOGE_IF(rc, "couldn't open audio policy device (%s)", strerror(-rc));
     if (rc) {
@@ -99,8 +103,13 @@ AudioPolicyService::AudioPolicyService()
     if (rc) {
         return;
     }
-
     ALOGI("Loaded audio policy from %s (%s)", module->name, module->id);
+#else
+    ALOGI("AudioPolicyService CSTOR in new mode");
+
+    mAudioPolicyClient = new AudioPolicyClient(this);
+    mAudioPolicyManager = new AudioPolicyManager(mAudioPolicyClient);
+#endif
 
     // load audio pre processing modules
     if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
@@ -130,12 +139,17 @@ AudioPolicyService::~AudioPolicyService()
     }
     mInputs.clear();
 
+#ifdef USE_LEGACY_AUDIO_POLICY
     if (mpAudioPolicy != NULL && mpAudioPolicyDev != NULL) {
         mpAudioPolicyDev->destroy_audio_policy(mpAudioPolicyDev, mpAudioPolicy);
     }
     if (mpAudioPolicyDev != NULL) {
         audio_policy_dev_close(mpAudioPolicyDev);
     }
+#else
+    delete mAudioPolicyManager;
+    delete mAudioPolicyClient;
+#endif
 }
 
 
@@ -163,7 +177,11 @@ status_t AudioPolicyService::dumpInternals(int fd)
     char buffer[SIZE];
     String8 result;
 
+#ifdef USE_LEGACY_AUDIO_POLICY
     snprintf(buffer, SIZE, "PolicyManager Interface: %p\n", mpAudioPolicy);
+#else
+    snprintf(buffer, SIZE, "AudioPolicyManager: %p\n", mAudioPolicyManager);
+#endif
     result.append(buffer);
     snprintf(buffer, SIZE, "Command Thread: %p\n", mAudioCommandThread.get());
     result.append(buffer);
@@ -193,9 +211,15 @@ status_t AudioPolicyService::dump(int fd, const Vector<String16>& args __unused)
             mTonePlaybackThread->dump(fd);
         }
 
+#ifdef USE_LEGACY_AUDIO_POLICY
         if (mpAudioPolicy) {
             mpAudioPolicy->dump(mpAudioPolicy, fd);
         }
+#else
+        if (mAudioPolicyManager) {
+            mAudioPolicyManager->dump(fd);
+        }
+#endif
 
         if (locked) mLock.unlock();
     }

@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "AudioPolicyIntefaceImpl"
+#define LOG_TAG "AudioPolicyService"
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
 #include "AudioPolicyService.h"
 #include "ServiceUtilities.h"
+
+#include <system/audio.h>
+#include <system/audio_policy.h>
+#include <hardware/audio_policy.h>
 
 namespace android {
 
@@ -30,7 +34,7 @@ status_t AudioPolicyService::setDeviceConnectionState(audio_devices_t device,
                                                   audio_policy_dev_state_t state,
                                                   const char *device_address)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     if (!settingsAllowed()) {
@@ -46,7 +50,7 @@ status_t AudioPolicyService::setDeviceConnectionState(audio_devices_t device,
 
     ALOGV("setDeviceConnectionState()");
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->setDeviceConnectionState(device,
+    return mpAudioPolicy->set_device_connection_state(mpAudioPolicy, device,
                                                       state, device_address);
 }
 
@@ -54,16 +58,16 @@ audio_policy_dev_state_t AudioPolicyService::getDeviceConnectionState(
                                                               audio_devices_t device,
                                                               const char *device_address)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     }
-    return mAudioPolicyManager->getDeviceConnectionState(device,
+    return mpAudioPolicy->get_device_connection_state(mpAudioPolicy, device,
                                                       device_address);
 }
 
 status_t AudioPolicyService::setPhoneState(audio_mode_t state)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     if (!settingsAllowed()) {
@@ -79,14 +83,14 @@ status_t AudioPolicyService::setPhoneState(audio_mode_t state)
     AudioSystem::setMode(state);
 
     Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->setPhoneState(state);
+    mpAudioPolicy->set_phone_state(mpAudioPolicy, state);
     return NO_ERROR;
 }
 
 status_t AudioPolicyService::setForceUse(audio_policy_force_use_t usage,
                                          audio_policy_forced_cfg_t config)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     if (!settingsAllowed()) {
@@ -100,19 +104,19 @@ status_t AudioPolicyService::setForceUse(audio_policy_force_use_t usage,
     }
     ALOGV("setForceUse()");
     Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->setForceUse(usage, config);
+    mpAudioPolicy->set_force_use(mpAudioPolicy, usage, config);
     return NO_ERROR;
 }
 
 audio_policy_forced_cfg_t AudioPolicyService::getForceUse(audio_policy_force_use_t usage)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return AUDIO_POLICY_FORCE_NONE;
     }
     if (usage < 0 || usage >= AUDIO_POLICY_FORCE_USE_CNT) {
         return AUDIO_POLICY_FORCE_NONE;
     }
-    return mAudioPolicyManager->getForceUse(usage);
+    return mpAudioPolicy->get_force_use(mpAudioPolicy, usage);
 }
 
 audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
@@ -122,12 +126,12 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     audio_output_flags_t flags,
                                     const audio_offload_info_t *offloadInfo)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return 0;
     }
     ALOGV("getOutput()");
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->getOutput(stream, samplingRate,
+    return mpAudioPolicy->get_output(mpAudioPolicy, stream, samplingRate,
                                     format, channelMask, flags, offloadInfo);
 }
 
@@ -135,19 +139,19 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
                                          audio_stream_type_t stream,
                                          int session)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     ALOGV("startOutput()");
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->startOutput(output, stream, session);
+    return mpAudioPolicy->start_output(mpAudioPolicy, output, stream, session);
 }
 
 status_t AudioPolicyService::stopOutput(audio_io_handle_t output,
                                         audio_stream_type_t stream,
                                         int session)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     ALOGV("stopOutput()");
@@ -161,12 +165,12 @@ status_t  AudioPolicyService::doStopOutput(audio_io_handle_t output,
 {
     ALOGV("doStopOutput from tid %d", gettid());
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->stopOutput(output, stream, session);
+    return mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
 }
 
 void AudioPolicyService::releaseOutput(audio_io_handle_t output)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return;
     }
     ALOGV("releaseOutput()");
@@ -177,7 +181,7 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output)
 {
     ALOGV("doReleaseOutput from tid %d", gettid());
     Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->releaseOutput(output);
+    mpAudioPolicy->release_output(mpAudioPolicy, output);
 }
 
 audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
@@ -186,7 +190,7 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
                                     audio_channel_mask_t channelMask,
                                     int audioSession)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return 0;
     }
     // already checked by client, but double-check in case the client wrapper is bypassed
@@ -200,7 +204,7 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
 
     Mutex::Autolock _l(mLock);
     // the audio_in_acoustics_t parameter is ignored by get_input()
-    audio_io_handle_t input = mAudioPolicyManager->getInput(inputSource, samplingRate,
+    audio_io_handle_t input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
                                                    format, channelMask, (audio_in_acoustics_t) 0);
 
     if (input == 0) {
@@ -244,31 +248,31 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
 
 status_t AudioPolicyService::startInput(audio_io_handle_t input)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     Mutex::Autolock _l(mLock);
 
-    return mAudioPolicyManager->startInput(input);
+    return mpAudioPolicy->start_input(mpAudioPolicy, input);
 }
 
 status_t AudioPolicyService::stopInput(audio_io_handle_t input)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     Mutex::Autolock _l(mLock);
 
-    return mAudioPolicyManager->stopInput(input);
+    return mpAudioPolicy->stop_input(mpAudioPolicy, input);
 }
 
 void AudioPolicyService::releaseInput(audio_io_handle_t input)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return;
     }
     Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->releaseInput(input);
+    mpAudioPolicy->release_input(mpAudioPolicy, input);
 
     ssize_t index = mInputs.indexOfKey(input);
     if (index < 0) {
@@ -284,7 +288,7 @@ status_t AudioPolicyService::initStreamVolume(audio_stream_type_t stream,
                                             int indexMin,
                                             int indexMax)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     if (!settingsAllowed()) {
@@ -294,7 +298,7 @@ status_t AudioPolicyService::initStreamVolume(audio_stream_type_t stream,
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->initStreamVolume(stream, indexMin, indexMax);
+    mpAudioPolicy->init_stream_volume(mpAudioPolicy, stream, indexMin, indexMax);
     return NO_ERROR;
 }
 
@@ -302,7 +306,7 @@ status_t AudioPolicyService::setStreamVolumeIndex(audio_stream_type_t stream,
                                                   int index,
                                                   audio_devices_t device)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     if (!settingsAllowed()) {
@@ -312,53 +316,63 @@ status_t AudioPolicyService::setStreamVolumeIndex(audio_stream_type_t stream,
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->setStreamVolumeIndex(stream,
-                                                    index,
-                                                    device);
+    if (mpAudioPolicy->set_stream_volume_index_for_device) {
+        return mpAudioPolicy->set_stream_volume_index_for_device(mpAudioPolicy,
+                                                                stream,
+                                                                index,
+                                                                device);
+    } else {
+        return mpAudioPolicy->set_stream_volume_index(mpAudioPolicy, stream, index);
+    }
 }
 
 status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
                                                   int *index,
                                                   audio_devices_t device)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->getStreamVolumeIndex(stream,
-                                                    index,
-                                                    device);
+    if (mpAudioPolicy->get_stream_volume_index_for_device) {
+        return mpAudioPolicy->get_stream_volume_index_for_device(mpAudioPolicy,
+                                                                stream,
+                                                                index,
+                                                                device);
+    } else {
+        return mpAudioPolicy->get_stream_volume_index(mpAudioPolicy, stream, index);
+    }
 }
 
 uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return 0;
     }
-    return mAudioPolicyManager->getStrategyForStream(stream);
+    return mpAudioPolicy->get_strategy_for_stream(mpAudioPolicy, stream);
 }
 
 //audio policy: use audio_device_t appropriately
 
 audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stream)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return (audio_devices_t)0;
     }
-    return mAudioPolicyManager->getDevicesForStream(stream);
+    return mpAudioPolicy->get_devices_for_stream(mpAudioPolicy, stream);
 }
 
 audio_io_handle_t AudioPolicyService::getOutputForEffect(const effect_descriptor_t *desc)
 {
     // FIXME change return type to status_t, and return NO_INIT here
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return 0;
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->getOutputForEffect(desc);
+    return mpAudioPolicy->get_output_for_effect(mpAudioPolicy, desc);
 }
 
 status_t AudioPolicyService::registerEffect(const effect_descriptor_t *desc,
@@ -367,53 +381,56 @@ status_t AudioPolicyService::registerEffect(const effect_descriptor_t *desc,
                                 int session,
                                 int id)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
-    return mAudioPolicyManager->registerEffect(desc, io, strategy, session, id);
+    return mpAudioPolicy->register_effect(mpAudioPolicy, desc, io, strategy, session, id);
 }
 
 status_t AudioPolicyService::unregisterEffect(int id)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
-    return mAudioPolicyManager->unregisterEffect(id);
+    return mpAudioPolicy->unregister_effect(mpAudioPolicy, id);
 }
 
 status_t AudioPolicyService::setEffectEnabled(int id, bool enabled)
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
-    return mAudioPolicyManager->setEffectEnabled(id, enabled);
+    return mpAudioPolicy->set_effect_enabled(mpAudioPolicy, id, enabled);
 }
 
 bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return 0;
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->isStreamActive(stream, inPastMs);
+    return mpAudioPolicy->is_stream_active(mpAudioPolicy, stream, inPastMs);
 }
 
 bool AudioPolicyService::isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs) const
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         return 0;
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->isStreamActiveRemotely(stream, inPastMs);
+    return mpAudioPolicy->is_stream_active_remotely(mpAudioPolicy, stream, inPastMs);
 }
 
 bool AudioPolicyService::isSourceActive(audio_source_t source) const
 {
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
+        return false;
+    }
+    if (mpAudioPolicy->is_source_active == 0) {
         return false;
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->isSourceActive(source);
+    return mpAudioPolicy->is_source_active(mpAudioPolicy, source);
 }
 
 status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
@@ -421,7 +438,7 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
                                                        uint32_t *count)
 {
 
-    if (mAudioPolicyManager == NULL) {
+    if (mpAudioPolicy == NULL) {
         *count = 0;
         return NO_INIT;
     }
@@ -455,12 +472,17 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
 
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
 {
-    if (mAudioPolicyManager == NULL) {
-        ALOGV("mAudioPolicyManager == NULL");
+    if (mpAudioPolicy == NULL) {
+        ALOGV("mpAudioPolicy == NULL");
         return false;
     }
 
-    return mAudioPolicyManager->isOffloadSupported(info);
+    if (mpAudioPolicy->is_offload_supported == NULL) {
+        ALOGV("HAL does not implement is_offload_supported");
+        return false;
+    }
+
+    return mpAudioPolicy->is_offload_supported(mpAudioPolicy, &info);
 }
 
 
