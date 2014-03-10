@@ -34,6 +34,7 @@
 #include <audio_effects/effect_ns.h>
 #include <audio_effects/effect_aec.h>
 #include <audio_utils/primitives.h>
+#include <audio_utils/format.h>
 
 // NBAIO implementations
 #include <media/nbaio/AudioStreamOutSink.h>
@@ -820,6 +821,15 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         goto Exit;
     }
 
+    // Reject any effect on Direct output threads for now, since the format of
+    // mSinkBuffer is not guaranteed to be compatible with effect processing (PCM 16 stereo).
+    if (mType == DIRECT) {
+        ALOGW("createEffect_l() Cannot add effect %s on Direct output type thread %s",
+                desc->name, mName);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
     // Allow global effects only on offloaded and mixer threads
     if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
         switch (mType) {
@@ -1072,6 +1082,11 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mMixerBufferSize(0),
         mMixerBufferFormat(AUDIO_FORMAT_INVALID),
         mMixerBufferValid(false),
+        mEffectBufferEnabled(false),
+        mEffectBuffer(NULL),
+        mEffectBufferSize(0),
+        mEffectBufferFormat(AUDIO_FORMAT_INVALID),
+        mEffectBufferValid(false),
         mSuspended(0), mBytesWritten(0),
         mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
@@ -1132,6 +1147,7 @@ AudioFlinger::PlaybackThread::~PlaybackThread()
     mAudioFlinger->unregisterWriter(mNBLogWriter);
     delete[] mSinkBuffer;
     free(mMixerBuffer);
+    free(mEffectBuffer);
 }
 
 void AudioFlinger::PlaybackThread::dump(int fd, const Vector<String16>& args)
@@ -1218,6 +1234,7 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     fdprintf(fd, "  Suspend count: %d\n", mSuspended);
     fdprintf(fd, "  Sink buffer : %p\n", mSinkBuffer);
     fdprintf(fd, "  Mixer buffer: %p\n", mMixerBuffer);
+    fdprintf(fd, "  Effect buffer: %p\n", mEffectBuffer);
     fdprintf(fd, "  Fast track availMask=%#x\n", mFastTrackAvailMask);
 
     dumpBase(fd, args);
@@ -1781,6 +1798,14 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
                 * audio_bytes_per_sample(mMixerBufferFormat);
         (void)posix_memalign(&mMixerBuffer, 32, mMixerBufferSize);
     }
+    free(mEffectBuffer);
+    mEffectBuffer = NULL;
+    if (mEffectBufferEnabled) {
+        mEffectBufferFormat = AUDIO_FORMAT_PCM_16_BIT; // Note: Effects support 16b only
+        mEffectBufferSize = mNormalFrameCount * mChannelCount
+                * audio_bytes_per_sample(mEffectBufferFormat);
+        (void)posix_memalign(&mEffectBuffer, 32, mEffectBufferSize);
+    }
 
     // force reconfiguration of effect chains and engines to take new buffer size and audio
     // parameters into account
@@ -2086,7 +2111,8 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
 status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& chain)
 {
     int session = chain->sessionId();
-    int16_t *buffer = mSinkBuffer;
+    int16_t *buffer = mEffectBufferEnabled
+            ? reinterpret_cast<int16_t*>(mEffectBuffer) : mSinkBuffer;
     bool ownsBuffer = false;
 
     ALOGV("addEffectChain_l() %p on thread %p for session %d", chain.get(), this, session);
@@ -2126,7 +2152,8 @@ status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& c
     }
 
     chain->setInBuffer(buffer, ownsBuffer);
-    chain->setOutBuffer(mSinkBuffer);
+    chain->setOutBuffer(mEffectBufferEnabled
+            ? reinterpret_cast<int16_t*>(mEffectBuffer) : mSinkBuffer);
     // Effect chain for session AUDIO_SESSION_OUTPUT_STAGE is inserted at end of effect
     // chains list in order to be processed last as it contains output stage effects
     // Effect chain for session AUDIO_SESSION_OUTPUT_MIX is inserted before
@@ -2373,23 +2400,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             if (mMixerStatus == MIXER_TRACKS_READY) {
                 // threadLoop_mix() sets mCurrentWriteLength
                 threadLoop_mix();
-
-                // Merge mMixerBuffer data into mSinkBuffer
-                // This is done pre-effects computation; if effects change to
-                // support higher precision, this needs to move.
-                //
-                // mMixerBufferValid is only set true by MixerThread::prepareTracks_l().
-                if (mMixerBufferValid) {
-                    if (mMixerBufferFormat == AUDIO_FORMAT_PCM_FLOAT) {
-                        memcpy_to_i16_from_float(mSinkBuffer,
-                                reinterpret_cast<float*>(mMixerBuffer),
-                                mNormalFrameCount * mChannelCount);
-                    } else { // mMixerBufferFormat == AUDIO_FORMAT_PCM_16_BIT
-                        memcpy(mSinkBuffer,
-                                mMixerBuffer,
-                                mNormalFrameCount * mChannelCount * sizeof(int16_t));
-                    }
-                }
             } else if ((mMixerStatus != MIXER_DRAIN_TRACK)
                         && (mMixerStatus != MIXER_DRAIN_ALL)) {
                 // threadLoop_sleepTime sets sleepTime to 0 if data
@@ -2399,6 +2409,24 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     mCurrentWriteLength = mSinkBufferSize;
                 }
             }
+            // Either threadLoop_mix() or threadLoop_sleepTime() should have set
+            // mMixerBuffer with data if mMixerBufferValid is true and sleepTime == 0.
+            // Merge mMixerBuffer data into mEffectBuffer (if any effects are valid)
+            // or mSinkBuffer (if there are no effects).
+            //
+            // This is done pre-effects computation; if effects change to
+            // support higher precision, this needs to move.
+            //
+            // mMixerBufferValid is only set true by MixerThread::prepareTracks_l().
+            // TODO use sleepTime == 0 as an additional condition.
+            if (mMixerBufferValid) {
+                void *buffer = mEffectBufferValid ? mEffectBuffer : mSinkBuffer;
+                audio_format_t format = mEffectBufferValid ? mEffectBufferFormat : mFormat;
+
+                memcpy_by_audio_format(buffer, format, mMixerBuffer, mMixerBufferFormat,
+                        mNormalFrameCount * mChannelCount);
+            }
+
             mBytesRemaining = mCurrentWriteLength;
             if (isSuspended()) {
                 sleepTime = suspendSleepTimeUs();
@@ -2422,6 +2450,16 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             for (size_t i = 0; i < effectChains.size(); i ++) {
                 effectChains[i]->process_l();
             }
+        }
+
+        // Only if the Effects buffer is enabled and there is data in the
+        // Effects buffer (buffer valid), we need to
+        // copy into the sink buffer.
+        // TODO use sleepTime == 0 as an additional condition.
+        if (mEffectBufferValid) {
+            //ALOGV("writing effect buffer to sink buffer format %#x", mFormat);
+            memcpy_by_audio_format(mSinkBuffer, mFormat, mEffectBuffer, mEffectBufferFormat,
+                    mNormalFrameCount * mChannelCount);
         }
 
         // enable changes in effect chain
@@ -2896,7 +2934,13 @@ void AudioFlinger::MixerThread::threadLoop_sleepTime()
             sleepTime = idleSleepTime;
         }
     } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
-        memset(mSinkBuffer, 0, mSinkBufferSize);
+        // clear out mMixerBuffer or mSinkBuffer, to ensure buffers are cleared
+        // before effects processing or output.
+        if (mMixerBufferValid) {
+            memset(mMixerBuffer, 0, mMixerBufferSize);
+        } else {
+            memset(mSinkBuffer, 0, mSinkBufferSize);
+        }
         sleepTime = 0;
         ALOGV_IF(mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED),
                 "anticipated start");
@@ -2944,6 +2988,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
     }
 
     mMixerBufferValid = false;  // mMixerBuffer has no valid data until appropriate tracks found.
+    mEffectBufferValid = false; // mEffectBuffer has no valid data until tracks found.
 
     for (size_t i=0 ; i<count ; i++) {
         const sp<Track> t = mActiveTracks[i].promote();
@@ -3151,6 +3196,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             chain.clear();
             if (track->mainBuffer() != mSinkBuffer &&
                     track->mainBuffer() != mMixerBuffer) {
+                if (mEffectBufferEnabled) {
+                    mEffectBufferValid = true; // Later can set directly.
+                }
                 chain = getEffectChain_l(track->sessionId());
                 // Delegate volume control to effect in track effect chain if needed
                 if (chain != 0) {
@@ -3279,7 +3327,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             /*
              * Select the appropriate output buffer for the track.
              *
-             * For tracks with effects, only mSinkBuffer can be used (at this time).
+             * Tracks with effects go into their own effects chain buffer
+             * and from there into either mEffectBuffer or mSinkBuffer.
              *
              * Other tracks can use mMixerBuffer for higher precision
              * channel accumulation.  If this buffer is enabled
@@ -3441,6 +3490,11 @@ track_is_ready: ;
             // must imply MIXER_TRACKS_READY.
             // Later, we may clear buffers regardless, and skip much of this logic.
         }
+        // TODO - either mEffectBuffer or mSinkBuffer needs to be cleared.
+        if (mEffectBufferValid) {
+            memset(mEffectBuffer, 0, mEffectBufferSize);
+        }
+        // FIXME as a performance optimization, should remember previous zero status
         memset(mSinkBuffer, 0, mNormalFrameCount * mChannelCount * sizeof(int16_t));
     }
 
