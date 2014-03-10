@@ -137,24 +137,24 @@ int main(int argc, char** argv)
     //
     int nzc = 8;
 
-    //
-    // Example:
-    // 44.1 KHz to 48 KHz resampling
-    // 100 dB rejection above 28 KHz
-    //   (the spectrum will fold around 24 KHz and we want 100 dB rejection
-    //    at the point where the folding reaches 20 KHz)
-    //  ...___|_____
-    //        |     \|
-    //        | ____/|\____
-    //        |/alias|     \
-    //  ------/------+------\---------> KHz
-    //       20     24     28
-
-    // Transition band 8 KHz, or dw = 1.0472
-    //
-    // beta = 10.056
-    // nzc  = 20
-    //
+    /*
+     * Example:
+     * 44.1 KHz to 48 KHz resampling
+     * 100 dB rejection above 28 KHz
+     *   (the spectrum will fold around 24 KHz and we want 100 dB rejection
+     *    at the point where the folding reaches 20 KHz)
+     *  ...___|_____
+     *        |     \|
+     *        | ____/|\____
+     *        |/alias|     \
+     *  ------/------+------\---------> KHz
+     *       20     24     28
+     *
+     * Transition band 8 KHz, or dw = 1.0472
+     *
+     * beta = 10.056
+     * nzc  = 20
+     */
 
     int M = 1 << 4; // number of phases for interpolation
     int ch;
@@ -270,7 +270,7 @@ int main(int argc, char** argv)
             }
         }
     } else {
-        for (int j=0 ; j<polyN ; j++) {
+        for (unsigned int j=0 ; j<polyN ; j++) {
             // calculate the phase
             double p = ((polyM*j) % polyN) / double(polyN);
             if (!debug) printf("\n    ");
