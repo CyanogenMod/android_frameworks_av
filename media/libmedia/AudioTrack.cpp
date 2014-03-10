@@ -555,7 +555,7 @@ void AudioTrack::pause()
     mProxy->interrupt();
     mAudioTrack->pause();
 
-    if (isOffloaded()) {
+    if (isOffloaded_l()) {
         if (mOutput != 0) {
             uint32_t halFrames;
             // OffloadThread sends HAL pause in its threadLoop.. time saved
