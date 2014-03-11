@@ -30,7 +30,7 @@ void    InstAlloc_Init( INST_ALLOC      *pms,
                         void            *StartAddr )
 {
     pms->TotalSize = 3;
-    pms->pNextMember = (LVM_UINT32)(((LVM_UINT32)StartAddr + 3) & 0xFFFFFFFC);/* This code will fail if the platform address space is more than 32-bits*/
+    pms->pNextMember = (((uintptr_t)StartAddr + 3) & (uintptr_t)~3);
 }
 
 
@@ -51,7 +51,7 @@ void*   InstAlloc_AddMember( INST_ALLOC         *pms,
     void *NewMemberAddress; /* Variable to temporarily store the return value */
     NewMemberAddress = (void*)pms->pNextMember;
 
-    Size = ((Size + 3) & 0xFFFFFFFC); /* Ceil the size to a multiple of four */
+    Size = ((Size + 3) & (LVM_UINT32)~3); /* Ceil the size to a multiple of four */
 
     pms->TotalSize += Size;
     pms->pNextMember += Size;
@@ -84,30 +84,30 @@ LVM_UINT32 InstAlloc_GetTotal( INST_ALLOC *pms)
 void    InstAlloc_InitAll( INST_ALLOC                      *pms,
                            LVM_MemoryTable_st             *pMemoryTable)
 {
-    LVM_UINT32 StartAddr;
+    uintptr_t StartAddr;
 
-    StartAddr = (LVM_UINT32)pMemoryTable->Region[LVM_PERSISTENT_SLOW_DATA].pBaseAddress;
+    StartAddr = (uintptr_t)pMemoryTable->Region[LVM_PERSISTENT_SLOW_DATA].pBaseAddress;
 
     pms[0].TotalSize = 3;
-    pms[0].pNextMember = (LVM_UINT32)(((LVM_UINT32)StartAddr + 3) & 0xFFFFFFFC);
+    pms[0].pNextMember = ((StartAddr + 3) & (uintptr_t)~3);
 
 
-    StartAddr = (LVM_UINT32)pMemoryTable->Region[LVM_PERSISTENT_FAST_DATA].pBaseAddress;
+    StartAddr = (uintptr_t)pMemoryTable->Region[LVM_PERSISTENT_FAST_DATA].pBaseAddress;
 
     pms[1].TotalSize = 3;
-    pms[1].pNextMember = (LVM_UINT32)(((LVM_UINT32)StartAddr + 3) & 0xFFFFFFFC);
+    pms[1].pNextMember = ((StartAddr + 3) & (uintptr_t)~3);
 
 
-    StartAddr = (LVM_UINT32)pMemoryTable->Region[LVM_PERSISTENT_FAST_COEF].pBaseAddress;
+    StartAddr = (uintptr_t)pMemoryTable->Region[LVM_PERSISTENT_FAST_COEF].pBaseAddress;
 
     pms[2].TotalSize = 3;
-    pms[2].pNextMember = (LVM_UINT32)(((LVM_UINT32)StartAddr + 3) & 0xFFFFFFFC);
+    pms[2].pNextMember = ((StartAddr + 3) & (uintptr_t)~3);
 
 
-    StartAddr = (LVM_UINT32)pMemoryTable->Region[LVM_TEMPORARY_FAST].pBaseAddress;
+    StartAddr = (uintptr_t)pMemoryTable->Region[LVM_TEMPORARY_FAST].pBaseAddress;
 
     pms[3].TotalSize = 3;
-    pms[3].pNextMember = (LVM_UINT32)(((LVM_UINT32)StartAddr + 3) & 0xFFFFFFFC);
+    pms[3].pNextMember = ((StartAddr + 3) & (uintptr_t)~3);
 
 }
 

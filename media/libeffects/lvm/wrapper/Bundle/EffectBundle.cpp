@@ -2813,9 +2813,9 @@ int Effect_command(effect_handle_t  self,
 
             if(pContext->EffectType == LVM_BASS_BOOST){
                 if (pCmdData == NULL ||
-                        cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+                        cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
                         pReplyData == NULL ||
-                        *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))){
+                        *replySize < (sizeof(effect_param_t) + sizeof(int32_t))){
                     ALOGV("\tLVM_ERROR : BassBoost_command cmdCode Case: "
                             "EFFECT_CMD_GET_PARAM: ERROR");
                     return -EINVAL;
@@ -2844,9 +2844,9 @@ int Effect_command(effect_handle_t  self,
 
             if(pContext->EffectType == LVM_VIRTUALIZER){
                 if (pCmdData == NULL ||
-                        cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+                        cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
                         pReplyData == NULL ||
-                        *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))){
+                        *replySize < (sizeof(effect_param_t) + sizeof(int32_t))){
                     ALOGV("\tLVM_ERROR : Virtualizer_command cmdCode Case: "
                             "EFFECT_CMD_GET_PARAM: ERROR");
                     return -EINVAL;
@@ -2876,7 +2876,7 @@ int Effect_command(effect_handle_t  self,
                 //ALOGV("\tEqualizer_command cmdCode Case: "
                 //        "EFFECT_CMD_GET_PARAM start");
                 if (pCmdData == NULL ||
-                    cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+                    cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
                     pReplyData == NULL ||
                     *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))) {
                     ALOGV("\tLVM_ERROR : Equalizer_command cmdCode Case: "
@@ -2908,7 +2908,7 @@ int Effect_command(effect_handle_t  self,
             if(pContext->EffectType == LVM_VOLUME){
                 //ALOGV("\tVolume_command cmdCode Case: EFFECT_CMD_GET_PARAM start");
                 if (pCmdData == NULL ||
-                        cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+                        cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
                         pReplyData == NULL ||
                         *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))){
                     ALOGV("\tLVM_ERROR : Volume_command cmdCode Case: "
@@ -2947,7 +2947,7 @@ int Effect_command(effect_handle_t  self,
                 //       *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) + sizeof(int32_t)));
 
                 if (pCmdData   == NULL||
-                    cmdSize    != (int)(sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int16_t))||
+                    cmdSize    != (sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int16_t))||
                     pReplyData == NULL||
                     *replySize != sizeof(int32_t)){
                     ALOGV("\tLVM_ERROR : BassBoost_command cmdCode Case: "
@@ -2980,7 +2980,7 @@ int Effect_command(effect_handle_t  self,
               //        *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) + sizeof(int32_t)));
 
                 if (pCmdData   == NULL||
-                    cmdSize    != (int)(sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int16_t))||
+                    cmdSize    != (sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int16_t))||
                     pReplyData == NULL||
                     *replySize != sizeof(int32_t)){
                     ALOGV("\tLVM_ERROR : Virtualizer_command cmdCode Case: "
@@ -3014,7 +3014,7 @@ int Effect_command(effect_handle_t  self,
                //        *replySize,
                //        *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) + sizeof(int32_t)));
 
-                if (pCmdData == NULL || cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+                if (pCmdData == NULL || cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
                     pReplyData == NULL || *replySize != sizeof(int32_t)) {
                     ALOGV("\tLVM_ERROR : Equalizer_command cmdCode Case: "
                             "EFFECT_CMD_SET_PARAM: ERROR");
@@ -3034,7 +3034,7 @@ int Effect_command(effect_handle_t  self,
                 //        *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) +sizeof(int32_t)));
 
                 if (    pCmdData   == NULL||
-                        cmdSize    < (int)(sizeof(effect_param_t) + sizeof(int32_t))||
+                        cmdSize    < (sizeof(effect_param_t) + sizeof(int32_t))||
                         pReplyData == NULL||
                         *replySize != sizeof(int32_t)){
                     ALOGV("\tLVM_ERROR : Volume_command cmdCode Case: "

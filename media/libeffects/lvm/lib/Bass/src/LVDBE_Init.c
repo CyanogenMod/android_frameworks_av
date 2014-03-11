@@ -178,7 +178,7 @@ LVDBE_ReturnStatus_en LVDBE_Init(LVDBE_Handle_t         *phInstance,
             {
                 return(LVDBE_NULLADDRESS);
             }
-            if (((LVM_UINT32)pMemoryTable->Region[i].pBaseAddress % pMemoryTable->Region[i].Alignment)!=0){
+            if (((uintptr_t)pMemoryTable->Region[i].pBaseAddress % pMemoryTable->Region[i].Alignment)!=0){
                 return(LVDBE_ALIGNMENTERROR);
             }
         }

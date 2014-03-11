@@ -115,7 +115,7 @@ struct EqualizerContext {
 
 int Equalizer_init(EqualizerContext *pContext);
 int Equalizer_setConfig(EqualizerContext *pContext, effect_config_t *pConfig);
-int Equalizer_getParameter(AudioEqualizer * pEqualizer, int32_t *pParam, size_t *pValueSize, void *pValue);
+int Equalizer_getParameter(AudioEqualizer * pEqualizer, int32_t *pParam, uint32_t *pValueSize, void *pValue);
 int Equalizer_setParameter(AudioEqualizer * pEqualizer, int32_t *pParam, void *pValue);
 
 
@@ -360,7 +360,7 @@ int Equalizer_init(EqualizerContext *pContext)
 //
 //----------------------------------------------------------------------------
 
-int Equalizer_getParameter(AudioEqualizer * pEqualizer, int32_t *pParam, size_t *pValueSize, void *pValue)
+int Equalizer_getParameter(AudioEqualizer * pEqualizer, int32_t *pParam, uint32_t *pValueSize, void *pValue)
 {
     int status = 0;
     int32_t param = *pParam++;
@@ -662,8 +662,8 @@ extern "C" int Equalizer_command(effect_handle_t self, uint32_t cmdCode, uint32_
         Equalizer_setConfig(pContext, &pContext->config);
         break;
     case EFFECT_CMD_GET_PARAM: {
-        if (pCmdData == NULL || cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
-            pReplyData == NULL || *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))) {
+        if (pCmdData == NULL || cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
+            pReplyData == NULL || *replySize < (sizeof(effect_param_t) + sizeof(int32_t))) {
             return -EINVAL;
         }
         effect_param_t *p = (effect_param_t *)pCmdData;
@@ -682,7 +682,7 @@ extern "C" int Equalizer_command(effect_handle_t self, uint32_t cmdCode, uint32_
     case EFFECT_CMD_SET_PARAM: {
         ALOGV("Equalizer_command EFFECT_CMD_SET_PARAM cmdSize %d pCmdData %p, *replySize %d, pReplyData %p",
              cmdSize, pCmdData, *replySize, pReplyData);
-        if (pCmdData == NULL || cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
+        if (pCmdData == NULL || cmdSize < (sizeof(effect_param_t) + sizeof(int32_t)) ||
             pReplyData == NULL || *replySize != sizeof(int32_t)) {
             return -EINVAL;
         }
