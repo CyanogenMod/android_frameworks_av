@@ -71,7 +71,7 @@ LiveSession::LiveSession(
 
     mStreams[kAudioIndex] = StreamItem("audio");
     mStreams[kVideoIndex] = StreamItem("video");
-    mStreams[kSubtitleIndex] = StreamItem("subtitle");
+    mStreams[kSubtitleIndex] = StreamItem("subtitles");
 
     for (size_t i = 0; i < kMaxStreams; ++i) {
         mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
