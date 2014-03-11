@@ -334,8 +334,8 @@ M4OSA_ERR VideoEditorMp3Reader_setOption(M4OSA_Context context,
         (VideoEditorMp3Reader_Context*)context;
     M4OSA_ERR err = M4NO_ERROR;
 
-    ALOGV("VideoEditorMp3Reader_Context begin: optionId: %d Value: %d ",
-        (int)optionId,(int)pValue);
+    ALOGV("VideoEditorMp3Reader_Context begin: optionId: %u Value: %p ",
+          optionId, pValue);
 
     M4OSA_DEBUG_IF1((M4OSA_NULL == pReaderContext), M4ERR_PARAMETER,
         "invalid context pointer");
