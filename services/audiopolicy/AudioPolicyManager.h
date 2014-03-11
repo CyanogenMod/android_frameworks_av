@@ -54,23 +54,18 @@ namespace android {
 #define OFFLOAD_DEFAULT_MIN_DURATION_SECS 60
 
 // ----------------------------------------------------------------------------
-// AudioPolicyManagerBase implements audio policy manager behavior common to all platforms.
-// Each platform must implement an AudioPolicyManager class derived from AudioPolicyManagerBase
-// and override methods for which the platform specific behavior differs from the implementation
-// in AudioPolicyManagerBase. Even if no specific behavior is required, the AudioPolicyManager
-// class must be implemented as well as the class factory function createAudioPolicyManager()
-// and provided in a shared library libaudiopolicy.so.
+// AudioPolicyManager implements audio policy manager behavior common to all platforms.
 // ----------------------------------------------------------------------------
 
-class AudioPolicyManagerBase: public AudioPolicyInterface
+class AudioPolicyManager: public AudioPolicyInterface
 #ifdef AUDIO_POLICY_TEST
     , public Thread
 #endif //AUDIO_POLICY_TEST
 {
 
 public:
-                AudioPolicyManagerBase(AudioPolicyClientInterface *clientInterface);
-        virtual ~AudioPolicyManagerBase();
+                AudioPolicyManager(AudioPolicyClientInterface *clientInterface);
+        virtual ~AudioPolicyManager();
 
         // AudioPolicyInterface
         virtual status_t setDeviceConnectionState(audio_devices_t device,
@@ -226,19 +221,19 @@ protected:
         };
 
         // default volume curve
-        static const VolumeCurvePoint sDefaultVolumeCurve[AudioPolicyManagerBase::VOLCNT];
+        static const VolumeCurvePoint sDefaultVolumeCurve[AudioPolicyManager::VOLCNT];
         // default volume curve for media strategy
-        static const VolumeCurvePoint sDefaultMediaVolumeCurve[AudioPolicyManagerBase::VOLCNT];
+        static const VolumeCurvePoint sDefaultMediaVolumeCurve[AudioPolicyManager::VOLCNT];
         // volume curve for media strategy on speakers
-        static const VolumeCurvePoint sSpeakerMediaVolumeCurve[AudioPolicyManagerBase::VOLCNT];
+        static const VolumeCurvePoint sSpeakerMediaVolumeCurve[AudioPolicyManager::VOLCNT];
         // volume curve for sonification strategy on speakers
-        static const VolumeCurvePoint sSpeakerSonificationVolumeCurve[AudioPolicyManagerBase::VOLCNT];
-        static const VolumeCurvePoint sSpeakerSonificationVolumeCurveDrc[AudioPolicyManagerBase::VOLCNT];
-        static const VolumeCurvePoint sDefaultSystemVolumeCurve[AudioPolicyManagerBase::VOLCNT];
-        static const VolumeCurvePoint sDefaultSystemVolumeCurveDrc[AudioPolicyManagerBase::VOLCNT];
-        static const VolumeCurvePoint sHeadsetSystemVolumeCurve[AudioPolicyManagerBase::VOLCNT];
-        static const VolumeCurvePoint sDefaultVoiceVolumeCurve[AudioPolicyManagerBase::VOLCNT];
-        static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[AudioPolicyManagerBase::VOLCNT];
+        static const VolumeCurvePoint sSpeakerSonificationVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sSpeakerSonificationVolumeCurveDrc[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sDefaultSystemVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sDefaultSystemVolumeCurveDrc[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sHeadsetSystemVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sDefaultVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
         // default volume curves per stream and device category. See initializeVolumeCurves()
         static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][DEVICE_CATEGORY_CNT];
 

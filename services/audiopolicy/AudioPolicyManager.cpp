@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "AudioPolicyManagerBase"
+#define LOG_TAG "AudioPolicyManager"
 //#define LOG_NDEBUG 0
 
 //#define VERY_VERBOSE_LOGGING
@@ -32,7 +32,7 @@
 #define APM_AUDIO_OUT_DEVICE_REMOTE_ALL  AUDIO_DEVICE_OUT_REMOTE_SUBMIX
 
 #include <utils/Log.h>
-#include "AudioPolicyManagerBase.h"
+#include "AudioPolicyManager.h"
 #include <hardware/audio_effect.h>
 #include <hardware/audio.h>
 #include <math.h>
@@ -47,7 +47,7 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 
-status_t AudioPolicyManagerBase::setDeviceConnectionState(audio_devices_t device,
+status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                                                           audio_policy_dev_state_t state,
                                                   const char *device_address)
 {
@@ -243,7 +243,7 @@ status_t AudioPolicyManagerBase::setDeviceConnectionState(audio_devices_t device
     return BAD_VALUE;
 }
 
-audio_policy_dev_state_t AudioPolicyManagerBase::getDeviceConnectionState(audio_devices_t device,
+audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devices_t device,
                                                   const char *device_address)
 {
     audio_policy_dev_state_t state = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
@@ -277,7 +277,7 @@ audio_policy_dev_state_t AudioPolicyManagerBase::getDeviceConnectionState(audio_
     return state;
 }
 
-void AudioPolicyManagerBase::setPhoneState(audio_mode_t state)
+void AudioPolicyManager::setPhoneState(audio_mode_t state)
 {
     ALOGV("setPhoneState() state %d", state);
     audio_devices_t newDevice = AUDIO_DEVICE_NONE;
@@ -392,7 +392,7 @@ void AudioPolicyManagerBase::setPhoneState(audio_mode_t state)
     }
 }
 
-void AudioPolicyManagerBase::setForceUse(audio_policy_force_use_t usage,
+void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
                                          audio_policy_forced_cfg_t config)
 {
     ALOGV("setForceUse() usage %d, config %d, mPhoneState %d", usage, config, mPhoneState);
@@ -480,19 +480,19 @@ void AudioPolicyManagerBase::setForceUse(audio_policy_force_use_t usage,
 
 }
 
-audio_policy_forced_cfg_t AudioPolicyManagerBase::getForceUse(audio_policy_force_use_t usage)
+audio_policy_forced_cfg_t AudioPolicyManager::getForceUse(audio_policy_force_use_t usage)
 {
     return mForceUse[usage];
 }
 
-void AudioPolicyManagerBase::setSystemProperty(const char* property, const char* value)
+void AudioPolicyManager::setSystemProperty(const char* property, const char* value)
 {
     ALOGV("setSystemProperty() property %s, value %s", property, value);
 }
 
 // Find a direct output profile compatible with the parameters passed, even if the input flags do
 // not explicitly request a direct output
-AudioPolicyManagerBase::IOProfile *AudioPolicyManagerBase::getProfileForDirectOutput(
+AudioPolicyManager::IOProfile *AudioPolicyManager::getProfileForDirectOutput(
                                                                audio_devices_t device,
                                                                uint32_t samplingRate,
                                                                audio_format_t format,
@@ -527,7 +527,7 @@ AudioPolicyManagerBase::IOProfile *AudioPolicyManagerBase::getProfileForDirectOu
     return 0;
 }
 
-audio_io_handle_t AudioPolicyManagerBase::getOutput(audio_stream_type_t stream,
+audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
@@ -685,7 +685,7 @@ audio_io_handle_t AudioPolicyManagerBase::getOutput(audio_stream_type_t stream,
     return output;
 }
 
-audio_io_handle_t AudioPolicyManagerBase::selectOutput(const SortedVector<audio_io_handle_t>& outputs,
+audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_handle_t>& outputs,
                                                        audio_output_flags_t flags)
 {
     // select one output among several that provide a path to a particular device or set of
@@ -731,7 +731,7 @@ audio_io_handle_t AudioPolicyManagerBase::selectOutput(const SortedVector<audio_
     return outputs[0];
 }
 
-status_t AudioPolicyManagerBase::startOutput(audio_io_handle_t output,
+status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
                                              audio_stream_type_t stream,
                                              int session)
 {
@@ -799,7 +799,7 @@ status_t AudioPolicyManagerBase::startOutput(audio_io_handle_t output,
 }
 
 
-status_t AudioPolicyManagerBase::stopOutput(audio_io_handle_t output,
+status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
                                             audio_stream_type_t stream,
                                             int session)
 {
@@ -856,7 +856,7 @@ status_t AudioPolicyManagerBase::stopOutput(audio_io_handle_t output,
     }
 }
 
-void AudioPolicyManagerBase::releaseOutput(audio_io_handle_t output)
+void AudioPolicyManager::releaseOutput(audio_io_handle_t output)
 {
     ALOGV("releaseOutput() %d", output);
     ssize_t index = mOutputs.indexOfKey(output);
@@ -899,7 +899,7 @@ void AudioPolicyManagerBase::releaseOutput(audio_io_handle_t output)
 }
 
 
-audio_io_handle_t AudioPolicyManagerBase::getInput(audio_source_t inputSource,
+audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
@@ -978,7 +978,7 @@ audio_io_handle_t AudioPolicyManagerBase::getInput(audio_source_t inputSource,
     return input;
 }
 
-status_t AudioPolicyManagerBase::startInput(audio_io_handle_t input)
+status_t AudioPolicyManager::startInput(audio_io_handle_t input)
 {
     ALOGV("startInput() input %d", input);
     ssize_t index = mInputs.indexOfKey(input);
@@ -1034,7 +1034,7 @@ status_t AudioPolicyManagerBase::startInput(audio_io_handle_t input)
     return NO_ERROR;
 }
 
-status_t AudioPolicyManagerBase::stopInput(audio_io_handle_t input)
+status_t AudioPolicyManager::stopInput(audio_io_handle_t input)
 {
     ALOGV("stopInput() input %d", input);
     ssize_t index = mInputs.indexOfKey(input);
@@ -1062,7 +1062,7 @@ status_t AudioPolicyManagerBase::stopInput(audio_io_handle_t input)
     }
 }
 
-void AudioPolicyManagerBase::releaseInput(audio_io_handle_t input)
+void AudioPolicyManager::releaseInput(audio_io_handle_t input)
 {
     ALOGV("releaseInput() %d", input);
     ssize_t index = mInputs.indexOfKey(input);
@@ -1076,7 +1076,7 @@ void AudioPolicyManagerBase::releaseInput(audio_io_handle_t input)
     ALOGV("releaseInput() exit");
 }
 
-void AudioPolicyManagerBase::initStreamVolume(audio_stream_type_t stream,
+void AudioPolicyManager::initStreamVolume(audio_stream_type_t stream,
                                             int indexMin,
                                             int indexMax)
 {
@@ -1089,7 +1089,7 @@ void AudioPolicyManagerBase::initStreamVolume(audio_stream_type_t stream,
     mStreams[stream].mIndexMax = indexMax;
 }
 
-status_t AudioPolicyManagerBase::setStreamVolumeIndex(audio_stream_type_t stream,
+status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
                                                       int index,
                                                       audio_devices_t device)
 {
@@ -1129,7 +1129,7 @@ status_t AudioPolicyManagerBase::setStreamVolumeIndex(audio_stream_type_t stream
     return status;
 }
 
-status_t AudioPolicyManagerBase::getStreamVolumeIndex(audio_stream_type_t stream,
+status_t AudioPolicyManager::getStreamVolumeIndex(audio_stream_type_t stream,
                                                       int *index,
                                                       audio_devices_t device)
 {
@@ -1151,7 +1151,7 @@ status_t AudioPolicyManagerBase::getStreamVolumeIndex(audio_stream_type_t stream
     return NO_ERROR;
 }
 
-audio_io_handle_t AudioPolicyManagerBase::selectOutputForEffects(
+audio_io_handle_t AudioPolicyManager::selectOutputForEffects(
                                             const SortedVector<audio_io_handle_t>& outputs)
 {
     // select one output among several suitable for global effects.
@@ -1192,7 +1192,7 @@ audio_io_handle_t AudioPolicyManagerBase::selectOutputForEffects(
     return outputs[0];
 }
 
-audio_io_handle_t AudioPolicyManagerBase::getOutputForEffect(const effect_descriptor_t *desc)
+audio_io_handle_t AudioPolicyManager::getOutputForEffect(const effect_descriptor_t *desc)
 {
     // apply simple rule where global effects are attached to the same output as MUSIC streams
 
@@ -1207,7 +1207,7 @@ audio_io_handle_t AudioPolicyManagerBase::getOutputForEffect(const effect_descri
     return output;
 }
 
-status_t AudioPolicyManagerBase::registerEffect(const effect_descriptor_t *desc,
+status_t AudioPolicyManager::registerEffect(const effect_descriptor_t *desc,
                                 audio_io_handle_t io,
                                 uint32_t strategy,
                                 int session,
@@ -1244,7 +1244,7 @@ status_t AudioPolicyManagerBase::registerEffect(const effect_descriptor_t *desc,
     return NO_ERROR;
 }
 
-status_t AudioPolicyManagerBase::unregisterEffect(int id)
+status_t AudioPolicyManager::unregisterEffect(int id)
 {
     ssize_t index = mEffects.indexOfKey(id);
     if (index < 0) {
@@ -1271,7 +1271,7 @@ status_t AudioPolicyManagerBase::unregisterEffect(int id)
     return NO_ERROR;
 }
 
-status_t AudioPolicyManagerBase::setEffectEnabled(int id, bool enabled)
+status_t AudioPolicyManager::setEffectEnabled(int id, bool enabled)
 {
     ssize_t index = mEffects.indexOfKey(id);
     if (index < 0) {
@@ -1282,7 +1282,7 @@ status_t AudioPolicyManagerBase::setEffectEnabled(int id, bool enabled)
     return setEffectEnabled(mEffects.valueAt(index), enabled);
 }
 
-status_t AudioPolicyManagerBase::setEffectEnabled(EffectDescriptor *pDesc, bool enabled)
+status_t AudioPolicyManager::setEffectEnabled(EffectDescriptor *pDesc, bool enabled)
 {
     if (enabled == pDesc->mEnabled) {
         ALOGV("setEffectEnabled(%s) effect already %s",
@@ -1311,7 +1311,7 @@ status_t AudioPolicyManagerBase::setEffectEnabled(EffectDescriptor *pDesc, bool 
     return NO_ERROR;
 }
 
-bool AudioPolicyManagerBase::isNonOffloadableEffectEnabled()
+bool AudioPolicyManager::isNonOffloadableEffectEnabled()
 {
     for (size_t i = 0; i < mEffects.size(); i++) {
         const EffectDescriptor * const pDesc = mEffects.valueAt(i);
@@ -1325,7 +1325,7 @@ bool AudioPolicyManagerBase::isNonOffloadableEffectEnabled()
     return false;
 }
 
-bool AudioPolicyManagerBase::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
+bool AudioPolicyManager::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
     nsecs_t sysTime = systemTime();
     for (size_t i = 0; i < mOutputs.size(); i++) {
@@ -1337,7 +1337,7 @@ bool AudioPolicyManagerBase::isStreamActive(audio_stream_type_t stream, uint32_t
     return false;
 }
 
-bool AudioPolicyManagerBase::isStreamActiveRemotely(audio_stream_type_t stream,
+bool AudioPolicyManager::isStreamActiveRemotely(audio_stream_type_t stream,
                                                     uint32_t inPastMs) const
 {
     nsecs_t sysTime = systemTime();
@@ -1351,7 +1351,7 @@ bool AudioPolicyManagerBase::isStreamActiveRemotely(audio_stream_type_t stream,
     return false;
 }
 
-bool AudioPolicyManagerBase::isSourceActive(audio_source_t source) const
+bool AudioPolicyManager::isSourceActive(audio_source_t source) const
 {
     for (size_t i = 0; i < mInputs.size(); i++) {
         const AudioInputDescriptor * inputDescriptor = mInputs.valueAt(i);
@@ -1366,7 +1366,7 @@ bool AudioPolicyManagerBase::isSourceActive(audio_source_t source) const
 }
 
 
-status_t AudioPolicyManagerBase::dump(int fd)
+status_t AudioPolicyManager::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1457,7 +1457,7 @@ status_t AudioPolicyManagerBase::dump(int fd)
 // This function checks for the parameters which can be offloaded.
 // This can be enhanced depending on the capability of the DSP and policy
 // of the system.
-bool AudioPolicyManagerBase::isOffloadSupported(const audio_offload_info_t& offloadInfo)
+bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadInfo)
 {
     ALOGV("isOffloadSupported: SR=%u, CM=0x%x, Format=0x%x, StreamType=%d,"
      " BitRate=%u, duration=%lld us, has_video=%d",
@@ -1522,10 +1522,10 @@ bool AudioPolicyManagerBase::isOffloadSupported(const audio_offload_info_t& offl
 }
 
 // ----------------------------------------------------------------------------
-// AudioPolicyManagerBase
+// AudioPolicyManager
 // ----------------------------------------------------------------------------
 
-AudioPolicyManagerBase::AudioPolicyManagerBase(AudioPolicyClientInterface *clientInterface)
+AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterface)
     :
 #ifdef AUDIO_POLICY_TEST
     Thread(false),
@@ -1637,7 +1637,7 @@ AudioPolicyManagerBase::AudioPolicyManagerBase(AudioPolicyClientInterface *clien
 #endif //AUDIO_POLICY_TEST
 }
 
-AudioPolicyManagerBase::~AudioPolicyManagerBase()
+AudioPolicyManager::~AudioPolicyManager()
 {
 #ifdef AUDIO_POLICY_TEST
     exit();
@@ -1655,13 +1655,13 @@ AudioPolicyManagerBase::~AudioPolicyManagerBase()
    }
 }
 
-status_t AudioPolicyManagerBase::initCheck()
+status_t AudioPolicyManager::initCheck()
 {
     return (mPrimaryOutput == 0) ? NO_INIT : NO_ERROR;
 }
 
 #ifdef AUDIO_POLICY_TEST
-bool AudioPolicyManagerBase::threadLoop()
+bool AudioPolicyManager::threadLoop()
 {
     ALOGV("entering threadLoop()");
     while (!exitPending())
@@ -1791,7 +1791,7 @@ bool AudioPolicyManagerBase::threadLoop()
     return false;
 }
 
-void AudioPolicyManagerBase::exit()
+void AudioPolicyManager::exit()
 {
     {
         AutoMutex _l(mLock);
@@ -1801,7 +1801,7 @@ void AudioPolicyManagerBase::exit()
     requestExitAndWait();
 }
 
-int AudioPolicyManagerBase::testOutputIndex(audio_io_handle_t output)
+int AudioPolicyManager::testOutputIndex(audio_io_handle_t output)
 {
     for (int i = 0; i < NUM_TEST_OUTPUTS; i++) {
         if (output == mTestOutputs[i]) return i;
@@ -1812,14 +1812,14 @@ int AudioPolicyManagerBase::testOutputIndex(audio_io_handle_t output)
 
 // ---
 
-void AudioPolicyManagerBase::addOutput(audio_io_handle_t id, AudioOutputDescriptor *outputDesc)
+void AudioPolicyManager::addOutput(audio_io_handle_t id, AudioOutputDescriptor *outputDesc)
 {
     outputDesc->mId = id;
     mOutputs.add(id, outputDesc);
 }
 
 
-status_t AudioPolicyManagerBase::checkOutputsForDevice(audio_devices_t device,
+status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                                                        audio_policy_dev_state_t state,
                                                        SortedVector<audio_io_handle_t>& outputs,
                                                        const String8 paramStr)
@@ -2027,7 +2027,7 @@ status_t AudioPolicyManagerBase::checkOutputsForDevice(audio_devices_t device,
     return NO_ERROR;
 }
 
-void AudioPolicyManagerBase::closeOutput(audio_io_handle_t output)
+void AudioPolicyManager::closeOutput(audio_io_handle_t output)
 {
     ALOGV("closeOutput(%d)", output);
 
@@ -2076,7 +2076,7 @@ void AudioPolicyManagerBase::closeOutput(audio_io_handle_t output)
     mPreviousOutputs = mOutputs;
 }
 
-SortedVector<audio_io_handle_t> AudioPolicyManagerBase::getOutputsForDevice(audio_devices_t device,
+SortedVector<audio_io_handle_t> AudioPolicyManager::getOutputsForDevice(audio_devices_t device,
                         DefaultKeyedVector<audio_io_handle_t, AudioOutputDescriptor *> openOutputs)
 {
     SortedVector<audio_io_handle_t> outputs;
@@ -2093,7 +2093,7 @@ SortedVector<audio_io_handle_t> AudioPolicyManagerBase::getOutputsForDevice(audi
     return outputs;
 }
 
-bool AudioPolicyManagerBase::vectorsEqual(SortedVector<audio_io_handle_t>& outputs1,
+bool AudioPolicyManager::vectorsEqual(SortedVector<audio_io_handle_t>& outputs1,
                                    SortedVector<audio_io_handle_t>& outputs2)
 {
     if (outputs1.size() != outputs2.size()) {
@@ -2107,7 +2107,7 @@ bool AudioPolicyManagerBase::vectorsEqual(SortedVector<audio_io_handle_t>& outpu
     return true;
 }
 
-void AudioPolicyManagerBase::checkOutputForStrategy(routing_strategy strategy)
+void AudioPolicyManager::checkOutputForStrategy(routing_strategy strategy)
 {
     audio_devices_t oldDevice = getDeviceForStrategy(strategy, true /*fromCache*/);
     audio_devices_t newDevice = getDeviceForStrategy(strategy, false /*fromCache*/);
@@ -2154,7 +2154,7 @@ void AudioPolicyManagerBase::checkOutputForStrategy(routing_strategy strategy)
     }
 }
 
-void AudioPolicyManagerBase::checkOutputForAllStrategies()
+void AudioPolicyManager::checkOutputForAllStrategies()
 {
     checkOutputForStrategy(STRATEGY_ENFORCED_AUDIBLE);
     checkOutputForStrategy(STRATEGY_PHONE);
@@ -2164,7 +2164,7 @@ void AudioPolicyManagerBase::checkOutputForAllStrategies()
     checkOutputForStrategy(STRATEGY_DTMF);
 }
 
-audio_io_handle_t AudioPolicyManagerBase::getA2dpOutput()
+audio_io_handle_t AudioPolicyManager::getA2dpOutput()
 {
     if (!mHasA2dp) {
         return 0;
@@ -2180,7 +2180,7 @@ audio_io_handle_t AudioPolicyManagerBase::getA2dpOutput()
     return 0;
 }
 
-void AudioPolicyManagerBase::checkA2dpSuspend()
+void AudioPolicyManager::checkA2dpSuspend()
 {
     if (!mHasA2dp) {
         return;
@@ -2225,7 +2225,7 @@ void AudioPolicyManagerBase::checkA2dpSuspend()
     }
 }
 
-audio_devices_t AudioPolicyManagerBase::getNewDevice(audio_io_handle_t output, bool fromCache)
+audio_devices_t AudioPolicyManager::getNewDevice(audio_io_handle_t output, bool fromCache)
 {
     audio_devices_t device = AUDIO_DEVICE_NONE;
 
@@ -2262,11 +2262,11 @@ audio_devices_t AudioPolicyManagerBase::getNewDevice(audio_io_handle_t output, b
     return device;
 }
 
-uint32_t AudioPolicyManagerBase::getStrategyForStream(audio_stream_type_t stream) {
+uint32_t AudioPolicyManager::getStrategyForStream(audio_stream_type_t stream) {
     return (uint32_t)getStrategy(stream);
 }
 
-audio_devices_t AudioPolicyManagerBase::getDevicesForStream(audio_stream_type_t stream) {
+audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stream) {
     audio_devices_t devices;
     // By checking the range of stream before calling getStrategy, we avoid
     // getStrategy's behavior for invalid streams.  getStrategy would do a ALOGE
@@ -2274,13 +2274,13 @@ audio_devices_t AudioPolicyManagerBase::getDevicesForStream(audio_stream_type_t 
     if (stream < (audio_stream_type_t) 0 || stream >= AUDIO_STREAM_CNT) {
         devices = AUDIO_DEVICE_NONE;
     } else {
-        AudioPolicyManagerBase::routing_strategy strategy = getStrategy(stream);
+        AudioPolicyManager::routing_strategy strategy = getStrategy(stream);
         devices = getDeviceForStrategy(strategy, true /*fromCache*/);
     }
     return devices;
 }
 
-AudioPolicyManagerBase::routing_strategy AudioPolicyManagerBase::getStrategy(
+AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
         audio_stream_type_t stream) {
     // stream to strategy mapping
     switch (stream) {
@@ -2307,7 +2307,7 @@ AudioPolicyManagerBase::routing_strategy AudioPolicyManagerBase::getStrategy(
     }
 }
 
-void AudioPolicyManagerBase::handleNotificationRoutingForStream(audio_stream_type_t stream) {
+void AudioPolicyManager::handleNotificationRoutingForStream(audio_stream_type_t stream) {
     switch(stream) {
     case AUDIO_STREAM_MUSIC:
         checkOutputForStrategy(STRATEGY_SONIFICATION_RESPECTFUL);
@@ -2318,7 +2318,7 @@ void AudioPolicyManagerBase::handleNotificationRoutingForStream(audio_stream_typ
     }
 }
 
-audio_devices_t AudioPolicyManagerBase::getDeviceForStrategy(routing_strategy strategy,
+audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strategy,
                                                              bool fromCache)
 {
     uint32_t device = AUDIO_DEVICE_NONE;
@@ -2531,7 +2531,7 @@ audio_devices_t AudioPolicyManagerBase::getDeviceForStrategy(routing_strategy st
     return device;
 }
 
-void AudioPolicyManagerBase::updateDevicesAndOutputs()
+void AudioPolicyManager::updateDevicesAndOutputs()
 {
     for (int i = 0; i < NUM_STRATEGIES; i++) {
         mDeviceForStrategy[i] = getDeviceForStrategy((routing_strategy)i, false /*fromCache*/);
@@ -2539,7 +2539,7 @@ void AudioPolicyManagerBase::updateDevicesAndOutputs()
     mPreviousOutputs = mOutputs;
 }
 
-uint32_t AudioPolicyManagerBase::checkDeviceMuteStrategies(AudioOutputDescriptor *outputDesc,
+uint32_t AudioPolicyManager::checkDeviceMuteStrategies(AudioOutputDescriptor *outputDesc,
                                                        audio_devices_t prevDevice,
                                                        uint32_t delayMs)
 {
@@ -2612,7 +2612,7 @@ uint32_t AudioPolicyManagerBase::checkDeviceMuteStrategies(AudioOutputDescriptor
     return 0;
 }
 
-uint32_t AudioPolicyManagerBase::setOutputDevice(audio_io_handle_t output,
+uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
                                              audio_devices_t device,
                                              bool force,
                                              int delayMs)
@@ -2666,7 +2666,7 @@ uint32_t AudioPolicyManagerBase::setOutputDevice(audio_io_handle_t output,
     return muteWaitMs;
 }
 
-AudioPolicyManagerBase::IOProfile *AudioPolicyManagerBase::getInputProfile(audio_devices_t device,
+AudioPolicyManager::IOProfile *AudioPolicyManager::getInputProfile(audio_devices_t device,
                                                    uint32_t samplingRate,
                                                    audio_format_t format,
                                                    audio_channel_mask_t channelMask)
@@ -2691,7 +2691,7 @@ AudioPolicyManagerBase::IOProfile *AudioPolicyManagerBase::getInputProfile(audio
     return NULL;
 }
 
-audio_devices_t AudioPolicyManagerBase::getDeviceForInputSource(audio_source_t inputSource)
+audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t inputSource)
 {
     uint32_t device = AUDIO_DEVICE_NONE;
 
@@ -2743,7 +2743,7 @@ audio_devices_t AudioPolicyManagerBase::getDeviceForInputSource(audio_source_t i
     return device;
 }
 
-bool AudioPolicyManagerBase::isVirtualInputDevice(audio_devices_t device)
+bool AudioPolicyManager::isVirtualInputDevice(audio_devices_t device)
 {
     if ((device & AUDIO_DEVICE_BIT_IN) != 0) {
         device &= ~AUDIO_DEVICE_BIT_IN;
@@ -2753,7 +2753,7 @@ bool AudioPolicyManagerBase::isVirtualInputDevice(audio_devices_t device)
     return false;
 }
 
-audio_io_handle_t AudioPolicyManagerBase::getActiveInput(bool ignoreVirtualInputs)
+audio_io_handle_t AudioPolicyManager::getActiveInput(bool ignoreVirtualInputs)
 {
     for (size_t i = 0; i < mInputs.size(); i++) {
         const AudioInputDescriptor * input_descriptor = mInputs.valueAt(i);
@@ -2766,7 +2766,7 @@ audio_io_handle_t AudioPolicyManagerBase::getActiveInput(bool ignoreVirtualInput
 }
 
 
-audio_devices_t AudioPolicyManagerBase::getDeviceForVolume(audio_devices_t device)
+audio_devices_t AudioPolicyManager::getDeviceForVolume(audio_devices_t device)
 {
     if (device == AUDIO_DEVICE_NONE) {
         // this happens when forcing a route update and no track is active on an output.
@@ -2792,7 +2792,7 @@ audio_devices_t AudioPolicyManagerBase::getDeviceForVolume(audio_devices_t devic
     return device;
 }
 
-AudioPolicyManagerBase::device_category AudioPolicyManagerBase::getDeviceCategory(audio_devices_t device)
+AudioPolicyManager::device_category AudioPolicyManager::getDeviceCategory(audio_devices_t device)
 {
     switch(getDeviceForVolume(device)) {
         case AUDIO_DEVICE_OUT_EARPIECE:
@@ -2816,7 +2816,7 @@ AudioPolicyManagerBase::device_category AudioPolicyManagerBase::getDeviceCategor
     }
 }
 
-float AudioPolicyManagerBase::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
+float AudioPolicyManager::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
         int indexInUi)
 {
     device_category deviceCategory = getDeviceCategory(device);
@@ -2863,28 +2863,28 @@ float AudioPolicyManagerBase::volIndexToAmpl(audio_devices_t device, const Strea
     return amplification;
 }
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sDefaultVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sDefaultVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -49.5f}, {33, -33.5f}, {66, -17.0f}, {100, 0.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sDefaultMediaVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sDefaultMediaVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -58.0f}, {20, -40.0f}, {60, -17.0f}, {100, 0.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sSpeakerMediaVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sSpeakerMediaVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -56.0f}, {20, -34.0f}, {60, -11.0f}, {100, 0.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sSpeakerSonificationVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sSpeakerSonificationVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -29.7f}, {33, -20.1f}, {66, -10.2f}, {100, 0.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sSpeakerSonificationVolumeCurveDrc[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sSpeakerSonificationVolumeCurveDrc[AudioPolicyManager::VOLCNT] = {
     {1, -35.7f}, {33, -26.1f}, {66, -13.2f}, {100, 0.0f}
 };
 
@@ -2893,34 +2893,34 @@ const AudioPolicyManagerBase::VolumeCurvePoint
 // AUDIO_STREAM_DTMF tracks AUDIO_STREAM_VOICE_CALL while in call (See AudioService.java).
 // The range is constrained between -24dB and -6dB over speaker and -30dB and -18dB over headset.
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sDefaultSystemVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sDefaultSystemVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -24.0f}, {33, -18.0f}, {66, -12.0f}, {100, -6.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sDefaultSystemVolumeCurveDrc[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sDefaultSystemVolumeCurveDrc[AudioPolicyManager::VOLCNT] = {
     {1, -34.0f}, {33, -24.0f}, {66, -15.0f}, {100, -6.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sHeadsetSystemVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sHeadsetSystemVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -30.0f}, {33, -26.0f}, {66, -22.0f}, {100, -18.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sDefaultVoiceVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sDefaultVoiceVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {0, -42.0f}, {33, -28.0f}, {66, -14.0f}, {100, 0.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-    AudioPolicyManagerBase::sSpeakerVoiceVolumeCurve[AudioPolicyManagerBase::VOLCNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sSpeakerVoiceVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {0, -24.0f}, {33, -16.0f}, {66, -8.0f}, {100, 0.0f}
 };
 
-const AudioPolicyManagerBase::VolumeCurvePoint
-            *AudioPolicyManagerBase::sVolumeProfiles[AUDIO_STREAM_CNT]
-                                                   [AudioPolicyManagerBase::DEVICE_CATEGORY_CNT] = {
+const AudioPolicyManager::VolumeCurvePoint
+            *AudioPolicyManager::sVolumeProfiles[AUDIO_STREAM_CNT]
+                                                   [AudioPolicyManager::DEVICE_CATEGORY_CNT] = {
     { // AUDIO_STREAM_VOICE_CALL
         sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerVoiceVolumeCurve, // DEVICE_CATEGORY_SPEAKER
@@ -2973,7 +2973,7 @@ const AudioPolicyManagerBase::VolumeCurvePoint
     },
 };
 
-void AudioPolicyManagerBase::initializeVolumeCurves()
+void AudioPolicyManager::initializeVolumeCurves()
 {
     for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
         for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
@@ -2995,7 +2995,7 @@ void AudioPolicyManagerBase::initializeVolumeCurves()
     }
 }
 
-float AudioPolicyManagerBase::computeVolume(audio_stream_type_t stream,
+float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                                             int index,
                                             audio_io_handle_t output,
                                             audio_devices_t device)
@@ -3059,7 +3059,7 @@ float AudioPolicyManagerBase::computeVolume(audio_stream_type_t stream,
     return volume;
 }
 
-status_t AudioPolicyManagerBase::checkAndSetVolume(audio_stream_type_t stream,
+status_t AudioPolicyManager::checkAndSetVolume(audio_stream_type_t stream,
                                                    int index,
                                                    audio_io_handle_t output,
                                                    audio_devices_t device,
@@ -3119,7 +3119,7 @@ status_t AudioPolicyManagerBase::checkAndSetVolume(audio_stream_type_t stream,
     return NO_ERROR;
 }
 
-void AudioPolicyManagerBase::applyStreamVolumes(audio_io_handle_t output,
+void AudioPolicyManager::applyStreamVolumes(audio_io_handle_t output,
                                                 audio_devices_t device,
                                                 int delayMs,
                                                 bool force)
@@ -3136,7 +3136,7 @@ void AudioPolicyManagerBase::applyStreamVolumes(audio_io_handle_t output,
     }
 }
 
-void AudioPolicyManagerBase::setStrategyMute(routing_strategy strategy,
+void AudioPolicyManager::setStrategyMute(routing_strategy strategy,
                                              bool on,
                                              audio_io_handle_t output,
                                              int delayMs,
@@ -3150,7 +3150,7 @@ void AudioPolicyManagerBase::setStrategyMute(routing_strategy strategy,
     }
 }
 
-void AudioPolicyManagerBase::setStreamMute(audio_stream_type_t stream,
+void AudioPolicyManager::setStreamMute(audio_stream_type_t stream,
                                            bool on,
                                            audio_io_handle_t output,
                                            int delayMs,
@@ -3190,7 +3190,7 @@ void AudioPolicyManagerBase::setStreamMute(audio_stream_type_t stream,
     }
 }
 
-void AudioPolicyManagerBase::handleIncallSonification(audio_stream_type_t stream,
+void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
                                                       bool starting, bool stateChange)
 {
     // if the stream pertains to sonification strategy and we are in call we must
@@ -3235,29 +3235,29 @@ void AudioPolicyManagerBase::handleIncallSonification(audio_stream_type_t stream
     }
 }
 
-bool AudioPolicyManagerBase::isInCall()
+bool AudioPolicyManager::isInCall()
 {
     return isStateInCall(mPhoneState);
 }
 
-bool AudioPolicyManagerBase::isStateInCall(int state) {
+bool AudioPolicyManager::isStateInCall(int state) {
     return ((state == AUDIO_MODE_IN_CALL) ||
             (state == AUDIO_MODE_IN_COMMUNICATION));
 }
 
-uint32_t AudioPolicyManagerBase::getMaxEffectsCpuLoad()
+uint32_t AudioPolicyManager::getMaxEffectsCpuLoad()
 {
     return MAX_EFFECTS_CPU_LOAD;
 }
 
-uint32_t AudioPolicyManagerBase::getMaxEffectsMemory()
+uint32_t AudioPolicyManager::getMaxEffectsMemory()
 {
     return MAX_EFFECTS_MEMORY;
 }
 
 // --- AudioOutputDescriptor class implementation
 
-AudioPolicyManagerBase::AudioOutputDescriptor::AudioOutputDescriptor(
+AudioPolicyManager::AudioOutputDescriptor::AudioOutputDescriptor(
         const IOProfile *profile)
     : mId(0), mSamplingRate(0), mFormat(AUDIO_FORMAT_DEFAULT),
       mChannelMask(0), mLatency(0),
@@ -3282,7 +3282,7 @@ AudioPolicyManagerBase::AudioOutputDescriptor::AudioOutputDescriptor(
     }
 }
 
-audio_devices_t AudioPolicyManagerBase::AudioOutputDescriptor::device() const
+audio_devices_t AudioPolicyManager::AudioOutputDescriptor::device() const
 {
     if (isDuplicated()) {
         return (audio_devices_t)(mOutput1->mDevice | mOutput2->mDevice);
@@ -3291,7 +3291,7 @@ audio_devices_t AudioPolicyManagerBase::AudioOutputDescriptor::device() const
     }
 }
 
-uint32_t AudioPolicyManagerBase::AudioOutputDescriptor::latency()
+uint32_t AudioPolicyManager::AudioOutputDescriptor::latency()
 {
     if (isDuplicated()) {
         return (mOutput1->mLatency > mOutput2->mLatency) ? mOutput1->mLatency : mOutput2->mLatency;
@@ -3300,7 +3300,7 @@ uint32_t AudioPolicyManagerBase::AudioOutputDescriptor::latency()
     }
 }
 
-bool AudioPolicyManagerBase::AudioOutputDescriptor::sharesHwModuleWith(
+bool AudioPolicyManager::AudioOutputDescriptor::sharesHwModuleWith(
         const AudioOutputDescriptor *outputDesc)
 {
     if (isDuplicated()) {
@@ -3312,7 +3312,7 @@ bool AudioPolicyManagerBase::AudioOutputDescriptor::sharesHwModuleWith(
     }
 }
 
-void AudioPolicyManagerBase::AudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
+void AudioPolicyManager::AudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
                                                                    int delta)
 {
     // forward usage count change to attached outputs
@@ -3330,7 +3330,7 @@ void AudioPolicyManagerBase::AudioOutputDescriptor::changeRefCount(audio_stream_
     ALOGV("changeRefCount() stream %d, count %d", stream, mRefCount[stream]);
 }
 
-audio_devices_t AudioPolicyManagerBase::AudioOutputDescriptor::supportedDevices()
+audio_devices_t AudioPolicyManager::AudioOutputDescriptor::supportedDevices()
 {
     if (isDuplicated()) {
         return (audio_devices_t)(mOutput1->supportedDevices() | mOutput2->supportedDevices());
@@ -3339,12 +3339,12 @@ audio_devices_t AudioPolicyManagerBase::AudioOutputDescriptor::supportedDevices(
     }
 }
 
-bool AudioPolicyManagerBase::AudioOutputDescriptor::isActive(uint32_t inPastMs) const
+bool AudioPolicyManager::AudioOutputDescriptor::isActive(uint32_t inPastMs) const
 {
     return isStrategyActive(NUM_STRATEGIES, inPastMs);
 }
 
-bool AudioPolicyManagerBase::AudioOutputDescriptor::isStrategyActive(routing_strategy strategy,
+bool AudioPolicyManager::AudioOutputDescriptor::isStrategyActive(routing_strategy strategy,
                                                                        uint32_t inPastMs,
                                                                        nsecs_t sysTime) const
 {
@@ -3361,7 +3361,7 @@ bool AudioPolicyManagerBase::AudioOutputDescriptor::isStrategyActive(routing_str
     return false;
 }
 
-bool AudioPolicyManagerBase::AudioOutputDescriptor::isStreamActive(audio_stream_type_t stream,
+bool AudioPolicyManager::AudioOutputDescriptor::isStreamActive(audio_stream_type_t stream,
                                                                        uint32_t inPastMs,
                                                                        nsecs_t sysTime) const
 {
@@ -3381,7 +3381,7 @@ bool AudioPolicyManagerBase::AudioOutputDescriptor::isStreamActive(audio_stream_
 }
 
 
-status_t AudioPolicyManagerBase::AudioOutputDescriptor::dump(int fd)
+status_t AudioPolicyManager::AudioOutputDescriptor::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3413,14 +3413,14 @@ status_t AudioPolicyManagerBase::AudioOutputDescriptor::dump(int fd)
 
 // --- AudioInputDescriptor class implementation
 
-AudioPolicyManagerBase::AudioInputDescriptor::AudioInputDescriptor(const IOProfile *profile)
+AudioPolicyManager::AudioInputDescriptor::AudioInputDescriptor(const IOProfile *profile)
     : mSamplingRate(0), mFormat(AUDIO_FORMAT_DEFAULT), mChannelMask(0),
       mDevice(AUDIO_DEVICE_NONE), mRefCount(0),
       mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile)
 {
 }
 
-status_t AudioPolicyManagerBase::AudioInputDescriptor::dump(int fd)
+status_t AudioPolicyManager::AudioInputDescriptor::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3443,15 +3443,15 @@ status_t AudioPolicyManagerBase::AudioInputDescriptor::dump(int fd)
 
 // --- StreamDescriptor class implementation
 
-AudioPolicyManagerBase::StreamDescriptor::StreamDescriptor()
+AudioPolicyManager::StreamDescriptor::StreamDescriptor()
     :   mIndexMin(0), mIndexMax(1), mCanBeMuted(true)
 {
     mIndexCur.add(AUDIO_DEVICE_OUT_DEFAULT, 0);
 }
 
-int AudioPolicyManagerBase::StreamDescriptor::getVolumeIndex(audio_devices_t device)
+int AudioPolicyManager::StreamDescriptor::getVolumeIndex(audio_devices_t device)
 {
-    device = AudioPolicyManagerBase::getDeviceForVolume(device);
+    device = AudioPolicyManager::getDeviceForVolume(device);
     // there is always a valid entry for AUDIO_DEVICE_OUT_DEFAULT
     if (mIndexCur.indexOfKey(device) < 0) {
         device = AUDIO_DEVICE_OUT_DEFAULT;
@@ -3459,7 +3459,7 @@ int AudioPolicyManagerBase::StreamDescriptor::getVolumeIndex(audio_devices_t dev
     return mIndexCur.valueFor(device);
 }
 
-void AudioPolicyManagerBase::StreamDescriptor::dump(int fd)
+void AudioPolicyManager::StreamDescriptor::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3481,7 +3481,7 @@ void AudioPolicyManagerBase::StreamDescriptor::dump(int fd)
 
 // --- EffectDescriptor class implementation
 
-status_t AudioPolicyManagerBase::EffectDescriptor::dump(int fd)
+status_t AudioPolicyManager::EffectDescriptor::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3504,12 +3504,12 @@ status_t AudioPolicyManagerBase::EffectDescriptor::dump(int fd)
 
 // --- IOProfile class implementation
 
-AudioPolicyManagerBase::HwModule::HwModule(const char *name)
+AudioPolicyManager::HwModule::HwModule(const char *name)
     : mName(strndup(name, AUDIO_HARDWARE_MODULE_ID_MAX_LEN)), mHandle(0)
 {
 }
 
-AudioPolicyManagerBase::HwModule::~HwModule()
+AudioPolicyManager::HwModule::~HwModule()
 {
     for (size_t i = 0; i < mOutputProfiles.size(); i++) {
          delete mOutputProfiles[i];
@@ -3520,7 +3520,7 @@ AudioPolicyManagerBase::HwModule::~HwModule()
     free((void *)mName);
 }
 
-void AudioPolicyManagerBase::HwModule::dump(int fd)
+void AudioPolicyManager::HwModule::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3549,19 +3549,19 @@ void AudioPolicyManagerBase::HwModule::dump(int fd)
     }
 }
 
-AudioPolicyManagerBase::IOProfile::IOProfile(HwModule *module)
+AudioPolicyManager::IOProfile::IOProfile(HwModule *module)
     : mFlags((audio_output_flags_t)0), mModule(module)
 {
 }
 
-AudioPolicyManagerBase::IOProfile::~IOProfile()
+AudioPolicyManager::IOProfile::~IOProfile()
 {
 }
 
 // checks if the IO profile is compatible with specified parameters.
 // Sampling rate, format and channel mask must be specified in order to
 // get a valid a match
-bool AudioPolicyManagerBase::IOProfile::isCompatibleProfile(audio_devices_t device,
+bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
                                                             uint32_t samplingRate,
                                                             audio_format_t format,
                                                             audio_channel_mask_t channelMask,
@@ -3608,7 +3608,7 @@ bool AudioPolicyManagerBase::IOProfile::isCompatibleProfile(audio_devices_t devi
      return true;
 }
 
-void AudioPolicyManagerBase::IOProfile::dump(int fd)
+void AudioPolicyManager::IOProfile::dump(int fd)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -3717,7 +3717,7 @@ const struct StringToEnum sInChannelsNameToEnumTable[] = {
 };
 
 
-uint32_t AudioPolicyManagerBase::stringToEnum(const struct StringToEnum *table,
+uint32_t AudioPolicyManager::stringToEnum(const struct StringToEnum *table,
                                               size_t size,
                                               const char *name)
 {
@@ -3730,12 +3730,12 @@ uint32_t AudioPolicyManagerBase::stringToEnum(const struct StringToEnum *table,
     return 0;
 }
 
-bool AudioPolicyManagerBase::stringToBool(const char *value)
+bool AudioPolicyManager::stringToBool(const char *value)
 {
     return ((strcasecmp("true", value) == 0) || (strcmp("1", value) == 0));
 }
 
-audio_output_flags_t AudioPolicyManagerBase::parseFlagNames(char *name)
+audio_output_flags_t AudioPolicyManager::parseFlagNames(char *name)
 {
     uint32_t flag = 0;
 
@@ -3760,7 +3760,7 @@ audio_output_flags_t AudioPolicyManagerBase::parseFlagNames(char *name)
     return (audio_output_flags_t)flag;
 }
 
-audio_devices_t AudioPolicyManagerBase::parseDeviceNames(char *name)
+audio_devices_t AudioPolicyManager::parseDeviceNames(char *name)
 {
     uint32_t device = 0;
 
@@ -3776,7 +3776,7 @@ audio_devices_t AudioPolicyManagerBase::parseDeviceNames(char *name)
     return device;
 }
 
-void AudioPolicyManagerBase::loadSamplingRates(char *name, IOProfile *profile)
+void AudioPolicyManager::loadSamplingRates(char *name, IOProfile *profile)
 {
     char *str = strtok(name, "|");
 
@@ -3798,7 +3798,7 @@ void AudioPolicyManagerBase::loadSamplingRates(char *name, IOProfile *profile)
     return;
 }
 
-void AudioPolicyManagerBase::loadFormats(char *name, IOProfile *profile)
+void AudioPolicyManager::loadFormats(char *name, IOProfile *profile)
 {
     char *str = strtok(name, "|");
 
@@ -3821,7 +3821,7 @@ void AudioPolicyManagerBase::loadFormats(char *name, IOProfile *profile)
     return;
 }
 
-void AudioPolicyManagerBase::loadInChannels(char *name, IOProfile *profile)
+void AudioPolicyManager::loadInChannels(char *name, IOProfile *profile)
 {
     const char *str = strtok(name, "|");
 
@@ -3846,7 +3846,7 @@ void AudioPolicyManagerBase::loadInChannels(char *name, IOProfile *profile)
     return;
 }
 
-void AudioPolicyManagerBase::loadOutChannels(char *name, IOProfile *profile)
+void AudioPolicyManager::loadOutChannels(char *name, IOProfile *profile)
 {
     const char *str = strtok(name, "|");
 
@@ -3872,7 +3872,7 @@ void AudioPolicyManagerBase::loadOutChannels(char *name, IOProfile *profile)
     return;
 }
 
-status_t AudioPolicyManagerBase::loadInput(cnode *root, HwModule *module)
+status_t AudioPolicyManager::loadInput(cnode *root, HwModule *module)
 {
     cnode *node = root->first_child;
 
@@ -3913,7 +3913,7 @@ status_t AudioPolicyManagerBase::loadInput(cnode *root, HwModule *module)
     }
 }
 
-status_t AudioPolicyManagerBase::loadOutput(cnode *root, HwModule *module)
+status_t AudioPolicyManager::loadOutput(cnode *root, HwModule *module)
 {
     cnode *node = root->first_child;
 
@@ -3957,7 +3957,7 @@ status_t AudioPolicyManagerBase::loadOutput(cnode *root, HwModule *module)
     }
 }
 
-void AudioPolicyManagerBase::loadHwModule(cnode *root)
+void AudioPolicyManager::loadHwModule(cnode *root)
 {
     cnode *node = config_find(root, OUTPUTS_TAG);
     status_t status = NAME_NOT_FOUND;
@@ -4002,7 +4002,7 @@ void AudioPolicyManagerBase::loadHwModule(cnode *root)
     }
 }
 
-void AudioPolicyManagerBase::loadHwModules(cnode *root)
+void AudioPolicyManager::loadHwModules(cnode *root)
 {
     cnode *node = config_find(root, AUDIO_HW_MODULE_TAG);
     if (node == NULL) {
@@ -4017,7 +4017,7 @@ void AudioPolicyManagerBase::loadHwModules(cnode *root)
     }
 }
 
-void AudioPolicyManagerBase::loadGlobalConfig(cnode *root)
+void AudioPolicyManager::loadGlobalConfig(cnode *root)
 {
     cnode *node = config_find(root, GLOBAL_CONFIG_TAG);
     if (node == NULL) {
@@ -4048,7 +4048,7 @@ void AudioPolicyManagerBase::loadGlobalConfig(cnode *root)
     }
 }
 
-status_t AudioPolicyManagerBase::loadAudioPolicyConfig(const char *path)
+status_t AudioPolicyManager::loadAudioPolicyConfig(const char *path)
 {
     cnode *root;
     char *data;
@@ -4072,7 +4072,7 @@ status_t AudioPolicyManagerBase::loadAudioPolicyConfig(const char *path)
     return NO_ERROR;
 }
 
-void AudioPolicyManagerBase::defaultAudioPolicyConfig(void)
+void AudioPolicyManager::defaultAudioPolicyConfig(void)
 {
     HwModule *module;
     IOProfile *profile;
