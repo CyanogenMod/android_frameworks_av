@@ -112,20 +112,6 @@ status_t Camera2Device::initialize(camera_module_t *module)
         return res;
     }
 
-    res = device->ops->get_metadata_vendor_tag_ops(device, &mVendorTagOps);
-    if (res != OK ) {
-        ALOGE("%s: Camera %d: Unable to retrieve tag ops from device: %s (%d)",
-                __FUNCTION__, mId, strerror(-res), res);
-        device->common.close(&device->common);
-        return res;
-    }
-    res = set_camera_metadata_vendor_tag_ops(mVendorTagOps);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set tag ops: %s (%d)",
-            __FUNCTION__, mId, strerror(-res), res);
-        device->common.close(&device->common);
-        return res;
-    }
     res = device->ops->set_notify_callback(device, notificationCallback,
             NULL);
     if (res != OK) {
