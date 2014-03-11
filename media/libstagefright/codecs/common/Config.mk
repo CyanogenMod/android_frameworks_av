@@ -14,8 +14,10 @@ VOTT := pc
 endif
 
 # Do we also need to check on ARCH_ARM_HAVE_ARMV7A? - probably not
-ifeq ($(ARCH_ARM_HAVE_NEON),true)
-VOTT := v7
+ifeq ($(TARGET_ARCH),arm)
+  ifeq ($(ARCH_ARM_HAVE_NEON),true)
+    VOTT := v7
+  endif
 endif
 
 VOTEST := 0
