@@ -139,6 +139,10 @@ protected:
     // frames is separate than the one calling stop.
     virtual void onBuffersReleased();
 
+    // SurfaceMediaSource can't handle sideband streams, so this is not expected
+    // to ever be called. Does nothing.
+    virtual void onSidebandStreamChanged();
+
     static bool isExternalFormat(uint32_t format);
 
 private:

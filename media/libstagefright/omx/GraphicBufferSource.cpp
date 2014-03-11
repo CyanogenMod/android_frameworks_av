@@ -777,6 +777,11 @@ void GraphicBufferSource::onBuffersReleased() {
     }
 }
 
+// BufferQueue::ConsumerListener callback
+void GraphicBufferSource::onSidebandStreamChanged() {
+    ALOG_ASSERT(false, "GraphicBufferSource can't consume sideband streams");
+}
+
 status_t GraphicBufferSource::setRepeatPreviousFrameDelayUs(
         int64_t repeatAfterUs) {
     Mutex::Autolock autoLock(mMutex);
