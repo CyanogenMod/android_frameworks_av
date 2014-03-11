@@ -629,7 +629,9 @@ int Downmix_Configure(downmix_module_t *pDwmModule, effect_config_t *pConfig, bo
         return -EINVAL;
     }
 
-    memcpy(&pDwmModule->config, pConfig, sizeof(effect_config_t));
+    if (&pDwmModule->config != pConfig) {
+        memcpy(&pDwmModule->config, pConfig, sizeof(effect_config_t));
+    }
 
     if (init) {
         pDownmixer->type = DOWNMIX_TYPE_FOLD;
