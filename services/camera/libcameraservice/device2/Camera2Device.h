@@ -78,7 +78,6 @@ class Camera2Device: public CameraDeviceBase {
     camera2_device_t *mHal2Device;
 
     CameraMetadata mDeviceInfo;
-    vendor_tag_query_ops_t *mVendorTagOps;
 
     /**
      * Queue class for both sending requests to a camera2 device, and for
