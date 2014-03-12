@@ -84,7 +84,7 @@ status_t Overlay::start(const sp<IGraphicBufferProducer>& outputSurface,
     assert(mState == RUNNING);
 
     ALOGV("Overlay::start successful");
-    *pBufferProducer = mBufferQueue;
+    *pBufferProducer = mProducer;
     return NO_ERROR;
 }
 
@@ -169,8 +169,9 @@ status_t Overlay::setup_l() {
         return UNKNOWN_ERROR;
     }
 
-    mBufferQueue = new BufferQueue(/*new GraphicBufferAlloc()*/);
-    mGlConsumer = new GLConsumer(mBufferQueue, mExtTextureName,
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&mProducer, &consumer);
+    mGlConsumer = new GLConsumer(consumer, mExtTextureName,
                 GL_TEXTURE_EXTERNAL_OES);
     mGlConsumer->setName(String8("virtual display"));
     mGlConsumer->setDefaultBufferSize(width, height);
@@ -187,7 +188,7 @@ void Overlay::release_l() {
     ALOGV("Overlay::release_l");
     mOutputSurface.clear();
     mGlConsumer.clear();
-    mBufferQueue.clear();
+    mProducer.clear();
 
     mTexProgram.release();
     mExtTexProgram.release();

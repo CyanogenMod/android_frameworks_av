@@ -77,10 +77,6 @@ private:
     // Set by the FrameAvailableListener callback.
     bool mFrameAvailable;
 
-    // Our queue.  The producer side is passed to the virtual display, the
-    // consumer side feeds into our GLConsumer.
-    sp<BufferQueue> mBufferQueue;
-
     // This receives frames from the virtual display and makes them available
     // as an external texture.
     sp<GLConsumer> mGlConsumer;
