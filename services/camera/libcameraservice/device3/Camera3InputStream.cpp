@@ -203,10 +203,12 @@ status_t Camera3InputStream::configureQueueLocked() {
     mFrameCount = 0;
 
     if (mConsumer.get() == 0) {
-        sp<BufferQueue> bq = new BufferQueue();
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
 
         int minUndequeuedBuffers = 0;
-        res = bq->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers);
+        res = producer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers);
         if (res != OK || minUndequeuedBuffers < 0) {
             ALOGE("%s: Stream %d: Could not query min undequeued buffers (error %d, bufCount %d)",
                   __FUNCTION__, mId, res, minUndequeuedBuffers);
@@ -226,7 +228,7 @@ status_t Camera3InputStream::configureQueueLocked() {
             camera3_stream::max_buffers : minBufs;
         // TODO: somehow set the total buffer count when producer connects?
 
-        mConsumer = new BufferItemConsumer(bq, camera3_stream::usage,
+        mConsumer = new BufferItemConsumer(consumer, camera3_stream::usage,
                                            mTotalBufferCount);
         mConsumer->setName(String8::format("Camera3-InputStream-%d", mId));
     }

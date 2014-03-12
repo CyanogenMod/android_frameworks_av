@@ -115,9 +115,11 @@ Camera3ZslStream::Camera3ZslStream(int id, uint32_t width, uint32_t height,
                             HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
         mDepth(bufferCount) {
 
-    sp<BufferQueue> bq = new BufferQueue();
-    mProducer = new RingBufferConsumer(bq, GRALLOC_USAGE_HW_CAMERA_ZSL, bufferCount);
-    mConsumer = new Surface(bq);
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    mProducer = new RingBufferConsumer(consumer, GRALLOC_USAGE_HW_CAMERA_ZSL, bufferCount);
+    mConsumer = new Surface(producer);
 }
 
 Camera3ZslStream::~Camera3ZslStream() {
