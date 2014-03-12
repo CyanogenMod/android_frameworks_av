@@ -175,6 +175,7 @@ private:
 
     size_t mContinuationCounter;
     sp<AMessage> mContinuation;
+    sp<AMessage> mSeekReply;
 
     int64_t mLastDequeuedTimeUs;
     int64_t mRealTimeBaseUs;
@@ -182,6 +183,7 @@ private:
     bool mReconfigurationInProgress;
     bool mSwitchInProgress;
     uint32_t mDisconnectReplyID;
+    uint32_t mSeekReplyID;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
