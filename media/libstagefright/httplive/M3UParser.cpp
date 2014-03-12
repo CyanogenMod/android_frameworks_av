@@ -797,8 +797,7 @@ status_t M3UParser::parseCipherInfo(
                 if (MakeURL(baseURI.c_str(), val.c_str(), &absURI)) {
                     val = absURI;
                 } else {
-                    ALOGE("failed to make absolute url for '%s'.",
-                         val.c_str());
+                    ALOGE("failed to make absolute url for <URL suppressed>.");
                 }
             }
 
