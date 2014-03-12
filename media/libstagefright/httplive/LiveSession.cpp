@@ -488,7 +488,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
     mPlaylist = fetchPlaylist(url.c_str(), NULL /* curPlaylistHash */, &dummy);
 
     if (mPlaylist == NULL) {
-        ALOGE("unable to fetch master playlist '%s'.", url.c_str());
+        ALOGE("unable to fetch master playlist <URL suppressed>.");
 
         postPrepared(ERROR_IO);
         return;
