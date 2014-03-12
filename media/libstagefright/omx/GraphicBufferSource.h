@@ -61,7 +61,7 @@ public:
     // Returns the handle to the producer side of the BufferQueue.  Buffers
     // queued on this will be received by GraphicBufferSource.
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const {
-        return mBufferQueue;
+        return mProducer;
     }
 
     // This is called when OMX transitions to OMX_StateExecuting, which means
@@ -210,8 +210,11 @@ private:
 
     bool mSuspended;
 
-    // We consume graphic buffers from this.
-    sp<BufferQueue> mBufferQueue;
+    // Our BufferQueue interfaces. mProducer is passed to the producer through
+    // getIGraphicBufferProducer, and mConsumer is used internally to retrieve
+    // the buffers queued by the producer.
+    sp<IGraphicBufferProducer> mProducer;
+    sp<IGraphicBufferConsumer> mConsumer;
 
     // Number of frames pending in BufferQueue that haven't yet been
     // forwarded to the codec.

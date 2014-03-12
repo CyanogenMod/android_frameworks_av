@@ -109,7 +109,7 @@ protected:
         } else {
             ALOGV("No actual display. Choosing EGLSurface based on SurfaceMediaSource");
             sp<IGraphicBufferProducer> sms = (new SurfaceMediaSource(
-                    getSurfaceWidth(), getSurfaceHeight()))->getBufferQueue();
+                    getSurfaceWidth(), getSurfaceHeight()))->getProducer();
             sp<Surface> stc = new Surface(sms);
             sp<ANativeWindow> window = stc;
 
@@ -360,9 +360,7 @@ protected:
     virtual void SetUp() {
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-
-        // Manual cast is required to avoid constructor ambiguity
-        mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+        mSTC = new Surface(mSMS->getProducer());
         mANW = mSTC;
     }
 
@@ -397,7 +395,7 @@ protected:
         ALOGV("SMS-GLTest::SetUp()");
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-        mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+        mSTC = new Surface(mSMS->getProducer());
         mANW = mSTC;
 
         // Doing the setup related to the GL Side
@@ -782,7 +780,7 @@ TEST_F(SurfaceMediaSourceGLTest, ChooseAndroidRecordableEGLConfigDummyWriter) {
     ALOGV("Verify creating a surface w/ right config + dummy writer*********");
 
     mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-    mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+    mSTC = new Surface(mSMS->getProducer());
     mANW = mSTC;
 
     DummyRecorder writer(mSMS);

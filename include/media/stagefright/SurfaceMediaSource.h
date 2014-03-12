@@ -111,7 +111,7 @@ public:
     // pass metadata through the buffers. Currently, it is force set to true
     bool isMetaDataStoredInVideoBuffers() const;
 
-    sp<BufferQueue> getBufferQueue() const { return mBufferQueue; }
+    sp<IGraphicBufferProducer> getProducer() const { return mProducer; }
 
     // To be called before start()
     status_t setMaxAcquiredBufferCount(size_t count);
@@ -146,9 +146,10 @@ protected:
     static bool isExternalFormat(uint32_t format);
 
 private:
-    // mBufferQueue is the exchange point between the producer and
-    // this consumer
-    sp<BufferQueue> mBufferQueue;
+    // A BufferQueue, represented by these interfaces, is the exchange point
+    // between the producer and this consumer
+    sp<IGraphicBufferProducer> mProducer;
+    sp<IGraphicBufferConsumer> mConsumer;
 
     struct SlotData {
         sp<GraphicBuffer> mGraphicBuffer;
