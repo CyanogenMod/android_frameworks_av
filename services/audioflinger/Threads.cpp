@@ -1145,7 +1145,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
 AudioFlinger::PlaybackThread::~PlaybackThread()
 {
     mAudioFlinger->unregisterWriter(mNBLogWriter);
-    free(mSinkBuffer);
+    delete[] mSinkBuffer;
     free(mMixerBuffer);
     free(mEffectBuffer);
 }
@@ -1782,13 +1782,11 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     ALOGI("HAL output buffer size %u frames, normal sink buffer size %u frames", mFrameCount,
             mNormalFrameCount);
 
-    // mSinkBuffer is the sink buffer.  Size is always multiple-of-16 frames.
-    // Originally this was int16_t[] array, need to remove legacy implications.
-    free(mSinkBuffer);
-    mSinkBuffer = NULL;
-    const size_t sinkBufferSize = mNormalFrameCount * mChannelCount
-            * audio_bytes_per_sample(mFormat);
-    (void)posix_memalign(&mSinkBuffer, 32, sinkBufferSize);
+    delete[] mSinkBuffer;
+    size_t normalBufferSize = mNormalFrameCount * mFrameSize;
+    // For historical reasons mSinkBuffer is int16_t[], but mFrameSize can be odd (such as 1)
+    mSinkBuffer = new int16_t[(normalBufferSize + 1) >> 1];
+    memset(mSinkBuffer, 0, normalBufferSize);
 
     // We resize the mMixerBuffer according to the requirements of the sink buffer which
     // drives the output.
@@ -1986,12 +1984,12 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
     mLastWriteTime = systemTime();
     mInWrite = true;
     ssize_t bytesWritten;
-    const size_t offset = mCurrentWriteLength - mBytesRemaining;
 
     // If an NBAIO sink is present, use it to write the normal mixer's submix
     if (mNormalSink != 0) {
-        const size_t count = mBytesRemaining / mFrameSize;
-
+#define mBitShift 2 // FIXME
+        size_t count = mBytesRemaining >> mBitShift;
+        size_t offset = (mCurrentWriteLength - mBytesRemaining) >> 1;
         ATRACE_BEGIN("write");
         // update the setpoint when AudioFlinger::mScreenState changes
         uint32_t screenState = AudioFlinger::mScreenState;
@@ -2003,10 +2001,10 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
                         (pipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
             }
         }
-        ssize_t framesWritten = mNormalSink->write((char *)mSinkBuffer + offset, count);
+        ssize_t framesWritten = mNormalSink->write(mSinkBuffer + offset, count);
         ATRACE_END();
         if (framesWritten > 0) {
-            bytesWritten = framesWritten * mFrameSize;
+            bytesWritten = framesWritten << mBitShift;
         } else {
             bytesWritten = framesWritten;
         }
@@ -2021,7 +2019,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
     // otherwise use the HAL / AudioStreamOut directly
     } else {
         // Direct output and offload threads
-
+        size_t offset = (mCurrentWriteLength - mBytesRemaining);
         if (mUseAsyncWrite) {
             ALOGW_IF(mWriteAckSequence & 1, "threadLoop_write(): out of sequence write request");
             mWriteAckSequence += 2;
@@ -2113,8 +2111,8 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
 status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& chain)
 {
     int session = chain->sessionId();
-    int16_t* buffer = reinterpret_cast<int16_t*>(mEffectBufferEnabled
-            ? mEffectBuffer : mSinkBuffer);
+    int16_t *buffer = mEffectBufferEnabled
+            ? reinterpret_cast<int16_t*>(mEffectBuffer) : mSinkBuffer;
     bool ownsBuffer = false;
 
     ALOGV("addEffectChain_l() %p on thread %p for session %d", chain.get(), this, session);
@@ -2154,8 +2152,8 @@ status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& c
     }
 
     chain->setInBuffer(buffer, ownsBuffer);
-    chain->setOutBuffer(reinterpret_cast<int16_t*>(mEffectBufferEnabled
-            ? mEffectBuffer : mSinkBuffer));
+    chain->setOutBuffer(mEffectBufferEnabled
+            ? reinterpret_cast<int16_t*>(mEffectBuffer) : mSinkBuffer);
     // Effect chain for session AUDIO_SESSION_OUTPUT_STAGE is inserted at end of effect
     // chains list in order to be processed last as it contains output stage effects
     // Effect chain for session AUDIO_SESSION_OUTPUT_MIX is inserted before
@@ -2205,7 +2203,7 @@ size_t AudioFlinger::PlaybackThread::removeEffectChain_l(const sp<EffectChain>& 
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 sp<Track> track = mTracks[i];
                 if (session == track->sessionId()) {
-                    track->setMainBuffer(reinterpret_cast<int16_t*>(mSinkBuffer));
+                    track->setMainBuffer(mSinkBuffer);
                     chain->decTrackCnt();
                 }
             }
@@ -4473,15 +4471,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
 ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
 {
     for (size_t i = 0; i < outputTracks.size(); i++) {
-        // We convert the duplicating thread format to AUDIO_FORMAT_PCM_16_BIT
-        // for delivery downstream as needed. This in-place conversion is safe as
-        // AUDIO_FORMAT_PCM_16_BIT is smaller than any other supported format
-        // (AUDIO_FORMAT_PCM_8_BIT is not allowed here).
-        if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-            memcpy_by_audio_format(mSinkBuffer, AUDIO_FORMAT_PCM_16_BIT,
-                    mSinkBuffer, mFormat, writeFrames * mChannelCount);
-        }
-        outputTracks[i]->write(reinterpret_cast<int16_t*>(mSinkBuffer), writeFrames);
+        outputTracks[i]->write(mSinkBuffer, writeFrames);
     }
     mStandby = false;
     return (ssize_t)mSinkBufferSize;
@@ -4510,16 +4500,10 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
     Mutex::Autolock _l(mLock);
     // FIXME explain this formula
     size_t frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
-    // OutputTrack is forced to AUDIO_FORMAT_PCM_16_BIT regardless of mFormat
-    // due to current usage case and restrictions on the AudioBufferProvider.
-    // Actual buffer conversion is done in threadLoop_write().
-    //
-    // TODO: This may change in the future, depending on multichannel
-    // (and non int16_t*) support on AF::PlaybackThread::OutputTrack
     OutputTrack *outputTrack = new OutputTrack(thread,
                                             this,
                                             mSampleRate,
-                                            AUDIO_FORMAT_PCM_16_BIT,
+                                            mFormat,
                                             mChannelMask,
                                             frameCount,
                                             IPCThreadState::self()->getCallingUid());
