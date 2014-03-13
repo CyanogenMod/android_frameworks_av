@@ -17,6 +17,7 @@
 
 #define LOG_TAG "BpCameraService"
 #include <utils/Log.h>
+#include <utils/Errors.h>
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -34,6 +35,7 @@
 #include <camera/camera2/ICameraDeviceUser.h>
 #include <camera/camera2/ICameraDeviceCallbacks.h>
 #include <camera/CameraMetadata.h>
+#include <camera/VendorTagDescriptor.h>
 
 namespace android {
 
@@ -140,6 +142,24 @@ public:
             cameraInfo->swap(out);
         }
 
+        return result;
+    }
+
+    // Get enumeration and description of vendor tags for camera
+    virtual status_t getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescriptor>& desc) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        remote()->transact(BnCameraService::GET_CAMERA_VENDOR_TAG_DESCRIPTOR, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t result = reply.readInt32();
+
+        if (reply.readInt32() != 0) {
+            sp<VendorTagDescriptor> d;
+            if (VendorTagDescriptor::createFromParcel(&reply, /*out*/d) == OK) {
+                desc = d;
+            }
+        }
         return result;
     }
 
@@ -273,6 +293,22 @@ status_t BnCameraService::onTransact(
             // out-variables are after exception and return value
             reply->writeInt32(1); // means the parcelable is included
             info.writeToParcel(reply);
+            return NO_ERROR;
+        } break;
+        case GET_CAMERA_VENDOR_TAG_DESCRIPTOR: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<VendorTagDescriptor> d;
+            status_t result = getCameraVendorTagDescriptor(d);
+            reply->writeNoException();
+            reply->writeInt32(result);
+
+            // out-variables are after exception and return value
+            reply->writeInt32(1); // means the parcelable is included
+            if (d == NULL) {
+                reply->writeInt32(0);
+            } else {
+                d->writeToParcel(reply);
+            }
             return NO_ERROR;
         } break;
         case CONNECT: {

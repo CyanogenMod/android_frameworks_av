@@ -157,7 +157,6 @@ class Camera3Device :
     camera3_device_t          *mHal3Device;
 
     CameraMetadata             mDeviceInfo;
-    vendor_tag_query_ops_t     mVendorTagOps;
 
     enum Status {
         STATUS_ERROR,

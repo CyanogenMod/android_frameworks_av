@@ -146,24 +146,6 @@ status_t Camera3Device::initialize(camera_module_t *module)
         return BAD_VALUE;
     }
 
-    /** Get vendor metadata tags */
-
-    mVendorTagOps.get_camera_vendor_section_name = NULL;
-
-    ATRACE_BEGIN("camera3->get_metadata_vendor_tag_ops");
-    device->ops->get_metadata_vendor_tag_ops(device, &mVendorTagOps);
-    ATRACE_END();
-
-    if (mVendorTagOps.get_camera_vendor_section_name != NULL) {
-        res = set_camera_metadata_vendor_tag_ops(&mVendorTagOps);
-        if (res != OK) {
-            SET_ERR_L("Unable to set tag ops: %s (%d)",
-                    strerror(-res), res);
-            device->common.close(&device->common);
-            return res;
-        }
-    }
-
     /** Start up status tracker thread */
     mStatusTracker = new StatusTracker(this);
     res = mStatusTracker->run(String8::format("C3Dev-%d-Status", mId).string());

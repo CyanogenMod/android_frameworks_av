@@ -31,6 +31,7 @@ class ICameraServiceListener;
 class ICameraDeviceUser;
 class ICameraDeviceCallbacks;
 class CameraMetadata;
+class VendorTagDescriptor;
 
 class ICameraService : public IInterface
 {
@@ -47,6 +48,7 @@ public:
         ADD_LISTENER,
         REMOVE_LISTENER,
         GET_CAMERA_CHARACTERISTICS,
+        GET_CAMERA_VENDOR_TAG_DESCRIPTOR,
     };
 
     enum {
@@ -62,6 +64,8 @@ public:
 
     virtual status_t getCameraCharacteristics(int cameraId,
                                               CameraMetadata* cameraInfo) = 0;
+
+    virtual status_t getCameraVendorTagDescriptor(sp<VendorTagDescriptor>& desc) = 0;
 
     // Returns 'OK' if operation succeeded
     // - Errors: ALREADY_EXISTS if the listener was already added
