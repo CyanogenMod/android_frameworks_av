@@ -388,6 +388,45 @@ const CameraMetadata& Camera3Device::info() const {
     return mDeviceInfo;
 }
 
+status_t Camera3Device::checkStatusOkToCaptureLocked() {
+    switch (mStatus) {
+        case STATUS_ERROR:
+            CLOGE("Device has encountered a serious error");
+            return INVALID_OPERATION;
+        case STATUS_UNINITIALIZED:
+            CLOGE("Device not initialized");
+            return INVALID_OPERATION;
+        case STATUS_UNCONFIGURED:
+        case STATUS_CONFIGURED:
+        case STATUS_ACTIVE:
+            // OK
+            break;
+        default:
+            SET_ERR_L("Unexpected status: %d", mStatus);
+            return INVALID_OPERATION;
+    }
+    return OK;
+}
+
+status_t Camera3Device::convertMetadataListToRequestListLocked(
+        const List<const CameraMetadata> &metadataList, RequestList *requestList) {
+    if (requestList == NULL) {
+        CLOGE("requestList cannot be NULL.");
+        return BAD_VALUE;
+    }
+
+    for (List<const CameraMetadata>::const_iterator it = metadataList.begin();
+            it != metadataList.end(); ++it) {
+        sp<CaptureRequest> newRequest = setUpRequestLocked(*it);
+        if (newRequest == 0) {
+            CLOGE("Can't create capture request");
+            return BAD_VALUE;
+        }
+        requestList->push_back(newRequest);
+    }
+    return OK;
+}
+
 status_t Camera3Device::capture(CameraMetadata &request) {
     ATRACE_CALL();
     status_t res;
@@ -428,10 +467,59 @@ status_t Camera3Device::capture(CameraMetadata &request) {
                     kActiveTimeout/1e9);
         }
         ALOGV("Camera %d: Capture request enqueued", mId);
+    } else {
+        CLOGE("Cannot queue request. Impossible."); // queueRequest always returns OK.
+        return BAD_VALUE;
     }
     return res;
 }
 
+status_t Camera3Device::submitRequestsHelper(
+        const List<const CameraMetadata> &requests, bool repeating) {
+    ATRACE_CALL();
+    Mutex::Autolock il(mInterfaceLock);
+    Mutex::Autolock l(mLock);
+
+    status_t res = checkStatusOkToCaptureLocked();
+    if (res != OK) {
+        // error logged by previous call
+        return res;
+    }
+
+    RequestList requestList;
+
+    res = convertMetadataListToRequestListLocked(requests, /*out*/&requestList);
+    if (res != OK) {
+        // error logged by previous call
+        return res;
+    }
+
+    if (repeating) {
+        res = mRequestThread->setRepeatingRequests(requestList);
+    } else {
+        res = mRequestThread->queueRequestList(requestList);
+    }
+
+    if (res == OK) {
+        waitUntilStateThenRelock(/*active*/true, kActiveTimeout);
+        if (res != OK) {
+            SET_ERR_L("Can't transition to active in %f seconds!",
+                    kActiveTimeout/1e9);
+        }
+        ALOGV("Camera %d: Capture request enqueued", mId);
+    } else {
+        CLOGE("Cannot queue request. Impossible.");
+        return BAD_VALUE;
+    }
+
+    return res;
+}
+
+status_t Camera3Device::captureList(const List<const CameraMetadata> &requests) {
+    ATRACE_CALL();
+
+    return submitRequestsHelper(requests, /*repeating*/false);
+}
 
 status_t Camera3Device::setStreamingRequest(const CameraMetadata &request) {
     ATRACE_CALL();
@@ -478,6 +566,11 @@ status_t Camera3Device::setStreamingRequest(const CameraMetadata &request) {
     return res;
 }
 
+status_t Camera3Device::setStreamingRequestList(const List<const CameraMetadata> &requests) {
+    ATRACE_CALL();
+
+    return submitRequestsHelper(requests, /*repeating*/true);
+}
 
 sp<Camera3Device::CaptureRequest> Camera3Device::setUpRequestLocked(
         const CameraMetadata &request) {
@@ -1907,6 +2000,19 @@ status_t Camera3Device::RequestThread::queueRequest(
          sp<CaptureRequest> request) {
     Mutex::Autolock l(mRequestLock);
     mRequestQueue.push_back(request);
+
+    unpauseForNewRequests();
+
+    return OK;
+}
+
+status_t Camera3Device::RequestThread::queueRequestList(
+        List<sp<CaptureRequest> > &requests) {
+    Mutex::Autolock l(mRequestLock);
+    for (List<sp<CaptureRequest> >::iterator it = requests.begin(); it != requests.end();
+            ++it) {
+        mRequestQueue.push_back(*it);
+    }
 
     unpauseForNewRequests();
 

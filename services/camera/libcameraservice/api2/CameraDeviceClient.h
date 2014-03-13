@@ -63,8 +63,11 @@ public:
      */
 
     // Note that the callee gets a copy of the metadata.
-    virtual int           submitRequest(sp<CaptureRequest> request,
-                                        bool streaming = false);
+    virtual status_t           submitRequest(sp<CaptureRequest> request,
+                                             bool streaming = false);
+    // List of requests are copied.
+    virtual status_t           submitRequestList(List<sp<CaptureRequest> > requests,
+                                                 bool streaming = false);
     virtual status_t      cancelRequest(int requestId);
 
     // Returns -EBUSY if device is not idle
