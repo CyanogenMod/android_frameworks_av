@@ -849,6 +849,7 @@ status_t OMXNodeInstance::setInternalOption(
     switch (type) {
         case IOMX::INTERNAL_OPTION_SUSPEND:
         case IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY:
+        case IOMX::INTERNAL_OPTION_MAX_TIMESTAMP_GAP:
         {
             const sp<GraphicBufferSource> &bufferSource =
                 getGraphicBufferSource();
@@ -864,7 +865,8 @@ status_t OMXNodeInstance::setInternalOption(
 
                 bool suspend = *(bool *)data;
                 bufferSource->suspend(suspend);
-            } else {
+            } else if (type ==
+                    IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY){
                 if (size != sizeof(int64_t)) {
                     return INVALID_OPERATION;
                 }
@@ -872,6 +874,14 @@ status_t OMXNodeInstance::setInternalOption(
                 int64_t delayUs = *(int64_t *)data;
 
                 return bufferSource->setRepeatPreviousFrameDelayUs(delayUs);
+            } else {
+                if (size != sizeof(int64_t)) {
+                    return INVALID_OPERATION;
+                }
+
+                int64_t maxGapUs = *(int64_t *)data;
+
+                return bufferSource->setMaxTimestampGapUs(maxGapUs);
             }
 
             return OK;
@@ -883,6 +893,8 @@ status_t OMXNodeInstance::setInternalOption(
 }
 
 void OMXNodeInstance::onMessage(const omx_message &msg) {
+    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+
     if (msg.type == omx_message::FILL_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
             static_cast<OMX_BUFFERHEADERTYPE *>(
@@ -892,9 +904,17 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
             static_cast<BufferMeta *>(buffer->pAppPrivate);
 
         buffer_meta->CopyFromOMX(buffer);
-    } else if (msg.type == omx_message::EMPTY_BUFFER_DONE) {
-        const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
 
+        if (bufferSource != NULL) {
+            // fix up the buffer info (especially timestamp) if needed
+            bufferSource->codecBufferFilled(buffer);
+
+            omx_message newMsg = msg;
+            newMsg.u.extended_buffer_data.timestamp = buffer->nTimeStamp;
+            mObserver->onMessage(newMsg);
+            return;
+        }
+    } else if (msg.type == omx_message::EMPTY_BUFFER_DONE) {
         if (bufferSource != NULL) {
             // This is one of the buffers used exclusively by
             // GraphicBufferSource.

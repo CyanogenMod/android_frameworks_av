@@ -42,7 +42,11 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mEndOfStream(false),
     mEndOfStreamSent(false),
     mRepeatAfterUs(-1ll),
+    mMaxTimestampGapUs(-1ll),
+    mPrevOriginalTimeUs(-1ll),
+    mPrevModifiedTimeUs(-1ll),
     mRepeatLastFrameGeneration(0),
+    mRepeatLastFrameTimestamp(-1ll),
     mLatestSubmittedBufferId(-1),
     mLatestSubmittedBufferFrameNum(0),
     mLatestSubmittedBufferUseCount(0),
@@ -299,6 +303,32 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     return;
 }
 
+void GraphicBufferSource::codecBufferFilled(OMX_BUFFERHEADERTYPE* header) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mMaxTimestampGapUs > 0ll
+            && !(header->nFlags & OMX_BUFFERFLAG_CODECCONFIG)) {
+        ssize_t index = mOriginalTimeUs.indexOfKey(header->nTimeStamp);
+        if (index >= 0) {
+            ALOGV("OUT timestamp: %lld -> %lld",
+                    header->nTimeStamp, mOriginalTimeUs[index]);
+            header->nTimeStamp = mOriginalTimeUs[index];
+            mOriginalTimeUs.removeItemsAt(index);
+        } else {
+            // giving up the effort as encoder doesn't appear to preserve pts
+            ALOGW("giving up limiting timestamp gap (pts = %lld)",
+                    header->nTimeStamp);
+            mMaxTimestampGapUs = -1ll;
+        }
+        if (mOriginalTimeUs.size() > BufferQueue::NUM_BUFFER_SLOTS) {
+            // something terribly wrong must have happened, giving up...
+            ALOGE("mOriginalTimeUs has too many entries (%d)",
+                    mOriginalTimeUs.size());
+            mMaxTimestampGapUs = -1ll;
+        }
+    }
+}
+
 void GraphicBufferSource::suspend(bool suspend) {
     Mutex::Autolock autoLock(mMutex);
 
@@ -431,6 +461,7 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
     BufferQueue::BufferItem item;
     item.mBuf = mLatestSubmittedBufferId;
     item.mFrameNumber = mLatestSubmittedBufferFrameNum;
+    item.mTimestamp = mRepeatLastFrameTimestamp;
 
     status_t err = submitBuffer_l(item, cbi);
 
@@ -439,6 +470,20 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
     }
 
     ++mLatestSubmittedBufferUseCount;
+
+    /* repeat last frame up to kRepeatLastFrameCount times.
+     * in case of static scene, a single repeat might not get rid of encoder
+     * ghosting completely, refresh a couple more times to get better quality
+     */
+    if (--mRepeatLastFrameCount > 0) {
+        mRepeatLastFrameTimestamp = item.mTimestamp + mRepeatAfterUs * 1000;
+
+        if (mReflector != NULL) {
+            sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector->id());
+            msg->setInt32("generation", ++mRepeatLastFrameGeneration);
+            msg->post(mRepeatAfterUs);
+        }
+    }
 
     return true;
 }
@@ -460,8 +505,11 @@ void GraphicBufferSource::setLatestSubmittedBuffer_l(
 
     mLatestSubmittedBufferId = item.mBuf;
     mLatestSubmittedBufferFrameNum = item.mFrameNumber;
+    mRepeatLastFrameTimestamp = item.mTimestamp + mRepeatAfterUs * 1000;
+
     mLatestSubmittedBufferUseCount = 1;
     mRepeatBufferDeferred = false;
+    mRepeatLastFrameCount = kRepeatLastFrameCount;
 
     if (mReflector != NULL) {
         sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector->id());
@@ -497,6 +545,39 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
     return OK;
 }
 
+int64_t GraphicBufferSource::getTimestamp(const BufferQueue::BufferItem &item) {
+    int64_t timeUs = item.mTimestamp / 1000;
+
+    if (mMaxTimestampGapUs > 0ll) {
+        /* Cap timestamp gap between adjacent frames to specified max
+         *
+         * In the scenario of cast mirroring, encoding could be suspended for
+         * prolonged periods. Limiting the pts gap to workaround the problem
+         * where encoder's rate control logic produces huge frames after a
+         * long period of suspension.
+         */
+
+        int64_t originalTimeUs = timeUs;
+        if (mPrevOriginalTimeUs >= 0ll) {
+            if (originalTimeUs < mPrevOriginalTimeUs) {
+                // Drop the frame if it's going backward in time. Bad timestamp
+                // could disrupt encoder's rate control completely.
+                ALOGV("Dropping frame that's going backward in time");
+                return -1;
+            }
+            int64_t timestampGapUs = originalTimeUs - mPrevOriginalTimeUs;
+            timeUs = (timestampGapUs < mMaxTimestampGapUs ?
+                    timestampGapUs : mMaxTimestampGapUs) + mPrevModifiedTimeUs;
+        }
+        mPrevOriginalTimeUs = originalTimeUs;
+        mPrevModifiedTimeUs = timeUs;
+        mOriginalTimeUs.add(timeUs, originalTimeUs);
+        ALOGV("IN  timestamp: %lld -> %lld", originalTimeUs, timeUs);
+    }
+
+    return timeUs;
+}
+
 status_t GraphicBufferSource::submitBuffer_l(
         const BufferQueue::BufferItem &item, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
@@ -513,9 +594,15 @@ status_t GraphicBufferSource::submitBuffer_l(
     memcpy(data, &type, 4);
     memcpy(data + 4, &handle, sizeof(buffer_handle_t));
 
+    int64_t timeUs = getTimestamp(item);
+    if (timeUs < 0ll) {
+        ALOGE("Dropping frame with bad timestamp");
+        return UNKNOWN_ERROR;
+    }
+
     status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
             4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
-            item.mTimestamp / 1000);
+            timeUs);
     if (err != OK) {
         ALOGW("WARNING: emptyDirectBuffer failed: 0x%x", err);
         codecBuffer.mGraphicBuffer = NULL;
@@ -664,6 +751,17 @@ status_t GraphicBufferSource::setRepeatPreviousFrameDelayUs(
     return OK;
 }
 
+status_t GraphicBufferSource::setMaxTimestampGapUs(int64_t maxGapUs) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mExecuting || maxGapUs <= 0ll) {
+        return INVALID_OPERATION;
+    }
+
+    mMaxTimestampGapUs = maxGapUs;
+
+    return OK;
+}
 void GraphicBufferSource::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatRepeatLastFrame:
