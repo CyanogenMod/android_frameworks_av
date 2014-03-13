@@ -5086,21 +5086,24 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             (
                 (tid != -1) &&
                 ((frameCount == 0) ||
+                // FIXME not necessarily true, should be native frame count for native SR!
                 (frameCount >= mFrameCount))
             ) &&
-            // FIXME when record supports non-PCM data, also check for audio_is_linear_pcm(format)
+            // PCM data
+            audio_is_linear_pcm(format) &&
             // mono or stereo
             ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
               (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
             // hardware sample rate
+            // FIXME actually the native hardware sample rate
             (sampleRate == mSampleRate) &&
-            // record thread has an associated fast recorder
-            hasFastRecorder()
-            // FIXME test that RecordThread for this fast track has a capable output HAL
-            // FIXME add a permission test also?
+            // record thread has an associated fast capture
+            hasFastCapture()
+            // fast capture does not require slots
         ) {
-        // if frameCount not specified, then it defaults to fast recorder (HAL) frame count
+        // if frameCount not specified, then it defaults to fast capture (HAL) frame count
         if (frameCount == 0) {
+            // FIXME wrong mFrameCount
             frameCount = mFrameCount * kFastTrackMultiplier;
         }
         ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
@@ -5108,11 +5111,12 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
       } else {
         ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%d "
                 "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
-                "hasFastRecorder=%d tid=%d",
+                "hasFastCapture=%d tid=%d",
                 frameCount, mFrameCount, format,
                 audio_is_linear_pcm(format),
-                channelMask, sampleRate, mSampleRate, hasFastRecorder(), tid);
+                channelMask, sampleRate, mSampleRate, hasFastCapture(), tid);
         *flags &= ~IAudioFlinger::TRACK_FAST;
+        // FIXME It's not clear that we need to enforce this any more, since we have a pipe.
         // For compatibility with AudioRecord calculation, buffer depth is forced
         // to be at least 2 x the record thread frame count and cover audio hardware latency.
         // This is probably too conservative, but legacy application code may depend on it.

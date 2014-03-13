@@ -993,7 +993,7 @@ public:
     static void syncStartEventCallback(const wp<SyncEvent>& event);
 
     virtual size_t      frameCount() const { return mFrameCount; }
-            bool        hasFastRecorder() const { return false; }
+            bool        hasFastCapture() const { return false; }
 
 private:
             // Enter standby if not already in standby, and set mStandby flag
