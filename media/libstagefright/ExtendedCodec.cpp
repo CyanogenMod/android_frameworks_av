@@ -617,6 +617,11 @@ void ExtendedCodec::configureVideoDecoder(
 
 bool ExtendedCodec::checkDPFromCodecSpecificData(const uint8_t *data, size_t size) {
     bool retVal = false;
+
+    if (ExtendedUtils::ShellProp::isMpeg4DPSupportedByHardware()) {
+        return retVal;
+    }
+
     size_t offset = 0, startCodeOffset = 0;
     bool isStartCode = false;
     int VOL_START_CODE = 0x20;

@@ -259,6 +259,15 @@ bool ExtendedUtils::ShellProp::isCustomAVSyncEnabled() {
     return false;
 }
 
+bool ExtendedUtils::ShellProp::isMpeg4DPSupportedByHardware() {
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("mm.mpeg4dp.hw.support", prop, "0");
+    if (!strncmp(prop, "true", 4) || atoi(prop)) {
+        return true;
+    }
+    return false;
+}
+
 void ExtendedUtils::setBFrames(
         OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, int32_t &numBFrames,
         const char* componentName) {
@@ -837,6 +846,10 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
 }
 
 bool ExtendedUtils::ShellProp::isCustomAVSyncEnabled() {
+    return false;
+}
+
+bool ExtendedUtils::ShellProp::isMpeg4DPSupportedByHardware() {
     return false;
 }
 
