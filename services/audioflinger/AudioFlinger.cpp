@@ -569,19 +569,19 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
         PlaybackThread *effectThread = NULL;
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
+            lSessionId = *sessionId;
             // check if an effect chain with the same session ID is present on another
             // output thread and move it here.
             for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
                 sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
                 if (mPlaybackThreads.keyAt(i) != output) {
-                    uint32_t sessions = t->hasAudioSession(*sessionId);
+                    uint32_t sessions = t->hasAudioSession(lSessionId);
                     if (sessions & PlaybackThread::EFFECT_SESSION) {
                         effectThread = t.get();
                         break;
                     }
                 }
             }
-            lSessionId = *sessionId;
         } else {
             // if no audio session id is provided, create one here
             lSessionId = nextUniqueId();
@@ -1368,17 +1368,17 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid_l(pid);
 
-        // If no audio session id is provided, create one here
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
             lSessionId = *sessionId;
         } else {
+            // if no audio session id is provided, create one here
             lSessionId = nextUniqueId();
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
             }
         }
-        // create new record track.
-        // The record track uses one track in mHardwareMixerThread by convention.
+        ALOGV("openRecord() lSessionId: %d", lSessionId);
+
         // TODO: the uid should be passed in as a parameter to openRecord
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
                                                   frameCount, lSessionId,
