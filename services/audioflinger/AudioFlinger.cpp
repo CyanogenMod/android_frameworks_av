@@ -1342,9 +1342,9 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
-    // FIXME when we support more formats, add audio_is_valid_format(format)
-    //       and any explicit restrictions if audio_is_linear_pcm(format)
-    if (format != AUDIO_FORMAT_PCM_16_BIT) {
+    // we don't yet support anything other than 16-bit PCM
+    if (!(audio_is_valid_format(format) &&
+            audio_is_linear_pcm(format) && format == AUDIO_FORMAT_PCM_16_BIT)) {
         ALOGE("openRecord() invalid format %#x", format);
         lStatus = BAD_VALUE;
         goto Exit;
