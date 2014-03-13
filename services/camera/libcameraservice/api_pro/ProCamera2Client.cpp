@@ -373,9 +373,7 @@ void ProCamera2Client::detachDevice() {
     Camera2ClientBase::detachDevice();
 }
 
-/** Device-related methods */
-void ProCamera2Client::onFrameAvailable(int32_t requestId,
-                                        const CameraMetadata& frame) {
+void ProCamera2Client::onResultAvailable(const CaptureResult& result) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
@@ -383,13 +381,12 @@ void ProCamera2Client::onFrameAvailable(int32_t requestId,
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     if (mRemoteCallback != NULL) {
-        CameraMetadata tmp(frame);
+        CameraMetadata tmp(result.mMetadata);
         camera_metadata_t* meta = tmp.release();
         ALOGV("%s: meta = %p ", __FUNCTION__, meta);
-        mRemoteCallback->onResultReceived(requestId, meta);
+        mRemoteCallback->onResultReceived(result.mResultExtras.requestId, meta);
         tmp.acquire(meta);
     }
-
 }
 
 bool ProCamera2Client::enforceRequestPermissions(CameraMetadata& metadata) {

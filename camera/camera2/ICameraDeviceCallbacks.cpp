@@ -28,6 +28,7 @@
 
 #include <camera/camera2/ICameraDeviceCallbacks.h>
 #include "camera/CameraMetadata.h"
+#include "camera/CaptureResult.h"
 
 namespace android {
 
@@ -46,12 +47,14 @@ public:
     {
     }
 
-    void onDeviceError(CameraErrorCode errorCode)
+    void onDeviceError(CameraErrorCode errorCode, const CaptureResultExtras& resultExtras)
     {
         ALOGV("onDeviceError");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
         data.writeInt32(static_cast<int32_t>(errorCode));
+        data.writeInt32(1); // to mark presence of CaptureResultExtras object
+        resultExtras.writeToParcel(&data);
         remote()->transact(CAMERA_ERROR, data, &reply, IBinder::FLAG_ONEWAY);
         data.writeNoException();
     }
@@ -65,25 +68,28 @@ public:
         data.writeNoException();
     }
 
-    void onCaptureStarted(int32_t requestId, int64_t timestamp)
+    void onCaptureStarted(const CaptureResultExtras& result, int64_t timestamp)
     {
         ALOGV("onCaptureStarted");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
-        data.writeInt32(requestId);
+        data.writeInt32(1); // to mark presence of CaptureResultExtras object
+        result.writeToParcel(&data);
         data.writeInt64(timestamp);
         remote()->transact(CAPTURE_STARTED, data, &reply, IBinder::FLAG_ONEWAY);
         data.writeNoException();
     }
 
 
-    void onResultReceived(int32_t requestId, const CameraMetadata& result) {
+    void onResultReceived(const CameraMetadata& metadata,
+            const CaptureResultExtras& resultExtras) {
         ALOGV("onResultReceived");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
-        data.writeInt32(requestId);
         data.writeInt32(1); // to mark presence of metadata object
-        result.writeToParcel(&data);
+        metadata.writeToParcel(&data);
+        data.writeInt32(1); // to mark presence of CaptureResult object
+        resultExtras.writeToParcel(&data);
         remote()->transact(RESULT_RECEIVED, data, &reply, IBinder::FLAG_ONEWAY);
         data.writeNoException();
     }
@@ -104,7 +110,13 @@ status_t BnCameraDeviceCallbacks::onTransact(
             CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
             CameraErrorCode errorCode =
                     static_cast<CameraErrorCode>(data.readInt32());
-            onDeviceError(errorCode);
+            CaptureResultExtras resultExtras;
+            if (data.readInt32() != 0) {
+                resultExtras.readFromParcel(const_cast<Parcel*>(&data));
+            } else {
+                ALOGE("No CaptureResultExtras object is present!");
+            }
+            onDeviceError(errorCode, resultExtras);
             data.readExceptionCode();
             return NO_ERROR;
         } break;
@@ -118,23 +130,33 @@ status_t BnCameraDeviceCallbacks::onTransact(
         case CAPTURE_STARTED: {
             ALOGV("onCaptureStarted");
             CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
-            int32_t requestId = data.readInt32();
+            CaptureResultExtras result;
+            if (data.readInt32() != 0) {
+                result.readFromParcel(const_cast<Parcel*>(&data));
+            } else {
+                ALOGE("No CaptureResultExtras object is present in result!");
+            }
             int64_t timestamp = data.readInt64();
-            onCaptureStarted(requestId, timestamp);
+            onCaptureStarted(result, timestamp);
             data.readExceptionCode();
             return NO_ERROR;
         } break;
         case RESULT_RECEIVED: {
             ALOGV("onResultReceived");
             CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
-            int32_t requestId = data.readInt32();
-            CameraMetadata result;
+            CameraMetadata metadata;
             if (data.readInt32() != 0) {
-                result.readFromParcel(const_cast<Parcel*>(&data));
+                metadata.readFromParcel(const_cast<Parcel*>(&data));
             } else {
                 ALOGW("No metadata object is present in result");
             }
-            onResultReceived(requestId, result);
+            CaptureResultExtras resultExtras;
+            if (data.readInt32() != 0) {
+                resultExtras.readFromParcel(const_cast<Parcel*>(&data));
+            } else {
+                ALOGW("No capture result extras object is present in result");
+            }
+            onResultReceived(metadata, resultExtras);
             data.readExceptionCode();
             return NO_ERROR;
         } break;

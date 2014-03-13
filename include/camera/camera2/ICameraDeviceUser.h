@@ -19,6 +19,7 @@
 
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
+#include <utils/List.h>
 
 struct camera_metadata;
 
@@ -44,9 +45,34 @@ public:
      * Request Handling
      **/
 
+    /**
+     * For streaming requests, output lastFrameNumber is the last frame number
+     * of the previous repeating request.
+     * For non-streaming requests, output lastFrameNumber is the expected last
+     * frame number of the current request.
+     */
     virtual int             submitRequest(sp<CaptureRequest> request,
-                                          bool streaming = false) = 0;
-    virtual status_t        cancelRequest(int requestId) = 0;
+                                          bool streaming = false,
+                                          /*out*/
+                                          int64_t* lastFrameNumber = NULL) = 0;
+
+    /**
+     * For streaming requests, output lastFrameNumber is the last frame number
+     * of the previous repeating request.
+     * For non-streaming requests, output lastFrameNumber is the expected last
+     * frame number of the current request.
+     */
+    virtual int             submitRequestList(List<sp<CaptureRequest> > requestList,
+                                              bool streaming = false,
+                                              /*out*/
+                                              int64_t* lastFrameNumber = NULL) = 0;
+
+    /**
+     * Output lastFrameNumber is the last frame number of the previous repeating request.
+     */
+    virtual status_t        cancelRequest(int requestId,
+                                          /*out*/
+                                          int64_t* lastFrameNumber = NULL) = 0;
 
     virtual status_t        deleteStream(int streamId) = 0;
     virtual status_t        createStream(
@@ -64,8 +90,12 @@ public:
     // Wait until all the submitted requests have finished processing
     virtual status_t        waitUntilIdle() =  0;
 
-    // Flush all pending and in-progress work as quickly as possible.
-    virtual status_t        flush() = 0;
+    /**
+     * Flush all pending and in-progress work as quickly as possible.
+     * Output lastFrameNumber is the last frame number of the previous repeating request.
+     */
+    virtual status_t        flush(/*out*/
+                                  int64_t* lastFrameNumber = NULL) = 0;
 };
 
 // ----------------------------------------------------------------------------

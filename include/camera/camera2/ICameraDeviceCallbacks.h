@@ -24,8 +24,11 @@
 #include <utils/Timers.h>
 #include <system/camera.h>
 
+#include <camera/CaptureResult.h>
+
 namespace android {
 class CameraMetadata;
+
 
 class ICameraDeviceCallbacks : public IInterface
 {
@@ -45,18 +48,19 @@ public:
     };
 
     // One way
-    virtual void            onDeviceError(CameraErrorCode errorCode) = 0;
+    virtual void            onDeviceError(CameraErrorCode errorCode,
+                                          const CaptureResultExtras& resultExtras) = 0;
 
     // One way
     virtual void            onDeviceIdle() = 0;
 
     // One way
-    virtual void            onCaptureStarted(int32_t requestId,
+    virtual void            onCaptureStarted(const CaptureResultExtras& resultExtras,
                                              int64_t timestamp) = 0;
 
     // One way
-    virtual void            onResultReceived(int32_t requestId,
-                                             const CameraMetadata& result) = 0;
+    virtual void            onResultReceived(const CameraMetadata& metadata,
+                                             const CaptureResultExtras& resultExtras) = 0;
 };
 
 // ----------------------------------------------------------------------------

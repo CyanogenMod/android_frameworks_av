@@ -55,7 +55,7 @@ FrameProcessor::FrameProcessor(wp<CameraDeviceBase> device,
 FrameProcessor::~FrameProcessor() {
 }
 
-bool FrameProcessor::processSingleFrame(CameraMetadata &frame,
+bool FrameProcessor::processSingleFrame(CaptureResult &frame,
                                         const sp<CameraDeviceBase> &device) {
 
     sp<Camera2Client> client = mClient.promote();
@@ -66,19 +66,19 @@ bool FrameProcessor::processSingleFrame(CameraMetadata &frame,
     bool partialResult = false;
     if (mUsePartialQuirk) {
         camera_metadata_entry_t entry;
-        entry = frame.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+        entry = frame.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
         if (entry.count > 0 &&
                 entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
             partialResult = true;
         }
     }
 
-    if (!partialResult && processFaceDetect(frame, client) != OK) {
+    if (!partialResult && processFaceDetect(frame.mMetadata, client) != OK) {
         return false;
     }
 
     if (mSynthesize3ANotify) {
-        process3aState(frame, client);
+        process3aState(frame.mMetadata, client);
     }
 
     return FrameProcessorBase::processSingleFrame(frame, device);

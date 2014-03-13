@@ -51,7 +51,7 @@ class FrameProcessor : public FrameProcessorBase {
 
     void processNewFrames(const sp<Camera2Client> &client);
 
-    virtual bool processSingleFrame(CameraMetadata &frame,
+    virtual bool processSingleFrame(CaptureResult &frame,
                                     const sp<CameraDeviceBase> &device);
 
     status_t processFaceDetect(const CameraMetadata &frame,

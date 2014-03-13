@@ -23,6 +23,7 @@
 #include <utils/KeyedVector.h>
 #include <utils/List.h>
 #include <camera/CameraMetadata.h>
+#include <camera/CaptureResult.h>
 
 namespace android {
 
@@ -39,8 +40,7 @@ class FrameProcessorBase: public Thread {
     virtual ~FrameProcessorBase();
 
     struct FilteredListener: virtual public RefBase {
-        virtual void onFrameAvailable(int32_t requestId,
-                                      const CameraMetadata &frame) = 0;
+        virtual void onResultAvailable(const CaptureResult &result) = 0;
     };
 
     // Register a listener for a range of IDs [minId, maxId). Multiple listeners
@@ -72,10 +72,10 @@ class FrameProcessorBase: public Thread {
 
     void processNewFrames(const sp<CameraDeviceBase> &device);
 
-    virtual bool processSingleFrame(CameraMetadata &frame,
+    virtual bool processSingleFrame(CaptureResult &result,
                                     const sp<CameraDeviceBase> &device);
 
-    status_t processListeners(const CameraMetadata &frame,
+    status_t processListeners(const CaptureResult &result,
                               const sp<CameraDeviceBase> &device);
 
     CameraMetadata mLastFrame;
