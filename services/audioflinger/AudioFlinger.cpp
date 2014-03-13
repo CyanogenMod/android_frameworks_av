@@ -558,7 +558,6 @@ sp<IAudioTrack> AudioFlinger::createTrack(
     {
         Mutex::Autolock _l(mLock);
         PlaybackThread *thread = checkPlaybackThread_l(output);
-        PlaybackThread *effectThread = NULL;
         if (thread == NULL) {
             ALOGE("no playback thread found for output handle %d", output);
             lStatus = BAD_VALUE;
@@ -568,7 +567,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid_l(pid);
 
-        ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
+        PlaybackThread *effectThread = NULL;
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
             // check if an effect chain with the same session ID is present on another
             // output thread and move it here.
@@ -1319,8 +1318,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     sp<RecordHandle> recordHandle;
     sp<Client> client;
     status_t lStatus;
-    RecordThread *thread;
-    size_t inFrameCount;
     int lSessionId;
 
     // check calling permissions
@@ -1354,7 +1351,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     {
         Mutex::Autolock _l(mLock);
-        thread = checkRecordThread_l(input);
+        RecordThread *thread = checkRecordThread_l(input);
         if (thread == NULL) {
             ALOGE("openRecord() checkRecordThread_l failed");
             lStatus = BAD_VALUE;
