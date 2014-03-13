@@ -74,7 +74,7 @@ void ExtendedUtils::HFR::setHFRIfEnabled(
         hfr = 0;
     }
 
-#ifndef LEGACY_MEDIA
+#if 0
     const char *hsr_str = params.get("video-hsr");
 
     if(hsr_str && !strncmp(hsr_str,"on",2)) {
@@ -90,7 +90,7 @@ status_t ExtendedUtils::HFR::initializeHFR(
         int64_t &maxFileDurationUs, video_encoder videoEncoder) {
     status_t retVal = OK;
 
-#ifndef LEGACY_MEDIA
+#if 0
     //Check HSR first, if HSR is enable set HSR to kKeyFrameRate
     int32_t hsr =0;
     if (meta->findInt32(kKeyHSR, &hsr)) {
