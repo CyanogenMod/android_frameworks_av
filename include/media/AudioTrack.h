@@ -748,7 +748,6 @@ protected:
     sp<AudioTrackClientProxy>       mProxy;         // primary owner of the memory
 
     bool                    mInUnderrun;            // whether track is currently in underrun state
-    String8                 mName;                  // server's name for this IAudioTrack
     uint32_t                mPausedPosition;
 
 private:

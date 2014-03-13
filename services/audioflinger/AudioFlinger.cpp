@@ -509,7 +509,6 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         audio_io_handle_t output,
         pid_t tid,
         int *sessionId,
-        String8& name,
         int clientUid,
         status_t *status)
 {
@@ -625,9 +624,6 @@ sp<IAudioTrack> AudioFlinger::createTrack(
     }
 
     if (lStatus == NO_ERROR) {
-        // s for server's pid, n for normal mixer name, f for fast index
-        name = String8::format("s:%d;n:%d;f:%d", getpid_cached, track->name() - AudioMixer::TRACK0,
-                track->fastIndex());
         trackHandle = new TrackHandle(track);
     } else {
         // remove local strong reference to Client before deleting the Track so that the Client

@@ -108,7 +108,6 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,
                                 int *sessionId,
-                                String8& name,
                                 int clientUid,
                                 status_t *status /*non-NULL*/);
 

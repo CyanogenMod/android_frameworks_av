@@ -73,10 +73,6 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
-                                // input: ignored
-                                // output: server's description of IAudioTrack for display in logs.
-                                // Don't attempt to parse, as the format could change.
-                                String8& name,
                                 int clientUid,
                                 status_t *status) = 0;
 

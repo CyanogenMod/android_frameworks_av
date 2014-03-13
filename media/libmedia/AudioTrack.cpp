@@ -1024,7 +1024,6 @@ status_t AudioTrack::createTrack_l(size_t epoch)
                                                       output,
                                                       tid,
                                                       &mSessionId,
-                                                      mName,
                                                       mClientUid,
                                                       &status);
 
@@ -1281,8 +1280,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
     if (mState == STATE_ACTIVE) {
         audio_track_cblk_t* cblk = mCblk;
         if (android_atomic_and(~CBLK_DISABLED, &cblk->mFlags) & CBLK_DISABLED) {
-            ALOGW("releaseBuffer() track %p name=%s disabled due to previous underrun, restarting",
-                    this, mName.string());
+            ALOGW("releaseBuffer() track %p disabled due to previous underrun, restarting", this);
             // FIXME ignoring status
             mAudioTrack->start();
         }

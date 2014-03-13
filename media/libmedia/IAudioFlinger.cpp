@@ -95,7 +95,6 @@ public:
                                 audio_io_handle_t output,
                                 pid_t tid,
                                 int *sessionId,
-                                String8& name,
                                 int clientUid,
                                 status_t *status)
     {
@@ -140,7 +139,6 @@ public:
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
             }
-            name = reply.readString8();
             lStatus = reply.readInt32();
             track = interface_cast<IAudioTrack>(reply.readStrongBinder());
             if (lStatus == NO_ERROR) {
@@ -808,7 +806,6 @@ status_t BnAudioFlinger::onTransact(
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             int clientUid = data.readInt32();
-            String8 name;
             status_t status;
             sp<IAudioTrack> track;
             if ((haveSharedBuffer && (buffer == 0)) ||
@@ -819,13 +816,12 @@ status_t BnAudioFlinger::onTransact(
                 track = createTrack(
                         (audio_stream_type_t) streamType, sampleRate, format,
                         channelMask, &frameCount, &flags, buffer, output, tid,
-                        &sessionId, name, clientUid, &status);
+                        &sessionId, clientUid, &status);
                 LOG_ALWAYS_FATAL_IF((track != 0) != (status == NO_ERROR));
             }
             reply->writeInt32(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
-            reply->writeString8(name);
             reply->writeInt32(status);
             reply->writeStrongBinder(track->asBinder());
             return NO_ERROR;
