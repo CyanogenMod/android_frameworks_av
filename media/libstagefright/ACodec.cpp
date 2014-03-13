@@ -373,7 +373,8 @@ ACodec::ACodec()
       mDequeueCounter(0),
       mStoreMetaDataInOutputBuffers(false),
       mMetaDataBuffersToSubmit(0),
-      mRepeatFrameDelayUs(-1ll) {
+      mRepeatFrameDelayUs(-1ll),
+      mMaxPtsGapUs(-1l) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -1114,6 +1115,10 @@ status_t ACodec::configureCodec(
                     "repeat-previous-frame-after",
                     &mRepeatFrameDelayUs)) {
             mRepeatFrameDelayUs = -1ll;
+        }
+
+        if (!msg->findInt64("max-pts-gap-to-encoder", &mMaxPtsGapUs)) {
+            mMaxPtsGapUs = -1l;
         }
     }
 
@@ -3921,6 +3926,21 @@ void ACodec::LoadedState::onCreateInputSurface(
         if (err != OK) {
             ALOGE("[%s] Unable to configure option to repeat previous "
                   "frames (err %d)",
+                  mCodec->mComponentName.c_str(),
+                  err);
+        }
+    }
+
+    if (err == OK && mCodec->mMaxPtsGapUs > 0l) {
+        err = mCodec->mOMX->setInternalOption(
+                mCodec->mNode,
+                kPortIndexInput,
+                IOMX::INTERNAL_OPTION_MAX_TIMESTAMP_GAP,
+                &mCodec->mMaxPtsGapUs,
+                sizeof(mCodec->mMaxPtsGapUs));
+
+        if (err != OK) {
+            ALOGE("[%s] Unable to configure max timestamp gap (err %d)",
                   mCodec->mComponentName.c_str(),
                   err);
         }

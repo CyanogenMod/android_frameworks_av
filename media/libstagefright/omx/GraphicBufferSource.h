@@ -87,6 +87,10 @@ public:
     // fill it with a new frame of data; otherwise, just mark it as available.
     void codecBufferEmptied(OMX_BUFFERHEADERTYPE* header);
 
+    // Called when omx_message::FILL_BUFFER_DONE is received. (Currently the
+    // buffer source will fix timestamp in the header if needed.)
+    void codecBufferFilled(OMX_BUFFERHEADERTYPE* header);
+
     // This is called after the last input frame has been submitted.  We
     // need to submit an empty buffer with the EOS flag set.  If we don't
     // have a codec buffer ready, we just set the mEndOfStream flag.
@@ -104,6 +108,15 @@ public:
     // This API must be called before transitioning the encoder to "executing"
     // state and once this behaviour is specified it cannot be reset.
     status_t setRepeatPreviousFrameDelayUs(int64_t repeatAfterUs);
+
+    // When set, the timestamp fed to the encoder will be modified such that
+    // the gap between two adjacent frames is capped at maxGapUs. Timestamp
+    // will be restored to the original when the encoded frame is returned to
+    // the client.
+    // This is to solve a problem in certain real-time streaming case, where
+    // encoder's rate control logic produces huge frames after a long period
+    // of suspension on input.
+    status_t setMaxTimestampGapUs(int64_t maxGapUs);
 
 protected:
     // BufferQueue::ConsumerListener interface, called when a new frame of
@@ -165,6 +178,7 @@ private:
 
     void setLatestSubmittedBuffer_l(const BufferQueue::BufferItem &item);
     bool repeatLatestSubmittedBuffer_l();
+    int64_t getTimestamp(const BufferQueue::BufferItem &item);
 
     // Lock, covers all member variables.
     mutable Mutex mMutex;
@@ -206,13 +220,22 @@ private:
     enum {
         kWhatRepeatLastFrame,
     };
-
+    enum {
+        kRepeatLastFrameCount = 10,
+    };
     int64_t mRepeatAfterUs;
+    int64_t mMaxTimestampGapUs;
+
+    KeyedVector<int64_t, int64_t> mOriginalTimeUs;
+    int64_t mPrevOriginalTimeUs;
+    int64_t mPrevModifiedTimeUs;
 
     sp<ALooper> mLooper;
     sp<AHandlerReflector<GraphicBufferSource> > mReflector;
 
     int32_t mRepeatLastFrameGeneration;
+    int64_t mRepeatLastFrameTimestamp;
+    int32_t mRepeatLastFrameCount;
 
     int mLatestSubmittedBufferId;
     uint64_t mLatestSubmittedBufferFrameNum;
