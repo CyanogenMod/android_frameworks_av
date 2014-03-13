@@ -622,14 +622,16 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
     }
 
-    if (lStatus == NO_ERROR) {
-        trackHandle = new TrackHandle(track);
-    } else {
-        // remove local strong reference to Client before deleting the Track so that the Client
-        // destructor is called by the TrackBase destructor with mLock held
+    if (lStatus != NO_ERROR) {
+        // remove local strong reference to Client before deleting the Track so that the
+        // Client destructor is called by the TrackBase destructor with mLock held
         client.clear();
         track.clear();
+        goto Exit;
     }
+
+    // return handle to client
+    trackHandle = new TrackHandle(track);
 
 Exit:
     *status = lStatus;
