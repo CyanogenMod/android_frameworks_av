@@ -1340,7 +1340,9 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     }
     *pFrameCount = frameCount;
 
-    if (mType == DIRECT) {
+    switch (mType) {
+
+    case DIRECT:
         if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) {
             if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
                 ALOGE("createTrack_l() Bad parameter: sampleRate %u format %#x, channelMask 0x%08x "
@@ -1350,7 +1352,9 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 goto Exit;
             }
         }
-    } else if (mType == OFFLOAD) {
+        break;
+
+    case OFFLOAD:
         if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
             ALOGE("createTrack_l() Bad parameter: sampleRate %d format %#x, channelMask 0x%08x \""
                     "for output %p with format %#x",
@@ -1358,7 +1362,9 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             lStatus = BAD_VALUE;
             goto Exit;
         }
-    } else {
+        break;
+
+    default:
         if ((format & AUDIO_FORMAT_MAIN_MASK) != AUDIO_FORMAT_PCM) {
                 ALOGE("createTrack_l() Bad parameter: format %#x \""
                         "for output %p with format %#x",
@@ -1372,6 +1378,8 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             lStatus = BAD_VALUE;
             goto Exit;
         }
+        break;
+
     }
 
     lStatus = initCheck();
