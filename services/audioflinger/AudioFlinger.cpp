@@ -567,7 +567,6 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         }
 
         pid_t pid = IPCThreadState::self()->getCallingPid();
-
         client = registerPid_l(pid);
 
         ALOGV("createTrack() sessionId: %d", (sessionId == NULL) ? -2 : *sessionId);
@@ -1357,8 +1356,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
-    // add client to list
-    { // scope for mLock
+    {
         Mutex::Autolock _l(mLock);
         thread = checkRecordThread_l(input);
         if (thread == NULL) {

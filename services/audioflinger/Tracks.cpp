@@ -1773,7 +1773,7 @@ status_t AudioFlinger::RecordHandle::onTransact(
 
 // ----------------------------------------------------------------------------
 
-// RecordTrack constructor must be called with AudioFlinger::mLock held
+// RecordTrack constructor must be called with AudioFlinger::mLock and ThreadBase::mLock held
 AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             RecordThread *thread,
             const sp<Client>& client,

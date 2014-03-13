@@ -1416,7 +1416,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // track must be cleared from the caller as the caller has the AF lock
             goto Exit;
         }
-
         mTracks.add(track);
 
         sp<EffectChain> chain = getEffectChain_l(sessionId);
@@ -5053,6 +5052,7 @@ void AudioFlinger::RecordThread::inputStandBy()
     mInput->stream->common.standby(&mInput->stream->common);
 }
 
+// RecordThread::createRecordTrack_l() must be called with AudioFlinger::mLock held
 sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRecordTrack_l(
         const sp<AudioFlinger::Client>& client,
         uint32_t sampleRate,
@@ -5156,6 +5156,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             sendPrioConfigEvent_l(callingPid, tid, kPriorityAudioApp);
         }
     }
+
     lStatus = NO_ERROR;
 
 Exit:
