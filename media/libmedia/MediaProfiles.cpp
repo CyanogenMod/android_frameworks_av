@@ -259,6 +259,11 @@ MediaProfiles::createVideoDecoderCap(const char **atts)
 /*static*/ MediaProfiles::VideoEncoderCap*
 MediaProfiles::createVideoEncoderCap(const char **atts)
 {
+    bool hasHFRAttrs = false;
+    int maxHFRFrameWidth = 0;
+    int maxHFRFrameHeight = 0;
+    int maxHFRMode = 0;
+
     CHECK(!strcmp("name",               atts[0])  &&
           !strcmp("enabled",            atts[2])  &&
           !strcmp("minBitRate",         atts[4])  &&
@@ -268,10 +273,18 @@ MediaProfiles::createVideoEncoderCap(const char **atts)
           !strcmp("minFrameHeight",     atts[12]) &&
           !strcmp("maxFrameHeight",     atts[14]) &&
           !strcmp("minFrameRate",       atts[16]) &&
-          !strcmp("maxFrameRate",       atts[18]) &&
-          !strcmp("maxHFRFrameWidth",   atts[20]) &&
+          !strcmp("maxFrameRate",       atts[18]));
+
+
+    if (atts[20]) {
+        hasHFRAttrs = true;
+        CHECK(!strcmp("maxHFRFrameWidth",   atts[20]) &&
           !strcmp("maxHFRFrameHeight",  atts[22]) &&
           !strcmp("maxHFRMode",         atts[24]));
+        maxHFRFrameWidth = atoi(atts[21]);
+        maxHFRFrameHeight = atoi(atts[23]);
+        maxHFRMode = atoi(atts[25]);
+    }
 
     const size_t nMappings = sizeof(sVideoEncoderNameMap)/sizeof(sVideoEncoderNameMap[0]);
     const int codec = findTagForName(sVideoEncoderNameMap, nMappings, atts[1]);
@@ -280,8 +293,8 @@ MediaProfiles::createVideoEncoderCap(const char **atts)
     MediaProfiles::VideoEncoderCap *cap =
         new MediaProfiles::VideoEncoderCap(static_cast<video_encoder>(codec),
             atoi(atts[5]), atoi(atts[7]), atoi(atts[9]), atoi(atts[11]), atoi(atts[13]),
-            atoi(atts[15]), atoi(atts[17]), atoi(atts[19]), atoi(atts[21]),
-            atoi(atts[23]), atoi(atts[25]));
+            atoi(atts[15]), atoi(atts[17]), atoi(atts[19]), maxHFRFrameWidth,
+            maxHFRFrameHeight, maxHFRMode);
     logVideoEncoderCap(*cap);
     return cap;
 }
