@@ -173,7 +173,7 @@ AudioFlinger::AudioFlinger()
     char value[PROPERTY_VALUE_MAX];
     bool doLog = (property_get("ro.test_harness", value, "0") > 0) && (atoi(value) == 1);
     if (doLog) {
-        mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters");
+        mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters", MemoryHeapBase::READ_ONLY);
     }
 #ifdef TEE_SINK
     (void) property_get("ro.debuggable", value, "0");
