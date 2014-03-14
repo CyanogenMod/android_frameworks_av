@@ -20,6 +20,7 @@ LOCAL_SRC_FILES := \
 
 
 LOCAL_MODULE := libstagefright_avcenc
+LOCAL_32_BIT_ONLY := true
 
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/src \
@@ -68,5 +69,6 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_MODULE := libstagefright_soft_h264enc
 LOCAL_MODULE_TAGS := optional
+LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_SHARED_LIBRARY)
