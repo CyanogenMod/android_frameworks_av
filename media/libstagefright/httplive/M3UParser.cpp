@@ -365,6 +365,7 @@ bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
             codecs.append(',');
             while ((commaPos = codecs.find(",", offset)) >= 0) {
                 AString codec(codecs, offset, commaPos - offset);
+                codec.trim();
                 // return true only if a codec of type `key` ("audio"/"video")
                 // is found.
                 if (codecIsType(codec, key)) {
