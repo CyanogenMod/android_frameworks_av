@@ -36,5 +36,6 @@ LOCAL_C_INCLUDES := \
     frameworks/av/services/camera/libcameraservice
 
 LOCAL_MODULE:= mediaserver
+LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_EXECUTABLE)

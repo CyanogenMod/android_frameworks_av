@@ -117,6 +117,7 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
 
   LOCAL_MODULE := libstagefright_soft_aacenc
   LOCAL_MODULE_TAGS := optional
+  LOCAL_32_BIT_ONLY := true
 
   include $(BUILD_SHARED_LIBRARY)
 

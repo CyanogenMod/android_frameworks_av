@@ -64,4 +64,6 @@ LOCAL_MODULE:= libvideoeditor_stagefrightshells
 
 LOCAL_MODULE_TAGS := optional
 
+LOCAL_32_BIT_ONLY := true
+
 include $(BUILD_STATIC_LIBRARY)

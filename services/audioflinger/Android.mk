@@ -53,6 +53,7 @@ LOCAL_STATIC_LIBRARIES := \
     libmedia_helper
 
 LOCAL_MODULE:= libaudioflinger
+LOCAL_32_BIT_ONLY := true
 
 LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp
 
