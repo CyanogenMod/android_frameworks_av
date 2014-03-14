@@ -1786,8 +1786,9 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     // Originally this was int16_t[] array, need to remove legacy implications.
     free(mSinkBuffer);
     mSinkBuffer = NULL;
-    const size_t sinkBufferSize = mNormalFrameCount * mChannelCount
-            * audio_bytes_per_sample(mFormat);
+    // For sink buffer size, we use the frame size from the downstream sink to avoid problems
+    // with non PCM formats for compressed music, e.g. AAC, and Offload threads.
+    const size_t sinkBufferSize = mNormalFrameCount * mFrameSize;
     (void)posix_memalign(&mSinkBuffer, 32, sinkBufferSize);
 
     // We resize the mMixerBuffer according to the requirements of the sink buffer which
