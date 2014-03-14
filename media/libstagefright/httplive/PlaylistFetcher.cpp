@@ -364,8 +364,10 @@ void PlaylistFetcher::pauseAsync() {
     (new AMessage(kWhatPause, id()))->post();
 }
 
-void PlaylistFetcher::stopAsync() {
-    (new AMessage(kWhatStop, id()))->post();
+void PlaylistFetcher::stopAsync(bool selfTriggered) {
+    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    msg->setInt32("selfTriggered", selfTriggered);
+    msg->post();
 }
 
 void PlaylistFetcher::resumeUntilAsync(const sp<AMessage> &params) {
@@ -399,7 +401,7 @@ void PlaylistFetcher::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatStop:
         {
-            onStop();
+            onStop(msg);
 
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("what", kWhatStopped);
@@ -498,8 +500,19 @@ void PlaylistFetcher::onPause() {
     cancelMonitorQueue();
 }
 
-void PlaylistFetcher::onStop() {
+void PlaylistFetcher::onStop(const sp<AMessage> &msg) {
     cancelMonitorQueue();
+
+    int32_t selfTriggered;
+    CHECK(msg->findInt32("selfTriggered", &selfTriggered));
+    if (!selfTriggered) {
+        // Self triggered stops only happen during switching, in which case we do not want
+        // to clear the discontinuities queued at the end of packet sources.
+        for (size_t i = 0; i < mPacketSources.size(); i++) {
+            sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
+            packetSource->clear();
+        }
+    }
 
     mPacketSources.clear();
     mStreamTypeMask = 0;
@@ -552,7 +565,7 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
         for (size_t i = 0; i < mPacketSources.size(); i++) {
             mPacketSources.valueAt(i)->queueAccessUnit(mSession->createFormatChangeBuffer());
         }
-        stopAsync();
+        stopAsync(/* selfTriggered = */ true);
         return OK;
     }
 
@@ -866,7 +879,7 @@ void PlaylistFetcher::onDownloadNext() {
 
     if (err == ERROR_OUT_OF_RANGE) {
         // reached stopping point
-        stopAsync();
+        stopAsync(/* selfTriggered = */ true);
         return;
     }
 
