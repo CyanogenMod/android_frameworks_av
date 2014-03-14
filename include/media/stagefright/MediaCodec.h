@@ -106,6 +106,7 @@ struct MediaCodec : public AHandler {
     status_t signalEndOfInputStream();
 
     status_t getOutputFormat(sp<AMessage> *format) const;
+    status_t getInputFormat(sp<AMessage> *format) const;
 
     status_t getInputBuffers(Vector<sp<ABuffer> > *buffers) const;
     status_t getOutputBuffers(Vector<sp<ABuffer> > *buffers) const;
@@ -159,6 +160,7 @@ private:
         kWhatGetBuffers                     = 'getB',
         kWhatFlush                          = 'flus',
         kWhatGetOutputFormat                = 'getO',
+        kWhatGetInputFormat                 = 'getI',
         kWhatDequeueInputTimedOut           = 'dITO',
         kWhatDequeueOutputTimedOut          = 'dOTO',
         kWhatCodecNotify                    = 'codc',
@@ -199,6 +201,7 @@ private:
     sp<Surface> mNativeWindow;
     SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mOutputFormat;
+    sp<AMessage> mInputFormat;
 
     List<size_t> mAvailPortBuffers[2];
     Vector<BufferInfo> mPortBuffers[2];

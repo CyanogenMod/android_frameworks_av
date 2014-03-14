@@ -31,13 +31,10 @@
 
 #include "ATSParser.h"
 
-#include "SoftwareRenderer.h"
-
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
-#include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -146,7 +143,6 @@ NuPlayer::NuPlayer()
     : mUIDValid(false),
       mSourceFlags(0),
       mVideoIsAVC(false),
-      mNeedsSwRenderer(false),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -442,7 +438,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             ALOGV("kWhatStart");
 
             mVideoIsAVC = false;
-            mNeedsSwRenderer = false;
             mAudioEOS = false;
             mVideoEOS = false;
             mSkipRenderingAudioUntilMediaTimeUs = -1;
@@ -533,24 +528,21 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             bool audio = msg->what() == kWhatAudioNotify;
 
-            sp<AMessage> codecRequest;
-            CHECK(msg->findMessage("codec-request", &codecRequest));
-
             int32_t what;
-            CHECK(codecRequest->findInt32("what", &what));
+            CHECK(msg->findInt32("what", &what));
 
-            if (what == ACodec::kWhatFillThisBuffer) {
+            if (what == Decoder::kWhatFillThisBuffer) {
                 status_t err = feedDecoderInputData(
-                        audio, codecRequest);
+                        audio, msg);
 
                 if (err == -EWOULDBLOCK) {
                     if (mSource->feedMoreTSData() == OK) {
                         msg->post(10000ll);
                     }
                 }
-            } else if (what == ACodec::kWhatEOS) {
+            } else if (what == Decoder::kWhatEOS) {
                 int32_t err;
-                CHECK(codecRequest->findInt32("err", &err));
+                CHECK(msg->findInt32("err", &err));
 
                 if (err == ERROR_END_OF_STREAM) {
                     ALOGV("got %s decoder EOS", audio ? "audio" : "video");
@@ -561,7 +553,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 mRenderer->queueEOS(audio, err);
-            } else if (what == ACodec::kWhatFlushCompleted) {
+            } else if (what == Decoder::kWhatFlushCompleted) {
                 bool needShutdown;
 
                 if (audio) {
@@ -590,14 +582,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 finishFlushIfPossible();
-            } else if (what == ACodec::kWhatOutputFormatChanged) {
+            } else if (what == Decoder::kWhatOutputFormatChanged) {
+                sp<AMessage> format;
+                CHECK(msg->findMessage("format", &format));
+
                 if (audio) {
                     int32_t numChannels;
-                    CHECK(codecRequest->findInt32(
+                    CHECK(format->findInt32(
                                 "channel-count", &numChannels));
 
                     int32_t sampleRate;
-                    CHECK(codecRequest->findInt32("sample-rate", &sampleRate));
+                    CHECK(format->findInt32("sample-rate", &sampleRate));
 
                     ALOGV("Audio output format changed to %d Hz, %d channels",
                          sampleRate, numChannels);
@@ -621,7 +616,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     }
 
                     int32_t channelMask;
-                    if (!codecRequest->findInt32("channel-mask", &channelMask)) {
+                    if (!format->findInt32("channel-mask", &channelMask)) {
                         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
                     }
 
@@ -642,11 +637,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     // video
 
                     int32_t width, height;
-                    CHECK(codecRequest->findInt32("width", &width));
-                    CHECK(codecRequest->findInt32("height", &height));
+                    CHECK(format->findInt32("width", &width));
+                    CHECK(format->findInt32("height", &height));
 
                     int32_t cropLeft, cropTop, cropRight, cropBottom;
-                    CHECK(codecRequest->findRect(
+                    CHECK(format->findRect(
                                 "crop",
                                 &cropLeft, &cropTop, &cropRight, &cropBottom));
 
@@ -679,22 +674,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     notifyListener(
                             MEDIA_SET_VIDEO_SIZE, displayWidth, displayHeight);
-
-                    if (mNeedsSwRenderer && mNativeWindow != NULL) {
-                        int32_t colorFormat;
-                        CHECK(codecRequest->findInt32("color-format", &colorFormat));
-
-                        sp<MetaData> meta = new MetaData;
-                        meta->setInt32(kKeyWidth, width);
-                        meta->setInt32(kKeyHeight, height);
-                        meta->setRect(kKeyCropRect, cropLeft, cropTop, cropRight, cropBottom);
-                        meta->setInt32(kKeyColorFormat, colorFormat);
-
-                        mRenderer->setSoftRenderer(
-                                new SoftwareRenderer(mNativeWindow->getNativeWindow(), meta));
-                    }
                 }
-            } else if (what == ACodec::kWhatShutdownCompleted) {
+            } else if (what == Decoder::kWhatShutdownCompleted) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");
                 if (audio) {
                     mAudioDecoder.clear();
@@ -709,22 +690,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 finishFlushIfPossible();
-            } else if (what == ACodec::kWhatError) {
+            } else if (what == Decoder::kWhatError) {
                 ALOGE("Received error from %s decoder, aborting playback.",
                      audio ? "audio" : "video");
 
                 mRenderer->queueEOS(audio, UNKNOWN_ERROR);
-            } else if (what == ACodec::kWhatDrainThisBuffer) {
-                renderBuffer(audio, codecRequest);
-            } else if (what == ACodec::kWhatComponentAllocated) {
-                if (!audio) {
-                    AString name;
-                    CHECK(codecRequest->findString("componentName", &name));
-                    mNeedsSwRenderer = name.startsWith("OMX.google.");
-                }
-            } else if (what != ACodec::kWhatComponentConfigured
-                    && what != ACodec::kWhatBuffersAllocated) {
-                ALOGV("Unhandled codec notification %d '%c%c%c%c'.",
+            } else if (what == Decoder::kWhatDrainThisBuffer) {
+                renderBuffer(audio, msg);
+            } else {
+                ALOGV("Unhandled decoder notification %d '%c%c%c%c'.",
                       what,
                       what >> 24,
                       (what >> 16) & 0xff,
@@ -925,8 +899,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
 
     *decoder = audio ? new Decoder(notify) :
                        new Decoder(notify, mNativeWindow);
-    looper()->registerHandler(*decoder);
-
+    (*decoder)->init();
     (*decoder)->configure(format);
 
     return OK;

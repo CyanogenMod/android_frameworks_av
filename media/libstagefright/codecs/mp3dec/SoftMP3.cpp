@@ -146,6 +146,23 @@ OMX_ERRORTYPE SoftMP3::internalGetParameter(
             return OMX_ErrorNone;
         }
 
+        case OMX_IndexParamAudioMp3:
+        {
+            OMX_AUDIO_PARAM_MP3TYPE *mp3Params =
+                (OMX_AUDIO_PARAM_MP3TYPE *)params;
+
+            if (mp3Params->nPortIndex > 1) {
+                return OMX_ErrorUndefined;
+            }
+
+            mp3Params->nChannels = mNumChannels;
+            mp3Params->nBitRate = 0 /* unknown */;
+            mp3Params->nSampleRate = mSamplingRate;
+            // other fields are encoder-only
+
+            return OMX_ErrorNone;
+        }
+
         default:
             return SimpleSoftOMXComponent::internalGetParameter(index, params);
     }

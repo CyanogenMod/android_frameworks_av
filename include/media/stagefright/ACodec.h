@@ -67,8 +67,6 @@ struct ACodec : public AHierarchicalStateMachine {
 
     void signalRequestIDRFrame();
 
-    bool isConfiguredForAdaptivePlayback() { return mIsConfiguredForAdaptivePlayback; }
-
     struct PortDescription : public RefBase {
         size_t countBuffers();
         IOMX::buffer_id bufferIDAt(size_t index) const;
@@ -178,6 +176,8 @@ private:
     sp<MemoryDealer> mDealer[2];
 
     sp<ANativeWindow> mNativeWindow;
+    sp<AMessage> mInputFormat;
+    sp<AMessage> mOutputFormat;
 
     Vector<BufferInfo> mBuffers[2];
     bool mPortEOS[2];
@@ -189,7 +189,6 @@ private:
     bool mIsEncoder;
     bool mUseMetadataOnEncoderOutput;
     bool mShutdownInProgress;
-    bool mIsConfiguredForAdaptivePlayback;
 
     // If "mKeepComponentAllocated" we only transition back to Loaded state
     // and do not release the component instance.
@@ -306,6 +305,7 @@ private:
     void processDeferredMessages();
 
     void sendFormatChange(const sp<AMessage> &reply);
+    status_t getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify);
 
     void signalError(
             OMX_ERRORTYPE error = OMX_ErrorUndefined,
