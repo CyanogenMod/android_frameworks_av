@@ -63,7 +63,7 @@ struct PlaylistFetcher : public AHandler {
 
     void pauseAsync();
 
-    void stopAsync();
+    void stopAsync(bool selfTriggered = false);
 
     void resumeUntilAsync(const sp<AMessage> &params);
 
@@ -162,7 +162,7 @@ private:
 
     status_t onStart(const sp<AMessage> &msg);
     void onPause();
-    void onStop();
+    void onStop(const sp<AMessage> &msg);
     void onMonitorQueue();
     void onDownloadNext();
 
