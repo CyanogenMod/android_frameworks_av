@@ -59,5 +59,6 @@ LOCAL_C_INCLUDES += \
 LOCAL_CFLAGS += -Wall -Wextra
 
 LOCAL_MODULE:= libcameraservice
+LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_SHARED_LIBRARY)
