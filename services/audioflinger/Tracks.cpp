@@ -350,39 +350,39 @@ AudioFlinger::PlaybackThread::Track::Track(
     mResumeToStopping(false),
     mFlushHwPending(false)
 {
-    if (mCblk != NULL) {
-        if (sharedBuffer == 0) {
-            mAudioTrackServerProxy = new AudioTrackServerProxy(mCblk, mBuffer, frameCount,
-                    mFrameSize);
-        } else {
-            mAudioTrackServerProxy = new StaticAudioTrackServerProxy(mCblk, mBuffer, frameCount,
-                    mFrameSize);
-        }
-        mServerProxy = mAudioTrackServerProxy;
-        // to avoid leaking a track name, do not allocate one unless there is an mCblk
-        mName = thread->getTrackName_l(channelMask, sessionId);
-        if (mName < 0) {
-            ALOGE("no more track names available");
-            return;
-        }
-        // only allocate a fast track index if we were able to allocate a normal track name
-        if (flags & IAudioFlinger::TRACK_FAST) {
-            mAudioTrackServerProxy->framesReadyIsCalledByMultipleThreads();
-            ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
-            int i = __builtin_ctz(thread->mFastTrackAvailMask);
-            ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);
-            // FIXME This is too eager.  We allocate a fast track index before the
-            //       fast track becomes active.  Since fast tracks are a scarce resource,
-            //       this means we are potentially denying other more important fast tracks from
-            //       being created.  It would be better to allocate the index dynamically.
-            mFastIndex = i;
-            // Read the initial underruns because this field is never cleared by the fast mixer
-            mObservedUnderruns = thread->getFastTrackUnderruns(i);
-            thread->mFastTrackAvailMask &= ~(1 << i);
-        }
+    if (mCblk == NULL) {
+        return;
     }
-    ALOGV("Track constructor name %d, calling pid %d", mName,
-            IPCThreadState::self()->getCallingPid());
+
+    if (sharedBuffer == 0) {
+        mAudioTrackServerProxy = new AudioTrackServerProxy(mCblk, mBuffer, frameCount,
+                mFrameSize);
+    } else {
+        mAudioTrackServerProxy = new StaticAudioTrackServerProxy(mCblk, mBuffer, frameCount,
+                mFrameSize);
+    }
+    mServerProxy = mAudioTrackServerProxy;
+
+    mName = thread->getTrackName_l(channelMask, sessionId);
+    if (mName < 0) {
+        ALOGE("no more track names available");
+        return;
+    }
+    // only allocate a fast track index if we were able to allocate a normal track name
+    if (flags & IAudioFlinger::TRACK_FAST) {
+        mAudioTrackServerProxy->framesReadyIsCalledByMultipleThreads();
+        ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
+        int i = __builtin_ctz(thread->mFastTrackAvailMask);
+        ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);
+        // FIXME This is too eager.  We allocate a fast track index before the
+        //       fast track becomes active.  Since fast tracks are a scarce resource,
+        //       this means we are potentially denying other more important fast tracks from
+        //       being created.  It would be better to allocate the index dynamically.
+        mFastIndex = i;
+        // Read the initial underruns because this field is never cleared by the fast mixer
+        mObservedUnderruns = thread->getFastTrackUnderruns(i);
+        thread->mFastTrackAvailMask &= ~(1 << i);
+    }
 }
 
 AudioFlinger::PlaybackThread::Track::~Track()
@@ -1789,10 +1789,11 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
 {
-    ALOGV("RecordTrack constructor");
-    if (mCblk != NULL) {
-        mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount, mFrameSize);
+    if (mCblk == NULL) {
+        return;
     }
+
+    mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount, mFrameSize);
 
     uint32_t channelCount = popcount(channelMask);
     // FIXME I don't understand either of the channel count checks
