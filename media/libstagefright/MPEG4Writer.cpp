@@ -39,7 +39,9 @@
 #include <unistd.h>
 
 #include "include/ESDS.h"
+#ifdef ENABLE_AV_ENHANCEMENTS
 #include "include/ExtendedUtils.h"
+#endif
 
 namespace android {
 
@@ -292,7 +294,9 @@ private:
     // Simple validation on the codec specific data
     status_t checkCodecSpecificData() const;
     int32_t mRotation;
+#ifdef ENABLE_AV_ENHANCEMENTS
     int32_t mHFRRatio;
+#endif
 
     void updateTrackSizeEstimate();
     void addOneStscTableEntry(size_t chunkId, size_t sampleId);
@@ -1759,7 +1763,9 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
     pthread_create(&mThread, &attr, ThreadWrapper, this);
     pthread_attr_destroy(&attr);
 
+#ifdef ENABLE_AV_ENHANCEMENTS
     mHFRRatio = ExtendedUtils::HFR::getHFRRatio(mMeta);
+#endif
 
     return OK;
 }
@@ -2642,7 +2648,11 @@ void MPEG4Writer::Track::bufferChunk(int64_t timestampUs) {
 }
 
 int64_t MPEG4Writer::Track::getDurationUs() const {
+#ifdef ENABLE_AV_ENHANCEMENTS
     return mTrackDurationUs * mHFRRatio;
+#else
+    return mTrackDurationUs;
+#endif
 }
 
 int64_t MPEG4Writer::Track::getEstimatedTrackSizeBytes() const {
@@ -2965,7 +2975,11 @@ void MPEG4Writer::Track::writeMdhdBox(uint32_t now) {
     mOwner->writeInt32(now);           // creation time
     mOwner->writeInt32(now);           // modification time
 
+#ifdef ENABLE_AV_ENHANCEMENTS
     int32_t timeScale = mTimeScale / mHFRRatio;
+#else
+    int32_t timeScale = mTimeScale;
+#endif
     mOwner->writeInt32(timeScale);    // media timescale
     int32_t mdhdDuration = (trakDurationUs * timeScale + 5E5) / 1E6;
     mOwner->writeInt32(mdhdDuration);  // use media timescale
