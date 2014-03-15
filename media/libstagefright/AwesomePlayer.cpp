@@ -1670,6 +1670,10 @@ status_t AwesomePlayer::seekTo(int64_t timeUs) {
         (mExtractorFlags & MediaExtractor::CAN_SEEK)) {
         Mutex::Autolock autoLock(mLock);
         return seekTo_l(timeUs);
+    } else {
+        ALOGV("Extractor cannot seek, post seek complete");
+        Mutex::Autolock autoLock(mLock);
+        notifyListener_l(MEDIA_SEEK_COMPLETE);
     }
 
     return OK;
