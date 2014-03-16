@@ -3914,20 +3914,7 @@ bool ACodec::LoadedState::onConfigureComponent(
 
     CHECK(mCodec->mNode != NULL);
 
-    sp<RefBase> obj;
-    if (msg->findObject("native-window", &obj)
-            && strncmp("OMX.google.", mCodec->mComponentName.c_str(), 11)) {
-        sp<NativeWindowWrapper> nativeWindow(
-                static_cast<NativeWindowWrapper *>(obj.get()));
-        CHECK(nativeWindow != NULL);
-        mCodec->mNativeWindow = nativeWindow->getNativeWindow();
-
-        native_window_set_scaling_mode(
-                mCodec->mNativeWindow.get(),
-                NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    }
-    CHECK_EQ((status_t)OK, mCodec->initNativeWindow());
-
+#ifndef QCOM_HARDWARE
     AString mime;
     CHECK(msg->findString("mime", &mime));
 
@@ -3946,6 +3933,42 @@ bool ACodec::LoadedState::onConfigureComponent(
         notify->setInt32("what", ACodec::kWhatComponentConfigured);
         notify->post();
     }
+#endif
+
+    sp<RefBase> obj;
+    if (msg->findObject("native-window", &obj)
+            && strncmp("OMX.google.", mCodec->mComponentName.c_str(), 11)) {
+        sp<NativeWindowWrapper> nativeWindow(
+                static_cast<NativeWindowWrapper *>(obj.get()));
+        CHECK(nativeWindow != NULL);
+        mCodec->mNativeWindow = nativeWindow->getNativeWindow();
+
+        native_window_set_scaling_mode(
+                mCodec->mNativeWindow.get(),
+                NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    }
+    CHECK_EQ((status_t)OK, mCodec->initNativeWindow());
+
+#ifdef QCOM_HARDWARE
+    AString mime;
+    CHECK(msg->findString("mime", &mime));
+
+    status_t err = mCodec->configureCodec(mime.c_str(), msg);
+
+    if (err != OK) {
+        ALOGE("[%s] configureCodec returning error %d",
+              mCodec->mComponentName.c_str(), err);
+
+        mCodec->signalError(OMX_ErrorUndefined, err);
+        return false;
+    }
+
+    {
+        sp<AMessage> notify = mCodec->mNotify->dup();
+        notify->setInt32("what", ACodec::kWhatComponentConfigured);
+        notify->post();
+    }
+#endif
 
     return true;
 }
