@@ -63,7 +63,9 @@ class VendorTagDescriptor
          *
          * Returns OK on success, or a negative error code.
          */
-        status_t writeToParcel(/*out*/Parcel* parcel) const;
+        status_t writeToParcel(
+                /*out*/
+                Parcel* parcel) const;
 
         // Static methods:
 
@@ -93,7 +95,7 @@ class VendorTagDescriptor
          *
          * Returns OK on success, or a negative error code.
          */
-        static status_t setAsGlobalVendorTagDescriptor(sp<VendorTagDescriptor>& desc);
+        static status_t setAsGlobalVendorTagDescriptor(const sp<VendorTagDescriptor>& desc);
 
         /**
          * Clears the global vendor tag descriptor used by this process.

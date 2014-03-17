@@ -287,7 +287,7 @@ status_t CameraService::getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescript
 
     if (mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_2) {
         // TODO: Remove this check once HAL1 shim is in place.
-        ALOGE("%s: Only HAL module version V2.2 or higher supports vendor tags", __FUNCTION__);
+        ALOGW("%s: Only HAL module version V2.2 or higher supports vendor tags", __FUNCTION__);
         return -EOPNOTSUPP;
     }
 

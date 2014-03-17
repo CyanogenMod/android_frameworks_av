@@ -303,10 +303,10 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(result);
 
             // out-variables are after exception and return value
-            reply->writeInt32(1); // means the parcelable is included
             if (d == NULL) {
                 reply->writeInt32(0);
             } else {
+                reply->writeInt32(1); // means the parcelable is included
                 d->writeToParcel(reply);
             }
             return NO_ERROR;
@@ -320,7 +320,7 @@ status_t BnCameraService::onTransact(
             int32_t clientUid = data.readInt32();
             sp<ICamera> camera;
             status_t status = connect(cameraClient, cameraId,
-                    clientName, clientUid, /*out*/ camera);
+                    clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {
@@ -340,7 +340,7 @@ status_t BnCameraService::onTransact(
             int32_t clientUid = data.readInt32();
             sp<IProCameraUser> camera;
             status_t status = connectPro(cameraClient, cameraId,
-                    clientName, clientUid, /*out*/ camera);
+                    clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {
@@ -360,7 +360,7 @@ status_t BnCameraService::onTransact(
             int32_t clientUid = data.readInt32();
             sp<ICameraDeviceUser> camera;
             status_t status = connectDevice(cameraClient, cameraId,
-                    clientName, clientUid, /*out*/ camera);
+                    clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {

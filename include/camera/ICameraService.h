@@ -60,12 +60,16 @@ public:
 
     virtual int32_t  getNumberOfCameras() = 0;
     virtual status_t getCameraInfo(int cameraId,
-                                          struct CameraInfo* cameraInfo) = 0;
+            /*out*/
+            struct CameraInfo* cameraInfo) = 0;
 
     virtual status_t getCameraCharacteristics(int cameraId,
-                                              CameraMetadata* cameraInfo) = 0;
+            /*out*/
+            CameraMetadata* cameraInfo) = 0;
 
-    virtual status_t getCameraVendorTagDescriptor(sp<VendorTagDescriptor>& desc) = 0;
+    virtual status_t getCameraVendorTagDescriptor(
+            /*out*/
+            sp<VendorTagDescriptor>& desc) = 0;
 
     // Returns 'OK' if operation succeeded
     // - Errors: ALREADY_EXISTS if the listener was already added

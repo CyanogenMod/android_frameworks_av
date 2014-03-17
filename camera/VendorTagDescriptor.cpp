@@ -236,7 +236,7 @@ status_t VendorTagDescriptor::writeToParcel(Parcel* parcel) const {
     return res;
 }
 
-status_t VendorTagDescriptor::setAsGlobalVendorTagDescriptor(sp<VendorTagDescriptor>& desc) {
+status_t VendorTagDescriptor::setAsGlobalVendorTagDescriptor(const sp<VendorTagDescriptor>& desc) {
     status_t res = OK;
     Mutex::Autolock al(sLock);
     sGlobalVendorTagDescriptor = desc;
