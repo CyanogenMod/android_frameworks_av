@@ -170,27 +170,8 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
     // connect/disconnect only 1 device at a time
     if (!audio_is_output_device(device) && !audio_is_input_device(device)) return BAD_VALUE;
 
-    if (strlen(device_address) >= MAX_DEVICE_ADDRESS_LEN) {
-        ALOGE("setDeviceConnectionState() invalid address: %s", device_address);
-        return BAD_VALUE;
-    }
-
     // handle output devices
     if (audio_is_output_device(device)) {
-
-        if (!mHasA2dp && audio_is_a2dp_device(device)) {
-            ALOGE("setDeviceConnectionState() invalid A2DP device: %x", device);
-            return BAD_VALUE;
-        }
-        if (!mHasUsb && audio_is_usb_device(device)) {
-            ALOGE("setDeviceConnectionState() invalid USB audio device: %x", device);
-            return BAD_VALUE;
-        }
-        if (!mHasRemoteSubmix && audio_is_remote_submix_device((audio_devices_t)device)) {
-            ALOGE("setDeviceConnectionState() invalid remote submix audio device: %x", device);
-            return BAD_VALUE;
-        }
-
         sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
                                                             address,
                                                             AUDIO_CHANNEL_NONE);
@@ -2354,10 +2335,6 @@ void AudioPolicyManager::checkOutputForAllStrategies()
 
 audio_io_handle_t AudioPolicyManager::getA2dpOutput()
 {
-    if (!mHasA2dp) {
-        return 0;
-    }
-
     for (size_t i = 0; i < mOutputs.size(); i++) {
         AudioOutputDescriptor *outputDesc = mOutputs.valueAt(i);
         if (!outputDesc->isDuplicated() && outputDesc->device() & AUDIO_DEVICE_OUT_ALL_A2DP) {
@@ -2370,9 +2347,6 @@ audio_io_handle_t AudioPolicyManager::getA2dpOutput()
 
 void AudioPolicyManager::checkA2dpSuspend()
 {
-    if (!mHasA2dp) {
-        return;
-    }
     audio_io_handle_t a2dpOutput = getA2dpOutput();
     if (a2dpOutput == 0) {
         mA2dpSuspended = false;
@@ -4190,14 +4164,6 @@ void AudioPolicyManager::loadHwModule(cnode *root)
     HwModule *module = new HwModule(root->name);
 
     if (node != NULL) {
-        if (strcmp(root->name, AUDIO_HARDWARE_MODULE_ID_A2DP) == 0) {
-            mHasA2dp = true;
-        } else if (strcmp(root->name, AUDIO_HARDWARE_MODULE_ID_USB) == 0) {
-            mHasUsb = true;
-        } else if (strcmp(root->name, AUDIO_HARDWARE_MODULE_ID_REMOTE_SUBMIX) == 0) {
-            mHasRemoteSubmix = true;
-        }
-
         node = node->first_child;
         while (node) {
             ALOGV("loadHwModule() loading output %s", node->name);
