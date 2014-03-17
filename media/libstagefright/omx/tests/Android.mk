@@ -15,4 +15,6 @@ LOCAL_MODULE := omx_tests
 
 LOCAL_MODULE_TAGS := tests
 
+LOCAL_32_BIT_ONLY := true
+
 include $(BUILD_EXECUTABLE)

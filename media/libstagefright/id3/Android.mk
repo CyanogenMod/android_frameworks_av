@@ -25,4 +25,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE := testid3
 
+LOCAL_32_BIT_ONLY := true
+
 include $(BUILD_EXECUTABLE)
