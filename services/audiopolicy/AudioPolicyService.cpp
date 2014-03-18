@@ -856,7 +856,7 @@ effect_param_t *AudioPolicyService::loadEffectParameter(cnode *root)
     return fx_param;
 
 error:
-    delete fx_param;
+    free(fx_param);
     return NULL;
 }
 
