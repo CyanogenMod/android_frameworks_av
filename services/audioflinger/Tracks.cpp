@@ -571,8 +571,10 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
         return true;
     }
 
-    if (isStopping() && framesReady() > 0) {
-        mFillingUpStatus = FS_FILLED;
+    if (isStopping()) {
+        if (framesReady() > 0) {
+            mFillingUpStatus = FS_FILLED;
+        }
         return true;
     }
 
