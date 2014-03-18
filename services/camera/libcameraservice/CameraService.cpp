@@ -719,6 +719,11 @@ status_t CameraService::addListener(
                                 const sp<ICameraServiceListener>& listener) {
     ALOGV("%s: Add listener %p", __FUNCTION__, listener.get());
 
+    if (listener == 0) {
+        ALOGE("%s: Listener must not be null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock lock(mServiceLock);
 
     Vector<sp<ICameraServiceListener> >::iterator it, end;
@@ -746,6 +751,11 @@ status_t CameraService::addListener(
 status_t CameraService::removeListener(
                                 const sp<ICameraServiceListener>& listener) {
     ALOGV("%s: Remove listener %p", __FUNCTION__, listener.get());
+
+    if (listener == 0) {
+        ALOGE("%s: Listener must not be null", __FUNCTION__);
+        return BAD_VALUE;
+    }
 
     Mutex::Autolock lock(mServiceLock);
 
