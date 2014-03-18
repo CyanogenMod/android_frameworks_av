@@ -115,7 +115,7 @@ CameraClient::~CameraClient() {
 status_t CameraClient::dump(int fd, const Vector<String16>& args) {
     const size_t SIZE = 256;
     char buffer[SIZE];
-
+    status_t rc = INVALID_OPERATION;
     size_t len = snprintf(buffer, SIZE, "Client[%d] (%p) PID: %d\n",
             mCameraId,
             getRemoteCallback()->asBinder().get(),
@@ -132,7 +132,10 @@ status_t CameraClient::dump(int fd, const Vector<String16>& args) {
     const char *enddump = "\n\n";
     write(fd, enddump, strlen(enddump));
 
-    return mHardware->dump(fd, args);
+    if (mHardware != NULL) {
+        rc =  mHardware->dump(fd, args);
+    }
+    return rc;
 }
 
 // ----------------------------------------------------------------------------
