@@ -18,16 +18,11 @@
 #define ANDROID_AUDIOPOLICYINTERFACE_H
 
 #include <media/AudioSystem.h>
-#include <media/ToneGenerator.h>
 #include <utils/String8.h>
 
-#include <hardware_legacy/AudioSystemLegacy.h>
 #include <hardware/audio_policy.h>
 
-namespace android_audio_legacy {
-    using android::Vector;
-    using android::String8;
-    using android::ToneGenerator;
+namespace android {
 
 // ----------------------------------------------------------------------------
 
@@ -68,17 +63,17 @@ public:
 
     // indicate a change in device connection status
     virtual status_t setDeviceConnectionState(audio_devices_t device,
-                                          AudioSystem::device_connection_state state,
+                                              audio_policy_dev_state_t state,
                                           const char *device_address) = 0;
     // retrieve a device connection status
-    virtual AudioSystem::device_connection_state getDeviceConnectionState(audio_devices_t device,
+    virtual audio_policy_dev_state_t getDeviceConnectionState(audio_devices_t device,
                                                                           const char *device_address) = 0;
-    // indicate a change in phone state. Valid phones states are defined by AudioSystem::audio_mode
-    virtual void setPhoneState(int state) = 0;
+    // indicate a change in phone state. Valid phones states are defined by audio_mode_t
+    virtual void setPhoneState(audio_mode_t state) = 0;
     // force using a specific device category for the specified usage
-    virtual void setForceUse(AudioSystem::force_use usage, AudioSystem::forced_config config) = 0;
+    virtual void setForceUse(audio_policy_force_use_t usage, audio_policy_forced_cfg_t config) = 0;
     // retrieve current device category forced for a given usage
-    virtual AudioSystem::forced_config getForceUse(AudioSystem::force_use usage) = 0;
+    virtual audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage) = 0;
     // set a system property (e.g. camera sound always audible)
     virtual void setSystemProperty(const char* property, const char* value) = 0;
     // check proper initialization
@@ -89,29 +84,29 @@ public:
     //
 
     // request an output appropriate for playback of the supplied stream type and parameters
-    virtual audio_io_handle_t getOutput(AudioSystem::stream_type stream,
+    virtual audio_io_handle_t getOutput(audio_stream_type_t stream,
                                         uint32_t samplingRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
-                                        AudioSystem::output_flags flags,
+                                        audio_output_flags_t flags,
                                         const audio_offload_info_t *offloadInfo) = 0;
     // indicates to the audio policy manager that the output starts being used by corresponding stream.
     virtual status_t startOutput(audio_io_handle_t output,
-                                 AudioSystem::stream_type stream,
+                                 audio_stream_type_t stream,
                                  int session = 0) = 0;
     // indicates to the audio policy manager that the output stops being used by corresponding stream.
     virtual status_t stopOutput(audio_io_handle_t output,
-                                AudioSystem::stream_type stream,
+                                audio_stream_type_t stream,
                                 int session = 0) = 0;
     // releases the output.
     virtual void releaseOutput(audio_io_handle_t output) = 0;
 
     // request an input appropriate for record from the supplied device with supplied parameters.
-    virtual audio_io_handle_t getInput(int inputSource,
+    virtual audio_io_handle_t getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    AudioSystem::audio_in_acoustics acoustics) = 0;
+                                    audio_in_acoustics_t acoustics) = 0;
     // indicates to the audio policy manager that the input starts being used.
     virtual status_t startInput(audio_io_handle_t input) = 0;
     // indicates to the audio policy manager that the input stops being used.
@@ -124,29 +119,29 @@ public:
     //
 
     // initialises stream volume conversion parameters by specifying volume index range.
-    virtual void initStreamVolume(AudioSystem::stream_type stream,
+    virtual void initStreamVolume(audio_stream_type_t stream,
                                       int indexMin,
                                       int indexMax) = 0;
 
     // sets the new stream volume at a level corresponding to the supplied index for the
     // supplied device. By convention, specifying AUDIO_DEVICE_OUT_DEFAULT means
     // setting volume for all devices
-    virtual status_t setStreamVolumeIndex(AudioSystem::stream_type stream,
+    virtual status_t setStreamVolumeIndex(audio_stream_type_t stream,
                                           int index,
                                           audio_devices_t device) = 0;
 
     // retrieve current volume index for the specified stream and the
     // specified device. By convention, specifying AUDIO_DEVICE_OUT_DEFAULT means
     // querying the volume of the active device.
-    virtual status_t getStreamVolumeIndex(AudioSystem::stream_type stream,
+    virtual status_t getStreamVolumeIndex(audio_stream_type_t stream,
                                           int *index,
                                           audio_devices_t device) = 0;
 
     // return the strategy corresponding to a given stream type
-    virtual uint32_t getStrategyForStream(AudioSystem::stream_type stream) = 0;
+    virtual uint32_t getStrategyForStream(audio_stream_type_t stream) = 0;
 
     // return the enabled output devices for the given stream type
-    virtual audio_devices_t getDevicesForStream(AudioSystem::stream_type stream) = 0;
+    virtual audio_devices_t getDevicesForStream(audio_stream_type_t stream) = 0;
 
     // Audio effect management
     virtual audio_io_handle_t getOutputForEffect(const effect_descriptor_t *desc) = 0;
@@ -158,8 +153,9 @@ public:
     virtual status_t unregisterEffect(int id) = 0;
     virtual status_t setEffectEnabled(int id, bool enabled) = 0;
 
-    virtual bool isStreamActive(int stream, uint32_t inPastMs = 0) const = 0;
-    virtual bool isStreamActiveRemotely(int stream, uint32_t inPastMs = 0) const = 0;
+    virtual bool isStreamActive(audio_stream_type_t stream, uint32_t inPastMs = 0) const = 0;
+    virtual bool isStreamActiveRemotely(audio_stream_type_t stream,
+                                        uint32_t inPastMs = 0) const = 0;
     virtual bool isSourceActive(audio_source_t source) const = 0;
 
     //dump state
@@ -227,10 +223,10 @@ public:
 
     // set a stream volume for a particular output. For the same user setting, a given stream type can have different volumes
     // for each output (destination device) it is attached to.
-    virtual status_t setStreamVolume(AudioSystem::stream_type stream, float volume, audio_io_handle_t output, int delayMs = 0) = 0;
+    virtual status_t setStreamVolume(audio_stream_type_t stream, float volume, audio_io_handle_t output, int delayMs = 0) = 0;
 
     // invalidate a stream type, causing a reroute to an unspecified new output
-    virtual status_t invalidateStream(AudioSystem::stream_type stream) = 0;
+    virtual status_t invalidateStream(audio_stream_type_t stream) = 0;
 
     // function enabling to send proprietary informations directly from audio policy manager to audio hardware interface.
     virtual void setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs, int delayMs = 0) = 0;
@@ -239,7 +235,7 @@ public:
 
     // request the playback of a tone on the specified stream: used for instance to replace notification sounds when playing
     // over a telephony device during a phone call.
-    virtual status_t startTone(ToneGenerator::tone_type tone, AudioSystem::stream_type stream) = 0;
+    virtual status_t startTone(audio_policy_tone_t tone, audio_stream_type_t stream) = 0;
     virtual status_t stopTone() = 0;
 
     // set down link audio volume.
