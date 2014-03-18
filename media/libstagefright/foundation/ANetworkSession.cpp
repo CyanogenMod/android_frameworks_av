@@ -579,7 +579,7 @@ status_t ANetworkSession::Session::writeMore() {
 
         if (err == -EAGAIN) {
             if (!mOutFragments.empty()) {
-                ALOGI("%d datagrams remain queued.", mOutFragments.size());
+                ALOGI("%zu datagrams remain queued.", mOutFragments.size());
             }
             err = OK;
         }
