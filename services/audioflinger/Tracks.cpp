@@ -567,7 +567,12 @@ size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
-    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing() || isStopping()) {
+    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
+        return true;
+    }
+
+    if (isStopping() && framesReady() > 0) {
+        mFillingUpStatus = FS_FILLED;
         return true;
     }
 
@@ -604,7 +609,10 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
 
-        if (state == PAUSED) {
+        // initial state-stopping. next state-pausing.
+        // What if resume is called ?
+
+        if (state == PAUSED || state == PAUSING) {
             if (mResumeToStopping) {
                 // happened we need to resume to STOPPING_1
                 mState = TrackBase::STOPPING_1;
@@ -991,6 +999,29 @@ void AudioFlinger::PlaybackThread::Track::signal()
     }
 }
 
+//To be called with thread lock held
+bool AudioFlinger::PlaybackThread::Track::isResumePending() {
+
+    if (mState == RESUMING)
+        return true;
+    /* Resume is pending if track was stopping before pause was called */
+    if (mState == STOPPING_1 &&
+        mResumeToStopping)
+        return true;
+
+    return false;
+}
+
+//To be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::resumeAck() {
+
+
+    if (mState == RESUMING)
+        mState = ACTIVE;
+    // Other possibility of  pending resume is stopping_1 state
+    // Do not update the state from stopping as this prevents
+    //drain being called.
+}
 // ----------------------------------------------------------------------------
 
 sp<AudioFlinger::PlaybackThread::TimedTrack>
