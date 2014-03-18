@@ -122,9 +122,9 @@ private:
     // surface.
     sp<IGraphicBufferProducer> mOutputSurface;
 
-    // Our queue.  The producer side is passed to the virtual display, the
-    // consumer side feeds into our GLConsumer.
-    sp<BufferQueue> mBufferQueue;
+    // Producer side of queue, passed into the virtual display.
+    // The consumer end feeds into our GLConsumer.
+    sp<IGraphicBufferProducer> mProducer;
 
     // This receives frames from the virtual display and makes them available
     // as an external texture.

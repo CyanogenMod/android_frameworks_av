@@ -67,8 +67,10 @@ status_t FrameOutput::createInputSurface(int width, int height,
         return UNKNOWN_ERROR;
     }
 
-    mBufferQueue = new BufferQueue(/*new GraphicBufferAlloc()*/);
-    mGlConsumer = new GLConsumer(mBufferQueue, mExtTextureName,
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    mGlConsumer = new GLConsumer(consumer, mExtTextureName,
                 GL_TEXTURE_EXTERNAL_OES);
     mGlConsumer->setName(String8("virtual display"));
     mGlConsumer->setDefaultBufferSize(width, height);
@@ -79,7 +81,7 @@ status_t FrameOutput::createInputSurface(int width, int height,
 
     mPixelBuf = new uint8_t[width * height * kGlBytesPerPixel];
 
-    *pBufferProducer = mBufferQueue;
+    *pBufferProducer = producer;
 
     ALOGD("FrameOutput::createInputSurface OK");
     return NO_ERROR;
