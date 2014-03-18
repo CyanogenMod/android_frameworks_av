@@ -326,6 +326,24 @@ private:
                                                 audio_devices_t devices);
     void                    purgeStaleEffects_l();
 
+    // Set kEnableExtendedPrecision to true to use extended precision in MixerThread
+    static const bool kEnableExtendedPrecision = false;
+
+    // Returns true if format is permitted for the PCM sink in the MixerThread
+    static inline bool isValidPcmSinkFormat(audio_format_t format) {
+        switch (format) {
+        case AUDIO_FORMAT_PCM_16_BIT:
+            return true;
+        case AUDIO_FORMAT_PCM_FLOAT:
+        case AUDIO_FORMAT_PCM_24_BIT_PACKED:
+        case AUDIO_FORMAT_PCM_32_BIT:
+        case AUDIO_FORMAT_PCM_8_24_BIT:
+            return kEnableExtendedPrecision;
+        default:
+            return false;
+        }
+    }
+
     // standby delay for MIXER and DUPLICATING playback threads is read from property
     // ro.audio.flinger_standbytime_ms or defaults to kDefaultStandbyTimeInNsecs
     static nsecs_t          mStandbyTimeInNsecs;
