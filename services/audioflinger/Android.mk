@@ -13,6 +13,16 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
+LOCAL_SRC_FILES := \
+    ServiceUtilities.cpp
+
+# FIXME Move this library to frameworks/native
+LOCAL_MODULE := libserviceutility
+
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+
 LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
     Threads.cpp                 \
@@ -20,8 +30,6 @@ LOCAL_SRC_FILES:=               \
     Effects.cpp                 \
     AudioMixer.cpp.arm          \
     AudioResampler.cpp.arm      \
-    AudioPolicyService.cpp      \
-    ServiceUtilities.cpp        \
     AudioResamplerCubic.cpp.arm \
     AudioResamplerSinc.cpp.arm  \
     AudioResamplerDyn.cpp.arm
@@ -29,6 +37,7 @@ LOCAL_SRC_FILES:=               \
 LOCAL_SRC_FILES += StateQueue.cpp
 
 LOCAL_C_INCLUDES := \
+    $(TOPDIR)frameworks/av/services/audiopolicy \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
@@ -50,7 +59,8 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
     libscheduling_policy \
     libcpustats \
-    libmedia_helper
+    libmedia_helper \
+    libserviceutility
 
 LOCAL_MODULE:= libaudioflinger
 LOCAL_32_BIT_ONLY := true

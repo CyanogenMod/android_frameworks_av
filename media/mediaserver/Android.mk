@@ -15,6 +15,7 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
+	libaudiopolicy \
 	libcamera_metadata\
 	libcameraservice \
 	libmedialogservice \
@@ -33,6 +34,7 @@ LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
     frameworks/av/services/medialog \
     frameworks/av/services/audioflinger \
+    frameworks/av/services/audiopolicy \
     frameworks/av/services/camera/libcameraservice
 
 LOCAL_MODULE:= mediaserver
