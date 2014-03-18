@@ -41,6 +41,8 @@ LOCAL_C_INCLUDES := \
 	frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax \
 
+LOCAL_32_BIT_ONLY := true
+
 include $(BUILD_EXECUTABLE)
 
 endif
