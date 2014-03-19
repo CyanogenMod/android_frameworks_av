@@ -622,7 +622,7 @@ sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
  * - block_size == 0 means entire range
  *
  */
-status_t LiveSession::fetchFile(
+ssize_t LiveSession::fetchFile(
         const char *url, sp<ABuffer> *out,
         int64_t range_offset, int64_t range_length,
         uint32_t block_size, /* download block size */
@@ -673,6 +673,7 @@ status_t LiveSession::fetchFile(
         buffer->setRange(0, 0);
     }
 
+    ssize_t bytesRead = 0;
     // adjust range_length if only reading partial block
     if (block_size > 0 && (range_length == -1 || buffer->size() + block_size < range_length)) {
         range_length = buffer->size() + block_size;
@@ -720,6 +721,7 @@ status_t LiveSession::fetchFile(
         }
 
         buffer->setRange(0, buffer->size() + (size_t)n);
+        bytesRead += n;
     }
 
     *out = buffer;
@@ -730,7 +732,7 @@ status_t LiveSession::fetchFile(
         }
     }
 
-    return OK;
+    return bytesRead;
 }
 
 sp<M3UParser> LiveSession::fetchPlaylist(
@@ -741,9 +743,9 @@ sp<M3UParser> LiveSession::fetchPlaylist(
 
     sp<ABuffer> buffer;
     String8 actualUrl;
-    status_t err = fetchFile(url, &buffer, 0, -1, 0, NULL, &actualUrl);
+    ssize_t  err = fetchFile(url, &buffer, 0, -1, 0, NULL, &actualUrl);
 
-    if (err != OK) {
+    if (err <= 0) {
         return NULL;
     }
 
