@@ -202,7 +202,7 @@ private:
     //
     // For reused HTTP sources, the caller must download a file sequentially without
     // any overlaps or gaps to prevent reconnection.
-    status_t fetchFile(
+    ssize_t fetchFile(
             const char *url, sp<ABuffer> *out,
             /* request/open a file starting at range_offset for range_length bytes */
             int64_t range_offset = 0, int64_t range_length = -1,
