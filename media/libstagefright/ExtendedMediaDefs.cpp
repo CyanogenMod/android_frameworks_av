@@ -47,7 +47,6 @@ const char *MEDIA_MIMETYPE_CONTAINER_3G2 = "video/3g2";
 const char *MEDIA_MIMETYPE_AUDIO_DTS = "audio/dts";
 
 const char *MEDIA_MIMETYPE_AUDIO_DTS_LBR = "audio/dts-lbr";
-const char *MEDIA_MIMETYPE_AUDIO_EAC3 = "audio/eac3";
 const char *MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS = "audio/amr-wb-plus";
 const char *MEDIA_MIMETYPE_CONTAINER_QCAMR_NB = "audio/qc-amr";
 const char *MEDIA_MIMETYPE_CONTAINER_QCAMR_WB = "audio/qc-amr-wb";
