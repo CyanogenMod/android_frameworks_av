@@ -48,22 +48,43 @@ const MediaCodecList *MediaCodecList::getInstance() {
 
 MediaCodecList::MediaCodecList()
     : mInitCheck(NO_INIT) {
-    FILE *file = fopen("/etc/media_codecs.xml", "r");
+    parseTopLevelXMLFile("/etc/media_codecs.xml");
+}
 
-    if (file == NULL) {
-        ALOGW("unable to open media codecs configuration xml file.");
+void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml) {
+    // get href_base
+    char *href_base_end = strrchr(codecs_xml, '/');
+    if (href_base_end != NULL) {
+        mHrefBase = AString(codecs_xml, href_base_end - codecs_xml + 1);
+    }
+
+    mInitCheck = OK;
+    mCurrentSection = SECTION_TOPLEVEL;
+    mDepth = 0;
+
+    parseXMLFile(codecs_xml);
+
+    if (mInitCheck != OK) {
+        mCodecInfos.clear();
+        mCodecQuirks.clear();
         return;
     }
 
-    parseXMLFile(file);
+    // These are currently still used by the video editing suite.
+    addMediaCodec(true /* encoder */, "AACEncoder", "audio/mp4a-latm");
+    addMediaCodec(
+            false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
 
-    if (mInitCheck == OK) {
-        // These are currently still used by the video editing suite.
+    for (size_t i = mCodecInfos.size(); i-- > 0;) {
+        CodecInfo *info = &mCodecInfos.editItemAt(i);
 
-        addMediaCodec(true /* encoder */, "AACEncoder", "audio/mp4a-latm");
+        if (info->mTypes == 0) {
+            // No types supported by this component???
+            ALOGW("Component %s does not support any type of media?",
+                  info->mName.c_str());
 
-        addMediaCodec(
-                false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
+            mCodecInfos.removeAt(i);
+        }
     }
 
 #if 0
@@ -84,9 +105,6 @@ MediaCodecList::MediaCodecList()
         ALOGI("%s", line.c_str());
     }
 #endif
-
-    fclose(file);
-    file = NULL;
 }
 
 MediaCodecList::~MediaCodecList() {
@@ -96,10 +114,14 @@ status_t MediaCodecList::initCheck() const {
     return mInitCheck;
 }
 
-void MediaCodecList::parseXMLFile(FILE *file) {
-    mInitCheck = OK;
-    mCurrentSection = SECTION_TOPLEVEL;
-    mDepth = 0;
+void MediaCodecList::parseXMLFile(const char *path) {
+    FILE *file = fopen(path, "r");
+
+    if (file == NULL) {
+        ALOGW("unable to open media codecs configuration xml file: %s", path);
+        mInitCheck = NAME_NOT_FOUND;
+        return;
+    }
 
     XML_Parser parser = ::XML_ParserCreate(NULL);
     CHECK(parser != NULL);
@@ -112,7 +134,7 @@ void MediaCodecList::parseXMLFile(FILE *file) {
     while (mInitCheck == OK) {
         void *buff = ::XML_GetBuffer(parser, BUFF_SIZE);
         if (buff == NULL) {
-            ALOGE("failed to in call to XML_GetBuffer()");
+            ALOGE("failed in call to XML_GetBuffer()");
             mInitCheck = UNKNOWN_ERROR;
             break;
         }
@@ -124,8 +146,9 @@ void MediaCodecList::parseXMLFile(FILE *file) {
             break;
         }
 
-        if (::XML_ParseBuffer(parser, bytes_read, bytes_read == 0)
-                != XML_STATUS_OK) {
+        XML_Status status = ::XML_ParseBuffer(parser, bytes_read, bytes_read == 0);
+        if (status != XML_STATUS_OK) {
+            ALOGE("malformed (%s)", ::XML_ErrorString(::XML_GetErrorCode(parser)));
             mInitCheck = ERROR_MALFORMED;
             break;
         }
@@ -137,25 +160,8 @@ void MediaCodecList::parseXMLFile(FILE *file) {
 
     ::XML_ParserFree(parser);
 
-    if (mInitCheck == OK) {
-        for (size_t i = mCodecInfos.size(); i-- > 0;) {
-            CodecInfo *info = &mCodecInfos.editItemAt(i);
-
-            if (info->mTypes == 0) {
-                // No types supported by this component???
-
-                ALOGW("Component %s does not support any type of media?",
-                      info->mName.c_str());
-
-                mCodecInfos.removeAt(i);
-            }
-        }
-    }
-
-    if (mInitCheck != OK) {
-        mCodecInfos.clear();
-        mCodecQuirks.clear();
-    }
+    fclose(file);
+    file = NULL;
 }
 
 // static
@@ -169,9 +175,60 @@ void MediaCodecList::EndElementHandlerWrapper(void *me, const char *name) {
     static_cast<MediaCodecList *>(me)->endElementHandler(name);
 }
 
+status_t MediaCodecList::includeXMLFile(const char **attrs) {
+    const char *href = NULL;
+    size_t i = 0;
+    while (attrs[i] != NULL) {
+        if (!strcmp(attrs[i], "href")) {
+            if (attrs[i + 1] == NULL) {
+                return -EINVAL;
+            }
+            href = attrs[i + 1];
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+        ++i;
+    }
+
+    // For security reasons and for simplicity, file names can only contain
+    // [a-zA-Z0-9_.] and must start with  media_codecs_ and end with .xml
+    for (i = 0; href[i] != '\0'; i++) {
+        if (href[i] == '.' || href[i] == '_' ||
+                (href[i] >= '0' && href[i] <= '9') ||
+                (href[i] >= 'A' && href[i] <= 'Z') ||
+                (href[i] >= 'a' && href[i] <= 'z')) {
+            continue;
+        }
+        ALOGE("invalid include file name: %s", href);
+        return -EINVAL;
+    }
+
+    AString filename = href;
+    if (!filename.startsWith("media_codecs_") ||
+        !filename.endsWith(".xml")) {
+        ALOGE("invalid include file name: %s", href);
+        return -EINVAL;
+    }
+    filename.insert(mHrefBase, 0);
+
+    parseXMLFile(filename.c_str());
+    return mInitCheck;
+}
+
 void MediaCodecList::startElementHandler(
         const char *name, const char **attrs) {
     if (mInitCheck != OK) {
+        return;
+    }
+
+    if (!strcmp(name, "Include")) {
+        mInitCheck = includeXMLFile(attrs);
+        if (mInitCheck == OK) {
+            mPastSections.push(mCurrentSection);
+            mCurrentSection = SECTION_INCLUDE;
+        }
+        ++mDepth;
         return;
     }
 
@@ -260,6 +317,15 @@ void MediaCodecList::endElementHandler(const char *name) {
         {
             if (!strcmp(name, "MediaCodec")) {
                 mCurrentSection = SECTION_ENCODERS;
+            }
+            break;
+        }
+
+        case SECTION_INCLUDE:
+        {
+            if (!strcmp(name, "Include") && mPastSections.size() > 0) {
+                mCurrentSection = mPastSections.top();
+                mPastSections.pop();
             }
             break;
         }

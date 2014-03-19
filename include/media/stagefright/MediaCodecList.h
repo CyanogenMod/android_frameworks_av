@@ -60,6 +60,7 @@ private:
         SECTION_DECODER,
         SECTION_ENCODERS,
         SECTION_ENCODER,
+        SECTION_INCLUDE,
     };
 
     struct CodecInfo {
@@ -73,7 +74,9 @@ private:
 
     status_t mInitCheck;
     Section mCurrentSection;
+    Vector<Section> mPastSections;
     int32_t mDepth;
+    AString mHrefBase;
 
     Vector<CodecInfo> mCodecInfos;
     KeyedVector<AString, size_t> mCodecQuirks;
@@ -83,7 +86,8 @@ private:
     ~MediaCodecList();
 
     status_t initCheck() const;
-    void parseXMLFile(FILE *file);
+    void parseXMLFile(const char *path);
+    void parseTopLevelXMLFile(const char *path);
 
     static void StartElementHandlerWrapper(
             void *me, const char *name, const char **attrs);
@@ -93,6 +97,7 @@ private:
     void startElementHandler(const char *name, const char **attrs);
     void endElementHandler(const char *name);
 
+    status_t includeXMLFile(const char **attrs);
     status_t addMediaCodecFromAttributes(bool encoder, const char **attrs);
     void addMediaCodec(bool encoder, const char *name, const char *type = NULL);
 
