@@ -40,6 +40,7 @@
 #include <media/stagefright/Utils.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <openssl/aes.h>
 #include <openssl/md5.h>
 
@@ -316,7 +317,7 @@ void PlaylistFetcher::postMonitorQueue(int64_t delayUs, int64_t minDelayUs) {
         maxDelayUs = minDelayUs;
     }
     if (delayUs > maxDelayUs) {
-        ALOGV("Need to refresh playlist in %lld", maxDelayUs);
+        ALOGV("Need to refresh playlist in %" PRId64 , maxDelayUs);
         delayUs = maxDelayUs;
     }
     sp<AMessage> msg = new AMessage(kWhatMonitorQueue, id());
@@ -627,7 +628,7 @@ void PlaylistFetcher::onMonitorQueue() {
 
             int64_t bufferedStreamDurationUs =
                 mPacketSources.valueAt(i)->getBufferedDurationUs(&finalResult);
-            ALOGV("buffered %lld for stream %d",
+            ALOGV("buffered %" PRId64 " for stream %d",
                     bufferedStreamDurationUs, mPacketSources.keyAt(i));
             if (bufferedStreamDurationUs > bufferedDurationUs) {
                 bufferedDurationUs = bufferedStreamDurationUs;
@@ -640,7 +641,7 @@ void PlaylistFetcher::onMonitorQueue() {
     if (!mPrepared && bufferedDurationUs > targetDurationUs && downloadMore) {
         mPrepared = true;
 
-        ALOGV("prepared, buffered=%lld > %lld",
+        ALOGV("prepared, buffered=%" PRId64 " > %" PRId64 "",
                 bufferedDurationUs, targetDurationUs);
         sp<AMessage> msg = mNotify->dup();
         msg->setInt32("what", kWhatTemporarilyDoneFetching);
@@ -648,7 +649,7 @@ void PlaylistFetcher::onMonitorQueue() {
     }
 
     if (finalResult == OK && downloadMore) {
-        ALOGV("monitoring, buffered=%lld < %lld",
+        ALOGV("monitoring, buffered=%" PRId64 " < %" PRId64 "",
                 bufferedDurationUs, durationToBufferUs);
         // delay the next download slightly; hopefully this gives other concurrent fetchers
         // a better chance to run.
@@ -664,7 +665,7 @@ void PlaylistFetcher::onMonitorQueue() {
         msg->post();
 
         int64_t delayUs = mPrepared ? kMaxMonitorDelayUs : targetDurationUs / 2;
-        ALOGV("pausing for %lld, buffered=%lld > %lld",
+        ALOGV("pausing for %" PRId64 ", buffered=%" PRId64 " > %" PRId64 "",
                 delayUs, bufferedDurationUs, durationToBufferUs);
         // :TRICKY: need to enforce minimum delay because the delay to
         // refresh the playlist will become 0
@@ -738,7 +739,7 @@ void PlaylistFetcher::onDownloadNext() {
 
         if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
             mSeqNumber = getSeqNumberForTime(mStartTimeUs);
-            ALOGV("Initial sequence number for time %lld is %d from (%d .. %d)",
+            ALOGV("Initial sequence number for time %" PRId64 " is %d from (%d .. %d)",
                     mStartTimeUs, mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
         } else {
@@ -772,7 +773,7 @@ void PlaylistFetcher::onDownloadNext() {
                     delayUs = kMaxMonitorDelayUs;
                 }
                 ALOGV("sequence number high: %d from (%d .. %d), "
-                      "monitor in %lld (retry=%d)",
+                      "monitor in %" PRId64 " (retry=%d)",
                         mSeqNumber, firstSeqNumberInPlaylist,
                         lastSeqNumberInPlaylist, delayUs, mNumRetries);
                 postMonitorQueue(delayUs);
@@ -797,7 +798,7 @@ void PlaylistFetcher::onDownloadNext() {
             ALOGE("Cannot find sequence number %d in playlist "
                  "(contains %d - %d)",
                  mSeqNumber, firstSeqNumberInPlaylist,
-                 firstSeqNumberInPlaylist + mPlaylist->size() - 1);
+                  firstSeqNumberInPlaylist + (int32_t)mPlaylist->size() - 1);
 
             notifyError(ERROR_END_OF_STREAM);
             return;

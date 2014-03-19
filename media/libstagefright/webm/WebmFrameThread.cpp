@@ -48,7 +48,7 @@ status_t WebmFrameThread::start() {
 status_t WebmFrameThread::stop() {
     void *status;
     pthread_join(mThread, &status);
-    return (status_t) status;
+    return (status_t)(intptr_t)status;
 }
 
 //=================================================================================================

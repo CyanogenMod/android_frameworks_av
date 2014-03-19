@@ -26,6 +26,8 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/Vector.h>
 
+#include <inttypes.h>
+
 namespace android {
 
 const int64_t kNearEOSMarkUs = 2000000ll; // 2 secs
@@ -186,7 +188,7 @@ void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {
     int64_t lastQueuedTimeUs;
     CHECK(buffer->meta()->findInt64("timeUs", &lastQueuedTimeUs));
     mLastQueuedTimeUs = lastQueuedTimeUs;
-    ALOGV("queueAccessUnit timeUs=%lld us (%.2f secs)", mLastQueuedTimeUs, mLastQueuedTimeUs / 1E6);
+    ALOGV("queueAccessUnit timeUs=%" PRIi64 " us (%.2f secs)", mLastQueuedTimeUs, mLastQueuedTimeUs / 1E6);
 
     Mutex::Autolock autoLock(mLock);
     mBuffers.push_back(buffer);

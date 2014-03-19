@@ -563,7 +563,7 @@ status_t ARTPConnection::parseRTCP(StreamInfo *s, const sp<ABuffer> &buffer) {
 
             default:
             {
-                ALOGW("Unknown RTCP packet type %u of size %d",
+                ALOGW("Unknown RTCP packet type %u of size %zu",
                      (unsigned)data[1], headerLength);
                 break;
             }

@@ -119,7 +119,7 @@ int WebmElement::write(int fd, uint64_t& size) {
     off64_t mapSize = curOff - alignedOff;
     off64_t pageOff = off - alignedOff;
     void *dst = ::mmap64(NULL, mapSize, PROT_WRITE, MAP_SHARED, fd, alignedOff);
-    if ((int) dst == -1) {
+    if (dst == MAP_FAILED) {
         ALOGE("mmap64 failed; errno = %d", errno);
         ALOGE("fd %d; flags: %o", fd, ::fcntl(fd, F_GETFL, 0));
         return errno;

@@ -163,21 +163,21 @@ status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
 
     if (select) {
         if (index >= mMediaItems.size()) {
-            ALOGE("track %d does not exist", index);
+            ALOGE("track %zu does not exist", index);
             return INVALID_OPERATION;
         }
         if (mSelectedIndex == (ssize_t)index) {
-            ALOGE("track %d already selected", index);
+            ALOGE("track %zu already selected", index);
             return BAD_VALUE;
         }
-        ALOGV("selected track %d", index);
+        ALOGV("selected track %zu", index);
         mSelectedIndex = index;
     } else {
         if (mSelectedIndex != (ssize_t)index) {
-            ALOGE("track %d is not selected", index);
+            ALOGE("track %zu is not selected", index);
             return BAD_VALUE;
         }
-        ALOGV("unselected track %d", index);
+        ALOGV("unselected track %zu", index);
         mSelectedIndex = -1;
     }
 
