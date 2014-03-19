@@ -28,6 +28,4 @@ ifeq ($(TARGET_ARCH),arm)
     LOCAL_CFLAGS += -Wno-psabi
 endif
 
-LOCAL_32_BIT_ONLY := true
-
 include $(BUILD_SHARED_LIBRARY)
