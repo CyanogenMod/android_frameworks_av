@@ -94,6 +94,7 @@ static sp<MediaSource> InstantiateSoftwareEncoder(
 
 #define CODEC_LOGI(x, ...) ALOGI("[%s] "x, mComponentName, ##__VA_ARGS__)
 #define CODEC_LOGV(x, ...) ALOGV("[%s] "x, mComponentName, ##__VA_ARGS__)
+#define CODEC_LOGW(x, ...) ALOGW("[%s] "x, mComponentName, ##__VA_ARGS__)
 #define CODEC_LOGE(x, ...) ALOGE("[%s] "x, mComponentName, ##__VA_ARGS__)
 
 struct OMXCodecObserver : public BnOMXObserver {
@@ -1794,21 +1795,40 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
                 strerror(-err), -err);
         return err;
     }
+    // FIXME: assume that surface is controlled by app (native window
+    // returns the number for the case when surface is not controlled by app)
+    minUndequeuedBufs++;
 
-    // XXX: Is this the right logic to use?  It's not clear to me what the OMX
-    // buffer counts refer to - how do they account for the renderer holding on
-    // to buffers?
-    if (def.nBufferCountActual < def.nBufferCountMin + minUndequeuedBufs) {
-        OMX_U32 newBufferCount = def.nBufferCountMin + minUndequeuedBufs;
+    // Use conservative allocation while also trying to reduce starvation
+    //
+    // 1. allocate at least nBufferCountMin + minUndequeuedBuffers - that is the
+    //    minimum needed for the consumer to be able to work
+    // 2. try to allocate two (2) additional buffers to reduce starvation from
+    //    the consumer
+    CODEC_LOGI("OMX-buffers: min=%u actual=%u undeq=%d",
+            def.nBufferCountMin, def.nBufferCountActual, minUndequeuedBufs);
+
+    for (OMX_U32 extraBuffers = 2; /* condition inside loop */; extraBuffers--) {
+        OMX_U32 newBufferCount =
+            def.nBufferCountMin + minUndequeuedBufs + extraBuffers;
         def.nBufferCountActual = newBufferCount;
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
-        if (err != OK) {
-            CODEC_LOGE("setting nBufferCountActual to %lu failed: %d",
-                    newBufferCount, err);
+
+        if (err == OK) {
+            minUndequeuedBufs += extraBuffers;
+            break;
+        }
+
+        CODEC_LOGW("setting nBufferCountActual to %lu failed: %d",
+                newBufferCount, err);
+        /* exit condition */
+        if (extraBuffers == 0) {
             return err;
         }
     }
+    CODEC_LOGI("OMX-buffers: min=%u actual=%u undeq=%d",
+            def.nBufferCountMin, def.nBufferCountActual, minUndequeuedBufs);
 
     err = native_window_set_buffer_count(
             mNativeWindow.get(), def.nBufferCountActual);
