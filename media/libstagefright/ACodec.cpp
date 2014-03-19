@@ -640,8 +640,8 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
 
     // FIXME: assume that surface is controlled by app (native window
     // returns the number for the case when surface is not controlled by app)
-    (*minUndequeuedBuffers)++;
-
+    // FIXME2: This means that minUndeqeueudBufs can be 1 larger than reported
+    // For now, try to allocate 1 more buffer, but don't fail if unsuccessful
 
     // Use conservative allocation while also trying to reduce starvation
     //
@@ -649,7 +649,8 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
     //    minimum needed for the consumer to be able to work
     // 2. try to allocate two (2) additional buffers to reduce starvation from
     //    the consumer
-    for (OMX_U32 extraBuffers = 2; /* condition inside loop */; extraBuffers--) {
+    //    plus an extra buffer to account for incorrect minUndequeuedBufs
+    for (OMX_U32 extraBuffers = 2 + 1; /* condition inside loop */; extraBuffers--) {
         OMX_U32 newBufferCount =
             def.nBufferCountMin + *minUndequeuedBuffers + extraBuffers;
         def.nBufferCountActual = newBufferCount;
