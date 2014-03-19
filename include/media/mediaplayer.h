@@ -223,6 +223,7 @@ public:
             status_t        getDuration(int *msec);
             status_t        reset();
             status_t        setAudioStreamType(audio_stream_type_t type);
+            status_t        getAudioStreamType(audio_stream_type_t *type);
             status_t        setLooping(int loop);
             bool            isLooping();
             status_t        setVolume(float leftVolume, float rightVolume);
