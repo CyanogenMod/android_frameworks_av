@@ -46,7 +46,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 
 LOCAL_SHARED_LIBRARIES :=     \
-    libaudioflinger           \
+    libaudioresampler         \
     libaudioutils             \
     libbinder                 \
     libcutils                 \
@@ -80,7 +80,6 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/services/audioflinger \
     $(TOP)/frameworks/native/include/media/editor \
     $(TOP)/frameworks/native/include/media/openmax \
-    $(TOP)/frameworks/native/services/audioflinger
 
 
 LOCAL_SHARED_LIBRARIES += libdl
@@ -98,8 +97,6 @@ LOCAL_CFLAGS += -Wno-multichar \
     -DUSE_STAGEFRIGHT_VIDEOENC \
     -DUSE_STAGEFRIGHT_READERS \
     -DUSE_STAGEFRIGHT_3GPP_READER
-
-LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_SHARED_LIBRARY)
 
