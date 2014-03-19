@@ -385,6 +385,12 @@ static const char *FourCC2MIME(uint32_t fourcc) {
         case FOURCC('d', 't', 's', 'e'):
             return MEDIA_MIMETYPE_AUDIO_DTS;
 #endif
+        case FOURCC('a', 'c', '-', '3'):
+            return MEDIA_MIMETYPE_AUDIO_AC3;
+
+        case FOURCC('e', 'c', '-', '3'):
+            return MEDIA_MIMETYPE_AUDIO_EAC3;
+
         case FOURCC('m', 'p', '4', 'v'):
             return MEDIA_MIMETYPE_VIDEO_MPEG4;
 
@@ -410,11 +416,13 @@ static const char *FourCC2MIME(uint32_t fourcc) {
         case FOURCC('s', 'e', 'v', 'c'):
             return MEDIA_MIMETYPE_AUDIO_EVRC;
 
-        case FOURCC('a', 'c', '-', '3'):
-            return MEDIA_MIMETYPE_AUDIO_AC3;
+        case FOURCC('d', 't', 's', 'c'):
+        case FOURCC('d', 't', 's', 'h'):
+        case FOURCC('d', 't', 's', 'l'):
+            return MEDIA_MIMETYPE_AUDIO_DTS;
 
-        case FOURCC('e', 'c', '-', '3'):
-            return MEDIA_MIMETYPE_AUDIO_EAC3;
+        case FOURCC('d', 't', 's', 'e'):
+            return MEDIA_MIMETYPE_AUDIO_DTS_LBR;
 #endif
 
         default:
