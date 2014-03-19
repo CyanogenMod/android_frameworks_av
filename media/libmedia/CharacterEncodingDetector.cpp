@@ -90,6 +90,7 @@ void CharacterEncodingDetector::detectAndConvert() {
         char buf[1024];
         buf[0] = 0;
         int idx;
+        bool allprintable = true;
         for (int i = 0; i < size; i++) {
             const char *name = mNames.getEntry(i);
             const char *value = mValues.getEntry(i);
@@ -103,18 +104,60 @@ void CharacterEncodingDetector::detectAndConvert() {
                 strlcat(buf, value, sizeof(buf));
                 // separate tags by space so ICU's ngram detector can do its job
                 strlcat(buf, " ", sizeof(buf));
+                allprintable = false;
             }
         }
-        ucsdet_setText(csd, buf, strlen(buf), &status);
 
-        int32_t matches;
-        const UCharsetMatch** ucma = ucsdet_detectAll(csd, &matches, &status);
-        const char *combinedenc = "???";
+        const char *combinedenc = "UTF-8";
+        if (allprintable) {
+            // since 'buf' is empty, ICU would return a UTF-8 matcher with low confidence, so
+            // no need to even call it
+            ALOGV("all tags are printable, assuming ascii (%d)", strlen(buf));
+        } else {
+            ucsdet_setText(csd, buf, strlen(buf), &status);
+            int32_t matches;
+            const UCharsetMatch** ucma = ucsdet_detectAll(csd, &matches, &status);
+            bool goodmatch = true;
+            const UCharsetMatch* bestCombinedMatch = getPreferred(buf, strlen(buf),
+                    ucma, matches, &goodmatch);
 
-        const UCharsetMatch* bestCombinedMatch = getPreferred(buf, strlen(buf), ucma, matches);
+            if (!goodmatch && strlen(buf) < 20) {
+                ALOGV("not a good match, trying with more data");
+                // This string might be too short for ICU to do anything useful with.
+                // (real world example: "Björk" in ISO-8859-1 might be detected as GB18030, because
+                //  the ISO detector reports a confidence of 0, while the GB18030 detector reports
+                //  a confidence of 10 with no invalid characters)
+                // Append artist, album and title if they were previously omitted because they
+                // were printable ascii.
+                bool added = false;
+                for (int i = 0; i < size; i++) {
+                    const char *name = mNames.getEntry(i);
+                    const char *value = mValues.getEntry(i);
+                    if (isPrintableAscii(value, strlen(value)) && (
+                                !strcmp(name, "artist") ||
+                                !strcmp(name, "album") ||
+                                !strcmp(name, "title"))) {
+                        strlcat(buf, value, sizeof(buf));
+                        strlcat(buf, " ", sizeof(buf));
+                        added = true;
+                    }
+                }
+                if (added) {
+                    ucsdet_setText(csd, buf, strlen(buf), &status);
+                    ucma = ucsdet_detectAll(csd, &matches, &status);
+                    bestCombinedMatch = getPreferred(buf, strlen(buf),
+                            ucma, matches, &goodmatch);
+                    if (!goodmatch) {
+                        ALOGV("still not a good match after adding printable tags");
+                    }
+                } else {
+                    ALOGV("no printable tags to add");
+                }
+            }
 
-        if (bestCombinedMatch != NULL) {
-            combinedenc = ucsdet_getName(bestCombinedMatch, &status);
+            if (bestCombinedMatch != NULL) {
+                combinedenc = ucsdet_getName(bestCombinedMatch, &status);
+            }
         }
 
         for (int i = 0; i < size; i++) {
@@ -128,7 +171,7 @@ void CharacterEncodingDetector::detectAndConvert() {
             int32_t inputLength = strlen(s);
             const char *enc;
 
-            if (!strcmp(name, "artist") ||
+            if (!allprintable && !strcmp(name, "artist") ||
                     !strcmp(name, "albumartist") ||
                     !strcmp(name, "composer") ||
                     !strcmp(name, "genre") ||
@@ -137,15 +180,20 @@ void CharacterEncodingDetector::detectAndConvert() {
                 // use encoding determined from the combination of artist/album/title etc.
                 enc = combinedenc;
             } else {
-                ucsdet_setText(csd, s, inputLength, &status);
-                ucm = ucsdet_detect(csd, &status);
-                if (!ucm) {
-                    mValues.setEntry(i, "???");
-                    continue;
+                if (isPrintableAscii(s, inputLength)) {
+                    enc = "UTF-8";
+                    ALOGV("@@@@ %s is ascii", mNames.getEntry(i));
+                } else {
+                    ucsdet_setText(csd, s, inputLength, &status);
+                    ucm = ucsdet_detect(csd, &status);
+                    if (!ucm) {
+                        mValues.setEntry(i, "???");
+                        continue;
+                    }
+                    enc = ucsdet_getName(ucm, &status);
+                    ALOGV("@@@@ recognized charset: %s for %s confidence %d",
+                            enc, mNames.getEntry(i), ucsdet_getConfidence(ucm, &status));
                 }
-                enc = ucsdet_getName(ucm, &status);
-                ALOGV("@@@@ recognized charset: %s for %s confidence %d",
-                        enc, mNames.getEntry(i), ucsdet_getConfidence(ucm, &status));
             }
 
             if (strcmp(enc,"UTF-8") != 0) {
@@ -207,10 +255,15 @@ void CharacterEncodingDetector::detectAndConvert() {
  *   algorithm and larger frequent character lists than ICU
  * - devalue encoding where the conversion contains unlikely characters (symbols, reserved, etc)
  * - pick the highest match
+ * - signal to the caller whether this match is considered good: confidence > 15, and confidence
+ *   delta with the next runner up > 15
  */
 const UCharsetMatch *CharacterEncodingDetector::getPreferred(
-        const char *input, size_t len, const UCharsetMatch** ucma, size_t nummatches) {
+        const char *input, size_t len,
+        const UCharsetMatch** ucma, size_t nummatches,
+        bool *goodmatch) {
 
+    *goodmatch = false;
     Vector<const UCharsetMatch*> matches;
     UErrorCode status = U_ZERO_ERROR;
 
@@ -227,6 +280,10 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
         return NULL;
     }
     if (num == 1) {
+        int confidence = ucsdet_getConfidence(matches[0], &status);
+        if (confidence > 15) {
+            *goodmatch = true;
+        }
         return matches[0];
     }
 
@@ -326,15 +383,35 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
     // find match with highest confidence after adjusting for unlikely characters
     int highest = newconfidence[0];
     size_t highestidx = 0;
+    int runnerup = -10000;
+    int runnerupidx = -10000;
     num = newconfidence.size();
     for (size_t i = 1; i < num; i++) {
         if (newconfidence[i] > highest) {
+            runnerup = highest;
+            runnerupidx = highestidx;
             highest = newconfidence[i];
             highestidx = i;
+        } else if (newconfidence[i] > runnerup){
+            runnerup = newconfidence[i];
+            runnerupidx = i;
         }
     }
     status = U_ZERO_ERROR;
-    ALOGV("selecting '%s' w/ %d confidence", ucsdet_getName(matches[highestidx], &status), highest);
+    ALOGV("selecting: '%s' w/ %d confidence",
+            ucsdet_getName(matches[highestidx], &status), highest);
+    if (runnerupidx < 0) {
+        ALOGV("no runner up");
+        if (highest > 15) {
+            *goodmatch = true;
+        }
+    } else {
+        ALOGV("runner up: '%s' w/ %d confidence",
+                ucsdet_getName(matches[runnerupidx], &status), runnerup);
+        if ((highest - runnerup) > 15) {
+            *goodmatch = true;
+        }
+    }
     return matches[highestidx];
 }
 
