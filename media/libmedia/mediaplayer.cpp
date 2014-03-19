@@ -531,6 +531,14 @@ status_t MediaPlayer::setAudioStreamType(audio_stream_type_t type)
     return OK;
 }
 
+status_t MediaPlayer::getAudioStreamType(audio_stream_type_t *type)
+{
+    ALOGV("getAudioStreamType");
+    Mutex::Autolock _l(mLock);
+    *type = mStreamType;
+    return OK;
+}
+
 status_t MediaPlayer::setLooping(int loop)
 {
     ALOGV("MediaPlayer::setLooping");
