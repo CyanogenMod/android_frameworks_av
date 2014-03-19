@@ -53,7 +53,7 @@ LOCAL_SRC_FILES:=          \
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_SHARED_LIBRARIES :=       \
-    libaudioflinger             \
+    libaudioresampler           \
     libaudioutils               \
     libbinder                   \
     libcutils                   \
@@ -81,7 +81,6 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/libvideoeditor/vss/stagefrightshells/inc \
     $(TOP)/frameworks/av/services/audioflinger \
     $(TOP)/frameworks/native/include/media/openmax \
-    $(TOP)/frameworks/native/services/audioflinger \
     $(TOP)/system/media/audio_effects/include \
     $(TOP)/system/media/audio_utils/include
 
@@ -95,7 +94,5 @@ LOCAL_LDLIBS := \
 LOCAL_CFLAGS += -Wno-multichar \
     -DM4xVSS_RESERVED_MOOV_DISK_SPACEno \
     -DDECODE_GIF_ON_SAVING
-
-LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_SHARED_LIBRARY)

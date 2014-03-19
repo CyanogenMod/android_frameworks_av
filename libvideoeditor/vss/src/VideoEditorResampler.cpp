@@ -17,7 +17,7 @@
 #define LOG_NDEBUG 1
 #include <audio_utils/primitives.h>
 #include <utils/Log.h>
-#include "AudioMixer.h"
+#include "AudioResampler.h"
 #include "VideoEditorResampler.h"
 
 namespace android {
