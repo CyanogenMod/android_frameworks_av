@@ -19,11 +19,8 @@ LOCAL_SRC_FILES:=               \
     Tracks.cpp                  \
     Effects.cpp                 \
     AudioMixer.cpp.arm          \
-    AudioResampler.cpp.arm      \
     AudioPolicyService.cpp      \
     ServiceUtilities.cpp        \
-    AudioResamplerCubic.cpp.arm \
-    AudioResamplerSinc.cpp.arm
 
 LOCAL_SRC_FILES += StateQueue.cpp
 
@@ -32,6 +29,7 @@ LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-utils)
 
 LOCAL_SHARED_LIBRARIES := \
+    libaudioresampler \
     libaudioutils \
     libcommon_time_client \
     libcutils \
@@ -43,7 +41,6 @@ LOCAL_SHARED_LIBRARIES := \
     libhardware \
     libhardware_legacy \
     libeffects \
-    libdl \
     libpowermanager
 
 LOCAL_STATIC_LIBRARIES := \
@@ -76,20 +73,30 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
 	test-resample.cpp 			\
-    AudioResampler.cpp.arm      \
-	AudioResamplerCubic.cpp.arm \
-    AudioResamplerSinc.cpp.arm
 
 LOCAL_SHARED_LIBRARIES := \
-    libdl \
-    libcutils \
-    libutils \
-    liblog
+    libaudioresampler \
 
 LOCAL_MODULE:= test-resample
 
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \
+    AudioResampler.cpp.arm \
+    AudioResamplerCubic.cpp.arm \
+    AudioResamplerSinc.cpp.arm
+
+LOCAL_SHARED_LIBRARIES := \
+    libcutils \
+    libdl \
+    liblog
+
+LOCAL_MODULE := libaudioresampler
+
+include $(BUILD_SHARED_LIBRARY)
 
 include $(call all-makefiles-under,$(LOCAL_PATH))
