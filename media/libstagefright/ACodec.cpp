@@ -640,18 +640,33 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
-    // XXX: Is this the right logic to use?  It's not clear to me what the OMX
-    // buffer counts refer to - how do they account for the renderer holding on
-    // to buffers?
-    if (def.nBufferCountActual < def.nBufferCountMin + *minUndequeuedBuffers) {
-        OMX_U32 newBufferCount = def.nBufferCountMin + *minUndequeuedBuffers;
+    // FIXME: assume that surface is controlled by app (native window
+    // returns the number for the case when surface is not controlled by app)
+    (*minUndequeuedBuffers)++;
+
+
+    // Use conservative allocation while also trying to reduce starvation
+    //
+    // 1. allocate at least nBufferCountMin + minUndequeuedBuffers - that is the
+    //    minimum needed for the consumer to be able to work
+    // 2. try to allocate two (2) additional buffers to reduce starvation from
+    //    the consumer
+    for (OMX_U32 extraBuffers = 2; /* condition inside loop */; extraBuffers--) {
+        OMX_U32 newBufferCount =
+            def.nBufferCountMin + *minUndequeuedBuffers + extraBuffers;
         def.nBufferCountActual = newBufferCount;
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
-        if (err != OK) {
-            ALOGE("[%s] setting nBufferCountActual to %lu failed: %d",
-                    mComponentName.c_str(), newBufferCount, err);
+        if (err == OK) {
+            *minUndequeuedBuffers += extraBuffers;
+            break;
+        }
+
+        ALOGW("[%s] setting nBufferCountActual to %lu failed: %d",
+                mComponentName.c_str(), newBufferCount, err);
+        /* exit condition */
+        if (extraBuffers == 0) {
             return err;
         }
     }
@@ -676,6 +691,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
             &bufferCount, &bufferSize, &minUndequeuedBuffers);
     if (err != 0)
         return err;
+    mNumUndequeuedBuffers = minUndequeuedBuffers;
 
     ALOGV("[%s] Allocating %lu buffers from a native window of size %lu on "
          "output port",
@@ -741,6 +757,7 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
             &bufferCount, &bufferSize, &minUndequeuedBuffers);
     if (err != 0)
         return err;
+    mNumUndequeuedBuffers = minUndequeuedBuffers;
 
     ALOGV("[%s] Allocating %lu meta buffers on output port",
          mComponentName.c_str(), bufferCount);
@@ -2482,19 +2499,7 @@ void ACodec::waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs() {
         return;
     }
 
-    int minUndequeuedBufs = 0;
-    status_t err = mNativeWindow->query(
-            mNativeWindow.get(), NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
-            &minUndequeuedBufs);
-
-    if (err != OK) {
-        ALOGE("[%s] NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d)",
-                mComponentName.c_str(), strerror(-err), -err);
-
-        minUndequeuedBufs = 0;
-    }
-
-    while (countBuffersOwnedByNativeWindow() > (size_t)minUndequeuedBufs
+    while (countBuffersOwnedByNativeWindow() > mNumUndequeuedBuffers
             && dequeueBufferFromNativeWindow() != NULL) {
         // these buffers will be submitted as regular buffers; account for this
         if (mStoreMetaDataInOutputBuffers && mMetaDataBuffersToSubmit > 0) {
