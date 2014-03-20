@@ -194,11 +194,6 @@ ifeq ($(TARGET_QCOM_LEGACY_OMX),true)
     LOCAL_CFLAGS += -DQCOM_LEGACY_OMX
 endif
 
-ifeq ($(TARGET_QCOM_LEGACY_MMPARSER),true)
-    LOCAL_CFLAGS += -DQCOM_LEGACY_MMPARSER
-    LOCAL_SRC_FILES += ExtendedMediaDefs.cpp
-endif
-
 ifeq ($(TARGET_USES_ION),true)
     LOCAL_CFLAGS += -DUSE_ION
 endif
