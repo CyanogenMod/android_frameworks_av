@@ -130,15 +130,14 @@ private:
     // Target bitrate set for the encoder, in bits per second.
     uint32_t mBitrate;
 
+    // Target framerate set for the encoder.
+    uint32_t mFramerate;
+
     // If a request for a change it bitrate has been received.
     bool mBitrateUpdated;
 
     // Bitrate control mode, either constant or variable
     vpx_rc_mode mBitrateControlMode;
-
-    // Frame duration is the reciprocal of framerate, denoted
-    // in microseconds
-    uint64_t mFrameDurationUs;
 
     // vp8 specific configuration parameter
     // that enables token partitioning of

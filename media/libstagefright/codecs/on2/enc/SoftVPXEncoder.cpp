@@ -141,9 +141,9 @@ SoftVPXEncoder::SoftVPXEncoder(const char *name,
       mWidth(176),
       mHeight(144),
       mBitrate(192000),  // in bps
+      mFramerate(30 << 16), // in Q16 format
       mBitrateUpdated(false),
       mBitrateControlMode(VPX_VBR),  // variable bitrate
-      mFrameDurationUs(33333),  // Defaults to 30 fps
       mDCTPartitions(0),
       mErrorResilience(OMX_FALSE),
       mColorFormat(OMX_COLOR_FormatYUV420Planar),
@@ -180,9 +180,8 @@ void SoftVPXEncoder::initPorts() {
     inputPort.format.video.nStride = inputPort.format.video.nFrameWidth;
     inputPort.format.video.nSliceHeight = inputPort.format.video.nFrameHeight;
     inputPort.format.video.nBitrate = 0;
-    // frameRate is reciprocal of frameDuration, which is
-    // in microseconds. It is also in Q16 format.
-    inputPort.format.video.xFramerate = (1000000/mFrameDurationUs) << 16;
+    // frameRate is in Q16 format.
+    inputPort.format.video.xFramerate = mFramerate;
     inputPort.format.video.bFlagErrorConcealment = OMX_FALSE;
     inputPort.nPortIndex = kInputPortIndex;
     inputPort.eDir = OMX_DirInput;
@@ -220,7 +219,7 @@ void SoftVPXEncoder::initPorts() {
     outputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingVP8;
     outputPort.format.video.eColorFormat = OMX_COLOR_FormatUnused;
     outputPort.format.video.pNativeWindow = NULL;
-    outputPort.nBufferSize = 256 * 1024;  // arbitrary
+    outputPort.nBufferSize = 1024 * 1024; // arbitrary
 
     addPort(outputPort);
 }
@@ -277,8 +276,39 @@ status_t SoftVPXEncoder::initEncoder() {
     mCodecConfiguration->g_timebase.num = 1;
     mCodecConfiguration->g_timebase.den = 1000000;
     // rc_target_bitrate is in kbps, mBitrate in bps
-    mCodecConfiguration->rc_target_bitrate = mBitrate/1000;
+    mCodecConfiguration->rc_target_bitrate = mBitrate / 1000;
     mCodecConfiguration->rc_end_usage = mBitrateControlMode;
+    // Disable frame drop - not allowed in MediaCodec now.
+    mCodecConfiguration->rc_dropframe_thresh = 0;
+    if (mBitrateControlMode == VPX_CBR) {
+        // Disable spatial resizing.
+        mCodecConfiguration->rc_resize_allowed = 0;
+        // Single-pass mode.
+        mCodecConfiguration->g_pass = VPX_RC_ONE_PASS;
+        // Minimum quantization level.
+        mCodecConfiguration->rc_min_quantizer = 2;
+        // Maximum quantization level.
+        mCodecConfiguration->rc_max_quantizer = 63;
+        // Maximum amount of bits that can be subtracted from the target
+        // bitrate - expressed as percentage of the target bitrate.
+        mCodecConfiguration->rc_undershoot_pct = 100;
+        // Maximum amount of bits that can be added to the target
+        // bitrate - expressed as percentage of the target bitrate.
+        mCodecConfiguration->rc_overshoot_pct = 15;
+        // Initial value of the buffer level in ms.
+        mCodecConfiguration->rc_buf_initial_sz = 500;
+        // Amount of data that the encoder should try to maintain in ms.
+        mCodecConfiguration->rc_buf_optimal_sz = 600;
+        // The amount of data that may be buffered by the decoding
+        // application in ms.
+        mCodecConfiguration->rc_buf_sz = 1000;
+        // Enable error resilience - needed for packet loss.
+        mCodecConfiguration->g_error_resilient = 1;
+        // Disable lagged encoding.
+        mCodecConfiguration->g_lag_in_frames = 0;
+        // Encoder determines optimal key frame placement automatically.
+        mCodecConfiguration->kf_mode = VPX_KF_AUTO;
+    }
 
     codec_return = vpx_codec_enc_init(mCodecContext,
                                       mCodecInterface,
@@ -296,6 +326,33 @@ status_t SoftVPXEncoder::initEncoder() {
     if (codec_return != VPX_CODEC_OK) {
         ALOGE("Error setting dct partitions for vpx encoder.");
         return UNKNOWN_ERROR;
+    }
+
+    // Extra CBR settings
+    if (mBitrateControlMode == VPX_CBR) {
+        codec_return = vpx_codec_control(mCodecContext,
+                                         VP8E_SET_STATIC_THRESHOLD,
+                                         1);
+        if (codec_return == VPX_CODEC_OK) {
+            uint32_t rc_max_intra_target =
+                mCodecConfiguration->rc_buf_optimal_sz * (mFramerate >> 17) / 10;
+            // Don't go below 3 times per frame bandwidth.
+            if (rc_max_intra_target < 300) {
+                rc_max_intra_target = 300;
+            }
+            codec_return = vpx_codec_control(mCodecContext,
+                                             VP8E_SET_MAX_INTRA_BITRATE_PCT,
+                                             rc_max_intra_target);
+        }
+        if (codec_return == VPX_CODEC_OK) {
+            codec_return = vpx_codec_control(mCodecContext,
+                                             VP8E_SET_CPUUSED,
+                                             -8);
+        }
+        if (codec_return != VPX_CODEC_OK) {
+            ALOGE("Error setting cbr parameters for vpx encoder.");
+            return UNKNOWN_ERROR;
+        }
     }
 
     if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar || mInputDataIsMeta) {
@@ -361,9 +418,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
                 }
 
                 formatParams->eCompressionFormat = OMX_VIDEO_CodingUnused;
-                // Converting from microseconds
-                // Also converting to Q16 format
-                formatParams->xFramerate = (1000000/mFrameDurationUs) << 16;
+                formatParams->xFramerate = mFramerate;
                 return OMX_ErrorNone;
             } else if (formatParams->nPortIndex == kOutputPortIndex) {
                 formatParams->eCompressionFormat = OMX_VIDEO_CodingVP8;
@@ -660,9 +715,7 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetPortParams(
         mHeight = port->format.video.nFrameHeight;
 
         // xFramerate comes in Q16 format, in frames per second unit
-        const uint32_t framerate = port->format.video.xFramerate >> 16;
-        // frame duration is in microseconds
-        mFrameDurationUs = (1000000/framerate);
+        mFramerate = port->format.video.xFramerate;
 
         if (port->format.video.eColorFormat == OMX_COLOR_FormatYUV420Planar ||
             port->format.video.eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar ||
@@ -684,6 +737,13 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetPortParams(
         return OMX_ErrorNone;
     } else if (port->nPortIndex == kOutputPortIndex) {
         mBitrate = port->format.video.nBitrate;
+        mWidth = port->format.video.nFrameWidth;
+        mHeight = port->format.video.nFrameHeight;
+
+        OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kOutputPortIndex)->mDef;
+        def->format.video.nFrameWidth = mWidth;
+        def->format.video.nFrameHeight = mHeight;
+        def->format.video.nBitrate = mBitrate;
         return OMX_ErrorNone;
     } else {
         return OMX_ErrorBadPortIndex;
@@ -814,11 +874,12 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
             mBitrateUpdated = false;
         }
 
+        uint32_t frameDuration = (uint32_t)(((uint64_t)1000000 << 16) / mFramerate);
         codec_return = vpx_codec_encode(
                 mCodecContext,
                 &raw_frame,
                 inputBufferHeader->nTimeStamp,  // in timebase units
-                mFrameDurationUs,  // frame duration in timebase units
+                frameDuration,  // frame duration in timebase units
                 flags,  // frame flags
                 VPX_DL_REALTIME);  // encoding deadline
         if (codec_return != VPX_CODEC_OK) {
