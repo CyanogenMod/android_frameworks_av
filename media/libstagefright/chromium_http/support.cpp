@@ -34,7 +34,8 @@
 #include "net/proxy/proxy_config_service_android.h"
 
 #include "include/ChromiumHTTPDataSource.h"
-
+#include <arpa/inet.h>
+#include <binder/Parcel.h>
 #include <cutils/log.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
