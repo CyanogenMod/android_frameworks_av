@@ -3,9 +3,21 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-    AudioPolicyService.cpp \
+    AudioPolicyService.cpp
+
+USE_LEGACY_AUDIO_POLICY = 1
+ifeq ($(USE_LEGACY_AUDIO_POLICY), 1)
+LOCAL_SRC_FILES += \
+    AudioPolicyInterfaceImplLegacy.cpp \
+    AudioPolicyClientImplLegacy.cpp
+
+    LOCAL_CFLAGS += -DUSE_LEGACY_AUDIO_POLICY
+else
+LOCAL_SRC_FILES += \
     AudioPolicyInterfaceImpl.cpp \
-    AudioPolicyClientImpl.cpp
+    AudioPolicyClientImpl.cpp \
+    AudioPolicyManager.cpp
+endif
 
 LOCAL_C_INCLUDES := \
     $(TOPDIR)frameworks/av/services/audioflinger \

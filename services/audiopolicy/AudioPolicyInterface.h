@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_AUDIOPOLICYINTERFACE_H
-#define ANDROID_AUDIOPOLICYINTERFACE_H
+#ifndef ANDROID_AUDIOPOLICY_INTERFACE_H
+#define ANDROID_AUDIOPOLICY_INTERFACE_H
 
 #include <media/AudioSystem.h>
 #include <utils/String8.h>
@@ -254,4 +254,4 @@ extern "C" void destroyAudioPolicyManager(AudioPolicyInterface *interface);
 
 }; // namespace android
 
-#endif // ANDROID_AUDIOPOLICYINTERFACE_H
+#endif // ANDROID_AUDIOPOLICY_INTERFACE_H

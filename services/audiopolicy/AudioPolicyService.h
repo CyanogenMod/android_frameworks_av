@@ -30,6 +30,8 @@
 #include <media/IAudioPolicyService.h>
 #include <media/ToneGenerator.h>
 #include <media/AudioEffect.h>
+#include <hardware_legacy/AudioPolicyInterface.h>
+#include "AudioPolicyManager.h"
 
 namespace android {
 
@@ -38,7 +40,6 @@ namespace android {
 class AudioPolicyService :
     public BinderService<AudioPolicyService>,
     public BnAudioPolicyService,
-//    public AudioPolicyClientInterface,
     public IBinder::DeathRecipient
 {
     friend class BinderService<AudioPolicyService>;
@@ -313,6 +314,91 @@ private:
         Vector< sp<AudioEffect> >mEffects;
     };
 
+    class AudioPolicyClient : public AudioPolicyClientInterface
+    {
+     public:
+        AudioPolicyClient(AudioPolicyService *service) : mAudioPolicyService(service) {}
+        virtual ~AudioPolicyClient() {}
+
+        //
+        // Audio HW module functions
+        //
+
+        // loads a HW module.
+        virtual audio_module_handle_t loadHwModule(const char *name);
+
+        //
+        // Audio output Control functions
+        //
+
+        // opens an audio output with the requested parameters. The parameter values can indicate to use the default values
+        // in case the audio policy manager has no specific requirements for the output being opened.
+        // When the function returns, the parameter values reflect the actual values used by the audio hardware output stream.
+        // The audio policy manager can check if the proposed parameters are suitable or not and act accordingly.
+        virtual audio_io_handle_t openOutput(audio_module_handle_t module,
+                                             audio_devices_t *pDevices,
+                                             uint32_t *pSamplingRate,
+                                             audio_format_t *pFormat,
+                                             audio_channel_mask_t *pChannelMask,
+                                             uint32_t *pLatencyMs,
+                                             audio_output_flags_t flags,
+                                             const audio_offload_info_t *offloadInfo = NULL);
+        // creates a special output that is duplicated to the two outputs passed as arguments. The duplication is performed by
+        // a special mixer thread in the AudioFlinger.
+        virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1, audio_io_handle_t output2);
+        // closes the output stream
+        virtual status_t closeOutput(audio_io_handle_t output);
+        // suspends the output. When an output is suspended, the corresponding audio hardware output stream is placed in
+        // standby and the AudioTracks attached to the mixer thread are still processed but the output mix is discarded.
+        virtual status_t suspendOutput(audio_io_handle_t output);
+        // restores a suspended output.
+        virtual status_t restoreOutput(audio_io_handle_t output);
+
+        //
+        // Audio input Control functions
+        //
+
+        // opens an audio input
+        virtual audio_io_handle_t openInput(audio_module_handle_t module,
+                                            audio_devices_t *pDevices,
+                                            uint32_t *pSamplingRate,
+                                            audio_format_t *pFormat,
+                                            audio_channel_mask_t *pChannelMask);
+        // closes an audio input
+        virtual status_t closeInput(audio_io_handle_t input);
+        //
+        // misc control functions
+        //
+
+        // set a stream volume for a particular output. For the same user setting, a given stream type can have different volumes
+        // for each output (destination device) it is attached to.
+        virtual status_t setStreamVolume(audio_stream_type_t stream, float volume, audio_io_handle_t output, int delayMs = 0);
+
+        // invalidate a stream type, causing a reroute to an unspecified new output
+        virtual status_t invalidateStream(audio_stream_type_t stream);
+
+        // function enabling to send proprietary informations directly from audio policy manager to audio hardware interface.
+        virtual void setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs, int delayMs = 0);
+        // function enabling to receive proprietary informations directly from audio hardware interface to audio policy manager.
+        virtual String8 getParameters(audio_io_handle_t ioHandle, const String8& keys);
+
+        // request the playback of a tone on the specified stream: used for instance to replace notification sounds when playing
+        // over a telephony device during a phone call.
+        virtual status_t startTone(audio_policy_tone_t tone, audio_stream_type_t stream);
+        virtual status_t stopTone();
+
+        // set down link audio volume.
+        virtual status_t setVoiceVolume(float volume, int delayMs = 0);
+
+        // move effect to the specified output
+        virtual status_t moveEffects(int session,
+                                         audio_io_handle_t srcOutput,
+                                         audio_io_handle_t dstOutput);
+
+     private:
+        AudioPolicyService *mAudioPolicyService;
+    };
+
     static const char * const kInputSourceNames[AUDIO_SOURCE_CNT -1];
 
     void setPreProcessorEnabled(const InputDesc *inputDesc, bool enabled);
@@ -344,6 +430,9 @@ private:
     sp<AudioCommandThread> mOutputCommandThread;    // process stop and release output
     struct audio_policy_device *mpAudioPolicyDev;
     struct audio_policy *mpAudioPolicy;
+    AudioPolicyManager *mAudioPolicyManager;
+    AudioPolicyClient *mAudioPolicyClient;
+
     KeyedVector< audio_source_t, InputSourceDesc* > mInputSources;
     KeyedVector< audio_io_handle_t, InputDesc* > mInputs;
 };
