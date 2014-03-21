@@ -37,6 +37,8 @@
     "%s: " fmt, __FUNCTION__,                    \
     ##__VA_ARGS__)
 
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <utils/Timers.h>
@@ -345,7 +347,7 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     } else {
         for (size_t i = 0; i < mInFlightMap.size(); i++) {
             InFlightRequest r = mInFlightMap.valueAt(i);
-            lines.appendFormat("      Frame %d |  Timestamp: %lld, metadata"
+            lines.appendFormat("      Frame %d |  Timestamp: %" PRId64 ", metadata"
                     " arrived: %s, buffers left: %d\n", mInFlightMap.keyAt(i),
                     r.captureTimestamp, r.haveResultMetadata ? "true" : "false",
                     r.numBuffersLeft);
@@ -676,7 +678,7 @@ status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
-    ALOGV("Camera %d: Creating new stream %d: %d x %d, format %d, size %d",
+    ALOGV("Camera %d: Creating new stream %d: %d x %d, format %d, size %zu",
             mId, mNextStreamId, width, height, format, size);
 
     status_t res;
@@ -1018,7 +1020,7 @@ status_t Camera3Device::waitForNextFrame(nsecs_t timeout) {
         if (res == TIMED_OUT) {
             return res;
         } else if (res != OK) {
-            ALOGW("%s: Camera %d: No frame in %lld ns: %s (%d)",
+            ALOGW("%s: Camera %d: No frame in %" PRId64 " ns: %s (%d)",
                     __FUNCTION__, mId, timeout, strerror(-res), res);
             return res;
         }
@@ -1673,7 +1675,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         // Sanity check - if we have too many in-flight frames, something has
         // likely gone wrong
         if (mInFlightMap.size() > kInFlightWarnLimit) {
-            CLOGE("In-flight list too large: %d", mInFlightMap.size());
+            CLOGE("In-flight list too large: %zu", mInFlightMap.size());
         }
 
     }
@@ -1723,7 +1725,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             gotResult = false;
         } else if (timestamp != entry.data.i64[0]) {
             SET_ERR("Timestamp mismatch between shutter notify and result"
-                    " metadata for frame %d (%lld vs %lld respectively)",
+                    " metadata for frame %d (%" PRId64 " vs %" PRId64 " respectively)",
                     frameNumber, timestamp, entry.data.i64[0]);
             gotResult = false;
         }
@@ -1745,7 +1747,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         // Note: stream may be deallocated at this point, if this buffer was the
         // last reference to it.
         if (res != OK) {
-            ALOGE("Can't return buffer %d for frame %d to its stream: "
+            ALOGE("Can't return buffer %zu for frame %d to its stream: "
                     " %s (%d)", i, frameNumber, strerror(-res), res);
         }
     }
@@ -1835,7 +1837,7 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                         frameNumber);
                 break;
             }
-            ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %lld",
+            ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
                     mId, __FUNCTION__, frameNumber, requestId, timestamp);
             // Call listener, if any
             if (listener != NULL) {

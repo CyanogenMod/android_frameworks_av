@@ -183,7 +183,7 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
             item++;
         }
     }
-    ALOGV("Got %d range listeners out of %d", listeners.size(), mRangeListeners.size());
+    ALOGV("Got %zu range listeners out of %zu", listeners.size(), mRangeListeners.size());
     List<sp<FilteredListener> >::iterator item = listeners.begin();
     for (; item != listeners.end(); item++) {
         (*item)->onFrameAvailable(requestId, frame);

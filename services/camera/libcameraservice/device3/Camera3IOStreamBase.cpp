@@ -18,8 +18,7 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
-// This is needed for stdint.h to define INT64_MAX in C++
-#define __STDC_LIMIT_MACROS
+#include <inttypes.h>
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
@@ -54,8 +53,8 @@ Camera3IOStreamBase::~Camera3IOStreamBase() {
 
 bool Camera3IOStreamBase::hasOutstandingBuffersLocked() const {
     nsecs_t signalTime = mCombinedFence->getSignalTime();
-    ALOGV("%s: Stream %d: Has %d outstanding buffers,"
-            " buffer signal time is %lld",
+    ALOGV("%s: Stream %d: Has %zu outstanding buffers,"
+            " buffer signal time is %" PRId64,
             __FUNCTION__, mId, mDequeuedBufferCount, signalTime);
     if (mDequeuedBufferCount > 0 || signalTime == INT64_MAX) {
         return true;
@@ -73,7 +72,7 @@ void Camera3IOStreamBase::dump(int fd, const Vector<String16> &args) const {
     lines.appendFormat("      Max size: %zu\n", mMaxSize);
     lines.appendFormat("      Usage: %d, max HAL buffers: %d\n",
             camera3_stream::usage, camera3_stream::max_buffers);
-    lines.appendFormat("      Frames produced: %d, last timestamp: %lld ns\n",
+    lines.appendFormat("      Frames produced: %d, last timestamp: %" PRId64 " ns\n",
             mFrameCount, mLastTimestamp);
     lines.appendFormat("      Total buffers: %zu, currently dequeued: %zu\n",
             mTotalBufferCount, mDequeuedBufferCount);
@@ -119,7 +118,7 @@ status_t Camera3IOStreamBase::disconnectLocked() {
     }
 
     if (mDequeuedBufferCount > 0) {
-        ALOGE("%s: Can't disconnect with %d buffers still dequeued!",
+        ALOGE("%s: Can't disconnect with %zu buffers still dequeued!",
                 __FUNCTION__, mDequeuedBufferCount);
         return INVALID_OPERATION;
     }

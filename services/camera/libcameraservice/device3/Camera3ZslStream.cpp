@@ -18,6 +18,8 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include "Camera3ZslStream.h"
@@ -297,7 +299,7 @@ status_t Camera3ZslStream::enqueueInputBufferByTimestamp(
 
     if (actual != timestamp) {
         ALOGW("%s: ZSL buffer candidate search didn't find an exact match --"
-              " requested timestamp = %lld, actual timestamp = %lld",
+              " requested timestamp = %" PRId64 ", actual timestamp = %" PRId64,
               __FUNCTION__, timestamp, actual);
     }
 
