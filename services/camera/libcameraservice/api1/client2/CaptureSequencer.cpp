@@ -18,6 +18,8 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <utils/Vector.h>
@@ -585,8 +587,8 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
             ALOGE("No timestamp field in capture frame!");
         }
         if (entry.data.i64[0] != mCaptureTimestamp) {
-            ALOGW("Mismatched capture timestamps: Metadata frame %lld,"
-                    " captured buffer %lld",
+            ALOGW("Mismatched capture timestamps: Metadata frame %" PRId64 ","
+                    " captured buffer %" PRId64,
                     entry.data.i64[0],
                     mCaptureTimestamp);
         }

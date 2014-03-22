@@ -196,7 +196,7 @@ void CameraService::onDeviceStatusChanged(int cameraId,
              */
         }
 
-        ALOGV("%s: After unplug, disconnected %d clients",
+        ALOGV("%s: After unplug, disconnected %zu clients",
               __FUNCTION__, clientsToDisconnect.size());
     }
 

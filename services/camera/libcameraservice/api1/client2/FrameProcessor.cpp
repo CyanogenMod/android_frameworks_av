@@ -168,7 +168,7 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
                 continue;
             }
             if (faceScores[i] > 100) {
-                ALOGW("%s: Face index %d with out of range score %d",
+                ALOGW("%s: Face index %zu with out of range score %d",
                         __FUNCTION__, i, faceScores[i]);
             }
 

@@ -18,6 +18,8 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -236,7 +238,7 @@ void Camera2ClientBase<TClientBase>::notifyShutter(int requestId,
     (void)requestId;
     (void)timestamp;
 
-    ALOGV("%s: Shutter notification for request id %d at time %lld",
+    ALOGV("%s: Shutter notification for request id %d at time %" PRId64,
             __FUNCTION__, requestId, timestamp);
 }
 

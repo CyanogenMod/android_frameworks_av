@@ -241,7 +241,7 @@ status_t JpegProcessor::processNewCapture() {
         size_t heapSize = mCaptureHeap->getSize();
         if (jpegSize > heapSize) {
             ALOGW("%s: JPEG image is larger than expected, truncating "
-                    "(got %d, expected at most %d bytes)",
+                    "(got %zu, expected at most %zu bytes)",
                     __FUNCTION__, jpegSize, heapSize);
             jpegSize = heapSize;
         }
@@ -335,13 +335,13 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer, size_t maxSize) {
             size_t offset = size - MARKER_LENGTH;
             uint8_t *end = jpegBuffer + offset;
             if (checkJpegStart(jpegBuffer) && checkJpegEnd(end)) {
-                ALOGV("Found JPEG transport header, img size %d", size);
+                ALOGV("Found JPEG transport header, img size %zu", size);
                 return size;
             } else {
                 ALOGW("Found JPEG transport header with bad Image Start/End");
             }
         } else {
-            ALOGW("Found JPEG transport header with bad size %d", size);
+            ALOGW("Found JPEG transport header with bad size %zu", size);
         }
     }
 
@@ -357,15 +357,15 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer, size_t maxSize) {
         segment_t *segment = (segment_t*)(jpegBuffer + size);
         uint8_t type = checkJpegMarker(segment->marker);
         if (type == 0) { // invalid marker, no more segments, begin JPEG data
-            ALOGV("JPEG stream found beginning at offset %d", size);
+            ALOGV("JPEG stream found beginning at offset %zu", size);
             break;
         }
         if (type == EOI || size > maxSize - sizeof(segment_t)) {
-            ALOGE("Got premature End before JPEG data, offset %d", size);
+            ALOGE("Got premature End before JPEG data, offset %zu", size);
             return 0;
         }
         size_t length = ntohs(segment->length);
-        ALOGV("JFIF Segment, type %x length %x", type, length);
+        ALOGV("JFIF Segment, type %x length %zx", type, length);
         size += length + MARKER_LENGTH;
     }
 
@@ -385,10 +385,10 @@ size_t JpegProcessor::findJpegSize(uint8_t* jpegBuffer, size_t maxSize) {
     }
 
     if (size > maxSize) {
-        ALOGW("JPEG size %d too large, reducing to maxSize %d", size, maxSize);
+        ALOGW("JPEG size %zu too large, reducing to maxSize %zu", size, maxSize);
         size = maxSize;
     }
-    ALOGV("Final JPEG size %d", size);
+    ALOGV("Final JPEG size %zu", size);
     return size;
 }
 

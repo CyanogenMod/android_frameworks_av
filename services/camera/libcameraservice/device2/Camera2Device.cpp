@@ -1001,7 +1001,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
         return BAD_VALUE;
     }
 
-    ALOGV("%s: New stream parameters %d x %d, format 0x%x, size %d",
+    ALOGV("%s: New stream parameters %d x %d, format 0x%x, size %zu",
             __FUNCTION__, width, height, format, size);
 
     mConsumerInterface = consumer;
@@ -1073,7 +1073,7 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
                 mSize, 1, mFormat);
         if (res != OK) {
             ALOGE("%s: Unable to configure compressed stream buffer geometry"
-                    " %d x %d, size %d for stream %d",
+                    " %d x %d, size %zu for stream %d",
                     __FUNCTION__, mWidth, mHeight, mSize, mId);
             return res;
         }
