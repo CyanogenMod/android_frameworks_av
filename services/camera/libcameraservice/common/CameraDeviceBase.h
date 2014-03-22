@@ -22,6 +22,7 @@
 #include <utils/String16.h>
 #include <utils/Vector.h>
 #include <utils/Timers.h>
+#include <utils/List.h>
 
 #include "hardware/camera2.h"
 #include "camera/CameraMetadata.h"
@@ -58,10 +59,20 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t capture(CameraMetadata &request) = 0;
 
     /**
+     * Submit a list of requests.
+     */
+    virtual status_t captureList(const List<const CameraMetadata> &requests) = 0;
+
+    /**
      * Submit request for streaming. The CameraDevice makes a copy of the
      * passed-in buffer and the caller retains ownership.
      */
     virtual status_t setStreamingRequest(const CameraMetadata &request) = 0;
+
+    /**
+     * Submit a list of requests for streaming.
+     */
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests) = 0;
 
     /**
      * Clear the streaming request slot.

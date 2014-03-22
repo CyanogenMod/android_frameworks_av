@@ -207,12 +207,24 @@ status_t Camera2Device::capture(CameraMetadata &request) {
     return OK;
 }
 
+status_t Camera2Device::captureList(const List<const CameraMetadata> &requests) {
+    ATRACE_CALL();
+    ALOGE("%s: Camera2Device burst capture not implemented", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
 
 status_t Camera2Device::setStreamingRequest(const CameraMetadata &request) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     CameraMetadata streamRequest(request);
     return mRequestQueue.setStreamSlot(streamRequest.release());
+}
+
+status_t Camera2Device::setStreamingRequestList(const List<const CameraMetadata> &requests) {
+    ATRACE_CALL();
+    ALOGE("%s, Camera2Device streaming burst not implemented", __FUNCTION__);
+    return INVALID_OPERATION;
 }
 
 status_t Camera2Device::clearStreamingRequest() {

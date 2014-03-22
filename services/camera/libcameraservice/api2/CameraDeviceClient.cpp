@@ -159,7 +159,7 @@ status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
 
     int32_t requestId = mRequestIdCounter++;
     metadata.update(ANDROID_REQUEST_ID, &requestId, /*size*/1);
-    ALOGV("%s: Camera %d: Submitting request with ID %d",
+    ALOGV("%s: Camera %d: Creating request with ID %d",
           __FUNCTION__, mCameraId, requestId);
 
     if (streaming) {
@@ -175,6 +175,116 @@ status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
         if (res != OK) {
             ALOGE("%s: Camera %d: Got error %d after trying to set capture",
                   __FUNCTION__, mCameraId, res);
+        }
+    }
+
+    ALOGV("%s: Camera %d: End of function", __FUNCTION__, mCameraId);
+    if (res == OK) {
+        return requestId;
+    }
+
+    return res;
+}
+
+status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > requests,
+                                               bool streaming) {
+    ATRACE_CALL();
+    ALOGV("%s-start of function", __FUNCTION__);
+
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
+
+    if (requests.empty()) {
+        ALOGE("%s: Camera %d: Sent null request. Rejecting request.",
+              __FUNCTION__, mCameraId);
+        return BAD_VALUE;
+    }
+
+    List<const CameraMetadata> metadataRequestList;
+    int32_t requestId = mRequestIdCounter;
+    uint32_t loopCounter = 0;
+
+    for (List<sp<CaptureRequest> >::iterator it = requests.begin(); it != requests.end(); ++it) {
+        sp<CaptureRequest> request = *it;
+        if (request == 0) {
+            ALOGE("%s: Camera %d: Sent null request.",
+                    __FUNCTION__, mCameraId);
+            return BAD_VALUE;
+        }
+
+        CameraMetadata metadata(request->mMetadata);
+        if (metadata.isEmpty()) {
+            ALOGE("%s: Camera %d: Sent empty metadata packet. Rejecting request.",
+                   __FUNCTION__, mCameraId);
+            return BAD_VALUE;
+        } else if (request->mSurfaceList.isEmpty()) {
+            ALOGE("%s: Camera %d: Requests must have at least one surface target. "
+                  "Rejecting request.", __FUNCTION__, mCameraId);
+            return BAD_VALUE;
+        }
+
+        if (!enforceRequestPermissions(metadata)) {
+            // Callee logs
+            return PERMISSION_DENIED;
+        }
+
+        /**
+         * Write in the output stream IDs which we calculate from
+         * the capture request's list of surface targets
+         */
+        Vector<int32_t> outputStreamIds;
+        outputStreamIds.setCapacity(request->mSurfaceList.size());
+        for (Vector<sp<Surface> >::iterator surfaceIt = 0;
+                surfaceIt != request->mSurfaceList.end(); ++surfaceIt) {
+            sp<Surface> surface = *surfaceIt;
+            if (surface == 0) continue;
+
+            sp<IGraphicBufferProducer> gbp = surface->getIGraphicBufferProducer();
+            int idx = mStreamMap.indexOfKey(gbp->asBinder());
+
+            // Trying to submit request with surface that wasn't created
+            if (idx == NAME_NOT_FOUND) {
+                ALOGE("%s: Camera %d: Tried to submit a request with a surface that"
+                      " we have not called createStream on",
+                      __FUNCTION__, mCameraId);
+                return BAD_VALUE;
+            }
+
+            int streamId = mStreamMap.valueAt(idx);
+            outputStreamIds.push_back(streamId);
+            ALOGV("%s: Camera %d: Appending output stream %d to request",
+                  __FUNCTION__, mCameraId, streamId);
+        }
+
+        metadata.update(ANDROID_REQUEST_OUTPUT_STREAMS, &outputStreamIds[0],
+                        outputStreamIds.size());
+
+        metadata.update(ANDROID_REQUEST_ID, &requestId, /*size*/1);
+        loopCounter++; // loopCounter starts from 1
+        ALOGV("%s: Camera %d: Creating request with ID %d (%d of %d)",
+              __FUNCTION__, mCameraId, requestId, loopCounter, requests.size());
+
+        metadataRequestList.push_back(metadata);
+    }
+    mRequestIdCounter++;
+
+    if (streaming) {
+        res = mDevice->setStreamingRequestList(metadataRequestList);
+        if (res != OK) {
+            ALOGE("%s: Camera %d:  Got error %d after trying to set streaming "
+                  "request", __FUNCTION__, mCameraId, res);
+        } else {
+            mStreamingRequestList.push_back(requestId);
+        }
+    } else {
+        res = mDevice->captureList(metadataRequestList);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Got error %d after trying to set capture",
+                __FUNCTION__, mCameraId, res);
         }
     }
 

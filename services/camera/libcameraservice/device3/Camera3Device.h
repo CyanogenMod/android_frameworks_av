@@ -79,7 +79,9 @@ class Camera3Device :
     // Capture and setStreamingRequest will configure streams if currently in
     // idle state
     virtual status_t capture(CameraMetadata &request);
+    virtual status_t captureList(const List<const CameraMetadata> &requests);
     virtual status_t setStreamingRequest(const CameraMetadata &request);
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests);
     virtual status_t clearStreamingRequest();
 
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
@@ -201,6 +203,14 @@ class Camera3Device :
     };
     typedef List<sp<CaptureRequest> > RequestList;
 
+    status_t checkStatusOkToCaptureLocked();
+
+    status_t convertMetadataListToRequestListLocked(
+            const List<const CameraMetadata> &metadataList,
+            /*out*/RequestList *requestList);
+
+    status_t submitRequestsHelper(const List<const CameraMetadata> &requests, bool repeating);
+
     /**
      * Get the last request submitted to the hal by the request thread.
      *
@@ -311,6 +321,8 @@ class Camera3Device :
         status_t clearRepeatingRequests();
 
         status_t queueRequest(sp<CaptureRequest> request);
+
+        status_t queueRequestList(List<sp<CaptureRequest> > &requests);
 
         /**
          * Remove all queued and repeating requests, and pending triggers
