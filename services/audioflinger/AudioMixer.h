@@ -30,6 +30,9 @@
 #include <system/audio.h>
 #include <media/nbaio/NBLog.h>
 
+// FIXME This is actually unity gain, which might not be max in future, expressed in U.12
+#define MAX_GAIN_INT AudioMixer::UNITY_GAIN
+
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -91,6 +94,7 @@ public:
         REMOVE          = 0x4102, // Remove the sample rate converter on this track name;
                                   // the track is restored to the mix sample rate.
         // for target RAMP_VOLUME and VOLUME (8 channels max)
+        // FIXME use float for these 3 to improve the dynamic range
         VOLUME0         = 0x4200,
         VOLUME1         = 0x4201,
         AUXLEVEL        = 0x4210,

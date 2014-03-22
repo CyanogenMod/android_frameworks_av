@@ -35,7 +35,8 @@ LOCAL_C_INCLUDES := \
     frameworks/av/services/medialog \
     frameworks/av/services/audioflinger \
     frameworks/av/services/audiopolicy \
-    frameworks/av/services/camera/libcameraservice
+    frameworks/av/services/camera/libcameraservice \
+    $(call include-path-for, audio-utils)
 
 LOCAL_MODULE:= mediaserver
 LOCAL_32_BIT_ONLY := true
