@@ -353,7 +353,7 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     }
     if (bufferIdx == bufferCount) {
         // Got all buffers, register with HAL
-        ALOGV("%s: Registering %d buffers with camera HAL",
+        ALOGV("%s: Registering %zu buffers with camera HAL",
                 __FUNCTION__, bufferCount);
         ATRACE_BEGIN("camera3->register_stream_buffers");
         res = hal3Device->ops->register_stream_buffers(hal3Device,
