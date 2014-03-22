@@ -18,9 +18,6 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
-// This is needed for stdint.h to define INT64_MAX in C++
-#define __STDC_LIMIT_MACROS
-
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <ui/Fence.h>
@@ -52,7 +49,7 @@ int StatusTracker::addComponent() {
         ALOGV("%s: Adding new component %d", __FUNCTION__, id);
 
         err = mStates.add(id, IDLE);
-        ALOGE_IF(err < 0, "%s: Can't add new component %d: %s (%d)",
+        ALOGE_IF(err < 0, "%s: Can't add new component %d: %s (%zd)",
                 __FUNCTION__, id, strerror(-err), err);
     }
 
