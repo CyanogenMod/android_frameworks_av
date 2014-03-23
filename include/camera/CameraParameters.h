@@ -573,8 +573,10 @@ public:
     static const char KEY_FULL_VIDEO_SNAP_SUPPORTED[];
 
 #ifdef QCOM_HARDWARE
+#ifndef HAVE_ISO
     static const char KEY_ISO_MODE[];
     static const char KEY_SUPPORTED_ISO_MODES[];
+#endif
     static const char KEY_LENSSHADE[] ;
     static const char KEY_SUPPORTED_LENSSHADE_MODES[] ;
 
