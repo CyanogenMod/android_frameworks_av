@@ -25,6 +25,8 @@
 #define ALOGVV(...) ((void)0)
 #endif
 
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <gui/Surface.h>
@@ -68,7 +70,7 @@ void ZslProcessor3::onFrameAvailable(int32_t /*requestId*/,
     entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
     (void)timestamp;
-    ALOGVV("Got preview metadata for timestamp %lld", timestamp);
+    ALOGVV("Got preview metadata for timestamp %" PRId64, timestamp);
 
     if (mState != RUNNING) return;
 
@@ -364,7 +366,7 @@ void ZslProcessor3::dumpZslQueue(int fd) const {
             if (entry.count > 0) frameAeState = entry.data.u8[0];
         }
         String8 result =
-                String8::format("   %zu: b: %lld\tf: %lld, AE state: %d", i,
+                String8::format("   %zu: b: %" PRId64 "\tf: %" PRId64 ", AE state: %d", i,
                         bufferTimestamp, frameTimestamp, frameAeState);
         ALOGV("%s", result.string());
         if (fd != -1) {
@@ -424,7 +426,7 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                 idx = j;
             }
 
-            ALOGVV("%s: Saw timestamp %lld", __FUNCTION__, frameTimestamp);
+            ALOGVV("%s: Saw timestamp %" PRId64, __FUNCTION__, frameTimestamp);
         }
     }
 
@@ -444,7 +446,7 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
         ALOGW("%s: ZSL queue has no metadata frames", __FUNCTION__);
     }
 
-    ALOGV("%s: Candidate timestamp %lld (idx %d), empty frames: %d",
+    ALOGV("%s: Candidate timestamp %" PRId64 " (idx %zu), empty frames: %zu",
           __FUNCTION__, minTimestamp, idx, emptyCount);
 
     if (metadataIdx) {

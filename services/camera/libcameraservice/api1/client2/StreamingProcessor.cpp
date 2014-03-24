@@ -225,14 +225,14 @@ status_t StreamingProcessor::setRecordingBufferCount(size_t count) {
     ATRACE_CALL();
     // Make sure we can support this many buffer slots
     if (count > BufferQueue::NUM_BUFFER_SLOTS) {
-        ALOGE("%s: Camera %d: Too many recording buffers requested: %d, max %d",
+        ALOGE("%s: Camera %d: Too many recording buffers requested: %zu, max %d",
                 __FUNCTION__, mId, count, BufferQueue::NUM_BUFFER_SLOTS);
         return BAD_VALUE;
     }
 
     Mutex::Autolock m(mMutex);
 
-    ALOGV("%s: Camera %d: New recording buffer count from encoder: %d",
+    ALOGV("%s: Camera %d: New recording buffer count from encoder: %zu",
             __FUNCTION__, mId, count);
 
     // Need to re-size consumer and heap
@@ -314,7 +314,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
 
     bool newConsumer = false;
     if (mRecordingConsumer == 0) {
-        ALOGV("%s: Camera %d: Creating recording consumer with %d + 1 "
+        ALOGV("%s: Camera %d: Creating recording consumer with %zu + 1 "
                 "consumer-side buffers", __FUNCTION__, mId, mRecordingHeapCount);
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
         // always acquire and free a buffer when the heap is full; otherwise the consumer
@@ -437,7 +437,7 @@ status_t StreamingProcessor::startStream(StreamType type,
         releaseAllRecordingFramesLocked();
     }
 
-    ALOGV("%s: Camera %d: %s started, recording heap has %d free of %d",
+    ALOGV("%s: Camera %d: %s started, recording heap has %zu free of %zu",
             __FUNCTION__, mId, (type == PREVIEW) ? "preview" : "recording",
             mRecordingHeapFree, mRecordingHeapCount);
 
@@ -660,8 +660,8 @@ status_t StreamingProcessor::processRecordingFrame() {
 
         if (mRecordingHeap == 0) {
             const size_t bufferSize = 4 + sizeof(buffer_handle_t);
-            ALOGV("%s: Camera %d: Creating recording heap with %d buffers of "
-                    "size %d bytes", __FUNCTION__, mId,
+            ALOGV("%s: Camera %d: Creating recording heap with %zu buffers of "
+                    "size %zu bytes", __FUNCTION__, mId,
                     mRecordingHeapCount, bufferSize);
 
             mRecordingHeap = new Camera2Heap(bufferSize, mRecordingHeapCount,
@@ -821,10 +821,10 @@ void StreamingProcessor::releaseAllRecordingFramesLocked() {
     }
 
     if (releasedCount > 0) {
-        ALOGW("%s: Camera %d: Force-freed %d outstanding buffers "
+        ALOGW("%s: Camera %d: Force-freed %zu outstanding buffers "
                 "from previous recording session", __FUNCTION__, mId, releasedCount);
         ALOGE_IF(releasedCount != mRecordingHeapCount - mRecordingHeapFree,
-            "%s: Camera %d: Force-freed %d buffers, but expected %d",
+            "%s: Camera %d: Force-freed %zu buffers, but expected %zu",
             __FUNCTION__, mId, releasedCount, mRecordingHeapCount - mRecordingHeapFree);
     }
 

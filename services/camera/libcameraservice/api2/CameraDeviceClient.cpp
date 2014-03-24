@@ -394,7 +394,7 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
         ssize_t index = mStreamMap.indexOfKey(bufferProducer->asBinder());
         if (index != NAME_NOT_FOUND) {
             ALOGW("%s: Camera %d: Buffer producer already has a stream for it "
-                  "(ID %d)",
+                  "(ID %zd)",
                   __FUNCTION__, mCameraId, index);
             return ALREADY_EXISTS;
         }

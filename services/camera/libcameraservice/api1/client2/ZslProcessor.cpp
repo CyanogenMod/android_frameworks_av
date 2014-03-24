@@ -25,6 +25,8 @@
 #define ALOGVV(...) ((void)0)
 #endif
 
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <gui/Surface.h>
@@ -78,7 +80,7 @@ void ZslProcessor::onFrameAvailable(int32_t /*requestId*/,
     entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
     (void)timestamp;
-    ALOGVV("Got preview frame for timestamp %lld", timestamp);
+    ALOGVV("Got preview frame for timestamp %" PRId64, timestamp);
 
     if (mState != RUNNING) return;
 
@@ -463,7 +465,7 @@ status_t ZslProcessor::processNewZslBuffer() {
 
     mZslQueueHead = (mZslQueueHead + 1) % kZslBufferDepth;
 
-    ALOGVV("  Acquired buffer, timestamp %lld", queueHead.buffer.mTimestamp);
+    ALOGVV("  Acquired buffer, timestamp %" PRId64, queueHead.buffer.mTimestamp);
 
     findMatchesLocked();
 
@@ -482,7 +484,7 @@ void ZslProcessor::findMatchesLocked() {
                 entry = queueEntry.frame.find(ANDROID_SENSOR_TIMESTAMP);
                 frameTimestamp = entry.data.i64[0];
             }
-            ALOGVV("   %d: b: %lld\tf: %lld", i,
+            ALOGVV("   %d: b: %" PRId64 "\tf: %" PRId64, i,
                     bufferTimestamp, frameTimestamp );
         }
         if (queueEntry.frame.isEmpty() && bufferTimestamp != 0) {
@@ -500,13 +502,13 @@ void ZslProcessor::findMatchesLocked() {
                     }
                     nsecs_t frameTimestamp = entry.data.i64[0];
                     if (bufferTimestamp == frameTimestamp) {
-                        ALOGVV("%s: Found match %lld", __FUNCTION__,
+                        ALOGVV("%s: Found match %" PRId64, __FUNCTION__,
                                 frameTimestamp);
                         match = true;
                     } else {
                         int64_t delta = abs(bufferTimestamp - frameTimestamp);
                         if ( delta < 1000000) {
-                            ALOGVV("%s: Found close match %lld (delta %lld)",
+                            ALOGVV("%s: Found close match %" PRId64 " (delta %" PRId64 ")",
                                     __FUNCTION__, bufferTimestamp, delta);
                             match = true;
                         }
@@ -542,7 +544,7 @@ void ZslProcessor::dumpZslQueue(int fd) const {
             if (entry.count > 0) frameAeState = entry.data.u8[0];
         }
         String8 result =
-                String8::format("   %zu: b: %lld\tf: %lld, AE state: %d", i,
+                String8::format("   %zu: b: %" PRId64 "\tf: %" PRId64 ", AE state: %d", i,
                         bufferTimestamp, frameTimestamp, frameAeState);
         ALOGV("%s", result.string());
         if (fd != -1) {
