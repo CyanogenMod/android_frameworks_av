@@ -417,7 +417,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mCachedVolume(1.0),
     mIsInvalid(false),
     mAudioTrackServerProxy(NULL),
-    mResumeToStopping(false)
+    mResumeToStopping(false),
+    mFlushHwPending(false)
 {
     if (mCblk != NULL) {
         if (sharedBuffer == 0) {
@@ -624,7 +625,13 @@ size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
-    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing() || isStopping()) {
+    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
+        return true;
+    }
+
+    if (isStopping()) {
+        if(framesReady() > 0)
+            mFillingUpStatus = FS_FILLED;
         return true;
     }
 
@@ -662,7 +669,10 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
 
-        if (state == PAUSED) {
+        // initial state-stopping. next state-pausing.
+        // What if resume is called ?
+
+        if (state == PAUSED || state == PAUSING) {
             if (mResumeToStopping) {
                 // happened we need to resume to STOPPING_1
                 mState = TrackBase::STOPPING_1;
@@ -795,6 +805,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
                 mRetryCount = PlaybackThread::kMaxTrackRetriesOffload;
             }
 
+            mFlushHwPending = true;
             mResumeToStopping = false;
         } else {
             if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED &&
@@ -815,9 +826,17 @@ void AudioFlinger::PlaybackThread::Track::flush()
         // Prevent flush being lost if the track is flushed and then resumed
         // before mixer thread can run. This is important when offloading
         // because the hardware buffer could hold a large amount of audio
-        playbackThread->flushOutput_l();
         playbackThread->broadcast_l();
     }
+}
+
+// must be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::flushAck()
+{
+    if (!isOffloaded())
+        return;
+
+    mFlushHwPending = false;
 }
 
 void AudioFlinger::PlaybackThread::Track::reset()
@@ -1042,6 +1061,29 @@ void AudioFlinger::PlaybackThread::Track::signal()
     }
 }
 
+//To be called with thread lock held
+bool AudioFlinger::PlaybackThread::Track::isResumePending() {
+
+    if (mState == RESUMING)
+        return true;
+    /* Resume is pending if track was stopping before pause was called */
+    if (mState == STOPPING_1 &&
+        mResumeToStopping)
+        return true;
+
+    return false;
+}
+
+//To be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::resumeAck() {
+
+
+    if (mState == RESUMING)
+        mState = ACTIVE;
+    // Other possibility of  pending resume is stopping_1 state
+    // Do not update the state from stopping as this prevents
+    //drain being called.
+}
 // ----------------------------------------------------------------------------
 
 sp<AudioFlinger::PlaybackThread::TimedTrack>

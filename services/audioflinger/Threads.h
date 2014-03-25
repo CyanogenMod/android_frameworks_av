@@ -395,7 +395,7 @@ protected:
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
-
+    virtual     void        onAddNewTrack_l();
 
     // ThreadBase virtuals
     virtual     void        preExit();
@@ -638,7 +638,6 @@ public:
 protected:
                 // accessed by both binder threads and within threadLoop(), lock on mutex needed
                 unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
-    virtual     void        flushOutput_l();
 
 private:
     // timestamp latch:
@@ -757,11 +756,11 @@ protected:
     // threadLoop snippets
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
     virtual     void        threadLoop_exit();
-    virtual     void        flushOutput_l();
 
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
+    virtual     void        onAddNewTrack_l();
 
 private:
                 void        flushHw_l();
