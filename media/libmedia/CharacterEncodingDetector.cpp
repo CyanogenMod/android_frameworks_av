@@ -171,12 +171,12 @@ void CharacterEncodingDetector::detectAndConvert() {
             int32_t inputLength = strlen(s);
             const char *enc;
 
-            if (!allprintable && !strcmp(name, "artist") ||
+            if (!allprintable && (!strcmp(name, "artist") ||
                     !strcmp(name, "albumartist") ||
                     !strcmp(name, "composer") ||
                     !strcmp(name, "genre") ||
                     !strcmp(name, "album") ||
-                    !strcmp(name, "title")) {
+                    !strcmp(name, "title"))) {
                 // use encoding determined from the combination of artist/album/title etc.
                 enc = combinedenc;
             } else {
