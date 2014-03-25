@@ -1169,6 +1169,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         if (!mModule) {
             result = String8::format("No camera module available!\n");
             write(fd, result.string(), result.size());
+            if (locked) mServiceLock.unlock();
             return NO_ERROR;
         }
 
