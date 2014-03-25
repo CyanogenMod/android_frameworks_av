@@ -160,7 +160,8 @@ NuPlayer::NuPlayer()
       mNumFramesTotal(0ll),
       mNumFramesDropped(0ll),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
-      mStarted(false) {
+      mStarted(false),
+      mSeeking(false) {
 }
 
 NuPlayer::~NuPlayer() {
@@ -760,7 +761,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if (mDriver != NULL) {
                     sp<NuPlayerDriver> driver = mDriver.promote();
                     if (driver != NULL) {
-                        driver->notifyPosition(positionUs);
+                        // Notify position while seeking will cause the process bar displayed incorrectly.
+                        if (!mSeeking) {
+                            driver->notifyPosition(positionUs);
+                        }
 
                         driver->notifyFrameStats(
                                 mNumFramesTotal, mNumFramesDropped);
@@ -835,6 +839,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatSourceNotify:
         {
             onSourceNotify(msg);
+            break;
+        }
+
+        case kWhatSeekDone:
+        {
+            mSeeking = false;
             break;
         }
 
@@ -1054,6 +1064,12 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
 
+    // While seeking, the obsolete frames shouldn't be rendered
+    if (mSeeking) {
+        reply->post();
+        return;
+    }
+
     if (IsFlushingState(audio ? mFlushingAudio : mFlushingVideo)) {
         // We're currently attempting to flush the decoder, in order
         // to complete this, the decoder wants all its buffers back,
@@ -1250,6 +1266,9 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
     ALOGV("performSeek seekTimeUs=%lld us (%.2f secs)",
           seekTimeUs,
           seekTimeUs / 1E6);
+    if (mSource->setCbfForSeekDone(new AMessage(kWhatSeekDone, id()))) {
+        mSeeking = true;
+    }
 
     mSource->seekTo(seekTimeUs);
 
@@ -1338,6 +1357,7 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mSeeking = false;
 }
 
 void NuPlayer::performScanSources() {

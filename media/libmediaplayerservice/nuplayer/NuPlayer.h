@@ -105,6 +105,7 @@ private:
         kWhatSourceNotify               = 'srcN',
         kWhatGetTrackInfo               = 'gTrI',
         kWhatSelectTrack                = 'selT',
+        kWhatSeekDone                   = 'seed',
     };
 
     wp<NuPlayerDriver> mDriver;
@@ -155,6 +156,7 @@ private:
     int32_t mVideoScalingMode;
 
     bool mStarted;
+    bool mSeeking;
 
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
