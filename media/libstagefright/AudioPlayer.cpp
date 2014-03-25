@@ -846,11 +846,11 @@ int64_t AudioPlayer::getRealTimeUsLocked() const {
 int64_t AudioPlayer::getOutputPlayPositionUs_l()
 {
     uint32_t playedSamples = 0;
-    uint32_t sampleRate;
+    uint32_t sampleRate = 0;
     if (mAudioSink != NULL) {
         mAudioSink->getPosition(&playedSamples);
         sampleRate = mAudioSink->getSampleRate();
-    } else {
+    } else if (mAudioTrack != NULL) {
         mAudioTrack->getPosition(&playedSamples);
         sampleRate = mAudioTrack->getSampleRate();
     }
