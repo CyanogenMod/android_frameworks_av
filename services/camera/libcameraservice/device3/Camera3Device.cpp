@@ -999,6 +999,10 @@ status_t Camera3Device::waitUntilDrained() {
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
 
+    return waitUntilDrainedLocked();
+}
+
+status_t Camera3Device::waitUntilDrainedLocked() {
     switch (mStatus) {
         case STATUS_UNINITIALIZED:
         case STATUS_UNCONFIGURED:
@@ -1209,7 +1213,7 @@ status_t Camera3Device::flush() {
     if (mHal3Device->common.version >= CAMERA_DEVICE_API_VERSION_3_1) {
         res = mHal3Device->ops->flush(mHal3Device);
     } else {
-        res = waitUntilDrained();
+        res = waitUntilDrainedLocked();
     }
 
     return res;

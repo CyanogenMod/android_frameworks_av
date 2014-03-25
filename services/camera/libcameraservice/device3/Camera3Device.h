@@ -246,6 +246,13 @@ class Camera3Device :
     status_t waitUntilStateThenRelock(bool active, nsecs_t timeout);
 
     /**
+     * Implementation of waitUntilDrained. On success, will transition to IDLE state.
+     *
+     * Need to be called with mLock and mInterfaceLock held.
+     */
+    status_t waitUntilDrainedLocked();
+
+    /**
      * Do common work for setting up a streaming or single capture request.
      * On success, will transition to ACTIVE if in IDLE.
      */
