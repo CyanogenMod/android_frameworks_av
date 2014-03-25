@@ -322,6 +322,15 @@ void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
 
     mState = SEEKING;
     mHandler->seek(seekTimeUs);
+
+    // After seek, the previous packets in the source are obsolete, so clear them
+    for (size_t index = 0; index < mTracks.size(); index++) {
+        TrackInfo *info = &mTracks.editItemAt(index);
+        sp<AnotherPacketSource> source = info->mSource;
+        if (source != NULL) {
+            source->queueDiscontinuity(ATSParser::DISCONTINUITY_SEEK, NULL, true);
+        }
+    }
 }
 
 void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
@@ -388,6 +397,11 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
 
         case MyHandler::kWhatAccessUnit:
         {
+            // While seeking, stop queueing the units which are already obsolete to the source
+            if (mState == SEEKING) {
+                break;
+            }
+
             size_t trackIndex;
             CHECK(msg->findSize("trackIndex", &trackIndex));
 
