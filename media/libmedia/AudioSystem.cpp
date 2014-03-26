@@ -730,7 +730,7 @@ uint32_t AudioSystem::getStrategyForStream(audio_stream_type_t stream)
 audio_devices_t AudioSystem::getDevicesForStream(audio_stream_type_t stream)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-    if (aps == 0) return (audio_devices_t)0;
+    if (aps == 0) return AUDIO_DEVICE_NONE;
     return aps->getDevicesForStream(stream);
 }
 

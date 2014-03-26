@@ -410,7 +410,7 @@ public:
                                          const audio_offload_info_t *offloadInfo)
     {
         Parcel data, reply;
-        audio_devices_t devices = pDevices != NULL ? *pDevices : (audio_devices_t)0;
+        audio_devices_t devices = pDevices != NULL ? *pDevices : AUDIO_DEVICE_NONE;
         uint32_t samplingRate = pSamplingRate != NULL ? *pSamplingRate : 0;
         audio_format_t format = pFormat != NULL ? *pFormat : AUDIO_FORMAT_DEFAULT;
         audio_channel_mask_t channelMask = pChannelMask != NULL ?
@@ -501,7 +501,7 @@ public:
                                         audio_channel_mask_t *pChannelMask)
     {
         Parcel data, reply;
-        audio_devices_t devices = pDevices != NULL ? *pDevices : (audio_devices_t)0;
+        audio_devices_t devices = pDevices != NULL ? *pDevices : AUDIO_DEVICE_NONE;
         uint32_t samplingRate = pSamplingRate != NULL ? *pSamplingRate : 0;
         audio_format_t format = pFormat != NULL ? *pFormat : AUDIO_FORMAT_DEFAULT;
         audio_channel_mask_t channelMask = pChannelMask != NULL ?
