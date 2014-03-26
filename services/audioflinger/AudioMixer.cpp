@@ -449,7 +449,7 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             }
             } break;
         default:
-            LOG_FATAL("bad param");
+            LOG_ALWAYS_FATAL("setParameter track: bad param %d", param);
         }
         break;
 
@@ -474,7 +474,7 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             invalidateState(1 << name);
             break;
         default:
-            LOG_FATAL("bad param");
+            LOG_ALWAYS_FATAL("setParameter resample: bad param %d", param);
         }
         break;
 
@@ -522,12 +522,12 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             }
             break;
         default:
-            LOG_FATAL("bad param");
+            LOG_ALWAYS_FATAL("setParameter volume: bad param %d", param);
         }
         break;
 
     default:
-        LOG_FATAL("bad target");
+        LOG_ALWAYS_FATAL("setParameter: bad target %d", target);
     }
 }
 

@@ -212,7 +212,7 @@ bool FastMixer::threadLoop()
         case FastMixerState::MIX_WRITE:
             break;
         default:
-            LOG_FATAL("bad command %d", command);
+            LOG_ALWAYS_FATAL("bad command %d", command);
         }
 
         // there is a non-idle state available to us; did the state change?

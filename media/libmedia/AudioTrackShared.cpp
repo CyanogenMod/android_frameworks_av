@@ -200,7 +200,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             ts = &remaining;
             break;
         default:
-            LOG_FATAL("obtainBuffer() timeout=%d", timeout);
+            LOG_ALWAYS_FATAL("obtainBuffer() timeout=%d", timeout);
             ts = NULL;
             break;
         }
@@ -429,7 +429,7 @@ status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *request
             ts = &remaining;
             break;
         default:
-            LOG_FATAL("waitStreamEndDone() timeout=%d", timeout);
+            LOG_ALWAYS_FATAL("waitStreamEndDone() timeout=%d", timeout);
             ts = NULL;
             break;
         }
@@ -470,7 +470,7 @@ StaticAudioTrackClientProxy::StaticAudioTrackClientProxy(audio_track_cblk_t* cbl
 
 void StaticAudioTrackClientProxy::flush()
 {
-    LOG_FATAL("static flush");
+    LOG_ALWAYS_FATAL("static flush");
 }
 
 void StaticAudioTrackClientProxy::setLoop(size_t loopStart, size_t loopEnd, int loopCount)
