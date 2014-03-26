@@ -877,7 +877,7 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
 
     AutoMutex lock(mLock);
     PlaybackThread *thread = NULL;
-    if (output) {
+    if (output != AUDIO_IO_HANDLE_NONE) {
         thread = checkPlaybackThread_l(output);
         if (thread == NULL) {
             return BAD_VALUE;
@@ -926,7 +926,7 @@ float AudioFlinger::streamVolume(audio_stream_type_t stream, audio_io_handle_t o
 
     AutoMutex lock(mLock);
     float volume;
-    if (output) {
+    if (output != AUDIO_IO_HANDLE_NONE) {
         PlaybackThread *thread = checkPlaybackThread_l(output);
         if (thread == NULL) {
             return 0.0f;
@@ -959,8 +959,8 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
         return PERMISSION_DENIED;
     }
 
-    // ioHandle == 0 means the parameters are global to the audio hardware interface
-    if (ioHandle == 0) {
+    // AUDIO_IO_HANDLE_NONE means the parameters are global to the audio hardware interface
+    if (ioHandle == AUDIO_IO_HANDLE_NONE) {
         Mutex::Autolock _l(mLock);
         status_t final_result = NO_ERROR;
         {
@@ -1042,7 +1042,7 @@ String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& k
 
     Mutex::Autolock _l(mLock);
 
-    if (ioHandle == 0) {
+    if (ioHandle == AUDIO_IO_HANDLE_NONE) {
         String8 out_s8;
 
         for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
@@ -1563,14 +1563,14 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
           offloadInfo, offloadInfo == NULL ? -1 : offloadInfo->version);
 
     if (pDevices == NULL || *pDevices == AUDIO_DEVICE_NONE) {
-        return 0;
+        return AUDIO_IO_HANDLE_NONE;
     }
 
     Mutex::Autolock _l(mLock);
 
     AudioHwDevice *outHwDev = findSuitableHwDev_l(module, *pDevices);
     if (outHwDev == NULL) {
-        return 0;
+        return AUDIO_IO_HANDLE_NONE;
     }
 
     audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
@@ -1642,7 +1642,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         return id;
     }
 
-    return 0;
+    return AUDIO_IO_HANDLE_NONE;
 }
 
 audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
@@ -1655,7 +1655,7 @@ audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
     if (thread1 == NULL || thread2 == NULL) {
         ALOGW("openDuplicateOutput() wrong output mixer type for output %d or %d", output1,
                 output2);
-        return 0;
+        return AUDIO_IO_HANDLE_NONE;
     }
 
     audio_io_handle_t id = nextUniqueId();
@@ -2282,7 +2282,7 @@ sp<IEffect> AudioFlinger::createEffect(
 
         // return effect descriptor
         *pDesc = desc;
-        if (io == 0 && sessionId == AUDIO_SESSION_OUTPUT_MIX) {
+        if (io == AUDIO_IO_HANDLE_NONE && sessionId == AUDIO_SESSION_OUTPUT_MIX) {
             // if the output returned by getOutputForEffect() is removed before we lock the
             // mutex below, the call to checkPlaybackThread_l(io) below will detect it
             // and we will exit safely
@@ -2297,7 +2297,7 @@ sp<IEffect> AudioFlinger::createEffect(
         // If output is 0 here, sessionId is neither SESSION_OUTPUT_STAGE nor SESSION_OUTPUT_MIX
         // because of code checking output when entering the function.
         // Note: io is never 0 when creating an effect on an input
-        if (io == 0) {
+        if (io == AUDIO_IO_HANDLE_NONE) {
             if (sessionId == AUDIO_SESSION_OUTPUT_STAGE) {
                 // output must be specified by AudioPolicyManager when using session
                 // AUDIO_SESSION_OUTPUT_STAGE
@@ -2322,7 +2322,7 @@ sp<IEffect> AudioFlinger::createEffect(
             // If no output thread contains the requested session ID, default to
             // first output. The effect chain will be moved to the correct output
             // thread when a track with the same session ID is created
-            if (io == 0 && mPlaybackThreads.size()) {
+            if (io == AUDIO_IO_HANDLE_NONE && mPlaybackThreads.size() > 0) {
                 io = mPlaybackThreads.keyAt(0);
             }
             ALOGV("createEffect() got io %d for effect %s", io, desc.name);

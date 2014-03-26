@@ -231,7 +231,7 @@ public:
                   effect_callback_t cbf = NULL,
                   void* user = NULL,
                   int sessionId = AUDIO_SESSION_OUTPUT_MIX,
-                  audio_io_handle_t io = 0
+                  audio_io_handle_t io = AUDIO_IO_HANDLE_NONE
                   );
 
     /* Constructor.
@@ -243,7 +243,7 @@ public:
                     effect_callback_t cbf = NULL,
                     void* user = NULL,
                     int sessionId = AUDIO_SESSION_OUTPUT_MIX,
-                    audio_io_handle_t io = 0
+                    audio_io_handle_t io = AUDIO_IO_HANDLE_NONE
                     );
 
     /* Terminates the AudioEffect and unregisters it from AudioFlinger.
@@ -265,7 +265,7 @@ public:
                             effect_callback_t cbf = NULL,
                             void* user = NULL,
                             int sessionId = AUDIO_SESSION_OUTPUT_MIX,
-                            audio_io_handle_t io = 0
+                            audio_io_handle_t io = AUDIO_IO_HANDLE_NONE
                             );
 
     /* Result of constructing the AudioEffect. This must be checked
