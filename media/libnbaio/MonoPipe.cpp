@@ -30,6 +30,23 @@
 
 namespace android {
 
+static uint64_t cacheN; // output of CCHelper::getLocalFreq()
+static bool cacheValid; // whether cacheN is valid
+static pthread_once_t cacheOnceControl = PTHREAD_ONCE_INIT;
+
+static void cacheOnceInit()
+{
+    CCHelper tmpHelper;
+    status_t res;
+    if (OK != (res = tmpHelper.getLocalFreq(&cacheN))) {
+        ALOGE("Failed to fetch local time frequency when constructing a"
+              " MonoPipe (res = %d).  getNextWriteTimestamp calls will be"
+              " non-functional", res);
+        return;
+    }
+    cacheValid = true;
+}
+
 MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBlock) :
         NBAIO_Sink(format),
         mUpdateSeq(0),
@@ -47,8 +64,6 @@ MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBl
         mTimestampMutator(&mTimestampShared),
         mTimestampObserver(&mTimestampShared)
 {
-    CCHelper tmpHelper;
-    status_t res;
     uint64_t N, D;
 
     mNextRdPTS = AudioBufferProvider::kInvalidPTS;
@@ -59,12 +74,13 @@ MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBl
     mSamplesToLocalTime.a_to_b_denom = 0;
 
     D = Format_sampleRate(format);
-    if (OK != (res = tmpHelper.getLocalFreq(&N))) {
-        ALOGE("Failed to fetch local time frequency when constructing a"
-              " MonoPipe (res = %d).  getNextWriteTimestamp calls will be"
-              " non-functional", res);
+
+    (void) pthread_once(&cacheOnceControl, cacheOnceInit);
+    if (!cacheValid) {
+        // log has already been done
         return;
     }
+    N = cacheN;
 
     LinearTransform::reduce(&N, &D);
     static const uint64_t kSignedHiBitsMask   = ~(0x7FFFFFFFull);
