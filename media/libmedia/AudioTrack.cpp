@@ -371,16 +371,6 @@ status_t AudioTrack::set(
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
-        // Use of direct and offloaded output streams is ref counted by audio policy manager.
-#if 0   // FIXME This should no longer be needed
-        //Use of direct and offloaded output streams is ref counted by audio policy manager.
-        // As getOutput was called above and resulted in an output stream to be opened,
-        // we need to release it.
-        if (mOutput != 0) {
-            AudioSystem::releaseOutput(mOutput);
-            mOutput = 0;
-        }
-#endif
         return status;
     }
 
@@ -1775,16 +1765,6 @@ status_t AudioTrack::restoreTrack_l(const char *from)
         }
     }
     if (result != NO_ERROR) {
-        // Use of direct and offloaded output streams is ref counted by audio policy manager.
-#if 0   // FIXME This should no longer be needed
-        //Use of direct and offloaded output streams is ref counted by audio policy manager.
-        // As getOutput was called above and resulted in an output stream to be opened,
-        // we need to release it.
-        if (mOutput != 0) {
-            AudioSystem::releaseOutput(mOutput);
-            mOutput = 0;
-        }
-#endif
         ALOGW("restoreTrack_l() failed status %d", result);
         mState = STATE_STOPPED;
     }
