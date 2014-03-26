@@ -431,7 +431,7 @@ uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle)
 int AudioSystem::newAudioSessionId()
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-    if (af == 0) return 0;
+    if (af == 0) return AUDIO_SESSION_ALLOCATE;
     return af->newAudioSessionId();
 }
 
