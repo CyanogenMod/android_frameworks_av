@@ -546,7 +546,7 @@ void AudioTrack::pause()
     mAudioTrack->pause();
 
     if (isOffloaded_l()) {
-        if (mOutput != 0) {
+        if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t halFrames;
             // OffloadThread sends HAL pause in its threadLoop.. time saved
             // here can be slightly off
@@ -633,7 +633,7 @@ uint32_t AudioTrack::getSampleRate() const
     // query the HAL and update if needed.
 // FIXME use Proxy return channel to update the rate from server and avoid polling here
     if (isOffloaded_l()) {
-        if (mOutput != 0) {
+        if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t sampleRate = 0;
             status_t status = AudioSystem::getSamplingRate(mOutput, mStreamType, &sampleRate);
             if (status == NO_ERROR) {
@@ -779,7 +779,7 @@ status_t AudioTrack::getPosition(uint32_t *position) const
             return NO_ERROR;
         }
 
-        if (mOutput != 0) {
+        if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t halFrames;
             AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
         }
@@ -855,7 +855,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
 
     audio_io_handle_t output = AudioSystem::getOutput(mStreamType, mSampleRate, mFormat,
             mChannelMask, mFlags, mOffloadInfo);
-    if (output == 0) {
+    if (output == AUDIO_IO_HANDLE_NONE) {
         ALOGE("Could not get audio output for stream type %d, sample rate %u, format %#x, "
               "channel mask %#x, flags %#x",
               mStreamType, mSampleRate, mFormat, mChannelMask, mFlags);
@@ -1798,7 +1798,7 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 String8 AudioTrack::getParameters(const String8& keys)
 {
     audio_io_handle_t output = getOutput();
-    if (output != 0) {
+    if (output != AUDIO_IO_HANDLE_NONE) {
         return AudioSystem::getParameters(output, keys);
     } else {
         return String8::empty();

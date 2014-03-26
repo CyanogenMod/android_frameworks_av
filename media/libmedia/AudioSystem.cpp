@@ -196,12 +196,12 @@ String8 AudioSystem::getParameters(audio_io_handle_t ioHandle, const String8& ke
 
 status_t AudioSystem::setParameters(const String8& keyValuePairs)
 {
-    return setParameters((audio_io_handle_t) 0, keyValuePairs);
+    return setParameters(AUDIO_IO_HANDLE_NONE, keyValuePairs);
 }
 
 String8 AudioSystem::getParameters(const String8& keys)
 {
-    return getParameters((audio_io_handle_t) 0, keys);
+    return getParameters(AUDIO_IO_HANDLE_NONE, keys);
 }
 
 // convert volume steps to natural log scale
@@ -284,7 +284,7 @@ status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_
     }
 
     output = getOutput(streamType);
-    if (output == 0) {
+    if (output == AUDIO_IO_HANDLE_NONE) {
         return PERMISSION_DENIED;
     }
 
@@ -329,7 +329,7 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
     }
 
     output = getOutput(streamType);
-    if (output == 0) {
+    if (output == AUDIO_IO_HANDLE_NONE) {
         return PERMISSION_DENIED;
     }
 
@@ -413,7 +413,7 @@ uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle)
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     uint32_t result = 0;
     if (af == 0) return result;
-    if (ioHandle == 0) return result;
+    if (ioHandle == AUDIO_IO_HANDLE_NONE) return result;
 
     result = af->getInputFramesLost(ioHandle);
     return result;
@@ -464,7 +464,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
     const OutputDescriptor *desc;
     audio_stream_type_t stream;
 
-    if (ioHandle == 0) return;
+    if (ioHandle == AUDIO_IO_HANDLE_NONE) return;
 
     Mutex::Autolock _l(AudioSystem::gLock);
 
@@ -738,7 +738,7 @@ audio_io_handle_t AudioSystem::getOutputForEffect(const effect_descriptor_t *des
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     // FIXME change return type to status_t, and return PERMISSION_DENIED here
-    if (aps == 0) return 0;
+    if (aps == 0) return AUDIO_IO_HANDLE_NONE;
     return aps->getOutputForEffect(desc);
 }
 

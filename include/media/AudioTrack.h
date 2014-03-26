@@ -451,7 +451,8 @@ public:
      *  none.
      *
      * Returned value:
-     *  handle on audio hardware output
+     *  handle on audio hardware output, or AUDIO_IO_HANDLE_NONE if the
+     *  track needed to be re-created but that failed
      */
             audio_io_handle_t    getOutput() const;
 
