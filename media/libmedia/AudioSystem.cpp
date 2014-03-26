@@ -37,7 +37,7 @@ sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
 // Cached values
 
-DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSystem::gOutputs(0);
+DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSystem::gOutputs(NULL);
 
 // Cached values for recording queries, all protected by gLock
 uint32_t AudioSystem::gPrevInSamplingRate;

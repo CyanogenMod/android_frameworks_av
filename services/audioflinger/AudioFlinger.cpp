@@ -159,6 +159,7 @@ out:
 AudioFlinger::AudioFlinger()
     : BnAudioFlinger(),
       mPrimaryHardwareDev(NULL),
+      mAudioHwDevs(NULL),
       mHardwareStatus(AUDIO_HW_IDLE),
       mMasterVolume(1.0f),
       mMasterMute(false),
