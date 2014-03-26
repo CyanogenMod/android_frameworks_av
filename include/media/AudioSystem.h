@@ -125,8 +125,7 @@ public:
     static status_t setVoiceVolume(float volume);
 
     // return the number of audio frames written by AudioFlinger to audio HAL and
-    // audio dsp to DAC since the output on which the specified stream is playing
-    // has exited standby.
+    // audio dsp to DAC since the specified output I/O handle has exited standby.
     // returned status (from utils/Errors.h) can be:
     // - NO_ERROR: successful operation, halFrames and dspFrames point to valid data
     // - INVALID_OPERATION: Not supported on current hardware platform
@@ -135,8 +134,7 @@ public:
     // necessary to check returned status before using the returned values.
     static status_t getRenderPosition(audio_io_handle_t output,
                                       uint32_t *halFrames,
-                                      uint32_t *dspFrames,
-                                      audio_stream_type_t stream = AUDIO_STREAM_DEFAULT);
+                                      uint32_t *dspFrames);
 
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
     static uint32_t getInputFramesLost(audio_io_handle_t ioHandle);
