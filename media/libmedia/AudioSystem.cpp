@@ -333,11 +333,10 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
         return PERMISSION_DENIED;
     }
 
-    return getLatency(output, streamType, latency);
+    return getLatency(output, latency);
 }
 
 status_t AudioSystem::getLatency(audio_io_handle_t output,
-                                 audio_stream_type_t streamType __unused,
                                  uint32_t* latency)
 {
     OutputDescriptor *outputDesc;
@@ -354,7 +353,7 @@ status_t AudioSystem::getLatency(audio_io_handle_t output,
         gLock.unlock();
     }
 
-    ALOGV("getLatency() streamType %d, output %d, latency %d", streamType, output, *latency);
+    ALOGV("getLatency() output %d, latency %d", output, *latency);
 
     return NO_ERROR;
 }

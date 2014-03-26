@@ -113,7 +113,6 @@ public:
     // returns the audio output stream latency in ms. Corresponds to
     // audio_stream_out->get_latency()
     static status_t getLatency(audio_io_handle_t output,
-                               audio_stream_type_t stream,
                                uint32_t* latency);
 
     static bool routedToA2dpOutput(audio_stream_type_t streamType);

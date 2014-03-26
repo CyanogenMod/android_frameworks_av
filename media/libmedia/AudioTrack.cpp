@@ -868,7 +868,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
     // Not all of these values are needed under all conditions, but it is easier to get them all
 
     uint32_t afLatency;
-    status = AudioSystem::getLatency(output, mStreamType, &afLatency);
+    status = AudioSystem::getLatency(output, &afLatency);
     if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
         goto release;
