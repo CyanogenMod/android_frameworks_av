@@ -16,7 +16,6 @@
 */
 
 #define LOG_TAG "CameraParams"
-// #define LOG_NDEBUG 0
 #include <utils/Log.h>
 
 #include <string.h>
@@ -199,8 +198,6 @@ String8 CameraParameters::flatten() const
             flattened += ";";
     }
 
-    ALOGV("%s: Flattened params = %s", __FUNCTION__, flattened.string());
-
     return flattened;
 }
 
@@ -250,9 +247,7 @@ void CameraParameters::set(const char *key, const char *value)
         return;
     }
 
-    // Replacing a value updates the key's order to be the new largest order
-    ssize_t res = mMap.replaceValueFor(String8(key), String8(value));
-    LOG_ALWAYS_FATAL_IF(res < 0, "replaceValueFor(%s,%s) failed", key, value);
+    mMap.replaceValueFor(String8(key), String8(value));
 }
 
 void CameraParameters::set(const char *key, int value)
@@ -271,12 +266,10 @@ void CameraParameters::setFloat(const char *key, float value)
 
 const char *CameraParameters::get(const char *key) const
 {
-    ssize_t idx = mMap.indexOfKey(String8(key));
-    if (idx < 0) {
-        return NULL;
-    } else {
-        return mMap.valueAt(idx).string();
-    }
+    String8 v = mMap.valueFor(String8(key));
+    if (v.length() == 0)
+        return 0;
+    return v.string();
 }
 
 int CameraParameters::getInt(const char *key) const
@@ -292,36 +285,6 @@ float CameraParameters::getFloat(const char *key) const
     const char *v = get(key);
     if (v == 0) return -1;
     return strtof(v, 0);
-}
-
-status_t CameraParameters::compareSetOrder(const char *key1, const char *key2,
-        int *order) const {
-    if (key1 == NULL) {
-        ALOGE("%s: key1 must not be NULL", __FUNCTION__);
-        return BAD_VALUE;
-    } else if (key2 == NULL) {
-        ALOGE("%s: key2 must not be NULL", __FUNCTION__);
-        return BAD_VALUE;
-    } else if (order == NULL) {
-        ALOGE("%s: order must not be NULL", __FUNCTION__);
-        return BAD_VALUE;
-    }
-
-    ssize_t index1 = mMap.indexOfKey(String8(key1));
-    ssize_t index2 = mMap.indexOfKey(String8(key2));
-    if (index1 < 0) {
-        ALOGW("%s: Key1 (%s) was not set", __FUNCTION__, key1);
-        return NAME_NOT_FOUND;
-    } else if (index2 < 0) {
-        ALOGW("%s: Key2 (%s) was not set", __FUNCTION__, key2);
-        return NAME_NOT_FOUND;
-    }
-
-    *order = (index1 == index2) ? 0  :
-             (index1 < index2)  ? -1 :
-             1;
-
-    return OK;
 }
 
 void CameraParameters::remove(const char *key)
@@ -447,12 +410,6 @@ void CameraParameters::getPreviewFpsRange(int *min_fps, int *max_fps) const
     const char *p = get(KEY_PREVIEW_FPS_RANGE);
     if (p == 0) return;
     parse_pair(p, min_fps, max_fps, ',');
-}
-
-void CameraParameters::setPreviewFpsRange(int min_fps, int max_fps)
-{
-    String8 str = String8::format("%d,%d", min_fps, max_fps);
-    set(KEY_PREVIEW_FPS_RANGE, str.string());
 }
 
 void CameraParameters::setPreviewFormat(const char *format)
