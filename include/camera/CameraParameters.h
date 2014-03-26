@@ -18,7 +18,6 @@
 #define ANDROID_HARDWARE_CAMERA_PARAMETERS_H
 
 #include <utils/KeyedVector.h>
-#include <utils/Vector.h>
 #include <utils/String8.h>
 
 namespace android {
@@ -51,25 +50,9 @@ public:
     void set(const char *key, const char *value);
     void set(const char *key, int value);
     void setFloat(const char *key, float value);
-    // Look up string value by key.
-    // -- The string remains valid until the next set/remove of the same key,
-    //    or until the map gets cleared.
     const char *get(const char *key) const;
     int getInt(const char *key) const;
     float getFloat(const char *key) const;
-
-    // Compare the order that key1 was set vs the order that key2 was set.
-    //
-    // Sets the order parameter to an integer less than, equal to, or greater
-    // than zero if key1's set order was respectively, to be less than, to
-    // match, or to be greater than key2's set order.
-    //
-    // Error codes:
-    //  * NAME_NOT_FOUND - if either key has not been set previously
-    //  * BAD_VALUE - if any of the parameters are NULL
-    status_t compareSetOrder(const char *key1, const char *key2,
-            /*out*/
-            int *order) const;
 
     void remove(const char *key);
 
@@ -108,7 +91,6 @@ public:
     void setPreviewFrameRate(int fps);
     int getPreviewFrameRate() const;
     void getPreviewFpsRange(int *min_fps, int *max_fps) const;
-    void setPreviewFpsRange(int min_fps, int max_fps);
     void setPreviewFormat(const char *format);
     const char *getPreviewFormat() const;
     void setPictureSize(int width, int height);
@@ -693,91 +675,7 @@ public:
     static const char LIGHTFX_HDR[];
 
 private:
-
-    // Quick and dirty map that maintains insertion order
-    template <typename KeyT, typename ValueT>
-    struct OrderedKeyedVector {
-
-        ssize_t add(const KeyT& key, const ValueT& value) {
-            return mList.add(Pair(key, value));
-        }
-
-        size_t size() const {
-            return mList.size();
-        }
-
-        const KeyT& keyAt(size_t idx) const {
-            return mList[idx].mKey;
-        }
-
-        const ValueT& valueAt(size_t idx) const {
-            return mList[idx].mValue;
-        }
-
-        const ValueT& valueFor(const KeyT& key) const {
-            ssize_t i = indexOfKey(key);
-            LOG_ALWAYS_FATAL_IF(i<0, "%s: key not found", __PRETTY_FUNCTION__);
-
-            return valueAt(i);
-        }
-
-        ssize_t indexOfKey(const KeyT& key) const {
-                size_t vectorIdx = 0;
-                for (; vectorIdx < mList.size(); ++vectorIdx) {
-                    if (mList[vectorIdx].mKey == key) {
-                        return (ssize_t) vectorIdx;
-                    }
-                }
-
-                return NAME_NOT_FOUND;
-        }
-
-        ssize_t removeItem(const KeyT& key) {
-            size_t vectorIdx = (size_t) indexOfKey(key);
-
-            if (vectorIdx < 0) {
-                return vectorIdx;
-            }
-
-            return mList.removeAt(vectorIdx);
-        }
-
-        void clear() {
-            mList.clear();
-        }
-
-        // Same as removing and re-adding. The key's index changes to max.
-        ssize_t replaceValueFor(const KeyT& key, const ValueT& value) {
-            removeItem(key);
-            return add(key, value);
-        }
-
-    private:
-
-        struct Pair {
-            Pair() : mKey(), mValue() {}
-            Pair(const KeyT& key, const ValueT& value) :
-                    mKey(key),
-                    mValue(value) {}
-            KeyT   mKey;
-            ValueT mValue;
-        };
-
-        Vector<Pair> mList;
-    };
-
-    /**
-     * Order matters: Keys that are set() later are stored later in the map.
-     *
-     * If two keys have meaning that conflict, then the later-set key
-     * wins.
-     *
-     * For example, preview FPS and preview FPS range conflict since only
-     * we only want to use the FPS range if that's the last thing that was set.
-     * So in that case, only use preview FPS range if it was set later than
-     * the preview FPS.
-     */
-    OrderedKeyedVector<String8,String8>    mMap;
+    DefaultKeyedVector<String8,String8>    mMap;
 };
 
 }; // namespace android
