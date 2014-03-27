@@ -273,7 +273,8 @@ status_t CameraMetadata::update(uint32_t tag,
     if ( (res = checkType(tag, TYPE_BYTE)) != OK) {
         return res;
     }
-    return updateImpl(tag, (const void*)string.string(), string.size());
+    // string.size() doesn't count the null termination character.
+    return updateImpl(tag, (const void*)string.string(), string.size() + 1);
 }
 
 status_t CameraMetadata::updateImpl(uint32_t tag, const void *data,
