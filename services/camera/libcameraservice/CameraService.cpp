@@ -324,6 +324,8 @@ bool CameraService::isValidCameraId(int cameraId) {
       case CAMERA_DEVICE_API_VERSION_2_0:
       case CAMERA_DEVICE_API_VERSION_2_1:
       case CAMERA_DEVICE_API_VERSION_3_0:
+      case CAMERA_DEVICE_API_VERSION_3_1:
+      case CAMERA_DEVICE_API_VERSION_3_2:
         return true;
       default:
         return false;
@@ -519,6 +521,8 @@ status_t CameraService::connect(
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
+          case CAMERA_DEVICE_API_VERSION_3_1:
+          case CAMERA_DEVICE_API_VERSION_3_2:
             client = new Camera2Client(this, cameraClient,
                     clientPackageName, cameraId,
                     facing, callingPid, clientUid, getpid(),
@@ -605,6 +609,8 @@ status_t CameraService::connectPro(
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
+          case CAMERA_DEVICE_API_VERSION_3_1:
+          case CAMERA_DEVICE_API_VERSION_3_2:
             client = new ProCamera2Client(this, cameraCb, String16(),
                     cameraId, facing, callingPid, USE_CALLING_UID, getpid());
             break;
@@ -683,6 +689,8 @@ status_t CameraService::connectDevice(
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
+          case CAMERA_DEVICE_API_VERSION_3_1:
+          case CAMERA_DEVICE_API_VERSION_3_2:
             client = new CameraDeviceClient(this, cameraCb, String16(),
                     cameraId, facing, callingPid, USE_CALLING_UID, getpid());
             break;

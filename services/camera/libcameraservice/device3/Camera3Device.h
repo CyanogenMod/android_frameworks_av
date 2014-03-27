@@ -54,7 +54,7 @@ class Camera3StreamInterface;
 }
 
 /**
- * CameraDevice for HAL devices with version CAMERA_DEVICE_API_VERSION_3_0
+ * CameraDevice for HAL devices with version CAMERA_DEVICE_API_VERSION_3_0 or higher.
  */
 class Camera3Device :
             public CameraDeviceBase,
