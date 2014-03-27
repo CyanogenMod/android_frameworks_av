@@ -174,7 +174,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
     if (audio_is_output_device(device)) {
         sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
                                                             address,
-                                                            AUDIO_CHANNEL_NONE);
+                                                            0);
         ssize_t index = mAvailableOutputDevices.indexOf(devDesc);
 
         // save a copy of the opened output descriptors before any output is opened or closed
@@ -270,7 +270,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
     if (audio_is_input_device(device)) {
         sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
                                                             address,
-                                                            AUDIO_CHANNEL_NONE);
+                                                            0);
 
         ssize_t index = mAvailableInputDevices.indexOf(devDesc);
         switch (state)
@@ -332,7 +332,7 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
     String8 address = String8(device_address);
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
                                                         String8(device_address),
-                                                        AUDIO_CHANNEL_NONE);
+                                                        0);
     ssize_t index;
     DeviceVector *deviceVector;
 
@@ -3834,7 +3834,7 @@ bool AudioPolicyManager::DeviceDescriptor::equals(const sp<DeviceDescriptor>& ot
     // - have the same channel mask or one device does not specify the channel mask
     return (mType == other->mType) &&
            (mAddress == "" || other->mAddress == "" || mAddress == other->mAddress) &&
-           (mChannelMask == AUDIO_CHANNEL_NONE || other->mChannelMask == AUDIO_CHANNEL_NONE ||
+           (mChannelMask == 0 || other->mChannelMask == 0 ||
                 mChannelMask == other->mChannelMask);
 }
 

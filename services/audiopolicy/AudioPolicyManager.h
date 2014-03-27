@@ -184,7 +184,7 @@ protected:
 
             DeviceDescriptor(audio_devices_t type) :
                                  mType(type), mAddress(""),
-                                 mChannelMask(AUDIO_CHANNEL_NONE), mId(0) {}
+                                 mChannelMask(0), mId(0) {}
 
             status_t dump(int fd, int spaces) const;
             static void dumpHeader(int fd, int spaces);
