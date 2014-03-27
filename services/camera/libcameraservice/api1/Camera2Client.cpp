@@ -118,7 +118,9 @@ status_t Camera2Client::initialize(camera_module_t *module)
             mZslProcessorThread = zslProc;
             break;
         }
-        case CAMERA_DEVICE_API_VERSION_3_0:{
+        case CAMERA_DEVICE_API_VERSION_3_0:
+        case CAMERA_DEVICE_API_VERSION_3_1:
+        case CAMERA_DEVICE_API_VERSION_3_2: {
             sp<ZslProcessor3> zslProc =
                     new ZslProcessor3(this, mCaptureSequencer);
             mZslProcessor = zslProc;

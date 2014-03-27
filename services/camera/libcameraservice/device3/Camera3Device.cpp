@@ -114,9 +114,9 @@ status_t Camera3Device::initialize(camera_module_t *module)
 
     /** Cross-check device version */
 
-    if (device->common.version != CAMERA_DEVICE_API_VERSION_3_0) {
+    if (device->common.version < CAMERA_DEVICE_API_VERSION_3_0) {
         SET_ERR_L("Could not open camera: "
-                "Camera device is not version %x, reports %x instead",
+                "Camera device should be at least %x, reports %x instead",
                 CAMERA_DEVICE_API_VERSION_3_0,
                 device->common.version);
         device->common.close(&device->common);
@@ -130,7 +130,7 @@ status_t Camera3Device::initialize(camera_module_t *module)
     if (info.device_version != device->common.version) {
         SET_ERR_L("HAL reporting mismatched camera_info version (%x)"
                 " and device version (%x).",
-                device->common.version, info.device_version);
+                info.device_version, device->common.version);
         device->common.close(&device->common);
         return BAD_VALUE;
     }
