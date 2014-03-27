@@ -62,11 +62,9 @@ FLACDecoder::FLACDecoder(const sp<MediaSource> &source)
       mLibHandle(dlopen(FLAC_DECODER_LIB, RTLD_LAZY)),
       mOutBuffer(NULL),
       mDecoderInit(NULL),
-      mSetMetaData(NULL),
       mProcessData(NULL) {
     if (mLibHandle != NULL) {
         mDecoderInit = (DecoderInit) dlsym (mLibHandle, "CFlacDecoderLib_Meminit");
-        mSetMetaData = (SetMetaData) dlsym (mLibHandle, "CFlacDecoderLib_SetMetaData");
         mProcessData = (DecoderLib_Process) dlsym (mLibHandle, "CFlacDecoderLib_Process");
         init();
     }
@@ -84,9 +82,9 @@ FLACDecoder::~FLACDecoder() {
 
 void FLACDecoder::init() {
     ALOGV("FLACDecoder::init");
-    int result;
+    int result, bitWidth = 16; //currently, only 16 bit is supported
     memset(&pFlacDecState,0,sizeof(CFlacDecState));
-    (*mDecoderInit)(&pFlacDecState, &result);
+    (*mDecoderInit)(&pFlacDecState, &result, bitWidth);
 
     if (result != DEC_SUCCESS) {
         ALOGE("CSIM decoder init failed! Result %d", result);
@@ -125,7 +123,7 @@ void FLACDecoder::init() {
     ALOGV("i32MinFrmSize = %d", parserInfoToPass.i32MinFrmSize);
     ALOGV("i32MaxFrmSize = %d", parserInfoToPass.i32MaxFrmSize);
 
-    (*mSetMetaData)(&pFlacDecState, &parserInfoToPass);
+    setMetaData(&pFlacDecState, &parserInfoToPass);
 
     mMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
 
@@ -141,6 +139,18 @@ void FLACDecoder::init() {
 
     mOutBuffer = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
     mTmpBuf = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
+}
+
+void FLACDecoder::setMetaData(CFlacDecState* pFlacDecState,
+                              FLACDec_ParserInfo* parserInfoToPass) {
+    stFLACDec* pstFLACDec=(stFLACDec*)(pFlacDecState->m_pFlacDecoder);
+    memcpy(&pstFLACDec->MetaDataBlocks.MetaDataStrmInfo,parserInfoToPass,sizeof(FLACDec_ParserInfo));
+    pFlacDecState->m_bIsStreamInfoPresent=1;
+
+    pFlacDecState->ui32MaxBlockSize=pstFLACDec->MetaDataBlocks.MetaDataStrmInfo.i32MaxBlkSize;
+
+    memcpy(pFlacDecState->pFlacDecMetaDataStrmInfo,parserInfoToPass,sizeof(FLACDec_ParserInfo));
+
 }
 
 status_t FLACDecoder::start(MetaData *params) {
@@ -253,13 +263,11 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
                                      mOutBuffer,
                                      &flacOutputBufSize,
                                      &usedBitstream,
-                                     &blockSize,
-                                     &(pFlacDecState.bytesInInternalBuffer));
+                                     &blockSize);
         }
 
-        ALOGVV("decoderlib_process returned %d, availLength %d, usedBitstream %d,\
-               blockSize %d, bytesInInternalBuffer %d", (int)status, availLength,
-               usedBitstream, blockSize, pFlacDecState.bytesInInternalBuffer);
+        ALOGVV("status %d, availLength %d, usedBitstream %d, blockSize %d",
+                (int)status, availLength, usedBitstream, blockSize);
 
         MediaBuffer *buffer;
         CHECK_EQ(mBufferGroup->acquire_buffer(&buffer), (status_t)OK);
@@ -270,8 +278,8 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
 
         //Interleave the output from decoder for multichannel clips.
         if (mNumChannels > 1) {
-            for (uint16_t k = 0; k < blockSize; k++) {
-                for (uint16_t i = k, j = mNumChannels*k; i < blockSize*mNumChannels; i += blockSize, j++) {
+            for (uint32_t k = 0; k < blockSize; k++) {
+                for (uint32_t i = k, j = mNumChannels*k; i < blockSize*mNumChannels; i += blockSize, j++) {
                     mTmpBuf[j] = ptr[i];
                 }
             }

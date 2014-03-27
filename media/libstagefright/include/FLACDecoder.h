@@ -28,12 +28,15 @@
 
 #ifndef FLAC_DECODER
 #define FLAC_DECODER
-#include "FLACDec_API.h"
+#include "FLACDec_Wrapper.h"
+#include "FLACDec_BitStream.h"
+#include "FLACDec_MetaData.h"
+#include "FLACDec_Struct.h"
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/foundation/ADebug.h>
 
-#define FLAC_OUTPUT_BUFFER_SIZE 8192*2*4
-#define FLAC_INSTANCE_SIZE 8192*8*4
+#define FLAC_OUTPUT_BUFFER_SIZE (8192*8)*4*8
+#define FLAC_INSTANCE_SIZE 2048 + MAXINPBUFFER + 65536*8*4
 
 namespace android {
 
@@ -68,17 +71,17 @@ private:
     void *mOutBuffer;
     uint16_t *mTmpBuf;
 
-    typedef void* (*DecoderInit) (CFlacDecState* pFlacDecState, int* nRes);
+    void setMetaData(CFlacDecState* pFlacDecState,
+                     FLACDec_ParserInfo* parserInfoToPass);
+
+    typedef void* (*DecoderInit) (CFlacDecState* pFlacDecState, int* nRes, int bitWidth);
 
     typedef int* (*DecoderLib_Process) (CFlacDecState* pFlacDecState, uint8* pInBitStream,
                                         uint32 nActualDataLen, void *pOutSamples,
                                         uint32* uFlacOutputBufSize, uint32* usedBitstream,
-                                        uint32* blockSize, uint32* bytesInInternalBuffer);
+                                        uint32* blockSize);
 
-    typedef void* (*SetMetaData) (CFlacDecState* pFlacDecState,
-                                  FLACDec_ParserInfo* parserInfoToPass);
     DecoderInit mDecoderInit;
-    SetMetaData mSetMetaData;
     DecoderLib_Process mProcessData;
 };
 
