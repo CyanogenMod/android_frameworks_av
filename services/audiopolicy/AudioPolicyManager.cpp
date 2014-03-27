@@ -43,6 +43,117 @@
 namespace android {
 
 // ----------------------------------------------------------------------------
+// Definitions for audio_policy.conf file parsing
+// ----------------------------------------------------------------------------
+
+struct StringToEnum {
+    const char *name;
+    uint32_t value;
+};
+
+#define STRING_TO_ENUM(string) { #string, string }
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
+const StringToEnum sDeviceNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_EARPIECE),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_SPEAKER),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_WIRED_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_WIRED_HEADPHONE),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_SCO),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ALL_SCO),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ALL_A2DP),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_AUX_DIGITAL),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_USB_ACCESSORY),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_USB_DEVICE),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ALL_USB),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_REMOTE_SUBMIX),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_BUILTIN_MIC),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_ALL_SCO),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_WIRED_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_AUX_DIGITAL),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_VOICE_CALL),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_BACK_MIC),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_REMOTE_SUBMIX),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_DGTL_DOCK_HEADSET),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_USB_ACCESSORY),
+};
+
+const StringToEnum sFlagNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_FAST),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NON_BLOCKING),
+};
+
+const StringToEnum sFormatNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_16_BIT),
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_8_BIT),
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_32_BIT),
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_8_24_BIT),
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_FLOAT),
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_24_BIT_PACKED),
+    STRING_TO_ENUM(AUDIO_FORMAT_MP3),
+    STRING_TO_ENUM(AUDIO_FORMAT_AAC),
+    STRING_TO_ENUM(AUDIO_FORMAT_VORBIS),
+};
+
+const StringToEnum sOutChannelsNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_MONO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_STEREO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_5POINT1),
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_7POINT1),
+};
+
+const StringToEnum sInChannelsNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_CHANNEL_IN_MONO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_IN_STEREO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_IN_FRONT_BACK),
+};
+
+
+uint32_t AudioPolicyManager::stringToEnum(const struct StringToEnum *table,
+                                              size_t size,
+                                              const char *name)
+{
+    for (size_t i = 0; i < size; i++) {
+        if (strcmp(table[i].name, name) == 0) {
+            ALOGV("stringToEnum() found %s", table[i].name);
+            return table[i].value;
+        }
+    }
+    return 0;
+}
+
+const char *AudioPolicyManager::enumToString(const struct StringToEnum *table,
+                                              size_t size,
+                                              uint32_t value)
+{
+    for (size_t i = 0; i < size; i++) {
+        if (table[i].value == value) {
+            return table[i].name;
+        }
+    }
+    return "";
+}
+
+bool AudioPolicyManager::stringToBool(const char *value)
+{
+    return ((strcasecmp("true", value) == 0) || (strcmp("1", value) == 0));
+}
+
+
+// ----------------------------------------------------------------------------
 // AudioPolicyInterface implementation
 // ----------------------------------------------------------------------------
 
@@ -52,6 +163,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                                                   const char *device_address)
 {
     SortedVector <audio_io_handle_t> outputs;
+    String8 address = String8(device_address);
 
     ALOGV("setDeviceConnectionState() device: %x, state %d, address %s", device, state, device_address);
 
@@ -79,74 +191,50 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             return BAD_VALUE;
         }
 
+        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
+                                                            address,
+                                                            AUDIO_CHANNEL_NONE);
+        ssize_t index = mAvailableOutputDevices.indexOf(devDesc);
+
         // save a copy of the opened output descriptors before any output is opened or closed
         // by checkOutputsForDevice(). This will be needed by checkOutputForAllStrategies()
         mPreviousOutputs = mOutputs;
-        String8 paramStr;
         switch (state)
         {
         // handle output device connection
         case AUDIO_POLICY_DEVICE_STATE_AVAILABLE:
-            if (mAvailableOutputDevices & device) {
+            if (index >= 0) {
                 ALOGW("setDeviceConnectionState() device already connected: %x", device);
                 return INVALID_OPERATION;
             }
             ALOGV("setDeviceConnectionState() connecting device %x", device);
 
-            if (mHasA2dp && audio_is_a2dp_device(device)) {
-                // handle A2DP device connection
-                AudioParameter param;
-                param.add(String8(AUDIO_PARAMETER_A2DP_SINK_ADDRESS), String8(device_address));
-                paramStr = param.toString();
-            } else if (mHasUsb && audio_is_usb_device(device)) {
-                // handle USB device connection
-                paramStr = String8(device_address, MAX_DEVICE_ADDRESS_LEN);
-            }
-
-            if (checkOutputsForDevice(device, state, outputs, paramStr) != NO_ERROR) {
+            if (checkOutputsForDevice(device, state, outputs, address) != NO_ERROR) {
                 return INVALID_OPERATION;
             }
             ALOGV("setDeviceConnectionState() checkOutputsForDevice() returned %d outputs",
                   outputs.size());
             // register new device as available
-            mAvailableOutputDevices = (audio_devices_t)(mAvailableOutputDevices | device);
-
-            if (mHasA2dp && audio_is_a2dp_device(device)) {
-                // handle A2DP device connection
-                mA2dpDeviceAddress = String8(device_address, MAX_DEVICE_ADDRESS_LEN);
-                mA2dpSuspended = false;
-            } else if (audio_is_bluetooth_sco_device(device)) {
-                // handle SCO device connection
-                mScoDeviceAddress = String8(device_address, MAX_DEVICE_ADDRESS_LEN);
-            } else if (mHasUsb && audio_is_usb_device(device)) {
-                // handle USB device connection
-                mUsbCardAndDevice = String8(device_address, MAX_DEVICE_ADDRESS_LEN);
+            index = mAvailableOutputDevices.add(devDesc);
+            if (index >= 0) {
+                mAvailableOutputDevices[index]->mId = nextUniqueId();
+            } else {
+                return NO_MEMORY;
             }
 
             break;
         // handle output device disconnection
         case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE: {
-            if (!(mAvailableOutputDevices & device)) {
+            if (index < 0) {
                 ALOGW("setDeviceConnectionState() device not connected: %x", device);
                 return INVALID_OPERATION;
             }
 
             ALOGV("setDeviceConnectionState() disconnecting device %x", device);
             // remove device from available output devices
-            mAvailableOutputDevices = (audio_devices_t)(mAvailableOutputDevices & ~device);
+            mAvailableOutputDevices.remove(devDesc);
 
-            checkOutputsForDevice(device, state, outputs, paramStr);
-            if (mHasA2dp && audio_is_a2dp_device(device)) {
-                // handle A2DP device disconnection
-                mA2dpDeviceAddress = "";
-                mA2dpSuspended = false;
-            } else if (audio_is_bluetooth_sco_device(device)) {
-                // handle SCO device disconnection
-                mScoDeviceAddress = "";
-            } else if (mHasUsb && audio_is_usb_device(device)) {
-                // handle USB device disconnection
-                mUsbCardAndDevice = "";
-            }
+            checkOutputsForDevice(device, state, outputs, address);
             // not currently handling multiple simultaneous submixes: ignoring remote submix
             //   case and address
             } break;
@@ -156,6 +244,8 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             return BAD_VALUE;
         }
 
+        // checkA2dpSuspend must run before checkOutputForAllStrategies so that A2DP
+        // output is suspended before any tracks are moved to it
         checkA2dpSuspend();
         checkOutputForAllStrategies();
         // outputs must be closed after checkOutputForAllStrategies() is executed
@@ -170,6 +260,8 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                     closeOutput(outputs[i]);
                 }
             }
+            // check again after closing A2DP output to reset mA2dpSuspended if needed
+            checkA2dpSuspend();
         }
 
         updateDevicesAndOutputs();
@@ -195,26 +287,35 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
     }
     // handle input devices
     if (audio_is_input_device(device)) {
+        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
+                                                            address,
+                                                            AUDIO_CHANNEL_NONE);
 
+        ssize_t index = mAvailableInputDevices.indexOf(devDesc);
         switch (state)
         {
         // handle input device connection
         case AUDIO_POLICY_DEVICE_STATE_AVAILABLE: {
-            if (mAvailableInputDevices & device) {
+            if (index >= 0) {
                 ALOGW("setDeviceConnectionState() device already connected: %d", device);
                 return INVALID_OPERATION;
             }
-            mAvailableInputDevices = mAvailableInputDevices | (device & ~AUDIO_DEVICE_BIT_IN);
+            index = mAvailableInputDevices.add(devDesc);
+            if (index >= 0) {
+                mAvailableInputDevices[index]->mId = nextUniqueId();
+            } else {
+                return NO_MEMORY;
+            }
             }
             break;
 
         // handle input device disconnection
         case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE: {
-            if (!(mAvailableInputDevices & device)) {
+            if (index < 0) {
                 ALOGW("setDeviceConnectionState() device not connected: %d", device);
                 return INVALID_OPERATION;
             }
-            mAvailableInputDevices = (audio_devices_t) (mAvailableInputDevices & ~device);
+            mAvailableInputDevices.remove(devDesc);
             } break;
 
         default:
@@ -248,33 +349,27 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
 {
     audio_policy_dev_state_t state = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     String8 address = String8(device_address);
+    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
+                                                        String8(device_address),
+                                                        AUDIO_CHANNEL_NONE);
+    ssize_t index;
+    DeviceVector *deviceVector;
+
     if (audio_is_output_device(device)) {
-        if (device & mAvailableOutputDevices) {
-            if (audio_is_a2dp_device(device) &&
-                (!mHasA2dp || (address != "" && mA2dpDeviceAddress != address))) {
-                return state;
-            }
-            if (audio_is_bluetooth_sco_device(device) &&
-                address != "" && mScoDeviceAddress != address) {
-                return state;
-            }
-            if (audio_is_usb_device(device) &&
-                (!mHasUsb || (address != "" && mUsbCardAndDevice != address))) {
-                ALOGE("getDeviceConnectionState() invalid device: %x", device);
-                return state;
-            }
-            if (audio_is_remote_submix_device((audio_devices_t)device) && !mHasRemoteSubmix) {
-                return state;
-            }
-            state = AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
-        }
+        deviceVector = &mAvailableOutputDevices;
     } else if (audio_is_input_device(device)) {
-        if (device & mAvailableInputDevices) {
-            state = AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
-        }
+        deviceVector = &mAvailableInputDevices;
+    } else {
+        ALOGW("getDeviceConnectionState() invalid device type %08x", device);
+        return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     }
 
-    return state;
+    index = deviceVector->indexOf(devDesc);
+    if (index >= 0) {
+        return AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
+    } else {
+        return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
+    }
 }
 
 void AudioPolicyManager::setPhoneState(audio_mode_t state)
@@ -505,22 +600,22 @@ AudioPolicyManager::IOProfile *AudioPolicyManager::getProfileForDirectOutput(
         }
         for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++) {
             IOProfile *profile = mHwModules[i]->mOutputProfiles[j];
+            bool found = false;
             if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
                 if (profile->isCompatibleProfile(device, samplingRate, format,
                                            channelMask,
                                            AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) {
-                    if (mAvailableOutputDevices & profile->mSupportedDevices) {
-                        return mHwModules[i]->mOutputProfiles[j];
-                    }
+                    found = true;
                 }
             } else {
                 if (profile->isCompatibleProfile(device, samplingRate, format,
                                            channelMask,
                                            AUDIO_OUTPUT_FLAG_DIRECT)) {
-                    if (mAvailableOutputDevices & profile->mSupportedDevices) {
-                        return mHwModules[i]->mOutputProfiles[j];
-                    }
+                    found = true;
                 }
+            }
+            if (found && (mAvailableOutputDevices.types() & profile->mSupportedDevices.types())) {
+                return profile;
             }
         }
     }
@@ -1377,16 +1472,6 @@ status_t AudioPolicyManager::dump(int fd)
 
     snprintf(buffer, SIZE, " Primary Output: %d\n", mPrimaryOutput);
     result.append(buffer);
-    snprintf(buffer, SIZE, " A2DP device address: %s\n", mA2dpDeviceAddress.string());
-    result.append(buffer);
-    snprintf(buffer, SIZE, " SCO device address: %s\n", mScoDeviceAddress.string());
-    result.append(buffer);
-    snprintf(buffer, SIZE, " USB audio ALSA %s\n", mUsbCardAndDevice.string());
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Output devices: %08x\n", mAvailableOutputDevices);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Input devices: %08x\n", mAvailableInputDevices);
-    result.append(buffer);
     snprintf(buffer, SIZE, " Phone state: %d\n", mPhoneState);
     result.append(buffer);
     snprintf(buffer, SIZE, " Force use for communications %d\n",
@@ -1400,8 +1485,20 @@ status_t AudioPolicyManager::dump(int fd)
     result.append(buffer);
     snprintf(buffer, SIZE, " Force use for system %d\n", mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM]);
     result.append(buffer);
-    write(fd, result.string(), result.size());
 
+    snprintf(buffer, SIZE, " Available output devices:\n");
+    result.append(buffer);
+    write(fd, result.string(), result.size());
+    DeviceDescriptor::dumpHeader(fd, 2);
+    for (size_t i = 0; i < mAvailableOutputDevices.size(); i++) {
+        mAvailableOutputDevices[i]->dump(fd, 2);
+    }
+    snprintf(buffer, SIZE, "\n Available input devices:\n");
+    write(fd, buffer, strlen(buffer));
+    DeviceDescriptor::dumpHeader(fd, 2);
+    for (size_t i = 0; i < mAvailableInputDevices.size(); i++) {
+        mAvailableInputDevices[i]->dump(fd, 2);
+    }
 
     snprintf(buffer, SIZE, "\nHW Modules dump:\n");
     write(fd, buffer, strlen(buffer));
@@ -1525,18 +1622,22 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
 // AudioPolicyManager
 // ----------------------------------------------------------------------------
 
+uint32_t AudioPolicyManager::nextUniqueId()
+{
+    return android_atomic_inc(&mNextUniqueId);
+}
+
 AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterface)
     :
 #ifdef AUDIO_POLICY_TEST
     Thread(false),
 #endif //AUDIO_POLICY_TEST
     mPrimaryOutput((audio_io_handle_t)0),
-    mAvailableOutputDevices(AUDIO_DEVICE_NONE),
     mPhoneState(AUDIO_MODE_NORMAL),
     mLimitRingtoneVolume(false), mLastVoiceVolume(-1.0f),
     mTotalEffectsCpuLoad(0), mTotalEffectsMemory(0),
-    mA2dpSuspended(false), mHasA2dp(false), mHasUsb(false), mHasRemoteSubmix(false),
-    mSpeakerDrcEnabled(false)
+    mA2dpSuspended(false),
+    mSpeakerDrcEnabled(false), mNextUniqueId(0)
 {
     mpClientInterface = clientInterface;
 
@@ -1544,21 +1645,21 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
         mForceUse[i] = AUDIO_POLICY_FORCE_NONE;
     }
 
-    mA2dpDeviceAddress = String8("");
-    mScoDeviceAddress = String8("");
-    mUsbCardAndDevice = String8("");
-
+    mDefaultOutputDevice = new DeviceDescriptor(AUDIO_DEVICE_OUT_SPEAKER);
     if (loadAudioPolicyConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE) != NO_ERROR) {
         if (loadAudioPolicyConfig(AUDIO_POLICY_CONFIG_FILE) != NO_ERROR) {
             ALOGE("could not load audio policy configuration file, setting defaults");
             defaultAudioPolicyConfig();
         }
     }
+    // mAvailableOutputDevices and mAvailableInputDevices now contain all attached devices
 
     // must be done after reading the policy
     initializeVolumeCurves();
 
     // open all output streams needed to access attached devices
+    audio_devices_t outputDeviceTypes = mAvailableOutputDevices.types();
+    audio_devices_t inputDeviceTypes = mAvailableInputDevices.types() & ~AUDIO_DEVICE_BIT_IN;
     for (size_t i = 0; i < mHwModules.size(); i++) {
         mHwModules[i]->mHandle = mpClientInterface->loadHwModule(mHwModules[i]->mName);
         if (mHwModules[i]->mHandle == 0) {
@@ -1568,15 +1669,22 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
         // open all output streams needed to access attached devices
         // except for direct output streams that are only opened when they are actually
         // required by an app.
+        // This also validates mAvailableOutputDevices list
         for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++)
         {
             const IOProfile *outProfile = mHwModules[i]->mOutputProfiles[j];
 
-            if ((outProfile->mSupportedDevices & mAttachedOutputDevices) &&
+            if (outProfile->mSupportedDevices.isEmpty()) {
+                ALOGW("Output profile contains no device on module %s", mHwModules[i]->mName);
+                continue;
+            }
+
+            audio_devices_t profileTypes = outProfile->mSupportedDevices.types();
+            if ((profileTypes & outputDeviceTypes) &&
                     ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0)) {
                 AudioOutputDescriptor *outputDesc = new AudioOutputDescriptor(outProfile);
-                outputDesc->mDevice = (audio_devices_t)(mDefaultOutputDevice &
-                                                            outProfile->mSupportedDevices);
+
+                outputDesc->mDevice = (audio_devices_t)(mDefaultOutputDevice->mType & profileTypes);
                 audio_io_handle_t output = mpClientInterface->openOutput(
                                                 outProfile->mModule->mHandle,
                                                 &outputDesc->mDevice,
@@ -1586,27 +1694,96 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                 &outputDesc->mLatency,
                                                 outputDesc->mFlags);
                 if (output == 0) {
+                    ALOGW("Cannot open output stream for device %08x on hw module %s",
+                          outputDesc->mDevice,
+                          mHwModules[i]->mName);
                     delete outputDesc;
                 } else {
-                    mAvailableOutputDevices = (audio_devices_t)(mAvailableOutputDevices |
-                                            (outProfile->mSupportedDevices & mAttachedOutputDevices));
+                    for (size_t i = 0; i  < outProfile->mSupportedDevices.size(); i++) {
+                        audio_devices_t type = outProfile->mSupportedDevices[i]->mType;
+                        ssize_t index =
+                                mAvailableOutputDevices.indexOf(outProfile->mSupportedDevices[i]);
+                        // give a valid ID to an attached device once confirmed it is reachable
+                        if ((index >= 0) && (mAvailableOutputDevices[index]->mId == 0)) {
+                            mAvailableOutputDevices[index]->mId = nextUniqueId();
+                        }
+                    }
                     if (mPrimaryOutput == 0 &&
                             outProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
                         mPrimaryOutput = output;
                     }
                     addOutput(output, outputDesc);
                     setOutputDevice(output,
-                                    (audio_devices_t)(mDefaultOutputDevice &
-                                                        outProfile->mSupportedDevices),
+                                    outputDesc->mDevice,
                                     true);
                 }
             }
         }
-    }
+        // open input streams needed to access attached devices to validate
+        // mAvailableInputDevices list
+        for (size_t j = 0; j < mHwModules[i]->mInputProfiles.size(); j++)
+        {
+            const IOProfile *inProfile = mHwModules[i]->mInputProfiles[j];
 
-    ALOGE_IF((mAttachedOutputDevices & ~mAvailableOutputDevices),
-             "Not output found for attached devices %08x",
-             (mAttachedOutputDevices & ~mAvailableOutputDevices));
+            if (inProfile->mSupportedDevices.isEmpty()) {
+                ALOGW("Input profile contains no device on module %s", mHwModules[i]->mName);
+                continue;
+            }
+
+            audio_devices_t profileTypes = inProfile->mSupportedDevices.types();
+            if (profileTypes & inputDeviceTypes) {
+                AudioInputDescriptor *inputDesc = new AudioInputDescriptor(inProfile);
+
+                inputDesc->mInputSource = AUDIO_SOURCE_MIC;
+                inputDesc->mDevice = inProfile->mSupportedDevices[0]->mType;
+                audio_io_handle_t input = mpClientInterface->openInput(
+                                                    inProfile->mModule->mHandle,
+                                                    &inputDesc->mDevice,
+                                                    &inputDesc->mSamplingRate,
+                                                    &inputDesc->mFormat,
+                                                    &inputDesc->mChannelMask);
+
+                if (input != 0) {
+                    for (size_t i = 0; i  < inProfile->mSupportedDevices.size(); i++) {
+                        audio_devices_t type = inProfile->mSupportedDevices[i]->mType;
+                        ssize_t index =
+                                mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[i]);
+                        // give a valid ID to an attached device once confirmed it is reachable
+                        if ((index >= 0) && (mAvailableInputDevices[index]->mId == 0)) {
+                            mAvailableInputDevices[index]->mId = nextUniqueId();
+                        }
+                    }
+                    mpClientInterface->closeInput(input);
+                } else {
+                    ALOGW("Cannot open input stream for device %08x on hw module %s",
+                          inputDesc->mDevice,
+                          mHwModules[i]->mName);
+                }
+                delete inputDesc;
+            }
+        }
+    }
+    // make sure all attached devices have been allocated a unique ID
+    for (size_t i = 0; i  < mAvailableOutputDevices.size();) {
+        if (mAvailableOutputDevices[i]->mId == 0) {
+            ALOGW("Input device %08x unreachable", mAvailableOutputDevices[i]->mType);
+            mAvailableOutputDevices.remove(mAvailableOutputDevices[i]);
+            continue;
+        }
+        i++;
+    }
+    for (size_t i = 0; i  < mAvailableInputDevices.size();) {
+        if (mAvailableInputDevices[i]->mId == 0) {
+            ALOGW("Input device %08x unreachable", mAvailableInputDevices[i]->mType);
+            mAvailableInputDevices.remove(mAvailableInputDevices[i]);
+            continue;
+        }
+        i++;
+    }
+    // make sure default device is reachable
+    if (mAvailableOutputDevices.indexOf(mDefaultOutputDevice) < 0) {
+        ALOGE("Default device %08x is unreachable", mDefaultOutputDevice->mType);
+    }
 
     ALOGE_IF((mPrimaryOutput == 0), "Failed to open primary output");
 
@@ -1653,6 +1830,8 @@ AudioPolicyManager::~AudioPolicyManager()
    for (size_t i = 0; i < mHwModules.size(); i++) {
         delete mHwModules[i];
    }
+   mAvailableOutputDevices.clear();
+   mAvailableInputDevices.clear();
 }
 
 status_t AudioPolicyManager::initCheck()
@@ -1819,10 +1998,18 @@ void AudioPolicyManager::addOutput(audio_io_handle_t id, AudioOutputDescriptor *
 }
 
 
+String8 AudioPolicyManager::addressToParameter(audio_devices_t device, const String8 address)
+{
+    if (device & AUDIO_DEVICE_OUT_ALL_A2DP) {
+        return String8("a2dp_sink_address=")+address;
+    }
+    return address;
+}
+
 status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                                                        audio_policy_dev_state_t state,
                                                        SortedVector<audio_io_handle_t>& outputs,
-                                                       const String8 paramStr)
+                                                       const String8 address)
 {
     AudioOutputDescriptor *desc;
 
@@ -1830,7 +2017,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
         // first list already open outputs that can be routed to this device
         for (size_t i = 0; i < mOutputs.size(); i++) {
             desc = mOutputs.valueAt(i);
-            if (!desc->isDuplicated() && (desc->mProfile->mSupportedDevices & device)) {
+            if (!desc->isDuplicated() && (desc->mProfile->mSupportedDevices.types() & device)) {
                 ALOGV("checkOutputsForDevice(): adding opened output %d", mOutputs.keyAt(i));
                 outputs.add(mOutputs.keyAt(i));
             }
@@ -1844,7 +2031,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
             }
             for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++)
             {
-                if (mHwModules[i]->mOutputProfiles[j]->mSupportedDevices & device) {
+                if (mHwModules[i]->mOutputProfiles[j]->mSupportedDevices.types() & device) {
                     ALOGV("checkOutputsForDevice(): adding profile %d from module %d", j, i);
                     profiles.add(mHwModules[i]->mOutputProfiles[j]);
                 }
@@ -1873,7 +2060,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 continue;
             }
 
-            ALOGV("opening output for device %08x with params %s", device, paramStr.string());
+            ALOGV("opening output for device %08x with params %s", device, address.string());
             desc = new AudioOutputDescriptor(profile);
             desc->mDevice = device;
             audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
@@ -1890,8 +2077,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                                                                        desc->mFlags,
                                                                        &offloadInfo);
             if (output != 0) {
-                if (!paramStr.isEmpty()) {
-                    mpClientInterface->setParameters(output, paramStr);
+                if (!address.isEmpty()) {
+                    mpClientInterface->setParameters(output, addressToParameter(device, address));
                 }
 
                 if (desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
@@ -1991,7 +2178,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
         for (size_t i = 0; i < mOutputs.size(); i++) {
             desc = mOutputs.valueAt(i);
             if (!desc->isDuplicated() &&
-                    !(desc->mProfile->mSupportedDevices & mAvailableOutputDevices)) {
+                    !(desc->mProfile->mSupportedDevices.types() &
+                            mAvailableOutputDevices.types())) {
                 ALOGV("checkOutputsForDevice(): disconnecting adding output %d", mOutputs.keyAt(i));
                 outputs.add(mOutputs.keyAt(i));
             }
@@ -2004,7 +2192,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
             for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++)
             {
                 IOProfile *profile = mHwModules[i]->mOutputProfiles[j];
-                if ((profile->mSupportedDevices & device) &&
+                if ((profile->mSupportedDevices.types() & device) &&
                         (profile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
                     ALOGV("checkOutputsForDevice(): clearing direct output profile %d on module %d",
                           j, i);
@@ -2187,9 +2375,12 @@ void AudioPolicyManager::checkA2dpSuspend()
     }
     audio_io_handle_t a2dpOutput = getA2dpOutput();
     if (a2dpOutput == 0) {
+        mA2dpSuspended = false;
         return;
     }
 
+    bool isScoConnected =
+            (mAvailableInputDevices.types() & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) != 0;
     // suspend A2DP output if:
     //      (NOT already suspended) &&
     //      ((SCO device is connected &&
@@ -2203,7 +2394,7 @@ void AudioPolicyManager::checkA2dpSuspend()
     //      (phone state is NOT ringing && NOT in call)
     //
     if (mA2dpSuspended) {
-        if (((mScoDeviceAddress == "") ||
+        if ((!isScoConnected ||
              ((mForceUse[AUDIO_POLICY_FORCE_FOR_COMMUNICATION] != AUDIO_POLICY_FORCE_BT_SCO) &&
               (mForceUse[AUDIO_POLICY_FORCE_FOR_RECORD] != AUDIO_POLICY_FORCE_BT_SCO))) &&
              ((mPhoneState != AUDIO_MODE_IN_CALL) &&
@@ -2213,7 +2404,7 @@ void AudioPolicyManager::checkA2dpSuspend()
             mA2dpSuspended = false;
         }
     } else {
-        if (((mScoDeviceAddress != "") &&
+        if ((isScoConnected &&
              ((mForceUse[AUDIO_POLICY_FORCE_FOR_COMMUNICATION] == AUDIO_POLICY_FORCE_BT_SCO) ||
               (mForceUse[AUDIO_POLICY_FORCE_FOR_RECORD] == AUDIO_POLICY_FORCE_BT_SCO))) ||
              ((mPhoneState == AUDIO_MODE_IN_CALL) ||
@@ -2328,7 +2519,7 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
               strategy, mDeviceForStrategy[strategy]);
         return mDeviceForStrategy[strategy];
     }
-
+    audio_devices_t availableOutputDeviceTypes = mAvailableOutputDevices.types();
     switch (strategy) {
 
     case STRATEGY_SONIFICATION_RESPECTFUL:
@@ -2366,45 +2557,45 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         switch (mForceUse[AUDIO_POLICY_FORCE_FOR_COMMUNICATION]) {
         case AUDIO_POLICY_FORCE_BT_SCO:
             if (!isInCall() || strategy != STRATEGY_DTMF) {
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT;
                 if (device) break;
             }
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET;
             if (device) break;
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_SCO;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_SCO;
             if (device) break;
             // if SCO device is requested but no SCO device is available, fall back to default case
             // FALL THROUGH
 
         default:    // FORCE_NONE
             // when not in a phone call, phone strategy should route STREAM_VOICE_CALL to A2DP
-            if (mHasA2dp && !isInCall() &&
+            if (!isInCall() &&
                     (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
                     (getA2dpOutput() != 0) && !mA2dpSuspended) {
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES;
                 if (device) break;
             }
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
             if (device) break;
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_WIRED_HEADSET;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADSET;
             if (device) break;
             if (mPhoneState != AUDIO_MODE_IN_CALL) {
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_USB_ACCESSORY;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_ACCESSORY;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_USB_DEVICE;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_AUX_DIGITAL;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_AUX_DIGITAL;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
                 if (device) break;
             }
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_EARPIECE;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_EARPIECE;
             if (device) break;
-            device = mDefaultOutputDevice;
+            device = mDefaultOutputDevice->mType;
             if (device == AUDIO_DEVICE_NONE) {
                 ALOGE("getDeviceForStrategy() no device found for STRATEGY_PHONE");
             }
@@ -2413,27 +2604,27 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         case AUDIO_POLICY_FORCE_SPEAKER:
             // when not in a phone call, phone strategy should route STREAM_VOICE_CALL to
             // A2DP speaker when forcing to speaker output
-            if (mHasA2dp && !isInCall() &&
+            if (!isInCall() &&
                     (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
                     (getA2dpOutput() != 0) && !mA2dpSuspended) {
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
                 if (device) break;
             }
             if (mPhoneState != AUDIO_MODE_IN_CALL) {
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_USB_ACCESSORY;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_ACCESSORY;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_USB_DEVICE;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_AUX_DIGITAL;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_AUX_DIGITAL;
                 if (device) break;
-                device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
+                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
                 if (device) break;
             }
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_SPEAKER;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER;
             if (device) break;
-            device = mDefaultOutputDevice;
+            device = mDefaultOutputDevice->mType;
             if (device == AUDIO_DEVICE_NONE) {
                 ALOGE("getDeviceForStrategy() no device found for STRATEGY_PHONE, FORCE_SPEAKER");
             }
@@ -2459,7 +2650,7 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
 
         if ((strategy == STRATEGY_SONIFICATION) ||
                 (mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED)) {
-            device = mAvailableOutputDevices & AUDIO_DEVICE_OUT_SPEAKER;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER;
             if (device == AUDIO_DEVICE_NONE) {
                 ALOGE("getDeviceForStrategy() speaker device not found for STRATEGY_SONIFICATION");
             }
@@ -2471,52 +2662,51 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         uint32_t device2 = AUDIO_DEVICE_NONE;
         if (strategy != STRATEGY_SONIFICATION) {
             // no sonification on remote submix (e.g. WFD)
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
         }
         if ((device2 == AUDIO_DEVICE_NONE) &&
-                mHasA2dp &&
                 (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
                 (getA2dpOutput() != 0) && !mA2dpSuspended) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
             if (device2 == AUDIO_DEVICE_NONE) {
-                device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES;
+                device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES;
             }
             if (device2 == AUDIO_DEVICE_NONE) {
-                device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
+                device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
             }
         }
         if (device2 == AUDIO_DEVICE_NONE) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_WIRED_HEADSET;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADSET;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_USB_ACCESSORY;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_ACCESSORY;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_USB_DEVICE;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
         }
         if ((device2 == AUDIO_DEVICE_NONE) && (strategy != STRATEGY_SONIFICATION)) {
             // no sonification on aux digital (e.g. HDMI)
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_AUX_DIGITAL;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_AUX_DIGITAL;
         }
         if ((device2 == AUDIO_DEVICE_NONE) &&
                 (mForceUse[AUDIO_POLICY_FORCE_FOR_DOCK] == AUDIO_POLICY_FORCE_ANALOG_DOCK)) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
-            device2 = mAvailableOutputDevices & AUDIO_DEVICE_OUT_SPEAKER;
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER;
         }
 
         // device is DEVICE_OUT_SPEAKER if we come from case STRATEGY_SONIFICATION or
         // STRATEGY_ENFORCED_AUDIBLE, AUDIO_DEVICE_NONE otherwise
         device |= device2;
         if (device) break;
-        device = mDefaultOutputDevice;
+        device = mDefaultOutputDevice->mType;
         if (device == AUDIO_DEVICE_NONE) {
             ALOGE("getDeviceForStrategy() no device found for STRATEGY_MEDIA");
         }
@@ -2630,12 +2820,12 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
     // no need to proceed if new device is not AUDIO_DEVICE_NONE and not supported by current
     // output profile
     if ((device != AUDIO_DEVICE_NONE) &&
-            ((device & outputDesc->mProfile->mSupportedDevices) == 0)) {
+            ((device & outputDesc->mProfile->mSupportedDevices.types()) == 0)) {
         return 0;
     }
 
     // filter devices according to output selected
-    device = (audio_devices_t)(device & outputDesc->mProfile->mSupportedDevices);
+    device = (audio_devices_t)(device & outputDesc->mProfile->mSupportedDevices.types());
 
     audio_devices_t prevDevice = outputDesc->mDevice;
 
@@ -2694,10 +2884,11 @@ AudioPolicyManager::IOProfile *AudioPolicyManager::getInputProfile(audio_devices
 audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t inputSource)
 {
     uint32_t device = AUDIO_DEVICE_NONE;
-
+    audio_devices_t availableDeviceTypes = mAvailableInputDevices.types() &
+                                            ~AUDIO_DEVICE_BIT_IN;
     switch (inputSource) {
     case AUDIO_SOURCE_VOICE_UPLINK:
-      if (mAvailableInputDevices & AUDIO_DEVICE_IN_VOICE_CALL) {
+      if (availableDeviceTypes & AUDIO_DEVICE_IN_VOICE_CALL) {
           device = AUDIO_DEVICE_IN_VOICE_CALL;
           break;
       }
@@ -2709,29 +2900,29 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
     case AUDIO_SOURCE_HOTWORD:
     case AUDIO_SOURCE_VOICE_COMMUNICATION:
         if (mForceUse[AUDIO_POLICY_FORCE_FOR_RECORD] == AUDIO_POLICY_FORCE_BT_SCO &&
-            mAvailableInputDevices & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
+                availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
             device = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
-        } else if (mAvailableInputDevices & AUDIO_DEVICE_IN_WIRED_HEADSET) {
+        } else if (availableDeviceTypes & AUDIO_DEVICE_IN_WIRED_HEADSET) {
             device = AUDIO_DEVICE_IN_WIRED_HEADSET;
-        } else if (mAvailableInputDevices & AUDIO_DEVICE_IN_BUILTIN_MIC) {
+        } else if (availableDeviceTypes & AUDIO_DEVICE_IN_BUILTIN_MIC) {
             device = AUDIO_DEVICE_IN_BUILTIN_MIC;
         }
         break;
     case AUDIO_SOURCE_CAMCORDER:
-        if (mAvailableInputDevices & AUDIO_DEVICE_IN_BACK_MIC) {
+        if (availableDeviceTypes & AUDIO_DEVICE_IN_BACK_MIC) {
             device = AUDIO_DEVICE_IN_BACK_MIC;
-        } else if (mAvailableInputDevices & AUDIO_DEVICE_IN_BUILTIN_MIC) {
+        } else if (availableDeviceTypes & AUDIO_DEVICE_IN_BUILTIN_MIC) {
             device = AUDIO_DEVICE_IN_BUILTIN_MIC;
         }
         break;
     case AUDIO_SOURCE_VOICE_DOWNLINK:
     case AUDIO_SOURCE_VOICE_CALL:
-        if (mAvailableInputDevices & AUDIO_DEVICE_IN_VOICE_CALL) {
+        if (availableDeviceTypes & AUDIO_DEVICE_IN_VOICE_CALL) {
             device = AUDIO_DEVICE_IN_VOICE_CALL;
         }
         break;
     case AUDIO_SOURCE_REMOTE_SUBMIX:
-        if (mAvailableInputDevices & AUDIO_DEVICE_IN_REMOTE_SUBMIX) {
+        if (availableDeviceTypes & AUDIO_DEVICE_IN_REMOTE_SUBMIX) {
             device = AUDIO_DEVICE_IN_REMOTE_SUBMIX;
         }
         break;
@@ -3335,7 +3526,7 @@ audio_devices_t AudioPolicyManager::AudioOutputDescriptor::supportedDevices()
     if (isDuplicated()) {
         return (audio_devices_t)(mOutput1->supportedDevices() | mOutput2->supportedDevices());
     } else {
-        return mProfile->mSupportedDevices ;
+        return mProfile->mSupportedDevices.types() ;
     }
 }
 
@@ -3418,6 +3609,11 @@ AudioPolicyManager::AudioInputDescriptor::AudioInputDescriptor(const IOProfile *
       mDevice(AUDIO_DEVICE_NONE), mRefCount(0),
       mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile)
 {
+    if (profile != NULL) {
+        mSamplingRate = profile->mSamplingRates[0];
+        mFormat = profile->mFormats[0];
+        mChannelMask = profile->mChannelMasks[0];
+    }
 }
 
 status_t AudioPolicyManager::AudioInputDescriptor::dump(int fd)
@@ -3512,10 +3708,12 @@ AudioPolicyManager::HwModule::HwModule(const char *name)
 AudioPolicyManager::HwModule::~HwModule()
 {
     for (size_t i = 0; i < mOutputProfiles.size(); i++) {
-         delete mOutputProfiles[i];
+        mOutputProfiles[i]->mSupportedDevices.clear();
+        delete mOutputProfiles[i];
     }
     for (size_t i = 0; i < mInputProfiles.size(); i++) {
-         delete mInputProfiles[i];
+        mInputProfiles[i]->mSupportedDevices.clear();
+        delete mInputProfiles[i];
     }
     free((void *)mName);
 }
@@ -3571,7 +3769,7 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
          return false;
      }
 
-     if ((mSupportedDevices & device) != device) {
+     if ((mSupportedDevices.types() & device) != device) {
          return false;
      }
      if ((mFlags & flags) != flags) {
@@ -3638,102 +3836,128 @@ void AudioPolicyManager::IOProfile::dump(int fd)
         result.append(i == (mFormats.size() - 1) ? "\n" : ", ");
     }
 
-    snprintf(buffer, SIZE, "    - devices: 0x%04x\n", mSupportedDevices);
+    snprintf(buffer, SIZE, "    - devices:\n");
     result.append(buffer);
+    write(fd, result.string(), result.size());
+    DeviceDescriptor::dumpHeader(fd, 6);
+    for (size_t i = 0; i < mSupportedDevices.size(); i++) {
+        mSupportedDevices[i]->dump(fd, 6);
+    }
+
     snprintf(buffer, SIZE, "    - flags: 0x%04x\n", mFlags);
     result.append(buffer);
 
     write(fd, result.string(), result.size());
 }
 
-// --- audio_policy.conf file parsing
+// --- DeviceDescriptor implementation
 
-struct StringToEnum {
-    const char *name;
-    uint32_t value;
-};
-
-#define STRING_TO_ENUM(string) { #string, string }
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
-
-const struct StringToEnum sDeviceNameToEnumTable[] = {
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_EARPIECE),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_SPEAKER),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_WIRED_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_WIRED_HEADPHONE),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ALL_SCO),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ALL_A2DP),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_AUX_DIGITAL),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_USB_DEVICE),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_USB_ACCESSORY),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_ALL_USB),
-    STRING_TO_ENUM(AUDIO_DEVICE_OUT_REMOTE_SUBMIX),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_BUILTIN_MIC),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_WIRED_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_AUX_DIGITAL),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_VOICE_CALL),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_BACK_MIC),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_REMOTE_SUBMIX),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_DGTL_DOCK_HEADSET),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_USB_ACCESSORY),
-};
-
-const struct StringToEnum sFlagNameToEnumTable[] = {
-    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT),
-    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
-    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_FAST),
-    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),
-    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
-    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NON_BLOCKING),
-};
-
-const struct StringToEnum sFormatNameToEnumTable[] = {
-    STRING_TO_ENUM(AUDIO_FORMAT_PCM_16_BIT),
-    STRING_TO_ENUM(AUDIO_FORMAT_PCM_8_BIT),
-    STRING_TO_ENUM(AUDIO_FORMAT_PCM_32_BIT),
-    STRING_TO_ENUM(AUDIO_FORMAT_PCM_8_24_BIT),
-    STRING_TO_ENUM(AUDIO_FORMAT_PCM_FLOAT),
-    STRING_TO_ENUM(AUDIO_FORMAT_PCM_24_BIT_PACKED),
-    STRING_TO_ENUM(AUDIO_FORMAT_MP3),
-    STRING_TO_ENUM(AUDIO_FORMAT_AAC),
-    STRING_TO_ENUM(AUDIO_FORMAT_VORBIS),
-};
-
-const struct StringToEnum sOutChannelsNameToEnumTable[] = {
-    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_MONO),
-    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_STEREO),
-    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_5POINT1),
-    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_7POINT1),
-};
-
-const struct StringToEnum sInChannelsNameToEnumTable[] = {
-    STRING_TO_ENUM(AUDIO_CHANNEL_IN_MONO),
-    STRING_TO_ENUM(AUDIO_CHANNEL_IN_STEREO),
-    STRING_TO_ENUM(AUDIO_CHANNEL_IN_FRONT_BACK),
-};
-
-
-uint32_t AudioPolicyManager::stringToEnum(const struct StringToEnum *table,
-                                              size_t size,
-                                              const char *name)
+bool AudioPolicyManager::DeviceDescriptor::equals(const sp<DeviceDescriptor>& other) const
 {
-    for (size_t i = 0; i < size; i++) {
-        if (strcmp(table[i].name, name) == 0) {
-            ALOGV("stringToEnum() found %s", table[i].name);
-            return table[i].value;
+    // Devices are considered equal if they:
+    // - are of the same type (a device type cannot be AUDIO_DEVICE_NONE)
+    // - have the same address or one device does not specify the address
+    // - have the same channel mask or one device does not specify the channel mask
+    return (mType == other->mType) &&
+           (mAddress == "" || other->mAddress == "" || mAddress == other->mAddress) &&
+           (mChannelMask == AUDIO_CHANNEL_NONE || other->mChannelMask == AUDIO_CHANNEL_NONE ||
+                mChannelMask == other->mChannelMask);
+}
+
+void AudioPolicyManager::DeviceVector::refreshTypes()
+{
+    mTypes = AUDIO_DEVICE_NONE;
+    for(size_t i = 0; i < size(); i++) {
+        mTypes |= itemAt(i)->mType;
+    }
+    ALOGV("DeviceVector::refreshTypes() mTypes %08x", mTypes);
+}
+
+ssize_t AudioPolicyManager::DeviceVector::indexOf(const sp<DeviceDescriptor>& item) const
+{
+    for(size_t i = 0; i < size(); i++) {
+        if (item->equals(itemAt(i))) {
+            return i;
         }
     }
-    return 0;
+    return -1;
 }
 
-bool AudioPolicyManager::stringToBool(const char *value)
+ssize_t AudioPolicyManager::DeviceVector::add(const sp<DeviceDescriptor>& item)
 {
-    return ((strcasecmp("true", value) == 0) || (strcmp("1", value) == 0));
+    ssize_t ret = indexOf(item);
+
+    if (ret < 0) {
+        ret = SortedVector::add(item);
+        if (ret >= 0) {
+            refreshTypes();
+        }
+    } else {
+        ALOGW("DeviceVector::add device %08x already in", item->mType);
+        ret = -1;
+    }
+    return ret;
 }
+
+ssize_t AudioPolicyManager::DeviceVector::remove(const sp<DeviceDescriptor>& item)
+{
+    size_t i;
+    ssize_t ret = indexOf(item);
+
+    if (ret < 0) {
+        ALOGW("DeviceVector::remove device %08x not in", item->mType);
+    } else {
+        ret = SortedVector::removeAt(ret);
+        if (ret >= 0) {
+            refreshTypes();
+        }
+    }
+    return ret;
+}
+
+void AudioPolicyManager::DeviceVector::loadDevicesFromType(audio_devices_t types)
+{
+    DeviceVector deviceList;
+
+    uint32_t role_bit = AUDIO_DEVICE_BIT_IN & types;
+    types &= ~role_bit;
+
+    while (types) {
+        uint32_t i = 31 - __builtin_clz(types);
+        uint32_t type = 1 << i;
+        types &= ~type;
+        add(new DeviceDescriptor(type | role_bit));
+    }
+}
+
+void AudioPolicyManager::DeviceDescriptor::dumpHeader(int fd, int spaces)
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "%*s%-48s %-2s %-8s %-32s \n",
+                         spaces, "", "Type", "ID", "Cnl Mask", "Address");
+    write(fd, buffer, strlen(buffer));
+}
+
+status_t AudioPolicyManager::DeviceDescriptor::dump(int fd, int spaces) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "%*s%-48s %2d %08x %-32s \n",
+                         spaces, "",
+                         enumToString(sDeviceNameToEnumTable,
+                                      ARRAY_SIZE(sDeviceNameToEnumTable),
+                                      mType),
+                         mId, mChannelMask, mAddress.string());
+    write(fd, buffer, strlen(buffer));
+
+    return NO_ERROR;
+}
+
+
+// --- audio_policy.conf file parsing
 
 audio_output_flags_t AudioPolicyManager::parseFlagNames(char *name)
 {
@@ -3770,9 +3994,9 @@ audio_devices_t AudioPolicyManager::parseDeviceNames(char *name)
             device |= stringToEnum(sDeviceNameToEnumTable,
                                  ARRAY_SIZE(sDeviceNameToEnumTable),
                                  devName);
-        }
+         }
         devName = strtok(NULL, "|");
-    }
+     }
     return device;
 }
 
@@ -3886,11 +4110,11 @@ status_t AudioPolicyManager::loadInput(cnode *root, HwModule *module)
         } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
             loadInChannels((char *)node->value, profile);
         } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices = parseDeviceNames((char *)node->value);
+            profile->mSupportedDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
         }
         node = node->next;
     }
-    ALOGW_IF(profile->mSupportedDevices == AUDIO_DEVICE_NONE,
+    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
             "loadInput() invalid supported devices");
     ALOGW_IF(profile->mChannelMasks.size() == 0,
             "loadInput() invalid supported channel masks");
@@ -3898,12 +4122,13 @@ status_t AudioPolicyManager::loadInput(cnode *root, HwModule *module)
             "loadInput() invalid supported sampling rates");
     ALOGW_IF(profile->mFormats.size() == 0,
             "loadInput() invalid supported formats");
-    if ((profile->mSupportedDevices != AUDIO_DEVICE_NONE) &&
+    if (!profile->mSupportedDevices.isEmpty() &&
             (profile->mChannelMasks.size() != 0) &&
             (profile->mSamplingRates.size() != 0) &&
             (profile->mFormats.size() != 0)) {
 
-        ALOGV("loadInput() adding input mSupportedDevices %04x", profile->mSupportedDevices);
+        ALOGV("loadInput() adding input Supported Devices %04x",
+              profile->mSupportedDevices.types());
 
         module->mInputProfiles.add(profile);
         return NO_ERROR;
@@ -3927,13 +4152,13 @@ status_t AudioPolicyManager::loadOutput(cnode *root, HwModule *module)
         } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
             loadOutChannels((char *)node->value, profile);
         } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices = parseDeviceNames((char *)node->value);
+            profile->mSupportedDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
         } else if (strcmp(node->name, FLAGS_TAG) == 0) {
             profile->mFlags = parseFlagNames((char *)node->value);
         }
         node = node->next;
     }
-    ALOGW_IF(profile->mSupportedDevices == AUDIO_DEVICE_NONE,
+    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
             "loadOutput() invalid supported devices");
     ALOGW_IF(profile->mChannelMasks.size() == 0,
             "loadOutput() invalid supported channel masks");
@@ -3941,13 +4166,13 @@ status_t AudioPolicyManager::loadOutput(cnode *root, HwModule *module)
             "loadOutput() invalid supported sampling rates");
     ALOGW_IF(profile->mFormats.size() == 0,
             "loadOutput() invalid supported formats");
-    if ((profile->mSupportedDevices != AUDIO_DEVICE_NONE) &&
+    if (!profile->mSupportedDevices.isEmpty() &&
             (profile->mChannelMasks.size() != 0) &&
             (profile->mSamplingRates.size() != 0) &&
             (profile->mFormats.size() != 0)) {
 
-        ALOGV("loadOutput() adding output mSupportedDevices %04x, mFlags %04x",
-              profile->mSupportedDevices, profile->mFlags);
+        ALOGV("loadOutput() adding output Supported Devices %04x, mFlags %04x",
+              profile->mSupportedDevices.types(), profile->mFlags);
 
         module->mOutputProfiles.add(profile);
         return NO_ERROR;
@@ -4026,20 +4251,22 @@ void AudioPolicyManager::loadGlobalConfig(cnode *root)
     node = node->first_child;
     while (node) {
         if (strcmp(ATTACHED_OUTPUT_DEVICES_TAG, node->name) == 0) {
-            mAttachedOutputDevices = parseDeviceNames((char *)node->value);
-            ALOGW_IF(mAttachedOutputDevices == AUDIO_DEVICE_NONE,
-                    "loadGlobalConfig() no attached output devices");
-            ALOGV("loadGlobalConfig() mAttachedOutputDevices %04x", mAttachedOutputDevices);
+            mAvailableOutputDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
+            ALOGV("loadGlobalConfig() Attached Output Devices %08x",
+                  mAvailableOutputDevices.types());
         } else if (strcmp(DEFAULT_OUTPUT_DEVICE_TAG, node->name) == 0) {
-            mDefaultOutputDevice = (audio_devices_t)stringToEnum(sDeviceNameToEnumTable,
+            audio_devices_t device = (audio_devices_t)stringToEnum(sDeviceNameToEnumTable,
                                               ARRAY_SIZE(sDeviceNameToEnumTable),
                                               (char *)node->value);
-            ALOGW_IF(mDefaultOutputDevice == AUDIO_DEVICE_NONE,
-                    "loadGlobalConfig() default device not specified");
-            ALOGV("loadGlobalConfig() mDefaultOutputDevice %04x", mDefaultOutputDevice);
+            if (device != AUDIO_DEVICE_NONE) {
+                mDefaultOutputDevice = new DeviceDescriptor(device);
+            } else {
+                ALOGW("loadGlobalConfig() default device not specified");
+            }
+            ALOGV("loadGlobalConfig() mDefaultOutputDevice %08x", mDefaultOutputDevice->mType);
         } else if (strcmp(ATTACHED_INPUT_DEVICES_TAG, node->name) == 0) {
-            mAvailableInputDevices = parseDeviceNames((char *)node->value) & ~AUDIO_DEVICE_BIT_IN;
-            ALOGV("loadGlobalConfig() mAvailableInputDevices %04x", mAvailableInputDevices);
+            mAvailableInputDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
+            ALOGV("loadGlobalConfig() Available InputDevices %08x", mAvailableInputDevices.types());
         } else if (strcmp(SPEAKER_DRC_ENABLED_TAG, node->name) == 0) {
             mSpeakerDrcEnabled = stringToBool((char *)node->value);
             ALOGV("loadGlobalConfig() mSpeakerDrcEnabled = %d", mSpeakerDrcEnabled);
@@ -4076,10 +4303,9 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
 {
     HwModule *module;
     IOProfile *profile;
-
-    mDefaultOutputDevice = AUDIO_DEVICE_OUT_SPEAKER;
-    mAttachedOutputDevices = AUDIO_DEVICE_OUT_SPEAKER;
-    mAvailableInputDevices = AUDIO_DEVICE_IN_BUILTIN_MIC & ~AUDIO_DEVICE_BIT_IN;
+    sp<DeviceDescriptor> defaultInputDevice = new DeviceDescriptor(AUDIO_DEVICE_IN_BUILTIN_MIC);
+    mAvailableOutputDevices.add(mDefaultOutputDevice);
+    mAvailableInputDevices.add(defaultInputDevice);
 
     module = new HwModule("primary");
 
@@ -4087,7 +4313,7 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
     profile->mSamplingRates.add(44100);
     profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
     profile->mChannelMasks.add(AUDIO_CHANNEL_OUT_STEREO);
-    profile->mSupportedDevices = AUDIO_DEVICE_OUT_SPEAKER;
+    profile->mSupportedDevices.add(mDefaultOutputDevice);
     profile->mFlags = AUDIO_OUTPUT_FLAG_PRIMARY;
     module->mOutputProfiles.add(profile);
 
@@ -4095,7 +4321,7 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
     profile->mSamplingRates.add(8000);
     profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
     profile->mChannelMasks.add(AUDIO_CHANNEL_IN_MONO);
-    profile->mSupportedDevices = AUDIO_DEVICE_IN_BUILTIN_MIC;
+    profile->mSupportedDevices.add(defaultInputDevice);
     module->mInputProfiles.add(profile);
 
     mHwModules.add(module);

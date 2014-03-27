@@ -175,6 +175,47 @@ protected:
 
         class IOProfile;
 
+        class DeviceDescriptor: public RefBase
+        {
+        public:
+            DeviceDescriptor(audio_devices_t type, String8 address,
+                             audio_channel_mask_t channelMask) :
+                                 mType(type), mAddress(address),
+                                 mChannelMask(channelMask), mId(0) {}
+
+            DeviceDescriptor(audio_devices_t type) :
+                                 mType(type), mAddress(""),
+                                 mChannelMask(AUDIO_CHANNEL_NONE), mId(0) {}
+
+            status_t dump(int fd, int spaces) const;
+            static void dumpHeader(int fd, int spaces);
+
+            bool equals(const sp<DeviceDescriptor>& other) const;
+
+            audio_devices_t mType;
+            String8 mAddress;
+            audio_channel_mask_t mChannelMask;
+            uint32_t mId;
+        };
+
+        class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
+        {
+        public:
+            DeviceVector() : SortedVector(), mTypes(AUDIO_DEVICE_NONE) {}
+
+            ssize_t         add(const sp<DeviceDescriptor>& item);
+            ssize_t         remove(const sp<DeviceDescriptor>& item);
+            ssize_t         indexOf(const sp<DeviceDescriptor>& item) const;
+
+            audio_devices_t types() const { return mTypes; }
+
+            void loadDevicesFromType(audio_devices_t types);
+
+        private:
+            void refreshTypes();
+            audio_devices_t mTypes;
+        };
+
         class HwModule {
         public:
                     HwModule(const char *name);
@@ -213,8 +254,8 @@ protected:
             Vector <uint32_t> mSamplingRates; // supported sampling rates
             Vector <audio_channel_mask_t> mChannelMasks; // supported channel masks
             Vector <audio_format_t> mFormats; // supported audio formats
-            audio_devices_t mSupportedDevices; // supported devices (devices this output can be
-                                               // routed to)
+            DeviceVector  mSupportedDevices; // supported devices
+                                             // (devices this output can be routed to)
             audio_output_flags_t mFlags; // attribute flags (e.g primary output,
                                                 // direct output...). For outputs only.
             HwModule *mModule;                     // audio HW module exposing this I/O stream
@@ -411,7 +452,7 @@ protected:
         status_t checkOutputsForDevice(audio_devices_t device,
                                        audio_policy_dev_state_t state,
                                        SortedVector<audio_io_handle_t>& outputs,
-                                       const String8 paramStr);
+                                       const String8 address);
 
         // close an output and its companion duplicating output.
         void closeOutput(audio_io_handle_t output);
@@ -496,6 +537,9 @@ protected:
         static uint32_t stringToEnum(const struct StringToEnum *table,
                                      size_t size,
                                      const char *name);
+        static const char *enumToString(const struct StringToEnum *table,
+                                      size_t size,
+                                      uint32_t value);
         static bool stringToBool(const char *value);
         static audio_output_flags_t parseFlagNames(char *name);
         static audio_devices_t parseDeviceNames(char *name);
@@ -520,18 +564,14 @@ protected:
         // reset to mOutputs when updateDevicesAndOutputs() is called.
         DefaultKeyedVector<audio_io_handle_t, AudioOutputDescriptor *> mPreviousOutputs;
         DefaultKeyedVector<audio_io_handle_t, AudioInputDescriptor *> mInputs;     // list of input descriptors
-        audio_devices_t mAvailableOutputDevices; // bit field of all available output devices
-        audio_devices_t mAvailableInputDevices; // bit field of all available input devices
+        DeviceVector  mAvailableOutputDevices; // bit field of all available output devices
+        DeviceVector  mAvailableInputDevices; // bit field of all available input devices
                                                 // without AUDIO_DEVICE_BIT_IN to allow direct bit
                                                 // field comparisons
         int mPhoneState;                                                    // current phone state
         audio_policy_forced_cfg_t mForceUse[AUDIO_POLICY_FORCE_USE_CNT];   // current forced use configuration
 
         StreamDescriptor mStreams[AUDIO_STREAM_CNT];           // stream descriptors for volume control
-        String8 mA2dpDeviceAddress;                                         // A2DP device MAC address
-        String8 mScoDeviceAddress;                                          // SCO device MAC address
-        String8 mUsbCardAndDevice; // USB audio ALSA card and device numbers:
-                                   // card=<card_number>;device=<><device_number>
         bool    mLimitRingtoneVolume;                                       // limit ringtone volume to music volume if headset connected
         audio_devices_t mDeviceForStrategy[NUM_STRATEGIES];
         float   mLastVoiceVolume;                                           // last voice volume value sent to audio HAL
@@ -547,13 +587,12 @@ protected:
         bool mHasA2dp; // true on platforms with support for bluetooth A2DP
         bool mHasUsb; // true on platforms with support for USB audio
         bool mHasRemoteSubmix; // true on platforms with support for remote presentation of a submix
-        audio_devices_t mAttachedOutputDevices; // output devices always available on the platform
-        audio_devices_t mDefaultOutputDevice; // output device selected by default at boot time
-                                              // (must be in mAttachedOutputDevices)
+        sp<DeviceDescriptor> mDefaultOutputDevice; // output device selected by default at boot time
         bool mSpeakerDrcEnabled;// true on devices that use DRC on the DEVICE_CATEGORY_SPEAKER path
                                 // to boost soft sounds, used to adjust volume curves accordingly
 
         Vector <HwModule *> mHwModules;
+        volatile int32_t mNextUniqueId;
 
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
@@ -577,6 +616,9 @@ private:
         //    routing of notifications
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
         static bool isVirtualInputDevice(audio_devices_t device);
+        uint32_t nextUniqueId();
+        // converts device address to string sent to audio HAL via setParameters
+        static String8 addressToParameter(audio_devices_t device, const String8 address);
 };
 
 };
