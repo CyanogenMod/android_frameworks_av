@@ -30,7 +30,6 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
-#define MAX_DEVICE_ADDRESS_LEN 20
 // Attenuation applied to STRATEGY_SONIFICATION streams when a headset is connected: 6dB
 #define SONIFICATION_HEADSET_VOLUME_FACTOR 0.5
 // Min volume for STRATEGY_SONIFICATION streams when limited by music volume: -36dB
@@ -584,9 +583,6 @@ protected:
         uint32_t mTotalEffectsMemory;  // current memory used by effects
         KeyedVector<int, EffectDescriptor *> mEffects;  // list of registered audio effects
         bool    mA2dpSuspended;  // true if A2DP output is suspended
-        bool mHasA2dp; // true on platforms with support for bluetooth A2DP
-        bool mHasUsb; // true on platforms with support for USB audio
-        bool mHasRemoteSubmix; // true on platforms with support for remote presentation of a submix
         sp<DeviceDescriptor> mDefaultOutputDevice; // output device selected by default at boot time
         bool mSpeakerDrcEnabled;// true on devices that use DRC on the DEVICE_CATEGORY_SPEAKER path
                                 // to boost soft sounds, used to adjust volume curves accordingly
