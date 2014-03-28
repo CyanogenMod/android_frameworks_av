@@ -1,5 +1,7 @@
 /*
  * Copyright (C) 2009 The Android Open Source Project
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,6 +69,7 @@
 
 #include "ARTPWriter.h"
 #include <cutils/properties.h>
+#include "ExtendedUtils.h"
 
 #define RES_720P (720*1280)
 #define DUR_30MIN (30*60*1000*1000)
@@ -898,39 +901,19 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         return NULL;
     }
 
-#ifdef QCOM_DIRECTTRACK
+#ifdef QCOM_HARDWARE
     bool tunneledSource = false;
     const char *tunnelMime;
-    {
-        AudioParameter param;
-        String8 key("tunneled-input-formats");
-        param.add( key, String8("get") );
-        String8 valueStr = AudioSystem::getParameters( 0, param.toString());
-        AudioParameter result(valueStr);
-        int value;
-        if ( mAudioEncoder == AUDIO_ENCODER_AMR_NB &&
-            result.getInt(String8("AMR"),value) == NO_ERROR ) {
-            tunneledSource = true;
-            tunnelMime = MEDIA_MIMETYPE_AUDIO_AMR_NB;
-        }
-#ifdef ENABLE_AV_ENHANCEMENTS
-        else if ( mAudioEncoder == AUDIO_ENCODER_QCELP &&
-            result.getInt(String8("QCELP"),value) == NO_ERROR ) {
-            tunneledSource = true;
-            tunnelMime = MEDIA_MIMETYPE_AUDIO_QCELP;
-        }
-        else if ( mAudioEncoder == AUDIO_ENCODER_EVRC &&
-            result.getInt(String8("EVRC"),value) == NO_ERROR ) {
-            tunneledSource = true;
-            tunnelMime = MEDIA_MIMETYPE_AUDIO_EVRC;
-        }
-#endif
-        else if ( mAudioEncoder == AUDIO_ENCODER_AMR_WB &&
-            result.getInt(String8("AWB"),value) == NO_ERROR ) {
+
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("tunnel.audio.encode", prop, "0");
+    if (!strncmp(prop, "true", 4)) {
+        if (mAudioEncoder == AUDIO_ENCODER_AMR_WB) {
             tunneledSource = true;
             tunnelMime = MEDIA_MIMETYPE_AUDIO_AMR_WB;
         }
     }
+
     if ( tunneledSource ) {
         ALOGD("tunnel recording");
         sp<AudioSource> audioSource = NULL;
@@ -946,6 +929,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         return audioSource->initCheck( ) == OK ? audioSource : NULL;
     }
 #endif
+
     sp<AudioSource> audioSource =
         new AudioSource(
                 mAudioSource,
@@ -1648,8 +1632,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
 
 #ifdef QCOM_HARDWARE
-    status_t retVal = ExtendedUtils::HFR::reCalculateFileDuration(
-            meta, enc_meta, mMaxFileDurationUs, mFrameRate, mVideoEncoder);
+    status_t retVal = ExtendedUtils::HFR::initializeHFR(
+            meta, enc_meta, mMaxFileDurationUs, mVideoEncoder);
     if(retVal != OK) {
         return retVal;
     }
@@ -1678,6 +1662,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     if (mCaptureTimeLapse) {
         encoder_flags |= OMXCodec::kOnlySubmitOneInputBufferAtOneTime;
     }
+    encoder_flags |= ExtendedUtils::getEncoderTypeFlags();
 
     sp<MediaSource> encoder = OMXCodec::Create(
             client.interface(), enc_meta,

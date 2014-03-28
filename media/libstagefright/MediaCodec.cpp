@@ -37,6 +37,7 @@
 #include <media/stagefright/MetaData.h>
 #ifdef QCOM_HARDWARE
 #include <media/stagefright/ExtendedCodec.h>
+#include "include/ExtendedUtils.h"
 #endif
 #include <media/stagefright/NativeWindowWrapper.h>
 
@@ -82,6 +83,9 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
 
 MediaCodec::~MediaCodec() {
     CHECK_EQ(mState, UNINITIALIZED);
+#ifdef ENABLE_AV_ENHANCEMENTS
+    ExtendedUtils::drainSecurePool();
+#endif
 }
 
 // static
@@ -111,6 +115,9 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
     } else {
         AString tmp = name;
         if (tmp.endsWith(".secure")) {
+#ifdef ENABLE_AV_ENHANCEMENTS
+            ExtendedUtils::prefetchSecurePool();
+#endif
             tmp.erase(tmp.size() - 7, 7);
         }
         const MediaCodecList *mcl = MediaCodecList::getInstance();

@@ -1,6 +1,8 @@
 /*
 **
 ** Copyright 2012, The Android Open Source Project
+** Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -118,12 +120,12 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
-    // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
+    size_t bufferSize;
     size_t size = sizeof(audio_track_cblk_t);
 #ifdef QCOM_HARDWARE
 #ifdef QCOM_DIRECTTRACK
     uint8_t channelCount = popcount(channelMask);
-    size_t bufferSize = 0;
+    bufferSize = 0;
     if (flags & IAudioFlinger::TRACK_VOICE_COMMUNICATION) {
           bufferSize = roundup(frameCount) * channelCount * mFrameSize;
     } else {
@@ -143,10 +145,10 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
        }
     }
 #else
-    size_t bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
+    bufferSize = (sharedBuffer == 0 && (audio_is_linear_pcm(format)) ? roundup(frameCount) : frameCount) * mFrameSize;
 #endif
 #else
-    size_t bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
+    bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
 #endif
 
     if (sharedBuffer == 0) {
@@ -415,7 +417,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mCachedVolume(1.0),
     mIsInvalid(false),
     mAudioTrackServerProxy(NULL),
-    mResumeToStopping(false)
+    mResumeToStopping(false),
+    mFlushHwPending(false)
 {
     if (mCblk != NULL) {
         if (sharedBuffer == 0) {
@@ -622,7 +625,13 @@ size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
-    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing() || isStopping()) {
+    if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
+        return true;
+    }
+
+    if (isStopping()) {
+        if(framesReady() > 0)
+            mFillingUpStatus = FS_FILLED;
         return true;
     }
 
@@ -639,7 +648,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
                                                     int triggerSession)
 {
     status_t status = NO_ERROR;
-    ALOGV("start(%d), calling pid %d session %d",
+    ALOGD("start(%d), calling pid %d session %d",
             mName, IPCThreadState::self()->getCallingPid(), mSessionId);
 
     sp<ThreadBase> thread = mThread.promote();
@@ -651,6 +660,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             if (thread->mAudioFlinger->isNonOffloadableGlobalEffectEnabled_l() ||
                     (ec != 0 && ec->isNonOffloadableEnabled())) {
                 invalidate();
+                ALOGD("copl:offload denied");
                 return PERMISSION_DENIED;
             }
         }
@@ -659,18 +669,21 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
 
-        if (state == PAUSED) {
+        // initial state-stopping. next state-pausing.
+        // What if resume is called ?
+
+        if (state == PAUSED || state == PAUSING) {
             if (mResumeToStopping) {
                 // happened we need to resume to STOPPING_1
                 mState = TrackBase::STOPPING_1;
-                ALOGV("PAUSED => STOPPING_1 (%d) on thread %p", mName, this);
+                ALOGD("PAUSED => STOPPING_1 (%d) on thread %p", mName, this);
             } else {
                 mState = TrackBase::RESUMING;
-                ALOGV("PAUSED => RESUMING (%d) on thread %p", mName, this);
+                ALOGD("PAUSED => RESUMING (%d) on thread %p", mName, this);
             }
         } else {
             mState = TrackBase::ACTIVE;
-            ALOGV("? => ACTIVE (%d) on thread %p", mName, this);
+            ALOGD("? => ACTIVE (%d) on thread %p", mName, this);
         }
 
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
@@ -731,7 +744,7 @@ void AudioFlinger::PlaybackThread::Track::stop()
 
 void AudioFlinger::PlaybackThread::Track::pause()
 {
-    ALOGV("pause(%d), calling pid %d", mName, IPCThreadState::self()->getCallingPid());
+    ALOGD("pause(%d), calling pid %d", mName, IPCThreadState::self()->getCallingPid());
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         Mutex::Autolock _l(thread->mLock);
@@ -777,19 +790,22 @@ void AudioFlinger::PlaybackThread::Track::flush()
                 return;
             }
 
-            ALOGV("flush: offload flush");
+            ALOGD("copl(%d):flush: offload flush", mSessionId);
             reset();
 
             if (mState == STOPPING_1 || mState == STOPPING_2) {
-                ALOGV("flushed in STOPPING_1 or 2 state, change state to ACTIVE");
+                ALOGD("copl(%d):flushed in STOPPING_1 or 2 state, change state to ACTIVE",
+                    mSessionId);
                 mState = ACTIVE;
             }
 
             if (mState == ACTIVE) {
-                ALOGV("flush called in active state, resetting buffer time out retry count");
+                ALOGD("copl(%d):flush called in active state, resetting buffer time out retry count",
+                    mSessionId);
                 mRetryCount = PlaybackThread::kMaxTrackRetriesOffload;
             }
 
+            mFlushHwPending = true;
             mResumeToStopping = false;
         } else {
             if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED &&
@@ -810,9 +826,17 @@ void AudioFlinger::PlaybackThread::Track::flush()
         // Prevent flush being lost if the track is flushed and then resumed
         // before mixer thread can run. This is important when offloading
         // because the hardware buffer could hold a large amount of audio
-        playbackThread->flushOutput_l();
         playbackThread->broadcast_l();
     }
+}
+
+// must be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::flushAck()
+{
+    if (!isOffloaded())
+        return;
+
+    mFlushHwPending = false;
 }
 
 void AudioFlinger::PlaybackThread::Track::reset()
@@ -1037,6 +1061,29 @@ void AudioFlinger::PlaybackThread::Track::signal()
     }
 }
 
+//To be called with thread lock held
+bool AudioFlinger::PlaybackThread::Track::isResumePending() {
+
+    if (mState == RESUMING)
+        return true;
+    /* Resume is pending if track was stopping before pause was called */
+    if (mState == STOPPING_1 &&
+        mResumeToStopping)
+        return true;
+
+    return false;
+}
+
+//To be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::resumeAck() {
+
+
+    if (mState == RESUMING)
+        mState = ACTIVE;
+    // Other possibility of  pending resume is stopping_1 state
+    // Do not update the state from stopping as this prevents
+    //drain being called.
+}
 // ----------------------------------------------------------------------------
 
 sp<AudioFlinger::PlaybackThread::TimedTrack>

@@ -1,4 +1,4 @@
-/*Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/*Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -70,25 +70,19 @@ struct ExtendedUtils {
                 const CameraParameters& params, sp<MetaData> &meta);
 
         // recalculate fileduration when hfr is enabled
-        static status_t reCalculateFileDuration(
+        static status_t initializeHFR(
                 sp<MetaData> &meta, sp<MetaData> &enc_meta,
-                int64_t &maxFileDurationUs, int32_t frameRate,
-                video_encoder videoEncoder);
-
-        // compute timestamp when hfr is enabled
-        static void reCalculateTimeStamp(
-                sp<MetaData> &meta, int64_t &timestampUs);
-
-        // recalculate frameRate and bitrate when hfr is enabled
-        static void reCalculateHFRParams(
-                const sp<MetaData> &meta, int32_t &frameRate,
-                int32_t &bitrate);
+                int64_t &maxFileDurationUs, video_encoder videoEncoder);
 
         // Copy HFR params (bitrate,framerate) from output to
         // to input format, if HFR is enabled
         static void copyHFRParams(
                 const sp<MetaData> &inputFormat,
                 sp<MetaData> &outputFormat);
+
+        // Adjust clip timescale for authoring, if HFR is enabled
+        static int32_t getHFRRatio(
+                const sp<MetaData> &meta);
     };
 
     /*
@@ -141,6 +135,21 @@ struct ExtendedUtils {
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 
+    //helper function for MPEG4 Extractor to check for AC3/EAC3 contents
+    static void helper_Mpeg4ExtractorCheckAC3EAC3(MediaBuffer *buffer, sp<MetaData> &format,
+                                                   size_t size);
+
+    static int32_t getEncoderTypeFlags();
+
+    static void prefetchSecurePool(int fd);
+
+    static void prefetchSecurePool(const char *uri);
+
+    static void prefetchSecurePool();
+
+    static void createSecurePool();
+
+    static void drainSecurePool();
 };
 
 }
