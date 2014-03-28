@@ -1797,8 +1797,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     }
     // FIXME: assume that surface is controlled by app (native window
     // returns the number for the case when surface is not controlled by app)
-    // FIXME2: This means that minUndeqeueudBufs can be 1 larger than reported
-    // For now, try to allocate 1 more buffer, but don't fail if unsuccessful
+    minUndequeuedBufs++;
 
     // Use conservative allocation while also trying to reduce starvation
     //
@@ -1806,11 +1805,10 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
     //    minimum needed for the consumer to be able to work
     // 2. try to allocate two (2) additional buffers to reduce starvation from
     //    the consumer
-    //    plus an extra buffer to account for incorrect minUndequeuedBufs
-    CODEC_LOGI("OMX-buffers: min=%u actual=%u undeq=%d+1",
+    CODEC_LOGI("OMX-buffers: min=%u actual=%u undeq=%d",
             def.nBufferCountMin, def.nBufferCountActual, minUndequeuedBufs);
 
-    for (OMX_U32 extraBuffers = 2 + 1; /* condition inside loop */; extraBuffers--) {
+    for (OMX_U32 extraBuffers = 2; /* condition inside loop */; extraBuffers--) {
         OMX_U32 newBufferCount =
             def.nBufferCountMin + minUndequeuedBufs + extraBuffers;
         def.nBufferCountActual = newBufferCount;
@@ -1829,7 +1827,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             return err;
         }
     }
-    CODEC_LOGI("OMX-buffers: min=%u actual=%u undeq=%d+1",
+    CODEC_LOGI("OMX-buffers: min=%u actual=%u undeq=%d",
             def.nBufferCountMin, def.nBufferCountActual, minUndequeuedBufs);
 
     err = native_window_set_buffer_count(
