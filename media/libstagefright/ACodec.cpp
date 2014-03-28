@@ -3103,6 +3103,14 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
     int32_t type;
     CHECK(msg->findInt32("type", &type));
 
+    // there is a possibility that this is an outstanding message for a
+    // codec that we have already destroyed
+    if (mCodec->mNode == NULL) {
+        ALOGI("ignoring message as already freed component: %s",
+                msg->debugString().c_str());
+        return true;
+    }
+
     IOMX::node_id nodeID;
     CHECK(msg->findPointer("node", &nodeID));
     CHECK_EQ(nodeID, mCodec->mNode);
