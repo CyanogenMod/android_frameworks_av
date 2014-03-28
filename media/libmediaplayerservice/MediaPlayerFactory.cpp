@@ -67,6 +67,12 @@ player_type MediaPlayerFactory::getDefaultPlayerType() {
         return NU_PLAYER;
     }
 
+    // TODO: remove this EXPERIMENTAL developer settings property
+    if (property_get("persist.sys.media.use-nuplayer", value, NULL)
+            && !strcasecmp("true", value)) {
+        return NU_PLAYER;
+    }
+
     return STAGEFRIGHT_PLAYER;
 }
 
