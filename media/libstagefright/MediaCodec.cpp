@@ -603,6 +603,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             postActivityNotificationIfPossible();
 
                             cancelPendingDequeueOperations();
+                            setState(UNINITIALIZED);
                             break;
                         }
 
@@ -612,6 +613,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                             mFlags |= kFlagStickyError;
                             postActivityNotificationIfPossible();
+                            setState(UNINITIALIZED);
                             break;
                         }
                     }
