@@ -61,10 +61,14 @@ struct IDrm : public IInterface {
     virtual status_t queryKeyStatus(Vector<uint8_t> const &sessionId,
                                     KeyedVector<String8, String8> &infoMap) const = 0;
 
-    virtual status_t getProvisionRequest(Vector<uint8_t> &request,
+    virtual status_t getProvisionRequest(String8 const &certType,
+                                         String8 const &certAuthority,
+                                         Vector<uint8_t> &request,
                                          String8 &defaulUrl) = 0;
 
-    virtual status_t provideProvisionResponse(Vector<uint8_t> const &response) = 0;
+    virtual status_t provideProvisionResponse(Vector<uint8_t> const &response,
+                                              Vector<uint8_t> &certificate,
+                                              Vector<uint8_t> &wrappedKey) = 0;
 
     virtual status_t getSecureStops(List<Vector<uint8_t> > &secureStops) = 0;
 
@@ -106,6 +110,12 @@ struct IDrm : public IInterface {
                             Vector<uint8_t> const &message,
                             Vector<uint8_t> const &signature,
                             bool &match) = 0;
+
+    virtual status_t signRSA(Vector<uint8_t> const &sessionId,
+                             String8 const &algorithm,
+                             Vector<uint8_t> const &message,
+                             Vector<uint8_t> const &wrappedKey,
+                             Vector<uint8_t> &signature) = 0;
 
     virtual status_t setListener(const sp<IDrmClient>& listener) = 0;
 

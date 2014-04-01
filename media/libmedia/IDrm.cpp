@@ -51,6 +51,7 @@ enum {
     ENCRYPT,
     DECRYPT,
     SIGN,
+    SIGN_RSA,
     VERIFY,
     SET_LISTENER
 };
@@ -196,11 +197,15 @@ struct BpDrm : public BpInterface<IDrm> {
         return reply.readInt32();
     }
 
-    virtual status_t getProvisionRequest(Vector<uint8_t> &request,
+    virtual status_t getProvisionRequest(String8 const &certType,
+                                         String8 const &certAuthority,
+                                         Vector<uint8_t> &request,
                                          String8 &defaultUrl) {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
+        data.writeString8(certType);
+        data.writeString8(certAuthority);
         remote()->transact(GET_PROVISION_REQUEST, data, &reply);
 
         readVector(reply, request);
@@ -209,12 +214,17 @@ struct BpDrm : public BpInterface<IDrm> {
         return reply.readInt32();
     }
 
-    virtual status_t provideProvisionResponse(Vector<uint8_t> const &response) {
+    virtual status_t provideProvisionResponse(Vector<uint8_t> const &response,
+                                              Vector<uint8_t> &certificate,
+                                              Vector<uint8_t> &wrappedKey) {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, response);
         remote()->transact(PROVIDE_PROVISION_RESPONSE, data, &reply);
+
+        readVector(reply, certificate);
+        readVector(reply, wrappedKey);
 
         return reply.readInt32();
     }
@@ -383,6 +393,25 @@ struct BpDrm : public BpInterface<IDrm> {
 
         remote()->transact(VERIFY, data, &reply);
         match = (bool)reply.readInt32();
+        return reply.readInt32();
+    }
+
+    virtual status_t signRSA(Vector<uint8_t> const &sessionId,
+                             String8 const &algorithm,
+                             Vector<uint8_t> const &message,
+                             Vector<uint8_t> const &wrappedKey,
+                             Vector<uint8_t> &signature) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
+
+        writeVector(data, sessionId);
+        data.writeString8(algorithm);
+        writeVector(data, message);
+        writeVector(data, wrappedKey);
+
+        remote()->transact(SIGN_RSA, data, &reply);
+        readVector(reply, signature);
+
         return reply.readInt32();
     }
 
@@ -563,9 +592,13 @@ status_t BnDrm::onTransact(
         case GET_PROVISION_REQUEST:
         {
             CHECK_INTERFACE(IDrm, data, reply);
+            String8 certType = data.readString8();
+            String8 certAuthority = data.readString8();
+
             Vector<uint8_t> request;
             String8 defaultUrl;
-            status_t result = getProvisionRequest(request, defaultUrl);
+            status_t result = getProvisionRequest(certType, certAuthority,
+                                                  request, defaultUrl);
             writeVector(reply, request);
             reply->writeString8(defaultUrl);
             reply->writeInt32(result);
@@ -576,8 +609,13 @@ status_t BnDrm::onTransact(
         {
             CHECK_INTERFACE(IDrm, data, reply);
             Vector<uint8_t> response;
+            Vector<uint8_t> certificate;
+            Vector<uint8_t> wrappedKey;
             readVector(data, response);
-            reply->writeInt32(provideProvisionResponse(response));
+            status_t result = provideProvisionResponse(response, certificate, wrappedKey);
+            writeVector(reply, certificate);
+            writeVector(reply, wrappedKey);
+            reply->writeInt32(result);
             return OK;
         }
 
@@ -721,6 +759,20 @@ status_t BnDrm::onTransact(
             bool match;
             uint32_t result = verify(sessionId, keyId, message, signature, match);
             reply->writeInt32(match);
+            reply->writeInt32(result);
+            return OK;
+        }
+
+        case SIGN_RSA:
+        {
+            CHECK_INTERFACE(IDrm, data, reply);
+            Vector<uint8_t> sessionId, message, wrappedKey, signature;
+            readVector(data, sessionId);
+            String8 algorithm = data.readString8();
+            readVector(data, message);
+            readVector(data, wrappedKey);
+            uint32_t result = signRSA(sessionId, algorithm, message, wrappedKey, signature);
+            writeVector(reply, signature);
             reply->writeInt32(result);
             return OK;
         }
