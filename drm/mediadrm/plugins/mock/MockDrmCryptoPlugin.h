@@ -76,10 +76,14 @@ namespace android {
         status_t queryKeyStatus(Vector<uint8_t> const &sessionId,
                                 KeyedVector<String8, String8> &infoMap) const;
 
-        status_t getProvisionRequest(Vector<uint8_t> &request,
-                                             String8 &defaultUrl);
+        status_t getProvisionRequest(String8 const &certType,
+                                     String8 const &certAuthority,
+                                     Vector<uint8_t> &request,
+                                     String8 &defaultUrl);
 
-        status_t provideProvisionResponse(Vector<uint8_t> const &response);
+        status_t provideProvisionResponse(Vector<uint8_t> const &response,
+                                          Vector<uint8_t> &certificate,
+                                          Vector<uint8_t> &wrappedKey);
 
         status_t getSecureStops(List<Vector<uint8_t> > &secureStops);
         status_t releaseSecureStops(Vector<uint8_t> const &ssRelease);
@@ -121,6 +125,12 @@ namespace android {
                         Vector<uint8_t> const &message,
                         Vector<uint8_t> const &signature,
                         bool &match);
+
+        status_t signRSA(Vector<uint8_t> const &sessionId,
+                         String8 const &algorithm,
+                         Vector<uint8_t> const &message,
+                         Vector<uint8_t> const &wrappedKey,
+                         Vector<uint8_t> &signature);
 
     private:
         String8 vectorToString(Vector<uint8_t> const &vector) const;

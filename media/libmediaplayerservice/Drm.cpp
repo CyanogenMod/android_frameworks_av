@@ -373,7 +373,8 @@ status_t Drm::queryKeyStatus(Vector<uint8_t> const &sessionId,
     return mPlugin->queryKeyStatus(sessionId, infoMap);
 }
 
-status_t Drm::getProvisionRequest(Vector<uint8_t> &request, String8 &defaultUrl) {
+status_t Drm::getProvisionRequest(String8 const &certType, String8 const &certAuthority,
+                                  Vector<uint8_t> &request, String8 &defaultUrl) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -384,10 +385,13 @@ status_t Drm::getProvisionRequest(Vector<uint8_t> &request, String8 &defaultUrl)
         return -EINVAL;
     }
 
-    return mPlugin->getProvisionRequest(request, defaultUrl);
+    return mPlugin->getProvisionRequest(certType, certAuthority,
+                                        request, defaultUrl);
 }
 
-status_t Drm::provideProvisionResponse(Vector<uint8_t> const &response) {
+status_t Drm::provideProvisionResponse(Vector<uint8_t> const &response,
+                                       Vector<uint8_t> &certificate,
+                                       Vector<uint8_t> &wrappedKey) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -398,7 +402,7 @@ status_t Drm::provideProvisionResponse(Vector<uint8_t> const &response) {
         return -EINVAL;
     }
 
-    return mPlugin->provideProvisionResponse(response);
+    return mPlugin->provideProvisionResponse(response, certificate, wrappedKey);
 }
 
 
@@ -587,6 +591,24 @@ status_t Drm::verify(Vector<uint8_t> const &sessionId,
     }
 
     return mPlugin->verify(sessionId, keyId, message, signature, match);
+}
+
+status_t Drm::signRSA(Vector<uint8_t> const &sessionId,
+                      String8 const &algorithm,
+                      Vector<uint8_t> const &message,
+                      Vector<uint8_t> const &wrappedKey,
+                      Vector<uint8_t> &signature) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->signRSA(sessionId, algorithm, message, wrappedKey, signature);
 }
 
 void Drm::binderDied(const wp<IBinder> &the_late_who)
