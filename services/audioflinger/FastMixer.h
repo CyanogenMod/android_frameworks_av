@@ -18,10 +18,10 @@
 #define ANDROID_AUDIO_FAST_MIXER_H
 
 #include <utils/Debug.h>
-#include <utils/Thread.h>
 extern "C" {
 #include "../private/bionic_futex.h"
 }
+#include "FastThread.h"
 #include "StateQueue.h"
 #include "FastMixerState.h"
 
@@ -29,10 +29,10 @@ namespace android {
 
 typedef StateQueue<FastMixerState> FastMixerStateQueue;
 
-class FastMixer : public Thread {
+class FastMixer : public FastThread {
 
 public:
-            FastMixer() : Thread(false /*canCallJava*/) { }
+            FastMixer() : FastThread() { }
     virtual ~FastMixer() { }
 
             FastMixerStateQueue* sq() { return &mSQ; }

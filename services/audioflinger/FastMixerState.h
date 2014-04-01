@@ -21,6 +21,7 @@
 #include <media/ExtendedAudioBufferProvider.h>
 #include <media/nbaio/NBAIO.h>
 #include <media/nbaio/NBLog.h>
+#include "FastThreadState.h"
 
 namespace android {
 
@@ -48,7 +49,7 @@ struct FastTrack {
 };
 
 // Represents a single state of the fast mixer
-struct FastMixerState {
+struct FastMixerState : FastThreadState {
                 FastMixerState();
     /*virtual*/ ~FastMixerState();
 
@@ -61,23 +62,17 @@ struct FastMixerState {
     NBAIO_Sink* mOutputSink;    // HAL output device, must already be negotiated
     int         mOutputSinkGen; // increment when mOutputSink is assigned
     size_t      mFrameCount;    // number of frames per fast mix buffer
-    enum Command {
-        INITIAL = 0,            // used only for the initial state
-        HOT_IDLE = 1,           // do nothing
-        COLD_IDLE = 2,          // wait for the futex
-        IDLE = 3,               // either HOT_IDLE or COLD_IDLE
-        EXIT = 4,               // exit from thread
+
+    // Extends FastThreadState::Command
+    static const Command
         // The following commands also process configuration changes, and can be "or"ed:
         MIX = 0x8,              // mix tracks
         WRITE = 0x10,           // write to output sink
-        MIX_WRITE = 0x18,       // mix tracks and write to output sink
-    } mCommand;
-    int32_t*    mColdFutexAddr; // for COLD_IDLE only, pointer to the associated futex
-    unsigned    mColdGen;       // increment when COLD_IDLE is requested so it's only performed once
+        MIX_WRITE = 0x18;       // mix tracks and write to output sink
+
     // This might be a one-time configuration rather than per-state
     FastMixerDumpState* mDumpState; // if non-NULL, then update dump state periodically
     NBAIO_Sink* mTeeSink;       // if non-NULL, then duplicate write()s to this non-blocking sink
-    NBLog::Writer* mNBLogWriter; // non-blocking logger
 };  // struct FastMixerState
 
 }   // namespace android
