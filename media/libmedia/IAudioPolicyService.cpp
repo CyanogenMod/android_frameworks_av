@@ -57,7 +57,13 @@ enum {
     QUERY_DEFAULT_PRE_PROCESSING,
     SET_EFFECT_ENABLED,
     IS_STREAM_ACTIVE_REMOTELY,
-    IS_OFFLOAD_SUPPORTED
+    IS_OFFLOAD_SUPPORTED,
+    LIST_AUDIO_PORTS,
+    GET_AUDIO_PORT,
+    CREATE_AUDIO_PATCH,
+    RELEASE_AUDIO_PATCH,
+    LIST_AUDIO_PATCHES,
+    SET_AUDIO_PORT_CONFIG
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -390,7 +396,134 @@ public:
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.write(&info, sizeof(audio_offload_info_t));
         remote()->transact(IS_OFFLOAD_SUPPORTED, data, &reply);
-        return reply.readInt32();    }
+        return reply.readInt32();
+    }
+
+    virtual status_t listAudioPorts(audio_port_role_t role,
+                                    audio_port_type_t type,
+                                    unsigned int *num_ports,
+                                    struct audio_port *ports,
+                                    unsigned int *generation)
+    {
+        if (num_ports == NULL || (*num_ports != 0 && ports == NULL) ||
+                generation == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        unsigned int numPortsReq = (ports == NULL) ? 0 : *num_ports;
+        data.writeInt32(role);
+        data.writeInt32(type);
+        data.writeInt32(numPortsReq);
+        status_t status = remote()->transact(LIST_AUDIO_PORTS, data, &reply);
+        if (status == NO_ERROR) {
+            status = (status_t)reply.readInt32();
+            *num_ports = (unsigned int)reply.readInt32();
+        }
+        ALOGI("listAudioPorts() status %d got *num_ports %d", status, *num_ports);
+        if (status == NO_ERROR) {
+            if (numPortsReq > *num_ports) {
+                numPortsReq = *num_ports;
+            }
+            if (numPortsReq > 0) {
+                reply.read(ports, numPortsReq * sizeof(struct audio_port));
+            }
+            *generation = reply.readInt32();
+        }
+        return status;
+    }
+
+    virtual status_t getAudioPort(struct audio_port *port)
+    {
+        if (port == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.write(port, sizeof(struct audio_port));
+        status_t status = remote()->transact(GET_AUDIO_PORT, data, &reply);
+        if (status != NO_ERROR ||
+                (status = (status_t)reply.readInt32()) != NO_ERROR) {
+            return status;
+        }
+        reply.read(port, sizeof(struct audio_port));
+        return status;
+    }
+
+    virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle)
+    {
+        if (patch == NULL || handle == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.write(patch, sizeof(struct audio_patch));
+        data.write(handle, sizeof(audio_patch_handle_t));
+        status_t status = remote()->transact(CREATE_AUDIO_PATCH, data, &reply);
+        if (status != NO_ERROR ||
+                (status = (status_t)reply.readInt32()) != NO_ERROR) {
+            return status;
+        }
+        reply.read(handle, sizeof(audio_patch_handle_t));
+        return status;
+    }
+
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.write(&handle, sizeof(audio_patch_handle_t));
+        status_t status = remote()->transact(RELEASE_AUDIO_PATCH, data, &reply);
+        if (status != NO_ERROR) {
+            status = (status_t)reply.readInt32();
+        }
+        return status;
+    }
+
+    virtual status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches,
+                                      unsigned int *generation)
+    {
+        if (num_patches == NULL || (*num_patches != 0 && patches == NULL) ||
+                generation == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        unsigned int numPatchesReq = (patches == NULL) ? 0 : *num_patches;
+        data.writeInt32(numPatchesReq);
+        status_t status = remote()->transact(LIST_AUDIO_PATCHES, data, &reply);
+        if (status == NO_ERROR) {
+            status = (status_t)reply.readInt32();
+            *num_patches = (unsigned int)reply.readInt32();
+        }
+        if (status == NO_ERROR) {
+            if (numPatchesReq > *num_patches) {
+                numPatchesReq = *num_patches;
+            }
+            if (numPatchesReq > 0) {
+                reply.read(patches, numPatchesReq * sizeof(struct audio_patch));
+            }
+            *generation = reply.readInt32();
+        }
+        return status;
+    }
+
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config)
+    {
+        if (config == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.write(config, sizeof(struct audio_port_config));
+        status_t status = remote()->transact(SET_AUDIO_PORT_CONFIG, data, &reply);
+        if (status != NO_ERROR) {
+            status = (status_t)reply.readInt32();
+        }
+        return status;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -684,6 +817,97 @@ status_t BnAudioPolicyService::onTransact(
             data.read(&info, sizeof(audio_offload_info_t));
             bool isSupported = isOffloadSupported(info);
             reply->writeInt32(isSupported);
+            return NO_ERROR;
+        }
+
+        case LIST_AUDIO_PORTS: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_port_role_t role = (audio_port_role_t)data.readInt32();
+            audio_port_type_t type = (audio_port_type_t)data.readInt32();
+            unsigned int numPortsReq = data.readInt32();
+            unsigned int numPorts = numPortsReq;
+            unsigned int generation;
+            struct audio_port *ports =
+                    (struct audio_port *)calloc(numPortsReq, sizeof(struct audio_port));
+            status_t status = listAudioPorts(role, type, &numPorts, ports, &generation);
+            reply->writeInt32(status);
+            reply->writeInt32(numPorts);
+            ALOGI("LIST_AUDIO_PORTS status %d got numPorts %d", status, numPorts);
+
+            if (status == NO_ERROR) {
+                if (numPortsReq > numPorts) {
+                    numPortsReq = numPorts;
+                }
+                reply->write(ports, numPortsReq * sizeof(struct audio_port));
+                reply->writeInt32(generation);
+            }
+            free(ports);
+            return NO_ERROR;
+        }
+
+        case GET_AUDIO_PORT: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            struct audio_port port;
+            data.read(&port, sizeof(struct audio_port));
+            status_t status = getAudioPort(&port);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->write(&port, sizeof(struct audio_port));
+            }
+            return NO_ERROR;
+        }
+
+        case CREATE_AUDIO_PATCH: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            struct audio_patch patch;
+            data.read(&patch, sizeof(struct audio_patch));
+            audio_patch_handle_t handle;
+            data.read(&handle, sizeof(audio_patch_handle_t));
+            status_t status = createAudioPatch(&patch, &handle);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->write(&handle, sizeof(audio_patch_handle_t));
+            }
+            return NO_ERROR;
+        }
+
+        case RELEASE_AUDIO_PATCH: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_patch_handle_t handle;
+            data.read(&handle, sizeof(audio_patch_handle_t));
+            status_t status = releaseAudioPatch(handle);
+            reply->writeInt32(status);
+            return NO_ERROR;
+        }
+
+        case LIST_AUDIO_PATCHES: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            unsigned int numPatchesReq = data.readInt32();
+            unsigned int numPatches = numPatchesReq;
+            unsigned int generation;
+            struct audio_patch *patches =
+                    (struct audio_patch *)calloc(numPatchesReq,
+                                                 sizeof(struct audio_patch));
+            status_t status = listAudioPatches(&numPatches, patches, &generation);
+            reply->writeInt32(status);
+            reply->writeInt32(numPatches);
+            if (status == NO_ERROR) {
+                if (numPatchesReq > numPatches) {
+                    numPatchesReq = numPatches;
+                }
+                reply->write(patches, numPatchesReq * sizeof(struct audio_patch));
+                reply->writeInt32(generation);
+            }
+            free(patches);
+            return NO_ERROR;
+        }
+
+        case SET_AUDIO_PORT_CONFIG: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            struct audio_port_config config;
+            data.read(&config, sizeof(struct audio_port_config));
+            status_t status = setAudioPortConfig(&config);
+            reply->writeInt32(status);
             return NO_ERROR;
         }
 

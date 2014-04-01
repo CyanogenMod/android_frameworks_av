@@ -485,5 +485,43 @@ bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
     return mpAudioPolicy->is_offload_supported(mpAudioPolicy, &info);
 }
 
+status_t AudioPolicyService::listAudioPorts(audio_port_role_t role __unused,
+                                            audio_port_type_t type __unused,
+                                            unsigned int *num_ports,
+                                            struct audio_port *ports __unused,
+                                            unsigned int *generation __unused)
+{
+    *num_ports = 0;
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::getAudioPort(struct audio_port *port __unused)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::createAudioPatch(const struct audio_patch *patch __unused,
+        audio_patch_handle_t *handle __unused)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::releaseAudioPatch(audio_patch_handle_t handle __unused)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::listAudioPatches(unsigned int *num_patches,
+        struct audio_patch *patches __unused,
+        unsigned int *generation __unused)
+{
+    *num_patches = 0;
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *config __unused)
+{
+    return INVALID_OPERATION;
+}
 
 }; // namespace android
