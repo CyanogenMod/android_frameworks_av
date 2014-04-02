@@ -657,14 +657,22 @@ MatroskaExtractor::MatroskaExtractor(const sp<DataSource> &source)
         return;
     }
 
+    // from mkvparser::Segment::Load(), but stop at first cluster
     ret = mSegment->ParseHeaders();
-    CHECK_EQ(ret, 0);
-
-    long len;
-    ret = mSegment->LoadCluster(pos, len);
-    CHECK_EQ(ret, 0);
+    if (ret == 0) {
+        long len;
+        ret = mSegment->LoadCluster(pos, len);
+        if (ret >= 1) {
+            // no more clusters
+            ret = 0;
+        }
+    } else if (ret > 0) {
+        ret = mkvparser::E_BUFFER_NOT_FULL;
+    }
 
     if (ret < 0) {
+        ALOGW("Corrupt %s source: %s", mIsWebm ? "webm" : "matroska",
+                uriDebugString(mDataSource->getUri()).c_str());
         delete mSegment;
         mSegment = NULL;
         return;
