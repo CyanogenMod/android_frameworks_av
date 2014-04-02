@@ -4954,7 +4954,7 @@ reacquire_wakelock:
                     // ditherAndClamp() works as long as all buffers returned by
                     // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
                     if (activeTrack->mChannelCount == 1) {
-                        // temporarily type pun mRsmpOutBuffer from Q19.12 to int16_t
+                        // temporarily type pun mRsmpOutBuffer from Q4.27 to int16_t
                         ditherAndClamp(activeTrack->mRsmpOutBuffer, activeTrack->mRsmpOutBuffer,
                                 framesOut);
                         // the resampler always outputs stereo samples:

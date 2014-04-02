@@ -1181,7 +1181,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
             }
             switch (t1.mMixerFormat) {
             case AUDIO_FORMAT_PCM_FLOAT:
-                memcpy_to_float_from_q19_12(reinterpret_cast<float *>(out), outTemp, BLOCKSIZE * 2);
+                memcpy_to_float_from_q4_27(reinterpret_cast<float *>(out), outTemp, BLOCKSIZE * 2);
                 out += BLOCKSIZE * 2; // output is 2 floats/frame.
                 break;
             case AUDIO_FORMAT_PCM_16_BIT:
@@ -1274,7 +1274,7 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
         }
         switch (t1.mMixerFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
-            memcpy_to_float_from_q19_12(reinterpret_cast<float*>(out), outTemp, numFrames*2);
+            memcpy_to_float_from_q4_27(reinterpret_cast<float*>(out), outTemp, numFrames*2);
             break;
         case AUDIO_FORMAT_PCM_16_BIT:
             ditherAndClamp(out, outTemp, numFrames);
@@ -1330,8 +1330,8 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
                 in += 2;
                 int32_t l = mulRL(1, rl, vrl);
                 int32_t r = mulRL(0, rl, vrl);
-                *fout++ = float_from_q19_12(l);
-                *fout++ = float_from_q19_12(r);
+                *fout++ = float_from_q4_27(l);
+                *fout++ = float_from_q4_27(r);
                 // Note: In case of later int16_t sink output,
                 // conversion and clamping is done by memcpy_to_i16_from_float().
             } while (--outFrames);

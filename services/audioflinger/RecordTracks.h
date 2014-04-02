@@ -66,7 +66,7 @@ private:
            // updated by RecordThread::readInputParameters_l()
             AudioResampler                      *mResampler;
 
-            // interleaved stereo pairs of fixed-point signed Q19.12
+            // interleaved stereo pairs of fixed-point Q4.27
             int32_t                             *mRsmpOutBuffer;
             // current allocated frame count for the above, which may be larger than needed
             size_t                              mRsmpOutFrameCount;
