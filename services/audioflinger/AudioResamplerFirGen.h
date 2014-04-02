@@ -365,6 +365,28 @@ static inline double I0(double x) {
     }
 }
 
+/* A speed optimized version of the Modified Bessel I0() which incorporates
+ * the sqrt and numerator multiply and denominator divide into the computation.
+ * This speeds up filter computation by about 10-15%.
+ */
+static inline double I0SqrRat(double x2, double num, double den) {
+    if (x2 < (3.75 * 3.75)) {
+        return Poly7(I0Term<0>::value, I0Term<1>::value,
+                I0Term<2>::value, I0Term<3>::value,
+                I0Term<4>::value, I0Term<5>::value,
+                I0Term<6>::value, x2) * num / den; // e < 1.6e-7
+    }
+    num *= Poly9(-0.13544938430e9, -0.33153754512e8,
+            -0.19406631946e7, -0.48058318783e5,
+            -0.63269783360e3, -0.49520779070e1,
+            -0.24970910370e-1, -0.74741159550e-4,
+            -0.18257612460e-6, x2); // e < 10^(-7.13).
+    double y = x2 - 225.; // reflection around 15 (squared)
+    den *= Poly4(-0.34598737196e8, 0.23852643181e6,
+            -0.70699387620e3, 0.10000000000e1, y);
+    return num / den;
+}
+
 /*
  * calculates the transition bandwidth for a Kaiser filter
  *
@@ -645,6 +667,7 @@ static inline void firKaiserGen(T* coef, int L, int halfNumCoef,
     const double xstep = (2. * M_PI) * fcr / L;
     const double xfrac = 1. / N;
     const double yscale = atten * L / (I0(beta) * M_PI);
+    const double sqrbeta = sqr(beta);
 
     // We use sine generators, which computes sines on regular step intervals.
     // This speeds up overall computation about 40% from computing the sine directly.
@@ -663,7 +686,8 @@ static inline void firKaiserGen(T* coef, int L, int halfNumCoef,
                 double x = static_cast<double>(ix);
 
                 // sine generator: sg.valueAdvance() returns sin(ix*xstep);
-                y = I0(beta * sqrt(1.0 - sqr(x * xfrac))) * yscale * sg.valueAdvance() / x;
+                // y = I0(beta * sqrt(1.0 - sqr(x * xfrac))) * yscale * sg.valueAdvance() / x;
+                y = I0SqrRat(sqrbeta * (1.0 - sqr(x * xfrac)), yscale * sg.valueAdvance(), x);
             } else {
                 y = 2. * atten * fcr; // center of filter, sinc(0) = 1.
                 sg.advance();
