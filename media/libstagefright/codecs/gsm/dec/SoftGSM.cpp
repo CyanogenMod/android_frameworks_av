@@ -202,13 +202,13 @@ void SoftGSM::onQueueFilled(OMX_U32 portIndex) {
         }
 
         if (inHeader->nFilledLen > kMaxNumSamplesPerFrame) {
-            ALOGE("input buffer too large (%ld).", inHeader->nFilledLen);
+            ALOGE("input buffer too large (%d).", inHeader->nFilledLen);
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
             mSignalledError = true;
         }
 
         if(((inHeader->nFilledLen / 65) * 65) != inHeader->nFilledLen) {
-            ALOGE("input buffer not multiple of 65 (%ld).", inHeader->nFilledLen);
+            ALOGE("input buffer not multiple of 65 (%d).", inHeader->nFilledLen);
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
             mSignalledError = true;
         }
