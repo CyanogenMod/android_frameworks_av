@@ -1566,7 +1566,10 @@ nsecs_t AudioTrack::processAudioBuffer()
     // Currently the AudioTrack thread is not created if there are no callbacks.
     // Would it ever make sense to run the thread, even without callbacks?
     // If so, then replace this by checks at each use for mCbf != NULL.
-    LOG_ALWAYS_FATAL_IF(mCblk == NULL);
+    if (mCblk == NULL) {
+        ALOGE("mCblk is NULL");
+        return NS_NEVER;
+    }
 
     mLock.lock();
     if (mAwaitBoost) {
