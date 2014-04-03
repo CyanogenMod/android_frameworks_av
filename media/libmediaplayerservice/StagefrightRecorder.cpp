@@ -1018,6 +1018,8 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     if (audioEncoder == NULL) {
         ALOGD("No encoder is needed, use the AudioSource directly as the MediaSource for LPCM format");
         audioEncoder = audioSource;
+    } else {
+        mAudioEncoderOMX = audioEncoder;  //record the audio OMX-based encoder
     }
     if (mAudioSourceNode != NULL) {
         mAudioSourceNode.clear();
