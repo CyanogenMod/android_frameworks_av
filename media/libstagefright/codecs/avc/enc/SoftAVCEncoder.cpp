@@ -827,7 +827,7 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
                 if (mStoreMetaDataInBuffers) {
                     if (inHeader->nFilledLen != 8) {
                         ALOGE("MetaData buffer is wrong size! "
-                                "(got %lu bytes, expected 8)", inHeader->nFilledLen);
+                                "(got %u bytes, expected 8)", inHeader->nFilledLen);
                         mSignalledError = true;
                         notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
                         return;
@@ -988,7 +988,7 @@ uint8_t *SoftAVCEncoder::extractGrallocData(void *data, buffer_handle_t *buffer)
     status_t res;
     if (type != kMetadataBufferTypeGrallocSource) {
         ALOGE("Data passed in with metadata mode does not have type "
-                "kMetadataBufferTypeGrallocSource (%d), has type %ld instead",
+                "kMetadataBufferTypeGrallocSource (%d), has type %d instead",
                 kMetadataBufferTypeGrallocSource, type);
         return NULL;
     }

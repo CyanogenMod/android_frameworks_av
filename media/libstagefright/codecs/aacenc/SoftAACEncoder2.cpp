@@ -308,7 +308,7 @@ status_t SoftAACEncoder2::setAudioParams() {
     // We call this whenever sample rate, number of channels or bitrate change
     // in reponse to setParameter calls.
 
-    ALOGV("setAudioParams: %lu Hz, %lu channels, %lu bps",
+    ALOGV("setAudioParams: %u Hz, %u channels, %u bps",
          mSampleRate, mNumChannels, mBitRate);
 
     if (AACENC_OK != aacEncoder_SetParam(mAACEncoder, AACENC_AOT,
@@ -364,7 +364,7 @@ void SoftAACEncoder2::onQueueFilled(OMX_U32 /* portIndex */) {
 
         OMX_U32 actualBitRate  = aacEncoder_GetParam(mAACEncoder, AACENC_BITRATE);
         if (mBitRate != actualBitRate) {
-            ALOGW("Requested bitrate %lu unsupported, using %lu", mBitRate, actualBitRate);
+            ALOGW("Requested bitrate %u unsupported, using %u", mBitRate, actualBitRate);
         }
 
         AACENC_InfoStruct encInfo;
