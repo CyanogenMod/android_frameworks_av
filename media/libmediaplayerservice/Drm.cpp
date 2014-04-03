@@ -28,8 +28,20 @@
 #include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaErrors.h>
+#include <binder/IServiceManager.h>
+#include <binder/IPCThreadState.h>
 
 namespace android {
+
+static bool checkPermission(const char* permissionString) {
+#ifndef HAVE_ANDROID_OS
+    return true;
+#endif
+    if (getpid() == IPCThreadState::self()->getCallingPid()) return true;
+    bool ok = checkCallingPermission(String16(permissionString));
+    if (!ok) ALOGE("Request requires %s", permissionString);
+    return ok;
+}
 
 KeyedVector<Vector<uint8_t>, String8> Drm::mUUIDToLibraryPathMap;
 KeyedVector<String8, wp<SharedLibrary> > Drm::mLibraryPathToOpenLibraryMap;
@@ -606,6 +618,10 @@ status_t Drm::signRSA(Vector<uint8_t> const &sessionId,
 
     if (mPlugin == NULL) {
         return -EINVAL;
+    }
+
+    if (!checkPermission("android.permission.ACCESS_DRM_CERTIFICATES")) {
+        return -EPERM;
     }
 
     return mPlugin->signRSA(sessionId, algorithm, message, wrappedKey, signature);
