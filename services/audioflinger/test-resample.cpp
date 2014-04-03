@@ -352,8 +352,9 @@ int main(int argc, char* argv[]) {
     size_t out_frames = output_size/8;
 
     /* set volume precision to 12 bits, so the volume scale is 1<<12.
-     * This means the "integer" part fits in the Q19.12 precision
-     * representation of output int32_t.
+     * The output int32_t is represented as Q4.27, with 4 bits of guard
+     * followed by the int16_t Q.15 portion, and then 12 trailing bits of
+     * additional precision.
      *
      * Generally 0 < volumePrecision <= 14 (due to the limits of
      * int16_t values for Volume). volumePrecision cannot be 0 due
