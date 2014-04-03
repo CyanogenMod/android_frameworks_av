@@ -204,7 +204,7 @@ OMX_ERRORTYPE SoftFlacEncoder::internalSetParameter(
 
             mNumChannels = pcmParams->nChannels;
             mSampleRate = pcmParams->nSamplingRate;
-            ALOGV("will encode %ld channels at %ldHz", mNumChannels, mSampleRate);
+            ALOGV("will encode %d channels at %dHz", mNumChannels, mSampleRate);
 
             return configureEncoder();
         }
@@ -257,8 +257,8 @@ OMX_ERRORTYPE SoftFlacEncoder::internalSetParameter(
 }
 
 void SoftFlacEncoder::onQueueFilled(OMX_U32 portIndex) {
-
-    ALOGV("SoftFlacEncoder::onQueueFilled(portIndex=%ld)", portIndex);
+    //UNUSED_UNLESS_VERBOSE(portIndex);
+    ALOGV("SoftFlacEncoder::onQueueFilled(portIndex=%d)", portIndex);
 
     if (mSignalledError) {
         return;
@@ -290,7 +290,7 @@ void SoftFlacEncoder::onQueueFilled(OMX_U32 portIndex) {
         }
 
         if (inHeader->nFilledLen > kMaxInputBufferSize) {
-            ALOGE("input buffer too large (%ld).", inHeader->nFilledLen);
+            ALOGE("input buffer too large (%d).", inHeader->nFilledLen);
             mSignalledError = true;
             notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
             return;
@@ -405,7 +405,7 @@ FLAC__StreamEncoderWriteStatus SoftFlacEncoder::onEncodedFlacAvailable(
 
 
 OMX_ERRORTYPE SoftFlacEncoder::configureEncoder() {
-    ALOGV("SoftFlacEncoder::configureEncoder() numChannel=%ld, sampleRate=%ld",
+    ALOGV("SoftFlacEncoder::configureEncoder() numChannel=%d, sampleRate=%d",
             mNumChannels, mSampleRate);
 
     if (mSignalledError || (mFlacStreamEncoder == NULL)) {
