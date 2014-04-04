@@ -60,6 +60,8 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink, const sp<MetaDa
 bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
                       bool isStreaming, audio_stream_type_t streamType);
 
+AString uriDebugString(const AString &uri, bool incognito = false);
+
 }  // namespace android
 
 #endif  // UTILS_H_

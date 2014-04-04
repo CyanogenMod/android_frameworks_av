@@ -27,6 +27,7 @@
 #include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/Utils.h>
 
 #define DEFAULT_SDP_SIZE 100000
 
@@ -89,11 +90,7 @@ void SDPLoader::onLoad(const sp<AMessage> &msg) {
     KeyedVector<String8, String8> *headers = NULL;
     msg->findPointer("headers", (void **)&headers);
 
-    if (!(mFlags & kFlagIncognito)) {
-        ALOGV("onLoad '%s'", url.c_str());
-    } else {
-        ALOGI("onLoad <URL suppressed>");
-    }
+    ALOGV("onLoad %s", uriDebugString(url, mFlags & kFlagIncognito).c_str());
 
     if (!mCancelled) {
         err = mHTTPDataSource->connect(url.c_str(), headers);

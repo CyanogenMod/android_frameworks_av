@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "Utils"
 #include <utils/Log.h>
+#include <ctype.h>
 
 #include "include/ESDS.h"
 
@@ -626,6 +627,41 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     // Check if offload is possible for given format, stream type, sample rate,
     // bit rate, duration, video and streaming
     return AudioSystem::isOffloadSupported(info);
+}
+
+AString uriDebugString(const AString &uri, bool incognito) {
+    if (incognito) {
+        return AString("<URI suppressed>");
+    }
+
+    char prop[PROPERTY_VALUE_MAX];
+    if (property_get("media.stagefright.log-uri", prop, "false") &&
+        (!strcmp(prop, "1") || !strcmp(prop, "true"))) {
+        return uri;
+    }
+
+    // find scheme
+    AString scheme;
+    const char *chars = uri.c_str();
+    for (size_t i = 0; i < uri.size(); i++) {
+        const char c = chars[i];
+        if (!isascii(c)) {
+            break;
+        } else if (isalpha(c)) {
+            continue;
+        } else if (i == 0) {
+            // first character must be a letter
+            break;
+        } else if (isdigit(c) || c == '+' || c == '.' || c =='-') {
+            continue;
+        } else if (c != ':') {
+            break;
+        }
+        scheme = AString(uri, 0, i);
+        scheme.append("://<suppressed>");
+        return scheme;
+    }
+    return AString("<no-scheme URI suppressed>");
 }
 
 }  // namespace android

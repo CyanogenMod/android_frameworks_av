@@ -477,11 +477,8 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
         headers = NULL;
     }
 
-#if 1
-    ALOGI("onConnect <URL suppressed>");
-#else
-    ALOGI("onConnect %s", url.c_str());
-#endif
+    // TODO currently we don't know if we are coming here from incognito mode
+    ALOGI("onConnect %s", uriDebugString(url).c_str());
 
     mMasterURL = url;
 
@@ -489,7 +486,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
     mPlaylist = fetchPlaylist(url.c_str(), NULL /* curPlaylistHash */, &dummy);
 
     if (mPlaylist == NULL) {
-        ALOGE("unable to fetch master playlist <URL suppressed>.");
+        ALOGE("unable to fetch master playlist %s.", uriDebugString(url).c_str());
 
         postPrepared(ERROR_IO);
         return;
