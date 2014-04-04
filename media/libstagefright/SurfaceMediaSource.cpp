@@ -54,9 +54,9 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
         ALOGE("Invalid dimensions %dx%d", bufferWidth, bufferHeight);
     }
 
-    mBufferQueue = new BufferQueue();
-    mBufferQueue->setDefaultBufferSize(bufferWidth, bufferHeight);
-    mBufferQueue->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
+    BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+    mConsumer->setDefaultBufferSize(bufferWidth, bufferHeight);
+    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
             GRALLOC_USAGE_HW_TEXTURE);
 
     sp<ISurfaceComposer> composer(ComposerService::getComposerService());
@@ -68,7 +68,7 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
     wp<ConsumerListener> listener = static_cast<ConsumerListener*>(this);
     sp<BufferQueue::ProxyConsumerListener> proxy = new BufferQueue::ProxyConsumerListener(listener);
 
-    status_t err = mBufferQueue->consumerConnect(proxy, false);
+    status_t err = mConsumer->consumerConnect(proxy, false);
     if (err != NO_ERROR) {
         ALOGE("SurfaceMediaSource: error connecting to BufferQueue: %s (%d)",
                 strerror(-err), err);
@@ -108,7 +108,7 @@ void SurfaceMediaSource::dump(
     Mutex::Autolock lock(mMutex);
 
     result.append(buffer);
-    mBufferQueue->dump(result, "");
+    mConsumer->dump(result, "");
 }
 
 status_t SurfaceMediaSource::setFrameRate(int32_t fps)
@@ -166,7 +166,7 @@ status_t SurfaceMediaSource::start(MetaData *params)
     CHECK_GT(mMaxAcquiredBufferCount, 1);
 
     status_t err =
-        mBufferQueue->setMaxAcquiredBufferCount(mMaxAcquiredBufferCount);
+        mConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBufferCount);
 
     if (err != OK) {
         return err;
@@ -223,7 +223,7 @@ status_t SurfaceMediaSource::stop()
 
     mMediaBuffersAvailableCondition.signal();
 
-    return mBufferQueue->consumerDisconnect();
+    return mConsumer->consumerDisconnect();
 }
 
 sp<MetaData> SurfaceMediaSource::getFormat()
@@ -293,7 +293,7 @@ status_t SurfaceMediaSource::read(
     // wait here till the frames come in from the client side
     while (mStarted) {
 
-        status_t err = mBufferQueue->acquireBuffer(&item, 0);
+        status_t err = mConsumer->acquireBuffer(&item, 0);
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             // wait for a buffer to be queued
             mFrameAvailableCondition.wait(mMutex);
@@ -316,7 +316,7 @@ status_t SurfaceMediaSource::read(
                 if (mStartTimeNs > 0) {
                     if (item.mTimestamp < mStartTimeNs) {
                         // This frame predates start of record, discard
-                        mBufferQueue->releaseBuffer(
+                        mConsumer->releaseBuffer(
                                 item.mBuf, item.mFrameNumber, EGL_NO_DISPLAY,
                                 EGL_NO_SYNC_KHR, Fence::NO_FENCE);
                         continue;
@@ -416,7 +416,7 @@ void SurfaceMediaSource::signalBufferReturned(MediaBuffer *buffer) {
             ALOGV("Slot %d returned, matches handle = %p", id,
                     mSlots[id].mGraphicBuffer->handle);
 
-            mBufferQueue->releaseBuffer(id, mSlots[id].mFrameNumber,
+            mConsumer->releaseBuffer(id, mSlots[id].mFrameNumber,
                                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR,
                     Fence::NO_FENCE);
 
