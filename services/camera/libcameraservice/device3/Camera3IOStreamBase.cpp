@@ -146,6 +146,13 @@ void Camera3IOStreamBase::handoutBufferLocked(camera3_stream_buffer &buffer,
     // Inform tracker about becoming busy
     if (mDequeuedBufferCount == 0 && mState != STATE_IN_CONFIG &&
             mState != STATE_IN_RECONFIG) {
+        /**
+         * Avoid a spurious IDLE->ACTIVE->IDLE transition when using buffers
+         * before/after register_stream_buffers during initial configuration
+         * or re-configuration.
+         *
+         * TODO: IN_CONFIG and IN_RECONFIG checks only make sense for <HAL3.2
+         */
         sp<StatusTracker> statusTracker = mStatusTracker.promote();
         if (statusTracker != 0) {
             statusTracker->markComponentActive(mStatusId);
@@ -224,6 +231,13 @@ status_t Camera3IOStreamBase::returnAnyBufferLocked(
     mDequeuedBufferCount--;
     if (mDequeuedBufferCount == 0 && mState != STATE_IN_CONFIG &&
             mState != STATE_IN_RECONFIG) {
+        /**
+         * Avoid a spurious IDLE->ACTIVE->IDLE transition when using buffers
+         * before/after register_stream_buffers during initial configuration
+         * or re-configuration.
+         *
+         * TODO: IN_CONFIG and IN_RECONFIG checks only make sense for <HAL3.2
+         */
         ALOGV("%s: Stream %d: All buffers returned; now idle", __FUNCTION__,
                 mId);
         sp<StatusTracker> statusTracker = mStatusTracker.promote();
