@@ -2443,8 +2443,9 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
                 return ERROR_MALFORMED;
             }
             extSampleRate = br.getBits(24);
+        } else {
+            extSampleRate = kSamplingRate[freqIndex];
         }
-        extSampleRate = kSamplingRate[freqIndex];
         mLastTrack->meta->setInt32(kKeyExtSampleRate, extSampleRate);
     }
 

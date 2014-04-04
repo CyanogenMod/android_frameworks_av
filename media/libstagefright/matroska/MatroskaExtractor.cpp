@@ -37,6 +37,8 @@
 #include <utils/String8.h>
 #include <media/stagefright/foundation/ABitReader.h>
 
+#include <cutils/properties.h>
+
 namespace android {
 
 struct DataSourceReader : public mkvparser::IMkvReader {
@@ -660,6 +662,27 @@ MatroskaExtractor::MatroskaExtractor(const sp<DataSource> &source)
 
     ret = mSegment->ParseHeaders();
     CHECK_EQ(ret, 0);
+
+    const mkvparser::SegmentInfo *info = mSegment->GetInfo();
+
+    const char* muxingAppInfo = info->GetMuxingAppAsUTF8();
+    const char* writingApp    = info->GetWritingAppAsUTF8();
+
+    char property_value[PROPERTY_VALUE_MAX] = {0};
+    int parser_flags = 0;
+    property_get("mm.enable.qcom_parser", property_value, "0");
+    parser_flags = atoi(property_value);
+
+    //if divx parsing is disabled and clip has divx hint, bailout
+    //flag 0x00100000 is for DivX and 0x00200000 is for DivxHD
+    if(!(0x00300000 & parser_flags) &&
+       ((!strncasecmp(muxingAppInfo, "libDivX", 7)) ||
+       (!strncasecmp(writingApp, "DivX", 4)))) {
+        ALOGW("format found is not supported -- Bailing out --");
+        delete mSegment;
+        mSegment = NULL;
+        return;
+    }
 
     long len;
     ret = mSegment->LoadCluster(pos, len);
