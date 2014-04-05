@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <utils/String8.h>
 #include "ADebug.h"
 #include "AString.h"
 
@@ -46,6 +47,13 @@ AString::AString(const char *s, size_t size)
       mSize(0),
       mAllocSize(1) {
     setTo(s, size);
+}
+
+AString::AString(const String8 &from)
+    : mData(NULL),
+      mSize(0),
+      mAllocSize(1) {
+    setTo(from.string(), from.length());
 }
 
 AString::AString(const AString &from)

@@ -22,10 +22,13 @@
 
 namespace android {
 
+struct String8;
+
 struct AString {
     AString();
     AString(const char *s);
     AString(const char *s, size_t size);
+    AString(const String8 &from);
     AString(const AString &from);
     AString(const AString &from, size_t offset, size_t n);
     ~AString();
