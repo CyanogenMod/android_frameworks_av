@@ -40,619 +40,385 @@
 #include "AudioMixer.h"
 #include "FastMixer.h"
 
-#define FAST_HOT_IDLE_NS     1000000L   // 1 ms: time to sleep while hot idling
-#define FAST_DEFAULT_NS    999999999L   // ~1 sec: default time to sleep
-#define MIN_WARMUP_CYCLES          2    // minimum number of loop cycles to wait for warmup
-#define MAX_WARMUP_CYCLES         10    // maximum number of loop cycles to wait for warmup
-
 #define FCC_2                       2   // fixed channel count assumption
 
 namespace android {
 
-// Fast mixer thread
-bool FastMixer::threadLoop()
+/*static*/ const FastMixerState FastMixer::initial;
+
+FastMixer::FastMixer() : FastThread(),
+    slopNs(0),
+    // fastTrackNames
+    // generations
+    outputSink(NULL),
+    outputSinkGen(0),
+    mixer(NULL),
+    mixBuffer(NULL),
+    mixBufferState(UNDEFINED),
+    format(Format_Invalid),
+    sampleRate(0),
+    fastTracksGen(0),
+    totalNativeFramesWritten(0),
+    // timestamp
+    nativeFramesWrittenButNotPresented(0)   // the = 0 is to silence the compiler
 {
-    static const FastMixerState initial;
-    const FastMixerState *previous = &initial, *current = &initial;
-    FastMixerState preIdle; // copy of state before we went into idle
-    struct timespec oldTs = {0, 0};
-    bool oldTsValid = false;
-    long slopNs = 0;    // accumulated time we've woken up too early (> 0) or too late (< 0)
-    long sleepNs = -1;  // -1: busy wait, 0: sched_yield, > 0: nanosleep
-    int fastTrackNames[FastMixerState::kMaxFastTracks]; // handles used by mixer to identify tracks
-    int generations[FastMixerState::kMaxFastTracks];    // last observed mFastTracks[i].mGeneration
+    // FIXME pass initial as parameter to base class constructor, and make it static local
+    previous = &initial;
+    current = &initial;
+
+    mDummyDumpState = &dummyDumpState;
+
     unsigned i;
     for (i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
         fastTrackNames[i] = -1;
         generations[i] = 0;
     }
-    NBAIO_Sink *outputSink = NULL;
-    int outputSinkGen = 0;
-    AudioMixer* mixer = NULL;
-    short *mixBuffer = NULL;
-    enum {UNDEFINED, MIXED, ZEROED} mixBufferState = UNDEFINED;
-    NBAIO_Format format = Format_Invalid;
-    unsigned sampleRate = 0;
-    int fastTracksGen = 0;
-    long periodNs = 0;      // expected period; the time required to render one mix buffer
-    long underrunNs = 0;    // underrun likely when write cycle is greater than this value
-    long overrunNs = 0;     // overrun likely when write cycle is less than this value
-    long forceNs = 0;       // if overrun detected, force the write cycle to take this much time
-    long warmupNs = 0;      // warmup complete when write cycle is greater than to this value
-    FastMixerDumpState dummyDumpState, *dumpState = &dummyDumpState;
-    bool ignoreNextOverrun = true;  // used to ignore initial overrun and first after an underrun
 #ifdef FAST_MIXER_STATISTICS
-    struct timespec oldLoad = {0, 0};    // previous value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
-    bool oldLoadValid = false;  // whether oldLoad is valid
-    uint32_t bounds = 0;
-    bool full = false;      // whether we have collected at least mSamplingN samples
-#ifdef CPU_FREQUENCY_STATISTICS
-    ThreadCpuUsage tcu;     // for reading the current CPU clock frequency in kHz
+    oldLoad.tv_sec = 0;
+    oldLoad.tv_nsec = 0;
 #endif
+}
+
+FastMixer::~FastMixer()
+{
+}
+
+FastMixerStateQueue* FastMixer::sq()
+{
+    return &mSQ;
+}
+
+const FastThreadState *FastMixer::poll()
+{
+    return mSQ.poll();
+}
+
+void FastMixer::setLog(NBLog::Writer *logWriter)
+{
+    if (mixer != NULL) {
+        mixer->setLog(logWriter);
+    }
+}
+
+void FastMixer::onIdle()
+{
+    preIdle = *(const FastMixerState *)current;
+    current = &preIdle;
+}
+
+void FastMixer::onExit()
+{
+    delete mixer;
+    delete[] mixBuffer;
+}
+
+bool FastMixer::isSubClassCommand(FastThreadState::Command command)
+{
+    switch ((FastMixerState::Command) command) {
+    case FastMixerState::MIX:
+    case FastMixerState::WRITE:
+    case FastMixerState::MIX_WRITE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void FastMixer::onStateChange()
+{
+    const FastMixerState * const current = (const FastMixerState *) this->current;
+    const FastMixerState * const previous = (const FastMixerState *) this->previous;
+    FastMixerDumpState * const dumpState = (FastMixerDumpState *) this->dumpState;
+    const size_t frameCount = current->mFrameCount;
+
+    // handle state change here, but since we want to diff the state,
+    // we're prepared for previous == &initial the first time through
+    unsigned previousTrackMask;
+
+    // check for change in output HAL configuration
+    NBAIO_Format previousFormat = format;
+    if (current->mOutputSinkGen != outputSinkGen) {
+        outputSink = current->mOutputSink;
+        outputSinkGen = current->mOutputSinkGen;
+        if (outputSink == NULL) {
+            format = Format_Invalid;
+            sampleRate = 0;
+        } else {
+            format = outputSink->format();
+            sampleRate = Format_sampleRate(format);
+            ALOG_ASSERT(Format_channelCount(format) == FCC_2);
+        }
+        dumpState->mSampleRate = sampleRate;
+    }
+
+    if ((!Format_isEqual(format, previousFormat)) || (frameCount != previous->mFrameCount)) {
+        // FIXME to avoid priority inversion, don't delete here
+        delete mixer;
+        mixer = NULL;
+        delete[] mixBuffer;
+        mixBuffer = NULL;
+        if (frameCount > 0 && sampleRate > 0) {
+            // FIXME new may block for unbounded time at internal mutex of the heap
+            //       implementation; it would be better to have normal mixer allocate for us
+            //       to avoid blocking here and to prevent possible priority inversion
+            mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
+            mixBuffer = new short[frameCount * FCC_2];
+            periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
+            underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
+            overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
+            forceNs = (frameCount * 950000000LL) / sampleRate;      // 0.95
+            warmupNs = (frameCount * 500000000LL) / sampleRate;     // 0.50
+        } else {
+            periodNs = 0;
+            underrunNs = 0;
+            overrunNs = 0;
+            forceNs = 0;
+            warmupNs = 0;
+        }
+        mixBufferState = UNDEFINED;
+#if !LOG_NDEBUG
+        for (unsigned i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
+            fastTrackNames[i] = -1;
+        }
 #endif
-    unsigned coldGen = 0;   // last observed mColdGen
-    bool isWarm = false;    // true means ready to mix, false means wait for warmup before mixing
-    struct timespec measuredWarmupTs = {0, 0};  // how long did it take for warmup to complete
-    uint32_t warmupCycles = 0;  // counter of number of loop cycles required to warmup
-    NBAIO_Sink* teeSink = NULL; // if non-NULL, then duplicate write() to this non-blocking sink
-    NBLog::Writer dummyLogWriter, *logWriter = &dummyLogWriter;
-    uint32_t totalNativeFramesWritten = 0;  // copied to dumpState->mFramesWritten
+        // we need to reconfigure all active tracks
+        previousTrackMask = 0;
+        fastTracksGen = current->mFastTracksGen - 1;
+        dumpState->mFrameCount = frameCount;
+    } else {
+        previousTrackMask = previous->mTrackMask;
+    }
 
-    // next 2 fields are valid only when timestampStatus == NO_ERROR
-    AudioTimestamp timestamp;
-    uint32_t nativeFramesWrittenButNotPresented = 0;    // the = 0 is to silence the compiler
-    status_t timestampStatus = INVALID_OPERATION;
+    // check for change in active track set
+    const unsigned currentTrackMask = current->mTrackMask;
+    dumpState->mTrackMask = currentTrackMask;
+    if (current->mFastTracksGen != fastTracksGen) {
+        ALOG_ASSERT(mixBuffer != NULL);
+        int name;
 
-    for (;;) {
-
-        // either nanosleep, sched_yield, or busy wait
-        if (sleepNs >= 0) {
-            if (sleepNs > 0) {
-                ALOG_ASSERT(sleepNs < 1000000000);
-                const struct timespec req = {0, sleepNs};
-                nanosleep(&req, NULL);
-            } else {
-                sched_yield();
-            }
-        }
-        // default to long sleep for next cycle
-        sleepNs = FAST_DEFAULT_NS;
-
-        // poll for state change
-        const FastMixerState *next = mSQ.poll();
-        if (next == NULL) {
-            // continue to use the default initial state until a real state is available
-            ALOG_ASSERT(current == &initial && previous == &initial);
-            next = current;
-        }
-
-        FastMixerState::Command command = next->mCommand;
-        if (next != current) {
-
-            // As soon as possible of learning of a new dump area, start using it
-            dumpState = next->mDumpState != NULL ? next->mDumpState : &dummyDumpState;
-            teeSink = next->mTeeSink;
-            logWriter = next->mNBLogWriter != NULL ? next->mNBLogWriter : &dummyLogWriter;
+        // process removed tracks first to avoid running out of track names
+        unsigned removedTracks = previousTrackMask & ~currentTrackMask;
+        while (removedTracks != 0) {
+            int i = __builtin_ctz(removedTracks);
+            removedTracks &= ~(1 << i);
+            const FastTrack* fastTrack = &current->mFastTracks[i];
+            ALOG_ASSERT(fastTrack->mBufferProvider == NULL);
             if (mixer != NULL) {
-                mixer->setLog(logWriter);
-            }
-
-            // We want to always have a valid reference to the previous (non-idle) state.
-            // However, the state queue only guarantees access to current and previous states.
-            // So when there is a transition from a non-idle state into an idle state, we make a
-            // copy of the last known non-idle state so it is still available on return from idle.
-            // The possible transitions are:
-            //  non-idle -> non-idle    update previous from current in-place
-            //  non-idle -> idle        update previous from copy of current
-            //  idle     -> idle        don't update previous
-            //  idle     -> non-idle    don't update previous
-            if (!(current->mCommand & FastMixerState::IDLE)) {
-                if (command & FastMixerState::IDLE) {
-                    preIdle = *current;
-                    current = &preIdle;
-                    oldTsValid = false;
-#ifdef FAST_MIXER_STATISTICS
-                    oldLoadValid = false;
-#endif
-                    ignoreNextOverrun = true;
-                }
-                previous = current;
-            }
-            current = next;
-        }
-#if !LOG_NDEBUG
-        next = NULL;    // not referenced again
-#endif
-
-        dumpState->mCommand = command;
-
-        switch (command) {
-        case FastMixerState::INITIAL:
-        case FastMixerState::HOT_IDLE:
-            sleepNs = FAST_HOT_IDLE_NS;
-            continue;
-        case FastMixerState::COLD_IDLE:
-            // only perform a cold idle command once
-            // FIXME consider checking previous state and only perform if previous != COLD_IDLE
-            if (current->mColdGen != coldGen) {
-                int32_t *coldFutexAddr = current->mColdFutexAddr;
-                ALOG_ASSERT(coldFutexAddr != NULL);
-                int32_t old = android_atomic_dec(coldFutexAddr);
-                if (old <= 0) {
-                    __futex_syscall4(coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
-                }
-                int policy = sched_getscheduler(0);
-                if (!(policy == SCHED_FIFO || policy == SCHED_RR)) {
-                    ALOGE("did not receive expected priority boost");
-                }
-                // This may be overly conservative; there could be times that the normal mixer
-                // requests such a brief cold idle that it doesn't require resetting this flag.
-                isWarm = false;
-                measuredWarmupTs.tv_sec = 0;
-                measuredWarmupTs.tv_nsec = 0;
-                warmupCycles = 0;
-                sleepNs = -1;
-                coldGen = current->mColdGen;
-#ifdef FAST_MIXER_STATISTICS
-                bounds = 0;
-                full = false;
-#endif
-                oldTsValid = !clock_gettime(CLOCK_MONOTONIC, &oldTs);
-                timestampStatus = INVALID_OPERATION;
-            } else {
-                sleepNs = FAST_HOT_IDLE_NS;
-            }
-            continue;
-        case FastMixerState::EXIT:
-            delete mixer;
-            delete[] mixBuffer;
-            return false;
-        case FastMixerState::MIX:
-        case FastMixerState::WRITE:
-        case FastMixerState::MIX_WRITE:
-            break;
-        default:
-            LOG_ALWAYS_FATAL("bad command %d", command);
-        }
-
-        // there is a non-idle state available to us; did the state change?
-        size_t frameCount = current->mFrameCount;
-        if (current != previous) {
-
-            // handle state change here, but since we want to diff the state,
-            // we're prepared for previous == &initial the first time through
-            unsigned previousTrackMask;
-
-            // check for change in output HAL configuration
-            NBAIO_Format previousFormat = format;
-            if (current->mOutputSinkGen != outputSinkGen) {
-                outputSink = current->mOutputSink;
-                outputSinkGen = current->mOutputSinkGen;
-                if (outputSink == NULL) {
-                    format = Format_Invalid;
-                    sampleRate = 0;
-                } else {
-                    format = outputSink->format();
-                    sampleRate = Format_sampleRate(format);
-                    ALOG_ASSERT(Format_channelCount(format) == FCC_2);
-                }
-                dumpState->mSampleRate = sampleRate;
-            }
-
-            if ((!Format_isEqual(format, previousFormat)) || (frameCount != previous->mFrameCount)) {
-                // FIXME to avoid priority inversion, don't delete here
-                delete mixer;
-                mixer = NULL;
-                delete[] mixBuffer;
-                mixBuffer = NULL;
-                if (frameCount > 0 && sampleRate > 0) {
-                    // FIXME new may block for unbounded time at internal mutex of the heap
-                    //       implementation; it would be better to have normal mixer allocate for us
-                    //       to avoid blocking here and to prevent possible priority inversion
-                    mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
-                    mixBuffer = new short[frameCount * FCC_2];
-                    periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
-                    underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
-                    overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
-                    forceNs = (frameCount * 950000000LL) / sampleRate;      // 0.95
-                    warmupNs = (frameCount * 500000000LL) / sampleRate;     // 0.50
-                } else {
-                    periodNs = 0;
-                    underrunNs = 0;
-                    overrunNs = 0;
-                    forceNs = 0;
-                    warmupNs = 0;
-                }
-                mixBufferState = UNDEFINED;
-#if !LOG_NDEBUG
-                for (i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
-                    fastTrackNames[i] = -1;
-                }
-#endif
-                // we need to reconfigure all active tracks
-                previousTrackMask = 0;
-                fastTracksGen = current->mFastTracksGen - 1;
-                dumpState->mFrameCount = frameCount;
-            } else {
-                previousTrackMask = previous->mTrackMask;
-            }
-
-            // check for change in active track set
-            unsigned currentTrackMask = current->mTrackMask;
-            dumpState->mTrackMask = currentTrackMask;
-            if (current->mFastTracksGen != fastTracksGen) {
-                ALOG_ASSERT(mixBuffer != NULL);
-                int name;
-
-                // process removed tracks first to avoid running out of track names
-                unsigned removedTracks = previousTrackMask & ~currentTrackMask;
-                while (removedTracks != 0) {
-                    i = __builtin_ctz(removedTracks);
-                    removedTracks &= ~(1 << i);
-                    const FastTrack* fastTrack = &current->mFastTracks[i];
-                    ALOG_ASSERT(fastTrack->mBufferProvider == NULL);
-                    if (mixer != NULL) {
-                        name = fastTrackNames[i];
-                        ALOG_ASSERT(name >= 0);
-                        mixer->deleteTrackName(name);
-                    }
-#if !LOG_NDEBUG
-                    fastTrackNames[i] = -1;
-#endif
-                    // don't reset track dump state, since other side is ignoring it
-                    generations[i] = fastTrack->mGeneration;
-                }
-
-                // now process added tracks
-                unsigned addedTracks = currentTrackMask & ~previousTrackMask;
-                while (addedTracks != 0) {
-                    i = __builtin_ctz(addedTracks);
-                    addedTracks &= ~(1 << i);
-                    const FastTrack* fastTrack = &current->mFastTracks[i];
-                    AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
-                    ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
-                    if (mixer != NULL) {
-                        // calling getTrackName with default channel mask and a random invalid
-                        //   sessionId (no effects here)
-                        name = mixer->getTrackName(AUDIO_CHANNEL_OUT_STEREO, -555);
-                        ALOG_ASSERT(name >= 0);
-                        fastTrackNames[i] = name;
-                        mixer->setBufferProvider(name, bufferProvider);
-                        mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
-                                (void *) mixBuffer);
-                        // newly allocated track names default to full scale volume
-                        mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
-                                (void *)(uintptr_t)fastTrack->mChannelMask);
-                        mixer->enable(name);
-                    }
-                    generations[i] = fastTrack->mGeneration;
-                }
-
-                // finally process (potentially) modified tracks; these use the same slot
-                // but may have a different buffer provider or volume provider
-                unsigned modifiedTracks = currentTrackMask & previousTrackMask;
-                while (modifiedTracks != 0) {
-                    i = __builtin_ctz(modifiedTracks);
-                    modifiedTracks &= ~(1 << i);
-                    const FastTrack* fastTrack = &current->mFastTracks[i];
-                    if (fastTrack->mGeneration != generations[i]) {
-                        // this track was actually modified
-                        AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
-                        ALOG_ASSERT(bufferProvider != NULL);
-                        if (mixer != NULL) {
-                            name = fastTrackNames[i];
-                            ALOG_ASSERT(name >= 0);
-                            mixer->setBufferProvider(name, bufferProvider);
-                            if (fastTrack->mVolumeProvider == NULL) {
-                                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                                        (void *)0x1000);
-                                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                                        (void *)0x1000);
-                            }
-                            mixer->setParameter(name, AudioMixer::RESAMPLE,
-                                    AudioMixer::REMOVE, NULL);
-                            mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
-                                    (void *)(uintptr_t) fastTrack->mChannelMask);
-                            // already enabled
-                        }
-                        generations[i] = fastTrack->mGeneration;
-                    }
-                }
-
-                fastTracksGen = current->mFastTracksGen;
-
-                dumpState->mNumTracks = popcount(currentTrackMask);
-            }
-
-#if 1   // FIXME shouldn't need this
-            // only process state change once
-            previous = current;
-#endif
-        }
-
-        // do work using current state here
-        if ((command & FastMixerState::MIX) && (mixer != NULL) && isWarm) {
-            ALOG_ASSERT(mixBuffer != NULL);
-            // for each track, update volume and check for underrun
-            unsigned currentTrackMask = current->mTrackMask;
-            while (currentTrackMask != 0) {
-                i = __builtin_ctz(currentTrackMask);
-                currentTrackMask &= ~(1 << i);
-                const FastTrack* fastTrack = &current->mFastTracks[i];
-
-                // Refresh the per-track timestamp
-                if (timestampStatus == NO_ERROR) {
-                    uint32_t trackFramesWrittenButNotPresented =
-                        nativeFramesWrittenButNotPresented;
-                    uint32_t trackFramesWritten = fastTrack->mBufferProvider->framesReleased();
-                    // Can't provide an AudioTimestamp before first frame presented,
-                    // or during the brief 32-bit wraparound window
-                    if (trackFramesWritten >= trackFramesWrittenButNotPresented) {
-                        AudioTimestamp perTrackTimestamp;
-                        perTrackTimestamp.mPosition =
-                                trackFramesWritten - trackFramesWrittenButNotPresented;
-                        perTrackTimestamp.mTime = timestamp.mTime;
-                        fastTrack->mBufferProvider->onTimestamp(perTrackTimestamp);
-                    }
-                }
-
-                int name = fastTrackNames[i];
+                name = fastTrackNames[i];
                 ALOG_ASSERT(name >= 0);
-                if (fastTrack->mVolumeProvider != NULL) {
-                    uint32_t vlr = fastTrack->mVolumeProvider->getVolumeLR();
-                    mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                            (void *)(uintptr_t)(vlr & 0xFFFF));
-                    mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                            (void *)(uintptr_t)(vlr >> 16));
-                }
-                // FIXME The current implementation of framesReady() for fast tracks
-                // takes a tryLock, which can block
-                // up to 1 ms.  If enough active tracks all blocked in sequence, this would result
-                // in the overall fast mix cycle being delayed.  Should use a non-blocking FIFO.
-                size_t framesReady = fastTrack->mBufferProvider->framesReady();
-                if (ATRACE_ENABLED()) {
-                    // I wish we had formatted trace names
-                    char traceName[16];
-                    strcpy(traceName, "fRdy");
-                    traceName[4] = i + (i < 10 ? '0' : 'A' - 10);
-                    traceName[5] = '\0';
-                    ATRACE_INT(traceName, framesReady);
-                }
-                FastTrackDump *ftDump = &dumpState->mTracks[i];
-                FastTrackUnderruns underruns = ftDump->mUnderruns;
-                if (framesReady < frameCount) {
-                    if (framesReady == 0) {
-                        underruns.mBitFields.mEmpty++;
-                        underruns.mBitFields.mMostRecent = UNDERRUN_EMPTY;
-                        mixer->disable(name);
-                    } else {
-                        // allow mixing partial buffer
-                        underruns.mBitFields.mPartial++;
-                        underruns.mBitFields.mMostRecent = UNDERRUN_PARTIAL;
-                        mixer->enable(name);
+                mixer->deleteTrackName(name);
+            }
+#if !LOG_NDEBUG
+            fastTrackNames[i] = -1;
+#endif
+            // don't reset track dump state, since other side is ignoring it
+            generations[i] = fastTrack->mGeneration;
+        }
+
+        // now process added tracks
+        unsigned addedTracks = currentTrackMask & ~previousTrackMask;
+        while (addedTracks != 0) {
+            int i = __builtin_ctz(addedTracks);
+            addedTracks &= ~(1 << i);
+            const FastTrack* fastTrack = &current->mFastTracks[i];
+            AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
+            ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
+            if (mixer != NULL) {
+                // calling getTrackName with default channel mask and a random invalid
+                //   sessionId (no effects here)
+                name = mixer->getTrackName(AUDIO_CHANNEL_OUT_STEREO, -555);
+                ALOG_ASSERT(name >= 0);
+                fastTrackNames[i] = name;
+                mixer->setBufferProvider(name, bufferProvider);
+                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
+                        (void *) mixBuffer);
+                // newly allocated track names default to full scale volume
+                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
+                        (void *)(uintptr_t)fastTrack->mChannelMask);
+                mixer->enable(name);
+            }
+            generations[i] = fastTrack->mGeneration;
+        }
+
+        // finally process (potentially) modified tracks; these use the same slot
+        // but may have a different buffer provider or volume provider
+        unsigned modifiedTracks = currentTrackMask & previousTrackMask;
+        while (modifiedTracks != 0) {
+            int i = __builtin_ctz(modifiedTracks);
+            modifiedTracks &= ~(1 << i);
+            const FastTrack* fastTrack = &current->mFastTracks[i];
+            if (fastTrack->mGeneration != generations[i]) {
+                // this track was actually modified
+                AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
+                ALOG_ASSERT(bufferProvider != NULL);
+                if (mixer != NULL) {
+                    name = fastTrackNames[i];
+                    ALOG_ASSERT(name >= 0);
+                    mixer->setBufferProvider(name, bufferProvider);
+                    if (fastTrack->mVolumeProvider == NULL) {
+                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
+                                (void *)0x1000);
+                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
+                                (void *)0x1000);
                     }
+                    mixer->setParameter(name, AudioMixer::RESAMPLE,
+                            AudioMixer::REMOVE, NULL);
+                    mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
+                            (void *)(uintptr_t) fastTrack->mChannelMask);
+                    // already enabled
+                }
+                generations[i] = fastTrack->mGeneration;
+            }
+        }
+
+        fastTracksGen = current->mFastTracksGen;
+
+        dumpState->mNumTracks = popcount(currentTrackMask);
+    }
+}
+
+void FastMixer::onWork()
+{
+    const FastMixerState * const current = (const FastMixerState *) this->current;
+    FastMixerDumpState * const dumpState = (FastMixerDumpState *) this->dumpState;
+    const FastMixerState::Command command = this->command;
+    const size_t frameCount = current->mFrameCount;
+
+    if ((command & FastMixerState::MIX) && (mixer != NULL) && isWarm) {
+        ALOG_ASSERT(mixBuffer != NULL);
+        // for each track, update volume and check for underrun
+        unsigned currentTrackMask = current->mTrackMask;
+        while (currentTrackMask != 0) {
+            int i = __builtin_ctz(currentTrackMask);
+            currentTrackMask &= ~(1 << i);
+            const FastTrack* fastTrack = &current->mFastTracks[i];
+
+            // Refresh the per-track timestamp
+            if (timestampStatus == NO_ERROR) {
+                uint32_t trackFramesWrittenButNotPresented =
+                    nativeFramesWrittenButNotPresented;
+                uint32_t trackFramesWritten = fastTrack->mBufferProvider->framesReleased();
+                // Can't provide an AudioTimestamp before first frame presented,
+                // or during the brief 32-bit wraparound window
+                if (trackFramesWritten >= trackFramesWrittenButNotPresented) {
+                    AudioTimestamp perTrackTimestamp;
+                    perTrackTimestamp.mPosition =
+                            trackFramesWritten - trackFramesWrittenButNotPresented;
+                    perTrackTimestamp.mTime = timestamp.mTime;
+                    fastTrack->mBufferProvider->onTimestamp(perTrackTimestamp);
+                }
+            }
+
+            int name = fastTrackNames[i];
+            ALOG_ASSERT(name >= 0);
+            if (fastTrack->mVolumeProvider != NULL) {
+                uint32_t vlr = fastTrack->mVolumeProvider->getVolumeLR();
+                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
+                        (void *)(uintptr_t)(vlr & 0xFFFF));
+                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
+                        (void *)(uintptr_t)(vlr >> 16));
+            }
+            // FIXME The current implementation of framesReady() for fast tracks
+            // takes a tryLock, which can block
+            // up to 1 ms.  If enough active tracks all blocked in sequence, this would result
+            // in the overall fast mix cycle being delayed.  Should use a non-blocking FIFO.
+            size_t framesReady = fastTrack->mBufferProvider->framesReady();
+            if (ATRACE_ENABLED()) {
+                // I wish we had formatted trace names
+                char traceName[16];
+                strcpy(traceName, "fRdy");
+                traceName[4] = i + (i < 10 ? '0' : 'A' - 10);
+                traceName[5] = '\0';
+                ATRACE_INT(traceName, framesReady);
+            }
+            FastTrackDump *ftDump = &dumpState->mTracks[i];
+            FastTrackUnderruns underruns = ftDump->mUnderruns;
+            if (framesReady < frameCount) {
+                if (framesReady == 0) {
+                    underruns.mBitFields.mEmpty++;
+                    underruns.mBitFields.mMostRecent = UNDERRUN_EMPTY;
+                    mixer->disable(name);
                 } else {
-                    underruns.mBitFields.mFull++;
-                    underruns.mBitFields.mMostRecent = UNDERRUN_FULL;
+                    // allow mixing partial buffer
+                    underruns.mBitFields.mPartial++;
+                    underruns.mBitFields.mMostRecent = UNDERRUN_PARTIAL;
                     mixer->enable(name);
                 }
-                ftDump->mUnderruns = underruns;
-                ftDump->mFramesReady = framesReady;
-            }
-
-            int64_t pts;
-            if (outputSink == NULL || (OK != outputSink->getNextWriteTimestamp(&pts))) {
-                pts = AudioBufferProvider::kInvalidPTS;
-            }
-
-            // process() is CPU-bound
-            mixer->process(pts);
-            mixBufferState = MIXED;
-        } else if (mixBufferState == MIXED) {
-            mixBufferState = UNDEFINED;
-        }
-        bool attemptedWrite = false;
-        //bool didFullWrite = false;    // dumpsys could display a count of partial writes
-        if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mixBuffer != NULL)) {
-            if (mixBufferState == UNDEFINED) {
-                memset(mixBuffer, 0, frameCount * FCC_2 * sizeof(short));
-                mixBufferState = ZEROED;
-            }
-            if (teeSink != NULL) {
-                (void) teeSink->write(mixBuffer, frameCount);
-            }
-            // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
-            //       but this code should be modified to handle both non-blocking and blocking sinks
-            dumpState->mWriteSequence++;
-            ATRACE_BEGIN("write");
-            ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
-            ATRACE_END();
-            dumpState->mWriteSequence++;
-            if (framesWritten >= 0) {
-                ALOG_ASSERT((size_t) framesWritten <= frameCount);
-                totalNativeFramesWritten += framesWritten;
-                dumpState->mFramesWritten = totalNativeFramesWritten;
-                //if ((size_t) framesWritten == frameCount) {
-                //    didFullWrite = true;
-                //}
             } else {
-                dumpState->mWriteErrors++;
+                underruns.mBitFields.mFull++;
+                underruns.mBitFields.mMostRecent = UNDERRUN_FULL;
+                mixer->enable(name);
             }
-            attemptedWrite = true;
-            // FIXME count # of writes blocked excessively, CPU usage, etc. for dump
-
-            timestampStatus = outputSink->getTimestamp(timestamp);
-            if (timestampStatus == NO_ERROR) {
-                uint32_t totalNativeFramesPresented = timestamp.mPosition;
-                if (totalNativeFramesPresented <= totalNativeFramesWritten) {
-                    nativeFramesWrittenButNotPresented =
-                        totalNativeFramesWritten - totalNativeFramesPresented;
-                } else {
-                    // HAL reported that more frames were presented than were written
-                    timestampStatus = INVALID_OPERATION;
-                }
-            }
+            ftDump->mUnderruns = underruns;
+            ftDump->mFramesReady = framesReady;
         }
 
-        // To be exactly periodic, compute the next sleep time based on current time.
-        // This code doesn't have long-term stability when the sink is non-blocking.
-        // FIXME To avoid drift, use the local audio clock or watch the sink's fill status.
-        struct timespec newTs;
-        int rc = clock_gettime(CLOCK_MONOTONIC, &newTs);
-        if (rc == 0) {
-            //logWriter->logTimestamp(newTs);
-            if (oldTsValid) {
-                time_t sec = newTs.tv_sec - oldTs.tv_sec;
-                long nsec = newTs.tv_nsec - oldTs.tv_nsec;
-                ALOGE_IF(sec < 0 || (sec == 0 && nsec < 0),
-                        "clock_gettime(CLOCK_MONOTONIC) failed: was %ld.%09ld but now %ld.%09ld",
-                        oldTs.tv_sec, oldTs.tv_nsec, newTs.tv_sec, newTs.tv_nsec);
-                if (nsec < 0) {
-                    --sec;
-                    nsec += 1000000000;
-                }
-                // To avoid an initial underrun on fast tracks after exiting standby,
-                // do not start pulling data from tracks and mixing until warmup is complete.
-                // Warmup is considered complete after the earlier of:
-                //      MIN_WARMUP_CYCLES write() attempts and last one blocks for at least warmupNs
-                //      MAX_WARMUP_CYCLES write() attempts.
-                // This is overly conservative, but to get better accuracy requires a new HAL API.
-                if (!isWarm && attemptedWrite) {
-                    measuredWarmupTs.tv_sec += sec;
-                    measuredWarmupTs.tv_nsec += nsec;
-                    if (measuredWarmupTs.tv_nsec >= 1000000000) {
-                        measuredWarmupTs.tv_sec++;
-                        measuredWarmupTs.tv_nsec -= 1000000000;
-                    }
-                    ++warmupCycles;
-                    if ((nsec > warmupNs && warmupCycles >= MIN_WARMUP_CYCLES) ||
-                            (warmupCycles >= MAX_WARMUP_CYCLES)) {
-                        isWarm = true;
-                        dumpState->mMeasuredWarmupTs = measuredWarmupTs;
-                        dumpState->mWarmupCycles = warmupCycles;
-                    }
-                }
-                sleepNs = -1;
-                if (isWarm) {
-                    if (sec > 0 || nsec > underrunNs) {
-                        ATRACE_NAME("underrun");
-                        // FIXME only log occasionally
-                        ALOGV("underrun: time since last cycle %d.%03ld sec",
-                                (int) sec, nsec / 1000000L);
-                        dumpState->mUnderruns++;
-                        ignoreNextOverrun = true;
-                    } else if (nsec < overrunNs) {
-                        if (ignoreNextOverrun) {
-                            ignoreNextOverrun = false;
-                        } else {
-                            // FIXME only log occasionally
-                            ALOGV("overrun: time since last cycle %d.%03ld sec",
-                                    (int) sec, nsec / 1000000L);
-                            dumpState->mOverruns++;
-                        }
-                        // This forces a minimum cycle time. It:
-                        //  - compensates for an audio HAL with jitter due to sample rate conversion
-                        //  - works with a variable buffer depth audio HAL that never pulls at a
-                        //    rate < than overrunNs per buffer.
-                        //  - recovers from overrun immediately after underrun
-                        // It doesn't work with a non-blocking audio HAL.
-                        sleepNs = forceNs - nsec;
-                    } else {
-                        ignoreNextOverrun = false;
-                    }
-                }
-#ifdef FAST_MIXER_STATISTICS
-                if (isWarm) {
-                    // advance the FIFO queue bounds
-                    size_t i = bounds & (dumpState->mSamplingN - 1);
-                    bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
-                    if (full) {
-                        bounds += 0x10000;
-                    } else if (!(bounds & (dumpState->mSamplingN - 1))) {
-                        full = true;
-                    }
-                    // compute the delta value of clock_gettime(CLOCK_MONOTONIC)
-                    uint32_t monotonicNs = nsec;
-                    if (sec > 0 && sec < 4) {
-                        monotonicNs += sec * 1000000000;
-                    }
-                    // compute raw CPU load = delta value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
-                    uint32_t loadNs = 0;
-                    struct timespec newLoad;
-                    rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &newLoad);
-                    if (rc == 0) {
-                        if (oldLoadValid) {
-                            sec = newLoad.tv_sec - oldLoad.tv_sec;
-                            nsec = newLoad.tv_nsec - oldLoad.tv_nsec;
-                            if (nsec < 0) {
-                                --sec;
-                                nsec += 1000000000;
-                            }
-                            loadNs = nsec;
-                            if (sec > 0 && sec < 4) {
-                                loadNs += sec * 1000000000;
-                            }
-                        } else {
-                            // first time through the loop
-                            oldLoadValid = true;
-                        }
-                        oldLoad = newLoad;
-                    }
-#ifdef CPU_FREQUENCY_STATISTICS
-                    // get the absolute value of CPU clock frequency in kHz
-                    int cpuNum = sched_getcpu();
-                    uint32_t kHz = tcu.getCpukHz(cpuNum);
-                    kHz = (kHz << 4) | (cpuNum & 0xF);
-#endif
-                    // save values in FIFO queues for dumpsys
-                    // these stores #1, #2, #3 are not atomic with respect to each other,
-                    // or with respect to store #4 below
-                    dumpState->mMonotonicNs[i] = monotonicNs;
-                    dumpState->mLoadNs[i] = loadNs;
-#ifdef CPU_FREQUENCY_STATISTICS
-                    dumpState->mCpukHz[i] = kHz;
-#endif
-                    // this store #4 is not atomic with respect to stores #1, #2, #3 above, but
-                    // the newest open & oldest closed halves are atomic with respect to each other
-                    dumpState->mBounds = bounds;
-                    ATRACE_INT("cycle_ms", monotonicNs / 1000000);
-                    ATRACE_INT("load_us", loadNs / 1000);
-                }
-#endif
-            } else {
-                // first time through the loop
-                oldTsValid = true;
-                sleepNs = periodNs;
-                ignoreNextOverrun = true;
-            }
-            oldTs = newTs;
+        int64_t pts;
+        if (outputSink == NULL || (OK != outputSink->getNextWriteTimestamp(&pts))) {
+            pts = AudioBufferProvider::kInvalidPTS;
+        }
+
+        // process() is CPU-bound
+        mixer->process(pts);
+        mixBufferState = MIXED;
+    } else if (mixBufferState == MIXED) {
+        mixBufferState = UNDEFINED;
+    }
+    //bool didFullWrite = false;    // dumpsys could display a count of partial writes
+    if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mixBuffer != NULL)) {
+        if (mixBufferState == UNDEFINED) {
+            memset(mixBuffer, 0, frameCount * FCC_2 * sizeof(short));
+            mixBufferState = ZEROED;
+        }
+        // if non-NULL, then duplicate write() to this non-blocking sink
+        NBAIO_Sink* teeSink;
+        if ((teeSink = current->mTeeSink) != NULL) {
+            (void) teeSink->write(mixBuffer, frameCount);
+        }
+        // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
+        //       but this code should be modified to handle both non-blocking and blocking sinks
+        dumpState->mWriteSequence++;
+        ATRACE_BEGIN("write");
+        ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
+        ATRACE_END();
+        dumpState->mWriteSequence++;
+        if (framesWritten >= 0) {
+            ALOG_ASSERT((size_t) framesWritten <= frameCount);
+            totalNativeFramesWritten += framesWritten;
+            dumpState->mFramesWritten = totalNativeFramesWritten;
+            //if ((size_t) framesWritten == frameCount) {
+            //    didFullWrite = true;
+            //}
         } else {
-            // monotonic clock is broken
-            oldTsValid = false;
-            sleepNs = periodNs;
+            dumpState->mWriteErrors++;
         }
+        attemptedWrite = true;
+        // FIXME count # of writes blocked excessively, CPU usage, etc. for dump
 
-
-    }   // for (;;)
-
-    // never return 'true'; Thread::_threadLoop() locks mutex which can result in priority inversion
+        timestampStatus = outputSink->getTimestamp(timestamp);
+        if (timestampStatus == NO_ERROR) {
+            uint32_t totalNativeFramesPresented = timestamp.mPosition;
+            if (totalNativeFramesPresented <= totalNativeFramesWritten) {
+                nativeFramesWrittenButNotPresented =
+                    totalNativeFramesWritten - totalNativeFramesPresented;
+            } else {
+                // HAL reported that more frames were presented than were written
+                timestampStatus = INVALID_OPERATION;
+            }
+        }
+    }
 }
 
 FastMixerDumpState::FastMixerDumpState(
 #ifdef FAST_MIXER_STATISTICS
         uint32_t samplingN
 #endif
-        ) :
-    mCommand(FastMixerState::INITIAL), mWriteSequence(0), mFramesWritten(0),
-    mNumTracks(0), mWriteErrors(0), mUnderruns(0), mOverruns(0),
-    mSampleRate(0), mFrameCount(0), /* mMeasuredWarmupTs({0, 0}), */ mWarmupCycles(0),
+        ) : FastThreadDumpState(),
+    mWriteSequence(0), mFramesWritten(0),
+    mNumTracks(0), mWriteErrors(0),
+    mSampleRate(0), mFrameCount(0),
     mTrackMask(0)
-#ifdef FAST_MIXER_STATISTICS
-    , mSamplingN(0), mBounds(0)
-#endif
 {
-    mMeasuredWarmupTs.tv_sec = 0;
-    mMeasuredWarmupTs.tv_nsec = 0;
 #ifdef FAST_MIXER_STATISTICS
     increaseSamplingN(samplingN);
 #endif

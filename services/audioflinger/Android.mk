@@ -61,7 +61,8 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_MODULE:= libaudioflinger
 LOCAL_32_BIT_ONLY := true
 
-LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp FastThreadState.cpp
+LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp
+LOCAL_SRC_FILES += FastThread.cpp FastThreadState.cpp
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
