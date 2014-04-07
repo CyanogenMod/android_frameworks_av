@@ -941,9 +941,11 @@ int main(int argc, char **argv) {
         } else {
             CHECK(useSurfaceTexAlloc);
 
-            sp<BufferQueue> bq = new BufferQueue();
-            sp<GLConsumer> texture = new GLConsumer(bq, 0 /* tex */);
-            gSurface = new Surface(bq);
+            sp<IGraphicBufferProducer> producer;
+            sp<IGraphicBufferConsumer> consumer;
+            BufferQueue::createBufferQueue(&producer, &consumer);
+            sp<GLConsumer> texture = new GLConsumer(consumer, 0 /* tex */);
+            gSurface = new Surface(producer);
         }
 
         CHECK_EQ((status_t)OK,
