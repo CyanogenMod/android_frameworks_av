@@ -463,6 +463,10 @@ OMX_ERRORTYPE OMX::OnEvent(
     findInstance(node)->onEvent(eEvent, nData1, nData2);
 
     sp<OMX::CallbackDispatcher> dispatcher = findDispatcher(node);
+    if (dispatcher == NULL) {
+       ALOGW("OnEvent Callback dispatcher NULL, skip post");
+       return OMX_ErrorNone;
+    }
 
     // output rendered events are not processed as regular events until they hit the observer
     if (eEvent == OMX_EventOutputRendered) {
@@ -508,7 +512,12 @@ OMX_ERRORTYPE OMX::OnEmptyBufferDone(
     msg.fenceFd = fenceFd;
     msg.u.buffer_data.buffer = buffer;
 
-    findDispatcher(node)->post(msg);
+    sp<OMX::CallbackDispatcher> callbackDispatcher = findDispatcher(node);
+    if (callbackDispatcher != NULL) {
+        callbackDispatcher->post(msg);
+    } else {
+        ALOGW("OnEmptyBufferDone Callback dispatcher NULL, skip post");
+    }
 
     return OMX_ErrorNone;
 }
@@ -527,7 +536,12 @@ OMX_ERRORTYPE OMX::OnFillBufferDone(
     msg.u.extended_buffer_data.flags = pBuffer->nFlags;
     msg.u.extended_buffer_data.timestamp = pBuffer->nTimeStamp;
 
-    findDispatcher(node)->post(msg);
+    sp<OMX::CallbackDispatcher> callbackDispatcher = findDispatcher(node);
+    if (callbackDispatcher != NULL) {
+        callbackDispatcher->post(msg);
+    } else {
+        ALOGW("OnFillBufferDone Callback dispatcher NULL, skip post");
+    }
 
     return OMX_ErrorNone;
 }
