@@ -236,6 +236,7 @@ bool FastMixer::threadLoop()
                     sampleRate = Format_sampleRate(format);
                     ALOG_ASSERT(Format_channelCount(format) == FCC_2);
                 }
+                dumpState->mSampleRate = sampleRate;
             }
 
             if ((!Format_isEqual(format, previousFormat)) || (frameCount != previous->mFrameCount)) {
