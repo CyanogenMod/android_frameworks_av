@@ -568,24 +568,4 @@ int16_t AudioSource::getMaxAmplitude() {
     return value;
 }
 
-#ifdef QCOM_HARDWARE
-int64_t AudioSource::bufferDurationUs( ssize_t n ) {
-    int64_t dataDurationMs = 0;
-    if (mFormat == AUDIO_FORMAT_AMR_NB) {
-        dataDurationMs = (n/AMR_FRAMESIZE) * 20; //ms
-    }
-    else if (mFormat == AUDIO_FORMAT_EVRC) {
-       dataDurationMs = (n/EVRC_FRAMESIZE) * 20; //ms
-    }
-    else if (mFormat == AUDIO_FORMAT_QCELP) {
-        dataDurationMs = (n/QCELP_FRAMESIZE) * 20; //ms
-    }
-    else if (mFormat == AUDIO_FORMAT_AMR_WB) {
-        dataDurationMs = (n/AMR_WB_FRAMESIZE) * 20; //ms
-    }
-    else
-        CHECK(0);
-    return dataDurationMs*1000LL;
-}
-#endif
 }  // namespace android
