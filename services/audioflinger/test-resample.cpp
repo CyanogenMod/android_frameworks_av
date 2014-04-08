@@ -24,6 +24,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <time.h>
 #include <math.h>
 #include <audio_utils/sndfile.h>
@@ -251,7 +252,7 @@ int main(int argc, char* argv[]) {
             }
             if (!mPvalues.isEmpty()) {
                 size_t provided = mPvalues[mNextPidx++];
-                printf("mPvalue[%d]=%u not %u\n", mNextPidx-1, provided, buffer->frameCount);
+                printf("mPvalue[%zu]=%zu not %zu\n", mNextPidx-1, provided, buffer->frameCount);
                 if (provided < buffer->frameCount) {
                     buffer->frameCount = provided;
                 }
@@ -260,9 +261,9 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (gVerbose) {
-                printf("getNextBuffer() requested %u frames out of %u frames available,"
-                        " and returned %u frames\n",
-                        requestedFrames, mNumFrames - mNextFrame, buffer->frameCount);
+                printf("getNextBuffer() requested %zu frames out of %zu frames available,"
+                        " and returned %zu frames\n",
+                        requestedFrames, (size_t) (mNumFrames - mNextFrame), buffer->frameCount);
             }
             mUnrel = buffer->frameCount;
             if (buffer->frameCount > 0) {
@@ -275,13 +276,13 @@ int main(int argc, char* argv[]) {
         }
         virtual void releaseBuffer(Buffer* buffer) {
             if (buffer->frameCount > mUnrel) {
-                fprintf(stderr, "ERROR releaseBuffer() released %u frames but only %u available "
+                fprintf(stderr, "ERROR releaseBuffer() released %zu frames but only %zu available "
                         "to release\n", buffer->frameCount, mUnrel);
                 mNextFrame += mUnrel;
                 mUnrel = 0;
             } else {
                 if (gVerbose) {
-                    printf("releaseBuffer() released %u frames out of %u frames available "
+                    printf("releaseBuffer() released %zu frames out of %zu frames available "
                             "to release\n", buffer->frameCount, mUnrel);
                 }
                 mNextFrame += buffer->frameCount;
@@ -297,7 +298,7 @@ int main(int argc, char* argv[]) {
 
     size_t input_frames = input_size / (channels * sizeof(int16_t));
     if (gVerbose) {
-        printf("%u input frames\n", input_frames);
+        printf("%zu input frames\n", input_frames);
     }
     size_t output_size = 2 * 4 * ((int64_t) input_frames * output_freq) / input_freq;
     output_size &= ~7; // always stereo, 32-bits
@@ -386,7 +387,7 @@ int main(int argc, char* argv[]) {
         const int trials = 4;
         const int looplimit = 4;
         timespec start, end;
-        int64_t time;
+        int64_t time = 0;
 
         for (int n = 0; n < trials; ++n) {
             clock_gettime(CLOCK_MONOTONIC, &start);
@@ -403,14 +404,14 @@ int main(int argc, char* argv[]) {
             }
         }
         // Mfrms/s is "Millions of output frames per second".
-        printf("quality: %d  channels: %d  msec: %lld  Mfrms/s: %.2lf\n",
+        printf("quality: %d  channels: %d  msec: %" PRId64 "  Mfrms/s: %.2lf\n",
                 quality, channels, time/1000000, out_frames * looplimit / (time / 1e9) / 1e6);
         resampler->reset();
     }
 
     memset(output_vaddr, 0, output_size);
     if (gVerbose) {
-        printf("resample() %u output frames\n", out_frames);
+        printf("resample() %zu output frames\n", out_frames);
     }
     if (Ovalues.isEmpty()) {
         Ovalues.push(out_frames);
