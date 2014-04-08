@@ -148,12 +148,10 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             ALOGE("Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format", mime);
             audioFormat = AUDIO_FORMAT_INVALID;
         } else {
-#ifdef QCOM_HARDWARE
             // Override audio format for PCM offload
             if (audioFormat == AUDIO_FORMAT_PCM_16_BIT) {
                 audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
             }
-#endif
             ALOGV("Mime type \"%s\" mapped to audio_format 0x%x", mime, audioFormat);
         }
     }
