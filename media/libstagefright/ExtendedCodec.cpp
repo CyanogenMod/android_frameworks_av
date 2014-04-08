@@ -345,6 +345,11 @@ status_t ExtendedCodec::setAudioFormat(
         setQCELPFormat(numChannels, sampleRate, OMXhandle, nodeID, isEncoder);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_WMA, mime))  {
         err = setWMAFormat(msg, OMXhandle, nodeID, isEncoder);
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, mime)) {
+        int32_t numChannels, sampleRate;
+        CHECK(msg->findInt32("channel-count", &numChannels));
+        CHECK(msg->findInt32("sample-rate", &sampleRate));
+        err = setAMRWBPLUSFormat(numChannels, sampleRate, OMXhandle, nodeID);
     }
     return err;
 }
@@ -1128,6 +1133,31 @@ void ExtendedCodec::setAC3Format(
     CHECK_EQ(err, (status_t)OK);
 }
 
+status_t ExtendedCodec::setAMRWBPLUSFormat(
+        int32_t numChannels, int32_t sampleRate, sp<IOMX> OMXhandle,
+        IOMX::node_id nodeID) {
+
+    QOMX_AUDIO_PARAM_AMRWBPLUSTYPE profileAMRWBPlus;
+    OMX_INDEXTYPE indexTypeAMRWBPlus;
+    status_t err;
+
+    InitOMXParams(&profileAMRWBPlus);
+    err = OMXhandle->getExtensionIndex(nodeID, OMX_QCOM_INDEX_PARAM_AMRWBPLUS, &indexTypeAMRWBPlus);
+    CHECK_EQ(err,(status_t)OK);
+    err = OMXhandle->getParameter(nodeID, indexTypeAMRWBPlus, &profileAMRWBPlus, sizeof(profileAMRWBPlus));
+    CHECK_EQ(err,(status_t)OK);
+
+    profileAMRWBPlus.nSampleRate = sampleRate;
+    profileAMRWBPlus.nChannels = numChannels;
+
+    ALOGV("setAMRWBPLUSFormat sampleRate = %d, numChannels = %d", sampleRate, numChannels);
+
+    err = OMXhandle->setParameter(nodeID, indexTypeAMRWBPlus, &profileAMRWBPlus, sizeof(profileAMRWBPlus));
+    CHECK_EQ(err,(status_t)OK);
+
+    return err;
+}
+
 bool ExtendedCodec::useHWAACDecoder(const char *mime) {
     char value[PROPERTY_VALUE_MAX] = {0};
     int aaccodectype = 0;
@@ -1275,6 +1305,12 @@ namespace android {
     void ExtendedCodec::setAC3Format(
             int32_t numChannels, int32_t sampleRate,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID) {
+    }
+
+    status_t ExtendedCodec::setAMRWBPLUSFormat(
+            int32_t numChannels, int32_t sampleRate,
+            sp<IOMX> OMXhandle, IOMX::node_id nodeID) {
+        return OK;
     }
 
     void ExtendedCodec::configureFramePackingFormat(
