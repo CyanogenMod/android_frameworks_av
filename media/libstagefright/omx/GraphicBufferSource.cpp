@@ -27,6 +27,8 @@
 #include <media/hardware/MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
 
+#include <inttypes.h>
+
 namespace android {
 
 static const bool EXTRA_CHECK = true;
@@ -761,13 +763,13 @@ void GraphicBufferSource::onFrameAvailable() {
 void GraphicBufferSource::onBuffersReleased() {
     Mutex::Autolock lock(mMutex);
 
-    uint32_t slotMask;
+    uint64_t slotMask;
     if (mConsumer->getReleasedBuffers(&slotMask) != NO_ERROR) {
         ALOGW("onBuffersReleased: unable to get released buffer set");
-        slotMask = 0xffffffff;
+        slotMask = 0xffffffffffffffffULL;
     }
 
-    ALOGV("onBuffersReleased: 0x%08x", slotMask);
+    ALOGV("onBuffersReleased: 0x%016" PRIx64, slotMask);
 
     for (int i = 0; i < BufferQueue::NUM_BUFFER_SLOTS; i++) {
         if ((slotMask & 0x01) != 0) {
