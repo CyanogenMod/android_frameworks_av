@@ -21,47 +21,55 @@ namespace android {
 
 // depends on AudioResamplerFirOps.h
 
-template<int CHANNELS, typename TC>
+/* variant for input type TI = int16_t input samples */
+template<typename TC>
 static inline
-void mac(
-        int32_t& l, int32_t& r,
-        const TC coef,
-        const int16_t* samples)
+void mac(int32_t& l, int32_t& r, TC coef, const int16_t* samples)
 {
-    if (CHANNELS == 2) {
-        uint32_t rl = *reinterpret_cast<const uint32_t*>(samples);
-        l = mulAddRL(1, rl, coef, l);
-        r = mulAddRL(0, rl, coef, r);
-    } else {
-        r = l = mulAdd(samples[0], coef, l);
-    }
+    uint32_t rl = *reinterpret_cast<const uint32_t*>(samples);
+    l = mulAddRL(1, rl, coef, l);
+    r = mulAddRL(0, rl, coef, r);
 }
 
-template<int CHANNELS, typename TC>
+template<typename TC>
 static inline
-void interpolate(
-        int32_t& l, int32_t& r,
-        const TC coef_0, const TC coef_1,
-        const int16_t lerp, const int16_t* samples)
+void mac(int32_t& l, TC coef, const int16_t* samples)
 {
-    TC sinc;
+    l = mulAdd(samples[0], coef, l);
+}
 
-    if (is_same<TC, int16_t>::value) {
-        sinc = (lerp * ((coef_1-coef_0)<<1)>>16) + coef_0;
-    } else {
-        sinc = mulAdd(lerp, (coef_1-coef_0)<<1, coef_0);
-    }
-    if (CHANNELS == 2) {
-        uint32_t rl = *reinterpret_cast<const uint32_t*>(samples);
-        l = mulAddRL(1, rl, sinc, l);
-        r = mulAddRL(0, rl, sinc, r);
-    } else {
-        r = l = mulAdd(samples[0], sinc, l);
-    }
+/* variant for input type TI = float input samples */
+template<typename TC>
+static inline
+void mac(float& l, float& r, TC coef,  const float* samples)
+{
+    l += *samples++ * coef;
+    r += *samples++ * coef;
+}
+
+template<typename TC>
+static inline
+void mac(float& l, TC coef,  const float* samples)
+{
+    l += *samples++ * coef;
+}
+
+/* variant for output type TO = int32_t output samples */
+static inline
+int32_t volumeAdjust(int32_t value, int32_t volume)
+{
+    return 2 * mulRL(0, value, volume);  // Note: only use top 16b
+}
+
+/* variant for output type TO = float output samples */
+static inline
+float volumeAdjust(float value, float volume)
+{
+    return value * volume;
 }
 
 /*
- * Calculates a single output sample (two stereo frames).
+ * Calculates a single output frame (two samples).
  *
  * This function computes both the positive half FIR dot product and
  * the negative half FIR dot product, accumulates, and then applies the volume.
@@ -72,30 +80,43 @@ void interpolate(
  * filter bank.
  */
 
-template <int CHANNELS, int STRIDE, typename TC>
+template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO>
 static inline
-void ProcessL(int32_t* const out,
+void ProcessL(TO* const out,
         int count,
         const TC* coefsP,
         const TC* coefsN,
-        const int16_t* sP,
-        const int16_t* sN,
-        const int32_t* const volumeLR)
+        const TI* sP,
+        const TI* sN,
+        const TO* const volumeLR)
 {
-    int32_t l = 0;
-    int32_t r = 0;
-    do {
-        mac<CHANNELS>(l, r, *coefsP++, sP);
-        sP -= CHANNELS;
-        mac<CHANNELS>(l, r, *coefsN++, sN);
-        sN += CHANNELS;
-    } while (--count > 0);
-    out[0] += 2 * mulRL(0, l, volumeLR[0]); // Note: only use top 16b
-    out[1] += 2 * mulRL(0, r, volumeLR[1]); // Note: only use top 16b
+    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS >= 1 && CHANNELS <= 2)
+    if (CHANNELS == 2) {
+        TO l = 0;
+        TO r = 0;
+        do {
+            mac(l, r, *coefsP++, sP);
+            sP -= CHANNELS;
+            mac(l, r, *coefsN++, sN);
+            sN += CHANNELS;
+        } while (--count > 0);
+        out[0] += volumeAdjust(l, volumeLR[0]);
+        out[1] += volumeAdjust(r, volumeLR[1]);
+    } else { /* CHANNELS == 1 */
+        TO l = 0;
+        do {
+            mac(l, *coefsP++, sP);
+            sP -= CHANNELS;
+            mac(l, *coefsN++, sN);
+            sN += CHANNELS;
+        } while (--count > 0);
+        out[0] += volumeAdjust(l, volumeLR[0]);
+        out[1] += volumeAdjust(l, volumeLR[1]);
+    }
 }
 
 /*
- * Calculates a single output sample (two stereo frames) interpolating phase.
+ * Calculates a single output frame (two samples) interpolating phase.
  *
  * This function computes both the positive half FIR dot product and
  * the negative half FIR dot product, accumulates, and then applies the volume.
@@ -106,47 +127,91 @@ void ProcessL(int32_t* const out,
  * filter bank.
  */
 
-template <int CHANNELS, int STRIDE, typename TC>
+template<typename TC, typename T>
+void adjustLerp(T& lerpP __unused)
+{
+}
+
+template<int32_t, typename T>
+void adjustLerp(T& lerpP)
+{
+    lerpP >>= 16;   // lerpP is 32bit for NEON int32_t, but always 16 bit for non-NEON path
+}
+
+template<typename TC, typename TINTERP>
 static inline
-void Process(int32_t* const out,
+TC interpolate(TC coef_0, TC coef_1, TINTERP lerp)
+{
+    return lerp * (coef_1 - coef_0) + coef_0;
+}
+
+template<int16_t, uint32_t>
+static inline
+int16_t interpolate(int16_t coef_0, int16_t coef_1, uint32_t lerp)
+{
+    return (static_cast<int16_t>(lerp) * ((coef_1-coef_0)<<1)>>16) + coef_0;
+}
+
+template<int32_t, uint32_t>
+static inline
+int32_t interpolate(int32_t coef_0, int32_t coef_1, uint32_t lerp)
+{
+    return mulAdd(static_cast<int16_t>(lerp), (coef_1-coef_0)<<1, coef_0);
+}
+
+template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO, typename TINTERP>
+static inline
+void Process(TO* const out,
         int count,
         const TC* coefsP,
         const TC* coefsN,
-        const TC* coefsP1,
-        const TC* coefsN1,
-        const int16_t* sP,
-        const int16_t* sN,
-        uint32_t lerpP,
-        const int32_t* const volumeLR)
+        const TC* coefsP1 __unused,
+        const TC* coefsN1 __unused,
+        const TI* sP,
+        const TI* sN,
+        TINTERP lerpP,
+        const TO* const volumeLR)
 {
-    (void) coefsP1; // suppress unused parameter warning
-    (void) coefsN1;
-    if (sizeof(*coefsP)==4) {
-        lerpP >>= 16;   // ensure lerpP is 16b
+    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS >= 1 && CHANNELS <= 2)
+    adjustLerp<TC, TINTERP>(lerpP); // coefficient type adjustment for interpolation
+
+    if (CHANNELS == 2) {
+        TO l = 0;
+        TO r = 0;
+        for (size_t i = 0; i < count; ++i) {
+            mac(l, r, interpolate(coefsP[0], coefsP[count], lerpP), sP);
+            coefsP++;
+            sP -= CHANNELS;
+            mac(l, r, interpolate(coefsN[count], coefsN[0], lerpP), sN);
+            coefsN++;
+            sN += CHANNELS;
+        }
+        out[0] += volumeAdjust(l, volumeLR[0]);
+        out[1] += volumeAdjust(r, volumeLR[1]);
+    } else { /* CHANNELS == 1 */
+        TO l = 0;
+        for (size_t i = 0; i < count; ++i) {
+            mac(l, interpolate(coefsP[0], coefsP[count], lerpP), sP);
+            coefsP++;
+            sP -= CHANNELS;
+            mac(l, interpolate(coefsN[count], coefsN[0], lerpP), sN);
+            coefsN++;
+            sN += CHANNELS;
+        }
+        out[0] += volumeAdjust(l, volumeLR[0]);
+        out[1] += volumeAdjust(l, volumeLR[1]);
     }
-    int32_t l = 0;
-    int32_t r = 0;
-    for (size_t i = 0; i < count; ++i) {
-        interpolate<CHANNELS>(l, r, coefsP[0], coefsP[count], lerpP, sP);
-        coefsP++;
-        sP -= CHANNELS;
-        interpolate<CHANNELS>(l, r, coefsN[count], coefsN[0], lerpP, sN);
-        coefsN++;
-        sN += CHANNELS;
-    }
-    out[0] += 2 * mulRL(0, l, volumeLR[0]); // Note: only use top 16b
-    out[1] += 2 * mulRL(0, r, volumeLR[1]); // Note: only use top 16b
 }
 
 /*
- * Calculates a single output sample (two stereo frames) from input sample pointer.
+ * Calculates a single output frame (two samples) from input sample pointer.
  *
  * This sets up the params for the accelerated Process() and ProcessL()
  * functions to do the appropriate dot products.
  *
- * @param out should point to the output buffer with at least enough space for 2 output frames.
+ * @param out should point to the output buffer with space for at least one output frame.
  *
- * @param phase is the fractional distance between input samples for interpolation:
+ * @param phase is the fractional distance between input frames for interpolation:
  * phase >= 0  && phase < phaseWrapLimit.  It can be thought of as a rational fraction
  * of phase/phaseWrapLimit.
  *
@@ -195,14 +260,17 @@ void Process(int32_t* const out,
  * lerpP = phase << sizeof(phase)*8 - coefShift
  *              >> (sizeof(phase)-sizeof(*coefs))*8 + 1;
  *
+ * For floating point, lerpP is the fractional phase scaled to [0.0, 1.0):
+ *
+ * lerpP = (phase << 32 - coefShift) / (1 << 32); // floating point equivalent
  */
 
-template<int CHANNELS, bool LOCKED, int STRIDE, typename TC>
+template<int CHANNELS, bool LOCKED, int STRIDE, typename TC, typename TI, typename TO>
 static inline
-void fir(int32_t* const out,
+void fir(TO* const out,
         const uint32_t phase, const uint32_t phaseWrapLimit,
         const int coefShift, const int halfNumCoefs, const TC* const coefs,
-        const int16_t* const samples, const int32_t* const volumeLR)
+        const TI* const samples, const TO* const volumeLR)
 {
     // NOTE: be very careful when modifying the code here. register
     // pressure is very high and a small change might cause the compiler
@@ -216,8 +284,8 @@ void fir(int32_t* const out,
         uint32_t indexN = (phaseWrapLimit - phase) >> coefShift;
         const TC* coefsP = coefs + indexP*halfNumCoefs;
         const TC* coefsN = coefs + indexN*halfNumCoefs;
-        const int16_t* sP = samples;
-        const int16_t* sN = samples + CHANNELS;
+        const TI* sP = samples;
+        const TI* sN = samples + CHANNELS;
 
         // dot product filter.
         ProcessL<CHANNELS, STRIDE>(out,
@@ -231,8 +299,8 @@ void fir(int32_t* const out,
         const TC* coefsN = coefs + indexN*halfNumCoefs;
         const TC* coefsP1 = coefsP + halfNumCoefs;
         const TC* coefsN1 = coefsN + halfNumCoefs;
-        const int16_t* sP = samples;
-        const int16_t* sN = samples + CHANNELS;
+        const TI* sP = samples;
+        const TI* sN = samples + CHANNELS;
 
         // Interpolation fraction lerpP derived by shifting all the way up and down
         // to clear the appropriate bits and align to the appropriate level
@@ -242,12 +310,21 @@ void fir(int32_t* const out,
         //
         // interpolated[P] = index[P]*lerpP + index[P+1]*(1-lerpP)
         // interpolated[N] = index[N+1]*lerpP + index[N]*(1-lerpP)
-        uint32_t lerpP = phase << (sizeof(phase)*8 - coefShift)
-                >> ((sizeof(phase)-sizeof(*coefs))*8 + 1);
 
         // on-the-fly interpolated dot product filter
-        Process<CHANNELS, STRIDE>(out,
-                halfNumCoefs, coefsP, coefsN, coefsP1, coefsN1, sP, sN, lerpP, volumeLR);
+        if (is_same<TC, float>::value || is_same<TC, double>::value) {
+            static const TC scale = 1. / (65536. * 65536.); // scale phase bits to [0.0, 1.0)
+            TC lerpP = TC(phase << (sizeof(phase)*8 - coefShift)) * scale;
+
+            Process<CHANNELS, STRIDE>(out,
+                    halfNumCoefs, coefsP, coefsN, coefsP1, coefsN1, sP, sN, lerpP, volumeLR);
+        } else {
+            uint32_t lerpP = phase << (sizeof(phase)*8 - coefShift)
+                    >> ((sizeof(phase)-sizeof(*coefs))*8 + 1);
+
+            Process<CHANNELS, STRIDE>(out,
+                    halfNumCoefs, coefsP, coefsN, coefsP1, coefsN1, sP, sN, lerpP, volumeLR);
+        }
     }
 }
 

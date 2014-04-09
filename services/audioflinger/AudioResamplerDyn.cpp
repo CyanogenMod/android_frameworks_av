@@ -25,6 +25,7 @@
 
 #include <cutils/compiler.h>
 #include <cutils/properties.h>
+#include <utils/Debug.h>
 #include <utils/Log.h>
 
 #include "AudioResamplerFirOps.h" // USE_NEON and USE_INLINE_ASSEMBLY defined here
