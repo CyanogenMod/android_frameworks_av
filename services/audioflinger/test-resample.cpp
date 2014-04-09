@@ -27,18 +27,22 @@
 #include <inttypes.h>
 #include <time.h>
 #include <math.h>
+#include <audio_utils/primitives.h>
 #include <audio_utils/sndfile.h>
 #include <utils/Vector.h>
 
 using namespace android;
 
-bool gVerbose = false;
+static bool gVerbose = false;
 
 static int usage(const char* name) {
-    fprintf(stderr,"Usage: %s [-p] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
-                   " [-i input-sample-rate] [-o output-sample-rate] [-O csv] [-P csv] [<input-file>]"
+    fprintf(stderr,"Usage: %s [-p] [-f] [-F] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
+                   " [-i input-sample-rate] [-o output-sample-rate]"
+                   " [-O csv] [-P csv] [<input-file>]"
                    " <output-file>\n", name);
     fprintf(stderr,"    -p    enable profiling\n");
+    fprintf(stderr,"    -f    enable filter profiling\n");
+    fprintf(stderr,"    -F    enable floating point -q {dlq|dmq|dhq} only");
     fprintf(stderr,"    -h    create wav file\n");
     fprintf(stderr,"    -v    verbose : log buffer provider calls\n");
     fprintf(stderr,"    -s    stereo (ignored if input file is specified)\n");
@@ -103,6 +107,7 @@ int main(int argc, char* argv[]) {
     bool profileResample = false;
     bool profileFilter = false;
     bool writeHeader = false;
+    bool useFloat = false;
     int channels = 1;
     int input_freq = 0;
     int output_freq = 0;
@@ -111,13 +116,16 @@ int main(int argc, char* argv[]) {
     Vector<int> Pvalues;
 
     int ch;
-    while ((ch = getopt(argc, argv, "pfhvsq:i:o:O:P:")) != -1) {
+    while ((ch = getopt(argc, argv, "pfFhvsq:i:o:O:P:")) != -1) {
         switch (ch) {
         case 'p':
             profileResample = true;
             break;
         case 'f':
             profileFilter = true;
+            break;
+        case 'F':
+            useFloat = true;
             break;
         case 'h':
             writeHeader = true;
@@ -174,6 +182,12 @@ int main(int argc, char* argv[]) {
             return -1;
         }
     }
+
+    if (useFloat && quality < AudioResampler::DYN_LOW_QUALITY) {
+        fprintf(stderr, "float processing is only possible for dynamic resamplers\n");
+        return -1;
+    }
+
     argc -= optind;
     argv += optind;
 
@@ -225,22 +239,37 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+    size_t frame_size = channels * sizeof(int16_t);
+    size_t input_frames = input_size / frame_size;
+
+    // For float processing, convert input int16_t to float array
+    if (useFloat) {
+        void *new_vaddr;
+
+        frame_size = channels * sizeof(float);
+        input_size = input_frames * frame_size;
+        new_vaddr = malloc(input_size);
+        memcpy_to_float_from_i16(reinterpret_cast<float*>(new_vaddr),
+                reinterpret_cast<int16_t*>(input_vaddr), input_frames * channels);
+        free(input_vaddr);
+        input_vaddr = new_vaddr;
+    }
 
     // ----------------------------------------------------------
 
     class Provider: public AudioBufferProvider {
-        int16_t* const  mAddr;      // base address
+        const void*     mAddr;      // base address
         const size_t    mNumFrames; // total frames
-        const int       mChannels;
+        const size_t    mFrameSize; // size of each frame in bytes
         size_t          mNextFrame; // index of next frame to provide
         size_t          mUnrel;     // number of frames not yet released
         const Vector<int> mPvalues; // number of frames provided per call
         size_t          mNextPidx;  // index of next entry in mPvalues to use
     public:
-        Provider(const void* addr, size_t size, int channels, const Vector<int>& Pvalues)
-          : mAddr((int16_t*) addr),
-            mNumFrames(size / (channels*sizeof(int16_t))),
-            mChannels(channels),
+        Provider(const void* addr, size_t frames, size_t frameSize, const Vector<int>& Pvalues)
+          : mAddr(addr),
+            mNumFrames(frames),
+            mFrameSize(frameSize),
             mNextFrame(0), mUnrel(0), mPvalues(Pvalues), mNextPidx(0) {
         }
         virtual status_t getNextBuffer(Buffer* buffer,
@@ -267,10 +296,10 @@ int main(int argc, char* argv[]) {
             }
             mUnrel = buffer->frameCount;
             if (buffer->frameCount > 0) {
-                buffer->i16 = &mAddr[mChannels * mNextFrame];
+                buffer->raw = (char *)mAddr + mFrameSize * mNextFrame;
                 return NO_ERROR;
             } else {
-                buffer->i16 = NULL;
+                buffer->raw = NULL;
                 return NOT_ENOUGH_DATA;
             }
         }
@@ -289,17 +318,18 @@ int main(int argc, char* argv[]) {
                 mUnrel -= buffer->frameCount;
             }
             buffer->frameCount = 0;
-            buffer->i16 = NULL;
+            buffer->raw = NULL;
         }
         void reset() {
             mNextFrame = 0;
         }
-    } provider(input_vaddr, input_size, channels, Pvalues);
+    } provider(input_vaddr, input_frames, frame_size, Pvalues);
 
-    size_t input_frames = input_size / (channels * sizeof(int16_t));
     if (gVerbose) {
         printf("%zu input frames\n", input_frames);
     }
+
+    int bit_depth = useFloat ? 32 : 16;
     size_t output_size = 2 * 4 * ((int64_t) input_frames * output_freq) / input_freq;
     output_size &= ~7; // always stereo, 32-bits
 
@@ -310,7 +340,7 @@ int main(int argc, char* argv[]) {
         //
         // On fast devices, filters should be generated between 0.1ms - 1ms.
         // (single threaded).
-        AudioResampler* resampler = AudioResampler::create(16, channels,
+        AudioResampler* resampler = AudioResampler::create(bit_depth, channels,
                 8000, quality);
         int looplimit = 100;
         timespec start, end;
@@ -348,7 +378,7 @@ int main(int argc, char* argv[]) {
     }
 
     void* output_vaddr = malloc(output_size);
-    AudioResampler* resampler = AudioResampler::create(16, channels,
+    AudioResampler* resampler = AudioResampler::create(bit_depth, channels,
             output_freq, quality);
     size_t out_frames = output_size/8;
 
@@ -436,6 +466,13 @@ int main(int argc, char* argv[]) {
     }
     delete resampler;
     resampler = NULL;
+
+    // For float processing, convert output format from float to Q4.27,
+    // which is then converted to int16_t for final storage.
+    if (useFloat) {
+        memcpy_to_q4_27_from_float(reinterpret_cast<int32_t*>(output_vaddr),
+                reinterpret_cast<float*>(output_vaddr), out_frames * 2); // stereo samples
+    }
 
     // mono takes left channel only
     // stereo right channel is half amplitude of stereo left channel (due to input creation)
