@@ -669,11 +669,12 @@ static inline void firKaiserGen(T* coef, int L, int halfNumCoef,
                 sg.advance();
             }
 
-            // (caution!) float version does not need rounding
             if (is_same<T, int16_t>::value) { // int16_t needs noise shaping
                 *coef++ = static_cast<T>(toint(y, 1ULL<<(sizeof(T)*8-1), err));
-            } else {
+            } else if (is_same<T, int32_t>::value) {
                 *coef++ = static_cast<T>(toint(y, 1ULL<<(sizeof(T)*8-1)));
+            } else { // assumed float or double
+                *coef++ = static_cast<T>(y);
             }
         }
     }
