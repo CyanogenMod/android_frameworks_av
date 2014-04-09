@@ -371,14 +371,14 @@ status_t AudioSource::read(
 #ifdef QCOM_HARDWARE
     if ( mFormat == AUDIO_FORMAT_PCM_16_BIT ) {
 #endif
-        if (elapsedTimeUs < kAutoRampStartUs) {
+        if (elapsedTimeUs < mAutoRampStartUs) {
             memset((uint8_t *) buffer->data(), 0, buffer->range_length());
-        } else if (elapsedTimeUs < kAutoRampStartUs + kAutoRampDurationUs) {
+        } else if (elapsedTimeUs < mAutoRampStartUs + kAutoRampDurationUs) {
             int32_t autoRampDurationFrames =
-                    (kAutoRampDurationUs * mSampleRate + 500000LL) / 1000000LL;
+                    ((int64_t)kAutoRampDurationUs * mSampleRate + 500000LL) / 1000000LL;
 
             int32_t autoRampStartFrames =
-                    (kAutoRampStartUs * mSampleRate + 500000LL) / 1000000LL;
+                    ((int64_t)kAutoRampStartUs * mSampleRate + 500000LL) / 1000000LL;
 
             int32_t nFrames = mNumFramesReceived - autoRampStartFrames;
             rampVolume(nFrames, autoRampDurationFrames,
@@ -568,24 +568,4 @@ int16_t AudioSource::getMaxAmplitude() {
     return value;
 }
 
-#ifdef QCOM_HARDWARE
-int64_t AudioSource::bufferDurationUs( ssize_t n ) {
-    int64_t dataDurationMs = 0;
-    if (mFormat == AUDIO_FORMAT_AMR_NB) {
-        dataDurationMs = (n/AMR_FRAMESIZE) * 20; //ms
-    }
-    else if (mFormat == AUDIO_FORMAT_EVRC) {
-       dataDurationMs = (n/EVRC_FRAMESIZE) * 20; //ms
-    }
-    else if (mFormat == AUDIO_FORMAT_QCELP) {
-        dataDurationMs = (n/QCELP_FRAMESIZE) * 20; //ms
-    }
-    else if (mFormat == AUDIO_FORMAT_AMR_WB) {
-        dataDurationMs = (n/AMR_WB_FRAMESIZE) * 20; //ms
-    }
-    else
-        CHECK(0);
-    return dataDurationMs*1000LL;
-}
-#endif
 }  // namespace android
