@@ -25,10 +25,24 @@
 
 namespace android {
 
+/* AudioResamplerDyn
+ *
+ * This class template is used for floating point and integer resamplers.
+ *
+ * Type variables:
+ * TC = filter coefficient type (one of int16_t, int32_t, or float)
+ * TI = input data type (one of int16_t or float)
+ * TO = output data type (one of int32_t or float)
+ *
+ * For integer input data types TI, the coefficient type TC is either int16_t or int32_t.
+ * For float input data types TI, the coefficient type TC is float.
+ */
+
+template<typename TC, typename TI, typename TO>
 class AudioResamplerDyn: public AudioResampler {
 public:
-    AudioResamplerDyn(int bitDepth, int inChannelCount, int32_t sampleRate,
-            src_quality quality);
+    AudioResamplerDyn(int bitDepth, int inChannelCount,
+            int32_t sampleRate, src_quality quality);
 
     virtual ~AudioResamplerDyn();
 
@@ -46,46 +60,38 @@ private:
     class Constants { // stores the filter constants.
     public:
         Constants() :
-            mL(0), mShift(0), mHalfNumCoefs(0), mFirCoefsS16(NULL)
+            mL(0), mShift(0), mHalfNumCoefs(0), mFirCoefs(NULL)
         {}
         void set(int L, int halfNumCoefs,
                 int inSampleRate, int outSampleRate);
-        inline void setBuf(int16_t* buf) {
-            mFirCoefsS16 = buf;
-        }
-        inline void setBuf(int32_t* buf) {
-            mFirCoefsS32 = buf;
-        }
 
-        int mL;       // interpolation phases in the filter.
-        int mShift;   // right shift to get polyphase index
+                 int mL;            // interpolation phases in the filter.
+                 int mShift;        // right shift to get polyphase index
         unsigned int mHalfNumCoefs; // filter half #coefs
-        union {       // polyphase filter bank
-            const int16_t* mFirCoefsS16;
-            const int32_t* mFirCoefsS32;
-        };
+           const TC* mFirCoefs;     // polyphase filter bank
     };
 
-    // Input buffer management for a given input type TI, now (int16_t)
-    // Is agnostic of the actual type, can work with int32_t and float.
-    template<typename TI>
-    class InBuffer {
+    class InBuffer { // buffer management for input type TI
     public:
         InBuffer();
         ~InBuffer();
         void init();
+
         void resize(int CHANNELS, int halfNumCoefs);
 
         // used for direct management of the mImpulse pointer
         inline TI* getImpulse() {
             return mImpulse;
         }
+
         inline void setImpulse(TI *impulse) {
             mImpulse = impulse;
         }
+
         template<int CHANNELS>
         inline void readAgain(TI*& impulse, const int halfNumCoefs,
                 const TI* const in, const size_t inputIndex);
+
         template<int CHANNELS>
         inline void readAdvance(TI*& impulse, const int halfNumCoefs,
                 const TI* const in, const size_t inputIndex);
@@ -94,31 +100,35 @@ private:
         // tuning parameter guidelines: 2 <= multiple <= 8
         static const int kStateSizeMultipleOfFilterLength = 4;
 
-        TI* mState;    // base pointer for the input buffer storage
-        TI* mImpulse;  // current location of the impulse response (centered)
-        TI* mRingFull; // mState <= mImpulse < mRingFull
         // in general, mRingFull = mState + mStateSize - halfNumCoefs*CHANNELS.
-        size_t mStateSize; // in units of TI.
+           TI* mState;      // base pointer for the input buffer storage
+           TI* mImpulse;    // current location of the impulse response (centered)
+           TI* mRingFull;   // mState <= mImpulse < mRingFull
+        size_t mStateCount; // size of state in units of TI.
     };
 
-    template<int CHANNELS, bool LOCKED, int STRIDE, typename TC>
-    void resample(int32_t* out, size_t outFrameCount,
-            const TC* const coefs, AudioBufferProvider* provider);
-
-    template<typename T>
     void createKaiserFir(Constants &c, double stopBandAtten,
             int inSampleRate, int outSampleRate, double tbwCheat);
 
-    InBuffer<int16_t> mInBuffer;
-    Constants mConstants;  // current set of coefficient parameters
-    int32_t __attribute__ ((aligned (8))) mVolumeSimd[2];
-    int32_t mResampleType; // contains the resample type.
-    int32_t mFilterSampleRate; // designed filter sample rate.
-    src_quality mFilterQuality; // designed filter quality.
-    void* mCoefBuffer; // if a filter is created, this is not null
+    void setResampler(unsigned resampleType);
+
+    template<int CHANNELS, bool LOCKED, int STRIDE>
+    void resample(TO* out, size_t outFrameCount, AudioBufferProvider* provider);
+
+    // declare a pointer to member function for resample
+    typedef void (AudioResamplerDyn<TC, TI, TO>::*resample_ABP_t)(TO* out,
+            size_t outFrameCount, AudioBufferProvider* provider);
+
+    // data - the contiguous storage and layout of these is important.
+           InBuffer mInBuffer;
+          Constants mConstants;        // current set of coefficient parameters
+    TO __attribute__ ((aligned (8))) mVolumeSimd[2]; // must be aligned or NEON may crash
+     resample_ABP_t mResampleFunc;     // called function for resampling
+            int32_t mFilterSampleRate; // designed filter sample rate.
+        src_quality mFilterQuality;    // designed filter quality.
+              void* mCoefBuffer;       // if a filter is created, this is not null
 };
 
-// ----------------------------------------------------------------------------
 }; // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_DYN_H*/

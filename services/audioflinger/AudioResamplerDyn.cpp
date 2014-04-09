@@ -39,9 +39,9 @@
 namespace android {
 
 // generate a unique resample type compile-time constant (constexpr)
-#define RESAMPLETYPE(CHANNELS, LOCKED, STRIDE, COEFTYPE) \
-    ((((CHANNELS)-1)&1) | !!(LOCKED)<<1 | (COEFTYPE)<<2 \
-    | ((STRIDE)==8 ? 1 : (STRIDE)==16 ? 2 : 0)<<3)
+#define RESAMPLETYPE(CHANNELS, LOCKED, STRIDE) \
+    ((((CHANNELS)-1)&1) | !!(LOCKED)<<1 \
+    | ((STRIDE)==8 ? 1 : (STRIDE)==16 ? 2 : 0)<<2)
 
 /*
  * InBuffer is a type agnostic input buffer.
@@ -59,42 +59,46 @@ namespace android {
  * r = extra space for implementing the ring buffer
  */
 
-template<typename TI>
-AudioResamplerDyn::InBuffer<TI>::InBuffer()
-    : mState(NULL), mImpulse(NULL), mRingFull(NULL), mStateSize(0) {
+template<typename TC, typename TI, typename TO>
+AudioResamplerDyn<TC, TI, TO>::InBuffer::InBuffer()
+    : mState(NULL), mImpulse(NULL), mRingFull(NULL), mStateCount(0)
+{
 }
 
-template<typename TI>
-AudioResamplerDyn::InBuffer<TI>::~InBuffer() {
+template<typename TC, typename TI, typename TO>
+AudioResamplerDyn<TC, TI, TO>::InBuffer::~InBuffer()
+{
     init();
 }
 
-template<typename TI>
-void AudioResamplerDyn::InBuffer<TI>::init() {
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::InBuffer::init()
+{
     free(mState);
     mState = NULL;
     mImpulse = NULL;
     mRingFull = NULL;
-    mStateSize = 0;
+    mStateCount = 0;
 }
 
 // resizes the state buffer to accommodate the appropriate filter length
-template<typename TI>
-void AudioResamplerDyn::InBuffer<TI>::resize(int CHANNELS, int halfNumCoefs) {
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::InBuffer::resize(int CHANNELS, int halfNumCoefs)
+{
     // calculate desired state size
-    int stateSize = halfNumCoefs * CHANNELS * 2
-            * kStateSizeMultipleOfFilterLength;
+    int stateCount = halfNumCoefs * CHANNELS * 2 * kStateSizeMultipleOfFilterLength;
 
     // check if buffer needs resizing
     if (mState
-            && stateSize == mStateSize
-            && mRingFull-mState == mStateSize-halfNumCoefs*CHANNELS) {
+            && stateCount == mStateCount
+            && mRingFull-mState == mStateCount-halfNumCoefs*CHANNELS) {
         return;
     }
 
     // create new buffer
-    TI* state = (int16_t*)memalign(32, stateSize*sizeof(*state));
-    memset(state, 0, stateSize*sizeof(*state));
+    TI* state;
+    (void)posix_memalign(reinterpret_cast<void**>(&state), 32, stateCount*sizeof(*state));
+    memset(state, 0, stateCount*sizeof(*state));
 
     // attempt to preserve state
     if (mState) {
@@ -106,8 +110,8 @@ void AudioResamplerDyn::InBuffer<TI>::resize(int CHANNELS, int halfNumCoefs) {
             dst += mState-srcLo;
             srcLo = mState;
         }
-        if (srcHi > mState + mStateSize) {
-            srcHi = mState + mStateSize;
+        if (srcHi > mState + mStateCount) {
+            srcHi = mState + mStateCount;
         }
         memcpy(dst, srcLo, (srcHi - srcLo) * sizeof(*srcLo));
         free(mState);
@@ -115,27 +119,29 @@ void AudioResamplerDyn::InBuffer<TI>::resize(int CHANNELS, int halfNumCoefs) {
 
     // set class member vars
     mState = state;
-    mStateSize = stateSize;
-    mImpulse = mState + halfNumCoefs*CHANNELS; // actually one sample greater than needed
-    mRingFull = mState + mStateSize - halfNumCoefs*CHANNELS;
+    mStateCount = stateCount;
+    mImpulse = state + halfNumCoefs*CHANNELS; // actually one sample greater than needed
+    mRingFull = state + mStateCount - halfNumCoefs*CHANNELS;
 }
 
 // copy in the input data into the head (impulse+halfNumCoefs) of the buffer.
-template<typename TI>
+template<typename TC, typename TI, typename TO>
 template<int CHANNELS>
-void AudioResamplerDyn::InBuffer<TI>::readAgain(TI*& impulse, const int halfNumCoefs,
-        const TI* const in, const size_t inputIndex) {
-    int16_t* head = impulse + halfNumCoefs*CHANNELS;
+void AudioResamplerDyn<TC, TI, TO>::InBuffer::readAgain(TI*& impulse, const int halfNumCoefs,
+        const TI* const in, const size_t inputIndex)
+{
+    TI* head = impulse + halfNumCoefs*CHANNELS;
     for (size_t i=0 ; i<CHANNELS ; i++) {
         head[i] = in[inputIndex*CHANNELS + i];
     }
 }
 
 // advance the impulse pointer, and load in data into the head (impulse+halfNumCoefs)
-template<typename TI>
+template<typename TC, typename TI, typename TO>
 template<int CHANNELS>
-void AudioResamplerDyn::InBuffer<TI>::readAdvance(TI*& impulse, const int halfNumCoefs,
-        const TI* const in, const size_t inputIndex) {
+void AudioResamplerDyn<TC, TI, TO>::InBuffer::readAdvance(TI*& impulse, const int halfNumCoefs,
+        const TI* const in, const size_t inputIndex)
+{
     impulse += CHANNELS;
 
     if (CC_UNLIKELY(impulse >= mRingFull)) {
@@ -146,7 +152,8 @@ void AudioResamplerDyn::InBuffer<TI>::readAdvance(TI*& impulse, const int halfNu
     readAgain<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
 }
 
-void AudioResamplerDyn::Constants::set(
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::Constants::set(
         int L, int halfNumCoefs, int inSampleRate, int outSampleRate)
 {
     int bits = 0;
@@ -159,10 +166,11 @@ void AudioResamplerDyn::Constants::set(
     mHalfNumCoefs = halfNumCoefs;
 }
 
-AudioResamplerDyn::AudioResamplerDyn(int bitDepth,
+template<typename TC, typename TI, typename TO>
+AudioResamplerDyn<TC, TI, TO>::AudioResamplerDyn(int bitDepth,
         int inChannelCount, int32_t sampleRate, src_quality quality)
     : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
-    mResampleType(0), mFilterSampleRate(0), mFilterQuality(DEFAULT_QUALITY),
+      mResampleFunc(0), mFilterSampleRate(0), mFilterQuality(DEFAULT_QUALITY),
     mCoefBuffer(NULL)
 {
     mVolumeSimd[0] = mVolumeSimd[1] = 0;
@@ -173,33 +181,48 @@ AudioResamplerDyn::AudioResamplerDyn(int bitDepth,
     mConstants.set(128, 8, mSampleRate, mSampleRate); // TODO: set better
 }
 
-AudioResamplerDyn::~AudioResamplerDyn() {
+template<typename TC, typename TI, typename TO>
+AudioResamplerDyn<TC, TI, TO>::~AudioResamplerDyn()
+{
     free(mCoefBuffer);
 }
 
-void AudioResamplerDyn::init() {
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::init()
+{
     mFilterSampleRate = 0; // always trigger new filter generation
     mInBuffer.init();
 }
 
-void AudioResamplerDyn::setVolume(int16_t left, int16_t right) {
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::setVolume(int16_t left, int16_t right)
+{
     AudioResampler::setVolume(left, right);
-    mVolumeSimd[0] = static_cast<int32_t>(left)<<16;
-    mVolumeSimd[1] = static_cast<int32_t>(right)<<16;
+    // volume is applied on the output type.
+    if (is_same<TO, float>::value || is_same<TO, double>::value) {
+        const TO scale = 1. / (1UL << 12);
+        mVolumeSimd[0] = static_cast<TO>(left) * scale;
+        mVolumeSimd[1] = static_cast<TO>(right) * scale;
+    } else {
+        mVolumeSimd[0] = static_cast<int32_t>(left) << 16;
+        mVolumeSimd[1] = static_cast<int32_t>(right) << 16;
+    }
 }
 
-template <typename T> T max(T a, T b) {return a > b ? a : b;}
+template<typename T> T max(T a, T b) {return a > b ? a : b;}
 
-template <typename T> T absdiff(T a, T b) {return a > b ? a - b : b - a;}
+template<typename T> T absdiff(T a, T b) {return a > b ? a - b : b - a;}
 
-template<typename T>
-void AudioResamplerDyn::createKaiserFir(Constants &c, double stopBandAtten,
-        int inSampleRate, int outSampleRate, double tbwCheat) {
-    T* buf = reinterpret_cast<T*>(memalign(32, (c.mL+1)*c.mHalfNumCoefs*sizeof(T)));
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::createKaiserFir(Constants &c,
+        double stopBandAtten, int inSampleRate, int outSampleRate, double tbwCheat)
+{
+    TC* buf;
     static const double atten = 0.9998;   // to avoid ripple overflow
     double fcr;
     double tbw = firKaiserTbw(c.mHalfNumCoefs, stopBandAtten);
 
+    (void)posix_memalign(reinterpret_cast<void**>(&buf), 32, (c.mL+1)*c.mHalfNumCoefs*sizeof(TC));
     if (inSampleRate < outSampleRate) { // upsample
         fcr = max(0.5*tbwCheat - tbw/2, tbw/2);
     } else { // downsample
@@ -207,7 +230,7 @@ void AudioResamplerDyn::createKaiserFir(Constants &c, double stopBandAtten,
     }
     // create and set filter
     firKaiserGen(buf, c.mL, c.mHalfNumCoefs, stopBandAtten, fcr, atten);
-    c.setBuf(buf);
+    c.mFirCoefs = buf;
     if (mCoefBuffer) {
         free(mCoefBuffer);
     }
@@ -229,7 +252,8 @@ void AudioResamplerDyn::createKaiserFir(Constants &c, double stopBandAtten,
 }
 
 // recursive gcd. Using objdump, it appears the tail recursion is converted to a while loop.
-static int gcd(int n, int m) {
+static int gcd(int n, int m)
+{
     if (m == 0) {
         return n;
     }
@@ -237,7 +261,8 @@ static int gcd(int n, int m) {
 }
 
 static bool isClose(int32_t newSampleRate, int32_t prevSampleRate,
-        int32_t filterSampleRate, int32_t outSampleRate) {
+        int32_t filterSampleRate, int32_t outSampleRate)
+{
 
     // different upsampling ratios do not need a filter change.
     if (filterSampleRate != 0
@@ -254,7 +279,9 @@ static bool isClose(int32_t newSampleRate, int32_t prevSampleRate,
     return pdiff < prevSampleRate>>4 && adiff < filterSampleRate>>3;
 }
 
-void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::setSampleRate(int32_t inSampleRate)
+{
     if (mInSampleRate == inSampleRate) {
         return;
     }
@@ -358,13 +385,8 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
 
         // create the filter
         mConstants.set(phases, halfLength, inSampleRate, mSampleRate);
-        if (useS32) {
-            createKaiserFir<int32_t>(mConstants, stopBandAtten,
-                    inSampleRate, mSampleRate, tbwCheat);
-        } else {
-            createKaiserFir<int16_t>(mConstants, stopBandAtten,
-                    inSampleRate, mSampleRate, tbwCheat);
-        }
+        createKaiserFir(mConstants, stopBandAtten,
+                inSampleRate, mSampleRate, tbwCheat);
     } // End Kaiser filter
 
     // update phase and state based on the new filter.
@@ -386,7 +408,7 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
         mPhaseFraction = mPhaseFraction >> c.mShift << c.mShift; // remove fractional phase
     }
 
-    mResampleType = RESAMPLETYPE(mChannelCount, locked, stride, !!useS32);
+    setResampler(RESAMPLETYPE(mChannelCount, locked, stride));
 #ifdef DEBUG_RESAMPLER
     printf("channels:%d  %s  stride:%d  %s  coef:%d  shift:%d\n",
             mChannelCount, locked ? "locked" : "interpolated",
@@ -394,78 +416,45 @@ void AudioResamplerDyn::setSampleRate(int32_t inSampleRate) {
 #endif
 }
 
-void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider)
 {
-    // TODO:
-    // 24 cases - this perhaps can be reduced later, as testing might take too long
-    switch (mResampleType) {
+    (this->*mResampleFunc)(reinterpret_cast<TO*>(out), outFrameCount, provider);
+}
 
+template<typename TC, typename TI, typename TO>
+void AudioResamplerDyn<TC, TI, TO>::setResampler(unsigned resampleType)
+{
     // stride 16 (falls back to stride 2 for machines that do not support NEON)
-    case RESAMPLETYPE(1, true, 16, 0):
-        return resample<1, true, 16>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(2, true, 16, 0):
-        return resample<2, true, 16>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(1, false, 16, 0):
-        return resample<1, false, 16>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(2, false, 16, 0):
-        return resample<2, false, 16>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(1, true, 16, 1):
-        return resample<1, true, 16>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(2, true, 16, 1):
-        return resample<2, true, 16>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(1, false, 16, 1):
-        return resample<1, false, 16>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(2, false, 16, 1):
-        return resample<2, false, 16>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-#if 0
-    // TODO: Remove these?
-    // stride 8
-    case RESAMPLETYPE(1, true, 8, 0):
-        return resample<1, true, 8>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(2, true, 8, 0):
-        return resample<2, true, 8>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(1, false, 8, 0):
-        return resample<1, false, 8>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(2, false, 8, 0):
-        return resample<2, false, 8>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(1, true, 8, 1):
-        return resample<1, true, 8>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(2, true, 8, 1):
-        return resample<2, true, 8>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(1, false, 8, 1):
-        return resample<1, false, 8>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(2, false, 8, 1):
-        return resample<2, false, 8>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    // stride 2 (can handle any filter length)
-    case RESAMPLETYPE(1, true, 2, 0):
-        return resample<1, true, 2>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(2, true, 2, 0):
-        return resample<2, true, 2>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(1, false, 2, 0):
-        return resample<1, false, 2>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(2, false, 2, 0):
-        return resample<2, false, 2>(out, outFrameCount, mConstants.mFirCoefsS16, provider);
-    case RESAMPLETYPE(1, true, 2, 1):
-        return resample<1, true, 2>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(2, true, 2, 1):
-        return resample<2, true, 2>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(1, false, 2, 1):
-        return resample<1, false, 2>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-    case RESAMPLETYPE(2, false, 2, 1):
-        return resample<2, false, 2>(out, outFrameCount, mConstants.mFirCoefsS32, provider);
-#endif
+    switch (resampleType) {
+    case RESAMPLETYPE(1, true, 16):
+        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<1, true, 16>;
+        return;
+    case RESAMPLETYPE(2, true, 16):
+        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<2, true, 16>;
+        return;
+    case RESAMPLETYPE(1, false, 16):
+        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<1, false, 16>;
+        return;
+    case RESAMPLETYPE(2, false, 16):
+        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<2, false, 16>;
+        return;
     default:
-        ; // error
+        LOG_ALWAYS_FATAL("Invalid resampler type: %u", resampleType);
+        mResampleFunc = NULL;
+        return;
     }
 }
 
-template<int CHANNELS, bool LOCKED, int STRIDE, typename TC>
-void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
-        const TC* const coefs,  AudioBufferProvider* provider)
+template<typename TC, typename TI, typename TO>
+template<int CHANNELS, bool LOCKED, int STRIDE>
+void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
+        AudioBufferProvider* provider)
 {
     const Constants& c(mConstants);
-    int16_t* impulse = mInBuffer.getImpulse();
+    const TC* const coefs = mConstants.mFirCoefs;
+    TI* impulse = mInBuffer.getImpulse();
     size_t inputIndex = mInputIndex;
     uint32_t phaseFraction = mPhaseFraction;
     const uint32_t phaseIncrement = mPhaseIncrement;
@@ -491,8 +480,9 @@ void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
                 goto resample_exit;
             }
             if (phaseFraction >= phaseWrapLimit) { // read in data
-                mInBuffer.readAdvance<CHANNELS>(
-                        impulse, c.mHalfNumCoefs, mBuffer.i16, inputIndex);
+                mInBuffer.template readAdvance<CHANNELS>(
+                        impulse, c.mHalfNumCoefs,
+                        reinterpret_cast<TI*>(mBuffer.raw), inputIndex);
                 phaseFraction -= phaseWrapLimit;
                 while (phaseFraction >= phaseWrapLimit) {
                     inputIndex++;
@@ -501,20 +491,21 @@ void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
                         provider->releaseBuffer(&mBuffer);
                         break;
                     }
-                    mInBuffer.readAdvance<CHANNELS>(
-                            impulse, c.mHalfNumCoefs, mBuffer.i16, inputIndex);
+                    mInBuffer.template readAdvance<CHANNELS>(
+                            impulse, c.mHalfNumCoefs,
+                            reinterpret_cast<TI*>(mBuffer.raw), inputIndex);
                     phaseFraction -= phaseWrapLimit;
                 }
             }
         }
-        const int16_t* const in = mBuffer.i16;
+        const TI* const in = reinterpret_cast<const TI*>(mBuffer.raw);
         const size_t frameCount = mBuffer.frameCount;
         const int coefShift = c.mShift;
         const int halfNumCoefs = c.mHalfNumCoefs;
-        const int32_t* const volumeSimd = mVolumeSimd;
+        const TO* const volumeSimd = mVolumeSimd;
 
         // reread the last input in.
-        mInBuffer.readAgain<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
+        mInBuffer.template readAgain<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
 
         // main processing loop
         while (CC_LIKELY(outputIndex < outputSampleCount)) {
@@ -537,7 +528,7 @@ void AudioResamplerDyn::resample(int32_t* out, size_t outFrameCount,
                 if (inputIndex >= frameCount) {
                     goto done;  // need a new buffer
                 }
-                mInBuffer.readAdvance<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
+                mInBuffer.template readAdvance<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
                 phaseFraction -= phaseWrapLimit;
             }
         }
@@ -555,6 +546,11 @@ resample_exit:
     mInputIndex = inputIndex;
     mPhaseFraction = phaseFraction;
 }
+
+/* instantiate templates used by AudioResampler::create */
+template class AudioResamplerDyn<float, float, float>;
+template class AudioResamplerDyn<int16_t, int16_t, int32_t>;
+template class AudioResamplerDyn<int32_t, int16_t, int32_t>;
 
 // ----------------------------------------------------------------------------
 }; // namespace android

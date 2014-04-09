@@ -234,7 +234,16 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
     case DYN_MED_QUALITY:
     case DYN_HIGH_QUALITY:
         ALOGV("Create dynamic Resampler = %d", quality);
-        resampler = new AudioResamplerDyn(bitDepth, inChannelCount, sampleRate, quality);
+        if (bitDepth == 32) { /* bitDepth == 32 signals float precision */
+            resampler = new AudioResamplerDyn<float, float, float>(bitDepth, inChannelCount,
+                    sampleRate, quality);
+        } else if (quality == DYN_HIGH_QUALITY) {
+            resampler = new AudioResamplerDyn<int32_t, int16_t, int32_t>(bitDepth, inChannelCount,
+                    sampleRate, quality);
+        } else {
+            resampler = new AudioResamplerDyn<int16_t, int16_t, int32_t>(bitDepth, inChannelCount,
+                    sampleRate, quality);
+        }
         break;
     }
 
