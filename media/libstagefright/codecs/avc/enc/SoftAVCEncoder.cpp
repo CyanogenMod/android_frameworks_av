@@ -217,7 +217,7 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
     mHandle->CBAVC_Free = FreeWrapper;
 
     CHECK(mEncParams != NULL);
-    memset(mEncParams, 0, sizeof(mEncParams));
+    memset(mEncParams, 0, sizeof(*mEncParams));
     mEncParams->rate_control = AVC_ON;
     mEncParams->initQP = 0;
     mEncParams->init_CBP_removal_delay = 1600;

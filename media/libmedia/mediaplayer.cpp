@@ -654,7 +654,7 @@ status_t MediaPlayer::setRetransmitEndpoint(const char* addrString,
         return BAD_VALUE;
     }
 
-    memset(&mRetransmitEndpoint, 0, sizeof(&mRetransmitEndpoint));
+    memset(&mRetransmitEndpoint, 0, sizeof(mRetransmitEndpoint));
     mRetransmitEndpoint.sin_family = AF_INET;
     mRetransmitEndpoint.sin_addr   = saddr;
     mRetransmitEndpoint.sin_port   = htons(port);
