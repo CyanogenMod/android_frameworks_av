@@ -23,6 +23,8 @@
 #include "device3/Camera3Stream.h"
 #include "device3/StatusTracker.h"
 
+#include <cutils/properties.h>
+
 namespace android {
 
 namespace camera3 {
@@ -137,6 +139,7 @@ camera3_stream* Camera3Stream::startConfiguration() {
     if (mState == STATE_CONSTRUCTED) {
         mState = STATE_IN_CONFIG;
     } else { // mState == STATE_CONFIGURED
+        LOG_ALWAYS_FATAL_IF(mState != STATE_CONFIGURED, "Invalid state: 0x%x", mState);
         mState = STATE_IN_RECONFIG;
     }
 
@@ -223,6 +226,14 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
 
+    /**
+     * TODO: Check that the state is valid first.
+     *
+     * <HAL3.2 IN_CONFIG and IN_RECONFIG in addition to CONFIGURED.
+     * >= HAL3.2 CONFIGURED only
+     *
+     * Do this for getBuffer as well.
+     */
     status_t res = returnBufferLocked(buffer, timestamp);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/true);
@@ -314,12 +325,46 @@ status_t Camera3Stream::disconnect() {
 
 status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     ATRACE_CALL();
+
+    /**
+     * >= CAMERA_DEVICE_API_VERSION_3_2:
+     *
+     * camera3_device_t->ops->register_stream_buffers() is not called and must
+     * be NULL.
+     */
+    if (hal3Device->common.version >= CAMERA_DEVICE_API_VERSION_3_2) {
+        ALOGV("%s: register_stream_buffers unused as of HAL3.2", __FUNCTION__);
+
+        /**
+         * Skip the NULL check if camera.dev.register_stream is 1.
+         *
+         * For development-validation purposes only.
+         *
+         * TODO: Remove the property check before shipping L (b/13914251).
+         */
+        char value[PROPERTY_VALUE_MAX] = { '\0', };
+        property_get("camera.dev.register_stream", value, "0");
+        int propInt = atoi(value);
+
+        if (propInt == 0 && hal3Device->ops->register_stream_buffers != NULL) {
+            ALOGE("%s: register_stream_buffers is deprecated in HAL3.2; "
+                    "must be set to NULL in camera3_device::ops", __FUNCTION__);
+            return INVALID_OPERATION;
+        } else {
+            ALOGD("%s: Skipping NULL check for deprecated register_stream_buffers");
+        }
+
+        return OK;
+    } else {
+        ALOGV("%s: register_stream_buffers using deprecated code path", __FUNCTION__);
+    }
+
     status_t res;
 
     size_t bufferCount = getBufferCountLocked();
 
     Vector<buffer_handle_t*> buffers;
-    buffers.insertAt(NULL, 0, bufferCount);
+    buffers.insertAt(/*prototype_item*/NULL, /*index*/0, bufferCount);
 
     camera3_stream_buffer_set bufferSet = camera3_stream_buffer_set();
     bufferSet.stream = this;
@@ -327,7 +372,7 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     bufferSet.buffers = buffers.editArray();
 
     Vector<camera3_stream_buffer_t> streamBuffers;
-    streamBuffers.insertAt(camera3_stream_buffer_t(), 0, bufferCount);
+    streamBuffers.insertAt(camera3_stream_buffer_t(), /*index*/0, bufferCount);
 
     // Register all buffers with the HAL. This means getting all the buffers
     // from the stream, providing them to the HAL with the

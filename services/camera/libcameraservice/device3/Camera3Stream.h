@@ -82,6 +82,23 @@ namespace camera3 {
  *    STATE_CONFIGURED     => STATE_CONSTRUCTED:
  *        When disconnect() is called after making sure stream is idle with
  *        waitUntilIdle().
+ *
+ * Status Tracking:
+ *    Each stream is tracked by StatusTracker as a separate component,
+ *    depending on the handed out buffer count. The state must be STATE_CONFIGURED
+ *    in order for the component to be marked.
+ *
+ *    It's marked in one of two ways:
+ *
+ *    - ACTIVE: One or more buffers have been handed out (with #getBuffer).
+ *    - IDLE: All buffers have been returned (with #returnBuffer), and their
+ *          respective release_fence(s) have been signaled.
+ *
+ *    A typical use case is output streams. When the HAL has any buffers
+ *    dequeued, the stream is marked ACTIVE. When the HAL returns all buffers
+ *    (e.g. if no capture requests are active), the stream is marked IDLE.
+ *    In this use case, the app consumer does not affect the component status.
+ *
  */
 class Camera3Stream :
         protected camera3_stream,
