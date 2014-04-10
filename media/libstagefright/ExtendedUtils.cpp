@@ -959,6 +959,7 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     bool audioTrackFound         = false;
     bool amrwbAudio              = false;
     bool hevcVideo               = false;
+    bool dolbyAudio              = false;
     int  numOfTrack              = 0;
 
     if (defaultExt != NULL) {
@@ -976,7 +977,16 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
                 amrwbAudio = !strncasecmp(mime.string(),
                                           MEDIA_MIMETYPE_AUDIO_AMR_WB,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
-                if (amrwbAudio) {
+                dolbyAudio = (!strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_AC3,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_AC3)) ||
+                              !strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_EAC3,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_EAC3)) ||
+                              !strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_EAC3_JOC)));
+                if (amrwbAudio || dolbyAudio) {
                     break;
                 }
             } else if (!strncasecmp(mime.string(), "video/", 6)) {
@@ -987,7 +997,7 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             }
         }
 
-        if (amrwbAudio) {
+        if (amrwbAudio || dolbyAudio) {
             bCheckExtendedExtractor = true;
         } else if (numOfTrack  == 0) {
             bCheckExtendedExtractor = true;
@@ -1045,7 +1055,13 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
                                 strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) ||
             !strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
-                                strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) )) {
+                                strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) ||
+            !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3,
+                                strlen(MEDIA_MIMETYPE_AUDIO_AC3)) ||
+            !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_EAC3,
+                                strlen(MEDIA_MIMETYPE_AUDIO_EAC3)) ||
+            !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
+                                strlen(MEDIA_MIMETYPE_AUDIO_EAC3_JOC)))) {
 
             ALOGD("Discarding default extractor and using the extended one");
             bUseDefaultExtractor = false;
