@@ -259,13 +259,14 @@ AudioResampler::AudioResampler(int bitDepth, int inChannelCount,
             mPhaseFraction(0), mLocalTimeFreq(0),
             mPTS(AudioBufferProvider::kInvalidPTS), mQuality(quality) {
     // sanity check on format
-    if ((bitDepth != 16) ||(inChannelCount < 1) || (inChannelCount > 2)) {
-        ALOGE("Unsupported sample format, %d bits, %d channels", bitDepth,
-                inChannelCount);
-        // ALOG_ASSERT(0);
+    if ((bitDepth != 16 && (quality < DYN_LOW_QUALITY || bitDepth != 32))
+            || inChannelCount < 1
+            || inChannelCount > (quality < DYN_LOW_QUALITY ? 2 : 8)) {
+        LOG_ALWAYS_FATAL("Unsupported sample format %d quality %d bits, %d channels",
+                quality, bitDepth, inChannelCount);
     }
     if (sampleRate <= 0) {
-        ALOGE("Unsupported sample rate %d Hz", sampleRate);
+        LOG_ALWAYS_FATAL("Unsupported sample rate %d Hz", sampleRate);
     }
 
     // initialize common members

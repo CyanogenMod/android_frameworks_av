@@ -110,12 +110,10 @@ private:
     void createKaiserFir(Constants &c, double stopBandAtten,
             int inSampleRate, int outSampleRate, double tbwCheat);
 
-    void setResampler(unsigned resampleType);
-
     template<int CHANNELS, bool LOCKED, int STRIDE>
     void resample(TO* out, size_t outFrameCount, AudioBufferProvider* provider);
 
-    // declare a pointer to member function for resample
+    // define a pointer to member function type for resample
     typedef void (AudioResamplerDyn<TC, TI, TO>::*resample_ABP_t)(TO* out,
             size_t outFrameCount, AudioBufferProvider* provider);
 

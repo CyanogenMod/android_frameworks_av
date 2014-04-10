@@ -35,7 +35,8 @@
 #include "AudioResampler.h"
 #include "test_utils.h"
 
-void resample(void *output, size_t outputFrames, const std::vector<size_t> &outputIncr,
+void resample(int channels, void *output,
+        size_t outputFrames, const std::vector<size_t> &outputIncr,
         android::AudioBufferProvider *provider, android::AudioResampler *resampler)
 {
     for (size_t i = 0, j = 0; i < outputFrames; ) {
@@ -46,7 +47,7 @@ void resample(void *output, size_t outputFrames, const std::vector<size_t> &outp
         if (thisFrames == 0 || thisFrames > outputFrames - i) {
             thisFrames = outputFrames - i;
         }
-        resampler->resample((int32_t*) output + 2*i, thisFrames, provider);
+        resampler->resample((int32_t*) output + channels*i, thisFrames, provider);
         i += thisFrames;
     }
 }
@@ -64,19 +65,26 @@ void buffercmp(const void *reference, const void *test,
     }
 }
 
-void testBufferIncrement(size_t channels, unsigned inputFreq, unsigned outputFreq,
+void testBufferIncrement(size_t channels, bool useFloat,
+        unsigned inputFreq, unsigned outputFreq,
         enum android::AudioResampler::src_quality quality)
 {
+    const int bits = useFloat ? 32 : 16;
     // create the provider
     std::vector<int> inputIncr;
     SignalProvider provider;
-    provider.setChirp<int16_t>(channels,
-            0., outputFreq/2., outputFreq, outputFreq/2000.);
+    if (useFloat) {
+        provider.setChirp<float>(channels,
+                0., outputFreq/2., outputFreq, outputFreq/2000.);
+    } else {
+        provider.setChirp<int16_t>(channels,
+                0., outputFreq/2., outputFreq, outputFreq/2000.);
+    }
     provider.setIncr(inputIncr);
 
     // calculate the output size
     size_t outputFrames = ((int64_t) provider.getNumFrames() * outputFreq) / inputFreq;
-    size_t outputFrameSize = 2 * sizeof(int32_t);
+    size_t outputFrameSize = channels * (useFloat ? sizeof(float) : sizeof(int32_t));
     size_t outputSize = outputFrameSize * outputFrames;
     outputSize &= ~7;
 
@@ -84,7 +92,7 @@ void testBufferIncrement(size_t channels, unsigned inputFreq, unsigned outputFre
     const int volumePrecision = 12; /* typical unity gain */
     android::AudioResampler* resampler;
 
-    resampler = android::AudioResampler::create(16, channels, outputFreq, quality);
+    resampler = android::AudioResampler::create(bits, channels, outputFreq, quality);
     resampler->setSampleRate(inputFreq);
     resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
 
@@ -92,7 +100,7 @@ void testBufferIncrement(size_t channels, unsigned inputFreq, unsigned outputFre
     std::vector<size_t> refIncr;
     refIncr.push_back(outputFrames);
     void* reference = malloc(outputSize);
-    resample(reference, outputFrames, refIncr, &provider, resampler);
+    resample(channels, reference, outputFrames, refIncr, &provider, resampler);
 
     provider.reset();
 
@@ -101,7 +109,7 @@ void testBufferIncrement(size_t channels, unsigned inputFreq, unsigned outputFre
     resampler->reset();
 #else
     delete resampler;
-    resampler = android::AudioResampler::create(16, channels, outputFreq, quality);
+    resampler = android::AudioResampler::create(bits, channels, outputFreq, quality);
     resampler->setSampleRate(inputFreq);
     resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
 #endif
@@ -112,7 +120,10 @@ void testBufferIncrement(size_t channels, unsigned inputFreq, unsigned outputFre
     outIncr.push_back(2);
     outIncr.push_back(3);
     void* test = malloc(outputSize);
-    resample(test, outputFrames, outIncr, &provider, resampler);
+    inputIncr.push_back(1);
+    inputIncr.push_back(3);
+    provider.setIncr(inputIncr);
+    resample(channels, test, outputFrames, outIncr, &provider, resampler);
 
     // check
     buffercmp(reference, test, outputFrameSize, outputFrames);
@@ -155,7 +166,7 @@ void testStopbandDownconversion(size_t channels,
 
     // calculate the output size
     size_t outputFrames = ((int64_t) provider.getNumFrames() * outputFreq) / inputFreq;
-    size_t outputFrameSize = 2 * sizeof(int32_t);
+    size_t outputFrameSize = channels * sizeof(int32_t);
     size_t outputSize = outputFrameSize * outputFrames;
     outputSize &= ~7;
 
@@ -171,7 +182,7 @@ void testStopbandDownconversion(size_t channels,
     std::vector<size_t> refIncr;
     refIncr.push_back(outputFrames);
     void* reference = malloc(outputSize);
-    resample(reference, outputFrames, refIncr, &provider, resampler);
+    resample(channels, reference, outputFrames, refIncr, &provider, resampler);
 
     int32_t *out = reinterpret_cast<int32_t *>(reference);
 
@@ -226,7 +237,7 @@ TEST(audioflinger_resampler, bufferincrement_fixedphase) {
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
-        testBufferIncrement(2, 48000, 32000, kQualityArray[i]);
+        testBufferIncrement(2, false, 48000, 32000, kQualityArray[i]);
     }
 }
 
@@ -243,7 +254,33 @@ TEST(audioflinger_resampler, bufferincrement_interpolatedphase) {
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
-        testBufferIncrement(2, 22050, 48000, kQualityArray[i]);
+        testBufferIncrement(2, false, 22050, 48000, kQualityArray[i]);
+    }
+}
+
+TEST(audioflinger_resampler, bufferincrement_fixedphase_multi) {
+    // only dynamic quality
+    static const enum android::AudioResampler::src_quality kQualityArray[] = {
+            android::AudioResampler::DYN_LOW_QUALITY,
+            android::AudioResampler::DYN_MED_QUALITY,
+            android::AudioResampler::DYN_HIGH_QUALITY,
+    };
+
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testBufferIncrement(4, false, 48000, 32000, kQualityArray[i]);
+    }
+}
+
+TEST(audioflinger_resampler, bufferincrement_interpolatedphase_multi_float) {
+    // only dynamic quality
+    static const enum android::AudioResampler::src_quality kQualityArray[] = {
+            android::AudioResampler::DYN_LOW_QUALITY,
+            android::AudioResampler::DYN_MED_QUALITY,
+            android::AudioResampler::DYN_HIGH_QUALITY,
+    };
+
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testBufferIncrement(8, true, 22050, 48000, kQualityArray[i]);
     }
 }
 
