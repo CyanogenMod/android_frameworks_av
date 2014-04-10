@@ -122,7 +122,8 @@ struct BufferMeta {
         }
 
         // check component returns proper range
-        sp<ABuffer> codec = getBuffer(header, false /* backup */, true /* limit */);
+        sp<ABuffer> codec = getBuffer(header, false /* backup */,
+                !(header->nFlags & OMX_BUFFERFLAG_EXTRADATA));
 
         memcpy((OMX_U8 *)mMem->pointer() + header->nOffset, codec->data(), codec->size());
     }
@@ -132,9 +133,11 @@ struct BufferMeta {
             return;
         }
 
+        size_t bytesToCopy = header->nFlags & OMX_BUFFERFLAG_EXTRADATA ?
+            header->nAllocLen - header->nOffset : header->nFilledLen;
         memcpy(header->pBuffer + header->nOffset,
                 (const OMX_U8 *)mMem->pointer() + header->nOffset,
-                header->nFilledLen);
+                bytesToCopy);
     }
 
     // return either the codec or the backup buffer
