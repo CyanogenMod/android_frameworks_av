@@ -24,6 +24,7 @@
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
 #include "camera/CameraMetadata.h"
+#include "camera/CaptureResult.h"
 #include "Parameters.h"
 #include "FrameProcessor.h"
 
@@ -61,8 +62,8 @@ class CaptureSequencer:
     // Notifications about AE state changes
     void notifyAutoExposure(uint8_t newState, int triggerId);
 
-    // Notifications from the frame processor
-    virtual void onFrameAvailable(int32_t requestId, const CameraMetadata &frame);
+    // Notification from the frame processor
+    virtual void onResultAvailable(const CaptureResult &result);
 
     // Notifications from the JPEG processor
     void onCaptureAvailable(nsecs_t timestamp, sp<MemoryBase> captureBuffer);

@@ -47,11 +47,14 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t disconnect();
     virtual status_t dump(int fd, const Vector<String16>& args);
     virtual const CameraMetadata& info() const;
-    virtual status_t capture(CameraMetadata &request);
-    virtual status_t captureList(const List<const CameraMetadata> &requests);
-    virtual status_t setStreamingRequest(const CameraMetadata &request);
-    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests);
-    virtual status_t clearStreamingRequest();
+    virtual status_t capture(CameraMetadata &request, int64_t *lastFrameNumber = NULL);
+    virtual status_t captureList(const List<const CameraMetadata> &requests,
+                                 int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequest(const CameraMetadata &request,
+                                         int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                             int64_t *lastFrameNumber = NULL);
+    virtual status_t clearStreamingRequest(int64_t *lastFrameNumber = NULL);
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format, size_t size,
@@ -67,14 +70,14 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t setNotifyCallback(NotificationListener *listener);
     virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
-    virtual status_t getNextFrame(CameraMetadata *frame);
+    virtual status_t getNextResult(CaptureResult *frame);
     virtual status_t triggerAutofocus(uint32_t id);
     virtual status_t triggerCancelAutofocus(uint32_t id);
     virtual status_t triggerPrecaptureMetering(uint32_t id);
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
     // Flush implemented as just a wait
-    virtual status_t flush();
+    virtual status_t flush(int64_t *lastFrameNumber = NULL);
   private:
     const int mId;
     camera2_device_t *mHal2Device;

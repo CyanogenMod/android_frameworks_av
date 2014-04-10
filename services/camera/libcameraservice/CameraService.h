@@ -31,6 +31,7 @@
 #include <camera/camera2/ICameraDeviceUser.h>
 #include <camera/camera2/ICameraDeviceCallbacks.h>
 #include <camera/VendorTagDescriptor.h>
+#include <camera/CaptureResult.h>
 
 #include <camera/ICameraServiceListener.h>
 
@@ -182,7 +183,9 @@ public:
         status_t                        finishCameraOps();
 
         // Notify client about a fatal error
-        virtual void                    notifyError() = 0;
+        virtual void                    notifyError(
+                ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                const CaptureResultExtras& resultExtras) = 0;
     private:
         AppOpsManager                   mAppOpsManager;
 
@@ -259,7 +262,8 @@ public:
         // convert client from cookie. Client lock should be acquired before getting Client.
         static Client*       getClientFromCookie(void* user);
 
-        virtual void         notifyError();
+        virtual void         notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                         const CaptureResultExtras& resultExtras);
 
         // Initialized in constructor
 
@@ -307,7 +311,8 @@ public:
         virtual void          onExclusiveLockStolen() = 0;
 
     protected:
-        virtual void          notifyError();
+        virtual void          notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                          const CaptureResultExtras& resultExtras);
 
         sp<IProCameraCallbacks> mRemoteCallback;
     }; // class ProClient

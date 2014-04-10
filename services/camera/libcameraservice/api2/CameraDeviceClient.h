@@ -64,11 +64,17 @@ public:
 
     // Note that the callee gets a copy of the metadata.
     virtual status_t           submitRequest(sp<CaptureRequest> request,
-                                             bool streaming = false);
+                                             bool streaming = false,
+                                             /*out*/
+                                             int64_t* lastFrameNumber = NULL);
     // List of requests are copied.
     virtual status_t           submitRequestList(List<sp<CaptureRequest> > requests,
-                                                 bool streaming = false);
-    virtual status_t      cancelRequest(int requestId);
+                                                 bool streaming = false,
+                                                 /*out*/
+                                                 int64_t* lastFrameNumber = NULL);
+    virtual status_t      cancelRequest(int requestId,
+                                        /*out*/
+                                        int64_t* lastFrameNumber = NULL);
 
     // Returns -EBUSY if device is not idle
     virtual status_t      deleteStream(int streamId);
@@ -92,7 +98,8 @@ public:
     virtual status_t      waitUntilIdle();
 
     // Flush all active and pending requests as fast as possible
-    virtual status_t      flush();
+    virtual status_t      flush(/*out*/
+                                int64_t* lastFrameNumber = NULL);
 
     /**
      * Interface used by CameraService
@@ -117,16 +124,16 @@ public:
      */
 
     virtual void notifyIdle();
-    virtual void notifyError();
-    virtual void notifyShutter(int requestId, nsecs_t timestamp);
+    virtual void notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                             const CaptureResultExtras& resultExtras);
+    virtual void notifyShutter(const CaptureResultExtras& resultExtras, nsecs_t timestamp);
 
     /**
      * Interface used by independent components of CameraDeviceClient.
      */
 protected:
     /** FilteredListener implementation **/
-    virtual void          onFrameAvailable(int32_t requestId,
-                                           const CameraMetadata& frame);
+    virtual void          onResultAvailable(const CaptureResult& result);
     virtual void          detachDevice();
 
     // Calculate the ANativeWindow transform from android.sensor.orientation

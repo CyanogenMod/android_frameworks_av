@@ -18,6 +18,7 @@
 #define ANDROID_SERVERS_CAMERA_CAMERA2CLIENT_BASE_H
 
 #include "common/CameraDeviceBase.h"
+#include "camera/CaptureResult.h"
 
 namespace android {
 
@@ -61,9 +62,11 @@ public:
      * CameraDeviceBase::NotificationListener implementation
      */
 
-    virtual void          notifyError(int errorCode, int arg1, int arg2);
+    virtual void          notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                      const CaptureResultExtras& resultExtras);
     virtual void          notifyIdle();
-    virtual void          notifyShutter(int requestId, nsecs_t timestamp);
+    virtual void          notifyShutter(const CaptureResultExtras& resultExtras,
+                                        nsecs_t timestamp);
     virtual void          notifyAutoFocus(uint8_t newState, int triggerId);
     virtual void          notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void          notifyAutoWhitebalance(uint8_t newState,

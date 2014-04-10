@@ -16,7 +16,7 @@
 
 #define LOG_TAG "CameraDeviceClient"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #include <cutils/properties.h>
 #include <utils/Log.h>
@@ -91,105 +91,18 @@ CameraDeviceClient::~CameraDeviceClient() {
 }
 
 status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
-                                         bool streaming) {
-    ATRACE_CALL();
-    ALOGV("%s", __FUNCTION__);
-
-    status_t res;
-
-    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
-
-    Mutex::Autolock icl(mBinderSerializationLock);
-
-    if (!mDevice.get()) return DEAD_OBJECT;
-
-    if (request == 0) {
-        ALOGE("%s: Camera %d: Sent null request. Rejecting request.",
-              __FUNCTION__, mCameraId);
-        return BAD_VALUE;
-    }
-
-    CameraMetadata metadata(request->mMetadata);
-
-    if (metadata.isEmpty()) {
-        ALOGE("%s: Camera %d: Sent empty metadata packet. Rejecting request.",
-               __FUNCTION__, mCameraId);
-        return BAD_VALUE;
-    } else if (request->mSurfaceList.size() == 0) {
-        ALOGE("%s: Camera %d: Requests must have at least one surface target. "
-              "Rejecting request.", __FUNCTION__, mCameraId);
-        return BAD_VALUE;
-    }
-
-    if (!enforceRequestPermissions(metadata)) {
-        // Callee logs
-        return PERMISSION_DENIED;
-    }
-
-    /**
-     * Write in the output stream IDs which we calculate from
-     * the capture request's list of surface targets
-     */
-    Vector<int32_t> outputStreamIds;
-    outputStreamIds.setCapacity(request->mSurfaceList.size());
-    for (size_t i = 0; i < request->mSurfaceList.size(); ++i) {
-        sp<Surface> surface = request->mSurfaceList[i];
-
-        if (surface == 0) continue;
-
-        sp<IGraphicBufferProducer> gbp = surface->getIGraphicBufferProducer();
-        int idx = mStreamMap.indexOfKey(gbp->asBinder());
-
-        // Trying to submit request with surface that wasn't created
-        if (idx == NAME_NOT_FOUND) {
-            ALOGE("%s: Camera %d: Tried to submit a request with a surface that"
-                  " we have not called createStream on",
-                  __FUNCTION__, mCameraId);
-            return BAD_VALUE;
-        }
-
-        int streamId = mStreamMap.valueAt(idx);
-        outputStreamIds.push_back(streamId);
-        ALOGV("%s: Camera %d: Appending output stream %d to request",
-              __FUNCTION__, mCameraId, streamId);
-    }
-
-    metadata.update(ANDROID_REQUEST_OUTPUT_STREAMS, &outputStreamIds[0],
-                    outputStreamIds.size());
-
-    int32_t requestId = mRequestIdCounter++;
-    metadata.update(ANDROID_REQUEST_ID, &requestId, /*size*/1);
-    ALOGV("%s: Camera %d: Creating request with ID %d",
-          __FUNCTION__, mCameraId, requestId);
-
-    if (streaming) {
-        res = mDevice->setStreamingRequest(metadata);
-        if (res != OK) {
-            ALOGE("%s: Camera %d:  Got error %d after trying to set streaming "
-                  "request", __FUNCTION__, mCameraId, res);
-        } else {
-            mStreamingRequestList.push_back(requestId);
-        }
-    } else {
-        res = mDevice->capture(metadata);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Got error %d after trying to set capture",
-                  __FUNCTION__, mCameraId, res);
-        }
-    }
-
-    ALOGV("%s: Camera %d: End of function", __FUNCTION__, mCameraId);
-    if (res == OK) {
-        return requestId;
-    }
-
-    return res;
+                                         bool streaming,
+                                         /*out*/
+                                         int64_t* lastFrameNumber) {
+    List<sp<CaptureRequest> > requestList;
+    requestList.push_back(request);
+    return submitRequestList(requestList, streaming, lastFrameNumber);
 }
 
 status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > requests,
-                                               bool streaming) {
+                                               bool streaming, int64_t* lastFrameNumber) {
     ATRACE_CALL();
-    ALOGV("%s-start of function", __FUNCTION__);
+    ALOGV("%s-start of function. Request list size %d", __FUNCTION__, requests.size());
 
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -238,9 +151,8 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
          */
         Vector<int32_t> outputStreamIds;
         outputStreamIds.setCapacity(request->mSurfaceList.size());
-        for (Vector<sp<Surface> >::iterator surfaceIt = 0;
-                surfaceIt != request->mSurfaceList.end(); ++surfaceIt) {
-            sp<Surface> surface = *surfaceIt;
+        for (size_t i = 0; i < request->mSurfaceList.size(); ++i) {
+            sp<Surface> surface = request->mSurfaceList[i];
             if (surface == 0) continue;
 
             sp<IGraphicBufferProducer> gbp = surface->getIGraphicBufferProducer();
@@ -273,7 +185,7 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
     mRequestIdCounter++;
 
     if (streaming) {
-        res = mDevice->setStreamingRequestList(metadataRequestList);
+        res = mDevice->setStreamingRequestList(metadataRequestList, lastFrameNumber);
         if (res != OK) {
             ALOGE("%s: Camera %d:  Got error %d after trying to set streaming "
                   "request", __FUNCTION__, mCameraId, res);
@@ -281,11 +193,12 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
             mStreamingRequestList.push_back(requestId);
         }
     } else {
-        res = mDevice->captureList(metadataRequestList);
+        res = mDevice->captureList(metadataRequestList, lastFrameNumber);
         if (res != OK) {
             ALOGE("%s: Camera %d: Got error %d after trying to set capture",
                 __FUNCTION__, mCameraId, res);
         }
+        ALOGV("%s: requestId = %d ", __FUNCTION__, requestId);
     }
 
     ALOGV("%s: Camera %d: End of function", __FUNCTION__, mCameraId);
@@ -296,7 +209,7 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
     return res;
 }
 
-status_t CameraDeviceClient::cancelRequest(int requestId) {
+status_t CameraDeviceClient::cancelRequest(int requestId, int64_t* lastFrameNumber) {
     ATRACE_CALL();
     ALOGV("%s, requestId = %d", __FUNCTION__, requestId);
 
@@ -322,7 +235,7 @@ status_t CameraDeviceClient::cancelRequest(int requestId) {
         return BAD_VALUE;
     }
 
-    res = mDevice->clearStreamingRequest();
+    res = mDevice->clearStreamingRequest(lastFrameNumber);
 
     if (res == OK) {
         ALOGV("%s: Camera %d: Successfully cleared streaming request",
@@ -369,8 +282,6 @@ status_t CameraDeviceClient::deleteStream(int streamId) {
     } else if (res == OK) {
         mStreamMap.removeItemsAt(index);
 
-        ALOGV("%s: Camera %d: Successfully deleted stream ID (%d)",
-              __FUNCTION__, mCameraId, streamId);
     }
 
     return res;
@@ -575,7 +486,7 @@ status_t CameraDeviceClient::waitUntilIdle()
     return res;
 }
 
-status_t CameraDeviceClient::flush() {
+status_t CameraDeviceClient::flush(int64_t* lastFrameNumber) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
@@ -586,7 +497,7 @@ status_t CameraDeviceClient::flush() {
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
-    return mDevice->flush();
+    return mDevice->flush(lastFrameNumber);
 }
 
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
@@ -603,13 +514,13 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     return dumpDevice(fd, args);
 }
 
-
-void CameraDeviceClient::notifyError() {
+void CameraDeviceClient::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                     const CaptureResultExtras& resultExtras) {
     // Thread safe. Don't bother locking.
     sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
 
     if (remoteCb != 0) {
-        remoteCb->onDeviceError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE);
+        remoteCb->onDeviceError(errorCode, resultExtras);
     }
 }
 
@@ -622,12 +533,12 @@ void CameraDeviceClient::notifyIdle() {
     }
 }
 
-void CameraDeviceClient::notifyShutter(int requestId,
+void CameraDeviceClient::notifyShutter(const CaptureResultExtras& resultExtras,
         nsecs_t timestamp) {
     // Thread safe. Don't bother locking.
     sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
     if (remoteCb != 0) {
-        remoteCb->onCaptureStarted(requestId, timestamp);
+        remoteCb->onCaptureStarted(resultExtras, timestamp);
     }
 }
 
@@ -662,16 +573,14 @@ void CameraDeviceClient::detachDevice() {
 }
 
 /** Device-related methods */
-void CameraDeviceClient::onFrameAvailable(int32_t requestId,
-        const CameraMetadata& frame) {
+void CameraDeviceClient::onResultAvailable(const CaptureResult& result) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
     // Thread-safe. No lock necessary.
     sp<ICameraDeviceCallbacks> remoteCb = mRemoteCallback;
     if (remoteCb != NULL) {
-        ALOGV("%s: frame = %p ", __FUNCTION__, &frame);
-        remoteCb->onResultReceived(requestId, frame);
+        remoteCb->onResultReceived(result.mMetadata, result.mResultExtras);
     }
 }
 

@@ -199,7 +199,7 @@ const CameraMetadata& Camera2Device::info() const {
     return mDeviceInfo;
 }
 
-status_t Camera2Device::capture(CameraMetadata &request) {
+status_t Camera2Device::capture(CameraMetadata &request, int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
 
@@ -207,27 +207,29 @@ status_t Camera2Device::capture(CameraMetadata &request) {
     return OK;
 }
 
-status_t Camera2Device::captureList(const List<const CameraMetadata> &requests) {
+status_t Camera2Device::captureList(const List<const CameraMetadata> &requests,
+                                    int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     ALOGE("%s: Camera2Device burst capture not implemented", __FUNCTION__);
     return INVALID_OPERATION;
 }
 
-
-status_t Camera2Device::setStreamingRequest(const CameraMetadata &request) {
+status_t Camera2Device::setStreamingRequest(const CameraMetadata &request,
+                                            int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     CameraMetadata streamRequest(request);
     return mRequestQueue.setStreamSlot(streamRequest.release());
 }
 
-status_t Camera2Device::setStreamingRequestList(const List<const CameraMetadata> &requests) {
+status_t Camera2Device::setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                                int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     ALOGE("%s, Camera2Device streaming burst not implemented", __FUNCTION__);
     return INVALID_OPERATION;
 }
 
-status_t Camera2Device::clearStreamingRequest() {
+status_t Camera2Device::clearStreamingRequest(int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     return mRequestQueue.setStreamSlot(NULL);
 }
@@ -460,7 +462,13 @@ void Camera2Device::notificationCallback(int32_t msg_type,
     if (listener != NULL) {
         switch (msg_type) {
             case CAMERA2_MSG_ERROR:
-                listener->notifyError(ext1, ext2, ext3);
+                // TODO: This needs to be fixed. ext2 and ext3 need to be considered.
+                listener->notifyError(
+                        ((ext1 == CAMERA2_MSG_ERROR_DEVICE)
+                        || (ext1 == CAMERA2_MSG_ERROR_HARDWARE)) ?
+                                ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE :
+                                ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE,
+                        CaptureResultExtras());
                 break;
             case CAMERA2_MSG_SHUTTER: {
                 // TODO: Only needed for camera2 API, which is unsupported
@@ -489,16 +497,22 @@ status_t Camera2Device::waitForNextFrame(nsecs_t timeout) {
     return mFrameQueue.waitForBuffer(timeout);
 }
 
-status_t Camera2Device::getNextFrame(CameraMetadata *frame) {
+status_t Camera2Device::getNextResult(CaptureResult *result) {
     ATRACE_CALL();
+    ALOGV("%s: get CaptureResult", __FUNCTION__);
+    if (result == NULL) {
+        ALOGE("%s: result pointer is NULL", __FUNCTION__);
+        return BAD_VALUE;
+    }
     status_t res;
     camera_metadata_t *rawFrame;
     res = mFrameQueue.dequeue(&rawFrame);
-    if (rawFrame  == NULL) {
+    if (rawFrame == NULL) {
         return NOT_ENOUGH_DATA;
     } else if (res == OK) {
-        frame->acquire(rawFrame);
+        result->mMetadata.acquire(rawFrame);
     }
+
     return res;
 }
 
@@ -568,7 +582,7 @@ status_t Camera2Device::pushReprocessBuffer(int reprocessStreamId,
     return res;
 }
 
-status_t Camera2Device::flush() {
+status_t Camera2Device::flush(int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
 
     mRequestQueue.clear();

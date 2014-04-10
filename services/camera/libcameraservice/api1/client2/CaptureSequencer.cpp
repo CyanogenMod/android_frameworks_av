@@ -106,13 +106,12 @@ void CaptureSequencer::notifyAutoExposure(uint8_t newState, int triggerId) {
     }
 }
 
-void CaptureSequencer::onFrameAvailable(int32_t requestId,
-        const CameraMetadata &frame) {
-    ALOGV("%s: Listener found new frame", __FUNCTION__);
+void CaptureSequencer::onResultAvailable(const CaptureResult &result) {
     ATRACE_CALL();
+    ALOGV("%s: New result available.", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
-    mNewFrameId = requestId;
-    mNewFrame = frame;
+    mNewFrameId = result.mResultExtras.requestId;
+    mNewFrame = result.mMetadata;
     if (!mNewFrameReceived) {
         mNewFrameReceived = true;
         mNewFrameSignal.signal();

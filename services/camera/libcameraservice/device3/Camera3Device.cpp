@@ -399,6 +399,7 @@ status_t Camera3Device::convertMetadataListToRequestListLocked(
         return BAD_VALUE;
     }
 
+    int32_t burstId = 0;
     for (List<const CameraMetadata>::const_iterator it = metadataList.begin();
             it != metadataList.end(); ++it) {
         sp<CaptureRequest> newRequest = setUpRequestLocked(*it);
@@ -406,12 +407,29 @@ status_t Camera3Device::convertMetadataListToRequestListLocked(
             CLOGE("Can't create capture request");
             return BAD_VALUE;
         }
+
+        // Setup burst Id and request Id
+        newRequest->mResultExtras.burstId = burstId++;
+        if (it->exists(ANDROID_REQUEST_ID)) {
+            if (it->find(ANDROID_REQUEST_ID).count == 0) {
+                CLOGE("RequestID entry exists; but must not be empty in metadata");
+                return BAD_VALUE;
+            }
+            newRequest->mResultExtras.requestId = it->find(ANDROID_REQUEST_ID).data.i32[0];
+        } else {
+            CLOGE("RequestID does not exist in metadata");
+            return BAD_VALUE;
+        }
+
         requestList->push_back(newRequest);
+        if (newRequest->mResultExtras.requestId > 0) {
+            ALOGV("%s: requestId = %" PRId32, __FUNCTION__, newRequest->mResultExtras.requestId);
+        }
     }
     return OK;
 }
 
-status_t Camera3Device::capture(CameraMetadata &request) {
+status_t Camera3Device::capture(CameraMetadata &request, int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     status_t res;
     Mutex::Autolock il(mInterfaceLock);
@@ -459,7 +477,7 @@ status_t Camera3Device::capture(CameraMetadata &request) {
 }
 
 status_t Camera3Device::submitRequestsHelper(
-        const List<const CameraMetadata> &requests, bool repeating) {
+        const List<const CameraMetadata> &requests, bool repeating, int64_t *lastFrameNumber) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
@@ -479,9 +497,15 @@ status_t Camera3Device::submitRequestsHelper(
     }
 
     if (repeating) {
+        if (lastFrameNumber != NULL) {
+            *lastFrameNumber = mRequestThread->getLastFrameNumber();
+        }
         res = mRequestThread->setRepeatingRequests(requestList);
     } else {
         res = mRequestThread->queueRequestList(requestList);
+        if (lastFrameNumber != NULL) {
+            *lastFrameNumber = mRequestThread->getLastFrameNumber();
+        }
     }
 
     if (res == OK) {
@@ -499,13 +523,15 @@ status_t Camera3Device::submitRequestsHelper(
     return res;
 }
 
-status_t Camera3Device::captureList(const List<const CameraMetadata> &requests) {
+status_t Camera3Device::captureList(const List<const CameraMetadata> &requests,
+                                    int64_t *lastFrameNumber) {
     ATRACE_CALL();
 
-    return submitRequestsHelper(requests, /*repeating*/false);
+    return submitRequestsHelper(requests, /*repeating*/false, lastFrameNumber);
 }
 
-status_t Camera3Device::setStreamingRequest(const CameraMetadata &request) {
+status_t Camera3Device::setStreamingRequest(const CameraMetadata &request,
+                                            int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     status_t res;
     Mutex::Autolock il(mInterfaceLock);
@@ -550,10 +576,11 @@ status_t Camera3Device::setStreamingRequest(const CameraMetadata &request) {
     return res;
 }
 
-status_t Camera3Device::setStreamingRequestList(const List<const CameraMetadata> &requests) {
+status_t Camera3Device::setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                                int64_t *lastFrameNumber) {
     ATRACE_CALL();
 
-    return submitRequestsHelper(requests, /*repeating*/true);
+    return submitRequestsHelper(requests, /*repeating*/true, lastFrameNumber);
 }
 
 sp<Camera3Device::CaptureRequest> Camera3Device::setUpRequestLocked(
@@ -576,7 +603,7 @@ sp<Camera3Device::CaptureRequest> Camera3Device::setUpRequestLocked(
     return newRequest;
 }
 
-status_t Camera3Device::clearStreamingRequest() {
+status_t Camera3Device::clearStreamingRequest(int64_t *lastFrameNumber) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
@@ -598,6 +625,13 @@ status_t Camera3Device::clearStreamingRequest() {
             return INVALID_OPERATION;
     }
     ALOGV("Camera %d: Clearing repeating request", mId);
+
+    if (lastFrameNumber != NULL) {
+        *lastFrameNumber = mRequestThread->getLastFrameNumber();
+        ALOGV("%s: lastFrameNumber address %p, value %" PRId64, __FUNCTION__, lastFrameNumber,
+              *lastFrameNumber);
+    }
+
     return mRequestThread->clearRepeatingRequests();
 }
 
@@ -1115,7 +1149,7 @@ status_t Camera3Device::waitForNextFrame(nsecs_t timeout) {
     return OK;
 }
 
-status_t Camera3Device::getNextFrame(CameraMetadata *frame) {
+status_t Camera3Device::getNextResult(CaptureResult *frame) {
     ATRACE_CALL();
     Mutex::Autolock l(mOutputLock);
 
@@ -1123,8 +1157,14 @@ status_t Camera3Device::getNextFrame(CameraMetadata *frame) {
         return NOT_ENOUGH_DATA;
     }
 
-    CameraMetadata &result = *(mResultQueue.begin());
-    frame->acquire(result);
+    if (frame == NULL) {
+        ALOGE("%s: argument cannot be NULL", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    CaptureResult &result = *(mResultQueue.begin());
+    frame->mResultExtras = result.mResultExtras;
+    frame->mMetadata.acquire(result.mMetadata);
     mResultQueue.erase(mResultQueue.begin());
 
     return OK;
@@ -1202,11 +1242,15 @@ status_t Camera3Device::pushReprocessBuffer(int reprocessStreamId,
     return INVALID_OPERATION;
 }
 
-status_t Camera3Device::flush() {
+status_t Camera3Device::flush(int64_t *frameNumber) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d: Flushing all requests", __FUNCTION__, mId);
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
+
+    if (frameNumber != NULL) {
+        *frameNumber = mRequestThread->getLastFrameNumber();
+    }
 
     mRequestThread->clear();
     status_t res;
@@ -1484,13 +1528,13 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
  * In-flight request management
  */
 
-status_t Camera3Device::registerInFlight(int32_t frameNumber,
-        int32_t requestId, int32_t numBuffers) {
+status_t Camera3Device::registerInFlight(uint32_t frameNumber,
+        int32_t numBuffers, CaptureResultExtras resultExtras) {
     ATRACE_CALL();
     Mutex::Autolock l(mInFlightLock);
 
     ssize_t res;
-    res = mInFlightMap.add(frameNumber, InFlightRequest(requestId, numBuffers));
+    res = mInFlightMap.add(frameNumber, InFlightRequest(numBuffers, resultExtras));
     if (res < 0) return res;
 
     return OK;
@@ -1502,8 +1546,8 @@ status_t Camera3Device::registerInFlight(int32_t frameNumber,
  * to the output frame queue
  */
 bool Camera3Device::processPartial3AQuirk(
-        int32_t frameNumber, int32_t requestId,
-        const CameraMetadata& partial) {
+        uint32_t frameNumber,
+        const CameraMetadata& partial, const CaptureResultExtras& resultExtras) {
 
     // Check if all 3A states are present
     // The full list of fields is
@@ -1567,58 +1611,63 @@ bool Camera3Device::processPartial3AQuirk(
 
     Mutex::Autolock l(mOutputLock);
 
-    CameraMetadata& min3AResult =
-            *mResultQueue.insert(
-                mResultQueue.end(),
-                CameraMetadata(kMinimal3AResultEntries, /*dataCapacity*/ 0));
+    CaptureResult captureResult;
+    captureResult.mResultExtras = resultExtras;
+    captureResult.mMetadata = CameraMetadata(kMinimal3AResultEntries, /*dataCapacity*/ 0);
+    // TODO: change this to sp<CaptureResult>. This will need other changes, including,
+    // but not limited to CameraDeviceBase::getNextResult
+    CaptureResult& min3AResult =
+            *mResultQueue.insert(mResultQueue.end(), captureResult);
 
-    if (!insert3AResult(min3AResult, ANDROID_REQUEST_FRAME_COUNT,
-            &frameNumber, frameNumber)) {
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_REQUEST_FRAME_COUNT,
+            // TODO: This is problematic casting. Need to fix CameraMetadata.
+            reinterpret_cast<int32_t*>(&frameNumber), frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_REQUEST_ID,
+    int32_t requestId = resultExtras.requestId;
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_REQUEST_ID,
             &requestId, frameNumber)) {
         return false;
     }
 
     static const uint8_t partialResult = ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL;
-    if (!insert3AResult(min3AResult, ANDROID_QUIRKS_PARTIAL_RESULT,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_QUIRKS_PARTIAL_RESULT,
             &partialResult, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AF_MODE,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_MODE,
             &afMode, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AWB_MODE,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AWB_MODE,
             &awbMode, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AE_STATE,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AE_STATE,
             &aeState, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AF_STATE,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_STATE,
             &afState, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AWB_STATE,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AWB_STATE,
             &awbState, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AF_TRIGGER_ID,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_TRIGGER_ID,
             &afTriggerId, frameNumber)) {
         return false;
     }
 
-    if (!insert3AResult(min3AResult, ANDROID_CONTROL_AE_PRECAPTURE_ID,
+    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AE_PRECAPTURE_ID,
             &aeTriggerId, frameNumber)) {
         return false;
     }
@@ -1630,7 +1679,7 @@ bool Camera3Device::processPartial3AQuirk(
 
 template<typename T>
 bool Camera3Device::get3AResult(const CameraMetadata& result, int32_t tag,
-        T* value, int32_t frameNumber) {
+        T* value, uint32_t frameNumber) {
     (void) frameNumber;
 
     camera_metadata_ro_entry_t entry;
@@ -1655,7 +1704,7 @@ bool Camera3Device::get3AResult(const CameraMetadata& result, int32_t tag,
 
 template<typename T>
 bool Camera3Device::insert3AResult(CameraMetadata& result, int32_t tag,
-        const T* value, int32_t frameNumber) {
+        const T* value, uint32_t frameNumber) {
     if (result.update(tag, value, 1) != NO_ERROR) {
         mResultQueue.erase(--mResultQueue.end(), mResultQueue.end());
         SET_ERR("Frame %d: Failed to set %s in partial metadata",
@@ -1682,11 +1731,12 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     }
     bool partialResultQuirk = false;
     CameraMetadata collectedQuirkResult;
+    CaptureResultExtras resultExtras;
 
-    // Get capture timestamp from list of in-flight requests, where it was added
-    // by the shutter notification for this frame. Then update the in-flight
-    // status and remove the in-flight entry if all result data has been
-    // received.
+    // Get capture timestamp and resultExtras from list of in-flight requests,
+    // where it was added by the shutter notification for this frame.
+    // Then update the in-flight status and remove the in-flight entry if
+    // all result data has been received.
     nsecs_t timestamp = 0;
     {
         Mutex::Autolock l(mInFlightLock);
@@ -1697,6 +1747,10 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             return;
         }
         InFlightRequest &request = mInFlightMap.editValueAt(idx);
+        ALOGVV("%s: got InFlightRequest requestId = %" PRId32 ", frameNumber = %" PRId64
+                ", burstId = %" PRId32,
+                __FUNCTION__, request.resultExtras.requestId, request.resultExtras.frameNumber,
+                request.resultExtras.burstId);
 
         // Check if this result carries only partial metadata
         if (mUsePartialResultQuirk && result->result != NULL) {
@@ -1718,13 +1772,17 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 if (!request.partialResultQuirk.haveSent3A) {
                     request.partialResultQuirk.haveSent3A =
                             processPartial3AQuirk(frameNumber,
-                                    request.requestId,
-                                    request.partialResultQuirk.collectedResult);
+                                    request.partialResultQuirk.collectedResult,
+                                    request.resultExtras);
                 }
             }
         }
 
         timestamp = request.captureTimestamp;
+        resultExtras = request.resultExtras;
+        ALOGVV("%s: after checking partial burstId = %d, frameNumber %lld", __FUNCTION__,
+                request.resultExtras.burstId, request.resultExtras.frameNumber);
+
         /**
          * One of the following must happen before it's legal to call process_capture_result,
          * unless partial metadata is being provided:
@@ -1791,11 +1849,12 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
         mNextResultFrameNumber++;
 
-        CameraMetadata captureResult;
-        captureResult = result->result;
+        CaptureResult captureResult;
+        captureResult.mResultExtras = resultExtras;
+        captureResult.mMetadata = result->result;
 
-        if (captureResult.update(ANDROID_REQUEST_FRAME_COUNT,
-                        (int32_t*)&frameNumber, 1) != OK) {
+        if (captureResult.mMetadata.update(ANDROID_REQUEST_FRAME_COUNT,
+                (int32_t*)&frameNumber, 1) != OK) {
             SET_ERR("Failed to set frame# in metadata (%d)",
                     frameNumber);
             gotResult = false;
@@ -1806,15 +1865,15 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         // Append any previous partials to form a complete result
         if (mUsePartialResultQuirk && !collectedQuirkResult.isEmpty()) {
-            captureResult.append(collectedQuirkResult);
+            captureResult.mMetadata.append(collectedQuirkResult);
         }
 
-        captureResult.sort();
+        captureResult.mMetadata.sort();
 
         // Check that there's a timestamp in the result metadata
 
         camera_metadata_entry entry =
-                captureResult.find(ANDROID_SENSOR_TIMESTAMP);
+                captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
         if (entry.count == 0) {
             SET_ERR("No timestamp provided by HAL for frame %d!",
                     frameNumber);
@@ -1828,9 +1887,13 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         if (gotResult) {
             // Valid result, insert into queue
-            CameraMetadata& queuedResult =
-                *mResultQueue.insert(mResultQueue.end(), CameraMetadata());
-            queuedResult.swap(captureResult);
+            List<CaptureResult>::iterator queuedResult =
+                    mResultQueue.insert(mResultQueue.end(), CaptureResult(captureResult));
+            ALOGVV("%s: result requestId = %" PRId32 ", frameNumber = %" PRId64
+                   ", burstId = %" PRId32, __FUNCTION__,
+                   queuedResult->mResultExtras.requestId,
+                   queuedResult->mResultExtras.frameNumber,
+                   queuedResult->mResultExtras.burstId);
         }
     } // scope for mOutputLock
 
@@ -1855,8 +1918,6 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     }
 
 }
-
-
 
 void Camera3Device::notify(const camera3_notify_msg *msg) {
     ATRACE_CALL();
@@ -1884,18 +1945,32 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                     mId, __FUNCTION__, msg->message.error.frame_number,
                     streamId, msg->message.error.error_code);
 
+            CaptureResultExtras resultExtras;
             // Set request error status for the request in the in-flight tracking
             {
                 Mutex::Autolock l(mInFlightLock);
                 ssize_t idx = mInFlightMap.indexOfKey(msg->message.error.frame_number);
                 if (idx >= 0) {
-                    mInFlightMap.editValueAt(idx).requestStatus = msg->message.error.error_code;
+                    InFlightRequest &r = mInFlightMap.editValueAt(idx);
+                    r.requestStatus = msg->message.error.error_code;
+                    resultExtras = r.resultExtras;
+                } else {
+                    resultExtras.frameNumber = msg->message.error.frame_number;
+                    ALOGE("Camera %d: %s: cannot find in-flight request on frame %" PRId64
+                          " error", mId, __FUNCTION__, resultExtras.frameNumber);
                 }
             }
 
             if (listener != NULL) {
-                listener->notifyError(msg->message.error.error_code,
-                        msg->message.error.frame_number, streamId);
+                if (msg->message.error.error_code == CAMERA3_MSG_ERROR_DEVICE) {
+                    listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
+                                          resultExtras);
+                } else {
+                    listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE,
+                                          resultExtras);
+                }
+            } else {
+                ALOGE("Camera %d: %s: no listener available", mId, __FUNCTION__);
             }
             break;
         }
@@ -1915,7 +1990,7 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                 mNextShutterFrameNumber++;
             }
 
-            int32_t requestId = -1;
+            CaptureResultExtras resultExtras;
 
             // Set timestamp for the request in the in-flight tracking
             // and get the request ID to send upstream
@@ -1925,7 +2000,7 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                 if (idx >= 0) {
                     InFlightRequest &r = mInFlightMap.editValueAt(idx);
                     r.captureTimestamp = timestamp;
-                    requestId = r.requestId;
+                    resultExtras = r.resultExtras;
                 }
             }
             if (idx < 0) {
@@ -1934,10 +2009,10 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                 break;
             }
             ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
-                    mId, __FUNCTION__, frameNumber, requestId, timestamp);
+                    mId, __FUNCTION__, frameNumber, resultExtras.requestId, timestamp);
             // Call listener, if any
             if (listener != NULL) {
-                listener->notifyShutter(requestId, timestamp);
+                listener->notifyShutter(resultExtras, timestamp);
             }
             break;
         }
@@ -1959,6 +2034,7 @@ CameraMetadata Camera3Device::getLatestRequestLocked() {
     return retVal;
 }
 
+
 /**
  * RequestThread inner class methods
  */
@@ -1975,7 +2051,8 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mDoPause(false),
         mPaused(true),
         mFrameNumber(0),
-        mLatestRequestId(NAME_NOT_FOUND) {
+        mLatestRequestId(NAME_NOT_FOUND),
+        mLastFrameNumber(-1) {
     mStatusId = statusTracker->addComponent();
 }
 
@@ -1989,6 +2066,8 @@ status_t Camera3Device::RequestThread::queueRequest(
     Mutex::Autolock l(mRequestLock);
     mRequestQueue.push_back(request);
 
+    mLastFrameNumber++;
+
     unpauseForNewRequests();
 
     return OK;
@@ -2001,6 +2080,8 @@ status_t Camera3Device::RequestThread::queueRequestList(
             ++it) {
         mRequestQueue.push_back(*it);
     }
+
+    mLastFrameNumber += requests.size();
 
     unpauseForNewRequests();
 
@@ -2086,6 +2167,7 @@ status_t Camera3Device::RequestThread::clear() {
     mRepeatingRequests.clear();
     mRequestQueue.clear();
     mTriggerMap.clear();
+    // Question: no need to reset frame number?
     return OK;
 }
 
@@ -2242,6 +2324,8 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     request.frame_number = mFrameNumber++;
+    // Update frameNumber of CaptureResultExtras
+    nextRequest->mResultExtras.frameNumber = request.frame_number;
 
     // Log request in the in-flight queue
     sp<Camera3Device> parent = mParent.promote();
@@ -2251,8 +2335,12 @@ bool Camera3Device::RequestThread::threadLoop() {
         return false;
     }
 
-    res = parent->registerInFlight(request.frame_number, requestId,
-            request.num_output_buffers);
+    res = parent->registerInFlight(request.frame_number,
+            request.num_output_buffers, nextRequest->mResultExtras);
+    ALOGVV("%s: registered in flight requestId = %d, frameNumber = %lld, burstId = %d ",
+            __FUNCTION__,
+            nextRequest->mResultExtras.requestId, nextRequest->mResultExtras.frameNumber,
+            nextRequest->mResultExtras.burstId);
     if (res != OK) {
         SET_ERR("RequestThread: Unable to register new in-flight request:"
                 " %s (%d)", strerror(-res), res);
@@ -2329,6 +2417,14 @@ CameraMetadata Camera3Device::RequestThread::getLatestRequest() const {
     return mLatestRequest;
 }
 
+int64_t Camera3Device::RequestThread::getLastFrameNumber() {
+    Mutex::Autolock al(mRequestLock);
+
+    ALOGV("RequestThread::%s", __FUNCTION__);
+
+    return mLastFrameNumber;
+}
+
 void Camera3Device::RequestThread::cleanUpFailedRequest(
         camera3_capture_request_t &request,
         sp<CaptureRequest> &nextRequest,
@@ -2370,6 +2466,9 @@ sp<Camera3Device::CaptureRequest>
                     ++firstRequest,
                     requests.end());
             // No need to wait any longer
+
+            mLastFrameNumber += requests.size();
+
             break;
         }
 

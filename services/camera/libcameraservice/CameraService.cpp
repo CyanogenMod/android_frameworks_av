@@ -1116,7 +1116,8 @@ void CameraService::BasicClient::opChanged(int32_t op, const String16& packageNa
         // Reset the client PID to allow server-initiated disconnect,
         // and to prevent further calls by client.
         mClientPid = getCallingPid();
-        notifyError();
+        CaptureResultExtras resultExtras; // a dummy result (invalid)
+        notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE, resultExtras);
         disconnect();
     }
 }
@@ -1145,7 +1146,8 @@ CameraService::Client* CameraService::Client::getClientFromCookie(void* user) {
     return client;
 }
 
-void CameraService::Client::notifyError() {
+void CameraService::Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+        const CaptureResultExtras& resultExtras) {
     mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
 }
 
@@ -1199,7 +1201,8 @@ CameraService::ProClient::ProClient(const sp<CameraService>& cameraService,
 CameraService::ProClient::~ProClient() {
 }
 
-void CameraService::ProClient::notifyError() {
+void CameraService::ProClient::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+        const CaptureResultExtras& resultExtras) {
     mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
 }
 

@@ -24,8 +24,10 @@
 #include <utils/Timers.h>
 #include <utils/List.h>
 
+#include <camera/camera2/ICameraDeviceCallbacks.h>
 #include "hardware/camera2.h"
 #include "camera/CameraMetadata.h"
+#include "camera/CaptureResult.h"
 
 namespace android {
 
@@ -45,7 +47,7 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t initialize(camera_module_t *module) = 0;
     virtual status_t disconnect() = 0;
 
-    virtual status_t dump(int fd, const Vector<String16>& args) = 0;
+    virtual status_t dump(int fd, const Vector<String16> &args) = 0;
 
     /**
      * The device's static characteristics metadata buffer
@@ -55,29 +57,37 @@ class CameraDeviceBase : public virtual RefBase {
     /**
      * Submit request for capture. The CameraDevice takes ownership of the
      * passed-in buffer.
+     * Output lastFrameNumber is the expected frame number of this request.
      */
-    virtual status_t capture(CameraMetadata &request) = 0;
+    virtual status_t capture(CameraMetadata &request, int64_t *lastFrameNumber = NULL) = 0;
 
     /**
      * Submit a list of requests.
+     * Output lastFrameNumber is the expected last frame number of the list of requests.
      */
-    virtual status_t captureList(const List<const CameraMetadata> &requests) = 0;
+    virtual status_t captureList(const List<const CameraMetadata> &requests,
+                                 int64_t *lastFrameNumber = NULL) = 0;
 
     /**
      * Submit request for streaming. The CameraDevice makes a copy of the
      * passed-in buffer and the caller retains ownership.
+     * Output lastFrameNumber is the last frame number of the previous streaming request.
      */
-    virtual status_t setStreamingRequest(const CameraMetadata &request) = 0;
+    virtual status_t setStreamingRequest(const CameraMetadata &request,
+                                         int64_t *lastFrameNumber = NULL) = 0;
 
     /**
      * Submit a list of requests for streaming.
+     * Output lastFrameNumber is the last frame number of the previous streaming request.
      */
-    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests) = 0;
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                             int64_t *lastFrameNumber = NULL) = 0;
 
     /**
      * Clear the streaming request slot.
+     * Output lastFrameNumber is the last frame number of the previous streaming request.
      */
-    virtual status_t clearStreamingRequest() = 0;
+    virtual status_t clearStreamingRequest(int64_t *lastFrameNumber = NULL) = 0;
 
     /**
      * Wait until a request with the given ID has been dequeued by the
@@ -153,11 +163,12 @@ class CameraDeviceBase : public virtual RefBase {
         // API1 and API2.
 
         // Required for API 1 and 2
-        virtual void notifyError(int errorCode, int arg1, int arg2) = 0;
+        virtual void notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                 const CaptureResultExtras &resultExtras) = 0;
 
         // Required only for API2
         virtual void notifyIdle() = 0;
-        virtual void notifyShutter(int requestId,
+        virtual void notifyShutter(const CaptureResultExtras &resultExtras,
                 nsecs_t timestamp) = 0;
 
         // Required only for API1
@@ -190,11 +201,12 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t waitForNextFrame(nsecs_t timeout) = 0;
 
     /**
-     * Get next metadata frame from the frame queue. Returns NULL if the queue
-     * is empty; caller takes ownership of the metadata buffer.
-     * May be called concurrently to most methods, except for waitForNextFrame
+     * Get next capture result frame from the result queue. Returns NOT_ENOUGH_DATA
+     * if the queue is empty; caller takes ownership of the metadata buffer inside
+     * the capture result object's metadata field.
+     * May be called concurrently to most methods, except for waitForNextFrame.
      */
-    virtual status_t getNextFrame(CameraMetadata *frame) = 0;
+    virtual status_t getNextResult(CaptureResult *frame) = 0;
 
     /**
      * Trigger auto-focus. The latest ID used in a trigger autofocus or cancel
@@ -235,8 +247,9 @@ class CameraDeviceBase : public virtual RefBase {
     /**
      * Flush all pending and in-flight requests. Blocks until flush is
      * complete.
+     * Output lastFrameNumber is the last frame number of the previous streaming request.
      */
-    virtual status_t flush() = 0;
+    virtual status_t flush(int64_t *lastFrameNumber = NULL) = 0;
 
 };
 

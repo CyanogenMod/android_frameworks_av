@@ -24,6 +24,7 @@
 #include <utils/Thread.h>
 #include <utils/KeyedVector.h>
 #include <hardware/camera3.h>
+#include <camera/CaptureResult.h>
 
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
@@ -78,11 +79,14 @@ class Camera3Device :
 
     // Capture and setStreamingRequest will configure streams if currently in
     // idle state
-    virtual status_t capture(CameraMetadata &request);
-    virtual status_t captureList(const List<const CameraMetadata> &requests);
-    virtual status_t setStreamingRequest(const CameraMetadata &request);
-    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests);
-    virtual status_t clearStreamingRequest();
+    virtual status_t capture(CameraMetadata &request, int64_t *lastFrameNumber = NULL);
+    virtual status_t captureList(const List<const CameraMetadata> &requests,
+                                 int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequest(const CameraMetadata &request,
+                                         int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                             int64_t *lastFrameNumber = NULL);
+    virtual status_t clearStreamingRequest(int64_t *lastFrameNumber = NULL);
 
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
 
@@ -118,7 +122,7 @@ class Camera3Device :
     virtual status_t setNotifyCallback(NotificationListener *listener);
     virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
-    virtual status_t getNextFrame(CameraMetadata *frame);
+    virtual status_t getNextResult(CaptureResult *frame);
 
     virtual status_t triggerAutofocus(uint32_t id);
     virtual status_t triggerCancelAutofocus(uint32_t id);
@@ -127,7 +131,7 @@ class Camera3Device :
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
-    virtual status_t flush();
+    virtual status_t flush(int64_t *lastFrameNumber = NULL);
 
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker
@@ -200,6 +204,7 @@ class Camera3Device :
         sp<camera3::Camera3Stream>          mInputStream;
         Vector<sp<camera3::Camera3OutputStreamInterface> >
                                             mOutputStreams;
+        CaptureResultExtras                 mResultExtras;
     };
     typedef List<sp<CaptureRequest> > RequestList;
 
@@ -209,7 +214,8 @@ class Camera3Device :
             const List<const CameraMetadata> &metadataList,
             /*out*/RequestList *requestList);
 
-    status_t submitRequestsHelper(const List<const CameraMetadata> &requests, bool repeating);
+    status_t submitRequestsHelper(const List<const CameraMetadata> &requests, bool repeating,
+                                  int64_t *lastFrameNumber = NULL);
 
     /**
      * Get the last request submitted to the hal by the request thread.
@@ -371,6 +377,8 @@ class Camera3Device :
          */
         CameraMetadata getLatestRequest() const;
 
+        int64_t getLastFrameNumber();
+
       protected:
 
         virtual bool threadLoop();
@@ -447,6 +455,8 @@ class Camera3Device :
         TriggerMap         mTriggerMap;
         TriggerMap         mTriggerRemovedMap;
         TriggerMap         mTriggerReplacedMap;
+
+        int64_t            mLastFrameNumber;
     };
     sp<RequestThread> mRequestThread;
 
@@ -455,8 +465,6 @@ class Camera3Device :
      */
 
     struct InFlightRequest {
-        // android.request.id for the request
-        int     requestId;
         // Set by notify() SHUTTER call.
         nsecs_t captureTimestamp;
         int     requestStatus;
@@ -465,6 +473,7 @@ class Camera3Device :
         // Decremented by calls to process_capture_result with valid output
         // buffers
         int     numBuffersLeft;
+        CaptureResultExtras resultExtras;
 
         // Fields used by the partial result quirk only
         struct PartialResultQuirkInFlight {
@@ -480,19 +489,25 @@ class Camera3Device :
 
         // Default constructor needed by KeyedVector
         InFlightRequest() :
-                requestId(0),
                 captureTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(0) {
         }
 
-        InFlightRequest(int id, int numBuffers) :
-                requestId(id),
+        InFlightRequest(int numBuffers) :
                 captureTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers) {
+        }
+
+        InFlightRequest(int numBuffers, CaptureResultExtras extras) :
+                captureTimestamp(0),
+                requestStatus(OK),
+                haveResultMetadata(false),
+                numBuffersLeft(numBuffers),
+                resultExtras(extras) {
         }
     };
     // Map from frame number to the in-flight request state
@@ -501,25 +516,25 @@ class Camera3Device :
     Mutex                  mInFlightLock; // Protects mInFlightMap
     InFlightMap            mInFlightMap;
 
-    status_t registerInFlight(int32_t frameNumber, int32_t requestId,
-            int32_t numBuffers);
+    status_t registerInFlight(uint32_t frameNumber,
+            int32_t numBuffers, CaptureResultExtras resultExtras);
 
     /**
      * For the partial result quirk, check if all 3A state fields are available
      * and if so, queue up 3A-only result to the client. Returns true if 3A
      * is sent.
      */
-    bool processPartial3AQuirk(int32_t frameNumber, int32_t requestId,
-            const CameraMetadata& partial);
+    bool processPartial3AQuirk(uint32_t frameNumber,
+            const CameraMetadata& partial, const CaptureResultExtras& resultExtras);
 
     // Helpers for reading and writing 3A metadata into to/from partial results
     template<typename T>
     bool get3AResult(const CameraMetadata& result, int32_t tag,
-            T* value, int32_t frameNumber);
+            T* value, uint32_t frameNumber);
 
     template<typename T>
     bool insert3AResult(CameraMetadata &result, int32_t tag, const T* value,
-            int32_t frameNumber);
+            uint32_t frameNumber);
     /**
      * Tracking for idle detection
      */
@@ -536,7 +551,7 @@ class Camera3Device :
 
     uint32_t               mNextResultFrameNumber;
     uint32_t               mNextShutterFrameNumber;
-    List<CameraMetadata>   mResultQueue;
+    List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
     NotificationListener  *mListener;
 

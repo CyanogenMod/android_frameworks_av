@@ -50,8 +50,8 @@ class ZslProcessor3 :
     ZslProcessor3(sp<Camera2Client> client, wp<CaptureSequencer> sequencer);
     ~ZslProcessor3();
 
-    // From FrameProcessor
-    virtual void onFrameAvailable(int32_t requestId, const CameraMetadata &frame);
+    // From FrameProcessor::FilteredListener
+    virtual void onResultAvailable(const CaptureResult &result);
 
     /**
      ****************************************

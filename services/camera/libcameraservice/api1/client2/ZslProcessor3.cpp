@@ -63,18 +63,19 @@ ZslProcessor3::~ZslProcessor3() {
     deleteStream();
 }
 
-void ZslProcessor3::onFrameAvailable(int32_t /*requestId*/,
-                                     const CameraMetadata &frame) {
+void ZslProcessor3::onResultAvailable(const CaptureResult &result) {
+    ATRACE_CALL();
+    ALOGV("%s:", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
     camera_metadata_ro_entry_t entry;
-    entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
+    entry = result.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
     (void)timestamp;
     ALOGVV("Got preview metadata for timestamp %" PRId64, timestamp);
 
     if (mState != RUNNING) return;
 
-    mFrameList.editItemAt(mFrameListHead) = frame;
+    mFrameList.editItemAt(mFrameListHead) = result.mMetadata;
     mFrameListHead = (mFrameListHead + 1) % kFrameListDepth;
 }
 
