@@ -31,6 +31,10 @@ class Surface;
 class CaptureRequest;
 class CameraMetadata;
 
+enum {
+    NO_IN_FLIGHT_REPEATING_FRAMES = -1,
+};
+
 class ICameraDeviceUser : public IInterface
 {
     /**

@@ -25,6 +25,7 @@
 #include <utils/KeyedVector.h>
 #include <hardware/camera3.h>
 #include <camera/CaptureResult.h>
+#include <camera/camera2/ICameraDeviceUser.h>
 
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
@@ -212,7 +213,8 @@ class Camera3Device :
 
     status_t convertMetadataListToRequestListLocked(
             const List<const CameraMetadata> &metadataList,
-            /*out*/RequestList *requestList);
+            /*out*/
+            RequestList *requestList);
 
     status_t submitRequestsHelper(const List<const CameraMetadata> &requests, bool repeating,
                                   int64_t *lastFrameNumber = NULL);
@@ -330,17 +332,21 @@ class Camera3Device :
          * on either. Use waitUntilPaused to wait until request queue
          * has emptied out.
          */
-        status_t setRepeatingRequests(const RequestList& requests);
-        status_t clearRepeatingRequests();
+        status_t setRepeatingRequests(const RequestList& requests,
+                                      /*out*/
+                                      int64_t *lastFrameNumber = NULL);
+        status_t clearRepeatingRequests(/*out*/
+                                        int64_t *lastFrameNumber = NULL);
 
-        status_t queueRequest(sp<CaptureRequest> request);
-
-        status_t queueRequestList(List<sp<CaptureRequest> > &requests);
+        status_t queueRequestList(List<sp<CaptureRequest> > &requests,
+                                  /*out*/
+                                  int64_t *lastFrameNumber = NULL);
 
         /**
          * Remove all queued and repeating requests, and pending triggers
          */
-        status_t clear();
+        status_t clear(/*out*/
+                       int64_t *lastFrameNumber = NULL);
 
         /**
          * Queue a trigger to be dispatched with the next outgoing
@@ -376,8 +382,6 @@ class Camera3Device :
          * with process_capture_request.
          */
         CameraMetadata getLatestRequest() const;
-
-        int64_t getLastFrameNumber();
 
       protected:
 
@@ -456,7 +460,7 @@ class Camera3Device :
         TriggerMap         mTriggerRemovedMap;
         TriggerMap         mTriggerReplacedMap;
 
-        int64_t            mLastFrameNumber;
+        int64_t            mRepeatingLastFrameNumber;
     };
     sp<RequestThread> mRequestThread;
 

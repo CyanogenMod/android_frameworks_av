@@ -422,62 +422,24 @@ status_t Camera3Device::convertMetadataListToRequestListLocked(
         }
 
         requestList->push_back(newRequest);
-        if (newRequest->mResultExtras.requestId > 0) {
-            ALOGV("%s: requestId = %" PRId32, __FUNCTION__, newRequest->mResultExtras.requestId);
-        }
+
+        ALOGV("%s: requestId = %" PRId32, __FUNCTION__, newRequest->mResultExtras.requestId);
     }
     return OK;
 }
 
 status_t Camera3Device::capture(CameraMetadata &request, int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
-    status_t res;
-    Mutex::Autolock il(mInterfaceLock);
-    Mutex::Autolock l(mLock);
 
-    // TODO: take ownership of the request
-
-    switch (mStatus) {
-        case STATUS_ERROR:
-            CLOGE("Device has encountered a serious error");
-            return INVALID_OPERATION;
-        case STATUS_UNINITIALIZED:
-            CLOGE("Device not initialized");
-            return INVALID_OPERATION;
-        case STATUS_UNCONFIGURED:
-            // May be lazily configuring streams, will check during setup
-        case STATUS_CONFIGURED:
-        case STATUS_ACTIVE:
-            // OK
-            break;
-        default:
-            SET_ERR_L("Unexpected status: %d", mStatus);
-            return INVALID_OPERATION;
-    }
-
-    sp<CaptureRequest> newRequest = setUpRequestLocked(request);
-    if (newRequest == NULL) {
-        CLOGE("Can't create capture request");
-        return BAD_VALUE;
-    }
-
-    res = mRequestThread->queueRequest(newRequest);
-    if (res == OK) {
-        waitUntilStateThenRelock(/*active*/ true, kActiveTimeout);
-        if (res != OK) {
-            SET_ERR_L("Can't transition to active in %f seconds!",
-                    kActiveTimeout/1e9);
-        }
-        ALOGV("Camera %d: Capture request enqueued", mId);
-    } else {
-        CLOGE("Cannot queue request. Impossible."); // queueRequest always returns OK.
-        return BAD_VALUE;
-    }
-    return res;
+    List<const CameraMetadata> requests;
+    requests.push_back(request);
+    return captureList(requests, /*lastFrameNumber*/NULL);
 }
 
 status_t Camera3Device::submitRequestsHelper(
-        const List<const CameraMetadata> &requests, bool repeating, int64_t *lastFrameNumber) {
+        const List<const CameraMetadata> &requests, bool repeating,
+        /*out*/
+        int64_t *lastFrameNumber) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
@@ -497,15 +459,9 @@ status_t Camera3Device::submitRequestsHelper(
     }
 
     if (repeating) {
-        if (lastFrameNumber != NULL) {
-            *lastFrameNumber = mRequestThread->getLastFrameNumber();
-        }
-        res = mRequestThread->setRepeatingRequests(requestList);
+        res = mRequestThread->setRepeatingRequests(requestList, lastFrameNumber);
     } else {
-        res = mRequestThread->queueRequestList(requestList);
-        if (lastFrameNumber != NULL) {
-            *lastFrameNumber = mRequestThread->getLastFrameNumber();
-        }
+        res = mRequestThread->queueRequestList(requestList, lastFrameNumber);
     }
 
     if (res == OK) {
@@ -514,7 +470,8 @@ status_t Camera3Device::submitRequestsHelper(
             SET_ERR_L("Can't transition to active in %f seconds!",
                     kActiveTimeout/1e9);
         }
-        ALOGV("Camera %d: Capture request enqueued", mId);
+        ALOGV("Camera %d: Capture request %" PRId32 " enqueued", mId,
+              (*(requestList.begin()))->mResultExtras.requestId);
     } else {
         CLOGE("Cannot queue request. Impossible.");
         return BAD_VALUE;
@@ -533,47 +490,10 @@ status_t Camera3Device::captureList(const List<const CameraMetadata> &requests,
 status_t Camera3Device::setStreamingRequest(const CameraMetadata &request,
                                             int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
-    status_t res;
-    Mutex::Autolock il(mInterfaceLock);
-    Mutex::Autolock l(mLock);
 
-    switch (mStatus) {
-        case STATUS_ERROR:
-            CLOGE("Device has encountered a serious error");
-            return INVALID_OPERATION;
-        case STATUS_UNINITIALIZED:
-            CLOGE("Device not initialized");
-            return INVALID_OPERATION;
-        case STATUS_UNCONFIGURED:
-            // May be lazily configuring streams, will check during setup
-        case STATUS_CONFIGURED:
-        case STATUS_ACTIVE:
-            // OK
-            break;
-        default:
-            SET_ERR_L("Unexpected status: %d", mStatus);
-            return INVALID_OPERATION;
-    }
-
-    sp<CaptureRequest> newRepeatingRequest = setUpRequestLocked(request);
-    if (newRepeatingRequest == NULL) {
-        CLOGE("Can't create repeating request");
-        return BAD_VALUE;
-    }
-
-    RequestList newRepeatingRequests;
-    newRepeatingRequests.push_back(newRepeatingRequest);
-
-    res = mRequestThread->setRepeatingRequests(newRepeatingRequests);
-    if (res == OK) {
-        waitUntilStateThenRelock(/*active*/ true, kActiveTimeout);
-        if (res != OK) {
-            SET_ERR_L("Can't transition to active in %f seconds!",
-                    kActiveTimeout/1e9);
-        }
-        ALOGV("Camera %d: Repeating request set", mId);
-    }
-    return res;
+    List<const CameraMetadata> requests;
+    requests.push_back(request);
+    return setStreamingRequestList(requests, /*lastFrameNumber*/NULL);
 }
 
 status_t Camera3Device::setStreamingRequestList(const List<const CameraMetadata> &requests,
@@ -626,13 +546,7 @@ status_t Camera3Device::clearStreamingRequest(int64_t *lastFrameNumber) {
     }
     ALOGV("Camera %d: Clearing repeating request", mId);
 
-    if (lastFrameNumber != NULL) {
-        *lastFrameNumber = mRequestThread->getLastFrameNumber();
-        ALOGV("%s: lastFrameNumber address %p, value %" PRId64, __FUNCTION__, lastFrameNumber,
-              *lastFrameNumber);
-    }
-
-    return mRequestThread->clearRepeatingRequests();
+    return mRequestThread->clearRepeatingRequests(lastFrameNumber);
 }
 
 status_t Camera3Device::waitUntilRequestReceived(int32_t requestId, nsecs_t timeout) {
@@ -1248,11 +1162,7 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
 
-    if (frameNumber != NULL) {
-        *frameNumber = mRequestThread->getLastFrameNumber();
-    }
-
-    mRequestThread->clear();
+    mRequestThread->clear(/*out*/frameNumber);
     status_t res;
     if (mHal3Device->common.version >= CAMERA_DEVICE_API_VERSION_3_1) {
         res = mHal3Device->ops->flush(mHal3Device);
@@ -1596,7 +1506,7 @@ bool Camera3Device::processPartial3AQuirk(
     ALOGVV("%s: Camera %d: Frame %d, Request ID %d: AF mode %d, AWB mode %d, "
         "AF state %d, AE state %d, AWB state %d, "
         "AF trigger %d, AE precapture trigger %d",
-        __FUNCTION__, mId, frameNumber, requestId,
+        __FUNCTION__, mId, frameNumber, resultExtras.requestId,
         afMode, awbMode,
         afState, aeState, awbState,
         afTriggerId, aeTriggerId);
@@ -1780,8 +1690,6 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         timestamp = request.captureTimestamp;
         resultExtras = request.resultExtras;
-        ALOGVV("%s: after checking partial burstId = %d, frameNumber %lld", __FUNCTION__,
-                request.resultExtras.burstId, request.resultExtras.frameNumber);
 
         /**
          * One of the following must happen before it's legal to call process_capture_result,
@@ -2052,7 +1960,7 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mPaused(true),
         mFrameNumber(0),
         mLatestRequestId(NAME_NOT_FOUND),
-        mLastFrameNumber(-1) {
+        mRepeatingLastFrameNumber(NO_IN_FLIGHT_REPEATING_FRAMES) {
     mStatusId = statusTracker->addComponent();
 }
 
@@ -2061,27 +1969,22 @@ void Camera3Device::RequestThread::configurationComplete() {
     mReconfigured = true;
 }
 
-status_t Camera3Device::RequestThread::queueRequest(
-         sp<CaptureRequest> request) {
-    Mutex::Autolock l(mRequestLock);
-    mRequestQueue.push_back(request);
-
-    mLastFrameNumber++;
-
-    unpauseForNewRequests();
-
-    return OK;
-}
-
 status_t Camera3Device::RequestThread::queueRequestList(
-        List<sp<CaptureRequest> > &requests) {
+        List<sp<CaptureRequest> > &requests,
+        /*out*/
+        int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
     for (List<sp<CaptureRequest> >::iterator it = requests.begin(); it != requests.end();
             ++it) {
         mRequestQueue.push_back(*it);
     }
 
-    mLastFrameNumber += requests.size();
+    if (lastFrameNumber != NULL) {
+        *lastFrameNumber = mFrameNumber + mRequestQueue.size() - 1;
+        ALOGV("%s: requestId %d, mFrameNumber %" PRId32 ", lastFrameNumber %" PRId64 ".",
+              __FUNCTION__, (*(requests.begin()))->mResultExtras.requestId, mFrameNumber,
+              *lastFrameNumber);
+    }
 
     unpauseForNewRequests();
 
@@ -2145,29 +2048,43 @@ status_t Camera3Device::RequestThread::queueTriggerLocked(
 }
 
 status_t Camera3Device::RequestThread::setRepeatingRequests(
-        const RequestList &requests) {
+        const RequestList &requests,
+        /*out*/
+        int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
+    if (lastFrameNumber != NULL) {
+        *lastFrameNumber = mRepeatingLastFrameNumber;
+    }
     mRepeatingRequests.clear();
     mRepeatingRequests.insert(mRepeatingRequests.begin(),
             requests.begin(), requests.end());
 
     unpauseForNewRequests();
 
+    mRepeatingLastFrameNumber = NO_IN_FLIGHT_REPEATING_FRAMES;
     return OK;
 }
 
-status_t Camera3Device::RequestThread::clearRepeatingRequests() {
+status_t Camera3Device::RequestThread::clearRepeatingRequests(/*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
     mRepeatingRequests.clear();
+    if (lastFrameNumber != NULL) {
+        *lastFrameNumber = mRepeatingLastFrameNumber;
+    }
+    mRepeatingLastFrameNumber = NO_IN_FLIGHT_REPEATING_FRAMES;
     return OK;
 }
 
-status_t Camera3Device::RequestThread::clear() {
+status_t Camera3Device::RequestThread::clear(/*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
+    ALOGV("RequestThread::%s:", __FUNCTION__);
     mRepeatingRequests.clear();
     mRequestQueue.clear();
     mTriggerMap.clear();
-    // Question: no need to reset frame number?
+    if (lastFrameNumber != NULL) {
+        *lastFrameNumber = mRepeatingLastFrameNumber;
+    }
+    mRepeatingLastFrameNumber = NO_IN_FLIGHT_REPEATING_FRAMES;
     return OK;
 }
 
@@ -2219,6 +2136,7 @@ bool Camera3Device::RequestThread::threadLoop() {
 
     // Create request to HAL
     camera3_capture_request_t request = camera3_capture_request_t();
+    request.frame_number = nextRequest->mResultExtras.frameNumber;
     Vector<camera3_stream_buffer_t> outputBuffers;
 
     // Get the request ID, if any
@@ -2239,7 +2157,7 @@ bool Camera3Device::RequestThread::threadLoop() {
     if (res < 0) {
         SET_ERR("RequestThread: Unable to insert triggers "
                 "(capture request %d, HAL device: %s (%d)",
-                (mFrameNumber+1), strerror(-res), res);
+                request.frame_number, strerror(-res), res);
         cleanUpFailedRequest(request, nextRequest, outputBuffers);
         return false;
     }
@@ -2257,7 +2175,7 @@ bool Camera3Device::RequestThread::threadLoop() {
         if (res != OK) {
             SET_ERR("RequestThread: Unable to insert dummy trigger IDs "
                     "(capture request %d, HAL device: %s (%d)",
-                    (mFrameNumber+1), strerror(-res), res);
+                    request.frame_number, strerror(-res), res);
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return false;
         }
@@ -2281,7 +2199,7 @@ bool Camera3Device::RequestThread::threadLoop() {
             if (e.count > 0) {
                 ALOGV("%s: Request (frame num %d) had AF trigger 0x%x",
                       __FUNCTION__,
-                      mFrameNumber+1,
+                      request.frame_number,
                       e.data.u8[0]);
             }
         }
@@ -2323,10 +2241,6 @@ bool Camera3Device::RequestThread::threadLoop() {
         request.num_output_buffers++;
     }
 
-    request.frame_number = mFrameNumber++;
-    // Update frameNumber of CaptureResultExtras
-    nextRequest->mResultExtras.frameNumber = request.frame_number;
-
     // Log request in the in-flight queue
     sp<Camera3Device> parent = mParent.promote();
     if (parent == NULL) {
@@ -2337,7 +2251,8 @@ bool Camera3Device::RequestThread::threadLoop() {
 
     res = parent->registerInFlight(request.frame_number,
             request.num_output_buffers, nextRequest->mResultExtras);
-    ALOGVV("%s: registered in flight requestId = %d, frameNumber = %lld, burstId = %d ",
+    ALOGVV("%s: registered in flight requestId = %" PRId32 ", frameNumber = %" PRId64
+           ", burstId = %" PRId32 ".",
             __FUNCTION__,
             nextRequest->mResultExtras.requestId, nextRequest->mResultExtras.frameNumber,
             nextRequest->mResultExtras.burstId);
@@ -2417,13 +2332,6 @@ CameraMetadata Camera3Device::RequestThread::getLatestRequest() const {
     return mLatestRequest;
 }
 
-int64_t Camera3Device::RequestThread::getLastFrameNumber() {
-    Mutex::Autolock al(mRequestLock);
-
-    ALOGV("RequestThread::%s", __FUNCTION__);
-
-    return mLastFrameNumber;
-}
 
 void Camera3Device::RequestThread::cleanUpFailedRequest(
         camera3_capture_request_t &request,
@@ -2467,7 +2375,7 @@ sp<Camera3Device::CaptureRequest>
                     requests.end());
             // No need to wait any longer
 
-            mLastFrameNumber += requests.size();
+            mRepeatingLastFrameNumber = mFrameNumber + requests.size() - 1;
 
             break;
         }
@@ -2520,6 +2428,9 @@ sp<Camera3Device::CaptureRequest>
         mReconfigured = false;
     }
 
+    if (nextRequest != NULL) {
+        nextRequest->mResultExtras.frameNumber = mFrameNumber++;
+    }
     return nextRequest;
 }
 
