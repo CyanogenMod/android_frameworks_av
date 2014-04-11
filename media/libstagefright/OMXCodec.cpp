@@ -180,11 +180,24 @@ struct OMXCodecObserver : public BnOMXObserver {
     // from IOMXObserver
     virtual void onMessage(const omx_message &msg) {
         sp<OMXCodec> codec = mTarget.promote();
+        bool bYieldToConsumer = false;
 
         if (codec.get() != NULL) {
             Mutex::Autolock autoLock(codec->mLock);
             codec->on_message(msg);
+
+            bYieldToConsumer = codec->mIsEncoder &&
+                    (msg.type == omx_message::FILL_BUFFER_DONE ||
+                    msg.type == omx_message::EMPTY_BUFFER_DONE);
             codec.clear();
+        }
+
+        // Yield the thread _outside_ the lock to enable the other
+        // thread sharing the same lock to run.
+        // usleep(0) seems to work better than sched_yield with threads
+        // of different priorities.
+        if (bYieldToConsumer) {
+            usleep(0);
         }
     }
 
