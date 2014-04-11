@@ -185,7 +185,7 @@ MatroskaSource::MatroskaSource(
         CHECK_GE(avccSize, 5u);
 
         mNALSizeLen = 1 + (avcc[4] & 3);
-        ALOGV("mNALSizeLen = %d", mNALSizeLen);
+        ALOGV("mNALSizeLen = %zu", mNALSizeLen);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
         mType = AAC;
     }
@@ -322,7 +322,7 @@ void BlockIterator::seek(
     // Special case the 0 seek to avoid loading Cues when the application
     // extraneously seeks to 0 before playing.
     if (seekTimeNs <= 0) {
-        ALOGV("Seek to beginning: %lld", seekTimeUs);
+        ALOGV("Seek to beginning: %" PRId64, seekTimeUs);
         mCluster = pSegment->GetFirst();
         mBlockEntryIndex = 0;
         do {
@@ -331,7 +331,7 @@ void BlockIterator::seek(
         return;
     }
 
-    ALOGV("Seeking to: %lld", seekTimeUs);
+    ALOGV("Seeking to: %" PRId64, seekTimeUs);
 
     // If the Cues have not been located then find them.
     const mkvparser::Cues* pCues = pSegment->GetCues();
@@ -380,7 +380,7 @@ void BlockIterator::seek(
     for (size_t index = 0; index < pTracks->GetTracksCount(); ++index) {
         pTrack = pTracks->GetTrackByIndex(index);
         if (pTrack && pTrack->GetType() == 1) { // VIDEO_TRACK
-            ALOGV("Video track located at %d", index);
+            ALOGV("Video track located at %zu", index);
             break;
         }
     }
