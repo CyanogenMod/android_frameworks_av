@@ -45,7 +45,6 @@ TimedTextDriver::TimedTextDriver(
         const sp<IMediaHTTPService> &httpService)
     : mLooper(new ALooper),
       mListener(listener),
-      mHTTPService(httpService),
       mState(UNINITIALIZED),
       mCurrentTrackIndex(UINT_MAX) {
     mLooper->setName("TimedTextDriver");
