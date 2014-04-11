@@ -182,7 +182,7 @@ OMX_ERRORTYPE SoftG711::internalSetParameter(
     }
 }
 
-void SoftG711::onQueueFilled(OMX_U32 portIndex) {
+void SoftG711::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError) {
         return;
     }

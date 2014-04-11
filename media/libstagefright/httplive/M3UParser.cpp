@@ -125,7 +125,7 @@ void M3UParser::MediaGroup::pickRandomMediaItems() {
                 mSelectedIndex = strtoul(value, &end, 10);
                 CHECK(end > value && *end == '\0');
 
-                if (mSelectedIndex >= mMediaItems.size()) {
+                if (mSelectedIndex >= (ssize_t)mMediaItems.size()) {
                     mSelectedIndex = mMediaItems.size() - 1;
                 }
             } else {

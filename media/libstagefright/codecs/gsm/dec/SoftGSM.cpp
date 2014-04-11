@@ -172,7 +172,7 @@ OMX_ERRORTYPE SoftGSM::internalSetParameter(
     }
 }
 
-void SoftGSM::onQueueFilled(OMX_U32 portIndex) {
+void SoftGSM::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError) {
         return;
     }

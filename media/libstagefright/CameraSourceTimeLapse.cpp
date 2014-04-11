@@ -231,7 +231,7 @@ sp<IMemory> CameraSourceTimeLapse::createIMemoryCopy(
     return newMemory;
 }
 
-bool CameraSourceTimeLapse::skipCurrentFrame(int64_t timestampUs) {
+bool CameraSourceTimeLapse::skipCurrentFrame(int64_t /* timestampUs */) {
     ALOGV("skipCurrentFrame");
     if (mSkipCurrentFrame) {
         mSkipCurrentFrame = false;

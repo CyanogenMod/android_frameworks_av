@@ -856,7 +856,7 @@ status_t ATSParser::Stream::flush() {
 }
 
 void ATSParser::Stream::onPayloadData(
-        unsigned PTS_DTS_flags, uint64_t PTS, uint64_t DTS,
+        unsigned PTS_DTS_flags, uint64_t PTS, uint64_t /* DTS */,
         const uint8_t *data, size_t size) {
 #if 0
     ALOGI("payload streamType 0x%02x, PTS = 0x%016llx, dPTS = %lld",

@@ -68,7 +68,7 @@ AudioSource::AudioSource(
         int frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
 
         // make sure that the AudioRecord total buffer size is large enough
-        int bufCount = 2;
+        size_t bufCount = 2;
         while ((bufCount * frameCount) < minFrameCount) {
             bufCount++;
         }
@@ -208,7 +208,7 @@ void AudioSource::rampVolume(
 }
 
 status_t AudioSource::read(
-        MediaBuffer **out, const ReadOptions *options) {
+        MediaBuffer **out, const ReadOptions * /* options */) {
     Mutex::Autolock autoLock(mLock);
     *out = NULL;
 

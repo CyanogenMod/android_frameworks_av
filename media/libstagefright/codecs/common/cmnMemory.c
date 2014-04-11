@@ -26,8 +26,12 @@
 
 //VO_MEM_OPERATOR		g_memOP;
 
+#define UNUSED(x) (void)(x)
+
 VO_U32 cmnMemAlloc (VO_S32 uID,  VO_MEM_INFO * pMemInfo)
 {
+        UNUSED(uID);
+
 	if (!pMemInfo)
 		return VO_ERR_INVALID_ARG;
 
@@ -37,34 +41,48 @@ VO_U32 cmnMemAlloc (VO_S32 uID,  VO_MEM_INFO * pMemInfo)
 
 VO_U32 cmnMemFree (VO_S32 uID, VO_PTR pMem)
 {
+        UNUSED(uID);
+
 	free (pMem);
 	return 0;
 }
 
 VO_U32	cmnMemSet (VO_S32 uID, VO_PTR pBuff, VO_U8 uValue, VO_U32 uSize)
 {
+        UNUSED(uID);
+
 	memset (pBuff, uValue, uSize);
 	return 0;
 }
 
 VO_U32	cmnMemCopy (VO_S32 uID, VO_PTR pDest, VO_PTR pSource, VO_U32 uSize)
 {
+        UNUSED(uID);
+
 	memcpy (pDest, pSource, uSize);
 	return 0;
 }
 
 VO_U32	cmnMemCheck (VO_S32 uID, VO_PTR pBuffer, VO_U32 uSize)
 {
+        UNUSED(uID);
+        UNUSED(pBuffer);
+        UNUSED(uSize);
+
 	return 0;
 }
 
 VO_S32 cmnMemCompare (VO_S32 uID, VO_PTR pBuffer1, VO_PTR pBuffer2, VO_U32 uSize)
 {
+        UNUSED(uID);
+
 	return memcmp(pBuffer1, pBuffer2, uSize);
 }
 
 VO_U32	cmnMemMove (VO_S32 uID, VO_PTR pDest, VO_PTR pSource, VO_U32 uSize)
 {
+        UNUSED(uID);
+
 	memmove (pDest, pSource, uSize);
 	return 0;
 }

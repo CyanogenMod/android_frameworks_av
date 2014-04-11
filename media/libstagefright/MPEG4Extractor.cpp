@@ -571,7 +571,8 @@ static int32_t readSize(off64_t offset,
     return size;
 }
 
-status_t MPEG4Extractor::parseDrmSINF(off64_t *offset, off64_t data_offset) {
+status_t MPEG4Extractor::parseDrmSINF(
+        off64_t * /* offset */, off64_t data_offset) {
     uint8_t updateIdTag;
     if (mDataSource->readAt(data_offset, &updateIdTag, 1) < 1) {
         return ERROR_IO;
@@ -2802,7 +2803,8 @@ status_t MPEG4Source::parseChunk(off64_t *offset) {
     return OK;
 }
 
-status_t MPEG4Source::parseSampleAuxiliaryInformationSizes(off64_t offset, off64_t size) {
+status_t MPEG4Source::parseSampleAuxiliaryInformationSizes(
+        off64_t offset, off64_t /* size */) {
     ALOGV("parseSampleAuxiliaryInformationSizes");
     // 14496-12 8.7.12
     uint8_t version;
@@ -2864,7 +2866,8 @@ status_t MPEG4Source::parseSampleAuxiliaryInformationSizes(off64_t offset, off64
     return OK;
 }
 
-status_t MPEG4Source::parseSampleAuxiliaryInformationOffsets(off64_t offset, off64_t size) {
+status_t MPEG4Source::parseSampleAuxiliaryInformationOffsets(
+        off64_t offset, off64_t /* size */) {
     ALOGV("parseSampleAuxiliaryInformationOffsets");
     // 14496-12 8.7.13
     uint8_t version;

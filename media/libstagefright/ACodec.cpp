@@ -1139,7 +1139,7 @@ status_t ACodec::configureCodec(
             if (canDoAdaptivePlayback &&
                 msg->findInt32("max-width", &maxWidth) &&
                 msg->findInt32("max-height", &maxHeight)) {
-                ALOGV("[%s] prepareForAdaptivePlayback(%ldx%ld)",
+                ALOGV("[%s] prepareForAdaptivePlayback(%dx%d)",
                       mComponentName.c_str(), maxWidth, maxHeight);
 
                 err = mOMX->prepareForAdaptivePlayback(

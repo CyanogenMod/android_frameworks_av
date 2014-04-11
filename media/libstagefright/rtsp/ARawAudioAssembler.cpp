@@ -34,7 +34,9 @@
 namespace android {
 
 ARawAudioAssembler::ARawAudioAssembler(
-        const sp<AMessage> &notify, const char *desc, const AString &params)
+        const sp<AMessage> &notify,
+        const char * /* desc */,
+        const AString & /* params */)
     : mNotifyMsg(notify),
       mNextExpectedSeqNoValid(false),
       mNextExpectedSeqNo(0) {

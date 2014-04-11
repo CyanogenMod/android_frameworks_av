@@ -115,7 +115,7 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
         if (codecIdx >= 0) {
             Vector<AString> types;
             if (mcl->getSupportedTypes(codecIdx, &types) == OK) {
-                for (int i = 0; i < types.size(); i++) {
+                for (size_t i = 0; i < types.size(); i++) {
                     if (types[i].startsWith("video/")) {
                         needDedicatedLooper = true;
                         break;

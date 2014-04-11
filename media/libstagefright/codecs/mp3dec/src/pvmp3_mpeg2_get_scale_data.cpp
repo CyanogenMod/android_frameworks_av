@@ -139,7 +139,7 @@ void pvmp3_mpeg2_get_scale_data(mp3SideInfo *si,
     int16 blocknumber = 0;
 
     granuleInfo *gr_info = &(si->ch[ch].gran[gr]);
-    uint32 scalefac_comp, int_scalefac_comp, new_slen[4];
+    uint32 scalefac_comp, int_scalefac_comp, new_slen[4] = { 0,0,0,0 };
 
     scalefac_comp =  gr_info->scalefac_compress;
 
