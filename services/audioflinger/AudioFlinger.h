@@ -223,6 +223,44 @@ public:
 
     virtual status_t setLowRamDevice(bool isLowRamDevice);
 
+    /* List available audio ports and their attributes */
+    virtual status_t listAudioPorts(unsigned int *num_ports,
+                                    struct audio_port *ports)
+    {
+        return INVALID_OPERATION;
+    }
+
+    /* Get attributes for a given audio port */
+    virtual status_t getAudioPort(struct audio_port *port)
+    {
+        return INVALID_OPERATION;
+    }
+
+    /* Create an audio patch between several source and sink ports */
+    virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle)
+    {
+        return INVALID_OPERATION;
+    }
+
+    /* Release an audio patch */
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle)
+    {
+        return INVALID_OPERATION;
+    }
+
+    /* List existing audio patches */
+    virtual status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches)
+    {
+        return INVALID_OPERATION;
+    }
+    /* Set audio port configuration */
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config)
+    {
+        return INVALID_OPERATION;
+    }
+
     virtual     status_t    onTransact(
                                 uint32_t code,
                                 const Parcel& data,
