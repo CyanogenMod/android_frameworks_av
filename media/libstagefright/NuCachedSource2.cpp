@@ -326,7 +326,7 @@ void NuCachedSource2::fetchInternal() {
             mNumRetriesLeft = 0;
         }
 
-        ALOGE("source returned error %ld, %d retries left", n, mNumRetriesLeft);
+        ALOGE("source returned error %d, %d retries left", n, mNumRetriesLeft);
         mCache->releasePage(page);
     } else if (n == 0) {
         ALOGI("ERROR_END_OF_STREAM");
@@ -641,7 +641,7 @@ void NuCachedSource2::updateCacheParamsFromString(const char *s) {
     ssize_t lowwaterMarkKb, highwaterMarkKb;
     int keepAliveSecs;
 
-    if (sscanf(s, "%ld/%ld/%d",
+    if (sscanf(s, "%d/%d/%d",
                &lowwaterMarkKb, &highwaterMarkKb, &keepAliveSecs) != 3) {
         ALOGE("Failed to parse cache parameters from '%s'.", s);
         return;

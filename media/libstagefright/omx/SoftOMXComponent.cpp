@@ -257,69 +257,69 @@ OMX_ERRORTYPE SoftOMXComponent::GetStateWrapper(
 ////////////////////////////////////////////////////////////////////////////////
 
 OMX_ERRORTYPE SoftOMXComponent::sendCommand(
-        OMX_COMMANDTYPE cmd, OMX_U32 param, OMX_PTR data) {
+        OMX_COMMANDTYPE /* cmd */, OMX_U32 /* param */, OMX_PTR /* data */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::getParameter(
-        OMX_INDEXTYPE index, OMX_PTR params) {
+        OMX_INDEXTYPE /* index */, OMX_PTR /* params */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::setParameter(
-        OMX_INDEXTYPE index, const OMX_PTR params) {
+        OMX_INDEXTYPE /* index */, const OMX_PTR /* params */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::getConfig(
-        OMX_INDEXTYPE index, OMX_PTR params) {
+        OMX_INDEXTYPE /* index */, OMX_PTR /* params */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::setConfig(
-        OMX_INDEXTYPE index, const OMX_PTR params) {
+        OMX_INDEXTYPE /* index */, const OMX_PTR /* params */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::getExtensionIndex(
-        const char *name, OMX_INDEXTYPE *index) {
+        const char * /* name */, OMX_INDEXTYPE * /* index */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::useBuffer(
-        OMX_BUFFERHEADERTYPE **buffer,
-        OMX_U32 portIndex,
-        OMX_PTR appPrivate,
-        OMX_U32 size,
-        OMX_U8 *ptr) {
+        OMX_BUFFERHEADERTYPE ** /* buffer */,
+        OMX_U32 /* portIndex */,
+        OMX_PTR /* appPrivate */,
+        OMX_U32 /* size */,
+        OMX_U8 * /* ptr */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::allocateBuffer(
-        OMX_BUFFERHEADERTYPE **buffer,
-        OMX_U32 portIndex,
-        OMX_PTR appPrivate,
-        OMX_U32 size) {
+        OMX_BUFFERHEADERTYPE ** /* buffer */,
+        OMX_U32 /* portIndex */,
+        OMX_PTR /* appPrivate */,
+        OMX_U32 /* size */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::freeBuffer(
-        OMX_U32 portIndex,
-        OMX_BUFFERHEADERTYPE *buffer) {
+        OMX_U32 /* portIndex */,
+        OMX_BUFFERHEADERTYPE * /* buffer */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::emptyThisBuffer(
-        OMX_BUFFERHEADERTYPE *buffer) {
+        OMX_BUFFERHEADERTYPE * /* buffer */) {
     return OMX_ErrorUndefined;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::fillThisBuffer(
-        OMX_BUFFERHEADERTYPE *buffer) {
+        OMX_BUFFERHEADERTYPE * /* buffer */) {
     return OMX_ErrorUndefined;
 }
 
-OMX_ERRORTYPE SoftOMXComponent::getState(OMX_STATETYPE *state) {
+OMX_ERRORTYPE SoftOMXComponent::getState(OMX_STATETYPE * /* state */) {
     return OMX_ErrorUndefined;
 }
 

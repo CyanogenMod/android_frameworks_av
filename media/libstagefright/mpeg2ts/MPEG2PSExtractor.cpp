@@ -130,7 +130,8 @@ sp<MediaSource> MPEG2PSExtractor::getTrack(size_t index) {
     return new WrappedTrack(this, mTracks.valueAt(index));
 }
 
-sp<MetaData> MPEG2PSExtractor::getTrackMetaData(size_t index, uint32_t flags) {
+sp<MetaData> MPEG2PSExtractor::getTrackMetaData(
+        size_t index, uint32_t /* flags */) {
     if (index >= mTracks.size()) {
         return NULL;
     }
@@ -625,7 +626,7 @@ status_t MPEG2PSExtractor::Track::read(
 
 status_t MPEG2PSExtractor::Track::appendPESData(
         unsigned PTS_DTS_flags,
-        uint64_t PTS, uint64_t DTS,
+        uint64_t PTS, uint64_t /* DTS */,
         const uint8_t *data, size_t size) {
     if (mQueue == NULL) {
         return OK;

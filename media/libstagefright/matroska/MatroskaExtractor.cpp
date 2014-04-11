@@ -193,7 +193,7 @@ MatroskaSource::~MatroskaSource() {
     clearPendingFrames();
 }
 
-status_t MatroskaSource::start(MetaData *params) {
+status_t MatroskaSource::start(MetaData * /* params */) {
     mBlockIter.reset();
 
     return OK;

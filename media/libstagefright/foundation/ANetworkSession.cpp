@@ -521,7 +521,7 @@ status_t ANetworkSession::Session::readMore() {
     return err;
 }
 
-void ANetworkSession::Session::dumpFragmentStats(const Fragment &frag) {
+void ANetworkSession::Session::dumpFragmentStats(const Fragment & /* frag */) {
 #if 0
     int64_t nowUs = ALooper::GetNowUs();
     int64_t delayMs = (nowUs - frag.mTimeUs) / 1000ll;

@@ -9,7 +9,8 @@ LOCAL_SRC_FILES:=                 \
         TimedTextSRTSource.cpp    \
         TimedTextPlayer.cpp
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
+
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/av/media/libstagefright

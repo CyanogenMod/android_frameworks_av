@@ -105,7 +105,7 @@ struct MediaSource : public virtual RefBase {
     // This will be called after a successful start() and before the
     // first read() call.
     // Callee assumes ownership of the buffers if no error is returned.
-    virtual status_t setBuffers(const Vector<MediaBuffer *> &buffers) {
+    virtual status_t setBuffers(const Vector<MediaBuffer *> & /* buffers */) {
         return ERROR_UNSUPPORTED;
     }
 

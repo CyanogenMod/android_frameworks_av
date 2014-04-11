@@ -67,7 +67,7 @@ void CameraSourceListener::notify(int32_t msgType, int32_t ext1, int32_t ext2) {
 }
 
 void CameraSourceListener::postData(int32_t msgType, const sp<IMemory> &dataPtr,
-                                    camera_frame_metadata_t *metadata) {
+                                    camera_frame_metadata_t * /* metadata */) {
     ALOGV("postData(%d, ptr:%p, size:%d)",
          msgType, dataPtr->pointer(), dataPtr->size());
 

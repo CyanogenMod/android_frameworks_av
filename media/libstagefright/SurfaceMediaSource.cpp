@@ -99,8 +99,11 @@ void SurfaceMediaSource::dump(String8& result) const
     dump(result, "", buffer, 1024);
 }
 
-void SurfaceMediaSource::dump(String8& result, const char* prefix,
-        char* buffer, size_t SIZE) const
+void SurfaceMediaSource::dump(
+        String8& result,
+        const char* /* prefix */,
+        char* buffer,
+        size_t /* SIZE */) const
 {
     Mutex::Autolock lock(mMutex);
 
@@ -269,9 +272,8 @@ static void passMetadataBuffer(MediaBuffer **buffer,
             bufferHandle, (*buffer)->range_length(), (*buffer)->range_offset());
 }
 
-status_t SurfaceMediaSource::read( MediaBuffer **buffer,
-                                    const ReadOptions *options)
-{
+status_t SurfaceMediaSource::read(
+        MediaBuffer **buffer, const ReadOptions * /* options */) {
     ALOGV("read");
     Mutex::Autolock lock(mMutex);
 

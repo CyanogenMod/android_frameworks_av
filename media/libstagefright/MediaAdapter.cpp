@@ -36,7 +36,7 @@ MediaAdapter::~MediaAdapter() {
     CHECK(mCurrentMediaBuffer == NULL);
 }
 
-status_t MediaAdapter::start(MetaData *params) {
+status_t MediaAdapter::start(MetaData * /* params */) {
     Mutex::Autolock autoLock(mAdapterLock);
     if (!mStarted) {
         mStarted = true;
@@ -75,7 +75,7 @@ void MediaAdapter::signalBufferReturned(MediaBuffer *buffer) {
 }
 
 status_t MediaAdapter::read(
-            MediaBuffer **buffer, const ReadOptions *options) {
+            MediaBuffer **buffer, const ReadOptions * /* options */) {
     Mutex::Autolock autoLock(mAdapterLock);
     if (!mStarted) {
         ALOGV("Read before even started!");
