@@ -549,9 +549,13 @@ void StagefrightMetadataRetriever::parseMetaData() {
                 }
             } else if (!strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP)) {
                 const char *lang;
-                trackMeta->findCString(kKeyMediaLanguage, &lang);
-                timedTextLang.append(String8(lang));
-                timedTextLang.append(String8(":"));
+                bool success = trackMeta->findCString(kKeyMediaLanguage, &lang);
+                if (success) {
+                    timedTextLang.append(String8(lang));
+                    timedTextLang.append(String8(":"));
+                } else {
+                    ALOGE("No language found for timed text");
+                }
             }
         }
     }

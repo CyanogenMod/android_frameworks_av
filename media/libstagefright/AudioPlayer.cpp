@@ -18,7 +18,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioPlayer"
+#define ATRACE_TAG ATRACE_TAG_AUDIO
 #include <utils/Log.h>
+#include <utils/Trace.h>
 #include <cutils/compiler.h>
 
 #include <binder/IPCThreadState.h>
@@ -519,6 +521,7 @@ uint32_t AudioPlayer::getNumFramesPendingPlayout() const {
 }
 
 size_t AudioPlayer::fillBuffer(void *data, size_t size) {
+    ATRACE_CALL();
     if (mNumFramesPlayed == 0) {
         ALOGV("AudioCallback");
     }

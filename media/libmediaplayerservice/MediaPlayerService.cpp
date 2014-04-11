@@ -1910,7 +1910,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
                     CB_EVENT_FILL_BUFFER);
 
             if (actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL &&
-                    me->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD == 0) {
+                    (me->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) {
                 // We've reached EOS but the audio track is not stopped yet,
                 // keep playing silence.
 
