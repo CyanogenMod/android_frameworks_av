@@ -2849,9 +2849,6 @@ void OMXCodec::on_message(const omx_message &msg) {
                     ATRACE_INT("Output Buffers with OMX client",
                             countBuffersWeOwn(mPortBuffers[kPortIndexOutput]));
                 }
-                if (mIsEncoder) {
-                    sched_yield();
-                }
             }
 
             ATRACE_END();
