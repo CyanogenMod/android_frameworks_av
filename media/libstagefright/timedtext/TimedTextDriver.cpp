@@ -43,7 +43,6 @@ TimedTextDriver::TimedTextDriver(
         const wp<MediaPlayerBase> &listener)
     : mLooper(new ALooper),
       mListener(listener),
-      mHTTPService(httpService),
       mState(UNINITIALIZED),
       mCurrentTrackIndex(UINT_MAX) {
     mLooper->setName("TimedTextDriver");
