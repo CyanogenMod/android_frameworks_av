@@ -62,7 +62,7 @@ void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
 AnotherPacketSource::~AnotherPacketSource() {
 }
 
-status_t AnotherPacketSource::start(MetaData *params) {
+status_t AnotherPacketSource::start(MetaData * /* params */) {
     return OK;
 }
 

@@ -154,7 +154,7 @@ OMX_ERRORTYPE SoftOMXPlugin::destroyComponentInstance(
 
 OMX_ERRORTYPE SoftOMXPlugin::enumerateComponents(
         OMX_STRING name,
-        size_t size,
+        size_t /* size */,
         OMX_U32 index) {
     if (index >= kNumComponents) {
         return OMX_ErrorNoMore;

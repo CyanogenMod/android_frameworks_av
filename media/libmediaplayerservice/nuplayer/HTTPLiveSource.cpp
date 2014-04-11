@@ -140,7 +140,7 @@ status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
     // LiveSession::selectTrack returns BAD_VALUE when selecting the currently
     // selected track, or unselecting a non-selected track. In this case it's an
     // no-op so we return OK.
-    return (err == OK || err == BAD_VALUE) ? OK : err;
+    return (err == OK || err == BAD_VALUE) ? (status_t)OK : err;
 }
 
 status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {

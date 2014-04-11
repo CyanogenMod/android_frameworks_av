@@ -163,7 +163,7 @@ OMX_ERRORTYPE SoftRaw::internalSetParameter(
     }
 }
 
-void SoftRaw::onQueueFilled(OMX_U32 portIndex) {
+void SoftRaw::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError) {
         return;
     }

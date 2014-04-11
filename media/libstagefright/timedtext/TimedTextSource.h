@@ -47,7 +47,7 @@ class TimedTextSource : public RefBase {
           int64_t *endTimeUs,
           Parcel *parcel,
           const MediaSource::ReadOptions *options = NULL) = 0;
-  virtual status_t extractGlobalDescriptions(Parcel *parcel) {
+  virtual status_t extractGlobalDescriptions(Parcel * /* parcel */) {
       return INVALID_OPERATION;
   }
   virtual sp<MetaData> getFormat();

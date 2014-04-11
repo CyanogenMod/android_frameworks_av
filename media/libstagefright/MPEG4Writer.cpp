@@ -409,7 +409,7 @@ status_t MPEG4Writer::dump(
 }
 
 status_t MPEG4Writer::Track::dump(
-        int fd, const Vector<String16>& args) const {
+        int fd, const Vector<String16>& /* args */) const {
     const size_t SIZE = 256;
     char buffer[SIZE];
     String8 result;

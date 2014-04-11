@@ -34,7 +34,9 @@
 namespace android {
 
 AMPEG2TSAssembler::AMPEG2TSAssembler(
-        const sp<AMessage> &notify, const char *desc, const AString &params)
+        const sp<AMessage> &notify,
+        const char * /* desc */,
+        const AString & /* params */)
     : mNotifyMsg(notify),
       mNextExpectedSeqNoValid(false),
       mNextExpectedSeqNo(0) {

@@ -105,7 +105,7 @@ status_t AMRWriter::addSource(const sp<MediaSource> &source) {
     return OK;
 }
 
-status_t AMRWriter::start(MetaData *params) {
+status_t AMRWriter::start(MetaData * /* params */) {
     if (mInitCheck != OK) {
         return mInitCheck;
     }

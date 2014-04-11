@@ -8,7 +8,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/libvpx/libwebm \
         $(TOP)/frameworks/native/include/media/openmax \
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
 
 LOCAL_MODULE:= libstagefright_matroska
 

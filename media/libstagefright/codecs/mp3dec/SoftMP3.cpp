@@ -188,7 +188,7 @@ OMX_ERRORTYPE SoftMP3::internalSetParameter(
     }
 }
 
-void SoftMP3::onQueueFilled(OMX_U32 portIndex) {
+void SoftMP3::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError || mOutputPortSettingsChange != NONE) {
         return;
     }

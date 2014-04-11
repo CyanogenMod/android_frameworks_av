@@ -24,7 +24,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils          \
         liblog
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
 
 LOCAL_MODULE:= libstagefright_foundation
 
