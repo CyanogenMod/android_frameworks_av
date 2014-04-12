@@ -36,16 +36,16 @@ using namespace android;
 static bool gVerbose = false;
 
 static int usage(const char* name) {
-    fprintf(stderr,"Usage: %s [-p] [-f] [-F] [-h] [-v] [-s] [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
+    fprintf(stderr,"Usage: %s [-p] [-f] [-F] [-v] [-c channels]"
+                   " [-q {dq|lq|mq|hq|vhq|dlq|dmq|dhq}]"
                    " [-i input-sample-rate] [-o output-sample-rate]"
                    " [-O csv] [-P csv] [<input-file>]"
                    " <output-file>\n", name);
     fprintf(stderr,"    -p    enable profiling\n");
     fprintf(stderr,"    -f    enable filter profiling\n");
     fprintf(stderr,"    -F    enable floating point -q {dlq|dmq|dhq} only");
-    fprintf(stderr,"    -h    create wav file\n");
     fprintf(stderr,"    -v    verbose : log buffer provider calls\n");
-    fprintf(stderr,"    -s    stereo (ignored if input file is specified)\n");
+    fprintf(stderr,"    -c    # channels (1-2 for lq|mq|hq; 1-8 for dlq|dmq|dhq)\n");
     fprintf(stderr,"    -q    resampler quality\n");
     fprintf(stderr,"              dq  : default quality\n");
     fprintf(stderr,"              lq  : low quality\n");
@@ -102,11 +102,9 @@ int parseCSV(const char *string, Vector<int>& values)
 }
 
 int main(int argc, char* argv[]) {
-
     const char* const progname = argv[0];
     bool profileResample = false;
     bool profileFilter = false;
-    bool writeHeader = false;
     bool useFloat = false;
     int channels = 1;
     int input_freq = 0;
@@ -116,7 +114,7 @@ int main(int argc, char* argv[]) {
     Vector<int> Pvalues;
 
     int ch;
-    while ((ch = getopt(argc, argv, "pfFhvsq:i:o:O:P:")) != -1) {
+    while ((ch = getopt(argc, argv, "pfFvc:q:i:o:O:P:")) != -1) {
         switch (ch) {
         case 'p':
             profileResample = true;
@@ -127,14 +125,11 @@ int main(int argc, char* argv[]) {
         case 'F':
             useFloat = true;
             break;
-        case 'h':
-            writeHeader = true;
-            break;
         case 'v':
             gVerbose = true;
             break;
-        case 's':
-            channels = 2;
+        case 'c':
+            channels = atoi(optarg);
             break;
         case 'q':
             if (!strcmp(optarg, "dq"))
@@ -183,6 +178,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    if (channels < 1
+            || channels > (quality < AudioResampler::DYN_LOW_QUALITY ? 2 : 8)) {
+        fprintf(stderr, "invalid number of audio channels %d\n", channels);
+        return -1;
+    }
     if (useFloat && quality < AudioResampler::DYN_LOW_QUALITY) {
         fprintf(stderr, "float processing is only possible for dynamic resamplers\n");
         return -1;
@@ -234,20 +234,20 @@ int main(int argc, char* argv[]) {
             double t = double(i) / input_freq;
             double y = sin(M_PI * k * t * t);
             int16_t yi = floor(y * 32767.0 + 0.5);
-            for (size_t j=0 ; j<(size_t)channels ; j++) {
-                in[i*channels + j] = yi / (1+j); // right ch. 1/2 left ch.
+            for (int j = 0; j < channels; j++) {
+                in[i*channels + j] = yi / (1 + j);
             }
         }
     }
-    size_t frame_size = channels * sizeof(int16_t);
-    size_t input_frames = input_size / frame_size;
+    size_t input_framesize = channels * sizeof(int16_t);
+    size_t input_frames = input_size / input_framesize;
 
     // For float processing, convert input int16_t to float array
     if (useFloat) {
         void *new_vaddr;
 
-        frame_size = channels * sizeof(float);
-        input_size = input_frames * frame_size;
+        input_framesize = channels * sizeof(float);
+        input_size = input_frames * input_framesize;
         new_vaddr = malloc(input_size);
         memcpy_to_float_from_i16(reinterpret_cast<float*>(new_vaddr),
                 reinterpret_cast<int16_t*>(input_vaddr), input_frames * channels);
@@ -323,15 +323,17 @@ int main(int argc, char* argv[]) {
         void reset() {
             mNextFrame = 0;
         }
-    } provider(input_vaddr, input_frames, frame_size, Pvalues);
+    } provider(input_vaddr, input_frames, input_framesize, Pvalues);
 
     if (gVerbose) {
         printf("%zu input frames\n", input_frames);
     }
 
     int bit_depth = useFloat ? 32 : 16;
-    size_t output_size = 2 * 4 * ((int64_t) input_frames * output_freq) / input_freq;
-    output_size &= ~7; // always stereo, 32-bits
+    int output_channels = channels > 2 ? channels : 2; // output is at least stereo samples
+    size_t output_framesize = output_channels * (useFloat ? sizeof(float) : sizeof(int32_t));
+    size_t output_frames = ((int64_t) input_frames * output_freq) / input_freq;
+    size_t output_size = output_frames * output_framesize;
 
     if (profileFilter) {
         // Check how fast sample rate changes are that require filter changes.
@@ -380,7 +382,7 @@ int main(int argc, char* argv[]) {
     void* output_vaddr = malloc(output_size);
     AudioResampler* resampler = AudioResampler::create(bit_depth, channels,
             output_freq, quality);
-    size_t out_frames = output_size/8;
+
 
     /* set volume precision to 12 bits, so the volume scale is 1<<12.
      * The output int32_t is represented as Q4.27, with 4 bits of guard
@@ -422,7 +424,7 @@ int main(int argc, char* argv[]) {
         for (int n = 0; n < trials; ++n) {
             clock_gettime(CLOCK_MONOTONIC, &start);
             for (int i = 0; i < looplimit; ++i) {
-                resampler->resample((int*) output_vaddr, out_frames, &provider);
+                resampler->resample((int*) output_vaddr, output_frames, &provider);
                 provider.reset(); //  during benchmarking reset only the provider
             }
             clock_gettime(CLOCK_MONOTONIC, &end);
@@ -435,26 +437,26 @@ int main(int argc, char* argv[]) {
         }
         // Mfrms/s is "Millions of output frames per second".
         printf("quality: %d  channels: %d  msec: %" PRId64 "  Mfrms/s: %.2lf\n",
-                quality, channels, time/1000000, out_frames * looplimit / (time / 1e9) / 1e6);
+                quality, channels, time/1000000, output_frames * looplimit / (time / 1e9) / 1e6);
         resampler->reset();
     }
 
     memset(output_vaddr, 0, output_size);
     if (gVerbose) {
-        printf("resample() %zu output frames\n", out_frames);
+        printf("resample() %zu output frames\n", output_frames);
     }
     if (Ovalues.isEmpty()) {
-        Ovalues.push(out_frames);
+        Ovalues.push(output_frames);
     }
-    for (size_t i = 0, j = 0; i < out_frames; ) {
+    for (size_t i = 0, j = 0; i < output_frames; ) {
         size_t thisFrames = Ovalues[j++];
         if (j >= Ovalues.size()) {
             j = 0;
         }
-        if (thisFrames == 0 || thisFrames > out_frames - i) {
-            thisFrames = out_frames - i;
+        if (thisFrames == 0 || thisFrames > output_frames - i) {
+            thisFrames = output_frames - i;
         }
-        resampler->resample((int*) output_vaddr + 2*i, thisFrames, &provider);
+        resampler->resample((int*) output_vaddr + output_channels*i, thisFrames, &provider);
         i += thisFrames;
     }
     if (gVerbose) {
@@ -471,20 +473,20 @@ int main(int argc, char* argv[]) {
     // which is then converted to int16_t for final storage.
     if (useFloat) {
         memcpy_to_q4_27_from_float(reinterpret_cast<int32_t*>(output_vaddr),
-                reinterpret_cast<float*>(output_vaddr), out_frames * 2); // stereo samples
+                reinterpret_cast<float*>(output_vaddr), output_frames * output_channels);
     }
 
-    // mono takes left channel only
-    // stereo right channel is half amplitude of stereo left channel (due to input creation)
+    // mono takes left channel only (out of stereo output pair)
+    // stereo and multichannel preserve all channels.
     int32_t* out = (int32_t*) output_vaddr;
-    int16_t* convert = (int16_t*) malloc(out_frames * channels * sizeof(int16_t));
+    int16_t* convert = (int16_t*) malloc(output_frames * channels * sizeof(int16_t));
 
     // round to half towards zero and saturate at int16 (non-dithered)
     const int roundVal = (1<<(volumePrecision-1)) - 1; // volumePrecision > 0
 
-    for (size_t i = 0; i < out_frames; i++) {
+    for (size_t i = 0; i < output_frames; i++) {
         for (int j = 0; j < channels; j++) {
-            int32_t s = out[i * 2 + j] + roundVal; // add offset here
+            int32_t s = out[i * output_channels + j] + roundVal; // add offset here
             if (s < 0) {
                 s = (s + 1) >> volumePrecision; // round to 0
                 if (s < -32768) {
@@ -501,29 +503,18 @@ int main(int argc, char* argv[]) {
     }
 
     // write output to disk
-    if (writeHeader) {
-        SF_INFO info;
-        info.frames = 0;
-        info.samplerate = output_freq;
-        info.channels = channels;
-        info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
-        SNDFILE *sf = sf_open(file_out, SFM_WRITE, &info);
-        if (sf == NULL) {
-            perror(file_out);
-            return EXIT_FAILURE;
-        }
-        (void) sf_writef_short(sf, convert, out_frames);
-        sf_close(sf);
-    } else {
-        int output_fd = open(file_out, O_WRONLY | O_CREAT | O_TRUNC,
-                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-        if (output_fd < 0) {
-            perror(file_out);
-            return EXIT_FAILURE;
-        }
-        write(output_fd, convert, out_frames * channels * sizeof(int16_t));
-        close(output_fd);
+    SF_INFO info;
+    info.frames = 0;
+    info.samplerate = output_freq;
+    info.channels = channels;
+    info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
+    SNDFILE *sf = sf_open(file_out, SFM_WRITE, &info);
+    if (sf == NULL) {
+        perror(file_out);
+        return EXIT_FAILURE;
     }
+    (void) sf_writef_short(sf, convert, output_frames);
+    sf_close(sf);
 
     return EXIT_SUCCESS;
 }
