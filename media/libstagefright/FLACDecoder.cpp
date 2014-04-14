@@ -63,6 +63,7 @@ FLACDecoder::FLACDecoder(const sp<MediaSource> &source)
       mOutBuffer(NULL),
       mDecoderInit(NULL),
       mProcessData(NULL) {
+    ALOGD("qti_flac: Instantiate FLACDecoder");
     if (mLibHandle != NULL) {
         mDecoderInit = (DecoderInit) dlsym (mLibHandle, "CFlacDecoderLib_Meminit");
         mProcessData = (DecoderLib_Process) dlsym (mLibHandle, "CFlacDecoderLib_Process");
@@ -71,6 +72,7 @@ FLACDecoder::FLACDecoder(const sp<MediaSource> &source)
 }
 
 FLACDecoder::~FLACDecoder() {
+    ALOGD("qti_flac: Destroy FLACDecoder");
     if (mStarted) {
         stop();
     }
@@ -81,13 +83,13 @@ FLACDecoder::~FLACDecoder() {
 }
 
 void FLACDecoder::init() {
-    ALOGV("FLACDecoder::init");
+    ALOGV("qti_flac: FLACDecoder::init");
     int result, bitWidth = 16; //currently, only 16 bit is supported
     memset(&pFlacDecState,0,sizeof(CFlacDecState));
     (*mDecoderInit)(&pFlacDecState, &result, bitWidth);
 
     if (result != DEC_SUCCESS) {
-        ALOGE("CSIM decoder init failed! Result %d", result);
+        ALOGE("qti_flac: CSIM decoder init failed! Result %d", result);
         return;
     }
     else {
@@ -115,13 +117,13 @@ void FLACDecoder::init() {
     parserInfoToPass.i32MinFrmSize = minFrmSize;
     parserInfoToPass.i32MaxFrmSize = maxFrmSize;
 
-    ALOGV("i32NumChannels = %d", parserInfoToPass.i32NumChannels);
-    ALOGV("i32SampleRate = %d", parserInfoToPass.i32SampleRate);
-    ALOGV("i32BitsPerSample = %d", parserInfoToPass.i32BitsPerSample);
-    ALOGV("i32MinBlkSize = %d", parserInfoToPass.i32MinBlkSize);
-    ALOGV("i32MaxBlkSize = %d", parserInfoToPass.i32MaxBlkSize);
-    ALOGV("i32MinFrmSize = %d", parserInfoToPass.i32MinFrmSize);
-    ALOGV("i32MaxFrmSize = %d", parserInfoToPass.i32MaxFrmSize);
+    ALOGV("qti_flac: i32NumChannels = %d", parserInfoToPass.i32NumChannels);
+    ALOGV("qti_flac: i32SampleRate = %d", parserInfoToPass.i32SampleRate);
+    ALOGV("qti_flac: i32BitsPerSample = %d", parserInfoToPass.i32BitsPerSample);
+    ALOGV("qti_flac: i32MinBlkSize = %d", parserInfoToPass.i32MinBlkSize);
+    ALOGV("qti_flac: i32MaxBlkSize = %d", parserInfoToPass.i32MaxBlkSize);
+    ALOGV("qti_flac: i32MinFrmSize = %d", parserInfoToPass.i32MinFrmSize);
+    ALOGV("qti_flac: i32MaxFrmSize = %d", parserInfoToPass.i32MaxFrmSize);
 
     setMetaData(&pFlacDecState, &parserInfoToPass);
 
@@ -132,17 +134,19 @@ void FLACDecoder::init() {
         mMeta->setInt64(kKeyDuration, durationUs);
     }
 
-    ALOGV("durationUs = %lld", durationUs);
+    ALOGV("qti_flac: durationUs = %lld", durationUs);
     mMeta->setCString(kKeyDecoderComponent, "FLACDecoder");
     mMeta->setInt32(kKeySampleRate, mSampleRate);
     mMeta->setInt32(kKeyChannelCount, mNumChannels);
 
     mOutBuffer = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
     mTmpBuf = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
+    ALOGV("qti_flac: FLACDecoder::init done");
 }
 
 void FLACDecoder::setMetaData(CFlacDecState* pFlacDecState,
                               FLACDec_ParserInfo* parserInfoToPass) {
+    ALOGV("qti_flac: FLACDecoder::setMetadata");
     stFLACDec* pstFLACDec=(stFLACDec*)(pFlacDecState->m_pFlacDecoder);
     memcpy(&pstFLACDec->MetaDataBlocks.MetaDataStrmInfo,parserInfoToPass,sizeof(FLACDec_ParserInfo));
     pFlacDecState->m_bIsStreamInfoPresent=1;
@@ -150,11 +154,12 @@ void FLACDecoder::setMetaData(CFlacDecState* pFlacDecState,
     pFlacDecState->ui32MaxBlockSize=pstFLACDec->MetaDataBlocks.MetaDataStrmInfo.i32MaxBlkSize;
 
     memcpy(pFlacDecState->pFlacDecMetaDataStrmInfo,parserInfoToPass,sizeof(FLACDec_ParserInfo));
+    ALOGV("qti_flac: FLACDecoder::setMetadata done");
 
 }
 
 status_t FLACDecoder::start(MetaData *params) {
-    ALOGV("FLACDecoder::start");
+    ALOGV("qti_flac: FLACDecoder::start");
 
     CHECK(!mStarted);
     CHECK(mInitStatus);
@@ -167,11 +172,12 @@ status_t FLACDecoder::start(MetaData *params) {
     mNumFramesOutput = 0;
     mStarted = true;
 
+    ALOGV("qti_flac: FLACDecoder::start done");
     return OK;
 }
 
 status_t FLACDecoder::stop() {
-    ALOGV("FLACDecoder::stop");
+    ALOGV("qti_flac: FLACDecoder::stop");
 
     CHECK(mStarted);
     CHECK(mInitStatus);
@@ -190,12 +196,14 @@ status_t FLACDecoder::stop() {
     free(mOutBuffer);
     free(mTmpBuf);
 
+    ALOGV("qti_flac: FLACDecoder::stop done");
     return OK;
 }
 
 sp<MetaData> FLACDecoder::getFormat() {
-    ALOGV("FLACDecoder::getFormat");
+    ALOGV("qti_flac: FLACDecoder::getFormat");
     CHECK(mInitStatus);
+    ALOGV("qti_flac: FLACDecoder::getFormat done");
     return mMeta;
 }
 
@@ -215,7 +223,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
     int64_t seekTimeUs;
     ReadOptions::SeekMode mode;
     if (options && options->getSeekTo(&seekTimeUs, &mode)) {
-        ALOGV("Seek to %lld", seekTimeUs);
+        ALOGD("qti_flac: Seek to %lld", seekTimeUs);
         CHECK(seekTimeUs >= 0);
         mNumFramesOutput = 0;
         seekSource = true;
@@ -237,7 +245,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
     if (!eos) {
         err = mSource->read(&mInputBuffer, options);
         if (err != OK) {
-            ALOGE("Parser returned %d", err);
+            ALOGE("qti_flac: Parser returned %d", err);
             eos = true;
             return err;
         }
@@ -247,7 +255,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
     if (mInputBuffer->meta_data()->findInt64(kKeyTime, &timeUs)) {
         mAnchorTimeUs = timeUs;
         mNumFramesOutput = 0;
-        ALOGVV("mAnchorTimeUs %lld", mAnchorTimeUs);
+        ALOGVV("qti_flac: mAnchorTimeUs %lld", mAnchorTimeUs);
     }
     else {
         CHECK(seekTimeUs < 0);
@@ -255,7 +263,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
 
     if (!eos) {
         if (mInputBuffer) {
-            ALOGVV("Parser filled %d bytes", mInputBuffer->range_length());
+            ALOGVV("qti_flac: Parser filled %d bytes", mInputBuffer->range_length());
             availLength = mInputBuffer->range_length();
             status = (*mProcessData)(&pFlacDecState,
                                      (uint8*)mInputBuffer->data(),
@@ -266,7 +274,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
                                      &blockSize);
         }
 
-        ALOGVV("status %d, availLength %d, usedBitstream %d, blockSize %d",
+        ALOGVV("qti_flac: status %d, availLength %d, usedBitstream %d, blockSize %d",
                 (int)status, availLength, usedBitstream, blockSize);
 
         MediaBuffer *buffer;
@@ -293,7 +301,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
         time = mAnchorTimeUs + (mNumFramesOutput*1000000)/mSampleRate;
         buffer->meta_data()->setInt64(kKeyTime, time);
         mNumFramesOutput += blockSize;
-        ALOGVV("time = %lld", time);
+        ALOGVV("qti_flac: time = %lld", time);
 
         *out = buffer;
     }
