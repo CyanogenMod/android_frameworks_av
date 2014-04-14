@@ -59,7 +59,7 @@ void serializeSockaddr(Parcel* p, const struct sockaddr_storage* addr) {
 }
 
 void deserializeSockaddr(const Parcel* p, struct sockaddr_storage* addr) {
-    memset(addr, 0, sizeof(addr));
+    memset(addr, 0, sizeof(*addr));
 
     addr->ss_family = p->readInt32();
     switch(addr->ss_family) {
