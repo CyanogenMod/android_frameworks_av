@@ -105,6 +105,7 @@ private:
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
         kWhatSwapped                    = 'swap',
+        kWhatResetConfiguration         = 'reco',
     };
 
     struct BandwidthItem {
@@ -185,6 +186,8 @@ private:
     uint32_t mDisconnectReplyID;
     uint32_t mSeekReplyID;
 
+    int64_t mSeekPosition; //cache the new seek position during changing configuration
+
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
@@ -227,6 +230,8 @@ private:
     void onChangeConfiguration3(const sp<AMessage> &msg);
     void onSwapped(const sp<AMessage> &msg);
     void tryToFinishBandwidthSwitch();
+
+    void onResetConfiguration(const sp<AMessage> &msg);
 
     void scheduleCheckBandwidthEvent();
     void cancelCheckBandwidthEvent();
