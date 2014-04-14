@@ -61,7 +61,8 @@ LiveSession::LiveSession(
       mLastDequeuedTimeUs(0ll),
       mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
-      mDisconnectReplyID(0) {
+      mDisconnectReplyID(0),
+      mSeekPosition(-1ll) {
     if (mUIDValid) {
         mHTTPDataSource->setUID(mUID);
     }
@@ -348,6 +349,12 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatChangeConfiguration3:
         {
             onChangeConfiguration3(msg);
+            break;
+        }
+
+        case kWhatResetConfiguration:
+        {
+            onResetConfiguration(msg);
             break;
         }
 
@@ -767,7 +774,12 @@ status_t LiveSession::onSeek(const sp<AMessage> &msg) {
     CHECK(msg->findInt64("timeUs", &timeUs));
 
     if (!mReconfigurationInProgress) {
+        mSeekPosition = -1ll;
         changeConfiguration(timeUs, getBandwidthIndex());
+    } else {
+        //During changing configuration, the seek position needs to cache,
+        //otherwise,this seek operation would be ignored.
+        mSeekPosition = timeUs;
     }
 
     return OK;
@@ -962,6 +974,17 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
 }
 
 void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
+    //Before starting all fetchers, check whether new seek operation comes.
+    //If yes,stop this progress and restart to change configuration based on
+    //the last cached seek position again. It can avoid ignoring the new
+    //seek operation.
+    if(mSeekPosition > -1ll){
+        sp<AMessage> msg = new AMessage(kWhatResetConfiguration,id());
+        msg->setInt64("timeUs",mSeekPosition);
+        mReconfigurationInProgress = false;
+        msg->post();
+        return;
+    }
     // All remaining fetchers are still suspended, the player has shutdown
     // any decoders that needed it.
 
@@ -1091,6 +1114,16 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
 
     if (mDisconnectReplyID != 0) {
         finishDisconnect();
+    }
+}
+
+void LiveSession::onResetConfiguration(const sp<AMessage> &msg){
+    //Change the configuration based on the last cached seek position
+    int64_t timeUs;
+    CHECK(msg->findInt64("timeUs", &timeUs));
+    if(!mReconfigurationInProgress && mSeekPosition > -1ll){
+        mSeekPosition = -1ll;
+        changeConfiguration(timeUs, getBandwidthIndex());
     }
 }
 
