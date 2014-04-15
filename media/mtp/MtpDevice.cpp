@@ -195,7 +195,7 @@ MtpDevice::MtpDevice(struct usb_device* device, int interface,
 
 MtpDevice::~MtpDevice() {
     close();
-    for (unsigned int i = 0; i < mDeviceProperties.size(); i++)
+    for (size_t i = 0; i < mDeviceProperties.size(); i++)
         delete mDeviceProperties[i];
     usb_request_free(mRequestIn1);
     usb_request_free(mRequestIn2);
@@ -253,7 +253,7 @@ void MtpDevice::print() {
             ALOGI("*** FORMAT: %s\n", MtpDebug::getFormatCodeName(format));
             MtpObjectPropertyList* props = getObjectPropsSupported(format);
             if (props) {
-                for (unsigned int j = 0; j < props->size(); j++) {
+                for (size_t j = 0; j < props->size(); j++) {
                     MtpObjectProperty prop = (*props)[j];
                     MtpProperty* property = getObjectPropDesc(prop, format);
                     if (property) {
