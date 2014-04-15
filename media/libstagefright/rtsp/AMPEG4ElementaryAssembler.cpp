@@ -365,7 +365,7 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::addPacket(
 void AMPEG4ElementaryAssembler::submitAccessUnit() {
     CHECK(!mPackets.empty());
 
-    ALOGV("Access unit complete (%d nal units)", mPackets.size());
+    ALOGV("Access unit complete (%zu nal units)", mPackets.size());
 
     sp<ABuffer> accessUnit;
 
