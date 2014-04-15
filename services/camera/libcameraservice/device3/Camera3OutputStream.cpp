@@ -119,7 +119,7 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
      * in which case we reassign it to acquire_fence
      */
     handoutBufferLocked(*buffer, &(anb->handle), /*acquireFence*/fenceFd,
-                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK);
+                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK, /*output*/true);
 
     return OK;
 }
@@ -324,7 +324,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
     }
 
     mTotalBufferCount = maxConsumerBuffers + camera3_stream::max_buffers;
-    mDequeuedBufferCount = 0;
+    mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
     mLastTimestamp = 0;
 

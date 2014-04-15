@@ -212,8 +212,30 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
 status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
+    status_t res = OK;
 
-    status_t res = getBufferLocked(buffer);
+    // This function should be only called when the stream is configured already.
+    if (mState != STATE_CONFIGURED) {
+        ALOGE("%s: Stream %d: Can't get buffers if stream is not in CONFIGURED state %d",
+                __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // Wait for new buffer returned back if we are running into the limit.
+    if (getHandoutOutputBufferCountLocked() == camera3_stream::max_buffers) {
+        ALOGV("%s: Already dequeued max output buffers (%d), wait for next returned one.",
+                __FUNCTION__, camera3_stream::max_buffers);
+        res = mOutputBufferReturnedSignal.waitRelative(mLock, kWaitForBufferDuration);
+        if (res != OK) {
+            if (res == TIMED_OUT) {
+                ALOGE("%s: wait for output buffer return timed out after %lldms", __FUNCTION__,
+                        kWaitForBufferDuration / 1000000LL);
+            }
+            return res;
+        }
+    }
+
+    res = getBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/true);
     }
@@ -237,6 +259,7 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
     status_t res = returnBufferLocked(buffer, timestamp);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/true);
+        mOutputBufferReturnedSignal.signal();
     }
 
     return res;
@@ -245,8 +268,30 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
 status_t Camera3Stream::getInputBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
+    status_t res = OK;
 
-    status_t res = getInputBufferLocked(buffer);
+    // This function should be only called when the stream is configured already.
+    if (mState != STATE_CONFIGURED) {
+        ALOGE("%s: Stream %d: Can't get input buffers if stream is not in CONFIGURED state %d",
+                __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // Wait for new buffer returned back if we are running into the limit.
+    if (getHandoutInputBufferCountLocked() == camera3_stream::max_buffers) {
+        ALOGV("%s: Already dequeued max input buffers (%d), wait for next returned one.",
+                __FUNCTION__, camera3_stream::max_buffers);
+        res = mInputBufferReturnedSignal.waitRelative(mLock, kWaitForBufferDuration);
+        if (res != OK) {
+            if (res == TIMED_OUT) {
+                ALOGE("%s: wait for input buffer return timed out after %lldms", __FUNCTION__,
+                        kWaitForBufferDuration / 1000000LL);
+            }
+            return res;
+        }
+    }
+
+    res = getInputBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/false);
     }
@@ -261,6 +306,7 @@ status_t Camera3Stream::returnInputBuffer(const camera3_stream_buffer &buffer) {
     status_t res = returnInputBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/false);
+        mInputBufferReturnedSignal.signal();
     }
     return res;
 }

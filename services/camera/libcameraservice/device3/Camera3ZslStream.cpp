@@ -176,7 +176,7 @@ status_t Camera3ZslStream::getInputBufferLocked(camera3_stream_buffer *buffer) {
      * in which case we reassign it to acquire_fence
      */
     handoutBufferLocked(*buffer, &(anb->handle), /*acquireFence*/fenceFd,
-                         /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK);
+                         /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK, /*output*/false);
 
     mBuffersInFlight.push_back(bufferItem);
 

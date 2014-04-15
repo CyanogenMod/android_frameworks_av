@@ -81,7 +81,7 @@ status_t Camera3InputStream::getInputBufferLocked(
      * in which case we reassign it to acquire_fence
      */
     handoutBufferLocked(*buffer, &(anb->handle), /*acquireFence*/fenceFd,
-                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK);
+                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK, /*output*/false);
     mBuffersInFlight.push_back(bufferItem);
 
     return OK;
@@ -199,7 +199,7 @@ status_t Camera3InputStream::configureQueueLocked() {
     assert(mMaxSize == 0);
     assert(camera3_stream::format != HAL_PIXEL_FORMAT_BLOB);
 
-    mDequeuedBufferCount = 0;
+    mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
 
     if (mConsumer.get() == 0) {

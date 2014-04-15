@@ -48,7 +48,10 @@ class Camera3IOStreamBase :
   protected:
     size_t            mTotalBufferCount;
     // sum of input and output buffers that are currently acquired by HAL
-    size_t            mDequeuedBufferCount;
+    size_t            mHandoutTotalBufferCount;
+    // number of output buffers that are currently acquired by HAL. This will be
+    // Redundant when camera3 streams are no longer bidirectional streams.
+    size_t            mHandoutOutputBufferCount;
     Condition         mBufferReturnedSignal;
     uint32_t          mFrameCount;
     // Last received output buffer's timestamp
@@ -76,6 +79,10 @@ class Camera3IOStreamBase :
 
     virtual size_t   getBufferCountLocked();
 
+    virtual size_t   getHandoutOutputBufferCountLocked();
+
+    virtual size_t   getHandoutInputBufferCountLocked();
+
     virtual status_t getEndpointUsage(uint32_t *usage) = 0;
 
     status_t getBufferPreconditionCheckLocked() const;
@@ -92,7 +99,8 @@ class Camera3IOStreamBase :
                              buffer_handle_t *handle,
                              int acquire_fence,
                              int release_fence,
-                             camera3_buffer_status_t status);
+                             camera3_buffer_status_t status,
+                             bool output);
 
 }; // class Camera3IOStreamBase
 
