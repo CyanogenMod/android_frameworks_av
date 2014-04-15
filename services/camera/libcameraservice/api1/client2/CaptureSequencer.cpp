@@ -584,12 +584,15 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
         entry = mNewFrame.find(ANDROID_SENSOR_TIMESTAMP);
         if (entry.count == 0) {
             ALOGE("No timestamp field in capture frame!");
-        }
-        if (entry.data.i64[0] != mCaptureTimestamp) {
-            ALOGW("Mismatched capture timestamps: Metadata frame %" PRId64 ","
-                    " captured buffer %" PRId64,
-                    entry.data.i64[0],
-                    mCaptureTimestamp);
+        } else if (entry.count == 1) {
+            if (entry.data.i64[0] != mCaptureTimestamp) {
+                ALOGW("Mismatched capture timestamps: Metadata frame %" PRId64 ","
+                        " captured buffer %" PRId64,
+                        entry.data.i64[0],
+                        mCaptureTimestamp);
+            }
+        } else {
+            ALOGE("Timestamp metadata is malformed!");
         }
         client->removeFrameListener(mCaptureId, mCaptureId + 1, this);
 
