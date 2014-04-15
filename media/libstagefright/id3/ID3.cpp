@@ -41,9 +41,9 @@ struct MemorySource : public DataSource {
     }
 
     virtual ssize_t readAt(off64_t offset, void *data, size_t size) {
-        off64_t available = (offset >= mSize) ? 0ll : mSize - offset;
+        off64_t available = (offset >= (off64_t)mSize) ? 0ll : mSize - offset;
 
-        size_t copy = (available > size) ? size : available;
+        size_t copy = (available > (off64_t)size) ? size : available;
         memcpy(data, mData + offset, copy);
 
         return copy;
@@ -172,7 +172,7 @@ struct id3_header {
     }
 
     if (size > kMaxMetadataSize) {
-        ALOGE("skipping huge ID3 metadata of size %d", size);
+        ALOGE("skipping huge ID3 metadata of size %zu", size);
         return false;
     }
 
@@ -654,8 +654,8 @@ void ID3::Iterator::findFrame() {
             mFrameSize += 6;
 
             if (mOffset + mFrameSize > mParent.mSize) {
-                ALOGV("partial frame at offset %d (size = %d, bytes-remaining = %d)",
-                     mOffset, mFrameSize, mParent.mSize - mOffset - 6);
+                ALOGV("partial frame at offset %zu (size = %zu, bytes-remaining = %zu)",
+                    mOffset, mFrameSize, mParent.mSize - mOffset - (size_t)6);
                 return;
             }
 
@@ -695,8 +695,8 @@ void ID3::Iterator::findFrame() {
             mFrameSize = 10 + baseSize;
 
             if (mOffset + mFrameSize > mParent.mSize) {
-                ALOGV("partial frame at offset %d (size = %d, bytes-remaining = %d)",
-                     mOffset, mFrameSize, mParent.mSize - mOffset - 10);
+                ALOGV("partial frame at offset %zu (size = %zu, bytes-remaining = %zu)",
+                    mOffset, mFrameSize, mParent.mSize - mOffset - (size_t)10);
                 return;
             }
 

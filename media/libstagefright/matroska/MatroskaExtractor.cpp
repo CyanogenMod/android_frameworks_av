@@ -105,7 +105,7 @@ struct BlockIterator {
 
 private:
     MatroskaExtractor *mExtractor;
-    unsigned long mTrackNum;
+    long long mTrackNum;
 
     const mkvparser::Cluster *mCluster;
     const mkvparser::BlockEntry *mBlockEntry;
