@@ -30,24 +30,13 @@
 
 #define MINUS_3_DB_IN_Q19_12 2896 // -3dB = 0.707 * 2^12 = 2896
 
+// subset of possible audio_channel_mask_t values, and AUDIO_CHANNEL_OUT_* renamed to CHANNEL_MASK_*
 typedef enum {
-    CHANNEL_MASK_QUAD_BACK = AUDIO_CHANNEL_OUT_QUAD,
-    // like AUDIO_CHANNEL_OUT_QUAD with *_SIDE_* instead of *_BACK_*, same channel order
-    CHANNEL_MASK_QUAD_SIDE =
-            AUDIO_CHANNEL_OUT_FRONT_LEFT |
-            AUDIO_CHANNEL_OUT_FRONT_RIGHT |
-            AUDIO_CHANNEL_OUT_SIDE_LEFT |
-            AUDIO_CHANNEL_OUT_SIDE_RIGHT,
-    CHANNEL_MASK_5POINT1_BACK = AUDIO_CHANNEL_OUT_5POINT1,
-    // like AUDIO_CHANNEL_OUT_5POINT1 with *_SIDE_* instead of *_BACK_*, same channel order
-    CHANNEL_MASK_5POINT1_SIDE =
-            AUDIO_CHANNEL_OUT_FRONT_LEFT |
-            AUDIO_CHANNEL_OUT_FRONT_RIGHT |
-            AUDIO_CHANNEL_OUT_FRONT_CENTER |
-            AUDIO_CHANNEL_OUT_LOW_FREQUENCY |
-            AUDIO_CHANNEL_OUT_SIDE_LEFT |
-            AUDIO_CHANNEL_OUT_SIDE_RIGHT,
-    CHANNEL_MASK_7POINT1_SIDE_BACK = AUDIO_CHANNEL_OUT_7POINT1,
+    CHANNEL_MASK_QUAD_BACK = AUDIO_CHANNEL_OUT_QUAD_BACK,
+    CHANNEL_MASK_QUAD_SIDE = AUDIO_CHANNEL_OUT_QUAD_SIDE,
+    CHANNEL_MASK_5POINT1_BACK = AUDIO_CHANNEL_OUT_5POINT1_BACK,
+    CHANNEL_MASK_5POINT1_SIDE = AUDIO_CHANNEL_OUT_5POINT1_SIDE,
+    CHANNEL_MASK_7POINT1 = AUDIO_CHANNEL_OUT_7POINT1,
 } downmix_input_channel_mask_t;
 
 // effect_handle_t interface implementation for downmix effect
@@ -343,7 +332,7 @@ static int Downmix_Process(effect_handle_t self,
         case CHANNEL_MASK_5POINT1_SIDE:
             Downmix_foldFrom5Point1(pSrc, pDst, numFrames, accumulate);
             break;
-        case CHANNEL_MASK_7POINT1_SIDE_BACK:
+        case CHANNEL_MASK_7POINT1:
             Downmix_foldFrom7Point1(pSrc, pDst, numFrames, accumulate);
             break;
         default:
