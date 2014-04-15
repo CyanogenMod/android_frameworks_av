@@ -654,6 +654,8 @@ status_t Camera3Device::createZslStream(
     }
     mInputStream = newStream;
 
+    mNeedConfig = true;
+
     *id = mNextStreamId++;
     *zslStream = newStream;
 
