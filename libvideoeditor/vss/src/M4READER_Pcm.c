@@ -386,7 +386,7 @@ M4OSA_ERR M4READER_PCM_getNextStream(M4OSA_Context context, M4READER_MediaFamily
     pC->m_pAudioStream->m_decoderSpecificInfoSize = streamDesc.decoderSpecificInfoSize;
     pC->m_pAudioStream->m_streamId                = streamDesc.streamID;
     pC->m_pAudioStream->m_pUserData               =
-        (void*)streamDesc.timeScale; /*trick to change*/
+        (void*)(intptr_t)streamDesc.timeScale; /*trick to change*/
     pC->m_pAudioStream->m_averageBitRate          = streamDesc.averageBitrate;
     pC->m_pAudioStream->m_maxAUSize               =
          pAudioStreamHandler->m_byteFrameLength*pAudioStreamHandler->m_byteSampleSize\

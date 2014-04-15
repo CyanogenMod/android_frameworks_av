@@ -25,6 +25,7 @@
 */
 
 
+#include <inttypes.h>
 #include <stdio.h> /*for printf */
 
 #include "M4OSA_Types.h"
@@ -65,9 +66,9 @@ M4OSAL_TRACE_EXPORT_TYPE void M4OSA_DebugTrace(M4OSA_Int32 line,
     }
 
 #ifdef NO_FILE
-    printf("Error: %li, on %s: %s\n",err,cond,msg);
+    printf("Error: %" PRIu32 ", on %s: %s\n",err,cond,msg);
 #else /* NO_FILE     */
-    printf("Error: %li, on %s: %s Line %lu in: %s\n",err,cond,msg,line,file);
+    printf("Error: %" PRIu32 ", on %s: %s Line %" PRIu32 " in: %s\n",err,cond,msg,line,file);
 #endif /* NO_FILE     */
 
 }

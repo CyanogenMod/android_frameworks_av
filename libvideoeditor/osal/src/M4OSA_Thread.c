@@ -524,7 +524,7 @@ M4OSA_ERR M4OSA_SetThreadSyncPriority(M4OSA_Context context,
    M4OSA_TRACE2_2("M4OSA_SetThreadSyncPriority\t\tM4OSA_Context 0x%x\t"
                   "M4OSA_DataOption 0x%x", context, optionValue);
 
-   if((M4OSA_UInt32)optionValue>M4OSA_kThreadLowestPriority)
+   if((M4OSA_UInt32)(uintptr_t)optionValue>M4OSA_kThreadLowestPriority)
    {
       return M4ERR_PARAMETER;
    }
@@ -590,7 +590,7 @@ M4OSA_ERR M4OSA_SetThreadSyncStackSize(M4OSA_Context context,
    M4OSA_TRACE2_2("M4OSA_SetThreadSyncStackSize\t\tM4OSA_Context 0x%x\t"
                   "M4OSA_DataOption 0x%x", context, optionValue);
 
-   threadContext->stackSize = (M4OSA_UInt32)optionValue;
+   threadContext->stackSize = (M4OSA_UInt32)(uintptr_t)optionValue;
 
    return M4NO_ERROR;
 }

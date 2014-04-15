@@ -80,7 +80,7 @@ public:
         Vector<String8> plugInFileList = getPlugInPathList(rsPlugInDirPath);
 
         if (!plugInFileList.isEmpty()) {
-            for (unsigned int i = 0; i < plugInFileList.size(); ++i) {
+            for (size_t i = 0; i < plugInFileList.size(); ++i) {
                 loadPlugIn(plugInFileList[i]);
             }
         }
@@ -91,7 +91,7 @@ public:
      *
      */
     void unloadPlugIns() {
-        for (unsigned int i = 0; i < m_plugInIdList.size(); ++i) {
+        for (size_t i = 0; i < m_plugInIdList.size(); ++i) {
             unloadPlugIn(m_plugInIdList[i]);
         }
         m_plugInIdList.clear();

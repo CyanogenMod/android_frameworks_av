@@ -4156,12 +4156,12 @@ M4OSA_ERR M4VSS3GPP_externalVideoEffectZoom(
 
     M4VIFI_ImagePlane boxPlane[3];
 
-    if(M4xVSS_kVideoEffectType_ZoomOut == (M4OSA_UInt32)pFunctionContext)
+    if((M4OSA_Void *)M4xVSS_kVideoEffectType_ZoomOut == pFunctionContext)
     {
         //ratio = 16 - (15 * pProgress->uiProgress)/1000;
         ratio = 16 - pProgress->uiProgress / 66 ;
     }
-    else if(M4xVSS_kVideoEffectType_ZoomIn == (M4OSA_UInt32)pFunctionContext)
+    else if((M4OSA_Void *)M4xVSS_kVideoEffectType_ZoomIn == pFunctionContext)
     {
         //ratio = 1 + (15 * pProgress->uiProgress)/1000;
         ratio = 1 + pProgress->uiProgress / 66 ;

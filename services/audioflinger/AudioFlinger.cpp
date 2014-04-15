@@ -525,7 +525,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         }
 
         // Look for sync events awaiting for a session to be used.
-        for (int i = 0; i < (int)mPendingSyncEvents.size(); i++) {
+        for (size_t i = 0; i < mPendingSyncEvents.size(); i++) {
             if (mPendingSyncEvents[i]->triggerSession() == lSessionId) {
                 if (thread->isValidSyncEvent(mPendingSyncEvents[i])) {
                     if (lStatus == NO_ERROR) {
@@ -831,7 +831,7 @@ status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
 
     AutoMutex lock(mLock);
     mStreamTypes[stream].mute = muted;
-    for (uint32_t i = 0; i < mPlaybackThreads.size(); i++)
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++)
         mPlaybackThreads.valueAt(i)->setStreamMute(stream, muted);
 
     return NO_ERROR;

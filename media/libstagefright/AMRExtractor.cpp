@@ -265,7 +265,7 @@ status_t AMRSource::read(
 
         mOffset = mOffsetTable[index] + (mIsWide ? 9 : 6);
 
-        for (int i = 0; i< seekFrame - index * 50; i++) {
+        for (size_t i = 0; i< seekFrame - index * 50; i++) {
             status_t err;
             if ((err = getFrameSizeByOffset(mDataSource, mOffset,
                             mIsWide, &size)) != OK) {

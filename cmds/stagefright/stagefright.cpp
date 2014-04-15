@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "stagefright"
 #include <media/stagefright/foundation/ADebug.h>
-
-#include <sys/time.h>
-
-#include <stdlib.h>
-#include <string.h>
-#include <inttypes.h>
 
 #include "jpeg.h"
 #include "SineSource.h"
@@ -49,8 +49,6 @@
 #include <media/stagefright/MPEG4Writer.h>
 
 #include <private/media/VideoFrame.h>
-
-#include <fcntl.h>
 
 #include <gui/GLConsumer.h>
 #include <gui/Surface.h>
@@ -647,7 +645,7 @@ static void dumpCodecProfiles(const sp<IOMX>& omx, bool queryDecoders) {
                 const CodecProfileLevel &profileLevel =
                      results[i].mProfileLevels[j];
 
-                printf("%s%ld/%ld", j > 0 ? ", " : "",
+                printf("%s%" PRIu32 "/%" PRIu32, j > 0 ? ", " : "",
                     profileLevel.mProfile, profileLevel.mLevel);
             }
 

@@ -857,7 +857,7 @@ M4OSA_ERR VideoEditorVideoEncoder_processOutputBuffer(
         ALOGV("VideoEditorVideoEncoder_processOutputBuffer : buffer is empty");
         goto cleanUp;
     }
-    VIDEOEDITOR_CHECK(0 == ((M4OSA_UInt32)buffer->data())%4, M4ERR_PARAMETER);
+    VIDEOEDITOR_CHECK(0 == (((intptr_t)buffer->data())%4), M4ERR_PARAMETER);
     VIDEOEDITOR_CHECK(buffer->meta_data().get(), M4ERR_PARAMETER);
     if ( buffer->meta_data()->findInt32(kKeyIsCodecConfig, &i32Tmp) && i32Tmp ){
         {   // Display the DSI

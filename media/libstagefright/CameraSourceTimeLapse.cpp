@@ -134,7 +134,7 @@ bool CameraSourceTimeLapse::trySettingVideoSize(
     }
 
     bool videoSizeSupported = false;
-    for (uint32_t i = 0; i < supportedSizes.size(); ++i) {
+    for (size_t i = 0; i < supportedSizes.size(); ++i) {
         int32_t pictureWidth = supportedSizes[i].width;
         int32_t pictureHeight = supportedSizes[i].height;
 

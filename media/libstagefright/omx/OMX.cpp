@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "OMX"
 #include <utils/Log.h>
@@ -425,7 +427,7 @@ OMX_ERRORTYPE OMX::OnEvent(
         OMX_IN OMX_U32 nData1,
         OMX_IN OMX_U32 nData2,
         OMX_IN OMX_PTR /* pEventData */) {
-    ALOGV("OnEvent(%d, %ld, %ld)", eEvent, nData1, nData2);
+    ALOGV("OnEvent(%d, %" PRIu32", %" PRIu32 ")", eEvent, nData1, nData2);
 
     // Forward to OMXNodeInstance.
     findInstance(node)->onEvent(eEvent, nData1, nData2);
