@@ -36,13 +36,13 @@ extern "C" {
 #endif
 
 
-typedef signed char     M4OSA_Bool;
-typedef unsigned char   M4OSA_UInt8;
-typedef signed char     M4OSA_Int8;
-typedef unsigned short  M4OSA_UInt16;
-typedef signed short    M4OSA_Int16;
-typedef unsigned long   M4OSA_UInt32;
-typedef signed long     M4OSA_Int32;
+typedef int8_t     M4OSA_Bool;
+typedef uint8_t    M4OSA_UInt8;
+typedef int8_t     M4OSA_Int8;
+typedef uint16_t   M4OSA_UInt16;
+typedef int16_t    M4OSA_Int16;
+typedef uint32_t   M4OSA_UInt32;
+typedef int32_t    M4OSA_Int32;
 
 typedef signed char     M4OSA_Char;
 typedef unsigned char   M4OSA_UChar;

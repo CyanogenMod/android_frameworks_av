@@ -22,6 +22,8 @@
 #undef M4OSA_TRACE_LEVEL
 #define M4OSA_TRACE_LEVEL 1
 
+#include <inttypes.h>
+
 #include "VideoEditorBuffer.h"
 #include "utils/Log.h"
 
@@ -55,7 +57,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_allocatePool(VIDEOEDITOR_BUFFER_Pool** ppool,
     VIDEOEDITOR_BUFFER_Pool* pool;
     M4OSA_UInt32 index;
 
-    ALOGV("VIDEOEDITOR_BUFFER_allocatePool : ppool = 0x%x nbBuffers = %d ",
+    ALOGV("VIDEOEDITOR_BUFFER_allocatePool : ppool = %p nbBuffers = %" PRIu32,
         ppool, nbBuffers);
 
     pool = M4OSA_NULL;
@@ -131,7 +133,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_freePool(VIDEOEDITOR_BUFFER_Pool* ppool)
     M4OSA_ERR err;
     M4OSA_UInt32  j = 0;
 
-    ALOGV("VIDEOEDITOR_BUFFER_freePool : ppool = 0x%x", ppool);
+    ALOGV("VIDEOEDITOR_BUFFER_freePool : ppool = %p", ppool);
 
     err = M4NO_ERROR;
 
@@ -200,7 +202,7 @@ M4OSA_ERR VIDEOEDITOR_BUFFER_getBuffer(VIDEOEDITOR_BUFFER_Pool* ppool,
     /* case where a buffer has been found */
     *pNXPBuffer = &(ppool->pNXPBuffer[ibuf]);
 
-    ALOGV("VIDEOEDITOR_BUFFER_getBuffer: idx = %d", ibuf);
+    ALOGV("VIDEOEDITOR_BUFFER_getBuffer: idx = %" PRIu32, ibuf);
 
     return(err);
 }

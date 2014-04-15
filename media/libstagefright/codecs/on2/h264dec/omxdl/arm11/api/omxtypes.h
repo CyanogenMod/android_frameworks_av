@@ -32,6 +32,7 @@
 #define _OMXTYPES_H_
 
 #include <limits.h> 
+#include <stdint.h>
 
 #define OMX_IN
 #define OMX_OUT
@@ -75,64 +76,22 @@ typedef enum {
 
  
 /* OMX_U8 */
-#if UCHAR_MAX == 0xff
-typedef unsigned char OMX_U8;
-#elif USHRT_MAX == 0xff 
-typedef unsigned short int OMX_U8; 
-#else
-#error OMX_U8 undefined
-#endif 
-
+typedef uint8_t OMX_U8;
  
 /* OMX_S8 */
-#if SCHAR_MAX == 0x7f 
-typedef signed char OMX_S8;
-#elif SHRT_MAX == 0x7f 
-typedef signed short int OMX_S8; 
-#else
-#error OMX_S8 undefined
-#endif
- 
+typedef int8_t OMX_S8;
  
 /* OMX_U16 */
-#if USHRT_MAX == 0xffff
-typedef unsigned short int OMX_U16;
-#elif UINT_MAX == 0xffff
-typedef unsigned int OMX_U16; 
-#else
-#error OMX_U16 undefined
-#endif
-
+typedef uint16_t OMX_U16;
 
 /* OMX_S16 */
-#if SHRT_MAX == 0x7fff 
-typedef signed short int OMX_S16;
-#elif INT_MAX == 0x7fff 
-typedef signed int OMX_S16; 
-#else
-#error OMX_S16 undefined
-#endif
-
+typedef int16_t OMX_S16;
 
 /* OMX_U32 */
-#if UINT_MAX == 0xffffffff
-typedef unsigned int OMX_U32;
-#elif LONG_MAX == 0xffffffff
-typedef unsigned long int OMX_U32; 
-#else
-#error OMX_U32 undefined
-#endif
-
+typedef uint32_t OMX_U32;
 
 /* OMX_S32 */
-#if INT_MAX == 0x7fffffff
-typedef signed int OMX_S32;
-#elif LONG_MAX == 0x7fffffff
-typedef long signed int OMX_S32; 
-#else
-#error OMX_S32 undefined
-#endif
-
+typedef int32_t OMX_S32;
 
 /* OMX_U64 & OMX_S64 */
 #if defined( _WIN32 ) || defined ( _WIN64 )
@@ -143,14 +102,13 @@ typedef long signed int OMX_S32;
     #define OMX_MAX_S64			(0x7FFFFFFFFFFFFFFFi64)
     #define OMX_MAX_U64			(0xFFFFFFFFFFFFFFFFi64)
 #else
-    typedef long long OMX_S64; /** Signed 64-bit integer */
-    typedef unsigned long long OMX_U64; /** Unsigned 64-bit integer */
+    typedef int64_t OMX_S64; /** Signed 64-bit integer */
+    typedef uint64_t OMX_U64; /** Unsigned 64-bit integer */
     #define OMX_MIN_S64			(0x8000000000000000LL)
     #define OMX_MIN_U64			(0x0000000000000000LL)
     #define OMX_MAX_S64			(0x7FFFFFFFFFFFFFFFLL)
     #define OMX_MAX_U64			(0xFFFFFFFFFFFFFFFFLL)
 #endif
-
 
 /* OMX_SC8 */
 typedef struct

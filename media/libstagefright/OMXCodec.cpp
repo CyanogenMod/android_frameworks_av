@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "OMXCodec"
 #include <utils/Log.h>
@@ -4177,9 +4179,9 @@ void OMXCodec::dumpPortStatus(OMX_U32 portIndex) {
     CHECK((portIndex == kPortIndexInput && def.eDir == OMX_DirInput)
           || (portIndex == kPortIndexOutput && def.eDir == OMX_DirOutput));
 
-    printf("  nBufferCountActual = %ld\n", def.nBufferCountActual);
-    printf("  nBufferCountMin = %ld\n", def.nBufferCountMin);
-    printf("  nBufferSize = %ld\n", def.nBufferSize);
+    printf("  nBufferCountActual = %" PRIu32 "\n", def.nBufferCountActual);
+    printf("  nBufferCountMin = %" PRIu32 "\n", def.nBufferCountMin);
+    printf("  nBufferSize = %" PRIu32 "\n", def.nBufferSize);
 
     switch (def.eDomain) {
         case OMX_PortDomainImage:
@@ -4188,9 +4190,9 @@ void OMXCodec::dumpPortStatus(OMX_U32 portIndex) {
 
             printf("\n");
             printf("  // Image\n");
-            printf("  nFrameWidth = %ld\n", imageDef->nFrameWidth);
-            printf("  nFrameHeight = %ld\n", imageDef->nFrameHeight);
-            printf("  nStride = %ld\n", imageDef->nStride);
+            printf("  nFrameWidth = %" PRIu32 "\n", imageDef->nFrameWidth);
+            printf("  nFrameHeight = %" PRIu32 "\n", imageDef->nFrameHeight);
+            printf("  nStride = %" PRIu32 "\n", imageDef->nStride);
 
             printf("  eCompressionFormat = %s\n",
                    imageCompressionFormatString(imageDef->eCompressionFormat));
@@ -4207,9 +4209,9 @@ void OMXCodec::dumpPortStatus(OMX_U32 portIndex) {
 
             printf("\n");
             printf("  // Video\n");
-            printf("  nFrameWidth = %ld\n", videoDef->nFrameWidth);
-            printf("  nFrameHeight = %ld\n", videoDef->nFrameHeight);
-            printf("  nStride = %ld\n", videoDef->nStride);
+            printf("  nFrameWidth = %" PRIu32 "\n", videoDef->nFrameWidth);
+            printf("  nFrameHeight = %" PRIu32 "\n", videoDef->nFrameHeight);
+            printf("  nStride = %" PRIu32 "\n", videoDef->nStride);
 
             printf("  eCompressionFormat = %s\n",
                    videoCompressionFormatString(videoDef->eCompressionFormat));
@@ -4238,10 +4240,10 @@ void OMXCodec::dumpPortStatus(OMX_U32 portIndex) {
                         mNode, OMX_IndexParamAudioPcm, &params, sizeof(params));
                 CHECK_EQ(err, (status_t)OK);
 
-                printf("  nSamplingRate = %ld\n", params.nSamplingRate);
-                printf("  nChannels = %ld\n", params.nChannels);
+                printf("  nSamplingRate = %" PRIu32 "\n", params.nSamplingRate);
+                printf("  nChannels = %" PRIu32 "\n", params.nChannels);
                 printf("  bInterleaved = %d\n", params.bInterleaved);
-                printf("  nBitPerSample = %ld\n", params.nBitPerSample);
+                printf("  nBitPerSample = %" PRIu32 "\n", params.nBitPerSample);
 
                 printf("  eNumData = %s\n",
                        params.eNumData == OMX_NumericalDataSigned
@@ -4257,7 +4259,7 @@ void OMXCodec::dumpPortStatus(OMX_U32 portIndex) {
                         mNode, OMX_IndexParamAudioAmr, &amr, sizeof(amr));
                 CHECK_EQ(err, (status_t)OK);
 
-                printf("  nChannels = %ld\n", amr.nChannels);
+                printf("  nChannels = %" PRIu32 "\n", amr.nChannels);
                 printf("  eAMRBandMode = %s\n",
                         amrBandModeString(amr.eAMRBandMode));
                 printf("  eAMRFrameFormat = %s\n",

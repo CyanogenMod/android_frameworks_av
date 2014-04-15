@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <inttypes.h>
+
 #include "utils/Log.h"
 #include "M4OSA_Types.h"
 #include "M4OSA_Debug.h"
@@ -505,7 +507,7 @@ M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
     }
 
     constraintSet3 = (pDSI[index+2] & 0x10);
-    ALOGV("getAVCProfileAndLevel profile_byte %d, level_byte: %d constrain3flag",
+    ALOGV("getAVCProfileAndLevel profile_byte %d, level_byte: %d constrain3flag: %d",
           pDSI[index+1], pDSI[index+3], constraintSet3);
 
     switch (pDSI[index+1]) {
@@ -586,7 +588,8 @@ M4OSA_ERR getAVCProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         default:
             *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
     }
-    ALOGV("getAVCProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    ALOGV("getAVCProfileAndLevel profile %" PRId32 " level %" PRId32,
+          *pProfile, *pLevel);
     return M4NO_ERROR;
 }
 
@@ -606,7 +609,7 @@ M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         *pLevel = M4VIDEOEDITING_VIDEO_UNKNOWN_LEVEL;
         return M4ERR_PARAMETER;
     }
-    ALOGV("getH263ProfileAndLevel profile_byte %d, level_byte",
+    ALOGV("getH263ProfileAndLevel profile_byte %d, level_byte %d",
           pDSI[6], pDSI[5]);
     /* get the H263 level */
     switch (pDSI[5]) {
@@ -670,7 +673,8 @@ M4OSA_ERR getH263ProfileAndLevel(M4OSA_UInt8* pDSI, M4OSA_Int32 DSISize,
         default:
            *pProfile = M4VIDEOEDITING_VIDEO_UNKNOWN_PROFILE;
     }
-    ALOGV("getH263ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    ALOGV("getH263ProfileAndLevel profile %" PRId32 " level %" PRId32,
+          *pProfile, *pLevel);
     return M4NO_ERROR;
 }
 
@@ -693,6 +697,7 @@ M4OSA_ERR getMPEG4ProfileAndLevel(M4OSA_UInt8 profileAndLevel,
             break;
         }
     }
-    ALOGV("getMPEG4ProfileAndLevel profile %ld level %ld", *pProfile, *pLevel);
+    ALOGV("getMPEG4ProfileAndLevel profile %" PRId32 " level %" PRId32,
+          *pProfile, *pLevel);
     return M4NO_ERROR;
 }

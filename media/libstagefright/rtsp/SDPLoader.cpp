@@ -130,7 +130,7 @@ void SDPLoader::onLoad(const sp<AMessage> &msg) {
         ssize_t readSize = mHTTPDataSource->readAt(0, buffer->data(), sdpSize);
 
         if (readSize < 0) {
-            ALOGE("Failed to read SDP, error code = %ld", readSize);
+            ALOGE("Failed to read SDP, error code = %zu", readSize);
             err = UNKNOWN_ERROR;
         } else {
             desc = new ASessionDescription;

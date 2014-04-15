@@ -303,7 +303,7 @@ M4OSA_ERR M4READER_AMR_getNextStream(M4OSA_Context context, M4READER_MediaFamily
     pStreamHandler->m_decoderSpecificInfoSize = streamDesc.decoderSpecificInfoSize;
     pStreamHandler->m_streamId                = streamDesc.streamID;
     pStreamHandler->m_duration                = streamDesc.duration;
-    pStreamHandler->m_pUserData               = (void*)streamDesc.timeScale; /*trick to change*/
+    pStreamHandler->m_pUserData               = (void*)(intptr_t)streamDesc.timeScale; /*trick to change*/
 
     if (streamDesc.duration > pC->m_maxDuration)
     {
@@ -704,7 +704,7 @@ M4OSA_ERR M4READER_AMR_getNextAu(M4OSA_Context context, M4_StreamHandler *pStrea
 
     if (err == M4NO_ERROR)
     {
-        timeScale = (M4OSA_Float)(M4OSA_Int32)(pStreamHandler->m_pUserData)/1000;
+        timeScale = (M4OSA_Float)(M4OSA_Int32)(intptr_t)(pStreamHandler->m_pUserData)/1000;
         pAccessUnit->m_dataAddress = (M4OSA_MemAddr8)pAu->dataAddress;
         pAccessUnit->m_size = pAu->size;
         pAccessUnit->m_CTS  = (M4_MediaTime)pAu->CTS/*/timeScale*/;
