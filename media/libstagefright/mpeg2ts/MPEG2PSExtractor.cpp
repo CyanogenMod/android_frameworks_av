@@ -36,6 +36,8 @@
 #include <media/stagefright/Utils.h>
 #include <utils/String8.h>
 
+#include <inttypes.h>
+
 namespace android {
 
 struct MPEG2PSExtractor::Track : public MediaSource {
@@ -409,7 +411,7 @@ ssize_t MPEG2PSExtractor::dequeuePES() {
             PTS |= br.getBits(15);
             CHECK_EQ(br.getBits(1), 1u);
 
-            ALOGV("PTS = %llu", PTS);
+            ALOGV("PTS = %" PRIu64, PTS);
             // ALOGI("PTS = %.2f secs", PTS / 90000.0f);
 
             optional_bytes_remaining -= 5;
@@ -426,7 +428,7 @@ ssize_t MPEG2PSExtractor::dequeuePES() {
                 DTS |= br.getBits(15);
                 CHECK_EQ(br.getBits(1), 1u);
 
-                ALOGV("DTS = %llu", DTS);
+                ALOGV("DTS = %" PRIu64, DTS);
 
                 optional_bytes_remaining -= 5;
             }
@@ -444,7 +446,7 @@ ssize_t MPEG2PSExtractor::dequeuePES() {
             ESCR |= br.getBits(15);
             CHECK_EQ(br.getBits(1), 1u);
 
-            ALOGV("ESCR = %llu", ESCR);
+            ALOGV("ESCR = %" PRIu64, ESCR);
             /* unsigned ESCR_extension = */br.getBits(9);
 
             CHECK_EQ(br.getBits(1), 1u);
@@ -473,7 +475,7 @@ ssize_t MPEG2PSExtractor::dequeuePES() {
 
         if (br.numBitsLeft() < dataLength * 8) {
             ALOGE("PES packet does not carry enough data to contain "
-                 "payload. (numBitsLeft = %d, required = %d)",
+                 "payload. (numBitsLeft = %zu, required = %u)",
                  br.numBitsLeft(), dataLength * 8);
 
             return ERROR_MALFORMED;

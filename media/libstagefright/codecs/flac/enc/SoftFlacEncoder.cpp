@@ -241,7 +241,7 @@ OMX_ERRORTYPE SoftFlacEncoder::internalSetParameter(
 
             if (defParams->nPortIndex == 0) {
                 if (defParams->nBufferSize > kMaxInputBufferSize) {
-                    ALOGE("Input buffer size must be at most %zu bytes",
+                    ALOGE("Input buffer size must be at most %d bytes",
                         kMaxInputBufferSize);
                     return OMX_ErrorUnsupportedSetting;
                 }
@@ -363,7 +363,7 @@ FLAC__StreamEncoderWriteStatus SoftFlacEncoder::onEncodedFlacAvailable(
     if ((samples == 0) || !mEncoderWriteData) {
         // called by the encoder because there's header data to save, but it's not the role
         // of this component (unless WRITE_FLAC_HEADER_IN_FIRST_BUFFER is defined)
-        ALOGV("ignoring %d bytes of header data (samples=%d)", bytes, samples);
+        ALOGV("ignoring %zu bytes of header data (samples=%d)", bytes, samples);
         return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
     }
 
@@ -384,9 +384,9 @@ FLAC__StreamEncoderWriteStatus SoftFlacEncoder::onEncodedFlacAvailable(
 #endif
 
     // write encoded data
-    ALOGV(" writing %d bytes of encoded data on output port", bytes);
+    ALOGV(" writing %zu bytes of encoded data on output port", bytes);
     if (bytes > outHeader->nAllocLen - outHeader->nOffset - outHeader->nFilledLen) {
-        ALOGE(" not enough space left to write encoded data, dropping %u bytes", bytes);
+        ALOGE(" not enough space left to write encoded data, dropping %zu bytes", bytes);
         // a fatal error would stop the encoding
         return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
     }
