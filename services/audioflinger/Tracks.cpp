@@ -930,7 +930,7 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWrit
 
 void AudioFlinger::PlaybackThread::Track::triggerEvents(AudioSystem::sync_event_t type)
 {
-    for (int i = 0; i < (int)mSyncEvents.size(); i++) {
+    for (size_t i = 0; i < mSyncEvents.size(); i++) {
         if (mSyncEvents[i]->type() == type) {
             mSyncEvents[i]->trigger();
             mSyncEvents.removeAt(i);

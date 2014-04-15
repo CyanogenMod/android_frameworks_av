@@ -690,7 +690,7 @@ M4OSA_ERR M4PCMR_setOption(M4OSA_Context context, M4PCMR_OptionID optionID, M4OS
     switch(optionID)
     {
         case M4PCMR_kPCMblockSize:
-            c->m_blockSize = (M4OSA_UInt32)Value;
+            c->m_blockSize = (M4OSA_UInt32)(uintptr_t)Value;
             break;
 
         default:

@@ -20,6 +20,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -125,7 +126,7 @@ void MtpServer::addStorage(MtpStorage* storage) {
 void MtpServer::removeStorage(MtpStorage* storage) {
     Mutex::Autolock autoLock(mMutex);
 
-    for (int i = 0; i < mStorages.size(); i++) {
+    for (size_t i = 0; i < mStorages.size(); i++) {
         if (mStorages[i] == storage) {
             mStorages.removeAt(i);
             sendStoreRemoved(storage->getStorageID());
@@ -137,7 +138,7 @@ void MtpServer::removeStorage(MtpStorage* storage) {
 MtpStorage* MtpServer::getStorage(MtpStorageID id) {
     if (id == 0)
         return mStorages[0];
-    for (int i = 0; i < mStorages.size(); i++) {
+    for (size_t i = 0; i < mStorages.size(); i++) {
         MtpStorage* storage = mStorages[i];
         if (storage->getStorageID() == id)
             return storage;
@@ -1116,7 +1117,7 @@ MtpResponseCode MtpServer::doSendPartialObject() {
     }
 
     const char* filePath = (const char *)edit->mPath;
-    ALOGV("receiving partial %s %lld %lld\n", filePath, offset, length);
+    ALOGV("receiving partial %s %lld %" PRIu32 "\n", filePath, offset, length);
 
     // read the header, and possibly some data
     int ret = mData.read(mFD);

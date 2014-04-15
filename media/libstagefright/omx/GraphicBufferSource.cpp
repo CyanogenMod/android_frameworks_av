@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 #define LOG_TAG "GraphicBufferSource"
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
@@ -205,7 +207,7 @@ void GraphicBufferSource::addCodecBuffer(OMX_BUFFERHEADERTYPE* header) {
         return;
     }
 
-    ALOGV("addCodecBuffer h=%p size=%lu p=%p",
+    ALOGV("addCodecBuffer h=%p size=%" PRIu32 " p=%p",
             header, header->nAllocLen, header->pBuffer);
     CodecBuffer codecBuffer;
     codecBuffer.mHeader = header;
@@ -226,7 +228,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         return;
     }
 
-    ALOGV("codecBufferEmptied h=%p size=%lu filled=%lu p=%p",
+    ALOGV("codecBufferEmptied h=%p size=%" PRIu32 " filled=%" PRIu32 " p=%p",
             header, header->nAllocLen, header->nFilledLen,
             header->pBuffer);
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
