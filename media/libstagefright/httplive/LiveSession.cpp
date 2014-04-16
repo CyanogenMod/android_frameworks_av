@@ -523,7 +523,7 @@ status_t LiveSession::fetchFile(
         const char *url, sp<ABuffer> *out,
         int64_t range_offset, int64_t range_length) {
     *out = NULL;
-
+    ALOGI("fetchFile: %s", url);
     sp<DataSource> source;
 
     if (!strncasecmp(url, "file://", 7)) {
@@ -699,7 +699,7 @@ size_t LiveSession::getBandwidthIndex() {
             long maxBw = strtoul(value, &end, 10);
             if (end > value && *end == '\0') {
                 if (maxBw > 0 && bandwidthBps > maxBw) {
-                    ALOGV("bandwidth capped to %ld bps", maxBw);
+                    ALOGI("bandwidth capped to %ld bps", maxBw);
                     bandwidthBps = maxBw;
                 }
             }
