@@ -806,6 +806,7 @@ ssize_t LiveSession::fetchFile(
         sp<DataSource> *source, /* to return and reuse source */
         String8 *actualUrl) {
     off64_t size;
+    ALOGI("fetchFile: %s", url);
     sp<DataSource> temp_source;
     if (source == NULL) {
         source = &temp_source;
@@ -1000,7 +1001,7 @@ size_t LiveSession::getBandwidthIndex() {
             long maxBw = strtoul(value, &end, 10);
             if (end > value && *end == '\0') {
                 if (maxBw > 0 && bandwidthBps > maxBw) {
-                    ALOGV("bandwidth capped to %ld bps", maxBw);
+                    ALOGI("bandwidth capped to %ld bps", maxBw);
                     bandwidthBps = maxBw;
                 }
             }
