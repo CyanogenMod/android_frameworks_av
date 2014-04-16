@@ -77,6 +77,11 @@ LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
+# Define ENABLE_RESAMPLE_IN_PCM_OFFLOAD_PATH
+ifeq ($(strip $(BOARD_USE_RESAMPLER_IN_PCM_OFFLOAD_PATH)),true)
+LOCAL_CFLAGS += -DENABLE_RESAMPLER_IN_PCM_OFFLOAD_PATH
+endif
+
 # Define ANDROID_SMP appropriately. Used to get inline tracing fast-path.
 ifeq ($(TARGET_CPU_SMP),true)
     LOCAL_CFLAGS += -DANDROID_SMP=1
