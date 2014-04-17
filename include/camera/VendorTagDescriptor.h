@@ -16,6 +16,7 @@
 
 #ifndef VENDOR_TAG_DESCRIPTOR_H
 
+#include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 #include <utils/RefBase.h>
@@ -67,6 +68,24 @@ class VendorTagDescriptor
                 /*out*/
                 Parcel* parcel) const;
 
+        /**
+         * Convenience method to get a vector containing all vendor tag
+         * sections, or an empty vector if none are defined.
+         */
+        SortedVector<String8> getAllSectionNames() const;
+
+        /**
+         * Lookup the tag id for a given tag name and section.
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        status_t lookupTag(String8 name, String8 section, /*out*/uint32_t* tag) const;
+
+        /**
+         * Dump the currently configured vendor tags to a file descriptor.
+         */
+        void dump(int fd, int verbosity, int indentation) const;
+
         // Static methods:
 
         /**
@@ -109,9 +128,11 @@ class VendorTagDescriptor
         static sp<VendorTagDescriptor> getGlobalVendorTagDescriptor();
     protected:
         VendorTagDescriptor();
+        KeyedVector<String8, KeyedVector<String8, uint32_t>*> mReverseMapping;
         KeyedVector<uint32_t, String8> mTagToNameMap;
-        KeyedVector<uint32_t, String8> mTagToSectionMap;
+        KeyedVector<uint32_t, uint32_t> mTagToSectionMap; // Value is offset in mSections
         KeyedVector<uint32_t, int32_t> mTagToTypeMap;
+        SortedVector<String8> mSections;
         // must be int32_t to be compatible with Parcel::writeInt32
         int32_t mTagCount;
     private:
