@@ -718,11 +718,9 @@ void AwesomePlayer::onBufferingUpdate() {
                 finishAsyncPrepare_l();
             }
         } else {
-            int64_t bitrate;
-            if (getBitrate(&bitrate)) {
-                size_t cachedSize = mCachedSource->cachedSize();
-                int64_t cachedDurationUs = cachedSize * 8000000ll / bitrate;
-
+            bool eos2;
+            int64_t cachedDurationUs;
+            if (getCachedDuration_l(&cachedDurationUs, &eos2) && mDurationUs > 0) {
                 int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
                 if (percentage > 100) {
                     percentage = 100;
@@ -730,7 +728,7 @@ void AwesomePlayer::onBufferingUpdate() {
 
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, percentage);
             } else {
-                // We don't know the bitrate of the stream, use absolute size
+                // We don't know the bitrate/duration of the stream, use absolute size
                 // limits to maintain the cache.
 
                 if ((mFlags & PLAYING) && !eos
