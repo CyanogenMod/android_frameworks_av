@@ -328,6 +328,13 @@ const char CameraParameters::SCENE_MODE_FIREWORKS[] = "fireworks";
 const char CameraParameters::SCENE_MODE_SPORTS[] = "sports";
 const char CameraParameters::SCENE_MODE_PARTY[] = "party";
 const char CameraParameters::SCENE_MODE_CANDLELIGHT[] = "candlelight";
+#ifdef STE_SAMSUNG_HARDWARE
+const char CameraParameters::SCENE_MODE_AQUA[] = "aqua";
+const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "backlight";
+const char CameraParameters::SCENE_MODE_DUSKDAWN[] = "duskdawn";
+const char CameraParameters::SCENE_MODE_FALLCOLOR[] = "fallcolor";
+const char CameraParameters::SCENE_MODE_TEXT[] = "text";
+#endif
 #ifdef QCOM_HARDWARE
 #ifdef SAMSUNG_CAMERA_LEGACY
 const char CameraParameters::SCENE_MODE_BACKLIGHT[] = "back-light";
@@ -353,6 +360,14 @@ const char CameraParameters::PIXEL_FORMAT_YUV422SP[] = "yuv422sp";
 const char CameraParameters::PIXEL_FORMAT_YUV420SP[] = "yuv420sp";
 #ifdef QCOM_HARDWARE
 const char CameraParameters::PIXEL_FORMAT_YUV420SP_ADRENO[] = "yuv420sp-adreno";
+#endif
+#ifdef STE_HARDWARE
+const char CameraParameters::PIXEL_FORMAT_YUV420SPNV12[] = "yuv420spnv12";
+const char CameraParameters::PIXEL_FORMAT_YUV420MB[] = "yuv420mb";
+const char CameraParameters::PIXEL_FORMAT_YVU422SP[] = "yvu422sp";
+const char CameraParameters::PIXEL_FORMAT_YVU422P[] = "yvu422p";
+const char CameraParameters::PIXEL_FORMAT_YVU420SP[] = "yvu420sp";
+const char CameraParameters::PIXEL_FORMAT_YVU420P[]  = "yvu420p";
 #endif
 const char CameraParameters::PIXEL_FORMAT_YUV422I[] = "yuv422i-yuyv";
 const char CameraParameters::PIXEL_FORMAT_YUV420P[]  = "yuv420p";
@@ -517,6 +532,12 @@ void CameraParameters::setOrientation(int orientation)
 // Values for light fx settings
 const char CameraParameters::LIGHTFX_LOWLIGHT[] = "low-light";
 const char CameraParameters::LIGHTFX_HDR[] = "high-dynamic-range";
+
+#ifdef STE_HARDWARE
+// keys for record stride and sliceheight
+const char CameraParameters::KEY_RECORD_STRIDE[] = "record-stride";
+const char CameraParameters::KEY_RECORD_SLICE_HEIGHT[] = "record-slice-height";
+#endif
 
 CameraParameters::CameraParameters()
                 : mMap()

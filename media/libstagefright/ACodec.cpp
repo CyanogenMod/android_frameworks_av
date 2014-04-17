@@ -600,7 +600,11 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifdef STE_HARDWARE
+            OMXCodec::OmxToHALFormat(def.format.video.eColorFormat));
+#else
             def.format.video.eColorFormat);
+#endif
 #endif
 
     if (err != 0) {
