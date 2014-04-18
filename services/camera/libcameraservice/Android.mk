@@ -79,6 +79,10 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
 
+ifneq ($(BOARD_NUMBER_OF_CAMERAS),)
+    LOCAL_CFLAGS += -DMAX_CAMERAS=$(BOARD_NUMBER_OF_CAMERAS)
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)

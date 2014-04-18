@@ -35,6 +35,10 @@ LOCAL_C_INCLUDES := \
     frameworks/av/services/camera/libcameraservice \
     frameworks/av/services/mediaresourcemanager \
 
+ifneq ($(BOARD_NUMBER_OF_CAMERAS),)
+    LOCAL_CFLAGS += -DMAX_CAMERAS=$(BOARD_NUMBER_OF_CAMERAS)
+endif
+
 LOCAL_MODULE:= mediaserver
 LOCAL_32_BIT_ONLY := true
 
