@@ -70,6 +70,10 @@ ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
     LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
 endif
 
+ifeq ($(BOARD_HAVE_THREE_CAMERAS),true)
+    LOCAL_CFLAGS += -DTHREE_CAMERAS
+endif
+
 LOCAL_MODULE:= libcameraservice
 
 include $(BUILD_SHARED_LIBRARY)

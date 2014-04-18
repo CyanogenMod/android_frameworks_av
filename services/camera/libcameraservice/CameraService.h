@@ -35,7 +35,7 @@
 #include <camera/ICameraServiceListener.h>
 
 /* This needs to be increased if we can have more cameras */
-#ifdef OMAP_ENHANCEMENT
+#if defined(OMAP_ENHANCEMENT) || defined(THREE_CAMERAS)
 #define MAX_CAMERAS 3
 #else
 #define MAX_CAMERAS 2
