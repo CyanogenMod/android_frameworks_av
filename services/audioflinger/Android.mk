@@ -85,6 +85,10 @@ endif
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH)),true)
+    LOCAL_CFLAGS += -DHDMI_PASSTHROUGH_ENABLED
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 #

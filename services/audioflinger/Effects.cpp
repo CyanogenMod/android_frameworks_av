@@ -1110,7 +1110,24 @@ status_t AudioFlinger::EffectHandle::enable()
                 Mutex::Autolock _l(t->mLock);
                 t->broadcast_l();
             }
-            if (!mEffect->isOffloadable()) {
+            bool invalidate = false;
+#ifdef HDMI_PASSTHROUGH_ENABLED
+            ALOGV("thread->type() %d", thread->type());
+            if (thread->type() == ThreadBase::OFFLOAD) {
+                PlaybackThread *t = (PlaybackThread *)thread.get();
+                ALOGV("flags from output 0x%x, passthrough flag 0x%x",
+                       t->getOutput()->flags,
+                       AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH);
+                if (t->getOutput()->flags & AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH) {
+                    invalidate = true;
+                } else {
+                    invalidate = false;
+                }
+            }
+#endif
+
+            if (!mEffect->isOffloadable() || invalidate) {
+                ALOGV("invalidate");
                 if (thread->type() == ThreadBase::OFFLOAD) {
                     PlaybackThread *t = (PlaybackThread *)thread.get();
                     t->invalidateTracks(AUDIO_STREAM_MUSIC);
