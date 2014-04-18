@@ -16,7 +16,8 @@
 
 #define LOG_TAG "EffectDownmix"
 //#define LOG_NDEBUG 0
-#include <cutils/log.h>
+#include <log/log.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -99,7 +100,7 @@ const int kNbEffects = sizeof(gDescriptors) / sizeof(const effect_descriptor_t *
 // strictly for testing, logs the indices of the channels for a given mask,
 // uses the same code as Downmix_foldGeneric()
 void Downmix_testIndexComputation(uint32_t mask) {
-    ALOGI("Testing index computation for 0x%x:", mask);
+    ALOGI("Testing index computation for 0x%" PRIx32 ":", mask);
     // check against unsupported channels
     if (mask & kUnsupported) {
         ALOGE("Unsupported channels (top or front left/right of center)");
@@ -220,7 +221,7 @@ int32_t DownmixLib_Create(const effect_uuid_t *uuid,
 
     *pHandle = (effect_handle_t) module;
 
-    ALOGV("DownmixLib_Create() %p , size %d", module, sizeof(downmix_module_t));
+    ALOGV("DownmixLib_Create() %p , size %zu", module, sizeof(downmix_module_t));
 
     return 0;
 }
@@ -254,7 +255,7 @@ int32_t DownmixLib_GetDescriptor(const effect_uuid_t *uuid, effect_descriptor_t 
         ALOGV("DownmixLib_GetDescriptor() i=%d", i);
         if (memcmp(uuid, &gDescriptors[i]->uuid, sizeof(effect_uuid_t)) == 0) {
             memcpy(pDescriptor, gDescriptors[i], sizeof(effect_descriptor_t));
-            ALOGV("EffectGetDescriptor - UUID matched downmix type %d, UUID = %x",
+            ALOGV("EffectGetDescriptor - UUID matched downmix type %d, UUID = %" PRIx32,
                  i, gDescriptors[i]->uuid.timeLow);
             return 0;
         }
@@ -328,7 +329,7 @@ static int Downmix_Process(effect_handle_t self,
           // bypass the optimized downmix routines for the common formats
           if (!Downmix_foldGeneric(
                   downmixInputChannelMask, pSrc, pDst, numFrames, accumulate)) {
-              ALOGE("Multichannel configuration 0x%x is not supported", downmixInputChannelMask);
+              ALOGE("Multichannel configuration 0x%" PRIx32 " is not supported", downmixInputChannelMask);
               return -EINVAL;
           }
           break;
@@ -352,7 +353,7 @@ static int Downmix_Process(effect_handle_t self,
         default:
             if (!Downmix_foldGeneric(
                     downmixInputChannelMask, pSrc, pDst, numFrames, accumulate)) {
-                ALOGE("Multichannel configuration 0x%x is not supported", downmixInputChannelMask);
+                ALOGE("Multichannel configuration 0x%" PRIx32 " is not supported", downmixInputChannelMask);
                 return -EINVAL;
             }
             break;
@@ -380,7 +381,7 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
 
     pDownmixer = (downmix_object_t*) &pDwmModule->context;
 
-    ALOGV("Downmix_Command command %d cmdSize %d",cmdCode, cmdSize);
+    ALOGV("Downmix_Command command %" PRIu32 " cmdSize %" PRIu32, cmdCode, cmdSize);
 
     switch (cmdCode) {
     case EFFECT_CMD_INIT:
@@ -404,7 +405,7 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
         break;
 
     case EFFECT_CMD_GET_PARAM:
-        ALOGV("Downmix_Command EFFECT_CMD_GET_PARAM pCmdData %p, *replySize %d, pReplyData: %p",
+        ALOGV("Downmix_Command EFFECT_CMD_GET_PARAM pCmdData %p, *replySize %" PRIu32 ", pReplyData: %p",
                 pCmdData, *replySize, pReplyData);
         if (pCmdData == NULL || cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
                 pReplyData == NULL ||
@@ -413,7 +414,7 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
         }
         effect_param_t *rep = (effect_param_t *) pReplyData;
         memcpy(pReplyData, pCmdData, sizeof(effect_param_t) + sizeof(int32_t));
-        ALOGV("Downmix_Command EFFECT_CMD_GET_PARAM param %d, replySize %d",
+        ALOGV("Downmix_Command EFFECT_CMD_GET_PARAM param %" PRId32 ", replySize %" PRIu32,
                 *(int32_t *)rep->data, rep->vsize);
         rep->status = Downmix_getParameter(pDownmixer, *(int32_t *)rep->data, &rep->vsize,
                 rep->data + sizeof(int32_t));
@@ -421,8 +422,8 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
         break;
 
     case EFFECT_CMD_SET_PARAM:
-        ALOGV("Downmix_Command EFFECT_CMD_SET_PARAM cmdSize %d pCmdData %p, *replySize %d, " \
-                "pReplyData %p", cmdSize, pCmdData, *replySize, pReplyData);
+        ALOGV("Downmix_Command EFFECT_CMD_SET_PARAM cmdSize %d pCmdData %p, *replySize %" PRIu32
+                ", pReplyData %p", cmdSize, pCmdData, *replySize, pReplyData);
         if (pCmdData == NULL || (cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)))
                 || pReplyData == NULL || *replySize != (int)sizeof(int32_t)) {
             return -EINVAL;
@@ -471,7 +472,7 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
             return -EINVAL;
         }
         // FIXME change type if playing on headset vs speaker
-        ALOGV("Downmix_Command EFFECT_CMD_SET_DEVICE: 0x%08x", *(uint32_t *)pCmdData);
+        ALOGV("Downmix_Command EFFECT_CMD_SET_DEVICE: 0x%08" PRIx32, *(uint32_t *)pCmdData);
         break;
 
     case EFFECT_CMD_SET_VOLUME: {
@@ -491,7 +492,7 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
         if (pCmdData == NULL || cmdSize != (int)sizeof(uint32_t)) {
             return -EINVAL;
         }
-        ALOGV("Downmix_Command EFFECT_CMD_SET_AUDIO_MODE: %d", *(uint32_t *)pCmdData);
+        ALOGV("Downmix_Command EFFECT_CMD_SET_AUDIO_MODE: %" PRIu32, *(uint32_t *)pCmdData);
         break;
 
     case EFFECT_CMD_SET_CONFIG_REVERSE:
@@ -500,7 +501,7 @@ static int Downmix_Command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdS
         break;
 
     default:
-        ALOGW("Downmix_Command invalid command %d",cmdCode);
+        ALOGW("Downmix_Command invalid command %" PRIu32, cmdCode);
         return -EINVAL;
     }
 
@@ -702,28 +703,28 @@ int Downmix_Reset(downmix_object_t *pDownmixer, bool init) {
 int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t size, void *pValue) {
 
     int16_t value16;
-    ALOGV("Downmix_setParameter, context %p, param %d, value16 %d, value32 %d",
+    ALOGV("Downmix_setParameter, context %p, param %" PRId32 ", value16 %" PRId16 ", value32 %" PRId32,
             pDownmixer, param, *(int16_t *)pValue, *(int32_t *)pValue);
 
     switch (param) {
 
       case DOWNMIX_PARAM_TYPE:
         if (size != sizeof(downmix_type_t)) {
-            ALOGE("Downmix_setParameter(DOWNMIX_PARAM_TYPE) invalid size %u, should be %zu",
+            ALOGE("Downmix_setParameter(DOWNMIX_PARAM_TYPE) invalid size %" PRIu32 ", should be %zu",
                     size, sizeof(downmix_type_t));
             return -EINVAL;
         }
         value16 = *(int16_t *)pValue;
-        ALOGV("set DOWNMIX_PARAM_TYPE, type %d", value16);
+        ALOGV("set DOWNMIX_PARAM_TYPE, type %" PRId16, value16);
         if (!((value16 > DOWNMIX_TYPE_INVALID) && (value16 <= DOWNMIX_TYPE_LAST))) {
-            ALOGE("Downmix_setParameter invalid DOWNMIX_PARAM_TYPE value %d", value16);
+            ALOGE("Downmix_setParameter invalid DOWNMIX_PARAM_TYPE value %" PRId16, value16);
             return -EINVAL;
         } else {
             pDownmixer->type = (downmix_type_t) value16;
         break;
 
       default:
-        ALOGE("Downmix_setParameter unknown parameter %d", param);
+        ALOGE("Downmix_setParameter unknown parameter %" PRId32, param);
         return -EINVAL;
     }
 }
@@ -762,17 +763,17 @@ int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t *
 
     case DOWNMIX_PARAM_TYPE:
       if (*pSize < sizeof(int16_t)) {
-          ALOGE("Downmix_getParameter invalid parameter size %zu for DOWNMIX_PARAM_TYPE", *pSize);
+          ALOGE("Downmix_getParameter invalid parameter size %" PRIu32 " for DOWNMIX_PARAM_TYPE", *pSize);
           return -EINVAL;
       }
       pValue16 = (int16_t *)pValue;
       *pValue16 = (int16_t) pDownmixer->type;
       *pSize = sizeof(int16_t);
-      ALOGV("Downmix_getParameter DOWNMIX_PARAM_TYPE is %d", *pValue16);
+      ALOGV("Downmix_getParameter DOWNMIX_PARAM_TYPE is %" PRId16, *pValue16);
       break;
 
     default:
-      ALOGE("Downmix_getParameter unknown parameter %d", param);
+      ALOGE("Downmix_getParameter unknown parameter %" PRId16, param);
       return -EINVAL;
     }
 
