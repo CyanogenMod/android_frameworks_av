@@ -197,64 +197,64 @@ void AString::append(const AString &from, size_t offset, size_t n) {
 
 void AString::append(int x) {
     char s[16];
-    sprintf(s, "%d", x);
-
+    int result = snprintf(s, sizeof(s), "%d", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(unsigned x) {
     char s[16];
-    sprintf(s, "%u", x);
-
+    int result = snprintf(s, sizeof(s), "%u", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(long x) {
-    char s[16];
-    sprintf(s, "%ld", x);
-
+    char s[32];
+    int result = snprintf(s, sizeof(s), "%ld", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(unsigned long x) {
-    char s[16];
-    sprintf(s, "%lu", x);
-
+    char s[32];
+    int result = snprintf(s, sizeof(s), "%lu", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(long long x) {
     char s[32];
-    sprintf(s, "%lld", x);
-
+    int result = snprintf(s, sizeof(s), "%lld", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(unsigned long long x) {
     char s[32];
-    sprintf(s, "%llu", x);
-
+    int result = snprintf(s, sizeof(s), "%llu", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(float x) {
     char s[16];
-    sprintf(s, "%f", x);
-
+    int result = snprintf(s, sizeof(s), "%f", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(double x) {
     char s[16];
-    sprintf(s, "%f", x);
-
+    int result = snprintf(s, sizeof(s), "%f", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
 void AString::append(void *x) {
-    char s[16];
-    sprintf(s, "%p", x);
-
+    char s[32];
+    int result = snprintf(s, sizeof(s), "%p", x);
+    CHECK((result > 0) && ((size_t) result) < sizeof(s));
     append(s);
 }
 
