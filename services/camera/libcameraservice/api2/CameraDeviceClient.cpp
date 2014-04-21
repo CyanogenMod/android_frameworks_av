@@ -497,6 +497,7 @@ status_t CameraDeviceClient::flush(int64_t* lastFrameNumber) {
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
+    mStreamingRequestList.clear();
     return mDevice->flush(lastFrameNumber);
 }
 

@@ -1751,13 +1751,14 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         gotResult = true;
 
-        if (frameNumber != mNextResultFrameNumber) {
+        // TODO: need to track errors for tighter bounds on expected frame number
+        if (frameNumber < mNextResultFrameNumber) {
             SET_ERR("Out-of-order capture result metadata submitted! "
                     "(got frame number %d, expecting %d)",
                     frameNumber, mNextResultFrameNumber);
             return;
         }
-        mNextResultFrameNumber++;
+        mNextResultFrameNumber = frameNumber + 1;
 
         CaptureResult captureResult;
         captureResult.mResultExtras = resultExtras;
@@ -1891,13 +1892,14 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
             // Verify ordering of shutter notifications
             {
                 Mutex::Autolock l(mOutputLock);
-                if (frameNumber != mNextShutterFrameNumber) {
+                // TODO: need to track errors for tighter bounds on expected frame number.
+                if (frameNumber < mNextShutterFrameNumber) {
                     SET_ERR("Shutter notification out-of-order. Expected "
                             "notification for frame %d, got frame %d",
                             mNextShutterFrameNumber, frameNumber);
                     break;
                 }
-                mNextShutterFrameNumber++;
+                mNextShutterFrameNumber = frameNumber + 1;
             }
 
             CaptureResultExtras resultExtras;
