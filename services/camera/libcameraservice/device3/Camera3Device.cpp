@@ -1162,13 +1162,17 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d: Flushing all requests", __FUNCTION__, mId);
     Mutex::Autolock il(mInterfaceLock);
-    Mutex::Autolock l(mLock);
 
-    mRequestThread->clear(/*out*/frameNumber);
+    {
+        Mutex::Autolock l(mLock);
+        mRequestThread->clear(/*out*/frameNumber);
+    }
+
     status_t res;
     if (mHal3Device->common.version >= CAMERA_DEVICE_API_VERSION_3_1) {
         res = mHal3Device->ops->flush(mHal3Device);
     } else {
+        Mutex::Autolock l(mLock);
         res = waitUntilDrainedLocked();
     }
 
