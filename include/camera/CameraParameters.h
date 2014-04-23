@@ -646,6 +646,19 @@ public:
     static const char KEY_WDR[];
     static const char KEY_WEATHER[];
     static const char KEY_CITYID[];
+
+// For lt01 Tab 3 8.0 and kona Note 8.0 camera HAL
+#ifndef QCOM_HARDWARE
+    static const char KEY_ISO[];
+    static const char METERING_CENTER[];
+    static const char METERING_SPOT[];
+    static const char METERING_MATRIX[];
+    static const char ISO_AUTO[];
+    static const char ISO_50[];
+    static const char ISO_100[];
+    static const char ISO_200[];
+    static const char ISO_400[];
+#endif
 #endif
 
 #ifdef HTC_CAMERA_HARDWARE
