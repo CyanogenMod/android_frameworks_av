@@ -162,6 +162,16 @@ const char CameraParameters::KEY_METERING[] = "metering";
 const char CameraParameters::KEY_WDR[] = "wdr";
 const char CameraParameters::KEY_WEATHER[] = "weather";
 const char CameraParameters::KEY_CITYID[] = "contextualtag-cityid";
+
+// For lt01wifi, lt013g and lt01lte (exynos4) camera HAL
+const char CameraParameters::KEY_ISO[] = "iso";
+const char CameraParameters::METERING_CENTER[] = "center";
+const char CameraParameters::METERING_SPOT[] = "spot";
+const char CameraParameters::METERING_MATRIX[] = "matrix";
+const char CameraParameters::ISO_AUTO[] = "auto";
+const char CameraParameters::ISO_100[] = "ISO100";
+const char CameraParameters::ISO_200[] = "ISO200";
+const char CameraParameters::ISO_400[] = "ISO400";
 #endif
 
 #ifdef HTC_CAMERA_HARDWARE
