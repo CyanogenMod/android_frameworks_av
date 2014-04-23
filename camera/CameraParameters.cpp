@@ -162,6 +162,19 @@ const char CameraParameters::KEY_METERING[] = "metering";
 const char CameraParameters::KEY_WDR[] = "wdr";
 const char CameraParameters::KEY_WEATHER[] = "weather";
 const char CameraParameters::KEY_CITYID[] = "contextualtag-cityid";
+
+// For lt01 Tab 3 8.0 and kona Note 8.0 camera HAL
+const char CameraParameters::KEY_ISO[] = "iso";
+const char CameraParameters::METERING_CENTER[] = "center";
+const char CameraParameters::METERING_MATRIX[] = "matrix";
+const char CameraParameters::METERING_SPOT[] = "spot";
+#ifndef QCOM_HARDWARE
+const char CameraParameters::ISO_AUTO[] = "auto";
+const char CameraParameters::ISO_50[] = "ISO50";
+const char CameraParameters::ISO_100[] = "ISO100";
+const char CameraParameters::ISO_200[] = "ISO200";
+const char CameraParameters::ISO_400[] = "ISO400";
+#endif
 #endif
 
 #ifdef HTC_CAMERA_HARDWARE
