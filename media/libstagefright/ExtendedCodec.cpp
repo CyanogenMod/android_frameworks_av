@@ -1139,21 +1139,55 @@ status_t ExtendedCodec::setAMRWBPLUSFormat(
 
     QOMX_AUDIO_PARAM_AMRWBPLUSTYPE profileAMRWBPlus;
     OMX_INDEXTYPE indexTypeAMRWBPlus;
-    status_t err;
+    OMX_PARAM_PORTDEFINITIONTYPE portParam;
 
-    InitOMXParams(&profileAMRWBPlus);
+    ALOGV("AMRWB+ setformat sampleRate:%d numChannels:%d",sampleRate,numChannels);
+
+    //configure input port
+    InitOMXParams(&portParam);
+    portParam.nPortIndex = kPortIndexInput;
+    status_t err = OMXhandle->getParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+    err = OMXhandle->setParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+
+    //configure output port
+    portParam.nPortIndex = kPortIndexOutput;
+    err = OMXhandle->getParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+    err = OMXhandle->setParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+
     err = OMXhandle->getExtensionIndex(nodeID, OMX_QCOM_INDEX_PARAM_AMRWBPLUS, &indexTypeAMRWBPlus);
-    CHECK_EQ(err,(status_t)OK);
+
+    //for input port
+    InitOMXParams(&profileAMRWBPlus);
+    profileAMRWBPlus.nPortIndex = kPortIndexInput;
     err = OMXhandle->getParameter(nodeID, indexTypeAMRWBPlus, &profileAMRWBPlus, sizeof(profileAMRWBPlus));
     CHECK_EQ(err,(status_t)OK);
 
     profileAMRWBPlus.nSampleRate = sampleRate;
     profileAMRWBPlus.nChannels = numChannels;
-
-    ALOGV("setAMRWBPLUSFormat sampleRate = %d, numChannels = %d", sampleRate, numChannels);
-
     err = OMXhandle->setParameter(nodeID, indexTypeAMRWBPlus, &profileAMRWBPlus, sizeof(profileAMRWBPlus));
     CHECK_EQ(err,(status_t)OK);
+
+    //for output port
+    OMX_AUDIO_PARAM_PCMMODETYPE profilePcm;
+    InitOMXParams(&profilePcm);
+    profilePcm.nPortIndex = kPortIndexOutput;
+    err = OMXhandle->getParameter(
+            nodeID, OMX_IndexParamAudioPcm, &profilePcm, sizeof(profilePcm));
+    CHECK_EQ(err, (status_t)OK);
+
+    profilePcm.nSamplingRate = sampleRate;
+    profilePcm.nChannels = numChannels;
+    err = OMXhandle->setParameter(
+            nodeID, OMX_IndexParamAudioPcm, &profilePcm, sizeof(profilePcm));
+    CHECK_EQ(err, (status_t)OK);
 
     return err;
 }
