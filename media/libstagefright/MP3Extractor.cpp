@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #define LOG_TAG "MP3Extractor"
 #include <utils/Log.h>
 
@@ -141,6 +141,7 @@ static bool Resync(
             ++pos;
             ++tmp;
             --remainingBytes;
+            ALOGV("invalid frame match found at %lld (header = 0x%08x) (match_header = 0x%08x) ", pos, header, match_header);
             continue;
         }
 
@@ -152,6 +153,7 @@ static bool Resync(
             ++pos;
             ++tmp;
             --remainingBytes;
+            ALOGV("invalid frame found at %lld (header = 0x%08x) sample_size=%d bitrate=%d frame_size=%d", pos, header, sample_size, bitrate, frame_size);
             continue;
         }
 
@@ -186,7 +188,7 @@ static bool Resync(
                 break;
             }
 
-            ALOGV("found subsequent frame #%d at %lld", j + 2, test_pos);
+            ALOGV("found valid subsequent frame #%d at %lld", j + 2, test_pos);
 
             test_pos += test_frame_size;
         }

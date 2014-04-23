@@ -36,7 +36,7 @@
 //#define STATE_QUEUE_DUMP
 
 // uncomment to allow tee sink debugging to be enabled by property
-//#define TEE_SINK
+#define TEE_SINK
 
 // uncomment to log CPU statistics every n wall clock seconds
 //#define DEBUG_CPU_USAGE 10
