@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #define LOG_TAG "AudioPlayer"
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 #include <utils/Log.h>
