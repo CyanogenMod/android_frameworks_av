@@ -175,6 +175,19 @@ const char CameraParameters::PAF_ON[] = "on";
 const char CameraParameters::PAF_OFF[] = "off";
 const char CameraParameters::RTHDR_ON[] = "on";
 const char CameraParameters::RTHDR_OFF[] = "off";
+
+// For lt01 Tab 3 8.0 and kona Note 8.0 camera HAL
+const char CameraParameters::KEY_ISO[] = "iso";
+const char CameraParameters::METERING_CENTER[] = "center";
+const char CameraParameters::METERING_MATRIX[] = "matrix";
+const char CameraParameters::METERING_SPOT[] = "spot";
+#ifndef QCOM_HARDWARE
+const char CameraParameters::ISO_AUTO[] = "auto";
+const char CameraParameters::ISO_50[] = "ISO50";
+const char CameraParameters::ISO_100[] = "ISO100";
+const char CameraParameters::ISO_200[] = "ISO200";
+const char CameraParameters::ISO_400[] = "ISO400";
+#endif
 #endif
 
 #ifdef HTC_CAMERA_HARDWARE

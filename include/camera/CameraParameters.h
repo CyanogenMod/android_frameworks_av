@@ -659,6 +659,19 @@ public:
     static const char PAF_OFF[];
     static const char RTHDR_ON[];
     static const char RTHDR_OFF[];
+
+// For lt01 Tab 3 8.0 and kona Note 8.0 camera HAL
+    static const char KEY_ISO[];
+    static const char METERING_CENTER[];
+    static const char METERING_MATRIX[];
+    static const char METERING_SPOT[];
+#ifndef QCOM_HARDWARE
+    static const char ISO_AUTO[];
+    static const char ISO_50[];
+    static const char ISO_100[];
+    static const char ISO_200[];
+    static const char ISO_400[];
+#endif
 #endif
 
 #ifdef HTC_CAMERA_HARDWARE
