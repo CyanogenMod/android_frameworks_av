@@ -93,7 +93,8 @@ class Camera3Device :
 
     // Actual stream creation/deletion is delayed until first request is submitted
     // If adding streams while actively capturing, will pause device before adding
-    // stream, reconfiguring device, and unpausing.
+    // stream, reconfiguring device, and unpausing. Note that, for JPEG stream, the
+    // buffer size may be overwritten by an more accurate value calculated by Camera3Device.
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format, size_t size,
             int *id);
@@ -144,6 +145,8 @@ class Camera3Device :
     static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
     static const nsecs_t       kActiveTimeout     = 500000000;  // 500 ms
     struct                     RequestTrigger;
+    // minimal jpeg buffer size: 256KB + blob header
+    static const ssize_t       kMinJpegBufferSize = 256 * 1024 + sizeof(camera3_jpeg_blob);
 
     // A lock to enforce serialization on the input/configure side
     // of the public interface.
@@ -293,6 +296,12 @@ class Camera3Device :
      * Try to acquire a lock a few times with sleeps between before giving up.
      */
     bool               tryLockSpinRightRound(Mutex& lock);
+
+    /**
+     * Get Jpeg buffer size for a given jpeg resolution.
+     * Negative values are error codes.
+     */
+    ssize_t             getJpegBufferSize(uint32_t width, uint32_t height) const;
 
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger
