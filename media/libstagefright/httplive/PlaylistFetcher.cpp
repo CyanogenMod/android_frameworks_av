@@ -916,6 +916,7 @@ void PlaylistFetcher::onDownloadNext() {
 
         if (err == -EAGAIN) {
             // bad starting sequence number hint
+            mTSParser.clear();
             postMonitorQueue();
             return;
         }
