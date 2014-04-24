@@ -546,6 +546,9 @@ void ExtendedCodec::configureVideoDecoder(
         return;
     }
 
+    // set frame packing
+    configureFramePackingFormat(msg, OMXhandle, nodeID, componentName);
+
     setDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
     AString fileFormat;
     const char *fileFormatCStr = NULL;
