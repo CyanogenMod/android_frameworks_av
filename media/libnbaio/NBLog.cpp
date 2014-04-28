@@ -26,6 +26,7 @@
 #include <cutils/atomic.h>
 #include <media/nbaio/NBLog.h>
 #include <utils/Log.h>
+#include <utils/String8.h>
 
 namespace android {
 
@@ -337,25 +338,25 @@ void NBLog::Reader::dump(int fd, size_t indent)
         }
         i -= length + 3;
     }
+    mFd = fd;
+    mIndent = indent;
+    String8 timestamp, body;
     if (i > 0) {
         lost += i;
-        if (fd >= 0) {
-            fdprintf(fd, "%*swarning: lost %zu bytes worth of events\n", indent, "", lost);
-        } else {
-            ALOGI("%*swarning: lost %u bytes worth of events\n", indent, "", lost);
-        }
+        body.appendFormat("warning: lost %u bytes worth of events", lost);
+        // TODO timestamp empty here, only other choice to wait for the first timestamp event in the
+        //      log to push it out.  Consider keeping the timestamp/body between calls to readAt().
+        dumpLine(timestamp, body);
     }
     size_t width = 1;
     while (maxSec >= 10) {
         ++width;
         maxSec /= 10;
     }
-    char prefix[32];
     if (maxSec >= 0) {
-        snprintf(prefix, sizeof(prefix), "[%*s] ", width + 4, "");
-    } else {
-        prefix[0] = '\0';
+        timestamp.appendFormat("[%*s]", width + 4, "");
     }
+    bool deferredTimestamp = false;
     while (i < avail) {
         event = (Event) copy[i];
         length = copy[i + 1];
@@ -363,11 +364,8 @@ void NBLog::Reader::dump(int fd, size_t indent)
         size_t advance = length + 3;
         switch (event) {
         case EVENT_STRING:
-            if (fd >= 0) {
-                fdprintf(fd, "%*s%s%.*s\n", indent, "", prefix, length, (const char *) data);
-            } else {
-                ALOGI("%*s%s%.*s", indent, "", prefix, length, (const char *) data);
-            } break;
+            body.appendFormat("%.*s", length, (const char *) data);
+            break;
         case EVENT_TIMESTAMP: {
             // already checked that length == sizeof(struct timespec);
             memcpy(&ts, data, sizeof(struct timespec));
@@ -400,43 +398,51 @@ void NBLog::Reader::dump(int fd, size_t indent)
                 prevNsec = tsNext.tv_nsec;
             }
             size_t n = (j - i) / (sizeof(struct timespec) + 3);
+            if (deferredTimestamp) {
+                dumpLine(timestamp, body);
+                deferredTimestamp = false;
+            }
+            timestamp.clear();
             if (n >= kSquashTimestamp) {
-                if (fd >= 0) {
-                    fdprintf(fd, "%*s[%d.%03d to .%.03d by .%.03d to .%.03d]\n", indent, "",
-                            (int) ts.tv_sec, (int) (ts.tv_nsec / 1000000),
-                            (int) ((ts.tv_nsec + deltaTotal) / 1000000),
-                            (int) (deltaMin / 1000000), (int) (deltaMax / 1000000));
-                } else {
-                    ALOGI("%*s[%d.%03d to .%.03d by .%.03d to .%.03d]\n", indent, "",
-                            (int) ts.tv_sec, (int) (ts.tv_nsec / 1000000),
-                            (int) ((ts.tv_nsec + deltaTotal) / 1000000),
-                            (int) (deltaMin / 1000000), (int) (deltaMax / 1000000));
-                }
+                timestamp.appendFormat("[%d.%03d to .%.03d by .%.03d to .%.03d]",
+                        (int) ts.tv_sec, (int) (ts.tv_nsec / 1000000),
+                        (int) ((ts.tv_nsec + deltaTotal) / 1000000),
+                        (int) (deltaMin / 1000000), (int) (deltaMax / 1000000));
                 i = j;
                 advance = 0;
                 break;
             }
-            if (fd >= 0) {
-                fdprintf(fd, "%*s[%d.%03d]\n", indent, "", (int) ts.tv_sec,
-                        (int) (ts.tv_nsec / 1000000));
-            } else {
-                ALOGI("%*s[%d.%03d]", indent, "", (int) ts.tv_sec,
-                        (int) (ts.tv_nsec / 1000000));
-            }
+            timestamp.appendFormat("[%d.%03d]", (int) ts.tv_sec,
+                    (int) (ts.tv_nsec / 1000000));
+            deferredTimestamp = true;
             } break;
         case EVENT_RESERVED:
         default:
-            if (fd >= 0) {
-                fdprintf(fd, "%*s%swarning: unknown event %d\n", indent, "", prefix, event);
-            } else {
-                ALOGI("%*s%swarning: unknown event %d", indent, "", prefix, event);
-            }
+            body.appendFormat("warning: unknown event %d", event);
             break;
         }
         i += advance;
+
+        if (!body.isEmpty()) {
+            dumpLine(timestamp, body);
+            deferredTimestamp = false;
+        }
+    }
+    if (deferredTimestamp) {
+        dumpLine(timestamp, body);
     }
     // FIXME it would be more efficient to put a char mCopy[256] as a member variable of the dumper
     delete[] copy;
+}
+
+void NBLog::Reader::dumpLine(const String8& timestamp, String8& body)
+{
+    if (mFd >= 0) {
+        fdprintf(mFd, "%.*s%s %s\n", mIndent, "", timestamp.string(), body.string());
+    } else {
+        ALOGI("%.*s%s %s", mIndent, "", timestamp.string(), body.string());
+    }
+    body.clear();
 }
 
 bool NBLog::Reader::isIMemory(const sp<IMemory>& iMemory) const
