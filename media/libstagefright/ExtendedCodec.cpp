@@ -509,25 +509,22 @@ void ExtendedCodec::configureFramePackingFormat(
         return;
     }
 
-    int32_t arbitraryMode = 0;
-    bool success = msg->findInt32(getMsgKey(kKeyUseArbitraryMode), &arbitraryMode);
-    bool useFrameByFrameMode = true; //default option
-    if (success && arbitraryMode) {
-        useFrameByFrameMode = false;
-    }
+    int32_t mode = 0;
+    OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
+    portFmt.nPortIndex = kPortIndexInput;
 
-    if (useFrameByFrameMode) {
-        ALOGI("Enable frame by frame mode");
-        OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
-        portFmt.nPortIndex = kPortIndexInput;
-        portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
-        status_t err = OMXhandle->setParameter(
-        nodeID, (OMX_INDEXTYPE)OMX_QcomIndexPortDefn, (void *)&portFmt, sizeof(portFmt));
-        if(err != OK) {
-            ALOGW("Failed to set frame packing format on component");
-        }
+    if (msg->findInt32(getMsgKey(kKeyUseArbitraryMode), &mode) && mode) {
+        ALOGI("Decoder will be in arbitrary mode");
+        portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_Arbitrary;
     } else {
-        ALOGI("Decoder should be in arbitrary mode");
+        ALOGI("Decoder will be in frame by frame mode");
+        portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
+    }
+    status_t err = OMXhandle->setParameter(
+            nodeID, (OMX_INDEXTYPE)OMX_QcomIndexPortDefn,
+            (void *)&portFmt, sizeof(portFmt));
+    if(err != OK) {
+        ALOGW("Failed to set frame packing format on component");
     }
 }
 
