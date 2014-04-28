@@ -157,6 +157,9 @@ struct ExtendedUtils {
     static void createSecurePool();
 
     static void drainSecurePool();
+
+    //helper function to parse rtp port range form system property
+    static void parseRtpPortRangeFromSystemProperty(unsigned *start, unsigned *end);
 };
 
 class VSyncLocker : public RefBase {
