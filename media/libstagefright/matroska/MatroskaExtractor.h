@@ -74,7 +74,7 @@ private:
     bool mIsWebm;
     int64_t mSeekPreRollNs;
 
-    void addTracks();
+    int addTracks();
     void findThumbnails();
 
     bool isLiveStreaming() const;
