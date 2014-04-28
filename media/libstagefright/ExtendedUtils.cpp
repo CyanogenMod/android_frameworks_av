@@ -47,6 +47,12 @@
 static const int64_t kDefaultAVSyncLateMargin =  40000;
 static const int64_t kMaxAVSyncLateMargin     = 250000;
 
+static const unsigned kDefaultRtpPortRangeStart = 15550;
+static const unsigned kDefaultRtpPortRangeEnd = 65535;
+
+static const unsigned kMinRtpPort = 1024;
+static const unsigned kMaxRtpPort = 65535;
+
 #define ARG_TOUCH(x) (void)x
 
 #ifdef ENABLE_AV_ENHANCEMENTS
@@ -145,6 +151,32 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
         return true;
     }
     return false;
+}
+
+void ExtendedUtils::ShellProp::getRtpPortRange(unsigned *start, unsigned *end) {
+    char value[PROPERTY_VALUE_MAX];
+    if (!property_get("persist.sys.media.rtp-ports", value, NULL)) {
+        ALOGV("Cannot get property of persist.sys.media.rtp-ports");
+        *start = kDefaultRtpPortRangeStart;
+        *end = kDefaultRtpPortRangeEnd;
+        return;
+    }
+
+    if (sscanf(value, "%u-%u", start, end) != 2) {
+        ALOGE("Failed to parse rtp port range from '%s'.", value);
+        *start = kDefaultRtpPortRangeStart;
+        *end = kDefaultRtpPortRangeEnd;
+        return;
+    }
+
+    if (*start > *end || *start <= kMinRtpPort || *end >= kMaxRtpPort) {
+        ALOGE("Illegal rtp port start/end specified, reverting to defaults.");
+        *start = kDefaultRtpPortRangeStart;
+        *end = kDefaultRtpPortRangeEnd;
+        return;
+    }
+
+    ALOGV("rtp port_start = %u, port_end = %u", *start, *end);
 }
 
 void ExtendedUtils::setBFrames(
@@ -433,6 +465,11 @@ int64_t ExtendedUtils::ShellProp::getMaxAVSyncLateMargin() {
 
 bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
     return false;
+}
+
+void ExtendedUtils::ShellProp::getRtpPortRange(unsigned *start, unsigned *end) {
+    *start = kDefaultRtpPortRangeStart;
+    *end = kDefaultRtpPortRangeEnd;
 }
 
 void ExtendedUtils::setBFrames(

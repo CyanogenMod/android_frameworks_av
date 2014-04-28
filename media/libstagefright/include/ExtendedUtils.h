@@ -66,6 +66,9 @@ struct ExtendedUtils {
         static bool isSmoothStreamingEnabled();
 
         static int64_t getMaxAVSyncLateMargin();
+
+        //helper function to parse rtp port range form system property
+        static void getRtpPortRange(unsigned *start, unsigned *end);
     };
 
     static const int32_t kNumBFramesPerPFrame = 1;
