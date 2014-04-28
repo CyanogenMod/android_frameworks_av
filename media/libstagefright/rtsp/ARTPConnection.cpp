@@ -33,6 +33,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+#include "ExtendedUtils.h"
+
 namespace android {
 
 static const size_t kMaxUDPSize = 1500;
@@ -117,11 +119,20 @@ void ARTPConnection::MakePortPair(
 
     bumpSocketBufferSize(*rtcpSocket);
 
-    /* rand() * 1000 may overflow int type, use long long */
-    unsigned start = (unsigned)((rand()* 1000ll)/RAND_MAX) + 15550;
-    start &= ~1;
+    unsigned portRangeStart = 0;
+    unsigned portRangeEnd = 0;
+    ExtendedUtils::parseRtpPortRangeFromSystemProperty(&portRangeStart, &portRangeEnd);
 
-    for (unsigned port = start; port < 65536; port += 2) {
+    // choose a random start port from range of [portRangeStart, portRangeEnd)
+    unsigned start = (unsigned)((long long)rand() * (portRangeEnd - portRangeStart)
+            / RAND_MAX) + portRangeStart;
+    start &= ~1;
+    if (start < portRangeStart) {
+        start += 2;
+    }
+    ALOGV("Test rtp port in range [%u, %u]", start, portRangeEnd);
+
+    for (unsigned port = start; port <= portRangeEnd; port += 2) {
         struct sockaddr_in addr;
         memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
         addr.sin_family = AF_INET;
@@ -137,6 +148,7 @@ void ARTPConnection::MakePortPair(
 
         if (bind(*rtcpSocket,
                  (const struct sockaddr *)&addr, sizeof(addr)) == 0) {
+            ALOGV("RTCP port: %u", port + 1);
             *rtpPort = port;
             return;
         }
