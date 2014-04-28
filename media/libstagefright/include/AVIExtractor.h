@@ -25,6 +25,8 @@
 
 namespace android {
 
+#define WAVE_FORMAT_AAC (0x00FF)
+
 struct AVIExtractor : public MediaExtractor {
     AVIExtractor(const sp<DataSource> &dataSource);
 
