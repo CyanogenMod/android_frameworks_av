@@ -47,6 +47,9 @@
 static const int64_t kDefaultAVSyncLateMargin =  40000;
 static const int64_t kMaxAVSyncLateMargin     = 250000;
 
+static const unsigned kDefaultRtpPortRangeStart = 15550;
+static const unsigned kDefaultRtpPortRangeEnd = 65535;
+
 #ifdef ENABLE_AV_ENHANCEMENTS
 
 #include <QCMetaData.h>
@@ -804,6 +807,32 @@ int VSyncLocker::receiver(int fd, int events, void *context) {
     return 1;
 }
 
+void ExtendedUtils::parseRtpPortRangeFromSystemProperty(unsigned *start, unsigned *end) {
+    char value[PROPERTY_VALUE_MAX];
+    if (!property_get("persist.sys.media.rtp-ports", value, NULL)) {
+        ALOGV("Cannot get property of persist.sys.media.rtp-ports");
+        *start = kDefaultRtpPortRangeStart;
+        *end = kDefaultRtpPortRangeEnd;
+        return;
+    }
+
+    if (sscanf(value, "%u/%u", start, end) != 2) {
+        ALOGE("Failed to parse rtp port range from '%s'.", value);
+        *start = kDefaultRtpPortRangeStart;
+        *end = kDefaultRtpPortRangeEnd;
+        return;
+    }
+
+    if (*start > *end || *start <= 1024 || *end >= 65535) {
+        ALOGE("Illegal rtp port start/end specified, reverting to defaults.");
+        *start = kDefaultRtpPortRangeStart;
+        *end = kDefaultRtpPortRangeEnd;
+        return;
+    }
+
+    ALOGV("rtp port_start = %u, port_end = %u", *start, *end);
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -948,6 +977,11 @@ void VSyncLocker::start() {}
 void VSyncLocker::VSyncEvent() {}
 
 void VSyncLocker::signalVSync() {}
+
+void ExtendedUtils::parseRtpPortRangeFromSystemProperty(unsigned *start, unsigned *end) {
+    *start = kDefaultRtpPortRangeStart;
+    *end = kDefaultRtpPortRangeEnd;
+}
 
 }
 #endif //ENABLE_AV_ENHANCEMENTS
