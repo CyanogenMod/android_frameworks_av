@@ -8,6 +8,7 @@ LOCAL_SRC_FILES:= \
 	Camera.cpp \
 	CameraMetadata.cpp \
 	CameraParameters.cpp \
+	CameraParameters2.cpp \
 	ICamera.cpp \
 	ICameraClient.cpp \
 	ICameraService.cpp \

@@ -407,12 +407,6 @@ void Camera2Client::disconnect() {
         l.mParameters.state = Parameters::DISCONNECTED;
     }
 
-    mStreamingProcessor->deletePreviewStream();
-    mStreamingProcessor->deleteRecordingStream();
-    mJpegProcessor->deleteStream();
-    mCallbackProcessor->deleteStream();
-    mZslProcessor->deleteStream();
-
     mStreamingProcessor->requestExit();
     mFrameProcessor->requestExit();
     mCaptureSequencer->requestExit();
@@ -428,6 +422,14 @@ void Camera2Client::disconnect() {
     mJpegProcessor->join();
     mZslProcessorThread->join();
     mCallbackProcessor->join();
+
+    ALOGV("Camera %d: Deleting streams", mCameraId);
+
+    mStreamingProcessor->deletePreviewStream();
+    mStreamingProcessor->deleteRecordingStream();
+    mJpegProcessor->deleteStream();
+    mCallbackProcessor->deleteStream();
+    mZslProcessor->deleteStream();
 
     ALOGV("Camera %d: Disconnecting device", mCameraId);
 
@@ -732,6 +734,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         return OK;
     }
     params.state = Parameters::STOPPED;
+    int lastPreviewStreamId = mStreamingProcessor->getPreviewStreamId();
 
     res = mStreamingProcessor->updatePreviewStream(params);
     if (res != OK) {
@@ -739,6 +742,8 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+
+    bool previewStreamChanged = mStreamingProcessor->getPreviewStreamId() != lastPreviewStreamId;
 
     // We could wait to create the JPEG output stream until first actual use
     // (first takePicture call). However, this would substantially increase the
@@ -789,6 +794,19 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
             return res;
         }
         outputStreams.push(getCallbackStreamId());
+    } else if (previewStreamChanged && mCallbackProcessor->getStreamId() != NO_STREAM) {
+        /**
+         * Delete the unused callback stream when preview stream is changed and
+         * preview is not enabled. Don't need stop preview stream as preview is in
+         * STOPPED state now.
+         */
+        ALOGV("%s: Camera %d: Delete unused preview callback stream.",  __FUNCTION__, mCameraId);
+        res = mCallbackProcessor->deleteStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to delete callback stream %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
     if (params.zslMode && !params.recordingHint) {
         res = updateProcessorStream(mZslProcessor, params);
