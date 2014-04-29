@@ -71,7 +71,6 @@ struct FastMixerState : FastThreadState {
         MIX_WRITE = 0x18;       // mix tracks and write to output sink
 
     // This might be a one-time configuration rather than per-state
-    FastMixerDumpState* mDumpState; // if non-NULL, then update dump state periodically
     NBAIO_Sink* mTeeSink;       // if non-NULL, then duplicate write()s to this non-blocking sink
 };  // struct FastMixerState
 
