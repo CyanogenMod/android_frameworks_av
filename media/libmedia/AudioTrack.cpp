@@ -1882,16 +1882,6 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             return NS_NEVER;
         }
 
-        if (mRetryOnPartialBuffer && !isOffloaded()) {
-            mRetryOnPartialBuffer = false;
-            if (avail < mRemainingFrames) {
-                int64_t myns = ((mRemainingFrames - avail) * 1100000000LL) / sampleRate;
-                if (ns < 0 || myns < ns) {
-                    ns = myns;
-                }
-                return ns;
-            }
-        }
 
         // Divide buffer size by 2 to take into account the expansion
         // due to 8 to 16 bit conversion: the callback must fill only half
