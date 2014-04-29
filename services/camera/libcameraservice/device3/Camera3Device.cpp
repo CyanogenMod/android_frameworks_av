@@ -284,6 +284,53 @@ bool Camera3Device::tryLockSpinRightRound(Mutex& lock) {
     return gotLock;
 }
 
+ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const {
+    // TODO: replace below with availableStreamConfiguration for HAL3.2+.
+    camera_metadata_ro_entry availableJpegSizes =
+            mDeviceInfo.find(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
+    if (availableJpegSizes.count == 0 || availableJpegSizes.count % 2 != 0) {
+        ALOGE("%s: Camera %d: Can't find find valid available jpeg sizes in static metadata!",
+                __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
+
+    // Get max jpeg size (area-wise).
+    int32_t maxJpegWidth = 0, maxJpegHeight = 0;
+    bool foundMax = false;
+    for (size_t i = 0; i < availableJpegSizes.count; i += 2) {
+        if ((availableJpegSizes.data.i32[i] * availableJpegSizes.data.i32[i + 1])
+                > (maxJpegWidth * maxJpegHeight)) {
+            maxJpegWidth = availableJpegSizes.data.i32[i];
+            maxJpegHeight = availableJpegSizes.data.i32[i + 1];
+            foundMax = true;
+        }
+    }
+    if (!foundMax) {
+        return BAD_VALUE;
+    }
+
+    // Get max jpeg buffer size
+    ssize_t maxJpegBufferSize = 0;
+    camera_metadata_ro_entry jpegMaxSize = mDeviceInfo.find(ANDROID_JPEG_MAX_SIZE);
+    if (jpegMaxSize.count == 0) {
+        ALOGE("%s: Camera %d: Can't find maximum JPEG size in static metadata!", __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
+    maxJpegBufferSize = jpegMaxSize.data.i32[0];
+
+    // Calculate final jpeg buffer size for the given resolution.
+    float scaleFactor = ((float) (width * height)) / (maxJpegWidth * maxJpegHeight);
+    ssize_t jpegBufferSize = scaleFactor * maxJpegBufferSize;
+    // Bound the buffer size to [MIN_JPEG_BUFFER_SIZE, maxJpegBufferSize].
+    if (jpegBufferSize > maxJpegBufferSize) {
+        jpegBufferSize = maxJpegBufferSize;
+    } else if (jpegBufferSize < kMinJpegBufferSize) {
+        jpegBufferSize = kMinJpegBufferSize;
+    }
+
+    return jpegBufferSize;
+}
+
 status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     ATRACE_CALL();
     (void)args;
@@ -741,8 +788,17 @@ status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
 
     sp<Camera3OutputStream> newStream;
     if (format == HAL_PIXEL_FORMAT_BLOB) {
+        ssize_t jpegBufferSize = getJpegBufferSize(width, height);
+        if (jpegBufferSize > 0) {
+            ALOGV("%s: Overwrite Jpeg output buffer size from %zu to %zu",
+                    __FUNCTION__, size, jpegBufferSize);
+        } else {
+            SET_ERR_L("Invalid jpeg buffer size %zd", jpegBufferSize);
+            return BAD_VALUE;
+        }
+
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, size, format);
+                width, height, jpegBufferSize, format);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
                 width, height, format);
