@@ -31,7 +31,6 @@
 #define MINUS_3_DB_IN_Q19_12 2896 // -3dB = 0.707 * 2^12 = 2896
 
 typedef enum {
-    CHANNEL_MASK_SURROUND = AUDIO_CHANNEL_OUT_SURROUND,
     CHANNEL_MASK_QUAD_BACK = AUDIO_CHANNEL_OUT_QUAD,
     // like AUDIO_CHANNEL_OUT_QUAD with *_SIDE_* instead of *_BACK_*, same channel order
     CHANNEL_MASK_QUAD_SIDE =
@@ -339,9 +338,6 @@ static int Downmix_Process(effect_handle_t self,
         case CHANNEL_MASK_QUAD_BACK:
         case CHANNEL_MASK_QUAD_SIDE:
             Downmix_foldFromQuad(pSrc, pDst, numFrames, accumulate);
-            break;
-        case CHANNEL_MASK_SURROUND:
-            Downmix_foldFromSurround(pSrc, pDst, numFrames, accumulate);
             break;
         case CHANNEL_MASK_5POINT1_BACK:
         case CHANNEL_MASK_5POINT1_SIDE:
@@ -819,65 +815,6 @@ void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool ac
             pDst[0] = clamp16((pSrc[0] + pSrc[2]) >> 1);
             // FR + RR
             pDst[1] = clamp16((pSrc[1] + pSrc[3]) >> 1);
-            pSrc += 4;
-            pDst += 2;
-            numFrames--;
-        }
-    }
-}
-
-
-/*----------------------------------------------------------------------------
- * Downmix_foldFromSurround()
- *----------------------------------------------------------------------------
- * Purpose:
- * downmix a "surround sound" (mono rear) signal to stereo
- *
- * Inputs:
- *  pSrc       surround signal to downmix
- *  numFrames  the number of surround frames to downmix
- *  accumulate whether to mix (when true) the result of the downmix with the contents of pDst,
- *               or overwrite pDst (when false)
- *
- * Outputs:
- *  pDst       downmixed stereo audio samples
- *
- *----------------------------------------------------------------------------
- */
-void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate) {
-    int32_t lt, rt, centerPlusRearContrib; // samples in Q19.12 format
-    // sample at index 0 is FL
-    // sample at index 1 is FR
-    // sample at index 2 is FC
-    // sample at index 3 is RC
-    // code is mostly duplicated between the two values of accumulate to avoid repeating the test
-    // for every sample
-    if (accumulate) {
-        while (numFrames) {
-            // centerPlusRearContrib = FC(-3dB) + RC(-3dB)
-            centerPlusRearContrib = (pSrc[2] * MINUS_3_DB_IN_Q19_12) + (pSrc[3] * MINUS_3_DB_IN_Q19_12);
-            // FL + centerPlusRearContrib
-            lt = (pSrc[0] << 12) + centerPlusRearContrib;
-            // FR + centerPlusRearContrib
-            rt = (pSrc[1] << 12) + centerPlusRearContrib;
-            // accumulate in destination
-            pDst[0] = clamp16(pDst[0] + (lt >> 13));
-            pDst[1] = clamp16(pDst[1] + (rt >> 13));
-            pSrc += 4;
-            pDst += 2;
-            numFrames--;
-        }
-    } else { // same code as above but without adding and clamping pDst[i] to itself
-        while (numFrames) {
-            // centerPlusRearContrib = FC(-3dB) + RC(-3dB)
-            centerPlusRearContrib = (pSrc[2] * MINUS_3_DB_IN_Q19_12) + (pSrc[3] * MINUS_3_DB_IN_Q19_12);
-            // FL + centerPlusRearContrib
-            lt = (pSrc[0] << 12) + centerPlusRearContrib;
-            // FR + centerPlusRearContrib
-            rt = (pSrc[1] << 12) + centerPlusRearContrib;
-            // store in destination
-            pDst[0] = clamp16(lt >> 13); // differs from when accumulate is true above
-            pDst[1] = clamp16(rt >> 13); // differs from when accumulate is true above
             pSrc += 4;
             pDst += 2;
             numFrames--;
