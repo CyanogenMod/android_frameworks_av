@@ -315,12 +315,20 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
-    if (audio_is_linear_pcm(format)) {
-        mFrameSize = channelCount * audio_bytes_per_sample(format);
-        mFrameSizeAF = channelCount * sizeof(int16_t);
+    if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        if (audio_is_linear_pcm(format)) {
+            mFrameSize = channelCount * audio_bytes_per_sample(format);
+        } else {
+            mFrameSize = sizeof(uint8_t);
+        }
+        mFrameSizeAF = mFrameSize;
     } else {
-        mFrameSize = sizeof(uint8_t);
-        mFrameSizeAF = sizeof(uint8_t);
+        ALOG_ASSERT(audio_is_linear_pcm(format));
+        mFrameSize = channelCount * audio_bytes_per_sample(format);
+        mFrameSizeAF = channelCount * audio_bytes_per_sample(
+                format == AUDIO_FORMAT_PCM_8_BIT ? AUDIO_FORMAT_PCM_16_BIT : format);
+        // createTrack will return an error if PCM format is not supported by server,
+        // so no need to check for specific PCM formats here
     }
 
     // Make copy of input parameter offloadInfo so that in the future:
@@ -931,7 +939,11 @@ status_t AudioTrack::createTrack_l(size_t epoch)
 
         // Ensure that buffer alignment matches channel count
         // 8-bit data in shared memory is not currently supported by AudioFlinger
-        size_t alignment = /* mFormat == AUDIO_FORMAT_PCM_8_BIT ? 1 : */ 2;
+        size_t alignment = audio_bytes_per_sample(
+                mFormat == AUDIO_FORMAT_PCM_8_BIT ? AUDIO_FORMAT_PCM_16_BIT : mFormat);
+        if (alignment & 1) {
+            alignment = 1;
+        }
         if (mChannelCount > 1) {
             // More than 2 channels does not require stronger alignment than stereo
             alignment <<= 1;
@@ -947,7 +959,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         // there's no frameCount parameter.
         // But when initializing a shared buffer AudioTrack via set(),
         // there _is_ a frameCount parameter.  We silently ignore it.
-        frameCount = mSharedBuffer->size()/mChannelCount/sizeof(int16_t);
+        frameCount = mSharedBuffer->size() / mFrameSizeAF;
 
     } else if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
 
