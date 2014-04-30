@@ -343,7 +343,7 @@ void NBLog::Reader::dump(int fd, size_t indent)
     String8 timestamp, body;
     if (i > 0) {
         lost += i;
-        body.appendFormat("warning: lost %u bytes worth of events", lost);
+        body.appendFormat("warning: lost %zu bytes worth of events", lost);
         // TODO timestamp empty here, only other choice to wait for the first timestamp event in the
         //      log to push it out.  Consider keeping the timestamp/body between calls to readAt().
         dumpLine(timestamp, body);
@@ -354,7 +354,7 @@ void NBLog::Reader::dump(int fd, size_t indent)
         maxSec /= 10;
     }
     if (maxSec >= 0) {
-        timestamp.appendFormat("[%*s]", width + 4, "");
+        timestamp.appendFormat("[%*s]", (int) width + 4, "");
     }
     bool deferredTimestamp = false;
     while (i < avail) {
@@ -364,7 +364,7 @@ void NBLog::Reader::dump(int fd, size_t indent)
         size_t advance = length + 3;
         switch (event) {
         case EVENT_STRING:
-            body.appendFormat("%.*s", length, (const char *) data);
+            body.appendFormat("%.*s", (int) length, (const char *) data);
             break;
         case EVENT_TIMESTAMP: {
             // already checked that length == sizeof(struct timespec);
