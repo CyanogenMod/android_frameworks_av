@@ -23,8 +23,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= stagefright
 
-LOCAL_32_BIT_ONLY := true
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -48,8 +46,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= record
 
-LOCAL_32_BIT_ONLY := true
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -72,8 +68,6 @@ LOCAL_CFLAGS += -Wno-multichar
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= recordvideo
-
-LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_EXECUTABLE)
 
@@ -99,8 +93,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= audioloop
 
-LOCAL_32_BIT_ONLY := true
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -124,8 +116,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= stream
 
-LOCAL_32_BIT_ONLY := true
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -148,8 +138,6 @@ LOCAL_CFLAGS += -Wno-multichar
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= sf2
-
-LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_EXECUTABLE)
 
@@ -175,8 +163,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= codec
 
-LOCAL_32_BIT_ONLY := true
-
 include $(BUILD_EXECUTABLE)
 
 ################################################################################
@@ -199,7 +185,5 @@ LOCAL_CFLAGS += -Wno-multichar
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= muxer
-
-LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_EXECUTABLE)
