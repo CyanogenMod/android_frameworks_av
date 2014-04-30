@@ -34,6 +34,7 @@
 namespace android {
 
 struct AudioPlayer;
+struct ClockEstimator;
 struct DataSource;
 struct MediaBuffer;
 struct MediaExtractor;
@@ -247,6 +248,7 @@ private:
 
     MediaBuffer *mVideoBuffer;
 
+    sp<ClockEstimator> mClockEstimator;
     sp<HTTPBase> mConnectingDataSource;
     sp<NuCachedSource2> mCachedSource;
 
@@ -306,6 +308,7 @@ private:
 
     bool getBitrate(int64_t *bitrate);
 
+    int64_t estimateRealTimeUs(TimeSource *ts, int64_t systemTimeUs);
     void finishSeekIfNecessary(int64_t videoTimeUs);
     void ensureCacheIsFetching_l();
 
