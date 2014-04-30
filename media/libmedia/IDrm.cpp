@@ -53,7 +53,8 @@ enum {
     SIGN,
     SIGN_RSA,
     VERIFY,
-    SET_LISTENER
+    SET_LISTENER,
+    UNPROVISION_DEVICE
 };
 
 struct BpDrm : public BpInterface<IDrm> {
@@ -225,6 +226,15 @@ struct BpDrm : public BpInterface<IDrm> {
 
         readVector(reply, certificate);
         readVector(reply, wrappedKey);
+
+        return reply.readInt32();
+    }
+
+    virtual status_t unprovisionDevice() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
+
+        remote()->transact(UNPROVISION_DEVICE, data, &reply);
 
         return reply.readInt32();
     }
@@ -615,6 +625,14 @@ status_t BnDrm::onTransact(
             status_t result = provideProvisionResponse(response, certificate, wrappedKey);
             writeVector(reply, certificate);
             writeVector(reply, wrappedKey);
+            reply->writeInt32(result);
+            return OK;
+        }
+
+        case UNPROVISION_DEVICE:
+        {
+            CHECK_INTERFACE(IDrm, data, reply);
+            status_t result = unprovisionDevice();
             reply->writeInt32(result);
             return OK;
         }
