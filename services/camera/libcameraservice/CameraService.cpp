@@ -575,6 +575,11 @@ status_t CameraService::connectPro(
                                         /*out*/
                                         sp<IProCameraUser>& device)
 {
+    if (cameraCb == 0) {
+        ALOGE("%s: Callback must not be null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
     String8 clientName8(clientPackageName);
     int callingPid = getCallingPid();
 
