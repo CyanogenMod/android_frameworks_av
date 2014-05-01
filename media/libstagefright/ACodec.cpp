@@ -17,6 +17,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ACodec"
 
+#include <utils/Trace.h>
+
 #include <media/stagefright/ACodec.h>
 
 #include <binder/MemoryDealer.h>
@@ -3443,6 +3445,7 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     if (mCodec->mNativeWindow != NULL
             && msg->findInt32("render", &render) && render != 0
             && info->mData != NULL && info->mData->size() != 0) {
+        ATRACE_NAME("render");
         // The client wants this buffer to be rendered.
 
         status_t err;
@@ -3455,6 +3458,10 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
             info->mStatus = BufferInfo::OWNED_BY_US;
         }
     } else {
+        if (mCodec->mNativeWindow != NULL &&
+            (info->mData == NULL || info->mData->size() != 0)) {
+            ATRACE_NAME("frame-drop");
+        }
         info->mStatus = BufferInfo::OWNED_BY_US;
     }
 
