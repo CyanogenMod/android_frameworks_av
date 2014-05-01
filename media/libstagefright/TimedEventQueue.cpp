@@ -135,7 +135,9 @@ TimedEventQueue::event_id TimedEventQueue::postTimedEvent(
 
     if (realtime_us > ALooper::GetNowUs() + kWakelockMinDelay) {
         acquireWakeLock_l();
-        item.has_wakelock = true;
+        if (mWakeLockCount > 0) {
+            item.has_wakelock = true;
+        }
     }
     mQueue.insert(it, item);
 
@@ -343,6 +345,11 @@ void TimedEventQueue::acquireWakeLock_l()
                 mWakeLockToken = binder;
                 mWakeLockCount++;
             }
+        } else {
+            /* There is no PowerManager, so a wakelock cannot be acquired.
+             * Release the wakeLock reference to allow retrying the connection
+             * on the next attempted acquire. */
+            mWakeLockCount--;
         }
     } else {
         mWakeLockCount++;
