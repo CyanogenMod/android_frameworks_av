@@ -31,7 +31,7 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libdl
 
-LOCAL_STATIC_LIBRARIES := \
+LOCAL_WHOLE_STATIC_LIBRARIES := \
     libdrmframeworkcommon
 
 LOCAL_C_INCLUDES += \
