@@ -1820,7 +1820,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
 
     result.append(" AudioTrack::dump\n");
     snprintf(buffer, 255, "  stream type(%d), left - right volume(%f, %f)\n", mStreamType,
-            mVolume[0], mVolume[1]);
+            mVolume[AUDIO_INTERLEAVE_LEFT], mVolume[AUDIO_INTERLEAVE_RIGHT]);
     result.append(buffer);
     snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%zu)\n", mFormat,
             mChannelCount, mFrameCount);
