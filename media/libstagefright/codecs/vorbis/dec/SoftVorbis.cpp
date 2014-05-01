@@ -355,7 +355,12 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
         outHeader->nFlags = 0;
         int err = vorbis_dsp_synthesis(mState, &pack, 1);
         if (err != 0) {
+            // FIXME temporary workaround for log spam
+#if !defined(__arm__) && !defined(__aarch64__)
+            ALOGV("vorbis_dsp_synthesis returned %d", err);
+#else
             ALOGW("vorbis_dsp_synthesis returned %d", err);
+#endif
         } else {
             numFrames = vorbis_dsp_pcmout(
                     mState, (int16_t *)outHeader->pBuffer,
