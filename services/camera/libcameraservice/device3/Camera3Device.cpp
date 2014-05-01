@@ -1936,9 +1936,6 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                 if (msg->message.error.error_code == CAMERA3_MSG_ERROR_DEVICE) {
                     listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
                                           resultExtras);
-                } else {
-                    listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE,
-                                          resultExtras);
                 }
             } else {
                 ALOGE("Camera %d: %s: no listener available", mId, __FUNCTION__);
