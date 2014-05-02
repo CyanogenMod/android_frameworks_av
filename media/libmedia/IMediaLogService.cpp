@@ -43,7 +43,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IMediaLogService::getInterfaceDescriptor());
         data.writeStrongBinder(shared->asBinder());
-        data.writeInt32((int32_t) size);
+        data.writeInt64((int64_t) size);
         data.writeCString(name);
         status_t status = remote()->transact(REGISTER_WRITER, data, &reply);
         // FIXME ignores status
@@ -71,7 +71,7 @@ status_t BnMediaLogService::onTransact(
         case REGISTER_WRITER: {
             CHECK_INTERFACE(IMediaLogService, data, reply);
             sp<IMemory> shared = interface_cast<IMemory>(data.readStrongBinder());
-            size_t size = (size_t) data.readInt32();
+            size_t size = (size_t) data.readInt64();
             const char *name = data.readCString();
             registerWriter(shared, size, name);
             return NO_ERROR;
