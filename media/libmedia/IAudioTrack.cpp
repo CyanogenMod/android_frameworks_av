@@ -115,7 +115,7 @@ public:
     virtual status_t allocateTimedBuffer(size_t size, sp<IMemory>* buffer) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
-        data.writeInt32(size);
+        data.writeInt64(size);
         status_t status = remote()->transact(ALLOCATE_TIMED_BUFFER,
                                              data, &reply);
         if (status == NO_ERROR) {
@@ -232,7 +232,7 @@ status_t BnAudioTrack::onTransact(
         case ALLOCATE_TIMED_BUFFER: {
             CHECK_INTERFACE(IAudioTrack, data, reply);
             sp<IMemory> buffer;
-            status_t status = allocateTimedBuffer(data.readInt32(), &buffer);
+            status_t status = allocateTimedBuffer(data.readInt64(), &buffer);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
                 reply->writeStrongBinder(buffer->asBinder());

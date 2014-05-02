@@ -62,7 +62,7 @@ struct BpStreamSource : public BpInterface<IStreamSource> {
     virtual void setBuffers(const Vector<sp<IMemory> > &buffers) {
         Parcel data, reply;
         data.writeInterfaceToken(IStreamSource::getInterfaceDescriptor());
-        data.writeInt32(static_cast<int32_t>(buffers.size()));
+        data.writeInt64(static_cast<int64_t>(buffers.size()));
         for (size_t i = 0; i < buffers.size(); ++i) {
             data.writeStrongBinder(buffers.itemAt(i)->asBinder());
         }
@@ -72,7 +72,7 @@ struct BpStreamSource : public BpInterface<IStreamSource> {
     virtual void onBufferAvailable(size_t index) {
         Parcel data, reply;
         data.writeInterfaceToken(IStreamSource::getInterfaceDescriptor());
-        data.writeInt32(static_cast<int32_t>(index));
+        data.writeInt64(static_cast<int64_t>(index));
         remote()->transact(
                 ON_BUFFER_AVAILABLE, data, &reply, IBinder::FLAG_ONEWAY);
     }
@@ -102,7 +102,7 @@ status_t BnStreamSource::onTransact(
         case SET_BUFFERS:
         {
             CHECK_INTERFACE(IStreamSource, data, reply);
-            size_t n = static_cast<size_t>(data.readInt32());
+            size_t n = static_cast<size_t>(data.readInt64());
             Vector<sp<IMemory> > buffers;
             for (size_t i = 0; i < n; ++i) {
                 sp<IMemory> mem =
@@ -117,7 +117,7 @@ status_t BnStreamSource::onTransact(
         case ON_BUFFER_AVAILABLE:
         {
             CHECK_INTERFACE(IStreamSource, data, reply);
-            onBufferAvailable(static_cast<size_t>(data.readInt32()));
+            onBufferAvailable(static_cast<size_t>(data.readInt64()));
             break;
         }
 
@@ -145,8 +145,8 @@ struct BpStreamListener : public BpInterface<IStreamListener> {
     virtual void queueBuffer(size_t index, size_t size) {
         Parcel data, reply;
         data.writeInterfaceToken(IStreamListener::getInterfaceDescriptor());
-        data.writeInt32(static_cast<int32_t>(index));
-        data.writeInt32(static_cast<int32_t>(size));
+        data.writeInt64(static_cast<int64_t>(index));
+        data.writeInt64(static_cast<int64_t>(size));
 
         remote()->transact(QUEUE_BUFFER, data, &reply, IBinder::FLAG_ONEWAY);
     }
@@ -177,8 +177,8 @@ status_t BnStreamListener::onTransact(
         case QUEUE_BUFFER:
         {
             CHECK_INTERFACE(IStreamListener, data, reply);
-            size_t index = static_cast<size_t>(data.readInt32());
-            size_t size = static_cast<size_t>(data.readInt32());
+            size_t index = static_cast<size_t>(data.readInt64());
+            size_t size = static_cast<size_t>(data.readInt64());
 
             queueBuffer(index, size);
             break;

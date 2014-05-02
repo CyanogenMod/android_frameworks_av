@@ -55,7 +55,7 @@ public:
             data.writeInt32(desc->samplingRate);
             data.writeInt32(desc->format);
             data.writeInt32(desc->channelMask);
-            data.writeInt32(desc->frameCount);
+            data.writeInt64(desc->frameCount);
             data.writeInt32(desc->latency);
         }
         remote()->transact(IO_CONFIG_CHANGED, data, &reply, IBinder::FLAG_ONEWAY);
@@ -85,7 +85,7 @@ status_t BnAudioFlingerClient::onTransact(
                 desc.samplingRate = data.readInt32();
                 desc.format = (audio_format_t) data.readInt32();
                 desc.channelMask = (audio_channel_mask_t) data.readInt32();
-                desc.frameCount = data.readInt32();
+                desc.frameCount = data.readInt64();
                 desc.latency = data.readInt32();
                 param2 = &desc;
             }

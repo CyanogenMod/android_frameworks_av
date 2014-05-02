@@ -140,7 +140,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeIntPtr((intptr_t)node);
         data.writeInt32(index);
-        data.writeInt32(size);
+        data.writeInt64(size);
         data.write(params, size);
         remote()->transact(GET_PARAMETER, data, &reply);
 
@@ -161,7 +161,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeIntPtr((intptr_t)node);
         data.writeInt32(index);
-        data.writeInt32(size);
+        data.writeInt64(size);
         data.write(params, size);
         remote()->transact(SET_PARAMETER, data, &reply);
 
@@ -175,7 +175,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeIntPtr((intptr_t)node);
         data.writeInt32(index);
-        data.writeInt32(size);
+        data.writeInt64(size);
         data.write(params, size);
         remote()->transact(GET_CONFIG, data, &reply);
 
@@ -196,7 +196,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeIntPtr((intptr_t)node);
         data.writeInt32(index);
-        data.writeInt32(size);
+        data.writeInt64(size);
         data.write(params, size);
         remote()->transact(SET_CONFIG, data, &reply);
 
@@ -375,7 +375,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeIntPtr((intptr_t)node);
         data.writeInt32(port_index);
-        data.writeInt32(size);
+        data.writeInt64(size);
         remote()->transact(ALLOC_BUFFER, data, &reply);
 
         status_t err = reply.readInt32();
@@ -484,7 +484,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeIntPtr((intptr_t)node);
         data.writeInt32(port_index);
-        data.writeInt32(size);
+        data.writeInt64(size);
         data.write(optionData, size);
         data.writeInt32(type);
         remote()->transact(SET_INTERNAL_OPTION, data, &reply);
@@ -596,7 +596,7 @@ status_t BnOMX::onTransact(
             node_id node = (void*)data.readIntPtr();
             OMX_INDEXTYPE index = static_cast<OMX_INDEXTYPE>(data.readInt32());
 
-            size_t size = data.readInt32();
+            size_t size = data.readInt64();
 
             void *params = malloc(size);
             data.read(params, size);
@@ -810,7 +810,7 @@ status_t BnOMX::onTransact(
 
             node_id node = (void*)data.readIntPtr();
             OMX_U32 port_index = data.readInt32();
-            size_t size = data.readInt32();
+            size_t size = data.readInt64();
 
             buffer_id buffer;
             void *buffer_data;
