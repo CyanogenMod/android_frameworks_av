@@ -287,6 +287,7 @@ status_t OMX::sendCommand(
 status_t OMX::getParameter(
         node_id node, OMX_INDEXTYPE index,
         void *params, size_t size) {
+    ALOGV("getParameter(%u %#x %p %zd)", node, index, params, size);
     return findInstance(node)->getParameter(
             index, params, size);
 }
@@ -294,6 +295,7 @@ status_t OMX::getParameter(
 status_t OMX::setParameter(
         node_id node, OMX_INDEXTYPE index,
         const void *params, size_t size) {
+    ALOGV("setParameter(%u %#x %p %zd)", node, index, params, size);
     return findInstance(node)->setParameter(
             index, params, size);
 }
@@ -445,13 +447,13 @@ OMX_ERRORTYPE OMX::OnEvent(
 }
 
 OMX_ERRORTYPE OMX::OnEmptyBufferDone(
-        node_id node, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer) {
+        node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer) {
     ALOGV("OnEmptyBufferDone buffer=%p", pBuffer);
 
     omx_message msg;
     msg.type = omx_message::EMPTY_BUFFER_DONE;
     msg.node = node;
-    msg.u.buffer_data.buffer = pBuffer;
+    msg.u.buffer_data.buffer = buffer;
 
     findDispatcher(node)->post(msg);
 
@@ -459,13 +461,13 @@ OMX_ERRORTYPE OMX::OnEmptyBufferDone(
 }
 
 OMX_ERRORTYPE OMX::OnFillBufferDone(
-        node_id node, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer) {
+        node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer) {
     ALOGV("OnFillBufferDone buffer=%p", pBuffer);
 
     omx_message msg;
     msg.type = omx_message::FILL_BUFFER_DONE;
     msg.node = node;
-    msg.u.extended_buffer_data.buffer = pBuffer;
+    msg.u.extended_buffer_data.buffer = buffer;
     msg.u.extended_buffer_data.range_offset = pBuffer->nOffset;
     msg.u.extended_buffer_data.range_length = pBuffer->nFilledLen;
     msg.u.extended_buffer_data.flags = pBuffer->nFlags;
@@ -479,7 +481,7 @@ OMX_ERRORTYPE OMX::OnFillBufferDone(
 OMX::node_id OMX::makeNodeID(OMXNodeInstance *instance) {
     // mLock is already held.
 
-    node_id node = (node_id)(uintptr_t)++mNodeCounter;
+    node_id node = (node_id)++mNodeCounter;
     mNodeIDToInstance.add(node, instance);
 
     return node;
