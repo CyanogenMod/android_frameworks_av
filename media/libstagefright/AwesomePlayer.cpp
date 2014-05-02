@@ -1951,8 +1951,9 @@ void AwesomePlayer::onVideoEvent() {
         }
 
         if (latenessUs < -10000) {
-            // We're more than 10ms early.
-            postVideoEvent_l(10000);
+            // We're more than 10ms early.  Try to schedule at least 12ms
+            // early (to hit this same check), or just on time.
+            postVideoEvent_l(latenessUs < -22000 ? 10000 : -latenessUs);
             return;
         }
     }
@@ -2016,7 +2017,10 @@ void AwesomePlayer::onVideoEvent() {
         int64_t nextTimeUs;
         CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &nextTimeUs));
         int64_t delayUs = nextTimeUs - ts->getRealTimeUs() + mTimeSourceDeltaUs;
-        postVideoEvent_l(delayUs > 10000 ? 10000 : delayUs < 0 ? 0 : delayUs);
+        ATRACE_INT("Frame delta (ms)", (nextTimeUs - timeUs) / 1E3);
+        ALOGV("next frame in %" PRId64, delayUs);
+        // try to schedule at least 12ms before due time, or just on time
+        postVideoEvent_l(delayUs > 22000 ? 10000 : delayUs < 0 ? 0 : delayUs);
         return;
     }
 
