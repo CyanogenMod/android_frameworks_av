@@ -669,7 +669,7 @@ status_t OMXCodec::setVideoPortFormatType(
         // CHECK_EQ(format.nIndex, index);
 
 #if 1
-        CODEC_LOGV("portIndex: %ld, index: %ld, eCompressionFormat=%d eColorFormat=%d",
+        CODEC_LOGV("portIndex: %u, index: %u, eCompressionFormat=%d eColorFormat=%d",
              portIndex,
              index, format.eCompressionFormat, format.eColorFormat);
 #endif
@@ -771,7 +771,7 @@ status_t OMXCodec::isColorFormatSupported(
         portFormat.nIndex = index;
 
         if (index >= kMaxColorFormatSupported) {
-            CODEC_LOGE("More than %ld color formats are supported???", index);
+            CODEC_LOGE("More than %u color formats are supported???", index);
             break;
         }
     }
@@ -1807,7 +1807,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             break;
         }
 
-        CODEC_LOGW("setting nBufferCountActual to %lu failed: %d",
+        CODEC_LOGW("setting nBufferCountActual to %u failed: %d",
                 newBufferCount, err);
         /* exit condition */
         if (extraBuffers == 0) {
@@ -1825,7 +1825,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-    CODEC_LOGV("allocating %lu buffers from a native window of size %lu on "
+    CODEC_LOGV("allocating %u buffers from a native window of size %u on "
             "output port", def.nBufferCountActual, def.nBufferSize);
 
     // Dequeue buffers and send them to OMX
@@ -1858,7 +1858,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 
         mPortBuffers[kPortIndexOutput].editItemAt(i).mBuffer = bufferId;
 
-        CODEC_LOGV("registered graphic buffer with ID %p (pointer = %p)",
+        CODEC_LOGV("registered graphic buffer with ID %u (pointer = %p)",
                 bufferId, graphicBuffer.get());
     }
 
@@ -1885,7 +1885,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 
 status_t OMXCodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)OWNED_BY_US);
-    CODEC_LOGV("Calling cancelBuffer on buffer %p", info->mBuffer);
+    CODEC_LOGV("Calling cancelBuffer on buffer %u", info->mBuffer);
     int err = mNativeWindow->cancelBuffer(
         mNativeWindow.get(), info->mMediaBuffer->graphicBuffer().get(), -1);
     if (err != 0) {
@@ -2123,7 +2123,7 @@ void OMXCodec::on_message(const omx_message &msg) {
         {
             IOMX::buffer_id buffer = msg.u.extended_buffer_data.buffer;
 
-            CODEC_LOGV("EMPTY_BUFFER_DONE(buffer: %p)", buffer);
+            CODEC_LOGV("EMPTY_BUFFER_DONE(buffer: %u)", buffer);
 
             Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexInput];
             size_t i = 0;
@@ -2133,7 +2133,7 @@ void OMXCodec::on_message(const omx_message &msg) {
 
             CHECK(i < buffers->size());
             if ((*buffers)[i].mStatus != OWNED_BY_COMPONENT) {
-                ALOGW("We already own input buffer %p, yet received "
+                ALOGW("We already own input buffer %u, yet received "
                      "an EMPTY_BUFFER_DONE.", buffer);
             }
 
@@ -2147,7 +2147,7 @@ void OMXCodec::on_message(const omx_message &msg) {
             }
 
             if (mPortStatus[kPortIndexInput] == DISABLING) {
-                CODEC_LOGV("Port is disabled, freeing buffer %p", buffer);
+                CODEC_LOGV("Port is disabled, freeing buffer %u", buffer);
 
                 status_t err = freeBuffer(kPortIndexInput, i);
                 CHECK_EQ(err, (status_t)OK);
@@ -2169,7 +2169,7 @@ void OMXCodec::on_message(const omx_message &msg) {
             IOMX::buffer_id buffer = msg.u.extended_buffer_data.buffer;
             OMX_U32 flags = msg.u.extended_buffer_data.flags;
 
-            CODEC_LOGV("FILL_BUFFER_DONE(buffer: %p, size: %ld, flags: 0x%08lx, timestamp: %lld us (%.2f secs))",
+            CODEC_LOGV("FILL_BUFFER_DONE(buffer: %u, size: %u, flags: 0x%08x, timestamp: %lld us (%.2f secs))",
                  buffer,
                  msg.u.extended_buffer_data.range_length,
                  flags,
@@ -2186,14 +2186,14 @@ void OMXCodec::on_message(const omx_message &msg) {
             BufferInfo *info = &buffers->editItemAt(i);
 
             if (info->mStatus != OWNED_BY_COMPONENT) {
-                ALOGW("We already own output buffer %p, yet received "
+                ALOGW("We already own output buffer %u, yet received "
                      "a FILL_BUFFER_DONE.", buffer);
             }
 
             info->mStatus = OWNED_BY_US;
 
             if (mPortStatus[kPortIndexOutput] == DISABLING) {
-                CODEC_LOGV("Port is disabled, freeing buffer %p", buffer);
+                CODEC_LOGV("Port is disabled, freeing buffer %u", buffer);
 
                 status_t err = freeBuffer(kPortIndexOutput, i);
                 CHECK_EQ(err, (status_t)OK);
@@ -2262,7 +2262,7 @@ void OMXCodec::on_message(const omx_message &msg) {
                         kKeyPlatformPrivate,
                         msg.u.extended_buffer_data.platform_private);
 
-                buffer->meta_data()->setPointer(
+                buffer->meta_data()->setInt32(
                         kKeyBufferID,
                         msg.u.extended_buffer_data.buffer);
 
@@ -2404,7 +2404,7 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
 
         case OMX_EventError:
         {
-            CODEC_LOGE("ERROR(0x%08lx, %ld)", data1, data2);
+            CODEC_LOGE("OMX_EventError(0x%08x, %u)", data1, data2);
 
             setState(ERROR);
             break;
@@ -2412,7 +2412,7 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
 
         case OMX_EventPortSettingsChanged:
         {
-            CODEC_LOGV("OMX_EventPortSettingsChanged(port=%ld, data2=0x%08lx)",
+            CODEC_LOGV("OMX_EventPortSettingsChanged(port=%u, data2=0x%08x)",
                        data1, data2);
 
             if (data2 == 0 || data2 == OMX_IndexParamPortDefinition) {
@@ -2452,7 +2452,7 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
                         // The scale is in 16.16 format.
                         // scale 1.0 = 0x010000. When there is no
                         // need to change the display, skip it.
-                        ALOGV("Get OMX_IndexConfigScale: 0x%lx/0x%lx",
+                        ALOGV("Get OMX_IndexConfigScale: 0x%x/0x%x",
                                 scale.xWidth, scale.xHeight);
 
                         if (scale.xWidth != 0x010000) {
@@ -2486,7 +2486,7 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
 
         default:
         {
-            CODEC_LOGV("EVENT(%d, %ld, %ld)", event, data1, data2);
+            CODEC_LOGV("EVENT(%d, %u, %u)", event, data1, data2);
             break;
         }
     }
@@ -2503,7 +2503,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
         case OMX_CommandPortDisable:
         {
             OMX_U32 portIndex = data;
-            CODEC_LOGV("PORT_DISABLED(%ld)", portIndex);
+            CODEC_LOGV("PORT_DISABLED(%u)", portIndex);
 
             CHECK(mState == EXECUTING || mState == RECONFIGURING);
             CHECK_EQ((int)mPortStatus[portIndex], (int)DISABLING);
@@ -2527,7 +2527,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
 
                 status_t err = enablePortAsync(portIndex);
                 if (err != OK) {
-                    CODEC_LOGE("enablePortAsync(%ld) failed (err = %d)", portIndex, err);
+                    CODEC_LOGE("enablePortAsync(%u) failed (err = %d)", portIndex, err);
                     setState(ERROR);
                 } else {
                     err = allocateBuffersOnPort(portIndex);
@@ -2548,7 +2548,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
         case OMX_CommandPortEnable:
         {
             OMX_U32 portIndex = data;
-            CODEC_LOGV("PORT_ENABLED(%ld)", portIndex);
+            CODEC_LOGV("PORT_ENABLED(%u)", portIndex);
 
             CHECK(mState == EXECUTING || mState == RECONFIGURING);
             CHECK_EQ((int)mPortStatus[portIndex], (int)ENABLING);
@@ -2569,7 +2569,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
         {
             OMX_U32 portIndex = data;
 
-            CODEC_LOGV("FLUSH_DONE(%ld)", portIndex);
+            CODEC_LOGV("FLUSH_DONE(%u)", portIndex);
 
             CHECK_EQ((int)mPortStatus[portIndex], (int)SHUTTING_DOWN);
             mPortStatus[portIndex] = ENABLED;
@@ -3862,7 +3862,7 @@ status_t OMXCodec::read(
             return UNKNOWN_ERROR;
         }
 
-        CODEC_LOGV("seeking to %lld us (%.2f secs)", seekTimeUs, seekTimeUs / 1E6);
+        CODEC_LOGV("seeking to %" PRId64 " us (%.2f secs)", seekTimeUs, seekTimeUs / 1E6);
 
         mSignalledEOS = false;
 
