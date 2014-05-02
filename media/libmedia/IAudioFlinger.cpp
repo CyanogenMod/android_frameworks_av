@@ -106,7 +106,7 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
-        data.writeInt32(frameCount);
+        data.writeInt64(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
         // haveSharedBuffer
@@ -128,7 +128,7 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack error: %s", strerror(-lStatus));
         } else {
-            frameCount = reply.readInt32();
+            frameCount = reply.readInt64();
             if (pFrameCount != NULL) {
                 *pFrameCount = frameCount;
             }
@@ -179,7 +179,7 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
-        data.writeInt32(frameCount);
+        data.writeInt64(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
         data.writeInt32((int32_t) tid);
@@ -192,7 +192,7 @@ public:
         if (lStatus != NO_ERROR) {
             ALOGE("openRecord error: %s", strerror(-lStatus));
         } else {
-            frameCount = reply.readInt32();
+            frameCount = reply.readInt64();
             if (pFrameCount != NULL) {
                 *pFrameCount = frameCount;
             }
@@ -248,7 +248,7 @@ public:
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.writeInt32((int32_t) output);
         remote()->transact(FRAME_COUNT, data, &reply);
-        return reply.readInt32();
+        return reply.readInt64();
     }
 
     virtual uint32_t latency(audio_io_handle_t output) const
@@ -398,7 +398,7 @@ public:
         data.writeInt32(format);
         data.writeInt32(channelMask);
         remote()->transact(GET_INPUTBUFFERSIZE, data, &reply);
-        return reply.readInt32();
+        return reply.readInt64();
     }
 
     virtual audio_io_handle_t openOutput(audio_module_handle_t module,
@@ -769,7 +769,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         remote()->transact(GET_PRIMARY_OUTPUT_FRAME_COUNT, data, &reply);
-        return reply.readInt32();
+        return reply.readInt64();
     }
 
     virtual status_t setLowRamDevice(bool isLowRamDevice)
@@ -797,7 +797,7 @@ status_t BnAudioFlinger::onTransact(
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            size_t frameCount = data.readInt32();
+            size_t frameCount = data.readInt64();
             track_flags_t flags = (track_flags_t) data.readInt32();
             bool haveSharedBuffer = data.readInt32() != 0;
             sp<IMemory> buffer;
@@ -821,7 +821,7 @@ status_t BnAudioFlinger::onTransact(
                         &sessionId, clientUid, &status);
                 LOG_ALWAYS_FATAL_IF((track != 0) != (status == NO_ERROR));
             }
-            reply->writeInt32(frameCount);
+            reply->writeInt64(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
@@ -834,7 +834,7 @@ status_t BnAudioFlinger::onTransact(
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            size_t frameCount = data.readInt32();
+            size_t frameCount = data.readInt64();
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
@@ -842,7 +842,7 @@ status_t BnAudioFlinger::onTransact(
             sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId, &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
-            reply->writeInt32(frameCount);
+            reply->writeInt64(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
@@ -861,7 +861,7 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case FRAME_COUNT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            reply->writeInt32( frameCount((audio_io_handle_t) data.readInt32()) );
+            reply->writeInt64( frameCount((audio_io_handle_t) data.readInt32()) );
             return NO_ERROR;
         } break;
         case LATENCY: {
@@ -960,7 +960,7 @@ status_t BnAudioFlinger::onTransact(
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            reply->writeInt32( getInputBufferSize(sampleRate, format, channelMask) );
+            reply->writeInt64( getInputBufferSize(sampleRate, format, channelMask) );
             return NO_ERROR;
         } break;
         case OPEN_OUTPUT: {
@@ -1164,7 +1164,7 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case GET_PRIMARY_OUTPUT_FRAME_COUNT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            reply->writeInt32(getPrimaryOutputFrameCount());
+            reply->writeInt64(getPrimaryOutputFrameCount());
             return NO_ERROR;
         } break;
         case SET_LOW_RAM_DEVICE: {
