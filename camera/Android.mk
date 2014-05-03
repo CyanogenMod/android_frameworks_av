@@ -52,11 +52,6 @@ LOCAL_C_INCLUDES += \
 	system/media/camera/include \
 	system/media/private/camera/include
 
-## Enable asserts for 'eng' builds
-ifeq ($(TARGET_BUILD_VARIANT),eng)
-LOCAL_CFLAGS += -UNDEBUG
-endif
-
 LOCAL_MODULE:= libcamera_client
 
 include $(BUILD_SHARED_LIBRARY)

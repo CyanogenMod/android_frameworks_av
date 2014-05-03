@@ -1257,20 +1257,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         result.appendFormat("Camera module author: %s\n",
                 mModule->common.author);
         result.appendFormat("Number of camera devices: %d\n\n", mNumberOfCameras);
-
-        sp<VendorTagDescriptor> desc = VendorTagDescriptor::getGlobalVendorTagDescriptor();
-        if (desc == NULL) {
-            result.appendFormat("Vendor tags left unimplemented.\n");
-        } else {
-            result.appendFormat("Vendor tag definitions:\n");
-        }
-
         write(fd, result.string(), result.size());
-
-        if (desc != NULL) {
-            desc->dump(fd, /*verbosity*/2, /*indentation*/4);
-        }
-
         for (int i = 0; i < mNumberOfCameras; i++) {
             result = String8::format("Camera %d static information:\n", i);
             camera_info info;
@@ -1295,7 +1282,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                     result.appendFormat("  Device static metadata:\n");
                     write(fd, result.string(), result.size());
                     dump_indented_camera_metadata(info.static_camera_characteristics,
-                            fd, /*verbosity*/2, /*indentation*/4);
+                            fd, 2, 4);
                 } else {
                     write(fd, result.string(), result.size());
                 }
