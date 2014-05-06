@@ -77,6 +77,11 @@ public:
     void getPreviewSize(int *width, int *height) const;
     void getSupportedPreviewSizes(Vector<Size> &sizes) const;
 
+#ifdef HTC_CAMERA_HARDWARE
+    void getBrightnessLumaTargetSet(int *magic, int *sauce) const;
+    void getRawSize(int *magic, int *sauce) const;
+#endif
+
     // Set the dimensions in pixels to the given width and height
     // for video frames. The given width and height must be one
     // of the supported dimensions returned from
