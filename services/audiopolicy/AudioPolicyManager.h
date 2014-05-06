@@ -103,6 +103,7 @@ public:
         // indicates to the audio policy manager that the input stops being used.
         virtual status_t stopInput(audio_io_handle_t input);
         virtual void releaseInput(audio_io_handle_t input);
+        virtual void closeAllInputs();
         virtual void initStreamVolume(audio_stream_type_t stream,
                                                     int indexMin,
                                                     int indexMax);
@@ -246,6 +247,7 @@ protected:
                                      audio_output_flags_t flags) const;
 
             void dump(int fd);
+            void log();
 
             // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
             // indicates the supported parameters should be read from the output stream
@@ -329,6 +331,7 @@ protected:
 
             status_t    dump(int fd);
 
+            audio_io_handle_t mId;                      // input handle
             uint32_t mSamplingRate;                     //
             audio_format_t mFormat;                     // input configuration
             audio_channel_mask_t mChannelMask;             //
@@ -370,6 +373,7 @@ protected:
         };
 
         void addOutput(audio_io_handle_t id, AudioOutputDescriptor *outputDesc);
+        void addInput(audio_io_handle_t id, AudioInputDescriptor *inputDesc);
 
         // return the strategy corresponding to a given stream type
         static routing_strategy getStrategy(audio_stream_type_t stream);
@@ -452,6 +456,11 @@ protected:
                                        audio_policy_dev_state_t state,
                                        SortedVector<audio_io_handle_t>& outputs,
                                        const String8 address);
+
+        status_t checkInputsForDevice(audio_devices_t device,
+                                      audio_policy_dev_state_t state,
+                                      SortedVector<audio_io_handle_t>& inputs,
+                                      const String8 address);
 
         // close an output and its companion duplicating output.
         void closeOutput(audio_io_handle_t output);
