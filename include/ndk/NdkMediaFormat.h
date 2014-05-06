@@ -40,7 +40,8 @@ AMediaFormat *AMediaFormat_new();
 int AMediaFormat_delete(AMediaFormat*);
 
 /**
- * Debug string. Caller must free.
+ * Human readable representation of the format. The returned string is owned by the format,
+ * and remains valid until the next call to toString, or until the format is deleted.
  */
 const char* AMediaFormat_toString(AMediaFormat*);
 
@@ -50,7 +51,8 @@ bool AMediaFormat_getFloat(AMediaFormat*, const char *name, float *out);
 bool AMediaFormat_getDouble(AMediaFormat*, const char *name, double *out);
 bool AMediaFormat_getSize(AMediaFormat*, const char *name, size_t *out);
 /**
- * Caller must free the returned string
+ * The returned string is owned by the format, and remains valid until the next call to getString,
+ * or until the format is deleted.
  */
 bool AMediaFormat_getString(AMediaFormat*, const char *name, const char **out);
 

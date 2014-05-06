@@ -34,6 +34,8 @@ using namespace android;
 
 struct AMediaFormat {
     sp<AMessage> mFormat;
+    String8 mDebug;
+    KeyedVector<String8, String8> mStringCache;
 };
 
 extern "C" {
@@ -135,7 +137,8 @@ const char* AMediaFormat_toString(AMediaFormat *mData) {
         }
     }
     ret.append("}");
-    return strdup(ret.string());
+    mData->mDebug = ret;
+    return mData->mDebug.string();
 }
 
 bool AMediaFormat_getInt32(AMediaFormat* mData, const char *name, int32_t *out) {
@@ -159,9 +162,19 @@ bool AMediaFormat_getSize(AMediaFormat* mData, const char *name, size_t *out) {
 }
 
 bool AMediaFormat_getString(AMediaFormat* mData, const char *name, const char **out) {
+
+    for (size_t i = 0; i < mData->mStringCache.size(); i++) {
+        if (strcmp(mData->mStringCache.keyAt(i).string(), name) == 0) {
+            mData->mStringCache.removeItemsAt(i, 1);
+            break;
+        }
+    }
+
     AString tmp;
     if (mData->mFormat->findString(name, &tmp)) {
-        *out = strdup(tmp.c_str());
+        String8 ret(tmp.c_str());
+        mData->mStringCache.add(String8(name), ret);
+        *out = ret.string();
         return true;
     }
     return false;
