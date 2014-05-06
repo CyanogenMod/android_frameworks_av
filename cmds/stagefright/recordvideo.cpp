@@ -73,7 +73,7 @@ public:
         return meta;
     }
 
-    virtual status_t start(MetaData *params) {
+    virtual status_t start(MetaData *params __unused) {
         mNumFramesOutput = 0;
         return OK;
     }
@@ -83,7 +83,7 @@ public:
     }
 
     virtual status_t read(
-            MediaBuffer **buffer, const MediaSource::ReadOptions *options) {
+            MediaBuffer **buffer, const MediaSource::ReadOptions *options __unused) {
 
         if (mNumFramesOutput % 10 == 0) {
             fprintf(stderr, ".");
@@ -100,8 +100,12 @@ public:
         // We don't care about the contents. we just test video encoder
         // Also, by skipping the content generation, we can return from
         // read() much faster.
-        //char x = (char)((double)rand() / RAND_MAX * 255);
-        //memset((*buffer)->data(), x, mSize);
+#if 0
+        // iterate through solid planes of color.
+        static unsigned char x = 0x60;
+        memset((*buffer)->data(), x, mSize);
+        x = x >= 0xa0 ? 0x60 : x + 1;
+#endif
         (*buffer)->set_range(0, mSize);
         (*buffer)->meta_data()->clear();
         (*buffer)->meta_data()->setInt64(
@@ -163,7 +167,7 @@ int main(int argc, char **argv) {
     int level = -1;        // Encoder specific default
     int profile = -1;      // Encoder specific default
     int codec = 0;
-    char *fileName = "/sdcard/output.mp4";
+    const char *fileName = "/sdcard/output.mp4";
     bool preferSoftwareCodec = false;
 
     android::ProcessState::self()->startThreadPool();
