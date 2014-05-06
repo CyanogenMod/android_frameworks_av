@@ -198,6 +198,8 @@ private:
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
+        class AudioCommandData;
+
         // descriptor for requested tone playback event
         class AudioCommand {
 
@@ -212,41 +214,48 @@ private:
             Condition mCond; // condition for status return
             status_t mStatus; // command status
             bool mWaitStatus; // true if caller is waiting for status
-            void *mParam;     // command parameter (ToneData, VolumeData, ParametersData)
+            AudioCommandData *mParam;     // command specific parameter data
         };
 
-        class ToneData {
+        class AudioCommandData {
+        public:
+            virtual ~AudioCommandData() {}
+        protected:
+            AudioCommandData() {}
+        };
+
+        class ToneData : public AudioCommandData {
         public:
             ToneGenerator::tone_type mType; // tone type (START_TONE only)
             audio_stream_type_t mStream;    // stream type (START_TONE only)
         };
 
-        class VolumeData {
+        class VolumeData : public AudioCommandData {
         public:
             audio_stream_type_t mStream;
             float mVolume;
             audio_io_handle_t mIO;
         };
 
-        class ParametersData {
+        class ParametersData : public AudioCommandData {
         public:
             audio_io_handle_t mIO;
             String8 mKeyValuePairs;
         };
 
-        class VoiceVolumeData {
+        class VoiceVolumeData : public AudioCommandData {
         public:
             float mVolume;
         };
 
-        class StopOutputData {
+        class StopOutputData : public AudioCommandData {
         public:
             audio_io_handle_t mIO;
             audio_stream_type_t mStream;
             int mSession;
         };
 
-        class ReleaseOutputData {
+        class ReleaseOutputData : public AudioCommandData {
         public:
             audio_io_handle_t mIO;
         };
