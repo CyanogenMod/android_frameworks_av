@@ -1627,15 +1627,15 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         info.mMediaBuffer = NULL;
 
         if (portIndex == kPortIndexOutput) {
-            if (!(mOMXLivesLocally
-                        && (mQuirks & kRequiresAllocateBufferOnOutputPorts)
-                        && (mQuirks & kDefersOutputBufferAllocation))) {
-                // If the node does not fill in the buffer ptr at this time,
-                // we will defer creating the MediaBuffer until receiving
-                // the first FILL_BUFFER_DONE notification instead.
-                info.mMediaBuffer = new MediaBuffer(info.mData, info.mSize);
-                info.mMediaBuffer->setObserver(this);
-            }
+            // Fail deferred MediaBuffer creation until FILL_BUFFER_DONE;
+            // this legacy mode is no longer supported.
+            LOG_ALWAYS_FATAL_IF((mOMXLivesLocally
+                    && (mQuirks & kRequiresAllocateBufferOnOutputPorts)
+                    && (mQuirks & kDefersOutputBufferAllocation)),
+                    "allocateBuffersOnPort cannot defer buffer allocation");
+
+            info.mMediaBuffer = new MediaBuffer(info.mData, info.mSize);
+            info.mMediaBuffer->setObserver(this);
         }
 
         mPortBuffers[portIndex].push(info);
@@ -2234,22 +2234,6 @@ void OMXCodec::on_message(const omx_message &msg) {
             } else if (mPortStatus[kPortIndexOutput] != SHUTTING_DOWN) {
                 CHECK_EQ((int)mPortStatus[kPortIndexOutput], (int)ENABLED);
 
-                if (info->mMediaBuffer == NULL) {
-                    CHECK(mOMXLivesLocally);
-                    CHECK(mQuirks & kRequiresAllocateBufferOnOutputPorts);
-                    CHECK(mQuirks & kDefersOutputBufferAllocation);
-
-                    // The qcom video decoders on Nexus don't actually allocate
-                    // output buffer memory on a call to OMX_AllocateBuffer
-                    // the "pBuffer" member of the OMX_BUFFERHEADERTYPE
-                    // structure is only filled in later.
-
-                    info->mMediaBuffer = new MediaBuffer(
-                            msg.u.extended_buffer_data.data_ptr,
-                            info->mSize);
-                    info->mMediaBuffer->setObserver(this);
-                }
-
                 MediaBuffer *buffer = info->mMediaBuffer;
                 bool isGraphicBuffer = buffer->graphicBuffer() != NULL;
 
@@ -2283,10 +2267,6 @@ void OMXCodec::on_message(const omx_message &msg) {
                 if (isGraphicBuffer || mQuirks & kOutputBuffersAreUnreadable) {
                     buffer->meta_data()->setInt32(kKeyIsUnreadable, true);
                 }
-
-                buffer->meta_data()->setPointer(
-                        kKeyPlatformPrivate,
-                        msg.u.extended_buffer_data.platform_private);
 
                 buffer->meta_data()->setPointer(
                         kKeyBufferID,

@@ -184,8 +184,6 @@ struct omx_message {
             OMX_U32 range_length;
             OMX_U32 flags;
             OMX_TICKS timestamp;
-            OMX_PTR platform_private;
-            OMX_PTR data_ptr;
         } extended_buffer_data;
 
     } u;
