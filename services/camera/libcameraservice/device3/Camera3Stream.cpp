@@ -397,7 +397,7 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
                     "must be set to NULL in camera3_device::ops", __FUNCTION__);
             return INVALID_OPERATION;
         } else {
-            ALOGD("%s: Skipping NULL check for deprecated register_stream_buffers");
+            ALOGD("%s: Skipping NULL check for deprecated register_stream_buffers", __FUNCTION__);
         }
 
         return OK;
