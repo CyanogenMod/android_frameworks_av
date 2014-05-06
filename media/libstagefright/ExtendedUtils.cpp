@@ -343,7 +343,7 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int3
         }
 
         //return true only when 1. minBiteRate and maxBiteRate are updated(not -1) 2. minBiteRate <= SampleRate <= maxBiteRate
-        if (SampleRate >= minBiteRate && SampleRate <= maxBiteRate) {
+        if (BitRate >= minBiteRate && BitRate <= maxBiteRate) {
             ret = true;
         }
     }
