@@ -24,6 +24,7 @@ LOCAL_SRC_FILES:=                                       \
                   NdkMediaCodec.cpp                     \
                   NdkMediaExtractor.cpp                 \
                   NdkMediaFormat.cpp                    \
+                  NdkMediaMuxer.cpp                     \
 
 LOCAL_MODULE:= libmediandk
 

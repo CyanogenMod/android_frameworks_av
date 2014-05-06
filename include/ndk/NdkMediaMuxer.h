@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+
 /*
  * This file defines an NDK API.
  * Do not remove methods.
@@ -24,21 +25,51 @@
  * Do not #include files that aren't part of the NDK.
  */
 
-#ifndef _NDK_MEDIA_FORMAT_PRIV_H
-#define _NDK_MEDIA_FORMAT_PRIV_H
+#ifndef _NDK_MEDIA_MUXER_H
+#define _NDK_MEDIA_MUXER_H
 
-#include <NdkMediaFormat.h>
+#include <sys/types.h>
+
+#include "NdkMediaFormat.h"
+#include "NdkMediaCodec.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-AMediaFormat* AMediaFormat_fromMsg(void*);
-void AMediaFormat_getFormat(const AMediaFormat* mData, void* dest);
+struct AMediaMuxer;
+typedef struct AMediaMuxer AMediaMuxer;
+
+typedef enum {
+    AMEDIAMUXER_OUTPUT_FORMAT_MPEG_4 = 0,
+    AMEDIAMUXER_OUTPUT_FORMAT_WEBM   = 1,
+} OutputFormat;
+
+/**
+ * Create new media muxer
+ */
+AMediaMuxer* AMediaMuxer_new(int fd, OutputFormat format);
+
+/**
+ * Delete a previously created media muxer
+ */
+int AMediaMuxer_delete(AMediaMuxer*);
+
+int AMediaMuxer_setLocation(AMediaMuxer*, float latitude, float longtitude);
+
+int AMediaMuxer_setOrientationHint(AMediaMuxer*, int degrees);
+
+ssize_t AMediaMuxer_addTrack(AMediaMuxer*, const AMediaFormat* format);
+
+int AMediaMuxer_start(AMediaMuxer*);
+
+int AMediaMuxer_stop(AMediaMuxer*);
+
+int AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
+        size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info);
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif // _NDK_MEDIA_FORMAT_PRIV_H
-
+#endif // _NDK_MEDIA_MUXER_H
