@@ -679,6 +679,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
 
             CHECK(meta->findData(kKeyVorbisBooks, &type, &data, &size));
             addCodecSpecificData(data, size);
+#ifdef QCOM_HARDWARE
         } else if (meta->findData(kKeyRawCodecSpecificData, &type, &data, &size)) {
             ALOGV("OMXCodec::configureCodec found kKeyRawCodecSpecificData of size %d\n", size);
 #ifdef ENABLE_AV_ENHANCEMENTS
@@ -697,6 +698,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             if (size) {
                 addCodecSpecificData(data, size);
             }
+#endif
         }
     }
 
