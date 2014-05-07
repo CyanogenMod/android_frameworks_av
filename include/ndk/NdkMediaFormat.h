@@ -48,13 +48,31 @@ const char* AMediaFormat_toString(AMediaFormat*);
 bool AMediaFormat_getInt32(AMediaFormat*, const char *name, int32_t *out);
 bool AMediaFormat_getInt64(AMediaFormat*, const char *name, int64_t *out);
 bool AMediaFormat_getFloat(AMediaFormat*, const char *name, float *out);
-bool AMediaFormat_getDouble(AMediaFormat*, const char *name, double *out);
-bool AMediaFormat_getSize(AMediaFormat*, const char *name, size_t *out);
+/**
+ * The returned data is owned by the format and remains valid as long as the named entry
+ * is part of the format.
+ */
+bool AMediaFormat_getBuffer(AMediaFormat*, const char *name, void** data, size_t *size);
 /**
  * The returned string is owned by the format, and remains valid until the next call to getString,
  * or until the format is deleted.
  */
 bool AMediaFormat_getString(AMediaFormat*, const char *name, const char **out);
+
+
+void AMediaFormat_setInt32(AMediaFormat*, const char* name, int32_t value);
+void AMediaFormat_setInt64(AMediaFormat*, const char* name, int64_t value);
+void AMediaFormat_setFloat(AMediaFormat*, const char* name, float value);
+/**
+ * The provided string is copied into the format.
+ */
+void AMediaFormat_setString(AMediaFormat*, const char* name, const char* value);
+/**
+ * The provided data is copied into the format.
+ */
+void AMediaFormat_setBuffer(AMediaFormat*, const char* name, void* data, size_t size);
+
+
 
 /**
  * XXX should these be ints/enums that we look up in a table as needed?
