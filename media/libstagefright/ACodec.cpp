@@ -3670,7 +3670,28 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
         ATRACE_NAME("render");
         // The client wants this buffer to be rendered.
 
+        int64_t timestampNs = 0;
+        if (!msg->findInt64("timestampNs", &timestampNs)) {
+            // TODO: it seems like we should use the timestamp
+            // in the (media)buffer as it potentially came from
+            // an input surface, but we did not propagate it prior to
+            // API 20.  Perhaps check for target SDK version.
+#if 0
+            if (info->mData->meta()->findInt64("timeUs", &timestampNs)) {
+                ALOGI("using buffer PTS of %" PRId64, timestampNs);
+                timestampNs *= 1000;
+            }
+#endif
+        }
+
         status_t err;
+        err = native_window_set_buffers_timestamp(mCodec->mNativeWindow.get(), timestampNs);
+        if (err != OK) {
+            ALOGW("failed to set buffer timestamp: %d", err);
+        } else {
+            ALOGI("set PTS to %" PRId64, timestampNs);
+        }
+
         if ((err = mCodec->mNativeWindow->queueBuffer(
                     mCodec->mNativeWindow.get(),
                     info->mGraphicBuffer.get(), -1)) == OK) {

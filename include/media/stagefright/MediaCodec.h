@@ -100,6 +100,7 @@ struct MediaCodec : public AHandler {
             uint32_t *flags,
             int64_t timeoutUs = 0ll);
 
+    status_t renderOutputBufferAndRelease(size_t index, int64_t timestampNs);
     status_t renderOutputBufferAndRelease(size_t index);
     status_t releaseOutputBuffer(size_t index);
 
