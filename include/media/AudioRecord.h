@@ -490,10 +490,12 @@ private:
     int                     mSessionId;
     transfer_type           mTransfer;
 
-    // Next 4 fields may be changed if IAudioRecord is re-created, but always != 0
+    // Next 5 fields may be changed if IAudioRecord is re-created, but always != 0
+    // provided the initial set() was successful
     sp<IAudioRecord>        mAudioRecord;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;              // re-load after mLock.unlock()
+    sp<IMemory>             mBufferMemory;
     audio_io_handle_t       mInput;             // returned by AudioSystem::getInput()
 
     int                     mPreviousPriority;  // before start()

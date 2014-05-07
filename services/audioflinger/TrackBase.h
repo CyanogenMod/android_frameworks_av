@@ -48,7 +48,8 @@ public:
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
                                 int uid,
-                                bool isOut);
+                                bool isOut,
+                                bool useReadOnlyHeap = false);
     virtual             ~TrackBase();
     virtual status_t    initCheck() const { return getCblk() != 0 ? NO_ERROR : NO_MEMORY; }
 
@@ -60,6 +61,8 @@ public:
             int         sessionId() const { return mSessionId; }
             int         uid() const { return mUid; }
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
+
+            sp<IMemory> getBuffers() const { return mBufferMemory; }
 
 protected:
                         TrackBase(const TrackBase&);
@@ -112,6 +115,7 @@ protected:
     /*const*/ sp<Client> mClient;   // see explanation at ~TrackBase() why not const
     sp<IMemory>         mCblkMemory;
     audio_track_cblk_t* mCblk;
+    sp<IMemory>         mBufferMemory;  // currently non-0 for fast RecordTrack only
     void*               mBuffer;    // start of track buffer, typically in shared memory
                                     // except for OutputTrack when it is in local memory
     // we don't really need a lock for these

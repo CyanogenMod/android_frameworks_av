@@ -484,6 +484,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
     int originalSessionId = mSessionId;
+    sp<IMemory> iMem;           // for cblk
+    sp<IMemory> bufferMem;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        mSampleRate, mFormat,
                                                        mChannelMask,
@@ -491,6 +493,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
                                                        &trackFlags,
                                                        tid,
                                                        &mSessionId,
+                                                       iMem,
+                                                       bufferMem,
                                                        &status);
     ALOGE_IF(originalSessionId != AUDIO_SESSION_ALLOCATE && mSessionId != originalSessionId,
             "session ID changed from %d to %d", originalSessionId, mSessionId);
@@ -504,7 +508,6 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     // AudioFlinger now owns the reference to the I/O handle,
     // so we are no longer responsible for releasing it.
 
-    sp<IMemory> iMem = record->getCblk();
     if (iMem == 0) {
         ALOGE("Could not get control block");
         return NO_INIT;
@@ -514,6 +517,22 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         ALOGE("Could not get control block pointer");
         return NO_INIT;
     }
+    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
+
+    // Starting address of buffers in shared memory.
+    // The buffers are either immediately after the control block,
+    // or in a separate area at discretion of server.
+    void *buffers;
+    if (bufferMem == 0) {
+        buffers = cblk + 1;
+    } else {
+        buffers = bufferMem->pointer();
+        if (buffers == NULL) {
+            ALOGE("Could not get buffer pointer");
+            return NO_INIT;
+        }
+    }
+
     // invariant that mAudioRecord != 0 is true only after set() returns successfully
     if (mAudioRecord != 0) {
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
@@ -522,7 +541,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     mAudioRecord = record;
 
     mCblkMemory = iMem;
-    audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
+    mBufferMemory = bufferMem;
     mCblk = cblk;
     // note that temp is the (possibly revised) value of frameCount
     if (temp < frameCount || (frameCount == 0 && temp == 0)) {
@@ -551,11 +570,6 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     // We retain a copy of the I/O handle, but don't own the reference
     mInput = input;
     mRefreshRemaining = true;
-
-    // Starting address of buffers in shared memory, immediately after the control block.  This
-    // address is for the mapping within client address space.  AudioFlinger::TrackBase::mBuffer
-    // is for the server address space.
-    void *buffers = (char*)cblk + sizeof(audio_track_cblk_t);
 
     mFrameCount = frameCount;
     // If IAudioRecord is re-created, don't let the requested frameCount
@@ -631,6 +645,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, const struct timespec *r
         // keep them from going away if another thread re-creates the track during obtainBuffer()
         sp<AudioRecordClientProxy> proxy;
         sp<IMemory> iMem;
+        sp<IMemory> bufferMem;
         {
             // start of lock scope
             AutoMutex lock(mLock);
@@ -654,6 +669,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, const struct timespec *r
             // Keep the extra references
             proxy = mProxy;
             iMem = mCblkMemory;
+            bufferMem = mBufferMemory;
 
             // Non-blocking if track is stopped
             if (!mActive) {
@@ -986,7 +1002,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     status_t result;
 
     // if the new IAudioRecord is created, openRecord_l() will modify the
-    // following member variables: mAudioRecord, mCblkMemory and mCblk.
+    // following member variables: mAudioRecord, mCblkMemory, mCblk, mBufferMemory.
     // It will also delete the strong references on previous IAudioRecord and IMemory
     size_t position = mProxy->getPosition();
     mNewPosition = position + mUpdatePeriod;

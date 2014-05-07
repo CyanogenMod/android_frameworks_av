@@ -169,6 +169,8 @@ public:
                                 track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
+                                sp<IMemory>& cblk,
+                                sp<IMemory>& buffers,
                                 status_t *status)
     {
         Parcel data, reply;
@@ -188,6 +190,8 @@ public:
             lSessionId = *sessionId;
         }
         data.writeInt32(lSessionId);
+        cblk.clear();
+        buffers.clear();
         status_t lStatus = remote()->transact(OPEN_RECORD, data, &reply);
         if (lStatus != NO_ERROR) {
             ALOGE("openRecord error: %s", strerror(-lStatus));
@@ -206,16 +210,33 @@ public:
             }
             lStatus = reply.readInt32();
             record = interface_cast<IAudioRecord>(reply.readStrongBinder());
+            cblk = interface_cast<IMemory>(reply.readStrongBinder());
+            if (cblk != 0 && cblk->pointer() == NULL) {
+                cblk.clear();
+            }
+            buffers = interface_cast<IMemory>(reply.readStrongBinder());
+            if (buffers != 0 && buffers->pointer() == NULL) {
+                buffers.clear();
+            }
             if (lStatus == NO_ERROR) {
                 if (record == 0) {
                     ALOGE("openRecord should have returned an IAudioRecord");
                     lStatus = UNKNOWN_ERROR;
+                } else if (cblk == 0) {
+                    ALOGE("openRecord should have returned a cblk");
+                    lStatus = NO_MEMORY;
                 }
+                // buffers is permitted to be 0
             } else {
-                if (record != 0) {
-                    ALOGE("openRecord returned an IAudioRecord but with status %d", lStatus);
-                    record.clear();
+                if (record != 0 || cblk != 0 || buffers != 0) {
+                    ALOGE("openRecord returned an IAudioRecord, cblk, "
+                          "or buffers but with status %d", lStatus);
                 }
+            }
+            if (lStatus != NO_ERROR) {
+                record.clear();
+                cblk.clear();
+                buffers.clear();
             }
         }
         if (status != NULL) {
@@ -838,15 +859,20 @@ status_t BnAudioFlinger::onTransact(
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
+            sp<IMemory> cblk;
+            sp<IMemory> buffers;
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
-                    sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId, &status);
+                    sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId,
+                    cblk, buffers, &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
             reply->writeInt64(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
             reply->writeStrongBinder(record->asBinder());
+            reply->writeStrongBinder(cblk->asBinder());
+            reply->writeStrongBinder(buffers->asBinder());
             return NO_ERROR;
         } break;
         case SAMPLE_RATE: {

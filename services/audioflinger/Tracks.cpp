@@ -69,7 +69,8 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             const sp<IMemory>& sharedBuffer,
             int sessionId,
             int clientUid,
-            bool isOut)
+            bool isOut,
+            bool useReadOnlyHeap)
     :   RefBase(),
         mThread(thread),
         mClient(client),
@@ -110,7 +111,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
     size_t bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
-    if (sharedBuffer == 0) {
+    if (sharedBuffer == 0 && !useReadOnlyHeap) {
         size += bufferSize;
     }
 
@@ -132,15 +133,31 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     // construct the shared structure in-place.
     if (mCblk != NULL) {
         new(mCblk) audio_track_cblk_t();
-        // clear all buffers
-        if (sharedBuffer == 0) {
-            mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
+        if (useReadOnlyHeap) {
+            const sp<MemoryDealer> roHeap(thread->readOnlyHeap());
+            if (roHeap == 0 ||
+                    (mBufferMemory = roHeap->allocate(bufferSize)) == 0 ||
+                    (mBuffer = mBufferMemory->pointer()) == NULL) {
+                ALOGE("not enough memory for read-only buffer size=%zu", bufferSize);
+                if (roHeap != 0) {
+                    roHeap->dump("buffer");
+                }
+                mCblkMemory.clear();
+                mBufferMemory.clear();
+                return;
+            }
             memset(mBuffer, 0, bufferSize);
         } else {
-            mBuffer = sharedBuffer->pointer();
+            // clear all buffers
+            if (sharedBuffer == 0) {
+                mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
+                memset(mBuffer, 0, bufferSize);
+            } else {
+                mBuffer = sharedBuffer->pointer();
 #if 0
-            mCblk->mFlags = CBLK_FORCEREADY;    // FIXME hack, need to fix the track ready logic
+                mCblk->mFlags = CBLK_FORCEREADY;    // FIXME hack, need to fix the track ready logic
 #endif
+            }
         }
 
 #ifdef TEE_SINK
@@ -1819,9 +1836,11 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             audio_channel_mask_t channelMask,
             size_t frameCount,
             int sessionId,
-            int uid)
+            int uid,
+            bool isFast)
     :   TrackBase(thread, client, sampleRate, format,
-                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid, false /*isOut*/),
+                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid, false /*isOut*/,
+                  isFast /*useReadOnlyHeap*/),
         mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
