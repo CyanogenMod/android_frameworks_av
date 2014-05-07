@@ -5102,8 +5102,8 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             // PCM data
             audio_is_linear_pcm(format) &&
             // mono or stereo
-            ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
-              (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
+            ( (channelMask == AUDIO_CHANNEL_IN_MONO) ||
+              (channelMask == AUDIO_CHANNEL_IN_STEREO) ) &&
             // hardware sample rate
             // FIXME actually the native hardware sample rate
             (sampleRate == mSampleRate) &&
