@@ -79,14 +79,14 @@ AudioRecord::AudioRecord(
         uint32_t notificationFrames,
         int sessionId,
         transfer_type transferType,
-        audio_input_flags_t flags __unused)
+        audio_input_flags_t flags)
     : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mProxy(NULL)
 {
     mStatus = set(inputSource, sampleRate, format, channelMask, frameCount, cbf, user,
-            notificationFrames, false /*threadCanCallJava*/, sessionId, transferType);
+            notificationFrames, false /*threadCanCallJava*/, sessionId, transferType, flags);
 }
 
 AudioRecord::~AudioRecord()
