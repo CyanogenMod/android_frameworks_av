@@ -79,7 +79,7 @@ int AMediaCodec_delete(AMediaCodec*);
 /**
  * Configure the codec. For decoding you would typically get the format from an extractor.
  */
-int AMediaCodec_configure(AMediaCodec*, AMediaFormat *format, ANativeWindow* surface); // TODO: other args
+int AMediaCodec_configure(AMediaCodec*, const AMediaFormat* format, ANativeWindow* surface); // TODO: other args
 
 /**
  * Start the codec. A codec must be configured before it can be started, and must be started

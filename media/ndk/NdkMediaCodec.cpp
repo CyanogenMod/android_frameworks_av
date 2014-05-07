@@ -115,7 +115,7 @@ int AMediaCodec_delete(AMediaCodec *mData) {
     return OK;
 }
 
-int AMediaCodec_configure(AMediaCodec *mData, AMediaFormat *format, ANativeWindow* window) {
+int AMediaCodec_configure(AMediaCodec *mData, const AMediaFormat* format, ANativeWindow* window) {
     sp<AMessage> nativeFormat;
     AMediaFormat_getFormat(format, &nativeFormat);
     ALOGV("configure with format: %s", nativeFormat->debugString(0).c_str());

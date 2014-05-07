@@ -41,14 +41,14 @@ struct AMediaFormat {
 extern "C" {
 
 // private functions for conversion to/from AMessage
-AMediaFormat* AMediaFormat_fromMsg(void* data) {
+AMediaFormat* AMediaFormat_fromMsg(const void* data) {
     ALOGV("private ctor");
     AMediaFormat* mData = new AMediaFormat();
     mData->mFormat = *((sp<AMessage>*)data);
     return mData;
 }
 
-void AMediaFormat_getFormat(AMediaFormat* mData, void* dest) {
+void AMediaFormat_getFormat(const AMediaFormat* mData, void* dest) {
     *((sp<AMessage>*)dest) = mData->mFormat;
 }
 
