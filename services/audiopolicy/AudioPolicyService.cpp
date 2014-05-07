@@ -122,10 +122,8 @@ AudioPolicyService::AudioPolicyService()
 AudioPolicyService::~AudioPolicyService()
 {
     mTonePlaybackThread->exit();
-    mTonePlaybackThread.clear();
     mAudioCommandThread->exit();
-    mAudioCommandThread.clear();
-
+    mOutputCommandThread->exit();
 
     // release audio pre processing resources
     for (size_t i = 0; i < mInputSources.size(); i++) {
