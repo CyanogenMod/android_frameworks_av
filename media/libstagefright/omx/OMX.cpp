@@ -470,8 +470,6 @@ OMX_ERRORTYPE OMX::OnFillBufferDone(
     msg.u.extended_buffer_data.range_length = pBuffer->nFilledLen;
     msg.u.extended_buffer_data.flags = pBuffer->nFlags;
     msg.u.extended_buffer_data.timestamp = pBuffer->nTimeStamp;
-    msg.u.extended_buffer_data.platform_private = pBuffer->pPlatformPrivate;
-    msg.u.extended_buffer_data.data_ptr = pBuffer->pBuffer;
 
     findDispatcher(node)->post(msg);
 

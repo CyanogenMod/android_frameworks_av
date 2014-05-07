@@ -100,12 +100,6 @@ struct CodecObserver : public BnOMXObserver {
                 msg->setInt64(
                         "timestamp",
                         omx_msg.u.extended_buffer_data.timestamp);
-                msg->setPointer(
-                        "platform_private",
-                        omx_msg.u.extended_buffer_data.platform_private);
-                msg->setPointer(
-                        "data_ptr",
-                        omx_msg.u.extended_buffer_data.data_ptr);
                 break;
             }
 
@@ -160,9 +154,7 @@ private:
             IOMX::buffer_id bufferID,
             size_t rangeOffset, size_t rangeLength,
             OMX_U32 flags,
-            int64_t timeUs,
-            void *platformPrivate,
-            void *dataPtr);
+            int64_t timeUs);
 
     void getMoreInputDataIfPossible();
 
@@ -3228,23 +3220,17 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
 
             int32_t rangeOffset, rangeLength, flags;
             int64_t timeUs;
-            void *platformPrivate;
-            void *dataPtr;
 
             CHECK(msg->findInt32("range_offset", &rangeOffset));
             CHECK(msg->findInt32("range_length", &rangeLength));
             CHECK(msg->findInt32("flags", &flags));
             CHECK(msg->findInt64("timestamp", &timeUs));
-            CHECK(msg->findPointer("platform_private", &platformPrivate));
-            CHECK(msg->findPointer("data_ptr", &dataPtr));
 
             return onOMXFillBufferDone(
                     bufferID,
                     (size_t)rangeOffset, (size_t)rangeLength,
                     (OMX_U32)flags,
-                    timeUs,
-                    platformPrivate,
-                    dataPtr);
+                    timeUs);
         }
 
         default:
@@ -3543,9 +3529,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
         IOMX::buffer_id bufferID,
         size_t rangeOffset, size_t rangeLength,
         OMX_U32 flags,
-        int64_t timeUs,
-        void * /* platformPrivate */,
-        void * /* dataPtr */) {
+        int64_t timeUs) {
     ALOGV("[%s] onOMXFillBufferDone %p time %lld us, flags = 0x%08lx",
          mCodec->mComponentName.c_str(), bufferID, timeUs, flags);
 
