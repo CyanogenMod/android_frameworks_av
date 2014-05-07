@@ -88,16 +88,16 @@ static AMediaCodec * createAMediaCodec(const char *name, bool name_is_type, bool
 }
 
 
-AMediaCodec* AMediaCodec_createByCodecName(const char *name) {
+AMediaCodec* AMediaCodec_createCodecByName(const char *name) {
     return createAMediaCodec(name, false, false);
 }
 
-AMediaCodec* AMediaCodec_createByCodecType(const char *mime_type) {
+AMediaCodec* AMediaCodec_createDecoderByType(const char *mime_type) {
     return createAMediaCodec(mime_type, true, false);
 }
 
-AMediaCodec* AMediaCodec_createEncoderByName(const char *name) {
-    return createAMediaCodec(name, false, true);
+AMediaCodec* AMediaCodec_createEncoderByType(const char *name) {
+    return createAMediaCodec(name, true, true);
 }
 
 int AMediaCodec_delete(AMediaCodec *mData) {
@@ -115,7 +115,8 @@ int AMediaCodec_delete(AMediaCodec *mData) {
     return OK;
 }
 
-int AMediaCodec_configure(AMediaCodec *mData, const AMediaFormat* format, ANativeWindow* window) {
+int AMediaCodec_configure(
+        AMediaCodec *mData, const AMediaFormat* format, ANativeWindow* window, uint32_t flags) {
     sp<AMessage> nativeFormat;
     AMediaFormat_getFormat(format, &nativeFormat);
     ALOGV("configure with format: %s", nativeFormat->debugString(0).c_str());
@@ -124,7 +125,7 @@ int AMediaCodec_configure(AMediaCodec *mData, const AMediaFormat* format, ANativ
         surface = (Surface*) window;
     }
 
-    return translate_error(mData->mCodec->configure(nativeFormat, surface, NULL, 0));
+    return translate_error(mData->mCodec->configure(nativeFormat, surface, NULL, flags));
 }
 
 int AMediaCodec_start(AMediaCodec *mData) {

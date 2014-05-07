@@ -49,6 +49,7 @@ typedef struct AMediaCodecBufferInfo AMediaCodecBufferInfo;
 
 enum {
     AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM = 4,
+    AMEDIACODEC_CONFIGURE_FLAG_ENCODE = 1,
     AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED = -3,
     AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED = -2,
     AMEDIACODEC_INFO_TRY_AGAIN_LATER = -1
@@ -56,20 +57,22 @@ enum {
 
 
 /**
- * Create decoder by name. Use this if you know the exact codec you want to use.
+ * Create codec by name. Use this if you know the exact codec you want to use.
+ * When configuring, you will need to specify whether to use the codec as an
+ * encoder or decoder.
  */
-AMediaCodec* AMediaCodec_createByCodecName(const char *name);
+AMediaCodec* AMediaCodec_createCodecByName(const char *name);
 
 /**
  * Create codec by mime type. Most applications will use this, specifying a
  * mime type obtained from media extractor.
  */
-AMediaCodec* AMediaCodec_createByCodecType(const char *mime_type);
+AMediaCodec* AMediaCodec_createDecoderByType(const char *mime_type);
 
 /**
  * Create encoder by name.
  */
-AMediaCodec* AMediaCodec_createEncoderByName(const char *name);
+AMediaCodec* AMediaCodec_createEncoderByType(const char *mime_type);
 
 /**
  * delete the codec and free its resources
@@ -79,7 +82,8 @@ int AMediaCodec_delete(AMediaCodec*);
 /**
  * Configure the codec. For decoding you would typically get the format from an extractor.
  */
-int AMediaCodec_configure(AMediaCodec*, const AMediaFormat* format, ANativeWindow* surface); // TODO: other args
+int AMediaCodec_configure(AMediaCodec*, const AMediaFormat* format,
+        ANativeWindow* surface, uint32_t flags);  // TODO: other args
 
 /**
  * Start the codec. A codec must be configured before it can be started, and must be started
