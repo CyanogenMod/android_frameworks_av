@@ -22,6 +22,7 @@ LOCAL_SRC_FILES:=               \
     StagefrightPlayer.cpp       \
     StagefrightRecorder.cpp     \
     TestPlayerStub.cpp          \
+    VideoFrameScheduler.cpp     \
 
 LOCAL_SHARED_LIBRARIES :=       \
     libbinder                   \
