@@ -138,7 +138,7 @@ static int ALIGN(int x, int y) {
 }
 
 void SoftwareRenderer::render(
-        const void *data, size_t size, void *platformPrivate) {
+        const void *data, size_t size, int64_t timestampNs, void *platformPrivate) {
     ANativeWindowBuffer *buf;
     int err;
     if ((err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(),
@@ -229,6 +229,11 @@ void SoftwareRenderer::render(
     }
 
     CHECK_EQ(0, mapper.unlock(buf->handle));
+
+    if ((err = native_window_set_buffers_timestamp(mNativeWindow.get(),
+            timestampNs)) != 0) {
+        ALOGW("Surface::set_buffers_timestamp returned error %d", err);
+    }
 
     if ((err = mNativeWindow->queueBuffer(mNativeWindow.get(), buf,
             -1)) != 0) {
