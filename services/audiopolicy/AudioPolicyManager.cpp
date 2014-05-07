@@ -1686,10 +1686,10 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                           mHwModules[i]->mName);
                     delete outputDesc;
                 } else {
-                    for (size_t i = 0; i  < outProfile->mSupportedDevices.size(); i++) {
-                        audio_devices_t type = outProfile->mSupportedDevices[i]->mType;
+                    for (size_t k = 0; k  < outProfile->mSupportedDevices.size(); k++) {
+                        audio_devices_t type = outProfile->mSupportedDevices[k]->mType;
                         ssize_t index =
-                                mAvailableOutputDevices.indexOf(outProfile->mSupportedDevices[i]);
+                                mAvailableOutputDevices.indexOf(outProfile->mSupportedDevices[k]);
                         // give a valid ID to an attached device once confirmed it is reachable
                         if ((index >= 0) && (mAvailableOutputDevices[index]->mId == 0)) {
                             mAvailableOutputDevices[index]->mId = nextUniqueId();
@@ -1731,10 +1731,10 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                     &inputDesc->mChannelMask);
 
                 if (input != 0) {
-                    for (size_t i = 0; i  < inProfile->mSupportedDevices.size(); i++) {
-                        audio_devices_t type = inProfile->mSupportedDevices[i]->mType;
+                    for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
+                        audio_devices_t type = inProfile->mSupportedDevices[k]->mType;
                         ssize_t index =
-                                mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[i]);
+                                mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[k]);
                         // give a valid ID to an attached device once confirmed it is reachable
                         if ((index >= 0) && (mAvailableInputDevices[index]->mId == 0)) {
                             mAvailableInputDevices[index]->mId = nextUniqueId();
