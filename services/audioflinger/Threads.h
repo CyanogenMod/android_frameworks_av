@@ -226,6 +226,13 @@ public:
                 virtual status_t    setSyncEvent(const sp<SyncEvent>& event) = 0;
                 virtual bool        isValidSyncEvent(const sp<SyncEvent>& event) const = 0;
 
+                // Return a reference to a per-thread heap which can be used to allocate IMemory
+                // objects that will be read-only to client processes, read/write to mediaserver,
+                // and shared by all client processes of the thread.
+                // The heap is per-thread rather than common across all threads, because
+                // clients can't be trusted not to modify the offset of the IMemory they receive.
+                // If a thread does not have such a heap, this method returns 0.
+                virtual sp<MemoryDealer>    readOnlyHeap() const { return 0; }
 
     mutable     Mutex                   mLock;
 
@@ -947,6 +954,8 @@ public:
 
     virtual status_t    initCheck() const { return (mInput == NULL) ? NO_INIT : NO_ERROR; }
 
+    virtual sp<MemoryDealer>    readOnlyHeap() const { return mReadOnlyHeap; }
+
             sp<AudioFlinger::RecordThread::RecordTrack>  createRecordTrack_l(
                     const sp<AudioFlinger::Client>& client,
                     uint32_t sampleRate,
@@ -1021,4 +1030,6 @@ private:
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
+
+            const sp<MemoryDealer>              mReadOnlyHeap;
 };

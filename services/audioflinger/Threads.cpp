@@ -143,6 +143,12 @@ static const int kPriorityFastMixer = 3;
 // See the client's minBufCount and mNotificationFramesAct calculations for details.
 static const int kFastTrackMultiplier = 2;
 
+// See Thread::readOnlyHeap().
+// Initially this heap is used to allocate client buffers for "fast" AudioRecord.
+// Eventually it will be the single buffer that FastCapture writes into via HAL read(),
+// and that all "fast" AudioRecord clients read from.  In either case, the size can be small.
+static const size_t kRecordThreadReadOnlyHeapSize = 0x1000;
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -4635,6 +4641,8 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 #ifdef TEE_SINK
     , mTeeSink(teeSink)
 #endif
+    , mReadOnlyHeap(new MemoryDealer(kRecordThreadReadOnlyHeapSize,
+            "RecordThreadRO", MemoryHeapBase::READ_ONLY))
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
     mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
