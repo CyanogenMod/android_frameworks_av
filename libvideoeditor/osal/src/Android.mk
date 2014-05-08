@@ -48,10 +48,6 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES += libdl
 
-# All of the shared libraries we link against.
-LOCAL_LDLIBS := \
-    -lpthread -ldl
-
 LOCAL_CFLAGS += -Wno-multichar \
     -D__ANDROID__ \
     -DM4OSA_FILE_BLOCK_WITH_SEMAPHORE \

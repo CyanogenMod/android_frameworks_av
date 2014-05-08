@@ -43,12 +43,7 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES += libdl
 
-# All of the shared libraries we link against.
-LOCAL_LDLIBS := \
-    -lpthread -ldl
-
 LOCAL_CFLAGS += -Wno-multichar \
     -DDUPLICATE_STTS_IN_LAST_AU
 
 include $(BUILD_STATIC_LIBRARY)
-

@@ -85,10 +85,6 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES += libdl
 
-# All of the shared libraries we link against.
-LOCAL_LDLIBS := \
-    -lpthread -ldl
-
 LOCAL_CFLAGS += -Wno-multichar \
      -DM4_ENABLE_RENDERINGMODE \
     -DUSE_STAGEFRIGHT_CODECS \
