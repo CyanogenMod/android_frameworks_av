@@ -154,8 +154,9 @@ public:
      * streamType:         Select the type of audio stream this track is attached to
      *                     (e.g. AUDIO_STREAM_MUSIC).
      * sampleRate:         Data source sampling rate in Hz.
-     * format:             Audio format (e.g AUDIO_FORMAT_PCM_16_BIT for signed
-     *                     16 bits per sample).
+     * format:             Audio format.  For mixed tracks, any PCM format supported by server is OK
+     *                     or AUDIO_FORMAT_PCM_8_BIT which is handled on client side.  For direct
+     *                     and offloaded tracks, the possible format(s) depends on the output sink.
      * channelMask:        Channel mask, such that audio_is_output_channel(channelMask) is true.
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
      *                     application's contribution to the
