@@ -709,7 +709,7 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     } else if (cmd == CAMERA_CMD_PING) {
         // If mHardware is 0, checkPidAndHardware will return error.
         return OK;
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(QCOM_ICS_COMPAT)
     } else if (cmd == CAMERA_CMD_HISTOGRAM_ON) {
         enableMsgType(CAMERA_MSG_STATS_DATA);
     } else if (cmd == CAMERA_CMD_HISTOGRAM_OFF) {
