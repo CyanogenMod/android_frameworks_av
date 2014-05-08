@@ -47,12 +47,7 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES += libdl
 
-# All of the shared libraries we link against.
-LOCAL_LDLIBS := \
-    -lpthread -ldl
-
 LOCAL_CFLAGS += -Wno-multichar \
     -DM4MCS_WITH_FAST_OPEN
 
 include $(BUILD_STATIC_LIBRARY)
-
