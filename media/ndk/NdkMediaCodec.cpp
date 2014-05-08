@@ -45,26 +45,94 @@ static int translate_error(status_t err) {
     return -1000;
 }
 
-
-class CodecHandler: public AHandler {
-public:
-    CodecHandler(sp<android::MediaCodec>);
-    virtual void onMessageReceived(const sp<AMessage> &msg);
+enum {
+    kWhatActivityNotify,
+    kWhatRequestActivityNotifications,
+    kWhatStopActivityNotifications,
 };
 
-CodecHandler::CodecHandler(sp<android::MediaCodec>) {
 
-}
-
-void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
-    ALOGI("handler got message %d", msg->what());
-}
+class CodecHandler: public AHandler {
+private:
+    AMediaCodec* mCodec;
+public:
+    CodecHandler(AMediaCodec *codec);
+    virtual void onMessageReceived(const sp<AMessage> &msg);
+};
 
 struct AMediaCodec {
     sp<android::MediaCodec> mCodec;
     sp<ALooper> mLooper;
     sp<CodecHandler> mHandler;
+    sp<AMessage> mActivityNotification;
+    int32_t mGeneration;
+    bool mRequestedActivityNotification;
+    OnCodecEvent mCallback;
+    void *mCallbackUserData;
 };
+
+CodecHandler::CodecHandler(AMediaCodec *codec) {
+    mCodec = codec;
+}
+
+void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
+
+    switch (msg->what()) {
+        case kWhatRequestActivityNotifications:
+        {
+            if (mCodec->mRequestedActivityNotification) {
+                break;
+            }
+
+            mCodec->mCodec->requestActivityNotification(mCodec->mActivityNotification);
+            mCodec->mRequestedActivityNotification = true;
+            break;
+        }
+
+        case kWhatActivityNotify:
+        {
+            {
+                int32_t generation;
+                msg->findInt32("generation", &generation);
+
+                if (generation != mCodec->mGeneration) {
+                    // stale
+                    break;
+                }
+
+                mCodec->mRequestedActivityNotification = false;
+            }
+
+            if (mCodec->mCallback) {
+                mCodec->mCallback(mCodec, mCodec->mCallbackUserData);
+            }
+            break;
+        }
+
+        case kWhatStopActivityNotifications:
+        {
+            uint32_t replyID;
+            msg->senderAwaitsResponse(&replyID);
+
+            mCodec->mGeneration++;
+            mCodec->mRequestedActivityNotification = false;
+
+            sp<AMessage> response = new AMessage;
+            response->postReply(replyID);
+            break;
+        }
+
+        default:
+            ALOGE("shouldn't be here");
+            break;
+    }
+
+}
+
+
+static void requestActivityNotification(AMediaCodec *codec) {
+    (new AMessage(kWhatRequestActivityNotifications, codec->mHandler->id()))->post();
+}
 
 extern "C" {
 
@@ -76,14 +144,17 @@ static AMediaCodec * createAMediaCodec(const char *name, bool name_is_type, bool
             false,      // runOnCallingThread
             true,       // canCallJava XXX
             PRIORITY_FOREGROUND);
-    ALOGV("looper start: %d", ret);
     if (name_is_type) {
         mData->mCodec = android::MediaCodec::CreateByType(mData->mLooper, name, encoder);
     } else {
         mData->mCodec = android::MediaCodec::CreateByComponentName(mData->mLooper, name);
     }
-    mData->mHandler = new CodecHandler(mData->mCodec);
+    mData->mHandler = new CodecHandler(mData);
     mData->mLooper->registerHandler(mData->mHandler);
+    mData->mGeneration = 1;
+    mData->mRequestedActivityNotification = false;
+    mData->mCallback = NULL;
+
     return mData;
 }
 
@@ -129,11 +200,25 @@ int AMediaCodec_configure(
 }
 
 int AMediaCodec_start(AMediaCodec *mData) {
-    return translate_error(mData->mCodec->start());
+    status_t ret =  mData->mCodec->start();
+    if (ret != OK) {
+        return translate_error(ret);
+    }
+    mData->mActivityNotification = new AMessage(kWhatActivityNotify, mData->mHandler->id());
+    mData->mActivityNotification->setInt32("generation", mData->mGeneration);
+    requestActivityNotification(mData);
+    return OK;
 }
 
 int AMediaCodec_stop(AMediaCodec *mData) {
-    return translate_error(mData->mCodec->stop());
+    int ret = translate_error(mData->mCodec->stop());
+
+    sp<AMessage> msg = new AMessage(kWhatStopActivityNotifications, mData->mHandler->id());
+    sp<AMessage> response;
+    msg->postAndAwaitResponse(&response);
+    mData->mActivityNotification.clear();
+
+    return ret;
 }
 
 int AMediaCodec_flush(AMediaCodec *mData) {
@@ -143,6 +228,7 @@ int AMediaCodec_flush(AMediaCodec *mData) {
 ssize_t AMediaCodec_dequeueInputBuffer(AMediaCodec *mData, int64_t timeoutUs) {
     size_t idx;
     status_t ret = mData->mCodec->dequeueInputBuffer(&idx, timeoutUs);
+    requestActivityNotification(mData);
     if (ret == OK) {
         return idx;
     }
@@ -200,7 +286,7 @@ ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec *mData,
     int64_t presentationTimeUs;
     status_t ret = mData->mCodec->dequeueOutputBuffer(&idx, &offset, &size, &presentationTimeUs,
             &flags, timeoutUs);
-
+    requestActivityNotification(mData);
     switch (ret) {
         case OK:
             info->offset = offset;
@@ -233,6 +319,13 @@ int AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, bool render)
         return translate_error(mData->mCodec->releaseOutputBuffer(idx));
     }
 }
+
+int AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback, void *userdata) {
+    mData->mCallback = callback;
+    mData->mCallbackUserData = userdata;
+    return OK;
+}
+
 
 } // extern "C"
 

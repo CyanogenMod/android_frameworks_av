@@ -55,7 +55,6 @@ enum {
     AMEDIACODEC_INFO_TRY_AGAIN_LATER = -1
 };
 
-
 /**
  * Create codec by name. Use this if you know the exact codec you want to use.
  * When configuring, you will need to specify whether to use the codec as an
@@ -138,6 +137,17 @@ AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec*);
  */
 int AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool render);
 
+
+
+typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
+
+/**
+ * Set a callback to be called when a new buffer is available, or there was a format
+ * or buffer change.
+ * Note that you cannot perform any operations on the mediacodec from within the callback.
+ * If you need to perform mediacodec operations, you must do so on a different thread.
+ */
+int AMediaCodec_setNotificationCallback(AMediaCodec*, OnCodecEvent callback, void *userdata);
 
 
 #ifdef __cplusplus
