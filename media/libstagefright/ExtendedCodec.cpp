@@ -469,14 +469,14 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
         int portIndex,
         int* channelCount) {
     status_t retVal = OK;
-    if (!strcmp(mime->c_str(),MEDIA_MIMETYPE_AUDIO_QCELP)) {
+    if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_QCELP, strlen(MEDIA_MIMETYPE_AUDIO_QCELP))) {
         OMX_AUDIO_PARAM_QCELP13TYPE params;
         InitOMXParams(&params);
         params.nPortIndex = portIndex;
         CHECK_EQ(OMXhandle->getParameter(
                    nodeID, OMX_IndexParamAudioQcelp13, &params, sizeof(params)), (status_t)OK);
         *channelCount = params.nChannels;
-    } else if(!strcmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_EVRC)) {
+    } else if(!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_EVRC, strlen(MEDIA_MIMETYPE_AUDIO_EVRC))) {
         OMX_AUDIO_PARAM_EVRCTYPE params;
         InitOMXParams(&params);
         params.nPortIndex = portIndex;
@@ -1136,8 +1136,8 @@ bool ExtendedCodec::useHWAACDecoder(const char *mime) {
     char value[PROPERTY_VALUE_MAX] = {0};
     int aaccodectype = 0;
     aaccodectype = property_get("media.aaccodectype", value, NULL);
-    if (aaccodectype && !strncmp("0", value, 1) &&
-        !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC,sizeof(MEDIA_MIMETYPE_AUDIO_AAC))) {
+    if (aaccodectype && !strncmp("1", value, 1) &&
+        !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
         ALOGI("Using Hardware AAC Decoder");
         return true;
     }
