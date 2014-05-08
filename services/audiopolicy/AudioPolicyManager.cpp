@@ -2920,9 +2920,6 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(AudioOutputDescriptor *ou
     uint32_t muteWaitMs = 0;
     audio_devices_t device = outputDesc->device();
     bool shouldMute = outputDesc->isActive() && (popcount(device) >= 2);
-    // temporary mute output if device selection changes to avoid volume bursts due to
-    // different per device volumes
-    bool tempMute = outputDesc->isActive() && (device != prevDevice);
 
     for (size_t i = 0; i < NUM_STRATEGIES; i++) {
         audio_devices_t curDevice = getDeviceForStrategy((routing_strategy)i, false /*fromCache*/);
@@ -2936,7 +2933,7 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(AudioOutputDescriptor *ou
             doMute = true;
             outputDesc->mStrategyMutedByDevice[i] = false;
         }
-        if (doMute || tempMute) {
+        if (doMute) {
             for (size_t j = 0; j < mOutputs.size(); j++) {
                 AudioOutputDescriptor *desc = mOutputs.valueAt(j);
                 // skip output if it does not share any device with current output
@@ -2949,15 +2946,14 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(AudioOutputDescriptor *ou
                       mute ? "muting" : "unmuting", i, curDevice, curOutput);
                 setStrategyMute((routing_strategy)i, mute, curOutput, mute ? 0 : delayMs);
                 if (desc->isStrategyActive((routing_strategy)i)) {
-                    // do tempMute only for current output
-                    if (tempMute && (desc == outputDesc)) {
-                        setStrategyMute((routing_strategy)i, true, curOutput);
-                        setStrategyMute((routing_strategy)i, false, curOutput,
-                                            desc->latency() * 2, device);
-                    }
-                    if ((tempMute && (desc == outputDesc)) || mute) {
-                        if (muteWaitMs < desc->latency()) {
-                            muteWaitMs = desc->latency();
+                    if (mute) {
+                        // FIXME: should not need to double latency if volume could be applied
+                        // immediately by the audioflinger mixer. We must account for the delay
+                        // between now and the next time the audioflinger thread for this output
+                        // will process a buffer (which corresponds to one buffer size,
+                        // usually 1/2 or 1/4 of the latency).
+                        if (muteWaitMs < desc->latency() * 2) {
+                            muteWaitMs = desc->latency() * 2;
                         }
                     }
                 }
@@ -2965,11 +2961,22 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(AudioOutputDescriptor *ou
         }
     }
 
-    // FIXME: should not need to double latency if volume could be applied immediately by the
-    // audioflinger mixer. We must account for the delay between now and the next time
-    // the audioflinger thread for this output will process a buffer (which corresponds to
-    // one buffer size, usually 1/2 or 1/4 of the latency).
-    muteWaitMs *= 2;
+    // temporary mute output if device selection changes to avoid volume bursts due to
+    // different per device volumes
+    if (outputDesc->isActive() && (device != prevDevice)) {
+        if (muteWaitMs < outputDesc->latency() * 2) {
+            muteWaitMs = outputDesc->latency() * 2;
+        }
+        for (size_t i = 0; i < NUM_STRATEGIES; i++) {
+            if (outputDesc->isStrategyActive((routing_strategy)i)) {
+                setStrategyMute((routing_strategy)i, true, outputDesc->mId);
+                // do tempMute unmute after twice the mute wait time
+                setStrategyMute((routing_strategy)i, false, outputDesc->mId,
+                                muteWaitMs *2, device);
+            }
+        }
+    }
+
     // wait for the PCM output buffers to empty before proceeding with the rest of the command
     if (muteWaitMs > delayMs) {
         muteWaitMs -= delayMs;
