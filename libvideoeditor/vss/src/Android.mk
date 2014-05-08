@@ -87,10 +87,6 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SHARED_LIBRARIES += libdl
 
-# All of the shared libraries we link against.
-LOCAL_LDLIBS := \
-    -lpthread -ldl
-
 LOCAL_CFLAGS += -Wno-multichar \
     -DM4xVSS_RESERVED_MOOV_DISK_SPACEno \
     -DDECODE_GIF_ON_SAVING
