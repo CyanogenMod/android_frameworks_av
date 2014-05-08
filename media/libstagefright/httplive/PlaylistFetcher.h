@@ -91,6 +91,7 @@ private:
     static const int32_t kNumSkipFrames;
 
     static bool bufferStartsWithTsSyncByte(const sp<ABuffer>& buffer);
+    static bool bufferStartsWithWebVTTMagicSequence(const sp<ABuffer>& buffer);
 
     // notifications to mSession
     sp<AMessage> mNotify;

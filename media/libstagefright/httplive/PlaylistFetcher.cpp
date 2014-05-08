@@ -1183,9 +1183,35 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
     return OK;
 }
 
+/* static */
+bool PlaylistFetcher::bufferStartsWithWebVTTMagicSequence(
+        const sp<ABuffer> &buffer) {
+    size_t pos = 0;
+
+    // skip possible BOM
+    if (buffer->size() >= pos + 3 &&
+            !memcmp("\xef\xbb\xbf", buffer->data() + pos, 3)) {
+        pos += 3;
+    }
+
+    // accept WEBVTT followed by SPACE, TAB or (CR) LF
+    if (buffer->size() < pos + 6 ||
+            memcmp("WEBVTT", buffer->data() + pos, 6)) {
+        return false;
+    }
+    pos += 6;
+
+    if (buffer->size() == pos) {
+        return true;
+    }
+
+    uint8_t sep = buffer->data()[pos];
+    return sep == ' ' || sep == '\t' || sep == '\n' || sep == '\r';
+}
+
 status_t PlaylistFetcher::extractAndQueueAccessUnits(
         const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta) {
-    if (buffer->size() >= 7 && !memcmp("WEBVTT\n", buffer->data(), 7)) {
+    if (bufferStartsWithWebVTTMagicSequence(buffer)) {
         if (mStreamTypeMask != LiveSession::STREAMTYPE_SUBTITLES) {
             ALOGE("This stream only contains subtitles.");
             return ERROR_MALFORMED;
