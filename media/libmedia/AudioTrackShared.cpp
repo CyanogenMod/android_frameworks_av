@@ -621,7 +621,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
         android_atomic_release_store(stepCount + rear, &cblk->u.mStreaming.mRear);
     }
 
-    mCblk->mServer += stepCount;
+    cblk->mServer += stepCount;
 
     size_t half = mFrameCount / 2;
     if (half == 0) {
@@ -679,10 +679,11 @@ size_t AudioTrackServerProxy::framesReady()
 }
 
 bool  AudioTrackServerProxy::setStreamEndDone() {
+    audio_track_cblk_t* cblk = mCblk;
     bool old =
-            (android_atomic_or(CBLK_STREAM_END_DONE, &mCblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
+            (android_atomic_or(CBLK_STREAM_END_DONE, &cblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
     if (!old) {
-        (void) __futex_syscall3(&mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+        (void) __futex_syscall3(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
                 1);
     }
     return old;
@@ -690,10 +691,11 @@ bool  AudioTrackServerProxy::setStreamEndDone() {
 
 void AudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
 {
-    mCblk->u.mStreaming.mUnderrunFrames += frameCount;
+    audio_track_cblk_t* cblk = mCblk;
+    cblk->u.mStreaming.mUnderrunFrames += frameCount;
 
     // FIXME also wake futex so that underrun is noticed more quickly
-    (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
+    (void) android_atomic_or(CBLK_UNDERRUN, &cblk->mFlags);
 }
 
 // ---------------------------------------------------------------------------
