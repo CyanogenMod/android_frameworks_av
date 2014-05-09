@@ -1800,10 +1800,6 @@ AudioFlinger::RecordHandle::~RecordHandle() {
     mRecordTrack->destroy();
 }
 
-sp<IMemory> AudioFlinger::RecordHandle::getCblk() const {
-    return mRecordTrack->getCblk();
-}
-
 status_t AudioFlinger::RecordHandle::start(int /*AudioSystem::sync_event_t*/ event,
         int triggerSession) {
     ALOGV("RecordHandle::start()");

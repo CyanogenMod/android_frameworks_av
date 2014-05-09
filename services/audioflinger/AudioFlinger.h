@@ -432,7 +432,6 @@ private:
     public:
         RecordHandle(const sp<RecordThread::RecordTrack>& recordTrack);
         virtual             ~RecordHandle();
-        virtual sp<IMemory> getCblk() const;
         virtual status_t    start(int /*AudioSystem::sync_event_t*/ event, int triggerSession);
         virtual void        stop();
         virtual status_t onTransact(
