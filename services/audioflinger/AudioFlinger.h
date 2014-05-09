@@ -452,7 +452,11 @@ private:
               // no range check, doesn't check per-thread stream volume, AudioFlinger::mLock held
               float streamVolume_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].volume; }
-              void audioConfigChanged_l(int event, audio_io_handle_t ioHandle, const void *param2);
+              void audioConfigChanged_l(const DefaultKeyedVector< pid_t,sp<NotificationClient> >&
+                                           notificationClients,
+                                        int event,
+                                        audio_io_handle_t ioHandle,
+                                        const void *param2);
 
               // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
               // They all share the same ID space, but the namespaces are actually independent
@@ -477,7 +481,8 @@ private:
 
                 void        removeClient_l(pid_t pid);
                 void        removeNotificationClient(pid_t pid);
-
+                DefaultKeyedVector< pid_t,sp<NotificationClient> > notificationClients() {
+                                        Mutex::Autolock _l(mLock); return mNotificationClients; }
                 bool isNonOffloadableGlobalEffectEnabled_l();
                 void onNonOffloadableGlobalEffectEnable();
 
