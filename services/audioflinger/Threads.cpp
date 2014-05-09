@@ -97,8 +97,8 @@ static const nsecs_t kWarningThrottleNs = seconds(5);
 // RecordThread loop sleep time upon application overrun or audio HAL read error
 static const int kRecordThreadSleepUs = 5000;
 
-// maximum time to wait for setParameters to complete
-static const nsecs_t kSetParametersTimeoutNs = seconds(2);
+// maximum time to wait in sendConfigEvent_l() for a status to be received
+static const nsecs_t kConfigEventTimeoutNs = seconds(2);
 
 // minimum sleep time for the mixer thread loop when tracks are active but in underrun
 static const uint32_t kMinThreadSleepTimeUs = 5000;
@@ -283,7 +283,6 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         // mSampleRate, mFrameCount, mChannelMask, mChannelCount, mFrameSize, mFormat, mBufferSize
         // are set by PlaybackThread::readOutputParameters_l() or
         // RecordThread::readInputParameters_l()
-        mParamStatus(NO_ERROR),
         //FIXME: mStandby should be true here. Is this some kind of hack?
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
@@ -295,12 +294,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
 AudioFlinger::ThreadBase::~ThreadBase()
 {
     // mConfigEvents should be empty, but just in case it isn't, free the memory it owns
-    for (size_t i = 0; i < mConfigEvents.size(); i++) {
-        delete mConfigEvents[i];
-    }
     mConfigEvents.clear();
 
-    mParamCond.broadcast();
     // do not lock the mutex in destructor
     releaseWakeLock_l();
     if (mPowerManager != 0) {
@@ -351,16 +346,30 @@ status_t AudioFlinger::ThreadBase::setParameters(const String8& keyValuePairs)
     ALOGV("ThreadBase::setParameters() %s", keyValuePairs.string());
     Mutex::Autolock _l(mLock);
 
-    mNewParameters.add(keyValuePairs);
+    return sendSetParameterConfigEvent_l(keyValuePairs);
+}
+
+// sendConfigEvent_l() must be called with ThreadBase::mLock held
+// Can temporarily release the lock if waiting for a reply from processConfigEvents_l().
+status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
+{
+    status_t status = NO_ERROR;
+
+    mConfigEvents.add(event);
+    ALOGV("sendConfigEvent_l() num events %d event %d", mConfigEvents.size(), event->mType);
     mWaitWorkCV.signal();
-    // wait condition with timeout in case the thread loop has exited
-    // before the request could be processed
-    if (mParamCond.waitRelative(mLock, kSetParametersTimeoutNs) == NO_ERROR) {
-        status = mParamStatus;
-        mWaitWorkCV.signal();
-    } else {
-        status = TIMED_OUT;
+    mLock.unlock();
+    {
+        Mutex::Autolock _l(event->mLock);
+        while (event->mWaitStatus) {
+            if (event->mCond.waitRelative(event->mLock, kConfigEventTimeoutNs) != NO_ERROR) {
+                event->mStatus = TIMED_OUT;
+                event->mWaitStatus = false;
+            }
+        }
+        status = event->mStatus;
     }
+    mLock.lock();
     return status;
 }
 
@@ -373,63 +382,71 @@ void AudioFlinger::ThreadBase::sendIoConfigEvent(int event, int param)
 // sendIoConfigEvent_l() must be called with ThreadBase::mLock held
 void AudioFlinger::ThreadBase::sendIoConfigEvent_l(int event, int param)
 {
-    IoConfigEvent *ioEvent = new IoConfigEvent(event, param);
-    mConfigEvents.add(static_cast<ConfigEvent *>(ioEvent));
-    ALOGV("sendIoConfigEvent() num events %d event %d, param %d", mConfigEvents.size(), event,
-            param);
-    mWaitWorkCV.signal();
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new IoConfigEvent(event, param);
+    sendConfigEvent_l(configEvent);
 }
 
 // sendPrioConfigEvent_l() must be called with ThreadBase::mLock held
 void AudioFlinger::ThreadBase::sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio)
 {
-    PrioConfigEvent *prioEvent = new PrioConfigEvent(pid, tid, prio);
-    mConfigEvents.add(static_cast<ConfigEvent *>(prioEvent));
-    ALOGV("sendPrioConfigEvent_l() num events %d pid %d, tid %d prio %d",
-          mConfigEvents.size(), pid, tid, prio);
-    mWaitWorkCV.signal();
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new PrioConfigEvent(pid, tid, prio);
+    sendConfigEvent_l(configEvent);
 }
 
-void AudioFlinger::ThreadBase::processConfigEvents()
+// sendSetParameterConfigEvent_l() must be called with ThreadBase::mLock held
+status_t AudioFlinger::ThreadBase::sendSetParameterConfigEvent_l(const String8& keyValuePair)
 {
-    Mutex::Autolock _l(mLock);
-    processConfigEvents_l();
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new SetParameterConfigEvent(keyValuePair);
+    return sendConfigEvent_l(configEvent);
 }
 
 // post condition: mConfigEvents.isEmpty()
-void AudioFlinger::ThreadBase::processConfigEvents_l()
+void AudioFlinger::ThreadBase::processConfigEvents_l(
+                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients)
 {
+    bool configChanged = false;
+
     while (!mConfigEvents.isEmpty()) {
-        ALOGV("processConfigEvents() remaining events %d", mConfigEvents.size());
-        ConfigEvent *event = mConfigEvents[0];
+        ALOGV("processConfigEvents_l() remaining events %d", mConfigEvents.size());
+        sp<ConfigEvent> event = mConfigEvents[0];
         mConfigEvents.removeAt(0);
-        // release mLock before locking AudioFlinger mLock: lock order is always
-        // AudioFlinger then ThreadBase to avoid cross deadlock
-        mLock.unlock();
-        switch (event->type()) {
+        switch (event->mType) {
         case CFG_EVENT_PRIO: {
-            PrioConfigEvent *prioEvent = static_cast<PrioConfigEvent *>(event);
-            // FIXME Need to understand why this has be done asynchronously
-            int err = requestPriority(prioEvent->pid(), prioEvent->tid(), prioEvent->prio(),
+            PrioConfigEventData *data = (PrioConfigEventData *)event->mData.get();
+            // FIXME Need to understand why this has to be done asynchronously
+            int err = requestPriority(data->mPid, data->mTid, data->mPrio,
                     true /*asynchronous*/);
             if (err != 0) {
                 ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                      prioEvent->prio(), prioEvent->pid(), prioEvent->tid(), err);
+                      data->mPrio, data->mPid, data->mTid, err);
             }
         } break;
         case CFG_EVENT_IO: {
-            IoConfigEvent *ioEvent = static_cast<IoConfigEvent *>(event);
-            {
-                Mutex::Autolock _l(mAudioFlinger->mLock);
-                audioConfigChanged_l(ioEvent->event(), ioEvent->param());
+            IoConfigEventData *data = (IoConfigEventData *)event->mData.get();
+            audioConfigChanged_l(notificationClients, data->mEvent, data->mParam);
+        } break;
+        case CFG_EVENT_SET_PARAMETER: {
+            SetParameterConfigEventData *data = (SetParameterConfigEventData *)event->mData.get();
+            if (checkForNewParameter_l(data->mKeyValuePairs, event->mStatus)) {
+                configChanged = true;
             }
         } break;
         default:
-            ALOGE("processConfigEvents() unknown event type %d", event->type());
+            ALOG_ASSERT(false, "processConfigEvents_l() unknown event type %d", event->mType);
             break;
         }
-        delete event;
-        mLock.lock();
+        {
+            Mutex::Autolock _l(event->mLock);
+            if (event->mWaitStatus) {
+                event->mWaitStatus = false;
+                event->mCond.signal();
+            }
+        }
+        ALOGV_IF(mConfigEvents.isEmpty(), "processConfigEvents_l() DONE thread %p", this);
+    }
+
+    if (configChanged) {
+        cacheParameters_l();
     }
 }
 
@@ -502,18 +519,6 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
             channelMaskToString(mChannelMask, mType != RECORD).string());
     fdprintf(fd, "  Format: 0x%x (%s)\n", mFormat, formatToString(mFormat));
     fdprintf(fd, "  Frame size: %zu\n", mFrameSize);
-    fdprintf(fd, "  Pending setParameters commands:");
-    size_t numParams = mNewParameters.size();
-    if (numParams) {
-        fdprintf(fd, "\n   Index Command");
-        for (size_t i = 0; i < numParams; ++i) {
-            fdprintf(fd, "\n   %02zu    ", i);
-            fdprintf(fd, mNewParameters[i]);
-        }
-        fdprintf(fd, "\n");
-    } else {
-        fdprintf(fd, " none\n");
-    }
     fdprintf(fd, "  Pending config events:");
     size_t numConfig = mConfigEvents.size();
     if (numConfig) {
@@ -1634,7 +1639,10 @@ String8 AudioFlinger::PlaybackThread::getParameters(const String8& keys)
 }
 
 // audioConfigChanged_l() must be called with AudioFlinger::mLock held
-void AudioFlinger::PlaybackThread::audioConfigChanged_l(int event, int param) {
+void AudioFlinger::PlaybackThread::audioConfigChanged_l(
+                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
+                    int event,
+                    int param) {
     AudioSystem::OutputDescriptor desc;
     void *param2 = NULL;
 
@@ -1649,7 +1657,7 @@ void AudioFlinger::PlaybackThread::audioConfigChanged_l(int event, int param) {
         desc.format = mFormat;
         desc.frameCount = mNormalFrameCount; // FIXME see
                                              // AudioFlinger::frameCount(audio_io_handle_t)
-        desc.latency = latency();
+        desc.latency = latency_l();
         param2 = &desc;
         break;
 
@@ -1659,7 +1667,7 @@ void AudioFlinger::PlaybackThread::audioConfigChanged_l(int event, int param) {
     default:
         break;
     }
-    mAudioFlinger->audioConfigChanged_l(event, mId, param2);
+    mAudioFlinger->audioConfigChanged_l(notificationClients, event, mId, param2);
 }
 
 void AudioFlinger::PlaybackThread::writeCallback()
@@ -2309,11 +2317,15 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
         Vector< sp<EffectChain> > effectChains;
 
-        processConfigEvents();
+        DefaultKeyedVector< pid_t,sp<NotificationClient> > notificationClients =
+                mAudioFlinger->notificationClients();
 
         { // scope for mLock
 
             Mutex::Autolock _l(mLock);
+
+            processConfigEvents_l(notificationClients);
+            notificationClients.clear();
 
             if (logString != NULL) {
                 mNBLogWriter->logTimestamp();
@@ -2325,10 +2337,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 mLatchQ = mLatchD;
                 mLatchDValid = false;
                 mLatchQValid = true;
-            }
-
-            if (checkForNewParameters_l()) {
-                cacheParameters_l();
             }
 
             saveOutputTracks();
@@ -3535,128 +3543,117 @@ void AudioFlinger::MixerThread::deleteTrackName_l(int name)
     mAudioMixer->deleteTrackName(name);
 }
 
-// checkForNewParameters_l() must be called with ThreadBase::mLock held
-bool AudioFlinger::MixerThread::checkForNewParameters_l()
+// checkForNewParameter_l() must be called with ThreadBase::mLock held
+bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePair,
+                                                       status_t& status)
 {
-    // if !&IDLE, holds the FastMixer state to restore after new parameters processed
-    FastMixerState::Command previousCommand = FastMixerState::HOT_IDLE;
     bool reconfig = false;
 
-    while (!mNewParameters.isEmpty()) {
+    status = NO_ERROR;
 
-        if (mFastMixer != NULL) {
-            FastMixerStateQueue *sq = mFastMixer->sq();
-            FastMixerState *state = sq->begin();
-            if (!(state->mCommand & FastMixerState::IDLE)) {
-                previousCommand = state->mCommand;
-                state->mCommand = FastMixerState::HOT_IDLE;
-                sq->end();
-                sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
-            } else {
-                sq->end(false /*didModify*/);
-            }
+    // if !&IDLE, holds the FastMixer state to restore after new parameters processed
+    FastMixerState::Command previousCommand = FastMixerState::HOT_IDLE;
+    if (mFastMixer != NULL) {
+        FastMixerStateQueue *sq = mFastMixer->sq();
+        FastMixerState *state = sq->begin();
+        if (!(state->mCommand & FastMixerState::IDLE)) {
+            previousCommand = state->mCommand;
+            state->mCommand = FastMixerState::HOT_IDLE;
+            sq->end();
+            sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
+        } else {
+            sq->end(false /*didModify*/);
         }
+    }
 
-        status_t status = NO_ERROR;
-        String8 keyValuePair = mNewParameters[0];
-        AudioParameter param = AudioParameter(keyValuePair);
-        int value;
-
-        if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
+    AudioParameter param = AudioParameter(keyValuePair);
+    int value;
+    if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
+        reconfig = true;
+    }
+    if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
+        if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
+            status = BAD_VALUE;
+        } else {
+            // no need to save value, since it's constant
             reconfig = true;
         }
-        if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
-            if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
-                status = BAD_VALUE;
-            } else {
-                // no need to save value, since it's constant
-                reconfig = true;
-            }
+    }
+    if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
+        if ((audio_channel_mask_t) value != AUDIO_CHANNEL_OUT_STEREO) {
+            status = BAD_VALUE;
+        } else {
+            // no need to save value, since it's constant
+            reconfig = true;
         }
-        if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
-            if ((audio_channel_mask_t) value != AUDIO_CHANNEL_OUT_STEREO) {
-                status = BAD_VALUE;
-            } else {
-                // no need to save value, since it's constant
-                reconfig = true;
-            }
+    }
+    if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
+        // do not accept frame count changes if tracks are open as the track buffer
+        // size depends on frame count and correct behavior would not be guaranteed
+        // if frame count is changed after track creation
+        if (!mTracks.isEmpty()) {
+            status = INVALID_OPERATION;
+        } else {
+            reconfig = true;
         }
-        if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
-            // do not accept frame count changes if tracks are open as the track buffer
-            // size depends on frame count and correct behavior would not be guaranteed
-            // if frame count is changed after track creation
-            if (!mTracks.isEmpty()) {
-                status = INVALID_OPERATION;
-            } else {
-                reconfig = true;
-            }
-        }
-        if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
+    }
+    if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
 #ifdef ADD_BATTERY_DATA
-            // when changing the audio output device, call addBatteryData to notify
-            // the change
-            if (mOutDevice != value) {
-                uint32_t params = 0;
-                // check whether speaker is on
-                if (value & AUDIO_DEVICE_OUT_SPEAKER) {
-                    params |= IMediaPlayerService::kBatteryDataSpeakerOn;
-                }
-
-                audio_devices_t deviceWithoutSpeaker
-                    = AUDIO_DEVICE_OUT_ALL & ~AUDIO_DEVICE_OUT_SPEAKER;
-                // check if any other device (except speaker) is on
-                if (value & deviceWithoutSpeaker ) {
-                    params |= IMediaPlayerService::kBatteryDataOtherAudioDeviceOn;
-                }
-
-                if (params != 0) {
-                    addBatteryData(params);
-                }
+        // when changing the audio output device, call addBatteryData to notify
+        // the change
+        if (mOutDevice != value) {
+            uint32_t params = 0;
+            // check whether speaker is on
+            if (value & AUDIO_DEVICE_OUT_SPEAKER) {
+                params |= IMediaPlayerService::kBatteryDataSpeakerOn;
             }
+
+            audio_devices_t deviceWithoutSpeaker
+                = AUDIO_DEVICE_OUT_ALL & ~AUDIO_DEVICE_OUT_SPEAKER;
+            // check if any other device (except speaker) is on
+            if (value & deviceWithoutSpeaker ) {
+                params |= IMediaPlayerService::kBatteryDataOtherAudioDeviceOn;
+            }
+
+            if (params != 0) {
+                addBatteryData(params);
+            }
+        }
 #endif
 
-            // forward device change to effects that have requested to be
-            // aware of attached audio device.
-            if (value != AUDIO_DEVICE_NONE) {
-                mOutDevice = value;
-                for (size_t i = 0; i < mEffectChains.size(); i++) {
-                    mEffectChains[i]->setDevice_l(mOutDevice);
-                }
+        // forward device change to effects that have requested to be
+        // aware of attached audio device.
+        if (value != AUDIO_DEVICE_NONE) {
+            mOutDevice = value;
+            for (size_t i = 0; i < mEffectChains.size(); i++) {
+                mEffectChains[i]->setDevice_l(mOutDevice);
             }
         }
+    }
 
-        if (status == NO_ERROR) {
+    if (status == NO_ERROR) {
+        status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
+                                                keyValuePair.string());
+        if (!mStandby && status == INVALID_OPERATION) {
+            mOutput->stream->common.standby(&mOutput->stream->common);
+            mStandby = true;
+            mBytesWritten = 0;
             status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
-                                                    keyValuePair.string());
-            if (!mStandby && status == INVALID_OPERATION) {
-                mOutput->stream->common.standby(&mOutput->stream->common);
-                mStandby = true;
-                mBytesWritten = 0;
-                status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
-                                                       keyValuePair.string());
-            }
-            if (status == NO_ERROR && reconfig) {
-                readOutputParameters_l();
-                delete mAudioMixer;
-                mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
-                for (size_t i = 0; i < mTracks.size() ; i++) {
-                    int name = getTrackName_l(mTracks[i]->mChannelMask, mTracks[i]->mSessionId);
-                    if (name < 0) {
-                        break;
-                    }
-                    mTracks[i]->mName = name;
-                }
-                sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
-            }
+                                                   keyValuePair.string());
         }
-
-        mNewParameters.removeAt(0);
-
-        mParamStatus = status;
-        mParamCond.signal();
-        // wait for condition with time out in case the thread calling ThreadBase::setParameters()
-        // already timed out waiting for the status and will never signal the condition.
-        mWaitWorkCV.waitRelative(mLock, kSetParametersTimeoutNs);
+        if (status == NO_ERROR && reconfig) {
+            readOutputParameters_l();
+            delete mAudioMixer;
+            mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
+            for (size_t i = 0; i < mTracks.size() ; i++) {
+                int name = getTrackName_l(mTracks[i]->mChannelMask, mTracks[i]->mSessionId);
+                if (name < 0) {
+                    break;
+                }
+                mTracks[i]->mName = name;
+            }
+            sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
+        }
     }
 
     if (!(previousCommand & FastMixerState::IDLE)) {
@@ -3946,61 +3943,52 @@ void AudioFlinger::DirectOutputThread::deleteTrackName_l(int name __unused)
 {
 }
 
-// checkForNewParameters_l() must be called with ThreadBase::mLock held
-bool AudioFlinger::DirectOutputThread::checkForNewParameters_l()
+// checkForNewParameter_l() must be called with ThreadBase::mLock held
+bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& keyValuePair,
+                                                              status_t& status)
 {
     bool reconfig = false;
 
-    while (!mNewParameters.isEmpty()) {
-        status_t status = NO_ERROR;
-        String8 keyValuePair = mNewParameters[0];
-        AudioParameter param = AudioParameter(keyValuePair);
-        int value;
+    status = NO_ERROR;
 
-        if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
-            // forward device change to effects that have requested to be
-            // aware of attached audio device.
-            if (value != AUDIO_DEVICE_NONE) {
-                mOutDevice = value;
-                for (size_t i = 0; i < mEffectChains.size(); i++) {
-                    mEffectChains[i]->setDevice_l(mOutDevice);
-                }
+    AudioParameter param = AudioParameter(keyValuePair);
+    int value;
+    if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
+        // forward device change to effects that have requested to be
+        // aware of attached audio device.
+        if (value != AUDIO_DEVICE_NONE) {
+            mOutDevice = value;
+            for (size_t i = 0; i < mEffectChains.size(); i++) {
+                mEffectChains[i]->setDevice_l(mOutDevice);
             }
         }
-        if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
-            // do not accept frame count changes if tracks are open as the track buffer
-            // size depends on frame count and correct behavior would not be garantied
-            // if frame count is changed after track creation
-            if (!mTracks.isEmpty()) {
-                status = INVALID_OPERATION;
-            } else {
-                reconfig = true;
-            }
-        }
-        if (status == NO_ERROR) {
-            status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
-                                                    keyValuePair.string());
-            if (!mStandby && status == INVALID_OPERATION) {
-                mOutput->stream->common.standby(&mOutput->stream->common);
-                mStandby = true;
-                mBytesWritten = 0;
-                status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
-                                                       keyValuePair.string());
-            }
-            if (status == NO_ERROR && reconfig) {
-                readOutputParameters_l();
-                sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
-            }
-        }
-
-        mNewParameters.removeAt(0);
-
-        mParamStatus = status;
-        mParamCond.signal();
-        // wait for condition with time out in case the thread calling ThreadBase::setParameters()
-        // already timed out waiting for the status and will never signal the condition.
-        mWaitWorkCV.waitRelative(mLock, kSetParametersTimeoutNs);
     }
+    if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
+        // do not accept frame count changes if tracks are open as the track buffer
+        // size depends on frame count and correct behavior would not be garantied
+        // if frame count is changed after track creation
+        if (!mTracks.isEmpty()) {
+            status = INVALID_OPERATION;
+        } else {
+            reconfig = true;
+        }
+    }
+    if (status == NO_ERROR) {
+        status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
+                                                keyValuePair.string());
+        if (!mStandby && status == INVALID_OPERATION) {
+            mOutput->stream->common.standby(&mOutput->stream->common);
+            mStandby = true;
+            mBytesWritten = 0;
+            status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
+                                                   keyValuePair.string());
+        }
+        if (status == NO_ERROR && reconfig) {
+            readOutputParameters_l();
+            sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
+        }
+    }
+
     return reconfig;
 }
 
@@ -4707,12 +4695,14 @@ reacquire_wakelock:
         // activeTracks accumulates a copy of a subset of mActiveTracks
         Vector< sp<RecordTrack> > activeTracks;
 
+        DefaultKeyedVector< pid_t,sp<NotificationClient> > notificationClients =
+                mAudioFlinger->notificationClients();
+
         { // scope for mLock
             Mutex::Autolock _l(mLock);
 
-            processConfigEvents_l();
-            // return value 'reconfig' is currently unused
-            bool reconfig = checkForNewParameters_l();
+            processConfigEvents_l(notificationClients);
+            notificationClients.clear();
 
             // check exitPending here because checkForNewParameters_l() and
             // checkForNewParameters_l() can temporarily release mLock
@@ -5487,126 +5477,118 @@ void AudioFlinger::RecordThread::ResamplerBufferProvider::releaseBuffer(
     buffer->frameCount = 0;
 }
 
-bool AudioFlinger::RecordThread::checkForNewParameters_l()
+bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValuePair,
+                                                        status_t& status)
 {
     bool reconfig = false;
 
-    while (!mNewParameters.isEmpty()) {
-        status_t status = NO_ERROR;
-        String8 keyValuePair = mNewParameters[0];
-        AudioParameter param = AudioParameter(keyValuePair);
-        int value;
-        audio_format_t reqFormat = mFormat;
-        uint32_t samplingRate = mSampleRate;
-        audio_channel_mask_t channelMask = audio_channel_in_mask_from_count(mChannelCount);
+    status = NO_ERROR;
 
-        // TODO Investigate when this code runs. Check with audio policy when a sample rate and
-        //      channel count change can be requested. Do we mandate the first client defines the
-        //      HAL sampling rate and channel count or do we allow changes on the fly?
-        if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
-            samplingRate = value;
+    audio_format_t reqFormat = mFormat;
+    uint32_t samplingRate = mSampleRate;
+    audio_channel_mask_t channelMask = audio_channel_in_mask_from_count(mChannelCount);
+
+    AudioParameter param = AudioParameter(keyValuePair);
+    int value;
+    // TODO Investigate when this code runs. Check with audio policy when a sample rate and
+    //      channel count change can be requested. Do we mandate the first client defines the
+    //      HAL sampling rate and channel count or do we allow changes on the fly?
+    if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
+        samplingRate = value;
+        reconfig = true;
+    }
+    if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
+        if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
+            status = BAD_VALUE;
+        } else {
+            reqFormat = (audio_format_t) value;
             reconfig = true;
         }
-        if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
-            if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
-                status = BAD_VALUE;
-            } else {
-                reqFormat = (audio_format_t) value;
-                reconfig = true;
-            }
+    }
+    if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
+        audio_channel_mask_t mask = (audio_channel_mask_t) value;
+        if (mask != AUDIO_CHANNEL_IN_MONO && mask != AUDIO_CHANNEL_IN_STEREO) {
+            status = BAD_VALUE;
+        } else {
+            channelMask = mask;
+            reconfig = true;
         }
-        if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
-            audio_channel_mask_t mask = (audio_channel_mask_t) value;
-            if (mask != AUDIO_CHANNEL_IN_MONO && mask != AUDIO_CHANNEL_IN_STEREO) {
-                status = BAD_VALUE;
-            } else {
-                channelMask = mask;
-                reconfig = true;
-            }
+    }
+    if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
+        // do not accept frame count changes if tracks are open as the track buffer
+        // size depends on frame count and correct behavior would not be guaranteed
+        // if frame count is changed after track creation
+        if (mActiveTracks.size() > 0) {
+            status = INVALID_OPERATION;
+        } else {
+            reconfig = true;
         }
-        if (param.getInt(String8(AudioParameter::keyFrameCount), value) == NO_ERROR) {
-            // do not accept frame count changes if tracks are open as the track buffer
-            // size depends on frame count and correct behavior would not be guaranteed
-            // if frame count is changed after track creation
-            if (mActiveTracks.size() > 0) {
-                status = INVALID_OPERATION;
-            } else {
-                reconfig = true;
-            }
+    }
+    if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
+        // forward device change to effects that have requested to be
+        // aware of attached audio device.
+        for (size_t i = 0; i < mEffectChains.size(); i++) {
+            mEffectChains[i]->setDevice_l(value);
         }
-        if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
-            // forward device change to effects that have requested to be
-            // aware of attached audio device.
-            for (size_t i = 0; i < mEffectChains.size(); i++) {
-                mEffectChains[i]->setDevice_l(value);
-            }
 
-            // store input device and output device but do not forward output device to audio HAL.
-            // Note that status is ignored by the caller for output device
-            // (see AudioFlinger::setParameters()
-            if (audio_is_output_devices(value)) {
-                mOutDevice = value;
-                status = BAD_VALUE;
-            } else {
-                mInDevice = value;
-                // disable AEC and NS if the device is a BT SCO headset supporting those
-                // pre processings
-                if (mTracks.size() > 0) {
-                    bool suspend = audio_is_bluetooth_sco_device(mInDevice) &&
-                                        mAudioFlinger->btNrecIsOff();
-                    for (size_t i = 0; i < mTracks.size(); i++) {
-                        sp<RecordTrack> track = mTracks[i];
-                        setEffectSuspended_l(FX_IID_AEC, suspend, track->sessionId());
-                        setEffectSuspended_l(FX_IID_NS, suspend, track->sessionId());
-                    }
+        // store input device and output device but do not forward output device to audio HAL.
+        // Note that status is ignored by the caller for output device
+        // (see AudioFlinger::setParameters()
+        if (audio_is_output_devices(value)) {
+            mOutDevice = value;
+            status = BAD_VALUE;
+        } else {
+            mInDevice = value;
+            // disable AEC and NS if the device is a BT SCO headset supporting those
+            // pre processings
+            if (mTracks.size() > 0) {
+                bool suspend = audio_is_bluetooth_sco_device(mInDevice) &&
+                                    mAudioFlinger->btNrecIsOff();
+                for (size_t i = 0; i < mTracks.size(); i++) {
+                    sp<RecordTrack> track = mTracks[i];
+                    setEffectSuspended_l(FX_IID_AEC, suspend, track->sessionId());
+                    setEffectSuspended_l(FX_IID_NS, suspend, track->sessionId());
                 }
             }
         }
-        if (param.getInt(String8(AudioParameter::keyInputSource), value) == NO_ERROR &&
-                mAudioSource != (audio_source_t)value) {
-            // forward device change to effects that have requested to be
-            // aware of attached audio device.
-            for (size_t i = 0; i < mEffectChains.size(); i++) {
-                mEffectChains[i]->setAudioSource_l((audio_source_t)value);
-            }
-            mAudioSource = (audio_source_t)value;
+    }
+    if (param.getInt(String8(AudioParameter::keyInputSource), value) == NO_ERROR &&
+            mAudioSource != (audio_source_t)value) {
+        // forward device change to effects that have requested to be
+        // aware of attached audio device.
+        for (size_t i = 0; i < mEffectChains.size(); i++) {
+            mEffectChains[i]->setAudioSource_l((audio_source_t)value);
         }
+        mAudioSource = (audio_source_t)value;
+    }
 
-        if (status == NO_ERROR) {
+    if (status == NO_ERROR) {
+        status = mInput->stream->common.set_parameters(&mInput->stream->common,
+                keyValuePair.string());
+        if (status == INVALID_OPERATION) {
+            inputStandBy();
             status = mInput->stream->common.set_parameters(&mInput->stream->common,
                     keyValuePair.string());
-            if (status == INVALID_OPERATION) {
-                inputStandBy();
-                status = mInput->stream->common.set_parameters(&mInput->stream->common,
-                        keyValuePair.string());
+        }
+        if (reconfig) {
+            if (status == BAD_VALUE &&
+                reqFormat == mInput->stream->common.get_format(&mInput->stream->common) &&
+                reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
+                (mInput->stream->common.get_sample_rate(&mInput->stream->common)
+                        <= (2 * samplingRate)) &&
+                popcount(mInput->stream->common.get_channels(&mInput->stream->common))
+                        <= FCC_2 &&
+                (channelMask == AUDIO_CHANNEL_IN_MONO ||
+                        channelMask == AUDIO_CHANNEL_IN_STEREO)) {
+                status = NO_ERROR;
             }
-            if (reconfig) {
-                if (status == BAD_VALUE &&
-                    reqFormat == mInput->stream->common.get_format(&mInput->stream->common) &&
-                    reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
-                    (mInput->stream->common.get_sample_rate(&mInput->stream->common)
-                            <= (2 * samplingRate)) &&
-                    popcount(mInput->stream->common.get_channels(&mInput->stream->common))
-                            <= FCC_2 &&
-                    (channelMask == AUDIO_CHANNEL_IN_MONO ||
-                            channelMask == AUDIO_CHANNEL_IN_STEREO)) {
-                    status = NO_ERROR;
-                }
-                if (status == NO_ERROR) {
-                    readInputParameters_l();
-                    sendIoConfigEvent_l(AudioSystem::INPUT_CONFIG_CHANGED);
-                }
+            if (status == NO_ERROR) {
+                readInputParameters_l();
+                sendIoConfigEvent_l(AudioSystem::INPUT_CONFIG_CHANGED);
             }
         }
-
-        mNewParameters.removeAt(0);
-
-        mParamStatus = status;
-        mParamCond.signal();
-        // wait for condition with time out in case the thread calling ThreadBase::setParameters()
-        // already timed out waiting for the status and will never signal the condition.
-        mWaitWorkCV.waitRelative(mLock, kSetParametersTimeoutNs);
     }
+
     return reconfig;
 }
 
@@ -5623,7 +5605,10 @@ String8 AudioFlinger::RecordThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param __unused) {
+void AudioFlinger::RecordThread::audioConfigChanged_l(
+                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
+                    int event,
+                    int param __unused) {
     AudioSystem::OutputDescriptor desc;
     const void *param2 = NULL;
 
@@ -5642,7 +5627,7 @@ void AudioFlinger::RecordThread::audioConfigChanged_l(int event, int param __unu
     default:
         break;
     }
-    mAudioFlinger->audioConfigChanged_l(event, mId, param2);
+    mAudioFlinger->audioConfigChanged_l(notificationClients, event, mId, param2);
 }
 
 void AudioFlinger::RecordThread::readInputParameters_l()

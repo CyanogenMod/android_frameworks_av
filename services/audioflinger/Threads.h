@@ -46,58 +46,119 @@ public:
     // base for record and playback
     enum {
         CFG_EVENT_IO,
-        CFG_EVENT_PRIO
+        CFG_EVENT_PRIO,
+        CFG_EVENT_SET_PARAMETER,
     };
 
-    class ConfigEvent {
+    class ConfigEventData: public RefBase {
     public:
-        ConfigEvent(int type) : mType(type) {}
-        virtual ~ConfigEvent() {}
-
-                 int type() const { return mType; }
+        virtual ~ConfigEventData() {}
 
         virtual  void dump(char *buffer, size_t size) = 0;
-
-    private:
-        const int mType;
+    protected:
+        ConfigEventData() {}
     };
 
-    class IoConfigEvent : public ConfigEvent {
-    public:
-        IoConfigEvent(int event, int param) :
-            ConfigEvent(CFG_EVENT_IO), mEvent(event), mParam(param) {}
-        virtual ~IoConfigEvent() {}
+    // Config event sequence by client if status needed (e.g binder thread calling setParameters()):
+    //  1. create SetParameterConfigEvent. This sets mWaitStatus in config event
+    //  2. Lock mLock
+    //  3. Call sendConfigEvent_l(): Append to mConfigEvents and mWaitWorkCV.signal
+    //  4. sendConfigEvent_l() reads status from event->mStatus;
+    //  5. sendConfigEvent_l() returns status
+    //  6. Unlock
+    //
+    // Parameter sequence by server: threadLoop calling processConfigEvents_l():
+    // 1. Lock mLock
+    // 2. If there is an entry in mConfigEvents proceed ...
+    // 3. Read first entry in mConfigEvents
+    // 4. Remove first entry from mConfigEvents
+    // 5. Process
+    // 6. Set event->mStatus
+    // 7. event->mCond.signal
+    // 8. Unlock
 
-                int event() const { return mEvent; }
-                int param() const { return mParam; }
+    class ConfigEvent: public RefBase {
+    public:
+        virtual ~ConfigEvent() {}
+
+        void dump(char *buffer, size_t size) { mData->dump(buffer, size); }
+
+        const int mType; // event type e.g. CFG_EVENT_IO
+        Mutex mLock;     // mutex associated with mCond
+        Condition mCond; // condition for status return
+        status_t mStatus; // status communicated to sender
+        bool mWaitStatus; // true if sender is waiting for status
+        sp<ConfigEventData> mData;     // event specific parameter data
+
+    protected:
+        ConfigEvent(int type) : mType(type), mStatus(NO_ERROR), mWaitStatus(false), mData(NULL) {}
+    };
+
+    class IoConfigEventData : public ConfigEventData {
+    public:
+        IoConfigEventData(int event, int param) :
+            mEvent(event), mParam(param) {}
 
         virtual  void dump(char *buffer, size_t size) {
             snprintf(buffer, size, "IO event: event %d, param %d\n", mEvent, mParam);
         }
 
-    private:
         const int mEvent;
         const int mParam;
     };
 
-    class PrioConfigEvent : public ConfigEvent {
+    class IoConfigEvent : public ConfigEvent {
     public:
-        PrioConfigEvent(pid_t pid, pid_t tid, int32_t prio) :
-            ConfigEvent(CFG_EVENT_PRIO), mPid(pid), mTid(tid), mPrio(prio) {}
-        virtual ~PrioConfigEvent() {}
+        IoConfigEvent(int event, int param) :
+            ConfigEvent(CFG_EVENT_IO) {
+            mData = new IoConfigEventData(event, param);
+        }
+        virtual ~IoConfigEvent() {}
+    };
 
-                pid_t pid() const { return mPid; }
-                pid_t tid() const { return mTid; }
-                int32_t prio() const { return mPrio; }
+    class PrioConfigEventData : public ConfigEventData {
+    public:
+        PrioConfigEventData(pid_t pid, pid_t tid, int32_t prio) :
+            mPid(pid), mTid(tid), mPrio(prio) {}
 
         virtual  void dump(char *buffer, size_t size) {
             snprintf(buffer, size, "Prio event: pid %d, tid %d, prio %d\n", mPid, mTid, mPrio);
         }
 
-    private:
         const pid_t mPid;
         const pid_t mTid;
         const int32_t mPrio;
+    };
+
+    class PrioConfigEvent : public ConfigEvent {
+    public:
+        PrioConfigEvent(pid_t pid, pid_t tid, int32_t prio) :
+            ConfigEvent(CFG_EVENT_PRIO) {
+            mData = new PrioConfigEventData(pid, tid, prio);
+        }
+        virtual ~PrioConfigEvent() {}
+    };
+
+    class SetParameterConfigEventData : public ConfigEventData {
+    public:
+        SetParameterConfigEventData(String8 keyValuePairs) :
+            mKeyValuePairs(keyValuePairs) {}
+
+        virtual  void dump(char *buffer, size_t size) {
+            snprintf(buffer, size, "KeyValue: %s\n", mKeyValuePairs.string());
+        }
+
+        const String8 mKeyValuePairs;
+    };
+
+    class SetParameterConfigEvent : public ConfigEvent {
+    public:
+        SetParameterConfigEvent(String8 keyValuePairs) :
+            ConfigEvent(CFG_EVENT_SET_PARAMETER) {
+            mData = new SetParameterConfigEventData(keyValuePairs);
+            mWaitStatus = true;
+        }
+        virtual ~SetParameterConfigEvent() {}
     };
 
 
@@ -135,15 +196,25 @@ public:
     // Should be "virtual status_t requestExitAndWait()" and override same
     // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
                 void        exit();
-    virtual     bool        checkForNewParameters_l() = 0;
+    virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
+                                                    status_t& status) = 0;
     virtual     status_t    setParameters(const String8& keyValuePairs);
     virtual     String8     getParameters(const String8& keys) = 0;
-    virtual     void        audioConfigChanged_l(int event, int param = 0) = 0;
+    virtual     void        audioConfigChanged_l(
+                      const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
+                      int event,
+                      int param = 0) = 0;
+                // sendConfigEvent_l() must be called with ThreadBase::mLock held
+                // Can temporarily release the lock if waiting for a reply from
+                // processConfigEvents_l().
+                status_t    sendConfigEvent_l(sp<ConfigEvent>& event);
                 void        sendIoConfigEvent(int event, int param = 0);
                 void        sendIoConfigEvent_l(int event, int param = 0);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
-                void        processConfigEvents();
-                void        processConfigEvents_l();
+                status_t    sendSetParameterConfigEvent_l(const String8& keyValuePair);
+                void        processConfigEvents_l(
+                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients);
+    virtual     void        cacheParameters_l() = 0;
 
                 // see note at declaration of mStandby, mOutDevice and mInDevice
                 bool        standby() const { return mStandby; }
@@ -287,31 +358,7 @@ protected:
                 audio_format_t          mFormat;
                 size_t                  mBufferSize;       // HAL buffer size for read() or write()
 
-                // Parameter sequence by client: binder thread calling setParameters():
-                //  1. Lock mLock
-                //  2. Append to mNewParameters
-                //  3. mWaitWorkCV.signal
-                //  4. mParamCond.waitRelative with timeout
-                //  5. read mParamStatus
-                //  6. mWaitWorkCV.signal
-                //  7. Unlock
-                //
-                // Parameter sequence by server: threadLoop calling checkForNewParameters_l():
-                // 1. Lock mLock
-                // 2. If there is an entry in mNewParameters proceed ...
-                // 2. Read first entry in mNewParameters
-                // 3. Process
-                // 4. Remove first entry from mNewParameters
-                // 5. Set mParamStatus
-                // 6. mParamCond.signal
-                // 7. mWaitWorkCV.wait with timeout (this is to avoid overwriting mParamStatus)
-                // 8. Unlock
-                Condition               mParamCond;
-                Vector<String8>         mNewParameters;
-                status_t                mParamStatus;
-
-                // vector owns each ConfigEvent *, so must delete after removing
-                Vector<ConfigEvent *>     mConfigEvents;
+                Vector< sp<ConfigEvent> >     mConfigEvents;
 
                 // These fields are written and read by thread itself without lock or barrier,
                 // and read by other threads without lock or barrier via standby(), outDevice()
@@ -455,7 +502,10 @@ public:
                                 { return android_atomic_acquire_load(&mSuspended) > 0; }
 
     virtual     String8     getParameters(const String8& keys);
-    virtual     void        audioConfigChanged_l(int event, int param = 0);
+    virtual     void        audioConfigChanged_l(
+                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
+                    int event,
+                    int param = 0);
                 status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
                 // FIXME rename mixBuffer() to sinkBuffer() and remove int16_t* dependency.
                 // Consider also removing and passing an explicit mMainBuffer initialization
@@ -724,7 +774,8 @@ public:
 
     // Thread virtuals
 
-    virtual     bool        checkForNewParameters_l();
+    virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
+                                                   status_t& status);
     virtual     void        dumpInternals(int fd, const Vector<String16>& args);
 
 protected:
@@ -778,7 +829,8 @@ public:
 
     // Thread virtuals
 
-    virtual     bool        checkForNewParameters_l();
+    virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
+                                                   status_t& status);
 
 protected:
     virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
@@ -981,9 +1033,14 @@ public:
             virtual audio_stream_t* stream() const;
 
 
-    virtual bool        checkForNewParameters_l();
+    virtual bool        checkForNewParameter_l(const String8& keyValuePair,
+                                               status_t& status);
+    virtual void        cacheParameters_l() {}
     virtual String8     getParameters(const String8& keys);
-    virtual void        audioConfigChanged_l(int event, int param = 0);
+    virtual void        audioConfigChanged_l(
+                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
+                    int event,
+                    int param = 0);
             void        readInputParameters_l();
     virtual uint32_t    getInputFramesLost();
 
