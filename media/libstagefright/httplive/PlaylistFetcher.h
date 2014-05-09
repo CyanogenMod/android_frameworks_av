@@ -99,6 +99,7 @@ private:
 
     sp<LiveSession> mSession;
     AString mURI;
+    AString mVideoMime;
 
     uint32_t mStreamTypeMask;
     int64_t mStartTimeUs;
@@ -116,6 +117,7 @@ private:
     int32_t mNumRetries;
     bool mStartup;
     bool mPrepared;
+    bool mSkipToFirstIDRAfterConnect;
     int64_t mNextPTSTimeUs;
 
     int32_t mMonitorQueueGeneration;

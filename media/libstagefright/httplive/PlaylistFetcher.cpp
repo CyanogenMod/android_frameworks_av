@@ -69,6 +69,7 @@ PlaylistFetcher::PlaylistFetcher(
       mNumRetries(0),
       mStartup(true),
       mPrepared(false),
+      mSkipToFirstIDRAfterConnect(false),
       mNextPTSTimeUs(-1ll),
       mMonitorQueueGeneration(0),
       mRefreshState(INITIAL_MINIMUM_RELOAD_DELAY),
@@ -1097,11 +1098,29 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
             continue;
         }
 
+        if (stream == LiveSession::STREAMTYPE_VIDEO && mVideoMime.empty()) {
+            const char *mime;
+            if (source->getFormat()->findCString(kKeyMIMEType, &mime)) {
+                mVideoMime.setTo(mime);
+                if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                    mSkipToFirstIDRAfterConnect = true;
+                }
+            }
+        }
+
         int64_t timeUs;
         sp<ABuffer> accessUnit;
         status_t finalResult;
         while (source->hasBufferAvailable(&finalResult)
                 && source->dequeueAccessUnit(&accessUnit) == OK) {
+
+            if (stream == LiveSession::STREAMTYPE_VIDEO && mSkipToFirstIDRAfterConnect) {
+                if (!IsIDR(accessUnit)) {
+                    continue;
+                } else {
+                    mSkipToFirstIDRAfterConnect = false;
+                }
+            }
 
             CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
             if (mMinStartTimeUs > 0) {
