@@ -18,13 +18,14 @@
 #define LOG_TAG "NdkMediaCodec"
 
 #include "NdkMediaCodec.h"
+#include "NdkMediaError.h"
+#include "NdkMediaCryptoPriv.h"
 #include "NdkMediaFormatPriv.h"
 
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <gui/Surface.h>
 
-#include <media/ICrypto.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -42,7 +43,7 @@ static int translate_error(status_t err) {
         return AMEDIACODEC_INFO_TRY_AGAIN_LATER;
     }
     ALOGE("sf error code: %d", err);
-    return -1000;
+    return AMEDIAERROR_GENERIC;
 }
 
 enum {
@@ -187,7 +188,11 @@ int AMediaCodec_delete(AMediaCodec *mData) {
 }
 
 int AMediaCodec_configure(
-        AMediaCodec *mData, const AMediaFormat* format, ANativeWindow* window, uint32_t flags) {
+        AMediaCodec *mData,
+        const AMediaFormat* format,
+        ANativeWindow* window,
+        AMediaCrypto *crypto,
+        uint32_t flags) {
     sp<AMessage> nativeFormat;
     AMediaFormat_getFormat(format, &nativeFormat);
     ALOGV("configure with format: %s", nativeFormat->debugString(0).c_str());
@@ -196,7 +201,8 @@ int AMediaCodec_configure(
         surface = (Surface*) window;
     }
 
-    return translate_error(mData->mCodec->configure(nativeFormat, surface, NULL, flags));
+    return translate_error(mData->mCodec->configure(nativeFormat, surface,
+            crypto ? crypto->mCrypto : NULL, flags));
 }
 
 int AMediaCodec_start(AMediaCodec *mData) {
@@ -326,6 +332,129 @@ int AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callbac
     return OK;
 }
 
+typedef struct AMediaCodecCryptoInfo {
+        int numsubsamples;
+        uint8_t key[16];
+        uint8_t iv[16];
+        uint32_t mode;
+        size_t *clearbytes;
+        size_t *encryptedbytes;
+} AMediaCodecCryptoInfo;
+
+int AMediaCodec_queueSecureInputBuffer(
+        AMediaCodec* codec,
+        size_t idx,
+        off_t offset,
+        AMediaCodecCryptoInfo* crypto,
+        uint64_t time,
+        uint32_t flags) {
+
+    CryptoPlugin::SubSample *subSamples = new CryptoPlugin::SubSample[crypto->numsubsamples];
+    for (int i = 0; i < crypto->numsubsamples; i++) {
+        subSamples[i].mNumBytesOfClearData = crypto->clearbytes[i];
+        subSamples[i].mNumBytesOfEncryptedData = crypto->encryptedbytes[i];
+    }
+
+    AString errormsg;
+    status_t err  = codec->mCodec->queueSecureInputBuffer(idx,
+            offset,
+            subSamples,
+            crypto->numsubsamples,
+            crypto->key,
+            crypto->iv,
+            (CryptoPlugin::Mode) crypto->mode,
+            time,
+            flags,
+            &errormsg);
+    if (err != 0) {
+        ALOGE("queSecureInputBuffer: %s", errormsg.c_str());
+    }
+    delete subSamples;
+    return translate_error(err);
+}
+
+
+
+AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
+        int numsubsamples,
+        uint8_t key[16],
+        uint8_t iv[16],
+        uint32_t mode,
+        size_t *clearbytes,
+        size_t *encryptedbytes) {
+
+    // size needed to store all the crypto data
+    size_t cryptosize = sizeof(AMediaCodecCryptoInfo) + sizeof(size_t) * numsubsamples * 2;
+    AMediaCodecCryptoInfo *ret = (AMediaCodecCryptoInfo*) malloc(cryptosize);
+    if (!ret) {
+        ALOGE("couldn't allocate %d bytes", cryptosize);
+        return NULL;
+    }
+    ret->numsubsamples = numsubsamples;
+    memcpy(ret->key, key, 16);
+    memcpy(ret->iv, iv, 16);
+    ret->mode = mode;
+
+    // clearbytes and encryptedbytes point at the actual data, which follows
+    ret->clearbytes = (size_t*) ((&ret->encryptedbytes) + sizeof(ret->encryptedbytes));
+    ret->encryptedbytes = (size_t*) (ret->clearbytes + (sizeof(size_t) * numsubsamples));
+
+    size_t *dst = ret->clearbytes;
+    memcpy(dst, clearbytes, numsubsamples * sizeof(size_t));
+    dst += numsubsamples * sizeof(size_t);
+    memcpy(dst, encryptedbytes, numsubsamples * sizeof(size_t));
+
+    return ret;
+}
+
+
+int AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo* info) {
+    free(info);
+    return OK;
+}
+
+size_t AMediaCodecCryptoInfo_getNumSubSamples(AMediaCodecCryptoInfo* ci) {
+    return ci->numsubsamples;
+}
+
+int AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
+    if (!dst || !ci) {
+        return AMEDIAERROR_UNSUPPORTED;
+    }
+    memcpy(dst, ci->key, 16);
+    return OK;
+}
+
+int AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
+    if (!dst || !ci) {
+        return AMEDIAERROR_UNSUPPORTED;
+    }
+    memcpy(dst, ci->iv, 16);
+    return OK;
+}
+
+uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo* ci) {
+    if (!ci) {
+        return AMEDIAERROR_UNSUPPORTED;
+    }
+    return ci->mode;
+}
+
+int AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
+    if (!dst || !ci) {
+        return AMEDIAERROR_UNSUPPORTED;
+    }
+    memcpy(dst, ci->clearbytes, sizeof(size_t) * ci->numsubsamples);
+    return OK;
+}
+
+int AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
+    if (!dst || !ci) {
+        return AMEDIAERROR_UNSUPPORTED;
+    }
+    memcpy(dst, ci->encryptedbytes, sizeof(size_t) * ci->numsubsamples);
+    return OK;
+}
 
 } // extern "C"
 

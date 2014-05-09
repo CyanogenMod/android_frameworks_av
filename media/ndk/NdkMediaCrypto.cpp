@@ -1,0 +1,117 @@
+/*
+ * Copyright (C) 2014 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#define LOG_NDEBUG 0
+#define LOG_TAG "NdkMediaCrypto"
+
+
+#include "NdkMediaCrypto.h"
+#include "NdkMediaCodec.h"
+#include "NdkMediaFormatPriv.h"
+
+
+#include <utils/Log.h>
+#include <utils/StrongPointer.h>
+#include <binder/IServiceManager.h>
+#include <media/ICrypto.h>
+#include <media/IMediaPlayerService.h>
+#include <android_runtime/AndroidRuntime.h>
+#include <android_util_Binder.h>
+
+#include <jni.h>
+
+using namespace android;
+
+static int translate_error(status_t err) {
+    if (err == OK) {
+        return OK;
+    }
+    ALOGE("sf error code: %d", err);
+    return -1000;
+}
+
+
+static sp<ICrypto> makeCrypto() {
+    sp<IServiceManager> sm = defaultServiceManager();
+
+    sp<IBinder> binder =
+        sm->getService(String16("media.player"));
+
+    sp<IMediaPlayerService> service =
+        interface_cast<IMediaPlayerService>(binder);
+
+    if (service == NULL) {
+        return NULL;
+    }
+
+    sp<ICrypto> crypto = service->makeCrypto();
+
+    if (crypto == NULL || (crypto->initCheck() != OK && crypto->initCheck() != NO_INIT)) {
+        return NULL;
+    }
+
+    return crypto;
+}
+
+struct AMediaCrypto {
+    sp<ICrypto> mCrypto;
+};
+
+
+extern "C" {
+
+
+bool AMediaCrypto_isCryptoSchemeSupport(const AMediaUUID uuid) {
+    sp<ICrypto> crypto = makeCrypto();
+    if (crypto == NULL) {
+        return false;
+    }
+    return crypto->isCryptoSchemeSupported(uuid);
+}
+
+bool AMediaCrypto_requiresSecureDecoderComponent(const char *mime) {
+    sp<ICrypto> crypto = makeCrypto();
+    if (crypto == NULL) {
+        return false;
+    }
+    return crypto->requiresSecureDecoderComponent(mime);
+}
+
+AMediaCrypto* AMediaCrypto_new(const AMediaUUID uuid, const void *data, size_t datasize) {
+
+    sp<ICrypto> tmp = makeCrypto();
+    if (tmp == NULL) {
+        return NULL;
+    }
+
+    if (tmp->createPlugin(uuid, data, datasize) != 0) {
+        return NULL;
+    }
+
+    AMediaCrypto *crypto = new AMediaCrypto();
+    crypto->mCrypto = tmp;
+
+    return crypto;
+}
+
+void AMediaCrypto_delete(AMediaCrypto* crypto) {
+    delete crypto;
+}
+
+
+
+} // extern "C"
+

@@ -22,6 +22,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=                                       \
                   NdkMediaCodec.cpp                     \
+                  NdkMediaCrypto.cpp                    \
                   NdkMediaExtractor.cpp                 \
                   NdkMediaFormat.cpp                    \
                   NdkMediaMuxer.cpp                     \
@@ -34,6 +35,7 @@ LOCAL_C_INCLUDES := \
     frameworks/av/include/ndk
 
 LOCAL_SHARED_LIBRARIES := \
+    libbinder \
     libmedia \
     libstagefright \
     libstagefright_foundation \

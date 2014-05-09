@@ -29,6 +29,7 @@
 
 #include <android/native_window.h>
 
+#include "NdkMediaCrypto.h"
 #include "NdkMediaFormat.h"
 
 #ifdef __cplusplus
@@ -46,6 +47,7 @@ struct AMediaCodecBufferInfo {
     uint32_t flags;
 };
 typedef struct AMediaCodecBufferInfo AMediaCodecBufferInfo;
+typedef struct AMediaCodecCryptoInfo AMediaCodecCryptoInfo;
 
 enum {
     AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM = 4,
@@ -81,8 +83,12 @@ int AMediaCodec_delete(AMediaCodec*);
 /**
  * Configure the codec. For decoding you would typically get the format from an extractor.
  */
-int AMediaCodec_configure(AMediaCodec*, const AMediaFormat* format,
-        ANativeWindow* surface, uint32_t flags);  // TODO: other args
+int AMediaCodec_configure(
+        AMediaCodec*,
+        const AMediaFormat* format,
+        ANativeWindow* surface,
+        AMediaCrypto *crypto,
+        uint32_t flags);
 
 /**
  * Start the codec. A codec must be configured before it can be started, and must be started
@@ -127,6 +133,12 @@ int AMediaCodec_queueInputBuffer(AMediaCodec*,
         size_t idx, off_t offset, size_t size, uint64_t time, uint32_t flags);
 
 /**
+ * Send the specified buffer to the codec for processing.
+ */
+int AMediaCodec_queueSecureInputBuffer(AMediaCodec*,
+        size_t idx, off_t offset, AMediaCodecCryptoInfo*, uint64_t time, uint32_t flags);
+
+/**
  * Get the index of the next available buffer of processed data.
  */
 ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec*, AMediaCodecBufferInfo *info, int64_t timeoutUs);
@@ -136,7 +148,6 @@ AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec*);
  * Release and optionally render the specified buffer.
  */
 int AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool render);
-
 
 
 typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
@@ -149,6 +160,36 @@ typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
  */
 int AMediaCodec_setNotificationCallback(AMediaCodec*, OnCodecEvent callback, void *userdata);
 
+
+enum {
+    AMEDIACODECRYPTOINFO_MODE_CLEAR = 0,
+    AMEDIACODECRYPTOINFO_MODE_AES_CTR = 1
+};
+
+/**
+ * create an AMediaCodecCryptoInfo from scratch. Use this if you need to use custom
+ * crypto info, rather than one obtained from AMediaExtractor.
+ */
+AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
+        int numsubsamples,
+        uint8_t key[16],
+        uint8_t iv[16],
+        uint32_t mode,
+        size_t *clearbytes,
+        size_t *encryptedbytes);
+
+/**
+ * delete an AMediaCodecCryptoInfo create previously with AMediaCodecCryptoInfo_new, or
+ * obtained from AMediaExtractor
+ */
+int AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo*);
+
+size_t AMediaCodecCryptoInfo_getNumSubSamples(AMediaCodecCryptoInfo*);
+int AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo*, uint8_t *dst);
+int AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo*, uint8_t *dst);
+uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo*);
+int AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo*, size_t *dst);
+int AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo*, size_t *dst);
 
 #ifdef __cplusplus
 } // extern "C"

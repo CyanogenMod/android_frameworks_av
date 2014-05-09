@@ -30,7 +30,9 @@
 
 #include <sys/types.h>
 
+#include "NdkMediaCodec.h"
 #include "NdkMediaFormat.h"
+#include "NdkMediaCrypto.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -111,6 +113,33 @@ int64_t AMediaExtractor_getSampletime(AMediaExtractor*);
  * is available (end of stream).
  */
 bool AMediaExtractor_advance(AMediaExtractor*);
+
+
+/**
+ * mapping of crypto scheme uuid to the scheme specific data for that scheme
+ */
+typedef struct PsshEntry {
+    AMediaUUID uuid;
+    size_t datalen;
+    void *data;
+} PsshEntry;
+
+/**
+ * list of crypto schemes and their data
+ */
+typedef struct PsshInfo {
+    size_t numentries;
+    PsshEntry entries[0];
+} PsshInfo;
+
+/**
+ * Get the PSSH info if present.
+ */
+PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor*);
+
+
+AMediaCodecCryptoInfo *AMediaExtractor_getSampleCryptoInfo(AMediaExtractor *);
+
 
 enum {
     AMEDIAEXTRACTOR_SAMPLE_FLAG_SYNC = 1,
