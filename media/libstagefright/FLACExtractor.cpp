@@ -550,6 +550,8 @@ status_t FLACParser::init()
         }
         // check sample rate
         switch (getSampleRate()) {
+        case   100:
+        case  1000:
         case  8000:
         case 11025:
         case 12000:
@@ -557,7 +559,9 @@ status_t FLACParser::init()
         case 22050:
         case 24000:
         case 32000:
+        case 42000:
         case 44100:
+        case 46000:
         case 48000:
         case 88200:
         case 96000:

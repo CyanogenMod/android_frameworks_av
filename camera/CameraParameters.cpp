@@ -809,6 +809,15 @@ void CameraParameters::getPreviewFpsRange(int *min_fps, int *max_fps) const
     parse_pair(p, min_fps, max_fps, ',');
 }
 
+#ifdef HTC_CAMERA_HARDWARE
+void CameraParameters::getBrightnessLumaTargetSet(int *magic, int *sauce) const
+{
+}
+void CameraParameters::getRawSize(int *magic, int *sauce) const
+{
+}
+#endif
+
 #ifdef QCOM_HARDWARE
 void CameraParameters::setPreviewFrameRateMode(const char *mode)
 {
