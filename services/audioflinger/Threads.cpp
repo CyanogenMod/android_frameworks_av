@@ -5163,7 +5163,8 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         Mutex::Autolock _l(mLock);
 
         track = new RecordTrack(this, client, sampleRate,
-                      format, channelMask, frameCount, sessionId, uid);
+                      format, channelMask, frameCount, sessionId, uid,
+                      (*flags & IAudioFlinger::TRACK_FAST) != 0);
 
         lStatus = track->initCheck();
         if (lStatus != NO_ERROR) {

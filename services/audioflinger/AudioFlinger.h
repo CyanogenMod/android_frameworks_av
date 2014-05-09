@@ -120,6 +120,8 @@ public:
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
+                                sp<IMemory>& cblk,
+                                sp<IMemory>& buffers,
                                 status_t *status /*non-NULL*/);
 
     virtual     uint32_t    sampleRate(audio_io_handle_t output) const;

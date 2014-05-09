@@ -1313,6 +1313,8 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         int *sessionId,
+        sp<IMemory>& cblk,
+        sp<IMemory>& buffers,
         status_t *status)
 {
     sp<RecordThread::RecordTrack> recordTrack;
@@ -1320,6 +1322,9 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     sp<Client> client;
     status_t lStatus;
     int lSessionId;
+
+    cblk.clear();
+    buffers.clear();
 
     // check calling permissions
     if (!recordingAllowed()) {
@@ -1395,6 +1400,9 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         recordTrack.clear();
         goto Exit;
     }
+
+    cblk = recordTrack->getCblk();
+    buffers = recordTrack->getBuffers();
 
     // return handle to client
     recordHandle = new RecordHandle(recordTrack);

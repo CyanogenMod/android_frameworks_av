@@ -88,6 +88,8 @@ public:
                                 track_flags_t *flags,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int *sessionId,
+                                sp<IMemory>& cblk,
+                                sp<IMemory>& buffers,   // return value 0 means it follows cblk
                                 status_t *status) = 0;
 
     /* query the audio hardware state. This state never changes,
