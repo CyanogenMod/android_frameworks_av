@@ -100,7 +100,10 @@ public:
     // For all APIs with "name": TRACK0 <= name < TRACK0 + MAX_NUM_TRACKS
 
     // Allocate a track name.  Returns new track name if successful, -1 on failure.
-    int         getTrackName(audio_channel_mask_t channelMask, int sessionId);
+    // The failure could be because of an invalid channelMask or format, or that
+    // the track capacity of the mixer is exceeded.
+    int         getTrackName(audio_channel_mask_t channelMask,
+                             audio_format_t format, int sessionId);
 
     // Free an allocated track by name
     void        deleteTrackName(int name);
@@ -117,6 +120,10 @@ public:
     uint32_t    trackNames() const { return mTrackNames; }
 
     size_t      getUnreleasedFrames(int name) const;
+
+    static inline bool isValidPcmTrackFormat(audio_format_t format) {
+        return format == AUDIO_FORMAT_PCM_16_BIT;
+    }
 
 private:
 
@@ -194,9 +201,8 @@ private:
 
         int32_t     sessionId;
 
-        audio_format_t mMixerFormat; // at this time: AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
-
-        int32_t     padding[1];
+        audio_format_t mMixerFormat;     // output mix format: AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
+        audio_format_t mFormat;          // input track format
 
         // 16-byte boundary
 

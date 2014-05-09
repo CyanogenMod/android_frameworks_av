@@ -383,7 +383,7 @@ AudioFlinger::PlaybackThread::Track::Track(
     }
     mServerProxy = mAudioTrackServerProxy;
 
-    mName = thread->getTrackName_l(channelMask, sessionId);
+    mName = thread->getTrackName_l(channelMask, format, sessionId);
     if (mName < 0) {
         ALOGE("no more track names available");
         return;

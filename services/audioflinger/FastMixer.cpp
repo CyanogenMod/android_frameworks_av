@@ -224,7 +224,8 @@ void FastMixer::onStateChange()
             AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
             ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
             if (mixer != NULL) {
-                name = mixer->getTrackName(fastTrack->mChannelMask, AUDIO_SESSION_OUTPUT_MIX);
+                name = mixer->getTrackName(fastTrack->mChannelMask,
+                        fastTrack->mFormat, AUDIO_SESSION_OUTPUT_MIX);
                 ALOG_ASSERT(name >= 0);
                 fastTrackNames[i] = name;
                 mixer->setBufferProvider(name, bufferProvider);
