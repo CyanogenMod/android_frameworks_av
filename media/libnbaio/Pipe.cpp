@@ -25,19 +25,22 @@
 
 namespace android {
 
-Pipe::Pipe(size_t maxFrames, const NBAIO_Format& format) :
+Pipe::Pipe(size_t maxFrames, const NBAIO_Format& format, void *buffer) :
         NBAIO_Sink(format),
         mMaxFrames(roundup(maxFrames)),
-        mBuffer(malloc(mMaxFrames * Format_frameSize(format))),
+        mBuffer(buffer == NULL ? malloc(mMaxFrames * Format_frameSize(format)) : buffer),
         mRear(0),
-        mReaders(0)
+        mReaders(0),
+        mFreeBufferInDestructor(buffer == NULL)
 {
 }
 
 Pipe::~Pipe()
 {
     ALOG_ASSERT(android_atomic_acquire_load(&mReaders) == 0);
-    free(mBuffer);
+    if (mFreeBufferInDestructor) {
+        free(mBuffer);
+    }
 }
 
 ssize_t Pipe::write(const void *buffer, size_t count)
