@@ -34,7 +34,7 @@ public:
     ~SoftwareRenderer();
 
     void render(
-            const void *data, size_t size, void *platformPrivate);
+            const void *data, size_t size, int64_t timestampNs, void *platformPrivate);
 
 private:
     enum YUVMode {

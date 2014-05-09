@@ -106,12 +106,15 @@ struct AwesomeLocalRenderer : public AwesomeRenderer {
     }
 
     virtual void render(MediaBuffer *buffer) {
+        int64_t timeUs;
+        CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
+
         render((const uint8_t *)buffer->data() + buffer->range_offset(),
-               buffer->range_length());
+               buffer->range_length(), timeUs * 1000);
     }
 
-    void render(const void *data, size_t size) {
-        mTarget->render(data, size, NULL);
+    void render(const void *data, size_t size, int64_t timestampNs) {
+        mTarget->render(data, size, timestampNs, NULL);
     }
 
 protected:
