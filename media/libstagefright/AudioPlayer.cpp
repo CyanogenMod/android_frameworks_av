@@ -110,7 +110,10 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         mSeeking = false;
     }
 
-    mFirstBufferResult = mSource->read(&mFirstBuffer, &options);
+    do {
+        mFirstBufferResult = mSource->read(&mFirstBuffer, &options);
+    } while (mFirstBufferResult == -EAGAIN);
+
     if (mFirstBufferResult == INFO_FORMAT_CHANGED) {
         ALOGV("INFO_FORMAT_CHANGED!!!");
 
