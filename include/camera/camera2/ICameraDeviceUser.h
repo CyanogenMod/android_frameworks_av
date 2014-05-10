@@ -78,6 +78,27 @@ public:
                                           /*out*/
                                           int64_t* lastFrameNumber = NULL) = 0;
 
+    /**
+     * Begin the device configuration.
+     *
+     * <p>
+     * beginConfigure must be called before any call to deleteStream, createStream,
+     * or endConfigure.  It is not valid to call this when the device is not idle.
+     * <p>
+     */
+    virtual status_t        beginConfigure() = 0;
+
+    /**
+     * End the device configuration.
+     *
+     * <p>
+     * endConfigure must be called after stream configuration is complete (i.e. after
+     * a call to beginConfigure and subsequent createStream/deleteStream calls).  This
+     * must be called before any requests can be submitted.
+     * <p>
+     */
+    virtual status_t        endConfigure() = 0;
+
     virtual status_t        deleteStream(int streamId) = 0;
     virtual status_t        createStream(
             int width, int height, int format,

@@ -42,7 +42,9 @@ enum {
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
     WAIT_UNTIL_IDLE,
-    FLUSH
+    FLUSH,
+    BEGIN_CONFIGURE,
+    END_CONFIGURE
 };
 
 namespace {
@@ -283,6 +285,26 @@ public:
         return res;
     }
 
+    virtual status_t beginConfigure()
+    {
+        ALOGV("beginConfigure");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        remote()->transact(BEGIN_CONFIGURE, data, &reply);
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
+    virtual status_t endConfigure()
+    {
+        ALOGV("endConfigure");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        remote()->transact(END_CONFIGURE, data, &reply);
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
 private:
 
 
@@ -456,6 +478,18 @@ status_t BnCameraDeviceUser::onTransact(
             reply->writeInt64(lastFrameNumber);
             return NO_ERROR;
         }
+        case BEGIN_CONFIGURE: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            reply->writeNoException();
+            reply->writeInt32(beginConfigure());
+            return NO_ERROR;
+        } break;
+        case END_CONFIGURE: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            reply->writeNoException();
+            reply->writeInt32(endConfigure());
+            return NO_ERROR;
+        } break;
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

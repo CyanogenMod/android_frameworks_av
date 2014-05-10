@@ -102,6 +102,12 @@ public:
     void dump() const;
     status_t dump(int fd, const Vector<String16>& args) const;
 
+    /**
+     * Returns a Vector containing the supported preview formats
+     * as enums given in graphics.h.
+     */
+    void getSupportedPreviewFormats(Vector<int>& formats) const;
+
     // Parameter keys to communicate between camera application and driver.
     // The access (read/write, read only, or write only) is viewed from the
     // perspective of applications, not driver.
@@ -673,6 +679,13 @@ public:
     static const char LIGHTFX_LOWLIGHT[];
     // High-dynamic range mode
     static const char LIGHTFX_HDR[];
+
+    /**
+     * Returns the the supported preview formats as an enum given in graphics.h
+     * corrsponding to the format given in the input string or -1 if no such
+     * conversion exists.
+     */
+    static int previewFormatToEnum(const char* format);
 
 private:
     DefaultKeyedVector<String8,String8>    mMap;

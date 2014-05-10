@@ -76,6 +76,10 @@ public:
                                         /*out*/
                                         int64_t* lastFrameNumber = NULL);
 
+    virtual status_t beginConfigure();
+
+    virtual status_t endConfigure();
+
     // Returns -EBUSY if device is not idle
     virtual status_t      deleteStream(int streamId);
 

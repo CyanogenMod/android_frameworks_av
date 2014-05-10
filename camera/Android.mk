@@ -50,7 +50,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
 	system/media/camera/include \
-	system/media/private/camera/include
+	system/media/private/camera/include \
 
 LOCAL_MODULE:= libcamera_client
 
