@@ -51,9 +51,11 @@ public:
     // Release the program and associated resources.
     void release();
 
-    // Blit the specified texture to { x, y, x+w, y+h }.
+    // Blit the specified texture to { x, y, x+w, y+h }.  Inverts the
+    // content if "invert" is set.
     status_t blit(GLuint texName, const float* texMatrix,
-            int32_t x, int32_t y, int32_t w, int32_t h) const;
+            int32_t x, int32_t y, int32_t w, int32_t h,
+            bool invert = false) const;
 
     // Draw a number of triangles.
     status_t drawTriangles(GLuint texName, const float* texMatrix,
@@ -67,7 +69,7 @@ private:
 
     // Common code for draw functions.
     status_t beforeDraw(GLuint texName, const float* texMatrix,
-            const float* vertices, const float* texes) const;
+            const float* vertices, const float* texes, bool invert) const;
     status_t afterDraw() const;
 
     // GLES 2 shader utilities.
