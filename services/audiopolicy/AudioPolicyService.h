@@ -194,30 +194,31 @@ private:
                                                   audio_stream_type_t stream,
                                                   int session);
                     void        releaseOutputCommand(audio_io_handle_t output);
-
-                    void        insertCommand_l(AudioCommand *command, int delayMs = 0);
+                    status_t    sendCommand(sp<AudioCommand>& command, int delayMs = 0);
+                    void        insertCommand_l(sp<AudioCommand>& command, int delayMs = 0);
 
     private:
         class AudioCommandData;
 
         // descriptor for requested tone playback event
-        class AudioCommand {
+        class AudioCommand: public RefBase {
 
         public:
             AudioCommand()
-            : mCommand(-1) {}
+            : mCommand(-1), mStatus(NO_ERROR), mWaitStatus(false) {}
 
             void dump(char* buffer, size_t size);
 
             int mCommand;   // START_TONE, STOP_TONE ...
             nsecs_t mTime;  // time stamp
+            Mutex mLock;    // mutex associated to mCond
             Condition mCond; // condition for status return
             status_t mStatus; // command status
             bool mWaitStatus; // true if caller is waiting for status
-            AudioCommandData *mParam;     // command specific parameter data
+            sp<AudioCommandData> mParam;     // command specific parameter data
         };
 
-        class AudioCommandData {
+        class AudioCommandData: public RefBase {
         public:
             virtual ~AudioCommandData() {}
         protected:
@@ -262,9 +263,9 @@ private:
 
         Mutex   mLock;
         Condition mWaitWorkCV;
-        Vector <AudioCommand *> mAudioCommands; // list of pending commands
+        Vector < sp<AudioCommand> > mAudioCommands; // list of pending commands
         ToneGenerator *mpToneGenerator;     // the tone generator
-        AudioCommand mLastCommand;          // last processed command (used by dump)
+        sp<AudioCommand> mLastCommand;      // last processed command (used by dump)
         String8 mName;                      // string used by wake lock fo delayed commands
         wp<AudioPolicyService> mService;
     };
