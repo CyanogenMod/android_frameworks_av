@@ -203,23 +203,6 @@ status_t AudioRecord::set(
         mFrameSize = sizeof(uint8_t);
     }
 
-    // validate framecount
-    size_t minFrameCount;
-    status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
-            sampleRate, format, channelMask);
-    if (status != NO_ERROR) {
-        ALOGE("getMinFrameCount() failed for sampleRate %u, format %#x, channelMask %#x; status %d",
-                sampleRate, format, channelMask, status);
-        return status;
-    }
-    ALOGV("AudioRecord::set() minFrameCount = %d", minFrameCount);
-
-    if (frameCount == 0) {
-        frameCount = minFrameCount;
-    } else if (frameCount < minFrameCount) {
-        ALOGE("frameCount %u < minFrameCount %u", frameCount, minFrameCount);
-        return BAD_VALUE;
-    }
     // mFrameCount is initialized in openRecord_l
     mReqFrameCount = frameCount;
 
@@ -242,7 +225,7 @@ status_t AudioRecord::set(
     }
 
     // create the IAudioRecord
-    status = openRecord_l(0 /*epoch*/);
+    status_t status = openRecord_l(0 /*epoch*/);
 
     if (status != NO_ERROR) {
         if (mAudioRecordThread != 0) {
@@ -464,6 +447,29 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     size_t frameCount = mReqFrameCount;
 
     if (!(mFlags & AUDIO_INPUT_FLAG_FAST)) {
+        // validate framecount
+        // If fast track was not requested, this preserves
+        // the old behavior of validating on client side.
+        // FIXME Eventually the validation should be done on server side
+        // regardless of whether it's a fast or normal track.  It's debatable
+        // whether to account for the input latency to provision buffers appropriately.
+        size_t minFrameCount;
+        status = AudioRecord::getMinFrameCount(&minFrameCount,
+                mSampleRate, mFormat, mChannelMask);
+        if (status != NO_ERROR) {
+            ALOGE("getMinFrameCount() failed for sampleRate %u, format %#x, channelMask %#x; "
+                    "status %d",
+                    mSampleRate, mFormat, mChannelMask, status);
+            return status;
+        }
+
+        if (frameCount == 0) {
+            frameCount = minFrameCount;
+        } else if (frameCount < minFrameCount) {
+            ALOGE("frameCount %u < minFrameCount %u", frameCount, minFrameCount);
+            return BAD_VALUE;
+        }
+
         // Make sure that application is notified with sufficient margin before overrun
         if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
             mNotificationFramesAct = frameCount/2;

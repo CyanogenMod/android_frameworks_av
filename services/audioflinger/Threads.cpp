@@ -5128,6 +5128,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         // to be at least 2 x the record thread frame count and cover audio hardware latency.
         // This is probably too conservative, but legacy application code may depend on it.
         // If you change this calculation, also review the start threshold which is related.
+        // FIXME It's not clear how input latency actually matters.  Perhaps this should be 0.
         uint32_t latencyMs = 50; // FIXME mInput->stream->get_latency(mInput->stream);
         size_t mNormalFrameCount = 2048; // FIXME
         uint32_t minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
