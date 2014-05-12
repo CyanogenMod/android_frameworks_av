@@ -120,7 +120,7 @@ status_t VendorTagDescriptor::createDescriptorFromOps(const vendor_tag_ops_t* vO
 
         // Set up tag to section index map
         ssize_t index = sections.indexOf(sectionString);
-        assert(index >= 0);
+        LOG_ALWAYS_FATAL_IF(index < 0, "index %zd must be non-negative", index);
         desc->mTagToSectionMap.add(tag, static_cast<uint32_t>(index));
 
         // Set up reverse mapping
@@ -217,7 +217,8 @@ status_t VendorTagDescriptor::createFromParcel(const Parcel* parcel,
                     __FUNCTION__, sectionCount, (maxSectionIndex + 1));
             return BAD_VALUE;
         }
-        assert(desc->mSections.setCapacity(sectionCount) > 0);
+        LOG_ALWAYS_FATAL_IF(desc->mSections.setCapacity(sectionCount) <= 0,
+                "Vector capacity must be positive");
         for (size_t i = 0; i < sectionCount; ++i) {
             String8 sectionName = parcel->readString8();
             if (sectionName.isEmpty()) {
@@ -228,7 +229,7 @@ status_t VendorTagDescriptor::createFromParcel(const Parcel* parcel,
         }
     }
 
-    assert(tagCount == allTags.size());
+    LOG_ALWAYS_FATAL_IF(tagCount != allTags.size(), "tagCount must be the same as allTags size");
     // Set up reverse mapping
     for (size_t i = 0; i < static_cast<size_t>(tagCount); ++i) {
         uint32_t tag = allTags[i];
