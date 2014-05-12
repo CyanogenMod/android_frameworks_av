@@ -122,7 +122,10 @@ public:
     size_t      getUnreleasedFrames(int name) const;
 
     static inline bool isValidPcmTrackFormat(audio_format_t format) {
-        return format == AUDIO_FORMAT_PCM_16_BIT;
+        return format == AUDIO_FORMAT_PCM_16_BIT ||
+                format == AUDIO_FORMAT_PCM_24_BIT_PACKED ||
+                format == AUDIO_FORMAT_PCM_32_BIT ||
+                format == AUDIO_FORMAT_PCM_FLOAT;
     }
 
 private:
@@ -146,6 +149,7 @@ private:
     struct state_t;
     struct track_t;
     class DownmixerBufferProvider;
+    class ReformatBufferProvider;
 
     typedef void (*hook_t)(track_t* t, int32_t* output, size_t numOutFrames, int32_t* temp,
                            int32_t* aux);
@@ -173,7 +177,7 @@ private:
         uint16_t    frameCount;
 
         uint8_t     channelCount;   // 1 or 2, redundant with (needs & NEEDS_CHANNEL_COUNT__MASK)
-        uint8_t     format;         // always 16
+        uint8_t     unused_padding; // formerly format, was always 16
         uint16_t    enabled;        // actually bool
         audio_channel_mask_t channelMask;
 
@@ -196,13 +200,19 @@ private:
         int32_t*           auxBuffer;
 
         // 16-byte boundary
-
+        AudioBufferProvider*     mInputBufferProvider;    // 4 bytes
+        ReformatBufferProvider*  mReformatBufferProvider; // 4 bytes
         DownmixerBufferProvider* downmixerBufferProvider; // 4 bytes
 
         int32_t     sessionId;
 
+        // 16-byte boundary
         audio_format_t mMixerFormat;     // output mix format: AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
         audio_format_t mFormat;          // input track format
+        audio_format_t mMixerInFormat;   // mix internal format AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
+                                         // each track must be converted to this format.
+
+        int32_t        mUnused[1];       // alignment padding
 
         // 16-byte boundary
 
@@ -241,6 +251,35 @@ private:
         effect_config_t    mDownmixConfig;
     };
 
+    // AudioBufferProvider wrapper that reformats track to acceptable mixer input type
+    class ReformatBufferProvider : public AudioBufferProvider {
+    public:
+        ReformatBufferProvider(int32_t channels,
+                audio_format_t inputFormat, audio_format_t outputFormat);
+        virtual ~ReformatBufferProvider();
+
+        // overrides AudioBufferProvider methods
+        virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
+        virtual void releaseBuffer(Buffer* buffer);
+
+        void reset();
+        inline bool requiresInternalBuffers() {
+            return true; //mInputFrameSize < mOutputFrameSize;
+        }
+
+        AudioBufferProvider* mTrackBufferProvider;
+        int32_t              mChannels;
+        audio_format_t       mInputFormat;
+        audio_format_t       mOutputFormat;
+        size_t               mInputFrameSize;
+        size_t               mOutputFrameSize;
+        // (only) required for reformatting to a larger size.
+        AudioBufferProvider::Buffer mBuffer;
+        void*                mOutputData;
+        size_t               mOutputCount;
+        size_t               mConsumed;
+    };
+
     // bitmask of allocated track names, where bit 0 corresponds to TRACK0 etc.
     uint32_t        mTrackNames;
 
@@ -268,6 +307,9 @@ private:
     static status_t initTrackDownmix(track_t* pTrack, int trackNum, audio_channel_mask_t mask);
     static status_t prepareTrackForDownmix(track_t* pTrack, int trackNum);
     static void unprepareTrackForDownmix(track_t* pTrack, int trackName);
+    static status_t prepareTrackForReformat(track_t* pTrack, int trackNum);
+    static void unprepareTrackForReformat(track_t* pTrack, int trackName);
+    static void reconfigureBufferProviders(track_t* pTrack);
 
     static void track__genericResample(track_t* t, int32_t* out, size_t numFrames, int32_t* temp,
             int32_t* aux);
