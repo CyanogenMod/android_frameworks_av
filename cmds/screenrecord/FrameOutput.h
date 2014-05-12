@@ -48,7 +48,7 @@ public:
     // specified number of microseconds.
     //
     // Returns ETIMEDOUT if the timeout expired before we found a frame.
-    status_t copyFrame(FILE* fp, long timeoutUsec);
+    status_t copyFrame(FILE* fp, long timeoutUsec, bool rawFrames);
 
     // Prepare to copy frames.  Makes the EGL context used by this object current.
     void prepareToCopy() {
