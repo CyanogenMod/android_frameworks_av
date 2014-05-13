@@ -301,6 +301,8 @@ public:
                 // If a thread does not have such a heap, this method returns 0.
                 virtual sp<MemoryDealer>    readOnlyHeap() const { return 0; }
 
+                virtual sp<IMemory> pipeMemory() const { return 0; }
+
     mutable     Mutex                   mLock;
 
 protected:

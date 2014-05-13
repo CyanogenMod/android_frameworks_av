@@ -39,6 +39,13 @@ public:
         STARTING_2,     // for RecordTrack only
     };
 
+    // where to allocate the data buffer
+    enum alloc_type {
+        ALLOC_CBLK,     // allocate immediately after control block
+        ALLOC_READONLY, // allocate from a separate read-only heap per thread
+        ALLOC_PIPE,     // do not allocate; use the pipe buffer
+    };
+
                         TrackBase(ThreadBase *thread,
                                 const sp<Client>& client,
                                 uint32_t sampleRate,
@@ -50,7 +57,7 @@ public:
                                 int uid,
                                 IAudioFlinger::track_flags_t flags,
                                 bool isOut,
-                                bool useReadOnlyHeap = false);
+                                alloc_type alloc = ALLOC_CBLK);
     virtual             ~TrackBase();
     virtual status_t    initCheck() const { return getCblk() != 0 ? NO_ERROR : NO_MEMORY; }
 

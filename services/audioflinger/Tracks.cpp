@@ -73,7 +73,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             int clientUid,
             IAudioFlinger::track_flags_t flags,
             bool isOut,
-            bool useReadOnlyHeap)
+            alloc_type alloc)
     :   RefBase(),
         mThread(thread),
         mClient(client),
@@ -117,7 +117,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
     size_t bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
-    if (sharedBuffer == 0 && !useReadOnlyHeap) {
+    if (sharedBuffer == 0 && alloc == ALLOC_CBLK) {
         size += bufferSize;
     }
 
@@ -139,7 +139,8 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     // construct the shared structure in-place.
     if (mCblk != NULL) {
         new(mCblk) audio_track_cblk_t();
-        if (useReadOnlyHeap) {
+        switch (alloc) {
+        case ALLOC_READONLY: {
             const sp<MemoryDealer> roHeap(thread->readOnlyHeap());
             if (roHeap == 0 ||
                     (mBufferMemory = roHeap->allocate(bufferSize)) == 0 ||
@@ -153,7 +154,17 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                 return;
             }
             memset(mBuffer, 0, bufferSize);
-        } else {
+            } break;
+        case ALLOC_PIPE:
+            mBufferMemory = thread->pipeMemory();
+            // mBuffer is the virtual address as seen from current process (mediaserver),
+            // and should normally be coming from mBufferMemory->pointer().
+            // However in this case the TrackBase does not reference the buffer directly.
+            // It should references the buffer via the pipe.
+            // Therefore, to detect incorrect usage of the buffer, we set mBuffer to NULL.
+            mBuffer = NULL;
+            break;
+        case ALLOC_CBLK:
             // clear all buffers
             if (sharedBuffer == 0) {
                 mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
@@ -164,6 +175,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                 mCblk->mFlags = CBLK_FORCEREADY;    // FIXME hack, need to fix the track ready logic
 #endif
             }
+            break;
         }
 
 #ifdef TEE_SINK
@@ -1842,7 +1854,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
     :   TrackBase(thread, client, sampleRate, format,
                   channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid,
                   flags, false /*isOut*/,
-                  (flags & IAudioFlinger::TRACK_FAST) != 0 /*useReadOnlyHeap*/),
+                  (flags & IAudioFlinger::TRACK_FAST) != 0 ? ALLOC_READONLY : ALLOC_CBLK),
         mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
