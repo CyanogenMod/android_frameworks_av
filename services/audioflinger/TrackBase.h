@@ -48,6 +48,7 @@ public:
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
                                 int uid,
+                                IAudioFlinger::track_flags_t flags,
                                 bool isOut,
                                 bool useReadOnlyHeap = false);
     virtual             ~TrackBase();
@@ -63,6 +64,7 @@ public:
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
             sp<IMemory> getBuffers() const { return mBufferMemory; }
+            bool        isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
 
 protected:
                         TrackBase(const TrackBase&);
@@ -134,6 +136,7 @@ protected:
     const int           mSessionId;
     int                 mUid;
     Vector < sp<SyncEvent> >mSyncEvents;
+    const IAudioFlinger::track_flags_t mFlags;
     const bool          mIsOut;
     ServerProxy*        mServerProxy;
     const int           mId;

@@ -5154,7 +5154,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
 
         track = new RecordTrack(this, client, sampleRate,
                       format, channelMask, frameCount, sessionId, uid,
-                      (*flags & IAudioFlinger::TRACK_FAST) != 0);
+                      *flags);
 
         lStatus = track->initCheck();
         if (lStatus != NO_ERROR) {

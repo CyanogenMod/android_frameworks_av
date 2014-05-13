@@ -30,7 +30,7 @@ public:
                                 size_t frameCount,
                                 int sessionId,
                                 int uid,
-                                bool isFast);
+                                IAudioFlinger::track_flags_t flags);
     virtual             ~RecordTrack();
 
     virtual status_t    start(AudioSystem::sync_event_t event, int triggerSession);
