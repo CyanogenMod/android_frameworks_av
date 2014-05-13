@@ -200,10 +200,7 @@ public:
                                                     status_t& status) = 0;
     virtual     status_t    setParameters(const String8& keyValuePairs);
     virtual     String8     getParameters(const String8& keys) = 0;
-    virtual     void        audioConfigChanged_l(
-                      const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
-                      int event,
-                      int param = 0) = 0;
+    virtual     void        audioConfigChanged(int event, int param = 0) = 0;
                 // sendConfigEvent_l() must be called with ThreadBase::mLock held
                 // Can temporarily release the lock if waiting for a reply from
                 // processConfigEvents_l().
@@ -212,8 +209,7 @@ public:
                 void        sendIoConfigEvent_l(int event, int param = 0);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
                 status_t    sendSetParameterConfigEvent_l(const String8& keyValuePair);
-                void        processConfigEvents_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients);
+                void        processConfigEvents_l();
     virtual     void        cacheParameters_l() = 0;
 
                 // see note at declaration of mStandby, mOutDevice and mInDevice
@@ -502,10 +498,7 @@ public:
                                 { return android_atomic_acquire_load(&mSuspended) > 0; }
 
     virtual     String8     getParameters(const String8& keys);
-    virtual     void        audioConfigChanged_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
-                    int event,
-                    int param = 0);
+    virtual     void        audioConfigChanged(int event, int param = 0);
                 status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
                 // FIXME rename mixBuffer() to sinkBuffer() and remove int16_t* dependency.
                 // Consider also removing and passing an explicit mMainBuffer initialization
@@ -652,7 +645,6 @@ private:
 
     friend class AudioFlinger;      // for numerous
 
-    PlaybackThread(const Client&);
     PlaybackThread& operator = (const PlaybackThread&);
 
     status_t    addTrack_l(const sp<Track>& track);
@@ -1037,10 +1029,7 @@ public:
                                                status_t& status);
     virtual void        cacheParameters_l() {}
     virtual String8     getParameters(const String8& keys);
-    virtual void        audioConfigChanged_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
-                    int event,
-                    int param = 0);
+    virtual void        audioConfigChanged(int event, int param = 0);
             void        readInputParameters_l();
     virtual uint32_t    getInputFramesLost();
 

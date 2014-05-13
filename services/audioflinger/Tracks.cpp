@@ -198,8 +198,8 @@ AudioFlinger::ThreadBase::TrackBase::~TrackBase()
     }
     mCblkMemory.clear();    // free the shared memory before releasing the heap it belongs to
     if (mClient != 0) {
-        // Client destructor must run with AudioFlinger mutex locked
-        Mutex::Autolock _l(mClient->audioFlinger()->mLock);
+        // Client destructor must run with AudioFlinger client mutex locked
+        Mutex::Autolock _l(mClient->audioFlinger()->mClientLock);
         // If the client's reference count drops to zero, the associated destructor
         // must run with AudioFlinger lock held. Thus the explicit clear() rather than
         // relying on the automatic clear() at end of scope.

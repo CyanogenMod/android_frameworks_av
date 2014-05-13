@@ -1162,8 +1162,8 @@ void AudioFlinger::EffectHandle::disconnect(bool unpinIfLast)
             mCblk->~effect_param_cblk_t();   // destroy our shared-structure.
         }
         mCblkMemory.clear();    // free the shared memory before releasing the heap it belongs to
-        // Client destructor must run with AudioFlinger mutex locked
-        Mutex::Autolock _l(mClient->audioFlinger()->mLock);
+        // Client destructor must run with AudioFlinger client mutex locked
+        Mutex::Autolock _l(mClient->audioFlinger()->mClientLock);
         mClient.clear();
     }
 }

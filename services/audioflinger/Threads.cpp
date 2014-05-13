@@ -401,8 +401,7 @@ status_t AudioFlinger::ThreadBase::sendSetParameterConfigEvent_l(const String8& 
 }
 
 // post condition: mConfigEvents.isEmpty()
-void AudioFlinger::ThreadBase::processConfigEvents_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients)
+void AudioFlinger::ThreadBase::processConfigEvents_l()
 {
     bool configChanged = false;
 
@@ -423,7 +422,7 @@ void AudioFlinger::ThreadBase::processConfigEvents_l(
         } break;
         case CFG_EVENT_IO: {
             IoConfigEventData *data = (IoConfigEventData *)event->mData.get();
-            audioConfigChanged_l(notificationClients, data->mEvent, data->mParam);
+            audioConfigChanged(data->mEvent, data->mParam);
         } break;
         case CFG_EVENT_SET_PARAMETER: {
             SetParameterConfigEventData *data = (SetParameterConfigEventData *)event->mData.get();
@@ -1638,15 +1637,11 @@ String8 AudioFlinger::PlaybackThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-// audioConfigChanged_l() must be called with AudioFlinger::mLock held
-void AudioFlinger::PlaybackThread::audioConfigChanged_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
-                    int event,
-                    int param) {
+void AudioFlinger::PlaybackThread::audioConfigChanged(int event, int param) {
     AudioSystem::OutputDescriptor desc;
     void *param2 = NULL;
 
-    ALOGV("PlaybackThread::audioConfigChanged_l, thread %p, event %d, param %d", this, event,
+    ALOGV("PlaybackThread::audioConfigChanged, thread %p, event %d, param %d", this, event,
             param);
 
     switch (event) {
@@ -1667,7 +1662,7 @@ void AudioFlinger::PlaybackThread::audioConfigChanged_l(
     default:
         break;
     }
-    mAudioFlinger->audioConfigChanged_l(notificationClients, event, mId, param2);
+    mAudioFlinger->audioConfigChanged(event, mId, param2);
 }
 
 void AudioFlinger::PlaybackThread::writeCallback()
@@ -2317,15 +2312,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
         Vector< sp<EffectChain> > effectChains;
 
-        DefaultKeyedVector< pid_t,sp<NotificationClient> > notificationClients =
-                mAudioFlinger->notificationClients();
-
         { // scope for mLock
 
             Mutex::Autolock _l(mLock);
 
-            processConfigEvents_l(notificationClients);
-            notificationClients.clear();
+            processConfigEvents_l();
 
             if (logString != NULL) {
                 mNBLogWriter->logTimestamp();
@@ -4695,14 +4686,11 @@ reacquire_wakelock:
         // activeTracks accumulates a copy of a subset of mActiveTracks
         Vector< sp<RecordTrack> > activeTracks;
 
-        DefaultKeyedVector< pid_t,sp<NotificationClient> > notificationClients =
-                mAudioFlinger->notificationClients();
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
 
-            processConfigEvents_l(notificationClients);
-            notificationClients.clear();
+            processConfigEvents_l();
 
             // check exitPending here because checkForNewParameters_l() and
             // checkForNewParameters_l() can temporarily release mLock
@@ -5605,10 +5593,7 @@ String8 AudioFlinger::RecordThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-void AudioFlinger::RecordThread::audioConfigChanged_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
-                    int event,
-                    int param __unused) {
+void AudioFlinger::RecordThread::audioConfigChanged(int event, int param __unused) {
     AudioSystem::OutputDescriptor desc;
     const void *param2 = NULL;
 
@@ -5627,7 +5612,7 @@ void AudioFlinger::RecordThread::audioConfigChanged_l(
     default:
         break;
     }
-    mAudioFlinger->audioConfigChanged_l(notificationClients, event, mId, param2);
+    mAudioFlinger->audioConfigChanged(event, mId, param2);
 }
 
 void AudioFlinger::RecordThread::readInputParameters_l()

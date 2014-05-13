@@ -453,11 +453,7 @@ private:
               // no range check, doesn't check per-thread stream volume, AudioFlinger::mLock held
               float streamVolume_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].volume; }
-              void audioConfigChanged_l(const DefaultKeyedVector< pid_t,sp<NotificationClient> >&
-                                           notificationClients,
-                                        int event,
-                                        audio_io_handle_t ioHandle,
-                                        const void *param2);
+              void audioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
 
               // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
               // They all share the same ID space, but the namespaces are actually independent
@@ -482,8 +478,6 @@ private:
 
                 void        removeClient_l(pid_t pid);
                 void        removeNotificationClient(pid_t pid);
-                DefaultKeyedVector< pid_t,sp<NotificationClient> > notificationClients() {
-                                        Mutex::Autolock _l(mLock); return mNotificationClients; }
                 bool isNonOffloadableGlobalEffectEnabled_l();
                 void onNonOffloadableGlobalEffectEnable();
 
@@ -553,7 +547,11 @@ private:
     };
 
     mutable     Mutex                               mLock;
-
+                // protects mClients and mNotificationClients.
+                // must be locked after mLock and ThreadBase::mLock if both must be locked
+                // avoids acquiring AudioFlinger::mLock from inside thread loop.
+    mutable     Mutex                               mClientLock;
+                // protected by mClientLock
                 DefaultKeyedVector< pid_t, wp<Client> >     mClients;   // see ~Client()
 
                 mutable     Mutex                   mHardwareLock;
@@ -602,6 +600,7 @@ private:
 
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
+                // protected by mClientLock
                 DefaultKeyedVector< pid_t, sp<NotificationClient> >    mNotificationClients;
 
                 volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
@@ -622,7 +621,7 @@ private:
                                                              // to be created
 
 private:
-    sp<Client>  registerPid_l(pid_t pid);    // always returns non-0
+    sp<Client>  registerPid(pid_t pid);    // always returns non-0
 
     // for use from destructor
     status_t    closeOutput_nonvirtual(audio_io_handle_t output);

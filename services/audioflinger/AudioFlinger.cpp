@@ -82,6 +82,7 @@ namespace android {
 
 static const char kDeadlockedString[] = "AudioFlinger may be deadlocked\n";
 static const char kHardwareLockedString[] = "Hardware lock is taken\n";
+static const char kClientLockedString[] = "Client lock is taken\n";
 
 
 nsecs_t AudioFlinger::mStandbyTimeInNsecs = kDefaultStandbyTimeInNsecs;
@@ -382,7 +383,16 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             write(fd, result.string(), result.size());
         }
 
+        bool clientLocked = dumpTryLock(mClientLock);
+        if (!clientLocked) {
+            String8 result(kClientLockedString);
+            write(fd, result.string(), result.size());
+        }
         dumpClients(fd, args);
+        if (clientLocked) {
+            mClientLock.unlock();
+        }
+
         dumpInternals(fd, args);
 
         // dump playback threads
@@ -426,8 +436,9 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
     return NO_ERROR;
 }
 
-sp<AudioFlinger::Client> AudioFlinger::registerPid_l(pid_t pid)
+sp<AudioFlinger::Client> AudioFlinger::registerPid(pid_t pid)
 {
+    Mutex::Autolock _cl(mClientLock);
     // If pid is already in the mClients wp<> map, then use that entry
     // (for which promote() is always != 0), otherwise create a new entry and Client.
     sp<Client> client = mClients.valueFor(pid).promote();
@@ -564,7 +575,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         }
 
         pid_t pid = IPCThreadState::self()->getCallingPid();
-        client = registerPid_l(pid);
+        client = registerPid(pid);
 
         PlaybackThread *effectThread = NULL;
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
@@ -623,7 +634,8 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the Track so that the
-        // Client destructor is called by the TrackBase destructor with mLock held
+        // Client destructor is called by the TrackBase destructor with mClientLock held
+        Mutex::Autolock _cl(mClientLock);
         client.clear();
         track.clear();
         goto Exit;
@@ -1140,21 +1152,29 @@ status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrame
 
 void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
 {
-
     Mutex::Autolock _l(mLock);
+    bool clientAdded = false;
+    {
+        Mutex::Autolock _cl(mClientLock);
 
-    pid_t pid = IPCThreadState::self()->getCallingPid();
-    if (mNotificationClients.indexOfKey(pid) < 0) {
-        sp<NotificationClient> notificationClient = new NotificationClient(this,
-                                                                            client,
-                                                                            pid);
-        ALOGV("registerClient() client %p, pid %d", notificationClient.get(), pid);
+        pid_t pid = IPCThreadState::self()->getCallingPid();
+        if (mNotificationClients.indexOfKey(pid) < 0) {
+            sp<NotificationClient> notificationClient = new NotificationClient(this,
+                                                                                client,
+                                                                                pid);
+            ALOGV("registerClient() client %p, pid %d", notificationClient.get(), pid);
 
-        mNotificationClients.add(pid, notificationClient);
+            mNotificationClients.add(pid, notificationClient);
 
-        sp<IBinder> binder = client->asBinder();
-        binder->linkToDeath(notificationClient);
+            sp<IBinder> binder = client->asBinder();
+            binder->linkToDeath(notificationClient);
+            clientAdded = true;
+        }
+    }
 
+    // mClientLock should not be held here because ThreadBase::sendIoConfigEvent() will lock the
+    // ThreadBase mutex and teh locknig order is ThreadBase::mLock then AudioFlinger::mClientLock.
+    if (clientAdded) {
         // the config change is always sent from playback or record threads to avoid deadlock
         // with AudioSystem::gLock
         for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
@@ -1170,8 +1190,10 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
 void AudioFlinger::removeNotificationClient(pid_t pid)
 {
     Mutex::Autolock _l(mLock);
-
-    mNotificationClients.removeItem(pid);
+    {
+        Mutex::Autolock _cl(mClientLock);
+        mNotificationClients.removeItem(pid);
+    }
 
     ALOGV("%d died, releasing its sessions", pid);
     size_t num = mAudioSessionRefs.size();
@@ -1194,22 +1216,18 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
     }
 }
 
-// audioConfigChanged_l() must be called with AudioFlinger::mLock held
-void AudioFlinger::audioConfigChanged_l(
-                    const DefaultKeyedVector< pid_t,sp<NotificationClient> >& notificationClients,
-                    int event,
-                    audio_io_handle_t ioHandle,
-                    const void *param2)
+void AudioFlinger::audioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2)
 {
-    size_t size = notificationClients.size();
+    Mutex::Autolock _l(mClientLock);
+    size_t size = mNotificationClients.size();
     for (size_t i = 0; i < size; i++) {
-        notificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event,
+        mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event,
                                                                               ioHandle,
                                                                               param2);
     }
 }
 
-// removeClient_l() must be called with AudioFlinger::mLock held
+// removeClient_l() must be called with AudioFlinger::mClientLock held
 void AudioFlinger::removeClient_l(pid_t pid)
 {
     ALOGV("removeClient_l() pid %d, calling pid %d", pid,
@@ -1247,7 +1265,7 @@ AudioFlinger::Client::Client(const sp<AudioFlinger>& audioFlinger, pid_t pid)
     // 1 MB of address space is good for 32 tracks, 8 buffers each, 4 KB/buffer
 }
 
-// Client destructor must be called with AudioFlinger::mLock held
+// Client destructor must be called with AudioFlinger::mClientLock held
 AudioFlinger::Client::~Client()
 {
     mAudioFlinger->removeClient_l(mPid);
@@ -1377,7 +1395,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         }
 
         pid_t pid = IPCThreadState::self()->getCallingPid();
-        client = registerPid_l(pid);
+        client = registerPid(pid);
 
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
             lSessionId = *sessionId;
@@ -1400,7 +1418,8 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the
-        // Client destructor is called by the TrackBase destructor with mLock held
+        // Client destructor is called by the TrackBase destructor with mClientLock held
+        Mutex::Autolock _cl(mClientLock);
         client.clear();
         recordTrack.clear();
         goto Exit;
@@ -1638,7 +1657,7 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         }
 
         // notify client processes of the new output creation
-        thread->audioConfigChanged_l(mNotificationClients, AudioSystem::OUTPUT_OPENED);
+        thread->audioConfigChanged(AudioSystem::OUTPUT_OPENED);
 
         // the first primary output opened designates the primary hw device
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
@@ -1674,7 +1693,7 @@ audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
     thread->addOutputTrack(thread2);
     mPlaybackThreads.add(id, thread);
     // notify client processes of the new output creation
-    thread->audioConfigChanged_l(mNotificationClients, AudioSystem::OUTPUT_OPENED);
+    thread->audioConfigChanged(AudioSystem::OUTPUT_OPENED);
     return id;
 }
 
@@ -1724,7 +1743,7 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
                 }
             }
         }
-        audioConfigChanged_l(mNotificationClients, AudioSystem::OUTPUT_CLOSED, output, NULL);
+        audioConfigChanged(AudioSystem::OUTPUT_CLOSED, output, NULL);
     }
     thread->exit();
     // The thread entity (active unit of execution) is no longer running here,
@@ -1904,7 +1923,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         }
 
         // notify client processes of the new input creation
-        thread->audioConfigChanged_l(mNotificationClients, AudioSystem::INPUT_OPENED);
+        thread->audioConfigChanged(AudioSystem::INPUT_OPENED);
         return id;
     }
 
@@ -1929,7 +1948,7 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
         }
 
         ALOGV("closeInput() %d", input);
-        audioConfigChanged_l(mNotificationClients, AudioSystem::INPUT_CLOSED, input, NULL);
+        audioConfigChanged(AudioSystem::INPUT_CLOSED, input, NULL);
         mRecordThreads.removeItem(input);
     }
     thread->exit();
@@ -1973,13 +1992,16 @@ void AudioFlinger::acquireAudioSessionId(int audioSession, pid_t pid)
         caller = pid;
     }
 
-    // Ignore requests received from processes not known as notification client. The request
-    // is likely proxied by mediaserver (e.g CameraService) and releaseAudioSessionId() can be
-    // called from a different pid leaving a stale session reference.  Also we don't know how
-    // to clear this reference if the client process dies.
-    if (mNotificationClients.indexOfKey(caller) < 0) {
-        ALOGW("acquireAudioSessionId() unknown client %d for session %d", caller, audioSession);
-        return;
+    {
+        Mutex::Autolock _cl(mClientLock);
+        // Ignore requests received from processes not known as notification client. The request
+        // is likely proxied by mediaserver (e.g CameraService) and releaseAudioSessionId() can be
+        // called from a different pid leaving a stale session reference.  Also we don't know how
+        // to clear this reference if the client process dies.
+        if (mNotificationClients.indexOfKey(caller) < 0) {
+            ALOGW("acquireAudioSessionId() unknown client %d for session %d", caller, audioSession);
+            return;
+        }
     }
 
     size_t num = mAudioSessionRefs.size();
@@ -2348,7 +2370,7 @@ sp<IEffect> AudioFlinger::createEffect(
             }
         }
 
-        sp<Client> client = registerPid_l(pid);
+        sp<Client> client = registerPid(pid);
 
         // create effect on selected output thread
         handle = thread->createEffect_l(client, effectClient, priority, sessionId,
