@@ -38,6 +38,7 @@
 #include <audio_utils/minifloat.h>
 
 // NBAIO implementations
+#include <media/nbaio/AudioStreamInSource.h>
 #include <media/nbaio/AudioStreamOutSink.h>
 #include <media/nbaio/MonoPipe.h>
 #include <media/nbaio/MonoPipeReader.h>
@@ -53,6 +54,7 @@
 #include "AudioFlinger.h"
 #include "AudioMixer.h"
 #include "FastMixer.h"
+#include "FastCapture.h"
 #include "ServiceUtilities.h"
 #include "SchedulingPolicyService.h"
 
@@ -131,9 +133,17 @@ static const enum {
     //  up large writes into smaller ones, and the wrapper would need to deal with scheduler.
 } kUseFastMixer = FastMixer_Static;
 
+// Whether to use fast capture
+static const enum {
+    FastCapture_Never,  // never initialize or use: for debugging only
+    FastCapture_Always, // always initialize and use, even if not needed: for debugging only
+    FastCapture_Static, // initialize if needed, then use all the time if initialized
+} kUseFastCapture = FastCapture_Static;
+
 // Priorities for requestPriority
 static const int kPriorityAudioApp = 2;
 static const int kPriorityFastMixer = 3;
+static const int kPriorityFastCapture = 3;
 
 // IAudioFlinger::createTrack() reports back to client the total size of shared memory area
 // for the track.  The client then sub-divides this into smaller buffers for its use.
@@ -4760,16 +4770,151 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
 #endif
     , mReadOnlyHeap(new MemoryDealer(kRecordThreadReadOnlyHeapSize,
             "RecordThreadRO", MemoryHeapBase::READ_ONLY))
+    // mFastCapture below
+    , mFastCaptureFutex(0)
+    // mInputSource
+    // mPipeSink
+    // mPipeSource
+    , mPipeFramesP2(0)
+    // mPipeMemory
+    // mFastCaptureNBLogWriter
+    , mFastTrackAvail(true)
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
     mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
 
     readInputParameters_l();
+
+    // create an NBAIO source for the HAL input stream, and negotiate
+    mInputSource = new AudioStreamInSource(input->stream);
+    size_t numCounterOffers = 0;
+    const NBAIO_Format offers[1] = {Format_from_SR_C(mSampleRate, mChannelCount, mFormat)};
+    ssize_t index = mInputSource->negotiate(offers, 1, NULL, numCounterOffers);
+    ALOG_ASSERT(index == 0);
+
+    // initialize fast capture depending on configuration
+    bool initFastCapture;
+    switch (kUseFastCapture) {
+    case FastCapture_Never:
+        initFastCapture = false;
+        break;
+    case FastCapture_Always:
+        initFastCapture = true;
+        break;
+    case FastCapture_Static:
+        uint32_t primaryOutputSampleRate;
+        {
+            AutoMutex _l(audioFlinger->mHardwareLock);
+            primaryOutputSampleRate = audioFlinger->mPrimaryOutputSampleRate;
+        }
+        initFastCapture =
+                // either capture sample rate is same as (a reasonable) primary output sample rate
+                (((primaryOutputSampleRate == 44100 || primaryOutputSampleRate == 48000) &&
+                    (mSampleRate == primaryOutputSampleRate)) ||
+                // or primary output sample rate is unknown, and capture sample rate is reasonable
+                ((primaryOutputSampleRate == 0) &&
+                    ((mSampleRate == 44100 || mSampleRate == 48000)))) &&
+                // and the buffer size is < 10 ms
+                (mFrameCount * 1000) / mSampleRate < 10;
+        break;
+    // case FastCapture_Dynamic:
+    }
+
+    if (initFastCapture) {
+        // create a Pipe for FastMixer to write to, and for us and fast tracks to read from
+        NBAIO_Format format = mInputSource->format();
+        size_t pipeFramesP2 = roundup(mFrameCount * 8);
+        size_t pipeSize = pipeFramesP2 * Format_frameSize(format);
+        void *pipeBuffer;
+        const sp<MemoryDealer> roHeap(readOnlyHeap());
+        sp<IMemory> pipeMemory;
+        if ((roHeap == 0) ||
+                (pipeMemory = roHeap->allocate(pipeSize)) == 0 ||
+                (pipeBuffer = pipeMemory->pointer()) == NULL) {
+            ALOGE("not enough memory for pipe buffer size=%zu", pipeSize);
+            goto failed;
+        }
+        // pipe will be shared directly with fast clients, so clear to avoid leaking old information
+        memset(pipeBuffer, 0, pipeSize);
+        Pipe *pipe = new Pipe(pipeFramesP2, format, pipeBuffer);
+        const NBAIO_Format offers[1] = {format};
+        size_t numCounterOffers = 0;
+        ssize_t index = pipe->negotiate(offers, 1, NULL, numCounterOffers);
+        ALOG_ASSERT(index == 0);
+        mPipeSink = pipe;
+        PipeReader *pipeReader = new PipeReader(*pipe);
+        numCounterOffers = 0;
+        index = pipeReader->negotiate(offers, 1, NULL, numCounterOffers);
+        ALOG_ASSERT(index == 0);
+        mPipeSource = pipeReader;
+        mPipeFramesP2 = pipeFramesP2;
+        mPipeMemory = pipeMemory;
+
+        // create fast capture
+        mFastCapture = new FastCapture();
+        FastCaptureStateQueue *sq = mFastCapture->sq();
+#ifdef STATE_QUEUE_DUMP
+        // FIXME
+#endif
+        FastCaptureState *state = sq->begin();
+        state->mCblk = NULL;
+        state->mInputSource = mInputSource.get();
+        state->mInputSourceGen++;
+        state->mPipeSink = pipe;
+        state->mPipeSinkGen++;
+        state->mFrameCount = mFrameCount;
+        state->mCommand = FastCaptureState::COLD_IDLE;
+        // already done in constructor initialization list
+        //mFastCaptureFutex = 0;
+        state->mColdFutexAddr = &mFastCaptureFutex;
+        state->mColdGen++;
+        state->mDumpState = &mFastCaptureDumpState;
+#ifdef TEE_SINK
+        // FIXME
+#endif
+        mFastCaptureNBLogWriter = audioFlinger->newWriter_l(kFastCaptureLogSize, "FastCapture");
+        state->mNBLogWriter = mFastCaptureNBLogWriter.get();
+        sq->end();
+        sq->push(FastCaptureStateQueue::BLOCK_UNTIL_PUSHED);
+
+        // start the fast capture
+        mFastCapture->run("FastCapture", ANDROID_PRIORITY_URGENT_AUDIO);
+        pid_t tid = mFastCapture->getTid();
+        int err = requestPriority(getpid_cached, tid, kPriorityFastMixer);
+        if (err != 0) {
+            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
+                    kPriorityFastCapture, getpid_cached, tid, err);
+        }
+
+#ifdef AUDIO_WATCHDOG
+        // FIXME
+#endif
+
+    }
+failed: ;
+
+    // FIXME mNormalSource
 }
 
 
 AudioFlinger::RecordThread::~RecordThread()
 {
+    if (mFastCapture != 0) {
+        FastCaptureStateQueue *sq = mFastCapture->sq();
+        FastCaptureState *state = sq->begin();
+        if (state->mCommand == FastCaptureState::COLD_IDLE) {
+            int32_t old = android_atomic_inc(&mFastCaptureFutex);
+            if (old == -1) {
+                (void) syscall(__NR_futex, &mFastCaptureFutex, FUTEX_WAKE_PRIVATE, 1);
+            }
+        }
+        state->mCommand = FastCaptureState::EXIT;
+        sq->end();
+        sq->push(FastCaptureStateQueue::BLOCK_UNTIL_PUSHED);
+        mFastCapture->join();
+        mFastCapture.clear();
+    }
+    mAudioFlinger->unregisterWriter(mFastCaptureNBLogWriter);
     mAudioFlinger->unregisterWriter(mNBLogWriter);
     delete[] mRsmpInBuffer;
 }
@@ -4824,6 +4969,8 @@ reacquire_wakelock:
         // activeTracks accumulates a copy of a subset of mActiveTracks
         Vector< sp<RecordTrack> > activeTracks;
 
+        // reference to the (first and only) fast track
+        sp<RecordTrack> fastTrack;
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
@@ -4905,6 +5052,11 @@ reacquire_wakelock:
                 activeTracks.add(activeTrack);
                 i++;
 
+                if (activeTrack->isFastTrack()) {
+                    ALOG_ASSERT(!mFastTrackAvail);
+                    ALOG_ASSERT(fastTrack == 0);
+                    fastTrack = activeTrack;
+                }
             }
             if (doBroadcast) {
                 mStartStopCond.broadcast();
@@ -4930,6 +5082,36 @@ reacquire_wakelock:
             effectChains[i]->process_l();
         }
 
+        // Start the fast capture if it's not already running
+        if (mFastCapture != 0) {
+            FastCaptureStateQueue *sq = mFastCapture->sq();
+            FastCaptureState *state = sq->begin();
+            if (state->mCommand != FastCaptureState::READ_WRITE /* FIXME &&
+                    (kUseFastMixer != FastMixer_Dynamic || state->mTrackMask > 1)*/) {
+                if (state->mCommand == FastCaptureState::COLD_IDLE) {
+                    int32_t old = android_atomic_inc(&mFastCaptureFutex);
+                    if (old == -1) {
+                        (void) syscall(__NR_futex, &mFastCaptureFutex, FUTEX_WAKE_PRIVATE, 1);
+                    }
+                }
+                state->mCommand = FastCaptureState::READ_WRITE;
+#if 0   // FIXME
+                mFastCaptureDumpState.increaseSamplingN(mAudioFlinger->isLowRamDevice() ?
+                        FastCaptureDumpState::kSamplingNforLowRamDevice : FastMixerDumpState::kSamplingN);
+#endif
+                state->mCblk = fastTrack != 0 ? fastTrack->cblk() : NULL;
+                sq->end();
+                sq->push(FastCaptureStateQueue::BLOCK_UNTIL_PUSHED);
+#if 0
+                if (kUseFastCapture == FastCapture_Dynamic) {
+                    mNormalSource = mPipeSource;
+                }
+#endif
+            } else {
+                sq->end(false /*didModify*/);
+            }
+        }
+
         // Read from HAL to keep up with fastest client if multiple active tracks, not slowest one.
         // Only the client(s) that are too slow will overrun. But if even the fastest client is too
         // slow, then this RecordThread will overrun by not calling HAL read often enough.
@@ -4937,24 +5119,45 @@ reacquire_wakelock:
         // copy to the right place.  Permitted because mRsmpInBuffer was over-allocated.
 
         int32_t rear = mRsmpInRear & (mRsmpInFramesP2 - 1);
-        ssize_t bytesRead = mInput->stream->read(mInput->stream,
-                &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
-        if (bytesRead <= 0) {
-            ALOGE("read failed: bytesRead=%d < %u", bytesRead, mBufferSize);
+        ssize_t framesRead;
+
+        // If an NBAIO source is present, use it to read the normal capture's data
+        if (mPipeSource != 0) {
+            size_t framesToRead = mBufferSize / mFrameSize;
+            framesRead = mPipeSource->read(&mRsmpInBuffer[rear * mChannelCount],
+                    framesToRead, AudioBufferProvider::kInvalidPTS);
+            if (framesRead == 0) {
+                // since pipe is non-blocking, simulate blocking input
+                sleepUs = (framesToRead * 1000000LL) / mSampleRate;
+            }
+        // otherwise use the HAL / AudioStreamIn directly
+        } else {
+            ssize_t bytesRead = mInput->stream->read(mInput->stream,
+                    &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
+            if (bytesRead < 0) {
+                framesRead = bytesRead;
+            } else {
+                framesRead = bytesRead / mFrameSize;
+            }
+        }
+
+        if (framesRead < 0 || (framesRead == 0 && mPipeSource == 0)) {
+            ALOGE("read failed: framesRead=%d", framesRead);
             // Force input into standby so that it tries to recover at next read attempt
             inputStandBy();
             sleepUs = kRecordThreadSleepUs;
+        }
+        if (framesRead <= 0) {
             continue;
         }
-        ALOG_ASSERT((size_t) bytesRead <= mBufferSize);
-        size_t framesRead = bytesRead / mFrameSize;
         ALOG_ASSERT(framesRead > 0);
+
         if (mTeeSink != 0) {
             (void) mTeeSink->write(&mRsmpInBuffer[rear * mChannelCount], framesRead);
         }
         // If destination is non-contiguous, we now correct for reading past end of buffer.
         size_t part1 = mRsmpInFramesP2 - rear;
-        if (framesRead > part1) {
+        if ((size_t) framesRead > part1) {
             memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
                     (framesRead - part1) * mFrameSize);
         }
@@ -4964,6 +5167,11 @@ reacquire_wakelock:
         // loop over each active track
         for (size_t i = 0; i < size; i++) {
             activeTrack = activeTracks[i];
+
+            // skip fast tracks, as those are handled directly by FastCapture
+            if (activeTrack->isFastTrack()) {
+                continue;
+            }
 
             enum {
                 OVERRUN_UNKNOWN,
@@ -5193,6 +5401,30 @@ void AudioFlinger::RecordThread::standbyIfNotAlreadyInStandby()
 
 void AudioFlinger::RecordThread::inputStandBy()
 {
+    // Idle the fast capture if it's currently running
+    if (mFastCapture != 0) {
+        FastCaptureStateQueue *sq = mFastCapture->sq();
+        FastCaptureState *state = sq->begin();
+        if (!(state->mCommand & FastCaptureState::IDLE)) {
+            state->mCommand = FastCaptureState::COLD_IDLE;
+            state->mColdFutexAddr = &mFastCaptureFutex;
+            state->mColdGen++;
+            mFastCaptureFutex = 0;
+            sq->end();
+            // BLOCK_UNTIL_PUSHED would be insufficient, as we need it to stop doing I/O now
+            sq->push(FastCaptureStateQueue::BLOCK_UNTIL_ACKED);
+#if 0
+            if (kUseFastCapture == FastCapture_Dynamic) {
+                // FIXME
+            }
+#endif
+#ifdef AUDIO_WATCHDOG
+            // FIXME
+#endif
+        } else {
+            sq->end(false /*didModify*/);
+        }
+    }
     mInput->stream->common.standby(&mInput->stream->common);
 }
 
@@ -5219,36 +5451,40 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             // use case: callback handler and frame count is default or at least as large as HAL
             (
                 (tid != -1) &&
-                ((frameCount == 0) ||
+                ((frameCount == 0) /*||
+                // FIXME must be equal to pipe depth, so don't allow it to be specified by client
                 // FIXME not necessarily true, should be native frame count for native SR!
-                (frameCount >= mFrameCount))
+                (frameCount >= mFrameCount)*/)
             ) &&
             // PCM data
             audio_is_linear_pcm(format) &&
+            // native format
+            (format == mFormat) &&
             // mono or stereo
             ( (channelMask == AUDIO_CHANNEL_IN_MONO) ||
               (channelMask == AUDIO_CHANNEL_IN_STEREO) ) &&
-            // hardware sample rate
-            // FIXME actually the native hardware sample rate
+            // native channel mask
+            (channelMask == mChannelMask) &&
+            // native hardware sample rate
             (sampleRate == mSampleRate) &&
             // record thread has an associated fast capture
-            hasFastCapture()
-            // fast capture does not require slots
+            hasFastCapture() &&
+            // there are sufficient fast track slots available
+            mFastTrackAvail
         ) {
-        // if frameCount not specified, then it defaults to fast capture (HAL) frame count
+        // if frameCount not specified, then it defaults to pipe frame count
         if (frameCount == 0) {
-            // FIXME wrong mFrameCount
-            frameCount = mFrameCount * kFastTrackMultiplier;
+            frameCount = mPipeFramesP2;
         }
         ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
                 frameCount, mFrameCount);
       } else {
         ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%d "
                 "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
-                "hasFastCapture=%d tid=%d",
+                "hasFastCapture=%d tid=%d mFastTrackAvail=%d",
                 frameCount, mFrameCount, format,
                 audio_is_linear_pcm(format),
-                channelMask, sampleRate, mSampleRate, hasFastCapture(), tid);
+                channelMask, sampleRate, mSampleRate, hasFastCapture(), tid, mFastTrackAvail);
         *flags &= ~IAudioFlinger::TRACK_FAST;
         // FIXME It's not clear that we need to enforce this any more, since we have a pipe.
         // For compatibility with AudioRecord calculation, buffer depth is forced
@@ -5477,6 +5713,10 @@ void AudioFlinger::RecordThread::removeTrack_l(const sp<RecordTrack>& track)
 {
     mTracks.remove(track);
     // need anything related to effects here?
+    if (track->isFastTrack()) {
+        ALOG_ASSERT(!mFastTrackAvail);
+        mFastTrackAvail = true;
+    }
 }
 
 void AudioFlinger::RecordThread::dump(int fd, const Vector<String16>& args)
@@ -5495,6 +5735,7 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     } else {
         dprintf(fd, "  No active record clients\n");
     }
+    dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
 
     dumpBase(fd, args);
 }

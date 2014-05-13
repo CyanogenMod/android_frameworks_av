@@ -50,6 +50,8 @@
 
 #include <media/AudioBufferProvider.h>
 #include <media/ExtendedAudioBufferProvider.h>
+
+#include "FastCapture.h"
 #include "FastMixer.h"
 #include <media/nbaio/NBAIO.h>
 #include "AudioWatchdog.h"
