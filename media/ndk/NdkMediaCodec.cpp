@@ -369,7 +369,7 @@ int AMediaCodec_queueSecureInputBuffer(
     if (err != 0) {
         ALOGE("queSecureInputBuffer: %s", errormsg.c_str());
     }
-    delete subSamples;
+    delete [] subSamples;
     return translate_error(err);
 }
 
@@ -396,13 +396,11 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
     ret->mode = mode;
 
     // clearbytes and encryptedbytes point at the actual data, which follows
-    ret->clearbytes = (size_t*) ((&ret->encryptedbytes) + sizeof(ret->encryptedbytes));
-    ret->encryptedbytes = (size_t*) (ret->clearbytes + (sizeof(size_t) * numsubsamples));
+    ret->clearbytes = (size_t*) (ret + 1); // point immediately after the struct
+    ret->encryptedbytes = ret->clearbytes + numsubsamples; // point after the clear sizes
 
-    size_t *dst = ret->clearbytes;
-    memcpy(dst, clearbytes, numsubsamples * sizeof(size_t));
-    dst += numsubsamples * sizeof(size_t);
-    memcpy(dst, encryptedbytes, numsubsamples * sizeof(size_t));
+    memcpy(ret->clearbytes, clearbytes, numsubsamples * sizeof(size_t));
+    memcpy(ret->encryptedbytes, encryptedbytes, numsubsamples * sizeof(size_t));
 
     return ret;
 }

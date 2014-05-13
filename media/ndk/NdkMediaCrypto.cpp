@@ -74,7 +74,7 @@ struct AMediaCrypto {
 extern "C" {
 
 
-bool AMediaCrypto_isCryptoSchemeSupport(const AMediaUUID uuid) {
+bool AMediaCrypto_isCryptoSchemeSupported(const AMediaUUID uuid) {
     sp<ICrypto> crypto = makeCrypto();
     if (crypto == NULL) {
         return false;
