@@ -89,6 +89,8 @@
 //  arithmetic on the state pointers.  However to the mutator, the state pointers
 //  are in a definite circular order.
 
+#include "Configuration.h"
+
 namespace android {
 
 #ifdef STATE_QUEUE_DUMP
