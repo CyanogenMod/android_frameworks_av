@@ -2862,8 +2862,6 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         }
 #endif
 
-    } else {
-        mFastMixer = NULL;
     }
 
     switch (kUseFastMixer) {
@@ -2882,7 +2880,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
 
 AudioFlinger::MixerThread::~MixerThread()
 {
-    if (mFastMixer != NULL) {
+    if (mFastMixer != 0) {
         FastMixerStateQueue *sq = mFastMixer->sq();
         FastMixerState *state = sq->begin();
         if (state->mCommand == FastMixerState::COLD_IDLE) {
@@ -2904,7 +2902,7 @@ AudioFlinger::MixerThread::~MixerThread()
         ALOG_ASSERT(fastTrack->mBufferProvider != NULL);
         delete fastTrack->mBufferProvider;
         sq->end(false /*didModify*/);
-        delete mFastMixer;
+        mFastMixer.clear();
 #ifdef AUDIO_WATCHDOG
         if (mAudioWatchdog != 0) {
             mAudioWatchdog->requestExit();
@@ -2920,7 +2918,7 @@ AudioFlinger::MixerThread::~MixerThread()
 
 uint32_t AudioFlinger::MixerThread::correctLatency_l(uint32_t latency) const
 {
-    if (mFastMixer != NULL) {
+    if (mFastMixer != 0) {
         MonoPipe *pipe = (MonoPipe *)mPipeSink.get();
         latency += (pipe->getAvgFrames() * 1000) / mSampleRate;
     }
@@ -2937,7 +2935,7 @@ ssize_t AudioFlinger::MixerThread::threadLoop_write()
 {
     // FIXME we should only do one push per cycle; confirm this is true
     // Start the fast mixer if it's not already running
-    if (mFastMixer != NULL) {
+    if (mFastMixer != 0) {
         FastMixerStateQueue *sq = mFastMixer->sq();
         FastMixerState *state = sq->begin();
         if (state->mCommand != FastMixerState::MIX_WRITE &&
@@ -2971,7 +2969,7 @@ ssize_t AudioFlinger::MixerThread::threadLoop_write()
 void AudioFlinger::MixerThread::threadLoop_standby()
 {
     // Idle the fast mixer if it's currently running
-    if (mFastMixer != NULL) {
+    if (mFastMixer != 0) {
         FastMixerStateQueue *sq = mFastMixer->sq();
         FastMixerState *state = sq->begin();
         if (!(state->mCommand & FastMixerState::IDLE)) {
@@ -3134,7 +3132,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
     FastMixerState *state = NULL;
     bool didModify = false;
     FastMixerStateQueue::block_t block = FastMixerStateQueue::BLOCK_UNTIL_PUSHED;
-    if (mFastMixer != NULL) {
+    if (mFastMixer != 0) {
         sq = mFastMixer->sq();
         state = sq->begin();
     }
@@ -3677,7 +3675,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
 
     // if !&IDLE, holds the FastMixer state to restore after new parameters processed
     FastMixerState::Command previousCommand = FastMixerState::HOT_IDLE;
-    if (mFastMixer != NULL) {
+    if (mFastMixer != 0) {
         FastMixerStateQueue *sq = mFastMixer->sq();
         FastMixerState *state = sq->begin();
         if (!(state->mCommand & FastMixerState::IDLE)) {
@@ -3782,7 +3780,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
     }
 
     if (!(previousCommand & FastMixerState::IDLE)) {
-        ALOG_ASSERT(mFastMixer != NULL);
+        ALOG_ASSERT(mFastMixer != 0);
         FastMixerStateQueue *sq = mFastMixer->sq();
         FastMixerState *state = sq->begin();
         ALOG_ASSERT(state->mCommand == FastMixerState::HOT_IDLE);

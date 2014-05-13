@@ -852,7 +852,7 @@ protected:
                 AudioMixer* mAudioMixer;    // normal mixer
 private:
                 // one-time initialization, no locks required
-                FastMixer*  mFastMixer;         // non-NULL if there is also a fast mixer
+                sp<FastMixer>     mFastMixer;     // non-0 if there is also a fast mixer
                 sp<AudioWatchdog> mAudioWatchdog; // non-0 if there is an audio watchdog thread
 
                 // contents are not guaranteed to be consistent, no locks required
@@ -868,7 +868,7 @@ private:
                 int32_t     mFastMixerFutex;    // for cold idle
 
 public:
-    virtual     bool        hasFastMixer() const { return mFastMixer != NULL; }
+    virtual     bool        hasFastMixer() const { return mFastMixer != 0; }
     virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const {
                               ALOG_ASSERT(fastIndex < FastMixerState::kMaxFastTracks);
                               return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
