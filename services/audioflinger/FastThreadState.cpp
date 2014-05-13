@@ -35,7 +35,7 @@ FastThreadDumpState::FastThreadDumpState() :
     /* mMeasuredWarmupTs({0, 0}), */
     mWarmupCycles(0)
 #ifdef FAST_MIXER_STATISTICS
-    , mSamplingN(0), mBounds(0)
+    , mSamplingN(1), mBounds(0)
 #endif
 {
     mMeasuredWarmupTs.tv_sec = 0;
