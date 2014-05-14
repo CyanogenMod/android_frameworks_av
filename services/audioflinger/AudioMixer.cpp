@@ -159,7 +159,6 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
     if (names != 0) {
         int n = __builtin_ctz(names);
         ALOGV("add track (%d)", n);
-        mTrackNames |= 1 << n;
         // assume default parameters for the track, except where noted below
         track_t* t = &mState.tracks[n];
         t->needs = 0;
@@ -175,10 +174,10 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
         // no initialization needed
         // t->prevAuxLevel
         // t->frameCount
-        t->channelCount = 2;
+        t->channelCount = audio_channel_count_from_out_mask(channelMask);
         t->enabled = false;
         t->format = 16;
-        t->channelMask = AUDIO_CHANNEL_OUT_STEREO;
+        t->channelMask = channelMask;
         t->sessionId = sessionId;
         // setBufferProvider(name, AudioBufferProvider *) is required before enable(name)
         t->bufferProvider = NULL;
@@ -196,12 +195,14 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
         t->mMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
 
         status_t status = initTrackDownmix(&mState.tracks[n], n, channelMask);
-        if (status == OK) {
-            return TRACK0 + n;
+        if (status != OK) {
+            ALOGE("AudioMixer::getTrackName invalid channelMask (%#x)", channelMask);
+            return -1;
         }
-        ALOGE("AudioMixer::getTrackName(0x%x) failed, error preparing track for downmix",
-                channelMask);
+        mTrackNames |= 1 << n;
+        return TRACK0 + n;
     }
+    ALOGE("AudioMixer::getTrackName out of available tracks");
     return -1;
 }
 

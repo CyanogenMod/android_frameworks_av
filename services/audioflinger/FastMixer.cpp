@@ -224,17 +224,13 @@ void FastMixer::onStateChange()
             AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
             ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
             if (mixer != NULL) {
-                // calling getTrackName with default channel mask and a random invalid
-                //   sessionId (no effects here)
-                name = mixer->getTrackName(AUDIO_CHANNEL_OUT_STEREO, -555);
+                name = mixer->getTrackName(fastTrack->mChannelMask, AUDIO_SESSION_OUTPUT_MIX);
                 ALOG_ASSERT(name >= 0);
                 fastTrackNames[i] = name;
                 mixer->setBufferProvider(name, bufferProvider);
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                         (void *) mixBuffer);
                 // newly allocated track names default to full scale volume
-                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
-                        (void *)(uintptr_t)fastTrack->mChannelMask);
                 mixer->enable(name);
             }
             generations[i] = fastTrack->mGeneration;
