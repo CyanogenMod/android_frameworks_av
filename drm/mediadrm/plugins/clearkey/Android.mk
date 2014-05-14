@@ -20,6 +20,16 @@ LOCAL_SRC_FILES := \
     AesCtrDecryptor.cpp \
     InitDataParser.cpp \
     JsonWebKey.cpp \
+    ClearKeyUUID.cpp \
+    CreatePluginFactories.cpp \
+    CryptoFactory.cpp \
+    CryptoPlugin.cpp \
+    DrmFactory.cpp \
+    DrmPlugin.cpp \
+    InitDataParser.cpp \
+    JsonWebKey.cpp \
+    Session.cpp \
+    SessionLibrary.cpp \
     Utils.cpp \
 
 LOCAL_C_INCLUDES := \
