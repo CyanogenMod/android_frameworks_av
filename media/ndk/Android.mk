@@ -26,6 +26,7 @@ LOCAL_SRC_FILES:=                                       \
                   NdkMediaExtractor.cpp                 \
                   NdkMediaFormat.cpp                    \
                   NdkMediaMuxer.cpp                     \
+                  NdkMediaDrm.cpp                       \
 
 LOCAL_MODULE:= libmediandk
 
@@ -42,6 +43,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libutils \
     libandroid_runtime \
+    libbinder \
 
 include $(BUILD_SHARED_LIBRARY)
 
