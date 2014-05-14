@@ -115,7 +115,6 @@ public:
     void invalidate();
     bool isInvalid() const { return mIsInvalid; }
     virtual bool isTimedTrack() const { return false; }
-    bool isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
     int fastIndex() const { return mFastIndex; }
 
 protected:
@@ -142,8 +141,6 @@ protected:
                                     // audio HAL when this track will be fully rendered
                                     // zero means not monitoring
 private:
-    IAudioFlinger::track_flags_t mFlags;
-
     // The following fields are only for fast tracks, and should be in a subclass
     int                 mFastIndex; // index within FastMixerState::mFastTracks[];
                                     // either mFastIndex == -1 if not isFastTrack()

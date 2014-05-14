@@ -69,6 +69,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             const sp<IMemory>& sharedBuffer,
             int sessionId,
             int clientUid,
+            IAudioFlinger::track_flags_t flags,
             bool isOut,
             bool useReadOnlyHeap)
     :   RefBase(),
@@ -85,6 +86,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
         mFrameCount(frameCount),
         mSessionId(sessionId),
+        mFlags(flags),
         mIsOut(isOut),
         mServerProxy(NULL),
         mId(android_atomic_inc(&nextTrackId)),
@@ -349,7 +351,7 @@ AudioFlinger::PlaybackThread::Track::Track(
             int uid,
             IAudioFlinger::track_flags_t flags)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount, sharedBuffer,
-            sessionId, uid, true /*isOut*/),
+            sessionId, uid, flags, true /*isOut*/),
     mFillingUpStatus(FS_INVALID),
     // mRetryCount initialized later when needed
     mSharedBuffer(sharedBuffer),
@@ -359,7 +361,6 @@ AudioFlinger::PlaybackThread::Track::Track(
     mAuxBuffer(NULL),
     mAuxEffectId(0), mHasVolumeController(false),
     mPresentationCompleteFrames(0),
-    mFlags(flags),
     mFastIndex(-1),
     mCachedVolume(1.0),
     mIsInvalid(false),
@@ -1833,10 +1834,11 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             size_t frameCount,
             int sessionId,
             int uid,
-            bool isFast)
+            IAudioFlinger::track_flags_t flags)
     :   TrackBase(thread, client, sampleRate, format,
-                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid, false /*isOut*/,
-                  isFast /*useReadOnlyHeap*/),
+                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid,
+                  flags, false /*isOut*/,
+                  (flags & IAudioFlinger::TRACK_FAST) != 0 /*useReadOnlyHeap*/),
         mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
