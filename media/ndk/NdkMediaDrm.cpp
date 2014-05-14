@@ -127,6 +127,7 @@ static sp<IDrm> CreateDrmFromUUID(const AMediaUUID uuid) {
     return drm;
 }
 
+EXPORT
 bool AMediaDrm_isCryptoSchemeSupported(const AMediaUUID uuid, const char *mimeType) {
     sp<IDrm> drm = CreateDrm();
 
@@ -138,12 +139,14 @@ bool AMediaDrm_isCryptoSchemeSupported(const AMediaUUID uuid, const char *mimeTy
     return drm->isCryptoSchemeSupported(uuid, mimeStr);
 }
 
+EXPORT
 AMediaDrm* AMediaDrm_createByUUID(const AMediaUUID uuid) {
     AMediaDrm *mObj = new AMediaDrm();
     mObj->mDrm = CreateDrmFromUUID(uuid);
     return mObj;
 }
 
+EXPORT
 void AMediaDrm_release(AMediaDrm *mObj) {
     if (mObj->mDrm != NULL) {
         mObj->mDrm->setListener(NULL);
@@ -170,6 +173,7 @@ static bool findId(AMediaDrm *mObj, const AMediaDrmByteArray &id, List<idvec_t>:
     return false;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId &sessionId) {
     if (!mObj || mObj->mDrm == NULL) {
         return MEDIADRM_INVALID_OBJECT_ERROR;
@@ -185,6 +189,7 @@ mediadrm_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId &ses
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId) {
     if (!mObj || mObj->mDrm == NULL) {
         return MEDIADRM_INVALID_OBJECT_ERROR;
@@ -199,6 +204,7 @@ mediadrm_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSession
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope &scope,
         const uint8_t *init, size_t initSize, const char *mimeType, AMediaDrmKeyType keyType,
         const AMediaDrmKeyValue *optionalParameters, size_t numOptionalParameters,
@@ -249,6 +255,7 @@ mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope 
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmScope &scope,
         const uint8_t *response, size_t responseSize, AMediaDrmKeySetId &keySetId) {
 
@@ -280,6 +287,7 @@ mediadrm_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmS
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const AMediaDrmKeySetId &keySetId) {
 
@@ -295,6 +303,7 @@ mediadrm_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionI
     return translateStatus(mObj->mDrm->restoreKeys(*iter, keySet));
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId &keySetId) {
     if (!mObj || mObj->mDrm == NULL) {
         return MEDIADRM_INVALID_OBJECT_ERROR;
@@ -312,6 +321,7 @@ mediadrm_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId
     return translateStatus(status);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         AMediaDrmKeyValue *keyValuePairs, size_t &numPairs) {
 
@@ -342,6 +352,7 @@ mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessi
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *&provisionRequest,
         size_t &provisionRequestSize, const char *&serverUrl) {
     if (!mObj || mObj->mDrm == NULL) {
@@ -363,6 +374,7 @@ mediadrm_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *mObj,
         const uint8_t *response, size_t responseSize) {
     if (!mObj || mObj->mDrm == NULL) {
@@ -379,6 +391,7 @@ mediadrm_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *mObj,
     return translateStatus(mObj->mDrm->provideProvisionResponse(mdResponse, unused, unused));
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
         AMediaDrmSecureStop *secureStops, size_t &numSecureStops) {
 
@@ -405,6 +418,7 @@ mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
     return MEDIADRM_OK;
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_releaseSecureStops(AMediaDrm *mObj,
         const AMediaDrmSecureStop &ssRelease) {
 
@@ -418,6 +432,7 @@ mediadrm_status_t AMediaDrm_releaseSecureStops(AMediaDrm *mObj,
 }
 
 
+EXPORT
 mediadrm_status_t AMediaDrm_getPropertyString(AMediaDrm *mObj, const char *propertyName,
         const char *&propertyValue) {
 
@@ -436,6 +451,7 @@ mediadrm_status_t AMediaDrm_getPropertyString(AMediaDrm *mObj, const char *prope
     return translateStatus(status);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *mObj,
         const char *propertyName, AMediaDrmByteArray &propertyValue) {
     if (!mObj || mObj->mDrm == NULL) {
@@ -455,6 +471,7 @@ mediadrm_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *mObj,
     return translateStatus(status);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_setPropertyString(AMediaDrm *mObj,
         const char *propertyName, const char *value) {
     if (!mObj || mObj->mDrm == NULL) {
@@ -465,6 +482,7 @@ mediadrm_status_t AMediaDrm_setPropertyString(AMediaDrm *mObj,
                     String8(value)));
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *mObj,
         const char *propertyName, const uint8_t *value, size_t valueSize) {
 
@@ -517,6 +535,7 @@ static mediadrm_status_t encrypt_decrypt_common(AMediaDrm *mObj,
     return translateStatus(status);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize) {
@@ -524,6 +543,7 @@ mediadrm_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId &s
             input, output, dataSize, true);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize) {
@@ -531,6 +551,7 @@ mediadrm_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId &s
             input, output, dataSize, false);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *macAlgorithm, uint8_t *keyId, uint8_t *message, size_t messageSize,
         uint8_t *signature, size_t *signatureSize) {
@@ -566,6 +587,7 @@ mediadrm_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sess
     return translateStatus(status);
 }
 
+EXPORT
 mediadrm_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *macAlgorithm, uint8_t *keyId, const uint8_t *message, size_t messageSize,
         const uint8_t *signature, size_t signatureSize) {

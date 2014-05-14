@@ -52,6 +52,7 @@ struct AMediaMuxer {
 
 extern "C" {
 
+EXPORT
 AMediaMuxer* AMediaMuxer_new(int fd, OutputFormat format) {
     ALOGV("ctor");
     AMediaMuxer *mData = new AMediaMuxer();
@@ -59,34 +60,41 @@ AMediaMuxer* AMediaMuxer_new(int fd, OutputFormat format) {
     return mData;
 }
 
+EXPORT
 int AMediaMuxer_delete(AMediaMuxer *muxer) {
     ALOGV("dtor");
     delete muxer;
     return OK;
 }
 
+EXPORT
 int AMediaMuxer_setLocation(AMediaMuxer *muxer, float latitude, float longtitude) {
     return translate_error(muxer->mImpl->setLocation(latitude * 10000, longtitude * 10000));
 }
 
+EXPORT
 int AMediaMuxer_setOrientationHint(AMediaMuxer *muxer, int degrees) {
     return translate_error(muxer->mImpl->setOrientationHint(degrees));
 }
 
+EXPORT
 ssize_t AMediaMuxer_addTrack(AMediaMuxer *muxer, const AMediaFormat *format) {
     sp<AMessage> msg;
     AMediaFormat_getFormat(format, &msg);
     return translate_error(muxer->mImpl->addTrack(msg));
 }
 
+EXPORT
 int AMediaMuxer_start(AMediaMuxer *muxer) {
     return translate_error(muxer->mImpl->start());
 }
 
+EXPORT
 int AMediaMuxer_stop(AMediaMuxer *muxer) {
     return translate_error(muxer->mImpl->stop());
 }
 
+EXPORT
 int AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
         size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info) {
     sp<ABuffer> buf = new ABuffer((void*)(data + info.offset), info.size);

@@ -159,19 +159,22 @@ static AMediaCodec * createAMediaCodec(const char *name, bool name_is_type, bool
     return mData;
 }
 
-
+EXPORT
 AMediaCodec* AMediaCodec_createCodecByName(const char *name) {
     return createAMediaCodec(name, false, false);
 }
 
+EXPORT
 AMediaCodec* AMediaCodec_createDecoderByType(const char *mime_type) {
     return createAMediaCodec(mime_type, true, false);
 }
 
+EXPORT
 AMediaCodec* AMediaCodec_createEncoderByType(const char *name) {
     return createAMediaCodec(name, true, true);
 }
 
+EXPORT
 int AMediaCodec_delete(AMediaCodec *mData) {
     if (mData->mCodec != NULL) {
         mData->mCodec->release();
@@ -187,6 +190,7 @@ int AMediaCodec_delete(AMediaCodec *mData) {
     return OK;
 }
 
+EXPORT
 int AMediaCodec_configure(
         AMediaCodec *mData,
         const AMediaFormat* format,
@@ -205,6 +209,7 @@ int AMediaCodec_configure(
             crypto ? crypto->mCrypto : NULL, flags));
 }
 
+EXPORT
 int AMediaCodec_start(AMediaCodec *mData) {
     status_t ret =  mData->mCodec->start();
     if (ret != OK) {
@@ -216,6 +221,7 @@ int AMediaCodec_start(AMediaCodec *mData) {
     return OK;
 }
 
+EXPORT
 int AMediaCodec_stop(AMediaCodec *mData) {
     int ret = translate_error(mData->mCodec->stop());
 
@@ -227,10 +233,12 @@ int AMediaCodec_stop(AMediaCodec *mData) {
     return ret;
 }
 
+EXPORT
 int AMediaCodec_flush(AMediaCodec *mData) {
     return translate_error(mData->mCodec->flush());
 }
 
+EXPORT
 ssize_t AMediaCodec_dequeueInputBuffer(AMediaCodec *mData, int64_t timeoutUs) {
     size_t idx;
     status_t ret = mData->mCodec->dequeueInputBuffer(&idx, timeoutUs);
@@ -241,6 +249,7 @@ ssize_t AMediaCodec_dequeueInputBuffer(AMediaCodec *mData, int64_t timeoutUs) {
     return translate_error(ret);
 }
 
+EXPORT
 uint8_t* AMediaCodec_getInputBuffer(AMediaCodec *mData, size_t idx, size_t *out_size) {
     android::Vector<android::sp<android::ABuffer> > abufs;
     if (mData->mCodec->getInputBuffers(&abufs) == 0) {
@@ -258,6 +267,7 @@ uint8_t* AMediaCodec_getInputBuffer(AMediaCodec *mData, size_t idx, size_t *out_
     return NULL;
 }
 
+EXPORT
 uint8_t* AMediaCodec_getOutputBuffer(AMediaCodec *mData, size_t idx, size_t *out_size) {
     android::Vector<android::sp<android::ABuffer> > abufs;
     if (mData->mCodec->getOutputBuffers(&abufs) == 0) {
@@ -275,6 +285,7 @@ uint8_t* AMediaCodec_getOutputBuffer(AMediaCodec *mData, size_t idx, size_t *out
     return NULL;
 }
 
+EXPORT
 int AMediaCodec_queueInputBuffer(AMediaCodec *mData,
         size_t idx, off_t offset, size_t size, uint64_t time, uint32_t flags) {
 
@@ -283,6 +294,7 @@ int AMediaCodec_queueInputBuffer(AMediaCodec *mData,
     return translate_error(ret);
 }
 
+EXPORT
 ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec *mData,
         AMediaCodecBufferInfo *info, int64_t timeoutUs) {
     size_t idx;
@@ -312,12 +324,14 @@ ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec *mData,
     return translate_error(ret);
 }
 
+EXPORT
 AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec *mData) {
     sp<AMessage> format;
     mData->mCodec->getOutputFormat(&format);
     return AMediaFormat_fromMsg(&format);
 }
 
+EXPORT
 int AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, bool render) {
     if (render) {
         return translate_error(mData->mCodec->renderOutputBufferAndRelease(idx));
@@ -326,6 +340,7 @@ int AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, bool render)
     }
 }
 
+EXPORT
 int AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback, void *userdata) {
     mData->mCallback = callback;
     mData->mCallbackUserData = userdata;
@@ -341,6 +356,7 @@ typedef struct AMediaCodecCryptoInfo {
         size_t *encryptedbytes;
 } AMediaCodecCryptoInfo;
 
+EXPORT
 int AMediaCodec_queueSecureInputBuffer(
         AMediaCodec* codec,
         size_t idx,
@@ -375,6 +391,7 @@ int AMediaCodec_queueSecureInputBuffer(
 
 
 
+EXPORT
 AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
         int numsubsamples,
         uint8_t key[16],
@@ -406,15 +423,18 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
 }
 
 
+EXPORT
 int AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo* info) {
     free(info);
     return OK;
 }
 
+EXPORT
 size_t AMediaCodecCryptoInfo_getNumSubSamples(AMediaCodecCryptoInfo* ci) {
     return ci->numsubsamples;
 }
 
+EXPORT
 int AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
     if (!dst || !ci) {
         return AMEDIAERROR_UNSUPPORTED;
@@ -423,6 +443,7 @@ int AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
     return OK;
 }
 
+EXPORT
 int AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
     if (!dst || !ci) {
         return AMEDIAERROR_UNSUPPORTED;
@@ -431,6 +452,7 @@ int AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
     return OK;
 }
 
+EXPORT
 uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo* ci) {
     if (!ci) {
         return AMEDIAERROR_UNSUPPORTED;
@@ -438,6 +460,7 @@ uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo* ci) {
     return ci->mode;
 }
 
+EXPORT
 int AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
     if (!dst || !ci) {
         return AMEDIAERROR_UNSUPPORTED;
@@ -446,6 +469,7 @@ int AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo* ci, size_t *dst) 
     return OK;
 }
 
+EXPORT
 int AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
     if (!dst || !ci) {
         return AMEDIAERROR_UNSUPPORTED;

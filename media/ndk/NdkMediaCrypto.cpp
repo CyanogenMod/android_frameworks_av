@@ -74,6 +74,7 @@ struct AMediaCrypto {
 extern "C" {
 
 
+EXPORT
 bool AMediaCrypto_isCryptoSchemeSupported(const AMediaUUID uuid) {
     sp<ICrypto> crypto = makeCrypto();
     if (crypto == NULL) {
@@ -82,6 +83,7 @@ bool AMediaCrypto_isCryptoSchemeSupported(const AMediaUUID uuid) {
     return crypto->isCryptoSchemeSupported(uuid);
 }
 
+EXPORT
 bool AMediaCrypto_requiresSecureDecoderComponent(const char *mime) {
     sp<ICrypto> crypto = makeCrypto();
     if (crypto == NULL) {
@@ -90,6 +92,7 @@ bool AMediaCrypto_requiresSecureDecoderComponent(const char *mime) {
     return crypto->requiresSecureDecoderComponent(mime);
 }
 
+EXPORT
 AMediaCrypto* AMediaCrypto_new(const AMediaUUID uuid, const void *data, size_t datasize) {
 
     sp<ICrypto> tmp = makeCrypto();
@@ -107,6 +110,7 @@ AMediaCrypto* AMediaCrypto_new(const AMediaUUID uuid, const void *data, size_t d
     return crypto;
 }
 
+EXPORT
 void AMediaCrypto_delete(AMediaCrypto* crypto) {
     delete crypto;
 }

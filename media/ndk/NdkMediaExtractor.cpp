@@ -54,6 +54,7 @@ struct AMediaExtractor {
 
 extern "C" {
 
+EXPORT
 AMediaExtractor* AMediaExtractor_new() {
     ALOGV("ctor");
     AMediaExtractor *mData = new AMediaExtractor();
@@ -61,18 +62,21 @@ AMediaExtractor* AMediaExtractor_new() {
     return mData;
 }
 
+EXPORT
 int AMediaExtractor_delete(AMediaExtractor *mData) {
     ALOGV("dtor");
     delete mData;
     return OK;
 }
 
+EXPORT
 int AMediaExtractor_setDataSourceFd(AMediaExtractor *mData, int fd, off64_t offset, off64_t length) {
     ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
     mData->mImpl->setDataSource(fd, offset, length);
     return 0;
 }
 
+EXPORT
 int AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) {
     ALOGV("setDataSource(%s)", location);
     // TODO: add header support
@@ -116,31 +120,37 @@ int AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) 
     return OK;
 }
 
+EXPORT
 int AMediaExtractor_getTrackCount(AMediaExtractor *mData) {
     return mData->mImpl->countTracks();
 }
 
+EXPORT
 AMediaFormat* AMediaExtractor_getTrackFormat(AMediaExtractor *mData, size_t idx) {
     sp<AMessage> format;
     mData->mImpl->getTrackFormat(idx, &format);
     return AMediaFormat_fromMsg(&format);
 }
 
+EXPORT
 int AMediaExtractor_selectTrack(AMediaExtractor *mData, size_t idx) {
     ALOGV("selectTrack(%z)", idx);
     return translate_error(mData->mImpl->selectTrack(idx));
 }
 
+EXPORT
 int AMediaExtractor_unselectTrack(AMediaExtractor *mData, size_t idx) {
     ALOGV("unselectTrack(%z)", idx);
     return translate_error(mData->mImpl->unselectTrack(idx));
 }
 
+EXPORT
 bool AMediaExtractor_advance(AMediaExtractor *mData) {
     //ALOGV("advance");
     return mData->mImpl->advance();
 }
 
+EXPORT
 int AMediaExtractor_readSampleData(AMediaExtractor *mData, uint8_t *buffer, size_t capacity) {
     //ALOGV("readSampleData");
     sp<ABuffer> tmp = new ABuffer(buffer, capacity);
@@ -150,6 +160,7 @@ int AMediaExtractor_readSampleData(AMediaExtractor *mData, uint8_t *buffer, size
     return -1;
 }
 
+EXPORT
 int AMediaExtractor_getSampleFlags(AMediaExtractor *mData) {
     int sampleFlags = 0;
     sp<MetaData> meta;
@@ -171,6 +182,7 @@ int AMediaExtractor_getSampleFlags(AMediaExtractor *mData) {
     return sampleFlags;
 }
 
+EXPORT
 int AMediaExtractor_getSampleTrackIndex(AMediaExtractor *mData) {
     size_t idx;
     if (mData->mImpl->getSampleTrackIndex(&idx) != OK) {
@@ -179,6 +191,7 @@ int AMediaExtractor_getSampleTrackIndex(AMediaExtractor *mData) {
     return idx;
 }
 
+EXPORT
 int64_t AMediaExtractor_getSampletime(AMediaExtractor *mData) {
     int64_t time;
     if (mData->mImpl->getSampleTime(&time) != OK) {
@@ -187,6 +200,7 @@ int64_t AMediaExtractor_getSampletime(AMediaExtractor *mData) {
     return time;
 }
 
+EXPORT
 PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor *ex) {
 
     if (ex->mPsshBuf != NULL) {
@@ -267,6 +281,7 @@ PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor *ex) {
     return (PsshInfo*) ex->mPsshBuf->data();
 }
 
+EXPORT
 AMediaCodecCryptoInfo *AMediaExtractor_getSampleCryptoInfo(AMediaExtractor *ex) {
     sp<MetaData> meta;
     if(ex->mImpl->getSampleMeta(&meta) != 0) {
