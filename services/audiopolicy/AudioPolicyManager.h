@@ -190,26 +190,25 @@ protected:
             DEVICE_CATEGORY_CNT
         };
 
-        class IOProfile;
+        class HwModule;
 
-        class HwModule {
+        class AudioGain: public RefBase
+        {
         public:
-                    HwModule(const char *name);
-                    ~HwModule();
+            AudioGain();
+            virtual ~AudioGain() {}
 
-            void dump(int fd);
+            void dump(int fd, int spaces, int index) const;
 
-            const char *const mName; // base name of the audio HW module (primary, a2dp ...)
-            audio_module_handle_t mHandle;
-            Vector < sp<IOProfile> > mOutputProfiles; // output profiles exposed by this module
-            Vector < sp<IOProfile> > mInputProfiles;  // input profiles exposed by this module
+            struct audio_gain mGain;
         };
 
         class AudioPort: public RefBase
         {
         public:
-            AudioPort(audio_port_type_t type, audio_port_role_t role, HwModule *module) :
-                mType(type), mRole(role), mModule(module) {}
+            AudioPort(const String8& name, audio_port_type_t type,
+                      audio_port_role_t role, HwModule *module) :
+                mName(name), mType(type), mRole(role), mModule(module) {}
             virtual ~AudioPort() {}
 
             virtual void toAudioPort(struct audio_port *port) const;
@@ -219,15 +218,23 @@ protected:
             void loadOutChannels(char *name);
             void loadInChannels(char *name);
 
-            audio_port_type_t        mType;
-            audio_port_role_t        mRole;
+            audio_gain_mode_t loadGainMode(char *name);
+            void loadGain(cnode *root);
+            void loadGains(cnode *root);
+
+            void dump(int fd, int spaces) const;
+
+            String8           mName;
+            audio_port_type_t mType;
+            audio_port_role_t mRole;
             // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
             // indicates the supported parameters should be read from the output stream
             // after it is opened for the first time
             Vector <uint32_t> mSamplingRates; // supported sampling rates
             Vector <audio_channel_mask_t> mChannelMasks; // supported channel masks
             Vector <audio_format_t> mFormats; // supported audio formats
-            HwModule *mModule;                     // audio HW module exposing this I/O stream
+            Vector < sp<AudioGain> > mGains; // gain controllers
+            HwModule *mModule;                 // audio HW module exposing this I/O stream
         };
 
         class AudioPatch: public RefBase
@@ -246,17 +253,17 @@ protected:
         class DeviceDescriptor: public AudioPort
         {
         public:
-            DeviceDescriptor(audio_devices_t type, String8 address,
+            DeviceDescriptor(const String8& name, audio_devices_t type, String8 address,
                              audio_channel_mask_t channelMask) :
-                                 AudioPort(AUDIO_PORT_TYPE_DEVICE,
+                                 AudioPort(name, AUDIO_PORT_TYPE_DEVICE,
                                            audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
                                                                           AUDIO_PORT_ROLE_SOURCE,
                                          NULL),
                                  mDeviceType(type), mAddress(address),
                                  mChannelMask(channelMask), mId(0) {}
 
-            DeviceDescriptor(audio_devices_t type) :
-                                AudioPort(AUDIO_PORT_TYPE_DEVICE,
+            DeviceDescriptor(String8 name, audio_devices_t type) :
+                                AudioPort(name, AUDIO_PORT_TYPE_DEVICE,
                                           audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
                                                                          AUDIO_PORT_ROLE_SOURCE,
                                         NULL),
@@ -267,10 +274,10 @@ protected:
             bool equals(const sp<DeviceDescriptor>& other) const;
             void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;
+
             virtual void toAudioPort(struct audio_port *port) const;
 
-            status_t dump(int fd, int spaces) const;
-            static void dumpHeader(int fd, int spaces);
+            status_t dump(int fd, int spaces, int index) const;
 
             audio_devices_t mDeviceType;
             String8 mAddress;
@@ -290,9 +297,12 @@ protected:
             audio_devices_t types() const { return mDeviceTypes; }
 
             void loadDevicesFromType(audio_devices_t types);
+            void loadDevicesFromName(char *name, const DeviceVector& declaredDevices);
+
             sp<DeviceDescriptor> getDevice(audio_devices_t type, String8 address) const;
             DeviceVector getDevicesFromType(audio_devices_t types) const;
             sp<DeviceDescriptor> getDeviceFromId(audio_port_handle_t id) const;
+            sp<DeviceDescriptor> getDeviceFromName(const String8& name) const;
 
         private:
             void refreshTypes();
@@ -307,7 +317,7 @@ protected:
         class IOProfile : public AudioPort
         {
         public:
-            IOProfile(audio_port_role_t role, HwModule *module);
+            IOProfile(const String8& name, audio_port_role_t role, HwModule *module);
             virtual ~IOProfile();
 
             bool isCompatibleProfile(audio_devices_t device,
@@ -323,6 +333,25 @@ protected:
                                              // (devices this output can be routed to)
             audio_output_flags_t mFlags; // attribute flags (e.g primary output,
                                                 // direct output...). For outputs only.
+        };
+
+        class HwModule {
+        public:
+                    HwModule(const char *name);
+                    ~HwModule();
+
+            status_t loadOutput(cnode *root);
+            status_t loadInput(cnode *root);
+            status_t loadDevice(cnode *root);
+
+            void dump(int fd);
+
+            const char *const mName; // base name of the audio HW module (primary, a2dp ...)
+            audio_module_handle_t mHandle;
+            Vector < sp<IOProfile> > mOutputProfiles; // output profiles exposed by this module
+            Vector < sp<IOProfile> > mInputProfiles;  // input profiles exposed by this module
+            DeviceVector             mDeclaredDevices; // devices declared in audio_policy.conf
+
         };
 
         // default volume curve
@@ -633,6 +662,7 @@ protected:
         AudioOutputDescriptor *getOutputFromId(audio_port_handle_t id) const;
         AudioInputDescriptor *getInputFromId(audio_port_handle_t id) const;
         HwModule *getModuleForDevice(audio_devices_t device) const;
+        HwModule *getModuleFromName(const char *name) const;
         //
         // Audio policy configuration file parsing (audio_policy.conf)
         //
@@ -645,11 +675,9 @@ protected:
         static bool stringToBool(const char *value);
         static audio_output_flags_t parseFlagNames(char *name);
         static audio_devices_t parseDeviceNames(char *name);
-        status_t loadOutput(cnode *root,  HwModule *module);
-        status_t loadInput(cnode *root,  HwModule *module);
         void loadHwModule(cnode *root);
         void loadHwModules(cnode *root);
-        void loadGlobalConfig(cnode *root);
+        void loadGlobalConfig(cnode *root, HwModule *module);
         status_t loadAudioPolicyConfig(const char *path);
         void defaultAudioPolicyConfig(void);
 
@@ -663,10 +691,8 @@ protected:
         // reset to mOutputs when updateDevicesAndOutputs() is called.
         DefaultKeyedVector<audio_io_handle_t, AudioOutputDescriptor *> mPreviousOutputs;
         DefaultKeyedVector<audio_io_handle_t, AudioInputDescriptor *> mInputs;     // list of input descriptors
-        DeviceVector  mAvailableOutputDevices; // bit field of all available output devices
-        DeviceVector  mAvailableInputDevices; // bit field of all available input devices
-                                                // without AUDIO_DEVICE_BIT_IN to allow direct bit
-                                                // field comparisons
+        DeviceVector  mAvailableOutputDevices; // all available output devices
+        DeviceVector  mAvailableInputDevices;  // all available input devices
         int mPhoneState;                                                    // current phone state
         audio_policy_forced_cfg_t mForceUse[AUDIO_POLICY_FORCE_USE_CNT];   // current forced use configuration
 

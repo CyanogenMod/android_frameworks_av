@@ -38,9 +38,9 @@
 #include <utils/Log.h>
 #include <hardware/audio.h>
 #include <hardware/audio_effect.h>
-#include <hardware_legacy/audio_policy_conf.h>
 #include <media/AudioParameter.h>
 #include "AudioPolicyManager.h"
+#include "audio_policy_conf.h"
 
 namespace android {
 
@@ -136,6 +136,12 @@ const StringToEnum sInChannelsNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_CHANNEL_IN_FRONT_BACK),
 };
 
+const StringToEnum sGainModeNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_GAIN_MODE_JOINT),
+    STRING_TO_ENUM(AUDIO_GAIN_MODE_CHANNELS),
+    STRING_TO_ENUM(AUDIO_GAIN_MODE_RAMP),
+};
+
 
 uint32_t AudioPolicyManager::stringToEnum(const struct StringToEnum *table,
                                               size_t size,
@@ -188,9 +194,8 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
     if (audio_is_output_device(device)) {
         SortedVector <audio_io_handle_t> outputs;
 
-        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
-                                                            address,
-                                                            0);
+        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
+        devDesc->mAddress = address;
         ssize_t index = mAvailableOutputDevices.indexOf(devDesc);
 
         // save a copy of the opened output descriptors before any output is opened or closed
@@ -295,10 +300,8 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
     if (audio_is_input_device(device)) {
         SortedVector <audio_io_handle_t> inputs;
 
-        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
-                                                            address,
-                                                            0);
-
+        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
+        devDesc->mAddress = address;
         ssize_t index = mAvailableInputDevices.indexOf(devDesc);
         switch (state)
         {
@@ -357,9 +360,8 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
 {
     audio_policy_dev_state_t state = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     String8 address = String8(device_address);
-    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device,
-                                                        String8(device_address),
-                                                        0);
+    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
+    devDesc->mAddress = String8(device_address);
     ssize_t index;
     DeviceVector *deviceVector;
 
@@ -1487,15 +1489,13 @@ status_t AudioPolicyManager::dump(int fd)
     snprintf(buffer, SIZE, " Available output devices:\n");
     result.append(buffer);
     write(fd, result.string(), result.size());
-    DeviceDescriptor::dumpHeader(fd, 2);
     for (size_t i = 0; i < mAvailableOutputDevices.size(); i++) {
-        mAvailableOutputDevices[i]->dump(fd, 2);
+        mAvailableOutputDevices[i]->dump(fd, 2, i);
     }
     snprintf(buffer, SIZE, "\n Available input devices:\n");
     write(fd, buffer, strlen(buffer));
-    DeviceDescriptor::dumpHeader(fd, 2);
     for (size_t i = 0; i < mAvailableInputDevices.size(); i++) {
-        mAvailableInputDevices[i]->dump(fd, 2);
+        mAvailableInputDevices[i]->dump(fd, 2, i);
     }
 
     snprintf(buffer, SIZE, "\nHW Modules dump:\n");
@@ -1724,6 +1724,18 @@ AudioPolicyManager::HwModule *AudioPolicyManager::getModuleForDevice(audio_devic
     }
     return NULL;
 }
+
+AudioPolicyManager::HwModule *AudioPolicyManager::getModuleFromName(const char *name) const
+{
+    for (size_t i = 0; i < mHwModules.size(); i++)
+    {
+        if (strcmp(mHwModules[i]->mName, name) == 0) {
+            return mHwModules[i];
+        }
+    }
+    return NULL;
+}
+
 
 status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                audio_patch_handle_t *handle,
@@ -2097,7 +2109,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
         mForceUse[i] = AUDIO_POLICY_FORCE_NONE;
     }
 
-    mDefaultOutputDevice = new DeviceDescriptor(AUDIO_DEVICE_OUT_SPEAKER);
+    mDefaultOutputDevice = new DeviceDescriptor(String8(""), AUDIO_DEVICE_OUT_SPEAKER);
     if (loadAudioPolicyConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE) != NO_ERROR) {
         if (loadAudioPolicyConfig(AUDIO_POLICY_CONFIG_FILE) != NO_ERROR) {
             ALOGE("could not load audio policy configuration file, setting defaults");
@@ -4661,6 +4673,140 @@ AudioPolicyManager::HwModule::~HwModule()
     free((void *)mName);
 }
 
+status_t AudioPolicyManager::HwModule::loadInput(cnode *root)
+{
+    cnode *node = root->first_child;
+
+    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SINK, this);
+
+    while (node) {
+        if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
+            profile->loadSamplingRates((char *)node->value);
+        } else if (strcmp(node->name, FORMATS_TAG) == 0) {
+            profile->loadFormats((char *)node->value);
+        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
+            profile->loadInChannels((char *)node->value);
+        } else if (strcmp(node->name, DEVICES_TAG) == 0) {
+            profile->mSupportedDevices.loadDevicesFromName((char *)node->value,
+                                                           mDeclaredDevices);
+        } else if (strcmp(node->name, GAINS_TAG) == 0) {
+            profile->loadGains(node);
+        }
+        node = node->next;
+    }
+    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
+            "loadInput() invalid supported devices");
+    ALOGW_IF(profile->mChannelMasks.size() == 0,
+            "loadInput() invalid supported channel masks");
+    ALOGW_IF(profile->mSamplingRates.size() == 0,
+            "loadInput() invalid supported sampling rates");
+    ALOGW_IF(profile->mFormats.size() == 0,
+            "loadInput() invalid supported formats");
+    if (!profile->mSupportedDevices.isEmpty() &&
+            (profile->mChannelMasks.size() != 0) &&
+            (profile->mSamplingRates.size() != 0) &&
+            (profile->mFormats.size() != 0)) {
+
+        ALOGV("loadInput() adding input Supported Devices %04x",
+              profile->mSupportedDevices.types());
+
+        mInputProfiles.add(profile);
+        return NO_ERROR;
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+status_t AudioPolicyManager::HwModule::loadOutput(cnode *root)
+{
+    cnode *node = root->first_child;
+
+    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SOURCE, this);
+
+    while (node) {
+        if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
+            profile->loadSamplingRates((char *)node->value);
+        } else if (strcmp(node->name, FORMATS_TAG) == 0) {
+            profile->loadFormats((char *)node->value);
+        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
+            profile->loadOutChannels((char *)node->value);
+        } else if (strcmp(node->name, DEVICES_TAG) == 0) {
+            profile->mSupportedDevices.loadDevicesFromName((char *)node->value,
+                                                           mDeclaredDevices);
+        } else if (strcmp(node->name, FLAGS_TAG) == 0) {
+            profile->mFlags = parseFlagNames((char *)node->value);
+        } else if (strcmp(node->name, GAINS_TAG) == 0) {
+            profile->loadGains(node);
+        }
+        node = node->next;
+    }
+    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
+            "loadOutput() invalid supported devices");
+    ALOGW_IF(profile->mChannelMasks.size() == 0,
+            "loadOutput() invalid supported channel masks");
+    ALOGW_IF(profile->mSamplingRates.size() == 0,
+            "loadOutput() invalid supported sampling rates");
+    ALOGW_IF(profile->mFormats.size() == 0,
+            "loadOutput() invalid supported formats");
+    if (!profile->mSupportedDevices.isEmpty() &&
+            (profile->mChannelMasks.size() != 0) &&
+            (profile->mSamplingRates.size() != 0) &&
+            (profile->mFormats.size() != 0)) {
+
+        ALOGV("loadOutput() adding output Supported Devices %04x, mFlags %04x",
+              profile->mSupportedDevices.types(), profile->mFlags);
+
+        mOutputProfiles.add(profile);
+        return NO_ERROR;
+    } else {
+        return BAD_VALUE;
+    }
+}
+
+status_t AudioPolicyManager::HwModule::loadDevice(cnode *root)
+{
+    cnode *node = root->first_child;
+
+    audio_devices_t type = AUDIO_DEVICE_NONE;
+    while (node) {
+        if (strcmp(node->name, DEVICE_TYPE) == 0) {
+            type = parseDeviceNames((char *)node->value);
+            break;
+        }
+        node = node->next;
+    }
+    if (type == AUDIO_DEVICE_NONE ||
+            (!audio_is_input_device(type) && !audio_is_output_device(type))) {
+        ALOGW("loadDevice() bad type %08x", type);
+        return BAD_VALUE;
+    }
+    sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(String8(root->name), type);
+    deviceDesc->mModule = this;
+
+    node = root->first_child;
+    while (node) {
+        if (strcmp(node->name, DEVICE_ADDRESS) == 0) {
+            deviceDesc->mAddress = String8((char *)node->value);
+        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
+            if (audio_is_input_device(type)) {
+                deviceDesc->loadInChannels((char *)node->value);
+            } else {
+                deviceDesc->loadOutChannels((char *)node->value);
+            }
+        } else if (strcmp(node->name, GAINS_TAG) == 0) {
+            deviceDesc->loadGains(node);
+        }
+        node = node->next;
+    }
+
+    ALOGV("loadDevice() adding device name %s type %08x address %s",
+          deviceDesc->mName.string(), type, deviceDesc->mAddress.string());
+
+    mDeclaredDevices.add(deviceDesc);
+
+    return NO_ERROR;
+}
+
 void AudioPolicyManager::HwModule::dump(int fd)
 {
     const size_t SIZE = 256;
@@ -4686,6 +4832,12 @@ void AudioPolicyManager::HwModule::dump(int fd)
             snprintf(buffer, SIZE, "    input %zu:\n", i);
             write(fd, buffer, strlen(buffer));
             mInputProfiles[i]->dump(fd);
+        }
+    }
+    if (mDeclaredDevices.size()) {
+        write(fd, "  - devices:\n", strlen("  - devices:\n"));
+        for (size_t i = 0; i < mDeclaredDevices.size(); i++) {
+            mDeclaredDevices[i]->dump(fd, 4, i);
         }
     }
 }
@@ -4732,7 +4884,6 @@ void AudioPolicyManager::AudioPort::loadSamplingRates(char *name)
         }
         str = strtok(NULL, "|");
     }
-    return;
 }
 
 void AudioPolicyManager::AudioPort::loadFormats(char *name)
@@ -4755,7 +4906,6 @@ void AudioPolicyManager::AudioPort::loadFormats(char *name)
         }
         str = strtok(NULL, "|");
     }
-    return;
 }
 
 void AudioPolicyManager::AudioPort::loadInChannels(char *name)
@@ -4780,7 +4930,6 @@ void AudioPolicyManager::AudioPort::loadInChannels(char *name)
         }
         str = strtok(NULL, "|");
     }
-    return;
 }
 
 void AudioPolicyManager::AudioPort::loadOutChannels(char *name)
@@ -4809,10 +4958,174 @@ void AudioPolicyManager::AudioPort::loadOutChannels(char *name)
     return;
 }
 
+audio_gain_mode_t AudioPolicyManager::AudioPort::loadGainMode(char *name)
+{
+    const char *str = strtok(name, "|");
+
+    ALOGV("loadGainMode() %s", name);
+    audio_gain_mode_t mode = 0;
+    while (str != NULL) {
+        mode |= (audio_gain_mode_t)stringToEnum(sGainModeNameToEnumTable,
+                                                ARRAY_SIZE(sGainModeNameToEnumTable),
+                                                str);
+        str = strtok(NULL, "|");
+    }
+    return mode;
+}
+
+void AudioPolicyManager::AudioPort::loadGain(cnode *root)
+{
+    cnode *node = root->first_child;
+
+    sp<AudioGain> gain = new AudioGain();
+
+    while (node) {
+        if (strcmp(node->name, GAIN_MODE) == 0) {
+            gain->mGain.mode = loadGainMode((char *)node->value);
+        } else if (strcmp(node->name, GAIN_CHANNELS) == 0) {
+            if ((mType == AUDIO_PORT_TYPE_DEVICE && mRole == AUDIO_PORT_ROLE_SOURCE) ||
+                    (mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK)) {
+                gain->mGain.channel_mask =
+                        (audio_channel_mask_t)stringToEnum(sInChannelsNameToEnumTable,
+                                                           ARRAY_SIZE(sInChannelsNameToEnumTable),
+                                                           (char *)node->value);
+            } else {
+                gain->mGain.channel_mask =
+                        (audio_channel_mask_t)stringToEnum(sOutChannelsNameToEnumTable,
+                                                           ARRAY_SIZE(sOutChannelsNameToEnumTable),
+                                                           (char *)node->value);
+            }
+        } else if (strcmp(node->name, GAIN_MIN_VALUE) == 0) {
+            gain->mGain.min_value = atoi((char *)node->value);
+        } else if (strcmp(node->name, GAIN_MAX_VALUE) == 0) {
+            gain->mGain.max_value = atoi((char *)node->value);
+        } else if (strcmp(node->name, GAIN_DEFAULT_VALUE) == 0) {
+            gain->mGain.default_value = atoi((char *)node->value);
+        } else if (strcmp(node->name, GAIN_STEP_VALUE) == 0) {
+            gain->mGain.step_value = atoi((char *)node->value);
+        } else if (strcmp(node->name, GAIN_MIN_RAMP_MS) == 0) {
+            gain->mGain.min_ramp_ms = atoi((char *)node->value);
+        } else if (strcmp(node->name, GAIN_MAX_RAMP_MS) == 0) {
+            gain->mGain.max_ramp_ms = atoi((char *)node->value);
+        }
+        node = node->next;
+    }
+
+    ALOGV("loadGain() adding new gain mode %08x channel mask %08x min mB %d max mB %d",
+          gain->mGain.mode, gain->mGain.channel_mask, gain->mGain.min_value, gain->mGain.max_value);
+
+    if (gain->mGain.mode == 0) {
+        return;
+    }
+    mGains.add(gain);
+}
+
+void AudioPolicyManager::AudioPort::loadGains(cnode *root)
+{
+    cnode *node = root->first_child;
+    while (node) {
+        ALOGV("loadGains() loading gain %s", node->name);
+        loadGain(node);
+        node = node->next;
+    }
+}
+
+void AudioPolicyManager::AudioPort::dump(int fd, int spaces) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+    String8 result;
+
+    if (mName.size() != 0) {
+        snprintf(buffer, SIZE, "%*s- name: %s\n", spaces, "", mName.string());
+        result.append(buffer);
+    }
+
+    if (mSamplingRates.size() != 0) {
+        snprintf(buffer, SIZE, "%*s- sampling rates: ", spaces, "");
+        result.append(buffer);
+        for (size_t i = 0; i < mSamplingRates.size(); i++) {
+            snprintf(buffer, SIZE, "%d", mSamplingRates[i]);
+            result.append(buffer);
+            result.append(i == (mSamplingRates.size() - 1) ? "" : ", ");
+        }
+        result.append("\n");
+    }
+
+    if (mChannelMasks.size() != 0) {
+        snprintf(buffer, SIZE, "%*s- channel masks: ", spaces, "");
+        result.append(buffer);
+        for (size_t i = 0; i < mChannelMasks.size(); i++) {
+            snprintf(buffer, SIZE, "0x%04x", mChannelMasks[i]);
+            result.append(buffer);
+            result.append(i == (mChannelMasks.size() - 1) ? "" : ", ");
+        }
+        result.append("\n");
+    }
+
+    if (mFormats.size() != 0) {
+        snprintf(buffer, SIZE, "%*s- formats: ", spaces, "");
+        result.append(buffer);
+        for (size_t i = 0; i < mFormats.size(); i++) {
+            snprintf(buffer, SIZE, "%-48s", enumToString(sFormatNameToEnumTable,
+                                                          ARRAY_SIZE(sFormatNameToEnumTable),
+                                                          mFormats[i]));
+            result.append(buffer);
+            result.append(i == (mFormats.size() - 1) ? "" : ", ");
+        }
+        result.append("\n");
+    }
+    write(fd, result.string(), result.size());
+    if (mGains.size() != 0) {
+        snprintf(buffer, SIZE, "%*s- gains:\n", spaces, "");
+        write(fd, buffer, strlen(buffer) + 1);
+        result.append(buffer);
+        for (size_t i = 0; i < mGains.size(); i++) {
+            mGains[i]->dump(fd, spaces + 2, i);
+        }
+    }
+}
+
+// --- AudioGain class implementation
+
+AudioPolicyManager::AudioGain::AudioGain()
+{
+    memset(&mGain, 0, sizeof(struct audio_gain));
+}
+
+void AudioPolicyManager::AudioGain::dump(int fd, int spaces, int index) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+    String8 result;
+
+    snprintf(buffer, SIZE, "%*sGain %d:\n", spaces, "", index+1);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- mode: %08x\n", spaces, "", mGain.mode);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- channel_mask: %08x\n", spaces, "", mGain.channel_mask);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- min_value: %d mB\n", spaces, "", mGain.min_value);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- max_value: %d mB\n", spaces, "", mGain.max_value);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- default_value: %d mB\n", spaces, "", mGain.default_value);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- step_value: %d mB\n", spaces, "", mGain.step_value);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- min_ramp_ms: %d ms\n", spaces, "", mGain.min_ramp_ms);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "%*s- max_ramp_ms: %d ms\n", spaces, "", mGain.max_ramp_ms);
+    result.append(buffer);
+
+    write(fd, result.string(), result.size());
+}
+
 // --- IOProfile class implementation
 
-AudioPolicyManager::IOProfile::IOProfile(audio_port_role_t role, HwModule *module)
-    : AudioPort(AUDIO_PORT_TYPE_MIX, role, module), mFlags((audio_output_flags_t)0)
+AudioPolicyManager::IOProfile::IOProfile(const String8& name, audio_port_role_t role,
+                                         HwModule *module)
+    : AudioPort(name, AUDIO_PORT_TYPE_MIX, role, module), mFlags((audio_output_flags_t)0)
 {
 }
 
@@ -4876,42 +5189,16 @@ void AudioPolicyManager::IOProfile::dump(int fd)
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, "    - sampling rates: ");
-    result.append(buffer);
-    for (size_t i = 0; i < mSamplingRates.size(); i++) {
-        snprintf(buffer, SIZE, "%d", mSamplingRates[i]);
-        result.append(buffer);
-        result.append(i == (mSamplingRates.size() - 1) ? "\n" : ", ");
-    }
-
-    snprintf(buffer, SIZE, "    - channel masks: ");
-    result.append(buffer);
-    for (size_t i = 0; i < mChannelMasks.size(); i++) {
-        snprintf(buffer, SIZE, "0x%04x", mChannelMasks[i]);
-        result.append(buffer);
-        result.append(i == (mChannelMasks.size() - 1) ? "\n" : ", ");
-    }
-
-    snprintf(buffer, SIZE, "    - formats: ");
-    result.append(buffer);
-    for (size_t i = 0; i < mFormats.size(); i++) {
-        snprintf(buffer, SIZE, "0x%08x", mFormats[i]);
-        result.append(buffer);
-        result.append(i == (mFormats.size() - 1) ? "\n" : ", ");
-    }
-
-    snprintf(buffer, SIZE, "    - devices:\n");
-    result.append(buffer);
-    write(fd, result.string(), result.size());
-    DeviceDescriptor::dumpHeader(fd, 6);
-    for (size_t i = 0; i < mSupportedDevices.size(); i++) {
-        mSupportedDevices[i]->dump(fd, 6);
-    }
+    AudioPort::dump(fd, 4);
 
     snprintf(buffer, SIZE, "    - flags: 0x%04x\n", mFlags);
     result.append(buffer);
-
+    snprintf(buffer, SIZE, "    - devices:\n");
+    result.append(buffer);
     write(fd, result.string(), result.size());
+    for (size_t i = 0; i < mSupportedDevices.size(); i++) {
+        mSupportedDevices[i]->dump(fd, 6, i);
+    }
 }
 
 void AudioPolicyManager::IOProfile::log()
@@ -5016,8 +5303,31 @@ void AudioPolicyManager::DeviceVector::loadDevicesFromType(audio_devices_t types
         uint32_t i = 31 - __builtin_clz(types);
         uint32_t type = 1 << i;
         types &= ~type;
-        add(new DeviceDescriptor(type | role_bit));
+        add(new DeviceDescriptor(String8(""), type | role_bit));
     }
+}
+
+void AudioPolicyManager::DeviceVector::loadDevicesFromName(char *name,
+                                                           const DeviceVector& declaredDevices)
+{
+    char *devName = strtok(name, "|");
+    while (devName != NULL) {
+        if (strlen(devName) != 0) {
+            audio_devices_t type = stringToEnum(sDeviceNameToEnumTable,
+                                 ARRAY_SIZE(sDeviceNameToEnumTable),
+                                 devName);
+            if (type != AUDIO_DEVICE_NONE) {
+                add(new DeviceDescriptor(String8(""), type));
+            } else {
+                sp<DeviceDescriptor> deviceDesc =
+                        declaredDevices.getDeviceFromName(String8(devName));
+                if (deviceDesc != 0) {
+                    add(deviceDesc);
+                }
+            }
+         }
+        devName = strtok(NULL, "|");
+     }
 }
 
 sp<AudioPolicyManager::DeviceDescriptor> AudioPolicyManager::DeviceVector::getDevice(
@@ -5066,6 +5376,19 @@ AudioPolicyManager::DeviceVector AudioPolicyManager::DeviceVector::getDevicesFro
     return devices;
 }
 
+sp<AudioPolicyManager::DeviceDescriptor> AudioPolicyManager::DeviceVector::getDeviceFromName(
+        const String8& name) const
+{
+    sp<DeviceDescriptor> device;
+    for (size_t i = 0; i < size(); i++) {
+        if (itemAt(i)->mName == name) {
+            device = itemAt(i);
+            break;
+        }
+    }
+    return device;
+}
+
 void AudioPolicyManager::DeviceDescriptor::toAudioPortConfig(
                                                     struct audio_port_config *dstConfig,
                                                     const struct audio_port_config *srcConfig) const
@@ -5102,28 +5425,33 @@ void AudioPolicyManager::DeviceDescriptor::toAudioPort(struct audio_port *port) 
     strncpy(port->ext.device.address, mAddress.string(), AUDIO_DEVICE_MAX_ADDRESS_LEN);
 }
 
-void AudioPolicyManager::DeviceDescriptor::dumpHeader(int fd, int spaces)
+status_t AudioPolicyManager::DeviceDescriptor::dump(int fd, int spaces, int index) const
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
+    String8 result;
 
-    snprintf(buffer, SIZE, "%*s%-48s %-2s %-8s %-32s \n",
-                         spaces, "", "Type", "ID", "Cnl Mask", "Address");
-    write(fd, buffer, strlen(buffer));
-}
-
-status_t AudioPolicyManager::DeviceDescriptor::dump(int fd, int spaces) const
-{
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-
-    snprintf(buffer, SIZE, "%*s%-48s %2d %08x %-32s \n",
-                         spaces, "",
-                         enumToString(sDeviceNameToEnumTable,
-                                      ARRAY_SIZE(sDeviceNameToEnumTable),
-                                      mDeviceType),
-                         mId, mChannelMask, mAddress.string());
-    write(fd, buffer, strlen(buffer));
+    snprintf(buffer, SIZE, "%*sDevice %d:\n", spaces, "", index+1);
+    result.append(buffer);
+    if (mId != 0) {
+        snprintf(buffer, SIZE, "%*s- id: %2d\n", spaces, "", mId);
+        result.append(buffer);
+    }
+    snprintf(buffer, SIZE, "%*s- type: %-48s\n", spaces, "",
+                                              enumToString(sDeviceNameToEnumTable,
+                                                           ARRAY_SIZE(sDeviceNameToEnumTable),
+                                                           mDeviceType));
+    result.append(buffer);
+    if (mAddress.size() != 0) {
+        snprintf(buffer, SIZE, "%*s- address: %-32s\n", spaces, "", mAddress.string());
+        result.append(buffer);
+    }
+    if (mChannelMask != AUDIO_CHANNEL_NONE) {
+        snprintf(buffer, SIZE, "%*s- channel mask: %08x\n", spaces, "", mChannelMask);
+        result.append(buffer);
+    }
+    write(fd, result.string(), result.size());
+    AudioPort::dump(fd, spaces);
 
     return NO_ERROR;
 }
@@ -5172,102 +5500,30 @@ audio_devices_t AudioPolicyManager::parseDeviceNames(char *name)
     return device;
 }
 
-status_t AudioPolicyManager::loadInput(cnode *root, HwModule *module)
-{
-    cnode *node = root->first_child;
-
-    sp<IOProfile> profile = new IOProfile(AUDIO_PORT_ROLE_SINK, module);
-
-    while (node) {
-        if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
-            profile->loadSamplingRates((char *)node->value);
-        } else if (strcmp(node->name, FORMATS_TAG) == 0) {
-            profile->loadFormats((char *)node->value);
-        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
-            profile->loadInChannels((char *)node->value);
-        } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
-        }
-        node = node->next;
-    }
-    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
-            "loadInput() invalid supported devices");
-    ALOGW_IF(profile->mChannelMasks.size() == 0,
-            "loadInput() invalid supported channel masks");
-    ALOGW_IF(profile->mSamplingRates.size() == 0,
-            "loadInput() invalid supported sampling rates");
-    ALOGW_IF(profile->mFormats.size() == 0,
-            "loadInput() invalid supported formats");
-    if (!profile->mSupportedDevices.isEmpty() &&
-            (profile->mChannelMasks.size() != 0) &&
-            (profile->mSamplingRates.size() != 0) &&
-            (profile->mFormats.size() != 0)) {
-
-        ALOGV("loadInput() adding input Supported Devices %04x",
-              profile->mSupportedDevices.types());
-
-        module->mInputProfiles.add(profile);
-        return NO_ERROR;
-    } else {
-        return BAD_VALUE;
-    }
-}
-
-status_t AudioPolicyManager::loadOutput(cnode *root, HwModule *module)
-{
-    cnode *node = root->first_child;
-
-    sp<IOProfile> profile = new IOProfile(AUDIO_PORT_ROLE_SOURCE, module);
-
-    while (node) {
-        if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
-            profile->loadSamplingRates((char *)node->value);
-        } else if (strcmp(node->name, FORMATS_TAG) == 0) {
-            profile->loadFormats((char *)node->value);
-        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
-            profile->loadOutChannels((char *)node->value);
-        } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
-        } else if (strcmp(node->name, FLAGS_TAG) == 0) {
-            profile->mFlags = parseFlagNames((char *)node->value);
-        }
-        node = node->next;
-    }
-    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
-            "loadOutput() invalid supported devices");
-    ALOGW_IF(profile->mChannelMasks.size() == 0,
-            "loadOutput() invalid supported channel masks");
-    ALOGW_IF(profile->mSamplingRates.size() == 0,
-            "loadOutput() invalid supported sampling rates");
-    ALOGW_IF(profile->mFormats.size() == 0,
-            "loadOutput() invalid supported formats");
-    if (!profile->mSupportedDevices.isEmpty() &&
-            (profile->mChannelMasks.size() != 0) &&
-            (profile->mSamplingRates.size() != 0) &&
-            (profile->mFormats.size() != 0)) {
-
-        ALOGV("loadOutput() adding output Supported Devices %04x, mFlags %04x",
-              profile->mSupportedDevices.types(), profile->mFlags);
-
-        module->mOutputProfiles.add(profile);
-        return NO_ERROR;
-    } else {
-        return BAD_VALUE;
-    }
-}
-
 void AudioPolicyManager::loadHwModule(cnode *root)
 {
-    cnode *node = config_find(root, OUTPUTS_TAG);
     status_t status = NAME_NOT_FOUND;
-
+    cnode *node;
     HwModule *module = new HwModule(root->name);
 
+    node = config_find(root, DEVICES_TAG);
+    if (node != NULL) {
+        node = node->first_child;
+        while (node) {
+            ALOGV("loadHwModule() loading device %s", node->name);
+            status_t tmpStatus = module->loadDevice(node);
+            if (status == NAME_NOT_FOUND || status == NO_ERROR) {
+                status = tmpStatus;
+            }
+            node = node->next;
+        }
+    }
+    node = config_find(root, OUTPUTS_TAG);
     if (node != NULL) {
         node = node->first_child;
         while (node) {
             ALOGV("loadHwModule() loading output %s", node->name);
-            status_t tmpStatus = loadOutput(node, module);
+            status_t tmpStatus = module->loadOutput(node);
             if (status == NAME_NOT_FOUND || status == NO_ERROR) {
                 status = tmpStatus;
             }
@@ -5279,13 +5535,15 @@ void AudioPolicyManager::loadHwModule(cnode *root)
         node = node->first_child;
         while (node) {
             ALOGV("loadHwModule() loading input %s", node->name);
-            status_t tmpStatus = loadInput(node, module);
+            status_t tmpStatus = module->loadInput(node);
             if (status == NAME_NOT_FOUND || status == NO_ERROR) {
                 status = tmpStatus;
             }
             node = node->next;
         }
     }
+    loadGlobalConfig(root, module);
+
     if (status == NO_ERROR) {
         mHwModules.add(module);
     } else {
@@ -5308,16 +5566,22 @@ void AudioPolicyManager::loadHwModules(cnode *root)
     }
 }
 
-void AudioPolicyManager::loadGlobalConfig(cnode *root)
+void AudioPolicyManager::loadGlobalConfig(cnode *root, HwModule *module)
 {
     cnode *node = config_find(root, GLOBAL_CONFIG_TAG);
     if (node == NULL) {
         return;
     }
+    DeviceVector declaredDevices;
+    if (module != NULL) {
+        declaredDevices = module->mDeclaredDevices;
+    }
+
     node = node->first_child;
     while (node) {
         if (strcmp(ATTACHED_OUTPUT_DEVICES_TAG, node->name) == 0) {
-            mAvailableOutputDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
+            mAvailableOutputDevices.loadDevicesFromName((char *)node->value,
+                                                        declaredDevices);
             ALOGV("loadGlobalConfig() Attached Output Devices %08x",
                   mAvailableOutputDevices.types());
         } else if (strcmp(DEFAULT_OUTPUT_DEVICE_TAG, node->name) == 0) {
@@ -5325,13 +5589,14 @@ void AudioPolicyManager::loadGlobalConfig(cnode *root)
                                               ARRAY_SIZE(sDeviceNameToEnumTable),
                                               (char *)node->value);
             if (device != AUDIO_DEVICE_NONE) {
-                mDefaultOutputDevice = new DeviceDescriptor(device);
+                mDefaultOutputDevice = new DeviceDescriptor(String8(""), device);
             } else {
                 ALOGW("loadGlobalConfig() default device not specified");
             }
             ALOGV("loadGlobalConfig() mDefaultOutputDevice %08x", mDefaultOutputDevice->mDeviceType);
         } else if (strcmp(ATTACHED_INPUT_DEVICES_TAG, node->name) == 0) {
-            mAvailableInputDevices.loadDevicesFromType(parseDeviceNames((char *)node->value));
+            mAvailableInputDevices.loadDevicesFromName((char *)node->value,
+                                                       declaredDevices);
             ALOGV("loadGlobalConfig() Available InputDevices %08x", mAvailableInputDevices.types());
         } else if (strcmp(SPEAKER_DRC_ENABLED_TAG, node->name) == 0) {
             mSpeakerDrcEnabled = stringToBool((char *)node->value);
@@ -5353,9 +5618,9 @@ status_t AudioPolicyManager::loadAudioPolicyConfig(const char *path)
     root = config_node("", "");
     config_load(root, data);
 
-    loadGlobalConfig(root);
     loadHwModules(root);
-
+    // legacy audio_policy.conf files have one global_configuration section
+    loadGlobalConfig(root, getModuleFromName(AUDIO_HARDWARE_MODULE_ID_PRIMARY));
     config_free(root);
     free(root);
     free(data);
@@ -5369,13 +5634,13 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
 {
     HwModule *module;
     sp<IOProfile> profile;
-    sp<DeviceDescriptor> defaultInputDevice = new DeviceDescriptor(AUDIO_DEVICE_IN_BUILTIN_MIC);
+    sp<DeviceDescriptor> defaultInputDevice = new DeviceDescriptor(String8(""), AUDIO_DEVICE_IN_BUILTIN_MIC);
     mAvailableOutputDevices.add(mDefaultOutputDevice);
     mAvailableInputDevices.add(defaultInputDevice);
 
     module = new HwModule("primary");
 
-    profile = new IOProfile(AUDIO_PORT_ROLE_SOURCE, module);
+    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SOURCE, module);
     profile->mSamplingRates.add(44100);
     profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
     profile->mChannelMasks.add(AUDIO_CHANNEL_OUT_STEREO);
@@ -5383,7 +5648,7 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
     profile->mFlags = AUDIO_OUTPUT_FLAG_PRIMARY;
     module->mOutputProfiles.add(profile);
 
-    profile = new IOProfile(AUDIO_PORT_ROLE_SINK, module);
+    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SINK, module);
     profile->mSamplingRates.add(8000);
     profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
     profile->mChannelMasks.add(AUDIO_CHANNEL_IN_MONO);
