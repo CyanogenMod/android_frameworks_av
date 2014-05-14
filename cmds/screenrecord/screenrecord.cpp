@@ -65,7 +65,7 @@ static const char* kMimeTypeAvc = "video/avc";
 static bool gVerbose = false;           // chatty on stdout
 static bool gRotate = false;            // rotate 90 degrees
 static enum {
-    FORMAT_MP4, FORMAT_H264, FORMAT_FRAMES
+    FORMAT_MP4, FORMAT_H264, FORMAT_FRAMES, FORMAT_RAW_FRAMES
 } gOutputFormat = FORMAT_MP4;           // data format for output
 static bool gSizeSpecified = false;     // was size explicitly requested?
 static bool gWantInfoScreen = false;    // do we want initial info screen?
@@ -563,7 +563,7 @@ static status_t recordScreen(const char* fileName) {
     sp<MediaCodec> encoder;
     sp<FrameOutput> frameOutput;
     sp<IGraphicBufferProducer> encoderInputSurface;
-    if (gOutputFormat != FORMAT_FRAMES) {
+    if (gOutputFormat != FORMAT_FRAMES && gOutputFormat != FORMAT_RAW_FRAMES) {
         err = prepareEncoder(mainDpyInfo.fps, &encoder, &encoderInputSurface);
 
         if (err != NO_ERROR && !gSizeSpecified) {
@@ -643,7 +643,8 @@ static status_t recordScreen(const char* fileName) {
             break;
         }
         case FORMAT_H264:
-        case FORMAT_FRAMES: {
+        case FORMAT_FRAMES:
+        case FORMAT_RAW_FRAMES: {
             rawFp = prepareRawOutput(fileName);
             if (rawFp == NULL) {
                 if (encoder != NULL) encoder->release();
@@ -656,7 +657,7 @@ static status_t recordScreen(const char* fileName) {
             abort();
     }
 
-    if (gOutputFormat == FORMAT_FRAMES) {
+    if (gOutputFormat == FORMAT_FRAMES || gOutputFormat == FORMAT_RAW_FRAMES) {
         // TODO: if we want to make this a proper feature, we should output
         //       an outer header with version info.  Right now we never change
         //       the frame size or format, so we could conceivably just send
@@ -676,7 +677,8 @@ static status_t recordScreen(const char* fileName) {
             // stop was requested, but this will do for now.  (It almost
             // works because wait() wakes when a signal hits, but we
             // need to handle the edge cases.)
-            err = frameOutput->copyFrame(rawFp, 250000);
+            bool rawFrames = gOutputFormat == FORMAT_RAW_FRAMES;
+            err = frameOutput->copyFrame(rawFp, 250000, rawFrames);
             if (err == ETIMEDOUT) {
                 err = NO_ERROR;
             } else if (err != NO_ERROR) {
@@ -950,6 +952,8 @@ int main(int argc, char* const argv[]) {
                 gOutputFormat = FORMAT_H264;
             } else if (strcmp(optarg, "frames") == 0) {
                 gOutputFormat = FORMAT_FRAMES;
+            } else if (strcmp(optarg, "raw-frames") == 0) {
+                gOutputFormat = FORMAT_RAW_FRAMES;
             } else {
                 fprintf(stderr, "Unknown format '%s'\n", optarg);
                 return 2;
