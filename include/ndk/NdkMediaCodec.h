@@ -179,7 +179,7 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
         size_t *encryptedbytes);
 
 /**
- * delete an AMediaCodecCryptoInfo create previously with AMediaCodecCryptoInfo_new, or
+ * delete an AMediaCodecCryptoInfo created previously with AMediaCodecCryptoInfo_new, or
  * obtained from AMediaExtractor
  */
 int AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo*);

@@ -39,7 +39,7 @@ typedef struct AMediaCrypto AMediaCrypto;
 
 typedef uint8_t AMediaUUID[16];
 
-bool AMediaCrypto_isCryptoSchemeSupport(const AMediaUUID uuid);
+bool AMediaCrypto_isCryptoSchemeSupported(const AMediaUUID uuid);
 
 bool AMediaCrypto_requiresSecureDecoderComponent(const char *mime);
 
