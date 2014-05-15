@@ -35,10 +35,20 @@ using namespace android;
 
 typedef Vector<uint8_t> idvec_t;
 
+struct DrmListener: virtual public BnDrmClient
+{
+private:
+    AMediaDrm *mObj;
+    AMediaDrmEventListener mListener;
+
+public:
+    DrmListener(AMediaDrm *obj, AMediaDrmEventListener listener) : mObj(obj), mListener(listener) {}
+    void notify(DrmPlugin::EventType eventType, int extra, const Parcel *obj);
+};
+
 struct AMediaDrm {
     sp<IDrm> mDrm;
     sp<IDrmClient> mDrmClient;
-    AMediaDrmEventListener mListener;
     List<idvec_t> mIds;
     KeyedVector<String8, String8> mQueryResults;
     Vector<uint8_t> mKeyRequest;
@@ -47,7 +57,56 @@ struct AMediaDrm {
     String8 mPropertyString;
     Vector<uint8_t> mPropertyByteArray;
     List<Vector<uint8_t> > mSecureStops;
+    sp<DrmListener> mListener;
 };
+
+void DrmListener::notify(DrmPlugin::EventType eventType, int extra, const Parcel *obj) {
+    if (!mListener) {
+        return;
+    }
+
+    AMediaDrmSessionId sessionId = {NULL, 0};
+    int32_t sessionIdSize = obj->readInt32();
+    if (sessionIdSize) {
+        uint8_t *sessionIdData = new uint8_t[sessionIdSize];
+        sessionId.ptr = sessionIdData;
+        sessionId.length = sessionIdSize;
+        obj->read(sessionIdData, sessionId.length);
+    }
+
+    int32_t dataSize = obj->readInt32();
+    uint8_t *data = NULL;
+    if (dataSize) {
+        data = new uint8_t[dataSize];
+        obj->read(data, dataSize);
+    }
+
+    // translate DrmPlugin event types into their NDK equivalents
+    AMediaDrmEventType ndkEventType;
+    switch(eventType) {
+        case DrmPlugin::kDrmPluginEventProvisionRequired:
+            ndkEventType = EVENT_PROVISION_REQUIRED;
+            break;
+        case DrmPlugin::kDrmPluginEventKeyNeeded:
+            ndkEventType = EVENT_KEY_REQUIRED;
+            break;
+        case DrmPlugin::kDrmPluginEventKeyExpired:
+            ndkEventType = EVENT_KEY_EXPIRED;
+            break;
+        case DrmPlugin::kDrmPluginEventVendorDefined:
+            ndkEventType = EVENT_VENDOR_DEFINED;
+            break;
+        default:
+            ALOGE("Invalid event DrmPlugin::EventType %d, ignored", (int)eventType);
+            return;
+    }
+
+    (*mListener)(mObj, sessionId, ndkEventType, extra, data, dataSize);
+
+    delete [] sessionId.ptr;
+    delete [] data;
+}
+
 
 extern "C" {
 
@@ -156,11 +215,15 @@ void AMediaDrm_release(AMediaDrm *mObj) {
     delete mObj;
 }
 
-#if 0
-void AMediaDrm_setOnEventListener(AMediaDrm *mObj, AMediaDrmEventListener listener) {
-    mObj->mListener = listener;
+EXPORT
+mediadrm_status_t AMediaDrm_setOnEventListener(AMediaDrm *mObj, AMediaDrmEventListener listener) {
+    if (!mObj || mObj->mDrm == NULL) {
+        return MEDIADRM_INVALID_OBJECT_ERROR;
+    }
+    mObj->mListener = new DrmListener(mObj, listener);
+    mObj->mDrm->setListener(mObj->mListener);
+    return MEDIADRM_OK;
 }
-#endif
 
 
 static bool findId(AMediaDrm *mObj, const AMediaDrmByteArray &id, List<idvec_t>::iterator &iter) {
