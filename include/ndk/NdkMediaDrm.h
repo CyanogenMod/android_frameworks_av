@@ -107,7 +107,7 @@ void AMediaDrm_release(AMediaDrm *);
  *
  * listener is the callback that will be invoked on event
  */
-mediadrm_status_t AMediaDrm_setOnEventListener(AMediaDrm *, AMediaDrmEventListener listener);
+media_status_t AMediaDrm_setOnEventListener(AMediaDrm *, AMediaDrmEventListener listener);
 
 /**
  * Open a new session with the MediaDrm object.  A session ID is returned.

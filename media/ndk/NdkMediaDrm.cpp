@@ -215,13 +215,13 @@ void AMediaDrm_release(AMediaDrm *mObj) {
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_setOnEventListener(AMediaDrm *mObj, AMediaDrmEventListener listener) {
+media_status_t AMediaDrm_setOnEventListener(AMediaDrm *mObj, AMediaDrmEventListener listener) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     mObj->mListener = new DrmListener(mObj, listener);
     mObj->mDrm->setListener(mObj->mListener);
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 
