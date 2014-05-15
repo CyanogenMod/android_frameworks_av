@@ -138,12 +138,25 @@ private:
         OMX::buffer_id mID;
     };
     Vector<ActiveBuffer> mActiveBuffers;
+#ifdef __LP64__
+    Mutex mBufferIDLock;
+    uint32_t mBufferIDCount;
+    KeyedVector<OMX::buffer_id, OMX_BUFFERHEADERTYPE *> mBufferIDToBufferHeader;
+    KeyedVector<OMX_BUFFERHEADERTYPE *, OMX::buffer_id> mBufferHeaderToBufferID;
+#endif
 
     ~OMXNodeInstance();
 
     void addActiveBuffer(OMX_U32 portIndex, OMX::buffer_id id);
     void removeActiveBuffer(OMX_U32 portIndex, OMX::buffer_id id);
     void freeActiveBuffers();
+
+    // For buffer id management
+    OMX::buffer_id makeBufferID(OMX_BUFFERHEADERTYPE *bufferHeader);
+    OMX_BUFFERHEADERTYPE *findBufferHeader(OMX::buffer_id buffer);
+    OMX::buffer_id findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader);
+    void invalidateBufferID(OMX::buffer_id buffer);
+
     status_t useGraphicBuffer2_l(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
             OMX::buffer_id *buffer);

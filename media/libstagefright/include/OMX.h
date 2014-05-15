@@ -134,10 +134,10 @@ public:
             OMX_IN OMX_PTR pEventData);
 
     OMX_ERRORTYPE OnEmptyBufferDone(
-            node_id node, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
+            node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
 
     OMX_ERRORTYPE OnFillBufferDone(
-            node_id node, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
+            node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
 
     void invalidateNodeID(node_id node);
 
