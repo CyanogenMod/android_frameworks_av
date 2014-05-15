@@ -64,10 +64,10 @@ AMediaFormat *AMediaFormat_new() {
 }
 
 EXPORT
-int AMediaFormat_delete(AMediaFormat *mData) {
+media_status_t AMediaFormat_delete(AMediaFormat *mData) {
     ALOGV("dtor");
     delete mData;
-    return OK;
+    return AMEDIA_OK;
 }
 
 

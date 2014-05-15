@@ -35,12 +35,12 @@
 
 using namespace android;
 
-static int translate_error(status_t err) {
+static media_status_t translate_error(status_t err) {
     if (err == OK) {
-        return OK;
+        return AMEDIA_OK;
     }
     ALOGE("sf error code: %d", err);
-    return -1000;
+    return AMEDIA_ERROR_UNKNOWN;
 }
 
 

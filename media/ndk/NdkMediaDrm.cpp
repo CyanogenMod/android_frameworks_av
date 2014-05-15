@@ -110,38 +110,37 @@ void DrmListener::notify(DrmPlugin::EventType eventType, int extra, const Parcel
 
 extern "C" {
 
-static mediadrm_status_t translateStatus(status_t status) {
-    mediadrm_status_t result = MEDIADRM_UNKNOWN_ERROR;
+static media_status_t translateStatus(status_t status) {
+    media_status_t result = AMEDIA_ERROR_UNKNOWN;
     switch (status) {
         case OK:
-            result = MEDIADRM_OK;
+            result = AMEDIA_OK;
             break;
         case android::ERROR_DRM_NOT_PROVISIONED:
-            result = MEDIADRM_NOT_PROVISIONED_ERROR;
+            result = AMEDIA_DRM_NOT_PROVISIONED;
             break;
         case android::ERROR_DRM_RESOURCE_BUSY:
-            result = MEDIADRM_RESOURCE_BUSY_ERROR;
+            result = AMEDIA_DRM_RESOURCE_BUSY;
             break;
         case android::ERROR_DRM_DEVICE_REVOKED:
-            result = MEDIADRM_DEVICE_REVOKED_ERROR;
+            result = AMEDIA_DRM_DEVICE_REVOKED;
             break;
         case android::ERROR_DRM_CANNOT_HANDLE:
-            result = MEDIADRM_INVALID_PARAMETER_ERROR;
+            result = AMEDIA_ERROR_INVALID_PARAMETER;
             break;
         case android::ERROR_DRM_TAMPER_DETECTED:
-            result = MEDIADRM_TAMPER_DETECTED_ERROR;
+            result = AMEDIA_DRM_TAMPER_DETECTED;
             break;
         case android::ERROR_DRM_SESSION_NOT_OPENED:
-            result = MEDIADRM_SESSION_NOT_OPENED_ERROR;
+            result = AMEDIA_DRM_SESSION_NOT_OPENED;
             break;
         case android::ERROR_DRM_NO_LICENSE:
-            result = MEDIADRM_NEED_KEY_ERROR;
+            result = AMEDIA_DRM_NEED_KEY;
             break;
         case android::ERROR_DRM_LICENSE_EXPIRED:
-            result = MEDIADRM_LICENSE_EXPIRED_ERROR;
+            result = AMEDIA_DRM_LICENSE_EXPIRED;
             break;
         default:
-            result = MEDIADRM_UNKNOWN_ERROR;
             break;
     }
     return result;
@@ -237,9 +236,9 @@ static bool findId(AMediaDrm *mObj, const AMediaDrmByteArray &id, List<idvec_t>:
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId &sessionId) {
+media_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId &sessionId) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     Vector<uint8_t> session;
     status_t status = mObj->mDrm->openSession(session);
@@ -249,40 +248,40 @@ mediadrm_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId &ses
         sessionId.ptr = iter->array();
         sessionId.length = iter->size();
     }
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId) {
+media_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
 
     List<idvec_t>::iterator iter;
     if (!findId(mObj, sessionId, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
     mObj->mDrm->closeSession(*iter);
     mObj->mIds.erase(iter);
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope &scope,
+media_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope &scope,
         const uint8_t *init, size_t initSize, const char *mimeType, AMediaDrmKeyType keyType,
         const AMediaDrmKeyValue *optionalParameters, size_t numOptionalParameters,
         const uint8_t *&keyRequest, size_t &keyRequestSize) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     if (!mimeType) {
-        return MEDIADRM_INVALID_PARAMETER_ERROR;
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     List<idvec_t>::iterator iter;
     if (!findId(mObj, scope, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
     Vector<uint8_t> mdInit;
@@ -299,7 +298,7 @@ mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope 
             mdKeyType = DrmPlugin::kKeyType_Release;
             break;
         default:
-            return MEDIADRM_INVALID_PARAMETER_ERROR;
+            return AMEDIA_ERROR_INVALID_PARAMETER;
     }
     KeyedVector<String8, String8> mdOptionalParameters;
     for (size_t i = 0; i < numOptionalParameters; i++) {
@@ -315,23 +314,23 @@ mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope 
         keyRequest = mObj->mKeyRequest.array();
         keyRequestSize = mObj->mKeyRequest.size();
     }
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmScope &scope,
+media_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmScope &scope,
         const uint8_t *response, size_t responseSize, AMediaDrmKeySetId &keySetId) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     if (!response || !responseSize) {
-        return MEDIADRM_INVALID_PARAMETER_ERROR;
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     List<idvec_t>::iterator iter;
     if (!findId(mObj, scope, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
     Vector<uint8_t> mdResponse;
     mdResponse.appendArray(response, responseSize);
@@ -347,19 +346,19 @@ mediadrm_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmS
         keySetId.ptr = NULL;
         keySetId.length = 0;
     }
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const AMediaDrmKeySetId &keySetId) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     List<idvec_t>::iterator iter;
     if (!findId(mObj, sessionId, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
     Vector<uint8_t> keySet;
     keySet.appendArray(keySetId.ptr, keySetId.length);
@@ -367,9 +366,9 @@ mediadrm_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionI
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId &keySetId) {
+media_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId &keySetId) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     List<idvec_t>::iterator iter;
     status_t status;
@@ -385,15 +384,15 @@ mediadrm_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         AMediaDrmKeyValue *keyValuePairs, size_t &numPairs) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     List<idvec_t>::iterator iter;
     if (!findId(mObj, sessionId, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
     status_t status = mObj->mDrm->queryKeyStatus(*iter, mObj->mQueryResults);
@@ -404,7 +403,7 @@ mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessi
 
     if (mObj->mQueryResults.size() > numPairs) {
         numPairs = mObj->mQueryResults.size();
-        return MEDIADRM_SHORT_BUFFER;
+        return AMEDIA_DRM_SHORT_BUFFER;
     }
 
     for (size_t i = 0; i < mObj->mQueryResults.size(); i++) {
@@ -412,17 +411,17 @@ mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessi
         keyValuePairs[i].mValue = mObj->mQueryResults.keyAt(i).string();
     }
     numPairs = mObj->mQueryResults.size();
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *&provisionRequest,
+media_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *&provisionRequest,
         size_t &provisionRequestSize, const char *&serverUrl) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     if (!provisionRequestSize || !serverUrl) {
-        return MEDIADRM_INVALID_PARAMETER_ERROR;
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     status_t status = mObj->mDrm->getProvisionRequest(String8(""), String8(""),
@@ -434,17 +433,17 @@ mediadrm_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *
         provisionRequestSize = mObj->mProvisionRequest.size();
         serverUrl = mObj->mProvisionUrl.string();
     }
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *mObj,
+media_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *mObj,
         const uint8_t *response, size_t responseSize) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     if (!response || !responseSize) {
-        return MEDIADRM_INVALID_PARAMETER_ERROR;
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     Vector<uint8_t> mdResponse;
@@ -455,11 +454,11 @@ mediadrm_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *mObj,
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
+media_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
         AMediaDrmSecureStop *secureStops, size_t &numSecureStops) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     status_t status = mObj->mDrm->getSecureStops(mObj->mSecureStops);
     if (status != OK) {
@@ -467,7 +466,7 @@ mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
         return translateStatus(status);
     }
     if (numSecureStops < mObj->mSecureStops.size()) {
-        return MEDIADRM_SHORT_BUFFER;
+        return AMEDIA_DRM_SHORT_BUFFER;
     }
     List<Vector<uint8_t> >::iterator iter = mObj->mSecureStops.begin();
     size_t i = 0;
@@ -478,15 +477,15 @@ mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
         ++i;
     }
     numSecureStops = mObj->mSecureStops.size();
-    return MEDIADRM_OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_releaseSecureStops(AMediaDrm *mObj,
+media_status_t AMediaDrm_releaseSecureStops(AMediaDrm *mObj,
         const AMediaDrmSecureStop &ssRelease) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
 
     Vector<uint8_t> release;
@@ -496,11 +495,11 @@ mediadrm_status_t AMediaDrm_releaseSecureStops(AMediaDrm *mObj,
 
 
 EXPORT
-mediadrm_status_t AMediaDrm_getPropertyString(AMediaDrm *mObj, const char *propertyName,
+media_status_t AMediaDrm_getPropertyString(AMediaDrm *mObj, const char *propertyName,
         const char *&propertyValue) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
 
     status_t status = mObj->mDrm->getPropertyString(String8(propertyName),
@@ -515,10 +514,10 @@ mediadrm_status_t AMediaDrm_getPropertyString(AMediaDrm *mObj, const char *prope
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *mObj,
+media_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *mObj,
         const char *propertyName, AMediaDrmByteArray &propertyValue) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
 
     status_t status = mObj->mDrm->getPropertyByteArray(String8(propertyName),
@@ -535,10 +534,10 @@ mediadrm_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *mObj,
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_setPropertyString(AMediaDrm *mObj,
+media_status_t AMediaDrm_setPropertyString(AMediaDrm *mObj,
         const char *propertyName, const char *value) {
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
 
     return translateStatus(mObj->mDrm->setPropertyString(String8(propertyName),
@@ -546,7 +545,7 @@ mediadrm_status_t AMediaDrm_setPropertyString(AMediaDrm *mObj,
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *mObj,
+media_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *mObj,
         const char *propertyName, const uint8_t *value, size_t valueSize) {
 
     Vector<uint8_t> byteArray;
@@ -557,17 +556,17 @@ mediadrm_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *mObj,
 }
 
 
-static mediadrm_status_t encrypt_decrypt_common(AMediaDrm *mObj,
+static media_status_t encrypt_decrypt_common(AMediaDrm *mObj,
         const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize, bool encrypt) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     List<idvec_t>::iterator iter;
     if (!findId(mObj, sessionId, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
     status_t status = mObj->mDrm->setCipherAlgorithm(*iter, String8(cipherAlgorithm));
@@ -599,7 +598,7 @@ static mediadrm_status_t encrypt_decrypt_common(AMediaDrm *mObj,
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize) {
     return encrypt_decrypt_common(mObj, sessionId, cipherAlgorithm, keyId, iv,
@@ -607,7 +606,7 @@ mediadrm_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId &s
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize) {
     return encrypt_decrypt_common(mObj, sessionId, cipherAlgorithm, keyId, iv,
@@ -615,16 +614,16 @@ mediadrm_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId &s
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *macAlgorithm, uint8_t *keyId, uint8_t *message, size_t messageSize,
         uint8_t *signature, size_t *signatureSize) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     List<idvec_t>::iterator iter;
     if (!findId(mObj, sessionId, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
     status_t status = mObj->mDrm->setMacAlgorithm(*iter, String8(macAlgorithm));
@@ -642,7 +641,7 @@ mediadrm_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sess
     Vector<uint8_t> signatureVec;
     status = mObj->mDrm->sign(*iter, keyIdVec, messageVec, signatureVec);
     if (signatureVec.size() > *signatureSize) {
-        return MEDIADRM_SHORT_BUFFER;
+        return AMEDIA_DRM_SHORT_BUFFER;
     }
     if (status == OK) {
         memcpy(signature, signatureVec.array(), signatureVec.size());
@@ -651,16 +650,16 @@ mediadrm_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sess
 }
 
 EXPORT
-mediadrm_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
         const char *macAlgorithm, uint8_t *keyId, const uint8_t *message, size_t messageSize,
         const uint8_t *signature, size_t signatureSize) {
 
     if (!mObj || mObj->mDrm == NULL) {
-        return MEDIADRM_INVALID_OBJECT_ERROR;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     List<idvec_t>::iterator iter;
     if (!findId(mObj, sessionId, iter)) {
-        return MEDIADRM_SESSION_NOT_OPENED_ERROR;
+        return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
     status_t status = mObj->mDrm->setMacAlgorithm(*iter, String8(macAlgorithm));
@@ -681,7 +680,7 @@ mediadrm_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId &se
     bool match;
     status = mObj->mDrm->verify(*iter, keyIdVec, messageVec, signatureVec, match);
     if (status == OK) {
-        return match ? MEDIADRM_OK : MEDIADRM_VERIFY_FAILED;
+        return match ? AMEDIA_OK : AMEDIA_DRM_VERIFY_FAILED;
     }
     return translateStatus(status);
 }

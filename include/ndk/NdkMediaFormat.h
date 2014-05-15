@@ -29,6 +29,8 @@
 
 #include <sys/types.h>
 
+#include "NdkMediaError.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,7 +39,7 @@ struct AMediaFormat;
 typedef struct AMediaFormat AMediaFormat;
 
 AMediaFormat *AMediaFormat_new();
-int AMediaFormat_delete(AMediaFormat*);
+media_status_t AMediaFormat_delete(AMediaFormat*);
 
 /**
  * Human readable representation of the format. The returned string is owned by the format,

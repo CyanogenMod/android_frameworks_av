@@ -27,6 +27,8 @@
 #ifndef _NDK_MEDIA_DRM_H
 #define _NDK_MEDIA_DRM_H
 
+#include <NdkMediaError.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,23 +49,6 @@ typedef AMediaDrmByteArray AMediaDrmScope;
 typedef AMediaDrmByteArray AMediaDrmKeySetId;
 typedef AMediaDrmByteArray AMediaDrmSecureStop;
 
-#define MEDIADRM_ERROR_BASE -2000
-
-typedef enum {
-    MEDIADRM_OK = 0,
-    MEDIADRM_NOT_PROVISIONED_ERROR    = MEDIADRM_ERROR_BASE - 1,
-    MEDIADRM_RESOURCE_BUSY_ERROR      = MEDIADRM_ERROR_BASE - 2,
-    MEDIADRM_DEVICE_REVOKED_ERROR     = MEDIADRM_ERROR_BASE - 3,
-    MEDIADRM_SHORT_BUFFER             = MEDIADRM_ERROR_BASE - 4,
-    MEDIADRM_INVALID_OBJECT_ERROR     = MEDIADRM_ERROR_BASE - 5,
-    MEDIADRM_INVALID_PARAMETER_ERROR  = MEDIADRM_ERROR_BASE - 6,
-    MEDIADRM_SESSION_NOT_OPENED_ERROR = MEDIADRM_ERROR_BASE - 7,
-    MEDIADRM_TAMPER_DETECTED_ERROR    = MEDIADRM_ERROR_BASE - 8,
-    MEDIADRM_VERIFY_FAILED            = MEDIADRM_ERROR_BASE - 9,
-    MEDIADRM_NEED_KEY_ERROR           = MEDIADRM_ERROR_BASE - 10,
-    MEDIADRM_LICENSE_EXPIRED_ERROR    = MEDIADRM_ERROR_BASE - 11,
-    MEDIADRM_UNKNOWN_ERROR            = MEDIADRM_ERROR_BASE - 12,
-} mediadrm_status_t;
 
 typedef enum AMediaDrmEventType {
     /**
@@ -130,13 +115,13 @@ mediadrm_status_t AMediaDrm_setOnEventListener(AMediaDrm *, AMediaDrmEventListen
  * returns MEDIADRM_NOT_PROVISIONED_ERROR if provisioning is needed
  * returns MEDIADRM_RESOURCE_BUSY_ERROR if required resources are in use
  */
-mediadrm_status_t AMediaDrm_openSession(AMediaDrm *, AMediaDrmSessionId &sessionId);
+media_status_t AMediaDrm_openSession(AMediaDrm *, AMediaDrmSessionId &sessionId);
 
 /**
  * Close a session on the MediaDrm object that was previously opened
  * with AMediaDrm_openSession.
  */
-mediadrm_status_t AMediaDrm_closeSession(AMediaDrm *, const AMediaDrmSessionId &sessionId);
+media_status_t AMediaDrm_closeSession(AMediaDrm *, const AMediaDrmSessionId &sessionId);
 
 typedef enum AMediaDrmKeyType {
     /**
@@ -213,7 +198,7 @@ typedef struct AMediaDrmKeyValuePair {
  * returns MEDIADRM_NOT_PROVISIONED_ERROR if reprovisioning is needed, due to a
  * problem with the device certificate.
 */
-mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *, const AMediaDrmScope &scope,
+media_status_t AMediaDrm_getKeyRequest(AMediaDrm *, const AMediaDrmScope &scope,
         const uint8_t *init, size_t initSize, const char *mimeType, AMediaDrmKeyType keyType,
         const AMediaDrmKeyValue *optionalParameters, size_t numOptionalParameters,
         const uint8_t *&keyRequest, size_t &keyRequestSize);
@@ -235,7 +220,7 @@ mediadrm_status_t AMediaDrm_getKeyRequest(AMediaDrm *, const AMediaDrmScope &sco
  * responseSize should be set to the size of the response in bytes
  */
 
-mediadrm_status_t AMediaDrm_provideKeyResponse(AMediaDrm *, const AMediaDrmScope &scope,
+media_status_t AMediaDrm_provideKeyResponse(AMediaDrm *, const AMediaDrmScope &scope,
         const uint8_t *response, size_t responseSize, AMediaDrmKeySetId &keySetId);
 
 /**
@@ -245,7 +230,7 @@ mediadrm_status_t AMediaDrm_provideKeyResponse(AMediaDrm *, const AMediaDrmScope
  * sessionId is the session ID for the DRM session
  * keySetId identifies the saved key set to restore
  */
-mediadrm_status_t AMediaDrm_restoreKeys(AMediaDrm *, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_restoreKeys(AMediaDrm *, const AMediaDrmSessionId &sessionId,
         const AMediaDrmKeySetId &keySetId);
 
 /**
@@ -253,7 +238,7 @@ mediadrm_status_t AMediaDrm_restoreKeys(AMediaDrm *, const AMediaDrmSessionId &s
  *
  * keySetId identifies keys to remove
  */
-mediadrm_status_t AMediaDrm_removeKeys(AMediaDrm *, const AMediaDrmSessionId &keySetId);
+media_status_t AMediaDrm_removeKeys(AMediaDrm *, const AMediaDrmSessionId &keySetId);
 
 /**
  * Request an informative description of the key status for the session.  The status is
@@ -268,7 +253,7 @@ mediadrm_status_t AMediaDrm_removeKeys(AMediaDrm *, const AMediaDrmSessionId &ke
  * to be returned is greater than *numPairs, MEDIADRM_SHORT_BUFFER will be returned
  * and numPairs will be set to the number of pairs available.
  */
-mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_queryKeyStatus(AMediaDrm *, const AMediaDrmSessionId &sessionId,
         AMediaDrmKeyValue *keyValuePairs, size_t &numPairs);
 
 
@@ -287,7 +272,7 @@ mediadrm_status_t AMediaDrm_queryKeyStatus(AMediaDrm *, const AMediaDrmSessionId
  *       the provisioning request should be sent to.  It will remain accessible until
  *       the next call to getProvisionRequest.
  */
-mediadrm_status_t AMediaDrm_getProvisionRequest(AMediaDrm *, const uint8_t *&provisionRequest,
+media_status_t AMediaDrm_getProvisionRequest(AMediaDrm *, const uint8_t *&provisionRequest,
         size_t &provisionRequestSize, const char *&serverUrl);
 
 
@@ -302,7 +287,7 @@ mediadrm_status_t AMediaDrm_getProvisionRequest(AMediaDrm *, const uint8_t *&pro
  * returns MEDIADRM_DEVICE_REVOKED_ERROR if the response indicates that the
  * server rejected the request
  */
-mediadrm_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *,
+media_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *,
         const uint8_t *response, size_t responseSize);
 
 
@@ -327,7 +312,7 @@ mediadrm_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *,
  * MEDIADRM_SHORT_BUFFER will be returned and *numSecureStops will be set to the
  * number required.
  */
-mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *,
+media_status_t AMediaDrm_getSecureStops(AMediaDrm *,
         AMediaDrmSecureStop *secureStops, size_t &numSecureStops);
 
 /**
@@ -336,7 +321,7 @@ mediadrm_status_t AMediaDrm_getSecureStops(AMediaDrm *,
  *
  * ssRelease is the server response indicating which secure stops to release
  */
-mediadrm_status_t AMediaDrm_releaseSecureStops(AMediaDrm *,
+media_status_t AMediaDrm_releaseSecureStops(AMediaDrm *,
         const AMediaDrmSecureStop &ssRelease);
 
 /**
@@ -369,7 +354,7 @@ const char *PROPERTY_ALGORITHMS = "algorithms";
  * memory that the value resides in is owned by the NDK MediaDrm API and
  * will remain valid until the next call to AMediaDrm_getPropertyString.
  */
-mediadrm_status_t AMediaDrm_getPropertyString(AMediaDrm *, const char *propertyName,
+media_status_t AMediaDrm_getPropertyString(AMediaDrm *, const char *propertyName,
         const char *&propertyValue);
 
 /**
@@ -384,19 +369,19 @@ const char *PROPERTY_DEVICE_UNIQUE_ID = "deviceUniqueId";
  * memory that the value resides in is owned by the NDK MediaDrm API and
  * will remain valid until the next call to AMediaDrm_getPropertyByteArray.
  */
-mediadrm_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *, const char *propertyName,
+media_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *, const char *propertyName,
         AMediaDrmByteArray &propertyValue);
 
 /**
  * Set a DRM engine plugin String property value.
  */
-mediadrm_status_t AMediaDrm_setPropertyString(AMediaDrm *, const char *propertyName,
+media_status_t AMediaDrm_setPropertyString(AMediaDrm *, const char *propertyName,
         const char *value);
 
 /**
  * Set a DRM engine plugin byte array property value.
  */
-mediadrm_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *, const char *propertyName,
+media_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *, const char *propertyName,
         const uint8_t *value, size_t valueSize);
 
 /**
@@ -424,7 +409,7 @@ mediadrm_status_t AMediaDrm_setPropertyByteArray(AMediaDrm *, const char *proper
  * to use is identified by the 16 byte keyId.  The key must have been loaded into
  * the session using provideKeyResponse.
  */
-mediadrm_status_t AMediaDrm_encrypt(AMediaDrm *, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_encrypt(AMediaDrm *, const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize);
 
@@ -435,7 +420,7 @@ mediadrm_status_t AMediaDrm_encrypt(AMediaDrm *, const AMediaDrmSessionId &sessi
  * to use is identified by the 16 byte keyId.  The key must have been loaded into
  * the session using provideKeyResponse.
  */
-mediadrm_status_t AMediaDrm_decrypt(AMediaDrm *, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_decrypt(AMediaDrm *, const AMediaDrmSessionId &sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize);
 
@@ -448,7 +433,7 @@ mediadrm_status_t AMediaDrm_decrypt(AMediaDrm *, const AMediaDrmSessionId &sessi
  * by the 16 byte keyId.  The key must have been loaded into the session using
  * provideKeyResponse.
  */
-mediadrm_status_t AMediaDrm_sign(AMediaDrm *, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_sign(AMediaDrm *, const AMediaDrmSessionId &sessionId,
         const char *macAlgorithm, uint8_t *keyId, uint8_t *message, size_t messageSize,
         uint8_t *signature, size_t *signatureSize);
 
@@ -459,7 +444,7 @@ mediadrm_status_t AMediaDrm_sign(AMediaDrm *, const AMediaDrmSessionId &sessionI
  * use is identified by the 16 byte keyId.  The key must have been loaded into the
  * session using provideKeyResponse.
  */
-mediadrm_status_t AMediaDrm_verify(AMediaDrm *, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_verify(AMediaDrm *, const AMediaDrmSessionId &sessionId,
         const char *macAlgorithm, uint8_t *keyId, const uint8_t *message, size_t messageSize,
         const uint8_t *signature, size_t signatureSize);
 

@@ -30,8 +30,9 @@
 
 #include <sys/types.h>
 
-#include "NdkMediaFormat.h"
 #include "NdkMediaCodec.h"
+#include "NdkMediaError.h"
+#include "NdkMediaFormat.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,19 +54,19 @@ AMediaMuxer* AMediaMuxer_new(int fd, OutputFormat format);
 /**
  * Delete a previously created media muxer
  */
-int AMediaMuxer_delete(AMediaMuxer*);
+media_status_t AMediaMuxer_delete(AMediaMuxer*);
 
-int AMediaMuxer_setLocation(AMediaMuxer*, float latitude, float longtitude);
+media_status_t AMediaMuxer_setLocation(AMediaMuxer*, float latitude, float longtitude);
 
-int AMediaMuxer_setOrientationHint(AMediaMuxer*, int degrees);
+media_status_t AMediaMuxer_setOrientationHint(AMediaMuxer*, int degrees);
 
 ssize_t AMediaMuxer_addTrack(AMediaMuxer*, const AMediaFormat* format);
 
-int AMediaMuxer_start(AMediaMuxer*);
+media_status_t AMediaMuxer_start(AMediaMuxer*);
 
-int AMediaMuxer_stop(AMediaMuxer*);
+media_status_t AMediaMuxer_stop(AMediaMuxer*);
 
-int AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
+media_status_t AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
         size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info);
 
 #ifdef __cplusplus

@@ -37,12 +37,12 @@
 
 using namespace android;
 
-static int translate_error(status_t err) {
+static media_status_t translate_error(status_t err) {
     if (err == OK) {
-        return OK;
+        return AMEDIA_OK;
     }
     ALOGE("sf error code: %d", err);
-    return -1000;
+    return AMEDIA_ERROR_UNKNOWN;
 }
 
 struct AMediaMuxer {
@@ -61,19 +61,19 @@ AMediaMuxer* AMediaMuxer_new(int fd, OutputFormat format) {
 }
 
 EXPORT
-int AMediaMuxer_delete(AMediaMuxer *muxer) {
+media_status_t AMediaMuxer_delete(AMediaMuxer *muxer) {
     ALOGV("dtor");
     delete muxer;
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-int AMediaMuxer_setLocation(AMediaMuxer *muxer, float latitude, float longtitude) {
+media_status_t AMediaMuxer_setLocation(AMediaMuxer *muxer, float latitude, float longtitude) {
     return translate_error(muxer->mImpl->setLocation(latitude * 10000, longtitude * 10000));
 }
 
 EXPORT
-int AMediaMuxer_setOrientationHint(AMediaMuxer *muxer, int degrees) {
+media_status_t AMediaMuxer_setOrientationHint(AMediaMuxer *muxer, int degrees) {
     return translate_error(muxer->mImpl->setOrientationHint(degrees));
 }
 
@@ -85,17 +85,17 @@ ssize_t AMediaMuxer_addTrack(AMediaMuxer *muxer, const AMediaFormat *format) {
 }
 
 EXPORT
-int AMediaMuxer_start(AMediaMuxer *muxer) {
+media_status_t AMediaMuxer_start(AMediaMuxer *muxer) {
     return translate_error(muxer->mImpl->start());
 }
 
 EXPORT
-int AMediaMuxer_stop(AMediaMuxer *muxer) {
+media_status_t AMediaMuxer_stop(AMediaMuxer *muxer) {
     return translate_error(muxer->mImpl->stop());
 }
 
 EXPORT
-int AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
+media_status_t AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
         size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info) {
     sp<ABuffer> buf = new ABuffer((void*)(data + info.offset), info.size);
     return translate_error(
