@@ -1728,7 +1728,7 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
             // API 20.  Perhaps check for target SDK version.
 #if 0
             if (info->mData->meta()->findInt64("timeUs", &timestampNs)) {
-                ALOGI("using buffer PTS of %" PRId64, timestampNs);
+                ALOGV("using buffer PTS of %" PRId64, timestampNs);
                 timestampNs *= 1000;
             }
 #endif
