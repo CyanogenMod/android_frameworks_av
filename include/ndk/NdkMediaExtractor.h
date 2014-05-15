@@ -50,22 +50,22 @@ AMediaExtractor* AMediaExtractor_new();
 /**
  * Delete a previously created media extractor
  */
-int AMediaExtractor_delete(AMediaExtractor*);
+media_status_t AMediaExtractor_delete(AMediaExtractor*);
 
 /**
  *  Set the file descriptor from which the extractor will read.
  */
-int AMediaExtractor_setDataSourceFd(AMediaExtractor*, int fd, off64_t offset, off64_t length);
+media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor*, int fd, off64_t offset, off64_t length);
 
 /**
  * Set the URI from which the extractor will read.
  */
-int AMediaExtractor_setDataSource(AMediaExtractor*, const char *location); // TODO support headers
+media_status_t AMediaExtractor_setDataSource(AMediaExtractor*, const char *location); // TODO support headers
 
 /**
  * Return the number of tracks in the previously specified media file
  */
-int AMediaExtractor_getTrackCount(AMediaExtractor*);
+size_t AMediaExtractor_getTrackCount(AMediaExtractor*);
 
 /**
  * Return the format of the specified track. The caller must free the returned format
@@ -78,23 +78,23 @@ AMediaFormat* AMediaExtractor_getTrackFormat(AMediaExtractor*, size_t idx);
  * Selecting the same track multiple times has no effect, the track is
  * only selected once.
  */
-int AMediaExtractor_selectTrack(AMediaExtractor*, size_t idx);
+media_status_t AMediaExtractor_selectTrack(AMediaExtractor*, size_t idx);
 
 /**
  * Unselect the specified track. Subsequent calls to readSampleData, getSampleTrackIndex and
  * getSampleTime only retrieve information for the subset of tracks selected..
  */
-int AMediaExtractor_unselectTrack(AMediaExtractor*, size_t idx);
+media_status_t AMediaExtractor_unselectTrack(AMediaExtractor*, size_t idx);
 
 /**
  * Read the current sample.
  */
-int AMediaExtractor_readSampleData(AMediaExtractor*, uint8_t *buffer, size_t capacity);
+ssize_t AMediaExtractor_readSampleData(AMediaExtractor*, uint8_t *buffer, size_t capacity);
 
 /**
  * Read the current sample's flags.
  */
-int AMediaExtractor_getSampleFlags(AMediaExtractor*); // see definitions below
+uint32_t AMediaExtractor_getSampleFlags(AMediaExtractor*); // see definitions below
 
 /**
  * Returns the track index the current sample originates from (or -1

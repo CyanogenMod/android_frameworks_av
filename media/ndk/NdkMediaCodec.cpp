@@ -36,14 +36,14 @@
 using namespace android;
 
 
-static int translate_error(status_t err) {
+static media_status_t translate_error(status_t err) {
     if (err == OK) {
-        return OK;
+        return AMEDIA_OK;
     } else if (err == -EAGAIN) {
-        return AMEDIACODEC_INFO_TRY_AGAIN_LATER;
+        return (media_status_t) AMEDIACODEC_INFO_TRY_AGAIN_LATER;
     }
     ALOGE("sf error code: %d", err);
-    return AMEDIAERROR_GENERIC;
+    return AMEDIA_ERROR_UNKNOWN;
 }
 
 enum {
@@ -175,7 +175,7 @@ AMediaCodec* AMediaCodec_createEncoderByType(const char *name) {
 }
 
 EXPORT
-int AMediaCodec_delete(AMediaCodec *mData) {
+media_status_t AMediaCodec_delete(AMediaCodec *mData) {
     if (mData->mCodec != NULL) {
         mData->mCodec->release();
         mData->mCodec.clear();
@@ -187,11 +187,11 @@ int AMediaCodec_delete(AMediaCodec *mData) {
         mData->mLooper.clear();
     }
     delete mData;
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-int AMediaCodec_configure(
+media_status_t AMediaCodec_configure(
         AMediaCodec *mData,
         const AMediaFormat* format,
         ANativeWindow* window,
@@ -210,7 +210,7 @@ int AMediaCodec_configure(
 }
 
 EXPORT
-int AMediaCodec_start(AMediaCodec *mData) {
+media_status_t AMediaCodec_start(AMediaCodec *mData) {
     status_t ret =  mData->mCodec->start();
     if (ret != OK) {
         return translate_error(ret);
@@ -218,12 +218,12 @@ int AMediaCodec_start(AMediaCodec *mData) {
     mData->mActivityNotification = new AMessage(kWhatActivityNotify, mData->mHandler->id());
     mData->mActivityNotification->setInt32("generation", mData->mGeneration);
     requestActivityNotification(mData);
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-int AMediaCodec_stop(AMediaCodec *mData) {
-    int ret = translate_error(mData->mCodec->stop());
+media_status_t AMediaCodec_stop(AMediaCodec *mData) {
+    media_status_t ret = translate_error(mData->mCodec->stop());
 
     sp<AMessage> msg = new AMessage(kWhatStopActivityNotifications, mData->mHandler->id());
     sp<AMessage> response;
@@ -234,7 +234,7 @@ int AMediaCodec_stop(AMediaCodec *mData) {
 }
 
 EXPORT
-int AMediaCodec_flush(AMediaCodec *mData) {
+media_status_t AMediaCodec_flush(AMediaCodec *mData) {
     return translate_error(mData->mCodec->flush());
 }
 
@@ -286,7 +286,7 @@ uint8_t* AMediaCodec_getOutputBuffer(AMediaCodec *mData, size_t idx, size_t *out
 }
 
 EXPORT
-int AMediaCodec_queueInputBuffer(AMediaCodec *mData,
+media_status_t AMediaCodec_queueInputBuffer(AMediaCodec *mData,
         size_t idx, off_t offset, size_t size, uint64_t time, uint32_t flags) {
 
     AString errorMsg;
@@ -332,7 +332,7 @@ AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec *mData) {
 }
 
 EXPORT
-int AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, bool render) {
+media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, bool render) {
     if (render) {
         return translate_error(mData->mCodec->renderOutputBufferAndRelease(idx));
     } else {
@@ -341,10 +341,10 @@ int AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, bool render)
 }
 
 EXPORT
-int AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback, void *userdata) {
+media_status_t AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback, void *userdata) {
     mData->mCallback = callback;
     mData->mCallbackUserData = userdata;
-    return OK;
+    return AMEDIA_OK;
 }
 
 typedef struct AMediaCodecCryptoInfo {
@@ -357,7 +357,7 @@ typedef struct AMediaCodecCryptoInfo {
 } AMediaCodecCryptoInfo;
 
 EXPORT
-int AMediaCodec_queueSecureInputBuffer(
+media_status_t AMediaCodec_queueSecureInputBuffer(
         AMediaCodec* codec,
         size_t idx,
         off_t offset,
@@ -424,9 +424,9 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
 
 
 EXPORT
-int AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo* info) {
+media_status_t AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo* info) {
     free(info);
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
@@ -435,47 +435,59 @@ size_t AMediaCodecCryptoInfo_getNumSubSamples(AMediaCodecCryptoInfo* ci) {
 }
 
 EXPORT
-int AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
-    if (!dst || !ci) {
-        return AMEDIAERROR_UNSUPPORTED;
+media_status_t AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
+    if (!ci) {
+        return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!dst) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
     memcpy(dst, ci->key, 16);
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-int AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
-    if (!dst || !ci) {
-        return AMEDIAERROR_UNSUPPORTED;
+media_status_t AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo* ci, uint8_t *dst) {
+    if (!ci) {
+        return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!dst) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
     memcpy(dst, ci->iv, 16);
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
 uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo* ci) {
     if (!ci) {
-        return AMEDIAERROR_UNSUPPORTED;
+        return AMEDIA_ERROR_INVALID_OBJECT;
     }
     return ci->mode;
 }
 
 EXPORT
-int AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
-    if (!dst || !ci) {
-        return AMEDIAERROR_UNSUPPORTED;
+media_status_t AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
+    if (!ci) {
+        return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!dst) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
     memcpy(dst, ci->clearbytes, sizeof(size_t) * ci->numsubsamples);
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-int AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
-    if (!dst || !ci) {
-        return AMEDIAERROR_UNSUPPORTED;
+media_status_t AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo* ci, size_t *dst) {
+    if (!ci) {
+        return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!dst) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
     memcpy(dst, ci->encryptedbytes, sizeof(size_t) * ci->numsubsamples);
-    return OK;
+    return AMEDIA_OK;
 }
 
 } // extern "C"

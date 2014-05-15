@@ -30,6 +30,7 @@
 #include <android/native_window.h>
 
 #include "NdkMediaCrypto.h"
+#include "NdkMediaError.h"
 #include "NdkMediaFormat.h"
 
 #ifdef __cplusplus
@@ -78,12 +79,12 @@ AMediaCodec* AMediaCodec_createEncoderByType(const char *mime_type);
 /**
  * delete the codec and free its resources
  */
-int AMediaCodec_delete(AMediaCodec*);
+media_status_t AMediaCodec_delete(AMediaCodec*);
 
 /**
  * Configure the codec. For decoding you would typically get the format from an extractor.
  */
-int AMediaCodec_configure(
+media_status_t AMediaCodec_configure(
         AMediaCodec*,
         const AMediaFormat* format,
         ANativeWindow* surface,
@@ -94,18 +95,18 @@ int AMediaCodec_configure(
  * Start the codec. A codec must be configured before it can be started, and must be started
  * before buffers can be sent to it.
  */
-int AMediaCodec_start(AMediaCodec*);
+media_status_t AMediaCodec_start(AMediaCodec*);
 
 /**
  * Stop the codec.
  */
-int AMediaCodec_stop(AMediaCodec*);
+media_status_t AMediaCodec_stop(AMediaCodec*);
 
 /*
  * Flush the codec's input and output. All indices previously returned from calls to
  * AMediaCodec_dequeueInputBuffer and AMediaCodec_dequeueOutputBuffer become invalid.
  */
-int AMediaCodec_flush(AMediaCodec*);
+media_status_t AMediaCodec_flush(AMediaCodec*);
 
 /**
  * Get an input buffer. The specified buffer index must have been previously obtained from
@@ -129,13 +130,13 @@ ssize_t AMediaCodec_dequeueInputBuffer(AMediaCodec*, int64_t timeoutUs);
 /**
  * Send the specified buffer to the codec for processing.
  */
-int AMediaCodec_queueInputBuffer(AMediaCodec*,
+media_status_t AMediaCodec_queueInputBuffer(AMediaCodec*,
         size_t idx, off_t offset, size_t size, uint64_t time, uint32_t flags);
 
 /**
  * Send the specified buffer to the codec for processing.
  */
-int AMediaCodec_queueSecureInputBuffer(AMediaCodec*,
+media_status_t AMediaCodec_queueSecureInputBuffer(AMediaCodec*,
         size_t idx, off_t offset, AMediaCodecCryptoInfo*, uint64_t time, uint32_t flags);
 
 /**
@@ -147,7 +148,7 @@ AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec*);
 /**
  * Release and optionally render the specified buffer.
  */
-int AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool render);
+media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool render);
 
 
 typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
@@ -158,7 +159,8 @@ typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
  * Note that you cannot perform any operations on the mediacodec from within the callback.
  * If you need to perform mediacodec operations, you must do so on a different thread.
  */
-int AMediaCodec_setNotificationCallback(AMediaCodec*, OnCodecEvent callback, void *userdata);
+media_status_t AMediaCodec_setNotificationCallback(
+        AMediaCodec*, OnCodecEvent callback, void *userdata);
 
 
 enum {
@@ -182,14 +184,14 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
  * delete an AMediaCodecCryptoInfo created previously with AMediaCodecCryptoInfo_new, or
  * obtained from AMediaExtractor
  */
-int AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo*);
+media_status_t AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo*);
 
 size_t AMediaCodecCryptoInfo_getNumSubSamples(AMediaCodecCryptoInfo*);
-int AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo*, uint8_t *dst);
-int AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo*, uint8_t *dst);
+media_status_t AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo*, uint8_t *dst);
+media_status_t AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo*, uint8_t *dst);
 uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo*);
-int AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo*, size_t *dst);
-int AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo*, size_t *dst);
+media_status_t AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo*, size_t *dst);
+media_status_t AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo*, size_t *dst);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -38,12 +38,12 @@
 
 using namespace android;
 
-static int translate_error(status_t err) {
+static media_status_t translate_error(status_t err) {
     if (err == OK) {
-        return OK;
+        return AMEDIA_OK;
     }
     ALOGE("sf error code: %d", err);
-    return AMEDIAERROR_GENERIC;
+    return AMEDIA_ERROR_UNKNOWN;
 }
 
 struct AMediaExtractor {
@@ -63,21 +63,20 @@ AMediaExtractor* AMediaExtractor_new() {
 }
 
 EXPORT
-int AMediaExtractor_delete(AMediaExtractor *mData) {
+media_status_t AMediaExtractor_delete(AMediaExtractor *mData) {
     ALOGV("dtor");
     delete mData;
-    return OK;
+    return AMEDIA_OK;
 }
 
 EXPORT
-int AMediaExtractor_setDataSourceFd(AMediaExtractor *mData, int fd, off64_t offset, off64_t length) {
+media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor *mData, int fd, off64_t offset, off64_t length) {
     ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
-    mData->mImpl->setDataSource(fd, offset, length);
-    return 0;
+    return translate_error(mData->mImpl->setDataSource(fd, offset, length));
 }
 
 EXPORT
-int AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) {
+media_status_t AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) {
     ALOGV("setDataSource(%s)", location);
     // TODO: add header support
 
@@ -86,14 +85,14 @@ int AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) 
     if (env == NULL) {
         ALOGE("setDataSource(path) must be called from Java thread");
         env->ExceptionClear();
-        return AMEDIAERROR_UNSUPPORTED;
+        return AMEDIA_ERROR_UNSUPPORTED;
     }
 
     jclass mediahttpclass = env->FindClass("android/media/MediaHTTPService");
     if (mediahttpclass == NULL) {
         ALOGE("can't find MediaHttpService");
         env->ExceptionClear();
-        return AMEDIAERROR_UNSUPPORTED;
+        return AMEDIA_ERROR_UNSUPPORTED;
     }
 
     jmethodID mediaHttpCreateMethod = env->GetStaticMethodID(mediahttpclass,
@@ -101,7 +100,7 @@ int AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) 
     if (mediaHttpCreateMethod == NULL) {
         ALOGE("can't find method");
         env->ExceptionClear();
-        return AMEDIAERROR_UNSUPPORTED;
+        return AMEDIA_ERROR_UNSUPPORTED;
     }
 
     jstring jloc = env->NewStringUTF(location);
@@ -115,13 +114,13 @@ int AMediaExtractor_setDataSource(AMediaExtractor *mData, const char *location) 
         httpService = interface_cast<IMediaHTTPService>(binder);
     }
 
-    mData->mImpl->setDataSource(httpService, location, NULL);
+    status_t err = mData->mImpl->setDataSource(httpService, location, NULL);
     env->ExceptionClear();
-    return OK;
+    return translate_error(err);
 }
 
 EXPORT
-int AMediaExtractor_getTrackCount(AMediaExtractor *mData) {
+size_t AMediaExtractor_getTrackCount(AMediaExtractor *mData) {
     return mData->mImpl->countTracks();
 }
 
@@ -133,13 +132,13 @@ AMediaFormat* AMediaExtractor_getTrackFormat(AMediaExtractor *mData, size_t idx)
 }
 
 EXPORT
-int AMediaExtractor_selectTrack(AMediaExtractor *mData, size_t idx) {
+media_status_t AMediaExtractor_selectTrack(AMediaExtractor *mData, size_t idx) {
     ALOGV("selectTrack(%z)", idx);
     return translate_error(mData->mImpl->selectTrack(idx));
 }
 
 EXPORT
-int AMediaExtractor_unselectTrack(AMediaExtractor *mData, size_t idx) {
+media_status_t AMediaExtractor_unselectTrack(AMediaExtractor *mData, size_t idx) {
     ALOGV("unselectTrack(%z)", idx);
     return translate_error(mData->mImpl->unselectTrack(idx));
 }
@@ -151,7 +150,7 @@ bool AMediaExtractor_advance(AMediaExtractor *mData) {
 }
 
 EXPORT
-int AMediaExtractor_readSampleData(AMediaExtractor *mData, uint8_t *buffer, size_t capacity) {
+ssize_t AMediaExtractor_readSampleData(AMediaExtractor *mData, uint8_t *buffer, size_t capacity) {
     //ALOGV("readSampleData");
     sp<ABuffer> tmp = new ABuffer(buffer, capacity);
     if (mData->mImpl->readSampleData(tmp) == OK) {
@@ -161,7 +160,7 @@ int AMediaExtractor_readSampleData(AMediaExtractor *mData, uint8_t *buffer, size
 }
 
 EXPORT
-int AMediaExtractor_getSampleFlags(AMediaExtractor *mData) {
+uint32_t AMediaExtractor_getSampleFlags(AMediaExtractor *mData) {
     int sampleFlags = 0;
     sp<MetaData> meta;
     status_t err = mData->mImpl->getSampleMeta(&meta);
@@ -170,14 +169,14 @@ int AMediaExtractor_getSampleFlags(AMediaExtractor *mData) {
     }
     int32_t val;
     if (meta->findInt32(kKeyIsSyncFrame, &val) && val != 0) {
-        sampleFlags |= NuMediaExtractor::SAMPLE_FLAG_SYNC;
+        sampleFlags |= AMEDIAEXTRACTOR_SAMPLE_FLAG_SYNC;
     }
 
     uint32_t type;
     const void *data;
     size_t size;
     if (meta->findData(kKeyEncryptedSizes, &type, &data, &size)) {
-        sampleFlags |= NuMediaExtractor::SAMPLE_FLAG_ENCRYPTED;
+        sampleFlags |= AMEDIAEXTRACTOR_SAMPLE_FLAG_ENCRYPTED;
     }
     return sampleFlags;
 }
