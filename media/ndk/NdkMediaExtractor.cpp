@@ -150,6 +150,20 @@ bool AMediaExtractor_advance(AMediaExtractor *mData) {
 }
 
 EXPORT
+media_status_t AMediaExtractor_seekTo(AMediaExtractor *ex, int64_t seekPosUs, SeekMode mode) {
+    android::MediaSource::ReadOptions::SeekMode sfmode;
+    if (mode == AMEDIAEXTRACTOR_SEEK_PREVIOUS_SYNC) {
+        sfmode = android::MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC;
+    } else if (mode == AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC) {
+        sfmode = android::MediaSource::ReadOptions::SEEK_CLOSEST_SYNC;
+    } else {
+        sfmode = android::MediaSource::ReadOptions::SEEK_NEXT_SYNC;
+    }
+
+    return translate_error(ex->mImpl->seekTo(seekPosUs, sfmode));
+}
+
+EXPORT
 ssize_t AMediaExtractor_readSampleData(AMediaExtractor *mData, uint8_t *buffer, size_t capacity) {
     //ALOGV("readSampleData");
     sp<ABuffer> tmp = new ABuffer(buffer, capacity);
@@ -331,7 +345,7 @@ AMediaCodecCryptoInfo *AMediaExtractor_getSampleCryptoInfo(AMediaExtractor *ex) 
             numSubSamples,
             (uint8_t*) key,
             (uint8_t*) iv,
-            mode,
+            (cryptoinfo_mode_t) mode,
             (size_t*) cleardata,
             (size_t*) crypteddata);
 }

@@ -29,6 +29,7 @@
 #define _NDK_MEDIA_CRYPTO_H
 
 #include <sys/types.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {

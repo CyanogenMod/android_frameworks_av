@@ -56,16 +56,59 @@ AMediaMuxer* AMediaMuxer_new(int fd, OutputFormat format);
  */
 media_status_t AMediaMuxer_delete(AMediaMuxer*);
 
-media_status_t AMediaMuxer_setLocation(AMediaMuxer*, float latitude, float longtitude);
+/**
+ * Set and store the geodata (latitude and longitude) in the output file.
+ * This method should be called before AMediaMuxer_start. The geodata is stored
+ * in udta box if the output format is AMEDIAMUXER_OUTPUT_FORMAT_MPEG_4, and is
+ * ignored for other output formats.
+ * The geodata is stored according to ISO-6709 standard.
+ *
+ * Both values are specified in degrees.
+ * Latitude must be in the range [-90, 90].
+ * Longitude must be in the range [-180, 180].
+ */
+media_status_t AMediaMuxer_setLocation(AMediaMuxer*, float latitude, float longitude);
 
+/**
+ * Sets the orientation hint for output video playback.
+ * This method should be called before AMediaMuxer_start. Calling this
+ * method will not rotate the video frame when muxer is generating the file,
+ * but add a composition matrix containing the rotation angle in the output
+ * video if the output format is AMEDIAMUXER_OUTPUT_FORMAT_MPEG_4, so that a
+ * video player can choose the proper orientation for playback.
+ * Note that some video players may choose to ignore the composition matrix
+ * during playback.
+ * The angle is specified in degrees, clockwise.
+ * The supported angles are 0, 90, 180, and 270 degrees.
+ */
 media_status_t AMediaMuxer_setOrientationHint(AMediaMuxer*, int degrees);
 
+/**
+ * Adds a track with the specified format.
+ * Returns the index of the new track or a negative value in case of failure,
+ * which can be interpreted as a media_status_t.
+ */
 ssize_t AMediaMuxer_addTrack(AMediaMuxer*, const AMediaFormat* format);
 
+/**
+ * Start the muxer. Should be called after AMediaMuxer_addTrack and
+ * before AMediaMuxer_writeSampleData.
+ */
 media_status_t AMediaMuxer_start(AMediaMuxer*);
 
+/**
+ * Stops the muxer.
+ * Once the muxer stops, it can not be restarted.
+ */
 media_status_t AMediaMuxer_stop(AMediaMuxer*);
 
+/**
+ * Writes an encoded sample into the muxer.
+ * The application needs to make sure that the samples are written into
+ * the right tracks. Also, it needs to make sure the samples for each track
+ * are written in chronological order (e.g. in the order they are provided
+ * by the encoder.)
+ */
 media_status_t AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
         size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info);
 

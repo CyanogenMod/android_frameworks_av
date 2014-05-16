@@ -114,6 +114,16 @@ int64_t AMediaExtractor_getSampletime(AMediaExtractor*);
  */
 bool AMediaExtractor_advance(AMediaExtractor*);
 
+typedef enum {
+    AMEDIAEXTRACTOR_SEEK_PREVIOUS_SYNC,
+    AMEDIAEXTRACTOR_SEEK_NEXT_SYNC,
+    AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC
+} SeekMode;
+
+/**
+ *
+ */
+media_status_t AMediaExtractor_seekTo(AMediaExtractor*, int64_t seekPosUs, SeekMode mode);
 
 /**
  * mapping of crypto scheme uuid to the scheme specific data for that scheme
@@ -145,7 +155,6 @@ enum {
     AMEDIAEXTRACTOR_SAMPLE_FLAG_SYNC = 1,
     AMEDIAEXTRACTOR_SAMPLE_FLAG_ENCRYPTED = 2,
 };
-
 
 #ifdef __cplusplus
 } // extern "C"

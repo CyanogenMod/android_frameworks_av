@@ -341,6 +341,13 @@ media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, b
 }
 
 EXPORT
+media_status_t AMediaCodec_releaseOutputBufferAtTime(
+        AMediaCodec *mData, size_t idx, int64_t timestampNs) {
+    ALOGV("render @ %lld", timestampNs);
+    return translate_error(mData->mCodec->renderOutputBufferAndRelease(idx, timestampNs));
+}
+
+EXPORT
 media_status_t AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback, void *userdata) {
     mData->mCallback = callback;
     mData->mCallbackUserData = userdata;
@@ -351,7 +358,7 @@ typedef struct AMediaCodecCryptoInfo {
         int numsubsamples;
         uint8_t key[16];
         uint8_t iv[16];
-        uint32_t mode;
+        cryptoinfo_mode_t mode;
         size_t *clearbytes;
         size_t *encryptedbytes;
 } AMediaCodecCryptoInfo;
@@ -396,7 +403,7 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
         int numsubsamples,
         uint8_t key[16],
         uint8_t iv[16],
-        uint32_t mode,
+        cryptoinfo_mode_t mode,
         size_t *clearbytes,
         size_t *encryptedbytes) {
 
@@ -459,9 +466,9 @@ media_status_t AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo* ci, uint8_t *d
 }
 
 EXPORT
-uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo* ci) {
+cryptoinfo_mode_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo* ci) {
     if (!ci) {
-        return AMEDIA_ERROR_INVALID_OBJECT;
+        return (cryptoinfo_mode_t) AMEDIA_ERROR_INVALID_OBJECT;
     }
     return ci->mode;
 }
