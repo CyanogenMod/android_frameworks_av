@@ -1289,7 +1289,6 @@ status_t MediaPlayerService::decode(int fd, int64_t offset, int64_t length,
 
 Exit:
     if (player != 0) player->reset();
-    ::close(fd);
     return status;
 }
 
