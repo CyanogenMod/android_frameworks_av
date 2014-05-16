@@ -623,7 +623,7 @@ status_t ANetworkSession::Session::writeMore() {
     CHECK_EQ(mState, CONNECTED);
     CHECK(!mOutFragments.empty());
 
-    ssize_t n;
+    ssize_t n = -1;
     while (!mOutFragments.empty()) {
         const Fragment &frag = *mOutFragments.begin();
 
