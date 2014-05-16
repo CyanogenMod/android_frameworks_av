@@ -879,8 +879,8 @@ int Session_ReleaseEffect(preproc_session_t *session,
 int Session_SetConfig(preproc_session_t *session, effect_config_t *config)
 {
     uint32_t sr;
-    uint32_t inCnl = popcount(config->inputCfg.channels);
-    uint32_t outCnl = popcount(config->outputCfg.channels);
+    uint32_t inCnl = audio_channel_count_from_out_mask(config->inputCfg.channels);
+    uint32_t outCnl = audio_channel_count_from_out_mask(config->outputCfg.channels);
 
     if (config->inputCfg.samplingRate != config->outputCfg.samplingRate ||
         config->inputCfg.format != config->outputCfg.format ||
@@ -1035,7 +1035,7 @@ int Session_SetReverseConfig(preproc_session_t *session, effect_config_t *config
             config->inputCfg.format != AUDIO_FORMAT_PCM_16_BIT) {
         return -EINVAL;
     }
-    uint32_t inCnl = popcount(config->inputCfg.channels);
+    uint32_t inCnl = audio_channel_count_from_out_mask(config->inputCfg.channels);
     int status = session->apm->set_num_reverse_channels(inCnl);
     if (status < 0) {
         return -EINVAL;

@@ -1837,7 +1837,8 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     if (status == BAD_VALUE &&
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
         (config.sample_rate <= 2 * reqSamplingRate) &&
-        (popcount(config.channel_mask) <= FCC_2) && (popcount(reqChannelMask) <= FCC_2)) {
+        (audio_channel_count_from_in_mask(config.channel_mask) <= FCC_2) &&
+        (audio_channel_count_from_in_mask(reqChannelMask) <= FCC_2)) {
         // FIXME describe the change proposed by HAL (save old values so we can log them here)
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
@@ -1857,7 +1858,8 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
             TEE_SINK_OLD,   // copy input using an existing pipe
         } kind;
         NBAIO_Format format = Format_from_SR_C(inStream->common.get_sample_rate(&inStream->common),
-                                        popcount(inStream->common.get_channels(&inStream->common)));
+                audio_channel_count_from_in_mask(
+                        inStream->common.get_channels(&inStream->common)));
         if (!mTeeSinkInputEnabled) {
             kind = TEE_SINK_NO;
         } else if (!Format_isValid(format)) {

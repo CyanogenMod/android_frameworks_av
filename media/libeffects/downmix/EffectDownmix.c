@@ -118,7 +118,7 @@ void Downmix_testIndexComputation(uint32_t mask) {
         hasBacks = true;
     }
 
-    const int numChan = popcount(mask);
+    const int numChan = audio_channel_count_from_out_mask(mask);
     const bool hasFC = ((mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) == AUDIO_CHANNEL_OUT_FRONT_CENTER);
     const bool hasLFE =
             ((mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) == AUDIO_CHANNEL_OUT_LOW_FREQUENCY);
@@ -629,7 +629,8 @@ int Downmix_Configure(downmix_module_t *pDwmModule, effect_config_t *pConfig, bo
             ALOGE("Downmix_Configure error: input channel mask can't be 0");
             return -EINVAL;
         }
-        pDownmixer->input_channel_count = popcount(pConfig->inputCfg.channels);
+        pDownmixer->input_channel_count =
+                audio_channel_count_from_out_mask(pConfig->inputCfg.channels);
     }
 
     Downmix_Reset(pDownmixer, init);
@@ -997,7 +998,7 @@ bool Downmix_foldGeneric(
         hasBacks = true;
     }
 
-    const int numChan = popcount(mask);
+    const int numChan = audio_channel_count_from_out_mask(mask);
     const bool hasFC = ((mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) == AUDIO_CHANNEL_OUT_FRONT_CENTER);
     const bool hasLFE =
             ((mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) == AUDIO_CHANNEL_OUT_LOW_FREQUENCY);
