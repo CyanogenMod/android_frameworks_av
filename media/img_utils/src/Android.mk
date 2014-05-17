@@ -46,6 +46,7 @@ LOCAL_C_INCLUDES += \
 LOCAL_CFLAGS += \
   -Wall \
   -Wextra \
+  -Werror \
   -fvisibility=hidden
 
 ifneq ($(filter userdebug eng,$(TARGET_BUILD_VARIANT)),)

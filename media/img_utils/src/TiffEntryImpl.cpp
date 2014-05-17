@@ -23,7 +23,7 @@ namespace android {
 namespace img_utils {
 
 template<>
-uint32_t TiffEntryImpl<TiffIfd>::getSize() const {
+size_t TiffEntryImpl<TiffIfd>::getSize() const {
     uint32_t total = 0;
     for (uint32_t i = 0; i < mCount; ++i) {
         total += mData[i].getSize();

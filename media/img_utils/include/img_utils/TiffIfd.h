@@ -82,7 +82,7 @@ class ANDROID_API TiffIfd : public TiffWritable {
          * and the corresponding values for each entry (recursively including
          * any sub-IFDs).
          */
-        virtual uint32_t getSize() const;
+        virtual size_t getSize() const;
 
         /**
          * Get the id of this IFD.

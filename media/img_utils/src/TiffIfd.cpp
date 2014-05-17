@@ -30,13 +30,13 @@ TiffIfd::~TiffIfd() {}
 status_t TiffIfd::addEntry(const sp<TiffEntry>& entry) {
     size_t size = mEntries.size();
     if (size >= MAX_IFD_ENTRIES) {
-        ALOGW("%s: Failed to add entry for tag 0x%x to IFD %d, too many entries in IFD!",
+        ALOGW("%s: Failed to add entry for tag 0x%x to IFD %u, too many entries in IFD!",
                 __FUNCTION__, entry->getTag(), mIfdId);
         return BAD_INDEX;
     }
 
     if (mEntries.add(entry) < 0) {
-        ALOGW("%s: Failed to add entry for tag 0x%x to ifd %d.", __FUNCTION__, entry->getTag(),
+        ALOGW("%s: Failed to add entry for tag 0x%x to ifd %u.", __FUNCTION__, entry->getTag(),
                 mIfdId);
         return BAD_INDEX;
     }
@@ -46,7 +46,7 @@ status_t TiffIfd::addEntry(const sp<TiffEntry>& entry) {
 sp<TiffEntry> TiffIfd::getEntry(uint16_t tag) const {
     ssize_t index = mEntries.indexOfTag(tag);
     if (index < 0) {
-        ALOGW("%s: No entry for tag 0x%x in ifd %d.", __FUNCTION__, tag, mIfdId);
+        ALOGW("%s: No entry for tag 0x%x in ifd %u.", __FUNCTION__, tag, mIfdId);
         return NULL;
     }
     return mEntries[index];
@@ -64,19 +64,19 @@ uint32_t TiffIfd::checkAndGetOffset(uint32_t offset) const {
     size_t size = mEntries.size();
 
     if (size > MAX_IFD_ENTRIES) {
-        ALOGW("%s: Could not calculate IFD offsets, IFD %d contains too many entries.",
+        ALOGW("%s: Could not calculate IFD offsets, IFD %u contains too many entries.",
                 __FUNCTION__, mIfdId);
         return BAD_OFFSET;
     }
 
     if (size <= 0) {
-        ALOGW("%s: Could not calculate IFD offsets, IFD %d contains no entries.", __FUNCTION__,
+        ALOGW("%s: Could not calculate IFD offsets, IFD %u contains no entries.", __FUNCTION__,
                 mIfdId);
         return BAD_OFFSET;
     }
 
     if (offset == BAD_OFFSET) {
-        ALOGW("%s: Could not calculate IFD offsets, IFD %d had a bad initial offset.",
+        ALOGW("%s: Could not calculate IFD offsets, IFD %u had a bad initial offset.",
                 __FUNCTION__, mIfdId);
         return BAD_OFFSET;
     }
@@ -128,7 +128,7 @@ status_t TiffIfd::writeData(uint32_t offset, /*out*/EndianOutput* out) const {
         size_t diff = (next - last);
         size_t actual = mEntries[i]->getSize();
         if (diff != actual) {
-            ALOGW("Sizes do not match for tag %x. Expected %d, received %d",
+            ALOGW("Sizes do not match for tag %x. Expected %zu, received %zu",
                     mEntries[i]->getTag(), actual, diff);
         }
     }
@@ -138,7 +138,7 @@ status_t TiffIfd::writeData(uint32_t offset, /*out*/EndianOutput* out) const {
     return ret;
 }
 
-uint32_t TiffIfd::getSize() const {
+size_t TiffIfd::getSize() const {
     size_t size = mEntries.size();
     uint32_t total = calculateIfdSize(size);
     WORD_ALIGN(total);
@@ -159,7 +159,7 @@ uint32_t TiffIfd::getComparableValue() const {
 String8 TiffIfd::toString() const {
     size_t s = mEntries.size();
     String8 output;
-    output.appendFormat("[ifd: %x, num_entries: %u, entries:\n", getId(), s);
+    output.appendFormat("[ifd: %x, num_entries: %zu, entries:\n", getId(), s);
     for(size_t i = 0; i < mEntries.size(); ++i) {
         output.append("\t");
         output.append(mEntries[i]->toString());
@@ -171,7 +171,7 @@ String8 TiffIfd::toString() const {
 
 void TiffIfd::log() const {
     size_t s = mEntries.size();
-    ALOGI("[ifd: %x, num_entries: %u, entries:\n", getId(), s);
+    ALOGI("[ifd: %x, num_entries: %zu, entries:\n", getId(), s);
     for(size_t i = 0; i < s; ++i) {
         ALOGI("\t%s", mEntries[i]->toString().string());
     }

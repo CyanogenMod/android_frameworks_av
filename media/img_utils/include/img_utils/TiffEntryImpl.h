@@ -43,7 +43,7 @@ class TiffEntryImpl : public TiffEntry {
         uint16_t getTag() const;
         TagType getType() const;
         Endianness getEndianness() const;
-        uint32_t getSize() const;
+        size_t getSize() const;
         uint32_t getComparableValue() const;
 
     protected:
@@ -97,7 +97,7 @@ const void* TiffEntryImpl<T>::getDataHelper() const {
 }
 
 template<typename T>
-uint32_t TiffEntryImpl<T>::getSize() const {
+size_t TiffEntryImpl<T>::getSize() const {
     uint32_t total = getActualSize();
     WORD_ALIGN(total)
     return (total <= OFFSET_SIZE) ? 0 : total;
