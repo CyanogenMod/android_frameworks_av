@@ -257,9 +257,9 @@ void FastMixer::onStateChange()
                     mixer->setBufferProvider(name, bufferProvider);
                     if (fastTrack->mVolumeProvider == NULL) {
                         mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                                (void *)0x1000);
+                                (void *) MAX_GAIN_INT);
                         mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                                (void *)0x1000);
+                                (void *) MAX_GAIN_INT);
                     }
                     mixer->setParameter(name, AudioMixer::RESAMPLE,
                             AudioMixer::REMOVE, NULL);
@@ -312,11 +312,13 @@ void FastMixer::onWork()
             int name = fastTrackNames[i];
             ALOG_ASSERT(name >= 0);
             if (fastTrack->mVolumeProvider != NULL) {
-                uint32_t vlr = fastTrack->mVolumeProvider->getVolumeLR();
+                gain_minifloat_packed_t vlr = fastTrack->mVolumeProvider->getVolumeLR();
                 mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                        (void *)(uintptr_t)(vlr & 0xFFFF));
+                        (void *) (uintptr_t)
+                            (float_from_gain(gain_minifloat_unpack_left(vlr)) * MAX_GAIN_INT));
                 mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                        (void *)(uintptr_t)(vlr >> 16));
+                        (void *) (uintptr_t)
+                            (float_from_gain(gain_minifloat_unpack_right(vlr)) * MAX_GAIN_INT));
             }
             // FIXME The current implementation of framesReady() for fast tracks
             // takes a tryLock, which can block

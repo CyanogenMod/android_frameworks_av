@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <audio_utils/minifloat.h>
 #include <utils/threads.h>
 #include <utils/Log.h>
 #include <utils/RefBase.h>
@@ -110,11 +111,8 @@ private:
                 // force to 32-bit.  The client and server may have different typedefs for size_t.
                 uint32_t    mMinimum;       // server wakes up client if available >= mMinimum
 
-                // Channel volumes are fixed point U4.12, so 0x1000 means 1.0.
-                // Left channel is in [0:15], right channel is in [16:31].
-                // Always read and write the combined pair atomically.
-                // For AudioTrack only, not used by AudioRecord.
-                uint32_t    mVolumeLR;
+                // Stereo gains for AudioTrack only, not used by AudioRecord.
+                gain_minifloat_packed_t mVolumeLR;
 
                 uint32_t    mSampleRate;    // AudioTrack only: client's requested sample rate in Hz
                                             // or 0 == default. Write-only client, read-only server.
@@ -285,8 +283,8 @@ public:
         mCblk->mSendLevel = uint16_t(sendLevel * 0x1000);
     }
 
-    // caller must limit to 0 <= volumeLR <= 0x10001000
-    void        setVolumeLR(uint32_t volumeLR) {
+    // set stereo gains
+    void        setVolumeLR(gain_minifloat_packed_t volumeLR) {
         mCblk->mVolumeLR = volumeLR;
     }
 
@@ -405,7 +403,7 @@ public:
     // return value of these methods must be validated by the caller
     uint32_t    getSampleRate() const { return mCblk->mSampleRate; }
     uint16_t    getSendLevel_U4_12() const { return mCblk->mSendLevel; }
-    uint32_t    getVolumeLR() const { return mCblk->mVolumeLR; }
+    gain_minifloat_packed_t getVolumeLR() const { return mCblk->mVolumeLR; }
 
     // estimated total number of filled frames available to server to read,
     // which may include non-contiguous frames

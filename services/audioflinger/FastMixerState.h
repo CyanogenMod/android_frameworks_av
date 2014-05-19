@@ -17,6 +17,7 @@
 #ifndef ANDROID_AUDIO_FAST_MIXER_STATE_H
 #define ANDROID_AUDIO_FAST_MIXER_STATE_H
 
+#include <audio_utils/minifloat.h>
 #include <system/audio.h>
 #include <media/ExtendedAudioBufferProvider.h>
 #include <media/nbaio/NBAIO.h>
@@ -29,9 +30,8 @@ struct FastMixerDumpState;
 
 class VolumeProvider {
 public:
-    // Return the track volume in U4_12 format: left in lower half, right in upper half. The
-    // provider implementation is responsible for validating that the return value is in range.
-    virtual uint32_t getVolumeLR() = 0;
+    // The provider implementation is responsible for validating that the return value is in range.
+    virtual gain_minifloat_packed_t getVolumeLR() = 0;
 protected:
     VolumeProvider() { }
     virtual ~VolumeProvider() { }

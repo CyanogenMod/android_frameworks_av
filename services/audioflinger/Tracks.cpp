@@ -34,6 +34,7 @@
 
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
+#include <audio_utils/minifloat.h>
 
 // ----------------------------------------------------------------------------
 
@@ -459,7 +460,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
 
 void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size, bool active)
 {
-    uint32_t vlr = mAudioTrackServerProxy->getVolumeLR();
+    gain_minifloat_packed_t vlr = mAudioTrackServerProxy->getVolumeLR();
     if (isFastTrack()) {
         sprintf(buffer, "    F %2d", mFastIndex);
     } else if (mName >= AudioMixer::TRACK0) {
@@ -532,8 +533,8 @@ void AudioFlinger::PlaybackThread::Track::dump(char* buffer, size_t size, bool a
             stateChar,
             mFillingUpStatus,
             mAudioTrackServerProxy->getSampleRate(),
-            20.0 * log10((vlr & 0xFFFF) / 4096.0),
-            20.0 * log10((vlr >> 16) / 4096.0),
+            20.0 * log10(float_from_gain(gain_minifloat_unpack_left(vlr))),
+            20.0 * log10(float_from_gain(gain_minifloat_unpack_right(vlr))),
             mCblk->mServer,
             mMainBuffer,
             mAuxBuffer,
@@ -959,27 +960,27 @@ void AudioFlinger::PlaybackThread::Track::triggerEvents(AudioSystem::sync_event_
 
 // implement VolumeBufferProvider interface
 
-uint32_t AudioFlinger::PlaybackThread::Track::getVolumeLR()
+gain_minifloat_packed_t AudioFlinger::PlaybackThread::Track::getVolumeLR()
 {
     // called by FastMixer, so not allowed to take any locks, block, or do I/O including logs
     ALOG_ASSERT(isFastTrack() && (mCblk != NULL));
-    uint32_t vlr = mAudioTrackServerProxy->getVolumeLR();
-    uint32_t vl = vlr & 0xFFFF;
-    uint32_t vr = vlr >> 16;
+    gain_minifloat_packed_t vlr = mAudioTrackServerProxy->getVolumeLR();
+    float vl = float_from_gain(gain_minifloat_unpack_left(vlr));
+    float vr = float_from_gain(gain_minifloat_unpack_right(vlr));
     // track volumes come from shared memory, so can't be trusted and must be clamped
-    if (vl > MAX_GAIN_INT) {
-        vl = MAX_GAIN_INT;
+    if (vl > GAIN_FLOAT_UNITY) {
+        vl = GAIN_FLOAT_UNITY;
     }
-    if (vr > MAX_GAIN_INT) {
-        vr = MAX_GAIN_INT;
+    if (vr > GAIN_FLOAT_UNITY) {
+        vr = GAIN_FLOAT_UNITY;
     }
     // now apply the cached master volume and stream type volume;
     // this is trusted but lacks any synchronization or barrier so may be stale
     float v = mCachedVolume;
     vl *= v;
     vr *= v;
-    // re-combine into U4.16
-    vlr = (vr << 16) | (vl & 0xFFFF);
+    // re-combine into packed minifloat
+    vlr = gain_minifloat_pack(gain_from_float(vl), gain_from_float(vr));
     // FIXME look at mute, pause, and stop flags
     return vlr;
 }
@@ -1590,7 +1591,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         // since client and server are in the same process,
         // the buffer has the same virtual address on both sides
         mClientProxy = new AudioTrackClientProxy(mCblk, mBuffer, mFrameCount, mFrameSize);
-        mClientProxy->setVolumeLR((uint32_t(uint16_t(0x1000)) << 16) | uint16_t(0x1000));
+        mClientProxy->setVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY);
         mClientProxy->setSendLevel(0.0);
         mClientProxy->setSampleRate(sampleRate);
         mClientProxy = new AudioTrackClientProxy(mCblk, mBuffer, mFrameCount, mFrameSize,

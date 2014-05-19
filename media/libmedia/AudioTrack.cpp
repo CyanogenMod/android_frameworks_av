@@ -19,6 +19,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioTrack"
 
+#include <math.h>
 #include <sys/resource.h>
 #include <audio_utils/primitives.h>
 #include <binder/IPCThreadState.h>
@@ -566,7 +567,9 @@ void AudioTrack::pause()
 
 status_t AudioTrack::setVolume(float left, float right)
 {
-    if (left < 0.0f || left > 1.0f || right < 0.0f || right > 1.0f) {
+    // This duplicates a test by AudioTrack JNI, but that is not the only caller
+    if (isnanf(left) || left < GAIN_FLOAT_ZERO || left > GAIN_FLOAT_UNITY ||
+            isnanf(right) || right < GAIN_FLOAT_ZERO || right > GAIN_FLOAT_UNITY) {
         return BAD_VALUE;
     }
 
@@ -574,7 +577,7 @@ status_t AudioTrack::setVolume(float left, float right)
     mVolume[AUDIO_INTERLEAVE_LEFT] = left;
     mVolume[AUDIO_INTERLEAVE_RIGHT] = right;
 
-    mProxy->setVolumeLR((uint32_t(uint16_t(right * 0x1000)) << 16) | uint16_t(left * 0x1000));
+    mProxy->setVolumeLR(gain_minifloat_pack(gain_from_float(left), gain_from_float(right)));
 
     if (isOffloaded_l()) {
         mAudioTrack->signal();
@@ -589,7 +592,8 @@ status_t AudioTrack::setVolume(float volume)
 
 status_t AudioTrack::setAuxEffectSendLevel(float level)
 {
-    if (level < 0.0f || level > 1.0f) {
+    // This duplicates a test by AudioTrack JNI, but that is not the only caller
+    if (isnanf(level) || level < GAIN_FLOAT_ZERO || level > GAIN_FLOAT_UNITY) {
         return BAD_VALUE;
     }
 
@@ -1137,8 +1141,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         mStaticProxy = new StaticAudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
         mProxy = mStaticProxy;
     }
-    mProxy->setVolumeLR((uint32_t(uint16_t(mVolume[AUDIO_INTERLEAVE_RIGHT] * 0x1000)) << 16) |
-            uint16_t(mVolume[AUDIO_INTERLEAVE_LEFT] * 0x1000));
+    mProxy->setVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY);
     mProxy->setSendLevel(mSendLevel);
     mProxy->setSampleRate(mSampleRate);
     mProxy->setEpoch(epoch);

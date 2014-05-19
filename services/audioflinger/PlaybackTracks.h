@@ -65,7 +65,7 @@ public:
             void        signal();
 
 // implement FastMixerState::VolumeProvider interface
-    virtual uint32_t    getVolumeLR();
+    virtual gain_minifloat_packed_t getVolumeLR();
 
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 

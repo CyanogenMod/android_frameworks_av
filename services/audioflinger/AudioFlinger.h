@@ -82,9 +82,6 @@ class ServerProxy;
 
 static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 
-#define MAX_GAIN 4096.0f
-#define MAX_GAIN_INT 0x1000
-
 #define INCLUDING_FROM_AUDIOFLINGER_H
 
 class AudioFlinger :

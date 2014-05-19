@@ -270,6 +270,7 @@ public:
     sp<EffectModule> getEffectFromDesc_l(effect_descriptor_t *descriptor);
     sp<EffectModule> getEffectFromId_l(int id);
     sp<EffectModule> getEffectFromType_l(const effect_uuid_t *type);
+    // FIXME use float to improve the dynamic range
     bool setVolume_l(uint32_t *left, uint32_t *right);
     void setDevice_l(audio_devices_t device);
     void setMode_l(audio_mode_t mode);

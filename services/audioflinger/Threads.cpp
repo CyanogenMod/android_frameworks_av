@@ -35,6 +35,7 @@
 #include <audio_effects/effect_aec.h>
 #include <audio_utils/primitives.h>
 #include <audio_utils/format.h>
+#include <audio_utils/minifloat.h>
 
 // NBAIO implementations
 #include <media/nbaio/AudioStreamOutSink.h>
@@ -3255,21 +3256,23 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 float typeVolume = mStreamTypes[track->streamType()].volume;
                 float v = masterVolume * typeVolume;
                 AudioTrackServerProxy *proxy = track->mAudioTrackServerProxy;
-                uint32_t vlr = proxy->getVolumeLR();
-                vl = vlr & 0xFFFF;
-                vr = vlr >> 16;
+                gain_minifloat_packed_t vlr = proxy->getVolumeLR();
+                float vlf = float_from_gain(gain_minifloat_unpack_left(vlr));
+                float vrf = float_from_gain(gain_minifloat_unpack_right(vlr));
                 // track volumes come from shared memory, so can't be trusted and must be clamped
-                if (vl > MAX_GAIN_INT) {
-                    ALOGV("Track left volume out of range: %04X", vl);
-                    vl = MAX_GAIN_INT;
+                if (vlf > GAIN_FLOAT_UNITY) {
+                    ALOGV("Track left volume out of range: %.3g", vlf);
+                    vlf = GAIN_FLOAT_UNITY;
                 }
-                if (vr > MAX_GAIN_INT) {
-                    ALOGV("Track right volume out of range: %04X", vr);
-                    vr = MAX_GAIN_INT;
+                if (vrf > GAIN_FLOAT_UNITY) {
+                    ALOGV("Track right volume out of range: %.3g", vrf);
+                    vrf = GAIN_FLOAT_UNITY;
                 }
                 // now apply the master volume and stream type volume
-                vl = (uint32_t)(v * vl) << 12;
-                vr = (uint32_t)(v * vr) << 12;
+                // FIXME we're losing the wonderful dynamic range in the minifloat representation
+                float v8_24 = v * (MAX_GAIN_INT * MAX_GAIN_INT);
+                vl = (uint32_t) (v8_24 * vlf);
+                vr = (uint32_t) (v8_24 * vrf);
                 // assuming master volume and stream type volume each go up to 1.0,
                 // vl and vr are now in 8.24 format
 
@@ -3296,6 +3299,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 track->mHasVolumeController = false;
             }
 
+            // FIXME Use float
             // Convert volumes from 8.24 to 4.12 format
             // This additional clamping is needed in case chain->setVolume_l() overshot
             vl = (vl + (1 << 11)) >> 12;
@@ -3750,13 +3754,17 @@ void AudioFlinger::DirectOutputThread::processVolume_l(Track *track, bool lastTr
         float typeVolume = mStreamTypes[track->streamType()].volume;
         float v = mMasterVolume * typeVolume;
         AudioTrackServerProxy *proxy = track->mAudioTrackServerProxy;
-        uint32_t vlr = proxy->getVolumeLR();
-        float v_clamped = v * (vlr & 0xFFFF);
-        if (v_clamped > MAX_GAIN) v_clamped = MAX_GAIN;
-        left = v_clamped/MAX_GAIN;
-        v_clamped = v * (vlr >> 16);
-        if (v_clamped > MAX_GAIN) v_clamped = MAX_GAIN;
-        right = v_clamped/MAX_GAIN;
+        gain_minifloat_packed_t vlr = proxy->getVolumeLR();
+        left = float_from_gain(gain_minifloat_unpack_left(vlr));
+        if (left > GAIN_FLOAT_UNITY) {
+            left = GAIN_FLOAT_UNITY;
+        }
+        left *= v;
+        right = float_from_gain(gain_minifloat_unpack_right(vlr));
+        if (right > GAIN_FLOAT_UNITY) {
+            right = GAIN_FLOAT_UNITY;
+        }
+        right *= v;
     }
 
     if (lastTrack) {

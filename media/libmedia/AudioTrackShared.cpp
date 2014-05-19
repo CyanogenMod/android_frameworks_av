@@ -27,7 +27,7 @@ namespace android {
 
 audio_track_cblk_t::audio_track_cblk_t()
     : mServer(0), mFutex(0), mMinimum(0),
-    mVolumeLR(0x10001000), mSampleRate(0), mSendLevel(0), mFlags(0)
+    mVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY), mSampleRate(0), mSendLevel(0), mFlags(0)
 {
     memset(&u, 0, sizeof(u));
 }
