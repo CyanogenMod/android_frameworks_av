@@ -43,7 +43,8 @@ ssize_t AudioStreamOutSink::negotiate(const NBAIO_Format offers[], size_t numOff
         uint32_t sampleRate = mStream->common.get_sample_rate(&mStream->common);
         audio_channel_mask_t channelMask =
                 (audio_channel_mask_t) mStream->common.get_channels(&mStream->common);
-        mFormat = Format_from_SR_C(sampleRate, popcount(channelMask), streamFormat);
+        mFormat = Format_from_SR_C(sampleRate,
+                audio_channel_count_from_out_mask(channelMask), streamFormat);
         mFrameSize = Format_frameSize(mFormat);
     }
     return NBAIO_Sink::negotiate(offers, numOffers, counterOffers, numCounterOffers);

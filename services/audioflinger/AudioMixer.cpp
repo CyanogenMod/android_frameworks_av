@@ -215,7 +215,7 @@ void AudioMixer::invalidateState(uint32_t mask)
 
 status_t AudioMixer::initTrackDownmix(track_t* pTrack, int trackNum, audio_channel_mask_t mask)
 {
-    uint32_t channelCount = popcount(mask);
+    uint32_t channelCount = audio_channel_count_from_out_mask(mask);
     ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);
     status_t status = OK;
     if (channelCount > MAX_NUM_CHANNELS) {
@@ -410,7 +410,7 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             audio_channel_mask_t mask =
                 static_cast<audio_channel_mask_t>(reinterpret_cast<uintptr_t>(value));
             if (track.channelMask != mask) {
-                uint32_t channelCount = popcount(mask);
+                uint32_t channelCount = audio_channel_count_from_out_mask(mask);
                 ALOG_ASSERT((channelCount <= MAX_NUM_CHANNELS_TO_DOWNMIX) && channelCount);
                 track.channelMask = mask;
                 track.channelCount = channelCount;

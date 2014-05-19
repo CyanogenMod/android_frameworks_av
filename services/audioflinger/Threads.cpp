@@ -1731,7 +1731,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
         LOG_ALWAYS_FATAL("HAL channel mask %#x not supported for mixed output; "
                 "must be AUDIO_CHANNEL_OUT_STEREO", mChannelMask);
     }
-    mChannelCount = popcount(mChannelMask);
+    mChannelCount = audio_channel_count_from_out_mask(mChannelMask);
     mFormat = mOutput->stream->common.get_format(&mOutput->stream->common);
     if (!audio_is_valid_format(mFormat)) {
         LOG_ALWAYS_FATAL("HAL format %#x not valid for output", mFormat);
@@ -5575,8 +5575,8 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
                 reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
                 (mInput->stream->common.get_sample_rate(&mInput->stream->common)
                         <= (2 * samplingRate)) &&
-                popcount(mInput->stream->common.get_channels(&mInput->stream->common))
-                        <= FCC_2 &&
+                audio_channel_count_from_in_mask(
+                        mInput->stream->common.get_channels(&mInput->stream->common)) <= FCC_2 &&
                 (channelMask == AUDIO_CHANNEL_IN_MONO ||
                         channelMask == AUDIO_CHANNEL_IN_STEREO)) {
                 status = NO_ERROR;
@@ -5630,7 +5630,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
 {
     mSampleRate = mInput->stream->common.get_sample_rate(&mInput->stream->common);
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
-    mChannelCount = popcount(mChannelMask);
+    mChannelCount = audio_channel_count_from_in_mask(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
         ALOGE("HAL format %#x not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);

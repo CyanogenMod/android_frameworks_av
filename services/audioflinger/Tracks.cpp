@@ -82,7 +82,9 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mSampleRate(sampleRate),
         mFormat(format),
         mChannelMask(channelMask),
-        mChannelCount(popcount(channelMask)),
+        mChannelCount(isOut ?
+                audio_channel_count_from_out_mask(channelMask) :
+                audio_channel_count_from_in_mask(channelMask)),
         mFrameSize(audio_is_linear_pcm(format) ?
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
         mFrameCount(frameCount),
@@ -1850,7 +1852,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
 
     mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount, mFrameSize);
 
-    uint32_t channelCount = popcount(channelMask);
+    uint32_t channelCount = audio_channel_count_from_in_mask(channelMask);
     // FIXME I don't understand either of the channel count checks
     if (thread->mSampleRate != sampleRate && thread->mChannelCount <= FCC_2 &&
             channelCount <= FCC_2) {

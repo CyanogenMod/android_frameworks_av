@@ -291,7 +291,7 @@ status_t AudioTrack::set(
         return BAD_VALUE;
     }
     mChannelMask = channelMask;
-    uint32_t channelCount = popcount(channelMask);
+    uint32_t channelCount = audio_channel_count_from_out_mask(channelMask);
     mChannelCount = channelCount;
 
     // AudioFlinger does not currently support 8-bit data in shared memory
