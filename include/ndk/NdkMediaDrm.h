@@ -27,7 +27,7 @@
 #ifndef _NDK_MEDIA_DRM_H
 #define _NDK_MEDIA_DRM_H
 
-#include <NdkMediaError.h>
+#include "NdkMediaError.h"
 
 #ifdef __cplusplus
 extern "C" {
