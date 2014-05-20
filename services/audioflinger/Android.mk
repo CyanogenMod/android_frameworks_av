@@ -29,6 +29,7 @@ LOCAL_SRC_FILES:=               \
     Tracks.cpp                  \
     Effects.cpp                 \
     AudioMixer.cpp.arm          \
+    PatchPanel.cpp
 
 LOCAL_SRC_FILES += StateQueue.cpp
 

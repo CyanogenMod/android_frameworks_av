@@ -145,6 +145,12 @@ public:
                                   int session = 0);
             void doReleaseOutput(audio_io_handle_t output);
 
+            status_t clientCreateAudioPatch(const struct audio_patch *patch,
+                                      audio_patch_handle_t *handle,
+                                      int delayMs);
+            status_t clientReleaseAudioPatch(audio_patch_handle_t handle,
+                                             int delayMs);
+
 private:
                         AudioPolicyService() ANDROID_API;
     virtual             ~AudioPolicyService();
@@ -169,7 +175,9 @@ private:
             SET_PARAMETERS,
             SET_VOICE_VOLUME,
             STOP_OUTPUT,
-            RELEASE_OUTPUT
+            RELEASE_OUTPUT,
+            CREATE_AUDIO_PATCH,
+            RELEASE_AUDIO_PATCH,
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -196,6 +204,13 @@ private:
                     void        releaseOutputCommand(audio_io_handle_t output);
                     status_t    sendCommand(sp<AudioCommand>& command, int delayMs = 0);
                     void        insertCommand_l(sp<AudioCommand>& command, int delayMs = 0);
+                    status_t    createAudioPatchCommand(const struct audio_patch *patch,
+                                                        audio_patch_handle_t *handle,
+                                                        int delayMs);
+                    status_t    releaseAudioPatchCommand(audio_patch_handle_t handle,
+                                                         int delayMs);
+
+                    void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
         class AudioCommandData;
@@ -259,6 +274,17 @@ private:
         class ReleaseOutputData : public AudioCommandData {
         public:
             audio_io_handle_t mIO;
+        };
+
+        class CreateAudioPatchData : public AudioCommandData {
+        public:
+            struct audio_patch mPatch;
+            audio_patch_handle_t mHandle;
+        };
+
+        class ReleaseAudioPatchData : public AudioCommandData {
+        public:
+            audio_patch_handle_t mHandle;
         };
 
         Mutex   mLock;
@@ -404,6 +430,15 @@ private:
         virtual status_t moveEffects(int session,
                                          audio_io_handle_t srcOutput,
                                          audio_io_handle_t dstOutput);
+
+        /* Create a patch between several source and sink ports */
+        virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                           audio_patch_handle_t *handle,
+                                           int delayMs);
+
+        /* Release a patch */
+        virtual status_t releaseAudioPatch(audio_patch_handle_t handle,
+                                           int delayMs);
 
      private:
         AudioPolicyService *mAudioPolicyService;

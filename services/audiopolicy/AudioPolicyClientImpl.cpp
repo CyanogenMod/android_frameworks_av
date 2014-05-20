@@ -182,6 +182,17 @@ status_t AudioPolicyService::AudioPolicyClient::moveEffects(int session,
     return af->moveEffects(session, src_output, dst_output);
 }
 
+status_t AudioPolicyService::AudioPolicyClient::createAudioPatch(const struct audio_patch *patch,
+                                                                  audio_patch_handle_t *handle,
+                                                                  int delayMs)
+{
+    return mAudioPolicyService->clientCreateAudioPatch(patch, handle, delayMs);
+}
 
+status_t AudioPolicyService::AudioPolicyClient::releaseAudioPatch(audio_patch_handle_t handle,
+                                                                  int delayMs)
+{
+    return mAudioPolicyService->clientReleaseAudioPatch(handle, delayMs);
+}
 
 }; // namespace android
