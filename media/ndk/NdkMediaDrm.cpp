@@ -101,7 +101,7 @@ void DrmListener::notify(DrmPlugin::EventType eventType, int extra, const Parcel
             return;
     }
 
-    (*mListener)(mObj, sessionId, ndkEventType, extra, data, dataSize);
+    (*mListener)(mObj, &sessionId, ndkEventType, extra, data, dataSize);
 
     delete [] sessionId.ptr;
     delete [] data;
@@ -236,29 +236,35 @@ static bool findId(AMediaDrm *mObj, const AMediaDrmByteArray &id, List<idvec_t>:
 }
 
 EXPORT
-media_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId &sessionId) {
+media_status_t AMediaDrm_openSession(AMediaDrm *mObj, AMediaDrmSessionId *sessionId) {
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!sessionId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
     Vector<uint8_t> session;
     status_t status = mObj->mDrm->openSession(session);
     if (status == OK) {
         mObj->mIds.push_front(session);
         List<idvec_t>::iterator iter = mObj->mIds.begin();
-        sessionId.ptr = iter->array();
-        sessionId.length = iter->size();
+        sessionId->ptr = iter->array();
+        sessionId->length = iter->size();
     }
     return AMEDIA_OK;
 }
 
 EXPORT
-media_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId) {
+media_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId) {
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!sessionId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
 
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, sessionId, iter)) {
+    if (!findId(mObj, *sessionId, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
     mObj->mDrm->closeSession(*iter);
@@ -267,20 +273,20 @@ media_status_t AMediaDrm_closeSession(AMediaDrm *mObj, const AMediaDrmSessionId 
 }
 
 EXPORT
-media_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope &scope,
+media_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope *scope,
         const uint8_t *init, size_t initSize, const char *mimeType, AMediaDrmKeyType keyType,
         const AMediaDrmKeyValue *optionalParameters, size_t numOptionalParameters,
-        const uint8_t *&keyRequest, size_t &keyRequestSize) {
+        const uint8_t **keyRequest, size_t *keyRequestSize) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
-    if (!mimeType) {
+    if (!mimeType || !scope || !keyRequest || !keyRequestSize) {
         return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, scope, iter)) {
+    if (!findId(mObj, *scope, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
@@ -311,25 +317,25 @@ media_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope &sc
     if (status != OK) {
         return translateStatus(status);
     } else {
-        keyRequest = mObj->mKeyRequest.array();
-        keyRequestSize = mObj->mKeyRequest.size();
+        *keyRequest = mObj->mKeyRequest.array();
+        *keyRequestSize = mObj->mKeyRequest.size();
     }
     return AMEDIA_OK;
 }
 
 EXPORT
-media_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmScope &scope,
-        const uint8_t *response, size_t responseSize, AMediaDrmKeySetId &keySetId) {
+media_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmScope *scope,
+        const uint8_t *response, size_t responseSize, AMediaDrmKeySetId *keySetId) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
-    if (!response || !responseSize) {
+    if (!scope || !response || !responseSize || !keySetId) {
         return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, scope, iter)) {
+    if (!findId(mObj, *scope, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
     Vector<uint8_t> mdResponse;
@@ -340,41 +346,47 @@ media_status_t AMediaDrm_provideKeyResponse(AMediaDrm *mObj, const AMediaDrmScop
     if (status == OK) {
         mObj->mIds.push_front(mdKeySetId);
         List<idvec_t>::iterator iter = mObj->mIds.begin();
-        keySetId.ptr = iter->array();
-        keySetId.length = iter->size();
+        keySetId->ptr = iter->array();
+        keySetId->length = iter->size();
     } else {
-        keySetId.ptr = NULL;
-        keySetId.length = 0;
+        keySetId->ptr = NULL;
+        keySetId->length = 0;
     }
     return AMEDIA_OK;
 }
 
 EXPORT
-media_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
-        const AMediaDrmKeySetId &keySetId) {
+media_status_t AMediaDrm_restoreKeys(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId,
+        const AMediaDrmKeySetId *keySetId) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!sessionId || !keySetId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, sessionId, iter)) {
+    if (!findId(mObj, *sessionId, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
     Vector<uint8_t> keySet;
-    keySet.appendArray(keySetId.ptr, keySetId.length);
+    keySet.appendArray(keySetId->ptr, keySetId->length);
     return translateStatus(mObj->mDrm->restoreKeys(*iter, keySet));
 }
 
 EXPORT
-media_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId &keySetId) {
+media_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId *keySetId) {
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!keySetId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
     List<idvec_t>::iterator iter;
     status_t status;
-    if (!findId(mObj, keySetId, iter)) {
+    if (!findId(mObj, *keySetId, iter)) {
         Vector<uint8_t> keySet;
-        keySet.appendArray(keySetId.ptr, keySetId.length);
+        keySet.appendArray(keySetId->ptr, keySetId->length);
         status = mObj->mDrm->removeKeys(keySet);
     } else {
         status = mObj->mDrm->removeKeys(*iter);
@@ -384,25 +396,28 @@ media_status_t AMediaDrm_removeKeys(AMediaDrm *mObj, const AMediaDrmSessionId &k
 }
 
 EXPORT
-media_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
-        AMediaDrmKeyValue *keyValuePairs, size_t &numPairs) {
+media_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId,
+        AMediaDrmKeyValue *keyValuePairs, size_t *numPairs) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!sessionId || !numPairs) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, sessionId, iter)) {
+    if (!findId(mObj, *sessionId, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
     status_t status = mObj->mDrm->queryKeyStatus(*iter, mObj->mQueryResults);
     if (status != OK) {
-        numPairs = 0;
+        *numPairs = 0;
         return translateStatus(status);
     }
 
-    if (mObj->mQueryResults.size() > numPairs) {
-        numPairs = mObj->mQueryResults.size();
+    if (mObj->mQueryResults.size() > *numPairs) {
+        *numPairs = mObj->mQueryResults.size();
         return AMEDIA_DRM_SHORT_BUFFER;
     }
 
@@ -410,17 +425,17 @@ media_status_t AMediaDrm_queryKeyStatus(AMediaDrm *mObj, const AMediaDrmSessionI
         keyValuePairs[i].mKey = mObj->mQueryResults.keyAt(i).string();
         keyValuePairs[i].mValue = mObj->mQueryResults.keyAt(i).string();
     }
-    numPairs = mObj->mQueryResults.size();
+    *numPairs = mObj->mQueryResults.size();
     return AMEDIA_OK;
 }
 
 EXPORT
-media_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *&provisionRequest,
-        size_t &provisionRequestSize, const char *&serverUrl) {
+media_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t **provisionRequest,
+        size_t *provisionRequestSize, const char **serverUrl) {
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
-    if (!provisionRequestSize || !serverUrl) {
+    if (!provisionRequest || !provisionRequestSize || !*provisionRequestSize || !serverUrl) {
         return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
@@ -429,9 +444,9 @@ media_status_t AMediaDrm_getProvisionRequest(AMediaDrm *mObj, const uint8_t *&pr
     if (status != OK) {
         return translateStatus(status);
     } else {
-        provisionRequest = mObj->mProvisionRequest.array();
-        provisionRequestSize = mObj->mProvisionRequest.size();
-        serverUrl = mObj->mProvisionUrl.string();
+        *provisionRequest = mObj->mProvisionRequest.array();
+        *provisionRequestSize = mObj->mProvisionRequest.size();
+        *serverUrl = mObj->mProvisionUrl.string();
     }
     return AMEDIA_OK;
 }
@@ -455,17 +470,20 @@ media_status_t AMediaDrm_provideProvisionResponse(AMediaDrm *mObj,
 
 EXPORT
 media_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
-        AMediaDrmSecureStop *secureStops, size_t &numSecureStops) {
+        AMediaDrmSecureStop *secureStops, size_t *numSecureStops) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!numSecureStops) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
     status_t status = mObj->mDrm->getSecureStops(mObj->mSecureStops);
     if (status != OK) {
-        numSecureStops = 0;
+        *numSecureStops = 0;
         return translateStatus(status);
     }
-    if (numSecureStops < mObj->mSecureStops.size()) {
+    if (*numSecureStops < mObj->mSecureStops.size()) {
         return AMEDIA_DRM_SHORT_BUFFER;
     }
     List<Vector<uint8_t> >::iterator iter = mObj->mSecureStops.begin();
@@ -476,59 +494,68 @@ media_status_t AMediaDrm_getSecureStops(AMediaDrm *mObj,
         ++iter;
         ++i;
     }
-    numSecureStops = mObj->mSecureStops.size();
+    *numSecureStops = mObj->mSecureStops.size();
     return AMEDIA_OK;
 }
 
 EXPORT
 media_status_t AMediaDrm_releaseSecureStops(AMediaDrm *mObj,
-        const AMediaDrmSecureStop &ssRelease) {
+        const AMediaDrmSecureStop *ssRelease) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!ssRelease) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
 
     Vector<uint8_t> release;
-    release.appendArray(ssRelease.ptr, ssRelease.length);
+    release.appendArray(ssRelease->ptr, ssRelease->length);
     return translateStatus(mObj->mDrm->releaseSecureStops(release));
 }
 
 
 EXPORT
 media_status_t AMediaDrm_getPropertyString(AMediaDrm *mObj, const char *propertyName,
-        const char *&propertyValue) {
+        const char **propertyValue) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!propertyName || !propertyValue) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     status_t status = mObj->mDrm->getPropertyString(String8(propertyName),
             mObj->mPropertyString);
 
     if (status == OK) {
-        propertyValue = mObj->mPropertyString.string();
+        *propertyValue = mObj->mPropertyString.string();
     } else {
-        propertyValue = NULL;
+        *propertyValue = NULL;
     }
     return translateStatus(status);
 }
 
 EXPORT
 media_status_t AMediaDrm_getPropertyByteArray(AMediaDrm *mObj,
-        const char *propertyName, AMediaDrmByteArray &propertyValue) {
+        const char *propertyName, AMediaDrmByteArray *propertyValue) {
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
+    }
+    if (!propertyName || !propertyValue) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
     status_t status = mObj->mDrm->getPropertyByteArray(String8(propertyName),
             mObj->mPropertyByteArray);
 
     if (status == OK) {
-        propertyValue.ptr = mObj->mPropertyByteArray.array();
-        propertyValue.length = mObj->mPropertyByteArray.size();
+        propertyValue->ptr = mObj->mPropertyByteArray.array();
+        propertyValue->length = mObj->mPropertyByteArray.size();
     } else {
-        propertyValue.ptr = NULL;
-        propertyValue.length = 0;
+        propertyValue->ptr = NULL;
+        propertyValue->length = 0;
     }
     return translateStatus(status);
 }
@@ -598,31 +625,40 @@ static media_status_t encrypt_decrypt_common(AMediaDrm *mObj,
 }
 
 EXPORT
-media_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_encrypt(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize) {
-    return encrypt_decrypt_common(mObj, sessionId, cipherAlgorithm, keyId, iv,
+    if (!sessionId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
+    return encrypt_decrypt_common(mObj, *sessionId, cipherAlgorithm, keyId, iv,
             input, output, dataSize, true);
 }
 
 EXPORT
-media_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_decrypt(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId,
         const char *cipherAlgorithm, uint8_t *keyId, uint8_t *iv,
         const uint8_t *input, uint8_t *output, size_t dataSize) {
-    return encrypt_decrypt_common(mObj, sessionId, cipherAlgorithm, keyId, iv,
+    if (!sessionId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
+    return encrypt_decrypt_common(mObj, *sessionId, cipherAlgorithm, keyId, iv,
             input, output, dataSize, false);
 }
 
 EXPORT
-media_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId,
         const char *macAlgorithm, uint8_t *keyId, uint8_t *message, size_t messageSize,
         uint8_t *signature, size_t *signatureSize) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!sessionId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, sessionId, iter)) {
+    if (!findId(mObj, *sessionId, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
@@ -650,15 +686,18 @@ media_status_t AMediaDrm_sign(AMediaDrm *mObj, const AMediaDrmSessionId &session
 }
 
 EXPORT
-media_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId &sessionId,
+media_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId *sessionId,
         const char *macAlgorithm, uint8_t *keyId, const uint8_t *message, size_t messageSize,
         const uint8_t *signature, size_t signatureSize) {
 
     if (!mObj || mObj->mDrm == NULL) {
         return AMEDIA_ERROR_INVALID_OBJECT;
     }
+    if (!sessionId) {
+        return AMEDIA_ERROR_INVALID_PARAMETER;
+    }
     List<idvec_t>::iterator iter;
-    if (!findId(mObj, sessionId, iter)) {
+    if (!findId(mObj, *sessionId, iter)) {
         return AMEDIA_DRM_SESSION_NOT_OPENED;
     }
 
