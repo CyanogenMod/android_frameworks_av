@@ -148,6 +148,61 @@ AudioPolicyService::~AudioPolicyService()
     delete mAudioPolicyManager;
     delete mAudioPolicyClient;
 #endif
+
+    mNotificationClients.clear();
+}
+
+// A notification client is always registered by AudioSystem when the client process
+// connects to AudioPolicyService.
+void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& client)
+{
+
+    Mutex::Autolock _l(mLock);
+
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    if (mNotificationClients.indexOfKey(uid) < 0) {
+        sp<NotificationClient> notificationClient = new NotificationClient(this,
+                                                                           client,
+                                                                           uid);
+        ALOGV("registerClient() client %p, uid %d", client.get(), uid);
+
+        mNotificationClients.add(uid, notificationClient);
+
+        sp<IBinder> binder = client->asBinder();
+        binder->linkToDeath(notificationClient);
+    }
+}
+
+// removeNotificationClient() is called when the client process dies.
+void AudioPolicyService::removeNotificationClient(uid_t uid)
+{
+    Mutex::Autolock _l(mLock);
+
+    mNotificationClients.removeItem(uid);
+
+#ifndef USE_LEGACY_AUDIO_POLICY
+        if (mAudioPolicyManager) {
+            mAudioPolicyManager->clearAudioPatches(uid);
+        }
+#endif
+}
+
+void AudioPolicyService::onAudioPortListUpdate()
+{
+    mOutputCommandThread->updateAudioPortListCommand();
+}
+
+void AudioPolicyService::doOnAudioPortListUpdate()
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mNotificationClients.size(); i++) {
+        mNotificationClients.valueAt(i)->onAudioPortListUpdate();
+    }
+}
+
+void AudioPolicyService::onAudioPatchListUpdate()
+{
+    mOutputCommandThread->updateAudioPatchListCommand();
 }
 
 status_t AudioPolicyService::clientCreateAudioPatch(const struct audio_patch *patch,
@@ -163,6 +218,47 @@ status_t AudioPolicyService::clientReleaseAudioPatch(audio_patch_handle_t handle
     return mAudioCommandThread->releaseAudioPatchCommand(handle, delayMs);
 }
 
+void AudioPolicyService::doOnAudioPatchListUpdate()
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mNotificationClients.size(); i++) {
+        mNotificationClients.valueAt(i)->onAudioPatchListUpdate();
+    }
+}
+
+AudioPolicyService::NotificationClient::NotificationClient(const sp<AudioPolicyService>& service,
+                                                     const sp<IAudioPolicyServiceClient>& client,
+                                                     uid_t uid)
+    : mService(service), mUid(uid), mAudioPolicyServiceClient(client)
+{
+}
+
+AudioPolicyService::NotificationClient::~NotificationClient()
+{
+}
+
+void AudioPolicyService::NotificationClient::binderDied(const wp<IBinder>& who __unused)
+{
+    sp<NotificationClient> keep(this);
+    sp<AudioPolicyService> service = mService.promote();
+    if (service != 0) {
+        service->removeNotificationClient(mUid);
+    }
+}
+
+void AudioPolicyService::NotificationClient::onAudioPortListUpdate()
+{
+    if (mAudioPolicyServiceClient != 0) {
+        mAudioPolicyServiceClient->onAudioPortListUpdate();
+    }
+}
+
+void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
+{
+    if (mAudioPolicyServiceClient != 0) {
+        mAudioPolicyServiceClient->onAudioPatchListUpdate();
+    }
+}
 
 void AudioPolicyService::binderDied(const wp<IBinder>& who) {
     ALOGW("binderDied() %p, calling pid %d", who.unsafe_get(),
@@ -390,6 +486,26 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                         command->mStatus = af->releaseAudioPatch(data->mHandle);
                     }
                     } break;
+                case UPDATE_AUDIOPORT_LIST: {
+                    ALOGV("AudioCommandThread() processing update audio port list");
+                    sp<AudioPolicyService> svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->doOnAudioPortListUpdate();
+                    mLock.lock();
+                    }break;
+                case UPDATE_AUDIOPATCH_LIST: {
+                    ALOGV("AudioCommandThread() processing update audio patch list");
+                    sp<AudioPolicyService> svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->doOnAudioPatchListUpdate();
+                    mLock.lock();
+                    }break;
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
                 }
@@ -584,6 +700,22 @@ status_t AudioPolicyService::AudioCommandThread::releaseAudioPatchCommand(audio_
     return sendCommand(command, delayMs);
 }
 
+void AudioPolicyService::AudioCommandThread::updateAudioPortListCommand()
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = UPDATE_AUDIOPORT_LIST;
+    ALOGV("AudioCommandThread() adding update audio port list");
+    sendCommand(command);
+}
+
+void AudioPolicyService::AudioCommandThread::updateAudioPatchListCommand()
+{
+    sp<AudioCommand>command = new AudioCommand();
+    command->mCommand = UPDATE_AUDIOPATCH_LIST;
+    ALOGV("AudioCommandThread() adding update audio patch list");
+    sendCommand(command);
+}
+
 status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)
 {
     {
@@ -601,7 +733,6 @@ status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& c
     }
     return command->mStatus;
 }
-
 
 // insertCommand_l() must be called with mLock held
 void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& command, int delayMs)

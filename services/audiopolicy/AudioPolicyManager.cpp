@@ -286,6 +286,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                    device == AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT) {
             device = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
         } else {
+            mpClientInterface->onAudioPortListUpdate();
             return NO_ERROR;
         }
     }  // end if is output device
@@ -343,6 +344,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
 
         closeAllInputs();
 
+        mpClientInterface->onAudioPortListUpdate();
         return NO_ERROR;
     } // end if is input device
 
@@ -754,6 +756,7 @@ audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream,
         }
         mPreviousOutputs = mOutputs;
         ALOGV("getOutput() returns new direct output %d", output);
+        mpClientInterface->onAudioPortListUpdate();
         return output;
     }
 
@@ -986,6 +989,7 @@ void AudioPolicyManager::releaseOutput(audio_io_handle_t output)
             if (dstOutput != mPrimaryOutput) {
                 mpClientInterface->moveEffects(AUDIO_SESSION_OUTPUT_MIX, mPrimaryOutput, dstOutput);
             }
+            mpClientInterface->onAudioPortListUpdate();
         }
     }
 }
@@ -1067,6 +1071,7 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
         return 0;
     }
     addInput(input, inputDesc);
+    mpClientInterface->onAudioPortListUpdate();
     return input;
 }
 
@@ -1152,6 +1157,7 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input)
     delete mInputs.valueAt(index);
     mInputs.removeItem(input);
     nextAudioPortGeneration();
+    mpClientInterface->onAudioPortListUpdate();
     ALOGV("releaseInput() exit");
 }
 
@@ -1904,6 +1910,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 patchDesc->mAfPatchHandle = afPatchHandle;
                 *handle = patchDesc->mHandle;
                 nextAudioPortGeneration();
+                mpClientInterface->onAudioPatchListUpdate();
             } else {
                 ALOGW("createAudioPatch() patch panel could not connect device patch, error %d",
                 status);
@@ -1967,6 +1974,7 @@ status_t AudioPolicyManager::releaseAudioPatch(audio_patch_handle_t handle,
                                                               status, patchDesc->mAfPatchHandle);
             removeAudioPatch(patchDesc->mHandle);
             nextAudioPortGeneration();
+            mpClientInterface->onAudioPatchListUpdate();
         } else {
             return BAD_VALUE;
         }
@@ -3584,6 +3592,7 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
                 }
                 outputDesc->mPatchHandle = patchDesc->mHandle;
                 nextAudioPortGeneration();
+                mpClientInterface->onAudioPatchListUpdate();
             }
         }
     }
@@ -3614,6 +3623,7 @@ status_t AudioPolicyManager::resetOutputDevice(audio_io_handle_t output,
     outputDesc->mPatchHandle = 0;
     removeAudioPatch(patchDesc->mHandle);
     nextAudioPortGeneration();
+    mpClientInterface->onAudioPatchListUpdate();
     return status;
 }
 
@@ -3669,6 +3679,7 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
                 }
                 inputDesc->mPatchHandle = patchDesc->mHandle;
                 nextAudioPortGeneration();
+                mpClientInterface->onAudioPatchListUpdate();
             }
         }
     }
@@ -3694,6 +3705,7 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
     inputDesc->mPatchHandle = 0;
     removeAudioPatch(patchDesc->mHandle);
     nextAudioPortGeneration();
+    mpClientInterface->onAudioPatchListUpdate();
     return status;
 }
 

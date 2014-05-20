@@ -273,6 +273,9 @@ public:
     virtual status_t releaseAudioPatch(audio_patch_handle_t handle,
                                        int delayMs) = 0;
 
+    virtual void onAudioPortListUpdate() = 0;
+
+    virtual void onAudioPatchListUpdate() = 0;
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);

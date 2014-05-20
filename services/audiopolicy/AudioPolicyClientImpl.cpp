@@ -195,4 +195,14 @@ status_t AudioPolicyService::AudioPolicyClient::releaseAudioPatch(audio_patch_ha
     return mAudioPolicyService->clientReleaseAudioPatch(handle, delayMs);
 }
 
+void AudioPolicyService::AudioPolicyClient::onAudioPortListUpdate()
+{
+    mAudioPolicyService->onAudioPortListUpdate();
+}
+
+void AudioPolicyService::AudioPolicyClient::onAudioPatchListUpdate()
+{
+    mAudioPolicyService->onAudioPatchListUpdate();
+}
+
 }; // namespace android

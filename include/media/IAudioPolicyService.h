@@ -25,6 +25,7 @@
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
 #include <media/AudioSystem.h>
+#include <media/IAudioPolicyServiceClient.h>
 
 #include <system/audio_policy.h>
 
@@ -124,6 +125,7 @@ public:
     /* Set audio port configuration */
     virtual status_t setAudioPortConfig(const struct audio_port_config *config) = 0;
 
+    virtual void registerClient(const sp<IAudioPolicyServiceClient>& client) = 0;
 };
 
 
