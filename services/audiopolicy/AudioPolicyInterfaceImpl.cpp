@@ -463,43 +463,72 @@ bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
     return mAudioPolicyManager->isOffloadSupported(info);
 }
 
-status_t AudioPolicyService::listAudioPorts(audio_port_role_t role __unused,
-                                            audio_port_type_t type __unused,
+status_t AudioPolicyService::listAudioPorts(audio_port_role_t role,
+                                            audio_port_type_t type,
                                             unsigned int *num_ports,
-                                            struct audio_port *ports __unused,
-                                            unsigned int *generation __unused)
+                                            struct audio_port *ports,
+                                            unsigned int *generation)
 {
-    *num_ports = 0;
-    return INVALID_OPERATION;
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->listAudioPorts(role, type, num_ports, ports, generation);
 }
 
-status_t AudioPolicyService::getAudioPort(struct audio_port *port __unused)
+status_t AudioPolicyService::getAudioPort(struct audio_port *port)
 {
-    return INVALID_OPERATION;
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->getAudioPort(port);
 }
 
-status_t AudioPolicyService::createAudioPatch(const struct audio_patch *patch __unused,
-        audio_patch_handle_t *handle __unused)
+status_t AudioPolicyService::createAudioPatch(const struct audio_patch *patch,
+        audio_patch_handle_t *handle)
 {
-    return INVALID_OPERATION;
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+    return mAudioPolicyManager->createAudioPatch(patch, handle,
+                                                  IPCThreadState::self()->getCallingUid());
 }
 
-status_t AudioPolicyService::releaseAudioPatch(audio_patch_handle_t handle __unused)
+status_t AudioPolicyService::releaseAudioPatch(audio_patch_handle_t handle)
 {
-    return INVALID_OPERATION;
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->releaseAudioPatch(handle,
+                                                     IPCThreadState::self()->getCallingUid());
 }
 
 status_t AudioPolicyService::listAudioPatches(unsigned int *num_patches,
-        struct audio_patch *patches __unused,
-        unsigned int *generation __unused)
+        struct audio_patch *patches,
+        unsigned int *generation)
 {
-    *num_patches = 0;
-    return INVALID_OPERATION;
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->listAudioPatches(num_patches, patches, generation);
 }
 
-status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *config __unused)
+status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *config)
 {
-    return INVALID_OPERATION;
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->setAudioPortConfig(config);
 }
 
 }; // namespace android
