@@ -166,6 +166,9 @@ public:
                                       int delayMs);
             status_t clientReleaseAudioPatch(audio_patch_handle_t handle,
                                              int delayMs);
+            virtual status_t clientSetAudioPortConfig(const struct audio_port_config *config,
+                                                      int delayMs);
+
             void removeNotificationClient(uid_t uid);
             void onAudioPortListUpdate();
             void doOnAudioPortListUpdate();
@@ -200,7 +203,8 @@ private:
             CREATE_AUDIO_PATCH,
             RELEASE_AUDIO_PATCH,
             UPDATE_AUDIOPORT_LIST,
-            UPDATE_AUDIOPATCH_LIST
+            UPDATE_AUDIOPATCH_LIST,
+            SET_AUDIOPORT_CONFIG,
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -234,7 +238,8 @@ private:
                                                          int delayMs);
                     void        updateAudioPortListCommand();
                     void        updateAudioPatchListCommand();
-
+                    status_t    setAudioPortConfigCommand(const struct audio_port_config *config,
+                                                          int delayMs);
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
@@ -310,6 +315,11 @@ private:
         class ReleaseAudioPatchData : public AudioCommandData {
         public:
             audio_patch_handle_t mHandle;
+        };
+
+        class SetAudioPortConfigData : public AudioCommandData {
+        public:
+            struct audio_port_config mConfig;
         };
 
         Mutex   mLock;
@@ -464,6 +474,9 @@ private:
         /* Release a patch */
         virtual status_t releaseAudioPatch(audio_patch_handle_t handle,
                                            int delayMs);
+
+        /* Set audio port configuration */
+        virtual status_t setAudioPortConfig(const struct audio_port_config *config, int delayMs);
 
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();

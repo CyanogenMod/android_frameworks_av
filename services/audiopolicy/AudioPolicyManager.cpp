@@ -2026,9 +2026,93 @@ status_t AudioPolicyManager::listAudioPatches(unsigned int *num_patches,
     return NO_ERROR;
 }
 
-status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *config __unused)
+status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *config)
 {
-    return NO_ERROR;
+    ALOGV("setAudioPortConfig()");
+
+    if (config == NULL) {
+        return BAD_VALUE;
+    }
+    ALOGV("setAudioPortConfig() on port handle %d", config->id);
+    // Only support gain configuration for now
+    if (config->config_mask != AUDIO_PORT_CONFIG_GAIN || config->gain.index < 0) {
+        return BAD_VALUE;
+    }
+
+    sp<AudioPort> portDesc;
+    struct audio_port_config portConfig;
+    if (config->type == AUDIO_PORT_TYPE_MIX) {
+        if (config->role == AUDIO_PORT_ROLE_SOURCE) {
+            AudioOutputDescriptor *outputDesc = getOutputFromId(config->id);
+            if (outputDesc == NULL) {
+                return BAD_VALUE;
+            }
+            portDesc = outputDesc->mProfile;
+            outputDesc->toAudioPortConfig(&portConfig);
+        } else if (config->role == AUDIO_PORT_ROLE_SINK) {
+            AudioInputDescriptor *inputDesc = getInputFromId(config->id);
+            if (inputDesc == NULL) {
+                return BAD_VALUE;
+            }
+            portDesc = inputDesc->mProfile;
+            inputDesc->toAudioPortConfig(&portConfig);
+        } else {
+            return BAD_VALUE;
+        }
+    } else if (config->type == AUDIO_PORT_TYPE_DEVICE) {
+        sp<DeviceDescriptor> deviceDesc;
+        if (config->role == AUDIO_PORT_ROLE_SOURCE) {
+            deviceDesc = mAvailableInputDevices.getDeviceFromId(config->id);
+        } else if (config->role == AUDIO_PORT_ROLE_SINK) {
+            deviceDesc = mAvailableOutputDevices.getDeviceFromId(config->id);
+        } else {
+            return BAD_VALUE;
+        }
+        if (deviceDesc == NULL) {
+            return BAD_VALUE;
+        }
+        portDesc = deviceDesc;
+        deviceDesc->toAudioPortConfig(&portConfig);
+    } else {
+        return BAD_VALUE;
+    }
+
+    if ((size_t)config->gain.index >= portDesc->mGains.size()) {
+        return INVALID_OPERATION;
+    }
+    const struct audio_gain *gain = &portDesc->mGains[config->gain.index]->mGain;
+    if ((config->gain.mode & ~gain->mode) != 0) {
+        return BAD_VALUE;
+    }
+    if ((config->gain.mode & AUDIO_GAIN_MODE_JOINT) == AUDIO_GAIN_MODE_JOINT) {
+        if ((config->gain.values[0] < gain->min_value) ||
+                    (config->gain.values[0] > gain->max_value)) {
+            return BAD_VALUE;
+        }
+    } else {
+        if ((config->gain.channel_mask & ~gain->channel_mask) != 0) {
+            return BAD_VALUE;
+        }
+        size_t numValues = popcount(config->gain.channel_mask);
+        for (size_t i = 0; i < numValues; i++) {
+            if ((config->gain.values[i] < gain->min_value) ||
+                    (config->gain.values[i] > gain->max_value)) {
+                return BAD_VALUE;
+            }
+        }
+    }
+    if ((config->gain.mode & AUDIO_GAIN_MODE_RAMP) == AUDIO_GAIN_MODE_RAMP) {
+        if ((config->gain.ramp_duration_ms < gain->min_ramp_ms) ||
+                    (config->gain.ramp_duration_ms > gain->max_ramp_ms)) {
+            return BAD_VALUE;
+        }
+    }
+
+    portConfig.gain = config->gain;
+
+    status_t status = mpClientInterface->setAudioPortConfig(&portConfig, 0);
+
+    return status;
 }
 
 void AudioPolicyManager::clearAudioPatches(uid_t uid)
@@ -4861,7 +4945,13 @@ void AudioPolicyManager::AudioPort::toAudioPort(struct audio_port *port) const
         port->formats[i] = mFormats[i];
     }
     port->num_formats = i;
-    port->num_gains = 0;
+
+    ALOGV("AudioPort::toAudioPort() num gains %d", mGains.size());
+
+    for (i = 0; i < mGains.size() && i < AUDIO_PORT_MAX_GAINS; i++) {
+        port->gains[i] = mGains[i]->mGain;
+    }
+    port->num_gains = i;
 }
 
 
@@ -5417,6 +5507,7 @@ void AudioPolicyManager::DeviceDescriptor::toAudioPortConfig(
 
 void AudioPolicyManager::DeviceDescriptor::toAudioPort(struct audio_port *port) const
 {
+    ALOGV("DeviceVector::toAudioPort() handle %d type %x", mId, mDeviceType);
     AudioPort::toAudioPort(port);
     port->id = mId;
     toAudioPortConfig(&port->active_config);

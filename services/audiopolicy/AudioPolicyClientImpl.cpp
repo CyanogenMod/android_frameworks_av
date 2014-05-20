@@ -195,6 +195,13 @@ status_t AudioPolicyService::AudioPolicyClient::releaseAudioPatch(audio_patch_ha
     return mAudioPolicyService->clientReleaseAudioPatch(handle, delayMs);
 }
 
+status_t AudioPolicyService::AudioPolicyClient::setAudioPortConfig(
+                                                        const struct audio_port_config *config,
+                                                        int delayMs)
+{
+    return mAudioPolicyService->clientSetAudioPortConfig(config, delayMs);
+}
+
 void AudioPolicyService::AudioPolicyClient::onAudioPortListUpdate()
 {
     mAudioPolicyService->onAudioPortListUpdate();
