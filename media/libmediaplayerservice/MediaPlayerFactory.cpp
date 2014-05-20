@@ -186,7 +186,7 @@ class StagefrightPlayerFactory :
         read(fd, buf, sizeof(buf));
         lseek(fd, offset, SEEK_SET);
 
-        long ident = *((long*)buf);
+        uint32_t ident = *((uint32_t*)buf);
 
         // Ogg vorbis?
         if (ident == 0x5367674f) // 'OggS'
