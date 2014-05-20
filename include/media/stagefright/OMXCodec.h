@@ -352,6 +352,9 @@ private:
 
     int64_t getDecodingTimeUs();
 
+    status_t parseHEVCCodecSpecificData(
+            const void *data, size_t size,
+            unsigned *profile, unsigned *level);
     status_t parseAVCCodecSpecificData(
             const void *data, size_t size,
             unsigned *profile, unsigned *level);
