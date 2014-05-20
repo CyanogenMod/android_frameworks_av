@@ -48,6 +48,8 @@ public:
         CFG_EVENT_IO,
         CFG_EVENT_PRIO,
         CFG_EVENT_SET_PARAMETER,
+        CFG_EVENT_CREATE_AUDIO_PATCH,
+        CFG_EVENT_RELEASE_AUDIO_PATCH,
     };
 
     class ConfigEventData: public RefBase {
@@ -161,6 +163,52 @@ public:
         virtual ~SetParameterConfigEvent() {}
     };
 
+    class CreateAudioPatchConfigEventData : public ConfigEventData {
+    public:
+        CreateAudioPatchConfigEventData(const struct audio_patch patch,
+                                        audio_patch_handle_t handle) :
+            mPatch(patch), mHandle(handle) {}
+
+        virtual  void dump(char *buffer, size_t size) {
+            snprintf(buffer, size, "Patch handle: %u\n", mHandle);
+        }
+
+        const struct audio_patch mPatch;
+        audio_patch_handle_t mHandle;
+    };
+
+    class CreateAudioPatchConfigEvent : public ConfigEvent {
+    public:
+        CreateAudioPatchConfigEvent(const struct audio_patch patch,
+                                    audio_patch_handle_t handle) :
+            ConfigEvent(CFG_EVENT_CREATE_AUDIO_PATCH) {
+            mData = new CreateAudioPatchConfigEventData(patch, handle);
+            mWaitStatus = true;
+        }
+        virtual ~CreateAudioPatchConfigEvent() {}
+    };
+
+    class ReleaseAudioPatchConfigEventData : public ConfigEventData {
+    public:
+        ReleaseAudioPatchConfigEventData(const audio_patch_handle_t handle) :
+            mHandle(handle) {}
+
+        virtual  void dump(char *buffer, size_t size) {
+            snprintf(buffer, size, "Patch handle: %u\n", mHandle);
+        }
+
+        audio_patch_handle_t mHandle;
+    };
+
+    class ReleaseAudioPatchConfigEvent : public ConfigEvent {
+    public:
+        ReleaseAudioPatchConfigEvent(const audio_patch_handle_t handle) :
+            ConfigEvent(CFG_EVENT_RELEASE_AUDIO_PATCH) {
+            mData = new ReleaseAudioPatchConfigEventData(handle);
+            mWaitStatus = true;
+        }
+        virtual ~ReleaseAudioPatchConfigEvent() {}
+    };
 
     class PMDeathRecipient : public IBinder::DeathRecipient {
     public:
@@ -209,8 +257,15 @@ public:
                 void        sendIoConfigEvent_l(int event, int param = 0);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
                 status_t    sendSetParameterConfigEvent_l(const String8& keyValuePair);
+                status_t    sendCreateAudioPatchConfigEvent(const struct audio_patch *patch,
+                                                            audio_patch_handle_t *handle);
+                status_t    sendReleaseAudioPatchConfigEvent(audio_patch_handle_t handle);
                 void        processConfigEvents_l();
     virtual     void        cacheParameters_l() = 0;
+    virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                               audio_patch_handle_t *handle) = 0;
+    virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle) = 0;
+
 
                 // see note at declaration of mStandby, mOutDevice and mInDevice
                 bool        standby() const { return mStandby; }
@@ -644,6 +699,10 @@ protected:
 
     virtual     uint32_t    correctLatency_l(uint32_t latency) const;
 
+    virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                   audio_patch_handle_t *handle);
+    virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
+
 private:
 
     friend class AudioFlinger;      // for numerous
@@ -1035,6 +1094,9 @@ public:
     virtual void        cacheParameters_l() {}
     virtual String8     getParameters(const String8& keys);
     virtual void        audioConfigChanged(int event, int param = 0);
+    virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                           audio_patch_handle_t *handle);
+    virtual status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
             void        readInputParameters_l();
     virtual uint32_t    getInputFramesLost();
 

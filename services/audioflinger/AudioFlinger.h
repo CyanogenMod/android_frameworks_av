@@ -225,41 +225,24 @@ public:
 
     /* List available audio ports and their attributes */
     virtual status_t listAudioPorts(unsigned int *num_ports,
-                                    struct audio_port *ports)
-    {
-        return INVALID_OPERATION;
-    }
+                                    struct audio_port *ports);
 
     /* Get attributes for a given audio port */
-    virtual status_t getAudioPort(struct audio_port *port)
-    {
-        return INVALID_OPERATION;
-    }
+    virtual status_t getAudioPort(struct audio_port *port);
 
     /* Create an audio patch between several source and sink ports */
     virtual status_t createAudioPatch(const struct audio_patch *patch,
-                                       audio_patch_handle_t *handle)
-    {
-        return INVALID_OPERATION;
-    }
+                                       audio_patch_handle_t *handle);
 
     /* Release an audio patch */
-    virtual status_t releaseAudioPatch(audio_patch_handle_t handle)
-    {
-        return INVALID_OPERATION;
-    }
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle);
 
     /* List existing audio patches */
     virtual status_t listAudioPatches(unsigned int *num_patches,
-                                      struct audio_patch *patches)
-    {
-        return INVALID_OPERATION;
-    }
+                                      struct audio_patch *patches);
+
     /* Set audio port configuration */
-    virtual status_t setAudioPortConfig(const struct audio_port_config *config)
-    {
-        return INVALID_OPERATION;
-    }
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config);
 
     virtual     status_t    onTransact(
                                 uint32_t code,
@@ -435,6 +418,8 @@ private:
 
 #include "Effects.h"
 
+#include "PatchPanel.h"
+
     // server side of the client's IAudioTrack
     class TrackHandle : public android::BnAudioTrack {
     public:
@@ -542,6 +527,8 @@ private:
 
         const char *moduleName() const { return mModuleName; }
         audio_hw_device_t *hwDevice() const { return mHwDevice; }
+        uint32_t version() const { return mHwDevice->common.version; }
+
     private:
         const char * const mModuleName;
         audio_hw_device_t * const mHwDevice;
@@ -702,6 +689,8 @@ private:
     bool    mIsLowRamDevice;
     bool    mIsDeviceTypeKnown;
     nsecs_t mGlobalEffectEnableTime;  // when a global effect was last enabled
+
+    sp<PatchPanel> mPatchPanel;
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H

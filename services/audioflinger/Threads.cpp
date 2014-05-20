@@ -401,6 +401,30 @@ status_t AudioFlinger::ThreadBase::sendSetParameterConfigEvent_l(const String8& 
     return sendConfigEvent_l(configEvent);
 }
 
+status_t AudioFlinger::ThreadBase::sendCreateAudioPatchConfigEvent(
+                                                        const struct audio_patch *patch,
+                                                        audio_patch_handle_t *handle)
+{
+    Mutex::Autolock _l(mLock);
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new CreateAudioPatchConfigEvent(*patch, *handle);
+    status_t status = sendConfigEvent_l(configEvent);
+    if (status == NO_ERROR) {
+        CreateAudioPatchConfigEventData *data =
+                                        (CreateAudioPatchConfigEventData *)configEvent->mData.get();
+        *handle = data->mHandle;
+    }
+    return status;
+}
+
+status_t AudioFlinger::ThreadBase::sendReleaseAudioPatchConfigEvent(
+                                                                const audio_patch_handle_t handle)
+{
+    Mutex::Autolock _l(mLock);
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new ReleaseAudioPatchConfigEvent(handle);
+    return sendConfigEvent_l(configEvent);
+}
+
+
 // post condition: mConfigEvents.isEmpty()
 void AudioFlinger::ThreadBase::processConfigEvents_l()
 {
@@ -430,6 +454,16 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
             if (checkForNewParameter_l(data->mKeyValuePairs, event->mStatus)) {
                 configChanged = true;
             }
+        } break;
+        case CFG_EVENT_CREATE_AUDIO_PATCH: {
+            CreateAudioPatchConfigEventData *data =
+                                            (CreateAudioPatchConfigEventData *)event->mData.get();
+            event->mStatus = createAudioPatch_l(&data->mPatch, &data->mHandle);
+        } break;
+        case CFG_EVENT_RELEASE_AUDIO_PATCH: {
+            ReleaseAudioPatchConfigEventData *data =
+                                            (ReleaseAudioPatchConfigEventData *)event->mData.get();
+            event->mStatus = releaseAudioPatch_l(data->mHandle);
         } break;
         default:
             ALOG_ASSERT(false, "processConfigEvents_l() unknown event type %d", event->mType);
@@ -2593,6 +2627,47 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
     }
     return INVALID_OPERATION;
 }
+
+status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_patch *patch,
+                                                          audio_patch_handle_t *handle)
+{
+    status_t status = NO_ERROR;
+    if (mOutput->audioHwDev->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
+        // store new device and send to effects
+        audio_devices_t type = AUDIO_DEVICE_NONE;
+        for (unsigned int i = 0; i < patch->num_sinks; i++) {
+            type |= patch->sinks[i].ext.device.type;
+        }
+        mOutDevice = type;
+        for (size_t i = 0; i < mEffectChains.size(); i++) {
+            mEffectChains[i]->setDevice_l(mOutDevice);
+        }
+
+        audio_hw_device_t *hwDevice = mOutput->audioHwDev->hwDevice();
+        status = hwDevice->create_audio_patch(hwDevice,
+                                               patch->num_sources,
+                                               patch->sources,
+                                               patch->num_sinks,
+                                               patch->sinks,
+                                               handle);
+    } else {
+        ALOG_ASSERT(false, "createAudioPatch_l() called on a pre 3.0 HAL");
+    }
+    return status;
+}
+
+status_t AudioFlinger::PlaybackThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
+{
+    status_t status = NO_ERROR;
+    if (mOutput->audioHwDev->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
+        audio_hw_device_t *hwDevice = mOutput->audioHwDev->hwDevice();
+        status = hwDevice->release_audio_patch(hwDevice, handle);
+    } else {
+        ALOG_ASSERT(false, "releaseAudioPatch_l() called on a pre 3.0 HAL");
+    }
+    return status;
+}
+
 // ----------------------------------------------------------------------------
 
 AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
@@ -5747,5 +5822,62 @@ size_t AudioFlinger::RecordThread::removeEffectChain_l(const sp<EffectChain>& ch
     }
     return 0;
 }
+
+status_t AudioFlinger::RecordThread::createAudioPatch_l(const struct audio_patch *patch,
+                                                          audio_patch_handle_t *handle)
+{
+    status_t status = NO_ERROR;
+    if (mInput->audioHwDev->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
+        // store new device and send to effects
+        mInDevice = patch->sources[0].ext.device.type;
+        for (size_t i = 0; i < mEffectChains.size(); i++) {
+            mEffectChains[i]->setDevice_l(mInDevice);
+        }
+
+        // disable AEC and NS if the device is a BT SCO headset supporting those
+        // pre processings
+        if (mTracks.size() > 0) {
+            bool suspend = audio_is_bluetooth_sco_device(mInDevice) &&
+                                mAudioFlinger->btNrecIsOff();
+            for (size_t i = 0; i < mTracks.size(); i++) {
+                sp<RecordTrack> track = mTracks[i];
+                setEffectSuspended_l(FX_IID_AEC, suspend, track->sessionId());
+                setEffectSuspended_l(FX_IID_NS, suspend, track->sessionId());
+            }
+        }
+
+        // store new source and send to effects
+        if (mAudioSource != patch->sinks[0].ext.mix.usecase.source) {
+            mAudioSource = patch->sinks[0].ext.mix.usecase.source;
+            for (size_t i = 0; i < mEffectChains.size(); i++) {
+                mEffectChains[i]->setAudioSource_l(mAudioSource);
+            }
+        }
+
+        audio_hw_device_t *hwDevice = mInput->audioHwDev->hwDevice();
+        status = hwDevice->create_audio_patch(hwDevice,
+                                               patch->num_sources,
+                                               patch->sources,
+                                               patch->num_sinks,
+                                               patch->sinks,
+                                               handle);
+    } else {
+        ALOG_ASSERT(false, "createAudioPatch_l() called on a pre 3.0 HAL");
+    }
+    return status;
+}
+
+status_t AudioFlinger::RecordThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
+{
+    status_t status = NO_ERROR;
+    if (mInput->audioHwDev->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
+        audio_hw_device_t *hwDevice = mInput->audioHwDev->hwDevice();
+        status = hwDevice->release_audio_patch(hwDevice, handle);
+    } else {
+        ALOG_ASSERT(false, "releaseAudioPatch_l() called on a pre 3.0 HAL");
+    }
+    return status;
+}
+
 
 }; // namespace android
