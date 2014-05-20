@@ -146,10 +146,22 @@ ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec*, AMediaCodecBufferInfo *inf
 AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec*);
 
 /**
- * Release and optionally render the specified buffer.
+ * If you are done with a buffer, use this call to return the buffer to
+ * the codec. If you previously specified a surface when configuring this
+ * video decoder you can optionally render the buffer.
  */
 media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool render);
 
+/**
+ * If you are done with a buffer, use this call to update its surface timestamp
+ * and return it to the codec to render it on the output surface. If you
+ * have not specified an output surface when configuring this video codec,
+ * this call will simply return the buffer to the codec.
+ *
+ * For more details, see the Java documentation for MediaCodec.releaseOutputBuffer.
+ */
+media_status_t AMediaCodec_releaseOutputBufferAtTime(
+        AMediaCodec *mData, size_t idx, int64_t timestampNs);
 
 typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
 
@@ -163,20 +175,30 @@ media_status_t AMediaCodec_setNotificationCallback(
         AMediaCodec*, OnCodecEvent callback, void *userdata);
 
 
-enum {
+typedef enum {
     AMEDIACODECRYPTOINFO_MODE_CLEAR = 0,
     AMEDIACODECRYPTOINFO_MODE_AES_CTR = 1
-};
+} cryptoinfo_mode_t;
 
 /**
- * create an AMediaCodecCryptoInfo from scratch. Use this if you need to use custom
+ * Create an AMediaCodecCryptoInfo from scratch. Use this if you need to use custom
  * crypto info, rather than one obtained from AMediaExtractor.
+ *
+ * AMediaCodecCryptoInfo describes the structure of an (at least
+ * partially) encrypted input sample.
+ * A buffer's data is considered to be partitioned into "subsamples",
+ * each subsample starts with a (potentially empty) run of plain,
+ * unencrypted bytes followed by a (also potentially empty) run of
+ * encrypted bytes.
+ * numBytesOfClearData can be null to indicate that all data is encrypted.
+ * This information encapsulates per-sample metadata as outlined in
+ * ISO/IEC FDIS 23001-7:2011 "Common encryption in ISO base media file format files".
  */
 AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
         int numsubsamples,
         uint8_t key[16],
         uint8_t iv[16],
-        uint32_t mode,
+        cryptoinfo_mode_t mode,
         size_t *clearbytes,
         size_t *encryptedbytes);
 
@@ -186,11 +208,35 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
  */
 media_status_t AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo*);
 
+/**
+ * The number of subsamples that make up the buffer's contents.
+ */
 size_t AMediaCodecCryptoInfo_getNumSubSamples(AMediaCodecCryptoInfo*);
+
+/**
+ * A 16-byte opaque key
+ */
 media_status_t AMediaCodecCryptoInfo_getKey(AMediaCodecCryptoInfo*, uint8_t *dst);
+
+/**
+ * A 16-byte initialization vector
+ */
 media_status_t AMediaCodecCryptoInfo_getIV(AMediaCodecCryptoInfo*, uint8_t *dst);
-uint32_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo*);
+
+/**
+ * The type of encryption that has been applied,
+ * one of AMEDIACODECRYPTOINFO_MODE_CLEAR or AMEDIACODECRYPTOINFO_MODE_AES_CTR.
+ */
+cryptoinfo_mode_t AMediaCodecCryptoInfo_getMode(AMediaCodecCryptoInfo*);
+
+/**
+ * The number of leading unencrypted bytes in each subsample.
+ */
 media_status_t AMediaCodecCryptoInfo_getClearBytes(AMediaCodecCryptoInfo*, size_t *dst);
+
+/**
+ * The number of trailing encrypted bytes in each subsample.
+ */
 media_status_t AMediaCodecCryptoInfo_getEncryptedBytes(AMediaCodecCryptoInfo*, size_t *dst);
 
 #ifdef __cplusplus
