@@ -150,6 +150,13 @@ Sniffer::Sniffer() {
 bool Sniffer::sniff(
         DataSource *source,String8 *mimeType, float *confidence, sp<AMessage> *meta) {
 
+    bool forceExtraSniffers = false;
+
+    if (*confidence == 3.14f) {
+       // Magic value, as set by MediaExtractor when a video container looks incomplete
+       forceExtraSniffers = true;
+    }
+
     *mimeType = "";
     *confidence = 0.0f;
     meta->clear();
@@ -165,6 +172,23 @@ bool Sniffer::sniff(
                 *mimeType = newMimeType;
                 *confidence = newConfidence;
                 *meta = newMeta;
+            }
+        }
+    }
+
+    /* Only do the deeper sniffers if the results are null or in doubt */
+    if (mimeType->length() == 0 || *confidence < 0.2f || forceExtraSniffers) {
+        for (List<SnifferFunc>::iterator it = mExtraSniffers.begin();
+                it != mExtraSniffers.end(); ++it) {
+            String8 newMimeType;
+            float newConfidence;
+            sp<AMessage> newMeta;
+            if ((*it)(source, &newMimeType, &newConfidence, &newMeta)) {
+                if (newConfidence > *confidence) {
+                    *mimeType = newMimeType;
+                    *confidence = newConfidence;
+                    *meta = newMeta;
+                }
             }
         }
     }
@@ -219,7 +243,14 @@ void Sniffer::registerSnifferPlugin() {
         getExtractorPlugin(plugin);
     }
     if (plugin->sniff) {
-        registerSniffer_l(plugin->sniff);
+        for (List<SnifferFunc>::iterator it = mExtraSniffers.begin();
+             it != mExtraSniffers.end(); ++it) {
+            if (*it == plugin->sniff) {
+                return;
+            }
+        }
+
+        mExtraSniffers.push_back(plugin->sniff);
     }
 }
 

@@ -60,9 +60,15 @@ sp<MediaExtractor> MediaExtractor::Create(
         const sp<DataSource> &source, const char *mime) {
     sp<AMessage> meta;
 
+    bool secondPass = false;
+
     String8 tmp;
-    if (mime == NULL) {
+retry:
+    if (secondPass || mime == NULL) {
         float confidence;
+        if (secondPass) {
+            confidence = 3.14f;
+        }
         if (!source->sniff(&tmp, &confidence, &meta)) {
             ALOGV("FAILED to autodetect media content.");
 
@@ -97,7 +103,7 @@ sp<MediaExtractor> MediaExtractor::Create(
     }
 
     AString extractorName;
-    MediaExtractor *ret = NULL;
+    sp<MediaExtractor> ret = NULL;
     if (meta.get() && meta->findString("extended-extractor-use", &extractorName)
             && sPlugin.create) {
         ALOGI("Use extended extractor for the special mime(%s) or codec", mime);
@@ -140,10 +146,19 @@ sp<MediaExtractor> MediaExtractor::Create(
     }
 
 #ifdef QCOM_HARDWARE
-    return ExtendedUtils::MediaExtractor_CreateIfNeeded(ret, source, mime);
-#else
-    return ret;
+    ret = ExtendedUtils::MediaExtractor_CreateIfNeeded(ret, source, mime);
 #endif
+
+    if (ret != NULL) {
+
+        if (!secondPass && ( ret->countTracks() == 0 ||
+                    (!strncasecmp("video/", mime, 6) && ret->countTracks() < 2) ) ) {
+            secondPass = true;
+            goto retry;
+        }
+    }
+
+    return ret;
 }
 
 }  // namespace android
