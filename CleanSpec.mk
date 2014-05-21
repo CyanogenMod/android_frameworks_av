@@ -51,6 +51,8 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudioflinge
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib/libaudioflinger.so)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicy_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib/libaudiopolicy.so)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicy_intermediates)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib/libaudiopolicy.so)
 
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
