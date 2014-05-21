@@ -20,6 +20,7 @@
 #include "SimpleSoftOMXComponent.h"
 
 #include "aacdecoder_lib.h"
+#include "DrcPresModeWrap.h"
 
 namespace android {
 
@@ -47,18 +48,19 @@ private:
     enum {
         kNumInputBuffers        = 4,
         kNumOutputBuffers       = 4,
+        kNumDelayBlocksMax      = 8,
     };
 
     HANDLE_AACDECODER mAACDecoder;
     CStreamInfo *mStreamInfo;
     bool mIsADTS;
-    bool mDecoderHasData;
+    bool mIsFirst;
     size_t mInputBufferCount;
+    size_t mOutputBufferCount;
     bool mSignalledError;
-    bool mSawInputEos;
-    bool mSignalledOutputEos;
-    int64_t mAnchorTimeUs;
-    int64_t mNumSamplesOutput;
+    int64_t mAnchorTimeUs[kNumDelayBlocksMax];
+
+    CDrcPresModeWrapper mDrcWrap;
 
     enum {
         NONE,
@@ -69,8 +71,21 @@ private:
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
-    void maybeConfigureDownmix() const;
+    void configureDownmix() const;
     void drainDecoder();
+
+//      delay compensation
+    bool mEndOfInput;
+    bool mEndOfOutput;
+    int32_t mOutputDelayCompensated;
+    int32_t mOutputDelayRingBufferSize;
+    short *mOutputDelayRingBuffer;
+    int32_t mOutputDelayRingBufferWritePos;
+    int32_t mOutputDelayRingBufferReadPos;
+    bool outputDelayRingBufferPutSamples(INT_PCM *samples, int numSamples);
+    int32_t outputDelayRingBufferGetSamples(INT_PCM *samples, int numSamples);
+    int32_t outputDelayRingBufferSamplesAvailable();
+    int32_t outputDelayRingBufferSamplesLeft();
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAAC2);
 };
