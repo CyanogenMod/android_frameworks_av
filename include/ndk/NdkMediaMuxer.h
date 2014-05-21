@@ -110,7 +110,7 @@ media_status_t AMediaMuxer_stop(AMediaMuxer*);
  * by the encoder.)
  */
 media_status_t AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
-        size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info);
+        size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo *info);
 
 #ifdef __cplusplus
 } // extern "C"
