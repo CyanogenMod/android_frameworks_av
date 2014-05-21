@@ -96,10 +96,10 @@ media_status_t AMediaMuxer_stop(AMediaMuxer *muxer) {
 
 EXPORT
 media_status_t AMediaMuxer_writeSampleData(AMediaMuxer *muxer,
-        size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo &info) {
-    sp<ABuffer> buf = new ABuffer((void*)(data + info.offset), info.size);
+        size_t trackIdx, const uint8_t *data, const AMediaCodecBufferInfo *info) {
+    sp<ABuffer> buf = new ABuffer((void*)(data + info->offset), info->size);
     return translate_error(
-            muxer->mImpl->writeSampleData(buf, trackIdx, info.presentationTimeUs, info.flags));
+            muxer->mImpl->writeSampleData(buf, trackIdx, info->presentationTimeUs, info->flags));
 }
 
 
