@@ -19,9 +19,9 @@
 
 #include <private/media/AudioTrackShared.h>
 #include <utils/Log.h>
-extern "C" {
-#include "../private/bionic_futex.h"
-}
+
+#include <linux/futex.h>
+#include <sys/syscall.h>
 
 namespace android {
 
@@ -206,12 +206,12 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         }
         int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
-            int rc;
             if (measure && !beforeIsValid) {
                 clock_gettime(CLOCK_MONOTONIC, &before);
                 beforeIsValid = true;
             }
-            int ret = __futex_syscall4(&cblk->mFutex,
+            errno = 0;
+            (void) syscall(__NR_futex, &cblk->mFutex,
                     mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
             // update total elapsed time spent waiting
             if (measure) {
@@ -230,16 +230,16 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
                 before = after;
                 beforeIsValid = true;
             }
-            switch (ret) {
-            case 0:             // normal wakeup by server, or by binderDied()
-            case -EWOULDBLOCK:  // benign race condition with server
-            case -EINTR:        // wait was interrupted by signal or other spurious wakeup
-            case -ETIMEDOUT:    // time-out expired
+            switch (errno) {
+            case 0:            // normal wakeup by server, or by binderDied()
+            case EWOULDBLOCK:  // benign race condition with server
+            case EINTR:        // wait was interrupted by signal or other spurious wakeup
+            case ETIMEDOUT:    // time-out expired
                 // FIXME these error/non-0 status are being dropped
                 break;
             default:
-                ALOGE("%s unexpected error %d", __func__, ret);
-                status = -ret;
+                status = errno;
+                ALOGE("%s unexpected error %s", __func__, strerror(status));
                 goto end;
             }
         }
@@ -295,8 +295,8 @@ void ClientProxy::binderDied()
     audio_track_cblk_t* cblk = mCblk;
     if (!(android_atomic_or(CBLK_INVALID, &cblk->mFlags) & CBLK_INVALID)) {
         // it seems that a FUTEX_WAKE_PRIVATE will not wake a FUTEX_WAIT, even within same process
-        (void) __futex_syscall4(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1, NULL);
+        (void) syscall(__NR_futex, &cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1);
     }
 }
 
@@ -304,8 +304,8 @@ void ClientProxy::interrupt()
 {
     audio_track_cblk_t* cblk = mCblk;
     if (!(android_atomic_or(CBLK_INTERRUPT, &cblk->mFlags) & CBLK_INTERRUPT)) {
-        (void) __futex_syscall4(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1, NULL);
+        (void) syscall(__NR_futex, &cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1);
     }
 }
 
@@ -435,18 +435,18 @@ status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *request
         }
         int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
-            int rc;
-            int ret = __futex_syscall4(&cblk->mFutex,
+            errno = 0;
+            (void) syscall(__NR_futex, &cblk->mFutex,
                     mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
-            switch (ret) {
-            case 0:             // normal wakeup by server, or by binderDied()
-            case -EWOULDBLOCK:  // benign race condition with server
-            case -EINTR:        // wait was interrupted by signal or other spurious wakeup
-            case -ETIMEDOUT:    // time-out expired
+            switch (errno) {
+            case 0:            // normal wakeup by server, or by binderDied()
+            case EWOULDBLOCK:  // benign race condition with server
+            case EINTR:        // wait was interrupted by signal or other spurious wakeup
+            case ETIMEDOUT:    // time-out expired
                 break;
             default:
-                ALOGE("%s unexpected error %d", __func__, ret);
-                status = -ret;
+                status = errno;
+                ALOGE("%s unexpected error %s", __func__, strerror(status));
                 goto end;
             }
         }
@@ -535,8 +535,8 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
             if (front != rear) {
                 int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
                 if (!(old & CBLK_FUTEX_WAKE)) {
-                    (void) __futex_syscall4(&cblk->mFutex,
-                            mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1, NULL);
+                    (void) syscall(__NR_futex, &cblk->mFutex,
+                            mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
                 }
             }
             front = rear;
@@ -638,8 +638,8 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
         ALOGV("mAvailToClient=%u stepCount=%u minimum=%u", mAvailToClient, stepCount, minimum);
         int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
-            (void) __futex_syscall4(&cblk->mFutex,
-                    mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1, NULL);
+            (void) syscall(__NR_futex, &cblk->mFutex,
+                    mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
         }
     }
 
@@ -682,8 +682,8 @@ bool  AudioTrackServerProxy::setStreamEndDone() {
     bool old =
             (android_atomic_or(CBLK_STREAM_END_DONE, &mCblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
     if (!old) {
-        (void) __futex_syscall4(&mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1, NULL);
+        (void) syscall(__NR_futex, &mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1);
     }
     return old;
 }
