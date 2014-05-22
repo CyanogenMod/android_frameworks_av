@@ -74,10 +74,10 @@ status_t CameraTraces::dump(int fd, const Vector<String16> &args __attribute__((
         return BAD_VALUE;
     }
 
-    fdprintf(fd, "Camera traces (%zu):\n", pcsList.size());
+    dprintf(fd, "Camera traces (%zu):\n", pcsList.size());
 
     if (pcsList.empty()) {
-        fdprintf(fd, "  No camera traces collected.\n");
+        dprintf(fd, "  No camera traces collected.\n");
     }
 
     // Print newest items first
