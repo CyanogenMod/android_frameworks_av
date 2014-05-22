@@ -5,7 +5,9 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     AudioPolicyService.cpp
 
+# TODO: remove when enabling new audio policy
 USE_LEGACY_AUDIO_POLICY = 1
+
 ifeq ($(USE_LEGACY_AUDIO_POLICY), 1)
 LOCAL_SRC_FILES += \
     AudioPolicyInterfaceImplLegacy.cpp \
@@ -15,8 +17,7 @@ LOCAL_SRC_FILES += \
 else
 LOCAL_SRC_FILES += \
     AudioPolicyInterfaceImpl.cpp \
-    AudioPolicyClientImpl.cpp \
-    AudioPolicyManager.cpp
+    AudioPolicyClientImpl.cpp
 endif
 
 LOCAL_C_INCLUDES := \
@@ -31,14 +32,42 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libmedia \
     libhardware \
-    libhardware_legacy
+    libhardware_legacy \
+
+ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
+LOCAL_SHARED_LIBRARIES += \
+    libaudiopolicymanager
+endif
 
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libserviceutility
 
-LOCAL_MODULE:= libaudiopolicy
+LOCAL_MODULE:= libaudiopolicyservice
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
+
+ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
+ifneq ($(USE_CUSTOM_AUDIO_POLICY), 1)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \
+    AudioPolicyManager.cpp
+
+LOCAL_SHARED_LIBRARIES := \
+    libcutils \
+    libutils \
+    liblog
+
+LOCAL_STATIC_LIBRARIES := \
+    libmedia_helper
+
+LOCAL_MODULE:= libaudiopolicymanager
+
+include $(BUILD_SHARED_LIBRARY)
+
+endif
+endif

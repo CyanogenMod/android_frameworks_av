@@ -15,7 +15,7 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
-	libaudiopolicy \
+	libaudiopolicyservice \
 	libcamera_metadata\
 	libcameraservice \
 	libmedialogservice \
