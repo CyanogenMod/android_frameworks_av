@@ -37,14 +37,14 @@ enum {
     SUBMIT_REQUEST,
     SUBMIT_REQUEST_LIST,
     CANCEL_REQUEST,
+    BEGIN_CONFIGURE,
+    END_CONFIGURE,
     DELETE_STREAM,
     CREATE_STREAM,
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
     WAIT_UNTIL_IDLE,
-    FLUSH,
-    BEGIN_CONFIGURE,
-    END_CONFIGURE
+    FLUSH
 };
 
 namespace {
@@ -176,6 +176,26 @@ public:
         return res;
     }
 
+    virtual status_t beginConfigure()
+    {
+        ALOGV("beginConfigure");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        remote()->transact(BEGIN_CONFIGURE, data, &reply);
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
+    virtual status_t endConfigure()
+    {
+        ALOGV("endConfigure");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        remote()->transact(END_CONFIGURE, data, &reply);
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
     virtual status_t deleteStream(int streamId)
     {
         Parcel data, reply;
@@ -283,26 +303,6 @@ public:
             res = FAILED_TRANSACTION;
         }
         return res;
-    }
-
-    virtual status_t beginConfigure()
-    {
-        ALOGV("beginConfigure");
-        Parcel data, reply;
-        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
-        remote()->transact(BEGIN_CONFIGURE, data, &reply);
-        reply.readExceptionCode();
-        return reply.readInt32();
-    }
-
-    virtual status_t endConfigure()
-    {
-        ALOGV("endConfigure");
-        Parcel data, reply;
-        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
-        remote()->transact(END_CONFIGURE, data, &reply);
-        reply.readExceptionCode();
-        return reply.readInt32();
     }
 
 private:
