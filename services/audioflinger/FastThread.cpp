@@ -20,10 +20,9 @@
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
 #include "Configuration.h"
+#include <linux/futex.h>
+#include <sys/syscall.h>
 #include <utils/Log.h>
-extern "C" {
-#include "../private/bionic_futex.h"
-}
 #include <utils/Trace.h>
 #include "FastThread.h"
 
@@ -157,7 +156,7 @@ bool FastThread::threadLoop()
                 ALOG_ASSERT(coldFutexAddr != NULL);
                 int32_t old = android_atomic_dec(coldFutexAddr);
                 if (old <= 0) {
-                    __futex_syscall4(coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
+                    syscall(__NR_futex, coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
                 }
                 int policy = sched_getscheduler(0);
                 if (!(policy == SCHED_FIFO || policy == SCHED_RR)) {
