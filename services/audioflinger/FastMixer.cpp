@@ -179,7 +179,7 @@ bool FastMixer::threadLoop()
                 ALOG_ASSERT(coldFutexAddr != NULL);
                 int32_t old = android_atomic_dec(coldFutexAddr);
                 if (old <= 0) {
-                    (void) syscall(__NR_futex, coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1);
+                    (void) syscall(__NR_futex, coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
                 }
                 int policy = sched_getscheduler(0);
                 if (!(policy == SCHED_FIFO || policy == SCHED_RR)) {
