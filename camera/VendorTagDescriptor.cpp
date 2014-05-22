@@ -349,18 +349,18 @@ void VendorTagDescriptor::dump(int fd, int verbosity, int indentation) const {
 
     size_t size = mTagToNameMap.size();
     if (size == 0) {
-        fdprintf(fd, "%*sDumping configured vendor tag descriptors: None set\n",
+        dprintf(fd, "%*sDumping configured vendor tag descriptors: None set\n",
                 indentation, "");
         return;
     }
 
-    fdprintf(fd, "%*sDumping configured vendor tag descriptors: %zu entries\n",
+    dprintf(fd, "%*sDumping configured vendor tag descriptors: %zu entries\n",
             indentation, "", size);
     for (size_t i = 0; i < size; ++i) {
         uint32_t tag =  mTagToNameMap.keyAt(i);
 
         if (verbosity < 1) {
-            fdprintf(fd, "%*s0x%x\n", indentation + 2, "", tag);
+            dprintf(fd, "%*s0x%x\n", indentation + 2, "", tag);
             continue;
         }
         String8 name = mTagToNameMap.valueAt(i);
@@ -369,7 +369,7 @@ void VendorTagDescriptor::dump(int fd, int verbosity, int indentation) const {
         int type = mTagToTypeMap.valueFor(tag);
         const char* typeName = (type >= 0 && type < NUM_TYPES) ?
                 camera_metadata_type_names[type] : "UNKNOWN";
-        fdprintf(fd, "%*s0x%x (%s) with type %d (%s) defined in section %s\n", indentation + 2,
+        dprintf(fd, "%*s0x%x (%s) with type %d (%s) defined in section %s\n", indentation + 2,
             "", tag, name.string(), type, typeName, sectionName.string());
     }
 

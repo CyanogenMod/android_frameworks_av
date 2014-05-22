@@ -438,7 +438,7 @@ void NBLog::Reader::dump(int fd, size_t indent)
 void NBLog::Reader::dumpLine(const String8& timestamp, String8& body)
 {
     if (mFd >= 0) {
-        fdprintf(mFd, "%.*s%s %s\n", mIndent, "", timestamp.string(), body.string());
+        dprintf(mFd, "%.*s%s %s\n", mIndent, "", timestamp.string(), body.string());
     } else {
         ALOGI("%.*s%s %s", mIndent, "", timestamp.string(), body.string());
     }
