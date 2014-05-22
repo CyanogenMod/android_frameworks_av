@@ -18,6 +18,7 @@
 #define ANDROID_SERVERS_CAMERA_CAMERASERVICE_H
 
 #include <utils/Vector.h>
+#include <utils/KeyedVector.h>
 #include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IAppOpsCallback.h>
@@ -32,6 +33,7 @@
 #include <camera/camera2/ICameraDeviceCallbacks.h>
 #include <camera/VendorTagDescriptor.h>
 #include <camera/CaptureResult.h>
+#include <camera/CameraParameters.h>
 
 #include <camera/ICameraServiceListener.h>
 
@@ -395,6 +397,43 @@ private:
     bool                isValidCameraId(int cameraId);
 
     bool                setUpVendorTags();
+
+    /**
+     * A mapping of camera ids to CameraParameters returned by that camera device.
+     *
+     * This cache is used to generate CameraCharacteristic metadata when using
+     * the HAL1 shim.
+     */
+    KeyedVector<int, CameraParameters>    mShimParams;
+
+    /**
+     * Initialize and cache the metadata used by the HAL1 shim for a given cameraId.
+     *
+     * Returns OK on success, or a negative error code.
+     */
+    status_t            initializeShimMetadata(int cameraId);
+
+    /**
+     * Generate the CameraCharacteristics metadata required by the Camera2 API
+     * from the available HAL1 CameraParameters and CameraInfo.
+     *
+     * Returns OK on success, or a negative error code.
+     */
+    status_t            generateShimMetadata(int cameraId, /*out*/CameraMetadata* cameraInfo);
+
+    /**
+     * Connect a new camera client.  This should only be used while holding the
+     * mutex for mServiceLock.
+     *
+     * Returns OK on success, or a negative error code.
+     */
+    status_t            connectHelperLocked(const sp<ICameraClient>& cameraClient,
+                                      int cameraId,
+                                      const String16& clientPackageName,
+                                      int clientUid,
+                                      int callingPid,
+                                      /*out*/
+                                      sp<Client>& client);
 };
 
 } // namespace android

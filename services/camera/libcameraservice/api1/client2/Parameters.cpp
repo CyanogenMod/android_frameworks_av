@@ -2028,24 +2028,7 @@ const char* Parameters::getStateName(State state) {
 }
 
 int Parameters::formatStringToEnum(const char *format) {
-    return
-        !format ?
-            HAL_PIXEL_FORMAT_YCrCb_420_SP :
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV422SP) ?
-            HAL_PIXEL_FORMAT_YCbCr_422_SP : // NV16
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV420SP) ?
-            HAL_PIXEL_FORMAT_YCrCb_420_SP : // NV21
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV422I) ?
-            HAL_PIXEL_FORMAT_YCbCr_422_I :  // YUY2
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_YUV420P) ?
-            HAL_PIXEL_FORMAT_YV12 :         // YV12
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_RGB565) ?
-            HAL_PIXEL_FORMAT_RGB_565 :      // RGB565
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_RGBA8888) ?
-            HAL_PIXEL_FORMAT_RGBA_8888 :    // RGB8888
-        !strcmp(format, CameraParameters::PIXEL_FORMAT_BAYER_RGGB) ?
-            HAL_PIXEL_FORMAT_RAW_SENSOR :   // Raw sensor data
-        -1;
+    return CameraParameters::previewFormatToEnum(format);
 }
 
 const char* Parameters::formatEnumToString(int format) {

@@ -246,6 +246,18 @@ status_t CameraDeviceClient::cancelRequest(int requestId, int64_t* lastFrameNumb
     return res;
 }
 
+status_t CameraDeviceClient::beginConfigure() {
+    // TODO: Implement this.
+    ALOGE("%s: Not implemented yet.", __FUNCTION__);
+    return OK;
+}
+
+status_t CameraDeviceClient::endConfigure() {
+    // TODO: Implement this.
+    ALOGE("%s: Not implemented yet.", __FUNCTION__);
+    return OK;
+}
+
 status_t CameraDeviceClient::deleteStream(int streamId) {
     ATRACE_CALL();
     ALOGV("%s (streamId = 0x%x)", __FUNCTION__, streamId);
