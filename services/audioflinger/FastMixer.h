@@ -17,11 +17,10 @@
 #ifndef ANDROID_AUDIO_FAST_MIXER_H
 #define ANDROID_AUDIO_FAST_MIXER_H
 
+#include <linux/futex.h>
+#include <sys/syscall.h>
 #include <utils/Debug.h>
 #include <utils/Thread.h>
-extern "C" {
-#include "../private/bionic_futex.h"
-}
 #include "StateQueue.h"
 #include "FastMixerState.h"
 
