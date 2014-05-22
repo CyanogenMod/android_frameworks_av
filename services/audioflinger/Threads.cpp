@@ -2603,7 +2603,7 @@ AudioFlinger::MixerThread::~MixerThread()
         if (state->mCommand == FastMixerState::COLD_IDLE) {
             int32_t old = android_atomic_inc(&mFastMixerFutex);
             if (old == -1) {
-                __futex_syscall4(&mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1, NULL);
+                (void) syscall(__NR_futex, &mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1);
             }
         }
         state->mCommand = FastMixerState::EXIT;
@@ -2660,7 +2660,7 @@ ssize_t AudioFlinger::MixerThread::threadLoop_write()
             if (state->mCommand == FastMixerState::COLD_IDLE) {
                 int32_t old = android_atomic_inc(&mFastMixerFutex);
                 if (old == -1) {
-                    __futex_syscall4(&mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1, NULL);
+                    (void) syscall(__NR_futex, &mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1);
                 }
 #ifdef AUDIO_WATCHDOG
                 if (mAudioWatchdog != 0) {
