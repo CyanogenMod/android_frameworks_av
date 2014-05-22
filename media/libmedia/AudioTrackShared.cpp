@@ -295,8 +295,8 @@ void ClientProxy::binderDied()
     audio_track_cblk_t* cblk = mCblk;
     if (!(android_atomic_or(CBLK_INVALID, &cblk->mFlags) & CBLK_INVALID)) {
         // it seems that a FUTEX_WAKE_PRIVATE will not wake a FUTEX_WAIT, even within same process
-        (void) __futex_syscall3(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1);
+        (void) __futex_syscall4(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1, NULL);
     }
 }
 
@@ -304,8 +304,8 @@ void ClientProxy::interrupt()
 {
     audio_track_cblk_t* cblk = mCblk;
     if (!(android_atomic_or(CBLK_INTERRUPT, &cblk->mFlags) & CBLK_INTERRUPT)) {
-        (void) __futex_syscall3(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1);
+        (void) __futex_syscall4(&cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1, NULL);
     }
 }
 
@@ -535,8 +535,8 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
             if (front != rear) {
                 int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
                 if (!(old & CBLK_FUTEX_WAKE)) {
-                    (void) __futex_syscall3(&cblk->mFutex,
-                            mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
+                    (void) __futex_syscall4(&cblk->mFutex,
+                            mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1, NULL);
                 }
             }
             front = rear;
@@ -638,8 +638,8 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
         ALOGV("mAvailToClient=%u stepCount=%u minimum=%u", mAvailToClient, stepCount, minimum);
         int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
-            (void) __futex_syscall3(&cblk->mFutex,
-                    mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
+            (void) __futex_syscall4(&cblk->mFutex,
+                    mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1, NULL);
         }
     }
 
@@ -682,8 +682,8 @@ bool  AudioTrackServerProxy::setStreamEndDone() {
     bool old =
             (android_atomic_or(CBLK_STREAM_END_DONE, &mCblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
     if (!old) {
-        (void) __futex_syscall3(&mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1);
+        (void) __futex_syscall4(&mCblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
+                1, NULL);
     }
     return old;
 }
