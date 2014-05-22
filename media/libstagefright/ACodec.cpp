@@ -40,6 +40,7 @@
 #include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/ExtendedCodec.h>
 
 #include <media/hardware/HardwareAPI.h>
 
@@ -1119,7 +1120,7 @@ status_t ACodec::setComponentRole(
     }
 
     if (i == kNumMimeToRole) {
-        return ERROR_UNSUPPORTED;
+        return ExtendedCodec::setSupportedRole(mOMX, mNode, isEncoder, mime);
     }
 
     const char *role =
@@ -1369,6 +1370,10 @@ status_t ACodec::configureCodec(
         } else {
             err = setupVideoDecoder(mime, msg);
         }
+        if (err == OK) {
+            const char* componentName = mComponentName.c_str();
+            ExtendedCodec::configureVideoDecoder(msg, mime, mOMX, 0, mNode, componentName);
+        }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         int32_t numChannels, sampleRate;
         if (!msg->findInt32("channel-count", &numChannels)
@@ -1498,6 +1503,19 @@ status_t ACodec::configureCodec(
         } else {
             err = setupAC3Codec(encoder, numChannels, sampleRate);
         }
+    } else {
+        if (encoder) {
+            int32_t numChannels, sampleRate;
+            if (msg->findInt32("channel-count", &numChannels)
+                  && msg->findInt32("sample-rate", &sampleRate)) {
+                setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+            }
+       }
+       err = ExtendedCodec::setAudioFormat(
+                 msg, mime, mOMX, mNode, mIsEncoder);
+       if(err != OK) {
+           return err;
+       }
     }
 
     if (err != OK) {
@@ -2102,7 +2120,9 @@ status_t ACodec::setupVideoDecoder(
     status_t err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
-        return err;
+        if (ExtendedCodec::setVideoOutputFormat(mime, &compressionFormat) != OK) {
+            return err;
+        }
     }
 
     err = setVideoPortFormatType(
@@ -2239,7 +2259,11 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
     err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
-        return err;
+        err = ExtendedCodec::setVideoInputFormat(mime, &compressionFormat);
+        if (err != OK) {
+            ALOGE("Not a supported video mime type: %s", mime);
+            return err;
+        }
     }
 
     err = setVideoPortFormatType(
@@ -3497,8 +3521,25 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                 }
 
                 default:
+                {
+                    AString mimeType;
+                    status_t err = ExtendedCodec::handleSupportedAudioFormats(
+                        audioDef->eEncoding, &mimeType);
+                    if (err == OK) {
+                        int channelCount;
+                        err = ExtendedCodec::getSupportedAudioFormatInfo(
+                                      &mimeType,
+                                      mOMX,
+                                      mNode,
+                                      kPortIndexOutput,
+                                      &channelCount);
+                        notify->setString("mime", mimeType.c_str());
+                        notify->setInt32("channel-count", channelCount);
+                        break;
+                    }
                     ALOGE("UNKNOWN AUDIO CODING: %d\n", audioDef->eEncoding);
                     TRESPASS();
+                }
             }
             break;
         }
@@ -4552,6 +4593,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
             ++matchIndex) {
         componentName = matchingCodecs.itemAt(matchIndex).mName.string();
         quirks = matchingCodecs.itemAt(matchIndex).mQuirks;
+        ExtendedCodec::overrideComponentName(quirks, msg, &componentName);
 
         pid_t tid = androidGetTid();
         int prevPriority = androidGetThreadPriority(tid);

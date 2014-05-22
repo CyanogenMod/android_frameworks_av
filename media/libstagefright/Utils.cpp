@@ -34,6 +34,7 @@
 #include <hardware/audio.h>
 #include <media/stagefright/Utils.h>
 #include <media/AudioParameter.h>
+#include <media/stagefright/ExtendedCodec.h>
 
 namespace android {
 
@@ -346,6 +347,7 @@ status_t convertMetaDataToMessage(
         msg->setBuffer("csd-0", buffer);
     }
 
+    ExtendedCodec::convertMetaDataToMessage(meta, &msg);
     *format = msg;
 
     return OK;
