@@ -379,7 +379,7 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
         if (mLogMemoryDealer != 0) {
             sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
             if (binder != 0) {
-                fdprintf(fd, "\nmedia.log:\n");
+                dprintf(fd, "\nmedia.log:\n");
                 Vector<String16> args;
                 binder->dump(fd, args);
             }
@@ -2460,7 +2460,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             }
         } else {
             if (fd >= 0) {
-                fdprintf(fd, "unable to rotate tees in %s: %s\n", teePath, strerror(errno));
+                dprintf(fd, "unable to rotate tees in %s: %s\n", teePath, strerror(errno));
             }
         }
         char teeTime[16];
@@ -2514,11 +2514,11 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             write(teeFd, &temp, sizeof(temp));
             close(teeFd);
             if (fd >= 0) {
-                fdprintf(fd, "tee copied to %s\n", teePath);
+                dprintf(fd, "tee copied to %s\n", teePath);
             }
         } else {
             if (fd >= 0) {
-                fdprintf(fd, "unable to create tee %s: %s\n", teePath, strerror(errno));
+                dprintf(fd, "unable to create tee %s: %s\n", teePath, strerror(errno));
             }
         }
     }
