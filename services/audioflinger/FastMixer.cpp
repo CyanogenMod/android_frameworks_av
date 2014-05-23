@@ -26,7 +26,6 @@
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
 #include "Configuration.h"
-#include <sys/atomics.h>
 #include <time.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
