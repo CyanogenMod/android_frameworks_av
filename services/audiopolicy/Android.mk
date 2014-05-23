@@ -5,9 +5,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     AudioPolicyService.cpp
 
-# TODO: remove when enabling new audio policy
-USE_LEGACY_AUDIO_POLICY = 1
-
 ifeq ($(USE_LEGACY_AUDIO_POLICY), 1)
 LOCAL_SRC_FILES += \
     AudioPolicyInterfaceImplLegacy.cpp \
