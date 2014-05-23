@@ -2682,6 +2682,8 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // wrap the source side of the MonoPipe to make it an AudioBufferProvider
         fastTrack->mBufferProvider = new SourceAudioBufferProvider(new MonoPipeReader(monoPipe));
         fastTrack->mVolumeProvider = NULL;
+        fastTrack->mChannelMask = mChannelMask; // mPipeSink channel mask for audio to FastMixer
+        fastTrack->mFormat = mFormat; // mPipeSink format for audio to FastMixer
         fastTrack->mGeneration++;
         state->mFastTracksGen++;
         state->mTrackMask = 1;
@@ -3134,6 +3136,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     fastTrack->mBufferProvider = eabp;
                     fastTrack->mVolumeProvider = vp;
                     fastTrack->mChannelMask = track->mChannelMask;
+                    fastTrack->mFormat = track->mFormat;
                     fastTrack->mGeneration++;
                     state->mTrackMask |= 1 << j;
                     didModify = true;
@@ -3525,9 +3528,10 @@ track_is_ready: ;
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
-int AudioFlinger::MixerThread::getTrackName_l(audio_channel_mask_t channelMask, int sessionId)
+int AudioFlinger::MixerThread::getTrackName_l(audio_channel_mask_t channelMask,
+        audio_format_t format, int sessionId)
 {
-    return mAudioMixer->getTrackName(channelMask, sessionId);
+    return mAudioMixer->getTrackName(channelMask, format, sessionId);
 }
 
 // deleteTrackName_l() must be called with ThreadBase::mLock held
@@ -3640,7 +3644,8 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
             delete mAudioMixer;
             mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
             for (size_t i = 0; i < mTracks.size() ; i++) {
-                int name = getTrackName_l(mTracks[i]->mChannelMask, mTracks[i]->mSessionId);
+                int name = getTrackName_l(mTracks[i]->mChannelMask,
+                        mTracks[i]->mFormat, mTracks[i]->mSessionId);
                 if (name < 0) {
                     break;
                 }
@@ -3931,7 +3936,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
 
 // getTrackName_l() must be called with ThreadBase::mLock held
 int AudioFlinger::DirectOutputThread::getTrackName_l(audio_channel_mask_t channelMask __unused,
-        int sessionId __unused)
+        audio_format_t format __unused, int sessionId __unused)
 {
     return 0;
 }

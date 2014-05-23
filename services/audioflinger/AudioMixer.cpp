@@ -153,8 +153,13 @@ void AudioMixer::setLog(NBLog::Writer *log)
     mState.mLog = log;
 }
 
-int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
+int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
+        audio_format_t format, int sessionId)
 {
+    if (!isValidPcmTrackFormat(format)) {
+        ALOGE("AudioMixer::getTrackName invalid format (%#x)", format);
+        return -1;
+    }
     uint32_t names = (~mTrackNames) & mConfiguredNames;
     if (names != 0) {
         int n = __builtin_ctz(names);
@@ -193,7 +198,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
         t->auxBuffer = NULL;
         t->downmixerBufferProvider = NULL;
         t->mMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
-
+        t->mFormat = format;
         status_t status = initTrackDownmix(&mState.tracks[n], n, channelMask);
         if (status != OK) {
             ALOGE("AudioMixer::getTrackName invalid channelMask (%#x)", channelMask);

@@ -621,7 +621,8 @@ protected:
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
-    virtual int             getTrackName_l(audio_channel_mask_t channelMask, int sessionId) = 0;
+    virtual int             getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId) = 0;
     virtual void            deleteTrackName_l(int name) = 0;
 
     // Time to sleep between cycles when:
@@ -774,7 +775,8 @@ public:
 
 protected:
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    idleSleepTimeUs() const;
     virtual     uint32_t    suspendSleepTimeUs() const;
@@ -827,7 +829,8 @@ public:
                                                    status_t& status);
 
 protected:
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    activeSleepTimeUs() const;
     virtual     uint32_t    idleSleepTimeUs() const;
