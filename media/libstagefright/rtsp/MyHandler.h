@@ -948,7 +948,13 @@ struct MyHandler : public AHandler {
                 }
 
                 mNumAccessUnitsReceived = 0;
-                msg->post(kAccessUnitTimeoutUs);
+
+                //During Pause there will not be any access units coming from N/W and hence
+                //no need to post the check again
+                if (!mCheckPending) {
+                    ALOGI("Posting check again mcheckpening:%d",mCheckPending);
+                    msg->post(kAccessUnitTimeoutUs);
+                }
                 break;
             }
 
