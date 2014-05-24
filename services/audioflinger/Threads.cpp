@@ -2744,9 +2744,27 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         break;
     }
     if (initFastMixer) {
+        audio_format_t fastMixerFormat;
+        if (mMixerBufferEnabled && mEffectBufferEnabled) {
+            fastMixerFormat = AUDIO_FORMAT_PCM_FLOAT;
+        } else {
+            fastMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
+        }
+        if (mFormat != fastMixerFormat) {
+            // change our Sink format to accept our intermediate precision
+            mFormat = fastMixerFormat;
+            free(mSinkBuffer);
+            mFrameSize = mChannelCount * audio_bytes_per_sample(mFormat);
+            const size_t sinkBufferSize = mNormalFrameCount * mFrameSize;
+            (void)posix_memalign(&mSinkBuffer, 32, sinkBufferSize);
+        }
 
         // create a MonoPipe to connect our submix to FastMixer
         NBAIO_Format format = mOutputSink->format();
+        // adjust format to match that of the Fast Mixer
+        format.mFormat = fastMixerFormat;
+        format.mFrameSize = audio_bytes_per_sample(format.mFormat) * format.mChannelCount;
+
         // This pipe depth compensates for scheduling latency of the normal mixer thread.
         // When it wakes up after a maximum latency, it runs a few cycles quickly before
         // finally blocking.  Note the pipe implementation rounds up the request to a power of 2.

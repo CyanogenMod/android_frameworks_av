@@ -61,7 +61,15 @@ private:
     NBAIO_Sink *outputSink;
     int outputSinkGen;
     AudioMixer* mixer;
-    short *mMixerBuffer;
+
+    // mSinkBuffer audio format is stored in format.mFormat.
+    void* mSinkBuffer;                  // used for mixer output format translation
+                                        // if sink format is different than mixer output.
+    size_t mSinkBufferSize;
+    void* mMixerBuffer;                 // mixer output buffer.
+    size_t mMixerBufferSize;
+    audio_format_t mMixerBufferFormat;  // mixer output format: AUDIO_FORMAT_PCM_(16_BIT|FLOAT).
+
     enum {UNDEFINED, MIXED, ZEROED} mMixerBufferState;
     NBAIO_Format format;
     unsigned sampleRate;
