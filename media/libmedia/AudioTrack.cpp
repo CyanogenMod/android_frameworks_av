@@ -299,10 +299,13 @@ status_t AudioTrack::set(
     }
 
     // validate parameters
+#ifndef OMAP_ENHANCEMENT
+    // format is not properly returned by omap hdmi_hal
     if (!audio_is_valid_format(format)) {
         ALOGE("Invalid format %d", format);
         return BAD_VALUE;
     }
+#endif
 
     // AudioFlinger does not currently support 8-bit data in shared memory
     if (format == AUDIO_FORMAT_PCM_8_BIT && sharedBuffer != 0) {
