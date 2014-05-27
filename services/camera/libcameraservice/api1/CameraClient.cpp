@@ -243,11 +243,6 @@ void CameraClient::disconnect() {
         return;
     }
 
-    if (mClientPid <= 0) {
-        LOG1("camera is unlocked (mClientPid = %d), don't tear down hardware", mClientPid);
-        return;
-    }
-
     // Make sure disconnect() is done once and once only, whether it is called
     // from the user directly, or called by the destructor.
     if (mHardware == 0) return;
