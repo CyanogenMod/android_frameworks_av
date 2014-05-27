@@ -231,6 +231,8 @@ void FastMixer::onStateChange()
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                         (void *) mixBuffer);
                 // newly allocated track names default to full scale volume
+                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
+                        (void *)(uintptr_t)fastTrack->mFormat);
                 mixer->enable(name);
             }
             generations[i] = fastTrack->mGeneration;
@@ -259,6 +261,8 @@ void FastMixer::onStateChange()
                     }
                     mixer->setParameter(name, AudioMixer::RESAMPLE,
                             AudioMixer::REMOVE, NULL);
+                    mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
+                            (void *)(uintptr_t)fastTrack->mFormat);
                     mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
                             (void *)(uintptr_t) fastTrack->mChannelMask);
                     // already enabled
@@ -281,7 +285,7 @@ void FastMixer::onWork()
     const size_t frameCount = current->mFrameCount;
 
     if ((command & FastMixerState::MIX) && (mixer != NULL) && isWarm) {
-        ALOG_ASSERT(mixBuffer != NULL);
+        ALOG_ASSERT(mMixerBuffer != NULL);
         // for each track, update volume and check for underrun
         unsigned currentTrackMask = current->mTrackMask;
         while (currentTrackMask != 0) {
