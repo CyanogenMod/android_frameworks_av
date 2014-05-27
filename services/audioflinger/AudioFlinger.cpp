@@ -635,8 +635,12 @@ sp<IAudioTrack> AudioFlinger::createTrack(
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the Track so that the
         // Client destructor is called by the TrackBase destructor with mClientLock held
-        Mutex::Autolock _cl(mClientLock);
-        client.clear();
+        // Don't hold mClientLock when releasing the reference on the track as the
+        // destructor will acquire it.
+        {
+            Mutex::Autolock _cl(mClientLock);
+            client.clear();
+        }
         track.clear();
         goto Exit;
     }
@@ -1173,7 +1177,7 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
     }
 
     // mClientLock should not be held here because ThreadBase::sendIoConfigEvent() will lock the
-    // ThreadBase mutex and teh locknig order is ThreadBase::mLock then AudioFlinger::mClientLock.
+    // ThreadBase mutex and the locking order is ThreadBase::mLock then AudioFlinger::mClientLock.
     if (clientAdded) {
         // the config change is always sent from playback or record threads to avoid deadlock
         // with AudioSystem::gLock
@@ -1419,8 +1423,12 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     if (lStatus != NO_ERROR) {
         // remove local strong reference to Client before deleting the RecordTrack so that the
         // Client destructor is called by the TrackBase destructor with mClientLock held
-        Mutex::Autolock _cl(mClientLock);
-        client.clear();
+        // Don't hold mClientLock when releasing the reference on the track as the
+        // destructor will acquire it.
+        {
+            Mutex::Autolock _cl(mClientLock);
+            client.clear();
+        }
         recordTrack.clear();
         goto Exit;
     }
@@ -2379,6 +2387,11 @@ sp<IEffect> AudioFlinger::createEffect(
                 &desc, enabled, &lStatus);
         if (handle != 0 && id != NULL) {
             *id = handle->id();
+        }
+        if (handle == 0) {
+            // remove local strong reference to Client with mClientLock held
+            Mutex::Autolock _cl(mClientLock);
+            client.clear();
         }
     }
 
