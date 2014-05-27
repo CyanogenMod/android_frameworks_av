@@ -142,13 +142,38 @@ static const int kPriorityFastMixer = 3;
 // FIXME It would be better for client to tell AudioFlinger the value of N,
 // so AudioFlinger could allocate the right amount of memory.
 // See the client's minBufCount and mNotificationFramesAct calculations for details.
+
+// This is the default value, if not specified by property.
 static const int kFastTrackMultiplier = 2;
+
+// The minimum and maximum allowed values
+static const int kFastTrackMultiplierMin = 1;
+static const int kFastTrackMultiplierMax = 2;
+
+// The actual value to use, which can be specified per-device via property af.fast_track_multiplier.
+static int sFastTrackMultiplier = kFastTrackMultiplier;
 
 // See Thread::readOnlyHeap().
 // Initially this heap is used to allocate client buffers for "fast" AudioRecord.
 // Eventually it will be the single buffer that FastCapture writes into via HAL read(),
 // and that all "fast" AudioRecord clients read from.  In either case, the size can be small.
 static const size_t kRecordThreadReadOnlyHeapSize = 0x1000;
+
+// ----------------------------------------------------------------------------
+
+static pthread_once_t sFastTrackMultiplierOnce = PTHREAD_ONCE_INIT;
+
+static void sFastTrackMultiplierInit()
+{
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("af.fast_track_multiplier", value, NULL) > 0) {
+        char *endptr;
+        unsigned long ul = strtoul(value, &endptr, 0);
+        if (*endptr == '\0' && kFastTrackMultiplierMin <= ul && ul <= kFastTrackMultiplierMax) {
+            sFastTrackMultiplier = (int) ul;
+        }
+    }
+}
 
 // ----------------------------------------------------------------------------
 
@@ -1321,7 +1346,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         ) {
         // if frameCount not specified, then it defaults to fast mixer (HAL) frame count
         if (frameCount == 0) {
-            frameCount = mFrameCount * kFastTrackMultiplier;
+            // read the fast track multiplier property the first time it is needed
+            int ok = pthread_once(&sFastTrackMultiplierOnce, sFastTrackMultiplierInit);
+            if (ok != 0) {
+                ALOGE("%s pthread_once failed: %d", __func__, ok);
+            }
+            frameCount = mFrameCount * sFastTrackMultiplier;
         }
         ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
                 frameCount, mFrameCount);
