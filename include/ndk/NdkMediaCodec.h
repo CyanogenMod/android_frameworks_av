@@ -163,17 +163,6 @@ media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool re
 media_status_t AMediaCodec_releaseOutputBufferAtTime(
         AMediaCodec *mData, size_t idx, int64_t timestampNs);
 
-typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
-
-/**
- * Set a callback to be called when a new buffer is available, or there was a format
- * or buffer change.
- * Note that you cannot perform any operations on the mediacodec from within the callback.
- * If you need to perform mediacodec operations, you must do so on a different thread.
- */
-media_status_t AMediaCodec_setNotificationCallback(
-        AMediaCodec*, OnCodecEvent callback, void *userdata);
-
 
 typedef enum {
     AMEDIACODECRYPTOINFO_MODE_CLEAR = 0,
