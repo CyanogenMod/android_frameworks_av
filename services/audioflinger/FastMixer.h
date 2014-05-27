@@ -61,8 +61,8 @@ private:
     NBAIO_Sink *outputSink;
     int outputSinkGen;
     AudioMixer* mixer;
-    short *mixBuffer;
-    enum {UNDEFINED, MIXED, ZEROED} mixBufferState;
+    short *mMixerBuffer;
+    enum {UNDEFINED, MIXED, ZEROED} mMixerBufferState;
     NBAIO_Format format;
     unsigned sampleRate;
     int fastTracksGen;

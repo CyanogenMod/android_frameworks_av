@@ -52,8 +52,8 @@ FastMixer::FastMixer() : FastThread(),
     outputSink(NULL),
     outputSinkGen(0),
     mixer(NULL),
-    mixBuffer(NULL),
-    mixBufferState(UNDEFINED),
+    mMixerBuffer(NULL),
+    mMixerBufferState(UNDEFINED),
     format(Format_Invalid),
     sampleRate(0),
     fastTracksGen(0),
@@ -108,7 +108,7 @@ void FastMixer::onIdle()
 void FastMixer::onExit()
 {
     delete mixer;
-    delete[] mixBuffer;
+    delete[] mMixerBuffer;
 }
 
 bool FastMixer::isSubClassCommand(FastThreadState::Command command)
@@ -154,14 +154,14 @@ void FastMixer::onStateChange()
         // FIXME to avoid priority inversion, don't delete here
         delete mixer;
         mixer = NULL;
-        delete[] mixBuffer;
-        mixBuffer = NULL;
+        delete[] mMixerBuffer;
+        mMixerBuffer = NULL;
         if (frameCount > 0 && sampleRate > 0) {
             // FIXME new may block for unbounded time at internal mutex of the heap
             //       implementation; it would be better to have normal mixer allocate for us
             //       to avoid blocking here and to prevent possible priority inversion
             mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
-            mixBuffer = new short[frameCount * FCC_2];
+            mMixerBuffer = new short[frameCount * FCC_2];
             periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
             underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
             overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
@@ -174,7 +174,7 @@ void FastMixer::onStateChange()
             forceNs = 0;
             warmupNs = 0;
         }
-        mixBufferState = UNDEFINED;
+        mMixerBufferState = UNDEFINED;
 #if !LOG_NDEBUG
         for (unsigned i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
             fastTrackNames[i] = -1;
@@ -192,7 +192,7 @@ void FastMixer::onStateChange()
     const unsigned currentTrackMask = current->mTrackMask;
     dumpState->mTrackMask = currentTrackMask;
     if (current->mFastTracksGen != fastTracksGen) {
-        ALOG_ASSERT(mixBuffer != NULL);
+        ALOG_ASSERT(mMixerBuffer != NULL);
         int name;
 
         // process removed tracks first to avoid running out of track names
@@ -229,7 +229,7 @@ void FastMixer::onStateChange()
                 fastTrackNames[i] = name;
                 mixer->setBufferProvider(name, bufferProvider);
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
-                        (void *) mixBuffer);
+                        (void *) mMixerBuffer);
                 // newly allocated track names default to full scale volume
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
                         (void *)(uintptr_t)fastTrack->mFormat);
@@ -362,26 +362,26 @@ void FastMixer::onWork()
 
         // process() is CPU-bound
         mixer->process(pts);
-        mixBufferState = MIXED;
-    } else if (mixBufferState == MIXED) {
-        mixBufferState = UNDEFINED;
+        mMixerBufferState = MIXED;
+    } else if (mMixerBufferState == MIXED) {
+        mMixerBufferState = UNDEFINED;
     }
     //bool didFullWrite = false;    // dumpsys could display a count of partial writes
-    if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mixBuffer != NULL)) {
-        if (mixBufferState == UNDEFINED) {
-            memset(mixBuffer, 0, frameCount * FCC_2 * sizeof(short));
-            mixBufferState = ZEROED;
+    if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mMixerBuffer != NULL)) {
+        if (mMixerBufferState == UNDEFINED) {
+            memset(mMixerBuffer, 0, frameCount * FCC_2 * sizeof(short));
+            mMixerBufferState = ZEROED;
         }
         // if non-NULL, then duplicate write() to this non-blocking sink
         NBAIO_Sink* teeSink;
         if ((teeSink = current->mTeeSink) != NULL) {
-            (void) teeSink->write(mixBuffer, frameCount);
+            (void) teeSink->write(mMixerBuffer, frameCount);
         }
         // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
         //       but this code should be modified to handle both non-blocking and blocking sinks
         dumpState->mWriteSequence++;
         ATRACE_BEGIN("write");
-        ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
+        ssize_t framesWritten = outputSink->write(mMixerBuffer, frameCount);
         ATRACE_END();
         dumpState->mWriteSequence++;
         if (framesWritten >= 0) {
