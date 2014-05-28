@@ -74,6 +74,12 @@ enum {
     GET_PRIMARY_OUTPUT_SAMPLING_RATE,
     GET_PRIMARY_OUTPUT_FRAME_COUNT,
     SET_LOW_RAM_DEVICE,
+    LIST_AUDIO_PORTS,
+    GET_AUDIO_PORT,
+    CREATE_AUDIO_PATCH,
+    RELEASE_AUDIO_PATCH,
+    LIST_AUDIO_PATCHES,
+    SET_AUDIO_PORT_CONFIG
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -801,7 +807,101 @@ public:
         remote()->transact(SET_LOW_RAM_DEVICE, data, &reply);
         return reply.readInt32();
     }
-
+    virtual status_t listAudioPorts(unsigned int *num_ports,
+                                    struct audio_port *ports)
+    {
+        if (num_ports == NULL || *num_ports == 0 || ports == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(*num_ports);
+        status_t status = remote()->transact(LIST_AUDIO_PORTS, data, &reply);
+        if (status != NO_ERROR ||
+                (status = (status_t)reply.readInt32()) != NO_ERROR) {
+            return status;
+        }
+        *num_ports = (unsigned int)reply.readInt32();
+        reply.read(ports, *num_ports * sizeof(struct audio_port));
+        return status;
+    }
+    virtual status_t getAudioPort(struct audio_port *port)
+    {
+        if (port == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.write(port, sizeof(struct audio_port));
+        status_t status = remote()->transact(GET_AUDIO_PORT, data, &reply);
+        if (status != NO_ERROR ||
+                (status = (status_t)reply.readInt32()) != NO_ERROR) {
+            return status;
+        }
+        reply.read(port, sizeof(struct audio_port));
+        return status;
+    }
+    virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle)
+    {
+        if (patch == NULL || handle == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.write(patch, sizeof(struct audio_patch));
+        data.write(handle, sizeof(audio_patch_handle_t));
+        status_t status = remote()->transact(CREATE_AUDIO_PATCH, data, &reply);
+        if (status != NO_ERROR ||
+                (status = (status_t)reply.readInt32()) != NO_ERROR) {
+            return status;
+        }
+        reply.read(handle, sizeof(audio_patch_handle_t));
+        return status;
+    }
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.write(&handle, sizeof(audio_patch_handle_t));
+        status_t status = remote()->transact(RELEASE_AUDIO_PATCH, data, &reply);
+        if (status != NO_ERROR) {
+            status = (status_t)reply.readInt32();
+        }
+        return status;
+    }
+    virtual status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches)
+    {
+        if (num_patches == NULL || *num_patches == 0 || patches == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(*num_patches);
+        status_t status = remote()->transact(LIST_AUDIO_PATCHES, data, &reply);
+        if (status != NO_ERROR ||
+                (status = (status_t)reply.readInt32()) != NO_ERROR) {
+            return status;
+        }
+        *num_patches = (unsigned int)reply.readInt32();
+        reply.read(patches, *num_patches * sizeof(struct audio_patch));
+        return status;
+    }
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config)
+    {
+        if (config == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.write(config, sizeof(struct audio_port_config));
+        status_t status = remote()->transact(SET_AUDIO_PORT_CONFIG, data, &reply);
+        if (status != NO_ERROR) {
+            status = (status_t)reply.readInt32();
+        }
+        return status;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -1197,6 +1297,76 @@ status_t BnAudioFlinger::onTransact(
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             bool isLowRamDevice = data.readInt32() != 0;
             reply->writeInt32(setLowRamDevice(isLowRamDevice));
+            return NO_ERROR;
+        } break;
+        case LIST_AUDIO_PORTS: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            unsigned int num_ports = data.readInt32();
+            struct audio_port *ports =
+                    (struct audio_port *)calloc(num_ports,
+                                                           sizeof(struct audio_port));
+            status_t status = listAudioPorts(&num_ports, ports);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->writeInt32(num_ports);
+                reply->write(&ports, num_ports * sizeof(struct audio_port));
+            }
+            free(ports);
+            return NO_ERROR;
+        } break;
+        case GET_AUDIO_PORT: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            struct audio_port port;
+            data.read(&port, sizeof(struct audio_port));
+            status_t status = getAudioPort(&port);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->write(&port, sizeof(struct audio_port));
+            }
+            return NO_ERROR;
+        } break;
+        case CREATE_AUDIO_PATCH: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            struct audio_patch patch;
+            data.read(&patch, sizeof(struct audio_patch));
+            audio_patch_handle_t handle;
+            data.read(&handle, sizeof(audio_patch_handle_t));
+            status_t status = createAudioPatch(&patch, &handle);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->write(&handle, sizeof(audio_patch_handle_t));
+            }
+            return NO_ERROR;
+        } break;
+        case RELEASE_AUDIO_PATCH: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            audio_patch_handle_t handle;
+            data.read(&handle, sizeof(audio_patch_handle_t));
+            status_t status = releaseAudioPatch(handle);
+            reply->writeInt32(status);
+            return NO_ERROR;
+        } break;
+        case LIST_AUDIO_PATCHES: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            unsigned int num_patches = data.readInt32();
+            struct audio_patch *patches =
+                    (struct audio_patch *)calloc(num_patches,
+                                                 sizeof(struct audio_patch));
+            status_t status = listAudioPatches(&num_patches, patches);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->writeInt32(num_patches);
+                reply->write(&patches, num_patches * sizeof(struct audio_patch));
+            }
+            free(patches);
+            return NO_ERROR;
+        } break;
+        case SET_AUDIO_PORT_CONFIG: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            struct audio_port_config config;
+            data.read(&config, sizeof(struct audio_port_config));
+            status_t status = setAudioPortConfig(&config);
+            reply->writeInt32(status);
             return NO_ERROR;
         } break;
         default:
