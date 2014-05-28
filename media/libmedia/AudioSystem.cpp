@@ -831,6 +831,55 @@ bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
     return aps->isOffloadSupported(info);
 }
 
+status_t AudioSystem::listAudioPorts(audio_port_role_t role,
+                                     audio_port_type_t type,
+                                     unsigned int *num_ports,
+                                     struct audio_port *ports,
+                                     unsigned int *generation)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->listAudioPorts(role, type, num_ports, ports, generation);
+}
+
+status_t AudioSystem::getAudioPort(struct audio_port *port)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->getAudioPort(port);
+}
+
+status_t AudioSystem::createAudioPatch(const struct audio_patch *patch,
+                                   audio_patch_handle_t *handle)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->createAudioPatch(patch, handle);
+}
+
+status_t AudioSystem::releaseAudioPatch(audio_patch_handle_t handle)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->releaseAudioPatch(handle);
+}
+
+status_t AudioSystem::listAudioPatches(unsigned int *num_patches,
+                                  struct audio_patch *patches,
+                                  unsigned int *generation)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->listAudioPatches(num_patches, patches, generation);
+}
+
+status_t AudioSystem::setAudioPortConfig(const struct audio_port_config *config)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->setAudioPortConfig(config);
+}
+
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)

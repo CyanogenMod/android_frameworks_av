@@ -274,6 +274,31 @@ public:
     // check presence of audio flinger service.
     // returns NO_ERROR if binding to service succeeds, DEAD_OBJECT otherwise
     static status_t checkAudioFlinger();
+
+    /* List available audio ports and their attributes */
+    static status_t listAudioPorts(audio_port_role_t role,
+                                   audio_port_type_t type,
+                                   unsigned int *num_ports,
+                                   struct audio_port *ports,
+                                   unsigned int *generation);
+
+    /* Get attributes for a given audio port */
+    static status_t getAudioPort(struct audio_port *port);
+
+    /* Create an audio patch between several source and sink ports */
+    static status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle);
+
+    /* Release an audio patch */
+    static status_t releaseAudioPatch(audio_patch_handle_t handle);
+
+    /* List existing audio patches */
+    static status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches,
+                                      unsigned int *generation);
+    /* Set audio port configuration */
+    static status_t setAudioPortConfig(const struct audio_port_config *config);
+
     // ----------------------------------------------------------------------------
 
 private:

@@ -140,6 +140,20 @@ public:
     virtual status_t setVoiceVolume(float volume, int delayMs = 0);
     virtual bool isOffloadSupported(const audio_offload_info_t &config);
 
+    virtual status_t listAudioPorts(audio_port_role_t role,
+                                    audio_port_type_t type,
+                                    unsigned int *num_ports,
+                                    struct audio_port *ports,
+                                    unsigned int *generation);
+    virtual status_t getAudioPort(struct audio_port *port);
+    virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle);
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle);
+    virtual status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches,
+                                      unsigned int *generation);
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config);
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   int session = 0);
