@@ -150,6 +150,19 @@ AudioPolicyService::~AudioPolicyService()
 #endif
 }
 
+status_t AudioPolicyService::clientCreateAudioPatch(const struct audio_patch *patch,
+                                                audio_patch_handle_t *handle,
+                                                int delayMs)
+{
+    return mAudioCommandThread->createAudioPatchCommand(patch, handle, delayMs);
+}
+
+status_t AudioPolicyService::clientReleaseAudioPatch(audio_patch_handle_t handle,
+                                                 int delayMs)
+{
+    return mAudioCommandThread->releaseAudioPatchCommand(handle, delayMs);
+}
+
 
 void AudioPolicyService::binderDied(const wp<IBinder>& who) {
     ALOGW("binderDied() %p, calling pid %d", who.unsafe_get(),
@@ -357,6 +370,26 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     svc->doReleaseOutput(data->mIO);
                     mLock.lock();
                     }break;
+                case CREATE_AUDIO_PATCH: {
+                    CreateAudioPatchData *data = (CreateAudioPatchData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing create audio patch");
+                    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
+                    if (af == 0) {
+                        command->mStatus = PERMISSION_DENIED;
+                    } else {
+                        command->mStatus = af->createAudioPatch(&data->mPatch, &data->mHandle);
+                    }
+                    } break;
+                case RELEASE_AUDIO_PATCH: {
+                    ReleaseAudioPatchData *data = (ReleaseAudioPatchData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing release audio patch");
+                    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
+                    if (af == 0) {
+                        command->mStatus = PERMISSION_DENIED;
+                    } else {
+                        command->mStatus = af->releaseAudioPatch(data->mHandle);
+                    }
+                    } break;
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
                 }
@@ -516,6 +549,41 @@ void AudioPolicyService::AudioCommandThread::releaseOutputCommand(audio_io_handl
     sendCommand(command);
 }
 
+status_t AudioPolicyService::AudioCommandThread::createAudioPatchCommand(
+                                                const struct audio_patch *patch,
+                                                audio_patch_handle_t *handle,
+                                                int delayMs)
+{
+    status_t status = NO_ERROR;
+
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = CREATE_AUDIO_PATCH;
+    CreateAudioPatchData *data = new CreateAudioPatchData();
+    data->mPatch = *patch;
+    data->mHandle = *handle;
+    command->mParam = data;
+    command->mWaitStatus = true;
+    ALOGV("AudioCommandThread() adding create patch delay %d", delayMs);
+    status = sendCommand(command, delayMs);
+    if (status == NO_ERROR) {
+        *handle = data->mHandle;
+    }
+    return status;
+}
+
+status_t AudioPolicyService::AudioCommandThread::releaseAudioPatchCommand(audio_patch_handle_t handle,
+                                                 int delayMs)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = RELEASE_AUDIO_PATCH;
+    ReleaseAudioPatchData *data = new ReleaseAudioPatchData();
+    data->mHandle = handle;
+    command->mParam = data;
+    command->mWaitStatus = true;
+    ALOGV("AudioCommandThread() adding release patch delay %d", delayMs);
+    return sendCommand(command, delayMs);
+}
+
 status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)
 {
     {
@@ -533,6 +601,7 @@ status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& c
     }
     return command->mStatus;
 }
+
 
 // insertCommand_l() must be called with mLock held
 void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& command, int delayMs)

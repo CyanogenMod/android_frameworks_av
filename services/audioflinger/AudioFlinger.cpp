@@ -177,6 +177,7 @@ AudioFlinger::AudioFlinger()
     if (doLog) {
         mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters", MemoryHeapBase::READ_ONLY);
     }
+
 #ifdef TEE_SINK
     (void) property_get("ro.debuggable", value, "0");
     int debuggable = atoi(value);
@@ -217,6 +218,8 @@ void AudioFlinger::onFirstRef()
                     (uint32_t)(mStandbyTimeInNsecs / 1000000));
         }
     }
+
+    mPatchPanel = new PatchPanel(this);
 
     mMode = AUDIO_MODE_NORMAL;
 }
