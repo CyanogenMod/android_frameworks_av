@@ -133,7 +133,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     success = format->findInt32(kKeySampleRate, &mSampleRate);
     CHECK(success);
 
-    int32_t numChannels, channelMask;
+    int32_t numChannels, channelMask = 0;
     success = format->findInt32(kKeyChannelCount, &numChannels);
     CHECK(success);
 
@@ -142,6 +142,9 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         ALOGI_IF(numChannels > 2,
                 "source format didn't specify channel mask, using (%d) channel order", numChannels);
         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
+    } else if (channelMask == 0) {
+        channelMask = audio_channel_out_mask_from_count(numChannels);
+        ALOGV("channel mask is zero,update from channel count %d", channelMask);
     }
 
     audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
