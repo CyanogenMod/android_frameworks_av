@@ -341,8 +341,9 @@ private:
     int normalizedYToCrop(int y) const;
 
     Vector<Size> availablePreviewSizes;
+    Vector<Size> availableVideoSizes;
     // Get size list (that are no larger than limit) from static metadata.
-    status_t getFilteredPreviewSizes(Size limit, Vector<Size> *sizes);
+    status_t getFilteredSizes(Size limit, Vector<Size> *sizes);
     // Get max size (from the size array) that matches the given aspect ratio.
     Size getMaxSizeForRatio(float ratio, const int32_t* sizeArray, size_t count);
 };
