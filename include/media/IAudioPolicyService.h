@@ -99,6 +99,31 @@ public:
    // Check if offload is possible for given format, stream type, sample rate,
     // bit rate, duration, video and streaming or offload property is enabled
     virtual bool isOffloadSupported(const audio_offload_info_t& info) = 0;
+
+    /* List available audio ports and their attributes */
+    virtual status_t listAudioPorts(audio_port_role_t role,
+                                    audio_port_type_t type,
+                                    unsigned int *num_ports,
+                                    struct audio_port *ports,
+                                    unsigned int *generation) = 0;
+
+    /* Get attributes for a given audio port */
+    virtual status_t getAudioPort(struct audio_port *port) = 0;
+
+    /* Create an audio patch between several source and sink ports */
+    virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle) = 0;
+
+    /* Release an audio patch */
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle) = 0;
+
+    /* List existing audio patches */
+    virtual status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches,
+                                      unsigned int *generation) = 0;
+    /* Set audio port configuration */
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config) = 0;
+
 };
 
 
