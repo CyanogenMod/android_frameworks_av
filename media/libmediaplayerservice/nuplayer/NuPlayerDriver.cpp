@@ -284,6 +284,10 @@ status_t NuPlayerDriver::seekTo(int msec) {
         case STATE_PREPARED:
         {
             mStartupSeekTimeUs = seekTimeUs;
+            // pretend that the seek completed. It will actually happen when starting playback.
+            // TODO: actually perform the seek here, so the player is ready to go at the new
+            // location
+            notifySeekComplete();
             break;
         }
 

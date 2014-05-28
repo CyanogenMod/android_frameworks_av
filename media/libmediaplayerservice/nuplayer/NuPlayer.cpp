@@ -1376,16 +1376,15 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
             sp<NuPlayerDriver> driver = mDriver.promote();
             if (driver != NULL) {
+                // notify duration first, so that it's definitely set when
+                // the app received the "prepare complete" callback.
+                int64_t durationUs;
+                if (mSource->getDuration(&durationUs) == OK) {
+                    driver->notifyDuration(durationUs);
+                }
                 driver->notifyPrepareCompleted(err);
             }
 
-            int64_t durationUs;
-            if (mDriver != NULL && mSource->getDuration(&durationUs) == OK) {
-                sp<NuPlayerDriver> driver = mDriver.promote();
-                if (driver != NULL) {
-                    driver->notifyDuration(durationUs);
-                }
-            }
             break;
         }
 
