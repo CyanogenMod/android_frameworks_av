@@ -425,8 +425,8 @@ status_t CameraService::connect(
 
     sp<Client> client;
     {
-        Mutex::Autolock lock(mServiceLock);
         sp<BasicClient> clientTmp;
+        Mutex::Autolock lock(mServiceLock);
         if (!canConnectUnsafe(cameraId, clientPackageName,
                               cameraClient->asBinder(),
                               /*out*/clientTmp)) {
