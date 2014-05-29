@@ -52,6 +52,26 @@ static const uint8_t kNalUnitTypeSeqParamSet = 0x07;
 static const uint8_t kNalUnitTypePicParamSet = 0x08;
 static const int64_t kInitialDelayTimeUs     = 700000LL;
 
+/*
+ * Moov box structure is fixed aside from trak which is
+ * calculated elsewhere.
+ *   moov
+ *       mvhd
+ *       udta
+ *           *xyz (geobox)
+ *       trak - handled elsewhere
+ */
+static const int64_t kBaseMpegBoxSize = 8;
+static const int64_t kBaseMoovBoxSize = kBaseMpegBoxSize;
+static const int64_t kBaseMvhdBoxSize = kBaseMpegBoxSize + 100;
+static const int64_t kBaseUdtaBoxSize = kBaseMpegBoxSize;
+static const int64_t kBaseGeoxBoxSize = kBaseMpegBoxSize + 22;
+
+static const int64_t kFixedMoovBoxSize = kBaseMoovBoxSize +
+                                         kBaseMvhdBoxSize +
+                                         kBaseUdtaBoxSize +
+                                         kBaseGeoxBoxSize;
+
 class MPEG4Writer::Track {
 public:
     Track(MPEG4Writer *owner, const sp<MediaSource> &source, size_t trackId);
@@ -65,6 +85,7 @@ public:
 
     int64_t getDurationUs() const;
     int64_t getEstimatedTrackSizeBytes() const;
+    int64_t getEstimatedDataSizeBytes() const;
     void writeTrackHeader(bool use32BitOffset = true);
     void bufferChunk(int64_t timestampUs);
     bool isAvc() const { return mIsAvc; }
@@ -217,6 +238,7 @@ private:
     int64_t mMaxChunkDurationUs;
 
     int64_t mEstimatedTrackSizeBytes;
+    int64_t mEstimatedCodecSizeBytes;
     int64_t mMdatSizeBytes;
     int32_t mTimeScale;
 
@@ -1277,20 +1299,23 @@ bool MPEG4Writer::exceedsFileSizeLimit() {
         return false;
     }
 
-    int64_t nTotalBytesEstimate = static_cast<int64_t>(mEstimatedMoovBoxSize);
+    int64_t nTotalBytesEstimate = kFixedMoovBoxSize;
+    int64_t nMoovBoxBytesEstimate = nTotalBytesEstimate;
     for (List<Track *>::iterator it = mTracks.begin();
          it != mTracks.end(); ++it) {
-        nTotalBytesEstimate += (*it)->getEstimatedTrackSizeBytes();
+        int64_t n = (*it)->getEstimatedTrackSizeBytes();
+        nTotalBytesEstimate += n;
+        nMoovBoxBytesEstimate += n - (*it)->getEstimatedDataSizeBytes();
     }
 
-    if (!mStreamableFile) {
-        // Add 1024 bytes as error tolerance
-        return nTotalBytesEstimate + 1024 >= mMaxFileSizeLimitBytes;
+    // If the moov box exceeds the reserved space, we need to append it to the
+    // end and the reserved space will be considered wasted.
+    int64_t nReservedMoovBoxSize = static_cast<int64_t>(mEstimatedMoovBoxSize);
+    if (nMoovBoxBytesEstimate > nReservedMoovBoxSize) {
+        nTotalBytesEstimate += nReservedMoovBoxSize;
     }
-    // Be conservative in the estimate: do not exceed 95% of
-    // the target file limit. For small target file size limit, though,
-    // this will not help.
-    return (nTotalBytesEstimate >= (95 * mMaxFileSizeLimitBytes) / 100);
+
+    return nTotalBytesEstimate >= mMaxFileSizeLimitBytes;
 }
 
 bool MPEG4Writer::exceedsFileDurationLimit() {
@@ -1355,6 +1380,7 @@ MPEG4Writer::Track::Track(
       mTrackId(trackId),
       mTrackDurationUs(0),
       mEstimatedTrackSizeBytes(0),
+      mEstimatedCodecSizeBytes(0),
       mSamplesHaveSameSize(true),
       mStszTableEntries(new ListTableEntries<uint32_t>(1000, 1)),
       mStcoTableEntries(new ListTableEntries<uint32_t>(1000, 1)),
@@ -1382,23 +1408,142 @@ MPEG4Writer::Track::Track(
 }
 
 void MPEG4Writer::Track::updateTrackSizeEstimate() {
+    /*
+     * Track structure
+     *   trak
+     *       tkhd
+     *       mdia
+     *           mdhd
+     *           hdlr
+     *           minf
+     *               smhd if audio
+     *               vmhd if video
+     *               dinf
+     *                   dref
+     *                       url
+     *               stbl
+     *                   stsd
+     *                       samr or sawb or mp4a if audio
+     *                           esds if mp4a/acc
+     *                           damr if amr
+     *                       mp4v or s263 or avc1 if video
+     *                           esds if mp4v
+     *                           d263 if s263
+     *                           avcC if avc
+     *                               pasp
+     *                   stts
+     *                   ctts if video
+     *                   stss if video
+     *                   stsz
+     *                   stsc
+     *                   stco or co64
+     */
+    static const int64_t kBaseUrlBoxSize = kBaseMpegBoxSize + 4;
+    static const int64_t kBaseStcoBoxSize = kBaseMpegBoxSize + 8; // aka CO64
+    static const int64_t kEntryStcoBoxSize = 4;
+    static const int64_t kEntryCo64BoxSize = 8;
+    static const int64_t kBaseStszBoxSize = kBaseMpegBoxSize + 12;
+    static const int64_t kEntryStszBoxSize = 4;
+    static const int64_t kBaseStscBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kEntryStscBoxSize = 12;
+    static const int64_t kBaseSttsBoxSize = kBaseMpegBoxSize + 16;
+    static const int64_t kEntrySttsBoxSize = 8;
+    static const int64_t kBaseStsdBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kBaseDrefBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kBaseDinfBoxSize = kBaseMpegBoxSize;
+    static const int64_t kBaseHdlrBoxSize = kBaseMpegBoxSize + 36;
+    static const int64_t kBaseMdhdBoxSize = kBaseMpegBoxSize + 24;
+    static const int64_t kBaseStblBoxSize = kBaseMpegBoxSize;
+    static const int64_t kBaseMinfBoxSize = kBaseMpegBoxSize;
+    static const int64_t kBaseMdiaBoxSize = kBaseMpegBoxSize;
+    static const int64_t kBaseTkhdBoxSize = kBaseMpegBoxSize + 96;
+    static const int64_t kBaseTrakBoxSize = kBaseMpegBoxSize;
 
-    uint32_t stcoBoxCount = (mOwner->use32BitFileOffset()
-                            ? mStcoTableEntries->count()
-                            : mCo64TableEntries->count());
-    int64_t stcoBoxSizeBytes = stcoBoxCount * 4;
-    int64_t stszBoxSizeBytes = mSamplesHaveSameSize? 4: (mStszTableEntries->count() * 4);
+    // audio boxes
+    static const int64_t kBaseSmhdBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kBaseEsdsABoxSize = kBaseMpegBoxSize + 29;
+    static const int64_t kBaseDamrBoxSize = kBaseMpegBoxSize + 9;
+    static const int64_t kBaseStsdABoxSize = kBaseMpegBoxSize + 28;
 
-    mEstimatedTrackSizeBytes = mMdatSizeBytes;  // media data size
-    if (!mOwner->isFileStreamable()) {
-        // Reserved free space is not large enough to hold
-        // all meta data and thus wasted.
-        mEstimatedTrackSizeBytes += mStscTableEntries->count() * 12 +  // stsc box size
-                                    mStssTableEntries->count() * 4 +   // stss box size
-                                    mSttsTableEntries->count() * 8 +   // stts box size
-                                    mCttsTableEntries->count() * 8 +   // ctts box size
-                                    stcoBoxSizeBytes +           // stco box size
-                                    stszBoxSizeBytes;            // stsz box size
+    // video boxes
+    static const int64_t kBaseVmhdBoxSize = kBaseMpegBoxSize + 12;
+    static const int64_t kBaseEsdsVBoxSize = kBaseMpegBoxSize + 29;
+    static const int64_t kBaseD263BoxSize = kBaseMpegBoxSize + 7;
+    static const int64_t kBaseAvccBoxSize = kBaseMpegBoxSize;
+    static const int64_t kBaseStsdVBoxSize = kBaseMpegBoxSize + 78;
+    static const int64_t kBasePaspBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kBaseStssBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kEntryStssBoxSize = 4;
+    static const int64_t kBaseCttsBoxSize = kBaseMpegBoxSize + 8;
+    static const int64_t kEntryCttsBoxSize = 8;
+
+    // Calculate fixed minimum header for a track (above for file structure).
+    mEstimatedTrackSizeBytes = kBaseTrakBoxSize +
+                               kBaseTkhdBoxSize +
+                               kBaseMdiaBoxSize +
+                               kBaseMdhdBoxSize +
+                               kBaseHdlrBoxSize +
+                               kBaseMinfBoxSize +
+                               kBaseDinfBoxSize +
+                               kBaseDrefBoxSize +
+                               kBaseUrlBoxSize +
+                               kBaseStblBoxSize +
+                               kBaseStsdBoxSize +
+                               kBaseSttsBoxSize +
+                               kBaseStszBoxSize +
+                               kBaseStscBoxSize +
+                               kBaseStcoBoxSize;
+
+    // We add 1 to all of the counts because if we accept the sample, it may
+    // increase the size of the file beyond what was requested due to a longer
+    // trak box.
+    mEstimatedTrackSizeBytes +=
+        (mStscTableEntries->count() + 1) * kEntryStscBoxSize +
+        (mSttsTableEntries->count() + 1) * kEntrySttsBoxSize +
+        (mOwner->use32BitFileOffset()
+            ? (mStcoTableEntries->count() + 1) * kEntryStcoBoxSize
+            : (mCo64TableEntries->count() + 1) * kEntryCo64BoxSize) +
+        (mSamplesHaveSameSize
+            ? kEntryStszBoxSize
+            : (mStszTableEntries->count() + 1) * kEntryStszBoxSize);
+
+    if (!mEstimatedCodecSizeBytes) {
+        const char *mime;
+        if (mMeta->findCString(kKeyMIMEType, &mime)) {
+            if (mIsAudio) {
+                mEstimatedCodecSizeBytes = kBaseStsdABoxSize +
+                                           kBaseSmhdBoxSize;
+
+                if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime)
+                        || !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime)) {
+                    mEstimatedCodecSizeBytes += kBaseDamrBoxSize;
+                } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
+                    mEstimatedCodecSizeBytes += kBaseEsdsABoxSize;
+                }
+            } else {
+                mEstimatedCodecSizeBytes = kBaseStsdVBoxSize +
+                                           kBasePaspBoxSize +
+                                           kBaseVmhdBoxSize;
+
+                if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
+                    mEstimatedCodecSizeBytes += kBaseEsdsVBoxSize;
+                } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
+                    mEstimatedCodecSizeBytes += kBaseD263BoxSize;
+                } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
+                    mEstimatedCodecSizeBytes += kBaseAvccBoxSize;
+                }
+            }
+        }
+    }
+
+    mEstimatedTrackSizeBytes += mEstimatedCodecSizeBytes +
+                                mCodecSpecificDataSize +
+                                mMdatSizeBytes; // media data size
+
+    if (!mIsAudio) {
+        mEstimatedTrackSizeBytes += kBaseCttsBoxSize + kBaseCttsBoxSize +
+            (mCttsTableEntries->count() + 1) * kEntryCttsBoxSize +
+            (mStssTableEntries->count() + 1) * kEntryStssBoxSize;
     }
 }
 
@@ -1759,6 +1904,7 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
     mTrackDurationUs = 0;
     mReachedEOS = false;
     mEstimatedTrackSizeBytes = 0;
+    mEstimatedCodecSizeBytes = 0;
     mMdatSizeBytes = 0;
     mMaxChunkDurationUs = 0;
 
@@ -2659,6 +2805,10 @@ int64_t MPEG4Writer::Track::getEstimatedTrackSizeBytes() const {
     return mEstimatedTrackSizeBytes;
 }
 
+int64_t MPEG4Writer::Track::getEstimatedDataSizeBytes() const {
+    return mMdatSizeBytes;
+}
+
 status_t MPEG4Writer::Track::checkCodecSpecificData() const {
     const char *mime;
     CHECK(mMeta->findCString(kKeyMIMEType, &mime));
@@ -3113,8 +3263,15 @@ void MPEG4Writer::Track::writeStssBox() {
 void MPEG4Writer::Track::writeStszBox() {
     mOwner->beginBox("stsz");
     mOwner->writeInt32(0);  // version=0, flags=0
-    mOwner->writeInt32(0);
-    mStszTableEntries->write(mOwner);
+    if (mSamplesHaveSameSize && mStszTableEntries->count() > 0) {
+        uint32_t sampleSize;
+        CHECK(mStszTableEntries->get(sampleSize, 0));
+        mOwner->write(&sampleSize, sizeof(sampleSize));
+        mOwner->writeInt32(mStszTableEntries->count());
+    } else {
+        mOwner->writeInt32(0);
+        mStszTableEntries->write(mOwner);
+    }
     mOwner->endBox();  // stsz
 }
 
