@@ -20,9 +20,37 @@ namespace android {
 namespace img_utils {
 
 Input::~Input() {}
+
 status_t Input::open() { return OK; }
+
 status_t Input::close() { return OK; }
 
+ssize_t Input::skip(size_t count) {
+    const size_t SKIP_BUF_SIZE = 1024;
+    uint8_t skipBuf[SKIP_BUF_SIZE];
+
+    size_t remaining = count;
+    while (remaining > 0) {
+        size_t amt = (SKIP_BUF_SIZE > remaining) ? remaining : SKIP_BUF_SIZE;
+        ssize_t ret = read(skipBuf, 0, amt);
+        if (ret < 0) {
+            if(ret == NOT_ENOUGH_DATA) {
+                // End of file encountered
+                if (remaining == count) {
+                    // Read no bytes, return EOF
+                    return NOT_ENOUGH_DATA;
+                } else {
+                    // Return num bytes read
+                    return count - remaining;
+                }
+            }
+            // Return error code.
+            return ret;
+        }
+        remaining -= ret;
+    }
+    return count;
+}
 
 } /*namespace img_utils*/
 } /*namespace android*/

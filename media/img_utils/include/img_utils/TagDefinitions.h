@@ -29,16 +29,18 @@ namespace img_utils {
  * Tag definitions contain information about standard TIFF compatible tags.
  */
 typedef struct TagDefinition {
+    // The tag name.
+    const char* tagName;
     // The specified tag ID.
-    uint16_t tagId;
+    const uint16_t tagId;
     // The default type for this tag.  This must be a valid TIFF type.
-    TagType defaultType;
+    const TagType defaultType;
     // The default Image File Directory (IFD) for this tag.
-    uint32_t defaultIfd;
+    const uint32_t defaultIfd;
     // The valid count for this tag, or 0 if the count is not fixed.
-    uint32_t fixedCount;
+    const uint32_t fixedCount;
     // The endianness of the tag value, or UNDEFINED_ENDIAN if there is no fixed endian
-    Endianness fixedEndian;
+    const Endianness fixedEndian;
 } TagDefinition_t;
 
 /**
@@ -180,6 +182,14 @@ enum {
     TAG_ISOSPEEDRATINGS = 0x8827u,
     TAG_FOCALLENGTH = 0x920Au,
     TAG_FNUMBER = 0x829Du,
+    TAG_GPSINFO = 0x8825u,
+    TAG_GPSVERSIONID = 0x0u,
+    TAG_GPSLATITUDEREF = 0x1u,
+    TAG_GPSLATITUDE = 0x2u,
+    TAG_GPSLONGITUDEREF = 0x3u,
+    TAG_GPSLONGITUDE = 0x4u,
+    TAG_GPSTIMESTAMP = 0x7u,
+    TAG_GPSDATESTAMP = 0x001Du,
 };
 
 /**
@@ -187,6 +197,7 @@ enum {
  */
 const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
     { // PhotometricInterpretation
+        "PhotometricInterpretation",
         0x0106u,
         SHORT,
         IFD_0,
@@ -194,6 +205,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // SubIfds
+        "SubIfds",
         0x014Au,
         LONG,
         IFD_0,
@@ -201,6 +213,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // CFAPattern
+        "CFAPattern",
         0x828Eu,
         BYTE,
         IFD_0,
@@ -208,6 +221,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // CFARepeatPatternDim
+        "CFARepeatPatternDim",
         0x828Du,
         SHORT,
         IFD_0,
@@ -215,6 +229,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // DateTimeOriginal
+        "DateTimeOriginal",
         0x9003u,
         ASCII,
         IFD_0,
@@ -222,6 +237,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // Tiff/EPStandardID
+        "Tiff",
         0x9216u,
         BYTE,
         IFD_0,
@@ -229,6 +245,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // ExposureTime
+        "ExposureTime",
         0x829Au,
         RATIONAL,
         IFD_0,
@@ -236,6 +253,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // ISOSpeedRatings
+        "ISOSpeedRatings",
         0x8827u,
         SHORT,
         IFD_0,
@@ -243,6 +261,7 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // FocalLength
+        "FocalLength",
         0x920Au,
         RATIONAL,
         IFD_0,
@@ -250,10 +269,67 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         UNDEFINED_ENDIAN
     },
     { // FNumber
+        "FNumber",
         0x829Du,
         RATIONAL,
         IFD_0,
         0,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSInfo
+        "GPSInfo",
+        0x8825u,
+        LONG,
+        IFD_0,
+        1,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSVersionID
+        "GPSVersionID",
+        0x0u,
+        BYTE,
+        IFD_0,
+        4,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSLatitudeRef
+        "GPSLatitudeRef",
+        0x1u,
+        ASCII,
+        IFD_0,
+        2,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSLatitude
+        "GPSLatitude",
+        0x2u,
+        RATIONAL,
+        IFD_0,
+        3,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSLongitudeRef
+        "GPSLongitudeRef",
+        0x3u,
+        ASCII,
+        IFD_0,
+        2,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSLongitude
+        "GPSLongitude",
+        0x4u,
+        RATIONAL,
+        IFD_0,
+        3,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSTimeStamp
+        "GPSTimeStamp",
+        0x7u,
+        RATIONAL,
+        IFD_0,
+        3,
         UNDEFINED_ENDIAN
     },
     /*TODO: Remaining TIFF EP tags*/
@@ -264,10 +340,19 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
  */
 const TagDefinition_t EXIF_2_3_TAG_DEFINITIONS[] = {
     { // ExifVersion
+        "ExifVersion",
         0x9000u,
         UNDEFINED,
         IFD_0,
         4,
+        UNDEFINED_ENDIAN
+    },
+    { // GPSDateStamp
+        "GPSDateStamp",
+        0x001Du,
+        ASCII,
+        IFD_0,
+        11,
         UNDEFINED_ENDIAN
     },
     /*TODO: Remaining EXIF 2.3 tags*/
@@ -278,6 +363,7 @@ const TagDefinition_t EXIF_2_3_TAG_DEFINITIONS[] = {
  */
 const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
     { // SubFileType
+        "SubFileType",
         0x00FFu,
         SHORT,
         IFD_0,
@@ -285,6 +371,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Artist
+        "Artist",
         0x013Bu,
         ASCII,
         IFD_0,
@@ -292,6 +379,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BitsPerSample
+        "BitsPerSample",
         0x0102u,
         SHORT,
         IFD_0,
@@ -299,6 +387,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CellLength
+        "CellLength",
         0x0109u,
         SHORT,
         IFD_0,
@@ -306,6 +395,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CellWidth
+        "CellWidth",
         0x0108u,
         SHORT,
         IFD_0,
@@ -313,6 +403,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ColorMap
+        "ColorMap",
         0x0140u,
         SHORT,
         IFD_0,
@@ -320,6 +411,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Compression
+        "Compression",
         0x0103u,
         SHORT,
         IFD_0,
@@ -327,6 +419,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Copyright
+        "Copyright",
         0x8298u,
         ASCII,
         IFD_0,
@@ -334,6 +427,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DateTime
+        "DateTime",
         0x0132u,
         ASCII,
         IFD_0,
@@ -341,6 +435,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ExtraSamples
+        "ExtraSamples",
         0x0152u,
         SHORT,
         IFD_0,
@@ -348,6 +443,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // FillOrder
+        "FillOrder",
         0x010Au,
         SHORT,
         IFD_0,
@@ -355,6 +451,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // FreeByteCounts
+        "FreeByteCounts",
         0x0121u,
         LONG,
         IFD_0,
@@ -362,6 +459,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // FreeOffsets
+        "FreeOffsets",
         0x0120u,
         LONG,
         IFD_0,
@@ -369,6 +467,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // GrayResponseCurve
+        "GrayResponseCurve",
         0x0123u,
         SHORT,
         IFD_0,
@@ -376,6 +475,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // GrayResponseUnit
+        "GrayResponseUnit",
         0x0122u,
         SHORT,
         IFD_0,
@@ -383,6 +483,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // HostComputer
+        "HostComputer",
         0x013Cu,
         ASCII,
         IFD_0,
@@ -390,6 +491,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ImageDescription
+        "ImageDescription",
         0x010Eu,
         ASCII,
         IFD_0,
@@ -397,6 +499,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ImageLength
+        "ImageLength",
         0x0101u,
         LONG,
         IFD_0,
@@ -404,6 +507,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ImageWidth
+        "ImageWidth",
         0x0100u,
         LONG,
         IFD_0,
@@ -411,6 +515,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Make
+        "Make",
         0x010Fu,
         ASCII,
         IFD_0,
@@ -418,6 +523,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // MaxSampleValue
+        "MaxSampleValue",
         0x0119u,
         SHORT,
         IFD_0,
@@ -425,6 +531,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // MinSampleValue
+        "MinSampleValue",
         0x0118u,
         SHORT,
         IFD_0,
@@ -432,6 +539,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Model
+        "Model",
         0x0110u,
         ASCII,
         IFD_0,
@@ -439,6 +547,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // NewSubfileType
+        "NewSubfileType",
         0x00FEu,
         LONG,
         IFD_0,
@@ -446,6 +555,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Orientation
+        "Orientation",
         0x0112u,
         SHORT,
         IFD_0,
@@ -453,6 +563,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PhotoMetricInterpretation
+        "PhotoMetricInterpretation",
         0x0106u,
         SHORT,
         IFD_0,
@@ -460,6 +571,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PlanarConfiguration
+        "PlanarConfiguration",
         0x011Cu,
         SHORT,
         IFD_0,
@@ -467,6 +579,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ResolutionUnit
+        "ResolutionUnit",
         0x0128u,
         SHORT,
         IFD_0,
@@ -474,6 +587,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // RowsPerStrip
+        "RowsPerStrip",
         0x0116u,
         LONG,
         IFD_0,
@@ -481,6 +595,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // SamplesPerPixel
+        "SamplesPerPixel",
         0x0115u,
         SHORT,
         IFD_0,
@@ -488,6 +603,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Software
+        "Software",
         0x0131u,
         ASCII,
         IFD_0,
@@ -495,6 +611,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // StripByteCounts
+        "StripByteCounts",
         0x0117u,
         LONG,
         IFD_0,
@@ -502,6 +619,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // StripOffsets
+        "StripOffsets",
         0x0111u,
         LONG,
         IFD_0,
@@ -509,6 +627,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // SubfileType
+        "SubfileType",
         0x00FFu,
         SHORT,
         IFD_0,
@@ -516,6 +635,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // Threshholding
+        "Threshholding",
         0x0107u,
         SHORT,
         IFD_0,
@@ -523,6 +643,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // XResolution
+        "XResolution",
         0x011Au,
         RATIONAL,
         IFD_0,
@@ -530,19 +651,13 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // YResolution
+        "YResolution",
         0x011Bu,
         RATIONAL,
         IFD_0,
         1,
         UNDEFINED_ENDIAN
     },
-    { // YResolution
-        0x011Bu,
-        RATIONAL,
-        IFD_0,
-        1,
-        UNDEFINED_ENDIAN
-    }
 };
 
 /**
@@ -550,6 +665,7 @@ const TagDefinition_t TIFF_6_TAG_DEFINITIONS[] = {
  */
 const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
     { // DNGVersion
+        "DNGVersion",
         0xC612u,
         BYTE,
         IFD_0,
@@ -557,6 +673,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DNGBackwardVersion
+        "DNGBackwardVersion",
         0xC613u,
         BYTE,
         IFD_0,
@@ -564,6 +681,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // UniqueCameraModel
+        "UniqueCameraModel",
         0xC614u,
         ASCII,
         IFD_0,
@@ -571,6 +689,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // LocalizedCameraModel
+        "LocalizedCameraModel",
         0xC615u,
         ASCII,
         IFD_0,
@@ -578,6 +697,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CFAPlaneColor
+        "CFAPlaneColor",
         0xC616u,
         BYTE,
         RAW_IFD,
@@ -585,6 +705,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CFALayout
+        "CFALayout",
         0xC617u,
         SHORT,
         RAW_IFD,
@@ -592,6 +713,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // LinearizationTable
+        "LinearizationTable",
         0xC618u,
         SHORT,
         RAW_IFD,
@@ -599,6 +721,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BlackLevelRepeatDim
+        "BlackLevelRepeatDim",
         0xC619u,
         SHORT,
         RAW_IFD,
@@ -606,6 +729,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BlackLevel
+        "BlackLevel",
         0xC61Au,
         LONG,
         RAW_IFD,
@@ -613,6 +737,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BlackLevelDeltaH
+        "BlackLevelDeltaH",
         0xC61Bu,
         SRATIONAL,
         RAW_IFD,
@@ -620,6 +745,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BlackLevelDeltaV
+        "BlackLevelDeltaV",
         0xC61Cu,
         SRATIONAL,
         RAW_IFD,
@@ -627,6 +753,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // WhiteLevel
+        "WhiteLevel",
         0xC61Du,
         LONG,
         RAW_IFD,
@@ -634,6 +761,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DefaultScale
+        "DefaultScale",
         0xC61Eu,
         RATIONAL,
         RAW_IFD,
@@ -641,6 +769,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BestQualityScale
+        "BestQualityScale",
         0xC65Cu,
         RATIONAL,
         RAW_IFD,
@@ -648,6 +777,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DefaultCropOrigin
+        "DefaultCropOrigin",
         0xC61Fu,
         LONG,
         RAW_IFD,
@@ -655,6 +785,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DefaultCropSize
+        "DefaultCropSize",
         0xC620u,
         LONG,
         RAW_IFD,
@@ -662,6 +793,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CalibrationIlluminant1
+        "CalibrationIlluminant1",
         0xC65Au,
         SHORT,
         PROFILE_IFD,
@@ -669,6 +801,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CalibrationIlluminant2
+        "CalibrationIlluminant2",
         0xC65Bu,
         SHORT,
         PROFILE_IFD,
@@ -676,6 +809,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ColorMatrix1
+        "ColorMatrix1",
         0xC621u,
         SRATIONAL,
         PROFILE_IFD,
@@ -683,6 +817,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ColorMatrix2
+        "ColorMatrix2",
         0xC622u,
         SRATIONAL,
         PROFILE_IFD,
@@ -690,6 +825,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CameraCalibration1
+        "CameraCalibration1",
         0xC623u,
         SRATIONAL,
         IFD_0,
@@ -697,6 +833,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CameraCalibration2
+        "CameraCalibration2",
         0xC624u,
         SRATIONAL,
         IFD_0,
@@ -704,6 +841,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ReductionMatrix1
+        "ReductionMatrix1",
         0xC625u,
         SRATIONAL,
         PROFILE_IFD,
@@ -711,6 +849,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ReductionMatrix2
+        "ReductionMatrix2",
         0xC626u,
         SRATIONAL,
         PROFILE_IFD,
@@ -718,6 +857,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AnalogBalance
+        "AnalogBalance",
         0xC627u,
         RATIONAL,
         IFD_0,
@@ -725,6 +865,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AsShotNeutral
+        "AsShotNeutral",
         0xC628u,
         RATIONAL,
         IFD_0,
@@ -732,6 +873,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AsShotWhiteXY
+        "AsShotWhiteXY",
         0xC629u,
         RATIONAL,
         IFD_0,
@@ -739,6 +881,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BaselineExposure
+        "BaselineExposure",
         0xC62Au,
         SRATIONAL,
         IFD_0,
@@ -746,6 +889,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BaselineNoise
+        "BaselineNoise",
         0xC62Bu,
         RATIONAL,
         IFD_0,
@@ -753,6 +897,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BaselineSharpness
+        "BaselineSharpness",
         0xC62Cu,
         RATIONAL,
         IFD_0,
@@ -760,6 +905,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BayerGreenSplit
+        "BayerGreenSplit",
         0xC62Du,
         LONG,
         RAW_IFD,
@@ -767,6 +913,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // LinearResponseLimit
+        "LinearResponseLimit",
         0xC62Eu,
         RATIONAL,
         IFD_0,
@@ -774,6 +921,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CameraSerialNumber
+        "CameraSerialNumber",
         0xC62Fu,
         ASCII,
         IFD_0,
@@ -781,6 +929,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // LensInfo
+        "LensInfo",
         0xC630u,
         RATIONAL,
         IFD_0,
@@ -788,6 +937,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ChromaBlurRadius
+        "ChromaBlurRadius",
         0xC631u,
         RATIONAL,
         RAW_IFD,
@@ -795,6 +945,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AntiAliasStrength
+        "AntiAliasStrength",
         0xC632u,
         RATIONAL,
         RAW_IFD,
@@ -802,6 +953,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ShadowScale
+        "ShadowScale",
         0xC633u,
         RATIONAL,
         IFD_0,
@@ -809,6 +961,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DNGPrivateData
+        "DNGPrivateData",
         0xC634u,
         BYTE,
         IFD_0,
@@ -816,6 +969,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // MakerNoteSafety
+        "MakerNoteSafety",
         0xC635u,
         SHORT,
         IFD_0,
@@ -823,6 +977,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // RawDataUniqueID
+        "RawDataUniqueID",
         0xC65Du,
         BYTE,
         IFD_0,
@@ -830,6 +985,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OriginalRawFileName
+        "OriginalRawFileName",
         0xC68Bu,
         ASCII,
         IFD_0,
@@ -837,6 +993,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OriginalRawFileData
+        "OriginalRawFileData",
         0xC68Cu,
         UNDEFINED,
         IFD_0,
@@ -844,6 +1001,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         BIG
     },
     { // ActiveArea
+        "ActiveArea",
         0xC68Du,
         LONG,
         RAW_IFD,
@@ -851,6 +1009,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // MaskedAreas
+        "MaskedAreas",
         0xC68Eu,
         LONG,
         RAW_IFD,
@@ -858,6 +1017,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AsShotICCProfile
+        "AsShotICCProfile",
         0xC68Fu,
         UNDEFINED,
         IFD_0,
@@ -865,6 +1025,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AsShotPreProfileMatrix
+        "AsShotPreProfileMatrix",
         0xC690u,
         SRATIONAL,
         IFD_0,
@@ -872,6 +1033,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CurrentICCProfile
+        "CurrentICCProfile",
         0xC691u,
         UNDEFINED,
         IFD_0,
@@ -879,6 +1041,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CurrentICCProfile
+        "CurrentICCProfile",
         0xC691u,
         UNDEFINED,
         IFD_0,
@@ -886,6 +1049,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CurrentPreProfileMatrix
+        "CurrentPreProfileMatrix",
         0xC692u,
         SRATIONAL,
         IFD_0,
@@ -893,6 +1057,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ColorimetricReference
+        "ColorimetricReference",
         0xC6BFu,
         SHORT,
         IFD_0,
@@ -900,6 +1065,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // CameraCalibrationSignature
+        "CameraCalibrationSignature",
         0xC6F3u,
         ASCII,
         IFD_0,
@@ -907,6 +1073,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileCalibrationSignature
+        "ProfileCalibrationSignature",
         0xC6F4u,
         ASCII,
         PROFILE_IFD,
@@ -914,6 +1081,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ExtraCameraProfiles
+        "ExtraCameraProfiles",
         0xC6F5u,
         LONG,
         IFD_0,
@@ -921,6 +1089,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // AsShotProfileName
+        "AsShotProfileName",
         0xC6F6u,
         ASCII,
         IFD_0,
@@ -928,6 +1097,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // NoiseReductionApplied
+        "NoiseReductionApplied",
         0xC6F7u,
         RATIONAL,
         RAW_IFD,
@@ -935,6 +1105,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileName
+        "ProfileName",
         0xC6F8u,
         ASCII,
         PROFILE_IFD,
@@ -942,6 +1113,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileHueSatMapDims
+        "ProfileHueSatMapDims",
         0xC6F9u,
         LONG,
         PROFILE_IFD,
@@ -949,6 +1121,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileHueSatMapData1
+        "ProfileHueSatMapData1",
         0xC6FAu,
         FLOAT,
         PROFILE_IFD,
@@ -956,6 +1129,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileHueSatMapData2
+        "ProfileHueSatMapData2",
         0xC6FBu,
         FLOAT,
         PROFILE_IFD,
@@ -963,6 +1137,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileToneCurve
+        "ProfileToneCurve",
         0xC6FCu,
         FLOAT,
         PROFILE_IFD,
@@ -970,6 +1145,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileEmbedPolicy
+        "ProfileEmbedPolicy",
         0xC6FDu,
         LONG,
         PROFILE_IFD,
@@ -977,6 +1153,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileCopyright
+        "ProfileCopyright",
         0xC6FEu,
         ASCII,
         PROFILE_IFD,
@@ -984,6 +1161,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ForwardMatrix1
+        "ForwardMatrix1",
         0xC714u,
         SRATIONAL,
         PROFILE_IFD,
@@ -991,6 +1169,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ForwardMatrix2
+        "ForwardMatrix2",
         0xC715u,
         SRATIONAL,
         PROFILE_IFD,
@@ -998,6 +1177,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PreviewApplicationName
+        "PreviewApplicationName",
         0xC716u,
         ASCII,
         PREVIEW_IFD,
@@ -1005,6 +1185,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PreviewApplicationVersion
+        "PreviewApplicationVersion",
         0xC717u,
         ASCII,
         PREVIEW_IFD,
@@ -1012,6 +1193,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PreviewSettingsName
+        "PreviewSettingsName",
         0xC718u,
         ASCII,
         PREVIEW_IFD,
@@ -1019,6 +1201,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PreviewSettingsDigest
+        "PreviewSettingsDigest",
         0xC719u,
         BYTE,
         PREVIEW_IFD,
@@ -1026,6 +1209,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PreviewColorSpace
+        "PreviewColorSpace",
         0xC71Au,
         LONG,
         PREVIEW_IFD,
@@ -1033,6 +1217,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // PreviewDateTime
+        "PreviewDateTime",
         0xC71Bu,
         ASCII,
         PREVIEW_IFD,
@@ -1040,6 +1225,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // RawImageDigest
+        "RawImageDigest",
         0xC71Cu,
         BYTE,
         IFD_0,
@@ -1047,6 +1233,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OriginalRawFileDigest
+        "OriginalRawFileDigest",
         0xC71Du,
         BYTE,
         IFD_0,
@@ -1054,6 +1241,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // SubTileBlockSize
+        "SubTileBlockSize",
         0xC71Eu,
         LONG,
         RAW_IFD,
@@ -1061,6 +1249,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // RowInterleaveFactor
+        "RowInterleaveFactor",
         0xC71Fu,
         LONG,
         RAW_IFD,
@@ -1068,6 +1257,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileLookTableDims
+        "ProfileLookTableDims",
         0xC725u,
         LONG,
         PROFILE_IFD,
@@ -1075,6 +1265,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileLookTableData
+        "ProfileLookTableData",
         0xC726u,
         FLOAT,
         PROFILE_IFD,
@@ -1082,6 +1273,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OpcodeList1
+        "OpcodeList1",
         0xC740u,
         UNDEFINED,
         RAW_IFD,
@@ -1089,6 +1281,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         BIG
     },
     { // OpcodeList2
+        "OpcodeList2",
         0xC741u,
         UNDEFINED,
         RAW_IFD,
@@ -1096,6 +1289,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         BIG
     },
     { // OpcodeList3
+        "OpcodeList3",
         0xC74Eu,
         UNDEFINED,
         RAW_IFD,
@@ -1103,6 +1297,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         BIG
     },
     { // NoiseProfile
+        "NoiseProfile",
         0xC761u,
         DOUBLE,
         RAW_IFD,
@@ -1110,6 +1305,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DefaultUserCrop
+        "DefaultUserCrop",
         0xC7B5u,
         RATIONAL,
         RAW_IFD,
@@ -1117,6 +1313,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // DefaultBlackRender
+        "DefaultBlackRender",
         0xC7A6u,
         LONG,
         PROFILE_IFD,
@@ -1124,6 +1321,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // BaselineExposureOffset
+        "BaselineExposureOffset",
         0xC7A5u,
         RATIONAL,
         PROFILE_IFD,
@@ -1131,6 +1329,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileLookTableEncoding
+        "ProfileLookTableEncoding",
         0xC7A4u,
         LONG,
         PROFILE_IFD,
@@ -1138,6 +1337,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // ProfileHueSatMapEncoding
+        "ProfileHueSatMapEncoding",
         0xC7A3u,
         LONG,
         PROFILE_IFD,
@@ -1145,6 +1345,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OriginalDefaultFinalSize
+        "OriginalDefaultFinalSize",
         0xC791u,
         LONG,
         IFD_0,
@@ -1152,6 +1353,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OriginalBestQualityFinalSize
+        "OriginalBestQualityFinalSize",
         0xC792u,
         LONG,
         IFD_0,
@@ -1159,6 +1361,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // OriginalDefaultCropSize
+        "OriginalDefaultCropSize",
         0xC793u,
         LONG,
         IFD_0,
@@ -1166,6 +1369,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // NewRawImageDigest
+        "NewRawImageDigest",
         0xC7A7u,
         BYTE,
         IFD_0,
@@ -1173,6 +1377,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
         UNDEFINED_ENDIAN
     },
     { // RawToPreviewGain
+        "RawToPreviewGain",
         0xC7A8u,
         DOUBLE,
         PREVIEW_IFD,

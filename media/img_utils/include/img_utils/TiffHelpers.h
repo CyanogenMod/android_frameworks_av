@@ -37,7 +37,7 @@ const uint8_t ZERO_WORD[] = {0, 0, 0, 0};
     { \
         size_t remaining = BYTES_TILL_WORD(index); \
         if (remaining > 0) { \
-            BAIL_ON_FAIL(output->write(ZERO_WORD, 0, remaining), ret); \
+            BAIL_ON_FAIL((output)->write(ZERO_WORD, 0, remaining), ret); \
         } \
     }
 

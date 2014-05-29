@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include <img_utils/TiffIfd.h>
+#define LOG_TAG "TiffWriter"
+
 #include <img_utils/TiffHelpers.h>
 #include <img_utils/TiffWriter.h>
 #include <img_utils/TagDefinitions.h>
@@ -54,6 +55,82 @@ TiffWriter::TiffWriter(KeyedVector<uint16_t, const TagDefinition_t*>* enabledDef
         size_t length) : mTagMaps(enabledDefinitions), mNumTagMaps(length) {}
 
 TiffWriter::~TiffWriter() {}
+
+status_t TiffWriter::write(Output* out, StripSource** sources, size_t sourcesCount,
+        Endianness end) {
+    status_t ret = OK;
+    EndianOutput endOut(out, end);
+
+    if (mIfd == NULL) {
+        ALOGE("%s: Tiff header is empty.", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    if (LOG_NDEBUG == 0) {
+        log();
+    }
+
+    uint32_t totalSize = getTotalSize();
+
+    KeyedVector<uint32_t, uint32_t> offsetVector;
+
+    for (size_t i = 0; i < mNamedIfds.size(); ++i) {
+        if (mNamedIfds[i]->uninitializedOffsets()) {
+            uint32_t stripSize = mNamedIfds[i]->getStripSize();
+            if (mNamedIfds[i]->setStripOffset(totalSize) != OK) {
+                ALOGE("%s: Could not set strip offsets.", __FUNCTION__);
+                return BAD_VALUE;
+            }
+            totalSize += stripSize;
+            WORD_ALIGN(totalSize);
+            offsetVector.add(mNamedIfds.keyAt(i), totalSize);
+        }
+    }
+
+    size_t offVecSize = offsetVector.size();
+    if (offVecSize != sourcesCount) {
+        ALOGE("%s: Mismatch between number of IFDs with uninitialized strips (%zu) and"
+                " sources (%zu).", __FUNCTION__, offVecSize, sourcesCount);
+        return BAD_VALUE;
+    }
+
+    BAIL_ON_FAIL(writeFileHeader(endOut), ret);
+
+    uint32_t offset = FILE_HEADER_SIZE;
+    sp<TiffIfd> ifd = mIfd;
+    while(ifd != NULL) {
+        BAIL_ON_FAIL(ifd->writeData(offset, &endOut), ret);
+        offset += ifd->getSize();
+        ifd = ifd->getNextIfd();
+    }
+
+    log();
+
+    for (size_t i = 0; i < offVecSize; ++i) {
+        uint32_t ifdKey = offsetVector.keyAt(i);
+        uint32_t nextOffset = offsetVector[i];
+        uint32_t sizeToWrite = mNamedIfds[ifdKey]->getStripSize();
+        bool found = false;
+        for (size_t j = 0; j < sourcesCount; ++j) {
+            if (sources[j]->getIfd() == ifdKey) {
+                if ((ret = sources[i]->writeToStream(endOut, sizeToWrite)) != OK) {
+                    ALOGE("%s: Could not write to stream, received %d.", __FUNCTION__, ret);
+                    return ret;
+                }
+                ZERO_TILL_WORD(&endOut, sizeToWrite, ret);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            ALOGE("%s: No stream for byte strips for IFD %u", __FUNCTION__, ifdKey);
+            return BAD_VALUE;
+        }
+        assert(nextOffset == endOut.getCurrentOffset());
+    }
+
+    return ret;
+}
 
 status_t TiffWriter::write(Output* out, Endianness end) {
     status_t ret = OK;
@@ -101,48 +178,43 @@ sp<TiffEntry> TiffWriter::getEntry(uint16_t tag, uint32_t ifd) const {
     return mNamedIfds[index]->getEntry(tag);
 }
 
+void TiffWriter::removeEntry(uint16_t tag, uint32_t ifd) {
+    ssize_t index = mNamedIfds.indexOfKey(ifd);
+    if (index >= 0) {
+        mNamedIfds[index]->removeEntry(tag);
+    }
+}
 
-// TODO: Fix this to handle IFD position in chain/sub-IFD tree
-status_t TiffWriter::addEntry(const sp<TiffEntry>& entry) {
+status_t TiffWriter::addEntry(const sp<TiffEntry>& entry, uint32_t ifd) {
     uint16_t tag = entry->getTag();
 
     const TagDefinition_t* definition = lookupDefinition(tag);
 
     if (definition == NULL) {
+        ALOGE("%s: No definition exists for tag 0x%x.", __FUNCTION__, tag);
         return BAD_INDEX;
     }
-    uint32_t ifdId = 0;  // TODO: all in IFD0 for now.
 
-    ssize_t index = mNamedIfds.indexOfKey(ifdId);
+    ssize_t index = mNamedIfds.indexOfKey(ifd);
 
     // Add a new IFD if necessary
     if (index < 0) {
-        sp<TiffIfd> ifdEntry = new TiffIfd(ifdId);
-        if (mIfd == NULL) {
-            mIfd = ifdEntry;
-        }
-        index = mNamedIfds.add(ifdId, ifdEntry);
-        assert(index >= 0);
+        ALOGE("%s: No IFD %u exists.", __FUNCTION__, ifd);
+        return NAME_NOT_FOUND;
     }
 
     sp<TiffIfd> selectedIfd  = mNamedIfds[index];
     return selectedIfd->addEntry(entry);
 }
 
-status_t TiffWriter::uncheckedAddIfd(const sp<TiffIfd>& ifd) {
-    mNamedIfds.add(ifd->getId(), ifd);
-    sp<TiffIfd> last = findLastIfd();
-    if (last == NULL) {
-        mIfd = ifd;
-    } else {
-        last->setNextIfd(ifd);
+status_t TiffWriter::addStrip(uint32_t ifd) {
+    ssize_t index = mNamedIfds.indexOfKey(ifd);
+    if (index < 0) {
+        ALOGE("%s: Ifd %u doesn't exist, cannot add strip entries.", __FUNCTION__, ifd);
+        return BAD_VALUE;
     }
-    last = ifd->getNextIfd();
-    while (last != NULL) {
-        mNamedIfds.add(last->getId(), last);
-        last = last->getNextIfd();
-    }
-    return OK;
+    sp<TiffIfd> selected = mNamedIfds[index];
+    return selected->validateAndSetStripTags();
 }
 
 status_t TiffWriter::addIfd(uint32_t ifd) {
@@ -151,6 +223,7 @@ status_t TiffWriter::addIfd(uint32_t ifd) {
         ALOGE("%s: Ifd with ID 0x%x already exists.", __FUNCTION__, ifd);
         return BAD_VALUE;
     }
+
     sp<TiffIfd> newIfd = new TiffIfd(ifd);
     if (mIfd == NULL) {
         mIfd = newIfd;
@@ -158,7 +231,83 @@ status_t TiffWriter::addIfd(uint32_t ifd) {
         sp<TiffIfd> last = findLastIfd();
         last->setNextIfd(newIfd);
     }
-    mNamedIfds.add(ifd, newIfd);
+
+    if(mNamedIfds.add(ifd, newIfd) < 0) {
+        ALOGE("%s: Failed to add new IFD 0x%x.", __FUNCTION__, ifd);
+        return BAD_VALUE;
+    }
+
+    return OK;
+}
+
+status_t TiffWriter::addSubIfd(uint32_t parentIfd, uint32_t ifd, SubIfdType type) {
+    ssize_t index = mNamedIfds.indexOfKey(ifd);
+    if (index >= 0) {
+        ALOGE("%s: Ifd with ID 0x%x already exists.", __FUNCTION__, ifd);
+        return BAD_VALUE;
+    }
+
+    ssize_t parentIndex = mNamedIfds.indexOfKey(parentIfd);
+    if (parentIndex < 0) {
+        ALOGE("%s: Parent IFD with ID 0x%x does not exist.", __FUNCTION__, parentIfd);
+        return BAD_VALUE;
+    }
+
+    sp<TiffIfd> parent = mNamedIfds[parentIndex];
+    sp<TiffIfd> newIfd = new TiffIfd(ifd);
+
+    uint16_t subIfdTag;
+    if (type == SUBIFD) {
+        subIfdTag = TAG_SUBIFDS;
+    } else if (type == GPSINFO) {
+        subIfdTag = TAG_GPSINFO;
+    } else {
+        ALOGE("%s: Unknown SubIFD type %d.", __FUNCTION__, type);
+        return BAD_VALUE;
+    }
+
+    sp<TiffEntry> subIfds = parent->getEntry(subIfdTag);
+    if (subIfds == NULL) {
+        if (buildEntry(subIfdTag, 1, &newIfd, &subIfds) < 0) {
+            ALOGE("%s: Failed to build SubIfd entry in IFD 0x%x.", __FUNCTION__, parentIfd);
+            return BAD_VALUE;
+        }
+    } else {
+        if (type == GPSINFO) {
+            ALOGE("%s: Cannot add GPSInfo SubIFD to IFD %u, one already exists.", __FUNCTION__,
+                    ifd);
+            return BAD_VALUE;
+        }
+
+        Vector<sp<TiffIfd> > subIfdList;
+        const sp<TiffIfd>* oldIfdArray = subIfds->getData<sp<TiffIfd> >();
+        if (subIfdList.appendArray(oldIfdArray, subIfds->getCount()) < 0) {
+            ALOGE("%s: Failed to build SubIfd entry in IFD 0x%x.", __FUNCTION__, parentIfd);
+            return BAD_VALUE;
+        }
+
+        if (subIfdList.add(newIfd) < 0) {
+            ALOGE("%s: Failed to build SubIfd entry in IFD 0x%x.", __FUNCTION__, parentIfd);
+            return BAD_VALUE;
+        }
+
+        uint32_t count = subIfdList.size();
+        if (buildEntry(subIfdTag, count, subIfdList.array(), &subIfds) < 0) {
+            ALOGE("%s: Failed to build SubIfd entry in IFD 0x%x.", __FUNCTION__, parentIfd);
+            return BAD_VALUE;
+        }
+    }
+
+    if (parent->addEntry(subIfds) < 0) {
+        ALOGE("%s: Failed to add SubIfd entry in IFD 0x%x.", __FUNCTION__, parentIfd);
+        return BAD_VALUE;
+    }
+
+    if(mNamedIfds.add(ifd, newIfd) < 0) {
+        ALOGE("%s: Failed to add new IFD 0x%x.", __FUNCTION__, ifd);
+        return BAD_VALUE;
+    }
+
     return OK;
 }
 
@@ -180,8 +329,21 @@ uint32_t TiffWriter::getDefaultCount(uint16_t tag) const {
     return definition->fixedCount;
 }
 
+bool TiffWriter::hasIfd(uint32_t ifd) const {
+    ssize_t index = mNamedIfds.indexOfKey(ifd);
+    return index >= 0;
+}
+
 bool TiffWriter::checkIfDefined(uint16_t tag) const {
     return lookupDefinition(tag) != NULL;
+}
+
+const char* TiffWriter::getTagName(uint16_t tag) const {
+    const TagDefinition_t* definition = lookupDefinition(tag);
+    if (definition == NULL) {
+        return NULL;
+    }
+    return definition->tagName;
 }
 
 sp<TiffIfd> TiffWriter::findLastIfd() {
@@ -221,10 +383,9 @@ uint32_t TiffWriter::getTotalSize() const {
 
 void TiffWriter::log() const {
     ALOGI("%s: TiffWriter:", __FUNCTION__);
-    sp<TiffIfd> ifd = mIfd;
-    while(ifd != NULL) {
-        ifd->log();
-        ifd = ifd->getNextIfd();
+    size_t length = mNamedIfds.size();
+    for (size_t i = 0; i < length; ++i) {
+        mNamedIfds[i]->log();
     }
 }
 

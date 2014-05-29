@@ -45,19 +45,24 @@ status_t FileInput::open() {
     return OK;
 }
 
-size_t FileInput::read(uint8_t* buf, size_t offset, size_t count, status_t* err) {
+ssize_t FileInput::read(uint8_t* buf, size_t offset, size_t count) {
     if (!mOpen) {
         ALOGE("%s: Could not read file %s, file not open.", __FUNCTION__, mPath.string());
-        if (err != NULL) *err = BAD_VALUE;
-        return 0;
+        return BAD_VALUE;
     }
 
     size_t bytesRead = ::fread(buf + offset, sizeof(uint8_t), count, mFp);
     int error = ::ferror(mFp);
     if (error != 0) {
         ALOGE("%s: Error %d occurred while reading file %s.", __FUNCTION__, error, mPath.string());
-        if (err != NULL) *err = BAD_VALUE;
+        return BAD_VALUE;
     }
+
+    // End of file reached
+    if (::feof(mFp) != 0 && bytesRead == 0) {
+        return NOT_ENOUGH_DATA;
+    }
+
     return bytesRead;
 }
 

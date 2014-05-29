@@ -17,6 +17,7 @@
 #ifndef IMG_UTILS_TIFF_ENTRY_IMPL
 #define IMG_UTILS_TIFF_ENTRY_IMPL
 
+#include <img_utils/TiffIfd.h>
 #include <img_utils/TiffEntry.h>
 #include <img_utils/TiffHelpers.h>
 #include <img_utils/Output.h>
@@ -24,6 +25,8 @@
 
 #include <utils/Log.h>
 #include <utils/Errors.h>
+#include <utils/Vector.h>
+#include <utils/StrongPointer.h>
 #include <stdint.h>
 
 namespace android {
@@ -32,7 +35,6 @@ namespace img_utils {
 template<typename T>
 class TiffEntryImpl : public TiffEntry {
     public:
-        // TODO: Copy constructor/equals here.
         TiffEntryImpl(uint16_t tag, TagType type, uint32_t count, Endianness end, const T* data);
         virtual ~TiffEntryImpl();
 
@@ -54,7 +56,7 @@ class TiffEntryImpl : public TiffEntry {
         uint16_t mType;
         uint32_t mCount;
         Endianness mEnd;
-        T* mData;
+        Vector<T> mData;
 
 };
 
@@ -63,18 +65,12 @@ TiffEntryImpl<T>::TiffEntryImpl(uint16_t tag, TagType type, uint32_t count, Endi
         const T* data)
         : mTag(tag), mType(static_cast<uint16_t>(type)), mCount(count), mEnd(end) {
     count = (type == RATIONAL || type == SRATIONAL) ? count * 2 : count;
-    mData = new T[count]();
-    for (uint32_t i = 0; i < count; ++i) {
-        mData[i] = data[i];
-    }
+    ssize_t index = mData.appendArray(data, count);
+    LOG_ALWAYS_FATAL_IF(index < 0, "%s: Could not allocate vector for data.", __FUNCTION__);
 }
 
 template<typename T>
-TiffEntryImpl<T>::~TiffEntryImpl() {
-    if (mData) {
-        delete[] mData;
-    }
-}
+TiffEntryImpl<T>::~TiffEntryImpl() {}
 
 template<typename T>
 uint32_t TiffEntryImpl<T>::getCount() const {
@@ -93,7 +89,7 @@ TagType TiffEntryImpl<T>::getType() const {
 
 template<typename T>
 const void* TiffEntryImpl<T>::getDataHelper() const {
-    return reinterpret_cast<const void*>(mData);
+    return reinterpret_cast<const void*>(mData.array());
 }
 
 template<typename T>
@@ -144,7 +140,7 @@ status_t TiffEntryImpl<T>::writeTagInfo(uint32_t offset, /*out*/EndianOutput* ou
              */
             count <<= 1;
         }
-        BAIL_ON_FAIL(out->write(mData, 0, count), ret);
+        BAIL_ON_FAIL(out->write(mData.array(), 0, count), ret);
         ZERO_TILL_WORD(out, dataSize, ret);
     }
     return ret;
@@ -171,7 +167,7 @@ status_t TiffEntryImpl<T>::writeData(uint32_t offset, EndianOutput* out) const {
         count <<= 1;
     }
 
-    BAIL_ON_FAIL(out->write(mData, 0, count), ret);
+    BAIL_ON_FAIL(out->write(mData.array(), 0, count), ret);
 
     if (mEnd != UNDEFINED_ENDIAN) {
         out->setEndianness(tmp);
@@ -179,6 +175,38 @@ status_t TiffEntryImpl<T>::writeData(uint32_t offset, EndianOutput* out) const {
 
     // Write to next word alignment
     ZERO_TILL_WORD(out, sizeof(T) * count, ret);
+    return ret;
+}
+
+template<>
+inline status_t TiffEntryImpl<sp<TiffIfd> >::writeTagInfo(uint32_t offset,
+        /*out*/EndianOutput* out) const {
+    assert((offset % TIFF_WORD_SIZE) == 0);
+    status_t ret = OK;
+    BAIL_ON_FAIL(out->write(&mTag, 0, 1), ret);
+    BAIL_ON_FAIL(out->write(&mType, 0, 1), ret);
+    BAIL_ON_FAIL(out->write(&mCount, 0, 1), ret);
+
+    BAIL_ON_FAIL(out->write(&offset, 0, 1), ret);
+    return ret;
+}
+
+template<>
+inline uint32_t TiffEntryImpl<sp<TiffIfd> >::getActualSize() const {
+    uint32_t total = 0;
+    for (size_t i = 0; i < mData.size(); ++i) {
+        total += mData[i]->getSize();
+    }
+    return total;
+}
+
+template<>
+inline status_t TiffEntryImpl<sp<TiffIfd> >::writeData(uint32_t offset, EndianOutput* out) const {
+    status_t ret = OK;
+    for (uint32_t i = 0; i < mCount; ++i) {
+        BAIL_ON_FAIL(mData[i]->writeData(offset, out), ret);
+        offset += mData[i]->getSize();
+    }
     return ret;
 }
 

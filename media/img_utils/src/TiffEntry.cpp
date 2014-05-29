@@ -32,16 +32,6 @@ TiffEntry::~TiffEntry() {}
  *
  * Values with types other than the ones given here should not compile.
  */
-template<>
-const Vector<sp<TiffIfd> >* TiffEntry::forceValidType<Vector<sp<TiffIfd> > >(TagType type,
-          const Vector<sp<TiffIfd> >* value) {
-    if (type == LONG) {
-        return value;
-    }
-    ALOGE("%s: Value of type 'ifd vector' is not valid for tag with TIFF type %d.",
-            __FUNCTION__, type);
-    return NULL;
-}
 
 template<>
 const sp<TiffIfd>* TiffEntry::forceValidType<sp<TiffIfd> >(TagType type, const sp<TiffIfd>* value) {

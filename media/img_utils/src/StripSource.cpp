@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <img_utils/TiffEntryImpl.h>
-
-#include <utils/Vector.h>
+#include <img_utils/StripSource.h>
 
 namespace android {
 namespace img_utils {
+
+StripSource::~StripSource() {}
 
 } /*namespace img_utils*/
 } /*namespace android*/
