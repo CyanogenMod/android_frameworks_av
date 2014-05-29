@@ -1,4 +1,6 @@
 /*
+ ** Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ ** Not a Contribution.
  **
  ** Copyright 2010, The Android Open Source Project.
  **
@@ -140,6 +142,9 @@ public:
      * enc.vid.bps.max - max bit rate in bits per second
      * enc.vid.fps.min - min frame rate in frames per second
      * enc.vid.fps.max - max frame rate in frames per second
+     * enc.vid.hfr.width.max - max hfr video frame width
+     * enc.vid.hfr.height.max - max hfr video frame height
+     * enc.vid.hfr.mode.max - max hfr mode
      */
     int getVideoEncoderParamByName(const char *name, video_encoder codec) const;
 
@@ -278,12 +283,16 @@ private:
                         int minBitRate, int maxBitRate,
                         int minFrameWidth, int maxFrameWidth,
                         int minFrameHeight, int maxFrameHeight,
-                        int minFrameRate, int maxFrameRate)
+                        int minFrameRate, int maxFrameRate,
+                        int maxHFRFrameWidth, int maxHFRFrameHeight,
+                        int maxHFRMode)
             : mCodec(codec),
               mMinBitRate(minBitRate), mMaxBitRate(maxBitRate),
               mMinFrameWidth(minFrameWidth), mMaxFrameWidth(maxFrameWidth),
               mMinFrameHeight(minFrameHeight), mMaxFrameHeight(maxFrameHeight),
-              mMinFrameRate(minFrameRate), mMaxFrameRate(maxFrameRate) {}
+              mMinFrameRate(minFrameRate), mMaxFrameRate(maxFrameRate),
+              mMaxHFRFrameWidth(maxHFRFrameWidth), mMaxHFRFrameHeight(maxHFRFrameHeight),
+              mMaxHFRMode(maxHFRMode) {}
 
          ~VideoEncoderCap() {}
 
@@ -292,6 +301,8 @@ private:
         int mMinFrameWidth, mMaxFrameWidth;
         int mMinFrameHeight, mMaxFrameHeight;
         int mMinFrameRate, mMaxFrameRate;
+        int mMaxHFRFrameWidth, mMaxHFRFrameHeight;
+        int mMaxHFRMode;
     };
 
     struct AudioEncoderCap {
@@ -406,6 +417,7 @@ private:
     static VideoEncoderCap* createDefaultH263VideoEncoderCap();
     static VideoEncoderCap* createDefaultM4vVideoEncoderCap();
     static AudioEncoderCap* createDefaultAmrNBEncoderCap();
+    static AudioEncoderCap* createDefaultAacEncoderCap();
     static AudioEncoderCap* createDefaultLpcmEncoderCap();
 
     static int findTagForName(const NameToTagMap *map, size_t nMappings, const char *name);
