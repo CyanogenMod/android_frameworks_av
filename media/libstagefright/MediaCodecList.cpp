@@ -70,11 +70,6 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml) {
         return;
     }
 
-    // These are currently still used by the video editing suite.
-    addMediaCodec(true /* encoder */, "AACEncoder", "audio/mp4a-latm");
-    addMediaCodec(
-            false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
-
     for (size_t i = mCodecInfos.size(); i-- > 0;) {
         CodecInfo *info = &mCodecInfos.editItemAt(i);
 
