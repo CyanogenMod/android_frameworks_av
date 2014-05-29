@@ -750,6 +750,9 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
     name -= TRACK0;
     ALOG_ASSERT(uint32_t(name) < MAX_NUM_TRACKS, "bad track name %d", name);
 
+    if (mState.tracks[name].mInputBufferProvider == bufferProvider) {
+        return; // don't reset any buffer providers if identical.
+    }
     if (mState.tracks[name].mReformatBufferProvider != NULL) {
         mState.tracks[name].mReformatBufferProvider->reset();
     } else if (mState.tracks[name].downmixerBufferProvider != NULL) {
