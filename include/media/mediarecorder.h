@@ -1,4 +1,7 @@
 /*
+ ** Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ ** Not a Contribution.
+ **
  ** Copyright (C) 2008 The Android Open Source Project
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,6 +72,8 @@ enum output_format {
 
     /* H.264/AAC data encapsulated in MPEG2/TS */
     OUTPUT_FORMAT_MPEG2TS = 8,
+    OUTPUT_FORMAT_QCP = 9, // QCP file format
+    OUTPUT_FORMAT_WAVE = 10,
 
     /* VP8/VORBIS data in a WEBM container */
     OUTPUT_FORMAT_WEBM = 9,
@@ -84,6 +89,9 @@ enum audio_encoder {
     AUDIO_ENCODER_HE_AAC = 4,
     AUDIO_ENCODER_AAC_ELD = 5,
     AUDIO_ENCODER_VORBIS = 6,
+    AUDIO_ENCODER_EVRC = 10,
+    AUDIO_ENCODER_QCELP = 11,
+    AUDIO_ENCODER_LPCM = 12,
 
     AUDIO_ENCODER_LIST_END // must be the last - used to validate the audio encoder type
 };
