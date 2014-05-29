@@ -205,7 +205,7 @@ int AMediaExtractor_getSampleTrackIndex(AMediaExtractor *mData) {
 }
 
 EXPORT
-int64_t AMediaExtractor_getSampletime(AMediaExtractor *mData) {
+int64_t AMediaExtractor_getSampleTime(AMediaExtractor *mData) {
     int64_t time;
     if (mData->mImpl->getSampleTime(&time) != OK) {
         return -1;
