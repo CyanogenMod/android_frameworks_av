@@ -455,12 +455,13 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
     const Constants& c(mConstants);
     const TC* const coefs = mConstants.mFirCoefs;
     TI* impulse = mInBuffer.getImpulse();
-    size_t inputIndex = mInputIndex;
+    size_t inputIndex = 0;
     uint32_t phaseFraction = mPhaseFraction;
     const uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;   // stereo output
-    size_t inFrameCount = getInFrameCountRequired(outFrameCount);
+    size_t inFrameCount = getInFrameCountRequired(outFrameCount) + (phaseFraction != 0);
+    ALOG_ASSERT(0 < inFrameCount && inFrameCount < (1U << 31));
     const uint32_t phaseWrapLimit = c.mL << c.mShift;
 
     // NOTE: be very careful when modifying the code here. register
@@ -474,11 +475,13 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
         // buffer is empty, fetch a new one
         while (mBuffer.frameCount == 0) {
             mBuffer.frameCount = inFrameCount;
+            ALOG_ASSERT(inFrameCount > 0);
             provider->getNextBuffer(&mBuffer,
                     calculateOutputPTS(outputIndex / 2));
             if (mBuffer.raw == NULL) {
                 goto resample_exit;
             }
+            inFrameCount -= mBuffer.frameCount;
             if (phaseFraction >= phaseWrapLimit) { // read in data
                 mInBuffer.template readAdvance<CHANNELS>(
                         impulse, c.mHalfNumCoefs,
@@ -487,7 +490,7 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
                 while (phaseFraction >= phaseWrapLimit) {
                     inputIndex++;
                     if (inputIndex >= mBuffer.frameCount) {
-                        inputIndex -= mBuffer.frameCount;
+                        inputIndex = 0;
                         provider->releaseBuffer(&mBuffer);
                         break;
                     }
@@ -535,15 +538,22 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
 done:
         // often arrives here when input buffer runs out
         if (inputIndex >= frameCount) {
-            inputIndex -= frameCount;
+            inputIndex = 0;
             provider->releaseBuffer(&mBuffer);
-            // mBuffer.frameCount MUST be zero here.
+            ALOG_ASSERT(mBuffer.frameCount == 0);
         }
     }
 
 resample_exit:
+    // Release frames to avoid the count being inaccurate for pts timing.
+    // TODO: Avoid this extra check by making fetch count exact. This is tricky
+    // due to the overfetching mechanism which loads unnecessarily when
+    // mBuffer.frameCount == 0.
+    if (inputIndex) {
+        mBuffer.frameCount = inputIndex;
+        provider->releaseBuffer(&mBuffer);
+    }
     mInBuffer.setImpulse(impulse);
-    mInputIndex = inputIndex;
     mPhaseFraction = phaseFraction;
 }
 
