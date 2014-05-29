@@ -3,7 +3,8 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-      SoftAAC2.cpp
+      SoftAAC2.cpp \
+      DrcPresModeWrap.cpp
 
 LOCAL_C_INCLUDES := \
       frameworks/av/media/libstagefright/include \
