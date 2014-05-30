@@ -36,6 +36,7 @@
 #include <cpustats/ThreadCpuUsage.h>
 #endif
 #endif
+#include <audio_utils/format.h>
 #include "AudioMixer.h"
 #include "FastMixer.h"
 
@@ -52,7 +53,11 @@ FastMixer::FastMixer() : FastThread(),
     outputSink(NULL),
     outputSinkGen(0),
     mixer(NULL),
+    mSinkBuffer(NULL),
+    mSinkBufferSize(0),
     mMixerBuffer(NULL),
+    mMixerBufferSize(0),
+    mMixerBufferFormat(AUDIO_FORMAT_PCM_16_BIT),
     mMixerBufferState(UNDEFINED),
     format(Format_Invalid),
     sampleRate(0),
@@ -108,7 +113,8 @@ void FastMixer::onIdle()
 void FastMixer::onExit()
 {
     delete mixer;
-    delete[] mMixerBuffer;
+    free(mMixerBuffer);
+    free(mSinkBuffer);
 }
 
 bool FastMixer::isSubClassCommand(FastThreadState::Command command)
@@ -154,14 +160,23 @@ void FastMixer::onStateChange()
         // FIXME to avoid priority inversion, don't delete here
         delete mixer;
         mixer = NULL;
-        delete[] mMixerBuffer;
+        free(mMixerBuffer);
         mMixerBuffer = NULL;
+        free(mSinkBuffer);
+        mSinkBuffer = NULL;
         if (frameCount > 0 && sampleRate > 0) {
             // FIXME new may block for unbounded time at internal mutex of the heap
             //       implementation; it would be better to have normal mixer allocate for us
             //       to avoid blocking here and to prevent possible priority inversion
             mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
-            mMixerBuffer = new short[frameCount * FCC_2];
+            const size_t mixerFrameSize = FCC_2 * audio_bytes_per_sample(mMixerBufferFormat);
+            mMixerBufferSize = mixerFrameSize * frameCount;
+            (void)posix_memalign(&mMixerBuffer, 32, mMixerBufferSize);
+            const size_t sinkFrameSize = FCC_2 * audio_bytes_per_sample(format.mFormat);
+            if (sinkFrameSize > mixerFrameSize) { // need a sink buffer
+                mSinkBufferSize = sinkFrameSize * frameCount;
+                (void)posix_memalign(&mSinkBuffer, 32, mSinkBufferSize);
+            }
             periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
             underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
             overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
@@ -231,6 +246,10 @@ void FastMixer::onStateChange()
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                         (void *) mMixerBuffer);
                 // newly allocated track names default to full scale volume
+                mixer->setParameter(
+                        name,
+                        AudioMixer::TRACK,
+                        AudioMixer::MIXER_FORMAT, (void *)mMixerBufferFormat);
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
                         (void *)(uintptr_t)fastTrack->mFormat);
                 mixer->enable(name);
@@ -261,6 +280,10 @@ void FastMixer::onStateChange()
                     }
                     mixer->setParameter(name, AudioMixer::RESAMPLE,
                             AudioMixer::REMOVE, NULL);
+                    mixer->setParameter(
+                            name,
+                            AudioMixer::TRACK,
+                            AudioMixer::MIXER_FORMAT, (void *)mMixerBufferFormat);
                     mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
                             (void *)(uintptr_t)fastTrack->mFormat);
                     mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
@@ -369,8 +392,13 @@ void FastMixer::onWork()
     //bool didFullWrite = false;    // dumpsys could display a count of partial writes
     if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mMixerBuffer != NULL)) {
         if (mMixerBufferState == UNDEFINED) {
-            memset(mMixerBuffer, 0, frameCount * FCC_2 * sizeof(short));
+            memset(mMixerBuffer, 0, mMixerBufferSize);
             mMixerBufferState = ZEROED;
+        }
+        void *buffer = mSinkBuffer != NULL ? mSinkBuffer : mMixerBuffer;
+        if (format.mFormat != mMixerBufferFormat) { // sink format not the same as mixer format
+            memcpy_by_audio_format(buffer, format.mFormat, mMixerBuffer, mMixerBufferFormat,
+                    frameCount * Format_channelCount(format));
         }
         // if non-NULL, then duplicate write() to this non-blocking sink
         NBAIO_Sink* teeSink;
@@ -381,7 +409,7 @@ void FastMixer::onWork()
         //       but this code should be modified to handle both non-blocking and blocking sinks
         dumpState->mWriteSequence++;
         ATRACE_BEGIN("write");
-        ssize_t framesWritten = outputSink->write(mMixerBuffer, frameCount);
+        ssize_t framesWritten = outputSink->write(buffer, frameCount);
         ATRACE_END();
         dumpState->mWriteSequence++;
         if (framesWritten >= 0) {
