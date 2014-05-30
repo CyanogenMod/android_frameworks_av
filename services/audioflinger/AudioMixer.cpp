@@ -265,8 +265,8 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
         // assume default parameters for the track, except where noted below
         track_t* t = &mState.tracks[n];
         t->needs = 0;
-        t->volume[0] = UNITY_GAIN;
-        t->volume[1] = UNITY_GAIN;
+        t->volume[0] = UNITY_GAIN_INT;
+        t->volume[1] = UNITY_GAIN_INT;
         // no initialization needed
         // t->prevVolume[0]
         // t->prevVolume[1]
@@ -930,7 +930,7 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
         // always resample with unity gain when sending to auxiliary buffer to be able
         // to apply send level after resampling
         // TODO: modify each resampler to support aux channel?
-        t->resampler->setVolume(UNITY_GAIN, UNITY_GAIN);
+        t->resampler->setVolume(UNITY_GAIN_INT, UNITY_GAIN_INT);
         memset(temp, 0, outFrameCount * MAX_NUM_CHANNELS * sizeof(int32_t));
         t->resampler->resample(temp, outFrameCount, t->bufferProvider);
         if (CC_UNLIKELY(t->volumeInc[0]|t->volumeInc[1]|t->auxInc)) {
@@ -940,7 +940,7 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
         }
     } else {
         if (CC_UNLIKELY(t->volumeInc[0]|t->volumeInc[1])) {
-            t->resampler->setVolume(UNITY_GAIN, UNITY_GAIN);
+            t->resampler->setVolume(UNITY_GAIN_INT, UNITY_GAIN_INT);
             memset(temp, 0, outFrameCount * MAX_NUM_CHANNELS * sizeof(int32_t));
             t->resampler->resample(temp, outFrameCount, t->bufferProvider);
             volumeRampStereo(t, out, outFrameCount, temp, aux);
@@ -1500,7 +1500,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
             } while (--outFrames);
             break;
         case AUDIO_FORMAT_PCM_16_BIT:
-            if (CC_UNLIKELY(uint32_t(vl) > UNITY_GAIN || uint32_t(vr) > UNITY_GAIN)) {
+            if (CC_UNLIKELY(uint32_t(vl) > UNITY_GAIN_INT || uint32_t(vr) > UNITY_GAIN_INT)) {
                 // volume is boosted, so we might need to clamp even though
                 // we process only one track.
                 do {
