@@ -273,15 +273,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                             0);
         }
 
-        if (device == AUDIO_DEVICE_OUT_WIRED_HEADSET) {
-            device = AUDIO_DEVICE_IN_WIRED_HEADSET;
-        } else if (device == AUDIO_DEVICE_OUT_BLUETOOTH_SCO ||
-                   device == AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET ||
-                   device == AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT) {
-            device = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
-        } else {
-            return NO_ERROR;
-        }
+        return NO_ERROR;
     }  // end if is output device
 
     // handle input devices
