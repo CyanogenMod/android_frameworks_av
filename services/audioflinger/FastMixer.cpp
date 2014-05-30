@@ -273,10 +273,9 @@ void FastMixer::onStateChange()
                     ALOG_ASSERT(name >= 0);
                     mixer->setBufferProvider(name, bufferProvider);
                     if (fastTrack->mVolumeProvider == NULL) {
-                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                                (void *) MAX_GAIN_INT);
-                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                                (void *) MAX_GAIN_INT);
+                        float f = AudioMixer::UNITY_GAIN_FLOAT;
+                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0, &f);
+                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1, &f);
                     }
                     mixer->setParameter(name, AudioMixer::RESAMPLE,
                             AudioMixer::REMOVE, NULL);
@@ -336,12 +335,11 @@ void FastMixer::onWork()
             ALOG_ASSERT(name >= 0);
             if (fastTrack->mVolumeProvider != NULL) {
                 gain_minifloat_packed_t vlr = fastTrack->mVolumeProvider->getVolumeLR();
-                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                        (void *) (uintptr_t)
-                            (float_from_gain(gain_minifloat_unpack_left(vlr)) * MAX_GAIN_INT));
-                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                        (void *) (uintptr_t)
-                            (float_from_gain(gain_minifloat_unpack_right(vlr)) * MAX_GAIN_INT));
+                float vlf = float_from_gain(gain_minifloat_unpack_left(vlr));
+                float vrf = float_from_gain(gain_minifloat_unpack_right(vlr));
+
+                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0, &vlf);
+                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1, &vrf);
             }
             // FIXME The current implementation of framesReady() for fast tracks
             // takes a tryLock, which can block

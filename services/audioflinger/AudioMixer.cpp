@@ -543,7 +543,7 @@ void AudioMixer::disable(int name)
  * set by ramp, which is either 0 for immediate, or typically one state
  * framecount period.
  *
- * @param newValue new volume target in U4.12.
+ * @param newFloatValue new volume target in float [0.0, 1.0].
  * @param ramp number of frames to increment over. ramp is 0 if the volume
  * should be set immediately.
  * @param volume reference to the U4.12 target volume, set on return.
@@ -551,8 +551,15 @@ void AudioMixer::disable(int name)
  * @param volumeInc reference to the increment per output audio frame, set on return.
  * @return true if the volume has changed, false if volume is same.
  */
-static inline bool setVolumeRampVariables(int32_t newValue, int32_t ramp,
+static inline bool setVolumeRampVariables(float newFloatValue, int32_t ramp,
         int16_t &volume, int32_t &prevVolume, int32_t &volumeInc) {
+    int32_t newValue = newFloatValue * AudioMixer::UNITY_GAIN_INT;
+    if (newValue > AudioMixer::UNITY_GAIN_INT) {
+        newValue = AudioMixer::UNITY_GAIN_INT;
+    } else if (newValue < 0) {
+        ALOGE("negative volume %.7g", newFloatValue);
+        newValue = 0; // should never happen, but for safety check.
+    }
     if (newValue == volume) {
         return false;
     }
@@ -668,22 +675,23 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         switch (param) {
         case VOLUME0:
         case VOLUME1:
-            if (setVolumeRampVariables(valueInt,
+            if (setVolumeRampVariables(*reinterpret_cast<float*>(value),
                     target == RAMP_VOLUME ? mState.frameCount : 0,
                     track.volume[param - VOLUME0], track.prevVolume[param - VOLUME0],
                     track.volumeInc[param - VOLUME0])) {
                 ALOGV("setParameter(%s, VOLUME%d: %04x)",
-                        target == VOLUME ? "VOLUME" : "RAMP_VOLUME", param - VOLUME0, valueInt);
+                        target == VOLUME ? "VOLUME" : "RAMP_VOLUME", param - VOLUME0,
+                                track.volume[param - VOLUME0]);
                 invalidateState(1 << name);
             }
             break;
         case AUXLEVEL:
             //ALOG_ASSERT(0 <= valueInt && valueInt <= MAX_GAIN_INT, "bad aux level %d", valueInt);
-            if (setVolumeRampVariables(valueInt,
+            if (setVolumeRampVariables(*reinterpret_cast<float*>(value),
                     target == RAMP_VOLUME ? mState.frameCount : 0,
                     track.auxLevel, track.prevAuxLevel, track.auxInc)) {
                 ALOGV("setParameter(%s, AUXLEVEL: %04x)",
-                        target == VOLUME ? "VOLUME" : "RAMP_VOLUME", valueInt);
+                        target == VOLUME ? "VOLUME" : "RAMP_VOLUME", track.auxLevel);
                 invalidateState(1 << name);
             }
             break;

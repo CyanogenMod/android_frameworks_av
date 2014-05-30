@@ -59,6 +59,7 @@ public:
     static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = 8;
 
     static const uint16_t UNITY_GAIN_INT = 0x1000;
+    static const float    UNITY_GAIN_FLOAT = 1.0f;
 
     enum { // names
 
