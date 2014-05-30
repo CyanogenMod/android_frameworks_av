@@ -1450,6 +1450,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
     AudioBufferProvider::Buffer& b(t.buffer);
 
     int32_t* out = t.mainBuffer;
+    float *fout = reinterpret_cast<float*>(out);
     size_t numFrames = state->frameCount;
 
     const int16_t vl = t.volume[0];
@@ -1463,9 +1464,10 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
 
         // in == NULL can happen if the track was flushed just after having
         // been enabled for mixing.
-        if (in == NULL || ((unsigned long)in & 3)) {
-            memset(out, 0, numFrames*MAX_NUM_CHANNELS*sizeof(int16_t));
-            ALOGE_IF(((unsigned long)in & 3), "process stereo track: input buffer alignment pb: "
+        if (in == NULL || (((uintptr_t)in) & 3)) {
+            memset(out, 0, numFrames
+                    * MAX_NUM_CHANNELS * audio_bytes_per_sample(t.mMixerFormat));
+            ALOGE_IF((((uintptr_t)in) & 3), "process stereo track: input buffer alignment pb: "
                                               "buffer %p track %d, channels %d, needs %08x",
                     in, i, t.channelCount, t.needs);
             return;
@@ -1473,8 +1475,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
         size_t outFrames = b.frameCount;
 
         switch (t.mMixerFormat) {
-        case AUDIO_FORMAT_PCM_FLOAT: {
-            float *fout = reinterpret_cast<float*>(out);
+        case AUDIO_FORMAT_PCM_FLOAT:
             do {
                 uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
                 in += 2;
@@ -1485,7 +1486,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
                 // Note: In case of later int16_t sink output,
                 // conversion and clamping is done by memcpy_to_i16_from_float().
             } while (--outFrames);
-            } break;
+            break;
         case AUDIO_FORMAT_PCM_16_BIT:
             if (CC_UNLIKELY(uint32_t(vl) > UNITY_GAIN || uint32_t(vr) > UNITY_GAIN)) {
                 // volume is boosted, so we might need to clamp even though
