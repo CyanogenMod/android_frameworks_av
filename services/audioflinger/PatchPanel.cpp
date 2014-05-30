@@ -179,11 +179,11 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                 ALOGW("createAudioPatch() bad src hw module %d", src_module);
                 return BAD_VALUE;
             }
+            AudioHwDevice *audioHwDevice = audioflinger->mAudioHwDevs.valueAt(index);
             for (unsigned int i = 0; i < patch->num_sinks; i++) {
-                // limit to connections between devices and output streams
-                if (patch->sinks[i].type != AUDIO_PORT_TYPE_MIX) {
-                    ALOGW("createAudioPatch() invalid sink type %d for device source",
-                          patch->sinks[i].type);
+                // reject connection to different sink types
+                if (patch->sinks[i].type != patch->sinks[0].type) {
+                    ALOGW("createAudioPatch() different sink types in same patch not supported");
                     return BAD_VALUE;
                 }
                 // limit to connections between sinks and sources on same HW module
@@ -192,9 +192,16 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                             "sink on module %d", src_module, patch->sinks[i].ext.mix.hw_module);
                     return BAD_VALUE;
                 }
+
+                // limit to connections between devices and output streams for HAL before 3.0
+                if ((audioHwDevice->version() < AUDIO_DEVICE_API_VERSION_3_0) &&
+                        (patch->sinks[i].type != AUDIO_PORT_TYPE_MIX)) {
+                    ALOGW("createAudioPatch() invalid sink type %d for device source",
+                          patch->sinks[i].type);
+                    return BAD_VALUE;
+                }
             }
 
-            AudioHwDevice *audioHwDevice = audioflinger->mAudioHwDevs.valueAt(index);
             if (audioHwDevice->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
                 if (patch->sinks[0].type == AUDIO_PORT_TYPE_MIX) {
                     sp<ThreadBase> thread = audioflinger->checkRecordThread_l(

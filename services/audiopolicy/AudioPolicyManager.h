@@ -140,6 +140,23 @@ public:
 
         virtual bool isOffloadSupported(const audio_offload_info_t& offloadInfo);
 
+        virtual status_t listAudioPorts(audio_port_role_t role,
+                                        audio_port_type_t type,
+                                        unsigned int *num_ports,
+                                        struct audio_port *ports,
+                                        unsigned int *generation);
+        virtual status_t getAudioPort(struct audio_port *port);
+        virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                           audio_patch_handle_t *handle,
+                                           uid_t uid);
+        virtual status_t releaseAudioPatch(audio_patch_handle_t handle,
+                                              uid_t uid);
+        virtual status_t listAudioPatches(unsigned int *num_patches,
+                                          struct audio_patch *patches,
+                                          unsigned int *generation);
+        virtual status_t setAudioPortConfig(const struct audio_port_config *config);
+        virtual void clearAudioPatches(uid_t uid);
+
 protected:
 
         enum routing_strategy {
@@ -213,6 +230,18 @@ protected:
             HwModule *mModule;                     // audio HW module exposing this I/O stream
         };
 
+        class AudioPatch: public RefBase
+        {
+        public:
+            AudioPatch(audio_patch_handle_t handle,
+                       const struct audio_patch *patch, uid_t uid) :
+                           mHandle(handle), mPatch(*patch), mUid(uid), mAfPatchHandle(0) {}
+
+            audio_patch_handle_t mHandle;
+            struct audio_patch mPatch;
+            uid_t mUid;
+            audio_patch_handle_t mAfPatchHandle;
+        };
 
         class DeviceDescriptor: public AudioPort
         {
@@ -236,7 +265,8 @@ protected:
             virtual ~DeviceDescriptor() {}
 
             bool equals(const sp<DeviceDescriptor>& other) const;
-            void toAudioPortConfig(struct audio_port_config *config) const;
+            void toAudioPortConfig(struct audio_port_config *dstConfig,
+                                   const struct audio_port_config *srcConfig = NULL) const;
             virtual void toAudioPort(struct audio_port *port) const;
 
             status_t dump(int fd, int spaces) const;
@@ -262,6 +292,7 @@ protected:
             void loadDevicesFromType(audio_devices_t types);
             sp<DeviceDescriptor> getDevice(audio_devices_t type, String8 address) const;
             DeviceVector getDevicesFromType(audio_devices_t types) const;
+            sp<DeviceDescriptor> getDeviceFromId(audio_port_handle_t id) const;
 
         private:
             void refreshTypes();
@@ -335,7 +366,8 @@ protected:
                              uint32_t inPastMs = 0,
                              nsecs_t sysTime = 0) const;
 
-            void toAudioPortConfig(struct audio_port_config *config) const;
+            void toAudioPortConfig(struct audio_port_config *dstConfig,
+                                   const struct audio_port_config *srcConfig = NULL) const;
             void toAudioPort(struct audio_port *port) const;
 
             audio_port_handle_t mId;
@@ -379,7 +411,8 @@ protected:
             audio_source_t mInputSource;                // input source selected by application (mediarecorder.h)
             const sp<IOProfile> mProfile;                  // I/O profile this output derives from
 
-            void toAudioPortConfig(struct audio_port_config *config) const;
+            void toAudioPortConfig(struct audio_port_config *dstConfig,
+                                   const struct audio_port_config *srcConfig = NULL) const;
             void toAudioPort(struct audio_port *port) const;
         };
 
@@ -439,13 +472,17 @@ protected:
         uint32_t setOutputDevice(audio_io_handle_t output,
                              audio_devices_t device,
                              bool force = false,
-                             int delayMs = 0);
+                             int delayMs = 0,
+                             audio_patch_handle_t *patchHandle = NULL);
         status_t resetOutputDevice(audio_io_handle_t output,
-                                   int delayMs = 0);
+                                   int delayMs = 0,
+                                   audio_patch_handle_t *patchHandle = NULL);
         status_t setInputDevice(audio_io_handle_t input,
                                 audio_devices_t device,
-                                bool force = false);
-        status_t resetInputDevice(audio_io_handle_t input);
+                                bool force = false,
+                                audio_patch_handle_t *patchHandle = NULL);
+        status_t resetInputDevice(audio_io_handle_t input,
+                                  audio_patch_handle_t *patchHandle = NULL);
 
         // select input device corresponding to requested audio source
         virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource);
@@ -589,6 +626,13 @@ protected:
 
         bool isNonOffloadableEffectEnabled();
 
+        status_t addAudioPatch(audio_patch_handle_t handle,
+                               const sp<AudioPatch>& patch);
+        status_t removeAudioPatch(audio_patch_handle_t handle);
+
+        AudioOutputDescriptor *getOutputFromId(audio_port_handle_t id) const;
+        AudioInputDescriptor *getInputFromId(audio_port_handle_t id) const;
+        HwModule *getModuleForDevice(audio_devices_t device) const;
         //
         // Audio policy configuration file parsing (audio_policy.conf)
         //
@@ -610,6 +654,7 @@ protected:
         void defaultAudioPolicyConfig(void);
 
 
+        uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface
         audio_io_handle_t mPrimaryOutput;              // primary output handle
         // list of descriptors for outputs currently opened
@@ -644,6 +689,9 @@ protected:
 
         Vector <HwModule *> mHwModules;
         volatile int32_t mNextUniqueId;
+        volatile int32_t mAudioPortGeneration;
+
+        DefaultKeyedVector<audio_patch_handle_t, sp<AudioPatch> > mAudioPatches;
 
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
@@ -668,6 +716,8 @@ private:
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
         static bool isVirtualInputDevice(audio_devices_t device);
         uint32_t nextUniqueId();
+        uint32_t nextAudioPortGeneration();
+        uint32_t curAudioPortGeneration() const { return mAudioPortGeneration; }
         // converts device address to string sent to audio HAL via setParameters
         static String8 addressToParameter(audio_devices_t device, const String8 address);
 };
