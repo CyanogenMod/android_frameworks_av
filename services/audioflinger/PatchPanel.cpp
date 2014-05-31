@@ -404,13 +404,38 @@ status_t AudioFlinger::PatchPanel::listAudioPatches(unsigned int *num_patches __
 }
 
 /* Set audio port configuration */
-status_t AudioFlinger::PatchPanel::setAudioPortConfig(
-        const struct audio_port_config *config __unused)
+status_t AudioFlinger::PatchPanel::setAudioPortConfig(const struct audio_port_config *config)
 {
     ALOGV("setAudioPortConfig");
+    status_t status = NO_ERROR;
+
+    sp<AudioFlinger> audioflinger = mAudioFlinger.promote();
+    if (audioflinger == 0) {
+        return NO_INIT;
+    }
+
+    audio_module_handle_t module;
+    if (config->type == AUDIO_PORT_TYPE_DEVICE) {
+        module = config->ext.device.hw_module;
+    } else {
+        module = config->ext.mix.hw_module;
+    }
+
+    ssize_t index = audioflinger->mAudioHwDevs.indexOfKey(module);
+    if (index < 0) {
+        ALOGW("setAudioPortConfig() bad hw module %d", module);
+        return BAD_VALUE;
+    }
+
+    AudioHwDevice *audioHwDevice = audioflinger->mAudioHwDevs.valueAt(index);
+    if (audioHwDevice->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
+        audio_hw_device_t *hwDevice = audioHwDevice->hwDevice();
+        return hwDevice->set_audio_port_config(hwDevice, config);
+    } else {
+        return INVALID_OPERATION;
+    }
     return NO_ERROR;
 }
-
 
 
 }; // namespace android

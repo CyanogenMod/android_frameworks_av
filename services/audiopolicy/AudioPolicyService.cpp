@@ -226,6 +226,12 @@ void AudioPolicyService::doOnAudioPatchListUpdate()
     }
 }
 
+status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_config *config,
+                                                      int delayMs)
+{
+    return mAudioCommandThread->setAudioPortConfigCommand(config, delayMs);
+}
+
 AudioPolicyService::NotificationClient::NotificationClient(const sp<AudioPolicyService>& service,
                                                      const sp<IAudioPolicyServiceClient>& client,
                                                      uid_t uid)
@@ -506,6 +512,16 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     svc->doOnAudioPatchListUpdate();
                     mLock.lock();
                     }break;
+                case SET_AUDIOPORT_CONFIG: {
+                    SetAudioPortConfigData *data = (SetAudioPortConfigData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing set port config");
+                    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
+                    if (af == 0) {
+                        command->mStatus = PERMISSION_DENIED;
+                    } else {
+                        command->mStatus = af->setAudioPortConfig(&data->mConfig);
+                    }
+                    } break;
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
                 }
@@ -714,6 +730,19 @@ void AudioPolicyService::AudioCommandThread::updateAudioPatchListCommand()
     command->mCommand = UPDATE_AUDIOPATCH_LIST;
     ALOGV("AudioCommandThread() adding update audio patch list");
     sendCommand(command);
+}
+
+status_t AudioPolicyService::AudioCommandThread::setAudioPortConfigCommand(
+                                            const struct audio_port_config *config, int delayMs)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = SET_AUDIOPORT_CONFIG;
+    SetAudioPortConfigData *data = new SetAudioPortConfigData();
+    data->mConfig = *config;
+    command->mParam = data;
+    command->mWaitStatus = true;
+    ALOGV("AudioCommandThread() adding set port config delay %d", delayMs);
+    return sendCommand(command, delayMs);
 }
 
 status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)

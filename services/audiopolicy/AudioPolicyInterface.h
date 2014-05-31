@@ -273,6 +273,9 @@ public:
     virtual status_t releaseAudioPatch(audio_patch_handle_t handle,
                                        int delayMs) = 0;
 
+    /* Set audio port configuration */
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config, int delayMs) = 0;
+
     virtual void onAudioPortListUpdate() = 0;
 
     virtual void onAudioPatchListUpdate() = 0;
