@@ -154,6 +154,8 @@ public:
                                       unsigned int *generation);
     virtual status_t setAudioPortConfig(const struct audio_port_config *config);
 
+    virtual void registerClient(const sp<IAudioPolicyServiceClient>& client);
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   int session = 0);
@@ -164,6 +166,11 @@ public:
                                       int delayMs);
             status_t clientReleaseAudioPatch(audio_patch_handle_t handle,
                                              int delayMs);
+            void removeNotificationClient(uid_t uid);
+            void onAudioPortListUpdate();
+            void doOnAudioPortListUpdate();
+            void onAudioPatchListUpdate();
+            void doOnAudioPatchListUpdate();
 
 private:
                         AudioPolicyService() ANDROID_API;
@@ -192,6 +199,8 @@ private:
             RELEASE_OUTPUT,
             CREATE_AUDIO_PATCH,
             RELEASE_AUDIO_PATCH,
+            UPDATE_AUDIOPORT_LIST,
+            UPDATE_AUDIOPATCH_LIST
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -223,6 +232,8 @@ private:
                                                         int delayMs);
                     status_t    releaseAudioPatchCommand(audio_patch_handle_t handle,
                                                          int delayMs);
+                    void        updateAudioPortListCommand();
+                    void        updateAudioPatchListCommand();
 
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
@@ -454,8 +465,34 @@ private:
         virtual status_t releaseAudioPatch(audio_patch_handle_t handle,
                                            int delayMs);
 
+        virtual void onAudioPortListUpdate();
+        virtual void onAudioPatchListUpdate();
+
      private:
         AudioPolicyService *mAudioPolicyService;
+    };
+
+    // --- Notification Client ---
+    class NotificationClient : public IBinder::DeathRecipient {
+    public:
+                            NotificationClient(const sp<AudioPolicyService>& service,
+                                                const sp<IAudioPolicyServiceClient>& client,
+                                                uid_t uid);
+        virtual             ~NotificationClient();
+
+                            void        onAudioPortListUpdate();
+                            void        onAudioPatchListUpdate();
+
+                // IBinder::DeathRecipient
+                virtual     void        binderDied(const wp<IBinder>& who);
+
+    private:
+                            NotificationClient(const NotificationClient&);
+                            NotificationClient& operator = (const NotificationClient&);
+
+        const wp<AudioPolicyService>        mService;
+        const uid_t                         mUid;
+        const sp<IAudioPolicyServiceClient> mAudioPolicyServiceClient;
     };
 
     static const char * const kInputSourceNames[AUDIO_SOURCE_CNT -1];
@@ -494,6 +531,8 @@ private:
 
     KeyedVector< audio_source_t, InputSourceDesc* > mInputSources;
     KeyedVector< audio_io_handle_t, InputDesc* > mInputs;
+
+    DefaultKeyedVector< uid_t, sp<NotificationClient> >    mNotificationClients;
 };
 
 }; // namespace android

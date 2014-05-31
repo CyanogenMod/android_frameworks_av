@@ -19,6 +19,7 @@
 
 #include <hardware/audio_effect.h>
 #include <media/IAudioFlingerClient.h>
+#include <media/IAudioPolicyServiceClient.h>
 #include <system/audio.h>
 #include <system/audio_policy.h>
 #include <utils/Errors.h>
@@ -301,6 +302,21 @@ public:
 
     // ----------------------------------------------------------------------------
 
+    class AudioPortCallback : public RefBase
+    {
+    public:
+
+                AudioPortCallback() {}
+        virtual ~AudioPortCallback() {}
+
+        virtual void onAudioPortListUpdate() = 0;
+        virtual void onAudioPatchListUpdate() = 0;
+        virtual void onServiceDied() = 0;
+
+    };
+
+    static void setAudioPortCallback(sp<AudioPortCallback> callBack);
+
 private:
 
     class AudioFlingerClient: public IBinder::DeathRecipient, public BnAudioFlingerClient
@@ -319,7 +335,8 @@ private:
         virtual void ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
     };
 
-    class AudioPolicyServiceClient: public IBinder::DeathRecipient
+    class AudioPolicyServiceClient: public IBinder::DeathRecipient,
+                                    public BnAudioPolicyServiceClient
     {
     public:
         AudioPolicyServiceClient() {
@@ -327,6 +344,10 @@ private:
 
         // DeathRecipient
         virtual void binderDied(const wp<IBinder>& who);
+
+        // IAudioPolicyServiceClient
+        virtual void onAudioPortListUpdate();
+        virtual void onAudioPatchListUpdate();
     };
 
     static sp<AudioFlingerClient> gAudioFlingerClient;
@@ -349,6 +370,8 @@ private:
     // list of output descriptors containing cached parameters
     // (sampling rate, framecount, channel count...)
     static DefaultKeyedVector<audio_io_handle_t, OutputDescriptor *> gOutputs;
+
+    static sp<AudioPortCallback> gAudioPortCallback;
 };
 
 };  // namespace android

@@ -63,7 +63,8 @@ enum {
     CREATE_AUDIO_PATCH,
     RELEASE_AUDIO_PATCH,
     LIST_AUDIO_PATCHES,
-    SET_AUDIO_PORT_CONFIG
+    SET_AUDIO_PORT_CONFIG,
+    REGISTER_CLIENT
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -524,6 +525,13 @@ public:
         }
         return status;
     }
+    virtual void registerClient(const sp<IAudioPolicyServiceClient>& client)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeStrongBinder(client->asBinder());
+        remote()->transact(REGISTER_CLIENT, data, &reply);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -910,6 +918,13 @@ status_t BnAudioPolicyService::onTransact(
             reply->writeInt32(status);
             return NO_ERROR;
         }
+        case REGISTER_CLIENT: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
+                    data.readStrongBinder());
+            registerClient(client);
+            return NO_ERROR;
+        } break;
 
         default:
             return BBinder::onTransact(code, data, reply, flags);

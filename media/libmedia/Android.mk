@@ -44,6 +44,7 @@ LOCAL_SRC_FILES:= \
     JetPlayer.cpp \
     IOMX.cpp \
     IAudioPolicyService.cpp \
+    IAudioPolicyServiceClient.cpp \
     MediaScanner.cpp \
     MediaScannerClient.cpp \
     CharacterEncodingDetector.cpp \

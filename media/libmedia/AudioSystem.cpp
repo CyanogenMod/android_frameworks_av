@@ -45,6 +45,7 @@ audio_format_t AudioSystem::gPrevInFormat;
 audio_channel_mask_t AudioSystem::gPrevInChannelMask;
 size_t AudioSystem::gInBuffSize = 0;    // zero indicates cache is invalid
 
+sp<AudioSystem::AudioPortCallback> AudioSystem::gAudioPortCallback;
 
 // establish binder interface to AudioFlinger service
 const sp<IAudioFlinger>& AudioSystem::get_audio_flinger()
@@ -528,6 +529,7 @@ void AudioSystem::setErrorCallback(audio_error_callback cb)
     gAudioErrorCallback = cb;
 }
 
+
 bool AudioSystem::routedToA2dpOutput(audio_stream_type_t streamType)
 {
     switch (streamType) {
@@ -566,6 +568,7 @@ const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
         }
         binder->linkToDeath(gAudioPolicyServiceClient);
         gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
+        gAudioPolicyService->registerClient(gAudioPolicyServiceClient);
         gLock.unlock();
     } else {
         gLock.unlock();
@@ -880,14 +883,39 @@ status_t AudioSystem::setAudioPortConfig(const struct audio_port_config *config)
     return aps->setAudioPortConfig(config);
 }
 
+void AudioSystem::setAudioPortCallback(sp<AudioPortCallback> callBack)
+{
+    Mutex::Autolock _l(gLock);
+    gAudioPortCallback = callBack;
+}
+
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
 {
-    Mutex::Autolock _l(AudioSystem::gLock);
+    Mutex::Autolock _l(gLock);
+    if (gAudioPortCallback != 0) {
+        gAudioPortCallback->onServiceDied();
+    }
     AudioSystem::gAudioPolicyService.clear();
 
     ALOGW("AudioPolicyService server died!");
+}
+
+void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
+{
+    Mutex::Autolock _l(gLock);
+    if (gAudioPortCallback != 0) {
+        gAudioPortCallback->onAudioPortListUpdate();
+    }
+}
+
+void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
+{
+    Mutex::Autolock _l(gLock);
+    if (gAudioPortCallback != 0) {
+        gAudioPortCallback->onAudioPatchListUpdate();
+    }
 }
 
 }; // namespace android
