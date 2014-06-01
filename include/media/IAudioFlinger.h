@@ -96,9 +96,6 @@ public:
      * and therefore can be cached.
      */
     virtual     uint32_t    sampleRate(audio_io_handle_t output) const = 0;
-#if 0
-    virtual     int         channelCount(audio_io_handle_t output) const = 0;
-#endif
     virtual     audio_format_t format(audio_io_handle_t output) const = 0;
     virtual     size_t      frameCount(audio_io_handle_t output) const = 0;
 

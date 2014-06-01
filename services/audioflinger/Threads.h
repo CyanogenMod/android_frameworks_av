@@ -233,7 +233,6 @@ public:
 
                 // dynamic externally-visible
                 uint32_t    sampleRate() const { return mSampleRate; }
-                uint32_t    channelCount() const { return mChannelCount; }
                 audio_channel_mask_t channelMask() const { return mChannelMask; }
                 audio_format_t format() const { return mFormat; }
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,

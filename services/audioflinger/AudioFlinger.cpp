@@ -667,17 +667,6 @@ uint32_t AudioFlinger::sampleRate(audio_io_handle_t output) const
     return thread->sampleRate();
 }
 
-int AudioFlinger::channelCount(audio_io_handle_t output) const
-{
-    Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = checkPlaybackThread_l(output);
-    if (thread == NULL) {
-        ALOGW("channelCount() unknown thread %d", output);
-        return 0;
-    }
-    return thread->channelCount();
-}
-
 audio_format_t AudioFlinger::format(audio_io_handle_t output) const
 {
     Mutex::Autolock _l(mLock);
