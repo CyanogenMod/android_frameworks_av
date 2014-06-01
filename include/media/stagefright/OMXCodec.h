@@ -128,6 +128,9 @@ struct OMXCodec : public MediaSource,
         kSupportsMultipleFramesPerInputBuffer = 1024,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
+#ifdef SEMC_ICS_CAMERA_BLOB
+        kXperiaAvoidMemcopyInputRecordingFrames = 32768,
+#endif
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
         kRequiresWMAProComponent              = 0x40000000, //2^30
     };

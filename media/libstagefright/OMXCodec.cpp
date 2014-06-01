@@ -124,6 +124,13 @@
 #include "ExynosHWCService.h"
 #endif
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+#include <binder/IMemory.h>
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
+#define OMX_COMPONENT_CAPABILITY_TYPE_INDEX 0xFF7A347
+#endif
+
 namespace android {
 
 #ifdef USE_SAMSUNG_COLORFORMAT
@@ -2106,6 +2113,15 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 #endif
     mDealer[portIndex] = new MemoryDealer(totalSize, "OMXCodec");
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO pmeminfo;
+
+    if (portIndex == kPortIndexInput && !strncmp(mComponentName,"OMX.qcom.video.encoder.",23 )) {
+        mQuirks |= kXperiaAvoidMemcopyInputRecordingFrames;
+        mQuirks &= ~kRequiresAllocateBufferOnInputPorts;
+    }
+#endif
+
     for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
         sp<IMemory> mem = mDealer[portIndex]->allocate(def.nBufferSize);
         CHECK(mem.get() != NULL);
@@ -2140,6 +2156,18 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 err = mOMX->allocateBufferWithBackup(
                         mNode, portIndex, mem, &buffer);
             }
+#ifdef SEMC_ICS_CAMERA_BLOB
+        } else if (portIndex == kPortIndexInput
+                && (mQuirks & kXperiaAvoidMemcopyInputRecordingFrames)) {
+            sp<MemoryBase>* ptrbuffer;
+            mSource->getRecordingBuffer(i, &ptrbuffer);
+            ssize_t offset;
+            size_t size;
+            sp<IMemoryHeap> heap = (*ptrbuffer)->getMemory(&offset, &size);
+            pmeminfo.pmem_fd = heap->getHeapID();
+            pmeminfo.offset = offset;
+            err = mOMX->useBufferPmem(mNode, portIndex, &pmeminfo,def.nBufferSize, (*ptrbuffer)->pointer(), &buffer);
+#endif
         } else {
             err = mOMX->useBuffer(mNode, portIndex, mem, &buffer);
         }
@@ -3859,6 +3887,19 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
                 CHECK(info->mMediaBuffer == NULL);
                 info->mMediaBuffer = srcBuffer;
+#ifdef SEMC_ICS_CAMERA_BLOB
+        } else if (mIsEncoder && (mQuirks & kXperiaAvoidMemcopyInputRecordingFrames)) {
+                CHECK(mOMXLivesLocally && offset == 0);
+
+                OMX_BUFFERHEADERTYPE *header =
+                    (OMX_BUFFERHEADERTYPE *) info->mBuffer;
+
+                header->pBuffer =
+                    (OMX_U8 *) srcBuffer->data() + srcBuffer->range_offset();
+
+                releaseBuffer = false;
+                info->mMediaBuffer = srcBuffer;
+#endif
         } else {
 #ifdef USE_SAMSUNG_COLORFORMAT
             OMX_PARAM_PORTDEFINITIONTYPE def;
@@ -5285,6 +5326,25 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                          initNativeWindowCrop();
                      }
                 }
+#ifdef SEMC_ICS_CAMERA_BLOB
+            } else {
+                typedef struct OMXComponentCapabilityFlagsType
+                {
+                  OMX_BOOL iIsOMXComponentMultiThreaded;
+                  OMX_BOOL iOMXComponentSupportsExternalOutputBufferAlloc;
+                  OMX_BOOL iOMXComponentSupportsExternalInputBufferAlloc;
+                  OMX_BOOL iOMXComponentSupportsMovableInputBuffers;
+                  OMX_BOOL iOMXComponentSupportsPartialFrames;
+                  OMX_BOOL iOMXComponentUsesNALStartCodes;
+                  OMX_BOOL iOMXComponentCanHandleIncompleteFrames;
+                  OMX_BOOL iOMXComponentUsesFullAVCFrames;
+
+                } OMXComponentCapabilityFlagsType;
+
+                OMXComponentCapabilityFlagsType junk;
+                mOMX->getParameter( mNode, (OMX_INDEXTYPE) OMX_COMPONENT_CAPABILITY_TYPE_INDEX,
+                                    &junk, sizeof(junk) );
+#endif
             }
             break;
         }
