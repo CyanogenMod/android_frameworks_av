@@ -104,6 +104,12 @@ struct MuxOMX : public IOMX {
             unsigned char* virAddr, OMX_S32 fd, size_t size, buffer_id *buffer);
 #endif
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    virtual status_t useBufferPmem(
+            node_id node, OMX_U32 portIndex, OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pmem_info, OMX_U32 size, void *vaddr,
+            buffer_id *buffer);
+#endif
+
     virtual status_t useGraphicBuffer(
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer);
@@ -342,6 +348,14 @@ status_t MuxOMX::registerBuffer2(
 status_t MuxOMX::useIonBuffer(
             node_id node, OMX_U32 port_index, unsigned char* virAddr, OMX_S32 fd, size_t size, buffer_id *buffer) {
     return getOMX(node)->useIonBuffer(node, port_index, virAddr, fd, size, buffer);
+}
+#endif
+
+#ifdef SEMC_ICS_CAMERA_BLOB
+status_t MuxOMX::useBufferPmem(
+        node_id node, OMX_U32 portIndex, OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pmem_info, OMX_U32 size, void *vaddr,
+        buffer_id *buffer) {
+    return getOMX(node)->useBufferPmem(node, portIndex, pmem_info, size, vaddr, buffer);
 }
 #endif
 
