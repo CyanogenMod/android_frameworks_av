@@ -255,6 +255,14 @@ void CameraParameters::set(const char *key, const char *value)
         //XXX ALOGE("Value \"%s\"contains invalid character (= or ;)", value);
         return;
     }
+#ifdef QCOM_HARDWARE
+    // qcom cameras default to delivering an extra zero-exposure frame on HDR.
+    // The android SDK only wants one frame, so disable this unless the app
+    // explicitly asks for it
+    if (!get("hdr-need-1x")) {
+        mMap.replaceValueFor(String8("hdr-need-1x"), String8("false"));
+    }
+#endif
 
     mMap.replaceValueFor(String8(key), String8(value));
 }
