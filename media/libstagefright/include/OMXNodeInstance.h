@@ -66,6 +66,12 @@ struct OMXNodeInstance {
             OMX_U32 portIndex, const sp<IMemory> &params,
             OMX::buffer_id *buffer);
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    status_t useBufferPmem(
+            OMX_U32 portIndex, OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pmem_info, OMX_U32 size, void *vaddr,
+            OMX::buffer_id *buffer);
+#endif
+
     status_t useGraphicBuffer(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
             OMX::buffer_id *buffer);
