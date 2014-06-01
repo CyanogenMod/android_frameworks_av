@@ -43,6 +43,11 @@
 #endif
 
 #include "include/ExtendedUtils.h"
+#ifdef SEMC_ICS_CAMERA_BLOB
+#include <binder/IMemory.h>
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
+#endif
 
 namespace android {
 
@@ -532,6 +537,17 @@ status_t CameraSource::init(
     return err;
 }
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+sp<MemoryBase> *mRecordingBuffers;
+
+status_t CameraSource::getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer)
+{
+    ALOGV("getRecordingbuffer");
+    *buffer = &mRecordingBuffers[index];
+    return OK;
+}
+#endif
+
 status_t CameraSource::initWithCameraAccess(
         const sp<ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
@@ -612,6 +628,17 @@ status_t CameraSource::initWithCameraAccess(
 #ifdef MTK_HARDWARE
     mMtkCameraSourceHandler->init(&mCamera, &mMeta);
 #endif
+
+#ifdef SEMC_ICS_CAMERA_BLOB
+    sp<MemoryBase>* ptrbuffer;
+    mRecordingBuffers = new sp<MemoryBase>[9];
+    for (uint_t i = 0; i < 9; i++) {
+        mCamera->getRecordingBuffer(i, &ptrbuffer);
+        ALOGV("Camerabuffer 0 ptr %p", ptrbuffer);
+        mRecordingBuffers[i] = *ptrbuffer;
+    }
+#endif
+
     return OK;
 }
 
@@ -723,6 +750,9 @@ void CameraSource::stopCameraRecording() {
         mCamera->setListener(NULL);
         mCamera->stopRecording();
     }
+#ifdef SEMC_ICS_CAMERA_BLOB
+    delete [] mRecordingBuffers;
+#endif
 }
 
 void CameraSource::releaseCamera() {
@@ -942,8 +972,13 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
     mFramesReceived.push_back(data);
     int64_t timeUs = mStartTimeUs + (timestampUs - mFirstFrameTimeUs);
     mFrameTimes.push_back(timeUs);
+#ifdef SEMC_ICS_CAMERA_BLOB
+    ALOGV("initial delay: %lld, current time stamp: %lld, frames received: %d, frames being encoded: %d",
+        mStartTimeUs, timeUs, mFramesReceived.size(), mFramesBeingEncoded.size());
+#else
     ALOGV("initial delay: %lld, current time stamp: %lld",
         mStartTimeUs, timeUs);
+#endif
     mFrameAvailableCondition.signal();
 }
 
