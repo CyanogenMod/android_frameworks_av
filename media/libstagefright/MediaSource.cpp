@@ -24,6 +24,12 @@ MediaSource::~MediaSource() {}
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+status_t MediaSource::getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer) {
+    return OK;
+}
+#endif
+
 MediaSource::ReadOptions::ReadOptions() {
     reset();
 }

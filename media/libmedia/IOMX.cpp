@@ -262,6 +262,13 @@ public:
         return err;
     }
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    virtual status_t useBufferPmem(
+            node_id node, OMX_U32 portIndex, OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO *pmem_info, OMX_U32 size, void *vaddr,
+            buffer_id *buffer) {
+        return OK;
+    }
+#endif
 
     virtual status_t useGraphicBuffer(
             node_id node, OMX_U32 port_index,
