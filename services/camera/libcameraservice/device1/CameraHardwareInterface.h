@@ -449,6 +449,19 @@ public:
         return OK; // It's fine if the HAL doesn't implement dump()
     }
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    status_t getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer)
+    {
+        if (index < CameraHardwareInterface::lastCameraHeapMemory->mNumBufs) {
+            MemoryBase* mb = (MemoryBase*) &CameraHardwareInterface::lastCameraHeapMemory->mBuffers[index];
+            *buffer = &CameraHardwareInterface::lastCameraHeapMemory->mBuffers[index];
+            ALOGV("%s: heap **buffer %p", __FUNCTION__,(void*)*buffer);
+            return OK;
+        }
+        return INVALID_OPERATION;
+    }
+#endif
+
 private:
     camera_device_t *mDevice;
     String8 mName;
@@ -534,6 +547,11 @@ private:
             handle.size = mBufSize * mNumBufs;
             handle.handle = this;
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+            ALOGV("%s: heapbase %p, bufsize %u", __FUNCTION__,
+                 (void*)handle.data, handle.size);
+#endif
+
             mBuffers = new sp<MemoryBase>[mNumBufs];
             for (uint_t i = 0; i < mNumBufs; i++)
                 mBuffers[i] = new MemoryBase(mHeap,
@@ -556,6 +574,11 @@ private:
         camera_memory_t handle;
     };
 
+
+#ifdef SEMC_ICS_CAMERA_BLOB
+static CameraHeapMemory* lastCameraHeapMemory;
+#endif
+
 #ifdef USE_MEMORY_HEAP_ION
     static camera_memory_t* __get_memory(int fd, size_t buf_size, uint_t num_bufs,
                                          void *ion_fd)
@@ -564,6 +587,10 @@ private:
     static camera_memory_t* __get_memory(int fd, size_t buf_size, uint_t num_bufs,
                                          void *user __attribute__((unused)))
     {
+#endif
+#ifdef SEMC_ICS_CAMERA_BLOB
+        ALOGV("%s: fd %d, numbufs %d", __FUNCTION__,
+                     fd, num_bufs);
 #endif
         CameraHeapMemory *mem;
         if (fd < 0)
@@ -575,6 +602,10 @@ private:
             *((int *) ion_fd) = mem->mHeap->getHeapID();
 #endif
         mem->incStrong(mem);
+#ifdef SEMC_ICS_CAMERA_BLOB
+        if (num_bufs == 9)
+            lastCameraHeapMemory = mem;
+#endif
         return &mem->handle;
     }
 
@@ -727,6 +758,10 @@ private:
     data_callback_timestamp mDataCbTimestamp;
     void *mCbUser;
 };
+
+#ifdef SEMC_ICS_CAMERA_BLOB
+CameraHardwareInterface::CameraHeapMemory* CameraHardwareInterface::lastCameraHeapMemory;
+#endif
 
 };  // namespace android
 
