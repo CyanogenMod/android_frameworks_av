@@ -3538,6 +3538,12 @@ void OMXCodec::drainInputBuffers() {
                 continue;
             }
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+            if (mIsEncoder && mIsVideo && (i == 4)) {
+                break;
+            }
+#endif
+
             if (!drainInputBuffer(info)) {
                 break;
             }
