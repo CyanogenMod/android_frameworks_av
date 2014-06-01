@@ -23,6 +23,11 @@
 #include <media/stagefright/MediaErrors.h>
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
+#ifdef SEMC_ICS_CAMERA_BLOB
+#include <binder/IMemory.h>
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
+#endif
 
 namespace android {
 
@@ -61,6 +66,10 @@ struct MediaSource : public virtual RefBase {
 
 #ifdef QCOM_HARDWARE
     virtual void notifyError(status_t err) {}
+#endif
+
+#ifdef SEMC_ICS_CAMERA_BLOB
+    virtual status_t getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer);
 #endif
 
     // Options that modify read() behaviour. The default is to
