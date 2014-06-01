@@ -193,6 +193,7 @@ struct OMXCodecObserver : public BnOMXObserver {
             codec->on_message(msg);
 
             bYieldToConsumer = codec->mIsEncoder &&
+                    !strncasecmp(codec->mMIME, "video/", 6) &&
                     (msg.type == omx_message::FILL_BUFFER_DONE ||
                     msg.type == omx_message::EMPTY_BUFFER_DONE);
             codec.clear();
