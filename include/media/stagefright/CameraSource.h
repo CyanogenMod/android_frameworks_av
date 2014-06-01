@@ -176,6 +176,10 @@ protected:
                  const sp<IGraphicBufferProducer>& surface,
                  bool storeMetaDataInVideoBuffers);
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    virtual status_t getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer);
+#endif
+
     virtual void startCameraRecording();
     virtual void releaseRecordingFrame(const sp<IMemory>& frame);
 

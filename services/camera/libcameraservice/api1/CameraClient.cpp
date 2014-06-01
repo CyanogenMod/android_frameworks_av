@@ -730,6 +730,12 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     return mHardware->sendCommand(cmd, arg1, arg2);
 }
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+status_t CameraClient::getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer) {
+    return mHardware->getRecordingBuffer(index, buffer);
+}
+#endif
+
 // ----------------------------------------------------------------------------
 
 void CameraClient::enableMsgType(int32_t msgType) {

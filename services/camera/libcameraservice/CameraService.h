@@ -239,6 +239,9 @@ public:
         virtual status_t      setParameters(const String8& params) = 0;
         virtual String8       getParameters() const = 0;
         virtual status_t      sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) = 0;
+#ifdef SEMC_ICS_CAMERA_BLOB
+        virtual status_t      getRecordingBuffer(unsigned int index, sp<MemoryBase>** buffer)  { return OK; };
+#endif
 
         // Interface used by CameraService
         Client(const sp<CameraService>& cameraService,
