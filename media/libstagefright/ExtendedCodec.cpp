@@ -832,6 +832,14 @@ void ExtendedCodec::enableSmoothStreaming(
     if (strncmp(componentName, "OMX.qcom.", 9)) {
         return;
     }
+    if(strstr(componentName, ".secure")) {
+        char prop[PROPERTY_VALUE_MAX] = {0};
+        property_get("mm.disable.sec_smoothstreaming", prop, "0");
+        if (!strncmp(prop, "true", 4) || atoi(prop)) {
+            ALOGI("Smoothstreaming not enabled for secure Sessions");
+            return;
+        }
+    }
     status_t err = omx->setParameter(
             nodeID,
             (OMX_INDEXTYPE)OMX_QcomIndexParamEnableSmoothStreaming,
