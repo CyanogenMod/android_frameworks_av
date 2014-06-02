@@ -4643,6 +4643,9 @@ void AudioPolicyManager::AudioInputDescriptor::toAudioPortConfig(
             dstConfig->config_mask |= AUDIO_PORT_CONFIG_GAIN;
         }
     }
+    dstConfig->ext.mix.hw_module = mProfile->mModule->mHandle;
+    dstConfig->ext.mix.handle = mIoHandle;
+    dstConfig->ext.mix.usecase.source = mInputSource;
 }
 
 void AudioPolicyManager::AudioInputDescriptor::toAudioPort(
