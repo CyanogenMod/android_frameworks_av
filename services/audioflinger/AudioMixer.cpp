@@ -536,6 +536,37 @@ void AudioMixer::disable(int name)
     }
 }
 
+/* Sets the volume ramp variables for the AudioMixer.
+ *
+ * The volume ramp variables are used to transition between the previous
+ * volume to the target volume.  The duration of the transition is
+ * set by ramp, which is either 0 for immediate, or typically one state
+ * framecount period.
+ *
+ * @param newValue new volume target in U4.12.
+ * @param ramp number of frames to increment over. ramp is 0 if the volume
+ * should be set immediately.
+ * @param volume reference to the U4.12 target volume, set on return.
+ * @param prevVolume reference to the U4.27 previous volume, set on return.
+ * @param volumeInc reference to the increment per output audio frame, set on return.
+ * @return true if the volume has changed, false if volume is same.
+ */
+static inline bool setVolumeRampVariables(int32_t newValue, int32_t ramp,
+        int16_t &volume, int32_t &prevVolume, int32_t &volumeInc) {
+    if (newValue == volume) {
+        return false;
+    }
+    if (ramp != 0) {
+        volumeInc = ((newValue - volume) << 16) / ramp;
+        prevVolume = (volumeInc == 0 ? newValue : volume) << 16;
+    } else {
+        volumeInc = 0;
+        prevVolume = newValue << 16;
+    }
+    volume = newValue;
+    return true;
+}
+
 void AudioMixer::setParameter(int name, int target, int param, void *value)
 {
     name -= TRACK0;
@@ -637,41 +668,22 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         switch (param) {
         case VOLUME0:
         case VOLUME1:
-            if (track.volume[param-VOLUME0] != valueInt) {
-                ALOGV("setParameter(VOLUME, VOLUME0/1: %04x)", valueInt);
-                track.prevVolume[param-VOLUME0] = track.volume[param-VOLUME0] << 16;
-                track.volume[param-VOLUME0] = valueInt;
-                if (target == VOLUME) {
-                    track.prevVolume[param-VOLUME0] = valueInt << 16;
-                    track.volumeInc[param-VOLUME0] = 0;
-                } else {
-                    int32_t d = (valueInt<<16) - track.prevVolume[param-VOLUME0];
-                    int32_t volInc = d / int32_t(mState.frameCount);
-                    track.volumeInc[param-VOLUME0] = volInc;
-                    if (volInc == 0) {
-                        track.prevVolume[param-VOLUME0] = valueInt << 16;
-                    }
-                }
+            if (setVolumeRampVariables(valueInt,
+                    target == RAMP_VOLUME ? mState.frameCount : 0,
+                    track.volume[param - VOLUME0], track.prevVolume[param - VOLUME0],
+                    track.volumeInc[param - VOLUME0])) {
+                ALOGV("setParameter(%s, VOLUME%d: %04x)",
+                        target == VOLUME ? "VOLUME" : "RAMP_VOLUME", param - VOLUME0, valueInt);
                 invalidateState(1 << name);
             }
             break;
         case AUXLEVEL:
             //ALOG_ASSERT(0 <= valueInt && valueInt <= MAX_GAIN_INT, "bad aux level %d", valueInt);
-            if (track.auxLevel != valueInt) {
-                ALOGV("setParameter(VOLUME, AUXLEVEL: %04x)", valueInt);
-                track.prevAuxLevel = track.auxLevel << 16;
-                track.auxLevel = valueInt;
-                if (target == VOLUME) {
-                    track.prevAuxLevel = valueInt << 16;
-                    track.auxInc = 0;
-                } else {
-                    int32_t d = (valueInt<<16) - track.prevAuxLevel;
-                    int32_t volInc = d / int32_t(mState.frameCount);
-                    track.auxInc = volInc;
-                    if (volInc == 0) {
-                        track.prevAuxLevel = valueInt << 16;
-                    }
-                }
+            if (setVolumeRampVariables(valueInt,
+                    target == RAMP_VOLUME ? mState.frameCount : 0,
+                    track.auxLevel, track.prevAuxLevel, track.auxInc)) {
+                ALOGV("setParameter(%s, AUXLEVEL: %04x)",
+                        target == VOLUME ? "VOLUME" : "RAMP_VOLUME", valueInt);
                 invalidateState(1 << name);
             }
             break;
