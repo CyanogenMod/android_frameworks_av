@@ -3379,9 +3379,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             }
 
             // compute volume for this track
-            uint32_t vl, vr, va;
+            uint32_t vl, vr;       // in U8.24 integer format
+            float vlf, vrf, vaf;   // in [0.0, 1.0] float format
             if (track->isPausing() || mStreamTypes[track->streamType()].mute) {
-                vl = vr = va = 0;
+                vl = vr = 0;
+                vlf = vrf = vaf = 0.;
                 if (track->isPausing()) {
                     track->setPaused();
                 }
@@ -3392,8 +3394,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 float v = masterVolume * typeVolume;
                 AudioTrackServerProxy *proxy = track->mAudioTrackServerProxy;
                 gain_minifloat_packed_t vlr = proxy->getVolumeLR();
-                float vlf = float_from_gain(gain_minifloat_unpack_left(vlr));
-                float vrf = float_from_gain(gain_minifloat_unpack_right(vlr));
+                vlf = float_from_gain(gain_minifloat_unpack_left(vlr));
+                vrf = float_from_gain(gain_minifloat_unpack_right(vlr));
                 // track volumes come from shared memory, so can't be trusted and must be clamped
                 if (vlf > GAIN_FLOAT_UNITY) {
                     ALOGV("Track left volume out of range: %.3g", vlf);
@@ -3404,20 +3406,22 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     vrf = GAIN_FLOAT_UNITY;
                 }
                 // now apply the master volume and stream type volume
-                // FIXME we're losing the wonderful dynamic range in the minifloat representation
-                float v8_24 = v * (MAX_GAIN_INT * MAX_GAIN_INT);
-                vl = (uint32_t) (v8_24 * vlf);
-                vr = (uint32_t) (v8_24 * vrf);
+                vlf *= v;
+                vrf *= v;
                 // assuming master volume and stream type volume each go up to 1.0,
-                // vl and vr are now in 8.24 format
-
+                // then derive vl and vr as U8.24 versions for the effect chain
+                const float scaleto8_24 = MAX_GAIN_INT * MAX_GAIN_INT;
+                vl = (uint32_t) (scaleto8_24 * vlf);
+                vr = (uint32_t) (scaleto8_24 * vrf);
+                // vl and vr are now in U8.24 format
                 uint16_t sendLevel = proxy->getSendLevel_U4_12();
                 // send level comes from shared memory and so may be corrupt
                 if (sendLevel > MAX_GAIN_INT) {
                     ALOGV("Track send level out of range: %04X", sendLevel);
                     sendLevel = MAX_GAIN_INT;
                 }
-                va = (uint32_t)(v * sendLevel);
+                // vaf is represented as [0.0, 1.0] float by rescaling sendLevel
+                vaf = v * sendLevel * (1. / MAX_GAIN_INT);
             }
 
             // Delegate volume control to effect in track effect chain if needed
@@ -3434,29 +3438,13 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 track->mHasVolumeController = false;
             }
 
-            // FIXME Use float
-            // Convert volumes from 8.24 to 4.12 format
-            // This additional clamping is needed in case chain->setVolume_l() overshot
-            vl = (vl + (1 << 11)) >> 12;
-            if (vl > MAX_GAIN_INT) {
-                vl = MAX_GAIN_INT;
-            }
-            vr = (vr + (1 << 11)) >> 12;
-            if (vr > MAX_GAIN_INT) {
-                vr = MAX_GAIN_INT;
-            }
-
-            if (va > MAX_GAIN_INT) {
-                va = MAX_GAIN_INT;   // va is uint32_t, so no need to check for -
-            }
-
             // XXX: these things DON'T need to be done each time
             mAudioMixer->setBufferProvider(name, track);
             mAudioMixer->enable(name);
 
-            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME0, (void *)(uintptr_t)vl);
-            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME1, (void *)(uintptr_t)vr);
-            mAudioMixer->setParameter(name, param, AudioMixer::AUXLEVEL, (void *)(uintptr_t)va);
+            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME0, &vlf);
+            mAudioMixer->setParameter(name, param, AudioMixer::VOLUME1, &vrf);
+            mAudioMixer->setParameter(name, param, AudioMixer::AUXLEVEL, &vaf);
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::TRACK,
