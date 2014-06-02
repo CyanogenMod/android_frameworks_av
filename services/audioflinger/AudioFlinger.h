@@ -691,6 +691,9 @@ private:
     nsecs_t mGlobalEffectEnableTime;  // when a global effect was last enabled
 
     sp<PatchPanel> mPatchPanel;
+
+    uint32_t    mPrimaryOutputSampleRate;   // sample rate of the primary output, or zero if none
+                                            // protected by mHardwareLock
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
