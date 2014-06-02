@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "NdkMediaCodec"
 
 #include "NdkMediaCodec.h"
@@ -60,6 +60,8 @@ public:
     CodecHandler(AMediaCodec *codec);
     virtual void onMessageReceived(const sp<AMessage> &msg);
 };
+
+typedef void (*OnCodecEvent)(AMediaCodec *codec, void *userdata);
 
 struct AMediaCodec {
     sp<android::MediaCodec> mCodec;
@@ -347,7 +349,7 @@ media_status_t AMediaCodec_releaseOutputBufferAtTime(
     return translate_error(mData->mCodec->renderOutputBufferAndRelease(idx, timestampNs));
 }
 
-EXPORT
+//EXPORT
 media_status_t AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback, void *userdata) {
     mData->mCallback = callback;
     mData->mCallbackUserData = userdata;
