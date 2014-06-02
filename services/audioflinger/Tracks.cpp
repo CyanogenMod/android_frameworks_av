@@ -1854,7 +1854,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
     :   TrackBase(thread, client, sampleRate, format,
                   channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid,
                   flags, false /*isOut*/,
-                  (flags & IAudioFlinger::TRACK_FAST) != 0 ? ALLOC_READONLY : ALLOC_CBLK),
+                  flags & IAudioFlinger::TRACK_FAST ? ALLOC_PIPE : ALLOC_CBLK),
         mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
@@ -1875,6 +1875,11 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         mResampler->setSampleRate(thread->mSampleRate);
         mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
         mResamplerBufferProvider = new ResamplerBufferProvider(this);
+    }
+
+    if (flags & IAudioFlinger::TRACK_FAST) {
+        ALOG_ASSERT(thread->mFastTrackAvail);
+        thread->mFastTrackAvail = false;
     }
 }
 
