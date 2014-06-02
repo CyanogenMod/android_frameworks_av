@@ -188,7 +188,7 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                 }
                 // limit to connections between sinks and sources on same HW module
                 if (patch->sinks[i].ext.mix.hw_module != src_module) {
-                    ALOGW("createAudioPatch() cannot connect source on module %d to"
+                    ALOGW("createAudioPatch() cannot connect source on module %d to "
                             "sink on module %d", src_module, patch->sinks[i].ext.mix.hw_module);
                     return BAD_VALUE;
                 }
