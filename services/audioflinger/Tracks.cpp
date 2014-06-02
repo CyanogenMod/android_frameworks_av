@@ -1873,7 +1873,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         mResampler = AudioResampler::create(16, thread->mChannelCount, sampleRate);
         // source SR
         mResampler->setSampleRate(thread->mSampleRate);
-        mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
+        mResampler->setVolume(AudioMixer::UNITY_GAIN_INT, AudioMixer::UNITY_GAIN_INT);
         mResamplerBufferProvider = new ResamplerBufferProvider(this);
     }
 

@@ -31,7 +31,7 @@
 #include <media/nbaio/NBLog.h>
 
 // FIXME This is actually unity gain, which might not be max in future, expressed in U.12
-#define MAX_GAIN_INT AudioMixer::UNITY_GAIN
+#define MAX_GAIN_INT AudioMixer::UNITY_GAIN_INT
 
 namespace android {
 
@@ -58,7 +58,7 @@ public:
     // maximum number of channels supported for the content
     static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = 8;
 
-    static const uint16_t UNITY_GAIN = 0x1000;
+    static const uint16_t UNITY_GAIN_INT = 0x1000;
 
     enum { // names
 
