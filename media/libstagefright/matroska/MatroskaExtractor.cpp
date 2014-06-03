@@ -765,26 +765,36 @@ bool MatroskaExtractor::isLiveStreaming() const {
     return mIsLiveStreaming;
 }
 
+static int bytesForSize(size_t size) {
+    // use at most 28 bits (4 times 7)
+    CHECK(size <= 0xfffffff);
+
+    if (size > 0x1fffff) {
+        return 4;
+    } else if (size > 0x3fff) {
+        return 3;
+    } else if (size > 0x7f) {
+        return 2;
+    }
+    return 1;
+}
+
+static void storeSize(uint8_t *data, size_t &idx, size_t size) {
+    int numBytes = bytesForSize(size);
+    idx += numBytes;
+
+    data += idx;
+    size_t next = 0;
+    while (numBytes--) {
+        *--data = (size & 0x7f) | next;
+        size >>= 7;
+        next = 0x80;
+    }
+}
+
 static void addESDSFromCodecPrivate(
         const sp<MetaData> &meta,
         bool isAudio, const void *priv, size_t privSize) {
-    static const uint8_t kStaticESDS[] = {
-        0x03, 22,
-        0x00, 0x00,     // ES_ID
-        0x00,           // streamDependenceFlag, URL_Flag, OCRstreamFlag
-
-        0x04, 17,
-        0x40,           // ObjectTypeIndication
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00,
-
-        0x05,
-        // CodecSpecificInfo (with size prefix) follows
-    };
-
-    // Make sure all sizes can be coded in a single byte.
-    CHECK(privSize + 22 - 2 < 128);
 
     if(isAudio) {
         ABitReader br((const uint8_t *)priv, privSize);
@@ -799,21 +809,30 @@ static void addESDSFromCodecPrivate(
         }
         meta->setInt32(kKeyAACAOT, objectType);
     }
-    size_t esdsSize = sizeof(kStaticESDS) + privSize + 1;
+    int privSizeBytesRequired = bytesForSize(privSize);
+    int esdsSize2 = 14 + privSizeBytesRequired + privSize;
+    int esdsSize2BytesRequired = bytesForSize(esdsSize2);
+    int esdsSize1 = 4 + esdsSize2BytesRequired + esdsSize2;
+    int esdsSize1BytesRequired = bytesForSize(esdsSize1);
+    size_t esdsSize = 1 + esdsSize1BytesRequired + esdsSize1;
     uint8_t *esds = new uint8_t[esdsSize];
-    memcpy(esds, kStaticESDS, sizeof(kStaticESDS));
-    uint8_t *ptr = esds + sizeof(kStaticESDS);
-    *ptr++ = privSize;
-    memcpy(ptr, priv, privSize);
 
-    // Increment by codecPrivateSize less 2 bytes that are accounted for
-    // already in lengths of 22/17
-    esds[1] += privSize - 2;
-    esds[6] += privSize - 2;
-
-    // Set ObjectTypeIndication.
-    esds[7] = isAudio ? 0x40   // Audio ISO/IEC 14496-3
-                      : 0x20;  // Visual ISO/IEC 14496-2
+    size_t idx = 0;
+    esds[idx++] = 0x03;
+    storeSize(esds, idx, esdsSize1);
+    esds[idx++] = 0x00; // ES_ID
+    esds[idx++] = 0x00; // ES_ID
+    esds[idx++] = 0x00; // streamDependenceFlag, URL_Flag, OCRstreamFlag
+    esds[idx++] = 0x04;
+    storeSize(esds, idx, esdsSize2);
+    esds[idx++] = isAudio ? 0x40   // Audio ISO/IEC 14496-3
+                          : 0x20;  // Visual ISO/IEC 14496-2
+    for (int i = 0; i < 12; i++) {
+        esds[idx++] = 0x00;
+    }
+    esds[idx++] = 0x05;
+    storeSize(esds, idx, privSize);
+    memcpy(esds + idx, priv, privSize);
 
     meta->setData(kKeyESDS, 0, esds, esdsSize);
 

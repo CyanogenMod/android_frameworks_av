@@ -16,7 +16,7 @@
 
 #define LOG_TAG "Camera2-Parameters"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
-//#define LOG_NDEBUG 0
+// #define LOG_NDEBUG 0
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
@@ -92,26 +92,6 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
     if (!availableFpsRanges.count) return NO_INIT;
 
-    previewFpsRange[0] = availableFpsRanges.data.i32[0];
-    previewFpsRange[1] = availableFpsRanges.data.i32[1];
-
-    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
-            String8::format("%d,%d",
-                    previewFpsRange[0] * kFpsToApiScale,
-                    previewFpsRange[1] * kFpsToApiScale));
-
-    {
-        String8 supportedPreviewFpsRange;
-        for (size_t i=0; i < availableFpsRanges.count; i += 2) {
-            if (i != 0) supportedPreviewFpsRange += ",";
-            supportedPreviewFpsRange += String8::format("(%d,%d)",
-                    availableFpsRanges.data.i32[i] * kFpsToApiScale,
-                    availableFpsRanges.data.i32[i+1] * kFpsToApiScale);
-        }
-        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,
-                supportedPreviewFpsRange);
-    }
-
     previewFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
     params.set(CameraParameters::KEY_PREVIEW_FORMAT,
             formatEnumToString(previewFormat)); // NV21
@@ -179,6 +159,9 @@ status_t Parameters::initialize(const CameraMetadata *info) {
                 supportedPreviewFormats);
     }
 
+    previewFpsRange[0] = availableFpsRanges.data.i32[0];
+    previewFpsRange[1] = availableFpsRanges.data.i32[1];
+
     // PREVIEW_FRAME_RATE / SUPPORTED_PREVIEW_FRAME_RATES are deprecated, but
     // still have to do something sane for them
 
@@ -186,6 +169,27 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     int previewFps = fpsFromRange(previewFpsRange[0], previewFpsRange[1]);
     params.set(CameraParameters::KEY_PREVIEW_FRAME_RATE,
             previewFps);
+
+    // PREVIEW_FPS_RANGE
+    // -- Order matters. Set range after single value to so that a roundtrip
+    //    of setParameters(getParameters()) would keep the FPS range in higher
+    //    order.
+    params.set(CameraParameters::KEY_PREVIEW_FPS_RANGE,
+            String8::format("%d,%d",
+                    previewFpsRange[0] * kFpsToApiScale,
+                    previewFpsRange[1] * kFpsToApiScale));
+
+    {
+        String8 supportedPreviewFpsRange;
+        for (size_t i=0; i < availableFpsRanges.count; i += 2) {
+            if (i != 0) supportedPreviewFpsRange += ",";
+            supportedPreviewFpsRange += String8::format("(%d,%d)",
+                    availableFpsRanges.data.i32[i] * kFpsToApiScale,
+                    availableFpsRanges.data.i32[i+1] * kFpsToApiScale);
+        }
+        params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_FPS_RANGE,
+                supportedPreviewFpsRange);
+    }
 
     {
         SortedVector<int32_t> sortedPreviewFrameRates;
@@ -1084,7 +1088,7 @@ camera_metadata_ro_entry_t Parameters::staticInfo(uint32_t tag,
 status_t Parameters::set(const String8& paramString) {
     status_t res;
 
-    CameraParameters newParams(paramString);
+    CameraParameters2 newParams(paramString);
 
     // TODO: Currently ignoring any changes to supposedly read-only parameters
     // such as supported preview sizes, etc. Should probably produce an error if
@@ -1127,29 +1131,73 @@ status_t Parameters::set(const String8& paramString) {
     // RECORDING_HINT (always supported)
     validatedParams.recordingHint = boolFromString(
         newParams.get(CameraParameters::KEY_RECORDING_HINT) );
-    bool recordingHintChanged = validatedParams.recordingHint != recordingHint;
-    ALOGV_IF(recordingHintChanged, "%s: Recording hint changed to %d",
-            __FUNCTION__, recordingHintChanged);
+    IF_ALOGV() { // Avoid unused variable warning
+        bool recordingHintChanged =
+                validatedParams.recordingHint != recordingHint;
+        if (recordingHintChanged) {
+            ALOGV("%s: Recording hint changed to %d",
+                  __FUNCTION__, validatedParams.recordingHint);
+        }
+    }
 
     // PREVIEW_FPS_RANGE
-    bool fpsRangeChanged = false;
-    int32_t lastSetFpsRange[2];
 
-    params.getPreviewFpsRange(&lastSetFpsRange[0], &lastSetFpsRange[1]);
-    lastSetFpsRange[0] /= kFpsToApiScale;
-    lastSetFpsRange[1] /= kFpsToApiScale;
+    /**
+     * Use the single FPS value if it was set later than the range.
+     * Otherwise, use the range value.
+     */
+    bool fpsUseSingleValue;
+    {
+        const char *fpsRange, *fpsSingle;
 
+        fpsRange = newParams.get(CameraParameters::KEY_PREVIEW_FRAME_RATE);
+        fpsSingle = newParams.get(CameraParameters::KEY_PREVIEW_FPS_RANGE);
+
+        /**
+         * Pick either the range or the single key if only one was set.
+         *
+         * If both are set, pick the one that has greater set order.
+         */
+        if (fpsRange == NULL && fpsSingle == NULL) {
+            ALOGE("%s: FPS was not set. One of %s or %s must be set.",
+                  __FUNCTION__, CameraParameters::KEY_PREVIEW_FRAME_RATE,
+                  CameraParameters::KEY_PREVIEW_FPS_RANGE);
+            return BAD_VALUE;
+        } else if (fpsRange == NULL) {
+            fpsUseSingleValue = true;
+            ALOGV("%s: FPS range not set, using FPS single value",
+                  __FUNCTION__);
+        } else if (fpsSingle == NULL) {
+            fpsUseSingleValue = false;
+            ALOGV("%s: FPS single not set, using FPS range value",
+                  __FUNCTION__);
+        } else {
+            int fpsKeyOrder;
+            res = newParams.compareSetOrder(
+                    CameraParameters::KEY_PREVIEW_FRAME_RATE,
+                    CameraParameters::KEY_PREVIEW_FPS_RANGE,
+                    &fpsKeyOrder);
+            LOG_ALWAYS_FATAL_IF(res != OK, "Impossibly bad FPS keys");
+
+            fpsUseSingleValue = (fpsKeyOrder > 0);
+
+        }
+
+        ALOGV("%s: Preview FPS value is used from '%s'",
+              __FUNCTION__, fpsUseSingleValue ? "single" : "range");
+    }
     newParams.getPreviewFpsRange(&validatedParams.previewFpsRange[0],
             &validatedParams.previewFpsRange[1]);
+
     validatedParams.previewFpsRange[0] /= kFpsToApiScale;
     validatedParams.previewFpsRange[1] /= kFpsToApiScale;
 
-    // Compare the FPS range value from the last set() to the current set()
-    // to determine if the client has changed it
-    if (validatedParams.previewFpsRange[0] != lastSetFpsRange[0] ||
-            validatedParams.previewFpsRange[1] != lastSetFpsRange[1]) {
+    // Ignore the FPS range if the FPS single has higher precedence
+    if (!fpsUseSingleValue) {
+        ALOGV("%s: Preview FPS range (%d, %d)", __FUNCTION__,
+                validatedParams.previewFpsRange[0],
+                validatedParams.previewFpsRange[1]);
 
-        fpsRangeChanged = true;
         camera_metadata_ro_entry_t availablePreviewFpsRanges =
             staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES, 2);
         for (i = 0; i < availablePreviewFpsRanges.count; i += 2) {
@@ -1200,14 +1248,13 @@ status_t Parameters::set(const String8& paramString) {
         }
     }
 
-    // PREVIEW_FRAME_RATE Deprecated, only use if the preview fps range is
-    // unchanged this time.  The single-value FPS is the same as the minimum of
-    // the range.  To detect whether the application has changed the value of
-    // previewFps, compare against their last-set preview FPS.
-    if (!fpsRangeChanged) {
+    // PREVIEW_FRAME_RATE Deprecated
+    // - Use only if the single FPS value was set later than the FPS range
+    if (fpsUseSingleValue) {
         int previewFps = newParams.getPreviewFrameRate();
-        int lastSetPreviewFps = params.getPreviewFrameRate();
-        if (previewFps != lastSetPreviewFps || recordingHintChanged) {
+        ALOGV("%s: Preview FPS single value requested: %d",
+              __FUNCTION__, previewFps);
+        {
             camera_metadata_ro_entry_t availableFrameRates =
                 staticInfo(ANDROID_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
             /**
@@ -1274,6 +1321,35 @@ status_t Parameters::set(const String8& paramString) {
                 validatedParams.previewFpsRange[1],
                 validatedParams.recordingHint);
         }
+    }
+
+    /**
+     * Update Preview FPS and Preview FPS ranges based on
+     * what we actually set.
+     *
+     * This updates the API-visible (Camera.Parameters#getParameters) values of
+     * the FPS fields, not only the internal versions.
+     *
+     * Order matters: The value that was set last takes precedence.
+     * - If the client does a setParameters(getParameters()) we retain
+     *   the same order for preview FPS.
+     */
+    if (!fpsUseSingleValue) {
+        // Set fps single, then fps range (range wins)
+        newParams.setPreviewFrameRate(
+                fpsFromRange(/*min*/validatedParams.previewFpsRange[0],
+                             /*max*/validatedParams.previewFpsRange[1]));
+        newParams.setPreviewFpsRange(
+                validatedParams.previewFpsRange[0] * kFpsToApiScale,
+                validatedParams.previewFpsRange[1] * kFpsToApiScale);
+    } else {
+        // Set fps range, then fps single (single wins)
+        newParams.setPreviewFpsRange(
+                validatedParams.previewFpsRange[0] * kFpsToApiScale,
+                validatedParams.previewFpsRange[1] * kFpsToApiScale);
+        // Set this to the same value, but with higher priority
+        newParams.setPreviewFrameRate(
+                newParams.getPreviewFrameRate());
     }
 
     // PICTURE_SIZE
@@ -1858,23 +1934,23 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
 
     size_t reqFocusingAreasSize = focusingAreas.size() * 5;
     int32_t *reqFocusingAreas = new int32_t[reqFocusingAreasSize];
-    for (size_t i = 0; i < reqFocusingAreasSize; i += 5) {
-        if (focusingAreas[i].weight != 0) {
+    for (size_t i = 0, j = 0; i < reqFocusingAreasSize; i += 5, j++) {
+        if (focusingAreas[j].weight != 0) {
             reqFocusingAreas[i + 0] =
-                    normalizedXToArray(focusingAreas[i].left);
+                    normalizedXToArray(focusingAreas[j].left);
             reqFocusingAreas[i + 1] =
-                    normalizedYToArray(focusingAreas[i].top);
+                    normalizedYToArray(focusingAreas[j].top);
             reqFocusingAreas[i + 2] =
-                    normalizedXToArray(focusingAreas[i].right);
+                    normalizedXToArray(focusingAreas[j].right);
             reqFocusingAreas[i + 3] =
-                    normalizedYToArray(focusingAreas[i].bottom);
+                    normalizedYToArray(focusingAreas[j].bottom);
         } else {
             reqFocusingAreas[i + 0] = 0;
             reqFocusingAreas[i + 1] = 0;
             reqFocusingAreas[i + 2] = 0;
             reqFocusingAreas[i + 3] = 0;
         }
-        reqFocusingAreas[i + 4] = focusingAreas[i].weight;
+        reqFocusingAreas[i + 4] = focusingAreas[j].weight;
     }
     res = request->update(ANDROID_CONTROL_AF_REGIONS,
             reqFocusingAreas, reqFocusingAreasSize);
@@ -1887,23 +1963,23 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
 
     size_t reqMeteringAreasSize = meteringAreas.size() * 5;
     int32_t *reqMeteringAreas = new int32_t[reqMeteringAreasSize];
-    for (size_t i = 0; i < reqMeteringAreasSize; i += 5) {
-        if (meteringAreas[i].weight != 0) {
+    for (size_t i = 0, j = 0; i < reqMeteringAreasSize; i += 5, j++) {
+        if (meteringAreas[j].weight != 0) {
             reqMeteringAreas[i + 0] =
-                normalizedXToArray(meteringAreas[i].left);
+                normalizedXToArray(meteringAreas[j].left);
             reqMeteringAreas[i + 1] =
-                normalizedYToArray(meteringAreas[i].top);
+                normalizedYToArray(meteringAreas[j].top);
             reqMeteringAreas[i + 2] =
-                normalizedXToArray(meteringAreas[i].right);
+                normalizedXToArray(meteringAreas[j].right);
             reqMeteringAreas[i + 3] =
-                normalizedYToArray(meteringAreas[i].bottom);
+                normalizedYToArray(meteringAreas[j].bottom);
         } else {
             reqMeteringAreas[i + 0] = 0;
             reqMeteringAreas[i + 1] = 0;
             reqMeteringAreas[i + 2] = 0;
             reqMeteringAreas[i + 3] = 0;
         }
-        reqMeteringAreas[i + 4] = meteringAreas[i].weight;
+        reqMeteringAreas[i + 4] = meteringAreas[j].weight;
     }
     res = request->update(ANDROID_CONTROL_AE_REGIONS,
             reqMeteringAreas, reqMeteringAreasSize);

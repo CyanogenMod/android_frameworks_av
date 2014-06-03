@@ -34,13 +34,96 @@
 #include "net/proxy/proxy_config_service_android.h"
 
 #include "include/ChromiumHTTPDataSource.h"
-
+#include <arpa/inet.h>
+#include <binder/Parcel.h>
 #include <cutils/log.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 #include <string>
 
+#include <utils/Errors.h>
+#include <binder/IInterface.h>
+#include <binder/IServiceManager.h>
+
 namespace android {
+
+// must be kept in sync with interface defined in IAudioService.aidl
+class IAudioService : public IInterface
+{
+public:
+    DECLARE_META_INTERFACE(AudioService);
+
+    virtual int verifyX509CertChain(
+            const std::vector<std::string>& cert_chain,
+            const std::string& hostname,
+            const std::string& auth_type) = 0;
+};
+
+class BpAudioService : public BpInterface<IAudioService>
+{
+public:
+    BpAudioService(const sp<IBinder>& impl)
+        : BpInterface<IAudioService>(impl)
+    {
+    }
+
+    virtual int verifyX509CertChain(
+            const std::vector<std::string>& cert_chain,
+            const std::string& hostname,
+            const std::string& auth_type)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioService::getInterfaceDescriptor());
+
+        // The vector of std::string we get isn't really a vector of strings,
+        // but rather a vector of binary certificate data. If we try to pass
+        // it to Java language code as a string, it ends up mangled on the other
+        // side, so send them as bytes instead.
+        // Since we can't send an array of byte arrays, send a single array,
+        // which will be split out by the recipient.
+
+        int numcerts = cert_chain.size();
+        data.writeInt32(numcerts);
+        size_t total = 0;
+        for (int i = 0; i < numcerts; i++) {
+            total += cert_chain[i].size();
+        }
+        size_t bytesize = total + numcerts * 4;
+        uint8_t *bytes = (uint8_t*) malloc(bytesize);
+        if (!bytes) {
+            return 5; // SSL_INVALID
+        }
+        ALOGV("%d certs: %d -> %d", numcerts, total, bytesize);
+
+        int offset = 0;
+        for (int i = 0; i < numcerts; i++) {
+            int32_t certsize = cert_chain[i].size();
+            // store this in a known order, which just happens to match the default
+            // byte order of a java ByteBuffer
+            int32_t bigsize = htonl(certsize);
+            ALOGV("cert %d, size %d", i, certsize);
+            memcpy(bytes + offset, &bigsize, sizeof(bigsize));
+            offset += sizeof(bigsize);
+            memcpy(bytes + offset, cert_chain[i].data(), certsize);
+            offset += certsize;
+        }
+        data.writeByteArray(bytesize, bytes);
+        free(bytes);
+        data.writeString16(String16(hostname.c_str()));
+        data.writeString16(String16(auth_type.c_str()));
+
+        int32_t result;
+        if (remote()->transact(IBinder::FIRST_CALL_TRANSACTION, data, &reply) != NO_ERROR
+                || reply.readExceptionCode() < 0 || reply.readInt32(&result) != NO_ERROR) {
+            return 5; // SSL_INVALID;
+        }
+        return result;
+    }
+
+};
+
+IMPLEMENT_META_INTERFACE(AudioService, "android.media.IAudioService");
+
 
 static Mutex gNetworkThreadLock;
 static base::Thread *gNetworkThread = NULL;
@@ -226,7 +309,24 @@ SfNetworkLibrary::VerifyResult SfNetworkLibrary::VerifyX509CertChain(
         const std::vector<std::string>& cert_chain,
         const std::string& hostname,
         const std::string& auth_type) {
-    return VERIFY_OK;
+
+    sp<IBinder> binder =
+        defaultServiceManager()->checkService(String16("audio"));
+    if (binder == 0) {
+        ALOGW("Thread cannot connect to the audio service");
+    } else {
+        sp<IAudioService> service = interface_cast<IAudioService>(binder);
+        int code = service->verifyX509CertChain(cert_chain, hostname, auth_type);
+        ALOGV("verified: %d", code);
+        if (code == -1) {
+            return VERIFY_OK;
+        } else if (code == 2) { // SSL_IDMISMATCH
+            return VERIFY_BAD_HOSTNAME;
+        } else if (code == 3) { // SSL_UNTRUSTED
+            return VERIFY_NO_TRUSTED_ROOT;
+        }
+    }
+    return VERIFY_INVOCATION_ERROR;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,6 +369,7 @@ bool SfDelegate::getUID(uid_t *uid) const {
 void SfDelegate::OnReceivedRedirect(
             net::URLRequest *request, const GURL &new_url, bool *defer_redirect) {
     MY_LOGV("OnReceivedRedirect");
+    mOwner->onRedirect(new_url.spec().c_str());
 }
 
 void SfDelegate::OnAuthRequired(
