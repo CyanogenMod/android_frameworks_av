@@ -71,7 +71,7 @@ typedef OMX_S16 ARM_BLOCK8x8[64];
 
 /* Alignment operation */
 
-#define armAlignToBytes(Ptr,N)      (Ptr + ( ((N-(int)Ptr)&(N-1)) / sizeof(*Ptr) ))
+#define armAlignToBytes(Ptr,N)      (Ptr + ( ((N-(intptr_t)Ptr)&(N-1)) / sizeof(*Ptr) ))
 #define armAlignTo2Bytes(Ptr)       armAlignToBytes(Ptr,2)
 #define armAlignTo4Bytes(Ptr)       armAlignToBytes(Ptr,4)
 #define armAlignTo8Bytes(Ptr)       armAlignToBytes(Ptr,8)
@@ -83,8 +83,8 @@ typedef OMX_S16 ARM_BLOCK8x8[64];
 #define armRetDataErrIf(condition, code) if(condition) { return (code); }
 
 #ifndef ALIGNMENT_DOESNT_MATTER
-#define armIsByteAligned(Ptr,N)     ((((int)(Ptr)) % N)==0)
-#define armNotByteAligned(Ptr,N)    ((((int)(Ptr)) % N)!=0)
+#define armIsByteAligned(Ptr,N)     ((((intptr_t)(Ptr)) % N)==0)
+#define armNotByteAligned(Ptr,N)    ((((intptr_t)(Ptr)) % N)!=0)
 #else
 #define armIsByteAligned(Ptr,N)     (1)
 #define armNotByteAligned(Ptr,N)    (0)
