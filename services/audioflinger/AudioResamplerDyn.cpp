@@ -460,9 +460,15 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
     const uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;   // stereo output
-    size_t inFrameCount = getInFrameCountRequired(outFrameCount) + (phaseFraction != 0);
-    ALOG_ASSERT(0 < inFrameCount && inFrameCount < (1U << 31));
     const uint32_t phaseWrapLimit = c.mL << c.mShift;
+    size_t inFrameCount = (phaseIncrement * (uint64_t)outFrameCount + phaseFraction)
+            / phaseWrapLimit;
+    // sanity check that inFrameCount is in signed 32 bit integer range.
+    ALOG_ASSERT(0 <= inFrameCount && inFrameCount < (1U << 31));
+
+    //ALOGV("inFrameCount:%d  outFrameCount:%d"
+    //        "  phaseIncrement:%u  phaseFraction:%u  phaseWrapLimit:%u",
+    //        inFrameCount, outFrameCount, phaseIncrement, phaseFraction, phaseWrapLimit);
 
     // NOTE: be very careful when modifying the code here. register
     // pressure is very high and a small change might cause the compiler
@@ -472,10 +478,17 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
     // the following logic is a bit convoluted to keep the main processing loop
     // as tight as possible with register allocation.
     while (outputIndex < outputSampleCount) {
-        // buffer is empty, fetch a new one
-        while (mBuffer.frameCount == 0) {
+        //ALOGV("LOOP: inFrameCount:%d  outputIndex:%d  outFrameCount:%d"
+        //        "  phaseFraction:%u  phaseWrapLimit:%u",
+        //        inFrameCount, outputIndex, outFrameCount, phaseFraction, phaseWrapLimit);
+
+        // check inputIndex overflow
+        ALOG_ASSERT(inputIndex <= mBuffer.frameCount, "inputIndex%d > frameCount%d",
+                inputIndex, mBuffer.frameCount);
+        // Buffer is empty, fetch a new one if necessary (inFrameCount > 0).
+        // We may not fetch a new buffer if the existing data is sufficient.
+        while (mBuffer.frameCount == 0 && inFrameCount > 0) {
             mBuffer.frameCount = inFrameCount;
-            ALOG_ASSERT(inFrameCount > 0);
             provider->getNextBuffer(&mBuffer,
                     calculateOutputPTS(outputIndex / 2));
             if (mBuffer.raw == NULL) {
@@ -486,9 +499,9 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
                 mInBuffer.template readAdvance<CHANNELS>(
                         impulse, c.mHalfNumCoefs,
                         reinterpret_cast<TI*>(mBuffer.raw), inputIndex);
+                inputIndex++;
                 phaseFraction -= phaseWrapLimit;
                 while (phaseFraction >= phaseWrapLimit) {
-                    inputIndex++;
                     if (inputIndex >= mBuffer.frameCount) {
                         inputIndex = 0;
                         provider->releaseBuffer(&mBuffer);
@@ -497,6 +510,7 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
                     mInBuffer.template readAdvance<CHANNELS>(
                             impulse, c.mHalfNumCoefs,
                             reinterpret_cast<TI*>(mBuffer.raw), inputIndex);
+                    inputIndex++;
                     phaseFraction -= phaseWrapLimit;
                 }
             }
@@ -507,9 +521,6 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
         const int halfNumCoefs = c.mHalfNumCoefs;
         const TO* const volumeSimd = mVolumeSimd;
 
-        // reread the last input in.
-        mInBuffer.template readAgain<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
-
         // main processing loop
         while (CC_LIKELY(outputIndex < outputSampleCount)) {
             // caution: fir() is inlined and may be large.
@@ -518,6 +529,10 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
             // from the input samples in impulse[-halfNumCoefs+1]... impulse[halfNumCoefs]
             // from the polyphase filter of (phaseFraction / phaseWrapLimit) in coefs.
             //
+            //ALOGV("LOOP2: inFrameCount:%d  outputIndex:%d  outFrameCount:%d"
+            //        "  phaseFraction:%u  phaseWrapLimit:%u",
+            //        inFrameCount, outputIndex, outFrameCount, phaseFraction, phaseWrapLimit);
+            ALOG_ASSERT(phaseFraction < phaseWrapLimit);
             fir<CHANNELS, LOCKED, STRIDE>(
                     &out[outputIndex],
                     phaseFraction, phaseWrapLimit,
@@ -527,17 +542,20 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
 
             phaseFraction += phaseIncrement;
             while (phaseFraction >= phaseWrapLimit) {
-                inputIndex++;
                 if (inputIndex >= frameCount) {
                     goto done;  // need a new buffer
                 }
                 mInBuffer.template readAdvance<CHANNELS>(impulse, halfNumCoefs, in, inputIndex);
+                inputIndex++;
                 phaseFraction -= phaseWrapLimit;
             }
         }
 done:
-        // often arrives here when input buffer runs out
-        if (inputIndex >= frameCount) {
+        // We arrive here when we're finished or when the input buffer runs out.
+        // Regardless we need to release the input buffer if we've acquired it.
+        if (inputIndex > 0) {  // we've acquired a buffer (alternatively could check frameCount)
+            ALOG_ASSERT(inputIndex == frameCount, "inputIndex(%d) != frameCount(%d)",
+                    inputIndex, frameCount);  // must have been fully read.
             inputIndex = 0;
             provider->releaseBuffer(&mBuffer);
             ALOG_ASSERT(mBuffer.frameCount == 0);
@@ -545,14 +563,12 @@ done:
     }
 
 resample_exit:
-    // Release frames to avoid the count being inaccurate for pts timing.
-    // TODO: Avoid this extra check by making fetch count exact. This is tricky
-    // due to the overfetching mechanism which loads unnecessarily when
-    // mBuffer.frameCount == 0.
-    if (inputIndex) {
-        mBuffer.frameCount = inputIndex;
-        provider->releaseBuffer(&mBuffer);
-    }
+    // inputIndex must be zero in all three cases:
+    // (1) the buffer never was been acquired; (2) the buffer was
+    // released at "done:"; or (3) getNextBuffer() failed.
+    ALOG_ASSERT(inputIndex == 0, "Releasing: inputindex:%d frameCount:%d  phaseFraction:%u",
+            inputIndex, mBuffer.frameCount, phaseFraction);
+    ALOG_ASSERT(mBuffer.frameCount == 0); // there must be no frames in the buffer
     mInBuffer.setImpulse(impulse);
     mPhaseFraction = phaseFraction;
 }
