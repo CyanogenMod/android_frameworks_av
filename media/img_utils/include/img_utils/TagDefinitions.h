@@ -172,8 +172,14 @@ enum {
     TAG_ARTIST = 0x013Bu,
     TAG_EXIFVERSION = 0x9000u,
     TAG_CFAREPEATPATTERNDIM = 0x828Du,
+    TAG_DATETIMEORIGINAL = 0x9003u,
     TAG_CFAPATTERN = 0x828Eu,
     TAG_SUBIFDS = 0x014Au,
+    TAG_TIFFEPSTANDARDID = 0x9216u,
+    TAG_EXPOSURETIME = 0x829Au,
+    TAG_ISOSPEEDRATINGS = 0x8827u,
+    TAG_FOCALLENGTH = 0x920Au,
+    TAG_FNUMBER = 0x829Du,
 };
 
 /**
@@ -206,6 +212,48 @@ const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
         SHORT,
         IFD_0,
         2,
+        UNDEFINED_ENDIAN
+    },
+    { // DateTimeOriginal
+        0x9003u,
+        ASCII,
+        IFD_0,
+        20,
+        UNDEFINED_ENDIAN
+    },
+    { // Tiff/EPStandardID
+        0x9216u,
+        BYTE,
+        IFD_0,
+        4,
+        UNDEFINED_ENDIAN
+    },
+    { // ExposureTime
+        0x829Au,
+        RATIONAL,
+        IFD_0,
+        0,
+        UNDEFINED_ENDIAN
+    },
+    { // ISOSpeedRatings
+        0x8827u,
+        SHORT,
+        IFD_0,
+        0,
+        UNDEFINED_ENDIAN
+    },
+    { // FocalLength
+        0x920Au,
+        RATIONAL,
+        IFD_0,
+        0,
+        UNDEFINED_ENDIAN
+    },
+    { // FNumber
+        0x829Du,
+        RATIONAL,
+        IFD_0,
+        0,
         UNDEFINED_ENDIAN
     },
     /*TODO: Remaining TIFF EP tags*/
