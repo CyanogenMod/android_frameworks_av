@@ -421,7 +421,6 @@ public:
             status = (status_t)reply.readInt32();
             *num_ports = (unsigned int)reply.readInt32();
         }
-        ALOGI("listAudioPorts() status %d got *num_ports %d", status, *num_ports);
         if (status == NO_ERROR) {
             if (numPortsReq > *num_ports) {
                 numPortsReq = *num_ports;
@@ -840,7 +839,6 @@ status_t BnAudioPolicyService::onTransact(
             status_t status = listAudioPorts(role, type, &numPorts, ports, &generation);
             reply->writeInt32(status);
             reply->writeInt32(numPorts);
-            ALOGI("LIST_AUDIO_PORTS status %d got numPorts %d", status, numPorts);
 
             if (status == NO_ERROR) {
                 if (numPortsReq > numPorts) {
