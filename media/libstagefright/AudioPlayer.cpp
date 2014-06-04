@@ -846,28 +846,37 @@ int64_t AudioPlayer::getRealTimeUsLocked() const {
 int64_t AudioPlayer::getOutputPlayPositionUs_l()
 {
     uint32_t playedSamples = 0;
+    status_t err = NO_ERROR;
+    int64_t renderedDuration = 0;
     uint32_t sampleRate = 0;
+
     if (mAudioSink != NULL) {
-        mAudioSink->getPosition(&playedSamples);
+        err = mAudioSink->getPosition(&playedSamples);
         sampleRate = mAudioSink->getSampleRate();
     } else if (mAudioTrack != NULL) {
-        mAudioTrack->getPosition(&playedSamples);
+        err = mAudioTrack->getPosition(&playedSamples);
         sampleRate = mAudioTrack->getSampleRate();
     }
+
     if (sampleRate != 0) {
         mSampleRate = sampleRate;
     }
-
-    int64_t playedUs;
-    if (mSampleRate != 0) {
-        playedUs = (static_cast<int64_t>(playedSamples) * 1000000 ) / mSampleRate;
+    // Send last known played postion if query to track fails
+    if ((err != NO_ERROR) && (mPositionTimeRealUs >= 0)) {
+        ALOGV("getOutputPlayPositionUs_l %lld", renderedDuration);
+        renderedDuration = mPositionTimeRealUs;
     } else {
-        playedUs = 0;
+        int64_t playedUs = 0;
+
+        if (mSampleRate != 0) {
+            playedUs = (static_cast<int64_t>(playedSamples) * 1000000 ) / mSampleRate;
+        }
+        // HAL position is relative to the first buffer we sent at mStartPosUs
+        renderedDuration = mStartPosUs + playedUs;
     }
 
-    // HAL position is relative to the first buffer we sent at mStartPosUs
-    const int64_t renderedDuration = mStartPosUs + playedUs;
     ALOGV("getOutputPlayPositionUs_l %lld", renderedDuration);
+
     return renderedDuration;
 }
 
