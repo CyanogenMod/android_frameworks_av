@@ -195,20 +195,23 @@ protected:
         class AudioGain: public RefBase
         {
         public:
-            AudioGain();
+            AudioGain(int index, bool useInChannelMask);
             virtual ~AudioGain() {}
 
             void dump(int fd, int spaces, int index) const;
 
+            void getDefaultConfig(struct audio_gain_config *config);
+            status_t checkConfig(const struct audio_gain_config *config);
+            int               mIndex;
             struct audio_gain mGain;
+            bool              mUseInChannelMask;
         };
 
         class AudioPort: public virtual RefBase
         {
         public:
             AudioPort(const String8& name, audio_port_type_t type,
-                      audio_port_role_t role, const sp<HwModule>& module) :
-                mName(name), mType(type), mRole(role), mModule(module) {}
+                      audio_port_role_t role, const sp<HwModule>& module);
             virtual ~AudioPort() {}
 
             virtual void toAudioPort(struct audio_port *port) const;
@@ -219,14 +222,20 @@ protected:
             void loadInChannels(char *name);
 
             audio_gain_mode_t loadGainMode(char *name);
-            void loadGain(cnode *root);
+            void loadGain(cnode *root, int index);
             void loadGains(cnode *root);
+
+            status_t checkSamplingRate(uint32_t samplingRate) const;
+            status_t checkChannelMask(audio_channel_mask_t channelMask) const;
+            status_t checkFormat(audio_format_t format) const;
+            status_t checkGain(const struct audio_gain_config *gainConfig, int index) const;
 
             void dump(int fd, int spaces) const;
 
             String8           mName;
             audio_port_type_t mType;
             audio_port_role_t mRole;
+            bool              mUseInChannelMask;
             // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
             // indicates the supported parameters should be read from the output stream
             // after it is opened for the first time
@@ -243,6 +252,8 @@ protected:
             AudioPortConfig();
             virtual ~AudioPortConfig() {}
 
+            status_t applyAudioPortConfig(const struct audio_port_config *config,
+                                          struct audio_port_config *backupConfig = NULL);
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const = 0;
             sp<AudioPort> mAudioPort;

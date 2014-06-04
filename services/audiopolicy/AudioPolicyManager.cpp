@@ -2028,27 +2028,24 @@ status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *
     }
     ALOGV("setAudioPortConfig() on port handle %d", config->id);
     // Only support gain configuration for now
-    if (config->config_mask != AUDIO_PORT_CONFIG_GAIN || config->gain.index < 0) {
-        return BAD_VALUE;
+    if (config->config_mask != AUDIO_PORT_CONFIG_GAIN) {
+        return INVALID_OPERATION;
     }
 
-    sp<AudioPort> portDesc;
-    struct audio_port_config portConfig;
+    sp<AudioPortConfig> audioPortConfig;
     if (config->type == AUDIO_PORT_TYPE_MIX) {
         if (config->role == AUDIO_PORT_ROLE_SOURCE) {
             sp<AudioOutputDescriptor> outputDesc = getOutputFromId(config->id);
             if (outputDesc == NULL) {
                 return BAD_VALUE;
             }
-            portDesc = outputDesc->mProfile;
-            outputDesc->toAudioPortConfig(&portConfig);
+            audioPortConfig = outputDesc;
         } else if (config->role == AUDIO_PORT_ROLE_SINK) {
             sp<AudioInputDescriptor> inputDesc = getInputFromId(config->id);
             if (inputDesc == NULL) {
                 return BAD_VALUE;
             }
-            portDesc = inputDesc->mProfile;
-            inputDesc->toAudioPortConfig(&portConfig);
+            audioPortConfig = inputDesc;
         } else {
             return BAD_VALUE;
         }
@@ -2064,46 +2061,21 @@ status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *
         if (deviceDesc == NULL) {
             return BAD_VALUE;
         }
-        portDesc = deviceDesc;
-        deviceDesc->toAudioPortConfig(&portConfig);
+        audioPortConfig = deviceDesc;
     } else {
         return BAD_VALUE;
     }
 
-    if ((size_t)config->gain.index >= portDesc->mGains.size()) {
-        return INVALID_OPERATION;
+    struct audio_port_config backupConfig;
+    status_t status = audioPortConfig->applyAudioPortConfig(config, &backupConfig);
+    if (status == NO_ERROR) {
+        struct audio_port_config newConfig;
+        audioPortConfig->toAudioPortConfig(&newConfig, config);
+        status = mpClientInterface->setAudioPortConfig(&newConfig, 0);
     }
-    const struct audio_gain *gain = &portDesc->mGains[config->gain.index]->mGain;
-    if ((config->gain.mode & ~gain->mode) != 0) {
-        return BAD_VALUE;
+    if (status != NO_ERROR) {
+        audioPortConfig->applyAudioPortConfig(&backupConfig);
     }
-    if ((config->gain.mode & AUDIO_GAIN_MODE_JOINT) == AUDIO_GAIN_MODE_JOINT) {
-        if ((config->gain.values[0] < gain->min_value) ||
-                    (config->gain.values[0] > gain->max_value)) {
-            return BAD_VALUE;
-        }
-    } else {
-        if ((config->gain.channel_mask & ~gain->channel_mask) != 0) {
-            return BAD_VALUE;
-        }
-        size_t numValues = popcount(config->gain.channel_mask);
-        for (size_t i = 0; i < numValues; i++) {
-            if ((config->gain.values[i] < gain->min_value) ||
-                    (config->gain.values[i] > gain->max_value)) {
-                return BAD_VALUE;
-            }
-        }
-    }
-    if ((config->gain.mode & AUDIO_GAIN_MODE_RAMP) == AUDIO_GAIN_MODE_RAMP) {
-        if ((config->gain.ramp_duration_ms < gain->min_ramp_ms) ||
-                    (config->gain.ramp_duration_ms > gain->max_ramp_ms)) {
-            return BAD_VALUE;
-        }
-    }
-
-    portConfig.gain = config->gain;
-
-    status_t status = mpClientInterface->setAudioPortConfig(&portConfig, 0);
 
     return status;
 }
@@ -4412,6 +4384,9 @@ AudioPolicyManager::AudioOutputDescriptor::AudioOutputDescriptor(
         mSamplingRate = profile->mSamplingRates[0];
         mFormat = profile->mFormats[0];
         mChannelMask = profile->mChannelMasks[0];
+        if (profile->mGains.size() > 0) {
+            profile->mGains[0]->getDefaultConfig(&mGain);
+        }
         mFlags = profile->mFlags;
     }
 }
@@ -4587,6 +4562,9 @@ AudioPolicyManager::AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfil
         mSamplingRate = profile->mSamplingRates[0];
         mFormat = profile->mFormats[0];
         mChannelMask = profile->mChannelMasks[0];
+        if (profile->mGains.size() > 0) {
+            profile->mGains[0]->getDefaultConfig(&mGain);
+        }
     } else {
         mSamplingRate = 0;
         mFormat = AUDIO_FORMAT_DEFAULT;
@@ -4896,6 +4874,15 @@ void AudioPolicyManager::HwModule::dump(int fd)
 
 // --- AudioPort class implementation
 
+
+AudioPolicyManager::AudioPort::AudioPort(const String8& name, audio_port_type_t type,
+          audio_port_role_t role, const sp<HwModule>& module) :
+    mName(name), mType(type), mRole(role), mModule(module)
+{
+    mUseInChannelMask = ((type == AUDIO_PORT_TYPE_DEVICE) && (role == AUDIO_PORT_ROLE_SOURCE)) ||
+                    ((type == AUDIO_PORT_TYPE_MIX) && (role == AUDIO_PORT_ROLE_SINK));
+}
+
 void AudioPolicyManager::AudioPort::toAudioPort(struct audio_port *port) const
 {
     port->role = mRole;
@@ -5031,18 +5018,17 @@ audio_gain_mode_t AudioPolicyManager::AudioPort::loadGainMode(char *name)
     return mode;
 }
 
-void AudioPolicyManager::AudioPort::loadGain(cnode *root)
+void AudioPolicyManager::AudioPort::loadGain(cnode *root, int index)
 {
     cnode *node = root->first_child;
 
-    sp<AudioGain> gain = new AudioGain();
+    sp<AudioGain> gain = new AudioGain(index, mUseInChannelMask);
 
     while (node) {
         if (strcmp(node->name, GAIN_MODE) == 0) {
             gain->mGain.mode = loadGainMode((char *)node->value);
         } else if (strcmp(node->name, GAIN_CHANNELS) == 0) {
-            if ((mType == AUDIO_PORT_TYPE_DEVICE && mRole == AUDIO_PORT_ROLE_SOURCE) ||
-                    (mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK)) {
+            if (mUseInChannelMask) {
                 gain->mGain.channel_mask =
                         (audio_channel_mask_t)stringToEnum(sInChannelsNameToEnumTable,
                                                            ARRAY_SIZE(sInChannelsNameToEnumTable),
@@ -5081,11 +5067,51 @@ void AudioPolicyManager::AudioPort::loadGain(cnode *root)
 void AudioPolicyManager::AudioPort::loadGains(cnode *root)
 {
     cnode *node = root->first_child;
+    int index = 0;
     while (node) {
         ALOGV("loadGains() loading gain %s", node->name);
-        loadGain(node);
+        loadGain(node, index++);
         node = node->next;
     }
+}
+
+status_t AudioPolicyManager::AudioPort::checkSamplingRate(uint32_t samplingRate) const
+{
+    for (size_t i = 0; i < mSamplingRates.size(); i ++) {
+        if (mSamplingRates[i] == samplingRate) {
+            return NO_ERROR;
+        }
+    }
+    return BAD_VALUE;
+}
+
+status_t AudioPolicyManager::AudioPort::checkChannelMask(audio_channel_mask_t channelMask) const
+{
+    for (size_t i = 0; i < mChannelMasks.size(); i ++) {
+        if (mChannelMasks[i] == channelMask) {
+            return NO_ERROR;
+        }
+    }
+    return BAD_VALUE;
+}
+
+status_t AudioPolicyManager::AudioPort::checkFormat(audio_format_t format) const
+{
+    for (size_t i = 0; i < mFormats.size(); i ++) {
+        if (mFormats[i] == format) {
+            return NO_ERROR;
+        }
+    }
+    return BAD_VALUE;
+}
+
+status_t AudioPolicyManager::AudioPort::checkGain(const struct audio_gain_config *gainConfig,
+                                                  int index) const
+{
+    if (index < 0 || (size_t)index >= mGains.size()) {
+        return BAD_VALUE;
+    }
+    return mGains[index]->checkConfig(gainConfig);
 }
 
 void AudioPolicyManager::AudioPort::dump(int fd, int spaces) const
@@ -5146,9 +5172,70 @@ void AudioPolicyManager::AudioPort::dump(int fd, int spaces) const
 
 // --- AudioGain class implementation
 
-AudioPolicyManager::AudioGain::AudioGain()
+AudioPolicyManager::AudioGain::AudioGain(int index, bool useInChannelMask)
 {
+    mIndex = index;
+    mUseInChannelMask = useInChannelMask;
     memset(&mGain, 0, sizeof(struct audio_gain));
+}
+
+void AudioPolicyManager::AudioGain::getDefaultConfig(struct audio_gain_config *config)
+{
+    config->index = mIndex;
+    config->mode = mGain.mode;
+    config->channel_mask = mGain.channel_mask;
+    if ((mGain.mode & AUDIO_GAIN_MODE_JOINT) == AUDIO_GAIN_MODE_JOINT) {
+        config->values[0] = mGain.default_value;
+    } else {
+        uint32_t numValues;
+        if (mUseInChannelMask) {
+            numValues = audio_channel_count_from_in_mask(mGain.channel_mask);
+        } else {
+            numValues = audio_channel_count_from_out_mask(mGain.channel_mask);
+        }
+        for (size_t i = 0; i < numValues; i++) {
+            config->values[i] = mGain.default_value;
+        }
+    }
+    if ((mGain.mode & AUDIO_GAIN_MODE_RAMP) == AUDIO_GAIN_MODE_RAMP) {
+        config->ramp_duration_ms = mGain.min_ramp_ms;
+    }
+}
+
+status_t AudioPolicyManager::AudioGain::checkConfig(const struct audio_gain_config *config)
+{
+    if ((config->mode & ~mGain.mode) != 0) {
+        return BAD_VALUE;
+    }
+    if ((config->mode & AUDIO_GAIN_MODE_JOINT) == AUDIO_GAIN_MODE_JOINT) {
+        if ((config->values[0] < mGain.min_value) ||
+                    (config->values[0] > mGain.max_value)) {
+            return BAD_VALUE;
+        }
+    } else {
+        if ((config->channel_mask & ~mGain.channel_mask) != 0) {
+            return BAD_VALUE;
+        }
+        uint32_t numValues;
+        if (mUseInChannelMask) {
+            numValues = audio_channel_count_from_in_mask(config->channel_mask);
+        } else {
+            numValues = audio_channel_count_from_out_mask(config->channel_mask);
+        }
+        for (size_t i = 0; i < numValues; i++) {
+            if ((config->values[i] < mGain.min_value) ||
+                    (config->values[i] > mGain.max_value)) {
+                return BAD_VALUE;
+            }
+        }
+    }
+    if ((config->mode & AUDIO_GAIN_MODE_RAMP) == AUDIO_GAIN_MODE_RAMP) {
+        if ((config->ramp_duration_ms < mGain.min_ramp_ms) ||
+                    (config->ramp_duration_ms > mGain.max_ramp_ms)) {
+            return BAD_VALUE;
+        }
+    }
+    return NO_ERROR;
 }
 
 void AudioPolicyManager::AudioGain::dump(int fd, int spaces, int index) const
@@ -5187,6 +5274,59 @@ AudioPolicyManager::AudioPortConfig::AudioPortConfig()
     mChannelMask = AUDIO_CHANNEL_NONE;
     mFormat = AUDIO_FORMAT_INVALID;
     mGain.index = -1;
+}
+
+status_t AudioPolicyManager::AudioPortConfig::applyAudioPortConfig(
+                                                        const struct audio_port_config *config,
+                                                        struct audio_port_config *backupConfig)
+{
+    struct audio_port_config localBackupConfig;
+    status_t status = NO_ERROR;
+
+    localBackupConfig.config_mask = config->config_mask;
+    toAudioPortConfig(&localBackupConfig);
+
+    if (mAudioPort == 0) {
+        status = NO_INIT;
+        goto exit;
+    }
+    if (config->config_mask & AUDIO_PORT_CONFIG_SAMPLE_RATE) {
+        status = mAudioPort->checkSamplingRate(config->sample_rate);
+        if (status != NO_ERROR) {
+            goto exit;
+        }
+        mSamplingRate = config->sample_rate;
+    }
+    if (config->config_mask & AUDIO_PORT_CONFIG_CHANNEL_MASK) {
+        status = mAudioPort->checkChannelMask(config->channel_mask);
+        if (status != NO_ERROR) {
+            goto exit;
+        }
+        mChannelMask = config->channel_mask;
+    }
+    if (config->config_mask & AUDIO_PORT_CONFIG_FORMAT) {
+        status = mAudioPort->checkFormat(config->format);
+        if (status != NO_ERROR) {
+            goto exit;
+        }
+        mFormat = config->format;
+    }
+    if (config->config_mask & AUDIO_PORT_CONFIG_GAIN) {
+        status = mAudioPort->checkGain(&config->gain, config->gain.index);
+        if (status != NO_ERROR) {
+            goto exit;
+        }
+        mGain = config->gain;
+    }
+
+exit:
+    if (status != NO_ERROR) {
+        applyAudioPortConfig(&localBackupConfig);
+    }
+    if (backupConfig != NULL) {
+        *backupConfig = localBackupConfig;
+    }
+    return status;
 }
 
 void AudioPolicyManager::AudioPortConfig::toAudioPortConfig(
@@ -5263,32 +5403,13 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
      if ((mFlags & flags) != flags) {
          return false;
      }
-     size_t i;
-     for (i = 0; i < mSamplingRates.size(); i++)
-     {
-         if (mSamplingRates[i] == samplingRate) {
-             break;
-         }
-     }
-     if (i == mSamplingRates.size()) {
+     if (checkSamplingRate(samplingRate) != NO_ERROR) {
          return false;
      }
-     for (i = 0; i < mFormats.size(); i++)
-     {
-         if (mFormats[i] == format) {
-             break;
-         }
-     }
-     if (i == mFormats.size()) {
+     if (checkChannelMask(channelMask) != NO_ERROR) {
          return false;
      }
-     for (i = 0; i < mChannelMasks.size(); i++)
-     {
-         if (mChannelMasks[i] == channelMask) {
-             break;
-         }
-     }
-     if (i == mChannelMasks.size()) {
+     if (checkFormat(format) != NO_ERROR) {
          return false;
      }
      return true;
@@ -5350,6 +5471,9 @@ AudioPolicyManager::DeviceDescriptor::DeviceDescriptor(const String8& name, audi
                      mChannelMask(AUDIO_CHANNEL_NONE), mId(0)
 {
     mAudioPort = this;
+    if (mGains.size() > 0) {
+        mGains[0]->getDefaultConfig(&mGain);
+    }
 }
 
 bool AudioPolicyManager::DeviceDescriptor::equals(const sp<DeviceDescriptor>& other) const
