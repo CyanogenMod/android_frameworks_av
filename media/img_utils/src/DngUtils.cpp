@@ -19,7 +19,7 @@
 namespace android {
 namespace img_utils {
 
-OpcodeListBuilder::OpcodeListBuilder() : mOpList(), mEndianOut(&mOpList, BIG) {
+OpcodeListBuilder::OpcodeListBuilder() : mCount(0), mOpList(), mEndianOut(&mOpList, BIG) {
     if(mEndianOut.open() != OK) {
         ALOGE("%s: Open failed.", __FUNCTION__);
     }
