@@ -470,6 +470,9 @@ status_t AudioPolicyService::listAudioPorts(audio_port_role_t role,
                                             unsigned int *generation)
 {
     Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -480,6 +483,9 @@ status_t AudioPolicyService::listAudioPorts(audio_port_role_t role,
 status_t AudioPolicyService::getAudioPort(struct audio_port *port)
 {
     Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -491,6 +497,9 @@ status_t AudioPolicyService::createAudioPatch(const struct audio_patch *patch,
         audio_patch_handle_t *handle)
 {
     Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -501,6 +510,9 @@ status_t AudioPolicyService::createAudioPatch(const struct audio_patch *patch,
 status_t AudioPolicyService::releaseAudioPatch(audio_patch_handle_t handle)
 {
     Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -514,6 +526,9 @@ status_t AudioPolicyService::listAudioPatches(unsigned int *num_patches,
         unsigned int *generation)
 {
     Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -524,6 +539,9 @@ status_t AudioPolicyService::listAudioPatches(unsigned int *num_patches,
 status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *config)
 {
     Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
