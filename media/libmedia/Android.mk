@@ -22,6 +22,10 @@ endif
 
 include $(CLEAR_VARS)
 
+ifeq ($(TARGET_BOARD_PLATFORM),mt6589)
+LOCAL_CFLAGS += -DMTK_MT6589
+endif
+
 LOCAL_SRC_FILES:= \
     AudioTrack.cpp \
     AudioTrackShared.cpp \
