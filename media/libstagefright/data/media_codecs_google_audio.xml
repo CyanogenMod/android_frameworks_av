@@ -24,6 +24,7 @@
         <MediaCodec name="OMX.google.g711.mlaw.decoder" type="audio/g711-mlaw" />
         <MediaCodec name="OMX.google.vorbis.decoder" type="audio/vorbis" />
         <MediaCodec name="OMX.google.opus.decoder" type="audio/opus" />
+        <MediaCodec name="OMX.google.raw.decoder" type="audio/raw" />
     </Decoders>
 
     <Encoders>
