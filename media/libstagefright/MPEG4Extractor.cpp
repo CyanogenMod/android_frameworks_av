@@ -478,11 +478,20 @@ status_t MPEG4Extractor::readMetaData() {
     off64_t offset = 0;
     status_t err;
     while (true) {
+        off64_t orig_offset = offset;
         err = parseChunk(&offset, 0);
-        if (err == OK) {
-            continue;
-        }
 
+        if (offset <= orig_offset) {
+            // only continue parsing if the offset was advanced,
+            // otherwise we might end up in an infinite loop
+            ALOGE("did not advance: 0x%lld->0x%lld", orig_offset, offset);
+            err = ERROR_MALFORMED;
+            break;
+        } else if (err == OK) {
+            continue;
+        } else if (err != UNKNOWN_ERROR) {
+            break;
+        }
         uint32_t hdr[2];
         if (mDataSource->readAt(offset, hdr, 8) < 8) {
             break;
@@ -505,8 +514,6 @@ status_t MPEG4Extractor::readMetaData() {
         } else {
             mFileMetaData->setCString(kKeyMIMEType, "audio/mp4");
         }
-
-        mInitCheck = OK;
     } else {
         mInitCheck = err;
     }
@@ -758,8 +765,25 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             // The smallest valid chunk is 16 bytes long in this case.
             return ERROR_MALFORMED;
         }
+    } else if (chunk_size == 0) {
+        if (depth == 0) {
+            // atom extends to end of file
+            off64_t sourceSize;
+            if (mDataSource->getSize(&sourceSize) == OK) {
+                chunk_size = (sourceSize - *offset);
+            } else {
+                // XXX could we just pick a "sufficiently large" value here?
+                ALOGE("atom size is 0, and data source has no size");
+                return ERROR_MALFORMED;
+            }
+        } else {
+            // not allowed for non-toplevel atoms, skip it
+            *offset += 4;
+            return OK;
+        }
     } else if (chunk_size < 8) {
         // The smallest valid chunk is 8 bytes long.
+        ALOGE("invalid chunk size: %d", int(chunk_size));
         return ERROR_MALFORMED;
     }
 
