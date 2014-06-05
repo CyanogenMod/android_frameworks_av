@@ -846,6 +846,7 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         // but only if initialization has already happened.
         if (mInputBufferCount != 0) {
             mInputBufferCount = 1;
+            mOutputBufferCount = -1;
         }
     } else {
         while (outputDelayRingBufferSamplesAvailable() > 0) {
