@@ -292,8 +292,8 @@ void TimedEventQueue::threadEntry() {
         if (event != NULL) {
             // Fire event with the lock NOT held.
             event->fire(this, now_us);
-            Mutex::Autolock autoLock(mLock);
             if (wakeLocked) {
+                Mutex::Autolock autoLock(mLock);
                 releaseWakeLock_l();
             }
         }
