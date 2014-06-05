@@ -37,6 +37,7 @@ NuPlayer::Decoder::Decoder(
     : mNotify(notify),
       mNativeWindow(nativeWindow),
       mBufferGeneration(0),
+      mPaused(true),
       mComponentName("decoder") {
     // Every decoder has its own looper because MediaCodec operations
     // are blocking, but NuPlayer needs asynchronous operations.
@@ -112,6 +113,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
             mOutputBuffers.size());
 
     requestCodecNotification();
+    mPaused = false;
 }
 
 void NuPlayer::Decoder::requestCodecNotification() {
@@ -352,6 +354,11 @@ void NuPlayer::Decoder::onFlush() {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatFlushCompleted);
     notify->post();
+    mPaused = true;
+}
+
+void NuPlayer::Decoder::onResume() {
+    mPaused = false;
 }
 
 void NuPlayer::Decoder::onShutdown() {
@@ -380,6 +387,7 @@ void NuPlayer::Decoder::onShutdown() {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatShutdownCompleted);
     notify->post();
+    mPaused = true;
 }
 
 void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
@@ -397,7 +405,9 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatCodecNotify:
         {
             if (!isStaleReply(msg)) {
-                while (handleAnInputBuffer()) {
+                if (!mPaused) {
+                    while (handleAnInputBuffer()) {
+                    }
                 }
 
                 while (handleAnOutputBuffer()) {
@@ -430,6 +440,12 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatResume:
+        {
+            onResume();
+            break;
+        }
+
         case kWhatShutdown:
         {
             onShutdown();
@@ -447,7 +463,7 @@ void NuPlayer::Decoder::signalFlush() {
 }
 
 void NuPlayer::Decoder::signalResume() {
-    // nothing to do
+    (new AMessage(kWhatResume, id()))->post();
 }
 
 void NuPlayer::Decoder::initiateShutdown() {

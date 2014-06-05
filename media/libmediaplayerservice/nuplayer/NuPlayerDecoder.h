@@ -87,11 +87,13 @@ private:
 
     void onConfigure(const sp<AMessage> &format);
     void onFlush();
+    void onResume();
     void onInputBufferFilled(const sp<AMessage> &msg);
     void onRenderBuffer(const sp<AMessage> &msg);
     void onShutdown();
 
     int32_t mBufferGeneration;
+    bool mPaused;
     AString mComponentName;
 
     bool supportsSeamlessAudioFormatChange(const sp<AMessage> &targetFormat) const;
