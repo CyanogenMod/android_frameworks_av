@@ -360,6 +360,7 @@ protected:
         static const VolumeCurvePoint sDefaultMediaVolumeCurve[AudioPolicyManager::VOLCNT];
         // volume curve for media strategy on speakers
         static const VolumeCurvePoint sSpeakerMediaVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sSpeakerMediaVolumeCurveDrc[AudioPolicyManager::VOLCNT];
         // volume curve for sonification strategy on speakers
         static const VolumeCurvePoint sSpeakerSonificationVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sSpeakerSonificationVolumeCurveDrc[AudioPolicyManager::VOLCNT];
