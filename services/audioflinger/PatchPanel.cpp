@@ -235,7 +235,7 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                 param.addInt(String8(AudioParameter::keyInputSource),
                                                      (int)patch->sinks[0].ext.mix.usecase.source);
 
-                ALOGW("createAudioPatch() AUDIO_PORT_TYPE_DEVICE setParameters %s",
+                ALOGV("createAudioPatch() AUDIO_PORT_TYPE_DEVICE setParameters %s",
                                                                       param.toString().string());
                 status = thread->setParameters(param.toString());
             }
@@ -354,7 +354,7 @@ status_t AudioFlinger::PatchPanel::releaseAudioPatch(audio_patch_handle_t handle
                 }
                 AudioParameter param;
                 param.addInt(String8(AudioParameter::keyRouting), 0);
-                ALOGW("releaseAudioPatch() AUDIO_PORT_TYPE_DEVICE setParameters %s",
+                ALOGV("releaseAudioPatch() AUDIO_PORT_TYPE_DEVICE setParameters %s",
                                                                       param.toString().string());
                 status = thread->setParameters(param.toString());
             }
