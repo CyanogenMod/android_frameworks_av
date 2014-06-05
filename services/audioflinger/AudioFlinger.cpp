@@ -169,7 +169,8 @@ AudioFlinger::AudioFlinger()
       mBtNrecIsOff(false),
       mIsLowRamDevice(true),
       mIsDeviceTypeKnown(false),
-      mGlobalEffectEnableTime(0)
+      mGlobalEffectEnableTime(0),
+      mPrimaryOutputSampleRate(0)
 {
     getpid_cached = getpid();
     char value[PROPERTY_VALUE_MAX];
@@ -1679,6 +1680,8 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             mHardwareStatus = AUDIO_HW_SET_MODE;
             hwDevHal->set_mode(hwDevHal, mMode);
             mHardwareStatus = AUDIO_HW_IDLE;
+
+            mPrimaryOutputSampleRate = config.sample_rate;
         }
         return id;
     }
