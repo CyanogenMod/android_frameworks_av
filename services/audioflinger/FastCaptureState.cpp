@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,29 +14,17 @@
  * limitations under the License.
  */
 
-#include "FastMixerState.h"
+#include "FastCaptureState.h"
 
 namespace android {
 
-FastTrack::FastTrack() :
-    mBufferProvider(NULL), mVolumeProvider(NULL),
-    mChannelMask(AUDIO_CHANNEL_OUT_STEREO), mFormat(AUDIO_FORMAT_INVALID), mGeneration(0)
+FastCaptureState::FastCaptureState() : FastThreadState(),
+    mInputSource(NULL), mInputSourceGen(0), mPipeSink(NULL), mPipeSinkGen(0), mFrameCount(0)
 {
 }
 
-FastTrack::~FastTrack()
+FastCaptureState::~FastCaptureState()
 {
 }
 
-FastMixerState::FastMixerState() : FastThreadState(),
-    // mFastTracks
-    mFastTracksGen(0), mTrackMask(0), mOutputSink(NULL), mOutputSinkGen(0),
-    mFrameCount(0), mTeeSink(NULL)
-{
-}
-
-FastMixerState::~FastMixerState()
-{
-}
-
-}   // namespace android
+}   // android

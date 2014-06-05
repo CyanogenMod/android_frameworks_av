@@ -134,10 +134,17 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         ssize_t filled = rear - front;
         // pipe should not be overfull
         if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-            ALOGE("Shared memory control block is corrupt (filled=%d); shutting down", filled);
-            mIsShutdown = true;
-            status = NO_INIT;
-            goto end;
+            if (mIsOut) {
+                ALOGE("Shared memory control block is corrupt (filled=%d, mFrameCount=%u); "
+                        "shutting down", filled, mFrameCount);
+                mIsShutdown = true;
+                status = NO_INIT;
+                goto end;
+            }
+            // for input, sync up on overrun
+            filled = 0;
+            cblk->u.mStreaming.mFront = rear;
+            (void) android_atomic_or(CBLK_OVERRUN, &cblk->mFlags);
         }
         // don't allow filling pipe beyond the nominal size
         size_t avail = mIsOut ? mFrameCount - filled : filled;

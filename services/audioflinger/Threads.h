@@ -356,6 +356,8 @@ public:
                 // If a thread does not have such a heap, this method returns 0.
                 virtual sp<MemoryDealer>    readOnlyHeap() const { return 0; }
 
+                virtual sp<IMemory> pipeMemory() const { return 0; }
+
     mutable     Mutex                   mLock;
 
 protected:
@@ -674,7 +676,8 @@ protected:
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
-    virtual int             getTrackName_l(audio_channel_mask_t channelMask, int sessionId) = 0;
+    virtual int             getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId) = 0;
     virtual void            deleteTrackName_l(int name) = 0;
 
     // Time to sleep between cycles when:
@@ -831,7 +834,8 @@ public:
 
 protected:
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    idleSleepTimeUs() const;
     virtual     uint32_t    suspendSleepTimeUs() const;
@@ -884,7 +888,8 @@ public:
                                                    status_t& status);
 
 protected:
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    activeSleepTimeUs() const;
     virtual     uint32_t    idleSleepTimeUs() const;
@@ -1059,6 +1064,8 @@ public:
 
     virtual sp<MemoryDealer>    readOnlyHeap() const { return mReadOnlyHeap; }
 
+    virtual sp<IMemory> pipeMemory() const { return mPipeMemory; }
+
             sp<AudioFlinger::RecordThread::RecordTrack>  createRecordTrack_l(
                     const sp<AudioFlinger::Client>& client,
                     uint32_t sampleRate,
@@ -1110,7 +1117,7 @@ public:
     static void syncStartEventCallback(const wp<SyncEvent>& event);
 
     virtual size_t      frameCount() const { return mFrameCount; }
-            bool        hasFastCapture() const { return false; }
+            bool        hasFastCapture() const { return mFastCapture != 0; }
 
 private:
             // Enter standby if not already in standby, and set mStandby flag
@@ -1140,4 +1147,40 @@ private:
             const sp<NBAIO_Sink>                mTeeSink;
 
             const sp<MemoryDealer>              mReadOnlyHeap;
+
+            // one-time initialization, no locks required
+            sp<FastCapture>                     mFastCapture;   // non-0 if there is also a fast capture
+            // FIXME audio watchdog thread
+
+            // contents are not guaranteed to be consistent, no locks required
+            FastCaptureDumpState                mFastCaptureDumpState;
+#ifdef STATE_QUEUE_DUMP
+            // FIXME StateQueue observer and mutator dump fields
+#endif
+            // FIXME audio watchdog dump
+
+            // accessible only within the threadLoop(), no locks required
+            //          mFastCapture->sq()      // for mutating and pushing state
+            int32_t     mFastCaptureFutex;      // for cold idle
+
+            // The HAL input source is treated as non-blocking,
+            // but current implementation is blocking
+            sp<NBAIO_Source>                    mInputSource;
+            // The source for the normal capture thread to read from: mInputSource or mPipeSource
+            sp<NBAIO_Source>                    mNormalSource;
+            // If a fast capture is present, the non-blocking pipe sink written to by fast capture,
+            // otherwise clear
+            sp<NBAIO_Sink>                      mPipeSink;
+            // If a fast capture is present, the non-blocking pipe source read by normal thread,
+            // otherwise clear
+            sp<NBAIO_Source>                    mPipeSource;
+            // Depth of pipe from fast capture to normal thread and fast clients, always power of 2
+            size_t                              mPipeFramesP2;
+            // If a fast capture is present, the Pipe as IMemory, otherwise clear
+            sp<IMemory>                         mPipeMemory;
+
+            static const size_t                 kFastCaptureLogSize = 4 * 1024;
+            sp<NBLog::Writer>                   mFastCaptureNBLogWriter;
+
+            bool                                mFastTrackAvail;    // true if fast track available
 };

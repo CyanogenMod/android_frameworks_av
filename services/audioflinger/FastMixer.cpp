@@ -37,6 +37,7 @@
 #include <cpustats/ThreadCpuUsage.h>
 #endif
 #endif
+#include <audio_utils/format.h>
 #include "AudioMixer.h"
 #include "FastMixer.h"
 
@@ -53,8 +54,12 @@ FastMixer::FastMixer() : FastThread(),
     outputSink(NULL),
     outputSinkGen(0),
     mixer(NULL),
-    mixBuffer(NULL),
-    mixBufferState(UNDEFINED),
+    mSinkBuffer(NULL),
+    mSinkBufferSize(0),
+    mMixerBuffer(NULL),
+    mMixerBufferSize(0),
+    mMixerBufferFormat(AUDIO_FORMAT_PCM_16_BIT),
+    mMixerBufferState(UNDEFINED),
     format(Format_Invalid),
     sampleRate(0),
     fastTracksGen(0),
@@ -109,7 +114,8 @@ void FastMixer::onIdle()
 void FastMixer::onExit()
 {
     delete mixer;
-    delete[] mixBuffer;
+    free(mMixerBuffer);
+    free(mSinkBuffer);
 }
 
 bool FastMixer::isSubClassCommand(FastThreadState::Command command)
@@ -155,14 +161,23 @@ void FastMixer::onStateChange()
         // FIXME to avoid priority inversion, don't delete here
         delete mixer;
         mixer = NULL;
-        delete[] mixBuffer;
-        mixBuffer = NULL;
+        free(mMixerBuffer);
+        mMixerBuffer = NULL;
+        free(mSinkBuffer);
+        mSinkBuffer = NULL;
         if (frameCount > 0 && sampleRate > 0) {
             // FIXME new may block for unbounded time at internal mutex of the heap
             //       implementation; it would be better to have normal mixer allocate for us
             //       to avoid blocking here and to prevent possible priority inversion
             mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
-            mixBuffer = new short[frameCount * FCC_2];
+            const size_t mixerFrameSize = FCC_2 * audio_bytes_per_sample(mMixerBufferFormat);
+            mMixerBufferSize = mixerFrameSize * frameCount;
+            (void)posix_memalign(&mMixerBuffer, 32, mMixerBufferSize);
+            const size_t sinkFrameSize = FCC_2 * audio_bytes_per_sample(format.mFormat);
+            if (sinkFrameSize > mixerFrameSize) { // need a sink buffer
+                mSinkBufferSize = sinkFrameSize * frameCount;
+                (void)posix_memalign(&mSinkBuffer, 32, mSinkBufferSize);
+            }
             periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
             underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
             overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
@@ -175,7 +190,7 @@ void FastMixer::onStateChange()
             forceNs = 0;
             warmupNs = 0;
         }
-        mixBufferState = UNDEFINED;
+        mMixerBufferState = UNDEFINED;
 #if !LOG_NDEBUG
         for (unsigned i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
             fastTrackNames[i] = -1;
@@ -193,7 +208,7 @@ void FastMixer::onStateChange()
     const unsigned currentTrackMask = current->mTrackMask;
     dumpState->mTrackMask = currentTrackMask;
     if (current->mFastTracksGen != fastTracksGen) {
-        ALOG_ASSERT(mixBuffer != NULL);
+        ALOG_ASSERT(mMixerBuffer != NULL);
         int name;
 
         // process removed tracks first to avoid running out of track names
@@ -224,13 +239,20 @@ void FastMixer::onStateChange()
             AudioBufferProvider *bufferProvider = fastTrack->mBufferProvider;
             ALOG_ASSERT(bufferProvider != NULL && fastTrackNames[i] == -1);
             if (mixer != NULL) {
-                name = mixer->getTrackName(fastTrack->mChannelMask, AUDIO_SESSION_OUTPUT_MIX);
+                name = mixer->getTrackName(fastTrack->mChannelMask,
+                        fastTrack->mFormat, AUDIO_SESSION_OUTPUT_MIX);
                 ALOG_ASSERT(name >= 0);
                 fastTrackNames[i] = name;
                 mixer->setBufferProvider(name, bufferProvider);
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
-                        (void *) mixBuffer);
+                        (void *) mMixerBuffer);
                 // newly allocated track names default to full scale volume
+                mixer->setParameter(
+                        name,
+                        AudioMixer::TRACK,
+                        AudioMixer::MIXER_FORMAT, (void *)mMixerBufferFormat);
+                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
+                        (void *)(uintptr_t)fastTrack->mFormat);
                 mixer->enable(name);
             }
             generations[i] = fastTrack->mGeneration;
@@ -252,13 +274,18 @@ void FastMixer::onStateChange()
                     ALOG_ASSERT(name >= 0);
                     mixer->setBufferProvider(name, bufferProvider);
                     if (fastTrack->mVolumeProvider == NULL) {
-                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                                (void *) MAX_GAIN_INT);
-                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                                (void *) MAX_GAIN_INT);
+                        float f = AudioMixer::UNITY_GAIN_FLOAT;
+                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0, &f);
+                        mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1, &f);
                     }
                     mixer->setParameter(name, AudioMixer::RESAMPLE,
                             AudioMixer::REMOVE, NULL);
+                    mixer->setParameter(
+                            name,
+                            AudioMixer::TRACK,
+                            AudioMixer::MIXER_FORMAT, (void *)mMixerBufferFormat);
+                    mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
+                            (void *)(uintptr_t)fastTrack->mFormat);
                     mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
                             (void *)(uintptr_t) fastTrack->mChannelMask);
                     // already enabled
@@ -281,7 +308,7 @@ void FastMixer::onWork()
     const size_t frameCount = current->mFrameCount;
 
     if ((command & FastMixerState::MIX) && (mixer != NULL) && isWarm) {
-        ALOG_ASSERT(mixBuffer != NULL);
+        ALOG_ASSERT(mMixerBuffer != NULL);
         // for each track, update volume and check for underrun
         unsigned currentTrackMask = current->mTrackMask;
         while (currentTrackMask != 0) {
@@ -309,12 +336,11 @@ void FastMixer::onWork()
             ALOG_ASSERT(name >= 0);
             if (fastTrack->mVolumeProvider != NULL) {
                 gain_minifloat_packed_t vlr = fastTrack->mVolumeProvider->getVolumeLR();
-                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0,
-                        (void *) (uintptr_t)
-                            (float_from_gain(gain_minifloat_unpack_left(vlr)) * MAX_GAIN_INT));
-                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1,
-                        (void *) (uintptr_t)
-                            (float_from_gain(gain_minifloat_unpack_right(vlr)) * MAX_GAIN_INT));
+                float vlf = float_from_gain(gain_minifloat_unpack_left(vlr));
+                float vrf = float_from_gain(gain_minifloat_unpack_right(vlr));
+
+                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0, &vlf);
+                mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1, &vrf);
             }
             // FIXME The current implementation of framesReady() for fast tracks
             // takes a tryLock, which can block
@@ -358,26 +384,31 @@ void FastMixer::onWork()
 
         // process() is CPU-bound
         mixer->process(pts);
-        mixBufferState = MIXED;
-    } else if (mixBufferState == MIXED) {
-        mixBufferState = UNDEFINED;
+        mMixerBufferState = MIXED;
+    } else if (mMixerBufferState == MIXED) {
+        mMixerBufferState = UNDEFINED;
     }
     //bool didFullWrite = false;    // dumpsys could display a count of partial writes
-    if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mixBuffer != NULL)) {
-        if (mixBufferState == UNDEFINED) {
-            memset(mixBuffer, 0, frameCount * FCC_2 * sizeof(short));
-            mixBufferState = ZEROED;
+    if ((command & FastMixerState::WRITE) && (outputSink != NULL) && (mMixerBuffer != NULL)) {
+        if (mMixerBufferState == UNDEFINED) {
+            memset(mMixerBuffer, 0, mMixerBufferSize);
+            mMixerBufferState = ZEROED;
+        }
+        void *buffer = mSinkBuffer != NULL ? mSinkBuffer : mMixerBuffer;
+        if (format.mFormat != mMixerBufferFormat) { // sink format not the same as mixer format
+            memcpy_by_audio_format(buffer, format.mFormat, mMixerBuffer, mMixerBufferFormat,
+                    frameCount * Format_channelCount(format));
         }
         // if non-NULL, then duplicate write() to this non-blocking sink
         NBAIO_Sink* teeSink;
         if ((teeSink = current->mTeeSink) != NULL) {
-            (void) teeSink->write(mixBuffer, frameCount);
+            (void) teeSink->write(mMixerBuffer, frameCount);
         }
         // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
         //       but this code should be modified to handle both non-blocking and blocking sinks
         dumpState->mWriteSequence++;
         ATRACE_BEGIN("write");
-        ssize_t framesWritten = outputSink->write(mixBuffer, frameCount);
+        ssize_t framesWritten = outputSink->write(buffer, frameCount);
         ATRACE_END();
         dumpState->mWriteSequence++;
         if (framesWritten >= 0) {
