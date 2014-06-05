@@ -25,7 +25,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libmediaplayerservice \
 	libutils \
 	liblog \
-	libbinder
+	libbinder \
+	libsoundtriggerservice
 
 LOCAL_STATIC_LIBRARIES := \
 	libregistermsext
@@ -36,7 +37,8 @@ LOCAL_C_INCLUDES := \
     frameworks/av/services/audioflinger \
     frameworks/av/services/audiopolicy \
     frameworks/av/services/camera/libcameraservice \
-    $(call include-path-for, audio-utils)
+    $(call include-path-for, audio-utils) \
+    frameworks/av/services/soundtrigger
 
 LOCAL_MODULE:= mediaserver
 LOCAL_32_BIT_ONLY := true
