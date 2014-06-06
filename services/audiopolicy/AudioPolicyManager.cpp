@@ -3984,6 +3984,11 @@ const AudioPolicyManager::VolumeCurvePoint
 };
 
 const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sSpeakerMediaVolumeCurveDrc[AudioPolicyManager::VOLCNT] = {
+    {1, -56.0f}, {20, -34.0f}, {86, -10.0f}, {100, 0.0f}
+};
+
+const AudioPolicyManager::VolumeCurvePoint
     AudioPolicyManager::sSpeakerSonificationVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -29.7f}, {33, -20.1f}, {66, -10.2f}, {100, 0.0f}
 };
@@ -4097,6 +4102,8 @@ void AudioPolicyManager::initializeVolumeCurves()
                 sSpeakerSonificationVolumeCurveDrc;
         mStreams[AUDIO_STREAM_NOTIFICATION].mVolumeCurve[DEVICE_CATEGORY_SPEAKER] =
                 sSpeakerSonificationVolumeCurveDrc;
+        mStreams[AUDIO_STREAM_MUSIC].mVolumeCurve[DEVICE_CATEGORY_SPEAKER] =
+                sSpeakerMediaVolumeCurveDrc;
     }
 }
 
