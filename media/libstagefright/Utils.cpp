@@ -217,6 +217,56 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt32("csd", true);
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-1", buffer);
+    } else if (meta->findData(kKeyHVCC, &type, &data, &size)) {
+        const uint8_t *ptr = (const uint8_t *)data;
+
+        CHECK(size >= 7);
+        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
+        uint8_t profile = ptr[1] & 31;
+        uint8_t level = ptr[12];
+        ptr += 22;
+        size -= 22;
+
+
+        size_t numofArrays = (char)ptr[0];
+        ptr += 1;
+        size -= 1;
+        size_t j = 0, i = 0;
+
+        sp<ABuffer> buffer = new ABuffer(1024);
+        buffer->setRange(0, 0);
+
+        for (i = 0; i < numofArrays; i++) {
+            ptr += 1;
+            size -= 1;
+
+            //Num of nals
+            size_t numofNals = U16_AT(ptr);
+
+            ptr += 2;
+            size -= 2;
+
+            for (j = 0; j < numofNals; j++) {
+                CHECK(size >= 2);
+                size_t length = U16_AT(ptr);
+
+                ptr += 2;
+                size -= 2;
+
+                CHECK(size >= length);
+
+                memcpy(buffer->data() + buffer->size(), "\x00\x00\x00\x01", 4);
+                memcpy(buffer->data() + buffer->size() + 4, ptr, length);
+                buffer->setRange(0, buffer->size() + 4 + length);
+
+                ptr += length;
+                size -= length;
+            }
+        }
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+        msg->setBuffer("csd-0", buffer);
+
     } else if (meta->findData(kKeyESDS, &type, &data, &size)) {
         ESDS esds((const char *)data, size);
         CHECK_EQ(esds.InitCheck(), (status_t)OK);

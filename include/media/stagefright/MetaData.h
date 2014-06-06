@@ -53,6 +53,7 @@ enum {
     kKeyESDS              = 'esds',  // raw data
     kKeyAACProfile        = 'aacp',  // int32_t
     kKeyAVCC              = 'avcc',  // raw data
+    kKeyHVCC              = 'hvcc',  // raw data
     kKeyD263              = 'd263',  // raw data
     kKeyVorbisInfo        = 'vinf',  // raw data
     kKeyVorbisBooks       = 'vboo',  // raw data
@@ -170,6 +171,7 @@ enum {
 enum {
     kTypeESDS        = 'esds',
     kTypeAVCC        = 'avcc',
+    kTypeHVCC        = 'hvcc',
     kTypeD263        = 'd263',
 };
 
