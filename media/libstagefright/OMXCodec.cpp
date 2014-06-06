@@ -4907,7 +4907,9 @@ status_t OMXCodec::stopOmxComponent_l() {
     CODEC_LOGV("stopOmxComponent_l mState=%d", mState);
 
     while (isIntermediateState(mState)) {
-        mAsyncCompletion.wait(mLock);
+        status_t err = mAsyncCompletion.waitRelative(mLock, 1000000000LL);
+        if (err == -ETIMEDOUT)
+            return (status_t)err;
     }
 
     bool isError = false;
