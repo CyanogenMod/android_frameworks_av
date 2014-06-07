@@ -359,8 +359,9 @@ protected:
 
             void dump(int fd);
 
-            const char *const mName; // base name of the audio HW module (primary, a2dp ...)
-            audio_module_handle_t mHandle;
+            const char *const        mName; // base name of the audio HW module (primary, a2dp ...)
+            uint32_t                 mHalVersion; // audio HAL API version
+            audio_module_handle_t    mHandle;
             Vector < sp<IOProfile> > mOutputProfiles; // output profiles exposed by this module
             Vector < sp<IOProfile> > mInputProfiles;  // input profiles exposed by this module
             DeviceVector             mDeclaredDevices; // devices declared in audio_policy.conf

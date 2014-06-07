@@ -4695,7 +4695,8 @@ status_t AudioPolicyManager::EffectDescriptor::dump(int fd)
 // --- HwModule class implementation
 
 AudioPolicyManager::HwModule::HwModule(const char *name)
-    : mName(strndup(name, AUDIO_HARDWARE_MODULE_ID_MAX_LEN)), mHandle(0)
+    : mName(strndup(name, AUDIO_HARDWARE_MODULE_ID_MAX_LEN)),
+      mHalVersion(AUDIO_DEVICE_API_VERSION_MIN), mHandle(0)
 {
 }
 
@@ -4853,6 +4854,8 @@ void AudioPolicyManager::HwModule::dump(int fd)
     snprintf(buffer, SIZE, "  - name: %s\n", mName);
     result.append(buffer);
     snprintf(buffer, SIZE, "  - handle: %d\n", mHandle);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "  - version: %u.%u\n", mHalVersion >> 8, mHalVersion & 0xFF);
     result.append(buffer);
     write(fd, result.string(), result.size());
     if (mOutputProfiles.size()) {
@@ -5816,6 +5819,7 @@ void AudioPolicyManager::loadHwModules(cnode *root)
 void AudioPolicyManager::loadGlobalConfig(cnode *root, const sp<HwModule>& module)
 {
     cnode *node = config_find(root, GLOBAL_CONFIG_TAG);
+
     if (node == NULL) {
         return;
     }
@@ -5848,6 +5852,12 @@ void AudioPolicyManager::loadGlobalConfig(cnode *root, const sp<HwModule>& modul
         } else if (strcmp(SPEAKER_DRC_ENABLED_TAG, node->name) == 0) {
             mSpeakerDrcEnabled = stringToBool((char *)node->value);
             ALOGV("loadGlobalConfig() mSpeakerDrcEnabled = %d", mSpeakerDrcEnabled);
+        } else if (strcmp(AUDIO_HAL_VERSION_TAG, node->name) == 0) {
+            uint32_t major, minor;
+            sscanf((char *)node->value, "%u.%u", &major, &minor);
+            module->mHalVersion = HARDWARE_DEVICE_API_VERSION(major, minor);
+            ALOGV("loadGlobalConfig() mHalVersion = %04x major %u minor %u",
+                  module->mHalVersion, major, minor);
         }
         node = node->next;
     }
