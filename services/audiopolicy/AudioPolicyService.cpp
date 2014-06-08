@@ -399,7 +399,8 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
     mLock.lock();
     while (!exitPending())
     {
-        while (!mAudioCommands.isEmpty()) {
+        sp<AudioPolicyService> svc;
+        while (!mAudioCommands.isEmpty() && !exitPending()) {
             nsecs_t curTime = systemTime();
             // commands are sorted by increasing time stamp: execute them from index 0 and up
             if (mAudioCommands[0]->mTime <= curTime) {
@@ -452,7 +453,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     StopOutputData *data = (StopOutputData *)command->mParam.get();
                     ALOGV("AudioCommandThread() processing stop output %d",
                             data->mIO);
-                    sp<AudioPolicyService> svc = mService.promote();
+                    svc = mService.promote();
                     if (svc == 0) {
                         break;
                     }
@@ -464,7 +465,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     ReleaseOutputData *data = (ReleaseOutputData *)command->mParam.get();
                     ALOGV("AudioCommandThread() processing release output %d",
                             data->mIO);
-                    sp<AudioPolicyService> svc = mService.promote();
+                    svc = mService.promote();
                     if (svc == 0) {
                         break;
                     }
@@ -494,7 +495,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     } break;
                 case UPDATE_AUDIOPORT_LIST: {
                     ALOGV("AudioCommandThread() processing update audio port list");
-                    sp<AudioPolicyService> svc = mService.promote();
+                    svc = mService.promote();
                     if (svc == 0) {
                         break;
                     }
@@ -504,7 +505,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     }break;
                 case UPDATE_AUDIOPATCH_LIST: {
                     ALOGV("AudioCommandThread() processing update audio patch list");
-                    sp<AudioPolicyService> svc = mService.promote();
+                    svc = mService.promote();
                     if (svc == 0) {
                         break;
                     }
@@ -542,9 +543,16 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
         if (mAudioCommands.isEmpty()) {
             release_wake_lock(mName.string());
         }
-        ALOGV("AudioCommandThread() going to sleep");
-        mWaitWorkCV.waitRelative(mLock, waitTime);
-        ALOGV("AudioCommandThread() waking up");
+        // release mLock before releasing strong reference on the service as
+        // AudioPolicyService destructor calls AudioCommandThread::exit() which acquires mLock.
+        mLock.unlock();
+        svc.clear();
+        mLock.lock();
+        if (!exitPending()) {
+            ALOGV("AudioCommandThread() going to sleep");
+            mWaitWorkCV.waitRelative(mLock, waitTime);
+            ALOGV("AudioCommandThread() waking up");
+        }
     }
     mLock.unlock();
     return false;
