@@ -49,7 +49,7 @@ namespace {
         DeathNotifier() {
         }
 
-        virtual void binderDied(const wp<IBinder>& who) {
+        virtual void binderDied(const wp<IBinder>& /*who*/) {
             ALOGV("binderDied");
             Mutex::Autolock _l(gLock);
             gCameraService.clear();
@@ -153,7 +153,7 @@ status_t CameraBase<TCam, TCamTraits>::getStatus()
 }
 
 template <typename TCam, typename TCamTraits>
-void CameraBase<TCam, TCamTraits>::binderDied(const wp<IBinder>& who) {
+void CameraBase<TCam, TCamTraits>::binderDied(const wp<IBinder>& /*who*/) {
     ALOGW("mediaserver's remote binder Camera object died");
     notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_SERVER_DIED, /*ext2*/0);
 }
