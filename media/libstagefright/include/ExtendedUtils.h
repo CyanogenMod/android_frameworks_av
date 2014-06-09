@@ -41,7 +41,7 @@
 #include <android/native_window.h>
 
 #define MIN_BITERATE_AAC 24000
-#define MAX_BITERATE_AAC 192000
+#define MAX_BITERATE_AAC 320000
 
 namespace android {
 
