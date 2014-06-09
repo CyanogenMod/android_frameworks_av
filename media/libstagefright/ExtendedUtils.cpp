@@ -41,6 +41,7 @@
 #include <media/stagefright/OMXCodec.h>
 #include <cutils/properties.h>
 #include <media/stagefright/MediaExtractor.h>
+#include <media/MediaProfiles.h>
 
 #include "include/ExtendedUtils.h"
 
@@ -68,6 +69,125 @@ static const uint8_t kHEVCNalUnitTypePicParamSet = 0x22;
 #include "include/avc_utils.h"
 
 namespace android {
+
+void ExtendedUtils::HFR::setHFRIfEnabled(
+        const CameraParameters& params,
+        sp<MetaData> &meta) {
+    const char *hfrParam = params.get("video-hfr");
+    int32_t hfr = -1;
+    if (hfrParam != NULL) {
+        hfr = atoi(hfrParam);
+        if (hfr > 0) {
+            ALOGI("Enabling HFR @ %d fps", hfr);
+            meta->setInt32(kKeyHFR, hfr);
+            return;
+        } else {
+            ALOGI("Invalid HFR rate specified : %d", hfr);
+        }
+    }
+
+    const char *hsrParam = params.get("video-hsr");
+    int32_t hsr = -1;
+    if (hsrParam != NULL ) {
+        hsr = atoi(hsrParam);
+        if (hsr > 0) {
+            ALOGI("Enabling HSR @ %d fps", hsr);
+            meta->setInt32(kKeyHSR, hsr);
+        } else {
+            ALOGI("Invalid HSR rate specified : %d", hfr);
+        }
+    }
+}
+
+status_t ExtendedUtils::HFR::initializeHFR(
+        const sp<MetaData> &meta, sp<AMessage> &format,
+        int64_t &maxFileDurationUs, video_encoder videoEncoder) {
+    status_t retVal = OK;
+
+    int32_t hsr = 0;
+    if (meta->findInt32(kKeyHSR, &hsr) && hsr > 0) {
+        ALOGI("HSR cue found. Override encode fps to %d", hsr);
+        format->setInt32("frame-rate", hsr);
+        return retVal;
+    }
+
+    int32_t hfr = 0;
+    if (!meta->findInt32(kKeyHFR, &hfr) || (hfr <= 0)) {
+        ALOGW("Invalid HFR rate specified");
+        return retVal;
+    }
+
+    int32_t width = 0, height = 0;
+    CHECK(meta->findInt32(kKeyWidth, &width));
+    CHECK(meta->findInt32(kKeyHeight, &height));
+
+    int maxW, maxH, MaxFrameRate, maxBitRate = 0;
+    if (getHFRCapabilities(videoEncoder,
+            maxW, maxH, MaxFrameRate, maxBitRate) < 0) {
+        ALOGE("Failed to query HFR target capabilities");
+        return ERROR_UNSUPPORTED;
+    }
+
+    if ((width * height * hfr) > (maxW * maxH * MaxFrameRate)) {
+        ALOGE("HFR request [%d x %d @%d fps] exceeds "
+                "[%d x %d @%d fps]. Will stay disabled",
+                width, height, hfr, maxW, maxH, MaxFrameRate);
+        return ERROR_UNSUPPORTED;
+    }
+
+    int32_t frameRate = 0, bitRate = 0;
+    CHECK(meta->findInt32(kKeyFrameRate, &frameRate));
+    CHECK(format->findInt32("bitrate", &bitRate));
+
+    if (frameRate) {
+        // scale the bitrate proportional to the hfr ratio
+        // to maintain quality, but cap it to max-supported.
+        bitRate = (hfr * bitRate) / frameRate;
+        bitRate = bitRate > maxBitRate ? maxBitRate : bitRate;
+        format->setInt32("bitrate", bitRate);
+
+        int32_t hfrRatio = hfr / frameRate;
+        format->setInt32("frame-rate", hfr);
+        format->setInt32("hfr-ratio", hfrRatio);
+    } else {
+        ALOGE("HFR: Invalid framerate");
+        return BAD_VALUE;
+    }
+
+    return retVal;
+}
+
+void ExtendedUtils::HFR::setHFRRatio(
+        sp<MetaData> &meta, const int32_t hfrRatio) {
+    if (hfrRatio > 0) {
+        meta->setInt32(kKeyHFR, hfrRatio);
+    }
+}
+
+int32_t ExtendedUtils::HFR::getHFRRatio(
+        const sp<MetaData> &meta) {
+    int32_t hfrRatio = 0;
+    meta->findInt32(kKeyHFR, &hfrRatio);
+    return hfrRatio ? hfrRatio : 1;
+}
+
+int32_t ExtendedUtils::HFR::getHFRCapabilities(
+        video_encoder codec,
+        int& maxHFRWidth, int& maxHFRHeight, int& maxHFRFps,
+        int& maxBitRate) {
+    maxHFRWidth = maxHFRHeight = maxHFRFps = maxBitRate = 0;
+    MediaProfiles *profiles = MediaProfiles::getInstance();
+
+    if (profiles) {
+        maxHFRWidth = profiles->getVideoEncoderParamByName("enc.vid.hfr.width.max", codec);
+        maxHFRHeight = profiles->getVideoEncoderParamByName("enc.vid.hfr.height.max", codec);
+        maxHFRFps = profiles->getVideoEncoderParamByName("enc.vid.hfr.mode.max", codec);
+        maxBitRate = profiles->getVideoEncoderParamByName("enc.vid.bps.max", codec);
+    }
+
+    return (maxHFRWidth > 0) && (maxHFRHeight > 0) &&
+            (maxHFRFps > 0) && (maxBitRate > 0) ? 1 : -1;
+}
 
 bool ExtendedUtils::HEVCMuxer::isVideoHEVC(const char* mime) {
     return (!strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
@@ -980,6 +1100,43 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
 #else //ENABLE_AV_ENHANCEMENTS
 
 namespace android {
+
+void ExtendedUtils::HFR::setHFRIfEnabled(
+        const CameraParameters& params, sp<MetaData> &meta) {
+    ARG_TOUCH(params);
+    ARG_TOUCH(meta);
+}
+
+status_t ExtendedUtils::HFR::initializeHFR(
+        const sp<MetaData> &meta, sp<AMessage> &format,
+        int64_t &maxFileDurationUs, video_encoder videoEncoder) {
+    ARG_TOUCH(meta);
+    ARG_TOUCH(format);
+    ARG_TOUCH(maxFileDurationUs);
+    ARG_TOUCH(videoEncoder);
+    return OK;
+}
+
+void ExtendedUtils::HFR::setHFRRatio(
+        sp<MetaData> &meta, const int32_t hfrRatio) {
+    ARG_TOUCH(meta);
+    ARG_TOUCH(hfrRatio);
+}
+
+int32_t ExtendedUtils::HFR::getHFRRatio(
+        const sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return 1;
+}
+
+int32_t ExtendedUtils::HFR::getHFRCapabilities(
+        video_encoder codec,
+        int& maxHFRWidth, int& maxHFRHeight, int& maxHFRFps,
+        int& maxBitRate) {
+    ARG_TOUCH(codec);
+    maxHFRWidth = maxHFRHeight = maxHFRFps = maxBitRate = 0;
+    return -1;
+}
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
     return false;

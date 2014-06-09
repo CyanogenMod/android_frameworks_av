@@ -1674,6 +1674,15 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("time-scale", mVideoTimeScale);
     }
 
+    if (cameraSource != NULL) {
+        sp<MetaData> meta = cameraSource->getFormat();
+        status_t retVal = ExtendedUtils::HFR::initializeHFR(
+                meta, format, mMaxFileDurationUs, mVideoEncoder);
+        if (retVal != OK) {
+            return retVal;
+        }
+    }
+
     ExtendedUtils::ShellProp::setEncoderProfile(mVideoEncoder,
             mVideoEncoderProfile, mVideoEncoderLevel);
 

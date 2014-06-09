@@ -34,6 +34,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/stagefright/Utils.h>
+#include "include/ExtendedUtils.h"
 
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <media/stagefright/MediaDefs.h>
@@ -446,8 +447,13 @@ status_t MediaCodecSource::initEncoder() {
         return err;
     }
 
+    int32_t hfrRatio = 0;
+    mOutputFormat->findInt32("hfr-ratio", &hfrRatio);
+
     mEncoder->getOutputFormat(&mOutputFormat);
     convertMessageToMetaData(mOutputFormat, mMeta);
+
+    ExtendedUtils::HFR::setHFRRatio(mMeta, hfrRatio);
 
     if (mFlags & FLAG_USE_SURFACE_INPUT) {
         CHECK(mIsVideo);

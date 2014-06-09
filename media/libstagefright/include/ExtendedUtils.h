@@ -30,6 +30,7 @@
 
 #include <utils/StrongPointer.h>
 #include <media/Metadata.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/MediaCodecList.h>
@@ -51,6 +52,51 @@ namespace android {
  * QC specific changes
  */
 struct ExtendedUtils {
+
+    /*
+     * This class is a placeholder for the set of methods used
+     * to enable HFR (High Frame Rate) Recording
+     *
+     * HFR is a slow-motion recording feature where framerate
+     * is increased at capture, but file is composed to play
+     * back at normal rate, giving a net result of slow-motion.
+     * If HFR factor = N
+     *   framerate (at capture and encoder) = N * actual value
+     *   bitrate = N * actual value
+     *      (as the encoder still gets actual timestamps)
+     *   timeStamps (at composition) = actual value
+     *   timeScale (at composition) = actual value / N
+     *      (when parser re-generates timestamps, they will be
+     *       up-scaled by factor N, which results in slow-motion)
+     *
+     * HSR is a high-framerate recording variant where timestamps
+     * are not meddled with, yielding a video mux'ed at captured
+     * fps
+     */
+    struct HFR {
+        // set kKeyHFR when 'video-hfr' paramater is enabled
+        // or set kKeyHSR when 'video-hsr' paramater is enabled
+        static void setHFRIfEnabled(
+                const CameraParameters& params, sp<MetaData> &meta);
+
+        // recalculate file-duration when HFR is enabled
+        static status_t initializeHFR(
+                const sp<MetaData> &meta, sp<AMessage> &format,
+                int64_t &maxFileDurationUs, video_encoder videoEncoder);
+
+        static void setHFRRatio(
+                sp<MetaData> &meta, const int32_t hfrRatio);
+
+        static int32_t getHFRRatio(
+                const sp<MetaData> &meta);
+
+        private:
+        // Query supported capabilities from target-specific profiles
+        static int32_t getHFRCapabilities(
+                video_encoder codec,
+                int& maxHFRWidth, int& maxHFRHeight, int& maxHFRFps,
+                int& maxBitrate);
+    };
 
     /*
      * This class is a placeholder for set of methods used
