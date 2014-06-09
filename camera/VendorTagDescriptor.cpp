@@ -213,7 +213,7 @@ status_t VendorTagDescriptor::createFromParcel(const Parcel* parcel,
             return res;
         }
         if (sectionCount < (maxSectionIndex + 1)) {
-            ALOGE("%s: Incorrect number of sections defined, received %d, needs %d.",
+            ALOGE("%s: Incorrect number of sections defined, received %zu, needs %d.",
                     __FUNCTION__, sectionCount, (maxSectionIndex + 1));
             return BAD_VALUE;
         }
@@ -222,14 +222,16 @@ status_t VendorTagDescriptor::createFromParcel(const Parcel* parcel,
         for (size_t i = 0; i < sectionCount; ++i) {
             String8 sectionName = parcel->readString8();
             if (sectionName.isEmpty()) {
-                ALOGE("%s: parcel section name was NULL for section %d.", __FUNCTION__, i);
+                ALOGE("%s: parcel section name was NULL for section %zu.",
+                      __FUNCTION__, i);
                 return NOT_ENOUGH_DATA;
             }
             desc->mSections.add(sectionName);
         }
     }
 
-    LOG_ALWAYS_FATAL_IF(tagCount != allTags.size(), "tagCount must be the same as allTags size");
+    LOG_ALWAYS_FATAL_IF(static_cast<size_t>(tagCount) != allTags.size(),
+                        "tagCount must be the same as allTags size");
     // Set up reverse mapping
     for (size_t i = 0; i < static_cast<size_t>(tagCount); ++i) {
         uint32_t tag = allTags[i];
@@ -409,7 +411,7 @@ sp<VendorTagDescriptor> VendorTagDescriptor::getGlobalVendorTagDescriptor() {
 
 extern "C" {
 
-int vendor_tag_descriptor_get_tag_count(const vendor_tag_ops_t* v) {
+int vendor_tag_descriptor_get_tag_count(const vendor_tag_ops_t* /*v*/) {
     Mutex::Autolock al(sLock);
     if (sGlobalVendorTagDescriptor == NULL) {
         ALOGE("%s: Vendor tag descriptor not initialized.", __FUNCTION__);
@@ -418,7 +420,7 @@ int vendor_tag_descriptor_get_tag_count(const vendor_tag_ops_t* v) {
     return sGlobalVendorTagDescriptor->getTagCount();
 }
 
-void vendor_tag_descriptor_get_all_tags(const vendor_tag_ops_t* v, uint32_t* tagArray) {
+void vendor_tag_descriptor_get_all_tags(const vendor_tag_ops_t* /*v*/, uint32_t* tagArray) {
     Mutex::Autolock al(sLock);
     if (sGlobalVendorTagDescriptor == NULL) {
         ALOGE("%s: Vendor tag descriptor not initialized.", __FUNCTION__);
@@ -427,7 +429,7 @@ void vendor_tag_descriptor_get_all_tags(const vendor_tag_ops_t* v, uint32_t* tag
     sGlobalVendorTagDescriptor->getTagArray(tagArray);
 }
 
-const char* vendor_tag_descriptor_get_section_name(const vendor_tag_ops_t* v, uint32_t tag) {
+const char* vendor_tag_descriptor_get_section_name(const vendor_tag_ops_t* /*v*/, uint32_t tag) {
     Mutex::Autolock al(sLock);
     if (sGlobalVendorTagDescriptor == NULL) {
         ALOGE("%s: Vendor tag descriptor not initialized.", __FUNCTION__);
@@ -436,7 +438,7 @@ const char* vendor_tag_descriptor_get_section_name(const vendor_tag_ops_t* v, ui
     return sGlobalVendorTagDescriptor->getSectionName(tag);
 }
 
-const char* vendor_tag_descriptor_get_tag_name(const vendor_tag_ops_t* v, uint32_t tag) {
+const char* vendor_tag_descriptor_get_tag_name(const vendor_tag_ops_t* /*v*/, uint32_t tag) {
     Mutex::Autolock al(sLock);
     if (sGlobalVendorTagDescriptor == NULL) {
         ALOGE("%s: Vendor tag descriptor not initialized.", __FUNCTION__);
@@ -445,7 +447,7 @@ const char* vendor_tag_descriptor_get_tag_name(const vendor_tag_ops_t* v, uint32
     return sGlobalVendorTagDescriptor->getTagName(tag);
 }
 
-int vendor_tag_descriptor_get_tag_type(const vendor_tag_ops_t* v, uint32_t tag) {
+int vendor_tag_descriptor_get_tag_type(const vendor_tag_ops_t* /*v*/, uint32_t tag) {
     Mutex::Autolock al(sLock);
     if (sGlobalVendorTagDescriptor == NULL) {
         ALOGE("%s: Vendor tag descriptor not initialized.", __FUNCTION__);

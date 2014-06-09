@@ -590,7 +590,8 @@ status_t CameraMetadata::writeToParcel(Parcel& data,
         const uintptr_t metadataStart = ALIGN_TO(blob.data(), alignment);
         offset = metadataStart - reinterpret_cast<uintptr_t>(blob.data());
         ALOGV("%s: alignment is: %zu, metadata start: %p, offset: %zu",
-                __FUNCTION__, alignment, metadataStart, offset);
+                __FUNCTION__, alignment,
+                reinterpret_cast<const void *>(metadataStart), offset);
         copy_camera_metadata(reinterpret_cast<void*>(metadataStart), metadataSize, metadata);
 
         // Not too big of a problem since receiving side does hard validation
