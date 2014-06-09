@@ -816,10 +816,15 @@ void AudioSystem::clearAudioConfigCache()
 
 bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
 {
+#ifndef ICS_AUDIO_BLOB
     ALOGV("isOffloadSupported()");
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return false;
     return aps->isOffloadSupported(info);
+#else
+    ALOGV("isOffloadSupported() non existant in ICS, false");
+    return false;
+#endif
 }
 
 // ---------------------------------------------------------------------------
