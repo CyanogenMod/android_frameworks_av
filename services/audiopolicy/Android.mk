@@ -46,8 +46,8 @@ LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
 
+
 ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
-ifneq ($(USE_CUSTOM_AUDIO_POLICY), 1)
 
 include $(CLEAR_VARS)
 
@@ -61,6 +61,20 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper
+
+LOCAL_MODULE:= libaudiopolicymanagerdefault
+
+include $(BUILD_SHARED_LIBRARY)
+
+ifneq ($(USE_CUSTOM_AUDIO_POLICY), 1)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \
+    AudioPolicyFactory.cpp
+
+LOCAL_SHARED_LIBRARIES := \
+    libaudiopolicymanagerdefault
 
 LOCAL_MODULE:= libaudiopolicymanager
 

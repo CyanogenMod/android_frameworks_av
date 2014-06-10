@@ -108,7 +108,7 @@ AudioPolicyService::AudioPolicyService()
     ALOGI("AudioPolicyService CSTOR in new mode");
 
     mAudioPolicyClient = new AudioPolicyClient(this);
-    mAudioPolicyManager = new AudioPolicyManager(mAudioPolicyClient);
+    mAudioPolicyManager = createAudioPolicyManager(mAudioPolicyClient);
 #endif
 
     // load audio pre processing modules
@@ -145,7 +145,7 @@ AudioPolicyService::~AudioPolicyService()
         audio_policy_dev_close(mpAudioPolicyDev);
     }
 #else
-    delete mAudioPolicyManager;
+    destroyAudioPolicyManager(mAudioPolicyManager);
     delete mAudioPolicyClient;
 #endif
 
