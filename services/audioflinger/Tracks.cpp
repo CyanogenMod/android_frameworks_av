@@ -370,7 +370,10 @@ AudioFlinger::PlaybackThread::Track::Track(
     mIsInvalid(false),
     mAudioTrackServerProxy(NULL),
     mResumeToStopping(false),
-    mFlushHwPending(false)
+    mFlushHwPending(false),
+    mPreviousValid(false),
+    mPreviousFramesWritten(0)
+    // mPreviousTimestamp
 {
     if (mCblk == NULL) {
         return;
@@ -835,27 +838,51 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
 {
     // Client should implement this using SSQ; the unpresented frame count in latch is irrelevant
     if (isFastTrack()) {
+        // FIXME no lock held to set mPreviousValid = false
         return INVALID_OPERATION;
     }
     sp<ThreadBase> thread = mThread.promote();
     if (thread == 0) {
+        // FIXME no lock held to set mPreviousValid = false
         return INVALID_OPERATION;
     }
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
     if (!isOffloaded()) {
         if (!playbackThread->mLatchQValid) {
+            mPreviousValid = false;
             return INVALID_OPERATION;
         }
         uint32_t unpresentedFrames =
                 ((int64_t) playbackThread->mLatchQ.mUnpresentedFrames * mSampleRate) /
                 playbackThread->mSampleRate;
         uint32_t framesWritten = mAudioTrackServerProxy->framesReleased();
+        bool checkPreviousTimestamp = mPreviousValid && framesWritten >= mPreviousFramesWritten;
         if (framesWritten < unpresentedFrames) {
+            mPreviousValid = false;
             return INVALID_OPERATION;
         }
-        timestamp.mPosition = framesWritten - unpresentedFrames;
-        timestamp.mTime = playbackThread->mLatchQ.mTimestamp.mTime;
+        mPreviousFramesWritten = framesWritten;
+        uint32_t position = framesWritten - unpresentedFrames;
+        struct timespec time = playbackThread->mLatchQ.mTimestamp.mTime;
+        if (checkPreviousTimestamp) {
+            if (time.tv_sec < mPreviousTimestamp.mTime.tv_sec ||
+                    (time.tv_sec == mPreviousTimestamp.mTime.tv_sec &&
+                    time.tv_nsec < mPreviousTimestamp.mTime.tv_nsec)) {
+                ALOGW("Time is going backwards");
+            }
+            // position can bobble slightly as an artifact; this hides the bobble
+            static const uint32_t MINIMUM_POSITION_DELTA = 8u;
+            if ((position <= mPreviousTimestamp.mPosition) ||
+                    (position - mPreviousTimestamp.mPosition) < MINIMUM_POSITION_DELTA) {
+                position = mPreviousTimestamp.mPosition;
+                time = mPreviousTimestamp.mTime;
+            }
+        }
+        timestamp.mPosition = position;
+        timestamp.mTime = time;
+        mPreviousTimestamp = timestamp;
+        mPreviousValid = true;
         return NO_ERROR;
     }
 
