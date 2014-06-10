@@ -367,8 +367,12 @@ status_t SoundTriggerHwService::Module::unloadSoundModel(sound_model_handle_t ha
     if (index < 0) {
         return BAD_VALUE;
     }
+    sp<Model> model = mModels.valueAt(index);
     mModels.removeItem(handle);
-
+    if (model->mState == Model::STATE_ACTIVE) {
+        mHwDevice->stop_recognition(mHwDevice, model->mHandle);
+        model->deallocateMemory();
+    }
     return mHwDevice->unload_sound_model(mHwDevice, handle);
 }
 
