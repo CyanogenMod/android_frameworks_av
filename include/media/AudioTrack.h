@@ -632,6 +632,8 @@ protected:
             nsecs_t processAudioBuffer();
 
             bool     isOffloaded() const;
+            bool     isDirect() const;
+            bool     isOffloadedOrDirect() const;
 
             // caller must hold lock on mLock for all _l methods
 
@@ -647,6 +649,13 @@ protected:
 
             bool     isOffloaded_l() const
                 { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
+
+            bool     isOffloadedOrDirect_l() const
+                { return (mFlags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|
+                                                AUDIO_OUTPUT_FLAG_DIRECT)) != 0; }
+
+            bool     isDirect_l() const
+                { return (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0; }
 
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
     sp<IAudioTrack>         mAudioTrack;

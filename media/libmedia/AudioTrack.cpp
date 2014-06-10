@@ -635,7 +635,7 @@ void AudioTrack::getAuxEffectSendLevel(float* level) const
 
 status_t AudioTrack::setSampleRate(uint32_t rate)
 {
-    if (mIsTimed || isOffloaded()) {
+    if (mIsTimed || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -666,7 +666,7 @@ uint32_t AudioTrack::getSampleRate() const
     // sample rate can be updated during playback by the offloaded decoder so we need to
     // query the HAL and update if needed.
 // FIXME use Proxy return channel to update the rate from server and avoid polling here
-    if (isOffloaded_l()) {
+    if (isOffloadedOrDirect_l()) {
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t sampleRate = 0;
             status_t status = AudioSystem::getSamplingRate(mOutput, &sampleRate);
@@ -680,7 +680,7 @@ uint32_t AudioTrack::getSampleRate() const
 
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    if (mSharedBuffer == 0 || mIsTimed || isOffloaded()) {
+    if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -714,7 +714,7 @@ void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 status_t AudioTrack::setMarkerPosition(uint32_t marker)
 {
     // The only purpose of setting marker position is to get a callback
-    if (mCbf == NULL || isOffloaded()) {
+    if (mCbf == NULL || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -727,7 +727,7 @@ status_t AudioTrack::setMarkerPosition(uint32_t marker)
 
 status_t AudioTrack::getMarkerPosition(uint32_t *marker) const
 {
-    if (isOffloaded()) {
+    if (isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
     if (marker == NULL) {
@@ -743,7 +743,7 @@ status_t AudioTrack::getMarkerPosition(uint32_t *marker) const
 status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
 {
     // The only purpose of setting position update period is to get a callback
-    if (mCbf == NULL || isOffloaded()) {
+    if (mCbf == NULL || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -756,7 +756,7 @@ status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
 
 status_t AudioTrack::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 {
-    if (isOffloaded()) {
+    if (isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
     if (updatePeriod == NULL) {
@@ -771,7 +771,7 @@ status_t AudioTrack::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 
 status_t AudioTrack::setPosition(uint32_t position)
 {
-    if (mSharedBuffer == 0 || mIsTimed || isOffloaded()) {
+    if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
     if (position > mFrameCount) {
@@ -804,10 +804,10 @@ status_t AudioTrack::getPosition(uint32_t *position) const
     }
 
     AutoMutex lock(mLock);
-    if (isOffloaded_l()) {
+    if (isOffloadedOrDirect_l()) {
         uint32_t dspFrames = 0;
 
-        if ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING)) {
+        if (isOffloaded_l() && ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING))) {
             ALOGV("getPosition called in paused state, return cached position %u", mPausedPosition);
             *position = mPausedPosition;
             return NO_ERROR;
@@ -842,7 +842,7 @@ status_t AudioTrack::getBufferPosition(uint32_t *position)
 
 status_t AudioTrack::reload()
 {
-    if (mSharedBuffer == 0 || mIsTimed || isOffloaded()) {
+    if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -1038,6 +1038,10 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
+    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        trackFlags |= IAudioFlinger::TRACK_DIRECT;
+    }
+
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
     sp<IAudioTrack> track = audioFlinger->createTrack(mStreamType,
@@ -1125,6 +1129,16 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         } else {
             ALOGW("AUDIO_OUTPUT_FLAG_OFFLOAD denied by server");
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+            // FIXME This is a warning, not an error, so don't return error status
+            //return NO_INIT;
+        }
+    }
+    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        if (trackFlags & IAudioFlinger::TRACK_DIRECT) {
+            ALOGV("AUDIO_OUTPUT_FLAG_DIRECT successful");
+        } else {
+            ALOGW("AUDIO_OUTPUT_FLAG_DIRECT denied by server");
+            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_DIRECT);
             // FIXME This is a warning, not an error, so don't return error status
             //return NO_INIT;
         }
@@ -1324,6 +1338,16 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
         return INVALID_OPERATION;
     }
 
+    if (isDirect()) {
+        AutoMutex lock(mLock);
+        int32_t flags = android_atomic_and(
+                            ~(CBLK_UNDERRUN | CBLK_LOOP_CYCLE | CBLK_LOOP_FINAL | CBLK_BUFFER_END),
+                            &mCblk->mFlags);
+        if (flags & CBLK_INVALID) {
+            return DEAD_OBJECT;
+        }
+    }
+
     if (ssize_t(userSize) < 0 || (buffer == NULL && userSize != 0)) {
         // Sanity-check: user is most-likely passing an error code, and it would
         // make the return value ambiguous (actualSize vs error).
@@ -1472,7 +1496,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         // for offloaded tracks restoreTrack_l() will just update the sequence and clear
         // AudioSystem cache. We should not exit here but after calling the callback so
         // that the upper layers can recreate the track
-        if (!isOffloaded_l() || (mSequence == mObservedSequence)) {
+        if (!isOffloadedOrDirect_l() || (mSequence == mObservedSequence)) {
             status_t status = restoreTrack_l("processAudioBuffer");
             mLock.unlock();
             // Run again immediately, but with a new IAudioTrack
@@ -1598,7 +1622,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         mObservedSequence = sequence;
         mCbf(EVENT_NEW_IAUDIOTRACK, mUserData, NULL);
         // for offloaded tracks, just wait for the upper layers to recreate the track
-        if (isOffloaded()) {
+        if (isOffloadedOrDirect()) {
             return NS_INACTIVE;
         }
     }
@@ -1756,7 +1780,7 @@ nsecs_t AudioTrack::processAudioBuffer()
 status_t AudioTrack::restoreTrack_l(const char *from)
 {
     ALOGW("dead IAudioTrack, %s, creating a new one from %s()",
-          isOffloaded_l() ? "Offloaded" : "PCM", from);
+          isOffloadedOrDirect_l() ? "Offloaded or Direct" : "PCM", from);
     ++mSequence;
     status_t result;
 
@@ -1764,7 +1788,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // output parameters in createTrack_l()
     AudioSystem::clearAudioConfigCache();
 
-    if (isOffloaded_l()) {
+    if (isOffloadedOrDirect_l()) {
         // FIXME re-creation of offloaded tracks is not yet implemented
         return DEAD_OBJECT;
     }
@@ -1849,6 +1873,19 @@ bool AudioTrack::isOffloaded() const
     AutoMutex lock(mLock);
     return isOffloaded_l();
 }
+
+bool AudioTrack::isDirect() const
+{
+    AutoMutex lock(mLock);
+    return isDirect_l();
+}
+
+bool AudioTrack::isOffloadedOrDirect() const
+{
+    AutoMutex lock(mLock);
+    return isOffloadedOrDirect_l();
+}
+
 
 status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
 {

@@ -706,7 +706,7 @@ void AudioFlinger::PlaybackThread::Track::stop()
             if (playbackThread->mActiveTracks.indexOf(this) < 0) {
                 reset();
                 mState = STOPPED;
-            } else if (!isFastTrack() && !isOffloaded()) {
+            } else if (!isFastTrack() && !isOffloaded() && !isDirect()) {
                 mState = STOPPED;
             } else {
                 // For fast tracks prepareTracks_l() will set state to STOPPING_2
@@ -860,7 +860,7 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
     }
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-    if (!isOffloaded()) {
+    if (!isOffloaded() && !isDirect()) {
         if (!playbackThread->mLatchQValid) {
             mPreviousValid = false;
             return INVALID_OPERATION;
@@ -980,8 +980,6 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWrit
     }
 
     if (framesWritten >= mPresentationCompleteFrames || isOffloaded()) {
-        ALOGV("presentationComplete() session %d complete: framesWritten %d",
-                  mSessionId, framesWritten);
         triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
         mAudioTrackServerProxy->setStreamEndDone();
         return true;

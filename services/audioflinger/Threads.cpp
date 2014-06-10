@@ -1660,7 +1660,7 @@ bool AudioFlinger::PlaybackThread::destroyTrack_l(const sp<Track>& track)
     track->mState = TrackBase::STOPPED;
     if (!trackActive) {
         removeTrack_l(track);
-    } else if (track->isFastTrack() || track->isOffloaded()) {
+    } else if (track->isFastTrack() || track->isOffloaded() || track->isDirect()) {
         track->mState = TrackBase::STOPPING_1;
     }
 
@@ -1868,7 +1868,9 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     }
     mNormalFrameCount = multiplier * mFrameCount;
     // round up to nearest 16 frames to satisfy AudioMixer
-    mNormalFrameCount = (mNormalFrameCount + 15) & ~15;
+    if (mType == MIXER || mType == DUPLICATING) {
+        mNormalFrameCount = (mNormalFrameCount + 15) & ~15;
+    }
     ALOGI("HAL output buffer size %u frames, normal sink buffer size %u frames", mFrameCount,
             mNormalFrameCount);
 
@@ -2656,7 +2658,7 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
     if (mNormalSink != 0) {
         return mNormalSink->getTimestamp(timestamp);
     }
-    if (mType == OFFLOAD && mOutput->stream->get_presentation_position) {
+    if ((mType == OFFLOAD || mType == DIRECT) && mOutput->stream->get_presentation_position) {
         uint64_t position64;
         int ret = mOutput->stream->get_presentation_position(
                                                 mOutput->stream, &position64, &timestamp.mTime);
@@ -3947,14 +3949,16 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         // The first time a track is added we wait
         // for all its buffers to be filled before processing it
         uint32_t minFrames;
-        if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing()) {
+        if ((track->sharedBuffer() == 0) && !track->isStopping_1() && !track->isPausing()) {
             minFrames = mNormalFrameCount;
         } else {
             minFrames = 1;
         }
 
-        if ((track->framesReady() >= minFrames) && track->isReady() &&
-                !track->isPaused() && !track->isTerminated())
+        ALOGI("prepareTracks_l minFrames %d state %d frames ready %d, ",
+              minFrames, track->mState, track->framesReady());
+        if ((track->framesReady() >= minFrames) && track->isReady() && !track->isPaused() &&
+                !track->isStopping_2() && !track->isStopped())
         {
             ALOGVV("track %d s=%08x [OK]", track->name(), cblk->mServer);
 
@@ -3981,17 +3985,26 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             if (!mEffectChains.isEmpty() && last) {
                 mEffectChains[0]->clearInputBuffer();
             }
-
-            ALOGVV("track %d s=%08x [NOT READY]", track->name(), cblk->mServer);
-            if ((track->sharedBuffer() != 0) || track->isTerminated() ||
-                    track->isStopped() || track->isPaused()) {
+            if (track->isStopping_1()) {
+                track->mState = TrackBase::STOPPING_2;
+            }
+            if ((track->sharedBuffer() != 0) || track->isStopped() ||
+                    track->isStopping_2() || track->isPaused()) {
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
-                // TODO: implement behavior for compressed audio
-                size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
+                size_t audioHALFrames;
+                if (audio_is_linear_pcm(mFormat)) {
+                    audioHALFrames = (latency_l() * mSampleRate) / 1000;
+                } else {
+                    audioHALFrames = 0;
+                }
+
                 size_t framesWritten = mBytesWritten / mFrameSize;
                 if (mStandby || !last ||
                         track->presentationComplete(framesWritten, audioHALFrames)) {
+                    if (track->isStopping_2()) {
+                        track->mState = TrackBase::STOPPED;
+                    }
                     if (track->isStopped()) {
                         track->reset();
                     }

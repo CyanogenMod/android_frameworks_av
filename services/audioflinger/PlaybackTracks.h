@@ -54,6 +54,7 @@ public:
                 return mStreamType;
             }
             bool        isOffloaded() const { return (mFlags & IAudioFlinger::TRACK_OFFLOAD) != 0; }
+            bool        isDirect() const { return (mFlags & IAudioFlinger::TRACK_DIRECT) != 0; }
             status_t    setParameters(const String8& keyValuePairs);
             status_t    attachAuxEffect(int EffectId);
             void        setAuxBuffer(int EffectId, int32_t *buffer);
