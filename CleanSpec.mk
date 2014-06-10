@@ -55,6 +55,10 @@ $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicy
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib/libaudiopolicy.so)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicyservice_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicymanager_intermediates)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib/libaudiopolicyservice.so)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/lib/libaudiopolicymanager.so)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicyservice_intermediates)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libaudiopolicymanager_intermediates)
 
 # ************************************************
 # NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST

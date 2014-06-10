@@ -539,7 +539,7 @@ private:
     sp<AudioCommandThread> mOutputCommandThread;    // process stop and release output
     struct audio_policy_device *mpAudioPolicyDev;
     struct audio_policy *mpAudioPolicy;
-    AudioPolicyManager *mAudioPolicyManager;
+    AudioPolicyInterface *mAudioPolicyManager;
     AudioPolicyClient *mAudioPolicyClient;
 
     KeyedVector< audio_source_t, InputSourceDesc* > mInputSources;
