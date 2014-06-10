@@ -852,13 +852,12 @@ status_t CameraService::connectDevice(
 
         switch(deviceVersion) {
           case CAMERA_DEVICE_API_VERSION_1_0:
-            ALOGW("Camera using old HAL version: %d", deviceVersion);
-            return -EOPNOTSUPP;
-           // TODO: don't allow 2.0  Only allow 2.1 and higher
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
           case CAMERA_DEVICE_API_VERSION_3_1:
+            ALOGW("Camera using old HAL version: %d", deviceVersion);
+            return -EOPNOTSUPP;
           case CAMERA_DEVICE_API_VERSION_3_2:
             client = new CameraDeviceClient(this, cameraCb, String16(),
                     cameraId, facing, callingPid, USE_CALLING_UID, getpid());
