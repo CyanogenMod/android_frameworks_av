@@ -26,6 +26,7 @@ LOCAL_SRC_FILES:=               \
 LOCAL_SHARED_LIBRARIES :=       \
     libbinder                   \
     libcamera_client            \
+    libcrypto                   \
     libcutils                   \
     liblog                      \
     libdl                       \
