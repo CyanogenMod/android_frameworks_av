@@ -19,12 +19,14 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
     DrmManagerClientImpl.cpp \
-    DrmManagerClient.cpp
+    DrmManagerClient.cpp \
+    NoOpDrmManagerClientImpl.cpp
 
 LOCAL_MODULE:= libdrmframework
 
 LOCAL_SHARED_LIBRARIES := \
     libutils \
+    libcutils \
     liblog \
     libbinder \
     libdl
