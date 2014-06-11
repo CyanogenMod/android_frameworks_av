@@ -157,6 +157,12 @@ private:
     AudioTrackServerProxy*  mAudioTrackServerProxy;
     bool                mResumeToStopping; // track was paused in stopping state.
     bool                mFlushHwPending; // track requests for thread flush
+
+    // for last call to getTimestamp
+    bool                mPreviousValid;
+    uint32_t            mPreviousFramesWritten;
+    AudioTimestamp      mPreviousTimestamp;
+
 };  // end of Track
 
 class TimedTrack : public Track {
