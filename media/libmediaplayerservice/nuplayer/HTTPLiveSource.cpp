@@ -120,8 +120,12 @@ status_t NuPlayer::HTTPLiveSource::getDuration(int64_t *durationUs) {
     return mLiveSession->getDuration(durationUs);
 }
 
-status_t NuPlayer::HTTPLiveSource::getTrackInfo(Parcel *reply) const {
-    return mLiveSession->getTrackInfo(reply);
+size_t NuPlayer::HTTPLiveSource::getTrackCount() const {
+    return mLiveSession->getTrackCount();
+}
+
+sp<AMessage> NuPlayer::HTTPLiveSource::getTrackInfo(size_t trackIndex) const {
+    return mLiveSession->getTrackInfo(trackIndex);
 }
 
 status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {

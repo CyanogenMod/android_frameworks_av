@@ -24,6 +24,7 @@
 
 namespace android {
 
+struct ABuffer;
 struct MetaData;
 struct NuPlayerDriver;
 
@@ -188,6 +189,10 @@ private:
 
     void queueDecoderShutdown(
             bool audio, bool video, const sp<AMessage> &reply);
+
+    void sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex);
+
+    void writeTrackInfo(Parcel* reply, const sp<AMessage> format) const;
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };

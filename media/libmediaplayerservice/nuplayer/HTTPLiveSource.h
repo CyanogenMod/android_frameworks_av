@@ -40,7 +40,8 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
 
     virtual status_t feedMoreTSData();
     virtual status_t getDuration(int64_t *durationUs);
-    virtual status_t getTrackInfo(Parcel *reply) const;
+    virtual size_t getTrackCount() const;
+    virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
     virtual status_t selectTrack(size_t trackIndex, bool select);
     virtual status_t seekTo(int64_t seekTimeUs);
 

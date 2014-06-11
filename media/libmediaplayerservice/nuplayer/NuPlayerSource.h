@@ -72,8 +72,12 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
-    virtual status_t getTrackInfo(Parcel* /* reply */) const {
-        return INVALID_OPERATION;
+    virtual size_t getTrackCount() const {
+        return 0;
+    }
+
+    virtual sp<AMessage> getTrackInfo(size_t /* trackIndex */) const {
+        return NULL;
     }
 
     virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */) {

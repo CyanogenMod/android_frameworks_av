@@ -70,7 +70,8 @@ struct LiveSession : public AHandler {
     status_t seekTo(int64_t timeUs);
 
     status_t getDuration(int64_t *durationUs) const;
-    status_t getTrackInfo(Parcel *reply) const;
+    size_t getTrackCount() const;
+    sp<AMessage> getTrackInfo(size_t trackIndex) const;
     status_t selectTrack(size_t index, bool select);
 
     bool isSeekable() const;
