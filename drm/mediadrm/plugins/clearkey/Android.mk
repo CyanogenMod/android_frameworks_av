@@ -17,10 +17,14 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
+    AesCtrDecryptor.cpp \
+    JsonWebKey.cpp \
     Utils.cpp \
 
 LOCAL_C_INCLUDES := \
     bionic \
+    external/jsmn \
+    external/openssl/include \
     frameworks/av/drm/mediadrm/plugins/clearkey \
     frameworks/av/include \
     frameworks/native/include \
@@ -30,10 +34,19 @@ LOCAL_MODULE := libdrmclearkeyplugin
 LOCAL_MODULE_PATH := $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/mediadrm
 
 LOCAL_SHARED_LIBRARIES := \
+    libcrypto \
     liblog \
     libstagefright_foundation \
     libutils \
 
+LOCAL_STATIC_LIBRARIES := \
+    libjsmn \
+
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+
+#########################################################################
+# Build unit tests
+
+include $(LOCAL_PATH)/tests/Android.mk

@@ -14,25 +14,31 @@
  * limitations under the License.
  */
 
-#ifndef CLEARKEY_TYPES_H_
-#define CLEARKEY_TYPES_H_
+#ifndef CLEARKEY_AES_CTR_DECRYPTOR_H_
+#define CLEARKEY_AES_CTR_DECRYPTOR_H_
 
-#include <media/hardware/CryptoAPI.h>
-#include <openssl/aes.h>
-#include <utils/KeyedVector.h>
+#include <media/stagefright/foundation/ABase.h>
+#include <Utils.h>
+#include <utils/Errors.h>
 #include <utils/Vector.h>
+
+#include "ClearKeyTypes.h"
 
 namespace clearkeydrm {
 
-const uint8_t kBlockSize = AES_BLOCK_SIZE;
-typedef uint8_t KeyId[kBlockSize];
-typedef uint8_t Iv[kBlockSize];
+class AesCtrDecryptor {
+public:
+    AesCtrDecryptor() {}
 
-typedef android::CryptoPlugin::SubSample SubSample;
+    android::status_t decrypt(const android::Vector<uint8_t>& key, const Iv iv,
+            const uint8_t* source, uint8_t* destination,
+            const SubSample* subSamples, size_t numSubSamples,
+            size_t* bytesDecryptedOut);
 
-typedef android::KeyedVector<android::Vector<uint8_t>,
-        android::Vector<uint8_t> > KeyMap;
+private:
+    DISALLOW_EVIL_CONSTRUCTORS(AesCtrDecryptor);
+};
 
 } // namespace clearkeydrm
 
-#endif // CLEARKEY_TYPES_H_
+#endif // CLEARKEY_AES_CTR_DECRYPTOR_H_
