@@ -144,6 +144,13 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
     }
     ALOGV("startOutput()");
     Mutex::Autolock _l(mLock);
+
+    // create audio processors according to stream
+    status_t status = mAudioPolicyEffects->addOutputSessionEffects(output, stream, session);
+    if (status != NO_ERROR && status != ALREADY_EXISTS) {
+        ALOGW("Failed to add effects on session %d", session);
+    }
+
     return mpAudioPolicy->start_output(mpAudioPolicy, output, stream, session);
 }
 
@@ -165,6 +172,13 @@ status_t  AudioPolicyService::doStopOutput(audio_io_handle_t output,
 {
     ALOGV("doStopOutput from tid %d", gettid());
     Mutex::Autolock _l(mLock);
+
+    // release audio processors from the stream
+    status_t status = mAudioPolicyEffects->releaseOutputSessionEffects(output, stream, session);
+    if (status != NO_ERROR && status != ALREADY_EXISTS) {
+        ALOGW("Failed to release effects on session %d", session);
+    }
+
     return mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
 }
 
@@ -210,39 +224,13 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
     if (input == 0) {
         return input;
     }
+
     // create audio pre processors according to input source
-    audio_source_t aliasSource = (inputSource == AUDIO_SOURCE_HOTWORD) ?
-                                    AUDIO_SOURCE_VOICE_RECOGNITION : inputSource;
-
-    ssize_t index = mInputSources.indexOfKey(aliasSource);
-    if (index < 0) {
-        return input;
-    }
-    ssize_t idx = mInputs.indexOfKey(input);
-    InputDesc *inputDesc;
-    if (idx < 0) {
-        inputDesc = new InputDesc(audioSession);
-        mInputs.add(input, inputDesc);
-    } else {
-        inputDesc = mInputs.valueAt(idx);
+    status_t status = mAudioPolicyEffects->addInputEffects(input, inputSource, audioSession);
+    if (status != NO_ERROR && status != ALREADY_EXISTS) {
+        ALOGW("Failed to add effects on input %d", input);
     }
 
-    Vector <EffectDesc *> effects = mInputSources.valueAt(index)->mEffects;
-    for (size_t i = 0; i < effects.size(); i++) {
-        EffectDesc *effect = effects[i];
-        sp<AudioEffect> fx = new AudioEffect(NULL, &effect->mUuid, -1, 0, 0, audioSession, input);
-        status_t status = fx->initCheck();
-        if (status != NO_ERROR && status != ALREADY_EXISTS) {
-            ALOGW("Failed to create Fx %s on input %d", effect->mName, input);
-            // fx goes out of scope and strong ref on AudioEffect is released
-            continue;
-        }
-        for (size_t j = 0; j < effect->mParams.size(); j++) {
-            fx->setParameter(effect->mParams[j]);
-        }
-        inputDesc->mEffects.add(fx);
-    }
-    setPreProcessorEnabled(inputDesc, true);
     return input;
 }
 
@@ -274,14 +262,11 @@ void AudioPolicyService::releaseInput(audio_io_handle_t input)
     Mutex::Autolock _l(mLock);
     mpAudioPolicy->release_input(mpAudioPolicy, input);
 
-    ssize_t index = mInputs.indexOfKey(input);
-    if (index < 0) {
-        return;
+    // release audio processors from the input
+    status_t status = mAudioPolicyEffects->releaseInputEffects(input);
+    if(status != NO_ERROR) {
+        ALOGW("Failed to release effects on input %d", input);
     }
-    InputDesc *inputDesc = mInputs.valueAt(index);
-    setPreProcessorEnabled(inputDesc, false);
-    delete inputDesc;
-    mInputs.removeItemsAt(index);
 }
 
 status_t AudioPolicyService::initStreamVolume(audio_stream_type_t stream,
@@ -437,37 +422,13 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
                                                        effect_descriptor_t *descriptors,
                                                        uint32_t *count)
 {
-
     if (mpAudioPolicy == NULL) {
         *count = 0;
         return NO_INIT;
     }
     Mutex::Autolock _l(mLock);
-    status_t status = NO_ERROR;
 
-    size_t index;
-    for (index = 0; index < mInputs.size(); index++) {
-        if (mInputs.valueAt(index)->mSessionId == audioSession) {
-            break;
-        }
-    }
-    if (index == mInputs.size()) {
-        *count = 0;
-        return BAD_VALUE;
-    }
-    Vector< sp<AudioEffect> > effects = mInputs.valueAt(index)->mEffects;
-
-    for (size_t i = 0; i < effects.size(); i++) {
-        effect_descriptor_t desc = effects[i]->descriptor();
-        if (i < *count) {
-            descriptors[i] = desc;
-        }
-    }
-    if (effects.size() > *count) {
-        status = NO_MEMORY;
-    }
-    *count = effects.size();
-    return status;
+    return mAudioPolicyEffects->queryDefaultInputEffects(audioSession, descriptors, count);
 }
 
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
