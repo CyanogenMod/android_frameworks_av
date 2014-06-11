@@ -57,7 +57,7 @@ AudioSource::AudioSource(
       mNumFramesReceived(0),
       mNumClientOwnedBuffers(0) {
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
-    CHECK(channelCount == 1 || channelCount == 2);
+    CHECK(channelCount == 1 || channelCount == 2 || channelCount == 6);
 
     size_t minFrameCount;
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,

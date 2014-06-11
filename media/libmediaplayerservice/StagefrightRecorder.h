@@ -183,6 +183,13 @@ private:
 
     StagefrightRecorder(const StagefrightRecorder &);
     StagefrightRecorder &operator=(const StagefrightRecorder &);
+
+    /* extension */
+#ifdef ENABLE_AV_ENHANCEMENTS
+    status_t setupFMA2DPWriter();
+    status_t setupWAVERecording();
+    status_t setupExtendedRecording();
+#endif
 };
 
 }  // namespace android
