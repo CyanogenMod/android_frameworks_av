@@ -29,6 +29,8 @@
 
 #include "Parameters.h"
 #include "system/camera.h"
+#include <media/MediaProfiles.h>
+#include <media/mediarecorder.h>
 
 namespace android {
 namespace camera2 {
@@ -59,7 +61,17 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     if (res != OK) return res;
 
     const Size MAX_PREVIEW_SIZE = { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT };
-    res = getFilteredPreviewSizes(MAX_PREVIEW_SIZE, &availablePreviewSizes);
+    // Treat the H.264 max size as the max supported video size.
+    MediaProfiles *videoEncoderProfiles = MediaProfiles::getInstance();
+    int32_t maxVideoWidth = videoEncoderProfiles->getVideoEncoderParamByName(
+                            "enc.vid.width.max", VIDEO_ENCODER_H264);
+    int32_t maxVideoHeight = videoEncoderProfiles->getVideoEncoderParamByName(
+                            "enc.vid.height.max", VIDEO_ENCODER_H264);
+    const Size MAX_VIDEO_SIZE = {maxVideoWidth, maxVideoHeight};
+
+    res = getFilteredSizes(MAX_PREVIEW_SIZE, &availablePreviewSizes);
+    if (res != OK) return res;
+    res = getFilteredSizes(MAX_VIDEO_SIZE, &availableVideoSizes);
     if (res != OK) return res;
 
     // TODO: Pick more intelligently
@@ -84,8 +96,17 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         ALOGV("Supported preview sizes are: %s", supportedPreviewSizes.string());
         params.set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES,
                 supportedPreviewSizes);
+
+        String8 supportedVideoSizes;
+        for (size_t i = 0; i < availableVideoSizes.size(); i++) {
+            if (i != 0) supportedVideoSizes += ",";
+            supportedVideoSizes += String8::format("%dx%d",
+                    availableVideoSizes[i].width,
+                    availableVideoSizes[i].height);
+        }
+        ALOGV("Supported video sizes are: %s", supportedVideoSizes.string());
         params.set(CameraParameters::KEY_SUPPORTED_VIDEO_SIZES,
-                supportedPreviewSizes);
+                supportedVideoSizes);
     }
 
     camera_metadata_ro_entry_t availableFpsRanges =
@@ -1660,13 +1681,13 @@ status_t Parameters::set(const String8& paramString) {
                     __FUNCTION__);
             return BAD_VALUE;
         }
-        for (i = 0; i < availablePreviewSizes.size(); i++) {
-            if ((availablePreviewSizes[i].width ==
+        for (i = 0; i < availableVideoSizes.size(); i++) {
+            if ((availableVideoSizes[i].width ==
                     validatedParams.videoWidth) &&
-                (availablePreviewSizes[i].height ==
+                (availableVideoSizes[i].height ==
                     validatedParams.videoHeight)) break;
         }
-        if (i == availablePreviewSizes.size()) {
+        if (i == availableVideoSizes.size()) {
             ALOGE("%s: Requested video size %d x %d is not supported",
                     __FUNCTION__, validatedParams.videoWidth,
                     validatedParams.videoHeight);
@@ -2497,7 +2518,7 @@ int Parameters::normalizedYToArray(int y) const {
     return cropYToArray(normalizedYToCrop(y));
 }
 
-status_t Parameters::getFilteredPreviewSizes(Size limit, Vector<Size> *sizes) {
+status_t Parameters::getFilteredSizes(Size limit, Vector<Size> *sizes) {
     if (info == NULL) {
         ALOGE("%s: Static metadata is not initialized", __FUNCTION__);
         return NO_INIT;
@@ -2512,14 +2533,14 @@ status_t Parameters::getFilteredPreviewSizes(Size limit, Vector<Size> *sizes) {
         staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, SIZE_COUNT);
     if (availableProcessedSizes.count < SIZE_COUNT) return BAD_VALUE;
 
-    Size previewSize;
+    Size filteredSize;
     for (size_t i = 0; i < availableProcessedSizes.count; i += SIZE_COUNT) {
-        previewSize.width = availableProcessedSizes.data.i32[i];
-        previewSize.height = availableProcessedSizes.data.i32[i+1];
+        filteredSize.width = availableProcessedSizes.data.i32[i];
+        filteredSize.height = availableProcessedSizes.data.i32[i+1];
             // Need skip the preview sizes that are too large.
-            if (previewSize.width <= limit.width &&
-                    previewSize.height <= limit.height) {
-                sizes->push(previewSize);
+            if (filteredSize.width <= limit.width &&
+                    filteredSize.height <= limit.height) {
+                sizes->push(filteredSize);
             }
     }
     if (sizes->isEmpty()) {
