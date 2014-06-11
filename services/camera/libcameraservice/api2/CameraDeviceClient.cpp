@@ -310,6 +310,10 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
 
     Mutex::Autolock icl(mBinderSerializationLock);
 
+    if (bufferProducer == NULL) {
+        ALOGE("%s: bufferProducer must not be null", __FUNCTION__);
+        return BAD_VALUE;
+    }
     if (!mDevice.get()) return DEAD_OBJECT;
 
     // Don't create multiple streams for the same target surface
