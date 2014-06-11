@@ -18,6 +18,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
     AesCtrDecryptor.cpp \
+    InitDataParser.cpp \
     JsonWebKey.cpp \
     Utils.cpp \
 
