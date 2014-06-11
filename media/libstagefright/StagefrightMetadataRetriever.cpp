@@ -375,10 +375,7 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
     size_t dataSize;
     if (fileMeta->findData(kKeyAlbumArt, &type, &data, &dataSize)
             && mAlbumArt == NULL) {
-        mAlbumArt = new MediaAlbumArt;
-        mAlbumArt->mSize = dataSize;
-        mAlbumArt->mData = new uint8_t[dataSize];
-        memcpy(mAlbumArt->mData, data, dataSize);
+        mAlbumArt = MediaAlbumArt::fromData(dataSize, data);
     }
 
     VideoFrame *frame =
@@ -411,7 +408,7 @@ MediaAlbumArt *StagefrightMetadataRetriever::extractAlbumArt() {
     }
 
     if (mAlbumArt) {
-        return new MediaAlbumArt(*mAlbumArt);
+        return mAlbumArt->clone();
     }
 
     return NULL;
@@ -480,10 +477,7 @@ void StagefrightMetadataRetriever::parseMetaData() {
     size_t dataSize;
     if (meta->findData(kKeyAlbumArt, &type, &data, &dataSize)
             && mAlbumArt == NULL) {
-        mAlbumArt = new MediaAlbumArt;
-        mAlbumArt->mSize = dataSize;
-        mAlbumArt->mData = new uint8_t[dataSize];
-        memcpy(mAlbumArt->mData, data, dataSize);
+        mAlbumArt = MediaAlbumArt::fromData(dataSize, data);
     }
 
     size_t numTracks = mExtractor->countTracks();

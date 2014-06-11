@@ -25,64 +25,6 @@
 
 namespace android {
 
-// A simple buffer to hold binary data
-class MediaAlbumArt
-{
-public:
-    MediaAlbumArt(): mSize(0), mData(0) {}
-
-    explicit MediaAlbumArt(const char* url) {
-        mSize = 0;
-        mData = NULL;
-        FILE *in = fopen(url, "r");
-        if (!in) {
-            return;
-        }
-        fseek(in, 0, SEEK_END);
-        mSize = ftell(in);  // Allocating buffer of size equals to the external file size.
-        if (mSize == 0 || (mData = new uint8_t[mSize]) == NULL) {
-            fclose(in);
-            if (mSize != 0) {
-                mSize = 0;
-            }
-            return;
-        }
-        rewind(in);
-        if (fread(mData, 1, mSize, in) != mSize) {  // Read failed.
-            delete[] mData;
-            mData = NULL;
-            mSize = 0;
-            return;
-        }
-        fclose(in);
-    }
-
-    MediaAlbumArt(const MediaAlbumArt& copy) {
-        mSize = copy.mSize;
-        mData = NULL;  // initialize it first
-        if (mSize > 0 && copy.mData != NULL) {
-           mData = new uint8_t[copy.mSize];
-           if (mData != NULL) {
-               memcpy(mData, copy.mData, mSize);
-           } else {
-               mSize = 0;
-           }
-        }
-    }
-
-    ~MediaAlbumArt() {
-        if (mData != 0) {
-            delete[] mData;
-        }
-    }
-
-    // Intentional public access modifier:
-    // We have to know the internal structure in order to share it between
-    // processes?
-    uint32_t mSize;            // Number of bytes in mData
-    uint8_t* mData;            // Actual binary data
-};
-
 // Represents a color converted (RGB-based) video frame
 // with bitmap pixels stored in FrameBuffer
 class VideoFrame
