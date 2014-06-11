@@ -103,6 +103,10 @@ AudioTrack::AudioTrack()
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0)
 {
+    mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
+    mAttributes.usage = AUDIO_USAGE_UNKNOWN;
+    mAttributes.flags = 0x0;
+    strcpy(mAttributes.tags, "");
 }
 
 AudioTrack::AudioTrack(
@@ -129,7 +133,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
-            offloadInfo, uid, pid);
+            offloadInfo, uid, pid, NULL /*no audio attributes*/);
 }
 
 AudioTrack::AudioTrack(
@@ -156,7 +160,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
             sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo,
-            uid, pid);
+            uid, pid, NULL /*no audio attributes*/);
 }
 
 AudioTrack::~AudioTrack()
@@ -199,7 +203,8 @@ status_t AudioTrack::set(
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
         int uid,
-        pid_t pid)
+        pid_t pid,
+        audio_attributes_t* pAttributes)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "flags #%x, notificationFrames %u, sessionId %d, transferType %d",
@@ -259,18 +264,34 @@ status_t AudioTrack::set(
     if (streamType == AUDIO_STREAM_DEFAULT) {
         streamType = AUDIO_STREAM_MUSIC;
     }
-    if (uint32_t(streamType) >= AUDIO_STREAM_CNT) {
-        ALOGE("Invalid stream type %d", streamType);
-        return BAD_VALUE;
+
+    if (pAttributes == NULL) {
+        if (uint32_t(streamType) >= AUDIO_STREAM_CNT) {
+            ALOGE("Invalid stream type %d", streamType);
+            return BAD_VALUE;
+        }
+        setAttributesFromStreamType(streamType);
+        mStreamType = streamType;
+    } else {
+        if (!isValidAttributes(pAttributes)) {
+            ALOGE("Invalid attributes: usage=%d content=%d flags=0x%x tags=[%s]",
+                pAttributes->usage, pAttributes->content_type, pAttributes->flags,
+                pAttributes->tags);
+        }
+        // stream type shouldn't be looked at, this track has audio attributes
+        memcpy(&mAttributes, pAttributes, sizeof(audio_attributes_t));
+        setStreamTypeFromAttributes(mAttributes);
+        ALOGV("Building AudioTrack with attributes: usage=%d content=%d flags=0x%x tags=[%s]",
+                mAttributes.usage, mAttributes.content_type, mAttributes.flags, mAttributes.tags);
     }
-    mStreamType = streamType;
 
     status_t status;
     if (sampleRate == 0) {
-        status = AudioSystem::getOutputSamplingRate(&sampleRate, streamType);
+        // TODO replace with new APM method with support for audio_attributes_t
+        status = AudioSystem::getOutputSamplingRate(&sampleRate, mStreamType);
         if (status != NO_ERROR) {
             ALOGE("Could not get output sample rate for stream type %d; status %d",
-                    streamType, status);
+                    mStreamType, status);
             return status;
         }
     }
@@ -314,7 +335,7 @@ status_t AudioTrack::set(
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
     // only allow deep buffering for music stream type
-    if (streamType != AUDIO_STREAM_MUSIC) {
+    if (mStreamType != AUDIO_STREAM_MUSIC) {
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
@@ -620,6 +641,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     }
 
     uint32_t afSamplingRate;
+    // TODO replace with new APM method with support for audio_attributes_t
     if (AudioSystem::getOutputSamplingRate(&afSamplingRate, mStreamType) != NO_ERROR) {
         return NO_INIT;
     }
@@ -867,6 +889,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         return NO_INIT;
     }
 
+    // TODO replace with new APM method with support for audio_attributes_t
     audio_io_handle_t output = AudioSystem::getOutput(mStreamType, mSampleRate, mFormat,
             mChannelMask, mFlags, mOffloadInfo);
     if (output == AUDIO_IO_HANDLE_NONE) {
@@ -1858,6 +1881,136 @@ uint32_t AudioTrack::getUnderrunFrames() const
     return mProxy->getUnderrunFrames();
 }
 
+void AudioTrack::setAttributesFromStreamType(audio_stream_type_t streamType) {
+    mAttributes.flags = 0x0;
+
+    switch(streamType) {
+    case AUDIO_STREAM_DEFAULT:
+    case AUDIO_STREAM_MUSIC:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_MUSIC;
+        mAttributes.usage = AUDIO_USAGE_MEDIA;
+        break;
+    case AUDIO_STREAM_VOICE_CALL:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
+        mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
+        break;
+    case AUDIO_STREAM_ENFORCED_AUDIBLE:
+        mAttributes.flags  |= AUDIO_FLAG_AUDIBILITY_ENFORCED;
+        // intended fall through, attributes in common with STREAM_SYSTEM
+    case AUDIO_STREAM_SYSTEM:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        mAttributes.usage = AUDIO_USAGE_ASSISTANCE_SONIFICATION;
+        break;
+    case AUDIO_STREAM_RING:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        mAttributes.usage = AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE;
+        break;
+    case AUDIO_STREAM_ALARM:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        mAttributes.usage = AUDIO_USAGE_ALARM;
+        break;
+    case AUDIO_STREAM_NOTIFICATION:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        mAttributes.usage = AUDIO_USAGE_NOTIFICATION;
+        break;
+    case AUDIO_STREAM_BLUETOOTH_SCO:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
+        mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
+        mAttributes.flags |= AUDIO_FLAG_SCO;
+        break;
+    case AUDIO_STREAM_DTMF:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING;
+        break;
+    case AUDIO_STREAM_TTS:
+        mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
+        mAttributes.usage = AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY;
+        break;
+    default:
+        ALOGE("invalid stream type %d when converting to attributes", streamType);
+    }
+}
+
+void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
+    // flags to stream type mapping
+    if ((aa.flags & AUDIO_FLAG_AUDIBILITY_ENFORCED) == AUDIO_FLAG_AUDIBILITY_ENFORCED) {
+        mStreamType = AUDIO_STREAM_ENFORCED_AUDIBLE;
+        return;
+    }
+    if ((aa.flags & AUDIO_FLAG_SCO) == AUDIO_FLAG_SCO) {
+        mStreamType = AUDIO_STREAM_BLUETOOTH_SCO;
+        return;
+    }
+
+    // usage to stream type mapping
+    switch (aa.usage) {
+    case AUDIO_USAGE_MEDIA:
+    case AUDIO_USAGE_GAME:
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
+        mStreamType = AUDIO_STREAM_MUSIC;
+        return;
+    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
+        mStreamType = AUDIO_STREAM_SYSTEM;
+        return;
+    case AUDIO_USAGE_VOICE_COMMUNICATION:
+        mStreamType = AUDIO_STREAM_VOICE_CALL;
+        return;
+
+    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
+        mStreamType = AUDIO_STREAM_DTMF;
+        return;
+
+    case AUDIO_USAGE_ALARM:
+        mStreamType = AUDIO_STREAM_ALARM;
+        return;
+    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
+        mStreamType = AUDIO_STREAM_RING;
+        return;
+
+    case AUDIO_USAGE_NOTIFICATION:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
+    case AUDIO_USAGE_NOTIFICATION_EVENT:
+        mStreamType = AUDIO_STREAM_NOTIFICATION;
+        return;
+
+    case AUDIO_USAGE_UNKNOWN:
+    default:
+        mStreamType = AUDIO_STREAM_MUSIC;
+    }
+}
+
+bool AudioTrack::isValidAttributes(const audio_attributes_t *paa) {
+    // has flags that map to a strategy?
+    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_SCO)) != 0) {
+        return true;
+    }
+
+    // has known usage?
+    switch (paa->usage) {
+    case AUDIO_USAGE_UNKNOWN:
+    case AUDIO_USAGE_MEDIA:
+    case AUDIO_USAGE_VOICE_COMMUNICATION:
+    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
+    case AUDIO_USAGE_ALARM:
+    case AUDIO_USAGE_NOTIFICATION:
+    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
+    case AUDIO_USAGE_NOTIFICATION_EVENT:
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
+    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
+    case AUDIO_USAGE_GAME:
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
 // =========================================================================
 
 void AudioTrack::DeathNotifier::binderDied(const wp<IBinder>& who __unused)
