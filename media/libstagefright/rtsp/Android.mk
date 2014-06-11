@@ -26,11 +26,16 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_MODULE:= libstagefright_rtsp
 
+LOCAL_WHOLE_STATIC_LIBRARIES := \
+	libcrypto_static
+
 ifeq ($(TARGET_ARCH),arm)
     LOCAL_CFLAGS += -Wno-psabi
 endif
 
 LOCAL_CFLAGS += -Werror
+
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
 include $(BUILD_STATIC_LIBRARY)
 
@@ -56,5 +61,7 @@ LOCAL_CFLAGS += -Wno-multichar
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE:= rtp_test
+
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
 # include $(BUILD_EXECUTABLE)
