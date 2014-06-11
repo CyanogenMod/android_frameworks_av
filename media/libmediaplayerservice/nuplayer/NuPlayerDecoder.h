@@ -101,6 +101,36 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(Decoder);
 };
 
+struct NuPlayer::CCDecoder : public RefBase {
+    enum {
+        kWhatClosedCaptionData,
+        kWhatTrackAdded,
+    };
+
+    CCDecoder(const sp<AMessage> &notify);
+
+    size_t getTrackCount() const;
+    sp<AMessage> getTrackInfo(size_t index) const;
+    status_t selectTrack(size_t index, bool select);
+    bool isSelected() const;
+    void decode(const sp<ABuffer> &accessUnit);
+    void display(int64_t timeUs);
+
+private:
+    struct CCData;
+
+    sp<AMessage> mNotify;
+    KeyedVector<int64_t, sp<ABuffer> > mCCMap;
+    size_t mTrackCount;
+    int32_t mSelectedTrack;
+
+    bool isNullPad(CCData *cc) const;
+    void dumpBytePair(const sp<ABuffer> &ccBuf) const;
+    bool extractFromSEI(const sp<ABuffer> &accessUnit);
+
+    DISALLOW_EVIL_CONSTRUCTORS(CCDecoder);
+};
+
 }  // namespace android
 
 #endif  // NUPLAYER_DECODER_H_

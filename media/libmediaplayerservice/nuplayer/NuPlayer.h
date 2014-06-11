@@ -76,6 +76,7 @@ public:
 
 private:
     struct Decoder;
+    struct CCDecoder;
     struct GenericSource;
     struct HTTPLiveSource;
     struct Renderer;
@@ -98,6 +99,7 @@ private:
         kWhatScanSources                = 'scan',
         kWhatVideoNotify                = 'vidN',
         kWhatAudioNotify                = 'audN',
+        kWhatClosedCaptionNotify        = 'capN',
         kWhatRendererNotify             = 'renN',
         kWhatReset                      = 'rset',
         kWhatSeek                       = 'seek',
@@ -119,6 +121,7 @@ private:
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
     sp<Decoder> mAudioDecoder;
+    sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
 
     List<sp<Action> > mDeferredActions;
@@ -186,6 +189,7 @@ private:
     void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
 
     void onSourceNotify(const sp<AMessage> &msg);
+    void onClosedCaptionNotify(const sp<AMessage> &msg);
 
     void queueDecoderShutdown(
             bool audio, bool video, const sp<AMessage> &reply);
