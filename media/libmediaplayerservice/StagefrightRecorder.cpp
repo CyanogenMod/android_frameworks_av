@@ -932,6 +932,10 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             MediaCodecSource::Create(mLooper, format, audioSource);
     mAudioSourceNode = audioSource;
 
+    if (audioEncoder == NULL) {
+        ALOGE("Failed to create audio encoder");
+    }
+
     return audioEncoder;
 }
 
@@ -1487,7 +1491,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     sp<MediaCodecSource> encoder =
             MediaCodecSource::Create(mLooper, format, cameraSource, flags);
     if (encoder == NULL) {
-        ALOGW("Failed to create the encoder");
+        ALOGE("Failed to create video encoder");
         // When the encoder fails to be created, we need
         // release the camera source due to the camera's lock
         // and unlock mechanism.
