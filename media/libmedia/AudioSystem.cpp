@@ -242,11 +242,10 @@ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream
         return PERMISSION_DENIED;
     }
 
-    return getSamplingRate(output, streamType, samplingRate);
+    return getSamplingRate(output, samplingRate);
 }
 
 status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
-                                      audio_stream_type_t streamType,
                                       uint32_t* samplingRate)
 {
     OutputDescriptor *outputDesc;
@@ -265,13 +264,11 @@ status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
         gLock.unlock();
     }
     if (*samplingRate == 0) {
-        ALOGE("AudioSystem::getSamplingRate failed for output %d stream type %d",
-                output, streamType);
+        ALOGE("AudioSystem::getSamplingRate failed for output %d", output);
         return BAD_VALUE;
     }
 
-    ALOGV("getSamplingRate() streamType %d, output %d, sampling rate %u", streamType, output,
-            *samplingRate);
+    ALOGV("getSamplingRate() output %d, sampling rate %u", output, *samplingRate);
 
     return NO_ERROR;
 }
@@ -289,11 +286,10 @@ status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_
         return PERMISSION_DENIED;
     }
 
-    return getFrameCount(output, streamType, frameCount);
+    return getFrameCount(output, frameCount);
 }
 
 status_t AudioSystem::getFrameCount(audio_io_handle_t output,
-                                    audio_stream_type_t streamType,
                                     size_t* frameCount)
 {
     OutputDescriptor *outputDesc;
@@ -310,13 +306,11 @@ status_t AudioSystem::getFrameCount(audio_io_handle_t output,
         gLock.unlock();
     }
     if (*frameCount == 0) {
-        ALOGE("AudioSystem::getFrameCount failed for output %d stream type %d",
-                output, streamType);
+        ALOGE("AudioSystem::getFrameCount failed for output %d", output);
         return BAD_VALUE;
     }
 
-    ALOGV("getFrameCount() streamType %d, output %d, frameCount %d", streamType, output,
-            *frameCount);
+    ALOGV("getFrameCount() output %d, frameCount %d", output, *frameCount);
 
     return NO_ERROR;
 }
