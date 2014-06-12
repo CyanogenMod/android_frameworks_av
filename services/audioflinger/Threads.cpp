@@ -3428,6 +3428,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             if (chain != 0 && chain->setVolume_l(&vl, &vr)) {
                 // Do not ramp volume if volume is controlled by effect
                 param = AudioMixer::VOLUME;
+                // Update remaining floating point volume levels
+                vlf = (float)vl / (1 << 24);
+                vrf = (float)vr / (1 << 24);
                 track->mHasVolumeController = true;
             } else {
                 // force no volume ramp when volume controller was just disabled or removed
