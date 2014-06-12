@@ -233,7 +233,7 @@ sp<IMemory> MetadataRetrieverClient::extractAlbumArt()
         ALOGE("failed to extract an album art");
         return NULL;
     }
-    size_t size = sizeof(MediaAlbumArt) + albumArt->mSize;
+    size_t size = sizeof(MediaAlbumArt) + albumArt->size();
     sp<MemoryHeapBase> heap = new MemoryHeapBase(size, 0, "MetadataRetrieverClient");
     if (heap == NULL) {
         ALOGE("failed to create MemoryDealer object");
@@ -246,11 +246,9 @@ sp<IMemory> MetadataRetrieverClient::extractAlbumArt()
         delete albumArt;
         return NULL;
     }
-    MediaAlbumArt *albumArtCopy = static_cast<MediaAlbumArt *>(mAlbumArt->pointer());
-    albumArtCopy->mSize = albumArt->mSize;
-    albumArtCopy->mData = (uint8_t *)albumArtCopy + sizeof(MediaAlbumArt);
-    memcpy(albumArtCopy->mData, albumArt->mData, albumArt->mSize);
-    delete albumArt;  // Fix memory leakage
+    MediaAlbumArt::init((MediaAlbumArt *) mAlbumArt->pointer(),
+                        albumArt->size(), albumArt->data());
+    delete albumArt;  // We've taken our copy.
     return mAlbumArt;
 }
 
