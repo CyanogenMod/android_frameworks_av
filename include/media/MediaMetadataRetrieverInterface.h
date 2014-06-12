@@ -20,6 +20,7 @@
 
 #include <utils/RefBase.h>
 #include <media/mediametadataretriever.h>
+#include <media/mediascanner.h>
 #include <private/media/VideoFrame.h>
 
 namespace android {
