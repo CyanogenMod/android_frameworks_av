@@ -1856,96 +1856,63 @@ status_t MediaPlayerService::AudioOutput::attachAuxEffect(int effectId)
 void MediaPlayerService::AudioOutput::CallbackWrapper(
         int event, void *cookie, void *info) {
     //ALOGV("callbackwrapper");
-    if (event == AudioTrack::EVENT_UNDERRUN) {
-        ALOGW("Event underrun");
-        CallbackData *data = (CallbackData*)cookie;
-        data->lock();
-        AudioOutput *me = data->getOutput();
-        if (me == NULL) {
-            // no output set, likely because the track was scheduled to be reused
-            // by another player, but the format turned out to be incompatible.
-            data->unlock();
-            return;
+    CallbackData *data = (CallbackData*)cookie;
+    data->lock();
+    AudioOutput *me = data->getOutput();
+    AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
+    if (me == NULL) {
+        // no output set, likely because the track was scheduled to be reused
+        // by another player, but the format turned out to be incompatible.
+        data->unlock();
+        if (buffer != NULL) {
+            buffer->size = 0;
         }
-        ALOGD("Callback!!!");
+        return;
+    }
+    switch(event) {
+    case AudioTrack::EVENT_UNDERRUN:
+        ALOGW("Event underrun");
         (*me->mCallback)(
             me, NULL, (size_t)AudioTrack::EVENT_UNDERRUN, me->mCallbackCookie, CB_EVENT_UNDERRUN);
-        data->unlock();
-        return;
-    }
-    if (event == AudioTrack::EVENT_HW_FAIL) {
-        ALOGW("Event hardware failure");
-        CallbackData *data = (CallbackData*)cookie;
-        if (data != NULL) {
-            data->lock();
-            AudioOutput *me = data->getOutput();
-            if (me == NULL) {
-                // no output set, likely because the track was
-                // scheduled to be reused
-                // by another player, but the format turned out
-                // to be incompatible.
-                data->unlock();
-                return;
-            }
-            ALOGV("Callback!!!");
-            (*me->mCallback)(me, NULL, (size_t)AudioTrack::EVENT_HW_FAIL,
-                             me->mCallbackCookie, CB_EVENT_HW_FAIL);
-            data->unlock();
-        }
-        return;
-    }
-    if (event == AudioTrack::EVENT_MORE_DATA) {
-        CallbackData *data = (CallbackData*)cookie;
-        data->lock();
-        AudioOutput *me = data->getOutput();
-        AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
-        if (me == NULL) {
-            // no output set, likely because the track was scheduled to be reused
-            // by another player, but the format turned out to be incompatible.
-            data->unlock();
-            if (buffer != NULL) {
-                buffer->size = 0;
-            }
-            return;
-        }
+        break;
 
-        switch(event) {
-        case AudioTrack::EVENT_MORE_DATA: {
-            size_t actualSize = (*me->mCallback)(
-                    me, buffer->raw, buffer->size, me->mCallbackCookie,
+    case AudioTrack::EVENT_HW_FAIL:
+        ALOGW("Event hardware failure");
+        (*me->mCallback)(me, NULL, (size_t)AudioTrack::EVENT_HW_FAIL,
+            me->mCallbackCookie, CB_EVENT_HW_FAIL);
+        break;
+
+    case AudioTrack::EVENT_MORE_DATA: {
+        size_t actualSize = (*me->mCallback)(
+              me, buffer->raw, buffer->size, me->mCallbackCookie,
                     CB_EVENT_FILL_BUFFER);
 
-            if (actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL) {
-                // We've reached EOS but the audio track is not stopped yet,
-                // keep playing silence.
-
-                memset(buffer->raw, 0, buffer->size);
-                actualSize = buffer->size;
-            }
-
-            buffer->size = actualSize;
-            } break;
-
-
-        case AudioTrack::EVENT_STREAM_END:
-            ALOGV("callbackwrapper: deliver EVENT_STREAM_END");
-            (*me->mCallback)(me, NULL /* buffer */, 0 /* size */,
-                    me->mCallbackCookie, CB_EVENT_STREAM_END);
-            break;
-
-        case AudioTrack::EVENT_NEW_IAUDIOTRACK :
-            ALOGV("callbackwrapper: deliver EVENT_TEAR_DOWN");
-            (*me->mCallback)(me,  NULL /* buffer */, 0 /* size */,
-                    me->mCallbackCookie, CB_EVENT_TEAR_DOWN);
-            break;
-
-        default:
-            ALOGE("received unknown event type: %d inside CallbackWrapper !", event);
+        if (actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL) {
+             // We've reached EOS but the audio track is not stopped yet,
+             // keep playing silence.
+             memset(buffer->raw, 0, buffer->size);
+             actualSize = buffer->size;
         }
+        buffer->size = actualSize;
+        } break;
 
-        data->unlock();
+    case AudioTrack::EVENT_STREAM_END:
+        ALOGV("callbackwrapper: deliver EVENT_STREAM_END");
+        (*me->mCallback)(me, NULL /* buffer */, 0 /* size */,
+                me->mCallbackCookie, CB_EVENT_STREAM_END);
+        break;
+
+    case AudioTrack::EVENT_NEW_IAUDIOTRACK:
+        ALOGV("callbackwrapper: deliver EVENT_TEAR_DOWN");
+       (*me->mCallback)(me,  NULL /* buffer */, 0 /* size */,
+               me->mCallbackCookie, CB_EVENT_TEAR_DOWN);
+        break;
+
+    default:
+        ALOGE("received unknown event type: %d inside CallbackWrapper !", event);
     }
-    return;
+
+    data->unlock();
 }
 #else
 void MediaPlayerService::AudioOutput::CallbackWrapper(
