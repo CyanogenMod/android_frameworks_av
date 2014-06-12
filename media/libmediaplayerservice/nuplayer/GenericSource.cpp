@@ -81,11 +81,12 @@ void NuPlayer::GenericSource::initFromDataSource(
         const char *mime;
         CHECK(meta->findCString(kKeyMIMEType, &mime));
 
-        sp<MediaSource> track;
+        sp<MediaSource> track = extractor->getTrack(i);
 
         if (!strncasecmp(mime, "audio/", 6)) {
             if (mAudioTrack.mSource == NULL) {
-                mAudioTrack.mSource = track = extractor->getTrack(i);
+                mAudioTrack.mIndex = i;
+                mAudioTrack.mSource = track;
 
                 if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_VORBIS)) {
                     mAudioIsVorbis = true;
@@ -95,11 +96,13 @@ void NuPlayer::GenericSource::initFromDataSource(
             }
         } else if (!strncasecmp(mime, "video/", 6)) {
             if (mVideoTrack.mSource == NULL) {
-                mVideoTrack.mSource = track = extractor->getTrack(i);
+                mVideoTrack.mIndex = i;
+                mVideoTrack.mSource = track;
             }
         }
 
         if (track != NULL) {
+            mSources.push(track);
             int64_t durationUs;
             if (meta->findInt64(kKeyDuration, &durationUs)) {
                 if (durationUs > mDurationUs) {
@@ -192,6 +195,56 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
 status_t NuPlayer::GenericSource::getDuration(int64_t *durationUs) {
     *durationUs = mDurationUs;
     return OK;
+}
+
+size_t NuPlayer::GenericSource::getTrackCount() const {
+    return mSources.size();
+}
+
+sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
+    size_t trackCount = mSources.size();
+    if (trackIndex >= trackCount) {
+        return NULL;
+    }
+
+    sp<AMessage> format = new AMessage();
+    sp<MetaData> meta = mSources.itemAt(trackIndex)->getFormat();
+
+    const char *mime;
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+
+    int32_t trackType;
+    if (!strncasecmp(mime, "video/", 6)) {
+        trackType = MEDIA_TRACK_TYPE_VIDEO;
+    } else if (!strncasecmp(mime, "audio/", 6)) {
+        trackType = MEDIA_TRACK_TYPE_AUDIO;
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP)) {
+        trackType = MEDIA_TRACK_TYPE_TIMEDTEXT;
+    } else {
+        trackType = MEDIA_TRACK_TYPE_UNKNOWN;
+    }
+    format->setInt32("type", trackType);
+
+    const char *lang;
+    if (!meta->findCString(kKeyMediaLanguage, &lang)) {
+        lang = "und";
+    }
+    format->setString("language", lang);
+
+    if (trackType == MEDIA_TRACK_TYPE_SUBTITLE) {
+        format->setString("mime", mime);
+
+        int32_t isAutoselect = 1, isDefault = 0, isForced = 0;
+        meta->findInt32(kKeyTrackIsAutoselect, &isAutoselect);
+        meta->findInt32(kKeyTrackIsDefault, &isDefault);
+        meta->findInt32(kKeyTrackIsForced, &isForced);
+
+        format->setInt32("auto", !!isAutoselect);
+        format->setInt32("default", !!isDefault);
+        format->setInt32("forced", !!isForced);
+    }
+
+    return format;
 }
 
 status_t NuPlayer::GenericSource::seekTo(int64_t seekTimeUs) {
