@@ -1520,8 +1520,8 @@ size_t MediaCodec::updateBuffers(
         int32_t portIndex, const sp<AMessage> &msg) {
     CHECK(portIndex == kPortIndexInput || portIndex == kPortIndexOutput);
 
-    void *bufferID;
-    CHECK(msg->findPointer("buffer-id", &bufferID));
+    uint32_t bufferID;
+    CHECK(msg->findInt32("buffer-id", (int32_t*)&bufferID));
 
     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
 
