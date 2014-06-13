@@ -223,6 +223,8 @@ AudioFlinger::ThreadBase::TrackBase::~TrackBase()
         // relying on the automatic clear() at end of scope.
         mClient.clear();
     }
+    // flush the binder command buffer
+    IPCThreadState::self()->flushCommands();
 }
 
 // AudioBufferProvider interface
@@ -432,8 +434,6 @@ AudioFlinger::PlaybackThread::Track::~Track()
     // This prevents that leak.
     if (mSharedBuffer != 0) {
         mSharedBuffer.clear();
-        // flush the binder command buffer
-        IPCThreadState::self()->flushCommands();
     }
 }
 
