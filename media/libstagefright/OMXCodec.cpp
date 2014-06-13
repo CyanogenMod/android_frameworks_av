@@ -5173,10 +5173,6 @@ status_t OMXCodec::read(
         return UNKNOWN_ERROR;
     }
 
-    if (seeking) {
-        CHECK_EQ((int)mState, (int)EXECUTING);
-    }
-
     if (mFilledBuffers.empty()) {
         return mSignalledEOS ? mFinalStatus : ERROR_END_OF_STREAM;
     }
