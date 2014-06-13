@@ -430,6 +430,9 @@ class Camera3Device :
         // Relay error to parent device object setErrorState
         void               setErrorState(const char *fmt, ...);
 
+        // If the input request is in mRepeatingRequests. Must be called with mRequestLock hold
+        bool isRepeatingRequestLocked(const sp<CaptureRequest>);
+
         wp<Camera3Device>  mParent;
         wp<camera3::StatusTracker>  mStatusTracker;
         camera3_device_t  *mHal3Device;
