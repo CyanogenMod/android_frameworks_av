@@ -131,6 +131,22 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     format, channelMask, flags, offloadInfo);
 }
 
+audio_io_handle_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
+                                    uint32_t samplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
+{
+    if (mAudioPolicyManager == NULL) {
+        return 0;
+    }
+    ALOGV("getOutput()");
+    Mutex::Autolock _l(mLock);
+    return mAudioPolicyManager->getOutputForAttr(attr, samplingRate,
+                                    format, channelMask, flags, offloadInfo);
+}
+
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
                                          audio_stream_type_t stream,
                                          int session)

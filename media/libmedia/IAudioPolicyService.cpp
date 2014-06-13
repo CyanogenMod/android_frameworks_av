@@ -64,7 +64,8 @@ enum {
     RELEASE_AUDIO_PATCH,
     LIST_AUDIO_PATCHES,
     SET_AUDIO_PORT_CONFIG,
-    REGISTER_CLIENT
+    REGISTER_CLIENT,
+    GET_OUTPUT_FOR_ATTR
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -154,6 +155,36 @@ public:
         remote()->transact(GET_OUTPUT, data, &reply);
         return static_cast <audio_io_handle_t> (reply.readInt32());
     }
+
+    virtual audio_io_handle_t getOutputForAttr(
+                                            const audio_attributes_t *attr,
+                                            uint32_t samplingRate,
+                                            audio_format_t format,
+                                            audio_channel_mask_t channelMask,
+                                            audio_output_flags_t flags,
+                                            const audio_offload_info_t *offloadInfo)
+        {
+            Parcel data, reply;
+            data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+            if (attr == NULL) {
+                ALOGE("Writing NULL audio attributes - shouldn't happen");
+                return (audio_io_handle_t) 0;
+            }
+            data.write(attr, sizeof(audio_attributes_t));
+            data.writeInt32(samplingRate);
+            data.writeInt32(static_cast <uint32_t>(format));
+            data.writeInt32(channelMask);
+            data.writeInt32(static_cast <uint32_t>(flags));
+            // hasOffloadInfo
+            if (offloadInfo == NULL) {
+                data.writeInt32(0);
+            } else {
+                data.writeInt32(1);
+                data.write(offloadInfo, sizeof(audio_offload_info_t));
+            }
+            remote()->transact(GET_OUTPUT_FOR_ATTR, data, &reply);
+            return static_cast <audio_io_handle_t> (reply.readInt32());
+        }
 
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
@@ -610,6 +641,30 @@ status_t BnAudioPolicyService::onTransact(
                                                  channelMask,
                                                  flags,
                                                  hasOffloadInfo ? &offloadInfo : NULL);
+            reply->writeInt32(static_cast <int>(output));
+            return NO_ERROR;
+        } break;
+
+        case GET_OUTPUT_FOR_ATTR: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_attributes_t *attr = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
+            data.read(attr, sizeof(audio_attributes_t));
+            uint32_t samplingRate = data.readInt32();
+            audio_format_t format = (audio_format_t) data.readInt32();
+            audio_channel_mask_t channelMask = data.readInt32();
+            audio_output_flags_t flags =
+                    static_cast <audio_output_flags_t>(data.readInt32());
+            bool hasOffloadInfo = data.readInt32() != 0;
+            audio_offload_info_t offloadInfo;
+            if (hasOffloadInfo) {
+                data.read(&offloadInfo, sizeof(audio_offload_info_t));
+            }
+            audio_io_handle_t output = getOutputForAttr(attr,
+                    samplingRate,
+                    format,
+                    channelMask,
+                    flags,
+                    hasOffloadInfo ? &offloadInfo : NULL);
             reply->writeInt32(static_cast <int>(output));
             return NO_ERROR;
         } break;

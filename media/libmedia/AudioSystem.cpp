@@ -245,6 +245,19 @@ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream
     return getSamplingRate(output, samplingRate);
 }
 
+status_t AudioSystem::getOutputSamplingRateForAttr(uint32_t* samplingRate,
+        const audio_attributes_t *attr)
+{
+    if (attr == NULL) {
+        return BAD_VALUE;
+    }
+    audio_io_handle_t output = getOutputForAttr(attr);
+    if (output == 0) {
+        return PERMISSION_DENIED;
+    }
+    return getSamplingRate(output, samplingRate);
+}
+
 status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
                                       uint32_t* samplingRate)
 {
@@ -631,6 +644,19 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return 0;
     return aps->getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
+}
+
+audio_io_handle_t AudioSystem::getOutputForAttr(const audio_attributes_t *attr,
+                                    uint32_t samplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
+{
+    if (attr == NULL) return 0;
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return 0;
+    return aps->getOutputForAttr(attr, samplingRate, format, channelMask, flags, offloadInfo);
 }
 
 status_t AudioSystem::startOutput(audio_io_handle_t output,

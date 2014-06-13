@@ -287,8 +287,7 @@ status_t AudioTrack::set(
 
     status_t status;
     if (sampleRate == 0) {
-        // TODO replace with new APM method with support for audio_attributes_t
-        status = AudioSystem::getOutputSamplingRate(&sampleRate, mStreamType);
+        status = AudioSystem::getOutputSamplingRateForAttr(&sampleRate, &mAttributes);
         if (status != NO_ERROR) {
             ALOGE("Could not get output sample rate for stream type %d; status %d",
                     mStreamType, status);
@@ -641,8 +640,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     }
 
     uint32_t afSamplingRate;
-    // TODO replace with new APM method with support for audio_attributes_t
-    if (AudioSystem::getOutputSamplingRate(&afSamplingRate, mStreamType) != NO_ERROR) {
+    if (AudioSystem::getOutputSamplingRateForAttr(&afSamplingRate, &mAttributes) != NO_ERROR) {
         return NO_INIT;
     }
     // Resampler implementation limits input sampling rate to 2 x output sampling rate.
@@ -889,13 +887,12 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         return NO_INIT;
     }
 
-    // TODO replace with new APM method with support for audio_attributes_t
-    audio_io_handle_t output = AudioSystem::getOutput(mStreamType, mSampleRate, mFormat,
+    audio_io_handle_t output = AudioSystem::getOutputForAttr(&mAttributes, mSampleRate, mFormat,
             mChannelMask, mFlags, mOffloadInfo);
     if (output == AUDIO_IO_HANDLE_NONE) {
-        ALOGE("Could not get audio output for stream type %d, sample rate %u, format %#x, "
-              "channel mask %#x, flags %#x",
-              mStreamType, mSampleRate, mFormat, mChannelMask, mFlags);
+        ALOGE("Could not get audio output for stream type %d, usage %d, sample rate %u, format %#x,"
+              " channel mask %#x, flags %#x",
+              mStreamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
     {

@@ -84,6 +84,12 @@ public:
                                             audio_channel_mask_t channelMask,
                                             audio_output_flags_t flags,
                                             const audio_offload_info_t *offloadInfo);
+        virtual audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
+                                            uint32_t samplingRate,
+                                            audio_format_t format,
+                                            audio_channel_mask_t channelMask,
+                                            audio_output_flags_t flags,
+                                            const audio_offload_info_t *offloadInfo);
         virtual status_t startOutput(audio_io_handle_t output,
                                      audio_stream_type_t stream,
                                      int session = 0);
@@ -116,6 +122,8 @@ public:
 
         // return the strategy corresponding to a given stream type
         virtual uint32_t getStrategyForStream(audio_stream_type_t stream);
+        // return the strategy corresponding to the given audio attributes
+        virtual uint32_t getStrategyForAttr(const audio_attributes_t *attr);
 
         // return the enabled output devices for the given stream type
         virtual audio_devices_t getDevicesForStream(audio_stream_type_t stream);
@@ -755,6 +763,17 @@ private:
         uint32_t curAudioPortGeneration() const { return mAudioPortGeneration; }
         // converts device address to string sent to audio HAL via setParameters
         static String8 addressToParameter(audio_devices_t device, const String8 address);
+        // internal method to return the output handle for the given device and format
+        audio_io_handle_t getOutputForDevice(
+                audio_devices_t device,
+                audio_stream_type_t stream,
+                uint32_t samplingRate,
+                audio_format_t format,
+                audio_channel_mask_t channelMask,
+                audio_output_flags_t flags,
+                const audio_offload_info_t *offloadInfo);
+        // internal function to derive a stream type value from audio attributes
+        audio_stream_type_t streamTypefromAttributesInt(const audio_attributes_t *attr);
 };
 
 };
