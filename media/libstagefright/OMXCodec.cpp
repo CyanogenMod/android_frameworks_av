@@ -5958,10 +5958,11 @@ status_t OMXCodec::pause() {
             OMX_CommandStateSet, OMX_StatePause);
         CHECK_EQ(err, (status_t)OK);
         setState(PAUSING);
-        mPaused = true;
         while (mState != PAUSED && mState != ERROR) {
             mAsyncCompletion.wait(mLock);
         }
+        if (mState != ERROR)
+            mPaused = true;
         return mState == ERROR ? UNKNOWN_ERROR : OK;
     } else {
         mPaused = true;
