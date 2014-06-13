@@ -61,7 +61,7 @@ public:
 
 private:
     int32_t mSize;
-    char mData[0];
+    char mData[];
 
     // You can't construct instances of this class directly because this is a
     // variable-sized object passed through the binder.
