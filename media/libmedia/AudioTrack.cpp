@@ -174,6 +174,8 @@ AudioTrack::~AudioTrack()
         }
         mAudioTrack->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mAudioTrack.clear();
+        mCblkMemory.clear();
+        mSharedBuffer.clear();
         IPCThreadState::self()->flushCommands();
         ALOGV("~AudioTrack, releasing session id from %d on behalf of %d",
                 IPCThreadState::self()->getCallingPid(), mClientPid);
@@ -1059,8 +1061,9 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         mDeathNotifier.clear();
     }
     mAudioTrack = track;
-
     mCblkMemory = iMem;
+    IPCThreadState::self()->flushCommands();
+
     audio_track_cblk_t* cblk = static_cast<audio_track_cblk_t*>(iMemPointer);
     mCblk = cblk;
     // note that temp is the (possibly revised) value of frameCount

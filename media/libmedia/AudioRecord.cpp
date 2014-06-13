@@ -105,6 +105,8 @@ AudioRecord::~AudioRecord()
         }
         mAudioRecord->asBinder()->unlinkToDeath(mDeathNotifier, this);
         mAudioRecord.clear();
+        mCblkMemory.clear();
+        mBufferMemory.clear();
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId, -1);
     }
@@ -546,9 +548,10 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         mDeathNotifier.clear();
     }
     mAudioRecord = record;
-
     mCblkMemory = iMem;
     mBufferMemory = bufferMem;
+    IPCThreadState::self()->flushCommands();
+
     mCblk = cblk;
     // note that temp is the (possibly revised) value of frameCount
     if (temp < frameCount || (frameCount == 0 && temp == 0)) {
