@@ -649,7 +649,7 @@ uint32_t AudioTrack::getSampleRate() const
     if (isOffloaded_l()) {
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t sampleRate = 0;
-            status_t status = AudioSystem::getSamplingRate(mOutput, mStreamType, &sampleRate);
+            status_t status = AudioSystem::getSamplingRate(mOutput, &sampleRate);
             if (status == NO_ERROR) {
                 mSampleRate = sampleRate;
             }
@@ -889,16 +889,16 @@ status_t AudioTrack::createTrack_l(size_t epoch)
     }
 
     size_t afFrameCount;
-    status = AudioSystem::getFrameCount(output, mStreamType, &afFrameCount);
+    status = AudioSystem::getFrameCount(output, &afFrameCount);
     if (status != NO_ERROR) {
-        ALOGE("getFrameCount(output=%d, streamType=%d) status %d", output, mStreamType, status);
+        ALOGE("getFrameCount(output=%d) status %d", output, status);
         goto release;
     }
 
     uint32_t afSampleRate;
-    status = AudioSystem::getSamplingRate(output, mStreamType, &afSampleRate);
+    status = AudioSystem::getSamplingRate(output, &afSampleRate);
     if (status != NO_ERROR) {
-        ALOGE("getSamplingRate(output=%d, streamType=%d) status %d", output, mStreamType, status);
+        ALOGE("getSamplingRate(output=%d) status %d", output, status);
         goto release;
     }
 
