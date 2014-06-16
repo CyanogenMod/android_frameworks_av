@@ -186,6 +186,29 @@ public:
         return status;
     }
 
+    // connect to camera service (android.hardware.Camera)
+    virtual status_t connectLegacy(const sp<ICameraClient>& cameraClient, int cameraId,
+                             int halVersion,
+                             const String16 &clientPackageName, int clientUid,
+                             /*out*/sp<ICamera>& device)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeStrongBinder(cameraClient->asBinder());
+        data.writeInt32(cameraId);
+        data.writeInt32(halVersion);
+        data.writeString16(clientPackageName);
+        data.writeInt32(clientUid);
+        remote()->transact(BnCameraService::CONNECT_LEGACY, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t status = reply.readInt32();
+        if (reply.readInt32() != 0) {
+            device = interface_cast<ICamera>(reply.readStrongBinder());
+        }
+        return status;
+    }
+
     // connect to camera service (pro client)
     virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb, int cameraId,
                                 const String16 &clientPackageName, int clientUid,
@@ -444,6 +467,27 @@ status_t BnCameraService::onTransact(
             reply->writeNoException();
             // return value
             reply->writeInt32(supportsCameraApi(cameraId, apiVersion));
+            return NO_ERROR;
+        } break;
+        case CONNECT_LEGACY: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            sp<ICameraClient> cameraClient =
+                    interface_cast<ICameraClient>(data.readStrongBinder());
+            int32_t cameraId = data.readInt32();
+            int32_t halVersion = data.readInt32();
+            const String16 clientName = data.readString16();
+            int32_t clientUid = data.readInt32();
+            sp<ICamera> camera;
+            status_t status = connectLegacy(cameraClient, cameraId, halVersion,
+                    clientName, clientUid, /*out*/camera);
+            reply->writeNoException();
+            reply->writeInt32(status);
+            if (camera != NULL) {
+                reply->writeInt32(1);
+                reply->writeStrongBinder(camera->asBinder());
+            } else {
+                reply->writeInt32(0);
+            }
             return NO_ERROR;
         } break;
         default:

@@ -79,7 +79,7 @@ status_t CameraClient::initialize(camera_module_t *module) {
         ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         mHardware.clear();
-        return NO_INIT;
+        return res;
     }
 
     mHardware->setCallbacks(notifyCallback,
