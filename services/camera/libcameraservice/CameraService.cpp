@@ -278,6 +278,7 @@ status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata
     }
 
     Vector<Size> sizes;
+    Vector<Size> jpegSizes;
     Vector<int32_t> formats;
     const char* supportedPreviewFormats;
     {   // Scope for service lock
@@ -287,6 +288,8 @@ status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata
         mShimParams[index].getSupportedPreviewSizes(/*out*/sizes);
 
         mShimParams[index].getSupportedPreviewFormats(/*out*/formats);
+
+        mShimParams[index].getSupportedPictureSizes(/*out*/jpegSizes);
     }
 
     // Always include IMPLEMENTATION_DEFINED
@@ -295,21 +298,29 @@ status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata
     const size_t INTS_PER_CONFIG = 4;
 
     // Build available stream configurations metadata
-    size_t streamConfigSize = sizes.size() * formats.size() * INTS_PER_CONFIG;
-    int32_t streamConfigs[streamConfigSize];
-    size_t configIndex = 0;
+    size_t streamConfigSize = (sizes.size() * formats.size() + jpegSizes.size()) * INTS_PER_CONFIG;
+
+    Vector<int32_t> streamConfigs;
+    streamConfigs.setCapacity(streamConfigSize);
+
     for (size_t i = 0; i < formats.size(); ++i) {
         for (size_t j = 0; j < sizes.size(); ++j) {
-            streamConfigs[configIndex++] = formats[i];
-            streamConfigs[configIndex++] = sizes[j].width;
-            streamConfigs[configIndex++] = sizes[j].height;
-            streamConfigs[configIndex++] =
-                    ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT;
+            streamConfigs.add(formats[i]);
+            streamConfigs.add(sizes[j].width);
+            streamConfigs.add(sizes[j].height);
+            streamConfigs.add(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
         }
     }
 
+    for (size_t i = 0; i < jpegSizes.size(); ++i) {
+        streamConfigs.add(HAL_PIXEL_FORMAT_BLOB);
+        streamConfigs.add(jpegSizes[i].width);
+        streamConfigs.add(jpegSizes[i].height);
+        streamConfigs.add(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
+    }
+
     if ((ret = shimInfo.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,
-            streamConfigs, streamConfigSize)) != OK) {
+            streamConfigs.array(), streamConfigSize)) != OK) {
         return ret;
     }
 
