@@ -926,8 +926,12 @@ bool LiveSession::hasDynamicDuration() const {
     return false;
 }
 
-status_t LiveSession::getTrackInfo(Parcel *reply) const {
-    return mPlaylist->getTrackInfo(reply);
+size_t LiveSession::getTrackCount() const {
+    return mPlaylist->getTrackCount();
+}
+
+sp<AMessage> LiveSession::getTrackInfo(size_t trackIndex) const {
+    return mPlaylist->getTrackInfo(trackIndex);
 }
 
 status_t LiveSession::selectTrack(size_t index, bool select) {

@@ -305,6 +305,34 @@ bool NuPlayer::IsFlushingState(FlushStatus state, bool *needShutdown) {
     }
 }
 
+void NuPlayer::writeTrackInfo(
+        Parcel* reply, const sp<AMessage> format) const {
+    int32_t trackType;
+    CHECK(format->findInt32("type", &trackType));
+
+    AString lang;
+    CHECK(format->findString("language", &lang));
+
+    reply->writeInt32(2); // write something non-zero
+    reply->writeInt32(trackType);
+    reply->writeString16(String16(lang.c_str()));
+
+    if (trackType == MEDIA_TRACK_TYPE_SUBTITLE) {
+        AString mime;
+        CHECK(format->findString("mime", &mime));
+
+        int32_t isAuto, isDefault, isForced;
+        CHECK(format->findInt32("auto", &isAuto));
+        CHECK(format->findInt32("default", &isDefault));
+        CHECK(format->findInt32("forced", &isForced));
+
+        reply->writeString16(String16(mime.c_str()));
+        reply->writeInt32(isAuto);
+        reply->writeInt32(isDefault);
+        reply->writeInt32(isForced);
+    }
+}
+
 void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatSetDataSource:
@@ -339,16 +367,23 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            status_t err = INVALID_OPERATION;
+            Parcel* reply;
+            CHECK(msg->findPointer("reply", (void**)&reply));
+
+            size_t inbandTracks = 0;
             if (mSource != NULL) {
-                Parcel* reply;
-                CHECK(msg->findPointer("reply", (void**)&reply));
-                err = mSource->getTrackInfo(reply);
+                inbandTracks = mSource->getTrackCount();
+            }
+
+            // total track count
+            reply->writeInt32(inbandTracks);
+
+            // write inband tracks
+            for (size_t i = 0; i < inbandTracks; ++i) {
+                writeTrackInfo(reply, mSource->getTrackInfo(i));
             }
 
             sp<AMessage> response = new AMessage;
-            response->setInt32("err", err);
-
             response->postReply(replyID);
             break;
         }
@@ -358,12 +393,19 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
+            size_t trackIndex;
+            int32_t select;
+            CHECK(msg->findSize("trackIndex", &trackIndex));
+            CHECK(msg->findInt32("select", &select));
+
             status_t err = INVALID_OPERATION;
+
+            size_t inbandTracks = 0;
             if (mSource != NULL) {
-                size_t trackIndex;
-                int32_t select;
-                CHECK(msg->findSize("trackIndex", &trackIndex));
-                CHECK(msg->findInt32("select", &select));
+                inbandTracks = mSource->getTrackCount();
+            }
+
+            if (trackIndex < inbandTracks) {
                 err = mSource->selectTrack(trackIndex, select);
             }
 
@@ -1187,6 +1229,14 @@ status_t NuPlayer::selectTrack(size_t trackIndex, bool select) {
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
 
+    if (err != OK) {
+        return err;
+    }
+
+    if (!response->findInt32("err", &err)) {
+        err = OK;
+    }
+
     return err;
 }
 
@@ -1438,21 +1488,7 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             sp<ABuffer> buffer;
             CHECK(msg->findBuffer("buffer", &buffer));
 
-            int32_t trackIndex;
-            int64_t timeUs, durationUs;
-            CHECK(buffer->meta()->findInt32("trackIndex", &trackIndex));
-            CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
-            CHECK(buffer->meta()->findInt64("durationUs", &durationUs));
-
-            Parcel in;
-            in.writeInt32(trackIndex);
-            in.writeInt64(timeUs);
-            in.writeInt64(durationUs);
-            in.writeInt32(buffer->size());
-            in.writeInt32(buffer->size());
-            in.write(buffer->data(), buffer->size());
-
-            notifyListener(MEDIA_SUBTITLE_DATA, 0, 0, &in);
+            sendSubtitleData(buffer, 0 /* baseIndex */);
             break;
         }
 
@@ -1474,6 +1510,23 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
     }
 }
 
+void NuPlayer::sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex) {
+    int32_t trackIndex;
+    int64_t timeUs, durationUs;
+    CHECK(buffer->meta()->findInt32("trackIndex", &trackIndex));
+    CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+    CHECK(buffer->meta()->findInt64("durationUs", &durationUs));
+
+    Parcel in;
+    in.writeInt32(trackIndex + baseIndex);
+    in.writeInt64(timeUs);
+    in.writeInt64(durationUs);
+    in.writeInt32(buffer->size());
+    in.writeInt32(buffer->size());
+    in.write(buffer->data(), buffer->size());
+
+    notifyListener(MEDIA_SUBTITLE_DATA, 0, 0, &in);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 void NuPlayer::Source::notifyFlagsChanged(uint32_t flags) {

@@ -23,6 +23,7 @@
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 #include <media/mediaplayer.h>
@@ -58,8 +59,8 @@ struct M3UParser::MediaGroup : public RefBase {
 
     void pickRandomMediaItems();
     status_t selectTrack(size_t index, bool select);
-    void getTrackInfo(Parcel* reply) const;
     size_t countTracks() const;
+    sp<AMessage> getTrackInfo(size_t index) const;
 
 protected:
     virtual ~MediaGroup();
@@ -184,35 +185,42 @@ status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
     return OK;
 }
 
-void M3UParser::MediaGroup::getTrackInfo(Parcel* reply) const {
-    for (size_t i = 0; i < mMediaItems.size(); ++i) {
-        reply->writeInt32(2); // 2 fields
-
-        if (mType == TYPE_AUDIO) {
-            reply->writeInt32(MEDIA_TRACK_TYPE_AUDIO);
-        } else if (mType == TYPE_VIDEO) {
-            reply->writeInt32(MEDIA_TRACK_TYPE_VIDEO);
-        } else if (mType == TYPE_SUBS) {
-            reply->writeInt32(MEDIA_TRACK_TYPE_SUBTITLE);
-        } else {
-            reply->writeInt32(MEDIA_TRACK_TYPE_UNKNOWN);
-        }
-
-        const Media &item = mMediaItems.itemAt(i);
-        const char *lang = item.mLanguage.empty() ? "und" : item.mLanguage.c_str();
-        reply->writeString16(String16(lang));
-
-        if (mType == TYPE_SUBS) {
-            // TO-DO: pass in a MediaFormat instead
-            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_AUTOSELECT));
-            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_DEFAULT));
-            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_FORCED));
-        }
-    }
-}
-
 size_t M3UParser::MediaGroup::countTracks() const {
     return mMediaItems.size();
+}
+
+sp<AMessage> M3UParser::MediaGroup::getTrackInfo(size_t index) const {
+    if (index >= mMediaItems.size()) {
+        return NULL;
+    }
+
+    sp<AMessage> format = new AMessage();
+
+    int32_t trackType;
+    if (mType == TYPE_AUDIO) {
+        trackType = MEDIA_TRACK_TYPE_AUDIO;
+    } else if (mType == TYPE_VIDEO) {
+        trackType = MEDIA_TRACK_TYPE_VIDEO;
+    } else if (mType == TYPE_SUBS) {
+        trackType = MEDIA_TRACK_TYPE_SUBTITLE;
+    } else {
+        trackType = MEDIA_TRACK_TYPE_UNKNOWN;
+    }
+    format->setInt32("type", trackType);
+
+    const Media &item = mMediaItems.itemAt(index);
+    const char *lang = item.mLanguage.empty() ? "und" : item.mLanguage.c_str();
+    format->setString("language", lang);
+
+    if (mType == TYPE_SUBS) {
+        // TO-DO: pass in a MediaFormat instead
+        format->setString("mime", MEDIA_MIMETYPE_TEXT_VTT);
+        format->setInt32("auto", !!(item.mFlags & MediaGroup::FLAG_AUTOSELECT));
+        format->setInt32("default", !!(item.mFlags & MediaGroup::FLAG_DEFAULT));
+        format->setInt32("forced", !!(item.mFlags & MediaGroup::FLAG_FORCED));
+    }
+
+    return format;
 }
 
 bool M3UParser::MediaGroup::getActiveURI(AString *uri) const {
@@ -319,17 +327,24 @@ status_t M3UParser::selectTrack(size_t index, bool select) {
     return INVALID_OPERATION;
 }
 
-status_t M3UParser::getTrackInfo(Parcel* reply) const {
+size_t M3UParser::getTrackCount() const {
     size_t trackCount = 0;
     for (size_t i = 0; i < mMediaGroups.size(); ++i) {
         trackCount += mMediaGroups.valueAt(i)->countTracks();
     }
-    reply->writeInt32(trackCount);
+    return trackCount;
+}
 
-    for (size_t i = 0; i < mMediaGroups.size(); ++i) {
-        mMediaGroups.valueAt(i)->getTrackInfo(reply);
+sp<AMessage> M3UParser::getTrackInfo(size_t index) const {
+    for (size_t i = 0, ii = index; i < mMediaGroups.size(); ++i) {
+        sp<MediaGroup> group = mMediaGroups.valueAt(i);
+        size_t tracks = group->countTracks();
+        if (ii < tracks) {
+            return group->getTrackInfo(ii);
+        }
+        ii -= tracks;
     }
-    return OK;
+    return NULL;
 }
 
 ssize_t M3UParser::getSelectedIndex() const {
