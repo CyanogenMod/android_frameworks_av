@@ -375,12 +375,22 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 inbandTracks = mSource->getTrackCount();
             }
 
+            size_t ccTracks = 0;
+            if (mCCDecoder != NULL) {
+                ccTracks = mCCDecoder->getTrackCount();
+            }
+
             // total track count
-            reply->writeInt32(inbandTracks);
+            reply->writeInt32(inbandTracks + ccTracks);
 
             // write inband tracks
             for (size_t i = 0; i < inbandTracks; ++i) {
                 writeTrackInfo(reply, mSource->getTrackInfo(i));
+            }
+
+            // write CC track
+            for (size_t i = 0; i < ccTracks; ++i) {
+                writeTrackInfo(reply, mCCDecoder->getTrackInfo(i));
             }
 
             sp<AMessage> response = new AMessage;
@@ -404,9 +414,19 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             if (mSource != NULL) {
                 inbandTracks = mSource->getTrackCount();
             }
+            size_t ccTracks = 0;
+            if (mCCDecoder != NULL) {
+                ccTracks = mCCDecoder->getTrackCount();
+            }
 
             if (trackIndex < inbandTracks) {
                 err = mSource->selectTrack(trackIndex, select);
+            } else {
+                trackIndex -= inbandTracks;
+
+                if (trackIndex < ccTracks) {
+                    err = mCCDecoder->selectTrack(trackIndex, select);
+                }
             }
 
             sp<AMessage> response = new AMessage;
@@ -870,6 +890,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatClosedCaptionNotify:
+        {
+            onClosedCaptionNotify(msg);
+            break;
+        }
+
         default:
             TRESPASS();
             break;
@@ -933,6 +959,9 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         AString mime;
         CHECK(format->findString("mime", &mime));
         mVideoIsAVC = !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime.c_str());
+
+        sp<AMessage> ccNotify = new AMessage(kWhatClosedCaptionNotify, id());
+        mCCDecoder = new CCDecoder(ccNotify);
     }
 
     sp<AMessage> notify =
@@ -1073,6 +1102,10 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
          mediaTimeUs / 1E6);
 #endif
 
+    if (!audio) {
+        mCCDecoder->decode(accessUnit);
+    }
+
     reply->setBuffer("buffer", accessUnit);
     reply->post();
 
@@ -1101,14 +1134,15 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
     sp<ABuffer> buffer;
     CHECK(msg->findBuffer("buffer", &buffer));
 
+    int64_t mediaTimeUs;
+    CHECK(buffer->meta()->findInt64("timeUs", &mediaTimeUs));
+
     int64_t &skipUntilMediaTimeUs =
         audio
             ? mSkipRenderingAudioUntilMediaTimeUs
             : mSkipRenderingVideoUntilMediaTimeUs;
 
     if (skipUntilMediaTimeUs >= 0) {
-        int64_t mediaTimeUs;
-        CHECK(buffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
         if (mediaTimeUs < skipUntilMediaTimeUs) {
             ALOGV("dropping %s buffer at time %lld as requested.",
@@ -1120,6 +1154,10 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
         }
 
         skipUntilMediaTimeUs = -1;
+    }
+
+    if (!audio && mCCDecoder->isSelected()) {
+        mCCDecoder->display(mediaTimeUs);
     }
 
     mRenderer->queueBuffer(audio, buffer, reply);
@@ -1508,6 +1546,39 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         default:
             TRESPASS();
     }
+}
+
+void NuPlayer::onClosedCaptionNotify(const sp<AMessage> &msg) {
+    int32_t what;
+    CHECK(msg->findInt32("what", &what));
+
+    switch (what) {
+        case NuPlayer::CCDecoder::kWhatClosedCaptionData:
+        {
+            sp<ABuffer> buffer;
+            CHECK(msg->findBuffer("buffer", &buffer));
+
+            size_t inbandTracks = 0;
+            if (mSource != NULL) {
+                inbandTracks = mSource->getTrackCount();
+            }
+
+            sendSubtitleData(buffer, inbandTracks);
+            break;
+        }
+
+        case NuPlayer::CCDecoder::kWhatTrackAdded:
+        {
+            notifyListener(MEDIA_INFO, MEDIA_INFO_METADATA_UPDATE, 0);
+
+            break;
+        }
+
+        default:
+            TRESPASS();
+    }
+
+
 }
 
 void NuPlayer::sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex) {

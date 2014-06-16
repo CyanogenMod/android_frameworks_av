@@ -777,6 +777,12 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
 
                 unsigned nalType = mBuffer->data()[pos.nalOffset] & 0x1f;
 
+                if (nalType == 6) {
+                    sp<ABuffer> sei = new ABuffer(pos.nalSize);
+                    memcpy(sei->data(), mBuffer->data() + pos.nalOffset, pos.nalSize);
+                    accessUnit->meta()->setBuffer("sei", sei);
+                }
+
 #if !LOG_NDEBUG
                 char tmp[128];
                 sprintf(tmp, "0x%02x", nalType);
