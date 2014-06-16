@@ -3888,6 +3888,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     AString componentName;
     uint32_t quirks = 0;
+    int32_t encoder = false;
     if (msg->findString("componentName", &componentName)) {
         ssize_t index = matchingCodecs.add();
         OMXCodec::CodecNameAndQuirks *entry = &matchingCodecs.editItemAt(index);
@@ -3900,7 +3901,6 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     } else {
         CHECK(msg->findString("mime", &mime));
 
-        int32_t encoder;
         if (!msg->findInt32("encoder", &encoder)) {
             encoder = false;
         }
@@ -3936,10 +3936,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     if (node == NULL) {
         if (!mime.empty()) {
-            ALOGE("Unable to instantiate a decoder for type '%s'.",
-                 mime.c_str());
+            ALOGE("Unable to instantiate a %scoder for type '%s'.",
+                    encoder ? "en" : "de", mime.c_str());
         } else {
-            ALOGE("Unable to instantiate decoder '%s'.", componentName.c_str());
+            ALOGE("Unable to instantiate codec '%s'.", componentName.c_str());
         }
 
         mCodec->signalError(OMX_ErrorComponentNotFound);
