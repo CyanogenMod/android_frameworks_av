@@ -721,7 +721,7 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
             vin.uChan = vin.yChan + vin.height * vin.pitch;
             vin.vChan = vin.uChan + ((vin.height * vin.pitch) >> 2);
 
-            unsigned long modTimeMs = 0;
+            ULong modTimeMs = 0;
             int32_t nLayer = 0;
             MP4HintTrack hintTrack;
             if (!PVEncodeVideoFrame(mHandle, &vin, &vout,
