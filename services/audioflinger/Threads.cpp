@@ -5137,7 +5137,7 @@ reacquire_wakelock:
             sleepUs = kRecordThreadSleepUs;
         }
         if (framesRead <= 0) {
-            continue;
+            goto unlock;
         }
         ALOG_ASSERT(framesRead > 0);
 
@@ -5145,10 +5145,12 @@ reacquire_wakelock:
             (void) mTeeSink->write(&mRsmpInBuffer[rear * mChannelCount], framesRead);
         }
         // If destination is non-contiguous, we now correct for reading past end of buffer.
-        size_t part1 = mRsmpInFramesP2 - rear;
-        if ((size_t) framesRead > part1) {
-            memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
-                    (framesRead - part1) * mFrameSize);
+        {
+            size_t part1 = mRsmpInFramesP2 - rear;
+            if ((size_t) framesRead > part1) {
+                memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
+                        (framesRead - part1) * mFrameSize);
+            }
         }
         rear = mRsmpInRear += framesRead;
 
@@ -5356,6 +5358,7 @@ reacquire_wakelock:
 
         }
 
+unlock:
         // enable changes in effect chain
         unlockEffectChains(effectChains);
         // effectChains doesn't need to be cleared, since it is cleared by destructor at scope end
