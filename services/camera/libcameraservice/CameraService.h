@@ -100,6 +100,15 @@ public:
     virtual status_t    removeListener(
                                     const sp<ICameraServiceListener>& listener);
 
+    virtual status_t    getLegacyParameters(
+            int cameraId,
+            /*out*/
+            String16* parameters);
+
+    // OK = supports api of that version, -EOPNOTSUPP = does not support
+    virtual status_t    supportsCameraApi(
+            int cameraId, int apiVersion);
+
     // Extra permissions checks
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
                                    Parcel* reply, uint32_t flags);
@@ -412,6 +421,14 @@ private:
      * Returns OK on success, or a negative error code.
      */
     status_t            initializeShimMetadata(int cameraId);
+
+    /**
+     * Get the cached CameraParameters for the camera. If they haven't been
+     * cached yet, then initialize them for the first time.
+     *
+     * Returns OK on success, or a negative error code.
+     */
+    status_t            getLegacyParametersLazy(int cameraId, /*out*/CameraParameters* parameters);
 
     /**
      * Generate the CameraCharacteristics metadata required by the Camera2 API
