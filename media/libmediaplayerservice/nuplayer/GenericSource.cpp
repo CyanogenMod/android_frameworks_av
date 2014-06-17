@@ -67,6 +67,14 @@ void NuPlayer::GenericSource::initFromDataSource(
 
     CHECK(extractor != NULL);
 
+    sp<MetaData> fileMeta = extractor->getMetaData();
+    if (fileMeta != NULL) {
+        int64_t duration;
+        if (fileMeta->findInt64(kKeyDuration, &duration)) {
+            mDurationUs = duration;
+        }
+    }
+
     for (size_t i = 0; i < extractor->countTracks(); ++i) {
         sp<MetaData> meta = extractor->getTrackMetaData(i);
 

@@ -51,6 +51,7 @@ public:
                 int32_t timeScale,
                 const sp<SampleTable> &sampleTable,
                 Vector<SidxEntry> &sidx,
+                const Trex *trex,
                 off64_t firstMoofOffset);
 
     virtual status_t start(MetaData *params = NULL);
@@ -74,6 +75,7 @@ private:
     uint32_t mCurrentSampleIndex;
     uint32_t mCurrentFragmentIndex;
     Vector<SidxEntry> &mSegments;
+    const Trex *mTrex;
     off64_t mFirstMoofOffset;
     off64_t mCurrentMoofOffset;
     off64_t mNextMoofOffset;
@@ -141,6 +143,7 @@ private:
         off64_t offset;
         size_t size;
         uint32_t duration;
+        int32_t compositionOffset;
         uint8_t iv[16];
         Vector<size_t> clearsizes;
         Vector<size_t> encryptedsizes;
@@ -343,8 +346,7 @@ static bool AdjustChannelsAndRate(uint32_t fourcc, uint32_t *channels, uint32_t 
 }
 
 MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
-    : mSidxDuration(0),
-      mMoofOffset(0),
+    : mMoofOffset(0),
       mDataSource(source),
       mInitCheck(NO_INIT),
       mHasVideo(false),
@@ -1163,6 +1165,8 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             mLastTrack->timescale = ntohl(timescale);
 
+            // 14496-12 says all ones means indeterminate, but some files seem to use
+            // 0 instead. We treat both the same.
             int64_t duration = 0;
             if (version == 1) {
                 if (mDataSource->readAt(
@@ -1170,7 +1174,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                         < (ssize_t)sizeof(duration)) {
                     return ERROR_IO;
                 }
-                duration = ntoh64(duration);
+                if (duration != -1) {
+                    duration = ntoh64(duration);
+                }
             } else {
                 uint32_t duration32;
                 if (mDataSource->readAt(
@@ -1178,13 +1184,14 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                         < (ssize_t)sizeof(duration32)) {
                     return ERROR_IO;
                 }
-                // ffmpeg sets duration to -1, which is incorrect.
                 if (duration32 != 0xffffffff) {
                     duration = ntohl(duration32);
                 }
             }
-            mLastTrack->meta->setInt64(
-                    kKeyDuration, (duration * 1000000) / mLastTrack->timescale);
+            if (duration != 0) {
+                mLastTrack->meta->setInt64(
+                        kKeyDuration, (duration * 1000000) / mLastTrack->timescale);
+            }
 
             uint8_t lang[2];
             off64_t lang_offset;
@@ -1724,11 +1731,11 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         {
             *offset += chunk_size;
 
-            if (chunk_data_size < 24) {
+            if (chunk_data_size < 32) {
                 return ERROR_MALFORMED;
             }
 
-            uint8_t header[24];
+            uint8_t header[32];
             if (mDataSource->readAt(
                         data_offset, header, sizeof(header))
                     < (ssize_t)sizeof(header)) {
@@ -1736,20 +1743,77 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
 
             uint64_t creationTime;
+            uint64_t duration = 0;
             if (header[0] == 1) {
                 creationTime = U64_AT(&header[4]);
                 mHeaderTimescale = U32_AT(&header[20]);
+                duration = U64_AT(&header[24]);
+                if (duration == 0xffffffffffffffff) {
+                    duration = 0;
+                }
             } else if (header[0] != 0) {
                 return ERROR_MALFORMED;
             } else {
                 creationTime = U32_AT(&header[4]);
                 mHeaderTimescale = U32_AT(&header[12]);
+                uint32_t d32 = U32_AT(&header[16]);
+                if (d32 == 0xffffffff) {
+                    d32 = 0;
+                }
+                duration = d32;
+            }
+            if (duration != 0) {
+                mFileMetaData->setInt64(kKeyDuration, duration * 1000000 / mHeaderTimescale);
             }
 
             String8 s;
             convertTimeToDate(creationTime, &s);
 
             mFileMetaData->setCString(kKeyDate, s.string());
+
+            break;
+        }
+
+        case FOURCC('m', 'e', 'h', 'd'):
+        {
+            *offset += chunk_size;
+
+            if (chunk_data_size < 8) {
+                return ERROR_MALFORMED;
+            }
+
+            uint8_t flags[4];
+            if (mDataSource->readAt(
+                        data_offset, flags, sizeof(flags))
+                    < (ssize_t)sizeof(flags)) {
+                return ERROR_IO;
+            }
+
+            uint64_t duration = 0;
+            if (flags[0] == 1) {
+                // 64 bit
+                if (chunk_data_size < 12) {
+                    return ERROR_MALFORMED;
+                }
+                mDataSource->getUInt64(data_offset + 4, &duration);
+                if (duration == 0xffffffffffffffff) {
+                    duration = 0;
+                }
+            } else if (flags[0] == 0) {
+                // 32 bit
+                uint32_t d32;
+                mDataSource->getUInt32(data_offset + 4, &d32);
+                if (d32 == 0xffffffff) {
+                    d32 = 0;
+                }
+                duration = d32;
+            } else {
+                return ERROR_MALFORMED;
+            }
+
+            if (duration != 0) {
+                mFileMetaData->setInt64(kKeyDuration, duration * 1000000 / mHeaderTimescale);
+            }
 
             break;
         }
@@ -1787,6 +1851,26 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 mLastTrack->meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_TEXT_3GPP);
             }
 
+            break;
+        }
+
+        case FOURCC('t', 'r', 'e', 'x'):
+        {
+            *offset += chunk_size;
+
+            if (chunk_data_size < 24) {
+                return ERROR_IO;
+            }
+            uint32_t duration;
+            Trex trex;
+            if (!mDataSource->getUInt32(data_offset + 4, &trex.track_ID) ||
+                !mDataSource->getUInt32(data_offset + 8, &trex.default_sample_description_index) ||
+                !mDataSource->getUInt32(data_offset + 12, &trex.default_sample_duration) ||
+                !mDataSource->getUInt32(data_offset + 16, &trex.default_sample_size) ||
+                !mDataSource->getUInt32(data_offset + 20, &trex.default_sample_flags)) {
+                return ERROR_IO;
+            }
+            mTrex.add(trex);
             break;
         }
 
@@ -2014,12 +2098,11 @@ status_t MPEG4Extractor::parseSegmentIndex(off64_t offset, size_t size) {
         mSidxEntries.add(se);
     }
 
-    mSidxDuration = total_duration * 1000000 / timeScale;
-    ALOGV("duration: %lld", mSidxDuration);
+    uint64_t sidxDuration = total_duration * 1000000 / timeScale;
 
     int64_t metaDuration;
     if (!mLastTrack->meta->findInt64(kKeyDuration, &metaDuration) || metaDuration == 0) {
-        mLastTrack->meta->setInt64(kKeyDuration, mSidxDuration);
+        mLastTrack->meta->setInt64(kKeyDuration, sidxDuration);
     }
     return OK;
 }
@@ -2492,11 +2575,24 @@ sp<MediaSource> MPEG4Extractor::getTrack(size_t index) {
         return NULL;
     }
 
+
+    Trex *trex = NULL;
+    int32_t trackId;
+    if (track->meta->findInt32(kKeyTrackID, &trackId)) {
+        for (size_t i = 0; i < mTrex.size(); i++) {
+            Trex *t = &mTrex.editItemAt(index);
+            if (t->track_ID == (uint32_t) trackId) {
+                trex = t;
+                break;
+            }
+        }
+    }
+
     ALOGV("getTrack called, pssh: %d", mPssh.size());
 
     return new MPEG4Source(
             track->meta, mDataSource, track->timescale, track->sampleTable,
-            mSidxEntries, mMoofOffset);
+            mSidxEntries, trex, mMoofOffset);
 }
 
 // static
@@ -2826,6 +2922,7 @@ MPEG4Source::MPEG4Source(
         int32_t timeScale,
         const sp<SampleTable> &sampleTable,
         Vector<SidxEntry> &sidx,
+        const Trex *trex,
         off64_t firstMoofOffset)
     : mFormat(format),
       mDataSource(dataSource),
@@ -2834,6 +2931,7 @@ MPEG4Source::MPEG4Source(
       mCurrentSampleIndex(0),
       mCurrentFragmentIndex(0),
       mSegments(sidx),
+      mTrex(trex),
       mFirstMoofOffset(firstMoofOffset),
       mCurrentMoofOffset(firstMoofOffset),
       mCurrentTime(0),
@@ -2849,6 +2947,8 @@ MPEG4Source::MPEG4Source(
       mBuffer(NULL),
       mWantsNALFragments(false),
       mSrcBuffer(NULL) {
+
+    memset(&mTrackFragmentHeaderInfo, 0, sizeof(mTrackFragmentHeaderInfo));
 
     mFormat->findInt32(kKeyCryptoMode, &mCryptoMode);
     mDefaultIVSize = 0;
@@ -3421,8 +3521,8 @@ status_t MPEG4Source::parseTrackFragmentRun(off64_t offset, off64_t size) {
     } else if (mTrackFragmentHeaderInfo.mFlags
             & TrackFragmentHeaderInfo::kDefaultSampleDurationPresent) {
         sampleDuration = mTrackFragmentHeaderInfo.mDefaultSampleDuration;
-    } else {
-        sampleDuration = mTrackFragmentHeaderInfo.mDefaultSampleDuration;
+    } else if (mTrex) {
+        sampleDuration = mTrex->default_sample_duration;
     }
 
     if (flags & kSampleSizePresent) {
@@ -3491,6 +3591,7 @@ status_t MPEG4Source::parseTrackFragmentRun(off64_t offset, off64_t size) {
         tmp.offset = dataOffset;
         tmp.size = sampleSize;
         tmp.duration = sampleDuration;
+        tmp.compositionOffset = sampleCtsOffset;
         mCurrentSamples.add(tmp);
 
         dataOffset += sampleSize;
@@ -3893,7 +3994,7 @@ status_t MPEG4Source::fragmentedRead(
         const Sample *smpl = &mCurrentSamples[mCurrentSampleIndex];
         offset = smpl->offset;
         size = smpl->size;
-        cts = mCurrentTime;
+        cts = mCurrentTime + smpl->compositionOffset;
         mCurrentTime += smpl->duration;
         isSyncSample = (mCurrentSampleIndex == 0); // XXX
 

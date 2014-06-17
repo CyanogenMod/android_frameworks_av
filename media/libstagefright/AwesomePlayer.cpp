@@ -408,6 +408,13 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
         totalBitRate += bitrate;
     }
+    sp<MetaData> fileMeta = mExtractor->getMetaData();
+    if (fileMeta != NULL) {
+        int64_t duration;
+        if (fileMeta->findInt64(kKeyDuration, &duration)) {
+            mDurationUs = duration;
+        }
+    }
 
     mBitrate = totalBitRate;
 
