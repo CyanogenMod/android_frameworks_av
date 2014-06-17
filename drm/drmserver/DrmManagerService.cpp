@@ -34,7 +34,18 @@ using namespace android;
 static Vector<uid_t> trustedUids;
 
 static bool isProtectedCallAllowed() {
-    return true;
+    // TODO
+    // Following implementation is just for reference.
+    // Each OEM manufacturer should implement/replace with their own solutions.
+    IPCThreadState* ipcState = IPCThreadState::self();
+    uid_t uid = ipcState->getCallingUid();
+
+    for (unsigned int i = 0; i < trustedUids.size(); ++i) {
+        if (trustedUids[i] == uid) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void DrmManagerService::instantiate() {
