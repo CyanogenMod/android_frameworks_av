@@ -32,6 +32,7 @@ class ICameraDeviceUser;
 class ICameraDeviceCallbacks;
 class CameraMetadata;
 class VendorTagDescriptor;
+class String16;
 
 class ICameraService : public IInterface
 {
@@ -49,10 +50,17 @@ public:
         REMOVE_LISTENER,
         GET_CAMERA_CHARACTERISTICS,
         GET_CAMERA_VENDOR_TAG_DESCRIPTOR,
+        GET_LEGACY_PARAMETERS,
+        SUPPORTS_CAMERA_API,
     };
 
     enum {
         USE_CALLING_UID = -1
+    };
+
+    enum {
+        API_VERSION_1 = 1,
+        API_VERSION_2 = 2,
     };
 
 public:
@@ -105,6 +113,18 @@ public:
             int clientUid,
             /*out*/
             sp<ICameraDeviceUser>& device) = 0;
+
+    virtual status_t getLegacyParameters(
+            int cameraId,
+            /*out*/
+            String16* parameters) = 0;
+
+    /**
+     * Returns OK if device supports camera2 api,
+     * returns -EOPNOTSUPP if it doesn't.
+     */
+    virtual status_t supportsCameraApi(
+            int cameraId, int apiVersion) = 0;
 };
 
 // ----------------------------------------------------------------------------

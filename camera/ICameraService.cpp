@@ -18,6 +18,7 @@
 #define LOG_TAG "BpCameraService"
 #include <utils/Log.h>
 #include <utils/Errors.h>
+#include <utils/String16.h>
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -253,6 +254,41 @@ public:
         if (readExceptionCode(reply)) return -EPROTO;
         return reply.readInt32();
     }
+
+    virtual status_t getLegacyParameters(int cameraId, String16* parameters) {
+        if (parameters == NULL) {
+            ALOGE("%s: parameters must not be null", __FUNCTION__);
+            return BAD_VALUE;
+        }
+
+        Parcel data, reply;
+
+        data.writeInt32(cameraId);
+        remote()->transact(BnCameraService::GET_LEGACY_PARAMETERS, data, &reply);
+        if (readExceptionCode(reply)) return -EPROTO;
+
+        status_t res = data.readInt32();
+        int32_t length = data.readInt32(); // -1 means null
+        if (length > 0) {
+            *parameters = data.readString16();
+        } else {
+            *parameters = String16();
+        }
+
+        return res;
+    }
+
+    virtual status_t supportsCameraApi(int cameraId, int apiVersion) {
+        Parcel data, reply;
+
+        data.writeInt32(cameraId);
+        data.writeInt32(apiVersion);
+        remote()->transact(BnCameraService::SUPPORTS_CAMERA_API, data, &reply);
+        if (readExceptionCode(reply)) return -EPROTO;
+
+        status_t res = data.readInt32();
+        return res;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(CameraService, "android.hardware.ICameraService");
@@ -385,6 +421,29 @@ status_t BnCameraService::onTransact(
                 interface_cast<ICameraServiceListener>(data.readStrongBinder());
             reply->writeNoException();
             reply->writeInt32(removeListener(listener));
+            return NO_ERROR;
+        } break;
+        case GET_LEGACY_PARAMETERS: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            int cameraId = data.readInt32();
+            String16 parameters;
+
+            reply->writeNoException();
+            // return value
+            reply->writeInt32(getLegacyParameters(cameraId, &parameters));
+            // out parameters
+            reply->writeInt32(1); // parameters is always available
+            reply->writeString16(parameters);
+            return NO_ERROR;
+        } break;
+        case SUPPORTS_CAMERA_API: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            int cameraId = data.readInt32();
+            int apiVersion = data.readInt32();
+
+            reply->writeNoException();
+            // return value
+            reply->writeInt32(supportsCameraApi(cameraId, apiVersion));
             return NO_ERROR;
         } break;
         default:

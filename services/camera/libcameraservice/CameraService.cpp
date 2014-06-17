@@ -261,35 +261,20 @@ status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata
         return ret;
     }
 
-    ssize_t index = -1;
-    {   // Scope for service lock
-        Mutex::Autolock lock(mServiceLock);
-        index = mShimParams.indexOfKey(cameraId);
-        // Release service lock so initializeShimMetadata can be called correctly.
-    }
-
-    if (index < 0) {
-        int64_t token = IPCThreadState::self()->clearCallingIdentity();
-        ret = initializeShimMetadata(cameraId);
-        IPCThreadState::self()->restoreCallingIdentity(token);
-        if (ret != OK) {
-            return ret;
-        }
+    CameraParameters shimParams;
+    if ((ret = getLegacyParametersLazy(cameraId, /*out*/&shimParams)) != OK) {
+        // Error logged by callee
+        return ret;
     }
 
     Vector<Size> sizes;
     Vector<Size> jpegSizes;
     Vector<int32_t> formats;
     const char* supportedPreviewFormats;
-    {   // Scope for service lock
-        Mutex::Autolock lock(mServiceLock);
-        index = mShimParams.indexOfKey(cameraId);
-
-        mShimParams[index].getSupportedPreviewSizes(/*out*/sizes);
-
-        mShimParams[index].getSupportedPreviewFormats(/*out*/formats);
-
-        mShimParams[index].getSupportedPictureSizes(/*out*/jpegSizes);
+    {
+        shimParams.getSupportedPreviewSizes(/*out*/sizes);
+        shimParams.getSupportedPreviewFormats(/*out*/formats);
+        shimParams.getSupportedPictureSizes(/*out*/jpegSizes);
     }
 
     // Always include IMPLEMENTATION_DEFINED
@@ -481,6 +466,7 @@ status_t CameraService::initializeShimMetadata(int cameraId) {
     int uid = getCallingUid();
     status_t ret = validateConnect(cameraId, uid);
     if (ret != OK) {
+        // Error already logged by callee
         return ret;
     }
 
@@ -503,6 +489,7 @@ status_t CameraService::initializeShimMetadata(int cameraId) {
                                       client);
 
             if (ret != OK) {
+                // Error already logged by callee
                 return ret;
             }
         }
@@ -521,6 +508,52 @@ status_t CameraService::initializeShimMetadata(int cameraId) {
     if (needsNewClient) {
         client->disconnect();
     }
+    return OK;
+}
+
+status_t CameraService::getLegacyParametersLazy(int cameraId,
+        /*out*/
+        CameraParameters* parameters) {
+
+    ALOGV("%s: for cameraId: %d", __FUNCTION__, cameraId);
+
+    status_t ret = 0;
+
+    if (parameters == NULL) {
+        ALOGE("%s: parameters must not be null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    ssize_t index = -1;
+    {   // Scope for service lock
+        Mutex::Autolock lock(mServiceLock);
+        index = mShimParams.indexOfKey(cameraId);
+        // Release service lock so initializeShimMetadata can be called correctly.
+
+        if (index >= 0) {
+            *parameters = mShimParams[index];
+        }
+    }
+
+    if (index < 0) {
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
+        ret = initializeShimMetadata(cameraId);
+        IPCThreadState::self()->restoreCallingIdentity(token);
+        if (ret != OK) {
+            // Error already logged by callee
+            return ret;
+        }
+
+        {   // Scope for service lock
+            Mutex::Autolock lock(mServiceLock);
+            index = mShimParams.indexOfKey(cameraId);
+
+            LOG_ALWAYS_FATAL_IF(index < 0, "index should have been initialized");
+
+            *parameters = mShimParams[index];
+        }
+    }
+
     return OK;
 }
 
@@ -959,6 +992,78 @@ status_t CameraService::removeListener(
           __FUNCTION__, listener.get());
 
     return BAD_VALUE;
+}
+
+status_t CameraService::getLegacyParameters(
+            int cameraId,
+            /*out*/
+            String16* parameters) {
+    ALOGV("%s: for camera ID = %d", __FUNCTION__, cameraId);
+
+    if (parameters == NULL) {
+        ALOGE("%s: parameters must not be null", __FUNCTION__);
+        return BAD_VALUE;
+    }
+
+    status_t ret = 0;
+
+    CameraParameters shimParams;
+    if ((ret = getLegacyParametersLazy(cameraId, /*out*/&shimParams)) != OK) {
+        // Error logged by caller
+        return ret;
+    }
+
+    String8 shimParamsString8 = shimParams.flatten();
+    String16 shimParamsString16 = String16(shimParamsString8);
+
+    *parameters = shimParamsString16;
+
+    return OK;
+}
+
+status_t CameraService::supportsCameraApi(int cameraId, int apiVersion) {
+    ALOGV("%s: for camera ID = %d", __FUNCTION__, cameraId);
+
+    switch (apiVersion) {
+        case API_VERSION_1:
+        case API_VERSION_2:
+            break;
+        default:
+            ALOGE("%s: Bad API version %d", __FUNCTION__, apiVersion);
+            return BAD_VALUE;
+    }
+
+    int facing = -1;
+    int deviceVersion = getDeviceVersion(cameraId, &facing);
+
+    switch(deviceVersion) {
+      case CAMERA_DEVICE_API_VERSION_1_0:
+      case CAMERA_DEVICE_API_VERSION_2_0:
+      case CAMERA_DEVICE_API_VERSION_2_1:
+      case CAMERA_DEVICE_API_VERSION_3_0:
+      case CAMERA_DEVICE_API_VERSION_3_1:
+        if (apiVersion == API_VERSION_2) {
+            ALOGV("%s: Camera id %d uses HAL prior to HAL3.2, doesn't support api2 without shim",
+                    __FUNCTION__, cameraId);
+            return -EOPNOTSUPP;
+        } else { // if (apiVersion == API_VERSION_1) {
+            ALOGV("%s: Camera id %d uses older HAL before 3.2, but api1 is always supported",
+                    __FUNCTION__, cameraId);
+            return OK;
+        }
+      case CAMERA_DEVICE_API_VERSION_3_2:
+        ALOGV("%s: Camera id %d uses HAL3.2 or newer, supports api1/api2 directly",
+                __FUNCTION__, cameraId);
+        return OK;
+      case -1:
+        ALOGE("%s: Invalid camera id %d", __FUNCTION__, cameraId);
+        return BAD_VALUE;
+      default:
+        ALOGE("%s: Unknown camera device HAL version: %d", __FUNCTION__, deviceVersion);
+        return INVALID_OPERATION;
+    }
+
+    return OK;
 }
 
 void CameraService::removeClientByRemote(const wp<IBinder>& remoteBinder) {
