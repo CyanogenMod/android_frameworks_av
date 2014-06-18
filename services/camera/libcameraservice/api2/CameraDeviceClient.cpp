@@ -102,7 +102,7 @@ status_t CameraDeviceClient::submitRequest(sp<CaptureRequest> request,
 status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > requests,
                                                bool streaming, int64_t* lastFrameNumber) {
     ATRACE_CALL();
-    ALOGV("%s-start of function. Request list size %d", __FUNCTION__, requests.size());
+    ALOGV("%s-start of function. Request list size %zu", __FUNCTION__, requests.size());
 
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -177,7 +177,7 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
 
         metadata.update(ANDROID_REQUEST_ID, &requestId, /*size*/1);
         loopCounter++; // loopCounter starts from 1
-        ALOGV("%s: Camera %d: Creating request with ID %d (%d of %d)",
+        ALOGV("%s: Camera %d: Creating request with ID %d (%d of %zu)",
               __FUNCTION__, mCameraId, requestId, loopCounter, requests.size());
 
         metadataRequestList.push_back(metadata);
