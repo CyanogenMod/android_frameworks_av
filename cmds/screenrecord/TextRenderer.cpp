@@ -353,6 +353,6 @@ char* TextRenderer::breakString(const char* str, float maxWidth) const {
         }
     }
 
-    ALOGV("goodPos=%d for str='%s'", goodPos, str);
+    ALOGV("goodPos=%zu for str='%s'", goodPos, str);
     return const_cast<char*>(str + goodPos);
 }

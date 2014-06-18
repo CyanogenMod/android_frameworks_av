@@ -14,6 +14,19 @@
  * limitations under the License.
  */
 
+#include <assert.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <getopt.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <termios.h>
+#include <unistd.h>
+
 #define LOG_TAG "ScreenRecord"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
@@ -35,18 +48,6 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaMuxer.h>
 #include <media/ICrypto.h>
-
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <getopt.h>
-#include <sys/wait.h>
-#include <termios.h>
-#include <assert.h>
 
 #include "screenrecord.h"
 #include "Overlay.h"
@@ -354,7 +355,7 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
         case NO_ERROR:
             // got a buffer
             if ((flags & MediaCodec::BUFFER_FLAG_CODECCONFIG) != 0) {
-                ALOGV("Got codec config buffer (%u bytes)", size);
+                ALOGV("Got codec config buffer (%zu bytes)", size);
                 if (muxer != NULL) {
                     // ignore this -- we passed the CSD into MediaMuxer when
                     // we got the format change notification
@@ -362,7 +363,7 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
                 }
             }
             if (size != 0) {
-                ALOGV("Got data in buffer %d, size=%d, pts=%lld",
+                ALOGV("Got data in buffer %zu, size=%zu, pts=%" PRId64,
                         bufIndex, size, ptsUsec);
 
                 { // scope
@@ -473,7 +474,7 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
 
     ALOGV("Encoder stopping (req=%d)", gStopRequested);
     if (gVerbose) {
-        printf("Encoder stopping; recorded %u frames in %lld seconds\n",
+        printf("Encoder stopping; recorded %u frames in %" PRId64 " seconds\n",
                 debugNumFrames, nanoseconds_to_seconds(
                         systemTime(CLOCK_MONOTONIC) - startWhenNsec));
     }

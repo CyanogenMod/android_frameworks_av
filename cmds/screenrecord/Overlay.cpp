@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include <assert.h>
+#include <inttypes.h>
+#include <stdlib.h>
+
 #define LOG_TAG "ScreenRecord"
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
@@ -26,9 +30,6 @@
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-
-#include <stdlib.h>
-#include <assert.h>
 
 #include "screenrecord.h"
 #include "Overlay.h"
@@ -235,7 +236,7 @@ void Overlay::processFrame_l() {
 
     char textBuf[64];
     getTimeString_l(monotonicNsec, textBuf, sizeof(textBuf));
-    String8 timeStr(String8::format("%s f=%lld (%zd)",
+    String8 timeStr(String8::format("%s f=%" PRId64 " (%zd)",
             textBuf, frameNumber, mTotalDroppedFrames));
     mTextRenderer.drawString(mTexProgram, Program::kIdentity, 0, 0, timeStr);
 
