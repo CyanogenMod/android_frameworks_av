@@ -802,7 +802,7 @@ MtpResponseCode MtpServer::doGetPartialObject(MtpOperationCode operation) {
     int result = mDatabase->getObjectFilePath(handle, pathBuf, fileLength, format);
     if (result != MTP_RESPONSE_OK)
         return result;
-    if (offset + length > fileLength)
+    if (offset + length > (uint64_t)fileLength)
         length = fileLength - offset;
 
     const char* filePath = (const char *)pathBuf;
@@ -1005,7 +1005,7 @@ done:
 
 static void deleteRecursive(const char* path) {
     char pathbuf[PATH_MAX];
-    int pathLength = strlen(path);
+    size_t pathLength = strlen(path);
     if (pathLength >= sizeof(pathbuf) - 1) {
         ALOGE("path too long: %s\n", path);
     }
@@ -1127,12 +1127,13 @@ MtpResponseCode MtpServer::doSendPartialObject() {
 
     // can't start writing past the end of the file
     if (offset > edit->mSize) {
-        ALOGD("writing past end of object, offset: %lld, edit->mSize: %lld", offset, edit->mSize);
+        ALOGD("writing past end of object, offset: %" PRIu64 ", edit->mSize: %" PRIu64,
+            offset, edit->mSize);
         return MTP_RESPONSE_GENERAL_ERROR;
     }
 
     const char* filePath = (const char *)edit->mPath;
-    ALOGV("receiving partial %s %lld %" PRIu32 "\n", filePath, offset, length);
+    ALOGV("receiving partial %s %" PRIu64 " %" PRIu32, filePath, offset, length);
 
     // read the header, and possibly some data
     int ret = mData.read(mFD);

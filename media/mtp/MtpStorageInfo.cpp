@@ -16,6 +16,8 @@
 
 #define LOG_TAG "MtpStorageInfo"
 
+#include <inttypes.h>
+
 #include "MtpDebug.h"
 #include "MtpDataPacket.h"
 #include "MtpStorageInfo.h"
@@ -63,7 +65,7 @@ void MtpStorageInfo::read(MtpDataPacket& packet) {
 void MtpStorageInfo::print() {
     ALOGD("Storage Info %08X:\n\tmStorageType: %d\n\tmFileSystemType: %d\n\tmAccessCapability: %d\n",
             mStorageID, mStorageType, mFileSystemType, mAccessCapability);
-    ALOGD("\tmMaxCapacity: %lld\n\tmFreeSpaceBytes: %lld\n\tmFreeSpaceObjects: %d\n",
+    ALOGD("\tmMaxCapacity: %" PRIu64 "\n\tmFreeSpaceBytes: %" PRIu64 "\n\tmFreeSpaceObjects: %d\n",
             mMaxCapacity, mFreeSpaceBytes, mFreeSpaceObjects);
     ALOGD("\tmStorageDescription: %s\n\tmVolumeIdentifier: %s\n",
             mStorageDescription, mVolumeIdentifier);
