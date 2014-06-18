@@ -23,6 +23,7 @@
 
 #include <binder/IPCThreadState.h>
 #include <media/AudioTrack.h>
+#include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/AudioPlayer.h>
@@ -140,6 +141,12 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             audioFormat = AUDIO_FORMAT_INVALID;
         } else {
             ALOGV("Mime type \"%s\" mapped to audio_format 0x%x", mime, audioFormat);
+        }
+
+        int32_t aacaot = -1;
+        if ((audioFormat == AUDIO_FORMAT_AAC) && format->findInt32(kKeyAACAOT, &aacaot)) {
+            // Redefine AAC format corrosponding to aac profile
+            mapAACProfileToAudioFormat(audioFormat,(OMX_AUDIO_AACPROFILETYPE) aacaot);
         }
     }
 

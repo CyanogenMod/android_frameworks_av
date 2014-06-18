@@ -23,6 +23,7 @@
 
 #include <arpa/inet.h>
 #include <cutils/properties.h>
+#include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -609,6 +610,39 @@ const struct mime_conv_t* p = &mimeLookup[0];
     return BAD_VALUE;
 }
 
+struct aac_format_conv_t {
+    OMX_AUDIO_AACPROFILETYPE eAacProfileType;
+    audio_format_t format;
+};
+
+static const struct aac_format_conv_t profileLookup[] = {
+    { OMX_AUDIO_AACObjectMain,        AUDIO_FORMAT_AAC_MAIN},
+    { OMX_AUDIO_AACObjectLC,          AUDIO_FORMAT_AAC_LC},
+    { OMX_AUDIO_AACObjectSSR,         AUDIO_FORMAT_AAC_SSR},
+    { OMX_AUDIO_AACObjectLTP,         AUDIO_FORMAT_AAC_LTP},
+    { OMX_AUDIO_AACObjectHE,          AUDIO_FORMAT_AAC_HE_V1},
+    { OMX_AUDIO_AACObjectScalable,    AUDIO_FORMAT_AAC_SCALABLE},
+    { OMX_AUDIO_AACObjectERLC,        AUDIO_FORMAT_AAC_ERLC},
+    { OMX_AUDIO_AACObjectLD,          AUDIO_FORMAT_AAC_LD},
+    { OMX_AUDIO_AACObjectHE_PS,       AUDIO_FORMAT_AAC_HE_V2},
+    { OMX_AUDIO_AACObjectELD,         AUDIO_FORMAT_AAC_ELD},
+    { OMX_AUDIO_AACObjectNull,        AUDIO_FORMAT_AAC},
+};
+
+void mapAACProfileToAudioFormat( audio_format_t& format, uint64_t eAacProfile)
+{
+const struct aac_format_conv_t* p = &profileLookup[0];
+    while (p->eAacProfileType != OMX_AUDIO_AACObjectNull) {
+        if (eAacProfile == p->eAacProfileType) {
+            format = p->format;
+            return;
+        }
+        ++p;
+    }
+    format = AUDIO_FORMAT_AAC;
+    return;
+}
+
 bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
                       bool isStreaming, audio_stream_type_t streamType)
 {
@@ -634,15 +668,11 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
         return false;
     }
 
-    // check whether it is ELD/LD content -> no offloading
-    // FIXME: this should depend on audio DSP capabilities. mapMimeToAudioFormat() should use the
-    // metadata to refine the AAC format and the audio HAL should only list supported profiles.
+    // Redefine aac format according to its profile
+    // Offloading depends on audio DSP capabilities.
     int32_t aacaot = -1;
     if (meta->findInt32(kKeyAACAOT, &aacaot)) {
-        if (aacaot == 23 || aacaot == 39 ) {
-            ALOGV("track of type '%s' is ELD/LD content", mime);
-            return false;
-        }
+        mapAACProfileToAudioFormat(info.format,(OMX_AUDIO_AACPROFILETYPE) aacaot);
     }
 
     int32_t srate = -1;

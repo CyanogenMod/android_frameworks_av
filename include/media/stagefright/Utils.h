@@ -53,6 +53,9 @@ AString MakeUserAgent();
 // Convert a MIME type to a AudioSystem::audio_format
 status_t mapMimeToAudioFormat(audio_format_t& format, const char* mime);
 
+// Convert a aac profile to a AudioSystem::audio_format
+void mapAACProfileToAudioFormat(audio_format_t& format, uint64_t eAacProfile);
+
 // Send information from MetaData to the HAL via AudioSink
 status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink, const sp<MetaData>& meta);
 
