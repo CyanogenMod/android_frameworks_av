@@ -17,6 +17,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaRecorder"
+
+#include <inttypes.h>
+
 #include <utils/Log.h>
 #include <media/mediarecorder.h>
 #include <binder/IServiceManager.h>
@@ -286,7 +289,7 @@ status_t MediaRecorder::setOutputFile(const char* path)
 
 status_t MediaRecorder::setOutputFile(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setOutputFile(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setOutputFile(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     if (mMediaRecorder == NULL) {
         ALOGE("media recorder is not initialized yet");
         return INVALID_OPERATION;

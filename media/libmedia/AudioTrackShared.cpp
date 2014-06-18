@@ -135,7 +135,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         // pipe should not be overfull
         if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
             if (mIsOut) {
-                ALOGE("Shared memory control block is corrupt (filled=%d, mFrameCount=%u); "
+                ALOGE("Shared memory control block is corrupt (filled=%zd, mFrameCount=%zu); "
                         "shutting down", filled, mFrameCount);
                 mIsShutdown = true;
                 status = NO_INIT;
@@ -338,7 +338,7 @@ size_t ClientProxy::getFramesFilled() {
     ssize_t filled = rear - front;
     // pipe should not be overfull
     if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-        ALOGE("Shared memory control block is corrupt (filled=%d); shutting down", filled);
+        ALOGE("Shared memory control block is corrupt (filled=%zd); shutting down", filled);
         return 0;
     }
     return (size_t)filled;
@@ -555,7 +555,7 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
     ssize_t filled = rear - front;
     // pipe should not already be overfull
     if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-        ALOGE("Shared memory control block is corrupt (filled=%d); shutting down", filled);
+        ALOGE("Shared memory control block is corrupt (filled=%zd); shutting down", filled);
         mIsShutdown = true;
     }
     if (mIsShutdown) {
@@ -642,7 +642,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
     }
     // FIXME AudioRecord wakeup needs to be optimized; it currently wakes up client every time
     if (!mIsOut || (mAvailToClient + stepCount >= minimum)) {
-        ALOGV("mAvailToClient=%u stepCount=%u minimum=%u", mAvailToClient, stepCount, minimum);
+        ALOGV("mAvailToClient=%zu stepCount=%zu minimum=%zu", mAvailToClient, stepCount, minimum);
         int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
         if (!(old & CBLK_FUTEX_WAKE)) {
             (void) syscall(__NR_futex, &cblk->mFutex,
@@ -675,7 +675,7 @@ size_t AudioTrackServerProxy::framesReady()
     ssize_t filled = rear - cblk->u.mStreaming.mFront;
     // pipe should not already be overfull
     if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-        ALOGE("Shared memory control block is corrupt (filled=%d); shutting down", filled);
+        ALOGE("Shared memory control block is corrupt (filled=%zd); shutting down", filled);
         mIsShutdown = true;
         return 0;
     }
@@ -834,7 +834,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     size_t newPosition = position + stepCount;
     int32_t setFlags = 0;
     if (!(position <= newPosition && newPosition <= mFrameCount)) {
-        ALOGW("%s newPosition %u outside [%u, %u]", __func__, newPosition, position, mFrameCount);
+        ALOGW("%s newPosition %zu outside [%zu, %zu]", __func__, newPosition, position, mFrameCount);
         newPosition = mFrameCount;
     } else if (mState.mLoopCount != 0 && newPosition == mState.mLoopEnd) {
         if (mState.mLoopCount == -1 || --mState.mLoopCount != 0) {

@@ -475,7 +475,7 @@ static bool isTimelapseProfile(camcorder_quality quality) {
 }
 
 void MediaProfiles::initRequiredProfileRefs(const Vector<int>& cameraIds) {
-    ALOGV("Number of camera ids: %d", cameraIds.size());
+    ALOGV("Number of camera ids: %zu", cameraIds.size());
     CHECK(cameraIds.size() > 0);
     mRequiredProfileRefs = new RequiredProfiles[cameraIds.size()];
     for (size_t i = 0, n = cameraIds.size(); i < n; ++i) {
@@ -602,14 +602,14 @@ void MediaProfiles::checkAndAddRequiredProfilesIfNecessary() {
 
                 int index = getCamcorderProfileIndex(cameraId, profile->mQuality);
                 if (index != -1) {
-                    ALOGV("Profile quality %d for camera %d already exists",
+                    ALOGV("Profile quality %d for camera %zu already exists",
                         profile->mQuality, cameraId);
                     CHECK(index == refIndex);
                     continue;
                 }
 
                 // Insert the new profile
-                ALOGV("Add a profile: quality %d=>%d for camera %d",
+                ALOGV("Add a profile: quality %d=>%d for camera %zu",
                         mCamcorderProfiles[info->mRefProfileIndex]->mQuality,
                         profile->mQuality, cameraId);
 

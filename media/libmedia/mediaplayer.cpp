@@ -17,12 +17,14 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaPlayer"
-#include <utils/Log.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <fcntl.h>
+#include <inttypes.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <utils/Log.h>
 
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
@@ -157,7 +159,7 @@ status_t MediaPlayer::setDataSource(
 
 status_t MediaPlayer::setDataSource(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     status_t err = UNKNOWN_ERROR;
     const sp<IMediaPlayerService>& service(getMediaPlayerService());
     if (service != 0) {
@@ -194,7 +196,7 @@ status_t MediaPlayer::invoke(const Parcel& request, Parcel *reply)
             (mCurrentState != MEDIA_PLAYER_STATE_ERROR) &&
             ((mCurrentState & MEDIA_PLAYER_IDLE) != MEDIA_PLAYER_IDLE);
     if ((mPlayer != NULL) && hasBeenInitialized) {
-        ALOGV("invoke %d", request.dataSize());
+        ALOGV("invoke %zu", request.dataSize());
         return  mPlayer->invoke(request, reply);
     }
     ALOGE("invoke failed: wrong state %X", mCurrentState);
@@ -818,7 +820,7 @@ void MediaPlayer::died()
                                         audio_format_t* pFormat,
                                         const sp<IMemoryHeap>& heap, size_t *pSize)
 {
-    ALOGV("decode(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("decode(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     status_t status;
     const sp<IMediaPlayerService>& service = getMediaPlayerService();
     if (service != 0) {

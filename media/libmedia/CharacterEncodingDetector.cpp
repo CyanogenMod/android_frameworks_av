@@ -112,7 +112,7 @@ void CharacterEncodingDetector::detectAndConvert() {
         if (allprintable) {
             // since 'buf' is empty, ICU would return a UTF-8 matcher with low confidence, so
             // no need to even call it
-            ALOGV("all tags are printable, assuming ascii (%d)", strlen(buf));
+            ALOGV("all tags are printable, assuming ascii (%zu)", strlen(buf));
         } else {
             ucsdet_setText(csd, buf, strlen(buf), &status);
             int32_t matches;
@@ -267,11 +267,11 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
     Vector<const UCharsetMatch*> matches;
     UErrorCode status = U_ZERO_ERROR;
 
-    ALOGV("%d matches", nummatches);
+    ALOGV("%zu matches", nummatches);
     for (size_t i = 0; i < nummatches; i++) {
         const char *encname = ucsdet_getName(ucma[i], &status);
         int confidence = ucsdet_getConfidence(ucma[i], &status);
-        ALOGV("%d: %s %d", i, encname, confidence);
+        ALOGV("%zu: %s %d", i, encname, confidence);
         matches.push_back(ucma[i]);
     }
 
@@ -287,7 +287,7 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
         return matches[0];
     }
 
-    ALOGV("considering %d matches", num);
+    ALOGV("considering %zu matches", num);
 
     // keep track of how many "special" characters result when converting the input using each
     // encoding
@@ -315,7 +315,7 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
             freqcoverage = frequent_ja_coverage;
         }
 
-        ALOGV("%d: %s %d", i, encname, confidence);
+        ALOGV("%zu: %s %d", i, encname, confidence);
         UConverter *conv = ucnv_open(encname, &status);
         const char *source = input;
         const char *sourceLimit = input + len;

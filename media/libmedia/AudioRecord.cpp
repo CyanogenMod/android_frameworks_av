@@ -18,7 +18,9 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioRecord"
 
+#include <inttypes.h>
 #include <sys/resource.h>
+
 #include <binder/IPCThreadState.h>
 #include <media/AudioRecord.h>
 #include <utils/Log.h>
@@ -468,7 +470,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         if (frameCount == 0) {
             frameCount = minFrameCount;
         } else if (frameCount < minFrameCount) {
-            ALOGE("frameCount %u < minFrameCount %u", frameCount, minFrameCount);
+            ALOGE("frameCount %zu < minFrameCount %zu", frameCount, minFrameCount);
             return BAD_VALUE;
         }
 
@@ -555,17 +557,17 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     mCblk = cblk;
     // note that temp is the (possibly revised) value of frameCount
     if (temp < frameCount || (frameCount == 0 && temp == 0)) {
-        ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
+        ALOGW("Requested frameCount %zu but received frameCount %zu", frameCount, temp);
     }
     frameCount = temp;
 
     mAwaitBoost = false;
     if (mFlags & AUDIO_INPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
-            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %u", frameCount);
+            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %zu", frameCount);
             mAwaitBoost = true;
         } else {
-            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
+            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
             // once denied, do not request again if IAudioRecord is re-created
             mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
         }
@@ -740,7 +742,7 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize)
     if (ssize_t(userSize) < 0 || (buffer == NULL && userSize != 0)) {
         // sanity-check. user is most-likely passing an error code, and it would
         // make the return value ambiguous (actualSize vs error).
-        ALOGE("AudioRecord::read(buffer=%p, size=%u (%d)", buffer, userSize, userSize);
+        ALOGE("AudioRecord::read(buffer=%p, size=%zu (%zu)", buffer, userSize, userSize);
         return BAD_VALUE;
     }
 
@@ -921,10 +923,10 @@ nsecs_t AudioRecord::processAudioBuffer()
         size_t nonContig;
         status_t err = obtainBuffer(&audioBuffer, requested, NULL, &nonContig);
         LOG_ALWAYS_FATAL_IF((err != NO_ERROR) != (audioBuffer.frameCount == 0),
-                "obtainBuffer() err=%d frameCount=%u", err, audioBuffer.frameCount);
+                "obtainBuffer() err=%d frameCount=%zu", err, audioBuffer.frameCount);
         requested = &ClientProxy::kNonBlocking;
         size_t avail = audioBuffer.frameCount + nonContig;
-        ALOGV("obtainBuffer(%u) returned %u = %u + %u err %d",
+        ALOGV("obtainBuffer(%u) returned %zu = %zu + %zu err %d",
                 mRemainingFrames, avail, audioBuffer.frameCount, nonContig, err);
         if (err != NO_ERROR) {
             if (err == TIMED_OUT || err == WOULD_BLOCK || err == -EINTR) {
@@ -952,8 +954,8 @@ nsecs_t AudioRecord::processAudioBuffer()
 
         // Sanity check on returned size
         if (ssize_t(readSize) < 0 || readSize > reqSize) {
-            ALOGE("EVENT_MORE_DATA requested %u bytes but callback returned %d bytes",
-                    reqSize, (int) readSize);
+            ALOGE("EVENT_MORE_DATA requested %zu bytes but callback returned %zd bytes",
+                    reqSize, ssize_t(readSize));
             return NS_NEVER;
         }
 
@@ -1092,7 +1094,7 @@ bool AudioRecord::AudioRecordThread::threadLoop()
         ns = 1000000000LL;
         // fall through
     default:
-        LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %lld", ns);
+        LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %" PRId64, ns);
         pauseInternal(ns);
         return true;
     }

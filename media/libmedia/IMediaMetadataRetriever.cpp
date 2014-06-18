@@ -15,8 +15,10 @@
 ** limitations under the License.
 */
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <sys/types.h>
+
 #include <binder/Parcel.h>
 #include <media/IMediaHTTPService.h>
 #include <media/IMediaMetadataRetriever.h>
@@ -125,7 +127,7 @@ public:
 
     sp<IMemory> getFrameAtTime(int64_t timeUs, int option)
     {
-        ALOGV("getTimeAtTime: time(%lld us) and option(%d)", timeUs, option);
+        ALOGV("getTimeAtTime: time(%" PRId64 " us) and option(%d)", timeUs, option);
         Parcel data, reply;
         data.writeInterfaceToken(IMediaMetadataRetriever::getInterfaceDescriptor());
         data.writeInt64(timeUs);
@@ -237,7 +239,7 @@ status_t BnMediaMetadataRetriever::onTransact(
             CHECK_INTERFACE(IMediaMetadataRetriever, data, reply);
             int64_t timeUs = data.readInt64();
             int option = data.readInt32();
-            ALOGV("getTimeAtTime: time(%lld us) and option(%d)", timeUs, option);
+            ALOGV("getTimeAtTime: time(%" PRId64 " us) and option(%d)", timeUs, option);
 #ifndef DISABLE_GROUP_SCHEDULE_HACK
             setSchedPolicy(data);
 #endif

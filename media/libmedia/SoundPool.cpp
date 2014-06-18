@@ -16,6 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SoundPool"
+
+#include <inttypes.h>
+
 #include <utils/Log.h>
 
 #define USE_SHARED_MEM_BUFFER
@@ -212,7 +215,7 @@ int SoundPool::load(const char* path, int priority __unused)
 
 int SoundPool::load(int fd, int64_t offset, int64_t length, int priority __unused)
 {
-    ALOGV("load: fd=%d, offset=%lld, length=%lld, priority=%d",
+    ALOGV("load: fd=%d, offset=%" PRId64 ", length=%" PRId64 ", priority=%d",
             fd, offset, length, priority);
     Mutex::Autolock lock(&mLock);
     sp<Sample> sample = new Sample(++mNextSampleID, fd, offset, length);
@@ -462,7 +465,8 @@ Sample::Sample(int sampleID, int fd, int64_t offset, int64_t length)
     mFd = dup(fd);
     mOffset = offset;
     mLength = length;
-    ALOGV("create sampleID=%d, fd=%d, offset=%lld, length=%lld", mSampleID, mFd, mLength, mOffset);
+    ALOGV("create sampleID=%d, fd=%d, offset=%" PRId64 " length=%" PRId64,
+        mSampleID, mFd, mLength, mOffset);
 }
 
 void Sample::init()
@@ -516,7 +520,7 @@ status_t Sample::doLoad()
         ALOGE("Unable to load sample: %s", mUrl);
         goto error;
     }
-    ALOGV("pointer = %p, size = %u, sampleRate = %u, numChannels = %d",
+    ALOGV("pointer = %p, size = %zu, sampleRate = %u, numChannels = %d",
           mHeap->getBase(), mSize, sampleRate, numChannels);
 
     if (sampleRate > kMaxSampleRate) {

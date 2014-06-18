@@ -15,12 +15,13 @@
 ** limitations under the License.
 */
 
-
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioTrack"
 
+#include <inttypes.h>
 #include <math.h>
 #include <sys/resource.h>
+
 #include <audio_utils/primitives.h>
 #include <binder/IPCThreadState.h>
 #include <media/AudioTrack.h>
@@ -89,7 +90,7 @@ status_t AudioTrack::getMinFrameCount(
                 streamType, sampleRate);
         return BAD_VALUE;
     }
-    ALOGV("getMinFrameCount=%d: afFrameCount=%d, minBufCount=%d, afSampleRate=%d, afLatency=%d",
+    ALOGV("getMinFrameCount=%zu: afFrameCount=%zu, minBufCount=%d, afSampleRate=%d, afLatency=%d",
             *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
     return NO_ERROR;
 }
@@ -250,7 +251,7 @@ status_t AudioTrack::set(
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
 
-    ALOGV("set() streamType %d frameCount %u flags %04x", streamType, frameCount, flags);
+    ALOGV("set() streamType %d frameCount %zu flags %04x", streamType, frameCount, flags);
 
     AutoMutex lock(mLock);
 
@@ -993,14 +994,14 @@ status_t AudioTrack::createTrack_l(size_t epoch)
 
         // Ensure that buffer depth covers at least audio hardware latency
         uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
-        ALOGV("afFrameCount=%d, minBufCount=%d, afSampleRate=%u, afLatency=%d",
+        ALOGV("afFrameCount=%zu, minBufCount=%d, afSampleRate=%u, afLatency=%d",
                 afFrameCount, minBufCount, afSampleRate, afLatency);
         if (minBufCount <= nBuffering) {
             minBufCount = nBuffering;
         }
 
         size_t minFrameCount = (afFrameCount*mSampleRate*minBufCount)/afSampleRate;
-        ALOGV("minFrameCount: %u, afFrameCount=%d, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
+        ALOGV("minFrameCount: %zu, afFrameCount=%zu, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
                 ", afLatency=%d",
                 minFrameCount, afFrameCount, minBufCount, mSampleRate, afSampleRate, afLatency);
 
@@ -1008,7 +1009,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
             frameCount = minFrameCount;
         } else if (frameCount < minFrameCount) {
             // not ALOGW because it happens all the time when playing key clicks over A2DP
-            ALOGV("Minimum buffer size corrected from %d to %d",
+            ALOGV("Minimum buffer size corrected from %zu to %zu",
                      frameCount, minFrameCount);
             frameCount = minFrameCount;
         }
@@ -1095,14 +1096,14 @@ status_t AudioTrack::createTrack_l(size_t epoch)
         // In current design, AudioTrack client checks and ensures frame count validity before
         // passing it to AudioFlinger so AudioFlinger should not return a different value except
         // for fast track as it uses a special method of assigning frame count.
-        ALOGW("Requested frameCount %u but received frameCount %u", frameCount, temp);
+        ALOGW("Requested frameCount %zu but received frameCount %zu", frameCount, temp);
     }
     frameCount = temp;
 
     mAwaitBoost = false;
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
-            ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %u", frameCount);
+            ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %zu", frameCount);
             mAwaitBoost = true;
             if (mSharedBuffer == 0) {
                 // Theoretically double-buffering is not required for fast tracks,
@@ -1113,7 +1114,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
                 }
             }
         } else {
-            ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %u", frameCount);
+            ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
             // once denied, do not request again if IAudioTrack is re-created
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
             if (mSharedBuffer == 0) {
@@ -1680,10 +1681,10 @@ nsecs_t AudioTrack::processAudioBuffer()
         size_t nonContig;
         status_t err = obtainBuffer(&audioBuffer, requested, NULL, &nonContig);
         LOG_ALWAYS_FATAL_IF((err != NO_ERROR) != (audioBuffer.frameCount == 0),
-                "obtainBuffer() err=%d frameCount=%u", err, audioBuffer.frameCount);
+                "obtainBuffer() err=%d frameCount=%zu", err, audioBuffer.frameCount);
         requested = &ClientProxy::kNonBlocking;
         size_t avail = audioBuffer.frameCount + nonContig;
-        ALOGV("obtainBuffer(%u) returned %u = %u + %u err %d",
+        ALOGV("obtainBuffer(%u) returned %zu = %zu + %zu err %d",
                 mRemainingFrames, avail, audioBuffer.frameCount, nonContig, err);
         if (err != NO_ERROR) {
             if (err == TIMED_OUT || err == WOULD_BLOCK || err == -EINTR ||
@@ -1718,8 +1719,8 @@ nsecs_t AudioTrack::processAudioBuffer()
 
         // Sanity check on returned size
         if (ssize_t(writtenSize) < 0 || writtenSize > reqSize) {
-            ALOGE("EVENT_MORE_DATA requested %u bytes but callback returned %d bytes",
-                    reqSize, (int) writtenSize);
+            ALOGE("EVENT_MORE_DATA requested %zu bytes but callback returned %zd bytes",
+                    reqSize, ssize_t(writtenSize));
             return NS_NEVER;
         }
 
@@ -2105,7 +2106,7 @@ bool AudioTrack::AudioTrackThread::threadLoop()
         ns = 1000000000LL;
         // fall through
     default:
-        LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %lld", ns);
+        LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %" PRId64, ns);
         pauseInternal(ns);
         return true;
     }

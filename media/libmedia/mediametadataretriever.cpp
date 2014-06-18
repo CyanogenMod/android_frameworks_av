@@ -18,6 +18,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaMetadataRetriever"
 
+#include <inttypes.h>
+
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
 #include <media/mediametadataretriever.h>
@@ -114,7 +116,7 @@ status_t MediaMetadataRetriever::setDataSource(
 
 status_t MediaMetadataRetriever::setDataSource(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     Mutex::Autolock _l(mLock);
     if (mRetriever == 0) {
         ALOGE("retriever is not initialized");
@@ -129,7 +131,7 @@ status_t MediaMetadataRetriever::setDataSource(int fd, int64_t offset, int64_t l
 
 sp<IMemory> MediaMetadataRetriever::getFrameAtTime(int64_t timeUs, int option)
 {
-    ALOGV("getFrameAtTime: time(%lld us) option(%d)", timeUs, option);
+    ALOGV("getFrameAtTime: time(%" PRId64 " us) option(%d)", timeUs, option);
     Mutex::Autolock _l(mLock);
     if (mRetriever == 0) {
         ALOGE("retriever is not initialized");
