@@ -85,7 +85,7 @@ status_t DataURISource::initCheck() const {
 }
 
 ssize_t DataURISource::readAt(off64_t offset, void *data, size_t size) {
-    if (offset >= mBuffer->size()) {
+    if ((offset < 0) || (offset >= (off64_t)mBuffer->size())) {
         return 0;
     }
 

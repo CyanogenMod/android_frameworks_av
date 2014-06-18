@@ -379,7 +379,7 @@ status_t SoftVPXEncoder::initEncoder() {
         }
         default:
         {
-            ALOGE("Wrong number of temporal layers %u", mTemporalLayers);
+            ALOGE("Wrong number of temporal layers %zu", mTemporalLayers);
             return UNKNOWN_ERROR;
         }
     }

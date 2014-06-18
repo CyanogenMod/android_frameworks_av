@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "CameraSource"
 #include <utils/Log.h>
@@ -77,7 +79,7 @@ void CameraSourceListener::notify(int32_t msgType, int32_t ext1, int32_t ext2) {
 
 void CameraSourceListener::postData(int32_t msgType, const sp<IMemory> &dataPtr,
                                     camera_frame_metadata_t * /* metadata */) {
-    ALOGV("postData(%d, ptr:%p, size:%d)",
+    ALOGV("postData(%d, ptr:%p, size:%zu)",
          msgType, dataPtr->pointer(), dataPtr->size());
 
     sp<CameraSource> source = mSource.promote();
@@ -711,7 +713,7 @@ status_t CameraSource::reset() {
         if (NO_ERROR !=
             mFrameCompleteCondition.waitRelative(mLock,
                     mTimeBetweenFrameCaptureUs * 1000LL + CAMERA_SOURCE_TIMEOUT_NS)) {
-            ALOGW("Timed out waiting for outstanding frames being encoded: %d",
+            ALOGW("Timed out waiting for outstanding frames being encoded: %zu",
                 mFramesBeingEncoded.size());
         }
     }
@@ -722,7 +724,7 @@ status_t CameraSource::reset() {
     }
 
     if (mCollectStats) {
-        ALOGI("Frames received/encoded/dropped: %d/%d/%d in %lld us",
+        ALOGI("Frames received/encoded/dropped: %d/%d/%d in %" PRId64 " us",
                 mNumFramesReceived, mNumFramesEncoded, mNumFramesDropped,
                 mLastFrameTimestampUs - mFirstFrameTimeUs);
     }
@@ -809,7 +811,7 @@ status_t CameraSource::read(
                     ALOGW("camera recording proxy is gone");
                     return ERROR_END_OF_STREAM;
                 }
-                ALOGW("Timed out waiting for incoming camera video frames: %lld us",
+                ALOGW("Timed out waiting for incoming camera video frames: %" PRId64 " us",
                     mLastFrameTimestampUs);
             }
         }
@@ -832,10 +834,10 @@ status_t CameraSource::read(
 
 void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         int32_t msgType, const sp<IMemory> &data) {
-    ALOGV("dataCallbackTimestamp: timestamp %lld us", timestampUs);
+    ALOGV("dataCallbackTimestamp: timestamp %" PRId64 " us", timestampUs);
     Mutex::Autolock autoLock(mLock);
     if (!mStarted || (mNumFramesReceived == 0 && timestampUs < mStartTimeUs)) {
-        ALOGV("Drop frame at %lld/%lld us", timestampUs, mStartTimeUs);
+        ALOGV("Drop frame at %" PRId64 "/%" PRId64 " us", timestampUs, mStartTimeUs);
         releaseOneRecordingFrame(data);
         return;
     }
@@ -874,7 +876,7 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
     mFramesReceived.push_back(data);
     int64_t timeUs = mStartTimeUs + (timestampUs - mFirstFrameTimeUs);
     mFrameTimes.push_back(timeUs);
-    ALOGV("initial delay: %lld, current time stamp: %lld",
+    ALOGV("initial delay: %" PRId64 ", current time stamp: %" PRId64,
         mStartTimeUs, timeUs);
     mFrameAvailableCondition.signal();
 }

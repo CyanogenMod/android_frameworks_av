@@ -16,16 +16,18 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MPEG4Extractor"
+
+#include <ctype.h>
+#include <inttypes.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <utils/Log.h>
 
 #include "include/MPEG4Extractor.h"
 #include "include/SampleTable.h"
 #include "include/ESDS.h"
-
-#include <ctype.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -411,7 +413,7 @@ size_t MPEG4Extractor::countTracks() {
         track = track->next;
     }
 
-    ALOGV("MPEG4Extractor::countTracks: %d tracks", n);
+    ALOGV("MPEG4Extractor::countTracks: %zu tracks", n);
     return n;
 }
 
@@ -792,7 +794,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         }
     } else if (chunk_size < 8) {
         // The smallest valid chunk is 8 bytes long.
-        ALOGE("invalid chunk size: %d", int(chunk_size));
+        ALOGE("invalid chunk size: %" PRIu64, chunk_size);
         return ERROR_MALFORMED;
     }
 
@@ -803,7 +805,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 #if 0
     static const char kWhitespace[] = "                                        ";
     const char *indent = &kWhitespace[sizeof(kWhitespace) - 1 - 2 * depth];
-    printf("%sfound chunk '%s' of size %lld\n", indent, chunk, chunk_size);
+    printf("%sfound chunk '%s' of size %" PRIu64 "\n", indent, chunk, chunk_size);
 
     char buffer[256];
     size_t n = chunk_size;
@@ -859,7 +861,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('e', 'd', 't', 's'):
         {
             if (chunk_type == FOURCC('s', 't', 'b', 'l')) {
-                ALOGV("sampleTable chunk is %d bytes long.", (size_t)chunk_size);
+                ALOGV("sampleTable chunk is %" PRIu64 " bytes long.", chunk_size);
 
                 if (mDataSource->flags()
                         & (DataSource::kWantsPrefetching
@@ -2052,7 +2054,7 @@ status_t MPEG4Extractor::parseSegmentIndex(off64_t offset, size_t size) {
         offset += 16;
         size -= 16;
     }
-    ALOGV("sidx pres/off: %Ld/%Ld", earliestPresentationTime, firstOffset);
+    ALOGV("sidx pres/off: %" PRIu64 "/%" PRIu64, earliestPresentationTime, firstOffset);
 
     if (size < 4) {
         return -EINVAL;
@@ -2588,7 +2590,7 @@ sp<MediaSource> MPEG4Extractor::getTrack(size_t index) {
         }
     }
 
-    ALOGV("getTrack called, pssh: %d", mPssh.size());
+    ALOGV("getTrack called, pssh: %zu", mPssh.size());
 
     return new MPEG4Source(
             track->meta, mDataSource, track->timescale, track->sampleTable,
@@ -3549,7 +3551,7 @@ status_t MPEG4Source::parseTrackFragmentRun(off64_t offset, off64_t size) {
         sampleCtsOffset = 0;
     }
 
-    if (size < sampleCount * bytesPerSample) {
+    if (size < (off64_t)sampleCount * bytesPerSample) {
         return -EINVAL;
     }
 
@@ -3583,7 +3585,7 @@ status_t MPEG4Source::parseTrackFragmentRun(off64_t offset, off64_t size) {
             offset += 4;
         }
 
-        ALOGV("adding sample %d at offset 0x%08llx, size %u, duration %u, "
+        ALOGV("adding sample %d at offset 0x%08" PRIx64 ", size %u, duration %u, "
               " flags 0x%08x", i + 1,
                 dataOffset, sampleSize, sampleDuration,
                 (flags & kFirstSampleFlagsPresent) && i == 0
@@ -4301,7 +4303,7 @@ static bool BetterSniffMPEG4(
 
         char chunkstring[5];
         MakeFourCCString(chunkType, chunkstring);
-        ALOGV("saw chunk type %s, size %lld @ %lld", chunkstring, chunkSize, offset);
+        ALOGV("saw chunk type %s, size %" PRIu64 " @ %lld", chunkstring, chunkSize, offset);
         switch (chunkType) {
             case FOURCC('f', 't', 'y', 'p'):
             {

@@ -176,7 +176,7 @@ status_t MediaMuxer::writeSampleData(const sp<ABuffer> &buffer, size_t trackInde
     }
 
     if (trackIndex >= mTrackList.size()) {
-        ALOGE("WriteSampleData() get an invalid index %d", trackIndex);
+        ALOGE("WriteSampleData() get an invalid index %zu", trackIndex);
         return -EINVAL;
     }
 

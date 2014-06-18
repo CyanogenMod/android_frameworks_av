@@ -335,7 +335,7 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
                 // there can't be another param here, so use all the rest
                 i = csd0->size();
             }
-            ALOGV("block at %d, last was %d", i, lastparamoffset);
+            ALOGV("block at %zu, last was %d", i, lastparamoffset);
             if (lastparamoffset > 0) {
                 int size = i - lastparamoffset;
                 avcc[avccidx++] = size >> 8;
@@ -366,7 +366,7 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
                 // there can't be another param here, so use all the rest
                 i = csd1->size();
             }
-            ALOGV("block at %d, last was %d", i, lastparamoffset);
+            ALOGV("block at %zu, last was %d", i, lastparamoffset);
             if (lastparamoffset > 0) {
                 int size = i - lastparamoffset;
                 avcc[avccidx++] = size >> 8;

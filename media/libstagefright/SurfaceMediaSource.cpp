@@ -16,6 +16,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SurfaceMediaSource"
 
+#include <inttypes.h>
+
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/SurfaceMediaSource.h>
 #include <media/stagefright/MediaDefs.h>
@@ -179,7 +181,7 @@ status_t SurfaceMediaSource::start(MetaData *params)
 }
 
 status_t SurfaceMediaSource::setMaxAcquiredBufferCount(size_t count) {
-    ALOGV("setMaxAcquiredBufferCount(%d)", count);
+    ALOGV("setMaxAcquiredBufferCount(%zu)", count);
     Mutex::Autolock lock(mMutex);
 
     CHECK_GT(count, 1);
@@ -209,7 +211,7 @@ status_t SurfaceMediaSource::stop()
     mFrameAvailableCondition.signal();
 
     while (mNumPendingBuffers > 0) {
-        ALOGI("Still waiting for %d buffers to be returned.",
+        ALOGI("Still waiting for %zu buffers to be returned.",
                 mNumPendingBuffers);
 
 #if DEBUG_PENDING_BUFFERS
@@ -269,7 +271,7 @@ static void passMetadataBuffer(MediaBuffer **buffer,
     memcpy(data, &type, 4);
     memcpy(data + 4, &bufferHandle, sizeof(buffer_handle_t));
 
-    ALOGV("handle = %p, , offset = %d, length = %d",
+    ALOGV("handle = %p, , offset = %zu, length = %zu",
             bufferHandle, (*buffer)->range_length(), (*buffer)->range_offset());
 }
 
@@ -363,7 +365,7 @@ status_t SurfaceMediaSource::read(
     (*buffer)->setObserver(this);
     (*buffer)->add_ref();
     (*buffer)->meta_data()->setInt64(kKeyTime, mCurrentTimestamp / 1000);
-    ALOGV("Frames encoded = %d, timestamp = %lld, time diff = %lld",
+    ALOGV("Frames encoded = %d, timestamp = %" PRId64 ", time diff = %" PRId64,
             mNumFramesEncoded, mCurrentTimestamp / 1000,
             mCurrentTimestamp / 1000 - prevTimeStamp / 1000);
 
