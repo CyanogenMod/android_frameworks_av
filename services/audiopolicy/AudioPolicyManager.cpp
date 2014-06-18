@@ -1560,7 +1560,7 @@ status_t AudioPolicyManager::dump(int fd)
     snprintf(buffer, SIZE,
              " Stream  Can be muted  Index Min  Index Max  Index Cur [device : index]...\n");
     write(fd, buffer, strlen(buffer));
-    for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
+    for (size_t i = 0; i < AUDIO_STREAM_CNT; i++) {
         snprintf(buffer, SIZE, " %02zu      ", i);
         write(fd, buffer, strlen(buffer));
         mStreams[i].dump(fd);
@@ -1698,7 +1698,7 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
         }
     }
     *generation = curAudioPortGeneration();
-    ALOGV("listAudioPorts() got %d ports needed %d", portsWritten, *num_ports);
+    ALOGV("listAudioPorts() got %zu ports needed %d", portsWritten, *num_ports);
     return NO_ERROR;
 }
 
@@ -2042,7 +2042,7 @@ status_t AudioPolicyManager::listAudioPatches(unsigned int *num_patches,
             generation == NULL) {
         return BAD_VALUE;
     }
-    ALOGV("listAudioPatches() num_patches %d patches %p available patches %d",
+    ALOGV("listAudioPatches() num_patches %d patches %p available patches %zu",
           *num_patches, patches, mAudioPatches.size());
     if (patches == NULL) {
         *num_patches = 0;
@@ -2054,13 +2054,13 @@ status_t AudioPolicyManager::listAudioPatches(unsigned int *num_patches,
             i  < mAudioPatches.size() && patchesWritten < patchesMax; i++) {
         patches[patchesWritten] = mAudioPatches[i]->mPatch;
         patches[patchesWritten++].id = mAudioPatches[i]->mHandle;
-        ALOGV("listAudioPatches() patch %d num_sources %d num_sinks %d",
+        ALOGV("listAudioPatches() patch %zu num_sources %d num_sinks %d",
               i, mAudioPatches[i]->mPatch.num_sources, mAudioPatches[i]->mPatch.num_sinks);
     }
     *num_patches = mAudioPatches.size();
 
     *generation = curAudioPortGeneration();
-    ALOGV("listAudioPatches() got %d patches needed %d", patchesWritten, *num_patches);
+    ALOGV("listAudioPatches() got %zu patches needed %d", patchesWritten, *num_patches);
     return NO_ERROR;
 }
 
@@ -2824,7 +2824,7 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
             {
                 if (mHwModules[module_idx]->mInputProfiles[profile_index]->mSupportedDevices.types()
                         & (device & ~AUDIO_DEVICE_BIT_IN)) {
-                    ALOGV("checkInputsForDevice(): adding profile %d from module %d",
+                    ALOGV("checkInputsForDevice(): adding profile %zu from module %zu",
                           profile_index, module_idx);
                     profiles.add(mHwModules[module_idx]->mInputProfiles[profile_index]);
                 }
@@ -2948,7 +2948,7 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
                  profile_index++) {
                 sp<IOProfile> profile = mHwModules[module_index]->mInputProfiles[profile_index];
                 if (profile->mSupportedDevices.types() & device) {
-                    ALOGV("checkInputsForDevice(): clearing direct input profile %d on module %d",
+                    ALOGV("checkInputsForDevice(): clearing direct input profile %zu on module %zu",
                           profile_index, module_index);
                     if (profile->mSamplingRates[0] == 0) {
                         profile->mSamplingRates.clear();
@@ -4994,7 +4994,7 @@ void AudioPolicyManager::AudioPort::toAudioPort(struct audio_port *port) const
     }
     port->num_formats = i;
 
-    ALOGV("AudioPort::toAudioPort() num gains %d", mGains.size());
+    ALOGV("AudioPort::toAudioPort() num gains %zu", mGains.size());
 
     for (i = 0; i < mGains.size() && i < AUDIO_PORT_MAX_GAINS; i++) {
         port->gains[i] = mGains[i]->mGain;
@@ -5692,7 +5692,7 @@ sp<AudioPolicyManager::DeviceDescriptor> AudioPolicyManager::DeviceVector::getDe
 {
     sp<DeviceDescriptor> device;
     for (size_t i = 0; i < size(); i++) {
-        ALOGV("DeviceVector::getDeviceFromId(%d) itemAt(%d)->mId %d", id, i, itemAt(i)->mId);
+        ALOGV("DeviceVector::getDeviceFromId(%d) itemAt(%zu)->mId %d", id, i, itemAt(i)->mId);
         if (itemAt(i)->mId == id) {
             device = itemAt(i);
             break;
