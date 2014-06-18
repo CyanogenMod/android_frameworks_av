@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NdkMediaFormat"
 
+#include <inttypes.h>
 
 #include "NdkMediaFormat.h"
 
@@ -89,21 +90,21 @@ const char* AMediaFormat_toString(AMediaFormat *mData) {
             {
                 int32_t val;
                 f->findInt32(name, &val);
-                ret.appendFormat("int32(%d)", val);
+                ret.appendFormat("int32(%" PRId32 ")", val);
                 break;
             }
             case AMessage::kTypeInt64:
             {
                 int64_t val;
                 f->findInt64(name, &val);
-                ret.appendFormat("int64(%lld)", val);
+                ret.appendFormat("int64(%" PRId64 ")", val);
                 break;
             }
             case AMessage::kTypeSize:
             {
                 size_t val;
                 f->findSize(name, &val);
-                ret.appendFormat("size_t(%d)", val);
+                ret.appendFormat("size_t(%zu)", val);
                 break;
             }
             case AMessage::kTypeFloat:

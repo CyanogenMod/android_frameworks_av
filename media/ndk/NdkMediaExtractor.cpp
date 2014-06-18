@@ -133,13 +133,13 @@ AMediaFormat* AMediaExtractor_getTrackFormat(AMediaExtractor *mData, size_t idx)
 
 EXPORT
 media_status_t AMediaExtractor_selectTrack(AMediaExtractor *mData, size_t idx) {
-    ALOGV("selectTrack(%z)", idx);
+    ALOGV("selectTrack(%zu)", idx);
     return translate_error(mData->mImpl->selectTrack(idx));
 }
 
 EXPORT
 media_status_t AMediaExtractor_unselectTrack(AMediaExtractor *mData, size_t idx) {
-    ALOGV("unselectTrack(%z)", idx);
+    ALOGV("unselectTrack(%zu)", idx);
     return translate_error(mData->mImpl->unselectTrack(idx));
 }
 

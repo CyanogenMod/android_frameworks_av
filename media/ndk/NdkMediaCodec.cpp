@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "NdkMediaCodec"
 
@@ -257,7 +259,7 @@ uint8_t* AMediaCodec_getInputBuffer(AMediaCodec *mData, size_t idx, size_t *out_
     if (mData->mCodec->getInputBuffers(&abufs) == 0) {
         size_t n = abufs.size();
         if (idx >= n) {
-            ALOGE("buffer index %d out of range", idx);
+            ALOGE("buffer index %zu out of range", idx);
             return NULL;
         }
         if (out_size != NULL) {
@@ -275,7 +277,7 @@ uint8_t* AMediaCodec_getOutputBuffer(AMediaCodec *mData, size_t idx, size_t *out
     if (mData->mCodec->getOutputBuffers(&abufs) == 0) {
         size_t n = abufs.size();
         if (idx >= n) {
-            ALOGE("buffer index %d out of range", idx);
+            ALOGE("buffer index %zu out of range", idx);
             return NULL;
         }
         if (out_size != NULL) {
@@ -345,7 +347,7 @@ media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec *mData, size_t idx, b
 EXPORT
 media_status_t AMediaCodec_releaseOutputBufferAtTime(
         AMediaCodec *mData, size_t idx, int64_t timestampNs) {
-    ALOGV("render @ %lld", timestampNs);
+    ALOGV("render @ %" PRId64, timestampNs);
     return translate_error(mData->mCodec->renderOutputBufferAndRelease(idx, timestampNs));
 }
 
@@ -413,7 +415,7 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
     size_t cryptosize = sizeof(AMediaCodecCryptoInfo) + sizeof(size_t) * numsubsamples * 2;
     AMediaCodecCryptoInfo *ret = (AMediaCodecCryptoInfo*) malloc(cryptosize);
     if (!ret) {
-        ALOGE("couldn't allocate %d bytes", cryptosize);
+        ALOGE("couldn't allocate %zu bytes", cryptosize);
         return NULL;
     }
     ret->numsubsamples = numsubsamples;
