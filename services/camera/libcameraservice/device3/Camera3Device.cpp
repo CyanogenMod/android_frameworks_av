@@ -113,7 +113,6 @@ status_t Camera3Device::initialize(camera_module_t *module)
     }
 
     /** Cross-check device version */
-
     if (device->common.version < CAMERA_DEVICE_API_VERSION_3_0) {
         SET_ERR_L("Could not open camera: "
                 "Camera device should be at least %x, reports %x instead",
@@ -173,6 +172,7 @@ status_t Camera3Device::initialize(camera_module_t *module)
 
     /** Everything is good to go */
 
+    mDeviceVersion = device->common.version;
     mDeviceInfo = info.static_camera_characteristics;
     mHal3Device = device;
     mStatus = STATUS_UNCONFIGURED;
@@ -284,42 +284,74 @@ bool Camera3Device::tryLockSpinRightRound(Mutex& lock) {
     return gotLock;
 }
 
+Camera3Device::Size Camera3Device::getMaxJpegResolution() const {
+    int32_t maxJpegWidth = 0, maxJpegHeight = 0;
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        const int STREAM_CONFIGURATION_SIZE = 4;
+        const int STREAM_FORMAT_OFFSET = 0;
+        const int STREAM_WIDTH_OFFSET = 1;
+        const int STREAM_HEIGHT_OFFSET = 2;
+        const int STREAM_IS_INPUT_OFFSET = 3;
+        camera_metadata_ro_entry_t availableStreamConfigs =
+                mDeviceInfo.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+        if (availableStreamConfigs.count == 0 ||
+                availableStreamConfigs.count % STREAM_CONFIGURATION_SIZE != 0) {
+            return Size(0, 0);
+        }
+
+        // Get max jpeg size (area-wise).
+        for (size_t i=0; i < availableStreamConfigs.count; i+= STREAM_CONFIGURATION_SIZE) {
+            int32_t format = availableStreamConfigs.data.i32[i + STREAM_FORMAT_OFFSET];
+            int32_t width = availableStreamConfigs.data.i32[i + STREAM_WIDTH_OFFSET];
+            int32_t height = availableStreamConfigs.data.i32[i + STREAM_HEIGHT_OFFSET];
+            int32_t isInput = availableStreamConfigs.data.i32[i + STREAM_IS_INPUT_OFFSET];
+            if (isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT
+                    && format == HAL_PIXEL_FORMAT_BLOB &&
+                    (width * height > maxJpegWidth * maxJpegHeight)) {
+                maxJpegWidth = width;
+                maxJpegHeight = height;
+            }
+        }
+    } else {
+        camera_metadata_ro_entry availableJpegSizes =
+                mDeviceInfo.find(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
+        if (availableJpegSizes.count == 0 || availableJpegSizes.count % 2 != 0) {
+            return Size(0, 0);
+        }
+
+        // Get max jpeg size (area-wise).
+        for (size_t i = 0; i < availableJpegSizes.count; i += 2) {
+            if ((availableJpegSizes.data.i32[i] * availableJpegSizes.data.i32[i + 1])
+                    > (maxJpegWidth * maxJpegHeight)) {
+                maxJpegWidth = availableJpegSizes.data.i32[i];
+                maxJpegHeight = availableJpegSizes.data.i32[i + 1];
+            }
+        }
+    }
+    return Size(maxJpegWidth, maxJpegHeight);
+}
+
 ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const {
-    // TODO: replace below with availableStreamConfiguration for HAL3.2+.
-    camera_metadata_ro_entry availableJpegSizes =
-            mDeviceInfo.find(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
-    if (availableJpegSizes.count == 0 || availableJpegSizes.count % 2 != 0) {
+    // Get max jpeg size (area-wise).
+    Size maxJpegResolution = getMaxJpegResolution();
+    if (maxJpegResolution.width == 0) {
         ALOGE("%s: Camera %d: Can't find find valid available jpeg sizes in static metadata!",
                 __FUNCTION__, mId);
         return BAD_VALUE;
     }
 
-    // Get max jpeg size (area-wise).
-    int32_t maxJpegWidth = 0, maxJpegHeight = 0;
-    bool foundMax = false;
-    for (size_t i = 0; i < availableJpegSizes.count; i += 2) {
-        if ((availableJpegSizes.data.i32[i] * availableJpegSizes.data.i32[i + 1])
-                > (maxJpegWidth * maxJpegHeight)) {
-            maxJpegWidth = availableJpegSizes.data.i32[i];
-            maxJpegHeight = availableJpegSizes.data.i32[i + 1];
-            foundMax = true;
-        }
-    }
-    if (!foundMax) {
-        return BAD_VALUE;
-    }
-
     // Get max jpeg buffer size
     ssize_t maxJpegBufferSize = 0;
-    camera_metadata_ro_entry jpegMaxSize = mDeviceInfo.find(ANDROID_JPEG_MAX_SIZE);
-    if (jpegMaxSize.count == 0) {
+    camera_metadata_ro_entry jpegBufMaxSize = mDeviceInfo.find(ANDROID_JPEG_MAX_SIZE);
+    if (jpegBufMaxSize.count == 0) {
         ALOGE("%s: Camera %d: Can't find maximum JPEG size in static metadata!", __FUNCTION__, mId);
         return BAD_VALUE;
     }
-    maxJpegBufferSize = jpegMaxSize.data.i32[0];
+    maxJpegBufferSize = jpegBufMaxSize.data.i32[0];
 
     // Calculate final jpeg buffer size for the given resolution.
-    float scaleFactor = ((float) (width * height)) / (maxJpegWidth * maxJpegHeight);
+    float scaleFactor = ((float) (width * height)) /
+            (maxJpegResolution.width * maxJpegResolution.height);
     ssize_t jpegBufferSize = scaleFactor * maxJpegBufferSize;
     // Bound the buffer size to [MIN_JPEG_BUFFER_SIZE, maxJpegBufferSize].
     if (jpegBufferSize > maxJpegBufferSize) {

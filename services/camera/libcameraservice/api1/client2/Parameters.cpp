@@ -29,6 +29,7 @@
 
 #include "Parameters.h"
 #include "system/camera.h"
+#include "hardware/camera_common.h"
 #include <media/MediaProfiles.h>
 #include <media/mediarecorder.h>
 
@@ -45,7 +46,7 @@ Parameters::Parameters(int cameraId,
 Parameters::~Parameters() {
 }
 
-status_t Parameters::initialize(const CameraMetadata *info) {
+status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     status_t res;
 
     if (info->entryCount() == 0) {
@@ -53,6 +54,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
         return BAD_VALUE;
     }
     Parameters::info = info;
+    mDeviceVersion = deviceVersion;
 
     res = buildFastInfo();
     if (res != OK) return res;
@@ -140,16 +142,14 @@ status_t Parameters::initialize(const CameraMetadata *info) {
     previewTransform = degToTransform(0,
             cameraFacing == CAMERA_FACING_FRONT);
 
-    camera_metadata_ro_entry_t availableFormats =
-        staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
-
     {
         String8 supportedPreviewFormats;
+        SortedVector<int32_t> outputFormats = getAvailableOutputFormats();
         bool addComma = false;
-        for (size_t i=0; i < availableFormats.count; i++) {
+        for (size_t i=0; i < outputFormats.size(); i++) {
             if (addComma) supportedPreviewFormats += ",";
             addComma = true;
-            switch (availableFormats.data.i32[i]) {
+            switch (outputFormats[i]) {
             case HAL_PIXEL_FORMAT_YCbCr_422_SP:
                 supportedPreviewFormats +=
                     CameraParameters::PIXEL_FORMAT_YUV422SP;
@@ -191,7 +191,7 @@ status_t Parameters::initialize(const CameraMetadata *info) {
 
             default:
                 ALOGW("%s: Camera %d: Unknown preview format: %x",
-                        __FUNCTION__, cameraId, availableFormats.data.i32[i]);
+                        __FUNCTION__, cameraId, outputFormats[i]);
                 addComma = false;
                 break;
             }
@@ -239,24 +239,23 @@ status_t Parameters::initialize(const CameraMetadata *info) {
                 supportedPreviewFrameRates);
     }
 
-    camera_metadata_ro_entry_t availableJpegSizes =
-        staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES, 2);
-    if (!availableJpegSizes.count) return NO_INIT;
+    Vector<Size> availableJpegSizes = getAvailableJpegSizes();
+    if (!availableJpegSizes.size()) return NO_INIT;
 
     // TODO: Pick maximum
-    pictureWidth = availableJpegSizes.data.i32[0];
-    pictureHeight = availableJpegSizes.data.i32[1];
+    pictureWidth = availableJpegSizes[0].width;
+    pictureHeight = availableJpegSizes[0].height;
 
     params.setPictureSize(pictureWidth,
             pictureHeight);
 
     {
         String8 supportedPictureSizes;
-        for (size_t i=0; i < availableJpegSizes.count; i += 2) {
+        for (size_t i=0; i < availableJpegSizes.size(); i++) {
             if (i != 0) supportedPictureSizes += ",";
             supportedPictureSizes += String8::format("%dx%d",
-                    availableJpegSizes.data.i32[i],
-                    availableJpegSizes.data.i32[i+1]);
+                    availableJpegSizes[i].width,
+                    availableJpegSizes[i].height);
         }
         params.set(CameraParameters::KEY_SUPPORTED_PICTURE_SIZES,
                 supportedPictureSizes);
@@ -952,9 +951,8 @@ status_t Parameters::buildFastInfo() {
         staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
     if (!availableFocalLengths.count) return NO_INIT;
 
-    camera_metadata_ro_entry_t availableFormats =
-        staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
-    if (!availableFormats.count) return NO_INIT;
+    SortedVector<int32_t> availableFormats = getAvailableOutputFormats();
+    if (!availableFormats.size()) return NO_INIT;
 
 
     if (sceneModeOverrides.count > 0) {
@@ -1038,8 +1036,8 @@ status_t Parameters::buildFastInfo() {
 
     // Check if the HAL supports HAL_PIXEL_FORMAT_YCbCr_420_888
     fastInfo.useFlexibleYuv = false;
-    for (size_t i = 0; i < availableFormats.count; i++) {
-        if (availableFormats.data.i32[i] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
+    for (size_t i = 0; i < availableFormats.size(); i++) {
+        if (availableFormats[i] == HAL_PIXEL_FORMAT_YCbCr_420_888) {
             fastInfo.useFlexibleYuv = true;
             break;
         }
@@ -1198,8 +1196,7 @@ status_t Parameters::set(const String8& paramString) {
                     "is active!", __FUNCTION__);
             return BAD_VALUE;
         }
-        camera_metadata_ro_entry_t availableFormats =
-            staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
+        SortedVector<int32_t> availableFormats = getAvailableOutputFormats();
         // If using flexible YUV, always support NV21/YV12. Otherwise, check
         // HAL's list.
         if (! (fastInfo.useFlexibleYuv &&
@@ -1208,11 +1205,10 @@ status_t Parameters::set(const String8& paramString) {
                  validatedParams.previewFormat ==
                         HAL_PIXEL_FORMAT_YV12) ) ) {
             // Not using flexible YUV format, so check explicitly
-            for (i = 0; i < availableFormats.count; i++) {
-                if (availableFormats.data.i32[i] ==
-                        validatedParams.previewFormat) break;
+            for (i = 0; i < availableFormats.size(); i++) {
+                if (availableFormats[i] == validatedParams.previewFormat) break;
             }
-            if (i == availableFormats.count) {
+            if (i == availableFormats.size()) {
                 ALOGE("%s: Requested preview format %s (0x%x) is not supported",
                         __FUNCTION__, newParams.getPreviewFormat(),
                         validatedParams.previewFormat);
@@ -1302,15 +1298,14 @@ status_t Parameters::set(const String8& paramString) {
             &validatedParams.pictureHeight);
     if (validatedParams.pictureWidth == pictureWidth ||
             validatedParams.pictureHeight == pictureHeight) {
-        camera_metadata_ro_entry_t availablePictureSizes =
-            staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
-        for (i = 0; i < availablePictureSizes.count; i+=2) {
-            if ((availablePictureSizes.data.i32[i] ==
+        Vector<Size> availablePictureSizes = getAvailableJpegSizes();
+        for (i = 0; i < availablePictureSizes.size(); i++) {
+            if ((availablePictureSizes[i].width ==
                     validatedParams.pictureWidth) &&
-                (availablePictureSizes.data.i32[i+1] ==
+                (availablePictureSizes[i].height ==
                     validatedParams.pictureHeight)) break;
         }
-        if (i == availablePictureSizes.count) {
+        if (i == availablePictureSizes.size()) {
             ALOGE("%s: Requested picture size %d x %d is not supported",
                     __FUNCTION__, validatedParams.pictureWidth,
                     validatedParams.pictureHeight);
@@ -2527,22 +2522,37 @@ status_t Parameters::getFilteredSizes(Size limit, Vector<Size> *sizes) {
         ALOGE("%s: Input size is null", __FUNCTION__);
         return BAD_VALUE;
     }
+    sizes->clear();
 
-    const size_t SIZE_COUNT = sizeof(Size) / sizeof(int);
-    camera_metadata_ro_entry_t availableProcessedSizes =
-        staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, SIZE_COUNT);
-    if (availableProcessedSizes.count < SIZE_COUNT) return BAD_VALUE;
-
-    Size filteredSize;
-    for (size_t i = 0; i < availableProcessedSizes.count; i += SIZE_COUNT) {
-        filteredSize.width = availableProcessedSizes.data.i32[i];
-        filteredSize.height = availableProcessedSizes.data.i32[i+1];
-            // Need skip the preview sizes that are too large.
-            if (filteredSize.width <= limit.width &&
-                    filteredSize.height <= limit.height) {
-                sizes->push(filteredSize);
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        Vector<StreamConfiguration> scs = getStreamConfigurations();
+        for (size_t i=0; i < scs.size(); i++) {
+            const StreamConfiguration &sc = scs[i];
+            if (sc.isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT &&
+                    sc.format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED &&
+                    sc.width <= limit.width && sc.height <= limit.height) {
+                Size sz = {sc.width, sc.height};
+                sizes->push(sz);
             }
+        }
+    } else {
+        const size_t SIZE_COUNT = sizeof(Size) / sizeof(int);
+        camera_metadata_ro_entry_t availableProcessedSizes =
+            staticInfo(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES, SIZE_COUNT);
+        if (availableProcessedSizes.count < SIZE_COUNT) return BAD_VALUE;
+
+        Size filteredSize;
+        for (size_t i = 0; i < availableProcessedSizes.count; i += SIZE_COUNT) {
+            filteredSize.width = availableProcessedSizes.data.i32[i];
+            filteredSize.height = availableProcessedSizes.data.i32[i+1];
+                // Need skip the preview sizes that are too large.
+                if (filteredSize.width <= limit.width &&
+                        filteredSize.height <= limit.height) {
+                    sizes->push(filteredSize);
+                }
+        }
     }
+
     if (sizes->isEmpty()) {
         ALOGE("generated preview size list is empty!!");
         return BAD_VALUE;
@@ -2574,6 +2584,78 @@ Parameters::Size Parameters::getMaxSizeForRatio(
     }
 
     return maxSize;
+}
+
+Vector<Parameters::StreamConfiguration> Parameters::getStreamConfigurations() {
+    const int STREAM_CONFIGURATION_SIZE = 4;
+    const int STREAM_FORMAT_OFFSET = 0;
+    const int STREAM_WIDTH_OFFSET = 1;
+    const int STREAM_HEIGHT_OFFSET = 2;
+    const int STREAM_IS_INPUT_OFFSET = 3;
+    Vector<StreamConfiguration> scs;
+    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+        ALOGE("StreamConfiguration is only valid after device HAL 3.2!");
+        return scs;
+    }
+
+    camera_metadata_ro_entry_t availableStreamConfigs =
+                staticInfo(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+    for (size_t i=0; i < availableStreamConfigs.count; i+= STREAM_CONFIGURATION_SIZE) {
+        int32_t format = availableStreamConfigs.data.i32[i + STREAM_FORMAT_OFFSET];
+        int32_t width = availableStreamConfigs.data.i32[i + STREAM_WIDTH_OFFSET];
+        int32_t height = availableStreamConfigs.data.i32[i + STREAM_HEIGHT_OFFSET];
+        int32_t isInput = availableStreamConfigs.data.i32[i + STREAM_IS_INPUT_OFFSET];
+        StreamConfiguration sc = {format, width, height, isInput};
+        scs.add(sc);
+    }
+    return scs;
+}
+
+SortedVector<int32_t> Parameters::getAvailableOutputFormats() {
+    SortedVector<int32_t> outputFormats; // Non-duplicated output formats
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        Vector<StreamConfiguration> scs = getStreamConfigurations();
+        for (size_t i=0; i < scs.size(); i++) {
+            const StreamConfiguration &sc = scs[i];
+            if (sc.isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT) {
+                outputFormats.add(sc.format);
+            }
+        }
+    } else {
+        camera_metadata_ro_entry_t availableFormats = staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
+        for (size_t i=0; i < availableFormats.count; i++) {
+            outputFormats.add(availableFormats.data.i32[i]);
+        }
+    }
+    return outputFormats;
+}
+
+Vector<Parameters::Size> Parameters::getAvailableJpegSizes() {
+    Vector<Parameters::Size> jpegSizes;
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        Vector<StreamConfiguration> scs = getStreamConfigurations();
+        for (size_t i=0; i < scs.size(); i++) {
+            const StreamConfiguration &sc = scs[i];
+            if (sc.isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT &&
+                    sc.format == HAL_PIXEL_FORMAT_BLOB) {
+                Size sz = {sc.width, sc.height};
+                jpegSizes.add(sz);
+            }
+        }
+    } else {
+        const int JPEG_SIZE_ENTRY_COUNT = 2;
+        const int WIDTH_OFFSET = 0;
+        const int HEIGHT_OFFSET = 1;
+        camera_metadata_ro_entry_t availableJpegSizes =
+            staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
+        for (size_t i=0; i < availableJpegSizes.count; i+= JPEG_SIZE_ENTRY_COUNT) {
+            int width = availableJpegSizes.data.i32[i + WIDTH_OFFSET];
+            int height = availableJpegSizes.data.i32[i + HEIGHT_OFFSET];
+            Size sz = {width, height};
+            jpegSizes.add(sz);
+        }
+    }
+    return jpegSizes;
 }
 
 Parameters::CropRegion Parameters::calculateCropRegion(

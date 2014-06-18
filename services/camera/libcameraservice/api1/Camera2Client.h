@@ -89,8 +89,7 @@ public:
             int cameraFacing,
             int clientPid,
             uid_t clientUid,
-            int servicePid,
-            int deviceVersion);
+            int servicePid);
 
     virtual ~Camera2Client();
 
@@ -170,7 +169,6 @@ private:
 
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(Parameters &params);
-    int mDeviceVersion;
 
     // Used with stream IDs
     static const int NO_STREAM = -1;

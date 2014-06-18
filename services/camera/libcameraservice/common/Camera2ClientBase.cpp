@@ -54,7 +54,8 @@ Camera2ClientBase<TClientBase>::Camera2ClientBase(
         int servicePid):
         TClientBase(cameraService, remoteCallback, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
-        mSharedCameraCallbacks(remoteCallback)
+        mSharedCameraCallbacks(remoteCallback),
+        mDeviceVersion(cameraService->getDeviceVersion(cameraId))
 {
     ALOGI("Camera %d: Opened", cameraId);
 
@@ -277,6 +278,11 @@ void Camera2ClientBase<TClientBase>::notifyAutoWhitebalance(uint8_t newState,
 template <typename TClientBase>
 int Camera2ClientBase<TClientBase>::getCameraId() const {
     return TClientBase::mCameraId;
+}
+
+template <typename TClientBase>
+int Camera2ClientBase<TClientBase>::getCameraDeviceVersion() const {
+    return mDeviceVersion;
 }
 
 template <typename TClientBase>

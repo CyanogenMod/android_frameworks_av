@@ -226,7 +226,7 @@ struct Parameters {
     ~Parameters();
 
     // Sets up default parameters
-    status_t initialize(const CameraMetadata *info);
+    status_t initialize(const CameraMetadata *info, int deviceVersion);
 
     // Build fast-access device static info from static info
     status_t buildFastInfo();
@@ -346,6 +346,24 @@ private:
     status_t getFilteredSizes(Size limit, Vector<Size> *sizes);
     // Get max size (from the size array) that matches the given aspect ratio.
     Size getMaxSizeForRatio(float ratio, const int32_t* sizeArray, size_t count);
+
+    struct StreamConfiguration {
+        int32_t format;
+        int32_t width;
+        int32_t height;
+        int32_t isInput;
+    };
+    // Helper function extract available stream configuration
+    // Only valid since device HAL version 3.2
+    // returns an empty Vector if device HAL version does support it
+    Vector<StreamConfiguration> getStreamConfigurations();
+
+    // Helper function to get non-duplicated available output formats
+    SortedVector<int32_t> getAvailableOutputFormats();
+    // Helper function to get available output jpeg sizes
+    Vector<Size> getAvailableJpegSizes();
+
+    int mDeviceVersion;
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed

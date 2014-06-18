@@ -689,8 +689,7 @@ status_t CameraService::connectHelperLocked(const sp<ICameraClient>& cameraClien
           case CAMERA_DEVICE_API_VERSION_3_2:
             client = new Camera2Client(this, cameraClient,
                     clientPackageName, cameraId,
-                    facing, callingPid, clientUid, getpid(),
-                    deviceVersion);
+                    facing, callingPid, clientUid, getpid());
             break;
           case -1:
             ALOGE("Invalid camera id %d", cameraId);

@@ -168,6 +168,8 @@ class Camera3Device :
 
     CameraMetadata             mDeviceInfo;
 
+    int                        mDeviceVersion;
+
     enum Status {
         STATUS_ERROR,
         STATUS_UNINITIALIZED,
@@ -296,6 +298,18 @@ class Camera3Device :
      * Try to acquire a lock a few times with sleeps between before giving up.
      */
     bool               tryLockSpinRightRound(Mutex& lock);
+
+    struct Size {
+        int width;
+        int height;
+        Size(int w, int h) : width(w), height(h){}
+    };
+
+    /**
+     * Helper function to get the largest Jpeg resolution (in area)
+     * Return Size(0, 0) if static metatdata is invalid
+     */
+    Size getMaxJpegResolution() const;
 
     /**
      * Get Jpeg buffer size for a given jpeg resolution.

@@ -53,12 +53,10 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int cameraFacing,
         int clientPid,
         uid_t clientUid,
-        int servicePid,
-        int deviceVersion):
+        int servicePid):
         Camera2ClientBase(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
-        mParameters(cameraId, cameraFacing),
-        mDeviceVersion(deviceVersion)
+        mParameters(cameraId, cameraFacing)
 {
     ATRACE_CALL();
 
@@ -80,7 +78,7 @@ status_t Camera2Client::initialize(camera_module_t *module)
     {
         SharedParameters::Lock l(mParameters);
 
-        res = l.mParameters.initialize(&(mDevice->info()));
+        res = l.mParameters.initialize(&(mDevice->info()), mDeviceVersion);
         if (res != OK) {
             ALOGE("%s: Camera %d: unable to build defaults: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);

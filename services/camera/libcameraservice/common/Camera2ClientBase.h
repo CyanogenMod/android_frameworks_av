@@ -76,6 +76,7 @@ public:
     int                   getCameraId() const;
     const sp<CameraDeviceBase>&
                           getCameraDevice();
+    int                   getCameraDeviceVersion() const;
     const sp<CameraService>&
                           getCameraService();
 
@@ -122,6 +123,7 @@ protected:
 
     /** CameraDeviceBase instance wrapping HAL2+ entry */
 
+    const int mDeviceVersion;
     sp<CameraDeviceBase>  mDevice;
 
     /** Utility members */
