@@ -36,6 +36,7 @@ LOCAL_SRC_FILES:= \
 	camera2/CaptureRequest.cpp \
 	ProCamera.cpp \
 	CameraBase.cpp \
+	CameraUtils.cpp \
 	VendorTagDescriptor.cpp
 
 LOCAL_SHARED_LIBRARIES := \
