@@ -57,7 +57,7 @@ struct AutoTrace {
             strncpy(mMsg, msg, sizeof(mMsg) - 1);
             mMsg[sizeof(mMsg) - 1] = '\0';
         }
-        ATRACE_BEGIN(msg);
+        ATRACE_BEGIN(mMsg);
     }
     ~AutoTrace() {
         ATRACE_END();
