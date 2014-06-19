@@ -766,6 +766,11 @@ int64_t AudioPlayer::getMediaTimeUs() {
         if (mSeeking) {
             return mSeekTimeUs;
         }
+        if (mReachedEOS) {
+            int64_t durationUs;
+            mSource->getFormat()->findInt64(kKeyDuration, &durationUs);
+            return durationUs;
+        }
         mPositionTimeRealUs = getOutputPlayPositionUs_l();
         ALOGV("getMediaTimeUs getOutputPlayPositionUs_l() mPositionTimeRealUs %" PRId64,
               mPositionTimeRealUs);
