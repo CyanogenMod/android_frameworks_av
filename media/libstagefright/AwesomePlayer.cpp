@@ -3423,8 +3423,20 @@ bool AwesomePlayer::isWidevineContent() const {
 
 status_t AwesomePlayer::dump(int fd, const Vector<String16> &args) const {
     Mutex::Autolock autoLock(mStatsLock);
+    int dfd = dup(fd);
 
-    FILE *out = fdopen(dup(fd), "w");
+    if (dfd < 0) {
+        ALOGE("dump: failed to dup file descriptor");
+        return -errno;
+    }
+
+    FILE *out = fdopen(dfd, "w");
+
+    if (!out) {
+        ALOGE("dump: failed to open file");
+        close(dfd);
+        return -ENOMEM;
+    }
 
     fprintf(out, " AwesomePlayer\n");
     if (mStats.mFd < 0) {
