@@ -550,7 +550,7 @@ void ExtendedCodec::configureFramePackingFormat(
 void ExtendedCodec::configureVideoDecoder(
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         const uint32_t flags, IOMX::node_id nodeID, const char* componentName ) {
-    if (strncmp(componentName, "OMX.qcom.", 9)) {
+    if ((strncmp(componentName, "OMX.qcom.", 9)) && (strncmp(componentName, "OMX.ittiam.", 11))) {
         //do nothing for non QC component
         return;
     }
