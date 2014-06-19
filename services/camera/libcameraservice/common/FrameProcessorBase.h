@@ -44,7 +44,8 @@ class FrameProcessorBase: public Thread {
     };
 
     // Register a listener for a range of IDs [minId, maxId). Multiple listeners
-    // can be listening to the same range.
+    // can be listening to the same range. Registering the same listener with
+    // the same range of IDs has no effect.
     // sendPartials controls whether partial results will be sent.
     status_t registerListener(int32_t minId, int32_t maxId,
                               wp<FilteredListener> listener,

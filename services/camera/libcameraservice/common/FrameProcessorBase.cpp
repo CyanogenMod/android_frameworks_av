@@ -39,6 +39,18 @@ FrameProcessorBase::~FrameProcessorBase() {
 status_t FrameProcessorBase::registerListener(int32_t minId,
         int32_t maxId, wp<FilteredListener> listener, bool sendPartials) {
     Mutex::Autolock l(mInputMutex);
+    List<RangeListener>::iterator item = mRangeListeners.begin();
+    while (item != mRangeListeners.end()) {
+        if (item->minId == minId &&
+                item->maxId == maxId &&
+                item->listener == listener) {
+            // already registered, just return
+            ALOGV("%s: Attempt to register the same client twice, ignoring",
+                    __FUNCTION__);
+            return OK;
+        }
+        item++;
+    }
     ALOGV("%s: Registering listener for frame id range %d - %d",
             __FUNCTION__, minId, maxId);
     RangeListener rListener = { minId, maxId, listener, sendPartials };
