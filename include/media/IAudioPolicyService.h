@@ -56,6 +56,12 @@ public:
                                         audio_channel_mask_t channelMask = 0,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL) = 0;
+    virtual audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
+                                            uint32_t samplingRate = 0,
+                                            audio_format_t format = AUDIO_FORMAT_DEFAULT,
+                                            audio_channel_mask_t channelMask = 0,
+                                            audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                            const audio_offload_info_t *offloadInfo = NULL) = 0;
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
                                  int session = 0) = 0;

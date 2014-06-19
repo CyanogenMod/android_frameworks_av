@@ -623,12 +623,52 @@ audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream,
                                     audio_output_flags_t flags,
                                     const audio_offload_info_t *offloadInfo)
 {
-    audio_io_handle_t output = 0;
-    uint32_t latency = 0;
+
     routing_strategy strategy = getStrategy(stream);
     audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
     ALOGV("getOutput() device %d, stream %d, samplingRate %d, format %x, channelMask %x, flags %x",
           device, stream, samplingRate, format, channelMask, flags);
+
+    return getOutputForDevice(device, stream, samplingRate,format, channelMask, flags,
+            offloadInfo);
+}
+
+audio_io_handle_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
+                                    uint32_t samplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
+{
+    if (attr == NULL) {
+        ALOGE("getOutputForAttr() called with NULL audio attributes");
+        return 0;
+    }
+    ALOGV("getOutputForAttr() usage=%d, content=%d, tag=%s",
+            attr->usage, attr->content_type, attr->tags);
+
+    // TODO this is where filtering for custom policies (rerouting, dynamic sources) will go
+    routing_strategy strategy = (routing_strategy) getStrategyForAttr(attr);
+    audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
+    ALOGV("getOutputForAttr() device %d, samplingRate %d, format %x, channelMask %x, flags %x",
+          device, samplingRate, format, channelMask, flags);
+
+    audio_stream_type_t stream = streamTypefromAttributesInt(attr);
+    return getOutputForDevice(device, stream, samplingRate, format, channelMask, flags,
+                offloadInfo);
+}
+
+audio_io_handle_t AudioPolicyManager::getOutputForDevice(
+        audio_devices_t device,
+        audio_stream_type_t stream,
+        uint32_t samplingRate,
+        audio_format_t format,
+        audio_channel_mask_t channelMask,
+        audio_output_flags_t flags,
+        const audio_offload_info_t *offloadInfo)
+{
+    audio_io_handle_t output = 0;
+    uint32_t latency = 0;
 
 #ifdef AUDIO_POLICY_TEST
     if (mCurOutput != 0) {
@@ -3236,6 +3276,44 @@ AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
         return STRATEGY_MEDIA;
     case AUDIO_STREAM_ENFORCED_AUDIBLE:
         return STRATEGY_ENFORCED_AUDIBLE;
+    }
+}
+
+uint32_t AudioPolicyManager::getStrategyForAttr(const audio_attributes_t *attr) {
+    // flags to strategy mapping
+    if ((attr->flags & AUDIO_FLAG_AUDIBILITY_ENFORCED) == AUDIO_FLAG_AUDIBILITY_ENFORCED) {
+        return (uint32_t) STRATEGY_ENFORCED_AUDIBLE;
+    }
+
+    // usage to strategy mapping
+    switch (attr->usage) {
+    case AUDIO_USAGE_MEDIA:
+    case AUDIO_USAGE_GAME:
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
+    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
+        return (uint32_t) STRATEGY_MEDIA;
+
+    case AUDIO_USAGE_VOICE_COMMUNICATION:
+        return (uint32_t) STRATEGY_PHONE;
+
+    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
+        return (uint32_t) STRATEGY_DTMF;
+
+    case AUDIO_USAGE_ALARM:
+    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
+        return (uint32_t) STRATEGY_SONIFICATION;
+
+    case AUDIO_USAGE_NOTIFICATION:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
+    case AUDIO_USAGE_NOTIFICATION_EVENT:
+        return (uint32_t) STRATEGY_SONIFICATION_RESPECTFUL;
+
+    case AUDIO_USAGE_UNKNOWN:
+    default:
+        return (uint32_t) STRATEGY_MEDIA;
     }
 }
 
@@ -5916,4 +5994,46 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
     mHwModules.add(module);
 }
 
+audio_stream_type_t AudioPolicyManager::streamTypefromAttributesInt(const audio_attributes_t *attr)
+{
+    // flags to stream type mapping
+    if ((attr->flags & AUDIO_FLAG_AUDIBILITY_ENFORCED) == AUDIO_FLAG_AUDIBILITY_ENFORCED) {
+        return AUDIO_STREAM_ENFORCED_AUDIBLE;
+    }
+    if ((attr->flags & AUDIO_FLAG_SCO) == AUDIO_FLAG_SCO) {
+        return AUDIO_STREAM_BLUETOOTH_SCO;
+    }
+
+    // usage to stream type mapping
+    switch (attr->usage) {
+    case AUDIO_USAGE_MEDIA:
+    case AUDIO_USAGE_GAME:
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
+        return AUDIO_STREAM_MUSIC;
+    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
+        return AUDIO_STREAM_SYSTEM;
+    case AUDIO_USAGE_VOICE_COMMUNICATION:
+        return AUDIO_STREAM_VOICE_CALL;
+
+    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
+        return AUDIO_STREAM_DTMF;
+
+    case AUDIO_USAGE_ALARM:
+        return AUDIO_STREAM_ALARM;
+    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
+        return AUDIO_STREAM_RING;
+
+    case AUDIO_USAGE_NOTIFICATION:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
+    case AUDIO_USAGE_NOTIFICATION_EVENT:
+        return AUDIO_STREAM_NOTIFICATION;
+
+    case AUDIO_USAGE_UNKNOWN:
+    default:
+        return AUDIO_STREAM_MUSIC;
+    }
+}
 }; // namespace android

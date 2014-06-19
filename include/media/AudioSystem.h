@@ -99,6 +99,8 @@ public:
     // to be non-zero if status == NO_ERROR
     static status_t getOutputSamplingRate(uint32_t* samplingRate,
             audio_stream_type_t stream);
+    static status_t getOutputSamplingRateForAttr(uint32_t* samplingRate,
+                const audio_attributes_t *attr);
     static status_t getOutputFrameCount(size_t* frameCount,
             audio_stream_type_t stream);
     static status_t getOutputLatency(uint32_t* latency,
@@ -212,7 +214,12 @@ public:
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL);
-
+    static audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
+                                        uint32_t samplingRate = 0,
+                                        audio_format_t format = AUDIO_FORMAT_DEFAULT,
+                                        audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
+                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                        const audio_offload_info_t *offloadInfo = NULL);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
                                 int session);

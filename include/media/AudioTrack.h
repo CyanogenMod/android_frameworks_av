@@ -253,7 +253,8 @@ public:
                             transfer_type transferType = TRANSFER_DEFAULT,
                             const audio_offload_info_t *offloadInfo = NULL,
                             int uid = -1,
-                            pid_t pid = -1);
+                            pid_t pid = -1,
+                            audio_attributes_t* pAttributes = NULL);
 
     /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using
@@ -586,6 +587,11 @@ protected:
                         AudioTrack(const AudioTrack& other);
             AudioTrack& operator = (const AudioTrack& other);
 
+            void        setAttributesFromStreamType(audio_stream_type_t streamType);
+            void        setStreamTypeFromAttributes(audio_attributes_t& aa);
+    /* paa is guaranteed non-NULL */
+            bool        isValidAttributes(const audio_attributes_t *paa);
+
     /* a small internal class to handle the callback */
     class AudioTrackThread : public Thread
     {
@@ -667,6 +673,7 @@ protected:
     transfer_type           mTransfer;
     audio_offload_info_t    mOffloadInfoCopy;
     const audio_offload_info_t* mOffloadInfo;
+    audio_attributes_t      mAttributes;
 
     // mFrameSize is equal to mFrameSizeAF for non-PCM or 16-bit PCM data.  For 8-bit PCM data, it's
     // twice as large as mFrameSize because data is expanded to 16-bit before it's stored in buffer.
