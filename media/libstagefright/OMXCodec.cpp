@@ -118,7 +118,7 @@ static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaDa
 
 #define FACTORY_REF(name) { #name, Make##name },
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 FACTORY_CREATE(MP3Decoder)
 #endif
 FACTORY_CREATE_ENCODER(AACEncoder)
@@ -144,7 +144,7 @@ static sp<MediaSource> InstantiateSoftwareEncoder(
     return NULL;
 }
 
-#ifdef QCOM_HARDWARE
+#ifdef QCOM_DIRECTTRACK
 static sp<MediaSource> InstantiateSoftwareDecoder(
         const char *name, const sp<MediaSource> &source) {
     struct FactoryInfo {
@@ -165,7 +165,6 @@ static sp<MediaSource> InstantiateSoftwareDecoder(
 #endif
 #undef FACTORY_CREATE_ENCODER
 #undef FACTORY_REF
-#undef FACTORY_CREATE
 
 #define CODEC_LOGI(x, ...) ALOGI("[%s] "x, mComponentName, ##__VA_ARGS__)
 #define CODEC_LOGV(x, ...) ALOGV("[%s] "x, mComponentName, ##__VA_ARGS__)
@@ -1930,16 +1929,6 @@ void OMXCodec::setComponentRole(
             "audio_decoder.flac", "audio_encoder.flac" },
         { MEDIA_MIMETYPE_AUDIO_MSGSM,
             "audio_decoder.gsm", "audio_encoder.gsm" },
-#ifdef ENABLE_AV_ENHANCEMENTS
-        { MEDIA_MIMETYPE_VIDEO_DIVX,
-            "video_decoder.divx", NULL },
-        { MEDIA_MIMETYPE_AUDIO_AC3,
-            "audio_decoder.ac3", NULL },
-        { MEDIA_MIMETYPE_AUDIO_EAC3,
-            "audio_decoder.eac3", NULL },
-        { MEDIA_MIMETYPE_VIDEO_DIVX311,
-            "video_decoder.divx", NULL },
-#endif
     };
 
     static const size_t kNumMimeToRole =

@@ -424,18 +424,6 @@ status_t AwesomePlayer::setDataSource_l(
     return OK;
 }
 
-void AwesomePlayer::printFileName(int fd) {
-
-    char symName[40] = {0};
-    char fileName[256] = {0};
-
-    snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
-
-    if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
-        ALOGD("printFileName fd(%d) -> %s", fd, fileName);
-    }
-}
-
 status_t AwesomePlayer::setDataSource(
         int fd, int64_t offset, int64_t length) {
     Mutex::Autolock autoLock(mLock);
@@ -446,12 +434,11 @@ status_t AwesomePlayer::setDataSource(
        printFileName(fd);
     }
 
-    if (fd) {
-        printFileName(fd);
 #ifdef ENABLE_AV_ENHANCEMENTS
+    if (fd) {
         ExtendedUtils::prefetchSecurePool(fd);
-#endif
     }
+#endif
 
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
