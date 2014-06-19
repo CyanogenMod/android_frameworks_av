@@ -659,7 +659,8 @@ status_t CameraService::connectHelperLocked(const sp<ICameraClient>& cameraClien
                                       int clientUid,
                                       int callingPid,
                                       /*out*/
-                                      sp<Client>& client) {
+                                      sp<Client>& client,
+                                      int halVersion) {
 
     int facing = -1;
     int deviceVersion = getDeviceVersion(cameraId, &facing);
@@ -672,28 +673,48 @@ status_t CameraService::connectHelperLocked(const sp<ICameraClient>& cameraClien
                      cameraId);
     }
 
-    switch(deviceVersion) {
-      case CAMERA_DEVICE_API_VERSION_1_0:
-        client = new CameraClient(this, cameraClient,
-                clientPackageName, cameraId,
-                facing, callingPid, clientUid, getpid());
-        break;
-      case CAMERA_DEVICE_API_VERSION_2_0:
-      case CAMERA_DEVICE_API_VERSION_2_1:
-      case CAMERA_DEVICE_API_VERSION_3_0:
-      case CAMERA_DEVICE_API_VERSION_3_1:
-      case CAMERA_DEVICE_API_VERSION_3_2:
-        client = new Camera2Client(this, cameraClient,
-                clientPackageName, cameraId,
-                facing, callingPid, clientUid, getpid(),
-                deviceVersion);
-        break;
-      case -1:
-        ALOGE("Invalid camera id %d", cameraId);
-        return BAD_VALUE;
-      default:
-        ALOGE("Unknown camera device HAL version: %d", deviceVersion);
-        return INVALID_OPERATION;
+    if (halVersion < 0 || halVersion == deviceVersion) {
+        // Default path: HAL version is unspecified by caller, create CameraClient
+        // based on device version reported by the HAL.
+        switch(deviceVersion) {
+          case CAMERA_DEVICE_API_VERSION_1_0:
+            client = new CameraClient(this, cameraClient,
+                    clientPackageName, cameraId,
+                    facing, callingPid, clientUid, getpid());
+            break;
+          case CAMERA_DEVICE_API_VERSION_2_0:
+          case CAMERA_DEVICE_API_VERSION_2_1:
+          case CAMERA_DEVICE_API_VERSION_3_0:
+          case CAMERA_DEVICE_API_VERSION_3_1:
+          case CAMERA_DEVICE_API_VERSION_3_2:
+            client = new Camera2Client(this, cameraClient,
+                    clientPackageName, cameraId,
+                    facing, callingPid, clientUid, getpid(),
+                    deviceVersion);
+            break;
+          case -1:
+            ALOGE("Invalid camera id %d", cameraId);
+            return BAD_VALUE;
+          default:
+            ALOGE("Unknown camera device HAL version: %d", deviceVersion);
+            return INVALID_OPERATION;
+        }
+    } else {
+        // A particular HAL version is requested by caller. Create CameraClient
+        // based on the requested HAL version.
+        if (deviceVersion > CAMERA_DEVICE_API_VERSION_1_0 &&
+            halVersion == CAMERA_DEVICE_API_VERSION_1_0) {
+            // Only support higher HAL version device opened as HAL1.0 device.
+            client = new CameraClient(this, cameraClient,
+                    clientPackageName, cameraId,
+                    facing, callingPid, clientUid, getpid());
+        } else {
+            // Other combinations (e.g. HAL3.x open as HAL2.x) are not supported yet.
+            ALOGE("Invalid camera HAL version %x: HAL %x device can only be"
+                    " opened as HAL %x device", halVersion, deviceVersion,
+                    CAMERA_DEVICE_API_VERSION_1_0);
+            return INVALID_OPERATION;
+        }
     }
 
     status_t status = connectFinishUnsafe(client, client->getRemote());
@@ -750,6 +771,63 @@ status_t CameraService::connect(
                                      clientUid,
                                      callingPid,
                                      client);
+        if (status != OK) {
+            return status;
+        }
+
+    }
+    // important: release the mutex here so the client can call back
+    //    into the service from its destructor (can be at the end of the call)
+
+    device = client;
+    return OK;
+}
+
+status_t CameraService::connectLegacy(
+        const sp<ICameraClient>& cameraClient,
+        int cameraId, int halVersion,
+        const String16& clientPackageName,
+        int clientUid,
+        /*out*/
+        sp<ICamera>& device) {
+
+    if (mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_3) {
+        ALOGE("%s: camera HAL module version %x doesn't support connecting to legacy HAL devices!",
+                __FUNCTION__, mModule->common.module_api_version);
+        return INVALID_OPERATION;
+    }
+
+    String8 clientName8(clientPackageName);
+    int callingPid = getCallingPid();
+
+    LOG1("CameraService::connect legacy E (pid %d \"%s\", id %d)", callingPid,
+            clientName8.string(), cameraId);
+
+    status_t status = validateConnect(cameraId, /*inout*/clientUid);
+    if (status != OK) {
+        return status;
+    }
+
+    sp<Client> client;
+    {
+        Mutex::Autolock lock(mServiceLock);
+        sp<BasicClient> clientTmp;
+        if (!canConnectUnsafe(cameraId, clientPackageName,
+                              cameraClient->asBinder(),
+                              /*out*/clientTmp)) {
+            return -EBUSY;
+        } else if (client.get() != NULL) {
+            device = static_cast<Client*>(clientTmp.get());
+            return OK;
+        }
+
+        status = connectHelperLocked(cameraClient,
+                                     cameraId,
+                                     clientPackageName,
+                                     clientUid,
+                                     callingPid,
+                                     client,
+                                     halVersion);
         if (status != OK) {
             return status;
         }
@@ -1196,6 +1274,7 @@ status_t CameraService::onTransact(
         case BnCameraService::CONNECT:
         case BnCameraService::CONNECT_PRO:
         case BnCameraService::CONNECT_DEVICE:
+        case BnCameraService::CONNECT_LEGACY:
             const int pid = getCallingPid();
             const int self_pid = getpid();
             if (pid != self_pid) {
