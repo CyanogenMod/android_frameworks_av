@@ -625,7 +625,7 @@ bool ExtendedCodec::checkDPFromCodecSpecificData(const uint8_t *data, size_t siz
     const char startCode[]="\x00\x00\x01";
     size_t maxHeaderSize = 28;
 
-    if (!data && (((size < 4) || (size > maxHeaderSize)))) {
+    if (!data || (((size < 4) || (size > maxHeaderSize)))) {
         return retVal;
     }
 

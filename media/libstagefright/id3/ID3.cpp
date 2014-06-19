@@ -870,6 +870,11 @@ bool ID3::parseV1(const sp<DataSource> &source) {
     }
 
     mData = (uint8_t *)malloc(V1_TAG_SIZE);
+    if (mData == NULL) {
+        ALOGE("failed to allocate TAG memory, return false");
+        return false;
+    }
+
     if (source->readAt(size - V1_TAG_SIZE, mData, V1_TAG_SIZE)
             != (ssize_t)V1_TAG_SIZE) {
         free(mData);
