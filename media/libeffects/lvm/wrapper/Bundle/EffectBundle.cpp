@@ -19,11 +19,13 @@
 #define ARRAY_SIZE(array) (sizeof array / sizeof array[0])
 //#define LOG_NDEBUG 0
 
-#include <cutils/log.h>
 #include <assert.h>
+#include <inttypes.h>
+#include <new>
 #include <stdlib.h>
 #include <string.h>
-#include <new>
+
+#include <cutils/log.h>
 #include "EffectBundle.h"
 
 
@@ -560,11 +562,12 @@ int LvmBundle_init(EffectContext *pContext){
             MemTab.Region[i].pBaseAddress = malloc(MemTab.Region[i].Size);
 
             if (MemTab.Region[i].pBaseAddress == LVM_NULL){
-                ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed to allocate %ld bytes "
-                        "for region %u\n", MemTab.Region[i].Size, i );
+                ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed to allocate %" PRIu32
+                        " bytes for region %u\n", MemTab.Region[i].Size, i );
                 bMallocFailure = LVM_TRUE;
             }else{
-                ALOGV("\tLvmBundle_init CreateInstance allocated %ld bytes for region %u at %p\n",
+                ALOGV("\tLvmBundle_init CreateInstance allocated %" PRIu32
+                        " bytes for region %u at %p\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
             }
         }
@@ -576,11 +579,11 @@ int LvmBundle_init(EffectContext *pContext){
     if(bMallocFailure == LVM_TRUE){
         for (int i=0; i<LVM_NR_MEMORY_REGIONS; i++){
             if (MemTab.Region[i].pBaseAddress == LVM_NULL){
-                ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed to allocate %ld bytes "
-                        "for region %u Not freeing\n", MemTab.Region[i].Size, i );
+                ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed to allocate %" PRIu32
+                        " bytes for region %u Not freeing\n", MemTab.Region[i].Size, i );
             }else{
-                ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed: but allocated %ld bytes "
-                     "for region %u at %p- free\n",
+                ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed: but allocated %" PRIu32
+                     " bytes for region %u at %p- free\n",
                      MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
                 free(MemTab.Region[i].pBaseAddress);
             }
@@ -889,16 +892,16 @@ void LvmEffect_free(EffectContext *pContext){
     for (int i=0; i<LVM_NR_MEMORY_REGIONS; i++){
         if (MemTab.Region[i].Size != 0){
             if (MemTab.Region[i].pBaseAddress != NULL){
-                ALOGV("\tLvmEffect_free - START freeing %ld bytes for region %u at %p\n",
+                ALOGV("\tLvmEffect_free - START freeing %" PRIu32 " bytes for region %u at %p\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
 
                 free(MemTab.Region[i].pBaseAddress);
 
-                ALOGV("\tLvmEffect_free - END   freeing %ld bytes for region %u at %p\n",
+                ALOGV("\tLvmEffect_free - END   freeing %" PRIu32 " bytes for region %u at %p\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
             }else{
-                ALOGV("\tLVM_ERROR : LvmEffect_free - trying to free with NULL pointer %ld bytes "
-                        "for region %u at %p ERROR\n",
+                ALOGV("\tLVM_ERROR : LvmEffect_free - trying to free with NULL pointer %" PRIu32
+                        " bytes for region %u at %p ERROR\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
             }
         }

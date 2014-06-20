@@ -19,11 +19,13 @@
 #define ARRAY_SIZE(array) (sizeof array / sizeof array[0])
 //#define LOG_NDEBUG 0
 
-#include <cutils/log.h>
 #include <assert.h>
+#include <inttypes.h>
+#include <new>
 #include <stdlib.h>
 #include <string.h>
-#include <new>
+
+#include <cutils/log.h>
 #include "EffectReverb.h"
 // from Reverb/lib
 #include "LVREV.h"
@@ -269,7 +271,7 @@ extern "C" int EffectCreate(const effect_uuid_t *uuid,
     pContext->InFrames32  = (LVM_INT32 *)malloc(LVREV_MAX_FRAME_SIZE * sizeof(LVM_INT32) * 2);
     pContext->OutFrames32 = (LVM_INT32 *)malloc(LVREV_MAX_FRAME_SIZE * sizeof(LVM_INT32) * 2);
 
-    ALOGV("\tEffectCreate %p, size %d", pContext, sizeof(ReverbContext));
+    ALOGV("\tEffectCreate %p, size %zu", pContext, sizeof(ReverbContext));
     ALOGV("\tEffectCreate end\n");
     return 0;
 } /* end EffectCreate */
@@ -570,15 +572,15 @@ void Reverb_free(ReverbContext *pContext){
     for (int i=0; i<LVM_NR_MEMORY_REGIONS; i++){
         if (MemTab.Region[i].Size != 0){
             if (MemTab.Region[i].pBaseAddress != NULL){
-                ALOGV("\tfree() - START freeing %ld bytes for region %u at %p\n",
+                ALOGV("\tfree() - START freeing %" PRIu32 " bytes for region %u at %p\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
 
                 free(MemTab.Region[i].pBaseAddress);
 
-                ALOGV("\tfree() - END   freeing %ld bytes for region %u at %p\n",
+                ALOGV("\tfree() - END   freeing %" PRIu32 " bytes for region %u at %p\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
             }else{
-                ALOGV("\tLVM_ERROR : free() - trying to free with NULL pointer %ld bytes "
+                ALOGV("\tLVM_ERROR : free() - trying to free with NULL pointer %" PRIu32 " bytes "
                         "for region %u at %p ERROR\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
             }
@@ -771,11 +773,12 @@ int Reverb_init(ReverbContext *pContext){
             MemTab.Region[i].pBaseAddress = malloc(MemTab.Region[i].Size);
 
             if (MemTab.Region[i].pBaseAddress == LVM_NULL){
-                ALOGV("\tLVREV_ERROR :Reverb_init CreateInstance Failed to allocate %ld "
-                        "bytes for region %u\n", MemTab.Region[i].Size, i );
+                ALOGV("\tLVREV_ERROR :Reverb_init CreateInstance Failed to allocate %" PRIu32
+                        " bytes for region %u\n", MemTab.Region[i].Size, i );
                 bMallocFailure = LVM_TRUE;
             }else{
-                ALOGV("\tReverb_init CreateInstance allocate %ld bytes for region %u at %p\n",
+                ALOGV("\tReverb_init CreateInstance allocate %" PRIu32
+                        " bytes for region %u at %p\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
             }
         }
@@ -787,11 +790,11 @@ int Reverb_init(ReverbContext *pContext){
     if(bMallocFailure == LVM_TRUE){
         for (int i=0; i<LVM_NR_MEMORY_REGIONS; i++){
             if (MemTab.Region[i].pBaseAddress == LVM_NULL){
-                ALOGV("\tLVM_ERROR :Reverb_init CreateInstance Failed to allocate %ld bytes "
-                        "for region %u - Not freeing\n", MemTab.Region[i].Size, i );
+                ALOGV("\tLVM_ERROR :Reverb_init CreateInstance Failed to allocate %" PRIu32
+                        " bytes for region %u - Not freeing\n", MemTab.Region[i].Size, i );
             }else{
-                ALOGV("\tLVM_ERROR :Reverb_init CreateInstance Failed: but allocated %ld bytes "
-                        "for region %u at %p- free\n",
+                ALOGV("\tLVM_ERROR :Reverb_init CreateInstance Failed: but allocated %" PRIu32
+                        " bytes for region %u at %p- free\n",
                         MemTab.Region[i].Size, i, MemTab.Region[i].pBaseAddress);
                 free(MemTab.Region[i].pBaseAddress);
             }
