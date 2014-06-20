@@ -3523,6 +3523,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
 
     // stream info is cleared by reset_l() so copy what we need
     mAudioTearDownWasPlaying = (mFlags & PLAYING);
+    uint32_t loopingFlags = (mFlags & (LOOPING | AUTO_LOOPING));
     KeyedVector<String8, String8> uriHeaders(mUriHeaders);
     sp<DataSource> fileSource(mFileSource);
 
@@ -3551,6 +3552,8 @@ void AwesomePlayer::onAudioTearDownEvent() {
         // a MEDIA_ERROR to the client and abort the prepare
         mFlags |= PREPARE_CANCELLED;
     }
+
+    mFlags |= loopingFlags;
 
     mAudioTearDown = true;
     mIsAsyncPrepare = true;
