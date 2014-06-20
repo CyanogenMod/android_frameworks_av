@@ -430,10 +430,13 @@ status_t StreamingProcessor::startStream(StreamType type,
 
     Mutex::Autolock m(mMutex);
 
-    // If a recording stream is being started up, free up any
-    // outstanding buffers left from the previous recording session.
-    // There should never be any, so if there are, warn about it.
-    if (isStreamActive(outputStreams, mRecordingStreamId)) {
+    // If a recording stream is being started up and no recording
+    // stream is active yet, free up any outstanding buffers left
+    // from the previous recording session. There should never be
+    // any, so if there are, warn about it.
+    bool isRecordingStreamIdle = !isStreamActive(mActiveStreamIds, mRecordingStreamId);
+    bool startRecordingStream = isStreamActive(outputStreams, mRecordingStreamId);
+    if (startRecordingStream && isRecordingStreamIdle) {
         releaseAllRecordingFramesLocked();
     }
 
