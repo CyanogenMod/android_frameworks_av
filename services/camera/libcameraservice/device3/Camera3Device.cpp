@@ -2126,6 +2126,17 @@ status_t Camera3Device::RequestThread::setRepeatingRequests(
     return OK;
 }
 
+bool Camera3Device::RequestThread::isRepeatingRequestLocked(const sp<CaptureRequest> requestIn) {
+    if (mRepeatingRequests.empty()) {
+        return false;
+    }
+    int32_t requestId = requestIn->mResultExtras.requestId;
+    const RequestList &repeatRequests = mRepeatingRequests;
+    // All repeating requests are guaranteed to have same id so only check first quest
+    const sp<CaptureRequest> firstRequest = *repeatRequests.begin();
+    return (firstRequest->mResultExtras.requestId == requestId);
+}
+
 status_t Camera3Device::RequestThread::clearRepeatingRequests(/*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
     mRepeatingRequests.clear();
@@ -2140,6 +2151,18 @@ status_t Camera3Device::RequestThread::clear(/*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
     ALOGV("RequestThread::%s:", __FUNCTION__);
     mRepeatingRequests.clear();
+
+    // Decrement repeating frame count for those requests never sent to device
+    // TODO: Remove this after we have proper error handling so these requests
+    // will generate an error callback. This might be the only place calling
+    // isRepeatingRequestLocked. If so, isRepeatingRequestLocked should also be removed.
+    const RequestList &requests = mRequestQueue;
+    for (RequestList::const_iterator it = requests.begin();
+            it != requests.end(); ++it) {
+        if (isRepeatingRequestLocked(*it)) {
+            mRepeatingLastFrameNumber--;
+        }
+    }
     mRequestQueue.clear();
     mTriggerMap.clear();
     if (lastFrameNumber != NULL) {
