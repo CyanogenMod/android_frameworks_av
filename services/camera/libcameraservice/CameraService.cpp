@@ -791,7 +791,14 @@ status_t CameraService::connectLegacy(
         /*out*/
         sp<ICamera>& device) {
 
-    if (mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_3) {
+    if (halVersion != CAMERA_HAL_API_VERSION_UNSPECIFIED &&
+            mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_3) {
+        /*
+         * Either the HAL version is unspecified in which case this just creates
+         * a camera client selected by the latest device version, or
+         * it's a particular version in which case the HAL must supported
+         * the open_legacy call
+         */
         ALOGE("%s: camera HAL module version %x doesn't support connecting to legacy HAL devices!",
                 __FUNCTION__, mModule->common.module_api_version);
         return INVALID_OPERATION;
