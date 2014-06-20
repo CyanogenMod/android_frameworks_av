@@ -1,5 +1,8 @@
 # Build the unit tests for audioflinger
 
+#
+# resampler unit test
+#
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -20,6 +23,7 @@ LOCAL_C_INCLUDES := \
 	bionic/libstdc++/include \
 	external/gtest/include \
 	external/stlport/stlport \
+	$(call include-path-for, audio-utils) \
 	frameworks/av/services/audioflinger
 
 LOCAL_SRC_FILES := \
