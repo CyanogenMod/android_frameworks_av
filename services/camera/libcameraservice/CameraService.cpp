@@ -541,8 +541,8 @@ status_t CameraService::connectPro(
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
-            client = new ProCamera2Client(this, cameraCb, String16(),
-                    cameraId, facing, callingPid, USE_CALLING_UID, getpid());
+            client = new ProCamera2Client(this, cameraCb, clientPackageName,
+                    cameraId, facing, callingPid, clientUid, getpid());
             break;
           case -1:
             ALOGE("Invalid camera id %d", cameraId);
@@ -619,8 +619,8 @@ status_t CameraService::connectDevice(
           case CAMERA_DEVICE_API_VERSION_2_0:
           case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
-            client = new CameraDeviceClient(this, cameraCb, String16(),
-                    cameraId, facing, callingPid, USE_CALLING_UID, getpid());
+            client = new CameraDeviceClient(this, cameraCb, clientPackageName,
+                    cameraId, facing, callingPid, clientUid, getpid());
             break;
           case -1:
             ALOGE("Invalid camera id %d", cameraId);
@@ -834,6 +834,7 @@ status_t CameraService::onTransact(
     switch (code) {
         case BnCameraService::CONNECT:
         case BnCameraService::CONNECT_PRO:
+        case BnCameraService::CONNECT_DEVICE:
             const int pid = getCallingPid();
             const int self_pid = getpid();
             if (pid != self_pid) {
