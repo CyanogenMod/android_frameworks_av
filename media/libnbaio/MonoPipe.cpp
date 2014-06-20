@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 #define LOG_TAG "MonoPipe"
 //#define LOG_NDEBUG 0
 
@@ -87,7 +89,7 @@ MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBl
     static const uint64_t kUnsignedHiBitsMask = ~(0xFFFFFFFFull);
     if ((N & kSignedHiBitsMask) || (D & kUnsignedHiBitsMask)) {
         ALOGE("Cannot reduce sample rate to local clock frequency ratio to fit"
-              " in a 32/32 bit rational.  (max reduction is 0x%016llx/0x%016llx"
+              " in a 32/32 bit rational.  (max reduction is 0x%016" PRIx64 "/0x%016" PRIx64
               ").  getNextWriteTimestamp calls will be non-functional", N, D);
         return;
     }
@@ -308,7 +310,7 @@ int64_t MonoPipe::offsetTimestampByAudioFrames(int64_t ts, size_t audFrames)
         // error, but then zero out the ratio in the linear transform so
         // that we don't try to do any conversions from now on.  This
         // MonoPipe's getNextWriteTimestamp is now broken for good.
-        ALOGE("Overflow when attempting to convert %d audio frames to"
+        ALOGE("Overflow when attempting to convert %zu audio frames to"
               " duration in local time.  getNextWriteTimestamp will fail from"
               " now on.", audFrames);
         mSamplesToLocalTime.a_to_b_numer = 0;

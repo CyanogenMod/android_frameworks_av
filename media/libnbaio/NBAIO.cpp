@@ -137,7 +137,7 @@ ssize_t NBAIO_Source::readVia(readVia_t via, size_t total, void *user,
 ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
                                   NBAIO_Format counterOffers[], size_t& numCounterOffers)
 {
-    ALOGV("negotiate offers=%p numOffers=%u countersOffers=%p numCounterOffers=%u",
+    ALOGV("negotiate offers=%p numOffers=%zu countersOffers=%p numCounterOffers=%zu",
             offers, numOffers, counterOffers, numCounterOffers);
     if (Format_isValid(mFormat)) {
         for (size_t i = 0; i < numOffers; ++i) {
