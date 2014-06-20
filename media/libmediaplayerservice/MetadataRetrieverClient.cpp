@@ -147,8 +147,8 @@ status_t MetadataRetrieverClient::setDataSource(int fd, int64_t offset, int64_t 
     }
     ALOGV("st_dev  = %llu", sb.st_dev);
     ALOGV("st_mode = %u", sb.st_mode);
-    ALOGV("st_uid  = %lu", sb.st_uid);
-    ALOGV("st_gid  = %lu", sb.st_gid);
+    ALOGV("st_uid  = %lu", static_cast<unsigned long>(sb.st_uid));
+    ALOGV("st_gid  = %lu", static_cast<unsigned long>(sb.st_gid));
     ALOGV("st_size = %llu", sb.st_size);
 
     if (offset >= sb.st_size) {

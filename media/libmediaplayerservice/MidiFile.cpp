@@ -114,7 +114,7 @@ MidiFile::~MidiFile() {
 }
 
 status_t MidiFile::setDataSource(
-        const sp<IMediaHTTPService> &httpService,
+        const sp<IMediaHTTPService> & /*httpService*/,
         const char* path,
         const KeyedVector<String8, String8> *) {
     ALOGV("MidiFile::setDataSource url=%s", path);
