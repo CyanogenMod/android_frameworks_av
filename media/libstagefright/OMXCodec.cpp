@@ -460,10 +460,10 @@ sp<MediaSource> OMXCodec::Create(
     const char *mime;
     bool success = meta->findCString(kKeyMIMEType, &mime);
     CHECK(success);
-
     Vector<CodecNameAndQuirks> matchingCodecs;
 
 #ifdef QCOM_HARDWARE
+    ExtendedCodec::kHEVCCodecType hevc_codectype = ExtendedCodec::useHEVCDecoder(mime);
     int channelCount = 0;
     int trackId = 0;
     meta->findInt32(kKeyChannelCount, &channelCount);
@@ -472,6 +472,12 @@ sp<MediaSource> OMXCodec::Create(
             && trackId > 1) {
         findMatchingCodecs(mime, createEncoder,
             "OMX.qcom.audio.decoder.multiaac", flags, &matchingCodecs);
+    } else if (hevc_codectype == ExtendedCodec::kCodecType_SWHEVC) {
+               findMatchingCodecs(mime, createEncoder,
+                   "OMX.qcom.video.decoder.hevcswvdec", flags, &matchingCodecs);
+    } else if (hevc_codectype == ExtendedCodec::kCodecType_HWHEVC) {
+               findMatchingCodecs(mime, createEncoder,
+                   "OMX.qcom.video.decoder.hevc", flags, &matchingCodecs);
     } else {
 #endif
         findMatchingCodecs(
