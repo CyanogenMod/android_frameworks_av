@@ -29,10 +29,12 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
+                                void *buffer,
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
                                 int uid,
-                                IAudioFlinger::track_flags_t flags);
+                                IAudioFlinger::track_flags_t flags,
+                                track_type type);
     virtual             ~Track();
     virtual status_t    initCheck() const;
 
@@ -100,10 +102,6 @@ protected:
     bool isResumePending();
     void resumeAck();
 
-    bool isOutputTrack() const {
-        return (mStreamType == AUDIO_STREAM_CNT);
-    }
-
     sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
     // framesWritten is cumulative, never reset, and is shared all tracks
@@ -115,7 +113,6 @@ public:
     void triggerEvents(AudioSystem::sync_event_t type);
     void invalidate();
     bool isInvalid() const { return mIsInvalid; }
-    virtual bool isTimedTrack() const { return false; }
     int fastIndex() const { return mFastIndex; }
 
 protected:
@@ -163,7 +160,6 @@ private:
     bool                mPreviousValid;
     uint32_t            mPreviousFramesWritten;
     AudioTimestamp      mPreviousTimestamp;
-
 };  // end of Track
 
 class TimedTrack : public Track {
@@ -195,7 +191,6 @@ class TimedTrack : public Track {
     };
 
     // Mixer facing methods.
-    virtual bool isTimedTrack() const { return true; }
     virtual size_t framesReady() const;
 
     // AudioBufferProvider interface
@@ -296,3 +291,34 @@ private:
     DuplicatingThread* const mSourceThread; // for waitTimeMs() in write()
     AudioTrackClientProxy*      mClientProxy;
 };  // end of OutputTrack
+
+// playback track, used by PatchPanel
+class PatchTrack : public Track, public PatchProxyBufferProvider {
+public:
+
+                        PatchTrack(PlaybackThread *playbackThread,
+                                   uint32_t sampleRate,
+                                   audio_channel_mask_t channelMask,
+                                   audio_format_t format,
+                                   size_t frameCount,
+                                   void *buffer,
+                                   IAudioFlinger::track_flags_t flags);
+    virtual             ~PatchTrack();
+
+    // AudioBufferProvider interface
+    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
+                                   int64_t pts);
+    virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
+
+    // PatchProxyBufferProvider interface
+    virtual status_t    obtainBuffer(Proxy::Buffer* buffer,
+                                     const struct timespec *timeOut = NULL);
+    virtual void        releaseBuffer(Proxy::Buffer* buffer);
+
+            void setPeerProxy(PatchProxyBufferProvider *proxy) { mPeerProxy = proxy; }
+
+private:
+    sp<ClientProxy>             mProxy;
+    PatchProxyBufferProvider*   mPeerProxy;
+    struct timespec             mPeerTimeout;
+};  // end of PatchTrack

@@ -68,12 +68,13 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             audio_format_t format,
             audio_channel_mask_t channelMask,
             size_t frameCount,
-            const sp<IMemory>& sharedBuffer,
+            void *buffer,
             int sessionId,
             int clientUid,
             IAudioFlinger::track_flags_t flags,
             bool isOut,
-            alloc_type alloc)
+            alloc_type alloc,
+            track_type type)
     :   RefBase(),
         mThread(thread),
         mClient(client),
@@ -94,7 +95,8 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mIsOut(isOut),
         mServerProxy(NULL),
         mId(android_atomic_inc(&nextTrackId)),
-        mTerminated(false)
+        mTerminated(false),
+        mType(type)
 {
     // if the caller is us, trust the specified uid
     if (IPCThreadState::self()->getCallingPid() != getpid_cached || clientUid == -1) {
@@ -108,16 +110,10 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
     // battery usage on it.
     mUid = clientUid;
 
-    // client == 0 implies sharedBuffer == 0
-    ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
-
-    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
-            sharedBuffer->size());
-
     // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
     size_t size = sizeof(audio_track_cblk_t);
-    size_t bufferSize = (sharedBuffer == 0 ? roundup(frameCount) : frameCount) * mFrameSize;
-    if (sharedBuffer == 0 && alloc == ALLOC_CBLK) {
+    size_t bufferSize = (buffer == NULL ? roundup(frameCount) : frameCount) * mFrameSize;
+    if (buffer == NULL && alloc == ALLOC_CBLK) {
         size += bufferSize;
     }
 
@@ -166,15 +162,21 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             break;
         case ALLOC_CBLK:
             // clear all buffers
-            if (sharedBuffer == 0) {
+            if (buffer == NULL) {
                 mBuffer = (char*)mCblk + sizeof(audio_track_cblk_t);
                 memset(mBuffer, 0, bufferSize);
             } else {
-                mBuffer = sharedBuffer->pointer();
+                mBuffer = buffer;
 #if 0
                 mCblk->mFlags = CBLK_FORCEREADY;    // FIXME hack, need to fix the track ready logic
 #endif
             }
+            break;
+        case ALLOC_LOCAL:
+            mBuffer = calloc(1, bufferSize);
+            break;
+        case ALLOC_NONE:
+            mBuffer = buffer;
             break;
         }
 
@@ -198,6 +200,17 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 #endif
 
     }
+}
+
+status_t AudioFlinger::ThreadBase::TrackBase::initCheck() const
+{
+    status_t status;
+    if (mType == TYPE_OUTPUT || mType == TYPE_PATCH) {
+        status = cblk() != NULL ? NO_ERROR : NO_MEMORY;
+    } else {
+        status = getCblk() != 0 ? NO_ERROR : NO_MEMORY;
+    }
+    return status;
 }
 
 AudioFlinger::ThreadBase::TrackBase::~TrackBase()
@@ -364,12 +377,17 @@ AudioFlinger::PlaybackThread::Track::Track(
             audio_format_t format,
             audio_channel_mask_t channelMask,
             size_t frameCount,
+            void *buffer,
             const sp<IMemory>& sharedBuffer,
             int sessionId,
             int uid,
-            IAudioFlinger::track_flags_t flags)
-    :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount, sharedBuffer,
-            sessionId, uid, flags, true /*isOut*/),
+            IAudioFlinger::track_flags_t flags,
+            track_type type)
+    :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount,
+                  (sharedBuffer != 0) ? sharedBuffer->pointer() : buffer,
+                  sessionId, uid, flags, true /*isOut*/,
+                  (type == TYPE_PATCH) ? ( buffer == NULL ? ALLOC_LOCAL : ALLOC_NONE) : ALLOC_CBLK,
+                  type),
     mFillingUpStatus(FS_INVALID),
     // mRetryCount initialized later when needed
     mSharedBuffer(sharedBuffer),
@@ -389,13 +407,19 @@ AudioFlinger::PlaybackThread::Track::Track(
     mPreviousFramesWritten(0)
     // mPreviousTimestamp
 {
+    // client == 0 implies sharedBuffer == 0
+    ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
+
+    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
+            sharedBuffer->size());
+
     if (mCblk == NULL) {
         return;
     }
 
     if (sharedBuffer == 0) {
         mAudioTrackServerProxy = new AudioTrackServerProxy(mCblk, mBuffer, frameCount,
-                mFrameSize);
+                mFrameSize, !isExternalTrack(), sampleRate);
     } else {
         mAudioTrackServerProxy = new StaticAudioTrackServerProxy(mCblk, mBuffer, frameCount,
                 mFrameSize);
@@ -463,7 +487,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
             Mutex::Autolock _l(thread->mLock);
             PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
             bool wasActive = playbackThread->destroyTrack_l(this);
-            if (!isOutputTrack() && !wasActive) {
+            if (isExternalTrack() && !wasActive) {
                 AudioSystem::releaseOutput(thread->id());
             }
         }
@@ -1122,7 +1146,8 @@ AudioFlinger::PlaybackThread::TimedTrack::TimedTrack(
             int sessionId,
             int uid)
     : Track(thread, client, streamType, sampleRate, format, channelMask,
-            frameCount, sharedBuffer, sessionId, uid, IAudioFlinger::TRACK_TIMED),
+            frameCount, (sharedBuffer != 0) ? sharedBuffer->pointer() : NULL, sharedBuffer,
+                    sessionId, uid, IAudioFlinger::TRACK_TIMED, TYPE_TIMED),
       mQueueHeadInFlight(false),
       mTrimQueueHeadOnRelease(false),
       mFramesPendingInQueue(0),
@@ -1617,7 +1642,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             size_t frameCount,
             int uid)
     :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
-                NULL, 0, uid, IAudioFlinger::TRACK_DEFAULT),
+                NULL, 0, 0, uid, IAudioFlinger::TRACK_DEFAULT, TYPE_OUTPUT),
     mActive(false), mSourceThread(sourceThread), mClientProxy(NULL)
 {
 
@@ -1825,6 +1850,75 @@ void AudioFlinger::PlaybackThread::OutputTrack::clearBufferQueue()
 }
 
 
+AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThread,
+                                                     uint32_t sampleRate,
+                                                     audio_channel_mask_t channelMask,
+                                                     audio_format_t format,
+                                                     size_t frameCount,
+                                                     void *buffer,
+                                                     IAudioFlinger::track_flags_t flags)
+    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
+              buffer, 0, 0, getuid(), flags, TYPE_PATCH),
+              mProxy(new ClientProxy(mCblk, mBuffer, frameCount, mFrameSize, true, true))
+{
+    uint64_t mixBufferNs = ((uint64_t)2 * playbackThread->frameCount() * 1000000000) /
+                                                                    playbackThread->sampleRate();
+    mPeerTimeout.tv_sec = mixBufferNs / 1000000000;
+    mPeerTimeout.tv_nsec = (int) (mixBufferNs % 1000000000);
+
+    ALOGV("PatchTrack %p sampleRate %d mPeerTimeout %d.%03d sec",
+                                      this, sampleRate,
+                                      (int)mPeerTimeout.tv_sec,
+                                      (int)(mPeerTimeout.tv_nsec / 1000000));
+}
+
+AudioFlinger::PlaybackThread::PatchTrack::~PatchTrack()
+{
+}
+
+// AudioBufferProvider interface
+status_t AudioFlinger::PlaybackThread::PatchTrack::getNextBuffer(
+        AudioBufferProvider::Buffer* buffer, int64_t pts)
+{
+    ALOG_ASSERT(mPeerProxy != 0, "PatchTrack::getNextBuffer() called without peer proxy");
+    Proxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    status_t status = mPeerProxy->obtainBuffer(&buf, &mPeerTimeout);
+    ALOGV_IF(status != NO_ERROR, "PatchTrack() %p getNextBuffer status %d", this, status);
+    if (buf.mFrameCount == 0) {
+        return WOULD_BLOCK;
+    }
+    buffer->frameCount = buf.mFrameCount;
+    status = Track::getNextBuffer(buffer, pts);
+    return status;
+}
+
+void AudioFlinger::PlaybackThread::PatchTrack::releaseBuffer(AudioBufferProvider::Buffer* buffer)
+{
+    ALOG_ASSERT(mPeerProxy != 0, "PatchTrack::releaseBuffer() called without peer proxy");
+    Proxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    buf.mRaw = buffer->raw;
+    mPeerProxy->releaseBuffer(&buf);
+    TrackBase::releaseBuffer(buffer);
+}
+
+status_t AudioFlinger::PlaybackThread::PatchTrack::obtainBuffer(Proxy::Buffer* buffer,
+                                                                const struct timespec *timeOut)
+{
+    return mProxy->obtainBuffer(buffer, timeOut);
+}
+
+void AudioFlinger::PlaybackThread::PatchTrack::releaseBuffer(Proxy::Buffer* buffer)
+{
+    mProxy->releaseBuffer(buffer);
+    if (android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags) & CBLK_DISABLED) {
+        ALOGW("PatchTrack::releaseBuffer() disabled due to previous underrun, restarting");
+        start();
+    }
+    android_atomic_or(CBLK_FORCEREADY, &mCblk->mFlags);
+}
+
 // ----------------------------------------------------------------------------
 //      Record
 // ----------------------------------------------------------------------------
@@ -1872,13 +1966,18 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             audio_format_t format,
             audio_channel_mask_t channelMask,
             size_t frameCount,
+            void *buffer,
             int sessionId,
             int uid,
-            IAudioFlinger::track_flags_t flags)
+            IAudioFlinger::track_flags_t flags,
+            track_type type)
     :   TrackBase(thread, client, sampleRate, format,
-                  channelMask, frameCount, 0 /*sharedBuffer*/, sessionId, uid,
+                  channelMask, frameCount, buffer, sessionId, uid,
                   flags, false /*isOut*/,
-                  flags & IAudioFlinger::TRACK_FAST ? ALLOC_PIPE : ALLOC_CBLK),
+                  (type == TYPE_DEFAULT) ?
+                          ((flags & IAudioFlinger::TRACK_FAST) ? ALLOC_PIPE : ALLOC_CBLK) :
+                          ((buffer == NULL) ? ALLOC_LOCAL : ALLOC_NONE),
+                  type),
         mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
@@ -1887,7 +1986,8 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         return;
     }
 
-    mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount, mFrameSize);
+    mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
+                                              mFrameSize, !isExternalTrack());
 
     uint32_t channelCount = audio_channel_count_from_in_mask(channelMask);
     // FIXME I don't understand either of the channel count checks
@@ -1949,7 +2049,7 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
-        if (recordThread->stop(this)) {
+        if (recordThread->stop(this) && isExternalTrack()) {
             AudioSystem::stopInput(recordThread->id());
         }
     }
@@ -1962,10 +2062,12 @@ void AudioFlinger::RecordThread::RecordTrack::destroy()
     {
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
-            if (mState == ACTIVE || mState == RESUMING) {
-                AudioSystem::stopInput(thread->id());
+            if (isExternalTrack()) {
+                if (mState == ACTIVE || mState == RESUMING) {
+                    AudioSystem::stopInput(thread->id());
+                }
+                AudioSystem::releaseInput(thread->id());
             }
-            AudioSystem::releaseInput(thread->id());
             Mutex::Autolock _l(thread->mLock);
             RecordThread *recordThread = (RecordThread *) thread.get();
             recordThread->destroyTrack_l(this);
@@ -2025,6 +2127,72 @@ void AudioFlinger::RecordThread::RecordTrack::clearSyncStartEvent()
         mSyncStartEvent.clear();
     }
     mFramesToDrop = 0;
+}
+
+
+AudioFlinger::RecordThread::PatchRecord::PatchRecord(RecordThread *recordThread,
+                                                     uint32_t sampleRate,
+                                                     audio_channel_mask_t channelMask,
+                                                     audio_format_t format,
+                                                     size_t frameCount,
+                                                     void *buffer,
+                                                     IAudioFlinger::track_flags_t flags)
+    :   RecordTrack(recordThread, NULL, sampleRate, format, channelMask, frameCount,
+                buffer, 0, getuid(), flags, TYPE_PATCH),
+                mProxy(new ClientProxy(mCblk, mBuffer, frameCount, mFrameSize, false, true))
+{
+    uint64_t mixBufferNs = ((uint64_t)2 * recordThread->frameCount() * 1000000000) /
+                                                                recordThread->sampleRate();
+    mPeerTimeout.tv_sec = mixBufferNs / 1000000000;
+    mPeerTimeout.tv_nsec = (int) (mixBufferNs % 1000000000);
+
+    ALOGV("PatchRecord %p sampleRate %d mPeerTimeout %d.%03d sec",
+                                      this, sampleRate,
+                                      (int)mPeerTimeout.tv_sec,
+                                      (int)(mPeerTimeout.tv_nsec / 1000000));
+}
+
+AudioFlinger::RecordThread::PatchRecord::~PatchRecord()
+{
+}
+
+// AudioBufferProvider interface
+status_t AudioFlinger::RecordThread::PatchRecord::getNextBuffer(
+                                                  AudioBufferProvider::Buffer* buffer, int64_t pts)
+{
+    ALOG_ASSERT(mPeerProxy != 0, "PatchRecord::getNextBuffer() called without peer proxy");
+    Proxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    status_t status = mPeerProxy->obtainBuffer(&buf, &mPeerTimeout);
+    ALOGV_IF(status != NO_ERROR,
+             "PatchRecord() %p mPeerProxy->obtainBuffer status %d", this, status);
+    if (buf.mFrameCount == 0) {
+        return WOULD_BLOCK;
+    }
+    buffer->frameCount = buf.mFrameCount;
+    status = RecordTrack::getNextBuffer(buffer, pts);
+    return status;
+}
+
+void AudioFlinger::RecordThread::PatchRecord::releaseBuffer(AudioBufferProvider::Buffer* buffer)
+{
+    ALOG_ASSERT(mPeerProxy != 0, "PatchRecord::releaseBuffer() called without peer proxy");
+    Proxy::Buffer buf;
+    buf.mFrameCount = buffer->frameCount;
+    buf.mRaw = buffer->raw;
+    mPeerProxy->releaseBuffer(&buf);
+    TrackBase::releaseBuffer(buffer);
+}
+
+status_t AudioFlinger::RecordThread::PatchRecord::obtainBuffer(Proxy::Buffer* buffer,
+                                                               const struct timespec *timeOut)
+{
+    return mProxy->obtainBuffer(buffer, timeOut);
+}
+
+void AudioFlinger::RecordThread::PatchRecord::releaseBuffer(Proxy::Buffer* buffer)
+{
+    mProxy->releaseBuffer(buffer);
 }
 
 }; // namespace android

@@ -1531,7 +1531,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     }
 
     audio_module_handle_t handle = nextUniqueId();
-    mAudioHwDevs.add(handle, new AudioHwDevice(name, dev, flags));
+    mAudioHwDevs.add(handle, new AudioHwDevice(handle, name, dev, flags));
 
     ALOGI("loadHwModule() Loaded %s audio interface from %s (%s) handle %d",
           name, dev->common.module->name, dev->common.module->id, handle);
@@ -1575,6 +1575,75 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice)
 
 // ----------------------------------------------------------------------------
 
+
+sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_t module,
+                                                            audio_devices_t device,
+                                                            struct audio_config *config,
+                                                            audio_output_flags_t flags)
+{
+    AudioHwDevice *outHwDev = findSuitableHwDev_l(module, device);
+    if (outHwDev == NULL) {
+        return AUDIO_IO_HANDLE_NONE;
+    }
+
+    audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
+    audio_io_handle_t id = nextUniqueId();
+
+    mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
+
+    audio_stream_out_t *outStream = NULL;
+
+    // FOR TESTING ONLY:
+    // Enable increased sink precision for mixing mode if kEnableExtendedPrecision is true.
+    if (kEnableExtendedPrecision &&  // Check only for Normal Mixing mode
+            !(flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
+        // Update format
+        //config.format = AUDIO_FORMAT_PCM_FLOAT;
+        //config.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+        //config.format = AUDIO_FORMAT_PCM_32_BIT;
+        //config.format = AUDIO_FORMAT_PCM_8_24_BIT;
+        // ALOGV("openOutput() upgrading format to %#08x", config.format);
+    }
+
+    status_t status = hwDevHal->open_output_stream(hwDevHal,
+                                          id,
+                                          device,
+                                          flags,
+                                          config,
+                                          &outStream);
+
+    mHardwareStatus = AUDIO_HW_IDLE;
+    ALOGV("openOutput_l() openOutputStream returned output %p, SamplingRate %d, Format %#08x, "
+            "Channels %x, status %d",
+            outStream,
+            config->sample_rate,
+            config->format,
+            config->channel_mask,
+            status);
+
+    if (status == NO_ERROR && outStream != NULL) {
+        AudioStreamOut *output = new AudioStreamOut(outHwDev, outStream, flags);
+
+        PlaybackThread *thread;
+        if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+            thread = new OffloadThread(this, output, id, device);
+            ALOGV("openOutput() created offload output: ID %d thread %p", id, thread);
+        } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT)
+                || !isValidPcmSinkFormat(config->format)
+                || (config->channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
+            thread = new DirectOutputThread(this, output, id, device);
+            ALOGV("openOutput() created direct output: ID %d thread %p", id, thread);
+        } else {
+            thread = new MixerThread(this, output, id, device);
+            ALOGV("openOutput() created mixer output: ID %d thread %p", id, thread);
+        }
+        mPlaybackThreads.add(id, thread);
+        return thread;
+    }
+
+    return 0;
+}
+
 audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
                                            audio_devices_t *pDevices,
                                            uint32_t *pSamplingRate,
@@ -1609,64 +1678,8 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
 
     Mutex::Autolock _l(mLock);
 
-    AudioHwDevice *outHwDev = findSuitableHwDev_l(module, *pDevices);
-    if (outHwDev == NULL) {
-        return AUDIO_IO_HANDLE_NONE;
-    }
-
-    audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
-    audio_io_handle_t id = nextUniqueId();
-
-    mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
-
-    audio_stream_out_t *outStream = NULL;
-
-    // FOR TESTING ONLY:
-    // Enable increased sink precision for mixing mode if kEnableExtendedPrecision is true.
-    if (kEnableExtendedPrecision &&  // Check only for Normal Mixing mode
-            !(flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
-        // Update format
-        //config.format = AUDIO_FORMAT_PCM_FLOAT;
-        //config.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
-        //config.format = AUDIO_FORMAT_PCM_32_BIT;
-        //config.format = AUDIO_FORMAT_PCM_8_24_BIT;
-        // ALOGV("openOutput() upgrading format to %#08x", config.format);
-    }
-
-    status_t status = hwDevHal->open_output_stream(hwDevHal,
-                                          id,
-                                          *pDevices,
-                                          (audio_output_flags_t)flags,
-                                          &config,
-                                          &outStream);
-
-    mHardwareStatus = AUDIO_HW_IDLE;
-    ALOGV("openOutput() openOutputStream returned output %p, SamplingRate %d, Format %#08x, "
-            "Channels %x, status %d",
-            outStream,
-            config.sample_rate,
-            config.format,
-            config.channel_mask,
-            status);
-
-    if (status == NO_ERROR && outStream != NULL) {
-        AudioStreamOut *output = new AudioStreamOut(outHwDev, outStream, flags);
-
-        PlaybackThread *thread;
-        if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-            thread = new OffloadThread(this, output, id, *pDevices);
-            ALOGV("openOutput() created offload output: ID %d thread %p", id, thread);
-        } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT)
-                || !isValidPcmSinkFormat(config.format)
-                || (config.channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
-            thread = new DirectOutputThread(this, output, id, *pDevices);
-            ALOGV("openOutput() created direct output: ID %d thread %p", id, thread);
-        } else {
-            thread = new MixerThread(this, output, id, *pDevices);
-            ALOGV("openOutput() created mixer output: ID %d thread %p", id, thread);
-        }
-        mPlaybackThreads.add(id, thread);
-
+    sp<PlaybackThread> thread = openOutput_l(module, *pDevices, &config, flags);
+    if (thread != 0) {
         if (pSamplingRate != NULL) {
             *pSamplingRate = config.sample_rate;
         }
@@ -1686,16 +1699,16 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         // the first primary output opened designates the primary hw device
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
             ALOGI("Using module %d has the primary audio interface", module);
-            mPrimaryHardwareDev = outHwDev;
+            mPrimaryHardwareDev = thread->getOutput()->audioHwDev;
 
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_MODE;
-            hwDevHal->set_mode(hwDevHal, mMode);
+            mPrimaryHardwareDev->hwDevice()->set_mode(mPrimaryHardwareDev->hwDevice(), mMode);
             mHardwareStatus = AUDIO_HW_IDLE;
 
             mPrimaryOutputSampleRate = config.sample_rate;
         }
-        return id;
+        return thread->id();
     }
 
     return AUDIO_IO_HANDLE_NONE;
@@ -1776,13 +1789,27 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
     // but the ThreadBase container still exists.
 
     if (thread->type() != ThreadBase::DUPLICATING) {
-        AudioStreamOut *out = thread->clearOutput();
-        ALOG_ASSERT(out != NULL, "out shouldn't be NULL");
-        // from now on thread->mOutput is NULL
-        out->hwDev()->close_output_stream(out->hwDev(), out->stream);
-        delete out;
+        closeOutputFinish(thread);
     }
+
+    thread.clear();
     return NO_ERROR;
+}
+
+void AudioFlinger::closeOutputFinish(sp<PlaybackThread> thread)
+{
+    AudioStreamOut *out = thread->clearOutput();
+    ALOG_ASSERT(out != NULL, "out shouldn't be NULL");
+    // from now on thread->mOutput is NULL
+    out->hwDev()->close_output_stream(out->hwDev(), out->stream);
+    delete out;
+}
+
+void AudioFlinger::closeOutputInternal_l(sp<PlaybackThread> thread)
+{
+    mPlaybackThreads.removeItem(thread->mId);
+    thread->exit();
+    closeOutputFinish(thread);
 }
 
 status_t AudioFlinger::suspendOutput(audio_io_handle_t output)
@@ -1823,6 +1850,12 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                           audio_channel_mask_t *pChannelMask,
                                           audio_input_flags_t flags)
 {
+    Mutex::Autolock _l(mLock);
+
+    if (pDevices == NULL || *pDevices == AUDIO_DEVICE_NONE) {
+        return AUDIO_IO_HANDLE_NONE;
+    }
+
     struct audio_config config;
     memset(&config, 0, sizeof(config));
     config.sample_rate = (pSamplingRate != NULL) ? *pSamplingRate : 0;
@@ -1833,13 +1866,36 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_format_t reqFormat = config.format;
     audio_channel_mask_t reqChannelMask = config.channel_mask;
 
-    if (pDevices == NULL || *pDevices == AUDIO_DEVICE_NONE) {
-        return 0;
+    sp<RecordThread> thread = openInput_l(module, *pDevices, &config, flags);
+
+    if (thread != 0) {
+        if (pSamplingRate != NULL) {
+            *pSamplingRate = reqSamplingRate;
+        }
+        if (pFormat != NULL) {
+            *pFormat = config.format;
+        }
+        if (pChannelMask != NULL) {
+            *pChannelMask = reqChannelMask;
+        }
+
+        // notify client processes of the new input creation
+        thread->audioConfigChanged(AudioSystem::INPUT_OPENED);
+        return thread->id();
     }
+    return AUDIO_IO_HANDLE_NONE;
+}
 
-    Mutex::Autolock _l(mLock);
+sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t module,
+                                                         audio_devices_t device,
+                                                         struct audio_config *config,
+                                                         audio_input_flags_t flags)
+{
+    uint32_t reqSamplingRate = config->sample_rate;
+    audio_format_t reqFormat = config->format;
+    audio_channel_mask_t reqChannelMask = config->channel_mask;
 
-    AudioHwDevice *inHwDev = findSuitableHwDev_l(module, *pDevices);
+    AudioHwDevice *inHwDev = findSuitableHwDev_l(module, device);
     if (inHwDev == NULL) {
         return 0;
     }
@@ -1848,14 +1904,14 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_io_handle_t id = nextUniqueId();
 
     audio_stream_in_t *inStream = NULL;
-    status_t status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config,
+    status_t status = inHwHal->open_input_stream(inHwHal, id, device, config,
                                         &inStream, flags);
     ALOGV("openInput() openInputStream returned input %p, SamplingRate %d, Format %#x, Channels %x, "
             "flags %#x, status %d",
             inStream,
-            config.sample_rate,
-            config.format,
-            config.channel_mask,
+            config->sample_rate,
+            config->format,
+            config->channel_mask,
             flags,
             status);
 
@@ -1863,14 +1919,14 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     // conversion internally, try to open again with the proposed parameters. The AudioFlinger can
     // resample the input and do mono to stereo or stereo to mono conversions on 16 bit PCM inputs.
     if (status == BAD_VALUE &&
-        reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
-        (config.sample_rate <= 2 * reqSamplingRate) &&
-        (audio_channel_count_from_in_mask(config.channel_mask) <= FCC_2) &&
+        reqFormat == config->format && config->format == AUDIO_FORMAT_PCM_16_BIT &&
+        (config->sample_rate <= 2 * reqSamplingRate) &&
+        (audio_channel_count_from_in_mask(config->channel_mask) <= FCC_2) &&
         (audio_channel_count_from_in_mask(reqChannelMask) <= FCC_2)) {
         // FIXME describe the change proposed by HAL (save old values so we can log them here)
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
-        status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config, &inStream, flags);
+        status = inHwHal->open_input_stream(inHwHal, id, device, config, &inStream, flags);
         // FIXME log this new status; HAL should not propose any further changes
     }
 
@@ -1931,30 +1987,18 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         // Start record thread
         // RecordThread requires both input and output device indication to forward to audio
         // pre processing modules
-        RecordThread *thread = new RecordThread(this,
+        sp<RecordThread> thread = new RecordThread(this,
                                   input,
                                   id,
                                   primaryOutputDevice_l(),
-                                  *pDevices
+                                  device
 #ifdef TEE_SINK
                                   , teeSink
 #endif
                                   );
         mRecordThreads.add(id, thread);
-        ALOGV("openInput() created record thread: ID %d thread %p", id, thread);
-        if (pSamplingRate != NULL) {
-            *pSamplingRate = reqSamplingRate;
-        }
-        if (pFormat != NULL) {
-            *pFormat = config.format;
-        }
-        if (pChannelMask != NULL) {
-            *pChannelMask = reqChannelMask;
-        }
-
-        // notify client processes of the new input creation
-        thread->audioConfigChanged(AudioSystem::INPUT_OPENED);
-        return id;
+        ALOGV("openInput() created record thread: ID %d thread %p", id, thread.get());
+        return thread;
     }
 
     return 0;
@@ -1981,17 +2025,26 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
         audioConfigChanged(AudioSystem::INPUT_CLOSED, input, NULL);
         mRecordThreads.removeItem(input);
     }
-    thread->exit();
-    // The thread entity (active unit of execution) is no longer running here,
-    // but the ThreadBase container still exists.
+    // FIXME: calling thread->exit() without mLock held should not be needed anymore now that
+    // we have a different lock for notification client
+    closeInputFinish(thread);
+    return NO_ERROR;
+}
 
+void AudioFlinger::closeInputFinish(sp<RecordThread> thread)
+{
+    thread->exit();
     AudioStreamIn *in = thread->clearInput();
     ALOG_ASSERT(in != NULL, "in shouldn't be NULL");
     // from now on thread->mInput is NULL
     in->hwDev()->close_input_stream(in->hwDev(), in->stream);
     delete in;
+}
 
-    return NO_ERROR;
+void AudioFlinger::closeInputInternal_l(sp<RecordThread> thread)
+{
+    mRecordThreads.removeItem(thread->mId);
+    closeInputFinish(thread);
 }
 
 status_t AudioFlinger::invalidateStream(audio_stream_type_t stream)

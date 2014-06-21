@@ -489,6 +489,18 @@ private:
               PlaybackThread *checkPlaybackThread_l(audio_io_handle_t output) const;
               MixerThread *checkMixerThread_l(audio_io_handle_t output) const;
               RecordThread *checkRecordThread_l(audio_io_handle_t input) const;
+              sp<RecordThread> openInput_l(audio_module_handle_t module,
+                                           audio_devices_t device,
+                                           struct audio_config *config,
+                                           audio_input_flags_t flags);
+              sp<PlaybackThread> openOutput_l(audio_module_handle_t module,
+                                              audio_devices_t device,
+                                              struct audio_config *config,
+                                              audio_output_flags_t flags);
+
+              void closeOutputFinish(sp<PlaybackThread> thread);
+              void closeInputFinish(sp<RecordThread> thread);
+
               // no range check, AudioFlinger::mLock held
               bool streamMute_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].mute; }
@@ -530,10 +542,11 @@ private:
             AHWD_CAN_SET_MASTER_MUTE    = 0x2,
         };
 
-        AudioHwDevice(const char *moduleName,
+        AudioHwDevice(audio_module_handle_t handle,
+                      const char *moduleName,
                       audio_hw_device_t *hwDevice,
                       Flags flags)
-            : mModuleName(strdup(moduleName))
+            : mHandle(handle), mModuleName(strdup(moduleName))
             , mHwDevice(hwDevice)
             , mFlags(flags) { }
         /*virtual*/ ~AudioHwDevice() { free((void *)mModuleName); }
@@ -546,11 +559,13 @@ private:
             return (0 != (mFlags & AHWD_CAN_SET_MASTER_MUTE));
         }
 
+        audio_module_handle_t handle() const { return mHandle; }
         const char *moduleName() const { return mModuleName; }
         audio_hw_device_t *hwDevice() const { return mHwDevice; }
         uint32_t version() const { return mHwDevice->common.version; }
 
     private:
+        audio_module_handle_t mHandle;
         const char * const mModuleName;
         audio_hw_device_t * const mHwDevice;
         const Flags mFlags;
@@ -669,7 +684,9 @@ private:
 
     // for use from destructor
     status_t    closeOutput_nonvirtual(audio_io_handle_t output);
+    void        closeOutputInternal_l(sp<PlaybackThread> thread);
     status_t    closeInput_nonvirtual(audio_io_handle_t input);
+    void        closeInputInternal_l(sp<RecordThread> thread);
 
 #ifdef TEE_SINK
     // all record threads serially share a common tee sink, which is re-created on format change

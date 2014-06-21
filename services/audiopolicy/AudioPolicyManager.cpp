@@ -1875,6 +1875,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                      patch->sources[0].format,
                                                      patch->sources[0].channel_mask,
                                                      AUDIO_OUTPUT_FLAG_NONE)) {
+            ALOGV("createAudioPatch() profile not supported");
             return INVALID_OPERATION;
         }
         // TODO: reconfigure output format and channels here
@@ -1963,9 +1964,20 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             srcDeviceDesc->toAudioPortConfig(&newPatch.sources[0], &patch->sources[0]);
             sinkDeviceDesc->toAudioPortConfig(&newPatch.sinks[0], &patch->sinks[0]);
 
-            // TODO: add support for devices on different HW modules
             if (srcDeviceDesc->mModule != sinkDeviceDesc->mModule) {
-                return INVALID_OPERATION;
+                SortedVector<audio_io_handle_t> outputs =
+                                        getOutputsForDevice(sinkDeviceDesc->mDeviceType, mOutputs);
+                // if the sink device is reachable via an opened output stream, request to go via
+                // this output stream by adding a second source to the patch description
+                audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+                if (output != AUDIO_IO_HANDLE_NONE) {
+                    sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
+                    if (outputDesc->isDuplicated()) {
+                        return INVALID_OPERATION;
+                    }
+                    outputDesc->toAudioPortConfig(&newPatch.sources[1], &patch->sources[0]);
+                    newPatch.num_sources = 2;
+                }
             }
             // TODO: check from routing capabilities in config file and other conflicting patches
 
@@ -2270,12 +2282,17 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                 continue;
             }
 
-            audio_devices_t profileTypes = outProfile->mSupportedDevices.types();
-            if ((profileTypes & outputDeviceTypes) &&
+            audio_devices_t profileType = outProfile->mSupportedDevices.types();
+            if ((profileType & mDefaultOutputDevice->mDeviceType) != AUDIO_DEVICE_NONE) {
+                profileType = mDefaultOutputDevice->mDeviceType;
+            } else {
+                profileType = outProfile->mSupportedDevices[0]->mDeviceType;
+            }
+            if ((profileType & outputDeviceTypes) &&
                     ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0)) {
                 sp<AudioOutputDescriptor> outputDesc = new AudioOutputDescriptor(outProfile);
 
-                outputDesc->mDevice = (audio_devices_t)(mDefaultOutputDevice->mDeviceType & profileTypes);
+                outputDesc->mDevice = profileType;
                 audio_io_handle_t output = mpClientInterface->openOutput(
                                                 outProfile->mModule->mHandle,
                                                 &outputDesc->mDevice,
@@ -2322,12 +2339,12 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                 continue;
             }
 
-            audio_devices_t profileTypes = inProfile->mSupportedDevices.types();
-            if (profileTypes & inputDeviceTypes) {
+            audio_devices_t profileType = inProfile->mSupportedDevices[0]->mDeviceType;
+            if (profileType & inputDeviceTypes) {
                 sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(inProfile);
 
                 inputDesc->mInputSource = AUDIO_SOURCE_MIC;
-                inputDesc->mDevice = inProfile->mSupportedDevices[0]->mDeviceType;
+                inputDesc->mDevice = profileType;
                 audio_io_handle_t input = mpClientInterface->openInput(
                                                     inProfile->mModule->mHandle,
                                                     &inputDesc->mDevice,
@@ -2659,7 +2676,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 continue;
             }
 
-            ALOGV("opening output for device %08x with params %s", device, address.string());
+            ALOGV("opening output for device %08x with params %s profile %p",
+                                                      device, address.string(), profile.get());
             desc = new AudioOutputDescriptor(profile);
             desc->mDevice = device;
             audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
@@ -5942,7 +5960,7 @@ void AudioPolicyManager::DeviceDescriptor::toAudioPortConfig(
 
 void AudioPolicyManager::DeviceDescriptor::toAudioPort(struct audio_port *port) const
 {
-    ALOGV("DeviceVector::toAudioPort() handle %d type %x", mId, mDeviceType);
+    ALOGV("DeviceDescriptor::toAudioPort() handle %d type %x", mId, mDeviceType);
     AudioPort::toAudioPort(port);
     port->id = mId;
     toAudioPortConfig(&port->active_config);

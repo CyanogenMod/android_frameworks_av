@@ -28,9 +28,11 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
+                                void *buffer,
                                 int sessionId,
                                 int uid,
-                                IAudioFlinger::track_flags_t flags);
+                                IAudioFlinger::track_flags_t flags,
+                                track_type type);
     virtual             ~RecordTrack();
 
     virtual status_t    start(AudioSystem::sync_event_t event, int triggerSession);
@@ -93,3 +95,34 @@ private:
             // used by resampler to find source frames
             ResamplerBufferProvider *mResamplerBufferProvider;
 };
+
+// playback track, used by PatchPanel
+class PatchRecord : virtual public RecordTrack, public PatchProxyBufferProvider {
+public:
+
+    PatchRecord(RecordThread *recordThread,
+                uint32_t sampleRate,
+                audio_channel_mask_t channelMask,
+                audio_format_t format,
+                size_t frameCount,
+                void *buffer,
+                IAudioFlinger::track_flags_t flags);
+    virtual             ~PatchRecord();
+
+    // AudioBufferProvider interface
+    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
+                                   int64_t pts);
+    virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
+
+    // PatchProxyBufferProvider interface
+    virtual status_t    obtainBuffer(Proxy::Buffer *buffer,
+                                     const struct timespec *timeOut = NULL);
+    virtual void        releaseBuffer(Proxy::Buffer *buffer);
+
+    void setPeerProxy(PatchProxyBufferProvider *proxy) { mPeerProxy = proxy; }
+
+private:
+    sp<ClientProxy>             mProxy;
+    PatchProxyBufferProvider*   mPeerProxy;
+    struct timespec             mPeerTimeout;
+};  // end of PatchRecord
