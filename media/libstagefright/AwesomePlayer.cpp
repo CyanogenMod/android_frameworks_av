@@ -2949,6 +2949,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
 
     sp<IMediaHTTPService> savedHTTPService = mHTTPService;
 
+    bool wasLooping = mFlags & LOOPING;
     // Reset and recreate
     reset_l();
 
@@ -2966,6 +2967,9 @@ void AwesomePlayer::onAudioTearDownEvent() {
         // This will force beingPrepareAsync_l() to notify
         // a MEDIA_ERROR to the client and abort the prepare
         mFlags |= PREPARE_CANCELLED;
+    }
+    if (wasLooping) {
+        mFlags |= LOOPING;
     }
 
     mAudioTearDown = true;
