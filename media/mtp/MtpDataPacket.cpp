@@ -363,7 +363,7 @@ int MtpDataPacket::write(int fd) {
 }
 
 int MtpDataPacket::writeData(int fd, void* data, uint32_t length) {
-    allocate(length);
+    allocate(length + MTP_CONTAINER_HEADER_SIZE);
     memcpy(mBuffer + MTP_CONTAINER_HEADER_SIZE, data, length);
     length += MTP_CONTAINER_HEADER_SIZE;
     MtpPacket::putUInt32(MTP_CONTAINER_LENGTH_OFFSET, length);
