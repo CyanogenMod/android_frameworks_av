@@ -1188,7 +1188,7 @@ status_t Camera3Device::triggerAutofocus(uint32_t id) {
         {
             ANDROID_CONTROL_AF_TRIGGER_ID,
             static_cast<int32_t>(id)
-        },
+        }
     };
 
     return mRequestThread->queueTrigger(trigger,
@@ -1209,7 +1209,7 @@ status_t Camera3Device::triggerCancelAutofocus(uint32_t id) {
         {
             ANDROID_CONTROL_AF_TRIGGER_ID,
             static_cast<int32_t>(id)
-        },
+        }
     };
 
     return mRequestThread->queueTrigger(trigger,
@@ -1230,7 +1230,7 @@ status_t Camera3Device::triggerPrecaptureMetering(uint32_t id) {
         {
             ANDROID_CONTROL_AE_PRECAPTURE_ID,
             static_cast<int32_t>(id)
-        },
+        }
     };
 
     return mRequestThread->queueTrigger(trigger,
@@ -1571,8 +1571,6 @@ bool Camera3Device::processPartial3AQuirk(
     uint8_t aeState;
     uint8_t afState;
     uint8_t awbState;
-    int32_t afTriggerId;
-    int32_t aeTriggerId;
 
     gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_MODE,
         &afMode, frameNumber);
@@ -1589,12 +1587,6 @@ bool Camera3Device::processPartial3AQuirk(
     gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AWB_STATE,
         &awbState, frameNumber);
 
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_TRIGGER_ID,
-        &afTriggerId, frameNumber);
-
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AE_PRECAPTURE_ID,
-        &aeTriggerId, frameNumber);
-
     if (!gotAllStates) return false;
 
     ALOGVV("%s: Camera %d: Frame %d, Request ID %d: AF mode %d, AWB mode %d, "
@@ -1603,7 +1595,7 @@ bool Camera3Device::processPartial3AQuirk(
         __FUNCTION__, mId, frameNumber, resultExtras.requestId,
         afMode, awbMode,
         afState, aeState, awbState,
-        afTriggerId, aeTriggerId);
+        resultExtras.afTriggerId, resultExtras.precaptureTriggerId);
 
     // Got all states, so construct a minimal result to send
     // In addition to the above fields, this means adding in
@@ -1667,12 +1659,12 @@ bool Camera3Device::processPartial3AQuirk(
     }
 
     if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_TRIGGER_ID,
-            &afTriggerId, frameNumber)) {
+            &resultExtras.afTriggerId, frameNumber)) {
         return false;
     }
 
     if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AE_PRECAPTURE_ID,
-            &aeTriggerId, frameNumber)) {
+            &resultExtras.precaptureTriggerId, frameNumber)) {
         return false;
     }
 
@@ -2609,13 +2601,29 @@ status_t Camera3Device::RequestThread::insertTriggers(
 
     Mutex::Autolock al(mTriggerMutex);
 
+    sp<Camera3Device> parent = mParent.promote();
+    if (parent == NULL) {
+        CLOGE("RequestThread: Parent is gone");
+        return DEAD_OBJECT;
+    }
+
     CameraMetadata &metadata = request->mSettings;
     size_t count = mTriggerMap.size();
 
     for (size_t i = 0; i < count; ++i) {
         RequestTrigger trigger = mTriggerMap.valueAt(i);
-
         uint32_t tag = trigger.metadataTag;
+
+        if (tag == ANDROID_CONTROL_AF_TRIGGER_ID || tag == ANDROID_CONTROL_AE_PRECAPTURE_ID) {
+            bool isAeTrigger = (trigger.metadataTag == ANDROID_CONTROL_AE_PRECAPTURE_ID);
+            uint32_t triggerId = static_cast<uint32_t>(trigger.entryValue);
+            isAeTrigger ? request->mResultExtras.precaptureTriggerId = triggerId :
+                          request->mResultExtras.afTriggerId = triggerId;
+            if (parent->mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+                continue; // Trigger ID tag is deprecated since device HAL 3.2
+            }
+        }
+
         camera_metadata_entry entry = metadata.find(tag);
 
         if (entry.count > 0) {

@@ -58,7 +58,7 @@ class FrameProcessor : public FrameProcessorBase {
             const sp<Camera2Client> &client);
 
     // Send 3A state change notifications to client based on frame metadata
-    status_t process3aState(const CameraMetadata &frame,
+    status_t process3aState(const CaptureResult &frame,
             const sp<Camera2Client> &client);
 
     // Helper for process3aState
