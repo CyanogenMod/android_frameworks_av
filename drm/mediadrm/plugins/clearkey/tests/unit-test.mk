@@ -45,6 +45,7 @@ LOCAL_SHARED_LIBRARIES := \
     libcrypto \
     libdrmclearkeyplugin \
     liblog \
+    libstagefright_foundation \
     libstlport \
     libutils \
 

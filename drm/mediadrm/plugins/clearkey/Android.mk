@@ -18,8 +18,6 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
     AesCtrDecryptor.cpp \
-    InitDataParser.cpp \
-    JsonWebKey.cpp \
     ClearKeyUUID.cpp \
     CreatePluginFactories.cpp \
     CryptoFactory.cpp \

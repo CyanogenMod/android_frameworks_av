@@ -22,5 +22,13 @@ test_name := JsonWebKeyUnittest
 test_src_dir := .
 include $(LOCAL_PATH)/unit-test.mk
 
+test_name := AesCtrDecryptorUnittest
+test_src_dir := .
+include $(LOCAL_PATH)/unit-test.mk
+
+test_name := InitDataParserUnittest
+test_src_dir := .
+include $(LOCAL_PATH)/unit-test.mk
+
 test_name :=
 test_src_dir :=
