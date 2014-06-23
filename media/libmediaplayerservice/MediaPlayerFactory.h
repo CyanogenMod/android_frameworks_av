@@ -29,19 +29,19 @@ class MediaPlayerFactory {
       public:
         virtual ~IFactory() { }
 
-        virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                                   const char* url,
-                                   float curScore) { return 0.0; }
+        virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
+                                   const char* /*url*/,
+                                   float /*curScore*/) { return 0.0; }
 
-        virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                                   int fd,
-                                   int64_t offset,
-                                   int64_t length,
-                                   float curScore) { return 0.0; }
+        virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
+                                   int /*fd*/,
+                                   int64_t /*offset*/,
+                                   int64_t /*length*/,
+                                   float /*curScore*/) { return 0.0; }
 
-        virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                                   const sp<IStreamSource> &source,
-                                   float curScore) { return 0.0; }
+        virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
+                                   const sp<IStreamSource> &/*source*/,
+                                   float /*curScore*/) { return 0.0; }
 
         virtual sp<MediaPlayerBase> createPlayer() = 0;
     };
