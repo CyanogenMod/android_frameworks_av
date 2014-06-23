@@ -75,7 +75,7 @@ LOCAL_SRC_FILES += ../libnbaio/roundup.c
 LOCAL_SHARED_LIBRARIES := \
 	libui liblog libcutils libutils libbinder libsonivox libicuuc libicui18n libexpat \
         libcamera_client libstagefright_foundation \
-        libgui libdl libaudioutils libnbaio
+        libgui libdl libaudioutils libnbaio libaudioparameter
 
 LOCAL_STATIC_LIBRARIES += libinstantssq
 
