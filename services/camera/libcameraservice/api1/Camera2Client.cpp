@@ -753,6 +753,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     // ever take a picture.
     // TODO: Find a better compromise, though this likely would involve HAL
     // changes.
+    int lastJpegStreamId = mJpegProcessor->getStreamId();
     res = updateProcessorStream(mJpegProcessor, params);
     if (res != OK) {
         ALOGE("%s: Camera %d: Can't pre-configure still image "
@@ -760,6 +761,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
         return res;
     }
+    bool jpegStreamChanged = mJpegProcessor->getStreamId() != lastJpegStreamId;
 
     Vector<int32_t> outputStreams;
     bool callbacksEnabled = (params.previewCallbackFlags &
@@ -814,6 +816,12 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
             ALOGE("%s: Camera %d: Unable to update ZSL stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
             return res;
+        }
+
+        if (jpegStreamChanged) {
+            ALOGV("%s: Camera %d: Clear ZSL buffer queue when Jpeg size is changed",
+                    __FUNCTION__, mCameraId);
+            mZslProcessor->clearZslQueue();
         }
         outputStreams.push(getZslStreamId());
     } else {
@@ -1268,6 +1276,7 @@ status_t Camera2Client::takePicture(int msgType) {
 
         ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
 
+        int lastJpegStreamId = mJpegProcessor->getStreamId();
         res = updateProcessorStream(mJpegProcessor, l.mParameters);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
@@ -1275,6 +1284,14 @@ status_t Camera2Client::takePicture(int msgType) {
             return res;
         }
         takePictureCounter = ++l.mParameters.takePictureCounter;
+
+        // Clear ZSL buffer queue when Jpeg size is changed.
+        bool jpegStreamChanged = mJpegProcessor->getStreamId() != lastJpegStreamId;
+        if (l.mParameters.zslMode && jpegStreamChanged) {
+            ALOGV("%s: Camera %d: Clear ZSL buffer queue when Jpeg size is changed",
+                    __FUNCTION__, mCameraId);
+            mZslProcessor->clearZslQueue();
+        }
     }
 
     ATRACE_ASYNC_BEGIN(kTakepictureLabel, takePictureCounter);
