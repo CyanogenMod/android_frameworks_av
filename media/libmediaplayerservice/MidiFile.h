@@ -36,7 +36,7 @@ public:
 
     virtual status_t    setDataSource(int fd, int64_t offset, int64_t length);
     virtual status_t    setVideoSurfaceTexture(
-                                const sp<IGraphicBufferProducer>& bufferProducer)
+                                const sp<IGraphicBufferProducer>& /*bufferProducer*/)
                             { return UNKNOWN_ERROR; }
     virtual status_t    prepare();
     virtual status_t    prepareAsync();
@@ -51,13 +51,13 @@ public:
     virtual status_t    reset();
     virtual status_t    setLooping(int loop);
     virtual player_type playerType() { return SONIVOX_PLAYER; }
-    virtual status_t    invoke(const Parcel& request, Parcel *reply) {
+    virtual status_t    invoke(const Parcel& /*request*/, Parcel* /*reply*/) {
         return INVALID_OPERATION;
     }
-    virtual status_t    setParameter(int key, const Parcel &request) {
+    virtual status_t    setParameter(int /*key*/, const Parcel &/*request*/) {
         return INVALID_OPERATION;
     }
-    virtual status_t    getParameter(int key, Parcel *reply) {
+    virtual status_t    getParameter(int /*key*/, Parcel* /*reply*/) {
         return INVALID_OPERATION;
     }
 
