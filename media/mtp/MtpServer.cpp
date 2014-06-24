@@ -325,6 +325,14 @@ bool MtpServer::handleRequest() {
         mSendObjectHandle = kInvalidObjectHandle;
     }
 
+    int containertype = mRequest.getContainerType();
+    if (containertype != MTP_CONTAINER_TYPE_COMMAND) {
+        ALOGE("wrong container type %d", containertype);
+        return false;
+    }
+
+    ALOGV("got command %s (%x)", MtpDebug::getOperationCodeName(operation), operation);
+
     switch (operation) {
         case MTP_OPERATION_GET_DEVICE_INFO:
             response = doGetDeviceInfo();
@@ -415,7 +423,8 @@ bool MtpServer::handleRequest() {
             response = doEndEditObject();
             break;
         default:
-            ALOGE("got unsupported command %s", MtpDebug::getOperationCodeName(operation));
+            ALOGE("got unsupported command %s (%x)",
+                    MtpDebug::getOperationCodeName(operation), operation);
             response = MTP_RESPONSE_OPERATION_NOT_SUPPORTED;
             break;
     }
@@ -950,22 +959,28 @@ MtpResponseCode MtpServer::doSendObject() {
     fchmod(mfr.fd, mFilePermission);
     umask(mask);
 
-    if (initialData > 0)
+    if (initialData > 0) {
         ret = write(mfr.fd, mData.getData(), initialData);
+    }
 
-    if (mSendObjectFileSize - initialData > 0) {
-        mfr.offset = initialData;
-        if (mSendObjectFileSize == 0xFFFFFFFF) {
-            // tell driver to read until it receives a short packet
-            mfr.length = 0xFFFFFFFF;
-        } else {
-            mfr.length = mSendObjectFileSize - initialData;
+    if (ret < 0) {
+        ALOGE("failed to write initial data");
+        result = MTP_RESPONSE_GENERAL_ERROR;
+    } else {
+        if (mSendObjectFileSize - initialData > 0) {
+            mfr.offset = initialData;
+            if (mSendObjectFileSize == 0xFFFFFFFF) {
+                // tell driver to read until it receives a short packet
+                mfr.length = 0xFFFFFFFF;
+            } else {
+                mfr.length = mSendObjectFileSize - initialData;
+            }
+
+            ALOGV("receiving %s\n", (const char *)mSendObjectFilePath);
+            // transfer the file
+            ret = ioctl(mFD, MTP_RECEIVE_FILE, (unsigned long)&mfr);
+            ALOGV("MTP_RECEIVE_FILE returned %d\n", ret);
         }
-
-        ALOGV("receiving %s\n", (const char *)mSendObjectFilePath);
-        // transfer the file
-        ret = ioctl(mFD, MTP_RECEIVE_FILE, (unsigned long)&mfr);
-        ALOGV("MTP_RECEIVE_FILE returned %d\n", ret);
     }
     close(mfr.fd);
 
@@ -1131,15 +1146,19 @@ MtpResponseCode MtpServer::doSendPartialObject() {
         length -= initialData;
     }
 
-    if (length > 0) {
-        mtp_file_range  mfr;
-        mfr.fd = edit->mFD;
-        mfr.offset = offset;
-        mfr.length = length;
+    if (ret < 0) {
+        ALOGE("failed to write initial data");
+    } else {
+        if (length > 0) {
+            mtp_file_range  mfr;
+            mfr.fd = edit->mFD;
+            mfr.offset = offset;
+            mfr.length = length;
 
-        // transfer the file
-        ret = ioctl(mFD, MTP_RECEIVE_FILE, (unsigned long)&mfr);
-        ALOGV("MTP_RECEIVE_FILE returned %d", ret);
+            // transfer the file
+            ret = ioctl(mFD, MTP_RECEIVE_FILE, (unsigned long)&mfr);
+            ALOGV("MTP_RECEIVE_FILE returned %d", ret);
+        }
     }
     if (ret < 0) {
         mResponse.setParameter(1, 0);
