@@ -27,6 +27,7 @@
 #include <cutils/properties.h>
 #include <utils/Debug.h>
 #include <utils/Log.h>
+#include <audio_utils/primitives.h>
 
 #include "AudioResamplerFirOps.h" // USE_NEON and USE_INLINE_ASSEMBLY defined here
 #include "AudioResamplerFirProcess.h"
@@ -190,17 +191,17 @@ void AudioResamplerDyn<TC, TI, TO>::init()
 }
 
 template<typename TC, typename TI, typename TO>
-void AudioResamplerDyn<TC, TI, TO>::setVolume(int16_t left, int16_t right)
+void AudioResamplerDyn<TC, TI, TO>::setVolume(float left, float right)
 {
     AudioResampler::setVolume(left, right);
-    // volume is applied on the output type.
     if (is_same<TO, float>::value || is_same<TO, double>::value) {
-        const TO scale = 1. / (1UL << 12);
-        mVolumeSimd[0] = static_cast<TO>(left) * scale;
-        mVolumeSimd[1] = static_cast<TO>(right) * scale;
-    } else {
-        mVolumeSimd[0] = static_cast<int32_t>(left) << 16;
-        mVolumeSimd[1] = static_cast<int32_t>(right) << 16;
+        mVolumeSimd[0] = static_cast<TO>(left);
+        mVolumeSimd[1] = static_cast<TO>(right);
+    } else {  // integer requires scaling to U4_28 (rounding down)
+        // integer volumes are clamped to 0 to UNITY_GAIN so there
+        // are no issues with signed overflow.
+        mVolumeSimd[0] = u4_28_from_float(clampFloatVol(left));
+        mVolumeSimd[1] = u4_28_from_float(clampFloatVol(right));
     }
 }
 
@@ -410,7 +411,7 @@ void AudioResamplerDyn<TC, TI, TO>::setSampleRate(int32_t inSampleRate)
     // Note: A stride of 2 is achieved with non-SIMD processing.
     int stride = ((c.mHalfNumCoefs & 7) == 0) ? 16 : 2;
     LOG_ALWAYS_FATAL_IF(stride < 16, "Resampler stride must be 16 or more");
-    LOG_ALWAYS_FATAL_IF(mChannelCount > 8 || mChannelCount < 1,
+    LOG_ALWAYS_FATAL_IF(mChannelCount < 1 || mChannelCount > 8,
             "Resampler channels(%d) must be between 1 to 8", mChannelCount);
     // stride 16 (falls back to stride 2 for machines that do not support NEON)
     if (locked) {

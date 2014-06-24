@@ -163,8 +163,9 @@ private:
     struct track_t {
         uint32_t    needs;
 
+        // TODO: Eventually remove legacy integer volume settings
         union {
-        int16_t     volume[MAX_NUM_CHANNELS]; // [0]3.12 fixed point
+        int16_t     volume[MAX_NUM_CHANNELS]; // U4.12 fixed point (top bit should be zero)
         int32_t     volumeRL;
         };
 
@@ -217,7 +218,13 @@ private:
         audio_format_t mMixerInFormat;   // mix internal format AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
                                          // each track must be converted to this format.
 
-        int32_t        mUnused[1];       // alignment padding
+        float          mVolume[MAX_NUM_CHANNELS];     // floating point set volume
+        float          mPrevVolume[MAX_NUM_CHANNELS]; // floating point previous volume
+        float          mVolumeInc[MAX_NUM_CHANNELS];  // floating point volume increment
+
+        float          mAuxLevel;                     // floating point set aux level
+        float          mPrevAuxLevel;                 // floating point prev aux level
+        float          mAuxInc;                       // floating point aux increment
 
         // 16-byte boundary
 
@@ -225,7 +232,7 @@ private:
         bool        setResampler(uint32_t sampleRate, uint32_t devSampleRate);
         bool        doesResample() const { return resampler != NULL; }
         void        resetResampler() { if (resampler != NULL) resampler->reset(); }
-        void        adjustVolumeRamp(bool aux);
+        void        adjustVolumeRamp(bool aux, bool useFloat = false);
         size_t      getUnreleasedFrames() const { return resampler != NULL ?
                                                     resampler->getUnreleasedFrames() : 0; };
     };
@@ -348,6 +355,22 @@ private:
     static uint64_t         sLocalTimeFreq;
     static pthread_once_t   sOnceControl;
     static void             sInitRoutine();
+
+    /* multi-format volume mixing function (calls template functions
+     * in AudioMixerOps.h).  The template parameters are as follows:
+     *
+     *   MIXTYPE     (see AudioMixerOps.h MIXTYPE_* enumeration)
+     *   NCHAN       (number of channels, 2 for now)
+     *   USEFLOATVOL (set to true if float volume is used)
+     *   ADJUSTVOL   (set to true if volume ramp parameters needs adjustment afterwards)
+     *   TO: int32_t (Q4.27) or float
+     *   TI: int32_t (Q4.27) or int16_t (Q0.15) or float
+     *   TA: int32_t (Q4.27)
+     */
+    template <int MIXTYPE, int NCHAN, bool USEFLOATVOL, bool ADJUSTVOL,
+        typename TO, typename TI, typename TA>
+    static void volumeMix(TO *out, size_t outFrames,
+            const TI *in, TA *aux, bool ramp, AudioMixer::track_t *t);
 
     // multi-format process hooks
     template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>

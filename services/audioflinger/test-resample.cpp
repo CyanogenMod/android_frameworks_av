@@ -383,20 +383,8 @@ int main(int argc, char* argv[]) {
     AudioResampler* resampler = AudioResampler::create(format, channels,
             output_freq, quality);
 
-
-    /* set volume precision to 12 bits, so the volume scale is 1<<12.
-     * The output int32_t is represented as Q4.27, with 4 bits of guard
-     * followed by the int16_t Q.15 portion, and then 12 trailing bits of
-     * additional precision.
-     *
-     * Generally 0 < volumePrecision <= 14 (due to the limits of
-     * int16_t values for Volume). volumePrecision cannot be 0 due
-     * to rounding and shifts.
-     */
-    const int volumePrecision = 12; // in bits
-
     resampler->setSampleRate(input_freq);
-    resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
+    resampler->setVolume(AudioResampler::UNITY_GAIN_FLOAT, AudioResampler::UNITY_GAIN_FLOAT);
 
     if (profileResample) {
         /*
@@ -481,19 +469,20 @@ int main(int argc, char* argv[]) {
     int32_t* out = (int32_t*) output_vaddr;
     int16_t* convert = (int16_t*) malloc(output_frames * channels * sizeof(int16_t));
 
+    const int volumeShift = 12; // shift requirement for Q4.27 to Q.15
     // round to half towards zero and saturate at int16 (non-dithered)
-    const int roundVal = (1<<(volumePrecision-1)) - 1; // volumePrecision > 0
+    const int roundVal = (1<<(volumeShift-1)) - 1; // volumePrecision > 0
 
     for (size_t i = 0; i < output_frames; i++) {
         for (int j = 0; j < channels; j++) {
             int32_t s = out[i * output_channels + j] + roundVal; // add offset here
             if (s < 0) {
-                s = (s + 1) >> volumePrecision; // round to 0
+                s = (s + 1) >> volumeShift; // round to 0
                 if (s < -32768) {
                     s = -32768;
                 }
             } else {
-                s = s >> volumePrecision;
+                s = s >> volumeShift;
                 if (s > 32767) {
                     s = 32767;
                 }

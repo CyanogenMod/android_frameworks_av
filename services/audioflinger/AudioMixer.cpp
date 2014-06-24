@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <sys/types.h>
 
 #include <utils/Errors.h>
@@ -293,17 +294,32 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
         // assume default parameters for the track, except where noted below
         track_t* t = &mState.tracks[n];
         t->needs = 0;
+
+        // Integer volume.
+        // Currently integer volume is kept for the legacy integer mixer.
+        // Will be removed when the legacy mixer path is removed.
         t->volume[0] = UNITY_GAIN_INT;
         t->volume[1] = UNITY_GAIN_INT;
-        // no initialization needed
-        // t->prevVolume[0]
-        // t->prevVolume[1]
+        t->prevVolume[0] = UNITY_GAIN_INT << 16;
+        t->prevVolume[1] = UNITY_GAIN_INT << 16;
         t->volumeInc[0] = 0;
         t->volumeInc[1] = 0;
         t->auxLevel = 0;
         t->auxInc = 0;
+        t->prevAuxLevel = 0;
+
+        // Floating point volume.
+        t->mVolume[0] = UNITY_GAIN_FLOAT;
+        t->mVolume[1] = UNITY_GAIN_FLOAT;
+        t->mPrevVolume[0] = UNITY_GAIN_FLOAT;
+        t->mPrevVolume[1] = UNITY_GAIN_FLOAT;
+        t->mVolumeInc[0] = 0.;
+        t->mVolumeInc[1] = 0.;
+        t->mAuxLevel = 0.;
+        t->mAuxInc = 0.;
+        t->mPrevAuxLevel = 0.;
+
         // no initialization needed
-        // t->prevAuxLevel
         // t->frameCount
         t->channelCount = audio_channel_count_from_out_mask(channelMask);
         t->enabled = false;
@@ -574,39 +590,68 @@ void AudioMixer::disable(int name)
 
 /* Sets the volume ramp variables for the AudioMixer.
  *
- * The volume ramp variables are used to transition between the previous
- * volume to the target volume.  The duration of the transition is
- * set by ramp, which is either 0 for immediate, or typically one state
- * framecount period.
+ * The volume ramp variables are used to transition from the previous
+ * volume to the set volume.  ramp controls the duration of the transition.
+ * Its value is typically one state framecount period, but may also be 0,
+ * meaning "immediate."
  *
- * @param newFloatValue new volume target in float [0.0, 1.0].
- * @param ramp number of frames to increment over. ramp is 0 if the volume
- * should be set immediately.
- * @param volume reference to the U4.12 target volume, set on return.
- * @param prevVolume reference to the U4.27 previous volume, set on return.
- * @param volumeInc reference to the increment per output audio frame, set on return.
+ * FIXME: 1) Volume ramp is enabled only if there is a nonzero integer increment
+ * even if there is a nonzero floating point increment (in that case, the volume
+ * change is immediate).  This restriction should be changed when the legacy mixer
+ * is removed (see #2).
+ * FIXME: 2) Integer volume variables are used for Legacy mixing and should be removed
+ * when no longer needed.
+ *
+ * @param newVolume set volume target in floating point [0.0, 1.0].
+ * @param ramp number of frames to increment over. if ramp is 0, the volume
+ * should be set immediately.  Currently ramp should not exceed 65535 (frames).
+ * @param pIntSetVolume pointer to the U4.12 integer target volume, set on return.
+ * @param pIntPrevVolume pointer to the U4.28 integer previous volume, set on return.
+ * @param pIntVolumeInc pointer to the U4.28 increment per output audio frame, set on return.
+ * @param pSetVolume pointer to the float target volume, set on return.
+ * @param pPrevVolume pointer to the float previous volume, set on return.
+ * @param pVolumeInc pointer to the float increment per output audio frame, set on return.
  * @return true if the volume has changed, false if volume is same.
  */
-static inline bool setVolumeRampVariables(float newFloatValue, int32_t ramp,
-        int16_t &volume, int32_t &prevVolume, int32_t &volumeInc) {
-    int32_t newValue = newFloatValue * AudioMixer::UNITY_GAIN_INT;
-    if (newValue > AudioMixer::UNITY_GAIN_INT) {
-        newValue = AudioMixer::UNITY_GAIN_INT;
-    } else if (newValue < 0) {
-        ALOGE("negative volume %.7g", newFloatValue);
-        newValue = 0; // should never happen, but for safety check.
-    }
-    if (newValue == volume) {
+static inline bool setVolumeRampVariables(float newVolume, int32_t ramp,
+        int16_t *pIntSetVolume, int32_t *pIntPrevVolume, int32_t *pIntVolumeInc,
+        float *pSetVolume, float *pPrevVolume, float *pVolumeInc) {
+    if (newVolume == *pSetVolume) {
         return false;
     }
+    /* set the floating point volume variables */
     if (ramp != 0) {
-        volumeInc = ((newValue - volume) << 16) / ramp;
-        prevVolume = (volumeInc == 0 ? newValue : volume) << 16;
+        *pVolumeInc = (newVolume - *pSetVolume) / ramp;
+        *pPrevVolume = *pSetVolume;
     } else {
-        volumeInc = 0;
-        prevVolume = newValue << 16;
+        *pVolumeInc = 0;
+        *pPrevVolume = newVolume;
     }
-    volume = newValue;
+    *pSetVolume = newVolume;
+
+    /* set the legacy integer volume variables */
+    int32_t intVolume = newVolume * AudioMixer::UNITY_GAIN_INT;
+    if (intVolume > AudioMixer::UNITY_GAIN_INT) {
+        intVolume = AudioMixer::UNITY_GAIN_INT;
+    } else if (intVolume < 0) {
+        ALOGE("negative volume %.7g", newVolume);
+        intVolume = 0; // should never happen, but for safety check.
+    }
+    if (intVolume == *pIntSetVolume) {
+        *pIntVolumeInc = 0;
+        /* TODO: integer/float workaround: ignore floating volume ramp */
+        *pVolumeInc = 0;
+        *pPrevVolume = newVolume;
+        return true;
+    }
+    if (ramp != 0) {
+        *pIntVolumeInc = ((intVolume - *pIntSetVolume) << 16) / ramp;
+        *pIntPrevVolume = (*pIntVolumeInc == 0 ? intVolume : *pIntSetVolume) << 16;
+    } else {
+        *pIntVolumeInc = 0;
+        *pIntPrevVolume = intVolume << 16;
+    }
+    *pIntSetVolume = intVolume;
     return true;
 }
 
@@ -716,8 +761,10 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         case VOLUME1:
             if (setVolumeRampVariables(*reinterpret_cast<float*>(value),
                     target == RAMP_VOLUME ? mState.frameCount : 0,
-                    track.volume[param - VOLUME0], track.prevVolume[param - VOLUME0],
-                    track.volumeInc[param - VOLUME0])) {
+                    &track.volume[param - VOLUME0], &track.prevVolume[param - VOLUME0],
+                    &track.volumeInc[param - VOLUME0],
+                    &track.mVolume[param - VOLUME0], &track.mPrevVolume[param - VOLUME0],
+                    &track.mVolumeInc[param - VOLUME0])) {
                 ALOGV("setParameter(%s, VOLUME%d: %04x)",
                         target == VOLUME ? "VOLUME" : "RAMP_VOLUME", param - VOLUME0,
                                 track.volume[param - VOLUME0]);
@@ -725,10 +772,10 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             }
             break;
         case AUXLEVEL:
-            //ALOG_ASSERT(0 <= valueInt && valueInt <= MAX_GAIN_INT, "bad aux level %d", valueInt);
             if (setVolumeRampVariables(*reinterpret_cast<float*>(value),
                     target == RAMP_VOLUME ? mState.frameCount : 0,
-                    track.auxLevel, track.prevAuxLevel, track.auxInc)) {
+                    &track.auxLevel, &track.prevAuxLevel, &track.auxInc,
+                    &track.mAuxLevel, &track.mPrevAuxLevel, &track.mAuxInc)) {
                 ALOGV("setParameter(%s, AUXLEVEL: %04x)",
                         target == VOLUME ? "VOLUME" : "RAMP_VOLUME", track.auxLevel);
                 invalidateState(1 << name);
@@ -777,21 +824,58 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
     return false;
 }
 
-inline
-void AudioMixer::track_t::adjustVolumeRamp(bool aux)
+/* Checks to see if the volume ramp has completed and clears the increment
+ * variables appropriately.
+ *
+ * FIXME: There is code to handle int/float ramp variable switchover should it not
+ * complete within a mixer buffer processing call, but it is preferred to avoid switchover
+ * due to precision issues.  The switchover code is included for legacy code purposes
+ * and can be removed once the integer volume is removed.
+ *
+ * It is not sufficient to clear only the volumeInc integer variable because
+ * if one channel requires ramping, all channels are ramped.
+ *
+ * There is a bit of duplicated code here, but it keeps backward compatibility.
+ */
+inline void AudioMixer::track_t::adjustVolumeRamp(bool aux, bool useFloat)
 {
-    for (uint32_t i=0 ; i<MAX_NUM_CHANNELS ; i++) {
-        if (((volumeInc[i]>0) && (((prevVolume[i]+volumeInc[i])>>16) >= volume[i])) ||
-            ((volumeInc[i]<0) && (((prevVolume[i]+volumeInc[i])>>16) <= volume[i]))) {
-            volumeInc[i] = 0;
-            prevVolume[i] = volume[i]<<16;
+    if (useFloat) {
+        for (uint32_t i=0 ; i<MAX_NUM_CHANNELS ; i++) {
+            if (mVolumeInc[i] != 0 && fabs(mVolume[i] - mPrevVolume[i]) <= fabs(mVolumeInc[i])) {
+                volumeInc[i] = 0;
+                prevVolume[i] = volume[i] << 16;
+                mVolumeInc[i] = 0.;
+                mPrevVolume[i] = mVolume[i];
+
+            } else {
+                //ALOGV("ramp: %f %f %f", mVolume[i], mPrevVolume[i], mVolumeInc[i]);
+                prevVolume[i] = u4_28_from_float(mPrevVolume[i]);
+            }
+        }
+    } else {
+        for (uint32_t i=0 ; i<MAX_NUM_CHANNELS ; i++) {
+            if (((volumeInc[i]>0) && (((prevVolume[i]+volumeInc[i])>>16) >= volume[i])) ||
+                    ((volumeInc[i]<0) && (((prevVolume[i]+volumeInc[i])>>16) <= volume[i]))) {
+                volumeInc[i] = 0;
+                prevVolume[i] = volume[i] << 16;
+                mVolumeInc[i] = 0.;
+                mPrevVolume[i] = mVolume[i];
+            } else {
+                //ALOGV("ramp: %d %d %d", volume[i] << 16, prevVolume[i], volumeInc[i]);
+                mPrevVolume[i]  = float_from_u4_28(prevVolume[i]);
+            }
         }
     }
+    /* TODO: aux is always integer regardless of output buffer type */
     if (aux) {
         if (((auxInc>0) && (((prevAuxLevel+auxInc)>>16) >= auxLevel)) ||
-            ((auxInc<0) && (((prevAuxLevel+auxInc)>>16) <= auxLevel))) {
+                ((auxInc<0) && (((prevAuxLevel+auxInc)>>16) <= auxLevel))) {
             auxInc = 0;
-            prevAuxLevel = auxLevel<<16;
+            prevAuxLevel = auxLevel << 16;
+            mAuxInc = 0.;
+            mPrevAuxLevel = mAuxLevel;
+        } else {
+            //ALOGV("aux ramp: %d %d %d", auxLevel << 16, prevAuxLevel, auxInc);
         }
     }
 }
@@ -985,7 +1069,7 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
         // always resample with unity gain when sending to auxiliary buffer to be able
         // to apply send level after resampling
         // TODO: modify each resampler to support aux channel?
-        t->resampler->setVolume(UNITY_GAIN_INT, UNITY_GAIN_INT);
+        t->resampler->setVolume(UNITY_GAIN_FLOAT, UNITY_GAIN_FLOAT);
         memset(temp, 0, outFrameCount * MAX_NUM_CHANNELS * sizeof(int32_t));
         t->resampler->resample(temp, outFrameCount, t->bufferProvider);
         if (CC_UNLIKELY(t->volumeInc[0]|t->volumeInc[1]|t->auxInc)) {
@@ -995,7 +1079,7 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
         }
     } else {
         if (CC_UNLIKELY(t->volumeInc[0]|t->volumeInc[1])) {
-            t->resampler->setVolume(UNITY_GAIN_INT, UNITY_GAIN_INT);
+            t->resampler->setVolume(UNITY_GAIN_FLOAT, UNITY_GAIN_FLOAT);
             memset(temp, 0, outFrameCount * MAX_NUM_CHANNELS * sizeof(int32_t));
             t->resampler->resample(temp, outFrameCount, t->bufferProvider);
             volumeRampStereo(t, out, outFrameCount, temp, aux);
@@ -1003,7 +1087,7 @@ void AudioMixer::track__genericResample(track_t* t, int32_t* out, size_t outFram
 
         // constant gain
         else {
-            t->resampler->setVolume(t->volume[0], t->volume[1]);
+            t->resampler->setVolume(t->mVolume[0], t->mVolume[1]);
             t->resampler->resample(out, outFrameCount, t->bufferProvider);
         }
     }
@@ -1721,6 +1805,36 @@ int64_t AudioMixer::calculateOutputPTS(const track_t& t, int64_t basePTS,
     ALOGW_IF(!sIsMultichannelCapable, "unable to find downmix effect");
 }
 
+template <int MIXTYPE, int NCHAN, bool USEFLOATVOL, bool ADJUSTVOL,
+    typename TO, typename TI, typename TA>
+void AudioMixer::volumeMix(TO *out, size_t outFrames,
+        const TI *in, TA *aux, bool ramp, AudioMixer::track_t *t)
+{
+    if (USEFLOATVOL) {
+        if (ramp) {
+            volumeRampMulti<MIXTYPE, NCHAN>(out, outFrames, in, aux,
+                    t->mPrevVolume, t->mVolumeInc, &t->prevAuxLevel, t->auxInc);
+            if (ADJUSTVOL) {
+                t->adjustVolumeRamp(aux != NULL, true);
+            }
+        } else {
+            volumeMulti<MIXTYPE, NCHAN>(out, outFrames, in, aux,
+                    t->mVolume, t->auxLevel);
+        }
+    } else {
+        if (ramp) {
+            volumeRampMulti<MIXTYPE, NCHAN>(out, outFrames, in, aux,
+                    t->prevVolume, t->volumeInc, &t->prevAuxLevel, t->auxInc);
+            if (ADJUSTVOL) {
+                t->adjustVolumeRamp(aux != NULL);
+            }
+        } else {
+            volumeMulti<MIXTYPE, NCHAN>(out, outFrames, in, aux,
+                    t->volume, t->auxLevel);
+        }
+    }
+}
+
 /* This process hook is called when there is a single track without
  * aux buffer, volume ramp, or resampling.
  * TODO: Update the hook selection: this can properly handle aux and ramp.
@@ -1757,13 +1871,9 @@ void AudioMixer::process_NoResampleOneTrack(state_t* state, int64_t pts)
         }
 
         const size_t outFrames = b.frameCount;
-        if (ramp) {
-            volumeRampMulti<MIXTYPE_MULTI_SAVEONLY, NCHAN>(out, outFrames, in, aux,
-                    t->prevVolume, t->volumeInc, &t->prevAuxLevel, t->auxInc);
-        } else {
-            volumeMulti<MIXTYPE_MULTI_SAVEONLY, NCHAN>(out, outFrames, in, aux,
-                    t->volume, t->auxLevel);
-        }
+        volumeMix<MIXTYPE, NCHAN, is_same<TI, float>::value, false> (out,
+                outFrames, in, aux, ramp, t);
+
         out += outFrames * NCHAN;
         if (aux != NULL) {
             aux += NCHAN;
@@ -1774,7 +1884,7 @@ void AudioMixer::process_NoResampleOneTrack(state_t* state, int64_t pts)
         t->bufferProvider->releaseBuffer(&b);
     }
     if (ramp) {
-        t->adjustVolumeRamp(aux != NULL);
+        t->adjustVolumeRamp(aux != NULL, is_same<TI, float>::value);
     }
 }
 
@@ -1792,19 +1902,15 @@ void AudioMixer::track__Resample(track_t* t, TO* out, size_t outFrameCount, TO* 
         // if ramp:        resample with unity gain to temp buffer and scale/mix in 2nd step.
         // if aux != NULL: resample with unity gain to temp buffer then apply send level.
 
-        t->resampler->setVolume(UNITY_GAIN_INT, UNITY_GAIN_INT);
+        t->resampler->setVolume(UNITY_GAIN_FLOAT, UNITY_GAIN_FLOAT);
         memset(temp, 0, outFrameCount * NCHAN * sizeof(TO));
         t->resampler->resample((int32_t*)temp, outFrameCount, t->bufferProvider);
-        if (ramp) {
-            volumeRampMulti<MIXTYPE_MULTI, NCHAN>(out, outFrameCount, temp, aux,
-                    t->prevVolume, t->volumeInc, &t->prevAuxLevel, t->auxInc);
-            t->adjustVolumeRamp(aux != NULL);
-        } else {
-            volumeMulti<MIXTYPE_MULTI, NCHAN>(out, outFrameCount, temp, aux,
-                    t->volume, t->auxLevel);
-        }
+
+        volumeMix<MIXTYPE, NCHAN, is_same<TI, float>::value, true>(out, outFrameCount,
+                temp, aux, ramp, t);
+
     } else { // constant volume gain
-        t->resampler->setVolume(t->volume[0], t->volume[1]);
+        t->resampler->setVolume(t->mVolume[0], t->mVolume[1]);
         t->resampler->resample((int32_t*)out, outFrameCount, t->bufferProvider);
     }
 }
@@ -1819,13 +1925,9 @@ void AudioMixer::track__NoResample(track_t* t, TO* out, size_t frameCount,
     ALOGVV("track__NoResample\n");
     const TI *in = static_cast<const TI *>(t->in);
 
-    if (t->needsRamp()) {
-        volumeRampMulti<MIXTYPE, NCHAN>(out, frameCount, in, aux,
-                t->prevVolume, t->volumeInc, &t->prevAuxLevel, t->auxInc);
-        t->adjustVolumeRamp(aux != NULL);
-    } else {
-        volumeMulti<MIXTYPE, NCHAN>(out, frameCount, in, aux, t->volume, t->auxLevel);
-    }
+    volumeMix<MIXTYPE, NCHAN, is_same<TI, float>::value, true>(out, frameCount,
+            in, aux, t->needsRamp(), t);
+
     // MIXTYPE_MONOEXPAND reads a single input channel and expands to NCHAN output channels.
     // MIXTYPE_MULTI reads NCHAN input channels and places to NCHAN output channels.
     in += (MIXTYPE == MIXTYPE_MONOEXPAND) ? frameCount : frameCount * NCHAN;

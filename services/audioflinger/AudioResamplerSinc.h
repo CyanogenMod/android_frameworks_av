@@ -44,7 +44,7 @@ public:
 private:
     void init();
 
-    virtual void setVolume(int16_t left, int16_t right);
+    virtual void setVolume(float left, float right);
 
     template<int CHANNELS>
     void resample(int32_t* out, size_t outFrameCount,

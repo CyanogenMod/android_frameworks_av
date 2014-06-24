@@ -27,6 +27,7 @@
 #include <cutils/properties.h>
 
 #include <utils/Log.h>
+#include <audio_utils/primitives.h>
 
 #include "AudioResamplerSinc.h"
 
@@ -500,10 +501,12 @@ void AudioResamplerSinc::init() {
     mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
 }
 
-void AudioResamplerSinc::setVolume(int16_t left, int16_t right) {
+void AudioResamplerSinc::setVolume(float left, float right) {
     AudioResampler::setVolume(left, right);
-    mVolumeSIMD[0] = int32_t(left)<<16;
-    mVolumeSIMD[1] = int32_t(right)<<16;
+    // convert to U4_28 (rounding down).
+    // integer volume values are clamped to 0 to UNITY_GAIN.
+    mVolumeSIMD[0] = u4_28_from_float(clampFloatVol(left));
+    mVolumeSIMD[1] = u4_28_from_float(clampFloatVol(right));
 }
 
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,

@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
+#include <audio_utils/primitives.h>
 #include "AudioResampler.h"
 #include "AudioResamplerSinc.h"
 #include "AudioResamplerCubic.h"
@@ -266,8 +267,9 @@ AudioResampler::AudioResampler(int inChannelCount,
         mPhaseFraction(0), mLocalTimeFreq(0),
         mPTS(AudioBufferProvider::kInvalidPTS), mQuality(quality) {
 
+    const int maxChannels = quality < DYN_LOW_QUALITY ? 2 : 8;
     if (inChannelCount < 1
-            || inChannelCount > (quality < DYN_LOW_QUALITY ? 2 : 8)) {
+            || inChannelCount > maxChannels) {
         LOG_ALWAYS_FATAL("Unsupported sample format %d quality %d channels",
                 quality, inChannelCount);
     }
@@ -297,10 +299,12 @@ void AudioResampler::setSampleRate(int32_t inSampleRate) {
     mPhaseIncrement = (uint32_t)((kPhaseMultiplier * inSampleRate) / mSampleRate);
 }
 
-void AudioResampler::setVolume(int16_t left, int16_t right) {
+void AudioResampler::setVolume(float left, float right) {
     // TODO: Implement anti-zipper filter
-    mVolume[0] = left;
-    mVolume[1] = right;
+    // convert to U4.12 for internal integer use (round down)
+    // integer volume values are clamped to 0 to UNITY_GAIN.
+    mVolume[0] = u4_12_from_float(clampFloatVol(left));
+    mVolume[1] = u4_12_from_float(clampFloatVol(right));
 }
 
 void AudioResampler::setLocalTimeFreq(uint64_t freq) {
