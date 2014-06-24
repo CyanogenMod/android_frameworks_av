@@ -71,7 +71,7 @@ status_t FrameOutput::createInputSurface(int width, int height,
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
     mGlConsumer = new GLConsumer(consumer, mExtTextureName,
-                GL_TEXTURE_EXTERNAL_OES);
+                GL_TEXTURE_EXTERNAL_OES, true, false);
     mGlConsumer->setName(String8("virtual display"));
     mGlConsumer->setDefaultBufferSize(width, height);
     mGlConsumer->setDefaultMaxBufferCount(5);
