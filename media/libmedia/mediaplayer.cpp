@@ -624,10 +624,32 @@ status_t MediaPlayer::attachAuxEffect(int effectId)
     return mPlayer->attachAuxEffect(effectId);
 }
 
+// always call with lock held
+status_t MediaPlayer::checkStateForKeySet_l(int key)
+{
+    switch(key) {
+    case KEY_PARAMETER_AUDIO_ATTRIBUTES:
+        if (mCurrentState & ( MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_STARTED |
+                MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_PLAYBACK_COMPLETE) ) {
+            // Can't change the audio attributes after prepare
+            ALOGE("trying to set audio attributes called in state %d", mCurrentState);
+            return INVALID_OPERATION;
+        }
+        break;
+    default:
+        // parameter doesn't require player state check
+        break;
+    }
+    return OK;
+}
+
 status_t MediaPlayer::setParameter(int key, const Parcel& request)
 {
     ALOGV("MediaPlayer::setParameter(%d)", key);
     Mutex::Autolock _l(mLock);
+    if (checkStateForKeySet_l(key) != OK) {
+        return INVALID_OPERATION;
+    }
     if (mPlayer != NULL) {
         return  mPlayer->setParameter(key, request);
     }

@@ -124,7 +124,8 @@ AudioTrack::AudioTrack(
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
         int uid,
-        pid_t pid)
+        pid_t pid,
+        const audio_attributes_t* pAttributes)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -134,7 +135,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
-            offloadInfo, uid, pid, NULL /*no audio attributes*/);
+            offloadInfo, uid, pid, pAttributes);
 }
 
 AudioTrack::AudioTrack(
@@ -151,7 +152,8 @@ AudioTrack::AudioTrack(
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
         int uid,
-        pid_t pid)
+        pid_t pid,
+        const audio_attributes_t* pAttributes)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -161,7 +163,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
             sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo,
-            uid, pid, NULL /*no audio attributes*/);
+            uid, pid, pAttributes);
 }
 
 AudioTrack::~AudioTrack()
@@ -205,7 +207,7 @@ status_t AudioTrack::set(
         const audio_offload_info_t *offloadInfo,
         int uid,
         pid_t pid,
-        audio_attributes_t* pAttributes)
+        const audio_attributes_t* pAttributes)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "flags #%x, notificationFrames %u, sessionId %d, transferType %d",

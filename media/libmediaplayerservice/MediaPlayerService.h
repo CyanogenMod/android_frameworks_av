@@ -72,7 +72,8 @@ class MediaPlayerService : public BnMediaPlayerService
         class CallbackData;
 
      public:
-                                AudioOutput(int sessionId, int uid, int pid);
+                                AudioOutput(int sessionId, int uid, int pid,
+                                        const audio_attributes_t * attr);
         virtual                 ~AudioOutput();
 
         virtual bool            ready() const { return mTrack != 0; }
@@ -104,6 +105,7 @@ class MediaPlayerService : public BnMediaPlayerService
                 void            setAudioStreamType(audio_stream_type_t streamType) {
                                                                         mStreamType = streamType; }
         virtual audio_stream_type_t getAudioStreamType() const { return mStreamType; }
+                void            setAudioAttributes(const audio_attributes_t * attributes);
 
                 void            setVolume(float left, float right);
         virtual status_t        setPlaybackRatePermille(int32_t ratePermille);
@@ -133,6 +135,7 @@ class MediaPlayerService : public BnMediaPlayerService
         CallbackData *          mCallbackData;
         uint64_t                mBytesWritten;
         audio_stream_type_t     mStreamType;
+        const audio_attributes_t *mAttributes;
         float                   mLeftVolume;
         float                   mRightVolume;
         int32_t                 mPlaybackRatePermille;
@@ -410,6 +413,8 @@ private:
         // Disconnect from the currently connected ANativeWindow.
         void disconnectNativeWindow();
 
+        status_t setAudioAttributes_l(const Parcel &request);
+
         mutable     Mutex                       mLock;
                     sp<MediaPlayerBase>         mPlayer;
                     sp<MediaPlayerService>      mService;
@@ -420,6 +425,7 @@ private:
                     bool                        mLoop;
                     int32_t                     mConnId;
                     int                         mAudioSessionId;
+                    audio_attributes_t *        mAudioAttributes;
                     uid_t                       mUID;
                     sp<ANativeWindow>           mConnectedWindow;
                     sp<IBinder>                 mConnectedWindowBinder;
