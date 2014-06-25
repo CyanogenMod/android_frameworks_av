@@ -1691,10 +1691,16 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
             *num_ports += mInputs.size();
         }
         if (role == AUDIO_PORT_ROLE_SOURCE || role == AUDIO_PORT_ROLE_NONE) {
-            for (size_t i = 0; i < mOutputs.size() && portsWritten < portsMax; i++) {
-                mOutputs[i]->toAudioPort(&ports[portsWritten++]);
+            size_t numOutputs = 0;
+            for (size_t i = 0; i < mOutputs.size(); i++) {
+                if (!mOutputs[i]->isDuplicated()) {
+                    numOutputs++;
+                    if (portsWritten < portsMax) {
+                        mOutputs[i]->toAudioPort(&ports[portsWritten++]);
+                    }
+                }
             }
-            *num_ports += mOutputs.size();
+            *num_ports += numOutputs;
         }
     }
     *generation = curAudioPortGeneration();
@@ -1826,6 +1832,8 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             ALOGV("createAudioPatch() output not found for id %d", patch->sources[0].id);
             return BAD_VALUE;
         }
+        ALOG_ASSERT(!outputDesc->isDuplicated(),"duplicated output %d in source in ports",
+                                                outputDesc->mIoHandle);
         if (patchDesc != 0) {
             if (patchDesc->mPatch.sources[0].id != patch->sources[0].id) {
                 ALOGV("createAudioPatch() source id differs for patch current id %d new id %d",
@@ -1840,7 +1848,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             return BAD_VALUE;
         }
 
-        if (!outputDesc->mProfile->isCompatibleProfile(devDesc->mType,
+        if (!outputDesc->mProfile->isCompatibleProfile(devDesc->mDeviceType,
                                                        patch->sources[0].sample_rate,
                                                      patch->sources[0].format,
                                                      patch->sources[0].channel_mask,
@@ -1849,9 +1857,9 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
         }
         // TODO: reconfigure output format and channels here
         ALOGV("createAudioPatch() setting device %08x on output %d",
-                                              devDesc->mType, outputDesc->mIoHandle);
+                                              devDesc->mDeviceType, outputDesc->mIoHandle);
         setOutputDevice(outputDesc->mIoHandle,
-                        devDesc->mType,
+                        devDesc->mDeviceType,
                        true,
                        0,
                        handle);
@@ -1885,7 +1893,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 return BAD_VALUE;
             }
 
-            if (!inputDesc->mProfile->isCompatibleProfile(devDesc->mType,
+            if (!inputDesc->mProfile->isCompatibleProfile(devDesc->mDeviceType,
                                                            patch->sinks[0].sample_rate,
                                                          patch->sinks[0].format,
                                                          patch->sinks[0].channel_mask,
@@ -1894,9 +1902,9 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             }
             // TODO: reconfigure output format and channels here
             ALOGV("createAudioPatch() setting device %08x on output %d",
-                                                  devDesc->mType, inputDesc->mIoHandle);
+                                                  devDesc->mDeviceType, inputDesc->mIoHandle);
             setInputDevice(inputDesc->mIoHandle,
-                           devDesc->mType,
+                           devDesc->mDeviceType,
                            true,
                            handle);
             index = mAudioPatches.indexOfKey(*handle);
@@ -2084,6 +2092,9 @@ status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *
             if (outputDesc == NULL) {
                 return BAD_VALUE;
             }
+            ALOG_ASSERT(!outputDesc->isDuplicated(),
+                        "setAudioPortConfig() called on duplicated output %d",
+                        outputDesc->mIoHandle);
             audioPortConfig = outputDesc;
         } else if (config->role == AUDIO_PORT_ROLE_SINK) {
             sp<AudioInputDescriptor> inputDesc = getInputFromId(config->id);
@@ -4583,10 +4594,12 @@ void AudioPolicyManager::AudioOutputDescriptor::toAudioPortConfig(
                                                  struct audio_port_config *dstConfig,
                                                  const struct audio_port_config *srcConfig) const
 {
+    ALOG_ASSERT(!isDuplicated(), "toAudioPortConfig() called on duplicated output %d", mIoHandle);
+
     dstConfig->config_mask = AUDIO_PORT_CONFIG_SAMPLE_RATE|AUDIO_PORT_CONFIG_CHANNEL_MASK|
                             AUDIO_PORT_CONFIG_FORMAT|AUDIO_PORT_CONFIG_GAIN;
     if (srcConfig != NULL) {
-        dstConfig->config_mask &= srcConfig->config_mask;
+        dstConfig->config_mask |= srcConfig->config_mask;
     }
     AudioPortConfig::toAudioPortConfig(dstConfig, srcConfig);
 
@@ -4601,6 +4614,7 @@ void AudioPolicyManager::AudioOutputDescriptor::toAudioPortConfig(
 void AudioPolicyManager::AudioOutputDescriptor::toAudioPort(
                                                     struct audio_port *port) const
 {
+    ALOG_ASSERT(!isDuplicated(), "toAudioPort() called on duplicated output %d", mIoHandle);
     mProfile->toAudioPort(port);
     port->id = mId;
     toAudioPortConfig(&port->active_config);
@@ -4666,10 +4680,12 @@ void AudioPolicyManager::AudioInputDescriptor::toAudioPortConfig(
                                                    struct audio_port_config *dstConfig,
                                                    const struct audio_port_config *srcConfig) const
 {
+    ALOG_ASSERT(mProfile != 0,
+                "toAudioPortConfig() called on input with null profile %d", mIoHandle);
     dstConfig->config_mask = AUDIO_PORT_CONFIG_SAMPLE_RATE|AUDIO_PORT_CONFIG_CHANNEL_MASK|
                             AUDIO_PORT_CONFIG_FORMAT|AUDIO_PORT_CONFIG_GAIN;
     if (srcConfig != NULL) {
-        dstConfig->config_mask &= srcConfig->config_mask;
+        dstConfig->config_mask |= srcConfig->config_mask;
     }
 
     AudioPortConfig::toAudioPortConfig(dstConfig, srcConfig);
@@ -4685,6 +4701,8 @@ void AudioPolicyManager::AudioInputDescriptor::toAudioPortConfig(
 void AudioPolicyManager::AudioInputDescriptor::toAudioPort(
                                                     struct audio_port *port) const
 {
+    ALOG_ASSERT(mProfile != 0, "toAudioPort() called on input with null profile %d", mIoHandle);
+
     mProfile->toAudioPort(port);
     port->id = mId;
     toAudioPortConfig(&port->active_config);
@@ -5735,7 +5753,7 @@ void AudioPolicyManager::DeviceDescriptor::toAudioPortConfig(
 {
     dstConfig->config_mask = AUDIO_PORT_CONFIG_CHANNEL_MASK|AUDIO_PORT_CONFIG_GAIN;
     if (srcConfig != NULL) {
-        dstConfig->config_mask &= srcConfig->config_mask;
+        dstConfig->config_mask |= srcConfig->config_mask;
     }
 
     AudioPortConfig::toAudioPortConfig(dstConfig, srcConfig);
