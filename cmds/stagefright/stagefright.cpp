@@ -942,7 +942,9 @@ int main(int argc, char **argv) {
             sp<IGraphicBufferProducer> producer;
             sp<IGraphicBufferConsumer> consumer;
             BufferQueue::createBufferQueue(&producer, &consumer);
-            sp<GLConsumer> texture = new GLConsumer(consumer, 0 /* tex */);
+            sp<GLConsumer> texture = new GLConsumer(consumer, 0 /* tex */,
+                    GLConsumer::TEXTURE_EXTERNAL, true /* useFenceSync */,
+                    false /* isControlledByApp */);
             gSurface = new Surface(producer);
         }
 
