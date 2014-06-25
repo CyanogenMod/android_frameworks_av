@@ -117,7 +117,8 @@ public:
     int getZslStreamId() const;
 
     status_t registerFrameListener(int32_t minId, int32_t maxId,
-            wp<camera2::FrameProcessor::FilteredListener> listener);
+            wp<camera2::FrameProcessor::FilteredListener> listener,
+            bool sendPartials = true);
     status_t removeFrameListener(int32_t minId, int32_t maxId,
             wp<camera2::FrameProcessor::FilteredListener> listener);
 

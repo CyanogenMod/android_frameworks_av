@@ -37,11 +37,11 @@ FrameProcessorBase::~FrameProcessorBase() {
 }
 
 status_t FrameProcessorBase::registerListener(int32_t minId,
-        int32_t maxId, wp<FilteredListener> listener, bool quirkSendPartials) {
+        int32_t maxId, wp<FilteredListener> listener, bool sendPartials) {
     Mutex::Autolock l(mInputMutex);
     ALOGV("%s: Registering listener for frame id range %d - %d",
             __FUNCTION__, minId, maxId);
-    RangeListener rListener = { minId, maxId, listener, quirkSendPartials };
+    RangeListener rListener = { minId, maxId, listener, sendPartials };
     mRangeListeners.push_back(rListener);
     return OK;
 }
@@ -176,7 +176,7 @@ status_t FrameProcessorBase::processListeners(const CaptureResult &result,
         List<RangeListener>::iterator item = mRangeListeners.begin();
         while (item != mRangeListeners.end()) {
             if (requestId >= item->minId && requestId < item->maxId &&
-                    (!quirkIsPartial || item->quirkSendPartials)) {
+                    (!quirkIsPartial || item->sendPartials)) {
                 sp<FilteredListener> listener = item->listener.promote();
                 if (listener == 0) {
                     item = mRangeListeners.erase(item);

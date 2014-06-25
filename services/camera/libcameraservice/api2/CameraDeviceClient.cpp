@@ -82,7 +82,7 @@ status_t CameraDeviceClient::initialize(camera_module_t *module)
     mFrameProcessor->registerListener(FRAME_PROCESSOR_LISTENER_MIN_ID,
                                       FRAME_PROCESSOR_LISTENER_MAX_ID,
                                       /*listener*/this,
-                                      /*quirkSendPartials*/true);
+                                      /*sendPartials*/true);
 
     return OK;
 }

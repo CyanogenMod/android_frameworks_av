@@ -350,8 +350,10 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         return DONE;
     }
 
+    // We don't want to get partial results for ZSL capture.
     client->registerFrameListener(mCaptureId, mCaptureId + 1,
-            this);
+            this,
+            /*sendPartials*/false);
 
     // TODO: Actually select the right thing here.
     res = processor->pushToReprocess(mCaptureId);
@@ -393,8 +395,14 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardStart(
 
     bool isAeConverged = false;
     // Get the onFrameAvailable callback when the requestID == mCaptureId
+    // We don't want to get partial results for normal capture, as we need
+    // Get ANDROID_SENSOR_TIMESTAMP from the capture result, but partial
+    // result doesn't have to have this metadata available.
+    // TODO: Update to use the HALv3 shutter notification for remove the
+    // need for this listener and make it faster. see bug 12530628.
     client->registerFrameListener(mCaptureId, mCaptureId + 1,
-            this);
+            this,
+            /*sendPartials*/false);
 
     {
         Mutex::Autolock l(mInputMutex);
