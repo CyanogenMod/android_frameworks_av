@@ -272,7 +272,9 @@ void NuPlayer::GenericSource::readBuffer(
 
             if (seeking) {
                 track->mPackets->queueDiscontinuity(
-                        ATSParser::DISCONTINUITY_SEEK, NULL);
+                        ATSParser::DISCONTINUITY_SEEK,
+                        NULL,
+                        true /* discard */);
             }
 
             track->mPackets->queueAccessUnit(buffer);
@@ -280,7 +282,9 @@ void NuPlayer::GenericSource::readBuffer(
         } else if (err == INFO_FORMAT_CHANGED) {
 #if 0
             track->mPackets->queueDiscontinuity(
-                    ATSParser::DISCONTINUITY_FORMATCHANGE, NULL);
+                    ATSParser::DISCONTINUITY_FORMATCHANGE,
+                    NULL,
+                    false /* discard */);
 #endif
         } else {
             track->mPackets->signalEOS(err);
