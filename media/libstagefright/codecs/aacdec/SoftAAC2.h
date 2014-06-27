@@ -58,7 +58,9 @@ private:
     size_t mInputBufferCount;
     size_t mOutputBufferCount;
     bool mSignalledError;
-    int64_t mAnchorTimeUs[kNumDelayBlocksMax];
+    OMX_BUFFERHEADERTYPE *mLastInHeader;
+    int64_t mCurrentInputTime;
+    Vector<int64_t> mAnchorTimes;
 
     CDrcPresModeWrapper mDrcWrap;
 

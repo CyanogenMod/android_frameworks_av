@@ -65,10 +65,9 @@ SoftAAC2::SoftAAC2(
       mInputBufferCount(0),
       mOutputBufferCount(0),
       mSignalledError(false),
+      mLastInHeader(NULL),
+      mCurrentInputTime(0),
       mOutputPortSettingsChange(NONE) {
-    for (unsigned int i = 0; i < kNumDelayBlocksMax; i++) {
-        mAnchorTimeUs[i] = 0;
-    }
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
@@ -496,14 +495,11 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             } else {
                 mEndOfInput = false;
             }
-            if (inHeader->nOffset == 0) { // TODO: does nOffset != 0 happen?
-                mAnchorTimeUs[mInputBufferCount % kNumDelayBlocksMax] =
-                        inHeader->nTimeStamp;
-            }
 
             if (inHeader->nFilledLen == 0) {
                 inInfo->mOwnedByUs = false;
                 inQueue.erase(inQueue.begin());
+                mLastInHeader = NULL;
                 inInfo = NULL;
                 notifyEmptyBufferDone(inHeader);
                 inHeader = NULL;
@@ -568,6 +564,18 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                 INT prevSampleRate = mStreamInfo->sampleRate;
                 INT prevNumChannels = mStreamInfo->numChannels;
 
+                if (inHeader != mLastInHeader) {
+                    mLastInHeader = inHeader;
+                    mCurrentInputTime = inHeader->nTimeStamp;
+                } else {
+                    if (mStreamInfo->sampleRate) {
+                        mCurrentInputTime += mStreamInfo->aacSamplesPerFrame *
+                                1000000ll / mStreamInfo->sampleRate;
+                    } else {
+                        ALOGW("no sample rate yet");
+                    }
+                }
+                mAnchorTimes.add(mCurrentInputTime);
                 aacDecoder_Fill(mAACDecoder,
                                 inBuffer,
                                 inBufferLength,
@@ -671,6 +679,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                             inInfo->mOwnedByUs = false;
                             mInputBufferCount++;
                             inQueue.erase(inQueue.begin());
+                            mLastInHeader = NULL;
                             inInfo = NULL;
                             notifyEmptyBufferDone(inHeader);
                             inHeader = NULL;
@@ -687,11 +696,12 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                     inInfo->mOwnedByUs = false;
                     mInputBufferCount++;
                     inQueue.erase(inQueue.begin());
+                    mLastInHeader = NULL;
                     inInfo = NULL;
                     notifyEmptyBufferDone(inHeader);
                     inHeader = NULL;
                 } else {
-                    ALOGW("inHeader->nFilledLen = %d", inHeader->nFilledLen);
+                    ALOGV("inHeader->nFilledLen = %d", inHeader->nFilledLen);
                 }
             }
         }
@@ -779,8 +789,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                 outHeader->nFlags = 0;
             }
 
-            outHeader->nTimeStamp = mAnchorTimeUs[mOutputBufferCount
-                    % kNumDelayBlocksMax];
+            outHeader->nTimeStamp = mAnchorTimes.isEmpty() ? 0 : mAnchorTimes.itemAt(0);
+            mAnchorTimes.removeAt(0);
 
             mOutputBufferCount++;
             outInfo->mOwnedByUs = false;
@@ -820,8 +830,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                     outHeader->nFilledLen = 0;
                     outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
-                    outHeader->nTimeStamp = mAnchorTimeUs[mOutputBufferCount
-                            % kNumDelayBlocksMax];
+                    outHeader->nTimeStamp = mAnchorTimes.itemAt(0);
+                    mAnchorTimes.removeAt(0);
 
                     mOutputBufferCount++;
                     outInfo->mOwnedByUs = false;
@@ -842,6 +852,8 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         // depend on fragments from the last one decoded.
         // drain all existing data
         drainDecoder();
+        mAnchorTimes.clear();
+        mLastInHeader = NULL;
     } else {
         while (outputDelayRingBufferSamplesAvailable() > 0) {
             int32_t ns = outputDelayRingBufferGetSamples(0,
@@ -896,6 +908,8 @@ void SoftAAC2::onReset() {
     mOutputDelayRingBufferReadPos = 0;
     mEndOfInput = false;
     mEndOfOutput = false;
+    mAnchorTimes.clear();
+    mLastInHeader = NULL;
 
     // To make the codec behave the same before and after a reset, we need to invalidate the
     // streaminfo struct. This does that:
