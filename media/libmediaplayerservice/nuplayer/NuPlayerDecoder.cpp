@@ -674,9 +674,9 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
 
     bool hasCC = false;
 
-    ABitReader br(sei->data() + 1, sei->size() - 1);
+    NALBitReader br(sei->data() + 1, sei->size() - 1);
     // sei_message()
-    while (br.numBitsLeft() >= 16) { // at least 16-bit for sei_message()
+    while (br.atLeastNumBitsLeft(16)) { // at least 16-bit for sei_message()
         uint32_t payload_type = 0;
         size_t payload_size = 0;
         uint8_t last_byte;
