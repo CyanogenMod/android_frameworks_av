@@ -202,7 +202,8 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
     }
     client->registerFrameListener(Camera2Client::kPreviewRequestIdStart,
             Camera2Client::kPreviewRequestIdEnd,
-            this);
+            this,
+            /*sendPartials*/false);
 
     return OK;
 }
