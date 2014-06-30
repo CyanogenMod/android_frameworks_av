@@ -1720,7 +1720,8 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     status_t res;
 
     uint32_t frameNumber = result->frame_number;
-    if (result->result == NULL && result->num_output_buffers == 0) {
+    if (result->result == NULL && result->num_output_buffers == 0 &&
+            result->input_buffer == NULL) {
         SET_ERR("No result data provided by HAL for frame %d",
                 frameNumber);
         return;
@@ -1805,7 +1806,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
 
         request.numBuffersLeft -= result->num_output_buffers;
-
+        request.numBuffersLeft -= (result->input_buffer != NULL) ? 1 : 0;
         if (request.numBuffersLeft < 0) {
             SET_ERR("Too many buffers returned for frame %d",
                     frameNumber);
@@ -1903,6 +1904,19 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         if (res != OK) {
             ALOGE("Can't return buffer %zu for frame %d to its stream: "
                     " %s (%d)", i, frameNumber, strerror(-res), res);
+        }
+    }
+
+    if (result->input_buffer != NULL) {
+        Camera3Stream *stream =
+            Camera3Stream::cast(result->input_buffer->stream);
+        res = stream->returnInputBuffer(*(result->input_buffer));
+        // Note: stream may be deallocated at this point, if this buffer was the
+        // last reference to it.
+        if (res != OK) {
+            ALOGE("%s: RequestThread: Can't return input buffer for frame %d to"
+                    "  its stream:%s (%d)",  __FUNCTION__,
+                    frameNumber, strerror(-res), res);
         }
     }
 
@@ -2318,6 +2332,7 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     camera3_stream_buffer_t inputBuffer;
+    uint32_t totalNumBuffers = 0;
 
     // Fill in buffers
 
@@ -2330,6 +2345,7 @@ bool Camera3Device::RequestThread::threadLoop() {
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
         }
+        totalNumBuffers += 1;
     } else {
         request.input_buffer = NULL;
     }
@@ -2348,6 +2364,7 @@ bool Camera3Device::RequestThread::threadLoop() {
         }
         request.num_output_buffers++;
     }
+    totalNumBuffers += request.num_output_buffers;
 
     // Log request in the in-flight queue
     sp<Camera3Device> parent = mParent.promote();
@@ -2358,7 +2375,7 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     res = parent->registerInFlight(request.frame_number,
-            request.num_output_buffers, nextRequest->mResultExtras);
+            totalNumBuffers, nextRequest->mResultExtras);
     ALOGVV("%s: registered in flight requestId = %" PRId32 ", frameNumber = %" PRId64
            ", burstId = %" PRId32 ".",
             __FUNCTION__,
@@ -2413,21 +2430,6 @@ bool Camera3Device::RequestThread::threadLoop() {
         return false;
     }
     mPrevTriggers = triggerCount;
-
-    // Return input buffer back to framework
-    if (request.input_buffer != NULL) {
-        Camera3Stream *stream =
-            Camera3Stream::cast(request.input_buffer->stream);
-        res = stream->returnInputBuffer(*(request.input_buffer));
-        // Note: stream may be deallocated at this point, if this buffer was the
-        // last reference to it.
-        if (res != OK) {
-            ALOGE("%s: RequestThread: Can't return input buffer for frame %d to"
-                    "  its stream:%s (%d)",  __FUNCTION__,
-                    request.frame_number, strerror(-res), res);
-            // TODO: Report error upstream
-        }
-    }
 
     return true;
 }

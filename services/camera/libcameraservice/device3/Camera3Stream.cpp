@@ -485,6 +485,18 @@ status_t Camera3Stream::returnInputBufferLocked(
 void Camera3Stream::addBufferListener(
         wp<Camera3StreamBufferListener> listener) {
     Mutex::Autolock l(mLock);
+
+    List<wp<Camera3StreamBufferListener> >::iterator it, end;
+    for (it = mBufferListenerList.begin(), end = mBufferListenerList.end();
+         it != end;
+         ) {
+        if (*it == listener) {
+            ALOGE("%s: Try to add the same listener twice, ignoring...", __FUNCTION__);
+            return;
+        }
+        it++;
+    }
+
     mBufferListenerList.push_back(listener);
 }
 
