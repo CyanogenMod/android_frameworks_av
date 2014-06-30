@@ -45,9 +45,10 @@ static void usage(const char *me) {
     fprintf(stderr, "usage: %s [-a] use audio\n"
                     "\t\t[-v] use video\n"
                     "\t\t[-p] playback\n"
-                    "\t\t[-S] allocate buffers from a surface\n",
+                    "\t\t[-S] allocate buffers from a surface\n"
+                    "\t\t[-R] render output to surface (enables -S)\n"
+                    "\t\t[-T] use render timestamps (enables -R)\n",
                     me);
-
     exit(1);
 }
 
@@ -71,7 +72,9 @@ static int decode(
         const char *path,
         bool useAudio,
         bool useVideo,
-        const android::sp<android::Surface> &surface) {
+        const android::sp<android::Surface> &surface,
+        bool renderSurface,
+        bool useTimestamp) {
     using namespace android;
 
     static int64_t kTimeout = 500ll;
@@ -136,6 +139,7 @@ static int decode(
     CHECK(!stateByTrack.isEmpty());
 
     int64_t startTimeUs = ALooper::GetNowUs();
+    int64_t startTimeRender = -1;
 
     for (size_t i = 0; i < stateByTrack.size(); ++i) {
         CodecState *state = &stateByTrack.editValueAt(i);
@@ -260,7 +264,23 @@ static int decode(
                 ++state->mNumBuffersDecoded;
                 state->mNumBytesDecoded += size;
 
-                err = state->mCodec->releaseOutputBuffer(index);
+                if (surface == NULL || !renderSurface) {
+                    err = state->mCodec->releaseOutputBuffer(index);
+                } else if (useTimestamp) {
+                    if (startTimeRender == -1) {
+                        // begin rendering 2 vsyncs (~33ms) after first decode
+                        startTimeRender =
+                                systemTime(SYSTEM_TIME_MONOTONIC) + 33000000
+                                - (presentationTimeUs * 1000);
+                    }
+                    presentationTimeUs =
+                            (presentationTimeUs * 1000) + startTimeRender;
+                    err = state->mCodec->renderOutputBufferAndRelease(
+                            index, presentationTimeUs);
+                } else {
+                    err = state->mCodec->renderOutputBufferAndRelease(index);
+                }
+
                 CHECK_EQ(err, (status_t)OK);
 
                 if (flags & MediaCodec::BUFFER_FLAG_EOS) {
@@ -320,34 +340,42 @@ int main(int argc, char **argv) {
     bool useVideo = false;
     bool playback = false;
     bool useSurface = false;
+    bool renderSurface = false;
+    bool useTimestamp = false;
 
     int res;
-    while ((res = getopt(argc, argv, "havpSD")) >= 0) {
+    while ((res = getopt(argc, argv, "havpSDRT")) >= 0) {
         switch (res) {
             case 'a':
             {
                 useAudio = true;
                 break;
             }
-
             case 'v':
             {
                 useVideo = true;
                 break;
             }
-
             case 'p':
             {
                 playback = true;
                 break;
             }
-
+            case 'T':
+            {
+                useTimestamp = true;
+            }
+            // fall through
+            case 'R':
+            {
+                renderSurface = true;
+            }
+            // fall through
             case 'S':
             {
                 useSurface = true;
                 break;
             }
-
             case '?':
             case 'h':
             default:
@@ -422,7 +450,8 @@ int main(int argc, char **argv) {
         player->stop();
         player->reset();
     } else {
-        decode(looper, argv[0], useAudio, useVideo, surface);
+        decode(looper, argv[0], useAudio, useVideo, surface, renderSurface,
+                useTimestamp);
     }
 
     if (playback || (useSurface && useVideo)) {
