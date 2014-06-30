@@ -1157,12 +1157,12 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              type_t type)
     :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
         mNormalFrameCount(0), mSinkBuffer(NULL),
-        mMixerBufferEnabled(false),
+        mMixerBufferEnabled(AudioFlinger::kEnableExtendedPrecision),
         mMixerBuffer(NULL),
         mMixerBufferSize(0),
         mMixerBufferFormat(AUDIO_FORMAT_INVALID),
         mMixerBufferValid(false),
-        mEffectBufferEnabled(false),
+        mEffectBufferEnabled(AudioFlinger::kEnableExtendedPrecision),
         mEffectBuffer(NULL),
         mEffectBufferSize(0),
         mEffectBufferFormat(AUDIO_FORMAT_INVALID),
@@ -1401,9 +1401,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 frameCount, mFrameCount);
       } else {
         ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
-                "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
+                "mFrameCount=%d format=%#x mFormat=%#x isLinear=%d channelMask=%#x "
+                "sampleRate=%u mSampleRate=%u "
                 "hasFastMixer=%d tid=%d fastTrackAvailMask=%#x",
-                isTimed, sharedBuffer.get(), frameCount, mFrameCount, format,
+                isTimed, sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,
                 audio_is_linear_pcm(format),
                 channelMask, sampleRate, mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);
         *flags &= ~IAudioFlinger::TRACK_FAST;
@@ -1809,9 +1810,10 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     if (!audio_is_valid_format(mFormat)) {
         LOG_ALWAYS_FATAL("HAL format %#x not valid for output", mFormat);
     }
-    if ((mType == MIXER || mType == DUPLICATING) && mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-        LOG_ALWAYS_FATAL("HAL format %#x not supported for mixed output; "
-                "must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
+    if ((mType == MIXER || mType == DUPLICATING)
+            && !isValidPcmSinkFormat(mFormat)) {
+        LOG_FATAL("HAL format %#x not supported for mixed output",
+                mFormat);
     }
     mFrameSize = audio_stream_frame_size(&mOutput->stream->common);
     mBufferSize = mOutput->stream->common.get_buffer_size(&mOutput->stream->common);

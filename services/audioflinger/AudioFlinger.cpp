@@ -1621,6 +1621,19 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
 
     audio_stream_out_t *outStream = NULL;
+
+    // FOR TESTING ONLY:
+    // Enable increased sink precision for mixing mode if kEnableExtendedPrecision is true.
+    if (kEnableExtendedPrecision &&  // Check only for Normal Mixing mode
+            !(flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
+        // Update format
+        //config.format = AUDIO_FORMAT_PCM_FLOAT;
+        //config.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+        //config.format = AUDIO_FORMAT_PCM_32_BIT;
+        //config.format = AUDIO_FORMAT_PCM_8_24_BIT;
+        // ALOGV("openOutput() upgrading format to %#08x", config.format);
+    }
+
     status_t status = hwDevHal->open_output_stream(hwDevHal,
                                           id,
                                           *pDevices,
@@ -1644,9 +1657,9 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
             thread = new OffloadThread(this, output, id, *pDevices);
             ALOGV("openOutput() created offload output: ID %d thread %p", id, thread);
-        } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT) ||
-            (config.format != AUDIO_FORMAT_PCM_16_BIT) ||
-            (config.channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
+        } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT)
+                || !isValidPcmSinkFormat(config.format)
+                || (config.channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
             thread = new DirectOutputThread(this, output, id, *pDevices);
             ALOGV("openOutput() created direct output: ID %d thread %p", id, thread);
         } else {
