@@ -40,6 +40,9 @@
 #include <OMX_Video.h>
 #include <android/native_window.h>
 
+#include <gui/DisplayEventReceiver.h>
+#include <utils/Looper.h>
+
 #define MIN_BITERATE_AAC 24000
 #define MAX_BITERATE_AAC 320000
 
@@ -100,6 +103,10 @@ struct ExtendedUtils {
         static bool isSmoothStreamingEnabled();
 
         static int64_t getMaxAVSyncLateMargin();
+
+        static bool isCustomAVSyncEnabled();
+
+        static bool isMpeg4DPSupportedByHardware();
     };
 
     //set B frames for MPEG4
@@ -150,6 +157,50 @@ struct ExtendedUtils {
     static void createSecurePool();
 
     static void drainSecurePool();
+
+    //helper function to parse rtp port range form system property
+    static void parseRtpPortRangeFromSystemProperty(unsigned *start, unsigned *end);
+};
+
+class VSyncLocker : public RefBase {
+private:
+    //Number of frames profiled for calculating fps
+    static const int kMaxProfileCount = 60;
+
+    enum SyncState {
+        PROFILE_FPS,
+        ENABLE_SYNC,
+        BLOCK_SYNC,
+    };
+
+    volatile bool mExitVsyncEvent;
+    Looper *mLooper;
+    SyncState mSyncState;
+    int64_t mStartTime;
+    int mProfileCount;
+
+    pthread_t mThread;
+    Mutex mVsyncLock;
+    Condition mVSyncCondition;
+    DisplayEventReceiver mDisplayEventReceiver;
+
+    virtual void updateSyncState();
+    virtual void waitOnVSync();
+
+public:
+    static bool isSyncRenderEnabled();
+    static int receiver(int fd, int events, void *context);
+    static void *ThreadWrapper(void *context);
+
+    virtual void resetProfile();
+    virtual void blockSync();
+    virtual void blockOnVSync();
+    virtual void start();
+    void VSyncEvent();
+    void signalVSync();
+
+    virtual ~VSyncLocker();
+    VSyncLocker();
 };
 
 }

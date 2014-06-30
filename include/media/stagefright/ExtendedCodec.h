@@ -176,6 +176,10 @@ private:
             const sp<AMessage> &msg, const char* mime,
             sp<IOMX> OMXhandle,IOMX::node_id nodeID, int port_index);
 
+    static status_t setAMRWBPLUSFormat(
+            int32_t numChannels, int32_t sampleRate,
+            sp<IOMX> OMXhandle, IOMX::node_id nodeID);
+
 };
 
 }

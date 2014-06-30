@@ -50,7 +50,8 @@ NuPlayer::RTSPSource::RTSPSource(
       mBuffering(true),
       mSeekGeneration(0),
       mEOSTimeoutAudio(0),
-      mEOSTimeoutVideo(0) {
+      mEOSTimeoutVideo(0),
+      mSeekDoneNotify(NULL) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -317,6 +318,23 @@ void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
 
     mState = SEEKING;
     mHandler->seek(seekTimeUs);
+
+    // After seek, the previous packets in the source are obsolete, so clear them
+    for (size_t index = 0; index < mTracks.size(); index++) {
+        TrackInfo *info = &mTracks.editItemAt(index);
+        sp<AnotherPacketSource> source = info->mSource;
+        if (source != NULL) {
+            source->queueDiscontinuity(ATSParser::DISCONTINUITY_SEEK, NULL);
+        }
+    }
+}
+
+int32_t NuPlayer::RTSPSource::getServerTimeoutMs() {
+    if (mHandler != NULL) {
+        return mHandler->getServerTimeoutMs();
+    } else {
+        return 0;
+    }
 }
 
 void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
@@ -378,11 +396,19 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         case MyHandler::kWhatSeekDone:
         {
             mState = CONNECTED;
+            if (mSeekDoneNotify != NULL) {
+                mSeekDoneNotify->post();
+                mSeekDoneNotify = NULL;
+            }
             break;
         }
 
         case MyHandler::kWhatAccessUnit:
         {
+            // While seeking, stop queueing the units which are already obsolete to the source
+            if (mState == SEEKING) {
+                break;
+            }
             size_t trackIndex;
             CHECK(msg->findSize("trackIndex", &trackIndex));
 
@@ -671,6 +697,11 @@ void NuPlayer::RTSPSource::finishDisconnectIfPossible() {
 
     (new AMessage)->postReply(mDisconnectReplyID);
     mDisconnectReplyID = 0;
+}
+
+bool NuPlayer::RTSPSource::setCbfForSeekDone(const sp<AMessage> &notify) {
+    mSeekDoneNotify = notify;
+    return true;
 }
 
 }  // namespace android

@@ -95,6 +95,9 @@ private:
         kMaxNumRetries = 10,
     };
 
+    //3 second timeout for readAt function call
+    static const int64_t kReadSourceTimeoutNs = 3000000000LL;
+
     sp<DataSource> mSource;
     sp<AHandlerReflector<NuCachedSource2> > mReflector;
     sp<ALooper> mLooper;
@@ -124,6 +127,8 @@ private:
     bool mDisconnectAtHighwatermark;
 
     bool mIsNonBlockingMode;
+
+    int32_t mCheckGeneration;
 
     void onMessageReceived(const sp<AMessage> &msg);
     void onFetch();
