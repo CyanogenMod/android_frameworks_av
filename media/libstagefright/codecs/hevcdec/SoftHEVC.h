@@ -103,11 +103,19 @@ private:
     status_t initDecoder();
     status_t deInitDecoder();
     status_t setFlushMode();
-    status_t setParams(WORD32 stride, IVD_VIDEO_DECODE_MODE_T decMode);
-    status_t getVersion();
+    status_t setParams(size_t stride);
+    void logVersion();
     status_t setNumCores();
     status_t resetDecoder();
     status_t resetPlugin();
+    status_t reInitDecoder();
+
+    void setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
+        ivd_video_decode_op_t *ps_dec_op,
+        OMX_BUFFERHEADERTYPE *inHeader,
+        OMX_BUFFERHEADERTYPE *outHeader,
+        size_t sizeY,
+        size_t timeStampIx);
 
     DISALLOW_EVIL_CONSTRUCTORS (SoftHEVC);
 };

@@ -66,7 +66,7 @@ SoftHEVC::SoftHEVC(
         OMX_COMPONENTTYPE **component)
     : SoftVideoDecoderOMXComponent(name, componentName, codingType,
             kProfileLevels, ARRAY_SIZE(kProfileLevels),
-            CODEC_MAX_WIDTH /* width */, CODEC_MAX_HEIGHT /* height */, callbacks,
+            320 /* width */, 240 /* height */, callbacks,
             appData, component) {
     initPorts(kNumBuffers, INPUT_BUF_SIZE, kNumBuffers,
             CODEC_MIME_TYPE);
@@ -104,7 +104,7 @@ static size_t GetCPUCoreCount() {
     return (size_t)cpuCoreCount;
 }
 
-status_t SoftHEVC::getVersion() {
+void SoftHEVC::logVersion() {
     ivd_ctl_getversioninfo_ip_t s_ctl_ip;
     ivd_ctl_getversioninfo_op_t s_ctl_op;
     UWORD8 au1_buf[512];
@@ -127,18 +127,18 @@ status_t SoftHEVC::getVersion() {
         ALOGD("Ittiam decoder version number: %s",
                 (char *)s_ctl_ip.pv_version_buffer);
     }
-    return OK;
+    return;
 }
 
-status_t SoftHEVC::setParams(WORD32 stride, IVD_VIDEO_DECODE_MODE_T decMode) {
+status_t SoftHEVC::setParams(size_t stride) {
     ivd_ctl_set_config_ip_t s_ctl_ip;
     ivd_ctl_set_config_op_t s_ctl_op;
     IV_API_CALL_STATUS_T status;
-    s_ctl_ip.u4_disp_wd = stride;
+    s_ctl_ip.u4_disp_wd = (UWORD32)stride;
     s_ctl_ip.e_frm_skip_mode = IVD_SKIP_NONE;
 
     s_ctl_ip.e_frm_out_mode = IVD_DISPLAY_FRAME_OUT;
-    s_ctl_ip.e_vid_dec_mode = decMode;
+    s_ctl_ip.e_vid_dec_mode = IVD_DECODE_FRAME;
     s_ctl_ip.e_cmd = IVD_CMD_VIDEO_CTL;
     s_ctl_ip.e_sub_cmd = IVD_CMD_CTL_SETPARAMS;
     s_ctl_ip.u4_size = sizeof(ivd_ctl_set_config_ip_t);
@@ -188,7 +188,7 @@ status_t SoftHEVC::resetDecoder() {
     }
 
     /* Set the run-time (dynamic) parameters */
-    setParams(0, IVD_DECODE_FRAME);
+    setParams(0);
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
@@ -250,6 +250,8 @@ status_t SoftHEVC::initDecoder() {
     WORD32 i4_level;
 
     mNumCores = GetCPUCoreCount();
+    mMemRecords = NULL;
+    mFlushOutBuffer = NULL;
 
     /* Initialize number of ref and reorder modes (for HEVC) */
     u4_num_reorder_frames = 16;
@@ -259,11 +261,16 @@ status_t SoftHEVC::initDecoder() {
     if ((mWidth * mHeight) > (1920 * 1088)) {
         i4_level = 50;
     } else if ((mWidth * mHeight) > (1280 * 720)) {
-        i4_level = 41;
-    } else {
+        i4_level = 40;
+    } else if ((mWidth * mHeight) > (960 * 540)) {
         i4_level = 31;
+    } else if ((mWidth * mHeight) > (640 * 360)) {
+        i4_level = 30;
+    } else if ((mWidth * mHeight) > (352 * 288)) {
+        i4_level = 21;
+    } else {
+        i4_level = 20;
     }
-
     {
         iv_num_mem_rec_ip_t s_num_mem_rec_ip;
         iv_num_mem_rec_op_t s_num_mem_rec_op;
@@ -290,6 +297,8 @@ status_t SoftHEVC::initDecoder() {
         ALOGE("Allocation failure");
         return NO_MEMORY;
     }
+
+    memset(mMemRecords, 0, mNumMemRecords * sizeof(iv_mem_rec_t));
 
     {
         size_t i;
@@ -386,13 +395,13 @@ status_t SoftHEVC::initDecoder() {
     resetPlugin();
 
     /* Set the run time (dynamic) parameters */
-    setParams(0, IVD_DECODE_FRAME);
+    setParams(0);
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
 
     /* Get codec version */
-    getVersion();
+    logVersion();
 
     /* Allocate internal picture buffer */
     mFlushOutBuffer = (uint8_t *)ivd_aligned_malloc(128, mStride * mHeight * 3 / 2);
@@ -406,19 +415,40 @@ status_t SoftHEVC::initDecoder() {
 
 status_t SoftHEVC::deInitDecoder() {
     size_t i;
-    iv_mem_rec_t *ps_mem_rec;
-    ps_mem_rec = mMemRecords;
-    ALOGD("Freeing codec memory");
-    for (i = 0; i < mNumMemRecords; i++) {
-        ivd_aligned_free(ps_mem_rec->pv_base);
-        ps_mem_rec++;
+
+    if (mMemRecords) {
+        iv_mem_rec_t *ps_mem_rec;
+
+        ps_mem_rec = mMemRecords;
+        ALOGD("Freeing codec memory");
+        for (i = 0; i < mNumMemRecords; i++) {
+            if(ps_mem_rec->pv_base) {
+                ivd_aligned_free(ps_mem_rec->pv_base);
+            }
+            ps_mem_rec++;
+        }
+        ivd_aligned_free(mMemRecords);
     }
 
-    ivd_aligned_free(mMemRecords);
-    ivd_aligned_free(mFlushOutBuffer);
+    if(mFlushOutBuffer) {
+        ivd_aligned_free(mFlushOutBuffer);
+    }
     return OK;
 }
 
+status_t SoftHEVC::reInitDecoder() {
+    status_t ret;
+
+    deInitDecoder();
+
+    ret = initDecoder();
+    if (OK != ret) {
+        ALOGE("Create failure");
+        deInitDecoder();
+        return NO_MEMORY;
+    }
+    return OK;
+}
 void SoftHEVC::onReset() {
     ALOGD("onReset called");
     SoftVideoDecoderOMXComponent::onReset();
@@ -427,6 +457,50 @@ void SoftHEVC::onReset() {
     resetPlugin();
 }
 
+void SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
+        ivd_video_decode_op_t *ps_dec_op,
+        OMX_BUFFERHEADERTYPE *inHeader,
+        OMX_BUFFERHEADERTYPE *outHeader,
+        size_t sizeY,
+        size_t timeStampIx) {
+    size_t sizeUV;
+    uint8_t *pBuf;
+
+    ps_dec_ip->u4_size = sizeof(ivd_video_decode_ip_t);
+    ps_dec_op->u4_size = sizeof(ivd_video_decode_op_t);
+
+    ps_dec_ip->e_cmd = IVD_CMD_VIDEO_DECODE;
+
+    /* When in flush and after EOS with zero byte input,
+     * inHeader is set to zero. Hence check for non-null */
+    if (inHeader) {
+        ps_dec_ip->u4_ts = timeStampIx;
+        ps_dec_ip->pv_stream_buffer = inHeader->pBuffer
+                + inHeader->nOffset;
+        ps_dec_ip->u4_num_Bytes = inHeader->nFilledLen;
+    } else {
+        ps_dec_ip->u4_ts = 0;
+        ps_dec_ip->pv_stream_buffer = NULL;
+        ps_dec_ip->u4_num_Bytes = 0;
+    }
+
+    if (outHeader) {
+        pBuf = outHeader->pBuffer;
+    } else {
+        pBuf = mFlushOutBuffer;
+    }
+
+    sizeUV = sizeY / 4;
+    ps_dec_ip->s_out_buffer.u4_min_out_buf_size[0] = sizeY;
+    ps_dec_ip->s_out_buffer.u4_min_out_buf_size[1] = sizeUV;
+    ps_dec_ip->s_out_buffer.u4_min_out_buf_size[2] = sizeUV;
+
+    ps_dec_ip->s_out_buffer.pu1_bufs[0] = pBuf;
+    ps_dec_ip->s_out_buffer.pu1_bufs[1] = pBuf + sizeY;
+    ps_dec_ip->s_out_buffer.pu1_bufs[2] = pBuf + sizeY + sizeUV;
+    ps_dec_ip->s_out_buffer.u4_num_bufs = 3;
+    return;
+}
 void SoftHEVC::onPortFlushCompleted(OMX_U32 portIndex) {
     ALOGD("onPortFlushCompleted on port %d", portIndex);
 
@@ -434,37 +508,13 @@ void SoftHEVC::onPortFlushCompleted(OMX_U32 portIndex) {
     if (kOutputPortIndex == portIndex) {
         setFlushMode();
 
-        /* Reset the time stamp arrays */
-        memset(mTimeStamps, 0, sizeof(mTimeStamps));
-        memset(mTimeStampsValid, 0, sizeof(mTimeStampsValid));
-
         while (true) {
             ivd_video_decode_ip_t s_dec_ip;
             ivd_video_decode_op_t s_dec_op;
             IV_API_CALL_STATUS_T status;
             size_t sizeY, sizeUV;
 
-            s_dec_ip.e_cmd = IVD_CMD_VIDEO_DECODE;
-
-            s_dec_ip.u4_ts = 0;
-            s_dec_ip.pv_stream_buffer = NULL;
-            s_dec_ip.u4_num_Bytes = 0;
-
-            s_dec_ip.u4_size = sizeof(ivd_video_decode_ip_t);
-            s_dec_op.u4_size = sizeof(ivd_video_decode_op_t);
-
-            sizeY = mStride * mHeight;
-            sizeUV = sizeY / 4;
-            s_dec_ip.s_out_buffer.u4_min_out_buf_size[0] = sizeY;
-            s_dec_ip.s_out_buffer.u4_min_out_buf_size[1] = sizeUV;
-            s_dec_ip.s_out_buffer.u4_min_out_buf_size[2] = sizeUV;
-
-            s_dec_ip.s_out_buffer.pu1_bufs[0] = mFlushOutBuffer;
-            s_dec_ip.s_out_buffer.pu1_bufs[1] =
-                s_dec_ip.s_out_buffer.pu1_bufs[0] + sizeY;
-            s_dec_ip.s_out_buffer.pu1_bufs[2] =
-                s_dec_ip.s_out_buffer.pu1_bufs[1] + sizeUV;
-            s_dec_ip.s_out_buffer.u4_num_bufs = 3;
+            setDecodeArgs(&s_dec_ip, &s_dec_op, NULL, NULL, mStride * mHeight, 0);
 
             status = ivdec_api_function(mCodecCtx, (void *)&s_dec_ip,
                     (void *)&s_dec_op);
@@ -558,36 +608,8 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             WORD32 timeDelay, timeTaken;
             size_t sizeY, sizeUV;
 
-            s_dec_ip.e_cmd = IVD_CMD_VIDEO_DECODE;
-
-            /* When in flush and after EOS with zero byte input,
-             * inHeader is set to zero. Hence check for non-null */
-            if (inHeader != NULL) {
-                s_dec_ip.u4_ts = timeStampIx;
-                s_dec_ip.pv_stream_buffer = inHeader->pBuffer
-                        + inHeader->nOffset;
-                s_dec_ip.u4_num_Bytes = inHeader->nFilledLen;
-            } else {
-                s_dec_ip.u4_ts = 0;
-                s_dec_ip.pv_stream_buffer = NULL;
-                s_dec_ip.u4_num_Bytes = 0;
-            }
-
-            s_dec_ip.u4_size = sizeof(ivd_video_decode_ip_t);
-            s_dec_op.u4_size = sizeof(ivd_video_decode_op_t);
-
-            sizeY = mStride * mHeight;
-            sizeUV = sizeY / 4;
-            s_dec_ip.s_out_buffer.u4_min_out_buf_size[0] = sizeY;
-            s_dec_ip.s_out_buffer.u4_min_out_buf_size[1] = sizeUV;
-            s_dec_ip.s_out_buffer.u4_min_out_buf_size[2] = sizeUV;
-
-            s_dec_ip.s_out_buffer.pu1_bufs[0] = outHeader->pBuffer;
-            s_dec_ip.s_out_buffer.pu1_bufs[1] =
-                s_dec_ip.s_out_buffer.pu1_bufs[0] + sizeY;
-            s_dec_ip.s_out_buffer.pu1_bufs[2] =
-                s_dec_ip.s_out_buffer.pu1_bufs[1] + sizeUV;
-            s_dec_ip.s_out_buffer.u4_num_bufs = 3;
+            setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader,
+                          mStride * mHeight, timeStampIx);
 
             GETTIME(&mTimeStart, NULL);
             /* Compute time elapsed between end of previous decode()
@@ -604,6 +626,23 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             ALOGD("timeTaken=%6d delay=%6d numBytes=%6d", timeTaken, timeDelay,
                     s_dec_op.u4_num_bytes_consumed);
 
+            /* If width and height are greater than the
+             * the dimensions used during codec create, then
+             * delete the current instance and recreate an instance with
+             * new dimensions */
+
+            if(IHEVCD_UNSUPPORTED_DIMENSIONS == s_dec_op.u4_error_code) {
+                mInitWidth = s_dec_op.u4_pic_wd;
+                mInitHeight = s_dec_op.u4_pic_ht;
+                mStride = mInitWidth;
+                CHECK_EQ(reInitDecoder(), (status_t)OK);
+
+                setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader,
+                              mStride * mHeight, timeStampIx);
+
+                status = ivdec_api_function(mCodecCtx, (void *)&s_dec_ip,
+                        (void *)&s_dec_op);
+            }
             if ((inHeader != NULL) && (1 != s_dec_op.u4_frame_decoded_flag)) {
                 /* If the input did not contain picture data, then ignore
                  * the associated timestamp */
@@ -616,40 +655,11 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
                 uint32_t width = s_dec_op.u4_pic_wd;
                 uint32_t height = s_dec_op.u4_pic_ht;
 
-                if ((width != mWidth || height != mHeight)) {
+                if ((width != mWidth) || (height != mHeight)) {
                     mWidth = width;
                     mHeight = height;
                     mStride = mWidth;
 
-                    /* If width and height are greater than the
-                     * the dimensions used during codec create, then
-                     * delete the current instance and recreate an instance with
-                     * new dimensions */
-                    /* TODO: The following does not work currently, since the decoder
-                     * currently returns 0 x 0 as width height when it is not supported
-                     * Once the decoder is updated to return actual width and height,
-                     * then this can be validated*/
-
-                    if ((mWidth * mHeight) > (mInitWidth * mInitHeight)) {
-                        status_t ret;
-                        ALOGD("Trying reInit");
-                        ret = deInitDecoder();
-                        if (OK != ret) {
-                            // TODO: Handle graceful exit
-                            ALOGE("Create failure");
-                            return;
-                        }
-
-                        mInitWidth = mWidth;
-                        mInitHeight = mHeight;
-
-                        ret = initDecoder();
-                        if (OK != ret) {
-                            // TODO: Handle graceful exit
-                            ALOGE("Create failure");
-                            return;
-                        }
-                    }
                     updatePortDefinitions();
 
                     notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
