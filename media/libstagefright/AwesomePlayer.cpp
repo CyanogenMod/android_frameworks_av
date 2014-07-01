@@ -1258,7 +1258,7 @@ void AwesomePlayer::createAudioPlayer_l()
         }
     }
     if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) &&
-#ifdef USE_ENHANCED_AUDIO
+#ifdef USE_TUNNEL_MODE
        (tunnelObjectsAlive < TunnelPlayer::getTunnelObjectsAliveMax()) &&
 #endif
        (nchannels && (nchannels <= 2)))
