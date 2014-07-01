@@ -26,7 +26,8 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog \
     libbinder \
-    libdl
+    libdl \
+    libselinux
 
 LOCAL_STATIC_LIBRARIES := libdrmframeworkcommon
 
