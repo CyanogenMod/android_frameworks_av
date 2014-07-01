@@ -188,7 +188,8 @@ public:
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
                                     int uid = -1,
-                                    pid_t pid = -1);
+                                    pid_t pid = -1,
+                                    const audio_attributes_t* pAttributes = NULL);
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
@@ -214,7 +215,8 @@ public:
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
                                     int uid = -1,
-                                    pid_t pid = -1);
+                                    pid_t pid = -1,
+                                    const audio_attributes_t* pAttributes = NULL);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -254,7 +256,7 @@ public:
                             const audio_offload_info_t *offloadInfo = NULL,
                             int uid = -1,
                             pid_t pid = -1,
-                            audio_attributes_t* pAttributes = NULL);
+                            const audio_attributes_t* pAttributes = NULL);
 
     /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using

@@ -160,6 +160,9 @@ enum media_parameter_keys {
     // Playback rate expressed in permille (1000 is normal speed), saved as int32_t, with negative
     // values used for rewinding or reverse playback.
     KEY_PARAMETER_PLAYBACK_RATE_PERMILLE = 1300,                // set only
+
+    // Set a Parcel containing the value of a parcelled Java AudioAttribute instance
+    KEY_PARAMETER_AUDIO_ATTRIBUTES = 1400                       // set only
 };
 
 // Keep INVOKE_ID_* in sync with MediaPlayer.java.
@@ -169,7 +172,7 @@ enum media_player_invoke_ids {
     INVOKE_ID_ADD_EXTERNAL_SOURCE_FD = 3,
     INVOKE_ID_SELECT_TRACK = 4,
     INVOKE_ID_UNSELECT_TRACK = 5,
-    INVOKE_ID_SET_VIDEO_SCALING_MODE = 6,
+    INVOKE_ID_SET_VIDEO_SCALING_MODE = 6
 };
 
 // Keep MEDIA_TRACK_TYPE_* in sync with MediaPlayer.java.
@@ -259,6 +262,7 @@ private:
             status_t        attachNewPlayer(const sp<IMediaPlayer>& player);
             status_t        reset_l();
             status_t        doSetRetransmitEndpoint(const sp<IMediaPlayer>& player);
+            status_t        checkStateForKeySet_l(int key);
 
     sp<IMediaPlayer>            mPlayer;
     thread_id_t                 mLockThreadId;
