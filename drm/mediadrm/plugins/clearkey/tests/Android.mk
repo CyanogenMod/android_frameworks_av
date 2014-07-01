@@ -18,17 +18,35 @@
 #
 LOCAL_PATH := $(call my-dir)
 
-test_name := JsonWebKeyUnittest
-test_src_dir := .
-include $(LOCAL_PATH)/unit-test.mk
+include $(CLEAR_VARS)
+LOCAL_MODULE := ClearKeyDrmUnitTest
+LOCAL_MODULE_TAGS := tests
 
-test_name := AesCtrDecryptorUnittest
-test_src_dir := .
-include $(LOCAL_PATH)/unit-test.mk
+LOCAL_SRC_FILES := \
+    AesCtrDecryptorUnittest.cpp \
+    InitDataParserUnittest.cpp \
+    JsonWebKeyUnittest.cpp \
 
-test_name := InitDataParserUnittest
-test_src_dir := .
-include $(LOCAL_PATH)/unit-test.mk
+LOCAL_C_INCLUDES := \
+    bionic \
+    external/gtest/include \
+    external/jsmn \
+    external/openssl/include \
+    external/stlport/stlport \
+    frameworks/av/drm/mediadrm/plugins/clearkey \
+    frameworks/av/include \
+    frameworks/native/include \
 
-test_name :=
-test_src_dir :=
+LOCAL_STATIC_LIBRARIES := \
+    libgtest \
+    libgtest_main \
+
+LOCAL_SHARED_LIBRARIES := \
+    libcrypto \
+    libdrmclearkeyplugin \
+    liblog \
+    libstagefright_foundation \
+    libstlport \
+    libutils \
+
+include $(BUILD_NATIVE_TEST)
