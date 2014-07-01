@@ -31,7 +31,9 @@
 #include <media/ToneGenerator.h>
 #include <media/AudioEffect.h>
 #include <hardware_legacy/AudioPolicyInterface.h>
+#include "AudioPolicyEffects.h"
 #include "AudioPolicyManager.h"
+
 
 namespace android {
 
@@ -337,60 +339,6 @@ private:
         wp<AudioPolicyService> mService;
     };
 
-    class EffectDesc {
-    public:
-        EffectDesc(const char *name, const effect_uuid_t& uuid) :
-                        mName(strdup(name)),
-                        mUuid(uuid) { }
-        EffectDesc(const EffectDesc& orig) :
-                        mName(strdup(orig.mName)),
-                        mUuid(orig.mUuid) {
-                            // deep copy mParams
-                            for (size_t k = 0; k < orig.mParams.size(); k++) {
-                                effect_param_t *origParam = orig.mParams[k];
-                                // psize and vsize are rounded up to an int boundary for allocation
-                                size_t origSize = sizeof(effect_param_t) +
-                                                  ((origParam->psize + 3) & ~3) +
-                                                  ((origParam->vsize + 3) & ~3);
-                                effect_param_t *dupParam = (effect_param_t *) malloc(origSize);
-                                memcpy(dupParam, origParam, origSize);
-                                // This works because the param buffer allocation is also done by
-                                // multiples of 4 bytes originally. In theory we should memcpy only
-                                // the actual param size, that is without rounding vsize.
-                                mParams.add(dupParam);
-                            }
-                        }
-        /*virtual*/ ~EffectDesc() {
-            free(mName);
-            for (size_t k = 0; k < mParams.size(); k++) {
-                free(mParams[k]);
-            }
-        }
-        char *mName;
-        effect_uuid_t mUuid;
-        Vector <effect_param_t *> mParams;
-    };
-
-    class InputSourceDesc {
-    public:
-        InputSourceDesc() {}
-        /*virtual*/ ~InputSourceDesc() {
-            for (size_t j = 0; j < mEffects.size(); j++) {
-                delete mEffects[j];
-            }
-        }
-        Vector <EffectDesc *> mEffects;
-    };
-
-
-    class InputDesc {
-    public:
-        InputDesc(int session) : mSessionId(session) {}
-        /*virtual*/ ~InputDesc() {}
-        const int mSessionId;
-        Vector< sp<AudioEffect> >mEffects;
-    };
-
     class AudioPolicyClient : public AudioPolicyClientInterface
     {
      public:
@@ -514,26 +462,6 @@ private:
         const sp<IAudioPolicyServiceClient> mAudioPolicyServiceClient;
     };
 
-    static const char * const kInputSourceNames[AUDIO_SOURCE_CNT -1];
-
-    void setPreProcessorEnabled(const InputDesc *inputDesc, bool enabled);
-    status_t loadPreProcessorConfig(const char *path);
-    status_t loadEffects(cnode *root, Vector <EffectDesc *>& effects);
-    EffectDesc *loadEffect(cnode *root);
-    status_t loadInputSources(cnode *root, const Vector <EffectDesc *>& effects);
-    audio_source_t inputSourceNameToEnum(const char *name);
-    InputSourceDesc *loadInputSource(cnode *root, const Vector <EffectDesc *>& effects);
-    void loadEffectParameters(cnode *root, Vector <effect_param_t *>& params);
-    effect_param_t *loadEffectParameter(cnode *root);
-    size_t readParamValue(cnode *node,
-                          char *param,
-                          size_t *curSize,
-                          size_t *totSize);
-    size_t growParamSize(char *param,
-                         size_t size,
-                         size_t *curSize,
-                         size_t *totSize);
-
     // Internal dump utilities.
     status_t dumpPermissionDenial(int fd);
 
@@ -548,10 +476,10 @@ private:
     AudioPolicyInterface *mAudioPolicyManager;
     AudioPolicyClient *mAudioPolicyClient;
 
-    KeyedVector< audio_source_t, InputSourceDesc* > mInputSources;
-    KeyedVector< audio_io_handle_t, InputDesc* > mInputs;
-
     DefaultKeyedVector< uid_t, sp<NotificationClient> >    mNotificationClients;
+
+    // Manage all effects configured in audio_effects.conf
+    sp<AudioPolicyEffects> mAudioPolicyEffects;
 };
 
 }; // namespace android

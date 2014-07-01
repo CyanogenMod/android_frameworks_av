@@ -3,7 +3,8 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-    AudioPolicyService.cpp
+    AudioPolicyService.cpp \
+    AudioPolicyEffects.cpp
 
 ifeq ($(USE_LEGACY_AUDIO_POLICY), 1)
 LOCAL_SRC_FILES += \
