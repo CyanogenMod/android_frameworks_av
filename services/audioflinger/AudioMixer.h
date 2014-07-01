@@ -221,6 +221,7 @@ private:
 
         // 16-byte boundary
 
+        bool        needsRamp() { return (volumeInc[0] | volumeInc[1] | auxInc) != 0; }
         bool        setResampler(uint32_t sampleRate, uint32_t devSampleRate);
         bool        doesResample() const { return resampler != NULL; }
         void        resetResampler() { if (resampler != NULL) resampler->reset(); }
@@ -229,12 +230,14 @@ private:
                                                     resampler->getUnreleasedFrames() : 0; };
     };
 
+    typedef void (*process_hook_t)(state_t* state, int64_t pts);
+
     // pad to 32-bytes to fill cache line
     struct state_t {
         uint32_t        enabledTracks;
         uint32_t        needsChanged;
         size_t          frameCount;
-        void            (*hook)(state_t* state, int64_t pts);   // one of process__*, never NULL
+        process_hook_t  hook;   // one of process__*, never NULL
         int32_t         *outputTemp;
         int32_t         *resampleTemp;
         NBLog::Writer*  mLog;
@@ -345,6 +348,38 @@ private:
     static uint64_t         sLocalTimeFreq;
     static pthread_once_t   sOnceControl;
     static void             sInitRoutine();
+
+    // multi-format process hooks
+    template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>
+    static void process_NoResampleOneTrack(state_t* state, int64_t pts);
+
+    // multi-format track hooks
+    template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>
+    static void track__Resample(track_t* t, TO* out, size_t frameCount,
+            TO* temp __unused, TA* aux);
+    template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>
+    static void track__NoResample(track_t* t, TO* out, size_t frameCount,
+            TO* temp __unused, TA* aux);
+
+    static void convertMixerFormat(void *out, audio_format_t mixerOutFormat,
+            void *in, audio_format_t mixerInFormat, size_t sampleCount);
+
+    // hook types
+    enum {
+        PROCESSTYPE_NORESAMPLEONETRACK,
+    };
+    enum {
+        TRACKTYPE_NOP,
+        TRACKTYPE_RESAMPLE,
+        TRACKTYPE_NORESAMPLE,
+        TRACKTYPE_NORESAMPLEMONO,
+    };
+
+    // functions for determining the proper process and track hooks.
+    static process_hook_t getProcessHook(int processType, int channels,
+            audio_format_t mixerInFormat, audio_format_t mixerOutFormat);
+    static hook_t getTrackHook(int trackType, int channels,
+            audio_format_t mixerInFormat, audio_format_t mixerOutFormat);
 };
 
 // ----------------------------------------------------------------------------
