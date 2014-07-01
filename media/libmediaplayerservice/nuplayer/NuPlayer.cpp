@@ -160,7 +160,8 @@ NuPlayer::NuPlayer()
       mNumFramesTotal(0ll),
       mNumFramesDropped(0ll),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
-      mStarted(false) {
+      mStarted(false),
+      mSeeking(false) {
 }
 
 NuPlayer::~NuPlayer() {
@@ -760,7 +761,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if (mDriver != NULL) {
                     sp<NuPlayerDriver> driver = mDriver.promote();
                     if (driver != NULL) {
-                        driver->notifyPosition(positionUs);
+                        // Notify position while seeking will cause the process bar displayed incorrectly.
+                        if (!mSeeking) {
+                            driver->notifyPosition(positionUs);
+                        }
 
                         driver->notifyFrameStats(
                                 mNumFramesTotal, mNumFramesDropped);
@@ -838,6 +842,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSeekDone:
+        {
+            mSeeking = false;
+            break;
+        }
+
         default:
             TRESPASS();
             break;
@@ -884,6 +894,10 @@ void NuPlayer::postScanSources() {
     msg->post();
 
     mScanSourcesPending = true;
+}
+
+int32_t NuPlayer::getServerTimeoutMs() {
+    return mSource->getServerTimeoutMs();
 }
 
 status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
@@ -990,7 +1004,14 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                                     &NuPlayer::performScanSources));
                     }
 
-                    flushDecoder(audio, formatChange);
+                    sp<AMessage> newFormat = mSource->getFormat(audio);
+                    sp<Decoder> &decoder = audio ? mAudioDecoder : mVideoDecoder;
+                    if (formatChange && !decoder->supportsSeamlessFormatChange(newFormat)) {
+                        flushDecoder(audio, /* needShutdown = */ true);
+                    } else {
+                        flushDecoder(audio, /* needShutdown = */ false);
+                        err = OK;
+                    }
                 } else {
                     // This stream is unaffected by the discontinuity
 
@@ -1046,6 +1067,12 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
 
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
+
+    // While seeking, the obsolete frames shouldn't be rendered
+    if (mSeeking) {
+        reply->post();
+        return;
+    }
 
     if (IsFlushingState(audio ? mFlushingAudio : mFlushingVideo)) {
         // We're currently attempting to flush the decoder, in order
@@ -1160,6 +1187,10 @@ sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
     return NULL;
 }
 
+int32_t NuPlayer::Source::getServerTimeoutMs() {
+    return 0;
+}
+
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {
     mVideoScalingMode = mode;
     if (mNativeWindow != NULL) {
@@ -1243,6 +1274,9 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
     ALOGV("performSeek seekTimeUs=%lld us (%.2f secs)",
           seekTimeUs,
           seekTimeUs / 1E6);
+    if (mSource->setCbfForSeekDone(new AMessage(kWhatSeekDone, id()))) {
+        mSeeking = true;
+    }
 
     mSource->seekTo(seekTimeUs);
 
@@ -1331,6 +1365,7 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mSeeking = false;
 }
 
 void NuPlayer::performScanSources() {

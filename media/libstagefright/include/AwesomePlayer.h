@@ -31,9 +31,12 @@
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
 
+#include "ExtendedUtils.h"
+
 namespace android {
 
 struct AudioPlayer;
+struct ClockEstimator;
 struct DataSource;
 struct MediaBuffer;
 struct MediaExtractor;
@@ -104,7 +107,6 @@ struct AwesomePlayer {
     void postAudioEOS(int64_t delayUs = 0ll);
     void postAudioSeekComplete();
     void postAudioTearDown();
-    void printFileName(int fd);
     status_t dump(int fd, const Vector<String16> &args) const;
 
     status_t suspend();
@@ -145,6 +147,8 @@ private:
         TEXTPLAYER_INITIALIZED  = 0x20000,
 
         SLOW_DECODER_HACK   = 0x40000,
+
+        NO_AVSYNC   = 0x80000,
     };
 
     mutable Mutex mLock;
@@ -247,6 +251,7 @@ private:
 
     MediaBuffer *mVideoBuffer;
 
+    sp<ClockEstimator> mClockEstimator;
     sp<HTTPBase> mConnectingDataSource;
     sp<NuCachedSource2> mCachedSource;
 
@@ -306,6 +311,7 @@ private:
 
     bool getBitrate(int64_t *bitrate);
 
+    int64_t estimateRealTimeUs(TimeSource *ts, int64_t systemTimeUs);
     void finishSeekIfNecessary(int64_t videoTimeUs);
     void ensureCacheIsFetching_l();
 
@@ -407,6 +413,9 @@ private:
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
     bool mReadRetry;
+    bool mCustomAVSync;
+
+    sp<VSyncLocker> mVSyncLocker;
 };
 
 }  // namespace android

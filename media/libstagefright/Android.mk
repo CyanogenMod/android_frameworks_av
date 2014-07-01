@@ -33,6 +33,7 @@ LOCAL_SRC_FILES:=                         \
         AwesomePlayer.cpp                 \
         CameraSource.cpp                  \
         CameraSourceTimeLapse.cpp         \
+        ClockEstimator.cpp                \
         DataSource.cpp                    \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
@@ -117,6 +118,7 @@ ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
         ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
             LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
         endif
+        LOCAL_SHARED_LIBRARIES += libstagefright_mp3dec
     endif
 endif
 
@@ -157,7 +159,6 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
-        libstagefright_mp3dec \
         libstagefright_aacenc \
         libstagefright_matroska \
         libstagefright_timedtext \
@@ -173,7 +174,7 @@ LOCAL_SRC_FILES += ExtendedCodec.cpp ExtendedExtractor.cpp ExtendedUtils.cpp
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
-    LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedWriter.cpp
+    LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp ExtendedPrefetchSource.cpp ExtendedWriter.cpp
     LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
     LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
@@ -184,6 +185,7 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
         LOCAL_C_INCLUDES += \
             $(TOP)/hardware/qcom/media/mm-core/inc
     endif
+
 endif #TARGET_ENABLE_AV_ENHANCEMENTS
 
 LOCAL_SRC_FILES += \

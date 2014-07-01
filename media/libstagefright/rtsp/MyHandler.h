@@ -55,6 +55,8 @@ static int64_t kDefaultKeepAliveTimeoutUs = 60000000ll;
 
 static int64_t kPauseDelayUs = 3000000ll;
 
+static int64_t kTearDownTimeoutUs = 3000000ll;
+
 namespace android {
 
 static bool GetAttribute(const char *s, const char *key, AString *value) {
@@ -897,6 +899,15 @@ struct MyHandler : public AHandler {
                 request.append("\r\n");
 
                 mConn->sendRequest(request.c_str(), reply);
+
+                // If the response of teardown hasn't been received in 3 seconds,
+                // post 'tear' message to avoid ANR.
+                if (!msg->findInt32("reconnect", &reconnect) || !reconnect) {
+                    sp<AMessage> teardown = new AMessage('tear', id());
+                    teardown->setInt32("result", -ECONNABORTED);
+                    teardown->post(kTearDownTimeoutUs);
+                }
+
                 break;
             }
 
@@ -1188,6 +1199,14 @@ struct MyHandler : public AHandler {
                 request.append("\r\n");
 
                 mConn->sendRequest(request.c_str(), reply);
+
+                // After seek, the previous packets are obsolete
+                for (int i = 0; i < mTracks.size(); i++) {
+                    TrackInfo *track = &mTracks.editItemAt(i);
+                    if (!track->mPackets.empty()) {
+                        track->mPackets.clear();
+                    }
+                }
                 break;
             }
 
@@ -1354,6 +1373,10 @@ struct MyHandler : public AHandler {
                 TRESPASS();
                 break;
         }
+    }
+
+    int32_t getServerTimeoutMs() {
+        return mKeepAliveTimeoutUs / 1000;
     }
 
     void postKeepAlive() {

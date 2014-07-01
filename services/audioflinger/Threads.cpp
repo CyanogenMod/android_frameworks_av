@@ -1404,8 +1404,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId, uid);
         }
+
         if (track == 0 || track->getCblk() == NULL || track->name() < 0) {
             lStatus = NO_MEMORY;
+            // track must be cleared from the caller as the caller has the AF lock
             goto Exit;
         }
 
@@ -2003,7 +2005,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
     // otherwise use the HAL / AudioStreamOut directly
     } else {
         // Direct output and offload threads
-        size_t offset = (mCurrentWriteLength - mBytesRemaining) / sizeof(int16_t);
+        size_t offset = (mCurrentWriteLength - mBytesRemaining);
         if (mUseAsyncWrite) {
             ALOGW_IF(mWriteAckSequence & 1, "threadLoop_write(): out of sequence write request");
             mWriteAckSequence += 2;
@@ -2014,7 +2016,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         // FIXME We should have an implementation of timestamps for direct output threads.
         // They are used e.g for multichannel PCM playback over HDMI.
         bytesWritten = mOutput->stream->write(mOutput->stream,
-                                                   mMixBuffer + offset, mBytesRemaining);
+                                                   (char *)mMixBuffer + offset, mBytesRemaining);
         if (mUseAsyncWrite &&
                 ((bytesWritten < 0) || (bytesWritten == (ssize_t)mBytesRemaining))) {
             // do not wait for async callback in case of error of full write
@@ -3824,8 +3826,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 size_t framesWritten = mBytesWritten / mFrameSize;
                 if (mStandby || !last ||
-                        track->presentationComplete(framesWritten, audioHALFrames) ||
-                        track->isTerminated()) {
+#ifdef QCOM_DIRECTTRACK
+                        track->isTerminated() ||
+#endif
+                        track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
                     }
@@ -4048,8 +4052,8 @@ bool AudioFlinger::AsyncCallbackThread::threadLoop()
         {
             Mutex::Autolock _l(mLock);
             while (!((mWriteAckSequence & 1) ||
-                            (mDrainSequence & 1) ||
-                            exitPending())) {
+                     (mDrainSequence & 1) ||
+                     exitPending())) {
                 mWaitWorkCV.wait(mLock);
             }
 

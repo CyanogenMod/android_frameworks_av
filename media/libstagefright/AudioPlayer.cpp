@@ -53,6 +53,7 @@ AudioPlayer::AudioPlayer(
       mNumFramesPlayedSysTimeUs(ALooper::GetNowUs()),
       mPositionTimeMediaUs(-1),
       mPositionTimeRealUs(-1),
+      mDurationUs(-1),
       mSeeking(false),
       mReachedEOS(false),
       mFinalStatus(OK),
@@ -96,6 +97,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             return err;
         }
     }
+    ALOGD("start of Playback, useOffload %d",useOffload());
 
     // We allow an optional INFO_FORMAT_CHANGED at the very beginning
     // of playback, if there is one, getFormat below will retrieve the
@@ -133,15 +135,20 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     success = format->findInt32(kKeySampleRate, &mSampleRate);
     CHECK(success);
 
-    int32_t numChannels, channelMask;
+    int32_t numChannels, channelMask = 0;
     success = format->findInt32(kKeyChannelCount, &numChannels);
     CHECK(success);
+
+    format->findInt64(kKeyDuration, &mDurationUs);
 
     if(!format->findInt32(kKeyChannelMask, &channelMask)) {
         // log only when there's a risk of ambiguity of channel mask selection
         ALOGI_IF(numChannels > 2,
                 "source format didn't specify channel mask, using (%d) channel order", numChannels);
         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
+    } else if (channelMask == 0) {
+        channelMask = audio_channel_out_mask_from_count(numChannels);
+        ALOGV("channel mask is zero,update from channel count %d", channelMask);
     }
 
     audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
@@ -308,11 +315,13 @@ void AudioPlayer::pause(bool playPendingSamples) {
             mSourcePaused = true;
         }
     }
+    ALOGD("Pause Playback at %lld",getMediaTimeUs());
 }
 
 status_t AudioPlayer::resume() {
     CHECK(mStarted);
     CHECK(mSource != NULL);
+    ALOGD("Resume Playback at %lld",getMediaTimeUs());
     if (mSourcePaused == true) {
         mSourcePaused = false;
         mSource->start();
@@ -335,7 +344,7 @@ status_t AudioPlayer::resume() {
 void AudioPlayer::reset() {
     CHECK(mStarted);
 
-    ALOGV("reset: mPlaying=%d mReachedEOS=%d useOffload=%d",
+    ALOGD("reset: mPlaying=%d mReachedEOS=%d useOffload=%d",
                                 mPlaying, mReachedEOS, useOffload() );
 
     if (mAudioSink.get() != NULL) {
@@ -615,7 +624,10 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                         // stopping one is observed.The drawback is that
                         // there will be an unnecessary call to the parser
                         // after parser signalled EOS.
-                        if (size_done > 0) {
+
+                        int64_t playPosition = 0;
+                        playPosition = getOutputPlayPositionUs_l();
+                        if ((size_done > 0) && (playPosition < mDurationUs)) {
                              ALOGW("send Partial buffer down\n");
                              ALOGW("skip calling stop till next fillBuffer\n");
                              break;
@@ -904,6 +916,23 @@ status_t AudioPlayer::seekTo(int64_t time_us) {
 
     ALOGV("seekTo( %lld )", time_us);
 
+    if(useOffload())
+    {
+        int64_t playPosition = 0;
+        playPosition = getOutputPlayPositionUs_l();
+
+        /*Ignore the seek if seek time is same as player position.
+        Time comparisons are done in msec because when seek time
+        is past EOF, media player reset it to the clip duration
+        which is in Msec converted from Usec */
+        if((time_us/1000) == (playPosition/1000))
+        {
+            ALOGE("Ignore seek and post seek complete");
+            if(mObserver)
+                mObserver->postAudioSeekComplete();
+            return OK;
+        }
+    }
     mSeeking = true;
     mPositionTimeRealUs = mPositionTimeMediaUs = -1;
     mReachedEOS = false;

@@ -18,9 +18,11 @@ LOCAL_C_INCLUDES:= \
 LOCAL_CFLAGS += -Wno-multichar
 
 LOCAL_SHARED_LIBRARIES += \
+        libbinder \
         libstlport \
         libchromium_net \
         libutils \
+        libbinder \
         libcutils \
         liblog \
         libstagefright_foundation \

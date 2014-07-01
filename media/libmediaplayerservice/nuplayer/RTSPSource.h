@@ -53,7 +53,11 @@ struct NuPlayer::RTSPSource : public NuPlayer::Source {
     virtual status_t getDuration(int64_t *durationUs);
     virtual status_t seekTo(int64_t seekTimeUs);
 
+    virtual int32_t getServerTimeoutMs();
+
     void onMessageReceived(const sp<AMessage> &msg);
+
+    virtual bool setCbfForSeekDone(const sp<AMessage> &notify);
 
 protected:
     virtual ~RTSPSource();
@@ -114,6 +118,8 @@ private:
 
     int64_t mEOSTimeoutAudio;
     int64_t mEOSTimeoutVideo;
+
+    sp<AMessage> mSeekDoneNotify;
 
     sp<AnotherPacketSource> getSource(bool audio);
 

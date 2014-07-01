@@ -345,6 +345,11 @@ status_t ExtendedCodec::setAudioFormat(
         setQCELPFormat(numChannels, sampleRate, OMXhandle, nodeID, isEncoder);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_WMA, mime))  {
         err = setWMAFormat(msg, OMXhandle, nodeID, isEncoder);
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, mime)) {
+        int32_t numChannels, sampleRate;
+        CHECK(msg->findInt32("channel-count", &numChannels));
+        CHECK(msg->findInt32("sample-rate", &sampleRate));
+        err = setAMRWBPLUSFormat(numChannels, sampleRate, OMXhandle, nodeID);
     }
     return err;
 }
@@ -469,14 +474,14 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
         int portIndex,
         int* channelCount) {
     status_t retVal = OK;
-    if (!strcmp(mime->c_str(),MEDIA_MIMETYPE_AUDIO_QCELP)) {
+    if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_QCELP, strlen(MEDIA_MIMETYPE_AUDIO_QCELP))) {
         OMX_AUDIO_PARAM_QCELP13TYPE params;
         InitOMXParams(&params);
         params.nPortIndex = portIndex;
         CHECK_EQ(OMXhandle->getParameter(
                    nodeID, OMX_IndexParamAudioQcelp13, &params, sizeof(params)), (status_t)OK);
         *channelCount = params.nChannels;
-    } else if(!strcmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_EVRC)) {
+    } else if(!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_EVRC, strlen(MEDIA_MIMETYPE_AUDIO_EVRC))) {
         OMX_AUDIO_PARAM_EVRCTYPE params;
         InitOMXParams(&params);
         params.nPortIndex = portIndex;
@@ -546,6 +551,9 @@ void ExtendedCodec::configureVideoDecoder(
         return;
     }
 
+    // set frame packing
+    configureFramePackingFormat(msg, OMXhandle, nodeID, componentName);
+
     setDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
     AString fileFormat;
     const char *fileFormatCStr = NULL;
@@ -609,6 +617,11 @@ void ExtendedCodec::configureVideoDecoder(
 
 bool ExtendedCodec::checkDPFromCodecSpecificData(const uint8_t *data, size_t size) {
     bool retVal = false;
+
+    if (ExtendedUtils::ShellProp::isMpeg4DPSupportedByHardware()) {
+        return retVal;
+    }
+
     size_t offset = 0, startCodeOffset = 0;
     bool isStartCode = false;
     int VOL_START_CODE = 0x20;
@@ -1129,12 +1142,71 @@ void ExtendedCodec::setAC3Format(
     CHECK_EQ(err, (status_t)OK);
 }
 
+status_t ExtendedCodec::setAMRWBPLUSFormat(
+        int32_t numChannels, int32_t sampleRate, sp<IOMX> OMXhandle,
+        IOMX::node_id nodeID) {
+
+    QOMX_AUDIO_PARAM_AMRWBPLUSTYPE profileAMRWBPlus;
+    OMX_INDEXTYPE indexTypeAMRWBPlus;
+    OMX_PARAM_PORTDEFINITIONTYPE portParam;
+
+    ALOGV("AMRWB+ setformat sampleRate:%d numChannels:%d",sampleRate,numChannels);
+
+    //configure input port
+    InitOMXParams(&portParam);
+    portParam.nPortIndex = kPortIndexInput;
+    status_t err = OMXhandle->getParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+    err = OMXhandle->setParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+
+    //configure output port
+    portParam.nPortIndex = kPortIndexOutput;
+    err = OMXhandle->getParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+    err = OMXhandle->setParameter(
+       nodeID, OMX_IndexParamPortDefinition, &portParam, sizeof(portParam));
+    CHECK_EQ(err, (status_t)OK);
+
+    err = OMXhandle->getExtensionIndex(nodeID, OMX_QCOM_INDEX_PARAM_AMRWBPLUS, &indexTypeAMRWBPlus);
+
+    //for input port
+    InitOMXParams(&profileAMRWBPlus);
+    profileAMRWBPlus.nPortIndex = kPortIndexInput;
+    err = OMXhandle->getParameter(nodeID, indexTypeAMRWBPlus, &profileAMRWBPlus, sizeof(profileAMRWBPlus));
+    CHECK_EQ(err,(status_t)OK);
+
+    profileAMRWBPlus.nSampleRate = sampleRate;
+    profileAMRWBPlus.nChannels = numChannels;
+    err = OMXhandle->setParameter(nodeID, indexTypeAMRWBPlus, &profileAMRWBPlus, sizeof(profileAMRWBPlus));
+    CHECK_EQ(err,(status_t)OK);
+
+    //for output port
+    OMX_AUDIO_PARAM_PCMMODETYPE profilePcm;
+    InitOMXParams(&profilePcm);
+    profilePcm.nPortIndex = kPortIndexOutput;
+    err = OMXhandle->getParameter(
+            nodeID, OMX_IndexParamAudioPcm, &profilePcm, sizeof(profilePcm));
+    CHECK_EQ(err, (status_t)OK);
+
+    profilePcm.nSamplingRate = sampleRate;
+    profilePcm.nChannels = numChannels;
+    err = OMXhandle->setParameter(
+            nodeID, OMX_IndexParamAudioPcm, &profilePcm, sizeof(profilePcm));
+    CHECK_EQ(err, (status_t)OK);
+
+    return err;
+}
+
 bool ExtendedCodec::useHWAACDecoder(const char *mime) {
     char value[PROPERTY_VALUE_MAX] = {0};
     int aaccodectype = 0;
     aaccodectype = property_get("media.aaccodectype", value, NULL);
-    if (aaccodectype && !strncmp("0", value, 1) &&
-        !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC,sizeof(MEDIA_MIMETYPE_AUDIO_AAC))) {
+    if (aaccodectype && !strncmp("1", value, 1) &&
+        !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
         ALOGI("Using Hardware AAC Decoder");
         return true;
     }
@@ -1276,6 +1348,12 @@ namespace android {
     void ExtendedCodec::setAC3Format(
             int32_t numChannels, int32_t sampleRate,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID) {
+    }
+
+    status_t ExtendedCodec::setAMRWBPLUSFormat(
+            int32_t numChannels, int32_t sampleRate,
+            sp<IOMX> OMXhandle, IOMX::node_id nodeID) {
+        return OK;
     }
 
     void ExtendedCodec::configureFramePackingFormat(

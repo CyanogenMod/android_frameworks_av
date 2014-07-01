@@ -626,7 +626,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     info.sample_rate = srate;
 
     int32_t cmask = 0;
-    if (!meta->findInt32(kKeyChannelMask, &cmask)) {
+    if (!meta->findInt32(kKeyChannelMask, &cmask) || (cmask == 0)) {
         ALOGV("track of type '%s' does not publish channel mask", mime);
 
         // Try a channel count instead
@@ -659,6 +659,26 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     // Check if offload is possible for given format, stream type, sample rate,
     // bit rate, duration, video and streaming
     return AudioSystem::isOffloadSupported(info);
+}
+
+void printFileName(int fd)
+{
+    if (fd) {
+        char symName[40] = {0};
+        char fileName[256] = {0};
+        snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
+
+        if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
+            ALOGD("printFileName fd(%d) -> %s", fd, fileName);
+        }
+    }
+}
+
+void printFileName(const char *uri)
+{
+    if (uri) {
+        ALOGD("printFileName %s",uri);
+    }
 }
 
 }  // namespace android
