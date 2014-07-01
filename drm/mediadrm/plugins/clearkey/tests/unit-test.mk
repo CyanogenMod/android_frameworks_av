@@ -49,4 +49,4 @@ LOCAL_SHARED_LIBRARIES := \
     libstlport \
     libutils \
 
-include $(BUILD_EXECUTABLE)
+include $(BUILD_NATIVE_TEST)
