@@ -232,6 +232,9 @@ status_t NuPlayerDriver::start() {
 
         case STATE_PAUSED:
         {
+            if (mAtEOS) {
+                mPlayer->seekToAsync(0);
+            }
             mPlayer->resume();
             break;
         }
@@ -283,6 +286,14 @@ status_t NuPlayerDriver::seekTo(int msec) {
     switch (mState) {
         case STATE_PREPARED:
         {
+            int curpos = 0;
+            if (mPositionUs > 0) {
+                curpos = (mPositionUs + 500ll) / 1000;
+            }
+            if (curpos == msec) {
+                // nothing to do, and doing something anyway could result in deadlock (b/15323063)
+                break;
+            }
             mStartupSeekTimeUs = seekTimeUs;
             // pretend that the seek completed. It will actually happen when starting playback.
             // TODO: actually perform the seek here, so the player is ready to go at the new
@@ -525,6 +536,9 @@ void NuPlayerDriver::notifyListener(
         int msg, int ext1, int ext2, const Parcel *in) {
     if (msg == MEDIA_PLAYBACK_COMPLETE || msg == MEDIA_ERROR) {
         mAtEOS = true;
+        if (msg == MEDIA_PLAYBACK_COMPLETE) {
+            mState = STATE_PAUSED;
+        }
     }
 
     sendEvent(msg, ext1, ext2, in);
