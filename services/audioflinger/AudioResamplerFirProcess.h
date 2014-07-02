@@ -44,14 +44,14 @@ static inline
 void mac(float& l, float& r, TC coef,  const float* samples)
 {
     l += *samples++ * coef;
-    r += *samples++ * coef;
+    r += *samples * coef;
 }
 
 template<typename TC>
 static inline
 void mac(float& l, TC coef,  const float* samples)
 {
-    l += *samples++ * coef;
+    l += *samples * coef;
 }
 
 /* variant for output type TO = int32_t output samples */
@@ -69,62 +69,48 @@ float volumeAdjust(float value, float volume)
 }
 
 /*
- * Calculates a single output frame (two samples).
+ * Helper template functions for loop unrolling accumulator operations.
  *
- * This function computes both the positive half FIR dot product and
- * the negative half FIR dot product, accumulates, and then applies the volume.
- *
- * This is a locked phase filter (it does not compute the interpolation).
- *
- * Use fir() to compute the proper coefficient pointers for a polyphase
- * filter bank.
+ * Unrolling the loops achieves about 2x gain.
+ * Using a recursive template rather than an array of TO[] for the accumulator
+ * values is an additional 10-20% gain.
  */
 
-template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO>
-static inline
-void ProcessL(TO* const out,
-        int count,
-        const TC* coefsP,
-        const TC* coefsN,
-        const TI* sP,
-        const TI* sN,
-        const TO* const volumeLR)
+template<int CHANNELS, typename TO>
+class Accumulator : public Accumulator<CHANNELS-1, TO> // recursive
 {
-    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS >= 1 && CHANNELS <= 2)
-    if (CHANNELS == 2) {
-        TO l = 0;
-        TO r = 0;
-        do {
-            mac(l, r, *coefsP++, sP);
-            sP -= CHANNELS;
-            mac(l, r, *coefsN++, sN);
-            sN += CHANNELS;
-        } while (--count > 0);
-        out[0] += volumeAdjust(l, volumeLR[0]);
-        out[1] += volumeAdjust(r, volumeLR[1]);
-    } else { /* CHANNELS == 1 */
-        TO l = 0;
-        do {
-            mac(l, *coefsP++, sP);
-            sP -= CHANNELS;
-            mac(l, *coefsN++, sN);
-            sN += CHANNELS;
-        } while (--count > 0);
-        out[0] += volumeAdjust(l, volumeLR[0]);
-        out[1] += volumeAdjust(l, volumeLR[1]);
+public:
+    inline void clear() {
+        value = 0;
+        Accumulator<CHANNELS-1, TO>::clear();
     }
-}
+    template<typename TC, typename TI>
+    inline void acc(TC coef, const TI*& data) {
+        mac(value, coef, data++);
+        Accumulator<CHANNELS-1, TO>::acc(coef, data);
+    }
+    inline void volume(TO*& out, TO gain) {
+        *out++ = volumeAdjust(value, gain);
+        Accumulator<CHANNELS-1, TO>::volume(out, gain);
+    }
+
+    TO value; // one per recursive inherited base class
+};
+
+template<typename TO>
+class Accumulator<0, TO> {
+public:
+    inline void clear() {
+    }
+    template<typename TC, typename TI>
+    inline void acc(TC coef __unused, const TI*& data __unused) {
+    }
+    inline void volume(TO*& out __unused, TO gain __unused) {
+    }
+};
 
 /*
- * Calculates a single output frame (two samples) interpolating phase.
- *
- * This function computes both the positive half FIR dot product and
- * the negative half FIR dot product, accumulates, and then applies the volume.
- *
- * This is an interpolated phase filter.
- *
- * Use fir() to compute the proper coefficient pointers for a polyphase
- * filter bank.
+ * Helper template functions for interpolating filter coefficients.
  */
 
 template<typename TC, typename T>
@@ -159,6 +145,131 @@ int32_t interpolate(int32_t coef_0, int32_t coef_1, uint32_t lerp)
     return mulAdd(static_cast<int16_t>(lerp), (coef_1-coef_0)<<1, coef_0);
 }
 
+/* class scope for passing in functions into templates */
+struct InterpCompute {
+    template<typename TC, typename TINTERP>
+    static inline
+    TC interpolatep(TC coef_0, TC coef_1, TINTERP lerp) {
+        return interpolate(coef_0, coef_1, lerp);
+    }
+
+    template<typename TC, typename TINTERP>
+    static inline
+    TC interpolaten(TC coef_0, TC coef_1, TINTERP lerp) {
+        return interpolate(coef_0, coef_1, lerp);
+    }
+};
+
+struct InterpNull {
+    template<typename TC, typename TINTERP>
+    static inline
+    TC interpolatep(TC coef_0, TC coef_1 __unused, TINTERP lerp __unused) {
+        return coef_0;
+    }
+
+    template<typename TC, typename TINTERP>
+    static inline
+    TC interpolaten(TC coef_0 __unused, TC coef_1, TINTERP lerp __unused) {
+        return coef_1;
+    }
+};
+
+/*
+ * Calculates a single output frame (two samples).
+ *
+ * The Process*() functions compute both the positive half FIR dot product and
+ * the negative half FIR dot product, accumulates, and then applies the volume.
+ *
+ * Use fir() to compute the proper coefficient pointers for a polyphase
+ * filter bank.
+ *
+ * ProcessBase() is the fundamental processing template function.
+ *
+ * ProcessL() calls ProcessBase() with TFUNC = InterpNull, for fixed/locked phase.
+ * Process() calls ProcessBase() with TFUNC = InterpCompute, for interpolated phase.
+ */
+
+template <int CHANNELS, int STRIDE, typename TFUNC, typename TC, typename TI, typename TO, typename TINTERP>
+static inline
+void ProcessBase(TO* const out,
+        int count,
+        const TC* coefsP,
+        const TC* coefsN,
+        const TI* sP,
+        const TI* sN,
+        TINTERP lerpP,
+        const TO* const volumeLR)
+{
+    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS > 0)
+
+    if (CHANNELS > 2) {
+        // TO accum[CHANNELS];
+        Accumulator<CHANNELS, TO> accum;
+
+        // for (int j = 0; j < CHANNELS; ++j) accum[j] = 0;
+        accum.clear();
+        for (size_t i = 0; i < count; ++i) {
+            TC c = TFUNC::interpolatep(coefsP[0], coefsP[count], lerpP);
+
+            // for (int j = 0; j < CHANNELS; ++j) mac(accum[j], c, sP + j);
+            const TI *tmp_data = sP; // tmp_ptr seems to work better
+            accum.acc(c, tmp_data);
+
+            coefsP++;
+            sP -= CHANNELS;
+            c = TFUNC::interpolaten(coefsN[count], coefsN[0], lerpP);
+
+            // for (int j = 0; j < CHANNELS; ++j) mac(accum[j], c, sN + j);
+            tmp_data = sN; // tmp_ptr seems faster than directly using sN
+            accum.acc(c, tmp_data);
+
+            coefsN++;
+            sN += CHANNELS;
+        }
+        // for (int j = 0; j < CHANNELS; ++j) out[j] += volumeAdjust(accum[j], volumeLR[0]);
+        TO *tmp_out = out; // may remove if const out definition changes.
+        accum.volume(tmp_out, volumeLR[0]);
+    } else if (CHANNELS == 2) {
+        TO l = 0;
+        TO r = 0;
+        for (size_t i = 0; i < count; ++i) {
+            mac(l, r, TFUNC::interpolatep(coefsP[0], coefsP[count], lerpP), sP);
+            coefsP++;
+            sP -= CHANNELS;
+            mac(l, r, TFUNC::interpolaten(coefsN[count], coefsN[0], lerpP), sN);
+            coefsN++;
+            sN += CHANNELS;
+        }
+        out[0] += volumeAdjust(l, volumeLR[0]);
+        out[1] += volumeAdjust(r, volumeLR[1]);
+    } else { /* CHANNELS == 1 */
+        TO l = 0;
+        for (size_t i = 0; i < count; ++i) {
+            mac(l, TFUNC::interpolatep(coefsP[0], coefsP[count], lerpP), sP);
+            coefsP++;
+            sP -= CHANNELS;
+            mac(l, TFUNC::interpolaten(coefsN[count], coefsN[0], lerpP), sN);
+            coefsN++;
+            sN += CHANNELS;
+        }
+        out[0] += volumeAdjust(l, volumeLR[0]);
+        out[1] += volumeAdjust(l, volumeLR[1]);
+    }
+}
+
+template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO>
+static inline
+void ProcessL(TO* const out,
+        int count,
+        const TC* coefsP,
+        const TC* coefsN,
+        const TI* sP,
+        const TI* sN,
+        const TO* const volumeLR)
+{
+    ProcessBase<CHANNELS, STRIDE, InterpNull>(out, count, coefsP, coefsN, sP, sN, 0, volumeLR);
+}
+
 template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO, typename TINTERP>
 static inline
 void Process(TO* const out,
@@ -172,35 +283,8 @@ void Process(TO* const out,
         TINTERP lerpP,
         const TO* const volumeLR)
 {
-    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS >= 1 && CHANNELS <= 2)
-    adjustLerp<TC, TINTERP>(lerpP); // coefficient type adjustment for interpolation
-
-    if (CHANNELS == 2) {
-        TO l = 0;
-        TO r = 0;
-        for (size_t i = 0; i < count; ++i) {
-            mac(l, r, interpolate(coefsP[0], coefsP[count], lerpP), sP);
-            coefsP++;
-            sP -= CHANNELS;
-            mac(l, r, interpolate(coefsN[count], coefsN[0], lerpP), sN);
-            coefsN++;
-            sN += CHANNELS;
-        }
-        out[0] += volumeAdjust(l, volumeLR[0]);
-        out[1] += volumeAdjust(r, volumeLR[1]);
-    } else { /* CHANNELS == 1 */
-        TO l = 0;
-        for (size_t i = 0; i < count; ++i) {
-            mac(l, interpolate(coefsP[0], coefsP[count], lerpP), sP);
-            coefsP++;
-            sP -= CHANNELS;
-            mac(l, interpolate(coefsN[count], coefsN[0], lerpP), sN);
-            coefsN++;
-            sN += CHANNELS;
-        }
-        out[0] += volumeAdjust(l, volumeLR[0]);
-        out[1] += volumeAdjust(l, volumeLR[1]);
-    }
+    adjustLerp<TC, TINTERP>(lerpP); // coefficient type adjustment for interpolations
+    ProcessBase<CHANNELS, STRIDE, InterpCompute>(out, count, coefsP, coefsN, sP, sN, lerpP, volumeLR);
 }
 
 /*
