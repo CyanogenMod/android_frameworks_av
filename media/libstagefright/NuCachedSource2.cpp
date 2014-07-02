@@ -196,7 +196,8 @@ NuCachedSource2::NuCachedSource2(
       mKeepAliveIntervalUs(kDefaultKeepAliveIntervalUs),
       mDisconnectAtHighwatermark(disconnectAtHighwatermark),
       mIsNonBlockingMode(false),
-      mSuspended(false) {
+      mSuspended(false),
+      mCheckGeneration(0) {
     // We are NOT going to support disconnect-at-highwatermark indefinitely
     // and we are not guaranteeing support for client-specified cache
     // parameters. Both of these are temporary measures to solve a specific
@@ -428,14 +429,25 @@ void NuCachedSource2::onRead(const sp<AMessage> &msg) {
     int32_t isNonBlocking;
     CHECK(msg->findInt32("isnonblocking", &isNonBlocking));
 
+    int32_t generation;
+    CHECK(msg->findInt32("generation", &generation));
+
+    //define mLock earlier to cover the scope of checking
+    //generation ID and updating mAsyncResult.
+    //remove the mlock defined in readInternal function
+    Mutex::Autolock autoLock(mLock);
+
+    if ( generation != mCheckGeneration) {
+       ALOGE("It is an outdated message. Ignore.");
+       return;
+    }
+
     ssize_t result = readInternal(offset, data, size);
 
     if (result == -EAGAIN && !isNonBlocking) {
         msg->post(50000);
         return;
     }
-
-    Mutex::Autolock autoLock(mLock);
 
     CHECK(mAsyncResult == NULL);
 
@@ -506,11 +518,26 @@ ssize_t NuCachedSource2::readAtInternal(off64_t offset, void *data, size_t size,
     msg->setSize("size", size);
     msg->setInt32("isnonblocking", isNonBlocking);
 
+    mCheckGeneration++;
+    msg->setInt32("generation",mCheckGeneration);
+
     CHECK(mAsyncResult == NULL);
     msg->post();
 
     while (mAsyncResult == NULL) {
-        mCondition.wait(mLock);
+        if(!isNonBlocking)
+            mCondition.wait(mLock);
+        else {
+            status_t err = mCondition.waitRelative(mLock, kReadSourceTimeoutNs);
+            if (err == -ETIMEDOUT){
+                ALOGE("reading source timed out for %lld nanoseconds",kReadSourceTimeoutNs);
+                mCheckGeneration++; //update the current generation ID to ignore the outdate message
+                if (mAsyncResult == NULL){
+                    ALOGE("reatAt timed out and return -EAGAIN");
+                    return -EAGAIN;
+                }
+            }
+        }
     }
 
     int32_t result;
@@ -554,8 +581,6 @@ ssize_t NuCachedSource2::readInternal(off64_t offset, void *data, size_t size) {
     CHECK_LE(size, (size_t)mHighwaterThresholdBytes);
 
     ALOGV("readInternal offset %lld size %d", offset, size);
-
-    Mutex::Autolock autoLock(mLock);
 
     if (!mFetching) {
         mLastAccessPos = offset;
@@ -651,7 +676,12 @@ String8 NuCachedSource2::getMIMEType() const {
 
 void NuCachedSource2::updateCacheParamsFromSystemProperty() {
     char value[PROPERTY_VALUE_MAX];
-    if (!property_get("media.stagefright.cache-params", value, NULL)) {
+    // Use persistent property to save settings
+    if (property_get("persist.sys.media.cache-params", value, NULL)) {
+        ALOGV("Get cache params from property persist.sys.media.cache-params: [%s]", value);
+    } else if (property_get("media.stagefright.cache-params", value, NULL)) {
+        ALOGV("Get cache params from property media.stagefright.cache-params: [%s]", value);
+    } else {
         return;
     }
 

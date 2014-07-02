@@ -1199,6 +1199,14 @@ struct MyHandler : public AHandler {
                 request.append("\r\n");
 
                 mConn->sendRequest(request.c_str(), reply);
+
+                // After seek, the previous packets are obsolete
+                for (int i = 0; i < mTracks.size(); i++) {
+                    TrackInfo *track = &mTracks.editItemAt(i);
+                    if (!track->mPackets.empty()) {
+                        track->mPackets.clear();
+                    }
+                }
                 break;
             }
 
@@ -1365,6 +1373,10 @@ struct MyHandler : public AHandler {
                 TRESPASS();
                 break;
         }
+    }
+
+    int32_t getServerTimeoutMs() {
+        return mKeepAliveTimeoutUs / 1000;
     }
 
     void postKeepAlive() {

@@ -63,6 +63,8 @@ struct NuPlayer : public AHandler {
     status_t getTrackInfo(Parcel* reply) const;
     status_t selectTrack(size_t trackIndex, bool select);
 
+    int32_t getServerTimeoutMs();
+
 protected:
     virtual ~NuPlayer();
 
@@ -105,6 +107,7 @@ private:
         kWhatSourceNotify               = 'srcN',
         kWhatGetTrackInfo               = 'gTrI',
         kWhatSelectTrack                = 'selT',
+        kWhatSeekDone                   = 'seed',
     };
 
     wp<NuPlayerDriver> mDriver;
@@ -155,6 +158,7 @@ private:
     int32_t mVideoScalingMode;
 
     bool mStarted;
+    bool mSeeking;
 
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 

@@ -175,18 +175,19 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalGetParameter(
         {
             OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
                   (OMX_VIDEO_PARAM_PROFILELEVELTYPE *) params;
+            OMX_U32 profileIndex = profileLevel->nProfileIndex;
 
             if (profileLevel->nPortIndex != kInputPortIndex) {
                 ALOGE("Invalid port index: %ld", profileLevel->nPortIndex);
                 return OMX_ErrorUnsupportedIndex;
             }
 
-            if (index >= mNumProfileLevels) {
+            if (profileIndex >= mNumProfileLevels) {
                 return OMX_ErrorNoMore;
             }
 
-            profileLevel->eProfile = mProfileLevels[index].mProfile;
-            profileLevel->eLevel   = mProfileLevels[index].mLevel;
+            profileLevel->eProfile = mProfileLevels[profileIndex].mProfile;
+            profileLevel->eLevel   = mProfileLevels[profileIndex].mLevel;
             return OMX_ErrorNone;
         }
 

@@ -31,6 +31,8 @@
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
 
+#include "ExtendedUtils.h"
+
 namespace android {
 
 struct AudioPlayer;
@@ -105,7 +107,6 @@ struct AwesomePlayer {
     void postAudioEOS(int64_t delayUs = 0ll);
     void postAudioSeekComplete();
     void postAudioTearDown();
-    void printFileName(int fd);
     status_t dump(int fd, const Vector<String16> &args) const;
 
     status_t suspend();
@@ -146,6 +147,8 @@ private:
         TEXTPLAYER_INITIALIZED  = 0x20000,
 
         SLOW_DECODER_HACK   = 0x40000,
+
+        NO_AVSYNC   = 0x80000,
     };
 
     mutable Mutex mLock;
@@ -410,6 +413,9 @@ private:
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
     bool mReadRetry;
+    bool mCustomAVSync;
+
+    sp<VSyncLocker> mVSyncLocker;
 };
 
 }  // namespace android

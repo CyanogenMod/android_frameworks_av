@@ -235,7 +235,9 @@ AwesomePlayer::AwesomePlayer()
       mOffloadAudio(false),
       mAudioTearDown(false),
       mReadRetry(false),
-      mIsFirstFrameAfterResume(false) {
+      mIsFirstFrameAfterResume(false),
+      mCustomAVSync(false),
+      mVSyncLocker(NULL) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
 
     DataSource::RegisterDefaultSniffers();
@@ -270,6 +272,7 @@ AwesomePlayer::AwesomePlayer()
 
 #ifdef QCOM_HARDWARE
     mLateAVSyncMargin = ExtendedUtils::ShellProp::getMaxAVSyncLateMargin();
+    mCustomAVSync = ExtendedUtils::ShellProp::isCustomAVSyncEnabled();
 #else
     mLateAVSyncMargin = 40000;
 #endif
@@ -384,6 +387,9 @@ status_t AwesomePlayer::setDataSource_l(
     reset_l();
 
     mUri = uri;
+    if (uri) {
+        printFileName(uri);
+    }
 
 #ifdef ENABLE_AV_ENHANCEMENTS
     ExtendedUtils::prefetchSecurePool(uri);
@@ -418,31 +424,21 @@ status_t AwesomePlayer::setDataSource_l(
     return OK;
 }
 
-void AwesomePlayer::printFileName(int fd) {
-
-    char symName[40] = {0};
-    char fileName[256] = {0};
-
-    snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
-
-    if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
-        ALOGD("printFileName fd(%d) -> %s", fd, fileName);
-    }
-}
-
 status_t AwesomePlayer::setDataSource(
         int fd, int64_t offset, int64_t length) {
     Mutex::Autolock autoLock(mLock);
 
     ALOGD("Before reset_l");
     reset_l();
-
     if (fd) {
-        printFileName(fd);
-#ifdef ENABLE_AV_ENHANCEMENTS
-        ExtendedUtils::prefetchSecurePool(fd);
-#endif
+       printFileName(fd);
     }
+
+#ifdef ENABLE_AV_ENHANCEMENTS
+    if (fd) {
+        ExtendedUtils::prefetchSecurePool(fd);
+    }
+#endif
 
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
@@ -1262,7 +1258,7 @@ void AwesomePlayer::createAudioPlayer_l()
         }
     }
     if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) &&
-#ifdef USE_ENHANCED_AUDIO
+#ifdef USE_TUNNEL_MODE
        (tunnelObjectsAlive < TunnelPlayer::getTunnelObjectsAliveMax()) &&
 #endif
        (nchannels && (nchannels <= 2)))
@@ -1461,6 +1457,10 @@ void AwesomePlayer::initRenderer_l() {
         // just pushes those buffers to the ANativeWindow.
         mVideoRenderer =
             new AwesomeNativeWindowRenderer(mNativeWindow, rotationDegrees);
+        if (mVSyncLocker == NULL && VSyncLocker::isSyncRenderEnabled()) {
+            mVSyncLocker = new VSyncLocker();
+            mVSyncLocker->start();
+        }
     } else {
         // Other decoders are instantiated locally and as a consequence
         // allocate their buffers in local address space.  This renderer
@@ -1670,6 +1670,10 @@ status_t AwesomePlayer::seekTo(int64_t timeUs) {
         (mExtractorFlags & MediaExtractor::CAN_SEEK)) {
         Mutex::Autolock autoLock(mLock);
         return seekTo_l(timeUs);
+    } else {
+        ALOGV("Extractor cannot seek, post seek complete");
+        Mutex::Autolock autoLock(mLock);
+        notifyListener_l(MEDIA_SEEK_COMPLETE);
     }
 
     return OK;
@@ -2218,6 +2222,9 @@ void AwesomePlayer::onVideoEvent() {
             options.setSeekTo(
                     mSeekTimeUs,
                     seekmode);
+            if (mVSyncLocker != NULL) {
+                mVSyncLocker->resetProfile();
+            }
         }
         for (;;) {
             status_t err = mVideoSource->read(&mVideoBuffer, &options);
@@ -2270,6 +2277,22 @@ void AwesomePlayer::onVideoEvent() {
                 mVideoBuffer = NULL;
                 continue;
             }
+
+#ifdef QCOM_HARDWARE
+            if (mCustomAVSync) {
+                int width = 0;
+                int height = 0;
+                sp<MetaData> meta = mVideoSource->getFormat();
+                CHECK(meta->findInt32(kKeyWidth, &width));
+                CHECK(meta->findInt32(kKeyHeight, &height));
+
+                if (((height * width) >= (720 * 1280)) && (mStats.mConsecutiveFramesDropped >= 5) && !(mFlags & NO_AVSYNC))
+                {
+                    ALOGE("DISABLED AVSync as there are 5 consecutive frame drops");
+                    modifyFlags(NO_AVSYNC,SET);
+                }
+            }
+#endif
 
             break;
         }
@@ -2410,13 +2433,24 @@ void AwesomePlayer::onVideoEvent() {
             }
         }
 
+#ifdef QCOM_HARDWARE
+        if ((latenessUs < mLateAVSyncMargin) && (mFlags & NO_AVSYNC))
+        {
+            ALOGE("ENABLED AVSync as the video frames are intime with audio");
+            modifyFlags(NO_AVSYNC,CLEAR);
+        }
+#endif
+
         if (latenessUs > mLateAVSyncMargin) {
             // We're more than 40ms late.
             ALOGV("we're late by %lld us (%.2f secs)",
                  latenessUs, latenessUs / 1E6);
 
             if ((!(mFlags & SLOW_DECODER_HACK)
-                    || mSinceLastDropped > FRAME_DROP_FREQ)
+                    || (mSinceLastDropped > FRAME_DROP_FREQ))
+#ifdef QCOM_HARDWARE
+                    && !(mFlags & NO_AVSYNC)
+#endif
                     && !mDropFramesDisable)
             {
                 ALOGV("we're late by %lld us (%.2f secs) dropping "
@@ -2431,6 +2465,9 @@ void AwesomePlayer::onVideoEvent() {
                     Mutex::Autolock autoLock(mStatsLock);
                     ++mStats.mNumVideoFramesDropped;
                     mStats.mConsecutiveFramesDropped++;
+                    if(mVSyncLocker != NULL) {
+                        mVSyncLocker->blockSync();
+                    }
                     if (mStats.mConsecutiveFramesDropped == 1){
                         mStats.mCatchupTimeStart = mTimeSource->getRealTimeUs();
                     }
@@ -2464,6 +2501,11 @@ void AwesomePlayer::onVideoEvent() {
 
     if (mVideoRenderer != NULL) {
         mSinceLastDropped++;
+
+        if (mVSyncLocker != NULL) {
+            mVSyncLocker->blockOnVSync();
+        }
+
         mVideoRenderer->render(mVideoBuffer);
         if (!mVideoRenderingStarted) {
             mVideoRenderingStarted = true;
@@ -3481,6 +3523,7 @@ void AwesomePlayer::onAudioTearDownEvent() {
 
     // stream info is cleared by reset_l() so copy what we need
     mAudioTearDownWasPlaying = (mFlags & PLAYING);
+    uint32_t loopingFlags = (mFlags & (LOOPING | AUTO_LOOPING));
     KeyedVector<String8, String8> uriHeaders(mUriHeaders);
     sp<DataSource> fileSource(mFileSource);
 
@@ -3509,6 +3552,8 @@ void AwesomePlayer::onAudioTearDownEvent() {
         // a MEDIA_ERROR to the client and abort the prepare
         mFlags |= PREPARE_CANCELLED;
     }
+
+    mFlags |= loopingFlags;
 
     mAudioTearDown = true;
     mIsAsyncPrepare = true;
@@ -3655,6 +3700,7 @@ status_t AwesomePlayer::suspend() {
 
     // Shutdown the video decoder
     mVideoRenderer.clear();
+    printStats();
     if (mVideoSource != NULL) {
         shutdownVideoDecoder_l();
     }

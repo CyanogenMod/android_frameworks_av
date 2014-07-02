@@ -88,6 +88,10 @@ struct NuPlayer::Source : public AHandler {
         return false;
     }
 
+    virtual bool setCbfForSeekDone(const sp<AMessage> &notify) { return false; }
+
+    virtual int32_t getServerTimeoutMs();
+
 protected:
     virtual ~Source() {}
 
