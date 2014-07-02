@@ -3969,7 +3969,8 @@ bool ACodec::LoadedState::onConfigureComponent(
 
     sp<RefBase> obj;
     if (msg->findObject("native-window", &obj)
-            && strncmp("OMX.google.", mCodec->mComponentName.c_str(), 11)) {
+            && strncmp("OMX.google.", mCodec->mComponentName.c_str(), 11)
+            && strncmp("OMX.ffmpeg.", mCodec->mComponentName.c_str(), 11)) {
         sp<NativeWindowWrapper> nativeWindow(
                 static_cast<NativeWindowWrapper *>(obj.get()));
         CHECK(nativeWindow != NULL);

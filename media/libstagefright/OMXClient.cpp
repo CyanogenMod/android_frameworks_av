@@ -165,7 +165,7 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 
 // static
 bool MuxOMX::IsSoftwareComponent(const char *name) {
-    return !strncasecmp(name, "OMX.google.", 11);
+    return !strncasecmp(name, "OMX.google.", 11) && !strncasecmp(name, "OMX.ffmpeg.", 11);
 }
 
 const sp<IOMX> &MuxOMX::getOMX(node_id node) const {
