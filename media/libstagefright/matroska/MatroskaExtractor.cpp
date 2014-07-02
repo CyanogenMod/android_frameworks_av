@@ -20,8 +20,6 @@
 
 #include "MatroskaExtractor.h"
 
-#include "mkvparser.hpp"
-
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/DataSource.h>
@@ -89,7 +87,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct BlockIterator {
-    BlockIterator(MatroskaExtractor *extractor, unsigned long trackNum);
+    BlockIterator(MatroskaExtractor *extractor, unsigned long trackNum, unsigned long index);
 
     bool eos() const;
 
@@ -106,6 +104,7 @@ struct BlockIterator {
 private:
     MatroskaExtractor *mExtractor;
     long long mTrackNum;
+    unsigned long mIndex;
 
     const mkvparser::Cluster *mCluster;
     const mkvparser::BlockEntry *mBlockEntry;
@@ -157,6 +156,53 @@ private:
     MatroskaSource &operator=(const MatroskaSource &);
 };
 
+const mkvparser::Track* MatroskaExtractor::TrackInfo::getTrack() const {
+    return mExtractor->mSegment->GetTracks()->GetTrackByNumber(mTrackNum);
+}
+
+// This function does exactly the same as mkvparser::Cues::Find, except that it
+// searches in our own track based vectors. We should not need this once mkvparser
+// adds the same functionality.
+const mkvparser::CuePoint::TrackPosition *MatroskaExtractor::TrackInfo::find(
+        long long timeNs) const {
+    ALOGV("mCuePoints.size %zu", mCuePoints.size());
+    if (mCuePoints.empty()) {
+        return NULL;
+    }
+
+    const mkvparser::CuePoint* cp = mCuePoints.itemAt(0);
+    const mkvparser::Track* track = getTrack();
+    if (timeNs <= cp->GetTime(mExtractor->mSegment)) {
+        return cp->Find(track);
+    }
+
+    // Binary searches through relevant cues; assumes cues are ordered by timecode.
+    // If we do detect out-of-order cues, return NULL.
+    size_t lo = 0;
+    size_t hi = mCuePoints.size();
+    while (lo < hi) {
+        const size_t mid = lo + (hi - lo) / 2;
+        const mkvparser::CuePoint* const midCp = mCuePoints.itemAt(mid);
+        const long long cueTimeNs = midCp->GetTime(mExtractor->mSegment);
+        if (cueTimeNs <= timeNs) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+
+    if (lo == 0) {
+        return NULL;
+    }
+
+    cp = mCuePoints.itemAt(lo - 1);
+    if (cp->GetTime(mExtractor->mSegment) > timeNs) {
+        return NULL;
+    }
+
+    return cp->Find(track);
+}
+
 MatroskaSource::MatroskaSource(
         const sp<MatroskaExtractor> &extractor, size_t index)
     : mExtractor(extractor),
@@ -164,7 +210,8 @@ MatroskaSource::MatroskaSource(
       mType(OTHER),
       mIsAudio(false),
       mBlockIter(mExtractor.get(),
-                 mExtractor->mTracks.itemAt(index).mTrackNum),
+                 mExtractor->mTracks.itemAt(index).mTrackNum,
+                 index),
       mNALSizeLen(0) {
     sp<MetaData> meta = mExtractor->mTracks.itemAt(index).mMeta;
 
@@ -214,9 +261,10 @@ sp<MetaData> MatroskaSource::getFormat() {
 ////////////////////////////////////////////////////////////////////////////////
 
 BlockIterator::BlockIterator(
-        MatroskaExtractor *extractor, unsigned long trackNum)
+        MatroskaExtractor *extractor, unsigned long trackNum, unsigned long index)
     : mExtractor(extractor),
       mTrackNum(trackNum),
+      mIndex(index),
       mCluster(NULL),
       mBlockEntry(NULL),
       mBlockEntryIndex(0) {
@@ -364,9 +412,20 @@ void BlockIterator::seek(
     }
 
     const mkvparser::CuePoint* pCP;
+    mkvparser::Tracks const *pTracks = pSegment->GetTracks();
+    unsigned long int trackCount = pTracks->GetTracksCount();
     while (!pCues->DoneParsing()) {
         pCues->LoadCuePoint();
         pCP = pCues->GetLast();
+        CHECK(pCP);
+
+        for (size_t index = 0; index < trackCount; ++index) {
+            const mkvparser::Track *pTrack = pTracks->GetTrackByIndex(index);
+            if (pTrack && pTrack->GetType() == 1 && pCP->Find(pTrack)) { // VIDEO_TRACK
+                MatroskaExtractor::TrackInfo& track = mExtractor->mTracks.editItemAt(index);
+                track.mCuePoints.push_back(pCP);
+            }
+        }
 
         if (pCP->GetTime(pSegment) >= seekTimeNs) {
             ALOGV("Parsed past relevant Cue");
@@ -374,22 +433,25 @@ void BlockIterator::seek(
         }
     }
 
-    // The Cue index is built around video keyframes
-    mkvparser::Tracks const *pTracks = pSegment->GetTracks();
-    const mkvparser::Track *pTrack = NULL;
-    for (size_t index = 0; index < pTracks->GetTracksCount(); ++index) {
-        pTrack = pTracks->GetTrackByIndex(index);
-        if (pTrack && pTrack->GetType() == 1) { // VIDEO_TRACK
-            ALOGV("Video track located at %zu", index);
-            break;
+    const mkvparser::CuePoint::TrackPosition *pTP = NULL;
+    const mkvparser::Track *thisTrack = pTracks->GetTrackByIndex(mIndex);
+    if (thisTrack->GetType() == 1) { // video
+        MatroskaExtractor::TrackInfo& track = mExtractor->mTracks.editItemAt(mIndex);
+        pTP = track.find(seekTimeNs);
+    } else {
+        // The Cue index is built around video keyframes
+        for (size_t index = 0; index < trackCount; ++index) {
+            const mkvparser::Track *pTrack = pTracks->GetTrackByIndex(index);
+            if (pTrack && pTrack->GetType() == 1 && pCues->Find(seekTimeNs, pTrack, pCP, pTP)) {
+                ALOGV("Video track located at %zu", index);
+                break;
+            }
         }
     }
 
+
     // Always *search* based on the video track, but finalize based on mTrackNum
-    const mkvparser::CuePoint::TrackPosition* pTP;
-    if (pTrack && pTrack->GetType() == 1) {
-        pCues->Find(seekTimeNs, pTrack, pCP, pTP);
-    } else {
+    if (!pTP) {
         ALOGE("Did not locate the video track for seeking");
         return;
     }
@@ -410,10 +472,13 @@ void BlockIterator::seek(
 
         if (isAudio || block()->IsKey()) {
             // Accept the first key frame
-            *actualFrameTimeUs = (block()->GetTime(mCluster) + 500LL) / 1000LL;
-            ALOGV("Requested seek point: %" PRId64 " actual: %" PRId64,
-                  seekTimeUs, *actualFrameTimeUs);
-            break;
+            int64_t frameTimeUs = (block()->GetTime(mCluster) + 500LL) / 1000LL;
+            if (thisTrack->GetType() == 1 || frameTimeUs >= seekTimeUs) {
+                *actualFrameTimeUs = frameTimeUs;
+                ALOGV("Requested seek point: %" PRId64 " actual: %" PRId64,
+                      seekTimeUs, *actualFrameTimeUs);
+                break;
+            }
         }
     }
 }
@@ -964,6 +1029,7 @@ void MatroskaExtractor::addTracks() {
         TrackInfo *trackInfo = &mTracks.editItemAt(mTracks.size() - 1);
         trackInfo->mTrackNum = track->GetNumber();
         trackInfo->mMeta = meta;
+        trackInfo->mExtractor = this;
     }
 }
 
@@ -978,7 +1044,7 @@ void MatroskaExtractor::findThumbnails() {
             continue;
         }
 
-        BlockIterator iter(this, info->mTrackNum);
+        BlockIterator iter(this, info->mTrackNum, i);
         int32_t j = 0;
         int64_t thumbnailTimeUs = 0;
         size_t maxBlockSize = 0;
