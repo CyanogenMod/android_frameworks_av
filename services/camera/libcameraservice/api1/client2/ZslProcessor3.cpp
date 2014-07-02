@@ -52,8 +52,31 @@ ZslProcessor3::ZslProcessor3(
         mFrameListHead(0),
         mZslQueueHead(0),
         mZslQueueTail(0) {
-    mZslQueue.insertAt(0, kZslBufferDepth);
-    mFrameList.insertAt(0, kFrameListDepth);
+    // Initialize buffer queue and frame list based on pipeline max depth.
+    size_t pipelineMaxDepth = kDefaultMaxPipelineDepth;
+    if (client != 0) {
+        sp<Camera3Device> device =
+        static_cast<Camera3Device*>(client->getCameraDevice().get());
+        if (device != 0) {
+            camera_metadata_ro_entry_t entry =
+                device->info().find(ANDROID_REQUEST_PIPELINE_MAX_DEPTH);
+            if (entry.count == 1) {
+                pipelineMaxDepth = entry.data.u8[0];
+            } else {
+                ALOGW("%s: Unable to find the android.request.pipelineMaxDepth,"
+                        " use default pipeline max depth %zu", __FUNCTION__,
+                        kDefaultMaxPipelineDepth);
+            }
+        }
+    }
+
+    ALOGV("%s: Initialize buffer queue and frame list depth based on max pipeline depth (%d)",
+          __FUNCTION__, pipelineMaxDepth);
+    mBufferQueueDepth = pipelineMaxDepth + 1;
+    mFrameListDepth = pipelineMaxDepth + 1;
+
+    mZslQueue.insertAt(0, mBufferQueueDepth);
+    mFrameList.insertAt(0, mFrameListDepth);
     sp<CaptureSequencer> captureSequencer = mSequencer.promote();
     if (captureSequencer != 0) captureSequencer->setZslProcessor(this);
 }
@@ -70,13 +93,25 @@ void ZslProcessor3::onResultAvailable(const CaptureResult &result) {
     camera_metadata_ro_entry_t entry;
     entry = result.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
+    if (entry.count == 0) {
+        ALOGE("%s: metadata doesn't have timestamp, skip this result");
+        return;
+    }
     (void)timestamp;
-    ALOGVV("Got preview metadata for timestamp %" PRId64, timestamp);
+
+    entry = result.mMetadata.find(ANDROID_REQUEST_FRAME_COUNT);
+    if (entry.count == 0) {
+        ALOGE("%s: metadata doesn't have frame number, skip this result");
+        return;
+    }
+    int32_t frameNumber = entry.data.i32[0];
+
+    ALOGVV("Got preview metadata for frame %d with timestamp %" PRId64, frameNumber, timestamp);
 
     if (mState != RUNNING) return;
 
     mFrameList.editItemAt(mFrameListHead) = result.mMetadata;
-    mFrameListHead = (mFrameListHead + 1) % kFrameListDepth;
+    mFrameListHead = (mFrameListHead + 1) % mFrameListDepth;
 }
 
 status_t ZslProcessor3::updateStream(const Parameters &params) {
@@ -136,7 +171,7 @@ status_t ZslProcessor3::updateStream(const Parameters &params) {
         // Note that format specified internally in Camera3ZslStream
         res = device->createZslStream(
                 params.fastInfo.arrayWidth, params.fastInfo.arrayHeight,
-                kZslBufferDepth,
+                mBufferQueueDepth,
                 &mZslStreamId,
                 &mZslStream);
         if (res != OK) {
@@ -145,7 +180,11 @@ status_t ZslProcessor3::updateStream(const Parameters &params) {
                     strerror(-res), res);
             return res;
         }
+
+        // Only add the camera3 buffer listener when the stream is created.
+        mZslStream->addBufferListener(this);
     }
+
     client->registerFrameListener(Camera2Client::kPreviewRequestIdStart,
             Camera2Client::kPreviewRequestIdEnd,
             this,
@@ -277,15 +316,6 @@ status_t ZslProcessor3::pushToReprocess(int32_t requestId) {
             return INVALID_OPERATION;
         }
 
-        // Flush device to clear out all in-flight requests pending in HAL.
-        res = client->getCameraDevice()->flush();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Failed to flush device: "
-                "%s (%d)",
-                __FUNCTION__, client->getCameraId(), strerror(-res), res);
-            return res;
-        }
-
         // Update JPEG settings
         {
             SharedParameters::Lock l(client->getParameters());
@@ -323,9 +353,17 @@ status_t ZslProcessor3::clearZslQueue() {
 
 status_t ZslProcessor3::clearZslQueueLocked() {
     if (mZslStream != 0) {
+        // clear result metadata list first.
+        clearZslResultQueueLocked();
         return mZslStream->clearInputRingBuffer();
     }
     return OK;
+}
+
+void ZslProcessor3::clearZslResultQueueLocked() {
+    mFrameList.clear();
+    mFrameListHead = 0;
+    mFrameList.insertAt(0, mFrameListDepth);
 }
 
 void ZslProcessor3::dump(int fd, const Vector<String16>& /*args*/) const {
@@ -481,11 +519,17 @@ void ZslProcessor3::onBufferReleased(const BufferInfo& bufferInfo) {
     // We need to guarantee that if we do two back-to-back captures,
     // the second won't use a buffer that's older/the same as the first, which
     // is theoretically possible if we don't clear out the queue and the
-    // selection criteria is something like 'newest'. Clearing out the queue
-    // on a completed capture ensures we'll only use new data.
+    // selection criteria is something like 'newest'. Clearing out the result
+    // metadata queue on a completed capture ensures we'll only use new timestamp.
+    // Calling clearZslQueueLocked is a guaranteed deadlock because this callback
+    // holds the Camera3Stream internal lock (mLock), and clearZslQueueLocked requires
+    // to hold the same lock.
+    // TODO: need figure out a way to clear the Zsl buffer queue properly. Right now
+    // it is safe not to do so, as back to back ZSL capture requires stop and start
+    // preview, which will flush ZSL queue automatically.
     ALOGV("%s: Memory optimization, clearing ZSL queue",
           __FUNCTION__);
-    clearZslQueueLocked();
+    clearZslResultQueueLocked();
 
     // Required so we accept more ZSL requests
     mState = RUNNING;

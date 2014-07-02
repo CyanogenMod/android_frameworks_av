@@ -107,8 +107,9 @@ class ZslProcessor3 :
         CameraMetadata frame;
     };
 
-    static const size_t kZslBufferDepth = 4;
-    static const size_t kFrameListDepth = kZslBufferDepth * 2;
+    static const int32_t kDefaultMaxPipelineDepth = 4;
+    size_t mBufferQueueDepth;
+    size_t mFrameListDepth;
     Vector<CameraMetadata> mFrameList;
     size_t mFrameListHead;
 
@@ -123,6 +124,8 @@ class ZslProcessor3 :
     virtual bool threadLoop();
 
     status_t clearZslQueueLocked();
+
+    void clearZslResultQueueLocked();
 
     void dumpZslQueue(int id) const;
 

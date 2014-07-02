@@ -300,6 +300,7 @@ status_t Camera3ZslStream::enqueueInputBufferByTimestamp(
     nsecs_t actual = pinnedBuffer->getBufferItem().mTimestamp;
 
     if (actual != timestamp) {
+        // TODO: this is problematic, we'll end up with using wrong result for this pinned buffer.
         ALOGW("%s: ZSL buffer candidate search didn't find an exact match --"
               " requested timestamp = %" PRId64 ", actual timestamp = %" PRId64,
               __FUNCTION__, timestamp, actual);

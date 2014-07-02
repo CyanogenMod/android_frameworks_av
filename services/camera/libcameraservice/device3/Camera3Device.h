@@ -501,7 +501,7 @@ class Camera3Device :
         // Set by process_capture_result call with valid metadata
         bool    haveResultMetadata;
         // Decremented by calls to process_capture_result with valid output
-        // buffers
+        // and input buffers
         int     numBuffersLeft;
         CaptureResultExtras resultExtras;
 

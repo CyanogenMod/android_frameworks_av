@@ -226,8 +226,17 @@ class Camera3Stream :
      */
     virtual void     dump(int fd, const Vector<String16> &args) const = 0;
 
+    /**
+     * Add a camera3 buffer listener. Adding the same listener twice has
+     * no effect.
+     */
     void             addBufferListener(
             wp<Camera3StreamBufferListener> listener);
+
+    /**
+     * Remove a camera3 buffer listener. Removing the same listener twice
+     * or the listener that was never added has no effect.
+     */
     void             removeBufferListener(
             const sp<Camera3StreamBufferListener>& listener);
 
