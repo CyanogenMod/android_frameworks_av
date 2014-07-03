@@ -108,7 +108,7 @@ public:
     static status_t getSamplingRate(audio_io_handle_t output,
                                           uint32_t* samplingRate);
     // returns the number of frames per audio HAL write buffer. Corresponds to
-    // audio_stream->get_buffer_size()/audio_stream_frame_size()
+    // audio_stream->get_buffer_size()/audio_stream_out_frame_size()
     static status_t getFrameCount(audio_io_handle_t output,
                                   size_t* frameCount);
     // returns the audio output stream latency in ms. Corresponds to

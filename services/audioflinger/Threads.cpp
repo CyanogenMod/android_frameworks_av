@@ -1815,7 +1815,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
         LOG_FATAL("HAL format %#x not supported for mixed output",
                 mFormat);
     }
-    mFrameSize = audio_stream_frame_size(&mOutput->stream->common);
+    mFrameSize = audio_stream_out_frame_size(mOutput->stream);
     mBufferSize = mOutput->stream->common.get_buffer_size(&mOutput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
     if (mFrameCount & 15) {
@@ -4466,7 +4466,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
                     size_t framesWritten =
-                            mBytesWritten / audio_stream_frame_size(&mOutput->stream->common);
+                            mBytesWritten / audio_stream_out_frame_size(mOutput->stream);
                     track->presentationComplete(framesWritten, audioHALFrames);
                     track->reset();
                     tracksToRemove->add(track);
@@ -6011,7 +6011,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
         ALOGE("HAL format %#x not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
     }
-    mFrameSize = audio_stream_frame_size(&mInput->stream->common);
+    mFrameSize = audio_stream_in_frame_size(mInput->stream);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
     // This is the formula for calculating the temporary buffer size.
