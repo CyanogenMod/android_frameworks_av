@@ -461,6 +461,7 @@ private:
     // for notification APIs
     uint32_t                mNotificationFramesReq; // requested number of frames between each
                                                     // notification callback
+                                                    // as specified in constructor or set()
     uint32_t                mNotificationFramesAct; // actual number of frames between each
                                                     // notification callback
     bool                    mRefreshRemaining;      // processAudioBuffer() should refresh

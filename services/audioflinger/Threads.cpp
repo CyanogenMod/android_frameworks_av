@@ -5458,21 +5458,14 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
-            // use case: callback handler and frame count is default or at least as large as HAL
-            (
-                (tid != -1) &&
-                ((frameCount == 0) /*||
-                // FIXME must be equal to pipe depth, so don't allow it to be specified by client
-                // FIXME not necessarily true, should be native frame count for native SR!
-                (frameCount >= mFrameCount)*/)
-            ) &&
+            // use case: callback handler
+            (tid != -1) &&
+            // frame count is not specified, or is exactly the pipe depth
+            ((frameCount == 0) || (frameCount == mPipeFramesP2)) &&
             // PCM data
             audio_is_linear_pcm(format) &&
             // native format
             (format == mFormat) &&
-            // mono or stereo
-            ( (channelMask == AUDIO_CHANNEL_IN_MONO) ||
-              (channelMask == AUDIO_CHANNEL_IN_STEREO) ) &&
             // native channel mask
             (channelMask == mChannelMask) &&
             // native hardware sample rate
@@ -5482,40 +5475,43 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             // there are sufficient fast track slots available
             mFastTrackAvail
         ) {
-        // if frameCount not specified, then it defaults to pipe frame count
-        if (frameCount == 0) {
-            frameCount = mPipeFramesP2;
-        }
-        ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
+        ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%u mFrameCount=%u",
                 frameCount, mFrameCount);
       } else {
-        ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%d "
-                "mFrameCount=%d format=%d isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
+        ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%u mFrameCount=%u mPipeFramesP2=%u "
+                "format=%#x isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
                 "hasFastCapture=%d tid=%d mFastTrackAvail=%d",
-                frameCount, mFrameCount, format,
-                audio_is_linear_pcm(format),
-                channelMask, sampleRate, mSampleRate, hasFastCapture(), tid, mFastTrackAvail);
+                frameCount, mFrameCount, mPipeFramesP2,
+                format, audio_is_linear_pcm(format), channelMask, sampleRate, mSampleRate,
+                hasFastCapture(), tid, mFastTrackAvail);
         *flags &= ~IAudioFlinger::TRACK_FAST;
-        // FIXME It's not clear that we need to enforce this any more, since we have a pipe.
-        // For compatibility with AudioRecord calculation, buffer depth is forced
-        // to be at least 2 x the record thread frame count and cover audio hardware latency.
-        // This is probably too conservative, but legacy application code may depend on it.
-        // If you change this calculation, also review the start threshold which is related.
-        // FIXME It's not clear how input latency actually matters.  Perhaps this should be 0.
-        uint32_t latencyMs = 50; // FIXME mInput->stream->get_latency(mInput->stream);
-        size_t mNormalFrameCount = 2048; // FIXME
-        uint32_t minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
-        if (minBufCount < 2) {
-            minBufCount = 2;
-        }
-        size_t minFrameCount = mNormalFrameCount * minBufCount;
+      }
+    }
+
+    // compute track buffer size in frames, and suggest the notification frame count
+    if (*flags & IAudioFlinger::TRACK_FAST) {
+        // fast track: frame count is exactly the pipe depth
+        frameCount = mPipeFramesP2;
+        // ignore requested notificationFrames, and always notify exactly once every HAL buffer
+        *notificationFrames = mFrameCount;
+    } else {
+        // not fast track: frame count is at least 2 HAL buffers and at least 20 ms
+        size_t minFrameCount = ((int64_t) mFrameCount * 2 * sampleRate + mSampleRate - 1) /
+                mSampleRate;
         if (frameCount < minFrameCount) {
             frameCount = minFrameCount;
         }
-      }
+        minFrameCount = (sampleRate * 20 / 1000 + 1) & ~1;
+        if (frameCount < minFrameCount) {
+            frameCount = minFrameCount;
+        }
+        // notification is forced to be at least double-buffering
+        size_t maxNotification = frameCount / 2;
+        if (*notificationFrames == 0 || *notificationFrames > maxNotification) {
+            *notificationFrames = maxNotification;
+        }
     }
     *pFrameCount = frameCount;
-    *notificationFrames = 0;    // FIXME implement
 
     lStatus = initCheck();
     if (lStatus != NO_ERROR) {
