@@ -52,6 +52,13 @@ Visualizer::Visualizer (int32_t priority,
 
 Visualizer::~Visualizer()
 {
+    ALOGV("Visualizer::~Visualizer()");
+    if (mCaptureThread != NULL) {
+        mCaptureThread->requestExitAndWait();
+        mCaptureThread.clear();
+    }
+    mCaptureCallBack = NULL;
+    mCaptureFlags = 0;
 }
 
 status_t Visualizer::setEnabled(bool enabled)
