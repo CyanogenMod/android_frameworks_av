@@ -5443,6 +5443,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         audio_channel_mask_t channelMask,
         size_t *pFrameCount,
         int sessionId,
+        size_t *notificationFrames,
         int uid,
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
@@ -5512,6 +5513,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
       }
     }
     *pFrameCount = frameCount;
+    *notificationFrames = 0;    // FIXME implement
 
     lStatus = initCheck();
     if (lStatus != NO_ERROR) {

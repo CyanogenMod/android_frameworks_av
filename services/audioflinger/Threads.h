@@ -1073,6 +1073,7 @@ public:
                     audio_channel_mask_t channelMask,
                     size_t *pFrameCount,
                     int sessionId,
+                    size_t *notificationFrames,
                     int uid,
                     IAudioFlinger::track_flags_t *flags,
                     pid_t tid,

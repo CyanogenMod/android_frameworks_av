@@ -1344,6 +1344,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
         int *sessionId,
+        size_t *notificationFrames,
         sp<IMemory>& cblk,
         sp<IMemory>& buffers,
         status_t *status)
@@ -1418,7 +1419,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
         // TODO: the uid should be passed in as a parameter to openRecord
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
-                                                  frameCount, lSessionId,
+                                                  frameCount, lSessionId, notificationFrames,
                                                   IPCThreadState::self()->getCallingUid(),
                                                   flags, tid, &lStatus);
         LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (recordTrack == 0));

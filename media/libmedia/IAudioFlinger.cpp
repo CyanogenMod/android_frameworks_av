@@ -175,6 +175,7 @@ public:
                                 track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
+                                size_t *notificationFrames,
                                 sp<IMemory>& cblk,
                                 sp<IMemory>& buffers,
                                 status_t *status)
@@ -213,6 +214,10 @@ public:
             lSessionId = reply.readInt32();
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
+            }
+            size_t lNotificationFrames = (size_t) reply.readInt64();
+            if (notificationFrames != NULL) {
+                *notificationFrames = lNotificationFrames;
             }
             lStatus = reply.readInt32();
             record = interface_cast<IAudioRecord>(reply.readStrongBinder());
@@ -959,16 +964,19 @@ status_t BnAudioFlinger::onTransact(
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
+            size_t notificationFrames = 0;
             sp<IMemory> cblk;
             sp<IMemory> buffers;
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId,
+                    &notificationFrames,
                     cblk, buffers, &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
             reply->writeInt64(frameCount);
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
+            reply->writeInt64(notificationFrames);
             reply->writeInt32(status);
             reply->writeStrongBinder(record->asBinder());
             reply->writeStrongBinder(cblk->asBinder());

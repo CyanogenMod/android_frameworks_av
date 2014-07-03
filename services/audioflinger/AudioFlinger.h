@@ -120,6 +120,7 @@ public:
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
+                                size_t *notificationFrames,
                                 sp<IMemory>& cblk,
                                 sp<IMemory>& buffers,
                                 status_t *status /*non-NULL*/);
