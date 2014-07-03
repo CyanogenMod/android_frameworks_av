@@ -38,11 +38,6 @@
 
 namespace android {
 
-// generate a unique resample type compile-time constant (constexpr)
-#define RESAMPLETYPE(CHANNELS, LOCKED, STRIDE) \
-    ((((CHANNELS)-1)&1) | !!(LOCKED)<<1 \
-    | ((STRIDE)==8 ? 1 : (STRIDE)==16 ? 2 : 0)<<2)
-
 /*
  * InBuffer is a type agnostic input buffer.
  *
@@ -403,12 +398,76 @@ void AudioResamplerDyn<TC, TI, TO>::setSampleRate(int32_t inSampleRate)
     // determine which resampler to use
     // check if locked phase (works only if mPhaseIncrement has no "fractional phase bits")
     int locked = (mPhaseIncrement << (sizeof(mPhaseIncrement)*8 - c.mShift)) == 0;
-    int stride = (c.mHalfNumCoefs&7)==0 ? 16 : (c.mHalfNumCoefs&3)==0 ? 8 : 2;
     if (locked) {
         mPhaseFraction = mPhaseFraction >> c.mShift << c.mShift; // remove fractional phase
     }
 
-    setResampler(RESAMPLETYPE(mChannelCount, locked, stride));
+    // stride is the minimum number of filter coefficients processed per loop iteration.
+    // We currently only allow a stride of 16 to match with SIMD processing.
+    // This means that the filter length must be a multiple of 16,
+    // or half the filter length (mHalfNumCoefs) must be a multiple of 8.
+    //
+    // Note: A stride of 2 is achieved with non-SIMD processing.
+    int stride = ((c.mHalfNumCoefs & 7) == 0) ? 16 : 2;
+    LOG_ALWAYS_FATAL_IF(stride < 16, "Resampler stride must be 16 or more");
+    LOG_ALWAYS_FATAL_IF(mChannelCount > 8 || mChannelCount < 1,
+            "Resampler channels(%d) must be between 1 to 8", mChannelCount);
+    // stride 16 (falls back to stride 2 for machines that do not support NEON)
+    if (locked) {
+        switch (mChannelCount) {
+        case 1:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<1, true, 16>;
+            break;
+        case 2:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<2, true, 16>;
+            break;
+        case 3:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<3, true, 16>;
+            break;
+        case 4:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<4, true, 16>;
+            break;
+        case 5:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<5, true, 16>;
+            break;
+        case 6:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<6, true, 16>;
+            break;
+        case 7:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<7, true, 16>;
+            break;
+        case 8:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<8, true, 16>;
+            break;
+        }
+    } else {
+        switch (mChannelCount) {
+        case 1:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<1, false, 16>;
+            break;
+        case 2:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<2, false, 16>;
+            break;
+        case 3:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<3, false, 16>;
+            break;
+        case 4:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<4, false, 16>;
+            break;
+        case 5:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<5, false, 16>;
+            break;
+        case 6:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<6, false, 16>;
+            break;
+        case 7:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<7, false, 16>;
+            break;
+        case 8:
+            mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<8, false, 16>;
+            break;
+        }
+    }
 #ifdef DEBUG_RESAMPLER
     printf("channels:%d  %s  stride:%d  %s  coef:%d  shift:%d\n",
             mChannelCount, locked ? "locked" : "interpolated",
@@ -424,34 +483,12 @@ void AudioResamplerDyn<TC, TI, TO>::resample(int32_t* out, size_t outFrameCount,
 }
 
 template<typename TC, typename TI, typename TO>
-void AudioResamplerDyn<TC, TI, TO>::setResampler(unsigned resampleType)
-{
-    // stride 16 (falls back to stride 2 for machines that do not support NEON)
-    switch (resampleType) {
-    case RESAMPLETYPE(1, true, 16):
-        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<1, true, 16>;
-        return;
-    case RESAMPLETYPE(2, true, 16):
-        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<2, true, 16>;
-        return;
-    case RESAMPLETYPE(1, false, 16):
-        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<1, false, 16>;
-        return;
-    case RESAMPLETYPE(2, false, 16):
-        mResampleFunc = &AudioResamplerDyn<TC, TI, TO>::resample<2, false, 16>;
-        return;
-    default:
-        LOG_ALWAYS_FATAL("Invalid resampler type: %u", resampleType);
-        mResampleFunc = NULL;
-        return;
-    }
-}
-
-template<typename TC, typename TI, typename TO>
 template<int CHANNELS, bool LOCKED, int STRIDE>
 void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
         AudioBufferProvider* provider)
 {
+    // TODO Mono -> Mono is not supported. OUTPUT_CHANNELS reflects minimum of stereo out.
+    const int OUTPUT_CHANNELS = (CHANNELS < 2) ? 2 : CHANNELS;
     const Constants& c(mConstants);
     const TC* const coefs = mConstants.mFirCoefs;
     TI* impulse = mInBuffer.getImpulse();
@@ -459,7 +496,7 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
     uint32_t phaseFraction = mPhaseFraction;
     const uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
-    size_t outputSampleCount = outFrameCount * 2;   // stereo output
+    size_t outputSampleCount = outFrameCount * OUTPUT_CHANNELS;
     const uint32_t phaseWrapLimit = c.mL << c.mShift;
     size_t inFrameCount = (phaseIncrement * (uint64_t)outFrameCount + phaseFraction)
             / phaseWrapLimit;
@@ -490,7 +527,7 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
         while (mBuffer.frameCount == 0 && inFrameCount > 0) {
             mBuffer.frameCount = inFrameCount;
             provider->getNextBuffer(&mBuffer,
-                    calculateOutputPTS(outputIndex / 2));
+                    calculateOutputPTS(outputIndex / OUTPUT_CHANNELS));
             if (mBuffer.raw == NULL) {
                 goto resample_exit;
             }
@@ -538,7 +575,8 @@ void AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
                     phaseFraction, phaseWrapLimit,
                     coefShift, halfNumCoefs, coefs,
                     impulse, volumeSimd);
-            outputIndex += 2;
+
+            outputIndex += OUTPUT_CHANNELS;
 
             phaseFraction += phaseIncrement;
             while (phaseFraction >= phaseWrapLimit) {
