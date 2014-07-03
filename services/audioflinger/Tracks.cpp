@@ -1986,12 +1986,12 @@ void AudioFlinger::RecordThread::RecordTrack::invalidate()
 
 /*static*/ void AudioFlinger::RecordThread::RecordTrack::appendDumpHeader(String8& result)
 {
-    result.append("    Active Client Fmt Chn mask Session S   Server fCount Resampling\n");
+    result.append("    Active Client Fmt Chn mask Session S   Server fCount SRate\n");
 }
 
 void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bool active)
 {
-    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6zu %10d\n",
+    snprintf(buffer, size, "    %6s %6u %3u %08X %7u %1d %08X %6zu %5u\n",
             active ? "yes" : "no",
             (mClient == 0) ? getpid_cached : mClient->pid(),
             mFormat,
@@ -2000,7 +2000,7 @@ void AudioFlinger::RecordThread::RecordTrack::dump(char* buffer, size_t size, bo
             mState,
             mCblk->mServer,
             mFrameCount,
-            mResampler != NULL);
+            mSampleRate);
 
 }
 
