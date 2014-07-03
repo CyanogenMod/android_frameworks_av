@@ -625,9 +625,14 @@ private:
     static int __set_buffers_geometry(struct preview_stream_ops* w,
                       int width, int height, int format)
     {
+        int rc;
         ANativeWindow *a = anw(w);
-        return native_window_set_buffers_geometry(a,
-                          width, height, format);
+
+        rc = native_window_set_buffers_dimensions(a, width, height);
+        if (!rc) {
+            rc = native_window_set_buffers_format(a, format);
+        }
+        return rc;
     }
 
     static int __set_crop(struct preview_stream_ops *w,
