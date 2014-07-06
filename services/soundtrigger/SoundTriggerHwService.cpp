@@ -377,7 +377,7 @@ status_t SoundTriggerHwService::Module::unloadSoundModel(sound_model_handle_t ha
 }
 
 status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t handle,
-                                  const sp<IMemory>& dataMemory)
+                                 const sp<IMemory>& dataMemory)
 {
     ALOGV("startRecognition() model handle %d", handle);
 
@@ -391,28 +391,25 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
     if (model == 0) {
         return BAD_VALUE;
     }
+    if ((dataMemory == 0) ||
+            (dataMemory->size() < sizeof(struct sound_trigger_recognition_config))) {
+        return BAD_VALUE;
+    }
 
     if (model->mState == Model::STATE_ACTIVE) {
         return INVALID_OPERATION;
     }
     model->mState = Model::STATE_ACTIVE;
 
-    char *data = NULL;
-    unsigned int data_size = 0;
-    if (dataMemory != 0 && dataMemory->size() != 0) {
-        data_size = (unsigned int)dataMemory->size();
-        data = (char *)dataMemory->pointer();
-        ALOGV("startRecognition() data size %d data %d - %d",
-                      data_size, data[0], data[data_size - 1]);
-    }
+    struct sound_trigger_recognition_config *config =
+            (struct sound_trigger_recognition_config *)dataMemory->pointer();
 
     //TODO: get capture handle and device from audio policy service
-    audio_io_handle_t capture_handle = 0;
-    return mHwDevice->start_recognition(mHwDevice, handle, capture_handle, AUDIO_DEVICE_NONE,
+    config->capture_handle = AUDIO_IO_HANDLE_NONE;
+    config->capture_device = AUDIO_DEVICE_NONE;
+    return mHwDevice->start_recognition(mHwDevice, handle, config,
                                         SoundTriggerHwService::recognitionCallback,
-                                        this,
-                                        data_size,
-                                        data);
+                                        this);
 }
 
 status_t SoundTriggerHwService::Module::stopRecognition(sound_model_handle_t handle)
