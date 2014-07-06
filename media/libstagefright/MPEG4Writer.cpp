@@ -1765,9 +1765,6 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
     pthread_attr_destroy(&attr);
 
     mHFRRatio = ExtendedUtils::HFR::getHFRRatio(mMeta);
-    // Workaround until HFR is fully functional
-    if (!mHFRRatio)
-	mHFRRatio = 1;
 
     return OK;
 }
