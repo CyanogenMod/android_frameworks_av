@@ -352,8 +352,12 @@ MPEG4Writer::MPEG4Writer(const char *filename)
       mLatitudex10000(0),
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
+#ifdef ENABLE_AV_ENHANCEMENTS
       mStartTimeOffsetMs(-1),
       mHFRRatio(1) {
+#else
+      mStartTimeOffsetMs(-1) {
+#endif
 
     mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     if (mFd >= 0) {
@@ -378,8 +382,12 @@ MPEG4Writer::MPEG4Writer(int fd)
       mLatitudex10000(0),
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
+#ifdef ENABLE_AV_ENHANCEMENTS
       mStartTimeOffsetMs(-1),
       mHFRRatio(1) {
+#else
+      mStartTimeOffsetMs(-1) {
+#endif
 }
 
 MPEG4Writer::~MPEG4Writer() {
@@ -475,7 +483,9 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
     Track *track = new Track(this, source, 1 + mTracks.size());
     mTracks.push_back(track);
 
+#ifdef ENABLE_AV_ENHANCEMENTS
     mHFRRatio = ExtendedUtils::HFR::getHFRRatio(meta);
+#endif
 
     return OK;
 }
@@ -944,7 +954,11 @@ void MPEG4Writer::writeMvhdBox(int64_t durationUs) {
     writeInt32(0);             // version=0, flags=0
     writeInt32(now);           // creation time
     writeInt32(now);           // modification time
+#ifdef ENABLE_AV_ENHANCEMENTS
     writeInt32(mTimeScale / mHFRRatio);    // mvhd timescale
+#else
+    writeInt32(mTimeScale);    // mvhd timescale
+#endif
     int32_t duration = (durationUs * mTimeScale + 5E5) / 1E6;
     writeInt32(duration);
     writeInt32(0x10000);       // rate: 1.0
@@ -1765,9 +1779,6 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
     pthread_attr_destroy(&attr);
 
     mHFRRatio = ExtendedUtils::HFR::getHFRRatio(mMeta);
-    // Workaround until HFR is fully functional
-    if (!mHFRRatio)
-	mHFRRatio = 1;
 
     return OK;
 }
@@ -2652,7 +2663,11 @@ void MPEG4Writer::Track::bufferChunk(int64_t timestampUs) {
 }
 
 int64_t MPEG4Writer::Track::getDurationUs() const {
+#ifdef ENABLE_AV_ENHANCEMENTS
     return mTrackDurationUs;
+#else
+    return mTrackDurationUs * mHFRRatio;
+#endif
 }
 
 int64_t MPEG4Writer::Track::getEstimatedTrackSizeBytes() const {
@@ -2977,7 +2992,11 @@ void MPEG4Writer::Track::writeMdhdBox(uint32_t now) {
 
     int32_t timeScale = mTimeScale / mHFRRatio;
     mOwner->writeInt32(timeScale);    // media timescale
+#ifdef ENABLE_AV_ENHANCEMENTS
     int32_t mdhdDuration = (trakDurationUs * mTimeScale + 5E5) / 1E6;
+#else
+    int32_t mdhdDuration = (trakDurationUs * timeScale + 5E5) / 1E6;
+#endif
     mOwner->writeInt32(mdhdDuration);  // use media timescale
     // Language follows the three letter standard ISO-639-2/T
     // 'e', 'n', 'g' for "English", for instance.
