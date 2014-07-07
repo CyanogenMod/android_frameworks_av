@@ -547,7 +547,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     }
 
     sp<AMessage> notify = mNotify->dup();
-    notify->setInt32("what", ACodec::kWhatBuffersAllocated);
+    notify->setInt32("what", CodecBase::kWhatBuffersAllocated);
 
     notify->setInt32("portIndex", portIndex);
 
@@ -3005,7 +3005,7 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
 
 void ACodec::signalError(OMX_ERRORTYPE error, status_t internalError) {
     sp<AMessage> notify = mNotify->dup();
-    notify->setInt32("what", ACodec::kWhatError);
+    notify->setInt32("what", CodecBase::kWhatError);
     notify->setInt32("omx-error", error);
     notify->setInt32("err", internalError);
     notify->post();
@@ -3398,7 +3398,7 @@ void ACodec::BaseState::postFillThisBuffer(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);
 
     sp<AMessage> notify = mCodec->mNotify->dup();
-    notify->setInt32("what", ACodec::kWhatFillThisBuffer);
+    notify->setInt32("what", CodecBase::kWhatFillThisBuffer);
     notify->setInt32("buffer-id", info->mBufferID);
 
     info->mData->meta()->clear();
@@ -3693,7 +3693,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             info->mData->meta()->setInt64("timeUs", timeUs);
 
             sp<AMessage> notify = mCodec->mNotify->dup();
-            notify->setInt32("what", ACodec::kWhatDrainThisBuffer);
+            notify->setInt32("what", CodecBase::kWhatDrainThisBuffer);
             notify->setInt32("buffer-id", info->mBufferID);
             notify->setBuffer("buffer", info->mData);
             notify->setInt32("flags", flags);
@@ -3710,7 +3710,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 ALOGV("[%s] saw output EOS", mCodec->mComponentName.c_str());
 
                 sp<AMessage> notify = mCodec->mNotify->dup();
-                notify->setInt32("what", ACodec::kWhatEOS);
+                notify->setInt32("what", CodecBase::kWhatEOS);
                 notify->setInt32("err", mCodec->mInputEOSResult);
                 notify->post();
 
@@ -3891,7 +3891,7 @@ bool ACodec::UninitializedState::onMessageReceived(const sp<AMessage> &msg) {
                      "cannot keep component allocated on shutdown in Uninitialized state");
 
             sp<AMessage> notify = mCodec->mNotify->dup();
-            notify->setInt32("what", ACodec::kWhatShutdownCompleted);
+            notify->setInt32("what", CodecBase::kWhatShutdownCompleted);
             notify->post();
 
             handled = true;
@@ -3901,7 +3901,7 @@ bool ACodec::UninitializedState::onMessageReceived(const sp<AMessage> &msg) {
         case ACodec::kWhatFlush:
         {
             sp<AMessage> notify = mCodec->mNotify->dup();
-            notify->setInt32("what", ACodec::kWhatFlushCompleted);
+            notify->setInt32("what", CodecBase::kWhatFlushCompleted);
             notify->post();
 
             handled = true;
@@ -4023,7 +4023,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     {
         sp<AMessage> notify = mCodec->mNotify->dup();
-        notify->setInt32("what", ACodec::kWhatComponentAllocated);
+        notify->setInt32("what", CodecBase::kWhatComponentAllocated);
         notify->setString("componentName", mCodec->mComponentName.c_str());
         notify->post();
     }
@@ -4073,7 +4073,7 @@ void ACodec::LoadedState::onShutdown(bool keepComponentAllocated) {
 
     if (mCodec->mExplicitShutdown) {
         sp<AMessage> notify = mCodec->mNotify->dup();
-        notify->setInt32("what", ACodec::kWhatShutdownCompleted);
+        notify->setInt32("what", CodecBase::kWhatShutdownCompleted);
         notify->post();
         mCodec->mExplicitShutdown = false;
     }
@@ -4120,7 +4120,7 @@ bool ACodec::LoadedState::onMessageReceived(const sp<AMessage> &msg) {
         case ACodec::kWhatFlush:
         {
             sp<AMessage> notify = mCodec->mNotify->dup();
-            notify->setInt32("what", ACodec::kWhatFlushCompleted);
+            notify->setInt32("what", CodecBase::kWhatFlushCompleted);
             notify->post();
 
             handled = true;
@@ -4169,7 +4169,7 @@ bool ACodec::LoadedState::onConfigureComponent(
 
     {
         sp<AMessage> notify = mCodec->mNotify->dup();
-        notify->setInt32("what", ACodec::kWhatComponentConfigured);
+        notify->setInt32("what", CodecBase::kWhatComponentConfigured);
         notify->setMessage("input-format", mCodec->mInputFormat);
         notify->setMessage("output-format", mCodec->mOutputFormat);
         notify->post();
@@ -4183,7 +4183,7 @@ void ACodec::LoadedState::onCreateInputSurface(
     ALOGV("onCreateInputSurface");
 
     sp<AMessage> notify = mCodec->mNotify->dup();
-    notify->setInt32("what", ACodec::kWhatInputSurfaceCreated);
+    notify->setInt32("what", CodecBase::kWhatInputSurfaceCreated);
 
     sp<IGraphicBufferProducer> bufferProducer;
     status_t err;
@@ -4337,7 +4337,7 @@ bool ACodec::LoadedToIdleState::onMessageReceived(const sp<AMessage> &msg) {
         {
             // We haven't even started yet, so we're flushed alright...
             sp<AMessage> notify = mCodec->mNotify->dup();
-            notify->setInt32("what", ACodec::kWhatFlushCompleted);
+            notify->setInt32("what", CodecBase::kWhatFlushCompleted);
             notify->post();
             return true;
         }
@@ -4398,7 +4398,7 @@ bool ACodec::IdleToExecutingState::onMessageReceived(const sp<AMessage> &msg) {
         {
             // We haven't even started yet, so we're flushed alright...
             sp<AMessage> notify = mCodec->mNotify->dup();
-            notify->setInt32("what", ACodec::kWhatFlushCompleted);
+            notify->setInt32("what", CodecBase::kWhatFlushCompleted);
             notify->post();
 
             return true;
@@ -4701,7 +4701,7 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
 
 void ACodec::onSignalEndOfInputStream() {
     sp<AMessage> notify = mNotify->dup();
-    notify->setInt32("what", ACodec::kWhatSignaledInputEOS);
+    notify->setInt32("what", CodecBase::kWhatSignaledInputEOS);
 
     status_t err = mOMX->signalEndOfInputStream(mNode);
     if (err != OK) {
@@ -5131,7 +5131,7 @@ void ACodec::FlushingState::changeStateIfWeOwnAllBuffers() {
         mCodec->waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs();
 
         sp<AMessage> notify = mCodec->mNotify->dup();
-        notify->setInt32("what", ACodec::kWhatFlushCompleted);
+        notify->setInt32("what", CodecBase::kWhatFlushCompleted);
         notify->post();
 
         mCodec->mPortEOS[kPortIndexInput] =

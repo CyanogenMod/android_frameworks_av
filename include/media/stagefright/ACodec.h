@@ -34,21 +34,6 @@ struct ABuffer;
 struct MemoryDealer;
 
 struct ACodec : public AHierarchicalStateMachine, public CodecBase {
-    enum {
-        kWhatFillThisBuffer      = CodecBase::kWhatFillThisBuffer,
-        kWhatDrainThisBuffer     = CodecBase::kWhatDrainThisBuffer,
-        kWhatEOS                 = CodecBase::kWhatEOS,
-        kWhatShutdownCompleted   = CodecBase::kWhatShutdownCompleted,
-        kWhatFlushCompleted      = CodecBase::kWhatFlushCompleted,
-        kWhatOutputFormatChanged = CodecBase::kWhatOutputFormatChanged,
-        kWhatError               = CodecBase::kWhatError,
-        kWhatComponentAllocated  = CodecBase::kWhatComponentAllocated,
-        kWhatComponentConfigured = CodecBase::kWhatComponentConfigured,
-        kWhatInputSurfaceCreated = CodecBase::kWhatInputSurfaceCreated,
-        kWhatSignaledInputEOS    = CodecBase::kWhatSignaledInputEOS,
-        kWhatBuffersAllocated    = CodecBase::kWhatBuffersAllocated,
-    };
-
     ACodec();
 
     virtual void setNotificationMessage(const sp<AMessage> &msg);
