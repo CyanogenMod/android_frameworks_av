@@ -67,7 +67,7 @@ sp<MediaCodec> MediaCodec::CreateByComponentName(
 MediaCodec::MediaCodec(const sp<ALooper> &looper)
     : mState(UNINITIALIZED),
       mLooper(looper),
-      mCodec(new ACodec),
+      mCodec(NULL),
       mReplyID(0),
       mFlags(0),
       mSoftRenderer(NULL),
@@ -103,6 +103,7 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
     // quickly, violating the OpenMAX specs, until that is remedied
     // we need to invest in an extra looper to free the main event
     // queue.
+    mCodec = new ACodec;
     bool needDedicatedLooper = false;
     if (nameIsType && !strncasecmp(name, "video/", 6)) {
         needDedicatedLooper = true;
@@ -541,7 +542,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findInt32("what", &what));
 
             switch (what) {
-                case ACodec::kWhatError:
+                case CodecBase::kWhatError:
                 {
                     int32_t omxError, internalError;
                     CHECK(msg->findInt32("omx-error", &omxError));
@@ -638,7 +639,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatComponentAllocated:
+                case CodecBase::kWhatComponentAllocated:
                 {
                     CHECK_EQ(mState, INITIALIZING);
                     setState(INITIALIZED);
@@ -661,7 +662,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatComponentConfigured:
+                case CodecBase::kWhatComponentConfigured:
                 {
                     CHECK_EQ(mState, CONFIGURING);
                     setState(CONFIGURED);
@@ -676,9 +677,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatInputSurfaceCreated:
+                case CodecBase::kWhatInputSurfaceCreated:
                 {
-                    // response to ACodec::kWhatCreateInputSurface
+                    // response to initiateCreateInputSurface()
                     status_t err = NO_ERROR;
                     sp<AMessage> response = new AMessage();
                     if (!msg->findInt32("err", &err)) {
@@ -694,9 +695,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatSignaledInputEOS:
+                case CodecBase::kWhatSignaledInputEOS:
                 {
-                    // response to ACodec::kWhatSignalEndOfInputStream
+                    // response to signalEndOfInputStream()
                     sp<AMessage> response = new AMessage();
                     status_t err;
                     if (msg->findInt32("err", &err)) {
@@ -707,7 +708,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
 
-                case ACodec::kWhatBuffersAllocated:
+                case CodecBase::kWhatBuffersAllocated:
                 {
                     int32_t portIndex;
                     CHECK(msg->findInt32("portIndex", &portIndex));
@@ -725,8 +726,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     sp<RefBase> obj;
                     CHECK(msg->findObject("portDesc", &obj));
 
-                    sp<ACodec::PortDescription> portDesc =
-                        static_cast<ACodec::PortDescription *>(obj.get());
+                    sp<CodecBase::PortDescription> portDesc =
+                        static_cast<CodecBase::PortDescription *>(obj.get());
 
                     size_t numBuffers = portDesc->countBuffers();
 
@@ -759,7 +760,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatOutputFormatChanged:
+                case CodecBase::kWhatOutputFormatChanged:
                 {
                     ALOGV("codec output format changed");
 
@@ -810,7 +811,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatFillThisBuffer:
+                case CodecBase::kWhatFillThisBuffer:
                 {
                     /* size_t index = */updateBuffers(kPortIndexInput, msg);
 
@@ -857,7 +858,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatDrainThisBuffer:
+                case CodecBase::kWhatDrainThisBuffer:
                 {
                     /* size_t index = */updateBuffers(kPortIndexOutput, msg);
 
@@ -908,14 +909,14 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatEOS:
+                case CodecBase::kWhatEOS:
                 {
                     // We already notify the client of this by using the
                     // corresponding flag in "onOutputBufferReady".
                     break;
                 }
 
-                case ACodec::kWhatShutdownCompleted:
+                case CodecBase::kWhatShutdownCompleted:
                 {
                     if (mState == STOPPING) {
                         setState(INITIALIZED);
@@ -928,7 +929,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
-                case ACodec::kWhatFlushCompleted:
+                case CodecBase::kWhatFlushCompleted:
                 {
                     CHECK_EQ(mState, FLUSHING);
                     setState(STARTED);

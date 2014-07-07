@@ -26,9 +26,9 @@
 namespace android {
 
 struct ABuffer;
-struct ACodec;
 struct AMessage;
 struct AString;
+struct CodecBase;
 struct ICrypto;
 struct SoftwareRenderer;
 struct Surface;
@@ -195,7 +195,7 @@ private:
     State mState;
     sp<ALooper> mLooper;
     sp<ALooper> mCodecLooper;
-    sp<ACodec> mCodec;
+    sp<CodecBase> mCodec;
     AString mComponentName;
     uint32_t mReplyID;
     uint32_t mFlags;
