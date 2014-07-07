@@ -240,6 +240,11 @@ public:
      */
             uint32_t    getSampleRate() const   { return mSampleRate; }
 
+    /* Return the notification frame count.
+     * This is approximately how often the callback is invoked, for transfer type TRANSFER_CALLBACK.
+     */
+            size_t      notificationFrames() const  { return mNotificationFramesAct; }
+
     /* Sets marker position. When record reaches the number of frames specified,
      * a callback with event type EVENT_MARKER is called. Calling setMarkerPosition
      * with marker == 0 cancels marker notification callback.
