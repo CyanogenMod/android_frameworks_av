@@ -763,21 +763,9 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
                     quality = AudioResampler::DEFAULT_QUALITY;
                 }
 
-                int bits;
-                switch (mMixerInFormat) {
-                case AUDIO_FORMAT_PCM_16_BIT:
-                    bits = 16;
-                    break;
-                case AUDIO_FORMAT_PCM_FLOAT:
-                    bits = 32; // 32 bits to the AudioResampler::create() indicates float.
-                    break;
-                default:
-                    LOG_ALWAYS_FATAL("Invalid mMixerInFormat: %#x", mMixerInFormat);
-                    break;
-                }
                 ALOGVV("Creating resampler with %d bits\n", bits);
                 resampler = AudioResampler::create(
-                        bits,
+                        mMixerInFormat,
                         // the resampler sees the number of channels after the downmixer, if any
                         (int) (downmixerBufferProvider != NULL ? MAX_NUM_CHANNELS : channelCount),
                         devSampleRate, quality);

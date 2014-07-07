@@ -1895,7 +1895,8 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
     if (thread->mSampleRate != sampleRate && thread->mChannelCount <= FCC_2 &&
             channelCount <= FCC_2) {
         // sink SR
-        mResampler = AudioResampler::create(16, thread->mChannelCount, sampleRate);
+        mResampler = AudioResampler::create(AUDIO_FORMAT_PCM_16_BIT,
+                thread->mChannelCount, sampleRate);
         // source SR
         mResampler->setSampleRate(thread->mSampleRate);
         mResampler->setVolume(AudioMixer::UNITY_GAIN_INT, AudioMixer::UNITY_GAIN_INT);

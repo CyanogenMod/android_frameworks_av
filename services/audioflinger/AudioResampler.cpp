@@ -40,8 +40,8 @@ namespace android {
 
 class AudioResamplerOrder1 : public AudioResampler {
 public:
-    AudioResamplerOrder1(int bitDepth, int inChannelCount, int32_t sampleRate) :
-        AudioResampler(bitDepth, inChannelCount, sampleRate, LOW_QUALITY), mX0L(0), mX0R(0) {
+    AudioResamplerOrder1(int inChannelCount, int32_t sampleRate) :
+        AudioResampler(inChannelCount, sampleRate, LOW_QUALITY), mX0L(0), mX0R(0) {
     }
     virtual void resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
@@ -145,7 +145,7 @@ static const uint32_t maxMHz = 130; // an arbitrary number that permits 3 VHQ, s
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t currentMHz = 0;
 
-AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
+AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount,
         int32_t sampleRate, src_quality quality) {
 
     bool atFinalQuality;
@@ -216,33 +216,40 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
     default:
     case LOW_QUALITY:
         ALOGV("Create linear Resampler");
-        resampler = new AudioResamplerOrder1(bitDepth, inChannelCount, sampleRate);
+        LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
+        resampler = new AudioResamplerOrder1(inChannelCount, sampleRate);
         break;
     case MED_QUALITY:
         ALOGV("Create cubic Resampler");
-        resampler = new AudioResamplerCubic(bitDepth, inChannelCount, sampleRate);
+        LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
+        resampler = new AudioResamplerCubic(inChannelCount, sampleRate);
         break;
     case HIGH_QUALITY:
         ALOGV("Create HIGH_QUALITY sinc Resampler");
-        resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate);
+        LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
+        resampler = new AudioResamplerSinc(inChannelCount, sampleRate);
         break;
     case VERY_HIGH_QUALITY:
         ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d", quality);
-        resampler = new AudioResamplerSinc(bitDepth, inChannelCount, sampleRate, quality);
+        LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
+        resampler = new AudioResamplerSinc(inChannelCount, sampleRate, quality);
         break;
     case DYN_LOW_QUALITY:
     case DYN_MED_QUALITY:
     case DYN_HIGH_QUALITY:
         ALOGV("Create dynamic Resampler = %d", quality);
-        if (bitDepth == 32) { /* bitDepth == 32 signals float precision */
-            resampler = new AudioResamplerDyn<float, float, float>(bitDepth, inChannelCount,
-                    sampleRate, quality);
-        } else if (quality == DYN_HIGH_QUALITY) {
-            resampler = new AudioResamplerDyn<int32_t, int16_t, int32_t>(bitDepth, inChannelCount,
+        if (format == AUDIO_FORMAT_PCM_FLOAT) {
+            resampler = new AudioResamplerDyn<float, float, float>(inChannelCount,
                     sampleRate, quality);
         } else {
-            resampler = new AudioResamplerDyn<int16_t, int16_t, int32_t>(bitDepth, inChannelCount,
-                    sampleRate, quality);
+            LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
+            if (quality == DYN_HIGH_QUALITY) {
+                resampler = new AudioResamplerDyn<int32_t, int16_t, int32_t>(inChannelCount,
+                        sampleRate, quality);
+            } else {
+                resampler = new AudioResamplerDyn<int16_t, int16_t, int32_t>(inChannelCount,
+                        sampleRate, quality);
+            }
         }
         break;
     }
@@ -252,18 +259,17 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
     return resampler;
 }
 
-AudioResampler::AudioResampler(int bitDepth, int inChannelCount,
+AudioResampler::AudioResampler(int inChannelCount,
         int32_t sampleRate, src_quality quality) :
-    mBitDepth(bitDepth), mChannelCount(inChannelCount),
-            mSampleRate(sampleRate), mInSampleRate(sampleRate), mInputIndex(0),
-            mPhaseFraction(0), mLocalTimeFreq(0),
-            mPTS(AudioBufferProvider::kInvalidPTS), mQuality(quality) {
-    // sanity check on format
-    if ((bitDepth != 16 && (quality < DYN_LOW_QUALITY || bitDepth != 32))
-            || inChannelCount < 1
+        mChannelCount(inChannelCount),
+        mSampleRate(sampleRate), mInSampleRate(sampleRate), mInputIndex(0),
+        mPhaseFraction(0), mLocalTimeFreq(0),
+        mPTS(AudioBufferProvider::kInvalidPTS), mQuality(quality) {
+
+    if (inChannelCount < 1
             || inChannelCount > (quality < DYN_LOW_QUALITY ? 2 : 8)) {
-        LOG_ALWAYS_FATAL("Unsupported sample format %d quality %d bits, %d channels",
-                quality, bitDepth, inChannelCount);
+        LOG_ALWAYS_FATAL("Unsupported sample format %d quality %d channels",
+                quality, inChannelCount);
     }
     if (sampleRate <= 0) {
         LOG_ALWAYS_FATAL("Unsupported sample rate %d Hz", sampleRate);
@@ -272,7 +278,6 @@ AudioResampler::AudioResampler(int bitDepth, int inChannelCount,
     // initialize common members
     mVolume[0] = mVolume[1] = 0;
     mBuffer.frameCount = 0;
-
 }
 
 AudioResampler::~AudioResampler() {

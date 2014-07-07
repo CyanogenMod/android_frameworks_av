@@ -22,6 +22,7 @@
 #include <cutils/compiler.h>
 
 #include <media/AudioBufferProvider.h>
+#include <system/audio.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -46,7 +47,7 @@ public:
         DYN_HIGH_QUALITY=7,
     };
 
-    static AudioResampler* create(int bitDepth, int inChannelCount,
+    static AudioResampler* create(audio_format_t format, int inChannelCount,
             int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);
 
     virtual ~AudioResampler();
@@ -86,7 +87,7 @@ protected:
     // multiplier to calculate fixed point phase increment
     static const double kPhaseMultiplier;
 
-    AudioResampler(int bitDepth, int inChannelCount, int32_t sampleRate, src_quality quality);
+    AudioResampler(int inChannelCount, int32_t sampleRate, src_quality quality);
 
     // prevent copying
     AudioResampler(const AudioResampler&);
@@ -94,7 +95,6 @@ protected:
 
     int64_t calculateOutputPTS(int outputFrameIndex);
 
-    const int32_t mBitDepth;
     const int32_t mChannelCount;
     const int32_t mSampleRate;
     int32_t mInSampleRate;

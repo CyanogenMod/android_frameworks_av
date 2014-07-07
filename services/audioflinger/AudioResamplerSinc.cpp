@@ -452,9 +452,9 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 
 // ----------------------------------------------------------------------------
 
-AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
+AudioResamplerSinc::AudioResamplerSinc(
         int inChannelCount, int32_t sampleRate, src_quality quality)
-    : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
+    : AudioResampler(inChannelCount, sampleRate, quality),
     mState(0), mImpulse(0), mRingFull(0), mFirCoefs(0)
 {
     /*
