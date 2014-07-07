@@ -495,6 +495,10 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
     int originalSessionId = mSessionId;
+
+    // The notification frame count is the period between callbacks, as suggested by the server.
+    size_t notificationFrames;
+
     sp<IMemory> iMem;           // for cblk
     sp<IMemory> bufferMem;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
@@ -504,6 +508,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
                                                        &trackFlags,
                                                        tid,
                                                        &mSessionId,
+                                                       &notificationFrames,
                                                        iMem,
                                                        bufferMem,
                                                        &status);
