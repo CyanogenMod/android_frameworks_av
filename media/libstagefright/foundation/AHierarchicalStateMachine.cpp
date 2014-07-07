@@ -51,7 +51,7 @@ AHierarchicalStateMachine::AHierarchicalStateMachine() {
 AHierarchicalStateMachine::~AHierarchicalStateMachine() {
 }
 
-void AHierarchicalStateMachine::onMessageReceived(const sp<AMessage> &msg) {
+void AHierarchicalStateMachine::handleMessage(const sp<AMessage> &msg) {
     sp<AState> save = mState;
 
     sp<AState> cur = mState;

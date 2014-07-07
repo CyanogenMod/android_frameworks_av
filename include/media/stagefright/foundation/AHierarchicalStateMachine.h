@@ -43,13 +43,13 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(AState);
 };
 
-struct AHierarchicalStateMachine : public AHandler {
+struct AHierarchicalStateMachine {
     AHierarchicalStateMachine();
 
 protected:
     virtual ~AHierarchicalStateMachine();
 
-    virtual void onMessageReceived(const sp<AMessage> &msg);
+    virtual void handleMessage(const sp<AMessage> &msg);
 
     // Only to be called in response to a message.
     void changeState(const sp<AState> &state);

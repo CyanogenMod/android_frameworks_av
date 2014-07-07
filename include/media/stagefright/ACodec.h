@@ -22,6 +22,7 @@
 #include <android/native_window.h>
 #include <media/IOMX.h>
 #include <media/stagefright/foundation/AHierarchicalStateMachine.h>
+#include <media/stagefright/CodecBase.h>
 #include <media/stagefright/SkipCutBuffer.h>
 #include <OMX_Audio.h>
 
@@ -32,42 +33,47 @@ namespace android {
 struct ABuffer;
 struct MemoryDealer;
 
-struct ACodec : public AHierarchicalStateMachine {
+struct ACodec : public AHierarchicalStateMachine, public CodecBase {
     enum {
-        kWhatFillThisBuffer      = 'fill',
-        kWhatDrainThisBuffer     = 'drai',
-        kWhatEOS                 = 'eos ',
-        kWhatShutdownCompleted   = 'scom',
-        kWhatFlushCompleted      = 'fcom',
-        kWhatOutputFormatChanged = 'outC',
-        kWhatError               = 'erro',
-        kWhatComponentAllocated  = 'cAll',
-        kWhatComponentConfigured = 'cCon',
-        kWhatInputSurfaceCreated = 'isfc',
-        kWhatSignaledInputEOS    = 'seos',
-        kWhatBuffersAllocated    = 'allc',
-        kWhatOMXDied             = 'OMXd',
+        kWhatFillThisBuffer      = CodecBase::kWhatFillThisBuffer,
+        kWhatDrainThisBuffer     = CodecBase::kWhatDrainThisBuffer,
+        kWhatEOS                 = CodecBase::kWhatEOS,
+        kWhatShutdownCompleted   = CodecBase::kWhatShutdownCompleted,
+        kWhatFlushCompleted      = CodecBase::kWhatFlushCompleted,
+        kWhatOutputFormatChanged = CodecBase::kWhatOutputFormatChanged,
+        kWhatError               = CodecBase::kWhatError,
+        kWhatComponentAllocated  = CodecBase::kWhatComponentAllocated,
+        kWhatComponentConfigured = CodecBase::kWhatComponentConfigured,
+        kWhatInputSurfaceCreated = CodecBase::kWhatInputSurfaceCreated,
+        kWhatSignaledInputEOS    = CodecBase::kWhatSignaledInputEOS,
+        kWhatBuffersAllocated    = CodecBase::kWhatBuffersAllocated,
     };
 
     ACodec();
 
-    void setNotificationMessage(const sp<AMessage> &msg);
+    virtual void setNotificationMessage(const sp<AMessage> &msg);
+
     void initiateSetup(const sp<AMessage> &msg);
-    void signalFlush();
-    void signalResume();
-    void initiateShutdown(bool keepComponentAllocated = false);
 
-    void signalSetParameters(const sp<AMessage> &msg);
-    void signalEndOfInputStream();
+    virtual void initiateAllocateComponent(const sp<AMessage> &msg);
+    virtual void initiateConfigureComponent(const sp<AMessage> &msg);
+    virtual void initiateCreateInputSurface();
+    virtual void initiateStart();
+    virtual void initiateShutdown(bool keepComponentAllocated = false);
 
-    void initiateAllocateComponent(const sp<AMessage> &msg);
-    void initiateConfigureComponent(const sp<AMessage> &msg);
-    void initiateCreateInputSurface();
-    void initiateStart();
+    virtual void signalFlush();
+    virtual void signalResume();
 
-    void signalRequestIDRFrame();
+    virtual void signalSetParameters(const sp<AMessage> &msg);
+    virtual void signalEndOfInputStream();
+    virtual void signalRequestIDRFrame();
 
-    struct PortDescription : public RefBase {
+    // AHierarchicalStateMachine implements the message handling
+    virtual void onMessageReceived(const sp<AMessage> &msg) {
+        handleMessage(msg);
+    }
+
+    struct PortDescription : public CodecBase::PortDescription {
         size_t countBuffers();
         IOMX::buffer_id bufferIDAt(size_t index) const;
         sp<ABuffer> bufferAt(size_t index) const;
@@ -117,6 +123,7 @@ private:
         kWhatRequestIDRFrame         = 'ridr',
         kWhatSetParameters           = 'setP',
         kWhatSubmitOutputMetaDataBufferIfEOS = 'subm',
+        kWhatOMXDied                 = 'OMXd',
     };
 
     enum {
