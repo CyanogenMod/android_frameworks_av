@@ -1533,12 +1533,12 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
  */
 
 status_t Camera3Device::registerInFlight(uint32_t frameNumber,
-        int32_t numBuffers, CaptureResultExtras resultExtras) {
+        int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput) {
     ATRACE_CALL();
     Mutex::Autolock l(mInFlightLock);
 
     ssize_t res;
-    res = mInFlightMap.add(frameNumber, InFlightRequest(numBuffers, resultExtras));
+    res = mInFlightMap.add(frameNumber, InFlightRequest(numBuffers, resultExtras, hasInput));
     if (res < 0) return res;
 
     return OK;
@@ -1729,6 +1729,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     bool partialResultQuirk = false;
     CameraMetadata collectedQuirkResult;
     CaptureResultExtras resultExtras;
+    bool hasInputBufferInRequest = false;
 
     // Get capture timestamp and resultExtras from list of in-flight requests,
     // where it was added by the shutter notification for this frame.
@@ -1777,6 +1778,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         timestamp = request.captureTimestamp;
         resultExtras = request.resultExtras;
+        hasInputBufferInRequest = request.hasInputBuffer;
 
         /**
          * One of the following must happen before it's legal to call process_capture_result,
@@ -1805,8 +1807,17 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             request.haveResultMetadata = true;
         }
 
-        request.numBuffersLeft -= result->num_output_buffers;
-        request.numBuffersLeft -= (result->input_buffer != NULL) ? 1 : 0;
+        uint32_t numBuffersReturned = result->num_output_buffers;
+        if (result->input_buffer != NULL) {
+            if (hasInputBufferInRequest) {
+                numBuffersReturned += 1;
+            } else {
+                ALOGW("%s: Input buffer should be NULL if there is no input"
+                        " buffer sent in the request",
+                        __FUNCTION__);
+            }
+        }
+        request.numBuffersLeft -= numBuffersReturned;
         if (request.numBuffersLeft < 0) {
             SET_ERR("Too many buffers returned for frame %d",
                     frameNumber);
@@ -1908,15 +1919,21 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     }
 
     if (result->input_buffer != NULL) {
-        Camera3Stream *stream =
-            Camera3Stream::cast(result->input_buffer->stream);
-        res = stream->returnInputBuffer(*(result->input_buffer));
-        // Note: stream may be deallocated at this point, if this buffer was the
-        // last reference to it.
-        if (res != OK) {
-            ALOGE("%s: RequestThread: Can't return input buffer for frame %d to"
-                    "  its stream:%s (%d)",  __FUNCTION__,
-                    frameNumber, strerror(-res), res);
+        if (hasInputBufferInRequest) {
+            Camera3Stream *stream =
+                Camera3Stream::cast(result->input_buffer->stream);
+            res = stream->returnInputBuffer(*(result->input_buffer));
+            // Note: stream may be deallocated at this point, if this buffer was the
+            // last reference to it.
+            if (res != OK) {
+                ALOGE("%s: RequestThread: Can't return input buffer for frame %d to"
+                      "  its stream:%s (%d)",  __FUNCTION__,
+                      frameNumber, strerror(-res), res);
+           } else {
+               ALOGW("%s: Input buffer should be NULL if there is no input"
+                       " buffer sent in the request",
+                       __FUNCTION__);
+           }
         }
     }
 
@@ -2375,7 +2392,8 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     res = parent->registerInFlight(request.frame_number,
-            totalNumBuffers, nextRequest->mResultExtras);
+            totalNumBuffers, nextRequest->mResultExtras,
+            /*hasInput*/request.input_buffer != NULL);
     ALOGVV("%s: registered in flight requestId = %" PRId32 ", frameNumber = %" PRId64
            ", burstId = %" PRId32 ".",
             __FUNCTION__,

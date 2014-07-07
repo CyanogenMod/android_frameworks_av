@@ -504,6 +504,8 @@ class Camera3Device :
         // and input buffers
         int     numBuffersLeft;
         CaptureResultExtras resultExtras;
+        // If this request has any input buffer
+        bool hasInputBuffer;
 
         // Fields used by the partial result quirk only
         struct PartialResultQuirkInFlight {
@@ -522,14 +524,16 @@ class Camera3Device :
                 captureTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
-                numBuffersLeft(0) {
+                numBuffersLeft(0),
+                hasInputBuffer(false){
         }
 
         InFlightRequest(int numBuffers) :
                 captureTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
-                numBuffersLeft(numBuffers) {
+                numBuffersLeft(numBuffers),
+                hasInputBuffer(false){
         }
 
         InFlightRequest(int numBuffers, CaptureResultExtras extras) :
@@ -537,9 +541,19 @@ class Camera3Device :
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers),
-                resultExtras(extras) {
+                resultExtras(extras),
+                hasInputBuffer(false){
         }
-    };
+
+        InFlightRequest(int numBuffers, CaptureResultExtras extras, bool hasInput) :
+                captureTimestamp(0),
+                requestStatus(OK),
+                haveResultMetadata(false),
+                numBuffersLeft(numBuffers),
+                resultExtras(extras),
+                hasInputBuffer(hasInput){
+        }
+};
     // Map from frame number to the in-flight request state
     typedef KeyedVector<uint32_t, InFlightRequest> InFlightMap;
 
@@ -547,7 +561,7 @@ class Camera3Device :
     InFlightMap            mInFlightMap;
 
     status_t registerInFlight(uint32_t frameNumber,
-            int32_t numBuffers, CaptureResultExtras resultExtras);
+            int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput);
 
     /**
      * For the partial result quirk, check if all 3A state fields are available
