@@ -217,22 +217,25 @@ void AnotherPacketSource::clear() {
 
 void AnotherPacketSource::queueDiscontinuity(
         ATSParser::DiscontinuityType type,
-        const sp<AMessage> &extra) {
+        const sp<AMessage> &extra,
+        bool discard) {
     Mutex::Autolock autoLock(mLock);
 
-    // Leave only discontinuities in the queue.
-    List<sp<ABuffer> >::iterator it = mBuffers.begin();
-    while (it != mBuffers.end()) {
-        sp<ABuffer> oldBuffer = *it;
+    if (discard) {
+        // Leave only discontinuities in the queue.
+        List<sp<ABuffer> >::iterator it = mBuffers.begin();
+        while (it != mBuffers.end()) {
+            sp<ABuffer> oldBuffer = *it;
 
-        int32_t oldDiscontinuityType;
-        if (!oldBuffer->meta()->findInt32(
-                    "discontinuity", &oldDiscontinuityType)) {
-            it = mBuffers.erase(it);
-            continue;
+            int32_t oldDiscontinuityType;
+            if (!oldBuffer->meta()->findInt32(
+                        "discontinuity", &oldDiscontinuityType)) {
+                it = mBuffers.erase(it);
+                continue;
+            }
+
+            ++it;
         }
-
-        ++it;
     }
 
     mEOSResult = OK;

@@ -505,7 +505,10 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             TrackInfo *info = &mTracks.editItemAt(trackIndex);
             sp<AnotherPacketSource> source = info->mSource;
             if (source != NULL) {
-                source->queueDiscontinuity(ATSParser::DISCONTINUITY_SEEK, NULL);
+                source->queueDiscontinuity(
+                        ATSParser::DISCONTINUITY_SEEK,
+                        NULL,
+                        true /* discard */);
             }
 
             break;

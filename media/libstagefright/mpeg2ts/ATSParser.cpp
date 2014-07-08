@@ -669,7 +669,7 @@ void ATSParser::Stream::signalDiscontinuity(
     }
 
     if (mSource != NULL) {
-        mSource->queueDiscontinuity(type, extra);
+        mSource->queueDiscontinuity(type, extra, true);
     }
 }
 

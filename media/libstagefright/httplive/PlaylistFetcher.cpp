@@ -588,7 +588,10 @@ void PlaylistFetcher::notifyError(status_t err) {
 void PlaylistFetcher::queueDiscontinuity(
         ATSParser::DiscontinuityType type, const sp<AMessage> &extra) {
     for (size_t i = 0; i < mPacketSources.size(); ++i) {
-        mPacketSources.valueAt(i)->queueDiscontinuity(type, extra);
+        // do not discard buffer upon #EXT-X-DISCONTINUITY tag
+        // (seek will discard buffer by abandoning old fetchers)
+        mPacketSources.valueAt(i)->queueDiscontinuity(
+                type, extra, false /* discard */);
     }
 }
 
@@ -723,8 +726,7 @@ void PlaylistFetcher::onDownloadNext() {
         firstSeqNumberInPlaylist = 0;
     }
 
-    bool seekDiscontinuity = false;
-    bool explicitDiscontinuity = false;
+    bool discontinuity = false;
 
     const int32_t lastSeqNumberInPlaylist =
         firstSeqNumberInPlaylist + (int32_t)mPlaylist->size() - 1;
@@ -792,7 +794,7 @@ void PlaylistFetcher::onDownloadNext() {
             if (mSeqNumber < firstSeqNumberInPlaylist) {
                 mSeqNumber = firstSeqNumberInPlaylist;
             }
-            explicitDiscontinuity = true;
+            discontinuity = true;
 
             // fall through
         } else {
@@ -817,7 +819,7 @@ void PlaylistFetcher::onDownloadNext() {
 
     int32_t val;
     if (itemMeta->findInt32("discontinuity", &val) && val != 0) {
-        explicitDiscontinuity = true;
+        discontinuity = true;
     }
 
     int64_t range_offset, range_length;
@@ -877,7 +879,7 @@ void PlaylistFetcher::onDownloadNext() {
             return;
         }
 
-        if (mStartup || seekDiscontinuity || explicitDiscontinuity) {
+        if (mStartup || discontinuity) {
             // Signal discontinuity.
 
             if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
@@ -887,18 +889,14 @@ void PlaylistFetcher::onDownloadNext() {
                 mNextPTSTimeUs = getSegmentStartTimeUs(mSeqNumber);
             }
 
-            if (seekDiscontinuity || explicitDiscontinuity) {
-                ALOGI("queueing discontinuity (seek=%d, explicit=%d)",
-                     seekDiscontinuity, explicitDiscontinuity);
+            if (discontinuity) {
+                ALOGI("queueing discontinuity (explicit=%d)", discontinuity);
 
                 queueDiscontinuity(
-                        explicitDiscontinuity
-                            ? ATSParser::DISCONTINUITY_FORMATCHANGE
-                            : ATSParser::DISCONTINUITY_SEEK,
+                        ATSParser::DISCONTINUITY_FORMATCHANGE,
                         NULL /* extra */);
 
-                seekDiscontinuity = false;
-                explicitDiscontinuity = false;
+                discontinuity = false;
             }
         }
 
