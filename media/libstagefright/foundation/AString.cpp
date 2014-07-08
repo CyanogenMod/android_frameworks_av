@@ -328,6 +328,20 @@ bool AString::endsWith(const char *suffix) const {
     return !strcmp(mData + mSize - suffixLen, suffix);
 }
 
+bool AString::startsWithIgnoreCase(const char *prefix) const {
+    return !strncasecmp(mData, prefix, strlen(prefix));
+}
+
+bool AString::endsWithIgnoreCase(const char *suffix) const {
+    size_t suffixLen = strlen(suffix);
+
+    if (mSize < suffixLen) {
+        return false;
+    }
+
+    return !strcasecmp(mData + mSize - suffixLen, suffix);
+}
+
 AString StringPrintf(const char *format, ...) {
     va_list ap;
     va_start(ap, format);

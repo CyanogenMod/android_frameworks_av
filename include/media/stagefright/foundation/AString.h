@@ -77,6 +77,8 @@ struct AString {
 
     bool startsWith(const char *prefix) const;
     bool endsWith(const char *suffix) const;
+    bool startsWithIgnoreCase(const char *prefix) const;
+    bool endsWithIgnoreCase(const char *suffix) const;
 
     void tolower();
 
