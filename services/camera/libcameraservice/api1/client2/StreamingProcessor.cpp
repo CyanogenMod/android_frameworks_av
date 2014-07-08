@@ -89,8 +89,26 @@ status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
 
     Mutex::Autolock m(mMutex);
     if (mPreviewRequest.entryCount() == 0) {
-        res = device->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
-                &mPreviewRequest);
+        sp<Camera2Client> client = mClient.promote();
+        if (client == 0) {
+            ALOGE("%s: Camera %d: Client does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
+
+        // Use CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG for ZSL streaming case.
+        if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_0) {
+            if (params.zslMode && !params.recordingHint) {
+                res = device->createDefaultRequest(CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG,
+                        &mPreviewRequest);
+            } else {
+                res = device->createDefaultRequest(CAMERA3_TEMPLATE_PREVIEW,
+                        &mPreviewRequest);
+            }
+        } else {
+            res = device->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+                    &mPreviewRequest);
+        }
+
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create default preview request: "
                     "%s (%d)", __FUNCTION__, mId, strerror(-res), res);

@@ -1929,11 +1929,11 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 ALOGE("%s: RequestThread: Can't return input buffer for frame %d to"
                       "  its stream:%s (%d)",  __FUNCTION__,
                       frameNumber, strerror(-res), res);
-           } else {
-               ALOGW("%s: Input buffer should be NULL if there is no input"
-                       " buffer sent in the request",
-                       __FUNCTION__);
-           }
+            }
+        } else {
+            ALOGW("%s: Input buffer should be NULL if there is no input"
+                    " buffer sent in the request, skipping input buffer return.",
+                    __FUNCTION__);
         }
     }
 

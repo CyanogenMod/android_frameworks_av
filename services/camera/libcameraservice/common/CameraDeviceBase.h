@@ -26,6 +26,7 @@
 
 #include <camera/camera2/ICameraDeviceCallbacks.h>
 #include "hardware/camera2.h"
+#include "hardware/camera3.h"
 #include "camera/CameraMetadata.h"
 #include "camera/CaptureResult.h"
 
