@@ -223,6 +223,8 @@ extern "C" int EffectCreate(const effect_uuid_t *uuid,
         pContext->pBundledContext->bBassTempDisabled        = LVM_FALSE;
         pContext->pBundledContext->bVirtualizerEnabled      = LVM_FALSE;
         pContext->pBundledContext->bVirtualizerTempDisabled = LVM_FALSE;
+        pContext->pBundledContext->nOutputDevice            = AUDIO_DEVICE_NONE;
+        pContext->pBundledContext->nVirtualizerForcedDevice = AUDIO_DEVICE_NONE;
         pContext->pBundledContext->NumberEffectsEnabled     = 0;
         pContext->pBundledContext->NumberEffectsCalled      = 0;
         pContext->pBundledContext->firstVolume              = LVM_TRUE;
@@ -1166,6 +1168,177 @@ void VirtualizerSetStrength(EffectContext *pContext, uint32_t strength){
     //ALOGV("\tVirtualizerSetStrength Succesfully called LVM_SetControlParameters\n\n");
 }    /* end setStrength */
 
+//----------------------------------------------------------------------------
+// VirtualizerIsDeviceSupported()
+//----------------------------------------------------------------------------
+// Purpose:
+// Check if an audio device type is supported by this implementation
+//
+// Inputs:
+//  deviceType   the type of device that affects the processing (e.g. for binaural vs transaural)
+// Output:
+//  -EINVAL      if the configuration is not supported or it is unknown
+//  0            if the configuration is supported
+//----------------------------------------------------------------------------
+int VirtualizerIsDeviceSupported(audio_devices_t deviceType) {
+    switch (deviceType) {
+    case AUDIO_DEVICE_OUT_WIRED_HEADSET:
+    case AUDIO_DEVICE_OUT_WIRED_HEADPHONE:
+    case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES:
+        return 0;
+    default :
+        return -EINVAL;
+    }
+}
+
+//----------------------------------------------------------------------------
+// VirtualizerIsConfigurationSupported()
+//----------------------------------------------------------------------------
+// Purpose:
+// Check if a channel mask + audio device type is supported by this implementation
+//
+// Inputs:
+//  channelMask  the channel mask of the input to virtualize
+//  deviceType   the type of device that affects the processing (e.g. for binaural vs transaural)
+// Output:
+//  -EINVAL      if the configuration is not supported or it is unknown
+//  0            if the configuration is supported
+//----------------------------------------------------------------------------
+int VirtualizerIsConfigurationSupported(audio_channel_mask_t channelMask,
+        audio_devices_t deviceType) {
+    uint32_t channelCount = audio_channel_count_from_out_mask(channelMask);
+    if ((channelCount == 0) || (channelCount > 2)) {
+        return -EINVAL;
+    }
+
+    return VirtualizerIsDeviceSupported(deviceType);
+}
+
+//----------------------------------------------------------------------------
+// VirtualizerForceVirtualizationMode()
+//----------------------------------------------------------------------------
+// Purpose:
+// Force the virtualization mode to that of the given audio device
+//
+// Inputs:
+//  pContext     effect engine context
+//  forcedDevice the type of device whose virtualization mode we'll always use
+// Output:
+//  -EINVAL      if the device is not supported or is unknown
+//  0            if the device is supported and the virtualization mode forced
+//
+//----------------------------------------------------------------------------
+int VirtualizerForceVirtualizationMode(EffectContext *pContext, audio_devices_t forcedDevice) {
+    ALOGV("VirtualizerForceVirtualizationMode: forcedDev=0x%x enabled=%d tmpDisabled=%d",
+            forcedDevice, pContext->pBundledContext->bVirtualizerEnabled,
+            pContext->pBundledContext->bVirtualizerTempDisabled);
+    int status = 0;
+    bool useVirtualizer = false;
+
+    if (VirtualizerIsDeviceSupported(forcedDevice) != 0) {
+        // forced device is not supported, make it behave as a reset of forced mode
+        forcedDevice = AUDIO_DEVICE_NONE;
+        // but return an error
+        status = -EINVAL;
+    }
+
+    if (forcedDevice == AUDIO_DEVICE_NONE) {
+        // disabling forced virtualization mode:
+        // verify whether the virtualization should be enabled or disabled
+        if (VirtualizerIsDeviceSupported(pContext->pBundledContext->nOutputDevice) == 0) {
+            useVirtualizer = (pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE);
+        }
+        pContext->pBundledContext->nVirtualizerForcedDevice = AUDIO_DEVICE_NONE;
+    } else {
+        // forcing virtualization mode: here we already know the device is supported
+        pContext->pBundledContext->nVirtualizerForcedDevice = AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
+        // only enable for a supported mode, when the effect is enabled
+        useVirtualizer = (pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE);
+    }
+
+    if (useVirtualizer) {
+        if (pContext->pBundledContext->bVirtualizerTempDisabled == LVM_TRUE) {
+            ALOGV("\tVirtualizerForceVirtualizationMode re-enable LVM_VIRTUALIZER");
+            android::LvmEffect_enable(pContext);
+            pContext->pBundledContext->bVirtualizerTempDisabled = LVM_FALSE;
+        } else {
+            ALOGV("\tVirtualizerForceVirtualizationMode leaving LVM_VIRTUALIZER enabled");
+        }
+    } else {
+        if (pContext->pBundledContext->bVirtualizerTempDisabled == LVM_FALSE) {
+            ALOGV("\tVirtualizerForceVirtualizationMode disable LVM_VIRTUALIZER");
+            android::LvmEffect_disable(pContext);
+            pContext->pBundledContext->bVirtualizerTempDisabled = LVM_TRUE;
+        } else {
+            ALOGV("\tVirtualizerForceVirtualizationMode leaving LVM_VIRTUALIZER disabled");
+        }
+    }
+
+    ALOGV("\tafter VirtualizerForceVirtualizationMode: enabled=%d tmpDisabled=%d",
+            pContext->pBundledContext->bVirtualizerEnabled,
+            pContext->pBundledContext->bVirtualizerTempDisabled);
+
+    return status;
+}
+//----------------------------------------------------------------------------
+// VirtualizerGetSpeakerAngles()
+//----------------------------------------------------------------------------
+// Purpose:
+// Get the virtual speaker angles for a channel mask + audio device type
+// configuration which is guaranteed to be supported by this implementation
+//
+// Inputs:
+//  channelMask:   the channel mask of the input to virtualize
+//  deviceType     the type of device that affects the processing (e.g. for binaural vs transaural)
+// Input/Output:
+//  pSpeakerAngles the array of integer where each speaker angle is written as a triplet in the
+//                 following format:
+//                    int32_t a bit mask with a single value selected for each speaker, following
+//                            the convention of the audio_channel_mask_t type
+//                    int32_t a value in degrees expressing the speaker azimuth, where 0 is in front
+//                            of the user, 180 behind, -90 to the left, 90 to the right of the user
+//                    int32_t a value in degrees expressing the speaker elevation, where 0 is the
+//                            horizontal plane, +90 is directly above the user, -90 below
+//
+//----------------------------------------------------------------------------
+void VirtualizerGetSpeakerAngles(audio_channel_mask_t channelMask __unused,
+        audio_devices_t deviceType __unused, int32_t *pSpeakerAngles) {
+    // the channel count is guaranteed to be 1 or 2
+    // the device is guaranteed to be of type headphone
+    // this virtualizer is always 2in with speakers at -90 and 90deg of azimuth, 0deg of elevation
+    *pSpeakerAngles++ = (int32_t) AUDIO_CHANNEL_OUT_FRONT_LEFT;
+    *pSpeakerAngles++ = -90; // azimuth
+    *pSpeakerAngles++ = 0;   // elevation
+    *pSpeakerAngles++ = (int32_t) AUDIO_CHANNEL_OUT_FRONT_RIGHT;
+    *pSpeakerAngles++ = 90;  // azimuth
+    *pSpeakerAngles   = 0;   // elevation
+}
+
+//----------------------------------------------------------------------------
+// VirtualizerGetVirtualizationMode()
+//----------------------------------------------------------------------------
+// Purpose:
+// Retrieve the current device whose processing mode is used by this effect
+//
+// Output:
+//   AUDIO_DEVICE_NONE if the effect is not virtualizing
+//   or the device type if the effect is virtualizing
+//----------------------------------------------------------------------------
+audio_devices_t VirtualizerGetVirtualizationMode(EffectContext *pContext) {
+    audio_devices_t virtDevice = AUDIO_DEVICE_NONE;
+    if ((pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE)
+            && (pContext->pBundledContext->bVirtualizerTempDisabled == LVM_FALSE)) {
+        if (pContext->pBundledContext->nVirtualizerForcedDevice != AUDIO_DEVICE_NONE) {
+            // virtualization mode is forced, return that device
+            virtDevice = pContext->pBundledContext->nVirtualizerForcedDevice;
+        } else {
+            // no forced mode, return the current device
+            virtDevice = pContext->pBundledContext->nOutputDevice;
+        }
+    }
+    ALOGV("VirtualizerGetVirtualizationMode() returning 0x%x", virtDevice);
+    return virtDevice;
+}
 
 //----------------------------------------------------------------------------
 // EqualizerLimitBandLevels()
@@ -1903,7 +2076,17 @@ int Virtualizer_getParameter(EffectContext        *pContext,
             }
             *pValueSize = sizeof(int16_t);
             break;
-
+        case VIRTUALIZER_PARAM_VIRTUAL_SPEAKER_ANGLES:
+            // return value size can only be interpreted as relative to input value,
+            // deferring validity check to below
+            break;
+        case VIRTUALIZER_PARAM_VIRTUALIZATION_MODE:
+            if (*pValueSize != sizeof(uint32_t)){
+                ALOGV("\tLVM_ERROR : Virtualizer_getParameter() invalid pValueSize %d",*pValueSize);
+                return -EINVAL;
+            }
+            *pValueSize = sizeof(uint32_t);
+            break;
         default:
             ALOGV("\tLVM_ERROR : Virtualizer_getParameter() invalid param %d", param);
             return -EINVAL;
@@ -1924,13 +2107,36 @@ int Virtualizer_getParameter(EffectContext        *pContext,
             //        *(int16_t *)pValue);
             break;
 
+        case VIRTUALIZER_PARAM_VIRTUAL_SPEAKER_ANGLES: {
+            const audio_channel_mask_t channelMask = (audio_channel_mask_t) *pParamTemp++;
+            const audio_devices_t deviceType = (audio_devices_t) *pParamTemp;
+            uint32_t nbChannels = audio_channel_count_from_out_mask(channelMask);
+            if (*pValueSize < 3 * nbChannels * sizeof(int32_t)){
+                ALOGV("\tLVM_ERROR : Virtualizer_getParameter() invalid pValueSize %d",*pValueSize);
+                return -EINVAL;
+            }
+            // verify the configuration is supported
+            status = VirtualizerIsConfigurationSupported(channelMask, deviceType);
+            if (status == 0) {
+                ALOGV("VIRTUALIZER_PARAM_VIRTUAL_SPEAKER_ANGLES supports mask=0x%x device=0x%x",
+                        channelMask, deviceType);
+                // configuration is supported, get the angles
+                VirtualizerGetSpeakerAngles(channelMask, deviceType, (int32_t *)pValue);
+            }
+            }
+            break;
+
+        case VIRTUALIZER_PARAM_VIRTUALIZATION_MODE:
+            *(uint32_t *)pValue  = (uint32_t) VirtualizerGetVirtualizationMode(pContext);
+            break;
+
         default:
             ALOGV("\tLVM_ERROR : Virtualizer_getParameter() invalid param %d", param);
             status = -EINVAL;
             break;
     }
 
-    //ALOGV("\tVirtualizer_getParameter end");
+    ALOGV("\tVirtualizer_getParameter end returning status=%d", status);
     return status;
 } /* end Virtualizer_getParameter */
 
@@ -1965,6 +2171,15 @@ int Virtualizer_setParameter (EffectContext *pContext, void *pParam, void *pValu
             VirtualizerSetStrength(pContext, (int32_t)strength);
             //ALOGV("\tVirtualizer_setParameter() Called pVirtualizer->setStrength");
            break;
+
+        case VIRTUALIZER_PARAM_FORCE_VIRTUALIZATION_MODE: {
+            const audio_devices_t deviceType = *(audio_devices_t *) pValue;
+            status = VirtualizerForceVirtualizationMode(pContext, deviceType);
+            //ALOGV("VIRTUALIZER_PARAM_FORCE_VIRTUALIZATION_MODE device=0x%x result=%d",
+            //        deviceType, status);
+            }
+            break;
+
         default:
             ALOGV("\tLVM_ERROR : Virtualizer_setParameter() invalid param %d", param);
             break;
@@ -2865,7 +3080,6 @@ int Effect_command(effect_handle_t  self,
                                                               (void *)p->data,
                                                               &p->vsize,
                                                               p->data + voffset);
-
                 *replySize = sizeof(effect_param_t) + voffset + p->vsize;
 
                 //ALOGV("\tVirtualizer_command EFFECT_CMD_GET_PARAM "
@@ -2976,14 +3190,17 @@ int Effect_command(effect_handle_t  self,
                                                                     p->data + p->psize);
             }
             if(pContext->EffectType == LVM_VIRTUALIZER){
+              // Warning this log will fail to properly read an int32_t value, assumes int16_t
               //ALOGV("\tVirtualizer_command EFFECT_CMD_SET_PARAM param %d, *replySize %d, value %d",
               //        *(int32_t *)((char *)pCmdData + sizeof(effect_param_t)),
               //        *replySize,
               //        *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) + sizeof(int32_t)));
 
-                if (pCmdData   == NULL||
-                    cmdSize    != (sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int16_t))||
-                    pReplyData == NULL||
+                if (pCmdData   == NULL ||
+                    // legal parameters are int16_t or int32_t
+                    cmdSize    > (sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int32_t)) ||
+                    cmdSize    < (sizeof(effect_param_t) + sizeof(int32_t) +sizeof(int16_t)) ||
+                    pReplyData == NULL ||
                     *replySize != sizeof(int32_t)){
                     ALOGV("\tLVM_ERROR : Virtualizer_command cmdCode Case: "
                             "EFFECT_CMD_SET_PARAM: ERROR");
@@ -3075,6 +3292,7 @@ int Effect_command(effect_handle_t  self,
         {
             ALOGV("\tEffect_command cmdCode Case: EFFECT_CMD_SET_DEVICE start");
             uint32_t device = *(uint32_t *)pCmdData;
+            pContext->pBundledContext->nOutputDevice = (audio_devices_t) device;
 
             if (pContext->EffectType == LVM_BASS_BOOST) {
                 if((device == AUDIO_DEVICE_OUT_SPEAKER) ||
@@ -3110,37 +3328,38 @@ int Effect_command(effect_handle_t  self,
                 }
             }
             if (pContext->EffectType == LVM_VIRTUALIZER) {
-                if((device == AUDIO_DEVICE_OUT_SPEAKER)||
-                        (device == AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT)||
-                        (device == AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER)){
-                    ALOGV("\tEFFECT_CMD_SET_DEVICE device is invalid for LVM_VIRTUALIZER %d",
-                          *(int32_t *)pCmdData);
-                    ALOGV("\tEFFECT_CMD_SET_DEVICE temporary disable LVM_VIRTUALIZER");
+                if (pContext->pBundledContext->nVirtualizerForcedDevice == AUDIO_DEVICE_NONE) {
+                    // default case unless configuration is forced
+                    if (android::VirtualizerIsDeviceSupported(device) != 0) {
+                        ALOGV("\tEFFECT_CMD_SET_DEVICE device is invalid for LVM_VIRTUALIZER %d",
+                                *(int32_t *)pCmdData);
+                        ALOGV("\tEFFECT_CMD_SET_DEVICE temporary disable LVM_VIRTUALIZER");
 
-                    //If a device doesnt support virtualizer the effect must be temporarily disabled
-                    // the effect must still report its original state as this can only be changed
-                    // by the ENABLE/DISABLE command
+                        //If a device doesnt support virtualizer the effect must be temporarily
+                        // disabled the effect must still report its original state as this can
+                        // only be changed by the ENABLE/DISABLE command
 
-                    if (pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE) {
-                        ALOGV("\tEFFECT_CMD_SET_DEVICE disable LVM_VIRTUALIZER %d",
-                              *(int32_t *)pCmdData);
-                        android::LvmEffect_disable(pContext);
+                        if (pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE) {
+                            ALOGV("\tEFFECT_CMD_SET_DEVICE disable LVM_VIRTUALIZER %d",
+                                    *(int32_t *)pCmdData);
+                            android::LvmEffect_disable(pContext);
+                        }
+                        pContext->pBundledContext->bVirtualizerTempDisabled = LVM_TRUE;
+                    } else {
+                        ALOGV("\tEFFECT_CMD_SET_DEVICE device is valid for LVM_VIRTUALIZER %d",
+                                *(int32_t *)pCmdData);
+
+                        // If a device supports virtualizer and the effect has been temporarily
+                        // disabled previously then re-enable it
+
+                        if(pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE){
+                            ALOGV("\tEFFECT_CMD_SET_DEVICE re-enable LVM_VIRTUALIZER %d",
+                                    *(int32_t *)pCmdData);
+                            android::LvmEffect_enable(pContext);
+                        }
+                        pContext->pBundledContext->bVirtualizerTempDisabled = LVM_FALSE;
                     }
-                    pContext->pBundledContext->bVirtualizerTempDisabled = LVM_TRUE;
-                } else {
-                    ALOGV("\tEFFECT_CMD_SET_DEVICE device is valid for LVM_VIRTUALIZER %d",
-                          *(int32_t *)pCmdData);
-
-                    // If a device supports virtualizer and the effect has been temporarily disabled
-                    // previously then re-enable it
-
-                    if(pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE){
-                        ALOGV("\tEFFECT_CMD_SET_DEVICE re-enable LVM_VIRTUALIZER %d",
-                              *(int32_t *)pCmdData);
-                        android::LvmEffect_enable(pContext);
-                    }
-                    pContext->pBundledContext->bVirtualizerTempDisabled = LVM_FALSE;
-                }
+                } // else virtualization mode is forced to a certain device, nothing to do
             }
             ALOGV("\tEffect_command cmdCode Case: EFFECT_CMD_SET_DEVICE end");
             break;
