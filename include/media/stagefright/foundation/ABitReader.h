@@ -25,8 +25,10 @@
 
 namespace android {
 
-struct ABitReader {
+class ABitReader {
+public:
     ABitReader(const uint8_t *data, size_t size);
+    virtual ~ABitReader();
 
     uint32_t getBits(size_t n);
     void skipBits(size_t n);
@@ -37,16 +39,30 @@ struct ABitReader {
 
     const uint8_t *data() const;
 
-private:
+protected:
     const uint8_t *mData;
     size_t mSize;
 
     uint32_t mReservoir;  // left-aligned bits
     size_t mNumBitsLeft;
 
-    void fillReservoir();
+    virtual void fillReservoir();
 
     DISALLOW_EVIL_CONSTRUCTORS(ABitReader);
+};
+
+class NALBitReader : public ABitReader {
+public:
+    NALBitReader(const uint8_t *data, size_t size);
+
+    bool atLeastNumBitsLeft(size_t n) const;
+
+private:
+    int32_t mNumZeros;
+
+    virtual void fillReservoir();
+
+    DISALLOW_EVIL_CONSTRUCTORS(NALBitReader);
 };
 
 }  // namespace android
