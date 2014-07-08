@@ -517,10 +517,7 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
             config != AUDIO_POLICY_FORCE_WIRED_ACCESSORY &&
             config != AUDIO_POLICY_FORCE_ANALOG_DOCK &&
             config != AUDIO_POLICY_FORCE_DIGITAL_DOCK && config != AUDIO_POLICY_FORCE_NONE &&
-            config != AUDIO_POLICY_FORCE_NO_BT_A2DP &&
-            config != AUDIO_POLICY_FORCE_SYSTEM_AUDIO_HDMI_ARC &&
-            config != AUDIO_POLICY_FORCE_SYSTEM_AUDIO_SPDIF &&
-            config != AUDIO_POLICY_FORCE_SYSTEM_AUDIO_LINE) {
+            config != AUDIO_POLICY_FORCE_NO_BT_A2DP) {
             ALOGW("setForceUse() invalid config %d for FOR_MEDIA", config);
             return;
         }
@@ -3542,30 +3539,17 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         }
         int device3 = AUDIO_DEVICE_NONE;
         if (strategy == STRATEGY_MEDIA) {
-            // Hdmi system audio should use manually configured device type.
-            if (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA]
-                    == AUDIO_POLICY_FORCE_SYSTEM_AUDIO_HDMI_ARC) {
-                device3 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_HDMI_ARC;
-            } else if (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA]
-                    == AUDIO_POLICY_FORCE_SYSTEM_AUDIO_SPDIF) {
-                device3 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPDIF;
-            } else if (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA]
-                    == AUDIO_POLICY_FORCE_SYSTEM_AUDIO_LINE) {
-                device3 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_LINE;
-            }
+            // ARC, SPDIF and LINE can co-exist with others.
+            device3 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_HDMI_ARC;
+            device3 |= (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPDIF);
+            device3 |= (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_LINE);
         }
 
-        // Merge hdmi cec system audio and existing device for media. If system audio is on,
-        // internal speaker will be muted but others are not.
         device2 |= device3;
         // device is DEVICE_OUT_SPEAKER if we come from case STRATEGY_SONIFICATION or
         // STRATEGY_ENFORCED_AUDIBLE, AUDIO_DEVICE_NONE otherwise
         device |= device2;
 
-        // If system audio mode is on and proper audio out is set, remove speaker from device.
-        if (device3 != AUDIO_DEVICE_NONE) {
-             device &= ~AUDIO_DEVICE_OUT_SPEAKER;
-        }
         if (device) break;
         device = mDefaultOutputDevice->mDeviceType;
         if (device == AUDIO_DEVICE_NONE) {
