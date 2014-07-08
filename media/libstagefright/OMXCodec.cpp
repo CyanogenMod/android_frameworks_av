@@ -793,10 +793,15 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         }
 #endif
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_MPEG, mMIME)) {
-        status_t err = setMP3Format(meta);
-        if (err != OK) {
-            CODEC_LOGE("setMP3Format() failed (err = %d)", err);
-            return err;
+        int32_t numChannels, sampleRate;
+        if (meta->findInt32(kKeyChannelCount, &numChannels)
+                && meta->findInt32(kKeySampleRate, &sampleRate)) {
+            // Since we did not always check for these, leave them optional
+            // and have the decoder figure it all out.
+            setRawAudioFormat(
+                    mIsEncoder ? kPortIndexInput : kPortIndexOutput,
+                    sampleRate,
+                    numChannels);
         }
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_G711_ALAW, mMIME)
             || !strcasecmp(MEDIA_MIMETYPE_AUDIO_G711_MLAW, mMIME)) {
@@ -5140,13 +5145,13 @@ status_t OMXCodec::read(
             mPaused = false;
         }
 
-        drainInputBuffers();
 
         if (mState == EXECUTING) {
             // Otherwise mState == RECONFIGURING and this code will trigger
             // after the output port is reenabled.
             fillOutputBuffers();
         }
+        drainInputBuffers();
     }
 
     if (seeking) {

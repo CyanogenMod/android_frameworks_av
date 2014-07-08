@@ -2346,10 +2346,6 @@ status_t MPEG4Extractor::verifyTrack(Track *track) {
 status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         const void *esds_data, size_t esds_size) {
     ESDS esds(esds_data, esds_size);
-    static uint32_t kSamplingRate[] = {
-        96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
-        16000, 12000, 11025, 8000, 7350
-    };
 
     uint8_t objectTypeIndication;
     if (esds.getObjectTypeIndication(&objectTypeIndication) != OK) {
@@ -2410,6 +2406,11 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         return ERROR_MALFORMED;
     }
 
+    static uint32_t kSamplingRate[] = {
+        96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
+        16000, 12000, 11025, 8000, 7350
+    };
+
     ABitReader br(csd, csd_size);
     uint32_t objectType = br.getBits(5);
 
@@ -2417,11 +2418,13 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         objectType = 32 + br.getBits(6);
     }
 
+#ifdef QCOM_DIRECTTRACK
     if(objectType == 1) { //AAC Main profile
         ALOGD("\n >>> Found AAC mainprofile in MPEG4 Extractor... \n");
     }
 
     mLastTrack->meta->setInt32(kKeyAACProfile, objectType);
+#endif
 
     //keep AOT type
     mLastTrack->meta->setInt32(kKeyAACAOT, objectType);
@@ -2439,15 +2442,11 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
         sampleRate = br.getBits(24);
         numChannels = br.getBits(4);
     } else {
+        numChannels = br.getBits(4);
+
         if (freqIndex == 13 || freqIndex == 14) {
             return ERROR_MALFORMED;
         }
-        numChannels = br.getBits(4);
-        sampleRate = kSamplingRate[freqIndex];
-    }
-    if (objectType == 5 || objectType == 29) {
-        // SBR specific config per 14496-3 table 1.13
-        freqIndex = br.getBits(4);
 
         sampleRate = kSamplingRate[freqIndex];
     }

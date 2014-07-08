@@ -226,7 +226,6 @@ public:
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
      */
-
                         virtual ~AudioTrack();
 
     /* Initialize an AudioTrack that was created using the AudioTrack() constructor.
