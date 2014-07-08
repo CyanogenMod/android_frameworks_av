@@ -162,9 +162,9 @@ void AudioResamplerDyn<TC, TI, TO>::Constants::set(
 }
 
 template<typename TC, typename TI, typename TO>
-AudioResamplerDyn<TC, TI, TO>::AudioResamplerDyn(int bitDepth,
+AudioResamplerDyn<TC, TI, TO>::AudioResamplerDyn(
         int inChannelCount, int32_t sampleRate, src_quality quality)
-    : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
+    : AudioResampler(inChannelCount, sampleRate, quality),
       mResampleFunc(0), mFilterSampleRate(0), mFilterQuality(DEFAULT_QUALITY),
     mCoefBuffer(NULL)
 {

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "AudioResampler.h"
-#include <media/AudioBufferProvider.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +28,8 @@
 #include <audio_utils/primitives.h>
 #include <audio_utils/sndfile.h>
 #include <utils/Vector.h>
+#include <media/AudioBufferProvider.h>
+#include "AudioResampler.h"
 
 using namespace android;
 
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
         printf("%zu input frames\n", input_frames);
     }
 
-    int bit_depth = useFloat ? 32 : 16;
+    audio_format_t format = useFloat ? AUDIO_FORMAT_PCM_FLOAT : AUDIO_FORMAT_PCM_16_BIT;
     int output_channels = channels > 2 ? channels : 2; // output is at least stereo samples
     size_t output_framesize = output_channels * (useFloat ? sizeof(float) : sizeof(int32_t));
     size_t output_frames = ((int64_t) input_frames * output_freq) / input_freq;
@@ -342,7 +342,7 @@ int main(int argc, char* argv[]) {
         //
         // On fast devices, filters should be generated between 0.1ms - 1ms.
         // (single threaded).
-        AudioResampler* resampler = AudioResampler::create(bit_depth, channels,
+        AudioResampler* resampler = AudioResampler::create(format, channels,
                 8000, quality);
         int looplimit = 100;
         timespec start, end;
@@ -380,7 +380,7 @@ int main(int argc, char* argv[]) {
     }
 
     void* output_vaddr = malloc(output_size);
-    AudioResampler* resampler = AudioResampler::create(bit_depth, channels,
+    AudioResampler* resampler = AudioResampler::create(format, channels,
             output_freq, quality);
 
 

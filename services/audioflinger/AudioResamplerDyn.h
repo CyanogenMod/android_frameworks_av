@@ -41,7 +41,7 @@ namespace android {
 template<typename TC, typename TI, typename TO>
 class AudioResamplerDyn: public AudioResampler {
 public:
-    AudioResamplerDyn(int bitDepth, int inChannelCount,
+    AudioResamplerDyn(int inChannelCount,
             int32_t sampleRate, src_quality quality);
 
     virtual ~AudioResamplerDyn();
