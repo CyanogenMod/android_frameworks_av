@@ -76,6 +76,7 @@ public:
 
 private:
     struct Decoder;
+    struct DecoderPassThrough;
     struct CCDecoder;
     struct GenericSource;
     struct HTTPLiveSource;
@@ -120,6 +121,7 @@ private:
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
+    bool mOffloadAudio;
     sp<Decoder> mAudioDecoder;
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;

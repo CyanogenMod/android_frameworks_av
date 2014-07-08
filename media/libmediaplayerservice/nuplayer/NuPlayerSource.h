@@ -64,6 +64,7 @@ struct NuPlayer::Source : public AHandler {
     virtual status_t feedMoreTSData() = 0;
 
     virtual sp<AMessage> getFormat(bool audio);
+    virtual sp<MetaData> getFormatMeta(bool /* audio */) { return NULL; }
 
     virtual status_t dequeueAccessUnit(
             bool audio, sp<ABuffer> *accessUnit) = 0;
@@ -96,8 +97,6 @@ protected:
     virtual ~Source() {}
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
-
-    virtual sp<MetaData> getFormatMeta(bool /* audio */) { return NULL; }
 
     sp<AMessage> dupNotify() const { return mNotify->dup(); }
 

@@ -23,6 +23,8 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/MetaData.h>
 
 namespace android {
 
@@ -41,6 +43,7 @@ NuPlayer::Renderer::Renderer(
       mDrainVideoQueuePending(false),
       mAudioQueueGeneration(0),
       mVideoQueueGeneration(0),
+      mFirstAudioTimeUs(-1),
       mAnchorTimeMediaUs(-1),
       mAnchorTimeRealUs(-1),
       mFlushingAudio(false),
@@ -57,6 +60,11 @@ NuPlayer::Renderer::Renderer(
 }
 
 NuPlayer::Renderer::~Renderer() {
+    if (offloadingAudio()) {
+        mAudioSink->stop();
+        mAudioSink->flush();
+        mAudioSink->close();
+    }
 }
 
 void NuPlayer::Renderer::queueBuffer(
@@ -97,6 +105,7 @@ void NuPlayer::Renderer::flush(bool audio) {
 }
 
 void NuPlayer::Renderer::signalTimeDiscontinuity() {
+    Mutex::Autolock autoLock(mLock);
     // CHECK(mAudioQueue.empty());
     // CHECK(mVideoQueue.empty());
     mAnchorTimeMediaUs = -1;
@@ -114,6 +123,12 @@ void NuPlayer::Renderer::resume() {
 
 void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
+        case kWhatStopAudioSink:
+        {
+            mAudioSink->stop();
+            break;
+        }
+
         case kWhatDrainAudioQueue:
         {
             int32_t generation;
@@ -140,7 +155,10 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
                 // Let's give it more data after about half that time
                 // has elapsed.
-                postDrainAudioQueue(delayUs / 2);
+                // kWhatDrainAudioQueue is used for non-offloading mode,
+                // and mLock is used only for offloading mode. Therefore,
+                // no need to acquire mLock here.
+                postDrainAudioQueue_l(delayUs / 2);
             }
             break;
         }
@@ -185,6 +203,12 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatDisableOffloadAudio:
+        {
+            onDisableOffloadAudio();
+            break;
+        }
+
         case kWhatPause:
         {
             onPause();
@@ -203,8 +227,9 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-void NuPlayer::Renderer::postDrainAudioQueue(int64_t delayUs) {
-    if (mDrainAudioQueuePending || mSyncQueues || mPaused) {
+void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
+    if (mDrainAudioQueuePending || mSyncQueues || mPaused
+            || offloadingAudio()) {
         return;
     }
 
@@ -222,6 +247,10 @@ void NuPlayer::Renderer::signalAudioSinkChanged() {
     (new AMessage(kWhatAudioSinkChanged, id()))->post();
 }
 
+void NuPlayer::Renderer::signalDisableOffloadAudio() {
+    (new AMessage(kWhatDisableOffloadAudio, id()))->post();
+}
+
 void NuPlayer::Renderer::prepareForMediaRenderingStart() {
     mAudioRenderingStartGeneration = mAudioQueueGeneration;
     mVideoRenderingStartGeneration = mVideoQueueGeneration;
@@ -237,6 +266,109 @@ void NuPlayer::Renderer::notifyIfMediaRenderingStarted() {
         notify->setInt32("what", kWhatMediaRenderingStart);
         notify->post();
     }
+}
+
+// static
+size_t NuPlayer::Renderer::AudioSinkCallback(
+        MediaPlayerBase::AudioSink * /* audioSink */,
+        void *buffer,
+        size_t size,
+        void *cookie,
+        MediaPlayerBase::AudioSink::cb_event_t event) {
+    NuPlayer::Renderer *me = (NuPlayer::Renderer *)cookie;
+
+    switch (event) {
+        case MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER:
+        {
+            return me->fillAudioBuffer(buffer, size);
+            break;
+        }
+
+        case MediaPlayerBase::AudioSink::CB_EVENT_STREAM_END:
+        {
+            me->notifyEOS(true /* audio */, ERROR_END_OF_STREAM);
+            break;
+        }
+
+        case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
+        {
+            // TODO: send this to player.
+            break;
+        }
+    }
+
+    return 0;
+}
+
+size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (!offloadingAudio()) {
+        return 0;
+    }
+
+    bool hasEOS = false;
+
+    size_t sizeCopied = 0;
+    while (sizeCopied < size && !mAudioQueue.empty()) {
+        QueueEntry *entry = &*mAudioQueue.begin();
+
+        if (entry->mBuffer == NULL) { // EOS
+            hasEOS = true;
+            mAudioQueue.erase(mAudioQueue.begin());
+            entry = NULL;
+            break;
+        }
+
+        if (entry->mOffset == 0) {
+            int64_t mediaTimeUs;
+            CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
+            ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
+            if (mFirstAudioTimeUs == -1) {
+                mFirstAudioTimeUs = mediaTimeUs;
+            }
+            mAnchorTimeMediaUs = mediaTimeUs;
+
+            uint32_t numFramesPlayed;
+            CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed), (status_t)OK);
+
+            // TODO: figure out how to calculate initial latency.
+            // Otherwise, the initial time is not correct till the first sample
+            // is played.
+            mAnchorTimeMediaUs = mFirstAudioTimeUs
+                    + (numFramesPlayed * mAudioSink->msecsPerFrame()) * 1000ll;
+            mAnchorTimeRealUs = ALooper::GetNowUs();
+        }
+
+        size_t copy = entry->mBuffer->size() - entry->mOffset;
+        size_t sizeRemaining = size - sizeCopied;
+        if (copy > sizeRemaining) {
+            copy = sizeRemaining;
+        }
+
+        memcpy((char *)buffer + sizeCopied,
+               entry->mBuffer->data() + entry->mOffset,
+               copy);
+
+        entry->mOffset += copy;
+        if (entry->mOffset == entry->mBuffer->size()) {
+            entry->mNotifyConsumed->post();
+            mAudioQueue.erase(mAudioQueue.begin());
+            entry = NULL;
+        }
+        sizeCopied += copy;
+        notifyIfMediaRenderingStarted();
+    }
+
+    if (sizeCopied != 0) {
+        notifyPosition();
+    }
+
+    if (hasEOS) {
+        (new AMessage(kWhatStopAudioSink, id()))->post();
+    }
+
+    return sizeCopied;
 }
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
@@ -474,13 +606,15 @@ void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
     entry.mFinalResult = OK;
 
     if (audio) {
+        Mutex::Autolock autoLock(mLock);
         mAudioQueue.push_back(entry);
-        postDrainAudioQueue();
+        postDrainAudioQueue_l();
     } else {
         mVideoQueue.push_back(entry);
         postDrainVideoQueue();
     }
 
+    Mutex::Autolock autoLock(mLock);
     if (!mSyncQueues || mAudioQueue.empty() || mVideoQueue.empty()) {
         return;
     }
@@ -490,7 +624,7 @@ void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
 
     if (firstAudioBuffer == NULL || firstVideoBuffer == NULL) {
         // EOS signalled on either queue.
-        syncQueuesDone();
+        syncQueuesDone_l();
         return;
     }
 
@@ -514,10 +648,10 @@ void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
         return;
     }
 
-    syncQueuesDone();
+    syncQueuesDone_l();
 }
 
-void NuPlayer::Renderer::syncQueuesDone() {
+void NuPlayer::Renderer::syncQueuesDone_l() {
     if (!mSyncQueues) {
         return;
     }
@@ -525,7 +659,7 @@ void NuPlayer::Renderer::syncQueuesDone() {
     mSyncQueues = false;
 
     if (!mAudioQueue.empty()) {
-        postDrainAudioQueue();
+        postDrainAudioQueue_l();
     }
 
     if (!mVideoQueue.empty()) {
@@ -549,14 +683,16 @@ void NuPlayer::Renderer::onQueueEOS(const sp<AMessage> &msg) {
     entry.mFinalResult = finalResult;
 
     if (audio) {
+        Mutex::Autolock autoLock(mLock);
         if (mAudioQueue.empty() && mSyncQueues) {
-            syncQueuesDone();
+            syncQueuesDone_l();
         }
         mAudioQueue.push_back(entry);
-        postDrainAudioQueue();
+        postDrainAudioQueue_l();
     } else {
         if (mVideoQueue.empty() && mSyncQueues) {
-            syncQueuesDone();
+            Mutex::Autolock autoLock(mLock);
+            syncQueuesDone_l();
         }
         mVideoQueue.push_back(entry);
         postDrainVideoQueue();
@@ -575,11 +711,17 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     // corresponding discontinuity on the other queue.
     // Therefore we'll stop syncing the queues if at least one of them
     // is flushed.
-    syncQueuesDone();
+    {
+         Mutex::Autolock autoLock(mLock);
+         syncQueuesDone_l();
+    }
 
     ALOGV("flushing %s", audio ? "audio" : "video");
     if (audio) {
-        flushQueue(&mAudioQueue);
+        {
+            Mutex::Autolock autoLock(mLock);
+            flushQueue(&mAudioQueue);
+        }
 
         Mutex::Autolock autoLock(mFlushLock);
         mFlushingAudio = false;
@@ -588,6 +730,12 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         ++mAudioQueueGeneration;
 
         prepareForMediaRenderingStart();
+        if (offloadingAudio()) {
+            mFirstAudioTimeUs = -1;
+            mAudioSink->pause();
+            mAudioSink->flush();
+            mAudioSink->start();
+        }
     } else {
         flushQueue(&mVideoQueue);
 
@@ -649,12 +797,20 @@ bool NuPlayer::Renderer::dropBufferWhileFlushing(
 }
 
 void NuPlayer::Renderer::onAudioSinkChanged() {
+    if (offloadingAudio()) {
+        return;
+    }
     CHECK(!mDrainAudioQueuePending);
     mNumFramesWritten = 0;
     uint32_t written;
     if (mAudioSink->getFramesWritten(&written) == OK) {
         mNumFramesWritten = written;
     }
+}
+
+void NuPlayer::Renderer::onDisableOffloadAudio() {
+    Mutex::Autolock autoLock(mLock);
+    mFlags &= ~FLAG_OFFLOAD_AUDIO;
 }
 
 void NuPlayer::Renderer::notifyPosition() {
@@ -711,8 +867,9 @@ void NuPlayer::Renderer::onResume() {
 
     mPaused = false;
 
+    Mutex::Autolock autoLock(mLock);
     if (!mAudioQueue.empty()) {
-        postDrainAudioQueue();
+        postDrainAudioQueue_l();
     }
 
     if (!mVideoQueue.empty()) {

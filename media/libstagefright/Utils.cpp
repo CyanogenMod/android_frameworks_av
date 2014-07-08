@@ -84,6 +84,11 @@ status_t convertMetaDataToMessage(
         msg->setInt64("durationUs", durationUs);
     }
 
+    int avgBitRate;
+    if (meta->findInt32(kKeyBitRate, &avgBitRate)) {
+        msg->setInt32("bit-rate", avgBitRate);
+    }
+
     int32_t isSync;
     if (meta->findInt32(kKeyIsSyncFrame, &isSync) && isSync != 0) {
         msg->setInt32("is-sync-frame", 1);

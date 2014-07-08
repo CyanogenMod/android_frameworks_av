@@ -31,14 +31,14 @@ struct NuPlayer::Decoder : public AHandler {
     Decoder(const sp<AMessage> &notify,
             const sp<NativeWindowWrapper> &nativeWindow = NULL);
 
-    void configure(const sp<AMessage> &format);
-    void init();
+    virtual void configure(const sp<AMessage> &format);
+    virtual void init();
 
-    void signalFlush();
-    void signalResume();
-    void initiateShutdown();
+    virtual void signalFlush();
+    virtual void signalResume();
+    virtual void initiateShutdown();
 
-    bool supportsSeamlessFormatChange(const sp<AMessage> &to) const;
+    virtual bool supportsSeamlessFormatChange(const sp<AMessage> &to) const;
 
     enum {
         kWhatFillThisBuffer      = 'flTB',

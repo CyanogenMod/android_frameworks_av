@@ -6,6 +6,7 @@ LOCAL_SRC_FILES:=                       \
         HTTPLiveSource.cpp              \
         NuPlayer.cpp                    \
         NuPlayerDecoder.cpp             \
+        NuPlayerDecoderPassThrough.cpp  \
         NuPlayerDriver.cpp              \
         NuPlayerRenderer.cpp            \
         NuPlayerStreamListener.cpp      \

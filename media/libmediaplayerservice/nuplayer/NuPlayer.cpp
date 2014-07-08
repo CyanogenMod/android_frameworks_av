@@ -22,6 +22,7 @@
 
 #include "HTTPLiveSource.h"
 #include "NuPlayerDecoder.h"
+#include "NuPlayerDecoderPassThrough.h"
 #include "NuPlayerDriver.h"
 #include "NuPlayerRenderer.h"
 #include "NuPlayerSource.h"
@@ -143,6 +144,7 @@ NuPlayer::NuPlayer()
     : mUIDValid(false),
       mSourceFlags(0),
       mVideoIsAVC(false),
+      mOffloadAudio(false),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -500,6 +502,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             ALOGV("kWhatStart");
 
             mVideoIsAVC = false;
+            mOffloadAudio = false;
             mAudioEOS = false;
             mVideoEOS = false;
             mSkipRenderingAudioUntilMediaTimeUs = -1;
@@ -515,6 +518,21 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             if (mSource->isRealTime()) {
                 flags |= Renderer::FLAG_REAL_TIME;
+            }
+
+            sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+            audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
+            if (mAudioSink != NULL) {
+                streamType = mAudioSink->getAudioStreamType();
+            }
+
+            sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
+
+            mOffloadAudio =
+                canOffloadStream(audioMeta, (videoFormat != NULL),
+                                 true /* is_streaming */, streamType);
+            if (mOffloadAudio) {
+                flags |= Renderer::FLAG_OFFLOAD_AUDIO;
             }
 
             mRenderer = new Renderer(
@@ -661,7 +679,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     mAudioSink->close();
 
-                    audio_output_flags_t flags;
+                    uint32_t flags;
                     int64_t durationUs;
                     // FIXME: we should handle the case where the video decoder
                     // is created after we receive the format change indication.
@@ -682,17 +700,92 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
                     }
 
-                    CHECK_EQ(mAudioSink->open(
-                                sampleRate,
-                                numChannels,
-                                (audio_channel_mask_t)channelMask,
-                                AUDIO_FORMAT_PCM_16_BIT,
-                                8 /* bufferCount */,
-                                NULL,
-                                NULL,
-                                flags),
-                             (status_t)OK);
-                    mAudioSink->start();
+                    if (mOffloadAudio) {
+                        audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+                        audio_offload_info_t offloadInfo =
+                                AUDIO_INFO_INITIALIZER;
+
+                        AString mime;
+                        CHECK(format->findString("mime", &mime));
+
+                        status_t err =
+                            mapMimeToAudioFormat(audioFormat, mime.c_str());
+                        if (err != OK) {
+                            ALOGE("Couldn't map mime \"%s\" to a valid "
+                                    "audio_format", mime.c_str());
+                            mOffloadAudio = false;
+                        } else {
+                            ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
+                                    mime.c_str(), audioFormat);
+
+                            flags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+
+                            offloadInfo.duration_us = -1;
+                            format->findInt64(
+                                    "durationUs", &offloadInfo.duration_us);
+
+                            int avgBitRate = -1;
+                            format->findInt32("bit-rate", &avgBitRate);
+
+                            offloadInfo.sample_rate = sampleRate;
+                            offloadInfo.channel_mask = channelMask;
+                            offloadInfo.format = audioFormat;
+                            offloadInfo.stream_type = AUDIO_STREAM_MUSIC;
+                            offloadInfo.bit_rate = avgBitRate;
+                            offloadInfo.has_video = (mVideoDecoder != NULL);
+                            offloadInfo.is_streaming = true;
+
+                            err = mAudioSink->open(
+                                    sampleRate,
+                                    numChannels,
+                                    (audio_channel_mask_t)channelMask,
+                                    audioFormat,
+                                    8 /* bufferCount */,
+                                    &NuPlayer::Renderer::AudioSinkCallback,
+                                    mRenderer.get(),
+                                    (audio_output_flags_t)flags,
+                                    &offloadInfo);
+
+                            if (err == OK) {
+                                // If the playback is offloaded to h/w, we pass
+                                // the HAL some metadata information.
+                                // We don't want to do this for PCM because it
+                                // will be going through the AudioFlinger mixer
+                                // before reaching the hardware.
+                                sp<MetaData> audioMeta =
+                                    mSource->getFormatMeta(true /* audio */);
+                                sendMetaDataToHal(mAudioSink, audioMeta);
+
+                                err = mAudioSink->start();
+                            }
+                        }
+
+                        if (err != OK) {
+                            // Clean up, fall back to non offload mode.
+                            mAudioSink->close();
+                            mAudioDecoder.clear();
+                            mRenderer->signalDisableOffloadAudio();
+                            mOffloadAudio = false;
+
+                            instantiateDecoder(
+                                    true /* audio */, &mAudioDecoder);
+                        }
+                    }
+
+                    if (!mOffloadAudio) {
+                        flags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+                        CHECK_EQ(mAudioSink->open(
+                                    sampleRate,
+                                    numChannels,
+                                    (audio_channel_mask_t)channelMask,
+                                    AUDIO_FORMAT_PCM_16_BIT,
+                                    8 /* bufferCount */,
+                                    NULL,
+                                    NULL,
+                                    (audio_output_flags_t)flags),
+                                 (status_t)OK);
+                        mAudioSink->start();
+                    }
 
                     mRenderer->signalAudioSinkChanged();
                 } else {
@@ -968,8 +1061,15 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         new AMessage(audio ? kWhatAudioNotify : kWhatVideoNotify,
                      id());
 
-    *decoder = audio ? new Decoder(notify) :
-                       new Decoder(notify, mNativeWindow);
+    if (audio) {
+        if (mOffloadAudio) {
+            *decoder = new DecoderPassThrough(notify);
+        } else {
+            *decoder = new Decoder(notify);
+        }
+    } else {
+        *decoder = new Decoder(notify, mNativeWindow);
+    }
     (*decoder)->init();
     (*decoder)->configure(format);
 
