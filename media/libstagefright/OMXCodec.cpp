@@ -676,9 +676,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             ExtendedCodec::configureVideoDecoder(
                     meta, mMIME, mOMX, mFlags, mNode, mComponentName);
 
-            status_t err = setVideoOutputFormat(
-                    mMIME, meta);
-
+            status_t err = setVideoOutputFormat(mMIME, meta);
             if (err != OK) {
                 return err;
             }
@@ -924,7 +922,7 @@ void OMXCodec::setVideoInputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
         compressionFormat = OMX_VIDEO_CodingH263;
     } else {
-        status_t err = ExtendedCodec::setVideoInputFormat(mime, &compressionFormat);
+        status_t err = ExtendedCodec::setVideoFormat(mime, &compressionFormat);
         if (err != OK) {
             ALOGE("Not a supported video mime type: %s", mime);
             CHECK(!"Should not be here. Not a supported video mime type.");
@@ -1332,12 +1330,11 @@ status_t OMXCodec::setVideoOutputFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG2, mime)) {
         compressionFormat = OMX_VIDEO_CodingMPEG2;
     } else {
-        status_t err = ExtendedCodec::setVideoOutputFormat(mime,&compressionFormat);
-
+        status_t err = ExtendedCodec::setVideoFormat(mime, &compressionFormat);
         if(err != OK) {
-        ALOGE("Not a supported video mime type: %s", mime);
-        CHECK(!"Should not be here. Not a supported video mime type.");
-    }
+            ALOGE("Not a supported video mime type: %s", mime);
+            CHECK(!"Should not be here. Not a supported video mime type.");
+        }
     }
 
     status_t err = setVideoPortFormatType(

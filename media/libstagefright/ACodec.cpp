@@ -2120,7 +2120,7 @@ status_t ACodec::setupVideoDecoder(
     status_t err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
-        if (ExtendedCodec::setVideoOutputFormat(mime, &compressionFormat) != OK) {
+        if (ExtendedCodec::setVideoFormat(mime, &compressionFormat) != OK) {
             return err;
         }
     }
@@ -2259,7 +2259,7 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
     err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
-        err = ExtendedCodec::setVideoInputFormat(mime, &compressionFormat);
+        err = ExtendedCodec::setVideoFormat(mime, &compressionFormat);
         if (err != OK) {
             ALOGE("Not a supported video mime type: %s", mime);
             return err;

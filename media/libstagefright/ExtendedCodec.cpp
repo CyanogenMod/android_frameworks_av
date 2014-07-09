@@ -352,7 +352,7 @@ status_t ExtendedCodec::setAudioFormat(
     return err;
 }
 
-status_t ExtendedCodec::setVideoInputFormat(
+status_t ExtendedCodec::setVideoFormat(
         const char *mime, OMX_VIDEO_CODINGTYPE *compressionFormat) {
     status_t retVal = OK;
     if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
@@ -365,31 +365,10 @@ status_t ExtendedCodec::setVideoInputFormat(
         *compressionFormat = OMX_VIDEO_CodingWMV;
     } else if (!strcasecmp(MEDIA_MIMETYPE_CONTAINER_MPEG2, mime)) {
         *compressionFormat = OMX_VIDEO_CodingMPEG2;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingHevc;
     } else {
         retVal = BAD_VALUE;
     }
 
-    return retVal;
-}
-
-status_t ExtendedCodec::setVideoOutputFormat(
-        const char *mime, OMX_VIDEO_CODINGTYPE *compressionFormat) {
-    status_t retVal = OK;
-    if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
-        *compressionFormat = OMX_VIDEO_CodingWMV;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingHevc;
-    } else {
-        retVal = BAD_VALUE;
-    }
     return retVal;
 }
 
@@ -1075,15 +1054,7 @@ namespace android {
         return OK;
     }
 
-    status_t ExtendedCodec::setVideoInputFormat(
-            const char *mime,
-            OMX_VIDEO_CODINGTYPE *compressionFormat) {
-        ARG_TOUCH(mime);
-        ARG_TOUCH(compressionFormat);
-        return OK;
-    }
-
-    status_t ExtendedCodec::setVideoOutputFormat(
+    status_t ExtendedCodec::setVideoFormat(
             const char *mime,
             OMX_VIDEO_CODINGTYPE *compressionFormat) {
         ARG_TOUCH(mime);

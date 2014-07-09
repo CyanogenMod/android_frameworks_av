@@ -72,11 +72,7 @@ struct ExtendedCodec {
             sp<IOMX> OMXhandle,IOMX::node_id nodeID,
             bool isEncoder);
 
-    static status_t setVideoInputFormat(
-            const char *mime,
-            OMX_VIDEO_CODINGTYPE *compressionFormat);
-
-    static status_t setVideoOutputFormat(
+    static status_t setVideoFormat(
             const char *mime,
             OMX_VIDEO_CODINGTYPE *compressionFormat);
 
