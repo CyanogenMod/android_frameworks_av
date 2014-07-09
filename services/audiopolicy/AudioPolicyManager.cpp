@@ -101,6 +101,7 @@ const StringToEnum sDeviceNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_DEVICE_IN_LINE),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_SPDIF),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_BLUETOOTH_A2DP),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_LOOPBACK),
 };
 
 const StringToEnum sFlagNameToEnumTable[] = {
