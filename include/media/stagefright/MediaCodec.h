@@ -44,6 +44,13 @@ struct MediaCodec : public AHandler {
         BUFFER_FLAG_EOS         = 4,
     };
 
+    enum {
+        CB_INPUT_AVAILABLE = 1,
+        CB_OUTPUT_AVAILABLE = 2,
+        CB_ERROR = 3,
+        CB_OUTPUT_FORMAT_CHANGED = 4,
+    };
+
     static sp<MediaCodec> CreateByType(
             const sp<ALooper> &looper, const char *mime, bool encoder);
 
@@ -55,6 +62,8 @@ struct MediaCodec : public AHandler {
             const sp<Surface> &nativeWindow,
             const sp<ICrypto> &crypto,
             uint32_t flags);
+
+    status_t setCallback(const sp<AMessage> &callback);
 
     status_t createInputSurface(sp<IGraphicBufferProducer>* bufferProducer);
 
@@ -173,6 +182,7 @@ private:
         kWhatRequestActivityNotification    = 'racN',
         kWhatGetName                        = 'getN',
         kWhatSetParameters                  = 'setP',
+        kWhatSetCallback                    = 'setC',
     };
 
     enum {
@@ -186,6 +196,7 @@ private:
         kFlagSawMediaServerDie          = 128,
         kFlagIsEncoder                  = 256,
         kFlagGatherCodecSpecificData    = 512,
+        kFlagIsAsync                    = 1024,
     };
 
     struct BufferInfo {
@@ -208,6 +219,7 @@ private:
     SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mOutputFormat;
     sp<AMessage> mInputFormat;
+    sp<AMessage> mCallback;
 
     // Used only to synchronize asynchronous getBufferAndFormat
     // across all the other (synchronous) buffer state change
@@ -237,6 +249,8 @@ private:
     static status_t PostAndAwaitResponse(
             const sp<AMessage> &msg, sp<AMessage> *response);
 
+    static void PostReplyWithError(int32_t replyID, int32_t err);
+
     status_t init(const char *name, bool nameIsType, bool encoder);
 
     void setState(State newState);
@@ -262,6 +276,11 @@ private:
             const sp<Surface> &surface);
 
     void postActivityNotificationIfPossible();
+
+    void onInputBufferAvailable();
+    void onOutputBufferAvailable();
+    void onError(int32_t actionCode, status_t err);
+    void onOutputFormatChanged();
 
     status_t onSetParameters(const sp<AMessage> &params);
 
