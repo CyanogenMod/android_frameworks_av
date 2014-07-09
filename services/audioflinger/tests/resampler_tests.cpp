@@ -89,12 +89,12 @@ void testBufferIncrement(size_t channels, bool useFloat,
     outputSize &= ~7;
 
     // create the resampler
-    const int volumePrecision = 12; /* typical unity gain */
     android::AudioResampler* resampler;
 
     resampler = android::AudioResampler::create(format, channels, outputFreq, quality);
     resampler->setSampleRate(inputFreq);
-    resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
+    resampler->setVolume(android::AudioResampler::UNITY_GAIN_FLOAT,
+            android::AudioResampler::UNITY_GAIN_FLOAT);
 
     // set up the reference run
     std::vector<size_t> refIncr;
@@ -111,7 +111,8 @@ void testBufferIncrement(size_t channels, bool useFloat,
     delete resampler;
     resampler = android::AudioResampler::create(format, channels, outputFreq, quality);
     resampler->setSampleRate(inputFreq);
-    resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
+    resampler->setVolume(android::AudioResampler::UNITY_GAIN_FLOAT,
+            android::AudioResampler::UNITY_GAIN_FLOAT);
 #endif
 
     // set up the test run
@@ -171,13 +172,13 @@ void testStopbandDownconversion(size_t channels,
     outputSize &= ~7;
 
     // create the resampler
-    const int volumePrecision = 12; /* typical unity gain */
     android::AudioResampler* resampler;
 
     resampler = android::AudioResampler::create(AUDIO_FORMAT_PCM_16_BIT,
             channels, outputFreq, quality);
     resampler->setSampleRate(inputFreq);
-    resampler->setVolume(1 << volumePrecision, 1 << volumePrecision);
+    resampler->setVolume(android::AudioResampler::UNITY_GAIN_FLOAT,
+            android::AudioResampler::UNITY_GAIN_FLOAT);
 
     // set up the reference run
     std::vector<size_t> refIncr;

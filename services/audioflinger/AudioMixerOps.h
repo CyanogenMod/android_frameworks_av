@@ -136,6 +136,46 @@ inline int16_t MixMul<int16_t, int32_t, int32_t>(int32_t value, int32_t volume) 
     return clamp16(MixMul<int32_t, int32_t, int32_t>(value, volume) >> 12);
 }
 
+/* Required for floating point volume.  Some are needed for compilation but
+ * are not needed in execution and should be removed from the final build by
+ * an optimizing compiler.
+ */
+template <>
+inline float MixMul<float, float, float>(float value, float volume) {
+    return value * volume;
+}
+
+template <>
+inline float MixMul<float, int16_t, float>(int16_t value, float volume) {
+    static const float float_from_q_15 = 1. / (1 << 15);
+    return value * volume * float_from_q_15;
+}
+
+template <>
+inline int32_t MixMul<int32_t, int32_t, float>(int32_t value, float volume) {
+    LOG_ALWAYS_FATAL("MixMul<int32_t, int32_t, float> Runtime Should not be here");
+    return value * volume;
+}
+
+template <>
+inline int32_t MixMul<int32_t, int16_t, float>(int16_t value, float volume) {
+    LOG_ALWAYS_FATAL("MixMul<int32_t, int16_t, float> Runtime Should not be here");
+    static const float u4_12_from_float = (1 << 12);
+    return value * volume * u4_12_from_float;
+}
+
+template <>
+inline int16_t MixMul<int16_t, int16_t, float>(int16_t value, float volume) {
+    LOG_ALWAYS_FATAL("MixMul<int16_t, int16_t, float> Runtime Should not be here");
+    return value * volume;
+}
+
+template <>
+inline int16_t MixMul<int16_t, float, float>(float value, float volume) {
+    static const float q_15_from_float = (1 << 15);
+    return value * volume * q_15_from_float;
+}
+
 /*
  * MixAccum is used to add into an accumulator register of a possibly different
  * type. The TO and TI types are the same as MixMul.

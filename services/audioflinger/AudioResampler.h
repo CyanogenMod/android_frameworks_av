@@ -47,6 +47,8 @@ public:
         DYN_HIGH_QUALITY=7,
     };
 
+    static const float UNITY_GAIN_FLOAT = 1.0f;
+
     static AudioResampler* create(audio_format_t format, int inChannelCount,
             int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);
 
@@ -54,7 +56,7 @@ public:
 
     virtual void init() = 0;
     virtual void setSampleRate(int32_t inSampleRate);
-    virtual void setVolume(int16_t left, int16_t right);
+    virtual void setVolume(float left, float right);
     virtual void setLocalTimeFreq(uint64_t freq);
 
     // set the PTS of the next buffer output by the resampler
@@ -140,6 +142,15 @@ protected:
     inline size_t getInFrameCountRequired(size_t outFrameCount) {
         return (static_cast<uint64_t>(outFrameCount)*mInSampleRate
                 + (mSampleRate - 1))/mSampleRate;
+    }
+
+    inline float clampFloatVol(float volume) {
+        if (volume > UNITY_GAIN_FLOAT) {
+            return UNITY_GAIN_FLOAT;
+        } else if (volume >= 0.) {
+            return volume;
+        }
+        return 0.;  // NaN or negative volume maps to 0.
     }
 
 private:

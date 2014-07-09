@@ -115,6 +115,9 @@ LOCAL_SRC_FILES:= \
     AudioResamplerSinc.cpp.arm \
     AudioResamplerDyn.cpp.arm
 
+LOCAL_C_INCLUDES := \
+    $(call include-path-for, audio-utils)
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libdl \
