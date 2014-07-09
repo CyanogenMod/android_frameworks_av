@@ -652,15 +652,9 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
-        if (err == OK) {
-            *minUndequeuedBuffers += extraBuffers;
-            break;
-        }
-
-        ALOGW("[%s] setting nBufferCountActual to %u failed: %d",
-                mComponentName.c_str(), newBufferCount, err);
-        /* exit condition */
-        if (extraBuffers == 0) {
+        if (err != OK) {
+            ALOGE("[%s] setting nBufferCountActual to %u failed: %d",
+                    mComponentName.c_str(), newBufferCount, err);
             return err;
         }
     }

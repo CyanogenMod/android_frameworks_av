@@ -1806,15 +1806,9 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
-        if (err == OK) {
-            minUndequeuedBufs += extraBuffers;
-            break;
-        }
-
-        CODEC_LOGW("setting nBufferCountActual to %u failed: %d",
-                newBufferCount, err);
-        /* exit condition */
-        if (extraBuffers == 0) {
+        if (err != OK) {
+            ALOGE("setting nBufferCountActual to %u failed: %d",
+                    newBufferCount, err);
             return err;
         }
     }
