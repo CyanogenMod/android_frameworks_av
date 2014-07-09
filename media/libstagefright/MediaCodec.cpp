@@ -410,6 +410,46 @@ status_t MediaCodec::getOutputBuffers(Vector<sp<ABuffer> > *buffers) const {
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::getOutputBuffer(size_t index, sp<ABuffer> *buffer) {
+    sp<AMessage> format;
+    return getBufferAndFormat(kPortIndexOutput, index, buffer, &format);
+}
+
+status_t MediaCodec::getOutputFormat(size_t index, sp<AMessage> *format) {
+    sp<ABuffer> buffer;
+    return getBufferAndFormat(kPortIndexOutput, index, &buffer, format);
+}
+
+status_t MediaCodec::getInputBuffer(size_t index, sp<ABuffer> *buffer) {
+    sp<AMessage> format;
+    return getBufferAndFormat(kPortIndexInput, index, buffer, &format);
+}
+
+status_t MediaCodec::getBufferAndFormat(
+        size_t portIndex, size_t index,
+        sp<ABuffer> *buffer, sp<AMessage> *format) {
+    // use mutex instead of a context switch
+
+    buffer->clear();
+    format->clear();
+    if (mState != STARTED) {
+        return INVALID_OPERATION;
+    }
+
+    // we do not want mPortBuffers to change during this section
+    // we also don't want mOwnedByClient to change during this
+    Mutex::Autolock al(mBufferLock);
+    Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
+    if (index < buffers->size()) {
+        const BufferInfo &info = buffers->itemAt(index);
+        if (info.mOwnedByClient) {
+            *buffer = info.mData;
+            *format = info.mFormat;
+        }
+    }
+    return OK;
+}
+
 status_t MediaCodec::flush() {
     sp<AMessage> msg = new AMessage(kWhatFlush, id());
 
@@ -710,6 +750,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                 case CodecBase::kWhatBuffersAllocated:
                 {
+                    Mutex::Autolock al(mBufferLock);
                     int32_t portIndex;
                     CHECK(msg->findInt32("portIndex", &portIndex));
 
@@ -1463,8 +1504,8 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
 status_t MediaCodec::queueCSDInputBuffer(size_t bufferIndex) {
     CHECK(!mCSD.empty());
 
-    BufferInfo *info =
-        &mPortBuffers[kPortIndexInput].editItemAt(bufferIndex);
+    const BufferInfo *info =
+        &mPortBuffers[kPortIndexInput].itemAt(bufferIndex);
 
     sp<ABuffer> csd = *mCSD.begin();
     mCSD.erase(mCSD.begin());
@@ -1530,6 +1571,7 @@ void MediaCodec::returnBuffersToCodec() {
 
 void MediaCodec::returnBuffersToCodecOnPort(int32_t portIndex) {
     CHECK(portIndex == kPortIndexInput || portIndex == kPortIndexOutput);
+    Mutex::Autolock al(mBufferLock);
 
     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
 
@@ -1684,11 +1726,15 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         info->mData->setRange(0, result);
     }
 
+    // synchronization boundary for getBufferAndFormat
+    {
+        Mutex::Autolock al(mBufferLock);
+        info->mOwnedByClient = false;
+    }
     reply->setBuffer("buffer", info->mData);
     reply->post();
 
     info->mNotify = NULL;
-    info->mOwnedByClient = false;
 
     return OK;
 }
@@ -1714,6 +1760,12 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
 
     if (info->mNotify == NULL || !info->mOwnedByClient) {
         return -EACCES;
+    }
+
+    // synchronization boundary for getBufferAndFormat
+    {
+        Mutex::Autolock al(mBufferLock);
+        info->mOwnedByClient = false;
     }
 
     if (render && info->mData != NULL && info->mData->size() != 0) {
@@ -1743,7 +1795,6 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
 
     info->mNotify->post();
     info->mNotify = NULL;
-    info->mOwnedByClient = false;
 
     return OK;
 }
@@ -1762,7 +1813,11 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
 
     BufferInfo *info = &mPortBuffers[portIndex].editItemAt(index);
     CHECK(!info->mOwnedByClient);
-    info->mOwnedByClient = true;
+    {
+        Mutex::Autolock al(mBufferLock);
+        info->mFormat = portIndex == kPortIndexInput ? mInputFormat : mOutputFormat;
+        info->mOwnedByClient = true;
+    }
 
     return index;
 }

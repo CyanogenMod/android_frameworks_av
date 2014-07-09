@@ -112,6 +112,10 @@ struct MediaCodec : public AHandler {
     status_t getInputBuffers(Vector<sp<ABuffer> > *buffers) const;
     status_t getOutputBuffers(Vector<sp<ABuffer> > *buffers) const;
 
+    status_t getOutputBuffer(size_t index, sp<ABuffer> *buffer);
+    status_t getOutputFormat(size_t index, sp<AMessage> *format);
+    status_t getInputBuffer(size_t index, sp<ABuffer> *buffer);
+
     status_t requestIDRFrame();
 
     // Notification will be posted once there "is something to do", i.e.
@@ -189,6 +193,7 @@ private:
         sp<ABuffer> mData;
         sp<ABuffer> mEncryptedData;
         sp<AMessage> mNotify;
+        sp<AMessage> mFormat;
         bool mOwnedByClient;
     };
 
@@ -203,6 +208,12 @@ private:
     SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mOutputFormat;
     sp<AMessage> mInputFormat;
+
+    // Used only to synchronize asynchronous getBufferAndFormat
+    // across all the other (synchronous) buffer state change
+    // operations, such as de/queueIn/OutputBuffer, start and
+    // stop/flush/reset/release.
+    Mutex mBufferLock;
 
     List<size_t> mAvailPortBuffers[2];
     Vector<BufferInfo> mPortBuffers[2];
@@ -235,6 +246,10 @@ private:
     status_t onQueueInputBuffer(const sp<AMessage> &msg);
     status_t onReleaseOutputBuffer(const sp<AMessage> &msg);
     ssize_t dequeuePortBuffer(int32_t portIndex);
+
+    status_t getBufferAndFormat(
+            size_t portIndex, size_t index,
+            sp<ABuffer> *buffer, sp<AMessage> *format);
 
     bool handleDequeueInputBuffer(uint32_t replyID, bool newRequest = false);
     bool handleDequeueOutputBuffer(uint32_t replyID, bool newRequest = false);
