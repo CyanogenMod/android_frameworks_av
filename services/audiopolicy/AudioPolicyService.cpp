@@ -841,8 +841,8 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
     }
 
     // insert command at the right place according to its time stamp
-    ALOGV("inserting command: %d at index %d, num commands %d",
-            command->mCommand, (int)i+1, mAudioCommands.size());
+    ALOGV("inserting command: %d at index %zd, num commands %zu",
+            command->mCommand, i+1, mAudioCommands.size());
     mAudioCommands.insertAt(command, i + 1);
 }
 

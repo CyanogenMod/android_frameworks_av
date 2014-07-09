@@ -2711,10 +2711,15 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                     ALOGW("checkOutputsForDevice() direct output missing param");
                     mpClientInterface->closeOutput(output);
                     output = 0;
-                } else if (profile->mSamplingRates[0] == 0) {
+                } else if (profile->mSamplingRates[0] == 0 || profile->mFormats[0] == 0 ||
+                            profile->mChannelMasks[0] == 0) {
                     mpClientInterface->closeOutput(output);
-                    desc->mSamplingRate = profile->mSamplingRates[1];
+                    desc->mSamplingRate = profile->pickSamplingRate();
+                    desc->mFormat = profile->pickFormat();
+                    desc->mChannelMask = profile->pickChannelMask();
                     offloadInfo.sample_rate = desc->mSamplingRate;
+                    offloadInfo.format = desc->mFormat;
+                    offloadInfo.channel_mask = desc->mChannelMask;
                     output = mpClientInterface->openOutput(
                                                     profile->mModule->mHandle,
                                                     &desc->mDevice,
@@ -4500,9 +4505,9 @@ AudioPolicyManager::AudioOutputDescriptor::AudioOutputDescriptor(
     }
     if (profile != NULL) {
         mAudioPort = profile;
-        mSamplingRate = profile->mSamplingRates[0];
-        mFormat = profile->mFormats[0];
-        mChannelMask = profile->mChannelMasks[0];
+        mSamplingRate = profile->pickSamplingRate();
+        mFormat = profile->pickFormat();
+        mChannelMask = profile->pickChannelMask();
         if (profile->mGains.size() > 0) {
             profile->mGains[0]->getDefaultConfig(&mGain);
         }
@@ -4681,16 +4686,12 @@ AudioPolicyManager::AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfil
 {
     if (profile != NULL) {
         mAudioPort = profile;
-        mSamplingRate = profile->mSamplingRates[0];
-        mFormat = profile->mFormats[0];
-        mChannelMask = profile->mChannelMasks[0];
+        mSamplingRate = profile->pickSamplingRate();
+        mFormat = profile->pickFormat();
+        mChannelMask = profile->pickChannelMask();
         if (profile->mGains.size() > 0) {
             profile->mGains[0]->getDefaultConfig(&mGain);
         }
-    } else {
-        mSamplingRate = 0;
-        mFormat = AUDIO_FORMAT_DEFAULT;
-        mChannelMask = 0;
     }
 }
 
@@ -5006,7 +5007,7 @@ void AudioPolicyManager::HwModule::dump(int fd)
 
 AudioPolicyManager::AudioPort::AudioPort(const String8& name, audio_port_type_t type,
           audio_port_role_t role, const sp<HwModule>& module) :
-    mName(name), mType(type), mRole(role), mModule(module)
+    mName(name), mType(type), mRole(role), mModule(module), mFlags((audio_output_flags_t)0)
 {
     mUseInChannelMask = ((type == AUDIO_PORT_TYPE_DEVICE) && (role == AUDIO_PORT_ROLE_SOURCE)) ||
                     ((type == AUDIO_PORT_TYPE_MIX) && (role == AUDIO_PORT_ROLE_SINK));
@@ -5234,6 +5235,127 @@ status_t AudioPolicyManager::AudioPort::checkFormat(audio_format_t format) const
     return BAD_VALUE;
 }
 
+
+uint32_t AudioPolicyManager::AudioPort::pickSamplingRate() const
+{
+    // special case for uninitialized dynamic profile
+    if (mSamplingRates.size() == 1 && mSamplingRates[0] == 0) {
+        return 0;
+    }
+
+    uint32_t samplingRate = 0;
+    uint32_t maxRate = MAX_MIXER_SAMPLING_RATE;
+
+    // For mixed output and inputs, use max mixer sampling rates. Do not
+    // limit sampling rate otherwise
+    if ((mType != AUDIO_PORT_TYPE_MIX) ||
+            ((mRole == AUDIO_PORT_ROLE_SOURCE) &&
+            (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)))) {
+        maxRate = UINT_MAX;
+    }
+    for (size_t i = 0; i < mSamplingRates.size(); i ++) {
+        if ((mSamplingRates[i] > samplingRate) && (mSamplingRates[i] <= maxRate)) {
+            samplingRate = mSamplingRates[i];
+        }
+    }
+    return samplingRate;
+}
+
+audio_channel_mask_t AudioPolicyManager::AudioPort::pickChannelMask() const
+{
+    // special case for uninitialized dynamic profile
+    if (mChannelMasks.size() == 1 && mChannelMasks[0] == 0) {
+        return AUDIO_CHANNEL_NONE;
+    }
+
+    audio_channel_mask_t channelMask = AUDIO_CHANNEL_NONE;
+    uint32_t channelCount = 0;
+    uint32_t maxCount = MAX_MIXER_CHANNEL_COUNT;
+
+    // For mixed output and inputs, use max mixer channel count. Do not
+    // limit channel count otherwise
+    if ((mType != AUDIO_PORT_TYPE_MIX) ||
+            ((mRole == AUDIO_PORT_ROLE_SOURCE) &&
+            (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)))) {
+        maxCount = UINT_MAX;
+    }
+    for (size_t i = 0; i < mChannelMasks.size(); i ++) {
+        uint32_t cnlCount;
+        if (mUseInChannelMask) {
+            cnlCount = audio_channel_count_from_in_mask(mChannelMasks[i]);
+        } else {
+            cnlCount = audio_channel_count_from_out_mask(mChannelMasks[i]);
+        }
+        if ((cnlCount > channelCount) && (cnlCount <= maxCount)) {
+            channelMask = mChannelMasks[i];
+        }
+    }
+    return channelMask;
+}
+
+const audio_format_t AudioPolicyManager::AudioPort::sPcmFormatCompareTable[] = {
+        AUDIO_FORMAT_DEFAULT,
+        AUDIO_FORMAT_PCM_16_BIT,
+        AUDIO_FORMAT_PCM_24_BIT_PACKED,
+};
+
+int AudioPolicyManager::AudioPort::compareFormats(audio_format_t format1,
+                                                  audio_format_t format2)
+{
+    // NOTE: AUDIO_FORMAT_INVALID is also considered not PCM and will be compared equal to any
+    // compressed format and better than any PCM format. This is by design of pickFormat()
+    if (!audio_is_linear_pcm(format1)) {
+        if (!audio_is_linear_pcm(format2)) {
+            return 0;
+        }
+        return 1;
+    }
+    if (!audio_is_linear_pcm(format2)) {
+        return -1;
+    }
+
+    int index1 = -1, index2 = -1;
+    for (size_t i = 0;
+            (i < ARRAY_SIZE(sPcmFormatCompareTable)) && ((index1 == -1) || (index2 == -1));
+            i ++) {
+        if (sPcmFormatCompareTable[i] == format1) {
+            index1 = i;
+        }
+        if (sPcmFormatCompareTable[i] == format2) {
+            index2 = i;
+        }
+    }
+    // format1 not found => index1 < 0 => format2 > format1
+    // format2 not found => index2 < 0 => format2 < format1
+    return index1 - index2;
+}
+
+audio_format_t AudioPolicyManager::AudioPort::pickFormat() const
+{
+    // special case for uninitialized dynamic profile
+    if (mFormats.size() == 1 && mFormats[0] == 0) {
+        return AUDIO_FORMAT_DEFAULT;
+    }
+
+    audio_format_t format = AUDIO_FORMAT_DEFAULT;
+    audio_format_t bestFormat = BEST_MIXER_FORMAT;
+    // For mixed output and inputs, use best mixer output format. Do not
+    // limit format otherwise
+    if ((mType != AUDIO_PORT_TYPE_MIX) ||
+            ((mRole == AUDIO_PORT_ROLE_SOURCE) &&
+             (((mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) == 0)))) {
+        bestFormat = AUDIO_FORMAT_INVALID;
+    }
+
+    for (size_t i = 0; i < mFormats.size(); i ++) {
+        if ((compareFormats(mFormats[i], format) > 0) &&
+                (compareFormats(mFormats[i], bestFormat) <= 0)) {
+            format = mFormats[i];
+        }
+    }
+    return format;
+}
+
 status_t AudioPolicyManager::AudioPort::checkGain(const struct audio_gain_config *gainConfig,
                                                   int index) const
 {
@@ -5258,7 +5380,11 @@ void AudioPolicyManager::AudioPort::dump(int fd, int spaces) const
         snprintf(buffer, SIZE, "%*s- sampling rates: ", spaces, "");
         result.append(buffer);
         for (size_t i = 0; i < mSamplingRates.size(); i++) {
-            snprintf(buffer, SIZE, "%d", mSamplingRates[i]);
+            if (i == 0 && mSamplingRates[i] == 0) {
+                snprintf(buffer, SIZE, "Dynamic");
+            } else {
+                snprintf(buffer, SIZE, "%d", mSamplingRates[i]);
+            }
             result.append(buffer);
             result.append(i == (mSamplingRates.size() - 1) ? "" : ", ");
         }
@@ -5269,7 +5395,13 @@ void AudioPolicyManager::AudioPort::dump(int fd, int spaces) const
         snprintf(buffer, SIZE, "%*s- channel masks: ", spaces, "");
         result.append(buffer);
         for (size_t i = 0; i < mChannelMasks.size(); i++) {
-            snprintf(buffer, SIZE, "0x%04x", mChannelMasks[i]);
+            ALOGV("AudioPort::dump mChannelMasks %zu %08x", i, mChannelMasks[i]);
+
+            if (i == 0 && mChannelMasks[i] == 0) {
+                snprintf(buffer, SIZE, "Dynamic");
+            } else {
+                snprintf(buffer, SIZE, "0x%04x", mChannelMasks[i]);
+            }
             result.append(buffer);
             result.append(i == (mChannelMasks.size() - 1) ? "" : ", ");
         }
@@ -5280,9 +5412,14 @@ void AudioPolicyManager::AudioPort::dump(int fd, int spaces) const
         snprintf(buffer, SIZE, "%*s- formats: ", spaces, "");
         result.append(buffer);
         for (size_t i = 0; i < mFormats.size(); i++) {
-            snprintf(buffer, SIZE, "%-48s", enumToString(sFormatNameToEnumTable,
-                                                          ARRAY_SIZE(sFormatNameToEnumTable),
-                                                          mFormats[i]));
+            const char *formatStr = enumToString(sFormatNameToEnumTable,
+                                                 ARRAY_SIZE(sFormatNameToEnumTable),
+                                                 mFormats[i]);
+            if (i == 0 && strcmp(formatStr, "") == 0) {
+                snprintf(buffer, SIZE, "Dynamic");
+            } else {
+                snprintf(buffer, SIZE, "%-48s", formatStr);
+            }
             result.append(buffer);
             result.append(i == (mFormats.size() - 1) ? "" : ", ");
         }
@@ -5505,7 +5642,7 @@ void AudioPolicyManager::AudioPortConfig::toAudioPortConfig(
 
 AudioPolicyManager::IOProfile::IOProfile(const String8& name, audio_port_role_t role,
                                          const sp<HwModule>& module)
-    : AudioPort(name, AUDIO_PORT_TYPE_MIX, role, module), mFlags((audio_output_flags_t)0)
+    : AudioPort(name, AUDIO_PORT_TYPE_MIX, role, module)
 {
 }
 
@@ -5596,8 +5733,7 @@ AudioPolicyManager::DeviceDescriptor::DeviceDescriptor(const String8& name, audi
                                audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
                                                               AUDIO_PORT_ROLE_SOURCE,
                              NULL),
-                     mDeviceType(type), mAddress(""),
-                     mChannelMask(AUDIO_CHANNEL_NONE), mId(0)
+                     mDeviceType(type), mAddress(""), mId(0)
 {
     mAudioPort = this;
     if (mGains.size() > 0) {
@@ -5815,10 +5951,6 @@ status_t AudioPolicyManager::DeviceDescriptor::dump(int fd, int spaces, int inde
     result.append(buffer);
     if (mAddress.size() != 0) {
         snprintf(buffer, SIZE, "%*s- address: %-32s\n", spaces, "", mAddress.string());
-        result.append(buffer);
-    }
-    if (mChannelMask != AUDIO_CHANNEL_NONE) {
-        snprintf(buffer, SIZE, "%*s- channel mask: %08x\n", spaces, "", mChannelMask);
         result.append(buffer);
     }
     write(fd, result.string(), result.size());
