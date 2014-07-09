@@ -163,7 +163,7 @@ int Effect_setEnabled(EffectContext *pContext, bool enabled);
 
 extern "C" int EffectCreate(const effect_uuid_t *uuid,
                             int32_t             sessionId,
-                            int32_t             ioId,
+                            int32_t             ioId __unused,
                             effect_handle_t  *pHandle){
     int ret = 0;
     int sessionNo;
@@ -1360,7 +1360,7 @@ int32_t EqualizerGetCentreFrequency(EffectContext *pContext, int32_t band){
 //  pLow:       lower band range
 //  pLow:       upper band range
 //----------------------------------------------------------------------------
-int32_t EqualizerGetBandFreqRange(EffectContext *pContext, int32_t band, uint32_t *pLow,
+int32_t EqualizerGetBandFreqRange(EffectContext *pContext __unused, int32_t band, uint32_t *pLow,
                                   uint32_t *pHi){
     *pLow = bandFreqRange[band][0];
     *pHi  = bandFreqRange[band][1];
@@ -1384,7 +1384,7 @@ int32_t EqualizerGetBandFreqRange(EffectContext *pContext, int32_t band, uint32_
 //  pLow:       lower band range
 //  pLow:       upper band range
 //----------------------------------------------------------------------------
-int32_t EqualizerGetBand(EffectContext *pContext, uint32_t targetFreq){
+int32_t EqualizerGetBand(EffectContext *pContext __unused, uint32_t targetFreq){
     int band = 0;
 
     if(targetFreq < bandFreqRange[0][0]){
@@ -1884,7 +1884,6 @@ int Virtualizer_getParameter(EffectContext        *pContext,
     int status = 0;
     int32_t *pParamTemp = (int32_t *)pParam;
     int32_t param = *pParamTemp++;
-    int32_t param2;
     char *name;
 
     //ALOGV("\tVirtualizer_getParameter start");
