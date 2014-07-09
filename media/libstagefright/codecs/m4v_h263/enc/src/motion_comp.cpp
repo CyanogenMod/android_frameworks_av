@@ -363,7 +363,7 @@ Int GetPredAdvBy0x0(
     /* initialize offset to adjust pixel counter */
     /*    the next row; full-pel resolution      */
 
-    tmp = (ULong)prev & 0x3;
+    tmp = (uintptr_t)prev & 0x3;
 
     if (tmp == 0)  /* word-aligned */
     {
@@ -466,7 +466,7 @@ Int GetPredAdvBy0x1(
     /* Branch based on pixel location (half-pel or full-pel) for x and y */
     rec -= 12; /* preset */
 
-    tmp = (ULong)prev & 3;
+    tmp = (uintptr_t)prev & 3;
     mask = 254;
     mask |= (mask << 8);
     mask |= (mask << 16); /* 0xFEFEFEFE */
@@ -791,7 +791,7 @@ Int GetPredAdvBy1x0(
     /* Branch based on pixel location (half-pel or full-pel) for x and y */
     rec -= 12; /* preset */
 
-    tmp = (ULong)prev & 3;
+    tmp = (uintptr_t)prev & 3;
     mask = 254;
     mask |= (mask << 8);
     mask |= (mask << 16); /* 0xFEFEFEFE */
@@ -1140,7 +1140,7 @@ Int GetPredAdvBy1x1(
     mask |= (mask << 8);
     mask |= (mask << 16); /* 0x3f3f3f3f */
 
-    tmp = (ULong)prev & 3;
+    tmp = (uintptr_t)prev & 3;
 
     rec -= 4; /* preset */
 
