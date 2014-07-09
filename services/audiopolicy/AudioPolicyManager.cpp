@@ -4104,7 +4104,7 @@ const AudioPolicyManager::VolumeCurvePoint
 
 const AudioPolicyManager::VolumeCurvePoint
     AudioPolicyManager::sSpeakerMediaVolumeCurveDrc[AudioPolicyManager::VOLCNT] = {
-    {1, -56.0f}, {20, -34.0f}, {86, -10.0f}, {100, 0.0f}
+    {1, -55.0f}, {20, -43.0f}, {86, -12.0f}, {100, 0.0f}
 };
 
 const AudioPolicyManager::VolumeCurvePoint
