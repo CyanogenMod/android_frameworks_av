@@ -43,8 +43,10 @@ LOCAL_SRC_FILES += \
 endif
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
 LOCAL_SRC_FILES += \
 	MP3Decoder.cpp
+endif
 endif
 
 LOCAL_C_INCLUDES := \

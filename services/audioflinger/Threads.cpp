@@ -2287,6 +2287,10 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     acquireWakeLock();
 
 #ifdef SRS_PROCESSING
+    String8 bt_param = String8("bluetooth_enabled=0");
+    //set this param so that SRS module does not
+    // chk for BT device while wired headset is conneted
+    POSTPRO_PATCH_PARAMS_SET(bt_param);
     if (mType == MIXER) {
         POSTPRO_PATCH_OUTPROC_PLAY_INIT(this, myName);
     } else if (mType == DUPLICATING) {
@@ -2471,7 +2475,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // sleepTime == 0 means we must write to audio hardware
             if (sleepTime == 0) {
 #ifdef SRS_PROCESSING
-                if (mType == MIXER) {
+                if (mType == MIXER && mMixerStatus == MIXER_TRACKS_READY) {
                     POSTPRO_PATCH_OUTPROC_PLAY_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
                 } else if (mType == DUPLICATING) {
                     POSTPRO_PATCH_OUTPROC_DUPE_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
