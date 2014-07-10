@@ -546,8 +546,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         audio, codecRequest);
 
                 if (err == -EWOULDBLOCK) {
-                    if (mSource->feedMoreTSData() == OK) {
+                    status_t result = mSource->feedMoreTSData();
+                    if (result == OK) {
                         msg->post(10000ll);
+                    } else if (result == UNKNOWN_ERROR) {
+                        // The source has disconnected
+                        sp<AMessage> reply;
+                        CHECK(codecRequest->findMessage("reply", &reply));
+                        reply->setInt32("err", INFO_DISCONTINUITY);
+                        reply->post();
                     }
                 }
             } else if (what == ACodec::kWhatEOS) {
