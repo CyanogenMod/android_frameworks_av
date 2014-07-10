@@ -42,7 +42,6 @@ namespace img_utils {
  */
 class ANDROID_API TiffIfd : public TiffWritable {
     public:
-        // TODO: Copy constructor/equals here - needed for SubIfds.
         TiffIfd(uint32_t ifdId);
         virtual ~TiffIfd();
 
@@ -98,9 +97,50 @@ class ANDROID_API TiffIfd : public TiffWritable {
         virtual sp<TiffEntry> getEntry(uint16_t tag) const;
 
         /**
+         * Remove the entry with the given tag ID if it exists.
+         */
+        virtual void removeEntry(uint16_t tag);
+
+        /**
+         * Convenience method to validate and set strip-related image tags.
+         *
+         * This sets all strip related tags, but leaves offset values unitialized.
+         * setStripOffsets must be called with the desired offset before writing.
+         * The strip tag values are calculated from the existing tags for image
+         * dimensions and pixel type set in the IFD.
+         *
+         * Does not handle planar image configurations (PlanarConfiguration != 1).
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t validateAndSetStripTags();
+
+        /**
+         * Returns true if validateAndSetStripTags has been called, but not setStripOffsets.
+         */
+        virtual bool uninitializedOffsets() const;
+
+        /**
+         * Convenience method to set beginning offset for strips.
+         *
+         * Call this to update the strip offsets before calling writeData.
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t setStripOffset(uint32_t offset);
+
+        /**
+         * Get the total size of the strips in bytes.
+         *
+         * This sums the byte count at each strip offset, and returns
+         * the total count of bytes stored in strips for this IFD.
+         */
+        virtual uint32_t getStripSize() const;
+
+        /**
          * Get a formatted string representing this IFD.
          */
-        String8 toString() const;
+        virtual String8 toString() const;
 
         /**
          * Print a formatted string representing this IFD to logcat.
@@ -111,11 +151,13 @@ class ANDROID_API TiffIfd : public TiffWritable {
          * Get value used to determine sort order.
          */
         virtual uint32_t getComparableValue() const;
+
     protected:
         virtual uint32_t checkAndGetOffset(uint32_t offset) const;
         SortedEntryVector mEntries;
         sp<TiffIfd> mNextIfd;
         uint32_t mIfdId;
+        bool mStripOffsetsInitialized;
 };
 
 } /*namespace img_utils*/

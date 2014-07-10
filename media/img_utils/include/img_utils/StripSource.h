@@ -14,12 +14,40 @@
  * limitations under the License.
  */
 
-#include <img_utils/TiffEntryImpl.h>
+#ifndef IMG_UTILS_STRIP_SOURCE_H
+#define IMG_UTILS_STRIP_SOURCE_H
 
-#include <utils/Vector.h>
+#include <img_utils/Output.h>
+
+#include <cutils/compiler.h>
+#include <utils/Errors.h>
+
+#include <stdint.h>
 
 namespace android {
 namespace img_utils {
 
+/**
+ * This class acts as a data source for strips set in a TiffIfd.
+ */
+class ANDROID_API StripSource {
+    public:
+        virtual ~StripSource();
+
+        /**
+         * Write count bytes to the stream.
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t writeToStream(Output& stream, uint32_t count) = 0;
+
+        /**
+         * Return the source IFD.
+         */
+        virtual uint32_t getIfd() const = 0;
+};
+
 } /*namespace img_utils*/
 } /*namespace android*/
+
+#endif /*IMG_UTILS_STRIP_SOURCE_H*/

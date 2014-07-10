@@ -34,10 +34,11 @@ inline bool operator op (const TiffEntry& entry) const;
 
 /**
  * This class holds a single TIFF IFD entry.
+ *
+ * Subclasses are expected to support assignment and copying operations.
  */
 class ANDROID_API TiffEntry : public TiffWritable {
     public:
-        // TODO: Copy constructor/equals here.
         virtual ~TiffEntry();
 
         /**
@@ -83,7 +84,7 @@ class ANDROID_API TiffEntry : public TiffWritable {
         template<typename T>
         const T* getData() const;
 
-        String8 toString() const;
+        virtual String8 toString() const;
 
         /**
          * Force the type used here to be a valid TIFF type.
@@ -99,10 +100,10 @@ class ANDROID_API TiffEntry : public TiffWritable {
         COMPARE_DEF(>)
         COMPARE_DEF(<)
 
-        protected:
-            enum {
-                MAX_PRINT_STRING_LENGTH = 256
-            };
+    protected:
+        enum {
+            MAX_PRINT_STRING_LENGTH = 256
+        };
 };
 
 #define COMPARE(op) \

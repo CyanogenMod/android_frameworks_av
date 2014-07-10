@@ -31,6 +31,7 @@ LOCAL_SRC_FILES := \
   TiffEntryImpl.cpp \
   ByteArrayOutput.cpp \
   DngUtils.cpp \
+  StripSource.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
   libexpat \

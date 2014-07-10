@@ -52,10 +52,10 @@ class ANDROID_API FileInput : public Input {
          * of bytes given in the count argument will be read.  Bytes will be written
          * into the given buffer starting at the index given in the offset argument.
          *
-         * Returns the number of bytes read.  If an error has occurred, the value pointed
-         * to by the given status_t pointer will be set to a negative error code.
+         * Returns the number of bytes read, or NOT_ENOUGH_DATA if at the end of the file.  If an
+         * error has occurred, this will return a negative error code other than NOT_ENOUGH_DATA.
          */
-        virtual size_t read(uint8_t* buf, size_t offset, size_t count, status_t* err);
+        virtual ssize_t read(uint8_t* buf, size_t offset, size_t count);
 
         /**
          * Close the file descriptor to the path given in the constructor.
