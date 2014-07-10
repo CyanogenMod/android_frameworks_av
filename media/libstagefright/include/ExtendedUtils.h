@@ -33,6 +33,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/MediaCodecList.h>
+#include <media/stagefright/MPEG4Writer.h>
 
 #include <media/MediaRecorderBase.h>
 #include <media/stagefright/MediaExtractor.h>
@@ -50,6 +51,54 @@ namespace android {
  * QC specific changes
  */
 struct ExtendedUtils {
+
+    /*
+     * This class is a placeholder for set of methods used
+     * to enable HEVC muxing
+     */
+
+    struct HEVCParamSet {
+        HEVCParamSet(uint16_t length, const uint8_t *data)
+               : mLength(length), mData(data) {}
+
+        uint16_t mLength;
+        const uint8_t *mData;
+    };
+
+    struct HEVCMuxer {
+        static void writeHEVCFtypBox(MPEG4Writer *writer);
+
+        static status_t makeHEVCCodecSpecificData(const uint8_t *data,
+                  size_t size, void** codecSpecificData,
+                  size_t *codecSpecificDataSize);
+
+        static void beginHEVCBox(MPEG4Writer *writer);
+
+        static void writeHvccBox(MPEG4Writer *writer,
+                  void* codecSpecificData, size_t codecSpecificDataSize,
+                  bool useNalLengthFour);
+
+        static bool isVideoHEVC(const char* mime);
+
+        static bool getHEVCCodecConfigData(const sp<MetaData> &meta,
+                  const void **data, size_t *size);
+
+        private:
+
+        static status_t extractNALRBSPData(const uint8_t *data, size_t size,
+                  uint8_t **header, bool *alreadyFilled);
+
+        static status_t parserProfileTierLevel(const uint8_t *data, size_t size,
+                  uint8_t **header, bool *alreadyFilled);
+
+        static const uint8_t *parseHEVCParamSet(const uint8_t *data, size_t length,
+                  List<HEVCParamSet> &paramSetList, size_t *paramSetLen);
+
+        static size_t parseHEVCCodecSpecificData(const uint8_t *data, size_t size,
+                  List<HEVCParamSet> &vidParamSet, List<HEVCParamSet> &seqParamSet,
+                  List<HEVCParamSet> &picParamSet );
+    };
+
 
     /*
      * This class is a placeholder for methods to override

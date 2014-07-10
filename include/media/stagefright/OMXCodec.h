@@ -121,6 +121,12 @@ struct OMXCodec : public MediaSource,
 
     static bool findCodecQuirks(const char *componentName, uint32_t *quirks);
 
+    // If profile/level is set in the meta data, its value in the meta
+    // data will be used; otherwise, the default value will be used.
+    status_t getVideoProfileLevel(const sp<MetaData>& meta,
+            const CodecProfileLevel& defaultProfileLevel,
+            CodecProfileLevel& profileLevel);
+
 protected:
     virtual ~OMXCodec();
 
@@ -277,12 +283,6 @@ private:
 
     status_t isColorFormatSupported(
             OMX_COLOR_FORMATTYPE colorFormat, int portIndex);
-
-    // If profile/level is set in the meta data, its value in the meta
-    // data will be used; otherwise, the default value will be used.
-    status_t getVideoProfileLevel(const sp<MetaData>& meta,
-            const CodecProfileLevel& defaultProfileLevel,
-            CodecProfileLevel& profileLevel);
 
     status_t setVideoOutputFormat(
             const char *mime, const sp<MetaData>& meta);

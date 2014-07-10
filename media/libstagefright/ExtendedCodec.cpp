@@ -50,6 +50,8 @@
 #include <QCMediaDefs.h>
 #include <OMX_QCOMExtns.h>
 #include <OMX_Component.h>
+#include <OMX_VideoExt.h>
+#include <OMX_IndexExt.h>
 #include <QOMX_AudioExtensions.h>
 #include "include/ExtendedUtils.h"
 
@@ -140,7 +142,7 @@ status_t ExtendedCodec::convertMetaDataToMessage(
             if (MetaKeyTable[i].KeyType == CSD) {
                 const char *mime;
                 CHECK(meta->findCString(kKeyMIMEType, &mime));
-                if (strcasecmp( mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                if (strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
                     sp<ABuffer> buffer = new ABuffer(size);
                     memcpy(buffer->data(), data, size);
                     buffer->meta()->setInt32("csd", true);
@@ -150,10 +152,11 @@ status_t ExtendedCodec::convertMetaDataToMessage(
                     const uint8_t *ptr = (const uint8_t *)data;
                     CHECK(size >= 8);
                     int seqLength = 0, picLength = 0;
-                    for(size_t i=4; i<size-4; i++) {
-                        if ((*(ptr+i)==0)&&(*(ptr+i+1)==0)&&(*(ptr+i+2)==0)&&(*(ptr+i+3)==1)) {
-                            seqLength=i;
-                        }
+                    for (size_t i = 4; i < (size - 4); i++)
+                    {
+                        if ((*(ptr + i) == 0) && (*(ptr + i + 1) == 0) &&
+                           (*(ptr + i + 2) == 0) && (*(ptr + i + 3) == 1))
+                            seqLength = i;
                     }
                     sp<ABuffer> buffer = new ABuffer(seqLength);
                     memcpy(buffer->data(), data, seqLength);
@@ -162,7 +165,7 @@ status_t ExtendedCodec::convertMetaDataToMessage(
                     format->get()->setBuffer("csd-0", buffer);
                     picLength=size-seqLength;
                     sp<ABuffer> buffer1 = new ABuffer(picLength);
-                    memcpy(buffer1->data(), (char *)data+seqLength, picLength);
+                    memcpy(buffer1->data(), (const uint8_t *)data + seqLength, picLength);
                     buffer1->meta()->setInt32("csd", true);
                     buffer1->meta()->setInt64("timeUs", 0);
                     format->get()->setBuffer("csd-1", buffer1);
@@ -421,10 +424,9 @@ status_t ExtendedCodec::setSupportedRole(
         { MEDIA_MIMETYPE_AUDIO_AC3,
           "audio_decoder.ac3", NULL },
         { MEDIA_MIMETYPE_AUDIO_WMA,
-          "audio_decoder.wma" , NULL },
+          "audio_decoder.wma", NULL },
         { MEDIA_MIMETYPE_VIDEO_HEVC,
-          "video_decoder.hevc" , NULL },
-
+          "video_decoder.hevc", "video_encoder.hevc" },
         };
 
     static const size_t kNumMimeToRole =
@@ -507,6 +509,74 @@ status_t ExtendedCodec::handleSupportedAudioFormats(int format, AString* mime) {
         *mime = MEDIA_MIMETYPE_AUDIO_EVRC;
     } else {
         retVal = BAD_VALUE;
+    }
+    return retVal;
+}
+
+status_t ExtendedCodec::setupHEVCEncoderParameters(
+            const sp<MetaData> &meta, const sp<IOMX> &omx,
+            IOMX::node_id node, const char* componentName,
+            int portIndex, const sp<OMXCodec> &target) {
+    int32_t iFramesInterval, frameRate, bitRate;
+    bool success = meta->findInt32(kKeyBitRate, &bitRate);
+    success = success && meta->findInt32(kKeyFrameRate, &frameRate);
+    success = success && meta->findInt32(kKeyIFramesInterval, &iFramesInterval);
+    if(!success) {
+        ALOGE("Error: failed to find bitRate / frameRate / iFramesInterval");
+        return UNKNOWN_ERROR;
+    }
+
+    OMX_VIDEO_PARAM_HEVCTYPE h265type;
+    InitOMXParams(&h265type);
+    h265type.nPortIndex = portIndex;
+
+    status_t err = omx->getParameter(
+            node, (OMX_INDEXTYPE)OMX_IndexParamVideoHevc, &h265type, sizeof(h265type));
+    if (err != OK) {
+        ALOGE("Error: getParameter IndexParamVideoHevc failed");
+        return UNKNOWN_ERROR;
+    }
+
+    // Check profile and level parameters
+    CodecProfileLevel defaultProfileLevel, profileLevel;
+    defaultProfileLevel.mProfile = h265type.eProfile;
+    defaultProfileLevel.mLevel = h265type.eLevel;
+    err = target->getVideoProfileLevel(meta, defaultProfileLevel, profileLevel);
+    if (err != OK) {
+        ALOGE("Error: failed to get Profile / Level");
+        return err;
+    }
+
+    h265type.eProfile = static_cast<OMX_VIDEO_HEVCPROFILETYPE>(profileLevel.mProfile);
+    h265type.eLevel = static_cast<OMX_VIDEO_HEVCLEVELTYPE>(profileLevel.mLevel);
+
+    if (h265type.eProfile == OMX_VIDEO_HEVCProfileMain ||
+        h265type.eProfile == OMX_VIDEO_HEVCProfileMain10){
+        ALOGI("Profile type is %d", h265type.eProfile);
+    } else {
+        ALOGW("Use main profile instead of %d for HEVC recording",
+            h265type.eProfile);
+        h265type.eProfile = OMX_VIDEO_HEVCProfileMain;
+    }
+
+    return err;
+}
+
+status_t ExtendedCodec::handleSupportedVideoFormats(int format, AString* mime) {
+    ALOGV("handleSupportedVideoFormats called");
+    status_t retVal = OK;
+    if (format == QOMX_VIDEO_CodingHevc) {
+        *mime = MEDIA_MIMETYPE_VIDEO_HEVC;
+    } else {
+        retVal = BAD_VALUE;
+    }
+    return retVal;
+}
+
+bool ExtendedCodec::checkIfCompressionHEVC(int format) {
+    bool retVal = false;
+    if (format == QOMX_VIDEO_CodingHevc) {
+        retVal = true;
     }
     return retVal;
 }
@@ -1129,6 +1199,31 @@ namespace android {
             int format, AString* meta) {
         ARG_TOUCH(format);
         ARG_TOUCH(meta);
+        return UNKNOWN_ERROR;
+    }
+
+    bool ExtendedCodec::checkIfCompressionHEVC(int format) {
+        ARG_TOUCH(format);
+        return false;
+    }
+
+    status_t ExtendedCodec::handleSupportedVideoFormats(
+            int format, AString* meta) {
+        ARG_TOUCH(meta);
+        ARG_TOUCH(format);
+        return UNKNOWN_ERROR;
+    }
+
+    status_t ExtendedCodec::setupHEVCEncoderParameters(
+            const sp<MetaData> &meta, const sp<IOMX> &omx,
+            IOMX::node_id node, const char* componentName,
+            int portIndex, const sp<OMXCodec> &target) {
+        ARG_TOUCH(meta);
+        ARG_TOUCH(omx);
+        ARG_TOUCH(node);
+        ARG_TOUCH(componentName);
+        ARG_TOUCH(portIndex);
+        ARG_TOUCH(target);
         return UNKNOWN_ERROR;
     }
 
