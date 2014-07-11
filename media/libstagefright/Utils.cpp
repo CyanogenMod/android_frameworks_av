@@ -613,6 +613,9 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
                       bool isStreaming, audio_stream_type_t streamType)
 {
     const char *mime;
+    if (meta == NULL) {
+        return false;
+    }
     CHECK(meta->findCString(kKeyMIMEType, &mime));
 
     audio_offload_info_t info = AUDIO_INFO_INITIALIZER;
