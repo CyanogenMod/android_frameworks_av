@@ -52,6 +52,12 @@ namespace android {
 // Can be overridden by the audio.offload.min.duration.secs property
 #define OFFLOAD_DEFAULT_MIN_DURATION_SECS 60
 
+#define MAX_MIXER_SAMPLING_RATE 48000
+#define MAX_MIXER_CHANNEL_COUNT 2
+// See AudioPort::compareFormats()
+#define WORST_MIXER_FORMAT AUDIO_FORMAT_PCM_16_BIT
+#define BEST_MIXER_FORMAT AUDIO_FORMAT_PCM_24_BIT_PACKED
+
 // ----------------------------------------------------------------------------
 // AudioPolicyManager implements audio policy manager behavior common to all platforms.
 // ----------------------------------------------------------------------------
@@ -238,6 +244,13 @@ protected:
             status_t checkFormat(audio_format_t format) const;
             status_t checkGain(const struct audio_gain_config *gainConfig, int index) const;
 
+            uint32_t pickSamplingRate() const;
+            audio_channel_mask_t pickChannelMask() const;
+            audio_format_t pickFormat() const;
+
+            static const audio_format_t sPcmFormatCompareTable[];
+            static int compareFormats(audio_format_t format1, audio_format_t format2);
+
             void dump(int fd, int spaces) const;
 
             String8           mName;
@@ -252,6 +265,8 @@ protected:
             Vector <audio_format_t> mFormats; // supported audio formats
             Vector < sp<AudioGain> > mGains; // gain controllers
             sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
+            audio_output_flags_t mFlags; // attribute flags (e.g primary output,
+                                                // direct output...). For outputs only.
         };
 
         class AudioPortConfig: public virtual RefBase
@@ -302,7 +317,6 @@ protected:
 
             audio_devices_t mDeviceType;
             String8 mAddress;
-            audio_channel_mask_t mChannelMask;
             audio_port_handle_t mId;
         };
 
@@ -352,11 +366,10 @@ protected:
 
             DeviceVector  mSupportedDevices; // supported devices
                                              // (devices this output can be routed to)
-            audio_output_flags_t mFlags; // attribute flags (e.g primary output,
-                                                // direct output...). For outputs only.
         };
 
-        class HwModule : public RefBase{
+        class HwModule : public RefBase
+        {
         public:
                     HwModule(const char *name);
                     ~HwModule();
