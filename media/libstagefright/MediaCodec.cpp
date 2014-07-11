@@ -664,7 +664,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             cancelPendingDequeueOperations();
 
                             if (mFlags & kFlagIsAsync) {
-                                onError(0, omxError);
+                                onError(omxError, 0);
                             }
                             setState(UNINITIALIZED);
                             break;
@@ -678,7 +678,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             postActivityNotificationIfPossible();
 
                             if (mFlags & kFlagIsAsync) {
-                                onError(0, omxError);
+                                onError(omxError, 0);
                             }
                             setState(UNINITIALIZED);
                             break;
@@ -1916,12 +1916,16 @@ void MediaCodec::onOutputBufferAvailable() {
     }
 }
 
-void MediaCodec::onError(int32_t actionCode, status_t err) {
+void MediaCodec::onError(status_t err, int32_t actionCode, const char *detail) {
     if (mCallback != NULL) {
         sp<AMessage> msg = mCallback->dup();
         msg->setInt32("callbackID", CB_ERROR);
-        msg->setInt32("actionCode", actionCode);
         msg->setInt32("err", err);
+        msg->setInt32("actionCode", actionCode);
+
+        if (detail != NULL) {
+            msg->setString("detail", detail);
+        }
 
         msg->post();
     }

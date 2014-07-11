@@ -279,7 +279,7 @@ private:
 
     void onInputBufferAvailable();
     void onOutputBufferAvailable();
-    void onError(int32_t actionCode, status_t err);
+    void onError(status_t err, int32_t actionCode, const char *detail = NULL);
     void onOutputFormatChanged();
 
     status_t onSetParameters(const sp<AMessage> &params);
