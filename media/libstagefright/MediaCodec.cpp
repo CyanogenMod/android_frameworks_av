@@ -98,6 +98,13 @@ status_t MediaCodec::PostAndAwaitResponse(
     return err;
 }
 
+// static
+void MediaCodec::PostReplyWithError(int32_t replyID, int32_t err) {
+    sp<AMessage> response = new AMessage;
+    response->setInt32("err", err);
+    response->postReply(replyID);
+}
+
 status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
     // Current video decoders do not return from OMX_FillThisBuffer
     // quickly, violating the OpenMAX specs, until that is remedied
@@ -150,6 +157,14 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
     if (nameIsType) {
         msg->setInt32("encoder", encoder);
     }
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
+status_t MediaCodec::setCallback(const sp<AMessage> &callback) {
+    sp<AMessage> msg = new AMessage(kWhatSetCallback, id());
+    msg->setMessage("callback", callback);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
@@ -473,9 +488,7 @@ void MediaCodec::requestActivityNotification(const sp<AMessage> &notify) {
 
 void MediaCodec::cancelPendingDequeueOperations() {
     if (mFlags & kFlagDequeueInputPending) {
-        sp<AMessage> response = new AMessage;
-        response->setInt32("err", INVALID_OPERATION);
-        response->postReply(mDequeueInputReplyID);
+        PostReplyWithError(mDequeueInputReplyID, INVALID_OPERATION);
 
         ++mDequeueInputTimeoutGeneration;
         mDequeueInputReplyID = 0;
@@ -483,9 +496,7 @@ void MediaCodec::cancelPendingDequeueOperations() {
     }
 
     if (mFlags & kFlagDequeueOutputPending) {
-        sp<AMessage> response = new AMessage;
-        response->setInt32("err", INVALID_OPERATION);
-        response->postReply(mDequeueOutputReplyID);
+        PostReplyWithError(mDequeueOutputReplyID, INVALID_OPERATION);
 
         ++mDequeueOutputTimeoutGeneration;
         mDequeueOutputReplyID = 0;
@@ -497,11 +508,7 @@ bool MediaCodec::handleDequeueInputBuffer(uint32_t replyID, bool newRequest) {
     if (mState != STARTED
             || (mFlags & kFlagStickyError)
             || (newRequest && (mFlags & kFlagDequeueInputPending))) {
-        sp<AMessage> response = new AMessage;
-        response->setInt32("err", INVALID_OPERATION);
-
-        response->postReply(replyID);
-
+        PostReplyWithError(replyID, INVALID_OPERATION);
         return true;
     }
 
@@ -655,6 +662,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             postActivityNotificationIfPossible();
 
                             cancelPendingDequeueOperations();
+
+                            if (mFlags & kFlagIsAsync) {
+                                onError(0, omxError);
+                            }
                             setState(UNINITIALIZED);
                             break;
                         }
@@ -665,16 +676,17 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                             mFlags |= kFlagStickyError;
                             postActivityNotificationIfPossible();
+
+                            if (mFlags & kFlagIsAsync) {
+                                onError(0, omxError);
+                            }
                             setState(UNINITIALIZED);
                             break;
                         }
                     }
 
                     if (sendErrorReponse) {
-                        sp<AMessage> response = new AMessage;
-                        response->setInt32("err", UNKNOWN_ERROR);
-
-                        response->postReply(mReplyID);
+                        PostReplyWithError(mReplyID, UNKNOWN_ERROR);
                     }
                     break;
                 }
@@ -845,6 +857,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         // collect codec specific data and amend the output
                         // format as necessary.
                         mFlags |= kFlagGatherCodecSpecificData;
+                    } else if (mFlags & kFlagIsAsync) {
+                        onOutputFormatChanged();
                     } else {
                         mFlags |= kFlagOutputFormatChanged;
                         postActivityNotificationIfPossible();
@@ -887,7 +901,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         break;
                     }
 
-                    if (mFlags & kFlagDequeueInputPending) {
+                    if (mFlags & kFlagIsAsync) {
+                        onInputBufferAvailable();
+                    } else if (mFlags & kFlagDequeueInputPending) {
                         CHECK(handleDequeueInputBuffer(mDequeueInputReplyID));
 
                         ++mDequeueInputTimeoutGeneration;
@@ -934,10 +950,16 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         }
 
                         mFlags &= ~kFlagGatherCodecSpecificData;
-                        mFlags |= kFlagOutputFormatChanged;
+                        if (mFlags & kFlagIsAsync) {
+                            onOutputFormatChanged();
+                        } else {
+                            mFlags |= kFlagOutputFormatChanged;
+                        }
                     }
 
-                    if (mFlags & kFlagDequeueOutputPending) {
+                    if (mFlags & kFlagIsAsync) {
+                        onOutputBufferAvailable();
+                    } else if (mFlags & kFlagDequeueOutputPending) {
                         CHECK(handleDequeueOutputBuffer(mDequeueOutputReplyID));
 
                         ++mDequeueOutputTimeoutGeneration;
@@ -993,10 +1015,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != UNINITIALIZED) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1026,16 +1045,45 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSetCallback:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            if (mState == UNINITIALIZED
+                    || mState == INITIALIZING
+                    || mState == STARTED) {
+                // callback can't be set after codec is started,
+                // or before it's initialized (as the callback
+                // will be cleared when it goes to INITIALIZED)
+                PostReplyWithError(replyID, INVALID_OPERATION);
+                break;
+            }
+
+            sp<AMessage> callback;
+            CHECK(msg->findMessage("callback", &callback));
+
+            mCallback = callback;
+
+            if (mCallback != NULL) {
+                ALOGI("MediaCodec will operate in async mode");
+                mFlags |= kFlagIsAsync;
+            } else {
+                mFlags &= ~kFlagIsAsync;
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->postReply(replyID);
+            break;
+        }
+
         case kWhatConfigure:
         {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != INITIALIZED) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1055,10 +1103,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         ->getSurfaceTextureClient());
 
                 if (err != OK) {
-                    sp<AMessage> response = new AMessage;
-                    response->setInt32("err", err);
-
-                    response->postReply(replyID);
+                    PostReplyWithError(replyID, err);
                     break;
                 }
             } else {
@@ -1096,10 +1141,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             // Must be configured, but can't have been started yet.
             if (mState != CONFIGURED) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1114,10 +1156,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != CONFIGURED) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1178,11 +1217,15 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
+            if (mFlags & kFlagIsAsync) {
+                ALOGE("dequeueOutputBuffer can't be used in async mode");
+                PostReplyWithError(replyID, INVALID_OPERATION);
+                break;
+            }
+
             if (mHaveInputSurface) {
                 ALOGE("dequeueInputBuffer can't be used with input surface");
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1194,9 +1237,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findInt64("timeoutUs", &timeoutUs));
 
             if (timeoutUs == 0ll) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", -EAGAIN);
-                response->postReply(replyID);
+                PostReplyWithError(replyID, -EAGAIN);
                 break;
             }
 
@@ -1225,9 +1266,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             CHECK(mFlags & kFlagDequeueInputPending);
 
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", -EAGAIN);
-            response->postReply(mDequeueInputReplyID);
+            PostReplyWithError(mDequeueInputReplyID, -EAGAIN);
 
             mFlags &= ~kFlagDequeueInputPending;
             mDequeueInputReplyID = 0;
@@ -1240,18 +1279,13 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != STARTED || (mFlags & kFlagStickyError)) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
             status_t err = onQueueInputBuffer(msg);
 
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", err);
-            response->postReply(replyID);
+            PostReplyWithError(replyID, err);
             break;
         }
 
@@ -1259,6 +1293,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
         {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
+
+            if (mFlags & kFlagIsAsync) {
+                ALOGE("dequeueOutputBuffer can't be used in async mode");
+                PostReplyWithError(replyID, INVALID_OPERATION);
+                break;
+            }
 
             if (handleDequeueOutputBuffer(replyID, true /* new request */)) {
                 break;
@@ -1268,9 +1308,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findInt64("timeoutUs", &timeoutUs));
 
             if (timeoutUs == 0ll) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", -EAGAIN);
-                response->postReply(replyID);
+                PostReplyWithError(replyID, -EAGAIN);
                 break;
             }
 
@@ -1299,9 +1337,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             CHECK(mFlags & kFlagDequeueOutputPending);
 
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", -EAGAIN);
-            response->postReply(mDequeueOutputReplyID);
+            PostReplyWithError(mDequeueOutputReplyID, -EAGAIN);
 
             mFlags &= ~kFlagDequeueOutputPending;
             mDequeueOutputReplyID = 0;
@@ -1314,18 +1350,13 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != STARTED || (mFlags & kFlagStickyError)) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
             status_t err = onReleaseOutputBuffer(msg);
 
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", err);
-            response->postReply(replyID);
+            PostReplyWithError(replyID, err);
             break;
         }
 
@@ -1335,10 +1366,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != STARTED || (mFlags & kFlagStickyError)) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1353,10 +1381,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != STARTED || (mFlags & kFlagStickyError)) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1387,10 +1412,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != STARTED || (mFlags & kFlagStickyError)) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1415,10 +1437,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                  mState != STARTED && mState != FLUSHING)
                     || (mFlags & kFlagStickyError)
                     || format == NULL) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1449,10 +1468,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mComponentName.empty()) {
-                sp<AMessage> response = new AMessage;
-                response->setInt32("err", INVALID_OPERATION);
-
-                response->postReply(replyID);
+                PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
@@ -1472,10 +1488,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             status_t err = onSetParameters(params);
 
-            sp<AMessage> response = new AMessage;
-            response->setInt32("err", err);
-
-            response->postReply(replyID);
+            PostReplyWithError(replyID, err);
             break;
         }
 
@@ -1546,8 +1559,10 @@ void MediaCodec::setState(State newState) {
         mFlags &= ~kFlagStickyError;
         mFlags &= ~kFlagIsEncoder;
         mFlags &= ~kFlagGatherCodecSpecificData;
+        mFlags &= ~kFlagIsAsync;
 
         mActivityNotify.clear();
+        mCallback.clear();
     }
 
     if (newState == UNINITIALIZED) {
@@ -1854,6 +1869,73 @@ status_t MediaCodec::setNativeWindow(
 
     return OK;
 }
+
+void MediaCodec::onInputBufferAvailable() {
+    int32_t index;
+    while ((index = dequeuePortBuffer(kPortIndexInput)) >= 0) {
+        sp<AMessage> msg = mCallback->dup();
+        msg->setInt32("callbackID", CB_INPUT_AVAILABLE);
+        msg->setInt32("index", index);
+        msg->post();
+    }
+}
+
+void MediaCodec::onOutputBufferAvailable() {
+    int32_t index;
+    while ((index = dequeuePortBuffer(kPortIndexOutput)) >= 0) {
+        const sp<ABuffer> &buffer =
+            mPortBuffers[kPortIndexOutput].itemAt(index).mData;
+        sp<AMessage> msg = mCallback->dup();
+        msg->setInt32("callbackID", CB_OUTPUT_AVAILABLE);
+        msg->setInt32("index", index);
+        msg->setSize("offset", buffer->offset());
+        msg->setSize("size", buffer->size());
+
+        int64_t timeUs;
+        CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+
+        msg->setInt64("timeUs", timeUs);
+
+        int32_t omxFlags;
+        CHECK(buffer->meta()->findInt32("omxFlags", &omxFlags));
+
+        uint32_t flags = 0;
+        if (omxFlags & OMX_BUFFERFLAG_SYNCFRAME) {
+            flags |= BUFFER_FLAG_SYNCFRAME;
+        }
+        if (omxFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+            flags |= BUFFER_FLAG_CODECCONFIG;
+        }
+        if (omxFlags & OMX_BUFFERFLAG_EOS) {
+            flags |= BUFFER_FLAG_EOS;
+        }
+
+        msg->setInt32("flags", flags);
+
+        msg->post();
+    }
+}
+
+void MediaCodec::onError(int32_t actionCode, status_t err) {
+    if (mCallback != NULL) {
+        sp<AMessage> msg = mCallback->dup();
+        msg->setInt32("callbackID", CB_ERROR);
+        msg->setInt32("actionCode", actionCode);
+        msg->setInt32("err", err);
+
+        msg->post();
+    }
+}
+
+void MediaCodec::onOutputFormatChanged() {
+    if (mCallback != NULL) {
+        sp<AMessage> msg = mCallback->dup();
+        msg->setInt32("callbackID", CB_OUTPUT_FORMAT_CHANGED);
+        msg->setMessage("format", mOutputFormat);
+        msg->post();
+    }
+}
+
 
 void MediaCodec::postActivityNotificationIfPossible() {
     if (mActivityNotify == NULL) {
