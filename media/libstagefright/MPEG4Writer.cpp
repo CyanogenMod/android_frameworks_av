@@ -47,6 +47,7 @@ static const int64_t kMinStreamableFileSizeInBytes = 5 * 1024 * 1024;
 static const int64_t kMax32BitFileSize = 0x00ffffffffLL; // 2^32-1 : max FAT32
                                                          // filesystem file size
                                                          // used by most SD cards
+static const int64_t kMax64BitFileSize = 0x00ffffffffLL; //fat32 max size limited to 4GB
 static const uint8_t kNalUnitTypeSeqParamSet = 0x07;
 static const uint8_t kNalUnitTypePicParamSet = 0x08;
 static const int64_t kInitialDelayTimeUs     = 700000LL;
@@ -582,7 +583,7 @@ status_t MPEG4Writer::start(MetaData *param) {
         use64BitOffset) {
         mUse32BitOffset = false;
         if (mMaxFileSizeLimitBytes == 0) {
-            mMaxFileSizeLimitBytes = kMax32BitFileSize;
+            mMaxFileSizeLimitBytes = kMax64BitFileSize;
         }
     }
 
@@ -1765,9 +1766,6 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
     pthread_attr_destroy(&attr);
 
     mHFRRatio = ExtendedUtils::HFR::getHFRRatio(mMeta);
-    // Workaround until HFR is fully functional
-    if (!mHFRRatio)
-	mHFRRatio = 1;
 
     return OK;
 }
@@ -2123,14 +2121,16 @@ status_t MPEG4Writer::Track::threadEntry() {
             continue;
         }
 
-        // If the codec specific data has not been received yet, delay pause.
-        // After the codec specific data is received, discard what we received
-        // when the track is to be paused.
+        // Do not drop encoded frames as we run the risk of dropping a key
+        // frame. We do not need to drop output frames as the source is expected
+        // to drop inputs when paused.
+#if 0
         if (mPaused && !mResumed) {
             buffer->release();
             buffer = NULL;
             continue;
         }
+#endif
 
         ++count;
 
@@ -2843,8 +2843,10 @@ void MPEG4Writer::Track::writeMp4aEsdsBox() {
 
     mOwner->writeInt16(0x03);  // XXX
     mOwner->writeInt8(0x00);   // buffer size 24-bit
-    mOwner->writeInt32(96000); // max bit rate
-    mOwner->writeInt32(96000); // avg bit rate
+    int32_t bitRate;
+    bool success = mMeta->findInt32(kKeyBitRate, &bitRate);
+    mOwner->writeInt32(success ? bitRate : 96000); // max bit rate
+    mOwner->writeInt32(success ? bitRate : 96000); // avg bit rate
 
     mOwner->writeInt8(0x05);   // DecoderSpecificInfoTag
     mOwner->writeInt8(mCodecSpecificDataSize);

@@ -551,9 +551,6 @@ void ExtendedCodec::configureVideoDecoder(
         return;
     }
 
-    // set frame packing
-    configureFramePackingFormat(msg, OMXhandle, nodeID, componentName);
-
     setDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
     AString fileFormat;
     const char *fileFormatCStr = NULL;
@@ -831,6 +828,14 @@ void ExtendedCodec::enableSmoothStreaming(
     //ignore non QC components
     if (strncmp(componentName, "OMX.qcom.", 9)) {
         return;
+    }
+    if(strstr(componentName, ".secure")) {
+        char prop[PROPERTY_VALUE_MAX] = {0};
+        property_get("mm.disable.sec_smoothstreaming", prop, "0");
+        if (!strncmp(prop, "true", 4) || atoi(prop)) {
+            ALOGI("Smoothstreaming not enabled for secure Sessions");
+            return;
+        }
     }
     status_t err = omx->setParameter(
             nodeID,
