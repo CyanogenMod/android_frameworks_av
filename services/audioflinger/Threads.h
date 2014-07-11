@@ -234,7 +234,7 @@ public:
                 // dynamic externally-visible
                 uint32_t    sampleRate() const { return mSampleRate; }
                 audio_channel_mask_t channelMask() const { return mChannelMask; }
-                audio_format_t format() const { return mFormat; }
+                audio_format_t format() const { return mHALFormat; }
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
                 // and returns the [normal mix] buffer's frame count.
     virtual     size_t      frameCount() const = 0;
@@ -407,7 +407,11 @@ protected:
                 audio_channel_mask_t    mChannelMask;
                 uint32_t                mChannelCount;
                 size_t                  mFrameSize;
-                audio_format_t          mFormat;
+                audio_format_t          mFormat;           // Source format for Recording and
+                                                           // Sink format for Playback.
+                                                           // Sink format may be different than
+                                                           // HAL format if Fastmixer is used.
+                audio_format_t          mHALFormat;
                 size_t                  mBufferSize;       // HAL buffer size for read() or write()
 
                 Vector< sp<ConfigEvent> >     mConfigEvents;
