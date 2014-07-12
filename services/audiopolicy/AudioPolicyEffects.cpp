@@ -15,7 +15,7 @@
  */
 
 #define LOG_TAG "AudioPolicyEffects"
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 
 #include <stdlib.h>
 #include <stdio.h>
