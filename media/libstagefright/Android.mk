@@ -65,16 +65,15 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
-        $(TOP)/frameworks/native/services/connectivitymanager \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
         $(TOP)/external/libvpx/libwebm \
+        $(TOP)/system/netd/include \
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
         libcamera_client \
-        libconnectivitymanager \
         libcutils \
         libdl \
         libdrmframework \
@@ -84,6 +83,7 @@ LOCAL_SHARED_LIBRARIES := \
         libicuuc \
         liblog \
         libmedia \
+        libnetd_client \
         libopus \
         libsonivox \
         libssl \

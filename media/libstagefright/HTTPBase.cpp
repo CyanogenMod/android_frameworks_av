@@ -26,7 +26,7 @@
 #include <cutils/properties.h>
 #include <cutils/qtaguid.h>
 
-#include <ConnectivityManager.h>
+#include <NetdClient.h>
 
 namespace android {
 
@@ -122,7 +122,7 @@ void HTTPBase::UnRegisterSocketUserTag(int sockfd) {
 
 // static
 void HTTPBase::RegisterSocketUserMark(int sockfd, uid_t uid) {
-    ConnectivityManager::markSocketAsUser(sockfd, uid);
+    setNetworkForUser(uid, sockfd);
 }
 
 // static
