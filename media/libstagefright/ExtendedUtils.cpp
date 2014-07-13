@@ -522,7 +522,7 @@ void ExtendedUtils::helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCod
     uint32_t bit;
     if(index < 0) {
          bit = mTypes.size();
-         if (bit == 32) {
+         if (bit == 64) {
              ALOGW("Too many distinct type names in configuration.");
              return;
          }
