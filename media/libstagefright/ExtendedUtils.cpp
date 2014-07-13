@@ -41,6 +41,7 @@
 #include <media/stagefright/OMXCodec.h>
 #include <cutils/properties.h>
 #include <media/stagefright/MediaExtractor.h>
+#include <media/MediaProfiles.h>
 
 #include "include/ExtendedUtils.h"
 
@@ -106,7 +107,6 @@ status_t ExtendedUtils::HFR::initializeHFR(
 #endif
 
     int32_t hfr = 0;
-
     if (!meta->findInt32(kKeyHFR, &hfr)) {
         ALOGW("hfr not found, default to 0");
     }
@@ -118,30 +118,21 @@ status_t ExtendedUtils::HFR::initializeHFR(
     }
 
     int32_t width = 0, height = 0;
-
     CHECK(meta->findInt32(kKeyWidth, &width));
     CHECK(meta->findInt32(kKeyHeight, &height));
 
-    char mDeviceName[PROPERTY_VALUE_MAX];
-    property_get("ro.board.platform",mDeviceName,"0");
-    if (!strncmp(mDeviceName, "msm8974", 7) ||
-        !strncmp(mDeviceName, "apq8064", 7) ||
-        !strncmp(mDeviceName, "apq8084", 7)) {
-        if ((width * height * hfr > 1920*1088*120)) {
-            ALOGE("HFR mode is supported only upto 1080p resolution");
-            return INVALID_OPERATION;
-        }
-    } else if (!strncmp(mDeviceName, "msm8610", 7)) {
-        if ((width * height * hfr > 320*240*120)) {
-            ALOGE("HFR mode is supported only upto QVGA resolution");
-            return INVALID_OPERATION;
-        }
-    } else { // includes msm8226
-        if (((videoEncoder != VIDEO_ENCODER_H264)
-                || (width * height * hfr > 800*480*120))) {
-            ALOGE("HFR mode is supported only upto WVGA and H264 codec.");
-            return INVALID_OPERATION;
-        }
+    int maxW, maxH, MaxFrameRate, maxBitRate = 0;
+    if (getHFRCapabilities(videoEncoder,
+            maxW, maxH, MaxFrameRate, maxBitRate) < 0) {
+        ALOGE("Failed to query HFR target capabilities");
+        return ERROR_UNSUPPORTED;
+    }
+
+    if ((width * height * hfr) > (maxW * maxH * MaxFrameRate)) {
+        ALOGE("HFR request [%d x %d @%d fps] exceeds "
+                "[%d x %d @%d fps]",
+                width, height, hfr, maxW, maxH, MaxFrameRate);
+        return ERROR_UNSUPPORTED;
     }
 
     int32_t frameRate = 0, bitRate = 0;
@@ -149,11 +140,18 @@ status_t ExtendedUtils::HFR::initializeHFR(
     CHECK(enc_meta->findInt32(kKeyBitRate, &bitRate));
 
     if (frameRate) {
+        // scale the bitrate proportional to the hfr ratio
+        // to maintain quality, but cap it to max-supported.
         bitRate = (hfr * bitRate) / frameRate;
-        int32_t hfrRatio = hfr/frameRate;
+        bitRate = bitRate > maxBitRate ? maxBitRate : bitRate;
         enc_meta->setInt32(kKeyBitRate, bitRate);
+
+        int32_t hfrRatio = hfr / frameRate;
         enc_meta->setInt32(kKeyFrameRate, hfr);
         enc_meta->setInt32(kKeyHFR, hfrRatio);
+    } else {
+        ALOGE("HFR: Invalid framerate");
+        return BAD_VALUE;
     }
 
     return retVal;
@@ -174,6 +172,22 @@ int32_t ExtendedUtils::HFR::getHFRRatio(
     int32_t hfr = 0;
     meta->findInt32(kKeyHFR, &hfr);
     return hfr ? hfr : 1;
+}
+
+int32_t ExtendedUtils::HFR::getHFRCapabilities(
+        video_encoder codec,
+        int& maxHFRWidth, int& maxHFRHeight, int& maxHFRFps,
+        int& maxBitRate) {
+    maxHFRWidth = maxHFRHeight = maxHFRFps = maxBitRate = 0;
+    MediaProfiles *profiles = MediaProfiles::getInstance();
+    if (profiles) {
+        maxHFRWidth = profiles->getVideoEncoderParamByName("enc.vid.hfr.width.max", codec);
+        maxHFRHeight = profiles->getVideoEncoderParamByName("enc.vid.hfr.height.max", codec);
+        maxHFRFps = profiles->getVideoEncoderParamByName("enc.vid.hfr.mode.max", codec);
+        maxBitRate = profiles->getVideoEncoderParamByName("enc.vid.bps.max", codec);
+    }
+    return (maxHFRWidth > 0) && (maxHFRHeight > 0) &&
+            (maxHFRFps > 0) && (maxBitRate > 0) ? 1 : -1;
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
@@ -508,7 +522,7 @@ void ExtendedUtils::helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCod
     uint32_t bit;
     if(index < 0) {
          bit = mTypes.size();
-         if (bit == 32) {
+         if (bit == 64) {
              ALOGW("Too many distinct type names in configuration.");
              return;
          }
@@ -856,6 +870,14 @@ void ExtendedUtils::HFR::copyHFRParams(
 int32_t ExtendedUtils::HFR::getHFRRatio(
         const sp<MetaData> &meta) {
     return 1;
+}
+
+int32_t ExtendedUtils::HFR::getHFRCapabilities(
+        video_encoder codec,
+        int& maxHFRWidth, int& maxHFRHeight, int& maxHFRFps,
+        int& maxBitRate) {
+    maxHFRWidth = maxHFRHeight = maxHFRFps = maxBitRate = 0;
+    return -1;
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {

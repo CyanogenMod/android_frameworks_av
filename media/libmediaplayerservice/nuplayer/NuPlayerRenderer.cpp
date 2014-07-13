@@ -241,8 +241,23 @@ void NuPlayer::Renderer::notifyIfMediaRenderingStarted() {
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
     uint32_t numFramesPlayed;
-    if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
-        return false;
+    status_t positionStatus = mAudioSink->getPosition(&numFramesPlayed);
+    if (positionStatus == NO_INIT) {
+        // The AudioSink track may not have been created yet, which returns NO_INIT.
+        // Check if EOS has been reached and call notifyEOS, so that this message
+        // is not lost before this funtion returns false below.
+        if (!mAudioQueue.empty()) {
+            QueueEntry *firstEntry = &*mAudioQueue.begin();
+            if (firstEntry->mBuffer == NULL) {
+                // EOS is reached
+                notifyEOS(true /*audio */, firstEntry->mFinalResult);
+                mAudioQueue.erase(mAudioQueue.begin());
+            }
+            firstEntry = NULL;
+         }
+         return false;
+    } else if (positionStatus != OK) {
+               return false;
     }
 
     ssize_t numFramesAvailableToWrite =

@@ -1283,71 +1283,138 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
         mPacketSources.valueFor(LiveSession::STREAMTYPE_AUDIO);
 
     if (packetSource->getFormat() == NULL && buffer->size() >= 7) {
-        ABitReader bits(buffer->data(), buffer->size());
+        const uint32_t header = U32_AT(buffer->data());
 
-        // adts_fixed_header
+        size_t frameSize;
+        int sampleRate, channels;
+        if (GetMPEGAudioFrameSize(header, &frameSize, &sampleRate,
+                &channels, NULL, NULL)) {
+            sp<MetaData> meta = new MetaData;
 
-        CHECK_EQ(bits.getBits(12), 0xfffu);
-        bits.skipBits(3);  // ID, layer
-        bool protection_absent = bits.getBits(1) != 0;
+            unsigned layer = 4 - ((header >> 17) & 3);
 
-        unsigned profile = bits.getBits(2);
-        CHECK_NE(profile, 3u);
-        unsigned sampling_freq_index = bits.getBits(4);
-        bits.getBits(1);  // private_bit
-        unsigned channel_configuration = bits.getBits(3);
-        CHECK_NE(channel_configuration, 0u);
-        bits.skipBits(2);  // original_copy, home
+            switch (layer) {
+            case 1:
+                meta->setCString(
+                        kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_I);
+                break;
+            case 2:
+                meta->setCString(
+                        kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II);
+                break;
+            case 3:
+                meta->setCString(
+                        kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG);
+                break;
+            default:
+                TRESPASS();
+            }
 
-        sp<MetaData> meta = MakeAACCodecSpecificData(
-                profile, sampling_freq_index, channel_configuration);
+            meta->setInt32(kKeySampleRate, sampleRate);
+            meta->setInt32(kKeyChannelCount, channels);
 
-        meta->setInt32(kKeyIsADTS, true);
+            packetSource->setFormat(meta);
 
-        packetSource->setFormat(meta);
+        } else {
+
+            ABitReader bits(buffer->data(), buffer->size());
+
+            // adts_fixed_header
+
+            CHECK_EQ(bits.getBits(12), 0xfffu);
+            bits.skipBits(3);  // ID, layer
+            bool protection_absent = bits.getBits(1) != 0;
+
+            unsigned profile = bits.getBits(2);
+            CHECK_NE(profile, 3u);
+            unsigned sampling_freq_index = bits.getBits(4);
+            bits.getBits(1);  // private_bit
+            unsigned channel_configuration = bits.getBits(3);
+            CHECK_NE(channel_configuration, 0u);
+            bits.skipBits(2);  // original_copy, home
+
+            sp<MetaData> meta = MakeAACCodecSpecificData(
+                    profile, sampling_freq_index, channel_configuration);
+
+            meta->setInt32(kKeyIsADTS, true);
+
+            packetSource->setFormat(meta);
+        }
     }
 
-    int64_t numSamples = 0ll;
-    int32_t sampleRate;
-    CHECK(packetSource->getFormat()->findInt32(kKeySampleRate, &sampleRate));
+    const char *mime;
+    CHECK(packetSource->getFormat()->findCString(kKeyMIMEType, &mime));
+    if (strcmp(mime, MEDIA_MIMETYPE_AUDIO_AAC) == 0) {
+        int64_t numSamples = 0ll;
+        int32_t sampleRate;
+        CHECK(packetSource->getFormat()->findInt32(kKeySampleRate, &sampleRate));
 
-    size_t offset = 0;
-    while (offset < buffer->size()) {
-        const uint8_t *adtsHeader = buffer->data() + offset;
-        CHECK_LT(offset + 5, buffer->size());
+        size_t offset = 0;
+        while (offset < buffer->size()) {
+            const uint8_t *adtsHeader = buffer->data() + offset;
+            CHECK_LT(offset + 5, buffer->size());
 
-        unsigned aac_frame_length =
-            ((adtsHeader[3] & 3) << 11)
-            | (adtsHeader[4] << 3)
-            | (adtsHeader[5] >> 5);
+            unsigned aac_frame_length =
+                ((adtsHeader[3] & 3) << 11)
+                | (adtsHeader[4] << 3)
+                | (adtsHeader[5] >> 5);
 
-        if (aac_frame_length == 0) {
-            const uint8_t *id3Header = adtsHeader;
-            if (!memcmp(id3Header, "ID3", 3)) {
-                ID3 id3(id3Header, buffer->size() - offset, true);
-                if (id3.isValid()) {
-                    offset += id3.rawSize();
-                    continue;
-                };
+            if (aac_frame_length == 0) {
+                const uint8_t *id3Header = adtsHeader;
+                if (!memcmp(id3Header, "ID3", 3)) {
+                    ID3 id3(id3Header, buffer->size() - offset, true);
+                    if (id3.isValid()) {
+                        offset += id3.rawSize();
+                        continue;
+                    };
+                }
+                return ERROR_MALFORMED;
             }
-            return ERROR_MALFORMED;
+
+            CHECK_LE(offset + aac_frame_length, buffer->size());
+
+            sp<ABuffer> unit = new ABuffer(aac_frame_length);
+            memcpy(unit->data(), adtsHeader, aac_frame_length);
+
+            int64_t unitTimeUs = timeUs + numSamples * 1000000ll / sampleRate;
+            unit->meta()->setInt64("timeUs", unitTimeUs);
+
+            // Each AAC frame encodes 1024 samples.
+            numSamples += 1024;
+
+            unit->meta()->setInt32("seq", mSeqNumber);
+            packetSource->queueAccessUnit(unit);
+
+            offset += aac_frame_length;
         }
+    } else {
+        int64_t numSamples = 0ll;
+        size_t offset = 0;
+        while (offset < buffer->size()) {
+            CHECK_LT(offset + 4, buffer->size());
+            const uint32_t mpegHeader = U32_AT(buffer->data() + offset);
 
-        CHECK_LE(offset + aac_frame_length, buffer->size());
+            size_t frameSize;
+            int sampleRate, samplesInFrame;
+            if (GetMPEGAudioFrameSize(mpegHeader, &frameSize, &sampleRate,
+                    NULL, NULL, &samplesInFrame)) {
+                CHECK_LE(offset + frameSize, buffer->size());
 
-        sp<ABuffer> unit = new ABuffer(aac_frame_length);
-        memcpy(unit->data(), adtsHeader, aac_frame_length);
+                sp<ABuffer> unit = new ABuffer(frameSize);
+                memcpy(unit->data(), buffer->data() + offset, frameSize);
 
-        int64_t unitTimeUs = timeUs + numSamples * 1000000ll / sampleRate;
-        unit->meta()->setInt64("timeUs", unitTimeUs);
+                int64_t unitTimeUs = timeUs + numSamples * 1000000ll / sampleRate;
+                unit->meta()->setInt64("timeUs", unitTimeUs);
 
-        // Each AAC frame encodes 1024 samples.
-        numSamples += 1024;
+                numSamples += samplesInFrame;
 
-        unit->meta()->setInt32("seq", mSeqNumber);
-        packetSource->queueAccessUnit(unit);
+                packetSource->queueAccessUnit(unit);
 
-        offset += aac_frame_length;
+                offset += frameSize;
+            } else {
+                return ERROR_MALFORMED;
+            }
+        }
     }
 
     return OK;

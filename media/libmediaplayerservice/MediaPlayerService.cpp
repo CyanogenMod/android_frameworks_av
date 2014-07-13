@@ -1852,10 +1852,10 @@ status_t MediaPlayerService::AudioOutput::attachAuxEffect(int effectId)
 }
 
 // static
+#ifdef QCOM_DIRECTTRACK
 void MediaPlayerService::AudioOutput::CallbackWrapper(
         int event, void *cookie, void *info) {
     //ALOGV("callbackwrapper");
-#ifdef QCOM_DIRECTTRACK
     if (event == AudioTrack::EVENT_UNDERRUN) {
         ALOGW("Event underrun");
         CallbackData *data = (CallbackData*)cookie;
@@ -1895,7 +1895,6 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         return;
     }
     if (event == AudioTrack::EVENT_MORE_DATA) {
-#endif
         CallbackData *data = (CallbackData*)cookie;
         data->lock();
         AudioOutput *me = data->getOutput();
@@ -1916,8 +1915,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
                     me, buffer->raw, buffer->size, me->mCallbackCookie,
                     CB_EVENT_FILL_BUFFER);
 
-            if (actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL &&
-                    (me->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) {
+            if (actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL) {
                 // We've reached EOS but the audio track is not stopped yet,
                 // keep playing silence.
 
@@ -1946,12 +1944,64 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         }
 
         data->unlock();
-#ifdef QCOM_DIRECTTRACK
     }
-#endif
-
     return;
 }
+#else
+void MediaPlayerService::AudioOutput::CallbackWrapper(
+        int event, void *cookie, void *info) {
+    //ALOGV("callbackwrapper");
+    CallbackData *data = (CallbackData*)cookie;
+    data->lock();
+    AudioOutput *me = data->getOutput();
+    AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
+    if (me == NULL) {
+        // no output set, likely because the track was scheduled to be reused
+        // by another player, but the format turned out to be incompatible.
+        data->unlock();
+        if (buffer != NULL) {
+            buffer->size = 0;
+        }
+        return;
+    }
+
+    switch(event) {
+    case AudioTrack::EVENT_MORE_DATA: {
+        size_t actualSize = (*me->mCallback)(
+                me, buffer->raw, buffer->size, me->mCallbackCookie,
+                CB_EVENT_FILL_BUFFER);
+
+        if (actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL &&
+            (me->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) {
+            // We've reached EOS but the audio track is not stopped yet,
+            // keep playing silence.
+
+            memset(buffer->raw, 0, buffer->size);
+            actualSize = buffer->size;
+        }
+
+        buffer->size = actualSize;
+        } break;
+
+    case AudioTrack::EVENT_STREAM_END:
+        ALOGV("callbackwrapper: deliver EVENT_STREAM_END");
+        (*me->mCallback)(me, NULL /* buffer */, 0 /* size */,
+                me->mCallbackCookie, CB_EVENT_STREAM_END);
+        break;
+
+    case AudioTrack::EVENT_NEW_IAUDIOTRACK :
+        ALOGV("callbackwrapper: deliver EVENT_TEAR_DOWN");
+        (*me->mCallback)(me,  NULL /* buffer */, 0 /* size */,
+                me->mCallbackCookie, CB_EVENT_TEAR_DOWN);
+        break;
+
+    default:
+        ALOGE("received unknown event type: %d inside CallbackWrapper !", event);
+    }
+
+    data->unlock();
+}
+#endif
 
 int MediaPlayerService::AudioOutput::getSessionId() const
 {
