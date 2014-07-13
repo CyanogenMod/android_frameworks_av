@@ -3753,7 +3753,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         }
 
 #ifdef QCOM_HARDWARE
-        if (ExtendedCodec::useHWAACDecoder(mime.c_str())) {
+        if (ExtendedCodec::useHWAACDecoder(mime.c_str()) && !encoder) {
             OMXCodec::findMatchingCodecs(mime.c_str(), encoder,
                 "OMX.qcom.audio.decoder.multiaac", 0, &matchingCodecs);
         } else
