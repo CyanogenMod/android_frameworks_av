@@ -64,6 +64,15 @@ ARTPAssembler::AssemblyStatus AH263Assembler::addPacket(
                 break;
             }
 
+            //check whether the rtp time of this later packet is equal
+            //to the current one, if yes, it means this packet belongs
+            //to the candidate access unit and should be inserted.
+            uint32_t rtpTime;
+            bool ret = (*it)->meta()->findInt32("rtp-time", (int32_t *)&rtpTime);
+            if (ret && mPackets.size() > 0 && rtpTime == mAccessUnitRTPTime) {
+                ALOGV("insert the rtp packet into the candidate access unit");
+                insertPacket(*it);
+            }
             it = queue->erase(it);
         }
 
@@ -95,48 +104,16 @@ ARTPAssembler::AssemblyStatus AH263Assembler::addPacket(
 
     // hexdump(buffer->data(), buffer->size());
 
-    if (buffer->size() < 2) {
+    size_t skip;
+    if ((skip = getOffsetOfHeader(buffer)) == 1){
         queue->erase(queue->begin());
         ++mNextExpectedSeqNo;
-
         return MALFORMED_PACKET;
     }
-
-    unsigned payloadHeader = U16_AT(buffer->data());
-    unsigned P = (payloadHeader >> 10) & 1;
-    unsigned V = (payloadHeader >> 9) & 1;
-    unsigned PLEN = (payloadHeader >> 3) & 0x3f;
-    unsigned PEBIT = payloadHeader & 7;
-
-    // V=0
-    if (V != 0u) {
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-        ALOGW("Packet discarded due to VRC (V != 0)");
-        return MALFORMED_PACKET;
-    }
-
-    // PLEN=0
-    if (PLEN != 0u) {
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-        ALOGW("Packet discarded (PLEN != 0)");
-        return MALFORMED_PACKET;
-    }
-
-    // PEBIT=0
-    if (PEBIT != 0u) {
-        queue->erase(queue->begin());
-        ++mNextExpectedSeqNo;
-        ALOGW("Packet discarded (PEBIT != 0)");
-        return MALFORMED_PACKET;
-    }
-
-    size_t skip = V + PLEN + (P ? 0 : 2);
 
     buffer->setRange(buffer->offset() + skip, buffer->size() - skip);
 
-    if (P) {
+    if (skip == 0) {
         buffer->data()[0] = 0x00;
         buffer->data()[1] = 0x00;
     }
@@ -211,5 +188,68 @@ void AH263Assembler::onByeReceived() {
     msg->post();
 }
 
+size_t AH263Assembler::getOffsetOfHeader(const sp<ABuffer> buffer) {
+    //the final right offset should be 0 or 2, it is
+    //initialized to 1 for checking whether errors happen
+    size_t offset = 1;
+
+    if (buffer->size() < 2) {
+        ALOGW("Packet size is less than 2 bytes");
+        return offset;
+    }
+
+    unsigned payloadHeader = U16_AT(buffer->data());
+    unsigned P = (payloadHeader >> 10) & 1;
+    unsigned V = (payloadHeader >> 9) & 1;
+    unsigned PLEN = (payloadHeader >> 3) & 0x3f;
+    unsigned PEBIT = payloadHeader & 7;
+
+    // V=0
+    if (V != 0u) {
+        ALOGW("Packet discarded due to VRC (V != 0)");
+        return offset;
+    }
+
+    // PLEN=0
+    if (PLEN != 0u) {
+        ALOGW("Packet discarded (PLEN != 0)");
+        return offset;
+    }
+
+    // PEBIT=0
+    if (PEBIT != 0u) {
+        ALOGW("Packet discarded (PEBIT != 0)");
+        return offset;
+    }
+    offset = V + PLEN + (P ? 0 : 2);
+    return offset;
+}
+
+void AH263Assembler::insertPacket(const sp<ABuffer> &buffer){
+    size_t skip;
+    if ((skip = getOffsetOfHeader(buffer)) == 1){
+        ALOGE("Malformed packet in insertPacket");
+        return;
+    }
+
+    buffer->setRange(buffer->offset() + skip, buffer->size() - skip);
+
+    if (skip == 0) {
+        buffer->data()[0] = 0x00;
+        buffer->data()[1] = 0x00;
+    }
+    uint32_t seqNum = (uint32_t)buffer->int32Data();
+    List<sp<ABuffer> >::iterator it = mPackets.begin();
+    while (it != mPackets.end() && (uint32_t)(*it)->int32Data() < seqNum){
+        ++it;
+    }
+
+    if (it != mPackets.end() && (uint32_t)(*it)->int32Data() == seqNum) {
+        ALOGE("Discarding duplicate buffer in mPackets");
+        return;
+    }
+    ALOGV("insert the buffer into the current packets");
+    mPackets.insert(it, buffer);
+}
 }  // namespace android
 

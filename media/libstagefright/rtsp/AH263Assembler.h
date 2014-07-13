@@ -49,6 +49,10 @@ private:
     AssemblyStatus addPacket(const sp<ARTPSource> &source);
     void submitAccessUnit();
 
+    size_t getOffsetOfHeader(const sp<ABuffer> buffer);
+
+    void insertPacket(const sp<ABuffer> &buffer);
+
     DISALLOW_EVIL_CONSTRUCTORS(AH263Assembler);
 };
 
