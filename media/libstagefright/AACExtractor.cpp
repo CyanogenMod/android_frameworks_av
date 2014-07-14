@@ -174,7 +174,7 @@ AACExtractor::AACExtractor(
     if (mDataSource->getSize(&streamSize) == OK) {
          while (offset < streamSize) {
             if ((frameSize = getAdtsFrameLength(source, offset, NULL)) == 0) {
-                return;
+                break;
             }
 
             mOffsetVector.push(offset);
