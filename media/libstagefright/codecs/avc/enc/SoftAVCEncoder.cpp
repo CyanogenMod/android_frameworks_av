@@ -348,10 +348,10 @@ OMX_ERRORTYPE SoftAVCEncoder::releaseEncoder() {
     PVAVCCleanUpEncoder(mHandle);
     releaseOutputBuffers();
 
-    delete mInputFrameData;
+    free(mInputFrameData);
     mInputFrameData = NULL;
 
-    delete mSliceGroup;
+    free(mSliceGroup);
     mSliceGroup = NULL;
 
     delete mEncParams;
