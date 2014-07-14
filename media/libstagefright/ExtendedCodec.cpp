@@ -1206,11 +1206,12 @@ status_t ExtendedCodec::setAMRWBPLUSFormat(
     return err;
 }
 
-bool ExtendedCodec::useHWAACDecoder(const char *mime) {
+bool ExtendedCodec::useHWAACDecoder(const char *mime, int channelCount) {
     char value[PROPERTY_VALUE_MAX] = {0};
     int aaccodectype = 0;
     aaccodectype = property_get("media.aaccodectype", value, NULL);
     if (aaccodectype && !strncmp("1", value, 1) &&
+        channelCount > 0 &&
         !strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
         ALOGI("Using Hardware AAC Decoder");
         return true;
