@@ -589,6 +589,12 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         // depend on fragments from the last one decoded.
         // drain all existing data
         drainDecoder();
+        // force decoder loop to drop the first decoded buffer by resetting these state variables,
+        // but only if initialization has already happened.
+        if (mInputBufferCount != 0) {
+            mInputBufferCount = 1;
+            mStreamInfo->sampleRate = 0;
+        }
     }
 }
 
