@@ -1382,7 +1382,7 @@ namespace android {
         const uint32_t flags, IOMX::node_id nodeID, const char* componentName) {
     }
 
-    bool ExtendedCodec::useHWAACDecoder(const char *mime) {
+    bool ExtendedCodec::useHWAACDecoder(const char *mime, int channelCount) {
         return false;
     }
 
