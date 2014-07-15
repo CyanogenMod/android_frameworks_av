@@ -106,6 +106,11 @@ void MediaCodec::PostReplyWithError(int32_t replyID, int32_t err) {
 }
 
 status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
+    // save init parameters for reset
+    mInitName = name;
+    mInitNameIsType = nameIsType;
+    mInitIsEncoder = encoder;
+
     // Current video decoders do not return from OMX_FillThisBuffer
     // quickly, violating the OpenMAX specs, until that is remedied
     // we need to invest in an extra looper to free the main event
@@ -233,6 +238,40 @@ status_t MediaCodec::release() {
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
+}
+
+status_t MediaCodec::reset() {
+    /* When external-facing MediaCodec object is created,
+       it is already initialized.  Thus, reset is essentially
+       release() followed by init(), plus clearing the state */
+
+    status_t err = release();
+
+    // unregister handlers
+    if (mCodec != NULL) {
+        if (mCodecLooper != NULL) {
+            mCodecLooper->unregisterHandler(mCodec->id());
+        } else {
+            mLooper->unregisterHandler(mCodec->id());
+        }
+        mCodec = NULL;
+    }
+    mLooper->unregisterHandler(id());
+
+    mFlags = 0;    // clear all flags
+
+    // reset state not reset by setState(UNINITIALIZED)
+    mReplyID = 0;
+    mDequeueInputReplyID = 0;
+    mDequeueOutputReplyID = 0;
+    mDequeueInputTimeoutGeneration = 0;
+    mDequeueOutputTimeoutGeneration = 0;
+    mHaveInputSurface = false;
+
+    if (err == OK) {
+        err = init(mInitName.c_str(), mInitNameIsType, mInitIsEncoder);
+    }
+    return err;
 }
 
 status_t MediaCodec::queueInputBuffer(
@@ -1553,6 +1592,7 @@ void MediaCodec::setState(State newState) {
         mCrypto.clear();
         setNativeWindow(NULL);
 
+        mInputFormat.clear();
         mOutputFormat.clear();
         mFlags &= ~kFlagOutputFormatChanged;
         mFlags &= ~kFlagOutputBuffersChanged;
@@ -1566,6 +1606,9 @@ void MediaCodec::setState(State newState) {
     }
 
     if (newState == UNINITIALIZED) {
+        // return any straggling buffers, e.g. if we got here on an error
+        returnBuffersToCodec();
+
         mComponentName.clear();
 
         // The component is gone, mediaserver's probably back up already
