@@ -5235,10 +5235,10 @@ reacquire_wakelock:
                         if (mChannelCount == activeTrack->mChannelCount) {
                             memcpy(dst, src, part1 * mFrameSize);
                         } else if (mChannelCount == 1) {
-                            upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (int16_t *)src,
+                            upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (const int16_t *)src,
                                     part1);
                         } else {
-                            downmix_to_mono_i16_from_stereo_i16((int16_t *)dst, (int16_t *)src,
+                            downmix_to_mono_i16_from_stereo_i16((int16_t *)dst, (const int16_t *)src,
                                     part1);
                         }
                         dst += part1 * activeTrack->mFrameSize;
@@ -5310,7 +5310,7 @@ reacquire_wakelock:
                         // the resampler always outputs stereo samples:
                         // do post stereo to mono conversion
                         downmix_to_mono_i16_from_stereo_i16(activeTrack->mSink.i16,
-                                (int16_t *)activeTrack->mRsmpOutBuffer, framesOut);
+                                (const int16_t *)activeTrack->mRsmpOutBuffer, framesOut);
                     } else {
                         ditherAndClamp((int32_t *)activeTrack->mSink.raw,
                                 activeTrack->mRsmpOutBuffer, framesOut);
