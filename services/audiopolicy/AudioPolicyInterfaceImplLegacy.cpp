@@ -485,4 +485,17 @@ status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *
     return INVALID_OPERATION;
 }
 
+audio_io_handle_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr __unused,
+                                    uint32_t samplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
+{
+    //FIXME: temporary to fix build with USE_LEGACY_AUDIO_POLICY
+    audio_stream_type_t stream = AUDIO_STREAM_MUSIC;
+    return getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
+}
+
+
 }; // namespace android
