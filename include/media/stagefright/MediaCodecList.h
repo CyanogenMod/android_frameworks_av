@@ -25,8 +25,11 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
+#include <utils/StrongPointer.h>
 
 namespace android {
+
+struct AMessage;
 
 struct MediaCodecList {
     static const MediaCodecList *getInstance();
@@ -51,15 +54,19 @@ struct MediaCodecList {
             size_t index, const char *type,
             Vector<ProfileLevel> *profileLevels,
             Vector<uint32_t> *colorFormats,
-            uint32_t *flags) const;
+            uint32_t *flags,
+            // TODO default argument is only for compatibility with existing JNI
+            sp<AMessage> *capabilities = NULL) const;
 
 private:
     enum Section {
         SECTION_TOPLEVEL,
         SECTION_DECODERS,
         SECTION_DECODER,
+        SECTION_DECODER_TYPE,
         SECTION_ENCODERS,
         SECTION_ENCODER,
+        SECTION_ENCODER_TYPE,
         SECTION_INCLUDE,
     };
 
@@ -67,7 +74,10 @@ private:
         AString mName;
         bool mIsEncoder;
         uint32_t mTypes;
+        uint32_t mSoleType;
         uint32_t mQuirks;
+        KeyedVector<uint32_t, sp<AMessage> > mCaps;
+        sp<AMessage> mCurrentCaps;
     };
 
     static MediaCodecList *sCodecList;
@@ -103,6 +113,8 @@ private:
 
     status_t addQuirk(const char **attrs);
     status_t addTypeFromAttributes(const char **attrs);
+    status_t addLimit(const char **attrs);
+    status_t addFeature(const char **attrs);
     void addType(const char *name);
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecList);
