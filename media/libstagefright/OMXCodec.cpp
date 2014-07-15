@@ -463,8 +463,11 @@ sp<MediaSource> OMXCodec::Create(
 
 #ifdef QCOM_HARDWARE
     int channelCount = 0;
+    int trackId = 0;
     meta->findInt32(kKeyChannelCount, &channelCount);
-    if (ExtendedCodec::useHWAACDecoder(mime, channelCount) && !createEncoder) {
+    source->getFormat()->findInt32(kKeyTrackID, &trackId);
+    if (ExtendedCodec::useHWAACDecoder(mime, channelCount) && !createEncoder
+            && trackId > 1) {
         findMatchingCodecs(mime, createEncoder,
             "OMX.qcom.audio.decoder.multiaac", flags, &matchingCodecs);
     } else {
