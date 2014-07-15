@@ -388,7 +388,8 @@ private:
                                             audio_devices_t *pDevices,
                                             uint32_t *pSamplingRate,
                                             audio_format_t *pFormat,
-                                            audio_channel_mask_t *pChannelMask);
+                                            audio_channel_mask_t *pChannelMask,
+                                            audio_input_flags_t flags);
         // closes an audio input
         virtual status_t closeInput(audio_io_handle_t input);
         //

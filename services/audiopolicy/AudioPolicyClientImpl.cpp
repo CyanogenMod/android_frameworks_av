@@ -101,7 +101,8 @@ audio_io_handle_t AudioPolicyService::AudioPolicyClient::openInput(audio_module_
                               audio_devices_t *pDevices,
                               uint32_t *pSamplingRate,
                               audio_format_t *pFormat,
-                              audio_channel_mask_t *pChannelMask)
+                              audio_channel_mask_t *pChannelMask,
+                              audio_input_flags_t flags)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
@@ -109,7 +110,7 @@ audio_io_handle_t AudioPolicyService::AudioPolicyClient::openInput(audio_module_
         return 0;
     }
 
-    return af->openInput(module, pDevices, pSamplingRate, pFormat, pChannelMask);
+    return af->openInput(module, pDevices, pSamplingRate, pFormat, pChannelMask, flags);
 }
 
 status_t AudioPolicyService::AudioPolicyClient::closeInput(audio_io_handle_t input)
