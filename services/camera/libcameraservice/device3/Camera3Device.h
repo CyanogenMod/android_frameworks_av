@@ -135,6 +135,8 @@ class Camera3Device :
 
     virtual status_t flush(int64_t *lastFrameNumber = NULL);
 
+    virtual uint32_t getDeviceVersion();
+
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker
 
@@ -168,7 +170,7 @@ class Camera3Device :
 
     CameraMetadata             mDeviceInfo;
 
-    int                        mDeviceVersion;
+    uint32_t                   mDeviceVersion;
 
     enum Status {
         STATUS_ERROR,
@@ -199,8 +201,11 @@ class Camera3Device :
     // Need to hold on to stream references until configure completes.
     Vector<sp<camera3::Camera3StreamInterface> > mDeletedStreams;
 
-    // Whether quirk ANDROID_QUIRKS_USE_PARTIAL_RESULT is enabled
-    bool                       mUsePartialResultQuirk;
+    // Whether the HAL will send partial result
+    bool                       mUsePartialResult;
+
+    // Number of partial results that will be delivered by the HAL.
+    uint32_t                   mNumPartialResults;
 
     /**** End scope for mLock ****/
 
@@ -507,17 +512,17 @@ class Camera3Device :
         // If this request has any input buffer
         bool hasInputBuffer;
 
-        // Fields used by the partial result quirk only
-        struct PartialResultQuirkInFlight {
+        // Fields used by the partial result only
+        struct PartialResultInFlight {
             // Set by process_capture_result once 3A has been sent to clients
             bool    haveSent3A;
             // Result metadata collected so far, when partial results are in use
             CameraMetadata collectedResult;
 
-            PartialResultQuirkInFlight():
+            PartialResultInFlight():
                     haveSent3A(false) {
             }
-        } partialResultQuirk;
+        } partialResult;
 
         // Default constructor needed by KeyedVector
         InFlightRequest() :
@@ -564,11 +569,11 @@ class Camera3Device :
             int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput);
 
     /**
-     * For the partial result quirk, check if all 3A state fields are available
+     * For the partial result, check if all 3A state fields are available
      * and if so, queue up 3A-only result to the client. Returns true if 3A
      * is sent.
      */
-    bool processPartial3AQuirk(uint32_t frameNumber,
+    bool processPartial3AResult(uint32_t frameNumber,
             const CameraMetadata& partial, const CaptureResultExtras& resultExtras);
 
     // Helpers for reading and writing 3A metadata into to/from partial results

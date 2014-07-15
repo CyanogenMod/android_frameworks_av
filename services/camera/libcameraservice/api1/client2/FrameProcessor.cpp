@@ -40,7 +40,12 @@ FrameProcessor::FrameProcessor(wp<CameraDeviceBase> device,
 
     {
         SharedParameters::Lock l(client->getParameters());
-        mUsePartialQuirk = l.mParameters.quirks.partialResults;
+
+        if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+            mUsePartialResult = (mNumPartialResults > 1);
+        } else {
+            mUsePartialResult = l.mParameters.quirks.partialResults;
+        }
 
         // Initialize starting 3A state
         m3aState.afTriggerId = l.mParameters.afTriggerCounter;
@@ -63,17 +68,21 @@ bool FrameProcessor::processSingleFrame(CaptureResult &frame,
         return false;
     }
 
-    bool partialResult = false;
-    if (mUsePartialQuirk) {
-        camera_metadata_entry_t entry;
-        entry = frame.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
-        if (entry.count > 0 &&
-                entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
-            partialResult = true;
+    bool isPartialResult = false;
+    if (mUsePartialResult) {
+        if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+            isPartialResult = frame.mResultExtras.partialResultCount < mNumPartialResults;
+        } else {
+            camera_metadata_entry_t entry;
+            entry = frame.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+            if (entry.count > 0 &&
+                    entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+                isPartialResult = true;
+            }
         }
     }
 
-    if (!partialResult && processFaceDetect(frame.mMetadata, client) != OK) {
+    if (!isPartialResult && processFaceDetect(frame.mMetadata, client) != OK) {
         return false;
     }
 
