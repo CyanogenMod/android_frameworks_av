@@ -339,9 +339,7 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
         bool success = meta->findCString(kKeyMIMEType, &mime);
         if ((success == true) &&
             (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
-                                strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) ||
-             !strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
-                                strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) )) {
+                                strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) )) {
 
             ALOGD("Discarding default extractor and using the extended one");
             bUseDefaultExtractor = false;
