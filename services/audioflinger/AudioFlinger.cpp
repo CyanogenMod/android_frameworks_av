@@ -1847,8 +1847,9 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_io_handle_t id = nextUniqueId();
 
     audio_stream_in_t *inStream = NULL;
+    audio_input_flags_t flags = AUDIO_INPUT_FLAG_FAST;  // FIXME until added to openInput()
     status_t status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config,
-                                        &inStream);
+                                        &inStream, flags);
     ALOGV("openInput() openInputStream returned input %p, SamplingRate %d, Format %#x, Channels %x, "
             "status %d",
             inStream,
@@ -1868,7 +1869,7 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
         // FIXME describe the change proposed by HAL (save old values so we can log them here)
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
-        status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config, &inStream);
+        status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config, &inStream, flags);
         // FIXME log this new status; HAL should not propose any further changes
     }
 
