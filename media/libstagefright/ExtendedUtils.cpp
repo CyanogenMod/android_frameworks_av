@@ -521,7 +521,7 @@ void ExtendedUtils::helper_addMediaCodec(Vector<MediaCodecList::CodecInfo> &mCod
     info->mIsEncoder = encoder;
     info->mTypes=0;
     ssize_t index = mTypes.indexOfKey(type);
-    uint32_t bit;
+    uint64_t bit;
     if(index < 0) {
          bit = mTypes.size();
          if (bit == 64) {
