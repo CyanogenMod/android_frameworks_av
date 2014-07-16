@@ -202,7 +202,8 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int audioSession)
+                                    int audioSession,
+                                    audio_input_flags_t flags __unused)
 {
     if (mpAudioPolicy == NULL) {
         return 0;
