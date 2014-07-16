@@ -73,6 +73,10 @@ struct MediaCodec : public AHandler {
     // unconfigured.
     status_t stop();
 
+    // Resets the codec to the INITIALIZED state.  Can be called after an error
+    // has occured to make the codec usable.
+    status_t reset();
+
     // Client MUST call release before releasing final reference to this
     // object.
     status_t release();
@@ -220,6 +224,11 @@ private:
     sp<AMessage> mOutputFormat;
     sp<AMessage> mInputFormat;
     sp<AMessage> mCallback;
+
+    // initial create parameters
+    AString mInitName;
+    bool mInitNameIsType;
+    bool mInitIsEncoder;
 
     // Used only to synchronize asynchronous getBufferAndFormat
     // across all the other (synchronous) buffer state change
