@@ -34,6 +34,7 @@ const int64_t kNearEOSMarkUs = 2000000ll; // 2 secs
 
 AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
     : mIsAudio(false),
+      mIsVideo(false),
       mFormat(NULL),
       mLastQueuedTimeUs(0),
       mEOSResult(OK),
@@ -45,6 +46,7 @@ void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
     CHECK(mFormat == NULL);
 
     mIsAudio = false;
+    mIsVideo = false;
 
     if (meta == NULL) {
         return;
@@ -56,8 +58,10 @@ void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
 
     if (!strncasecmp("audio/", mime, 6)) {
         mIsAudio = true;
+    } else  if (!strncasecmp("video/", mime, 6)) {
+        mIsVideo = true;
     } else {
-        CHECK(!strncasecmp("video/", mime, 6));
+        CHECK(!strncasecmp("text/", mime, 5));
     }
 }
 
@@ -175,7 +179,11 @@ bool AnotherPacketSource::wasFormatChange(
         return (discontinuityType & ATSParser::DISCONTINUITY_AUDIO_FORMAT) != 0;
     }
 
-    return (discontinuityType & ATSParser::DISCONTINUITY_VIDEO_FORMAT) != 0;
+    if (mIsVideo) {
+        return (discontinuityType & ATSParser::DISCONTINUITY_VIDEO_FORMAT) != 0;
+    }
+
+    return false;
 }
 
 void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {

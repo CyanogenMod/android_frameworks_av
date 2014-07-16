@@ -41,6 +41,7 @@ NuPlayer::GenericSource::GenericSource(
         bool uidValid,
         uid_t uid)
     : Source(notify),
+      mFetchSubtitleDataGeneration(0),
       mDurationUs(0ll),
       mAudioIsVorbis(false),
       mIsWidevine(isWidevine),
@@ -59,6 +60,7 @@ NuPlayer::GenericSource::GenericSource(
         const sp<AMessage> &notify,
         int fd, int64_t offset, int64_t length)
     : Source(notify),
+      mFetchSubtitleDataGeneration(0),
       mDurationUs(0ll),
       mAudioIsVorbis(false),
       mIsWidevine(false) {
@@ -181,25 +183,144 @@ void NuPlayer::GenericSource::start() {
 
     if (mAudioTrack.mSource != NULL) {
         CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
-
         mAudioTrack.mPackets =
             new AnotherPacketSource(mAudioTrack.mSource->getFormat());
 
-        readBuffer(true /* audio */);
+        readBuffer(MEDIA_TRACK_TYPE_AUDIO);
     }
 
     if (mVideoTrack.mSource != NULL) {
         CHECK_EQ(mVideoTrack.mSource->start(), (status_t)OK);
-
         mVideoTrack.mPackets =
             new AnotherPacketSource(mVideoTrack.mSource->getFormat());
 
-        readBuffer(false /* audio */);
+        readBuffer(MEDIA_TRACK_TYPE_VIDEO);
     }
 }
 
 status_t NuPlayer::GenericSource::feedMoreTSData() {
     return OK;
+}
+
+void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
+    switch (msg->what()) {
+      case kWhatFetchSubtitleData:
+      {
+          int32_t generation;
+          CHECK(msg->findInt32("generation", &generation));
+          if (generation != mFetchSubtitleDataGeneration) {
+              // stale
+              break;
+          }
+
+          int32_t avail;
+          if (mSubtitleTrack.mPackets->hasBufferAvailable(&avail)) {
+              break;
+          }
+
+          int64_t timeUs;
+          CHECK(msg->findInt64("timeUs", &timeUs));
+
+          int64_t subTimeUs;
+          readBuffer(MEDIA_TRACK_TYPE_SUBTITLE, timeUs, &subTimeUs);
+
+          const int64_t oneSecUs = 1000000ll;
+          const int64_t delayUs = subTimeUs - timeUs - oneSecUs;
+          sp<AMessage> msg2 = new AMessage(kWhatSendSubtitleData, id());
+          msg2->setInt32("generation", generation);
+          msg2->post(delayUs < 0 ? 0 : delayUs);
+          ALOGV("kWhatFetchSubtitleData generation %d, delayUs %lld",
+                  mFetchSubtitleDataGeneration, delayUs);
+
+          break;
+      }
+
+      case kWhatSendSubtitleData:
+      {
+          int32_t generation;
+          CHECK(msg->findInt32("generation", &generation));
+          if (generation != mFetchSubtitleDataGeneration) {
+              // stale
+              break;
+          }
+
+          int64_t subTimeUs;
+          if (mSubtitleTrack.mPackets->nextBufferTime(&subTimeUs) != OK) {
+              break;
+          }
+
+          int64_t nextSubTimeUs;
+          readBuffer(MEDIA_TRACK_TYPE_SUBTITLE, -1, &nextSubTimeUs);
+
+          sp<ABuffer> buffer;
+          status_t dequeueStatus = mSubtitleTrack.mPackets->dequeueAccessUnit(&buffer);
+          if (dequeueStatus != OK) {
+              ALOGE("kWhatSendSubtitleData dequeueAccessUnit: %d", dequeueStatus);
+          } else {
+              sp<AMessage> notify = dupNotify();
+              notify->setInt32("what", kWhatSubtitleData);
+              notify->setBuffer("buffer", buffer);
+              notify->post();
+
+              const int64_t delayUs = nextSubTimeUs - subTimeUs;
+              msg->post(delayUs < 0 ? 0 : delayUs);
+          }
+
+          break;
+      }
+
+      case kWhatChangeAVSource:
+      {
+          int32_t trackIndex;
+          CHECK(msg->findInt32("trackIndex", &trackIndex));
+          const sp<MediaSource> source = mSources.itemAt(trackIndex);
+
+          Track* track;
+          const char *mime;
+          media_track_type trackType, counterpartType;
+          sp<MetaData> meta = source->getFormat();
+          meta->findCString(kKeyMIMEType, &mime);
+          if (!strncasecmp(mime, "audio/", 6)) {
+              track = &mAudioTrack;
+              trackType = MEDIA_TRACK_TYPE_AUDIO;
+              counterpartType = MEDIA_TRACK_TYPE_VIDEO;;
+          } else {
+              CHECK(!strncasecmp(mime, "video/", 6));
+              track = &mVideoTrack;
+              trackType = MEDIA_TRACK_TYPE_VIDEO;
+              counterpartType = MEDIA_TRACK_TYPE_AUDIO;;
+          }
+
+
+          if (track->mSource != NULL) {
+              track->mSource->stop();
+          }
+          track->mSource = source;
+          track->mSource->start();
+          track->mIndex = trackIndex;
+
+          status_t avail;
+          if (!track->mPackets->hasBufferAvailable(&avail)) {
+              // sync from other source
+              TRESPASS();
+              break;
+          }
+
+          int64_t timeUs, actualTimeUs;
+          const bool formatChange = true;
+          sp<AMessage> latestMeta = track->mPackets->getLatestMeta();
+          CHECK(latestMeta != NULL && latestMeta->findInt64("timeUs", &timeUs));
+          readBuffer(trackType, timeUs, &actualTimeUs, formatChange);
+          readBuffer(counterpartType, -1, NULL, formatChange);
+          ALOGV("timeUs %lld actualTimeUs %lld", timeUs, actualTimeUs);
+
+          break;
+      }
+
+      default:
+          Source::onMessageReceived(msg);
+          break;
+    }
 }
 
 sp<MetaData> NuPlayer::GenericSource::getFormatMeta(bool audio) {
@@ -222,7 +343,7 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
 
     if (mIsWidevine && !audio) {
         // try to read a buffer as we may not have been able to the last time
-        readBuffer(audio, -1ll);
+        readBuffer(MEDIA_TRACK_TYPE_VIDEO, -1ll);
     }
 
     status_t finalResult;
@@ -232,7 +353,30 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
 
     status_t result = track->mPackets->dequeueAccessUnit(accessUnit);
 
-    readBuffer(audio, -1ll);
+    if (!track->mPackets->hasBufferAvailable(&finalResult)) {
+        readBuffer(audio? MEDIA_TRACK_TYPE_AUDIO : MEDIA_TRACK_TYPE_VIDEO, -1ll);
+    }
+
+    if (mSubtitleTrack.mSource == NULL) {
+        return result;
+    }
+
+    CHECK(mSubtitleTrack.mPackets != NULL);
+    if (result != OK) {
+        mSubtitleTrack.mPackets->clear();
+        mFetchSubtitleDataGeneration++;
+        return result;
+    }
+
+    int64_t timeUs;
+    status_t eosResult; // ignored
+    CHECK((*accessUnit)->meta()->findInt64("timeUs", &timeUs));
+    if (!mSubtitleTrack.mPackets->hasBufferAvailable(&eosResult)) {
+        sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, id());
+        msg->setInt64("timeUs", timeUs);
+        msg->setInt32("generation", mFetchSubtitleDataGeneration);
+        msg->post();
+    }
 
     return result;
 }
@@ -292,25 +436,155 @@ sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
     return format;
 }
 
+status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
+    ALOGV("selectTrack: %zu", trackIndex);
+    if (trackIndex >= mSources.size()) {
+        return BAD_INDEX;
+    }
+
+    if (!select) {
+        if (mSubtitleTrack.mSource == NULL || trackIndex != mSubtitleTrack.mIndex) {
+            return INVALID_OPERATION;
+        }
+        mSubtitleTrack.mSource->stop();
+        mSubtitleTrack.mSource = NULL;
+        mSubtitleTrack.mPackets->clear();
+        mFetchSubtitleDataGeneration++;
+        return OK;
+    }
+
+    const sp<MediaSource> source = mSources.itemAt(trackIndex);
+    sp<MetaData> meta = source->getFormat();
+    const char *mime;
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+    if (!strncasecmp(mime, "text/", 5)) {
+        if (mSubtitleTrack.mSource != NULL && mSubtitleTrack.mIndex == trackIndex) {
+            return OK;
+        }
+        mSubtitleTrack.mIndex = trackIndex;
+        if (mSubtitleTrack.mSource != NULL) {
+            mSubtitleTrack.mSource->stop();
+        }
+        mSubtitleTrack.mSource = mSources.itemAt(trackIndex);
+        mSubtitleTrack.mSource->start();
+        if (mSubtitleTrack.mPackets == NULL) {
+            mSubtitleTrack.mPackets = new AnotherPacketSource(mSubtitleTrack.mSource->getFormat());
+        } else {
+            mSubtitleTrack.mPackets->clear();
+
+        }
+        mFetchSubtitleDataGeneration++;
+        return OK;
+    } else if (!strncasecmp(mime, "audio/", 6) || !strncasecmp(mime, "video/", 6)) {
+        bool audio = !strncasecmp(mime, "audio/", 6);
+        Track *track = audio ? &mAudioTrack : &mVideoTrack;
+        if (track->mSource != NULL && track->mIndex == trackIndex) {
+            return OK;
+        }
+
+        sp<AMessage> msg = new AMessage(kWhatChangeAVSource, id());
+        msg->setInt32("trackIndex", trackIndex);
+        msg->post();
+        return OK;
+    }
+
+    return INVALID_OPERATION;
+}
+
 status_t NuPlayer::GenericSource::seekTo(int64_t seekTimeUs) {
     if (mVideoTrack.mSource != NULL) {
         int64_t actualTimeUs;
-        readBuffer(false /* audio */, seekTimeUs, &actualTimeUs);
+        readBuffer(MEDIA_TRACK_TYPE_VIDEO, seekTimeUs, &actualTimeUs);
 
         seekTimeUs = actualTimeUs;
     }
 
     if (mAudioTrack.mSource != NULL) {
-        readBuffer(true /* audio */, seekTimeUs);
+        readBuffer(MEDIA_TRACK_TYPE_AUDIO, seekTimeUs);
     }
 
     return OK;
 }
 
+sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
+        MediaBuffer* mb,
+        media_track_type trackType,
+        int64_t *actualTimeUs) {
+    bool audio = trackType == MEDIA_TRACK_TYPE_AUDIO;
+    size_t outLength = mb->range_length();
+
+    if (audio && mAudioIsVorbis) {
+        outLength += sizeof(int32_t);
+    }
+
+    sp<ABuffer> ab;
+    if (mIsWidevine && !audio) {
+        // data is already provided in the buffer
+        ab = new ABuffer(NULL, mb->range_length());
+        ab->meta()->setPointer("mediaBuffer", mb);
+        mb->add_ref();
+    } else {
+        ab = new ABuffer(outLength);
+        memcpy(ab->data(),
+               (const uint8_t *)mb->data() + mb->range_offset(),
+               mb->range_length());
+    }
+
+    if (audio && mAudioIsVorbis) {
+        int32_t numPageSamples;
+        if (!mb->meta_data()->findInt32(kKeyValidSamples, &numPageSamples)) {
+            numPageSamples = -1;
+        }
+
+        uint8_t* abEnd = ab->data() + mb->range_length();
+        memcpy(abEnd, &numPageSamples, sizeof(numPageSamples));
+    }
+
+    int64_t timeUs;
+    CHECK(mb->meta_data()->findInt64(kKeyTime, &timeUs));
+
+    sp<AMessage> meta = ab->meta();
+    meta->setInt64("timeUs", timeUs);
+
+    int64_t durationUs;
+    if (mb->meta_data()->findInt64(kKeyDuration, &durationUs)) {
+        meta->setInt64("durationUs", durationUs);
+    }
+
+    if (trackType == MEDIA_TRACK_TYPE_SUBTITLE) {
+        meta->setInt32("trackIndex", mSubtitleTrack.mIndex);
+    }
+
+    if (actualTimeUs) {
+        *actualTimeUs = timeUs;
+    }
+
+    mb->release();
+    mb = NULL;
+
+    return ab;
+}
+
 void NuPlayer::GenericSource::readBuffer(
-        bool audio, int64_t seekTimeUs, int64_t *actualTimeUs) {
-    Track *track = audio ? &mAudioTrack : &mVideoTrack;
-    CHECK(track->mSource != NULL);
+        media_track_type trackType, int64_t seekTimeUs, int64_t *actualTimeUs, bool formatChange) {
+    Track *track;
+    switch (trackType) {
+        case MEDIA_TRACK_TYPE_VIDEO:
+            track = &mVideoTrack;
+            break;
+        case MEDIA_TRACK_TYPE_AUDIO:
+            track = &mAudioTrack;
+            break;
+        case MEDIA_TRACK_TYPE_SUBTITLE:
+            track = &mSubtitleTrack;
+            break;
+        default:
+            TRESPASS();
+    }
+
+    if (track->mSource == NULL) {
+        return;
+    }
 
     if (actualTimeUs) {
         *actualTimeUs = seekTimeUs;
@@ -321,11 +595,11 @@ void NuPlayer::GenericSource::readBuffer(
     bool seeking = false;
 
     if (seekTimeUs >= 0) {
-        options.setSeekTo(seekTimeUs);
+        options.setSeekTo(seekTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
         seeking = true;
     }
 
-    if (mIsWidevine && !audio) {
+    if (mIsWidevine && trackType != MEDIA_TRACK_TYPE_AUDIO) {
         options.setNonBlocking();
     }
 
@@ -336,56 +610,19 @@ void NuPlayer::GenericSource::readBuffer(
         options.clearSeekTo();
 
         if (err == OK) {
-            size_t outLength = mbuf->range_length();
-
-            if (audio && mAudioIsVorbis) {
-                outLength += sizeof(int32_t);
+            // formatChange && seeking: track whose source is changed during selection
+            // formatChange && !seeking: track whose source is not changed during selection
+            // !formatChange: normal seek
+            if ((seeking || formatChange) && trackType != MEDIA_TRACK_TYPE_SUBTITLE) {
+                ATSParser::DiscontinuityType type = formatChange
+                        ? (seeking
+                                ? ATSParser::DISCONTINUITY_FORMATCHANGE
+                                : ATSParser::DISCONTINUITY_NONE)
+                        : ATSParser::DISCONTINUITY_SEEK;
+                track->mPackets->queueDiscontinuity( type, NULL, true /* discard */);
             }
 
-            sp<ABuffer> buffer;
-            if (mIsWidevine && !audio) {
-                // data is already provided in the buffer
-                buffer = new ABuffer(NULL, mbuf->range_length());
-                buffer->meta()->setPointer("mediaBuffer", mbuf);
-                mbuf->add_ref();
-            } else {
-                buffer = new ABuffer(outLength);
-                memcpy(buffer->data(),
-                       (const uint8_t *)mbuf->data() + mbuf->range_offset(),
-                       mbuf->range_length());
-            }
-
-            if (audio && mAudioIsVorbis) {
-                int32_t numPageSamples;
-                if (!mbuf->meta_data()->findInt32(
-                            kKeyValidSamples, &numPageSamples)) {
-                    numPageSamples = -1;
-                }
-
-                memcpy(buffer->data() + mbuf->range_length(),
-                       &numPageSamples,
-                       sizeof(numPageSamples));
-            }
-
-            int64_t timeUs;
-            CHECK(mbuf->meta_data()->findInt64(kKeyTime, &timeUs));
-
-            buffer->meta()->setInt64("timeUs", timeUs);
-
-            if (actualTimeUs) {
-                *actualTimeUs = timeUs;
-            }
-
-            mbuf->release();
-            mbuf = NULL;
-
-            if (seeking) {
-                track->mPackets->queueDiscontinuity(
-                        ATSParser::DISCONTINUITY_SEEK,
-                        NULL,
-                        true /* discard */);
-            }
-
+            sp<ABuffer> buffer = mediaBufferToABuffer(mbuf, trackType, actualTimeUs);
             track->mPackets->queueAccessUnit(buffer);
             break;
         } else if (err == WOULD_BLOCK) {
