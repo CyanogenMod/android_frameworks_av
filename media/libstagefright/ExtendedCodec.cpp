@@ -469,7 +469,8 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
         sp<IOMX> OMXhandle,
         IOMX::node_id nodeID,
         int portIndex,
-        int* channelCount) {
+        int* channelCount,
+        int* sampleRate) {
     status_t retVal = OK;
     if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_QCELP, strlen(MEDIA_MIMETYPE_AUDIO_QCELP))) {
         OMX_AUDIO_PARAM_QCELP13TYPE params;
@@ -478,6 +479,8 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
         CHECK_EQ(OMXhandle->getParameter(
                    nodeID, OMX_IndexParamAudioQcelp13, &params, sizeof(params)), (status_t)OK);
         *channelCount = params.nChannels;
+        /* QCELP supports only 8k sample rate*/
+        *sampleRate = 8000;
     } else if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_EVRC, strlen(MEDIA_MIMETYPE_AUDIO_EVRC))) {
         OMX_AUDIO_PARAM_EVRCTYPE params;
         InitOMXParams(&params);
@@ -485,6 +488,8 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
         CHECK_EQ(OMXhandle->getParameter(
                    nodeID, OMX_IndexParamAudioEvrc, &params, sizeof(params)), (status_t)OK);
         *channelCount = params.nChannels;
+        /* EVRC supports only 8k sample rate*/
+        *sampleRate = 8000;
     } else {
         retVal = BAD_VALUE;
     }
@@ -1091,7 +1096,8 @@ namespace android {
             sp<IOMX> OMXhandle,
             IOMX::node_id nodeID,
             int portIndex,
-            int* channelCount) {
+            int* channelCount,
+            int* sampleRate) {
         ARG_TOUCH(mime);
         ARG_TOUCH(OMXhandle);
         ARG_TOUCH(nodeID);

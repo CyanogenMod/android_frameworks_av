@@ -85,7 +85,8 @@ struct ExtendedCodec {
             sp<IOMX> OMXhandle,
             IOMX::node_id nodeID,
             int portIndex,
-            int* channelCount);
+            int* channelCount,
+            int* sampleRate);
 
     static status_t handleSupportedAudioFormats(
             int format, AString* mime);

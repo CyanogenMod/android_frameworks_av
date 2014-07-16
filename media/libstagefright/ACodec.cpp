@@ -3526,15 +3526,18 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     status_t err = ExtendedCodec::handleSupportedAudioFormats(
                         audioDef->eEncoding, &mimeType);
                     if (err == OK) {
-                        int channelCount;
+                        int channelCount = 0;
+                        int sampleRate = 0;
                         err = ExtendedCodec::getSupportedAudioFormatInfo(
                                       &mimeType,
                                       mOMX,
                                       mNode,
                                       kPortIndexOutput,
-                                      &channelCount);
+                                      &channelCount,
+                                      &sampleRate);
                         notify->setString("mime", mimeType.c_str());
                         notify->setInt32("channel-count", channelCount);
+                        notify->setInt32("sample-rate", sampleRate);
                         break;
                     }
                     ALOGE("UNKNOWN AUDIO CODING: %d\n", audioDef->eEncoding);
