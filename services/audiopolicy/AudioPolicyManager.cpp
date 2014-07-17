@@ -1111,7 +1111,8 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
                                     &inputDesc->mDevice,
                                     &inputDesc->mSamplingRate,
                                     &inputDesc->mFormat,
-                                    &inputDesc->mChannelMask);
+                                    &inputDesc->mChannelMask,
+                                    AUDIO_INPUT_FLAG_FAST /*FIXME*/);
 
     // only accept input with the exact requested set of parameters
     if (input == 0 ||
@@ -2332,7 +2333,8 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                     &inputDesc->mDevice,
                                                     &inputDesc->mSamplingRate,
                                                     &inputDesc->mFormat,
-                                                    &inputDesc->mChannelMask);
+                                                    &inputDesc->mChannelMask,
+                                                    AUDIO_INPUT_FLAG_FAST /*FIXME*/);
 
                 if (input != 0) {
                     for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
@@ -2898,7 +2900,8 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
                                             &desc->mDevice,
                                             &desc->mSamplingRate,
                                             &desc->mFormat,
-                                            &desc->mChannelMask);
+                                            &desc->mChannelMask,
+                                            AUDIO_INPUT_FLAG_FAST /*FIXME*/);
 
             if (input != 0) {
                 if (!address.isEmpty()) {

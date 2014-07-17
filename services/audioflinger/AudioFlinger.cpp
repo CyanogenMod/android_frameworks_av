@@ -1820,7 +1820,8 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
                                           audio_devices_t *pDevices,
                                           uint32_t *pSamplingRate,
                                           audio_format_t *pFormat,
-                                          audio_channel_mask_t *pChannelMask)
+                                          audio_channel_mask_t *pChannelMask,
+                                          audio_input_flags_t flags)
 {
     struct audio_config config;
     memset(&config, 0, sizeof(config));
@@ -1847,15 +1848,15 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     audio_io_handle_t id = nextUniqueId();
 
     audio_stream_in_t *inStream = NULL;
-    audio_input_flags_t flags = AUDIO_INPUT_FLAG_FAST;  // FIXME until added to openInput()
     status_t status = inHwHal->open_input_stream(inHwHal, id, *pDevices, &config,
                                         &inStream, flags);
     ALOGV("openInput() openInputStream returned input %p, SamplingRate %d, Format %#x, Channels %x, "
-            "status %d",
+            "flags %#x, status %d",
             inStream,
             config.sample_rate,
             config.format,
             config.channel_mask,
+            flags,
             status);
 
     // If the input could not be opened with the requested parameters and we can handle the
