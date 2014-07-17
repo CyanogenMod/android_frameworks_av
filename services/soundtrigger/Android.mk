@@ -33,11 +33,8 @@ LOCAL_SHARED_LIBRARIES:= \
     libhardware \
     libsoundtrigger
 
-LOCAL_STATIC_LIBRARIES := \
-    libserviceutility
+#LOCAL_C_INCLUDES += \
 
-LOCAL_C_INCLUDES += \
-    $(TOPDIR)frameworks/av/services/audioflinger
 
 LOCAL_MODULE:= libsoundtriggerservice
 
