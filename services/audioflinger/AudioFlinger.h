@@ -327,7 +327,7 @@ private:
     void                    purgeStaleEffects_l();
 
     // Set kEnableExtendedPrecision to true to use extended precision in MixerThread
-    static const bool kEnableExtendedPrecision = true;
+    static const bool kEnableExtendedPrecision = false;
 
     // Returns true if format is permitted for the PCM sink in the MixerThread
     static inline bool isValidPcmSinkFormat(audio_format_t format) {
