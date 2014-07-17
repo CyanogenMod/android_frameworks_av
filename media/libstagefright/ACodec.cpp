@@ -3989,6 +3989,8 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
         if (err == OK) {
             break;
+        } else {
+            ALOGW("Allocating component '%s' failed, try next one.", componentName.c_str());
         }
 
         node = NULL;
