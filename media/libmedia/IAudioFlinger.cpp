@@ -532,7 +532,8 @@ public:
                                         audio_devices_t *pDevices,
                                         uint32_t *pSamplingRate,
                                         audio_format_t *pFormat,
-                                        audio_channel_mask_t *pChannelMask)
+                                        audio_channel_mask_t *pChannelMask,
+                                        audio_input_flags_t flags)
     {
         Parcel data, reply;
         audio_devices_t devices = pDevices != NULL ? *pDevices : AUDIO_DEVICE_NONE;
@@ -547,6 +548,7 @@ public:
         data.writeInt32(samplingRate);
         data.writeInt32(format);
         data.writeInt32(channelMask);
+        data.writeInt32(flags);
         remote()->transact(OPEN_INPUT, data, &reply);
         audio_io_handle_t input = (audio_io_handle_t) reply.readInt32();
         devices = (audio_devices_t)reply.readInt32();
@@ -1157,12 +1159,14 @@ status_t BnAudioFlinger::onTransact(
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = (audio_channel_mask_t)data.readInt32();
+            audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
 
             audio_io_handle_t input = openInput(module,
                                              &devices,
                                              &samplingRate,
                                              &format,
-                                             &channelMask);
+                                             &channelMask,
+                                             flags);
             reply->writeInt32((int32_t) input);
             reply->writeInt32(devices);
             reply->writeInt32(samplingRate);

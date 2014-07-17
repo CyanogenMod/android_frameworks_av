@@ -158,7 +158,8 @@ audio_io_handle_t aps_open_input(void *service __unused,
         return 0;
     }
 
-    return af->openInput((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask);
+    return af->openInput((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask,
+            AUDIO_INPUT_FLAG_FAST /*FIXME*/);
 }
 
 audio_io_handle_t aps_open_input_on_module(void *service __unused,
@@ -174,7 +175,8 @@ audio_io_handle_t aps_open_input_on_module(void *service __unused,
         return 0;
     }
 
-    return af->openInput(module, pDevices, pSamplingRate, pFormat, pChannelMask);
+    return af->openInput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
+            AUDIO_INPUT_FLAG_FAST /*FIXME*/);
 }
 
 int aps_close_input(void *service __unused, audio_io_handle_t input)
