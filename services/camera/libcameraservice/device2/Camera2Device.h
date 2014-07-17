@@ -78,11 +78,15 @@ class Camera2Device: public CameraDeviceBase {
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
     // Flush implemented as just a wait
     virtual status_t flush(int64_t *lastFrameNumber = NULL);
+    virtual uint32_t getDeviceVersion();
+
   private:
     const int mId;
     camera2_device_t *mHal2Device;
 
     CameraMetadata mDeviceInfo;
+
+    uint32_t mDeviceVersion;
 
     /**
      * Queue class for both sending requests to a camera2 device, and for

@@ -29,7 +29,17 @@ namespace camera2 {
 
 FrameProcessorBase::FrameProcessorBase(wp<CameraDeviceBase> device) :
     Thread(/*canCallJava*/false),
-    mDevice(device) {
+    mDevice(device),
+    mNumPartialResults(1) {
+    sp<CameraDeviceBase> cameraDevice = device.promote();
+    if (cameraDevice != 0 &&
+            cameraDevice->getDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+        CameraMetadata staticInfo = cameraDevice->info();
+        camera_metadata_entry_t entry = staticInfo.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
+        if (entry.count > 0) {
+            mNumPartialResults = entry.data.i32[0];
+        }
+    }
 }
 
 FrameProcessorBase::~FrameProcessorBase() {
@@ -160,14 +170,18 @@ status_t FrameProcessorBase::processListeners(const CaptureResult &result,
 
     camera_metadata_ro_entry_t entry;
 
-    // Quirks: Don't deliver partial results to listeners that don't want them
-    bool quirkIsPartial = false;
-    entry = result.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
-    if (entry.count != 0 &&
-            entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
-        ALOGV("%s: Camera %d: Not forwarding partial result to listeners",
-                __FUNCTION__, device->getId());
-        quirkIsPartial = true;
+    // Check if this result is partial.
+    bool isPartialResult = false;
+    if (device->getDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+        isPartialResult = result.mResultExtras.partialResultCount < mNumPartialResults;
+    } else {
+        entry = result.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+        if (entry.count != 0 &&
+                entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+            ALOGV("%s: Camera %d: This is a partial result",
+                    __FUNCTION__, device->getId());
+            isPartialResult = true;
+        }
     }
 
     // TODO: instead of getting requestID from CameraMetadata, we should get it
@@ -186,9 +200,10 @@ status_t FrameProcessorBase::processListeners(const CaptureResult &result,
         Mutex::Autolock l(mInputMutex);
 
         List<RangeListener>::iterator item = mRangeListeners.begin();
+        // Don't deliver partial results to listeners that don't want them
         while (item != mRangeListeners.end()) {
             if (requestId >= item->minId && requestId < item->maxId &&
-                    (!quirkIsPartial || item->sendPartials)) {
+                    (!isPartialResult || item->sendPartials)) {
                 sp<FilteredListener> listener = item->listener.promote();
                 if (listener == 0) {
                     item = mRangeListeners.erase(item);

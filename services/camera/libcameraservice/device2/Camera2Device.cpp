@@ -123,6 +123,7 @@ status_t Camera2Device::initialize(camera_module_t *module)
 
     mDeviceInfo = info.static_camera_characteristics;
     mHal2Device = device;
+    mDeviceVersion = device->common.version;
 
     return OK;
 }
@@ -587,6 +588,11 @@ status_t Camera2Device::flush(int64_t* /*lastFrameNumber*/) {
 
     mRequestQueue.clear();
     return waitUntilDrained();
+}
+
+uint32_t Camera2Device::getDeviceVersion() {
+    ATRACE_CALL();
+    return mDeviceVersion;
 }
 
 /**

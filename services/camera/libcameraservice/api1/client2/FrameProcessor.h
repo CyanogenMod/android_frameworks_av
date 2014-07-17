@@ -91,8 +91,8 @@ class FrameProcessor : public FrameProcessorBase {
         }
     } m3aState;
 
-    // Whether the partial result quirk is enabled for this device
-    bool mUsePartialQuirk;
+    // Whether the partial result is enabled for this device
+    bool mUsePartialResult;
 
     // Track most recent frame number for which 3A notifications were sent for.
     // Used to filter against sending 3A notifications for the same frame
