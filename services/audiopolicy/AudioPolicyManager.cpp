@@ -560,6 +560,13 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
         forceVolumeReeval = true;
         mForceUse[usage] = config;
         break;
+    case AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO:
+        if (config != AUDIO_POLICY_FORCE_NONE &&
+            config != AUDIO_POLICY_FORCE_HDMI_SYSTEM_AUDIO_ENFORCED) {
+            ALOGW("setForceUse() invalid config %d forHDMI_SYSTEM_AUDIO", config);
+        }
+        mForceUse[usage] = config;
+        break;
     default:
         ALOGW("setForceUse() invalid usage %d", usage);
         break;
@@ -1528,6 +1535,9 @@ status_t AudioPolicyManager::dump(int fd)
     snprintf(buffer, SIZE, " Force use for dock %d\n", mForceUse[AUDIO_POLICY_FORCE_FOR_DOCK]);
     result.append(buffer);
     snprintf(buffer, SIZE, " Force use for system %d\n", mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM]);
+    result.append(buffer);
+    snprintf(buffer, SIZE, " Force use for hdmi system audio %d\n",
+            mForceUse[AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO]);
     result.append(buffer);
 
     snprintf(buffer, SIZE, " Available output devices:\n");
@@ -3554,16 +3564,23 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         }
         int device3 = AUDIO_DEVICE_NONE;
         if (strategy == STRATEGY_MEDIA) {
-            // ARC, SPDIF and LINE can co-exist with others.
+            // ARC, SPDIF and AUX_LINE can co-exist with others.
             device3 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_HDMI_ARC;
             device3 |= (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPDIF);
-            device3 |= (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_LINE);
+            device3 |= (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_AUX_LINE);
         }
 
         device2 |= device3;
         // device is DEVICE_OUT_SPEAKER if we come from case STRATEGY_SONIFICATION or
         // STRATEGY_ENFORCED_AUDIBLE, AUDIO_DEVICE_NONE otherwise
         device |= device2;
+
+        // If hdmi system audio mode is on, remove speaker out of output list.
+        if ((strategy == STRATEGY_MEDIA) &&
+            (mForceUse[AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO] ==
+                AUDIO_POLICY_FORCE_HDMI_SYSTEM_AUDIO_ENFORCED)) {
+            device &= ~AUDIO_DEVICE_OUT_SPEAKER;
+        }
 
         if (device) break;
         device = mDefaultOutputDevice->mDeviceType;
