@@ -211,7 +211,7 @@ status_t AudioRecord::set(
     mReqFrameCount = frameCount;
 
     mNotificationFramesReq = notificationFrames;
-    mNotificationFramesAct = 0;
+    // mNotificationFramesAct is initialized in openRecord_l
 
     if (sessionId == AUDIO_SESSION_ALLOCATE) {
         mSessionId = AudioSystem::newAudioSessionId();
@@ -444,42 +444,6 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         }
     }
 
-    // FIXME Assume double buffering, because we don't know the true HAL sample rate
-    const uint32_t nBuffering = 2;
-
-    mNotificationFramesAct = mNotificationFramesReq;
-    size_t frameCount = mReqFrameCount;
-
-    if (!(mFlags & AUDIO_INPUT_FLAG_FAST)) {
-        // validate framecount
-        // If fast track was not requested, this preserves
-        // the old behavior of validating on client side.
-        // FIXME Eventually the validation should be done on server side
-        // regardless of whether it's a fast or normal track.  It's debatable
-        // whether to account for the input latency to provision buffers appropriately.
-        size_t minFrameCount;
-        status = AudioRecord::getMinFrameCount(&minFrameCount,
-                mSampleRate, mFormat, mChannelMask);
-        if (status != NO_ERROR) {
-            ALOGE("getMinFrameCount() failed for sampleRate %u, format %#x, channelMask %#x; "
-                    "status %d",
-                    mSampleRate, mFormat, mChannelMask, status);
-            return status;
-        }
-
-        if (frameCount == 0) {
-            frameCount = minFrameCount;
-        } else if (frameCount < minFrameCount) {
-            ALOGE("frameCount %zu < minFrameCount %zu", frameCount, minFrameCount);
-            return BAD_VALUE;
-        }
-
-        // Make sure that application is notified with sufficient margin before overrun
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/2) {
-            mNotificationFramesAct = frameCount/2;
-        }
-    }
-
     audio_io_handle_t input = AudioSystem::getInput(mInputSource, mSampleRate, mFormat,
             mChannelMask, mSessionId, mFlags);
     if (input == AUDIO_IO_HANDLE_NONE) {
@@ -492,12 +456,13 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
     // we must release it ourselves if anything goes wrong.
 
+    size_t frameCount = mReqFrameCount;
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
     int originalSessionId = mSessionId;
 
     // The notification frame count is the period between callbacks, as suggested by the server.
-    size_t notificationFrames;
+    size_t notificationFrames = mNotificationFramesReq;
 
     sp<IMemory> iMem;           // for cblk
     sp<IMemory> bufferMem;
@@ -576,13 +541,13 @@ status_t AudioRecord::openRecord_l(size_t epoch)
             // once denied, do not request again if IAudioRecord is re-created
             mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
         }
-        // Theoretically double-buffering is not required for fast tracks,
-        // due to tighter scheduling.  But in practice, to accomodate kernels with
-        // scheduling jitter, and apps with computation jitter, we use double-buffering.
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
-            mNotificationFramesAct = frameCount/nBuffering;
-        }
     }
+
+    // Make sure that application is notified with sufficient margin before overrun
+    if (notificationFrames == 0 || notificationFrames > frameCount) {
+        ALOGW("Received notificationFrames %zu for frameCount %zu", notificationFrames, frameCount);
+    }
+    mNotificationFramesAct = notificationFrames;
 
     // We retain a copy of the I/O handle, but don't own the reference
     mInput = input;
