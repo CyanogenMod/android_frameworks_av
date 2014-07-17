@@ -57,7 +57,8 @@ Camera3Device::Camera3Device(int id):
         mId(id),
         mHal3Device(NULL),
         mStatus(STATUS_UNINITIALIZED),
-        mUsePartialResultQuirk(false),
+        mUsePartialResult(false),
+        mNumPartialResults(1),
         mNextResultFrameNumber(0),
         mNextShutterFrameNumber(0),
         mListener(NULL)
@@ -180,13 +181,20 @@ status_t Camera3Device::initialize(camera_module_t *module)
     mNeedConfig = true;
     mPauseStateNotify = false;
 
-    /** Check for quirks */
-
     // Will the HAL be sending in early partial result metadata?
-    camera_metadata_entry partialResultsQuirk =
-            mDeviceInfo.find(ANDROID_QUIRKS_USE_PARTIAL_RESULT);
-    if (partialResultsQuirk.count > 0 && partialResultsQuirk.data.u8[0] == 1) {
-        mUsePartialResultQuirk = true;
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        camera_metadata_entry partialResultsCount =
+                mDeviceInfo.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
+        if (partialResultsCount.count > 0) {
+            mNumPartialResults = partialResultsCount.data.i32[0];
+            mUsePartialResult = (mNumPartialResults > 1);
+        }
+    } else {
+        camera_metadata_entry partialResultsQuirk =
+                mDeviceInfo.find(ANDROID_QUIRKS_USE_PARTIAL_RESULT);
+        if (partialResultsQuirk.count > 0 && partialResultsQuirk.data.u8[0] == 1) {
+            mUsePartialResult = true;
+        }
     }
 
     return OK;
@@ -1267,6 +1275,12 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
     return res;
 }
 
+uint32_t Camera3Device::getDeviceVersion() {
+    ATRACE_CALL();
+    Mutex::Autolock il(mInterfaceLock);
+    return mDeviceVersion;
+}
+
 /**
  * Methods called by subclasses
  */
@@ -1545,11 +1559,10 @@ status_t Camera3Device::registerInFlight(uint32_t frameNumber,
 }
 
 /**
- * QUIRK(partial results)
  * Check if all 3A fields are ready, and send off a partial 3A-only result
  * to the output frame queue
  */
-bool Camera3Device::processPartial3AQuirk(
+bool Camera3Device::processPartial3AResult(
         uint32_t frameNumber,
         const CameraMetadata& partial, const CaptureResultExtras& resultExtras) {
 
@@ -1601,7 +1614,7 @@ bool Camera3Device::processPartial3AQuirk(
     // In addition to the above fields, this means adding in
     //   android.request.frameCount
     //   android.request.requestId
-    //   android.quirks.partialResult
+    //   android.quirks.partialResult (for HAL version below HAL3.2)
 
     const size_t kMinimal3AResultEntries = 10;
 
@@ -1627,10 +1640,12 @@ bool Camera3Device::processPartial3AQuirk(
         return false;
     }
 
-    static const uint8_t partialResult = ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL;
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_QUIRKS_PARTIAL_RESULT,
-            &partialResult, frameNumber)) {
-        return false;
+    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+        static const uint8_t partialResult = ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL;
+        if (!insert3AResult(min3AResult.mMetadata, ANDROID_QUIRKS_PARTIAL_RESULT,
+                &partialResult, frameNumber)) {
+            return false;
+        }
     }
 
     if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_MODE,
@@ -1668,6 +1683,9 @@ bool Camera3Device::processPartial3AQuirk(
         return false;
     }
 
+    // We only send the aggregated partial when all 3A related metadata are available
+    // For both API1 and API2.
+    // TODO: we probably should pass through all partials to API2 unconditionally.
     mResultSignal.signal();
 
     return true;
@@ -1726,8 +1744,21 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 frameNumber);
         return;
     }
-    bool partialResultQuirk = false;
-    CameraMetadata collectedQuirkResult;
+
+    // For HAL3.2 or above, If HAL doesn't support partial, it must always set
+    // partial_result to 1 when metadata is included in this result.
+    if (!mUsePartialResult &&
+            mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2 &&
+            result->result != NULL &&
+            result->partial_result != 1) {
+        SET_ERR("Result is malformed for frame %d: partial_result %u must be 1"
+                " if partial result is not supported",
+                frameNumber, result->partial_result);
+        return;
+    }
+
+    bool isPartialResult = false;
+    CameraMetadata collectedPartialResult;
     CaptureResultExtras resultExtras;
     bool hasInputBufferInRequest = false;
 
@@ -1749,28 +1780,46 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 ", burstId = %" PRId32,
                 __FUNCTION__, request.resultExtras.requestId, request.resultExtras.frameNumber,
                 request.resultExtras.burstId);
+        // Always update the partial count to the latest one. When framework aggregates adjacent
+        // partial results into one, the latest partial count will be used.
+        request.resultExtras.partialResultCount = result->partial_result;
 
         // Check if this result carries only partial metadata
-        if (mUsePartialResultQuirk && result->result != NULL) {
-            camera_metadata_ro_entry_t partialResultEntry;
-            res = find_camera_metadata_ro_entry(result->result,
-                    ANDROID_QUIRKS_PARTIAL_RESULT, &partialResultEntry);
-            if (res != NAME_NOT_FOUND &&
-                    partialResultEntry.count > 0 &&
-                    partialResultEntry.data.u8[0] ==
-                    ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
-                // A partial result. Flag this as such, and collect this
-                // set of metadata into the in-flight entry.
-                partialResultQuirk = true;
-                request.partialResultQuirk.collectedResult.append(
+        if (mUsePartialResult && result->result != NULL) {
+            if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+                if (result->partial_result > mNumPartialResults || result->partial_result < 1) {
+                    SET_ERR("Result is malformed for frame %d: partial_result %u must be  in"
+                            " the range of [1, %d] when metadata is included in the result",
+                            frameNumber, result->partial_result, mNumPartialResults);
+                    return;
+                }
+                isPartialResult = (result->partial_result < mNumPartialResults);
+                request.partialResult.collectedResult.append(
                     result->result);
-                request.partialResultQuirk.collectedResult.erase(
-                    ANDROID_QUIRKS_PARTIAL_RESULT);
+            } else {
+                camera_metadata_ro_entry_t partialResultEntry;
+                res = find_camera_metadata_ro_entry(result->result,
+                        ANDROID_QUIRKS_PARTIAL_RESULT, &partialResultEntry);
+                if (res != NAME_NOT_FOUND &&
+                        partialResultEntry.count > 0 &&
+                        partialResultEntry.data.u8[0] ==
+                        ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+                    // A partial result. Flag this as such, and collect this
+                    // set of metadata into the in-flight entry.
+                    isPartialResult = true;
+                    request.partialResult.collectedResult.append(
+                        result->result);
+                    request.partialResult.collectedResult.erase(
+                        ANDROID_QUIRKS_PARTIAL_RESULT);
+                }
+            }
+
+            if (isPartialResult) {
                 // Fire off a 3A-only result if possible
-                if (!request.partialResultQuirk.haveSent3A) {
-                    request.partialResultQuirk.haveSent3A =
-                            processPartial3AQuirk(frameNumber,
-                                    request.partialResultQuirk.collectedResult,
+                if (!request.partialResult.haveSent3A) {
+                    request.partialResult.haveSent3A =
+                            processPartial3AResult(frameNumber,
+                                    request.partialResult.collectedResult,
                                     request.resultExtras);
                 }
             }
@@ -1786,23 +1835,23 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
          * - CAMERA3_MSG_SHUTTER (expected during normal operation)
          * - CAMERA3_MSG_ERROR (expected during flush)
          */
-        if (request.requestStatus == OK && timestamp == 0 && !partialResultQuirk) {
+        if (request.requestStatus == OK && timestamp == 0 && !isPartialResult) {
             SET_ERR("Called before shutter notify for frame %d",
                     frameNumber);
             return;
         }
 
         // Did we get the (final) result metadata for this capture?
-        if (result->result != NULL && !partialResultQuirk) {
+        if (result->result != NULL && !isPartialResult) {
             if (request.haveResultMetadata) {
                 SET_ERR("Called multiple times with metadata for frame %d",
                         frameNumber);
                 return;
             }
-            if (mUsePartialResultQuirk &&
-                    !request.partialResultQuirk.collectedResult.isEmpty()) {
-                collectedQuirkResult.acquire(
-                    request.partialResultQuirk.collectedResult);
+            if (mUsePartialResult &&
+                    !request.partialResult.collectedResult.isEmpty()) {
+                collectedPartialResult.acquire(
+                    request.partialResult.collectedResult);
             }
             request.haveResultMetadata = true;
         }
@@ -1842,7 +1891,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
     // Process the result metadata, if provided
     bool gotResult = false;
-    if (result->result != NULL && !partialResultQuirk) {
+    if (result->result != NULL && !isPartialResult) {
         Mutex::Autolock l(mOutputLock);
 
         gotResult = true;
@@ -1871,8 +1920,8 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         }
 
         // Append any previous partials to form a complete result
-        if (mUsePartialResultQuirk && !collectedQuirkResult.isEmpty()) {
-            captureResult.mMetadata.append(collectedQuirkResult);
+        if (mUsePartialResult && !collectedPartialResult.isEmpty()) {
+            captureResult.mMetadata.append(collectedPartialResult);
         }
 
         captureResult.mMetadata.sort();

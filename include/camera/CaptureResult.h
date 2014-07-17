@@ -53,6 +53,11 @@ struct CaptureResultExtras {
     int64_t frameNumber;
 
     /**
+     * The partial result count (index) for this capture result.
+     */
+    int32_t partialResultCount;
+
+    /**
      * Constructor initializes object as invalid by setting requestId to be -1.
      */
     CaptureResultExtras()
@@ -60,7 +65,8 @@ struct CaptureResultExtras {
           burstId(0),
           afTriggerId(0),
           precaptureTriggerId(0),
-          frameNumber(0) {
+          frameNumber(0),
+          partialResultCount(0) {
     }
 
     /**

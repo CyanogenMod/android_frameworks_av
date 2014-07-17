@@ -71,6 +71,9 @@ class FrameProcessorBase: public Thread {
     };
     List<RangeListener> mRangeListeners;
 
+    // Number of partial result the HAL will potentially send.
+    int32_t mNumPartialResults;
+
     void processNewFrames(const sp<CameraDeviceBase> &device);
 
     virtual bool processSingleFrame(CaptureResult &result,
