@@ -50,6 +50,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
 
     virtual status_t getDuration(int64_t *durationUs);
+    virtual size_t getTrackCount() const;
+    virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
     virtual status_t seekTo(int64_t seekTimeUs);
 
 protected:
@@ -58,7 +60,10 @@ protected:
     virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
+    Vector<sp<MediaSource> > mSources;
+
     struct Track {
+        size_t mIndex;
         sp<MediaSource> mSource;
         sp<AnotherPacketSource> mPackets;
     };
