@@ -1,6 +1,4 @@
 /*
- ** Copyright (c) 2014, The Linux Foundation. All rights reserved.
- ** Not a Contribution.
  **
  ** Copyright (C) 2008 The Android Open Source Project
  **
