@@ -3643,7 +3643,7 @@ track_is_ready: ;
             memset(mEffectBuffer, 0, mEffectBufferSize);
         }
         // FIXME as a performance optimization, should remember previous zero status
-        memset(mSinkBuffer, 0, mNormalFrameCount * mChannelCount * sizeof(int16_t));
+        memset(mSinkBuffer, 0, mNormalFrameCount * mFrameSize);
     }
 
     // if any fast tracks, then status is ready
