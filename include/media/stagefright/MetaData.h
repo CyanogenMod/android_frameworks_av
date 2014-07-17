@@ -166,6 +166,13 @@ enum {
     kKeyCryptoDefaultIVSize = 'cryS',  // int32_t
 
     kKeyPssh              = 'pssh',  // raw data
+
+    // Please see MediaFormat.KEY_IS_AUTOSELECT.
+    kKeyTrackIsAutoselect = 'auto', // bool (int32_t)
+    // Please see MediaFormat.KEY_IS_DEFAULT.
+    kKeyTrackIsDefault    = 'dflt', // bool (int32_t)
+    // Similar to MediaFormat.KEY_IS_FORCED_SUBTITLE but pertains to av tracks as well.
+    kKeyTrackIsForced     = 'frcd', // bool (int32_t)
 };
 
 enum {
