@@ -36,6 +36,7 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -221,6 +222,10 @@ void NuPlayer::setDataSourceAsync(
                     || strstr(url, ".sdp?"))) {
         source = new RTSPSource(
                 notify, httpService, url, headers, mUIDValid, mUID, true);
+    } else if ((!strncasecmp(url, "widevine://", 11))) {
+        source = new GenericSource(notify, httpService, url, headers,
+                true /* isWidevine */, mUIDValid, mUID);
+        mSourceFlags |= Source::FLAG_SECURE;
     } else {
         source = new GenericSource(notify, httpService, url, headers);
     }
@@ -512,6 +517,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mNumFramesDropped = 0;
             mStarted = true;
 
+            /* instantiate decoders now for secure playback */
+            if (mSourceFlags & Source::FLAG_SECURE) {
+                if (mNativeWindow != NULL) {
+                    instantiateDecoder(false, &mVideoDecoder);
+                }
+
+                if (mAudioSink != NULL) {
+                    instantiateDecoder(true, &mAudioDecoder);
+                }
+            }
+
             mSource->start();
 
             uint32_t flags = 0;
@@ -540,7 +556,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     new AMessage(kWhatRendererNotify, id()),
                     flags);
 
-            looper()->registerHandler(mRenderer);
+            mRendererLooper = new ALooper;
+            mRendererLooper->setName("NuPlayerRenderer");
+            mRendererLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
+            mRendererLooper->registerHandler(mRenderer);
 
             postScanSources();
             break;
@@ -1055,6 +1074,10 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
 
         sp<AMessage> ccNotify = new AMessage(kWhatClosedCaptionNotify, id());
         mCCDecoder = new CCDecoder(ccNotify);
+
+        if (mSourceFlags & Source::FLAG_SECURE) {
+            format->setInt32("secure", true);
+        }
     }
 
     sp<AMessage> notify =
@@ -1073,6 +1096,28 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
     (*decoder)->init();
     (*decoder)->configure(format);
 
+    // allocate buffers to decrypt widevine source buffers
+    if (!audio && (mSourceFlags & Source::FLAG_SECURE)) {
+        Vector<sp<ABuffer> > inputBufs;
+        CHECK_EQ((*decoder)->getInputBuffers(&inputBufs), (status_t)OK);
+
+        Vector<MediaBuffer *> mediaBufs;
+        for (size_t i = 0; i < inputBufs.size(); i++) {
+            const sp<ABuffer> &buffer = inputBufs[i];
+            MediaBuffer *mbuf = new MediaBuffer(buffer->data(), buffer->size());
+            mediaBufs.push(mbuf);
+        }
+
+        status_t err = mSource->setBuffers(audio, mediaBufs);
+        if (err != OK) {
+            for (size_t i = 0; i < mediaBufs.size(); ++i) {
+                mediaBufs[i]->release();
+            }
+            mediaBufs.clear();
+            ALOGE("Secure source didn't support secure mediaBufs.");
+            return err;
+        }
+    }
     return OK;
 }
 
@@ -1184,6 +1229,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
         dropAccessUnit = false;
         if (!audio
+                && !(mSourceFlags & Source::FLAG_SECURE)
                 && mVideoLateByUs > 100000ll
                 && mVideoIsAVC
                 && !IsAVCReferenceFrame(accessUnit)) {
@@ -1497,6 +1543,13 @@ void NuPlayer::performReset() {
     ++mScanSourcesGeneration;
     mScanSourcesPending = false;
 
+    if (mRendererLooper != NULL) {
+        if (mRenderer != NULL) {
+            mRendererLooper->unregisterHandler(mRenderer->id());
+        }
+        mRendererLooper->stop();
+        mRendererLooper.clear();
+    }
     mRenderer.clear();
 
     if (mSource != NULL) {

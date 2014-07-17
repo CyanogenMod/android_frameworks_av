@@ -26,6 +26,8 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 
+#include <inttypes.h>
+
 namespace android {
 
 // static
@@ -502,6 +504,7 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
         }
     }
 
+    ALOGW_IF(delayUs > 500000, "unusually high delayUs: %" PRId64, delayUs);
     msg->post(delayUs);
 
     mDrainVideoQueuePending = true;
