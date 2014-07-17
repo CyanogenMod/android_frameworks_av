@@ -252,6 +252,10 @@ class CameraDeviceBase : public virtual RefBase {
      */
     virtual status_t flush(int64_t *lastFrameNumber = NULL) = 0;
 
+    /**
+     * Get the HAL device version.
+     */
+    virtual uint32_t getDeviceVersion() = 0;
 };
 
 }; // namespace android

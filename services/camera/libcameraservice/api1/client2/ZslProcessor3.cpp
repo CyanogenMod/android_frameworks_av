@@ -94,14 +94,14 @@ void ZslProcessor3::onResultAvailable(const CaptureResult &result) {
     entry = result.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
     if (entry.count == 0) {
-        ALOGE("%s: metadata doesn't have timestamp, skip this result");
+        ALOGE("%s: metadata doesn't have timestamp, skip this result", __FUNCTION__);
         return;
     }
     (void)timestamp;
 
     entry = result.mMetadata.find(ANDROID_REQUEST_FRAME_COUNT);
     if (entry.count == 0) {
-        ALOGE("%s: metadata doesn't have frame number, skip this result");
+        ALOGE("%s: metadata doesn't have frame number, skip this result", __FUNCTION__);
         return;
     }
     int32_t frameNumber = entry.data.i32[0];
