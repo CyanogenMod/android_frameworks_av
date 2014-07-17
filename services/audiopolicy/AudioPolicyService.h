@@ -86,10 +86,11 @@ public:
                                 int session = 0);
     virtual void releaseOutput(audio_io_handle_t output);
     virtual audio_io_handle_t getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate = 0,
-                                    audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                    audio_channel_mask_t channelMask = 0,
-                                    int audioSession = 0);
+                                    uint32_t samplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    int audioSession,
+                                    audio_input_flags_t flags);
     virtual status_t startInput(audio_io_handle_t input);
     virtual status_t stopInput(audio_io_handle_t input);
     virtual void releaseInput(audio_io_handle_t input);

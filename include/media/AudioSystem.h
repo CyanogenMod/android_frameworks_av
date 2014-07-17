@@ -234,7 +234,8 @@ public:
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int sessionId);
+                                    int sessionId,
+                                    audio_input_flags_t);
 
     static status_t startInput(audio_io_handle_t input);
     static status_t stopInput(audio_io_handle_t input);
