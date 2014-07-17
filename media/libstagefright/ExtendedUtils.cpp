@@ -527,3 +527,24 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
 
 }
 #endif //ENABLE_AV_ENHANCEMENTS
+
+// Methods with identical implementation with & without ENABLE_AV_ENHANCEMENTS
+namespace android {
+
+bool ExtendedUtils::isVideoMuxFormatSupported(const char *mime) {
+    if (mime == NULL) {
+        ALOGE("NULL video mime type");
+        return false;
+    }
+
+    if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)
+            || !strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)
+            || !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)
+            || !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
+        return true;
+    }
+
+    return false;
+}
+
+}
