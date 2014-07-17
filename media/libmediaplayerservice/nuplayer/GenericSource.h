@@ -35,7 +35,10 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
             const sp<AMessage> &notify,
             const sp<IMediaHTTPService> &httpService,
             const char *url,
-            const KeyedVector<String8, String8> *headers);
+            const KeyedVector<String8, String8> *headers,
+            bool isWidevine = false,
+            bool uidValid = false,
+            uid_t uid = 0);
 
     GenericSource(
             const sp<AMessage> &notify,
@@ -53,6 +56,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual size_t getTrackCount() const;
     virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
     virtual status_t seekTo(int64_t seekTimeUs);
+
+    virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
 
 protected:
     virtual ~GenericSource();
@@ -73,6 +78,9 @@ private:
 
     int64_t mDurationUs;
     bool mAudioIsVorbis;
+    bool mIsWidevine;
+    bool mUIDValid;
+    uid_t mUID;
 
     void initFromDataSource(const sp<DataSource> &dataSource);
 
