@@ -715,6 +715,9 @@ status_t M3UParser::parseStreamInf(
 
             key.tolower();
             const AString &codecs = unquoteString(val);
+            if (meta->get() == NULL) {
+                *meta = new AMessage;
+            }
             (*meta)->setString(key.c_str(), codecs.c_str());
         } else if (!strcasecmp("audio", key.c_str())
                 || !strcasecmp("video", key.c_str())
@@ -738,6 +741,9 @@ status_t M3UParser::parseStreamInf(
             }
 
             key.tolower();
+            if (meta->get() == NULL) {
+                *meta = new AMessage;
+            }
             (*meta)->setString(key.c_str(), groupID.c_str());
         }
     }
