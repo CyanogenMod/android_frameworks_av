@@ -4783,7 +4783,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     , mPipeFramesP2(0)
     // mPipeMemory
     // mFastCaptureNBLogWriter
-    , mFastTrackAvail(true)
+    , mFastTrackAvail(false)
 {
     snprintf(mName, kNameLength, "AudioIn_%X", id);
     mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
@@ -4895,6 +4895,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
         // FIXME
 #endif
 
+        mFastTrackAvail = true;
     }
 failed: ;
 
@@ -5745,6 +5746,7 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     } else {
         dprintf(fd, "  No active record clients\n");
     }
+    dprintf(fd, "  Fast capture thread: %s\n", hasFastCapture() ? "yes" : "no");
     dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
 
     dumpBase(fd, args);
