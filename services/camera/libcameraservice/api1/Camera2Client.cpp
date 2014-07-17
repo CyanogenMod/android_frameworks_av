@@ -906,6 +906,13 @@ void Camera2Client::stopPreviewL() {
                 ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
                         __FUNCTION__, mCameraId, strerror(-res), res);
             }
+            // Clean up recording stream
+            res = mStreamingProcessor->deleteRecordingStream();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to delete recording stream before "
+                        "stop preview: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+            }
             // no break
         case Parameters::WAITING_FOR_PREVIEW_WINDOW: {
             SharedParameters::Lock l(mParameters);
