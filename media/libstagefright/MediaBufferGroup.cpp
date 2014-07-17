@@ -55,7 +55,8 @@ void MediaBufferGroup::add_buffer(MediaBuffer *buffer) {
     mLastBuffer = buffer;
 }
 
-status_t MediaBufferGroup::acquire_buffer(MediaBuffer **out) {
+status_t MediaBufferGroup::acquire_buffer(
+        MediaBuffer **out, bool nonBlocking) {
     Mutex::Autolock autoLock(mLock);
 
     for (;;) {
@@ -68,6 +69,11 @@ status_t MediaBufferGroup::acquire_buffer(MediaBuffer **out) {
                 *out = buffer;
                 goto exit;
             }
+        }
+
+        if (nonBlocking) {
+            *out = NULL;
+            return WOULD_BLOCK;
         }
 
         // All buffers are in use. Block until one of them is returned to us.
