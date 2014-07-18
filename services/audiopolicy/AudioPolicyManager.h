@@ -823,6 +823,10 @@ protected:
 
         // returns true if given output is direct output
         bool isDirectOutput(audio_io_handle_t output);
+        //parameter indicates of HDMI speakers disabled from the Qualcomm settings
+        bool mHdmiAudioDisabled;
+        //parameter indicates if HDMI plug in/out detected
+        bool mHdmiAudioEvent;
 private:
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
@@ -853,6 +857,10 @@ private:
                 const audio_offload_info_t *offloadInfo);
         // internal function to derive a stream type value from audio attributes
         audio_stream_type_t streamTypefromAttributesInt(const audio_attributes_t *attr);
+
+        // Used for voip + voice concurrency usecase
+        int mPrevPhoneState;
+
 };
 
 };
