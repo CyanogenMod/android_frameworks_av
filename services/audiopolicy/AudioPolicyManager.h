@@ -42,7 +42,7 @@ namespace android {
 #define SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY 5000
 // Time in milliseconds during witch some streams are muted while the audio path
 // is switched
-#define MUTE_TIME_MS 2000
+#define MUTE_TIME_MS 500
 
 #define NUM_TEST_OUTPUTS 5
 
@@ -821,6 +821,8 @@ protected:
         uint32_t        mTestLatencyMs;
 #endif //AUDIO_POLICY_TEST
 
+        // returns true if given output is direct output
+        bool isDirectOutput(audio_io_handle_t output);
 private:
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
