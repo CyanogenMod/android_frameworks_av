@@ -26,6 +26,7 @@ namespace android {
 
 struct ABuffer;
 struct MediaCodec;
+struct MediaBuffer;
 
 struct NuPlayer::Decoder : public AHandler {
     Decoder(const sp<AMessage> &notify,
@@ -34,6 +35,7 @@ struct NuPlayer::Decoder : public AHandler {
     virtual void configure(const sp<AMessage> &format);
     virtual void init();
 
+    status_t getInputBuffers(Vector<sp<ABuffer> > *dstBuffers) const;
     virtual void signalFlush();
     virtual void signalResume();
     virtual void initiateShutdown();
@@ -60,6 +62,7 @@ private:
     enum {
         kWhatCodecNotify        = 'cdcN',
         kWhatConfigure          = 'conf',
+        kWhatGetInputBuffers    = 'gInB',
         kWhatInputBufferFilled  = 'inpF',
         kWhatRenderBuffer       = 'rndr',
         kWhatFlush              = 'flus',
@@ -77,11 +80,14 @@ private:
 
     Vector<sp<ABuffer> > mInputBuffers;
     Vector<sp<ABuffer> > mOutputBuffers;
+    Vector<bool> mInputBufferIsDequeued;
+    Vector<MediaBuffer *> mMediaBuffers;
 
     void handleError(int32_t err);
     bool handleAnInputBuffer();
     bool handleAnOutputBuffer();
 
+    void releaseAndResetMediaBuffers();
     void requestCodecNotification();
     bool isStaleReply(const sp<AMessage> &msg);
 

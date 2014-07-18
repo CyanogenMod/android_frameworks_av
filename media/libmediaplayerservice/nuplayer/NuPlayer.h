@@ -125,6 +125,7 @@ private:
     sp<Decoder> mAudioDecoder;
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
+    sp<ALooper> mRendererLooper;
 
     List<sp<Action> > mDeferredActions;
 
