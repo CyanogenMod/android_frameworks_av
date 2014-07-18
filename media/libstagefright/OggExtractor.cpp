@@ -320,14 +320,14 @@ status_t MyVorbisExtractor::seekToTime(int64_t timeUs) {
     }
 
     size_t left = 0;
-    size_t right = mTableOfContents.size();
-    while (left < right) {
-        size_t center = left / 2 + right / 2 + (left & right & 1);
+    size_t right = mTableOfContents.size() - 1;
+    while (left <= right) {
+        size_t center = left + (right - left) / 2;
 
         const TOCEntry &entry = mTableOfContents.itemAt(center);
 
         if (timeUs < entry.mTimeUs) {
-            right = center;
+            right = center - 1;
         } else if (timeUs > entry.mTimeUs) {
             left = center + 1;
         } else {
