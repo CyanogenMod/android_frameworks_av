@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
@@ -54,6 +55,22 @@ NuPlayer::Decoder::Decoder(
 NuPlayer::Decoder::~Decoder() {
 }
 
+static
+status_t PostAndAwaitResponse(
+        const sp<AMessage> &msg, sp<AMessage> *response) {
+    status_t err = msg->postAndAwaitResponse(response);
+
+    if (err != OK) {
+        return err;
+    }
+
+    if (!(*response)->findInt32("err", &err)) {
+        err = OK;
+    }
+
+    return err;
+}
+
 void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     CHECK(mCodec == NULL);
 
@@ -72,8 +89,20 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), surface.get());
 
     mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
+    int32_t secure = 0;
+    if (format->findInt32("secure", &secure) && secure != 0) {
+        if (mCodec != NULL) {
+            mCodec->getName(&mComponentName);
+            mComponentName.append(".secure");
+            mCodec->release();
+            ALOGI("[%s] creating", mComponentName.c_str());
+            mCodec = MediaCodec::CreateByComponentName(
+                    mCodecLooper, mComponentName.c_str());
+        }
+    }
     if (mCodec == NULL) {
-        ALOGE("Failed to create %s decoder", mime.c_str());
+        ALOGE("Failed to create %s%s decoder",
+                (secure ? "secure " : ""), mime.c_str());
         handleError(UNKNOWN_ERROR);
         return;
     }
@@ -107,6 +136,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
 
     // the following should work after start
     CHECK_EQ((status_t)OK, mCodec->getInputBuffers(&mInputBuffers));
+    releaseAndResetMediaBuffers();
     CHECK_EQ((status_t)OK, mCodec->getOutputBuffers(&mOutputBuffers));
     ALOGV("[%s] got %zu input and %zu output buffers",
             mComponentName.c_str(),
@@ -115,6 +145,18 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
 
     requestCodecNotification();
     mPaused = false;
+}
+
+void NuPlayer::Decoder::releaseAndResetMediaBuffers() {
+    for (size_t i = 0; i < mMediaBuffers.size(); i++) {
+        if (mMediaBuffers[i] != NULL) {
+            mMediaBuffers[i]->release();
+            mMediaBuffers.editItemAt(i) = NULL;
+        }
+    }
+    mMediaBuffers.resize(mInputBuffers.size());
+    mInputBufferIsDequeued.clear();
+    mInputBufferIsDequeued.resize(mInputBuffers.size());
 }
 
 void NuPlayer::Decoder::requestCodecNotification() {
@@ -141,6 +183,14 @@ void NuPlayer::Decoder::configure(const sp<AMessage> &format) {
     msg->post();
 }
 
+status_t NuPlayer::Decoder::getInputBuffers(Vector<sp<ABuffer> > *buffers) const {
+    sp<AMessage> msg = new AMessage(kWhatGetInputBuffers, id());
+    msg->setPointer("buffers", buffers);
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
 void NuPlayer::Decoder::handleError(int32_t err)
 {
     sp<AMessage> notify = mNotify->dup();
@@ -163,6 +213,12 @@ bool NuPlayer::Decoder::handleAnInputBuffer() {
 
     CHECK_LT(bufferIx, mInputBuffers.size());
 
+    if (mMediaBuffers[bufferIx] != NULL) {
+        mMediaBuffers[bufferIx]->release();
+        mMediaBuffers.editItemAt(bufferIx) = NULL;
+    }
+    mInputBufferIsDequeued.editItemAt(bufferIx) = true;
+
     sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, id());
     reply->setSize("buffer-ix", bufferIx);
     reply->setInt32("generation", mBufferGeneration);
@@ -183,6 +239,44 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
 
     sp<ABuffer> buffer;
     bool hasBuffer = msg->findBuffer("buffer", &buffer);
+
+    // handle widevine classic source - that fills an arbitrary input buffer
+    MediaBuffer *mediaBuffer = NULL;
+    if (hasBuffer && buffer->meta()->findPointer(
+            "mediaBuffer", (void **)&mediaBuffer)) {
+        if (mediaBuffer == NULL) {
+            // received no actual buffer
+            ALOGW("[%s] received null MediaBuffer %s",
+                    mComponentName.c_str(), msg->debugString().c_str());
+            buffer = NULL;
+        } else {
+            // likely filled another buffer than we requested: adjust buffer index
+            size_t ix;
+            for (ix = 0; ix < mInputBuffers.size(); ix++) {
+                const sp<ABuffer> &buf = mInputBuffers[ix];
+                if (buf->data() == mediaBuffer->data()) {
+                    // all input buffers are dequeued on start, hence the check
+                    CHECK(mInputBufferIsDequeued[ix]);
+                    ALOGV("[%s] received MediaBuffer for #%zu instead of #%zu",
+                            mComponentName.c_str(), ix, bufferIx);
+
+                    // TRICKY: need buffer for the metadata, so instead, set
+                    // codecBuffer to the same (though incorrect) buffer to
+                    // avoid a memcpy into the codecBuffer
+                    codecBuffer = buffer;
+                    codecBuffer->setRange(
+                            mediaBuffer->range_offset(),
+                            mediaBuffer->range_length());
+                    bufferIx = ix;
+                    break;
+                }
+            }
+            CHECK(ix < mInputBuffers.size());
+        }
+    }
+
+    mInputBufferIsDequeued.editItemAt(bufferIx) = false;
+
     if (buffer == NULL /* includes !hasBuffer */) {
         int32_t streamErr = ERROR_END_OF_STREAM;
         CHECK(msg->findInt32("err", &streamErr) || !hasBuffer);
@@ -235,6 +329,11 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
             ALOGE("Failed to queue input buffer for %s (err=%d)",
                     mComponentName.c_str(), err);
             handleError(err);
+        }
+
+        if (mediaBuffer != NULL) {
+            CHECK(mMediaBuffers[bufferIx] == NULL);
+            mMediaBuffers.editItemAt(bufferIx) = mediaBuffer;
         }
     }
 }
@@ -352,6 +451,8 @@ void NuPlayer::Decoder::onFlush() {
         return;
     }
 
+    releaseAndResetMediaBuffers();
+
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatFlushCompleted);
     notify->post();
@@ -379,6 +480,8 @@ void NuPlayer::Decoder::onShutdown() {
         mComponentName = "decoder";
     }
 
+    releaseAndResetMediaBuffers();
+
     if (err != OK) {
         ALOGE("failed to release %s (err=%d)", mComponentName.c_str(), err);
         handleError(err);
@@ -400,6 +503,23 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> format;
             CHECK(msg->findMessage("format", &format));
             onConfigure(format);
+            break;
+        }
+
+        case kWhatGetInputBuffers:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            Vector<sp<ABuffer> > *dstBuffers;
+            CHECK(msg->findPointer("buffers", (void **)&dstBuffers));
+
+            dstBuffers->clear();
+            for (size_t i = 0; i < mInputBuffers.size(); i++) {
+                dstBuffers->push(mInputBuffers[i]);
+            }
+
+            (new AMessage)->postReply(replyID);
             break;
         }
 
