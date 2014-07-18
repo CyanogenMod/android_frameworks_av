@@ -28,6 +28,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
+#include "../../libstagefright/include/WVMExtractor.h"
 
 namespace android {
 
@@ -35,10 +36,16 @@ NuPlayer::GenericSource::GenericSource(
         const sp<AMessage> &notify,
         const sp<IMediaHTTPService> &httpService,
         const char *url,
-        const KeyedVector<String8, String8> *headers)
+        const KeyedVector<String8, String8> *headers,
+        bool isWidevine,
+        bool uidValid,
+        uid_t uid)
     : Source(notify),
       mDurationUs(0ll),
-      mAudioIsVorbis(false) {
+      mAudioIsVorbis(false),
+      mIsWidevine(isWidevine),
+      mUIDValid(uidValid),
+      mUID(uid) {
     DataSource::RegisterDefaultSniffers();
 
     sp<DataSource> dataSource =
@@ -63,7 +70,31 @@ NuPlayer::GenericSource::GenericSource(
 
 void NuPlayer::GenericSource::initFromDataSource(
         const sp<DataSource> &dataSource) {
-    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
+    sp<MediaExtractor> extractor;
+
+    if (mIsWidevine) {
+        String8 mimeType;
+        float confidence;
+        sp<AMessage> dummy;
+        bool success;
+
+        success = SniffWVM(dataSource, &mimeType, &confidence, &dummy);
+        if (!success
+                || strcasecmp(
+                    mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM)) {
+            ALOGE("unsupported widevine mime: %s", mimeType.string());
+            return;
+        }
+
+        sp<WVMExtractor> wvmExtractor = new WVMExtractor(dataSource);
+        wvmExtractor->setAdaptiveStreamingMode(true);
+        if (mUIDValid) {
+            wvmExtractor->setUID(mUID);
+        }
+        extractor = wvmExtractor;
+    } else {
+        extractor = MediaExtractor::Create(dataSource);
+    }
 
     CHECK(extractor != NULL);
 
@@ -113,6 +144,13 @@ void NuPlayer::GenericSource::initFromDataSource(
     }
 }
 
+status_t NuPlayer::GenericSource::setBuffers(bool audio, Vector<MediaBuffer *> &buffers) {
+    if (mIsWidevine && !audio) {
+        return mVideoTrack.mSource->setBuffers(buffers);
+    }
+    return INVALID_OPERATION;
+}
+
 NuPlayer::GenericSource::~GenericSource() {
 }
 
@@ -128,7 +166,8 @@ void NuPlayer::GenericSource::prepareAsync() {
     }
 
     notifyFlagsChanged(
-            FLAG_CAN_PAUSE
+            (mIsWidevine ? FLAG_SECURE : 0)
+            | FLAG_CAN_PAUSE
             | FLAG_CAN_SEEK_BACKWARD
             | FLAG_CAN_SEEK_FORWARD
             | FLAG_CAN_SEEK);
@@ -180,9 +219,14 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
         return -EWOULDBLOCK;
     }
 
+    if (mIsWidevine && !audio) {
+        // try to read a buffer as we may not have been able to the last time
+        readBuffer(audio, -1ll);
+    }
+
     status_t finalResult;
     if (!track->mPackets->hasBufferAvailable(&finalResult)) {
-        return finalResult == OK ? -EWOULDBLOCK : finalResult;
+        return (finalResult == OK ? -EWOULDBLOCK : finalResult);
     }
 
     status_t result = track->mPackets->dequeueAccessUnit(accessUnit);
@@ -280,6 +324,10 @@ void NuPlayer::GenericSource::readBuffer(
         seeking = true;
     }
 
+    if (mIsWidevine && !audio) {
+        options.setNonBlocking();
+    }
+
     for (;;) {
         MediaBuffer *mbuf;
         status_t err = track->mSource->read(&mbuf, &options);
@@ -293,11 +341,18 @@ void NuPlayer::GenericSource::readBuffer(
                 outLength += sizeof(int32_t);
             }
 
-            sp<ABuffer> buffer = new ABuffer(outLength);
-
-            memcpy(buffer->data(),
-                   (const uint8_t *)mbuf->data() + mbuf->range_offset(),
-                   mbuf->range_length());
+            sp<ABuffer> buffer;
+            if (mIsWidevine && !audio) {
+                // data is already provided in the buffer
+                buffer = new ABuffer(NULL, mbuf->range_length());
+                buffer->meta()->setPointer("mediaBuffer", mbuf);
+                mbuf->add_ref();
+            } else {
+                buffer = new ABuffer(outLength);
+                memcpy(buffer->data(),
+                       (const uint8_t *)mbuf->data() + mbuf->range_offset(),
+                       mbuf->range_length());
+            }
 
             if (audio && mAudioIsVorbis) {
                 int32_t numPageSamples;
@@ -331,6 +386,8 @@ void NuPlayer::GenericSource::readBuffer(
             }
 
             track->mPackets->queueAccessUnit(buffer);
+            break;
+        } else if (err == WOULD_BLOCK) {
             break;
         } else if (err == INFO_FORMAT_CHANGED) {
 #if 0

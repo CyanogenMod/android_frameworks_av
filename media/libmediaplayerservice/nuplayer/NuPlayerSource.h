@@ -21,11 +21,14 @@
 #include "NuPlayer.h"
 
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MetaData.h>
+#include <utils/Vector.h>
 
 namespace android {
 
 struct ABuffer;
 struct MetaData;
+struct MediaBuffer;
 
 struct NuPlayer::Source : public AHandler {
     enum Flags {
@@ -34,6 +37,7 @@ struct NuPlayer::Source : public AHandler {
         FLAG_CAN_SEEK_FORWARD   = 4,  // the "10 sec forward button"
         FLAG_CAN_SEEK           = 8,  // the "seek bar"
         FLAG_DYNAMIC_DURATION   = 16,
+        FLAG_SECURE             = 32,
     };
 
     enum {
@@ -86,6 +90,10 @@ struct NuPlayer::Source : public AHandler {
     }
 
     virtual status_t seekTo(int64_t /* seekTimeUs */) {
+        return INVALID_OPERATION;
+    }
+
+    virtual status_t setBuffers(bool /* audio */, Vector<MediaBuffer *> &/* buffers */) {
         return INVALID_OPERATION;
     }
 
