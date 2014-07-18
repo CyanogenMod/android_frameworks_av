@@ -72,9 +72,9 @@ function createwav() {
 # track__Resample / track__genericResample
 # track__NoResample / track__16BitsStereo / track__16BitsMono
 # Aux buffer
-    adb shell test-mixer $1 -s 9307 \
+    adb shell test-mixer $1 -c 5 -s 9307 \
         -a /sdcard/aux9307gra.wav -o /sdcard/tm9307gra.wav \
-        sine:2,1000,3000 sine:1,2000,9307 chirp:2,9307
+        sine:4,1000,3000 sine:1,2000,9307 chirp:3,9307
     adb pull /sdcard/tm9307gra.wav $2
     adb pull /sdcard/aux9307gra.wav $2
 
