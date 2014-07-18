@@ -2130,16 +2130,14 @@ status_t MPEG4Writer::Track::threadEntry() {
             continue;
         }
 
-        // Do not drop encoded frames as we run the risk of dropping a key
-        // frame. We do not need to drop output frames as the source is expected
-        // to drop inputs when paused.
-#if 0
+        // If the codec specific data has not been received yet, delay pause.
+        // After the codec specific data is received, discard what we received
+        // when the track is to be paused.
         if (mPaused && !mResumed) {
             buffer->release();
             buffer = NULL;
             continue;
         }
-#endif
 
         ++count;
 
