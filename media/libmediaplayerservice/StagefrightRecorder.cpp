@@ -818,14 +818,20 @@ status_t StagefrightRecorder::start() {
     CHECK_GE(mOutputFd, 0);
 
     if (mRecPaused == true) {
-        status_t err = setSourcePause(false);
+        status_t err = mWriter->start();
+        if (err != OK) {
+            ALOGE("Writer start in StagefrightRecorder pause failed");
+            return err;
+        }
+
+        err = setSourcePause(false);
         if (err != OK) {
             ALOGE("Source start after pause failed");
             return err;
         }
 
         mRecPaused = false;
-        return mWriter->start();
+        return OK;
     }
     // Get UID here for permission checking
     mClientUid = IPCThreadState::self()->getCallingUid();
@@ -1868,12 +1874,6 @@ status_t StagefrightRecorder::stop() {
     }
 
     if (mRecPaused) {
-        err = mWriter->start();
-        if (err != OK) {
-            ALOGE("Writer start in StagefrightRecorder stop failed");
-            return err;
-        }
-
         err = setSourcePause(false);
         if (err != OK) {
             ALOGE("Source start after pause in StagefrightRecorder stop failed");
