@@ -398,6 +398,8 @@ static bool MakeURL(const char *baseURL, const char *url, AString *out) {
         // Base URL must be absolute
         return false;
     }
+    const size_t schemeEnd = (strstr(baseURL, "//") - baseURL) + 2;
+    CHECK(schemeEnd == 7 || schemeEnd == 8);
 
     if (!strncasecmp("http://", url, 7) || !strncasecmp("https://", url, 8)) {
         // "url" is already an absolute URL, ignore base URL.
@@ -442,7 +444,7 @@ static bool MakeURL(const char *baseURL, const char *url, AString *out) {
 
         // Check whether the found slash actually is part of the path
         // and not part of the "http://".
-        if (end > 6) {
+        if (end >= schemeEnd) {
             out->setTo(baseURL, end);
         } else {
             out->setTo(baseURL);
@@ -713,6 +715,9 @@ status_t M3UParser::parseStreamInf(
 
             key.tolower();
             const AString &codecs = unquoteString(val);
+            if (meta->get() == NULL) {
+                *meta = new AMessage;
+            }
             (*meta)->setString(key.c_str(), codecs.c_str());
         } else if (!strcasecmp("audio", key.c_str())
                 || !strcasecmp("video", key.c_str())
@@ -736,6 +741,9 @@ status_t M3UParser::parseStreamInf(
             }
 
             key.tolower();
+            if (meta->get() == NULL) {
+                *meta = new AMessage;
+            }
             (*meta)->setString(key.c_str(), groupID.c_str());
         }
     }
