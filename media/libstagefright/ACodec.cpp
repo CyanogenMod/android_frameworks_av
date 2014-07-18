@@ -4506,11 +4506,14 @@ void ACodec::ExecutingState::resume() {
 
     submitOutputBuffers();
 
-    // Post the first input buffer.
+    // Post all available input buffers
     CHECK_GT(mCodec->mBuffers[kPortIndexInput].size(), 0u);
-    BufferInfo *info = &mCodec->mBuffers[kPortIndexInput].editItemAt(0);
-
-    postFillThisBuffer(info);
+    for (size_t i = 0; i < mCodec->mBuffers[kPortIndexInput].size(); i++) {
+        BufferInfo *info = &mCodec->mBuffers[kPortIndexInput].editItemAt(i);
+        if (info->mStatus == BufferInfo::OWNED_BY_US) {
+            postFillThisBuffer(info);
+        }
+    }
 
     mActive = true;
 }
