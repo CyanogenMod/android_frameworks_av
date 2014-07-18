@@ -3665,7 +3665,7 @@ status_t MPEG4Source::read(
 
         uint32_t sampleIndex;
         status_t err = mSampleTable->findSampleAtTime(
-                seekTimeUs * mTimescale / 1000000,
+                seekTimeUs, 1000000, mTimescale,
                 &sampleIndex, findFlags);
 
         if (mode == ReadOptions::SEEK_CLOSEST) {
