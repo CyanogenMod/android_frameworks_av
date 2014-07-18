@@ -82,6 +82,10 @@ struct MediaSource : public virtual RefBase {
         void setLateBy(int64_t lateness_us);
         int64_t getLateBy() const;
 
+        void setNonBlocking();
+        void clearNonBlocking();
+        bool getNonBlocking() const;
+
     private:
         enum Options {
             kSeekTo_Option      = 1,
@@ -91,6 +95,7 @@ struct MediaSource : public virtual RefBase {
         int64_t mSeekTimeUs;
         SeekMode mSeekMode;
         int64_t mLatenessUs;
+        bool mNonBlocking;
     };
 
     // Causes this source to suspend pulling data from its upstream source
