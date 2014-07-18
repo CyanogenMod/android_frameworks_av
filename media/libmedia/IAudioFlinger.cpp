@@ -197,6 +197,7 @@ public:
             lSessionId = *sessionId;
         }
         data.writeInt32(lSessionId);
+        data.writeInt64(notificationFrames != NULL ? *notificationFrames : 0);
         cblk.clear();
         buffers.clear();
         status_t lStatus = remote()->transact(OPEN_RECORD, data, &reply);
@@ -966,7 +967,7 @@ status_t BnAudioFlinger::onTransact(
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
-            size_t notificationFrames = 0;
+            size_t notificationFrames = data.readInt64();
             sp<IMemory> cblk;
             sp<IMemory> buffers;
             status_t status;
