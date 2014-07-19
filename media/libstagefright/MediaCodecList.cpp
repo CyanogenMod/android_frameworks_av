@@ -21,6 +21,7 @@
 #include <media/stagefright/MediaCodecList.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
@@ -79,6 +80,19 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml) {
                   info->mName.c_str());
 
             mCodecInfos.removeAt(i);
+#if LOG_NDEBUG == 0
+        } else {
+            for (size_t type_ix = 0; type_ix < mTypes.size(); ++type_ix) {
+                uint32_t typeMask = 1ul << mTypes.valueAt(type_ix);
+                if (info->mTypes & typeMask) {
+                    AString mime = mTypes.keyAt(type_ix);
+                    uint32_t bit = mTypes.valueAt(type_ix);
+
+                    ALOGV("%s codec info for %s: %s", info->mName.c_str(), mime.c_str(),
+                            info->mCaps.editValueFor(bit)->debugString().c_str());
+                }
+            }
+#endif
         }
     }
 
@@ -217,6 +231,8 @@ void MediaCodecList::startElementHandler(
         return;
     }
 
+    bool inType = true;
+
     if (!strcmp(name, "Include")) {
         mInitCheck = includeXMLFile(attrs);
         if (mInitCheck == OK) {
@@ -267,6 +283,26 @@ void MediaCodecList::startElementHandler(
                 mInitCheck = addQuirk(attrs);
             } else if (!strcmp(name, "Type")) {
                 mInitCheck = addTypeFromAttributes(attrs);
+                mCurrentSection =
+                    (mCurrentSection == SECTION_DECODER
+                            ? SECTION_DECODER_TYPE : SECTION_ENCODER_TYPE);
+            }
+        }
+        inType = false;
+        // fall through
+
+        case SECTION_DECODER_TYPE:
+        case SECTION_ENCODER_TYPE:
+        {
+            CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+            // ignore limits and features specified outside of type
+            bool outside = !inType && info->mSoleType == 0;
+            if (outside && (!strcmp(name, "Limit") || !strcmp(name, "Feature"))) {
+                ALOGW("ignoring %s specified outside of a Type", name);
+            } else if (!strcmp(name, "Limit")) {
+                mInitCheck = addLimit(attrs);
+            } else if (!strcmp(name, "Feature")) {
+                mInitCheck = addFeature(attrs);
             }
             break;
         }
@@ -300,10 +336,27 @@ void MediaCodecList::endElementHandler(const char *name) {
             break;
         }
 
+        case SECTION_DECODER_TYPE:
+        case SECTION_ENCODER_TYPE:
+        {
+            if (!strcmp(name, "Type")) {
+                mCurrentSection =
+                    (mCurrentSection == SECTION_DECODER_TYPE
+                            ? SECTION_DECODER : SECTION_ENCODER);
+
+                CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+                info->mCurrentCaps = NULL;
+            }
+            break;
+        }
+
         case SECTION_DECODER:
         {
             if (!strcmp(name, "MediaCodec")) {
                 mCurrentSection = SECTION_DECODERS;
+
+                CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+                info->mCurrentCaps = NULL;
             }
             break;
         }
@@ -312,6 +365,9 @@ void MediaCodecList::endElementHandler(const char *name) {
         {
             if (!strcmp(name, "MediaCodec")) {
                 mCurrentSection = SECTION_ENCODERS;
+
+                CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+                info->mCurrentCaps = NULL;
             }
             break;
         }
@@ -373,11 +429,16 @@ void MediaCodecList::addMediaCodec(
     CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
     info->mName = name;
     info->mIsEncoder = encoder;
+    info->mSoleType = 0;
     info->mTypes = 0;
     info->mQuirks = 0;
+    info->mCurrentCaps = NULL;
 
     if (type != NULL) {
         addType(type);
+        // if type was specified in attributes, we do not allow
+        // subsequent types
+        info->mSoleType = info->mTypes;
     }
 }
 
@@ -427,6 +488,12 @@ status_t MediaCodecList::addQuirk(const char **attrs) {
 status_t MediaCodecList::addTypeFromAttributes(const char **attrs) {
     const char *name = NULL;
 
+    CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+    if (info->mSoleType != 0) {
+        ALOGE("Codec '%s' already had its type specified", info->mName.c_str());
+        return -EINVAL;
+    }
+
     size_t i = 0;
     while (attrs[i] != NULL) {
         if (!strcmp(attrs[i], "name")) {
@@ -469,6 +536,11 @@ void MediaCodecList::addType(const char *name) {
 
     CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
     info->mTypes |= 1ul << bit;
+    if (info->mCaps.indexOfKey(bit) < 0) {
+        AMessage *msg = new AMessage();
+        info->mCaps.add(bit, msg);
+    }
+    info->mCurrentCaps = info->mCaps.editValueFor(bit);
 }
 
 ssize_t MediaCodecList::findCodecByType(
@@ -492,6 +564,216 @@ ssize_t MediaCodecList::findCodecByType(
     }
 
     return -ENOENT;
+}
+
+static status_t limitFoundMissingAttr(AString name, const char *attr, bool found = true) {
+    ALOGE("limit '%s' with %s'%s' attribute", name.c_str(),
+            (found ? "" : "no "), attr);
+    return -EINVAL;
+}
+
+static status_t limitError(AString name, const char *msg) {
+    ALOGE("limit '%s' %s", name.c_str(), msg);
+    return -EINVAL;
+}
+
+static status_t limitInvalidAttr(AString name, const char *attr, AString value) {
+    ALOGE("limit '%s' with invalid '%s' attribute (%s)", name.c_str(),
+            attr, value.c_str());
+    return -EINVAL;
+}
+
+status_t MediaCodecList::addLimit(const char **attrs) {
+    sp<AMessage> msg = new AMessage();
+
+    size_t i = 0;
+    while (attrs[i] != NULL) {
+        if (attrs[i + 1] == NULL) {
+            return -EINVAL;
+        }
+
+        // attributes with values
+        if (!strcmp(attrs[i], "name")
+                || !strcmp(attrs[i], "default")
+                || !strcmp(attrs[i], "in")
+                || !strcmp(attrs[i], "max")
+                || !strcmp(attrs[i], "min")
+                || !strcmp(attrs[i], "range")
+                || !strcmp(attrs[i], "ranges")
+                || !strcmp(attrs[i], "scale")
+                || !strcmp(attrs[i], "value")) {
+            msg->setString(attrs[i], attrs[i + 1]);
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+        ++i;
+    }
+
+    AString name;
+    if (!msg->findString("name", &name)) {
+        ALOGE("limit with no 'name' attribute");
+        return -EINVAL;
+    }
+
+    CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+
+    // size, blocks, bitrate, frame-rate, blocks-per-second, aspect-ratio: range
+    // quality: range + default + [scale]
+    // complexity: range + default
+    bool found;
+    if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
+            || name == "blocks-per-second" || name == "complexity"
+            || name == "frame-rate" || name == "quality" || name == "size") {
+        AString min, max;
+        if (msg->findString("min", &min) && msg->findString("max", &max)) {
+            min.append("-");
+            min.append(max);
+            if (msg->contains("range") || msg->contains("value")) {
+                return limitError(name, "has 'min' and 'max' as well as 'range' or "
+                        "'value' attributes");
+            }
+            msg->setString("range", min);
+        } else if (msg->contains("min") || msg->contains("max")) {
+            return limitError(name, "has only 'min' or 'max' attribute");
+        } else if (msg->findString("value", &max)) {
+            min = max;
+            min.append("-");
+            min.append(max);
+            if (msg->contains("range")) {
+                return limitError(name, "has both 'range' and 'value' attributes");
+            }
+            msg->setString("range", min);
+        }
+
+        AString range, scale = "linear", def, in_;
+        if (!msg->findString("range", &range)) {
+            return limitError(name, "with no 'range', 'value' or 'min'/'max' attributes");
+        }
+
+        if ((name == "quality" || name == "complexity") ^
+                (found = msg->findString("default", &def))) {
+            return limitFoundMissingAttr(name, "default", found);
+        }
+        if (name != "quality" && msg->findString("scale", &scale)) {
+            return limitFoundMissingAttr(name, "scale");
+        }
+        if ((name == "aspect-ratio") ^ (found = msg->findString("in", &in_))) {
+            return limitFoundMissingAttr(name, "in", found);
+        }
+
+        if (name == "aspect-ratio") {
+            if (!(in_ == "pixels") && !(in_ == "blocks")) {
+                return limitInvalidAttr(name, "in", in_);
+            }
+            in_.erase(5, 1); // (pixel|block)-aspect-ratio
+            in_.append("-");
+            in_.append(name);
+            name = in_;
+        }
+        if (name == "quality") {
+            info->mCurrentCaps->setString("quality-scale", scale);
+        }
+        if (name == "quality" || name == "complexity") {
+            AString tag = name;
+            tag.append("-default");
+            info->mCurrentCaps->setString(tag.c_str(), def);
+        }
+        AString tag = name;
+        tag.append("-range");
+        info->mCurrentCaps->setString(tag.c_str(), range);
+    } else {
+        AString max, value, ranges;
+        if (msg->contains("default")) {
+            return limitFoundMissingAttr(name, "default");
+        } else if (msg->contains("in")) {
+            return limitFoundMissingAttr(name, "in");
+        } else if ((name == "channel-count") ^
+                (found = msg->findString("max", &max))) {
+            return limitFoundMissingAttr(name, "max", found);
+        } else if (msg->contains("min")) {
+            return limitFoundMissingAttr(name, "min");
+        } else if (msg->contains("range")) {
+            return limitFoundMissingAttr(name, "range");
+        } else if ((name == "sample-rate") ^
+                (found = msg->findString("ranges", &ranges))) {
+            return limitFoundMissingAttr(name, "ranges", found);
+        } else if (msg->contains("scale")) {
+            return limitFoundMissingAttr(name, "scale");
+        } else if ((name == "alignment" || name == "block-size") ^
+                (found = msg->findString("value", &value))) {
+            return limitFoundMissingAttr(name, "value", found);
+        }
+
+        if (max.size()) {
+            AString tag = "max-";
+            tag.append(name);
+            info->mCurrentCaps->setString(tag.c_str(), max);
+        } else if (value.size()) {
+            info->mCurrentCaps->setString(name.c_str(), value);
+        } else if (ranges.size()) {
+            AString tag = name;
+            tag.append("-ranges");
+            info->mCurrentCaps->setString(tag.c_str(), ranges);
+        } else {
+            ALOGW("Ignoring unrecognized limit '%s'", name.c_str());
+        }
+    }
+    return OK;
+}
+
+static bool parseBoolean(const char *s) {
+    if (!strcasecmp(s, "true") || !strcasecmp(s, "yes") || !strcasecmp(s, "y")) {
+        return true;
+    }
+    char *end;
+    unsigned long res = strtoul(s, &end, 10);
+    return *s != '\0' && *end == '\0' && res > 0;
+}
+
+status_t MediaCodecList::addFeature(const char **attrs) {
+    size_t i = 0;
+    const char *name = NULL;
+    int32_t optional = -1;
+    int32_t required = -1;
+
+    while (attrs[i] != NULL) {
+        if (attrs[i + 1] == NULL) {
+            return -EINVAL;
+        }
+
+        // attributes with values
+        if (!strcmp(attrs[i], "name")) {
+            name = attrs[i + 1];
+            ++i;
+        } else if (!strcmp(attrs[i], "optional") || !strcmp(attrs[i], "required")) {
+            int value = (int)parseBoolean(attrs[i + 1]);
+            if (!strcmp(attrs[i], "optional")) {
+                optional = value;
+            } else {
+                required = value;
+            }
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+        ++i;
+    }
+    if (name == NULL) {
+        ALOGE("feature with no 'name' attribute");
+        return -EINVAL;
+    }
+
+    if (optional == required && optional != -1) {
+        ALOGE("feature '%s' is both/neither optional and required", name);
+        return -EINVAL;
+    }
+
+    CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
+    AString tag = "feature-";
+    tag.append(name);
+    info->mCurrentCaps->setInt32(tag.c_str(), (required == 1) || (optional == 0));
+    return OK;
 }
 
 ssize_t MediaCodecList::findCodecByName(const char *name) const {
@@ -571,7 +853,8 @@ status_t MediaCodecList::getCodecCapabilities(
         size_t index, const char *type,
         Vector<ProfileLevel> *profileLevels,
         Vector<uint32_t> *colorFormats,
-        uint32_t *flags) const {
+        uint32_t *flags,
+        sp<AMessage> *capabilities) const {
     profileLevels->clear();
     colorFormats->clear();
 
@@ -580,6 +863,11 @@ status_t MediaCodecList::getCodecCapabilities(
     }
 
     const CodecInfo &info = mCodecInfos.itemAt(index);
+
+    ssize_t typeIndex = mTypes.indexOfKey(type);
+    if (typeIndex < 0) {
+        return -EINVAL;
+    }
 
     OMXClient client;
     status_t err = client.connect();
@@ -610,6 +898,11 @@ status_t MediaCodecList::getCodecCapabilities(
     }
 
     *flags = caps.mFlags;
+
+    // TODO this check will be removed once JNI side is merged
+    if (capabilities != NULL) {
+        *capabilities = info.mCaps.valueFor(typeIndex);
+    }
 
     return OK;
 }
