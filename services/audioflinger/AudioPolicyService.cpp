@@ -310,6 +310,11 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
         return 0;
     }
 
+#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+    if (inputSource == AUDIO_SOURCE_HOTWORD)
+      inputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
+#endif
+
     Mutex::Autolock _l(mLock);
     // the audio_in_acoustics_t parameter is ignored by get_input()
     audio_io_handle_t input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
@@ -549,6 +554,12 @@ bool AudioPolicyService::isSourceActive(audio_source_t source) const
         return false;
     }
     Mutex::Autolock _l(mLock);
+
+#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+    if (source == AUDIO_SOURCE_HOTWORD)
+      source = AUDIO_SOURCE_VOICE_RECOGNITION;
+#endif
+
     return mpAudioPolicy->is_source_active(mpAudioPolicy, source);
 #else
     return false;
