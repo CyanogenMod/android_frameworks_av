@@ -71,9 +71,111 @@ static const bool kUseNewMixer = false;
 // because of downmix/upmix support.
 static const bool kUseFloat = true;
 
+// Set to default copy buffer size in frames for input processing.
+static const size_t kCopyBufferFrameCount = 256;
+
 namespace android {
 
 // ----------------------------------------------------------------------------
+
+template <typename T>
+T min(const T& a, const T& b)
+{
+    return a < b ? a : b;
+}
+
+AudioMixer::CopyBufferProvider::CopyBufferProvider(size_t inputFrameSize,
+        size_t outputFrameSize, size_t bufferFrameCount) :
+        mInputFrameSize(inputFrameSize),
+        mOutputFrameSize(outputFrameSize),
+        mLocalBufferFrameCount(bufferFrameCount),
+        mLocalBufferData(NULL),
+        mConsumed(0)
+{
+    ALOGV("CopyBufferProvider(%p)(%zu, %zu, %zu)", this,
+            inputFrameSize, outputFrameSize, bufferFrameCount);
+    LOG_ALWAYS_FATAL_IF(inputFrameSize < outputFrameSize && bufferFrameCount == 0,
+            "Requires local buffer if inputFrameSize(%d) < outputFrameSize(%d)",
+            inputFrameSize, outputFrameSize);
+    if (mLocalBufferFrameCount) {
+        (void)posix_memalign(&mLocalBufferData, 32, mLocalBufferFrameCount * mOutputFrameSize);
+    }
+    mBuffer.frameCount = 0;
+}
+
+AudioMixer::CopyBufferProvider::~CopyBufferProvider()
+{
+    ALOGV("~CopyBufferProvider(%p)", this);
+    if (mBuffer.frameCount != 0) {
+        mTrackBufferProvider->releaseBuffer(&mBuffer);
+    }
+    free(mLocalBufferData);
+}
+
+status_t AudioMixer::CopyBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
+        int64_t pts)
+{
+    //ALOGV("CopyBufferProvider(%p)::getNextBuffer(%p (%zu), %lld)",
+    //        this, pBuffer, pBuffer->frameCount, pts);
+    if (mLocalBufferFrameCount == 0) {
+        status_t res = mTrackBufferProvider->getNextBuffer(pBuffer, pts);
+        if (res == OK) {
+            copyFrames(pBuffer->raw, pBuffer->raw, pBuffer->frameCount);
+        }
+        return res;
+    }
+    if (mBuffer.frameCount == 0) {
+        mBuffer.frameCount = pBuffer->frameCount;
+        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
+        // At one time an upstream buffer provider had
+        // res == OK and mBuffer.frameCount == 0, doesn't seem to happen now 7/18/2014.
+        //
+        // By API spec, if res != OK, then mBuffer.frameCount == 0.
+        // but there may be improper implementations.
+        ALOG_ASSERT(res == OK || mBuffer.frameCount == 0);
+        if (res != OK || mBuffer.frameCount == 0) { // not needed by API spec, but to be safe.
+            pBuffer->raw = NULL;
+            pBuffer->frameCount = 0;
+            return res;
+        }
+        mConsumed = 0;
+    }
+    ALOG_ASSERT(mConsumed < mBuffer.frameCount);
+    size_t count = min(mLocalBufferFrameCount, mBuffer.frameCount - mConsumed);
+    count = min(count, pBuffer->frameCount);
+    pBuffer->raw = mLocalBufferData;
+    pBuffer->frameCount = count;
+    copyFrames(pBuffer->raw, (uint8_t*)mBuffer.raw + mConsumed * mInputFrameSize,
+            pBuffer->frameCount);
+    return OK;
+}
+
+void AudioMixer::CopyBufferProvider::releaseBuffer(AudioBufferProvider::Buffer *pBuffer)
+{
+    //ALOGV("CopyBufferProvider(%p)::releaseBuffer(%p(%zu))",
+    //        this, pBuffer, pBuffer->frameCount);
+    if (mLocalBufferFrameCount == 0) {
+        mTrackBufferProvider->releaseBuffer(pBuffer);
+        return;
+    }
+    // LOG_ALWAYS_FATAL_IF(pBuffer->frameCount == 0, "Invalid framecount");
+    mConsumed += pBuffer->frameCount; // TODO: update for efficiency to reuse existing content
+    if (mConsumed != 0 && mConsumed >= mBuffer.frameCount) {
+        mTrackBufferProvider->releaseBuffer(&mBuffer);
+        ALOG_ASSERT(mBuffer.frameCount == 0);
+    }
+    pBuffer->raw = NULL;
+    pBuffer->frameCount = 0;
+}
+
+void AudioMixer::CopyBufferProvider::reset()
+{
+    if (mBuffer.frameCount != 0) {
+        mTrackBufferProvider->releaseBuffer(&mBuffer);
+    }
+    mConsumed = 0;
+}
+
 AudioMixer::DownmixerBufferProvider::DownmixerBufferProvider() : AudioBufferProvider(),
         mTrackBufferProvider(NULL), mDownmixHandle(NULL)
 {
@@ -118,102 +220,23 @@ void AudioMixer::DownmixerBufferProvider::releaseBuffer(AudioBufferProvider::Buf
     }
 }
 
-template <typename T>
-T min(const T& a, const T& b)
-{
-    return a < b ? a : b;
-}
-
 AudioMixer::ReformatBufferProvider::ReformatBufferProvider(int32_t channels,
-        audio_format_t inputFormat, audio_format_t outputFormat) :
-        mTrackBufferProvider(NULL),
+        audio_format_t inputFormat, audio_format_t outputFormat,
+        size_t bufferFrameCount) :
+        CopyBufferProvider(
+            channels * audio_bytes_per_sample(inputFormat),
+            channels * audio_bytes_per_sample(outputFormat),
+            bufferFrameCount),
         mChannels(channels),
         mInputFormat(inputFormat),
-        mOutputFormat(outputFormat),
-        mInputFrameSize(channels * audio_bytes_per_sample(inputFormat)),
-        mOutputFrameSize(channels * audio_bytes_per_sample(outputFormat)),
-        mOutputData(NULL),
-        mOutputCount(0),
-        mConsumed(0)
+        mOutputFormat(outputFormat)
 {
     ALOGV("ReformatBufferProvider(%p)(%d, %#x, %#x)", this, channels, inputFormat, outputFormat);
-    if (requiresInternalBuffers()) {
-        mOutputCount = 256;
-        (void)posix_memalign(&mOutputData, 32, mOutputCount * mOutputFrameSize);
-    }
-    mBuffer.frameCount = 0;
 }
 
-AudioMixer::ReformatBufferProvider::~ReformatBufferProvider()
+void AudioMixer::ReformatBufferProvider::copyFrames(void *dst, const void *src, size_t frames)
 {
-    ALOGV("~ReformatBufferProvider(%p)", this);
-    if (mBuffer.frameCount != 0) {
-        mTrackBufferProvider->releaseBuffer(&mBuffer);
-    }
-    free(mOutputData);
-}
-
-status_t AudioMixer::ReformatBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
-        int64_t pts) {
-    //ALOGV("ReformatBufferProvider(%p)::getNextBuffer(%p (%zu), %lld)",
-    //        this, pBuffer, pBuffer->frameCount, pts);
-    if (!requiresInternalBuffers()) {
-        status_t res = mTrackBufferProvider->getNextBuffer(pBuffer, pts);
-        if (res == OK) {
-            memcpy_by_audio_format(pBuffer->raw, mOutputFormat, pBuffer->raw, mInputFormat,
-                    pBuffer->frameCount * mChannels);
-        }
-        return res;
-    }
-    if (mBuffer.frameCount == 0) {
-        mBuffer.frameCount = pBuffer->frameCount;
-        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
-        // TODO: Track down a bug in the upstream provider
-        // LOG_ALWAYS_FATAL_IF(res == OK && mBuffer.frameCount == 0,
-        //        "ReformatBufferProvider::getNextBuffer():"
-        //        " Invalid zero framecount returned from getNextBuffer()");
-        if (res != OK || mBuffer.frameCount == 0) {
-            pBuffer->raw = NULL;
-            pBuffer->frameCount = 0;
-            return res;
-        }
-    }
-    ALOG_ASSERT(mConsumed < mBuffer.frameCount);
-    size_t count = min(mOutputCount, mBuffer.frameCount - mConsumed);
-    count = min(count, pBuffer->frameCount);
-    pBuffer->raw = mOutputData;
-    pBuffer->frameCount = count;
-    //ALOGV("reformatting %d frames from %#x to %#x, %d chan",
-    //        pBuffer->frameCount, mInputFormat, mOutputFormat, mChannels);
-    memcpy_by_audio_format(pBuffer->raw, mOutputFormat,
-            (uint8_t*)mBuffer.raw + mConsumed * mInputFrameSize, mInputFormat,
-            pBuffer->frameCount * mChannels);
-    return OK;
-}
-
-void AudioMixer::ReformatBufferProvider::releaseBuffer(AudioBufferProvider::Buffer *pBuffer) {
-    //ALOGV("ReformatBufferProvider(%p)::releaseBuffer(%p(%zu))",
-    //        this, pBuffer, pBuffer->frameCount);
-    if (!requiresInternalBuffers()) {
-        mTrackBufferProvider->releaseBuffer(pBuffer);
-        return;
-    }
-    // LOG_ALWAYS_FATAL_IF(pBuffer->frameCount == 0, "Invalid framecount");
-    mConsumed += pBuffer->frameCount; // TODO: update for efficiency to reuse existing content
-    if (mConsumed != 0 && mConsumed >= mBuffer.frameCount) {
-        mConsumed = 0;
-        mTrackBufferProvider->releaseBuffer(&mBuffer);
-        // ALOG_ASSERT(mBuffer.frameCount == 0);
-    }
-    pBuffer->raw = NULL;
-    pBuffer->frameCount = 0;
-}
-
-void AudioMixer::ReformatBufferProvider::reset() {
-    if (mBuffer.frameCount != 0) {
-        mTrackBufferProvider->releaseBuffer(&mBuffer);
-    }
-    mConsumed = 0;
+    memcpy_by_audio_format(dst, mOutputFormat, src, mInputFormat, frames * mChannels);
 }
 
 // ----------------------------------------------------------------------------
@@ -258,6 +281,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     for (unsigned i=0 ; i < MAX_NUM_TRACKS ; i++) {
         t->resampler = NULL;
         t->downmixerBufferProvider = NULL;
+        t->mReformatBufferProvider = NULL;
         t++;
     }
 
@@ -269,6 +293,7 @@ AudioMixer::~AudioMixer()
     for (unsigned i=0 ; i < MAX_NUM_TRACKS ; i++) {
         delete t->resampler;
         delete t->downmixerBufferProvider;
+        delete t->mReformatBufferProvider;
         t++;
     }
     delete [] mState.outputTemp;
@@ -521,7 +546,8 @@ status_t AudioMixer::prepareTrackForReformat(track_t* pTrack, int trackName)
     if (pTrack->mFormat != pTrack->mMixerInFormat) {
         pTrack->mReformatBufferProvider = new ReformatBufferProvider(
                 audio_channel_count_from_out_mask(pTrack->channelMask),
-                pTrack->mFormat, pTrack->mMixerInFormat);
+                pTrack->mFormat, pTrack->mMixerInFormat,
+                kCopyBufferFrameCount);
         reconfigureBufferProviders(pTrack);
     }
     return NO_ERROR;
@@ -531,7 +557,7 @@ void AudioMixer::reconfigureBufferProviders(track_t* pTrack)
 {
     pTrack->bufferProvider = pTrack->mInputBufferProvider;
     if (pTrack->mReformatBufferProvider) {
-        pTrack->mReformatBufferProvider->mTrackBufferProvider = pTrack->bufferProvider;
+        pTrack->mReformatBufferProvider->setBufferProvider(pTrack->bufferProvider);
         pTrack->bufferProvider = pTrack->mReformatBufferProvider;
     }
     if (pTrack->downmixerBufferProvider) {
