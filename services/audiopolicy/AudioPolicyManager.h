@@ -727,6 +727,11 @@ protected:
         sp<AudioInputDescriptor> getInputFromId(audio_port_handle_t id) const;
         sp<HwModule> getModuleForDevice(audio_devices_t device) const;
         sp<HwModule> getModuleFromName(const char *name) const;
+        audio_devices_t availablePrimaryOutputDevices();
+        audio_devices_t availablePrimaryInputDevices();
+
+        void updateCallRouting(audio_devices_t rxDevice, int delayMs = 0);
+
         //
         // Audio policy configuration file parsing (audio_policy.conf)
         //
@@ -784,6 +789,9 @@ protected:
         DefaultKeyedVector<audio_patch_handle_t, sp<AudioPatch> > mAudioPatches;
 
         DefaultKeyedVector<audio_session_t, audio_io_handle_t> mSoundTriggerSessions;
+
+        sp<AudioPatch> mCallTxPatch;
+        sp<AudioPatch> mCallRxPatch;
 
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
