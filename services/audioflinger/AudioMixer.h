@@ -252,8 +252,8 @@ private:
         track_t         tracks[MAX_NUM_TRACKS] __attribute__((aligned(32)));
     };
 
-    // Base AudioBufferProvider class used for ReformatBufferProvider and
-    // DownmixerBufferProvider.
+    // Base AudioBufferProvider class used for DownMixerBufferProvider, RemixBufferProvider,
+    // and ReformatBufferProvider.
     // It handles a private buffer for use in converting format or channel masks from the
     // input data to a form acceptable by the mixer.
     // TODO: Make a ResamplerBufferProvider when integers are entirely removed from the
@@ -324,6 +324,23 @@ private:
         // FIXME: should we allow effects outside of the framework?
         // We need to here. A special ioId that must be <= -2 so it does not map to a session.
         static const int32_t SESSION_ID_INVALID_AND_IGNORED = -2;
+    };
+
+    // RemixBufferProvider wraps a track AudioBufferProvider to perform an
+    // upmix or downmix to the proper channel count and mask.
+    class RemixBufferProvider : public CopyBufferProvider {
+    public:
+        RemixBufferProvider(audio_channel_mask_t inputChannelMask,
+                audio_channel_mask_t outputChannelMask, audio_format_t format,
+                size_t bufferFrameCount);
+        virtual void copyFrames(void *dst, const void *src, size_t frames);
+
+    protected:
+        const audio_format_t mFormat;
+        const size_t         mSampleSize;
+        const size_t         mInputChannels;
+        const size_t         mOutputChannels;
+        int8_t               mIdxAry[sizeof(uint32_t)*8]; // 32 bits => channel indices
     };
 
     // ReformatBufferProvider wraps a track AudioBufferProvider to convert the input data
