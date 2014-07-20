@@ -997,9 +997,8 @@ void AudioFlinger::ThreadBase::lockEffectChains_l(
     for (size_t i = 0; i < mEffectChains.size(); i++) {
 #ifdef QCOM_DIRECTTRACK
         if (mEffectChains[i] != mAudioFlinger->mLPAEffectChain) {
-#else
-            mEffectChains[i]->lock();
 #endif
+            mEffectChains[i]->lock();
 #ifdef QCOM_DIRECTTRACK
         } else {
             mAudioFlinger-> mAllChainsLocked = false;
@@ -2489,9 +2488,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     ssize_t ret = threadLoop_write();
                     if (ret < 0) {
                         mBytesRemaining = 0;
+#ifdef QCOM_DIRECTTRACK
                     } else if(ret > mBytesRemaining) {
                         mBytesWritten += mBytesRemaining;
                         mBytesRemaining = 0;
+#endif
                     } else {
                         mBytesWritten += ret;
                         mBytesRemaining -= ret;
@@ -4525,7 +4526,7 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
     int sampleRate = thread->sampleRate();
     size_t frameCount = 0;
     if (sampleRate)
-        frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
+        frameCount = (3 * mNormalFrameCount * mSampleRate) / sampleRate;
     OutputTrack *outputTrack = new OutputTrack(thread,
                                             this,
                                             mSampleRate,
