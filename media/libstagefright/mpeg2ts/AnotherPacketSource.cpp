@@ -230,6 +230,11 @@ void AnotherPacketSource::queueDiscontinuity(
             int32_t oldDiscontinuityType;
             if (!oldBuffer->meta()->findInt32(
                         "discontinuity", &oldDiscontinuityType)) {
+                MediaBuffer *mbuf = NULL;
+                oldBuffer->meta()->findPointer("mediaBuffer", (void**)&mbuf);
+                if (mbuf != NULL) {
+                    mbuf->release();
+                }
                 it = mBuffers.erase(it);
                 continue;
             }
