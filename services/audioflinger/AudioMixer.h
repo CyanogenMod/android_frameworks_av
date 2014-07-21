@@ -154,7 +154,7 @@ private:
     struct state_t;
     struct track_t;
     class DownmixerBufferProvider;
-    class ReformatBufferProvider;
+    class CopyBufferProvider;
 
     typedef void (*hook_t)(track_t* t, int32_t* output, size_t numOutFrames, int32_t* temp,
                            int32_t* aux);
@@ -206,8 +206,8 @@ private:
         int32_t*           auxBuffer;
 
         // 16-byte boundary
-        AudioBufferProvider*     mInputBufferProvider;    // 4 bytes
-        ReformatBufferProvider*  mReformatBufferProvider; // 4 bytes
+        AudioBufferProvider*     mInputBufferProvider;    // externally provided buffer provider.
+        CopyBufferProvider*      mReformatBufferProvider; // provider wrapper for reformatting.
         DownmixerBufferProvider* downmixerBufferProvider; // 4 bytes
 
         int32_t     sessionId;
@@ -253,6 +253,52 @@ private:
         track_t         tracks[MAX_NUM_TRACKS] __attribute__((aligned(32)));
     };
 
+    // Base AudioBufferProvider class used for ReformatBufferProvider.
+    // It handles a private buffer for use in converting format or channel masks from the
+    // input data to a form acceptable by the mixer.
+    // TODO: Make a ResamplerBufferProvider when integers are entirely removed from the
+    // processing pipeline.
+    class CopyBufferProvider : public AudioBufferProvider {
+    public:
+        // Use a private buffer of bufferFrameCount frames (each frame is outputFrameSize bytes).
+        // If bufferFrameCount is 0, no private buffer is created and in-place modification of
+        // the upstream buffer provider's buffers is performed by copyFrames().
+        CopyBufferProvider(size_t inputFrameSize, size_t outputFrameSize,
+                size_t bufferFrameCount);
+        virtual ~CopyBufferProvider();
+
+        // Overrides AudioBufferProvider methods
+        virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
+        virtual void releaseBuffer(Buffer* buffer);
+
+        // Other public methods
+
+        // call this to release the buffer to the upstream provider.
+        // treat it as an audio discontinuity for future samples.
+        virtual void reset();
+
+        // this function should be supplied by the derived class.  It converts
+        // #frames in the *src pointer to the *dst pointer.  It is public because
+        // some providers will allow this to work on arbitrary buffers outside
+        // of the internal buffers.
+        virtual void copyFrames(void *dst, const void *src, size_t frames) = 0;
+
+        // set the upstream buffer provider. Consider calling "reset" before this function.
+        void setBufferProvider(AudioBufferProvider *p) {
+            mTrackBufferProvider = p;
+        }
+
+    protected:
+        AudioBufferProvider* mTrackBufferProvider;
+        const size_t         mInputFrameSize;
+        const size_t         mOutputFrameSize;
+    private:
+        AudioBufferProvider::Buffer mBuffer;
+        const size_t         mLocalBufferFrameCount;
+        void*                mLocalBufferData;
+        size_t               mConsumed;
+    };
+
     // AudioBufferProvider that wraps a track AudioBufferProvider by a call to a downmix effect
     class DownmixerBufferProvider : public AudioBufferProvider {
     public:
@@ -266,33 +312,19 @@ private:
         effect_config_t    mDownmixConfig;
     };
 
-    // AudioBufferProvider wrapper that reformats track to acceptable mixer input type
-    class ReformatBufferProvider : public AudioBufferProvider {
+    // ReformatBufferProvider wraps a track AudioBufferProvider to convert the input data
+    // to an acceptable mixer input format type.
+    class ReformatBufferProvider : public CopyBufferProvider {
     public:
         ReformatBufferProvider(int32_t channels,
-                audio_format_t inputFormat, audio_format_t outputFormat);
-        virtual ~ReformatBufferProvider();
+                audio_format_t inputFormat, audio_format_t outputFormat,
+                size_t bufferFrameCount);
+        virtual void copyFrames(void *dst, const void *src, size_t frames);
 
-        // overrides AudioBufferProvider methods
-        virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
-        virtual void releaseBuffer(Buffer* buffer);
-
-        void reset();
-        inline bool requiresInternalBuffers() {
-            return true; //mInputFrameSize < mOutputFrameSize;
-        }
-
-        AudioBufferProvider* mTrackBufferProvider;
-        int32_t              mChannels;
-        audio_format_t       mInputFormat;
-        audio_format_t       mOutputFormat;
-        size_t               mInputFrameSize;
-        size_t               mOutputFrameSize;
-        // (only) required for reformatting to a larger size.
-        AudioBufferProvider::Buffer mBuffer;
-        void*                mOutputData;
-        size_t               mOutputCount;
-        size_t               mConsumed;
+    protected:
+        const int32_t        mChannels;
+        const audio_format_t mInputFormat;
+        const audio_format_t mOutputFormat;
     };
 
     // bitmask of allocated track names, where bit 0 corresponds to TRACK0 etc.
