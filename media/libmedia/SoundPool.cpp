@@ -28,6 +28,7 @@
 #include <media/mediaplayer.h>
 #include <media/SoundPool.h>
 #include "SoundPoolThread.h"
+#include <media/AudioPolicyHelper.h>
 
 namespace android
 {
@@ -39,10 +40,10 @@ uint32_t kDefaultFrameCount = 1200;
 size_t kDefaultHeapSize = 1024 * 1024; // 1MB
 
 
-SoundPool::SoundPool(int maxChannels, audio_stream_type_t streamType, int srcQuality)
+SoundPool::SoundPool(int maxChannels, const audio_attributes_t* pAttributes)
 {
-    ALOGV("SoundPool constructor: maxChannels=%d, streamType=%d, srcQuality=%d",
-            maxChannels, streamType, srcQuality);
+    ALOGV("SoundPool constructor: maxChannels=%d, attr.usage=%d, attr.flags=0x%x, attr.tags=%s",
+            maxChannels, pAttributes->usage, pAttributes->flags, pAttributes->tags);
 
     // check limits
     mMaxChannels = maxChannels;
@@ -56,8 +57,7 @@ SoundPool::SoundPool(int maxChannels, audio_stream_type_t streamType, int srcQua
 
     mQuit = false;
     mDecodeThread = 0;
-    mStreamType = streamType;
-    mSrcQuality = srcQuality;
+    memcpy(&mAttributes, pAttributes, sizeof(audio_attributes_t));
     mAllocated = 0;
     mNextSampleID = 0;
     mNextChannelID = 0;
@@ -580,7 +580,7 @@ void SoundChannel::play(const sp<Sample>& sample, int nextChannelID, float leftV
         // initialize track
         size_t afFrameCount;
         uint32_t afSampleRate;
-        audio_stream_type_t streamType = mSoundPool->streamType();
+        audio_stream_type_t streamType = audio_attributes_to_stream_type(mSoundPool->attributes());
         if (AudioSystem::getOutputFrameCount(&afFrameCount, streamType) != NO_ERROR) {
             afFrameCount = kDefaultFrameCount;
         }
