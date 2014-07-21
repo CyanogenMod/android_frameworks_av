@@ -1928,13 +1928,16 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
             thread = new MixerThread(this, output, id, *pDevices);
             ALOGV("openOutput() created mixer output: ID %d thread %p", id, thread);
         }
+
+
+#ifdef QCOM_DIRECTTRACK
         if (thread != NULL) {
+#endif
             mPlaybackThreads.add(id, thread);
 #ifdef QCOM_DIRECTTRACK
             thread->mOutputFlags = flags;
-#endif
         }
-
+#endif
         if (pSamplingRate != NULL) {
             *pSamplingRate = config.sample_rate;
         }
@@ -1944,12 +1947,14 @@ audio_io_handle_t AudioFlinger::openOutput(audio_module_handle_t module,
         if (pChannelMask != NULL) {
             *pChannelMask = config.channel_mask;
         }
+#ifdef QCOM_DIRECTTRACK
         if (thread != NULL) {
+#endif
             if (pLatencyMs != NULL) *pLatencyMs = thread->latency();
             // notify client processes of the new output creation
             thread->audioConfigChanged_l(AudioSystem::OUTPUT_OPENED);
-        }
 #ifdef QCOM_DIRECTTRACK
+        }
         else {
             *pLatencyMs = 0;
             if ((flags & AUDIO_OUTPUT_FLAG_LPA) || (flags & AUDIO_OUTPUT_FLAG_TUNNEL)) {

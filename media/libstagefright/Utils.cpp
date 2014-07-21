@@ -449,17 +449,20 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     sp<ABuffer> csd0;
     if (msg->findBuffer("csd-0", &csd0)) {
         if (mime.startsWith("video/")) { // do we need to be stricter than this?
-            sp<ABuffer> csd1;
-            if (msg->findBuffer("csd-1", &csd1)) {
-                char avcc[1024]; // that oughta be enough, right?
-                size_t outsize = reassembleAVCC(csd0, csd1, avcc);
-                meta->setData(kKeyAVCC, kKeyAVCC, avcc, outsize);
-            } else {
+            if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_AVC)) {
+                sp<ABuffer> csd1;
+                if (msg->findBuffer("csd-1", &csd1)) {
+                    char avcc[1024]; // that oughta be enough, right?
+                    size_t outsize = reassembleAVCC(csd0, csd1, avcc);
+                    meta->setData(kKeyAVCC, kKeyAVCC, avcc, outsize);
+                }
+            } else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_MPEG4)) {
                 int csd0size = csd0->size();
                 char esds[csd0size + 31];
                 reassembleESDS(csd0, esds);
                 meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
             }
+
         } else if (mime.startsWith("audio/")) {
             int csd0size = csd0->size();
             char esds[csd0size + 31];

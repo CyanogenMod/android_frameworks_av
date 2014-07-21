@@ -36,6 +36,7 @@ struct ElementaryStreamQueue {
         MPEG_VIDEO,
         MPEG4_VIDEO,
         PCM_AUDIO,
+        AC3
     };
 
     enum Flags {
@@ -71,6 +72,7 @@ private:
     sp<ABuffer> dequeueAccessUnitMPEGVideo();
     sp<ABuffer> dequeueAccessUnitMPEG4Video();
     sp<ABuffer> dequeueAccessUnitPCMAudio();
+    sp<ABuffer> dequeueAccessUnitAC3();
 
     // consume a logical (compressed) access unit of size "size",
     // returns its timestamp in us (or -1 if no time information).
