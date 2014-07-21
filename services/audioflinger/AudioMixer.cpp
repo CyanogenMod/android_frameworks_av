@@ -62,6 +62,10 @@
 #define ALOGVV(a...) do { } while (0)
 #endif
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
+#endif
+
 // Set kUseNewMixer to true to use the new mixer engine. Otherwise the
 // original code will be used.  This is false for now.
 static const bool kUseNewMixer = false;
@@ -316,6 +320,36 @@ void AudioMixer::DownmixerBufferProvider::copyFrames(void *dst, const void *src,
 
 /*static*/ bool AudioMixer::DownmixerBufferProvider::sIsMultichannelCapable = false;
 /*static*/ effect_descriptor_t AudioMixer::DownmixerBufferProvider::sDwnmFxDesc;
+
+AudioMixer::RemixBufferProvider::RemixBufferProvider(audio_channel_mask_t inputChannelMask,
+        audio_channel_mask_t outputChannelMask, audio_format_t format,
+        size_t bufferFrameCount) :
+        CopyBufferProvider(
+                audio_bytes_per_sample(format)
+                    * audio_channel_count_from_out_mask(inputChannelMask),
+                audio_bytes_per_sample(format)
+                    * audio_channel_count_from_out_mask(outputChannelMask),
+                bufferFrameCount),
+        mFormat(format),
+        mSampleSize(audio_bytes_per_sample(format)),
+        mInputChannels(audio_channel_count_from_out_mask(inputChannelMask)),
+        mOutputChannels(audio_channel_count_from_out_mask(outputChannelMask))
+{
+    ALOGV("RemixBufferProvider(%p)(%#x, %#x, %#x) %d %d",
+            this, format, inputChannelMask, outputChannelMask,
+            mInputChannels, mOutputChannels);
+    // TODO: consider channel representation in index array formulation
+    // We ignore channel representation, and just use the bits.
+    memcpy_by_index_array_initialization(mIdxAry, ARRAY_SIZE(mIdxAry),
+            audio_channel_mask_get_bits(outputChannelMask),
+            audio_channel_mask_get_bits(inputChannelMask));
+}
+
+void AudioMixer::RemixBufferProvider::copyFrames(void *dst, const void *src, size_t frames)
+{
+    memcpy_by_index_array(dst, mOutputChannels,
+            src, mInputChannels, mIdxAry, mSampleSize, frames);
+}
 
 AudioMixer::ReformatBufferProvider::ReformatBufferProvider(int32_t channels,
         audio_format_t inputFormat, audio_format_t outputFormat,
