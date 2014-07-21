@@ -666,6 +666,22 @@ status_t AVIExtractor::parseStreamHeader(off64_t offset, size_t size) {
     return OK;
 }
 
+// Returns the sample rate based on the sampling frequency index
+static uint32_t get_sample_rate(const uint8_t sf_index)
+{
+    static const uint32_t sample_rates[] =
+    {
+        96000, 88200, 64000, 48000, 44100, 32000,
+        24000, 22050, 16000, 12000, 11025, 8000
+    };
+
+    if (sf_index < sizeof(sample_rates) / sizeof(sample_rates[0])) {
+        return sample_rates[sf_index];
+    }
+
+    return 0;
+}
+
 status_t AVIExtractor::parseStreamFormat(off64_t offset, size_t size) {
     if (mTracks.isEmpty()) {
         return ERROR_MALFORMED;
@@ -703,8 +719,29 @@ status_t AVIExtractor::parseStreamFormat(off64_t offset, size_t size) {
     } else {
         uint32_t format = U16LE_AT(data);
 
-        if (format == 0x55) {
+        if ((format == WAVE_FORMAT_MPEGLAYER3) || (format == WAVE_FORMAT_MPEG)) {
             track->mMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG);
+        } else if (format == WAVE_FORMAT_AAC) {
+//          The WAVEFORMATEX structure in AVI container is as below:
+//          ____________________________________________________________________________
+//          |Format|channel|sample rate|nAvgBytesPerSec|nBlockAlign|wBitsPerSample|cbSize|
+//     Bytes 0    1  2   3   4 ----- 7   8   -----  11   12 --- 13    14 --- 15    16  17
+//          where Format = 0x00FF, for AAC Audio.
+//          After these 18 bytes the bitstream contains the following information:
+//          ______Byte[18]_____,___Byte[19]______
+//          |AACProfile+1 |sf_index |ChannelCount| .....
+//     Bits  7   -----  3, 2--0 | 7,  6 ----- 3 , .....
+
+            uint8_t profile, sf_index, channels;
+            profile = (data[18] >> 3) -1;
+            sf_index = (((data[18] & 0x7) << 1 ) | (data[19] >> 0x7));
+            uint32_t sr = get_sample_rate(sf_index);
+            if (sr == 0) {
+                return ERROR_MALFORMED;
+            }
+            channels = (data[19] & 0x7F) >> 3;
+            track->mMeta = MakeAACCodecSpecificData(profile, sf_index, channels);
+            return OK;
         } else {
             ALOGW("Unsupported audio format = 0x%04x", format);
         }

@@ -256,6 +256,11 @@ status_t ElementaryStreamQueue::appendData(
                 break;
             }
 
+            case AC3:
+            {
+                break;
+            }
+
             default:
                 TRESPASS();
                 break;
@@ -334,10 +339,117 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
             return dequeueAccessUnitMPEG4Video();
         case PCM_AUDIO:
             return dequeueAccessUnitPCMAudio();
+        case AC3:
+            return dequeueAccessUnitAC3();
         default:
             CHECK_EQ((unsigned)mMode, (unsigned)MPEG_AUDIO);
             return dequeueAccessUnitMPEGAudio();
     }
+}
+sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAC3() {
+    int64_t timeUs;
+    uint16_t offset = 0;
+    uint16_t fscod = 0;
+    uint16_t frmsizecod = 0;
+    uint16_t bsid = 0;
+    uint16_t bsmod = 0;
+    uint16_t acmod = 0;
+    uint32_t frame_length = 0;
+    static const uint32_t sample_freq [4] = {48000,44100,32000,0};
+    static const uint32_t channels[8] ={2,1,2,3,3,4,4,5};
+    static const uint16_t ac3_frame_size_tab[38][3] = {
+        { 64,   69,   96   },
+        { 64,   70,   96   },
+        { 80,   87,   120  },
+        { 80,   88,   120  },
+        { 96,   104,  144  },
+        { 96,   105,  144  },
+        { 112,  121,  168  },
+        { 112,  122,  168  },
+        { 128,  139,  192  },
+        { 128,  140,  192  },
+        { 160,  174,  240  },
+        { 160,  175,  240  },
+        { 192,  208,  288  },
+        { 192,  209,  288  },
+        { 224,  243,  336  },
+        { 224,  244,  336  },
+        { 256,  278,  384  },
+        { 256,  279,  384  },
+        { 320,  348,  480  },
+        { 320,  349,  480  },
+        { 384,  417,  576  },
+        { 384,  418,  576  },
+        { 448,  487,  672  },
+        { 448,  488,  672  },
+        { 512,  557,  768  },
+        { 512,  558,  768  },
+        { 640,  696,  960  },
+        { 640,  697,  960  },
+        { 768,  835,  1152 },
+        { 768,  836,  1152 },
+        { 896,  975,  1344 },
+        { 896,  976,  1344 },
+        { 1024, 1114, 1536 },
+        { 1024, 1115, 1536 },
+        { 1152, 1253, 1728 },
+        { 1152, 1254, 1728 },
+        { 1280, 1393, 1920 },
+        { 1280, 1394, 1920 },
+    };
+    while (offset + 7 <= mBuffer->size()) {
+        ABitReader bits(mBuffer->data() + offset, mBuffer->size() - offset);
+        // Check sync word for AC3 (0XB77)
+        // Derived from the Dolby A52B specification section 5.4.1.1
+        CHECK_EQ(bits.getBits(16), 0x0B77);
+        //SKIP CRC
+        bits.skipBits(16);
+        //Sampling rate
+        fscod = bits.getBits(2);
+        //framesizecod
+        frmsizecod = bits.getBits(6);
+        //framesizecod <= 37
+        CHECK_LE(frmsizecod, 37);
+        //bsid
+        bsid = bits.getBits(5);
+        //bsmod
+        bsmod = bits.getBits(3);
+        //acmod
+        acmod = bits.getBits(3);
+
+        if (mFormat == NULL) {
+            mFormat =  new MetaData;
+            mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AC3);
+            //SF
+            mFormat->setInt32(kKeySampleRate, sample_freq[fscod]);
+            //Channels
+            mFormat->setInt32(kKeyChannelCount, channels[acmod]);
+        }
+        frame_length = ac3_frame_size_tab[frmsizecod][fscod];
+        frame_length *= 2; //bytes
+
+        if (offset + frame_length > mBuffer->size()) {
+            break;
+        }
+
+        int64_t tmpUs = fetchTimestamp(frame_length);
+        CHECK_GE(tmpUs, 0ll);
+
+        if (offset == 0) {
+            timeUs = tmpUs;
+        }
+        offset += frame_length;
+    }
+    if (offset == 0) {
+        return NULL;
+    }
+    sp<ABuffer> accessUnit = new ABuffer(offset);
+    memcpy(accessUnit->data(), mBuffer->data(), offset);
+    memmove(mBuffer->data(), mBuffer->data() + offset,
+            mBuffer->size() - offset);
+    mBuffer->setRange(0, mBuffer->size() - offset);
+    accessUnit->meta()->setInt64("timeUs", timeUs);
+    return accessUnit;
 }
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
