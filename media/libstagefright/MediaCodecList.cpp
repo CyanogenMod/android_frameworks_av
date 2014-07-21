@@ -868,6 +868,8 @@ status_t MediaCodecList::getCodecCapabilities(
     if (typeIndex < 0) {
         return -EINVAL;
     }
+    // essentially doing valueFor without the CHECK abort
+    typeIndex = mTypes.valueAt(typeIndex);
 
     OMXClient client;
     status_t err = client.connect();
