@@ -50,6 +50,7 @@ struct AMessage : public RefBase {
     void setDouble(const char *name, double value);
     void setPointer(const char *name, void *value);
     void setString(const char *name, const char *s, ssize_t len = -1);
+    void setString(const char *name, const AString &s);
     void setObject(const char *name, const sp<RefBase> &obj);
     void setBuffer(const char *name, const sp<ABuffer> &buffer);
     void setMessage(const char *name, const sp<AMessage> &obj);
@@ -57,6 +58,8 @@ struct AMessage : public RefBase {
     void setRect(
             const char *name,
             int32_t left, int32_t top, int32_t right, int32_t bottom);
+
+    bool contains(const char *name) const;
 
     bool findInt32(const char *name, int32_t *value) const;
     bool findInt64(const char *name, int64_t *value) const;

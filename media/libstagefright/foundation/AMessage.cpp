@@ -127,6 +127,20 @@ const AMessage::Item *AMessage::findItem(
     return NULL;
 }
 
+bool AMessage::contains(const char *name) const {
+    name = AAtomizer::Atomize(name);
+
+    for (size_t i = 0; i < mNumItems; ++i) {
+        const Item *item = &mItems[i];
+
+        if (item->mName == name) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 #define BASIC_TYPE(NAME,FIELDNAME,TYPENAME)                             \
 void AMessage::set##NAME(const char *name, TYPENAME value) {            \
     Item *item = allocateItem(name);                                    \
@@ -158,6 +172,11 @@ void AMessage::setString(
     Item *item = allocateItem(name);
     item->mType = kTypeString;
     item->u.stringValue = new AString(s, len < 0 ? strlen(s) : len);
+}
+
+void AMessage::setString(
+        const char *name, const AString &s) {
+    setString(name, s.c_str(), s.size());
 }
 
 void AMessage::setObjectInternal(

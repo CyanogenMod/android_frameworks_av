@@ -70,6 +70,9 @@ struct AString {
     size_t hash() const;
 
     bool operator==(const AString &other) const;
+    bool operator!=(const AString &other) const {
+        return !operator==(other);
+    }
     bool operator<(const AString &other) const;
     bool operator>(const AString &other) const;
 
