@@ -153,7 +153,6 @@ private:
 
     struct state_t;
     struct track_t;
-    class DownmixerBufferProvider;
     class CopyBufferProvider;
 
     typedef void (*hook_t)(track_t* t, int32_t* output, size_t numOutFrames, int32_t* temp,
@@ -208,7 +207,7 @@ private:
         // 16-byte boundary
         AudioBufferProvider*     mInputBufferProvider;    // externally provided buffer provider.
         CopyBufferProvider*      mReformatBufferProvider; // provider wrapper for reformatting.
-        DownmixerBufferProvider* downmixerBufferProvider; // 4 bytes
+        CopyBufferProvider*      downmixerBufferProvider; // wrapper for channel conversion.
 
         int32_t     sessionId;
 
@@ -253,7 +252,8 @@ private:
         track_t         tracks[MAX_NUM_TRACKS] __attribute__((aligned(32)));
     };
 
-    // Base AudioBufferProvider class used for ReformatBufferProvider.
+    // Base AudioBufferProvider class used for ReformatBufferProvider and
+    // DownmixerBufferProvider.
     // It handles a private buffer for use in converting format or channel masks from the
     // input data to a form acceptable by the mixer.
     // TODO: Make a ResamplerBufferProvider when integers are entirely removed from the
@@ -299,17 +299,31 @@ private:
         size_t               mConsumed;
     };
 
-    // AudioBufferProvider that wraps a track AudioBufferProvider by a call to a downmix effect
-    class DownmixerBufferProvider : public AudioBufferProvider {
+    // DownmixerBufferProvider wraps a track AudioBufferProvider to provide
+    // position dependent downmixing by an Audio Effect.
+    class DownmixerBufferProvider : public CopyBufferProvider {
     public:
-        virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
-        virtual void releaseBuffer(Buffer* buffer);
-        DownmixerBufferProvider();
+        DownmixerBufferProvider(audio_channel_mask_t inputChannelMask,
+                audio_channel_mask_t outputChannelMask, audio_format_t format,
+                uint32_t sampleRate, int32_t sessionId, size_t bufferFrameCount);
         virtual ~DownmixerBufferProvider();
+        virtual void copyFrames(void *dst, const void *src, size_t frames);
+        bool isValid() const { return mDownmixHandle != NULL; }
 
-        AudioBufferProvider* mTrackBufferProvider;
+        static status_t init();
+        static bool isMultichannelCapable() { return sIsMultichannelCapable; }
+
+    protected:
         effect_handle_t    mDownmixHandle;
         effect_config_t    mDownmixConfig;
+
+        // effect descriptor for the downmixer used by the mixer
+        static effect_descriptor_t sDwnmFxDesc;
+        // indicates whether a downmix effect has been found and is usable by this mixer
+        static bool                sIsMultichannelCapable;
+        // FIXME: should we allow effects outside of the framework?
+        // We need to here. A special ioId that must be <= -2 so it does not map to a session.
+        static const int32_t SESSION_ID_INVALID_AND_IGNORED = -2;
     };
 
     // ReformatBufferProvider wraps a track AudioBufferProvider to convert the input data
@@ -341,11 +355,6 @@ public:
     void            setLog(NBLog::Writer* log);
 private:
     state_t         mState __attribute__((aligned(32)));
-
-    // effect descriptor for the downmixer used by the mixer
-    static effect_descriptor_t sDwnmFxDesc;
-    // indicates whether a downmix effect has been found and is usable by this mixer
-    static bool                sIsMultichannelCapable;
 
     // Call after changing either the enabled status of a track, or parameters of an enabled track.
     // OK to call more often than that, but unnecessary.
