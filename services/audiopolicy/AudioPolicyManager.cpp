@@ -3833,6 +3833,11 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
         if (!deviceList.isEmpty()) {
             struct audio_patch patch;
             inputDesc->toAudioPortConfig(&patch.sinks[0]);
+            // AUDIO_SOURCE_HOTWORD is for internal use only:
+            // handled as AUDIO_SOURCE_VOICE_RECOGNITION by the audio HAL
+            if (patch.sinks[0].ext.mix.usecase.source == AUDIO_SOURCE_HOTWORD) {
+                patch.sinks[0].ext.mix.usecase.source = AUDIO_SOURCE_VOICE_RECOGNITION;
+            }
             patch.num_sinks = 1;
             //only one input device for now
             deviceList.itemAt(0)->toAudioPortConfig(&patch.sources[0]);
