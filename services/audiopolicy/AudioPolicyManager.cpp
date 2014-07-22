@@ -5316,7 +5316,9 @@ audio_channel_mask_t AudioPolicyManager::AudioPort::pickChannelMask() const
 const audio_format_t AudioPolicyManager::AudioPort::sPcmFormatCompareTable[] = {
         AUDIO_FORMAT_DEFAULT,
         AUDIO_FORMAT_PCM_16_BIT,
+        AUDIO_FORMAT_PCM_8_24_BIT,
         AUDIO_FORMAT_PCM_24_BIT_PACKED,
+        AUDIO_FORMAT_PCM_32_BIT,
 };
 
 int AudioPolicyManager::AudioPort::compareFormats(audio_format_t format1,
