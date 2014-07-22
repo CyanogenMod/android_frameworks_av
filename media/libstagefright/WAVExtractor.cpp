@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "WAVExtractor"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include "include/WAVExtractor.h"
 
@@ -29,6 +30,10 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 #include <cutils/bitops.h>
+
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include <QCMetaData.h>
+#endif
 
 #define CHANNEL_MASK_USE_CHANNEL_ORDER 0
 
@@ -85,6 +90,8 @@ private:
     bool mStarted;
     MediaBufferGroup *mGroup;
     off64_t mCurrentPos;
+
+    bool mEnable24Bit;
 
     WAVSource(const WAVSource &);
     WAVSource &operator=(const WAVSource &);
@@ -284,6 +291,9 @@ status_t WAVExtractor::init() {
                     case WAVE_FORMAT_PCM:
                         mTrackMeta->setCString(
                                 kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+#ifdef ENABLE_AV_ENHANCEMENTS
+                        mTrackMeta->setInt32(kKeySampleBits, mBitsPerSample);
+#endif
                         break;
                     case WAVE_FORMAT_ALAW:
                         mTrackMeta->setCString(
@@ -350,6 +360,10 @@ WAVSource::WAVSource(
     CHECK(mMeta->findInt32(kKeyChannelCount, &mNumChannels));
 
     mMeta->setInt32(kKeyMaxInputSize, kMaxFrameSize);
+
+    char value[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.offload.24bit.enable", value, "0");
+    mEnable24Bit = atoi(value);
 }
 
 WAVSource::~WAVSource() {
@@ -483,7 +497,7 @@ status_t WAVSource::read(
 
             buffer->release();
             buffer = tmp;
-        } else if (mBitsPerSample == 24) {
+        } else if (mBitsPerSample == 24 && !mEnable24Bit) {
             // Convert 24-bit signed samples to 16-bit signed.
 
             const uint8_t *src =
