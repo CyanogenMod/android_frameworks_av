@@ -1794,8 +1794,9 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                     return;
                 }
                 isPartialResult = (result->partial_result < mNumPartialResults);
-                request.partialResult.collectedResult.append(
-                    result->result);
+                if (isPartialResult) {
+                    request.partialResult.collectedResult.append(result->result);
+                }
             } else {
                 camera_metadata_ro_entry_t partialResultEntry;
                 res = find_camera_metadata_ro_entry(result->result,
