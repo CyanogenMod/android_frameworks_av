@@ -549,7 +549,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     status_t result = mSource->feedMoreTSData();
                     if (result == OK) {
                         msg->post(10000ll);
-                    } else if (result == UNKNOWN_ERROR) {
+                    } else if (result == (status_t)UNKNOWN_ERROR) {
                         // The source has disconnected
                         sp<AMessage> reply;
                         CHECK(codecRequest->findMessage("reply", &reply));
