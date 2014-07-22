@@ -66,6 +66,13 @@ NuPlayer::RTSPSource::RTSPSource(
 
             mExtraHeaders.removeItemsAt(index);
         }
+
+        index = mExtraHeaders.indexOfKey(String8("rtp.transport.TCP"));
+
+        if (index >= 0) {
+            mFlags |= kFlagUseTCP;
+            mExtraHeaders.removeItemsAt(index);
+        }
     }
 }
 
@@ -101,7 +108,7 @@ void NuPlayer::RTSPSource::prepareAsync() {
         mSDPLoader->load(
                 mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
     } else {
-        mHandler = new MyHandler(mURL.c_str(), notify, mUIDValid, mUID);
+        mHandler = new MyHandler(mURL.c_str(), notify, mUIDValid, mUID, (mFlags & kFlagUseTCP) ? true : false);
         mLooper->registerHandler(mHandler);
 
         mHandler->connect();
@@ -652,7 +659,7 @@ void NuPlayer::RTSPSource::onSDPLoaded(const sp<AMessage> &msg) {
         } else {
             sp<AMessage> notify = new AMessage(kWhatNotify, mReflector->id());
 
-            mHandler = new MyHandler(rtspUri.c_str(), notify, mUIDValid, mUID);
+            mHandler = new MyHandler(rtspUri.c_str(), notify, mUIDValid, mUID, (mFlags & kFlagUseTCP) ? true : false);
             mLooper->registerHandler(mHandler);
 
             mHandler->loadSDP(desc);

@@ -102,7 +102,7 @@ struct MyHandler : public AHandler {
     MyHandler(
             const char *url,
             const sp<AMessage> &notify,
-            bool uidValid = false, uid_t uid = 0)
+            bool uidValid = false, uid_t uid = 0, bool tcptransport = false)
         : mNotify(notify),
           mUIDValid(uidValid),
           mUID(uid),
@@ -122,7 +122,7 @@ struct MyHandler : public AHandler {
           mCheckPending(false),
           mCheckGeneration(0),
           mCheckTimeoutGeneration(0),
-          mTryTCPInterleaving(false),
+          mTryTCPInterleaving(tcptransport),
           mTryFakeRTCP(false),
           mReceivedFirstRTCPPacket(false),
           mReceivedFirstRTPPacket(false),
@@ -138,10 +138,10 @@ struct MyHandler : public AHandler {
                           PRIORITY_HIGHEST);
 
         char value[PROPERTY_VALUE_MAX] = {0};
-        property_get("rtsp.transport.TCP", value, "false");
+        property_get("rtsp.transport.TCP", value, "0");
         if (!strcmp(value, "true")) {
             mTryTCPInterleaving = true;
-        } else {
+        } else if (!strcmp(value, "false")) {
             mTryTCPInterleaving = false;
         }
 
