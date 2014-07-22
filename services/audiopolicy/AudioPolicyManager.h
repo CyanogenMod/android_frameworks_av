@@ -339,6 +339,8 @@ protected:
             DeviceVector getDevicesFromType(audio_devices_t types) const;
             sp<DeviceDescriptor> getDeviceFromId(audio_port_handle_t id) const;
             sp<DeviceDescriptor> getDeviceFromName(const String8& name) const;
+            DeviceVector getDevicesFromTypeAddr(audio_devices_t type, String8 address)
+                    const;
 
         private:
             void refreshTypes();
@@ -534,7 +536,8 @@ protected:
                              audio_devices_t device,
                              bool force = false,
                              int delayMs = 0,
-                             audio_patch_handle_t *patchHandle = NULL);
+                             audio_patch_handle_t *patchHandle = NULL,
+                             const char* address = NULL);
         status_t resetOutputDevice(audio_io_handle_t output,
                                    int delayMs = 0,
                                    audio_patch_handle_t *patchHandle = NULL);
@@ -774,6 +777,15 @@ private:
         //    routing of notifications
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
         static bool isVirtualInputDevice(audio_devices_t device);
+        static bool deviceDistinguishesOnAddress(audio_devices_t device);
+        // find the outputs on a given output descriptor that have the given address.
+        // to be called on an AudioOutputDescriptor whose supported devices (as defined
+        //   in mProfile->mSupportedDevices) matches the device whose address is to be matched.
+        // see deviceDistinguishesOnAddress(audio_devices_t) for whether the device type is one
+        //   where addresses are used to distinguish between one connected device and another.
+        void findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /*in*/,
+                const String8 address /*in*/,
+                SortedVector<audio_io_handle_t>& outputs /*out*/);
         uint32_t nextUniqueId();
         uint32_t nextAudioPortGeneration();
         uint32_t curAudioPortGeneration() const { return mAudioPortGeneration; }
