@@ -169,6 +169,10 @@ struct ExtendedUtils {
     static void parseRtpPortRangeFromSystemProperty(unsigned *start, unsigned *end);
 
     static void updateOutputBitWidth(sp<MetaData> format, bool isOffload);
+
+    static void printFileName(int fd);
+
+    static void printFileName(const char *uri);
 };
 
 class VSyncLocker : public RefBase {
