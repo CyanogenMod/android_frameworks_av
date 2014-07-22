@@ -1662,7 +1662,13 @@ status_t AwesomePlayer::getPosition(int64_t *positionUs) {
         Mutex::Autolock autoLock(mMiscStateLock);
         *positionUs = mVideoTimeUs;
     } else if (mAudioPlayer != NULL) {
-        *positionUs = mAudioPlayer->getMediaTimeUs();
+        Mutex::Autolock autoLock(mMiscStateLock);
+        if (mAudioTearDownPosition == 0) {
+            *positionUs = mAudioPlayer->getMediaTimeUs();
+        } else {
+            /* AudioTearDown in progress */
+            *positionUs = mAudioTearDownPosition;
+        }
     } else {
         *positionUs = mAudioTearDownPosition;
     }
@@ -3076,6 +3082,7 @@ void AwesomePlayer::finishAsyncPrepare_l() {
         if (mPrepareResult == OK) {
             if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
                 seekTo_l(mAudioTearDownPosition);
+                mAudioTearDownPosition = 0;
             }
 
             if (mAudioTearDownWasPlaying) {
