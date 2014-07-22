@@ -40,6 +40,7 @@
 #include <common_time/cc_helper.h>
 
 #include <media/EffectsFactoryApi.h>
+#include <audio_effects/effect_downmix.h>
 
 #include "AudioMixerOps.h"
 #include "AudioMixer.h"
@@ -941,7 +942,9 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
                 // but if none exists, it is the channel count (1 for mono).
                 const int resamplerChannelCount = downmixerBufferProvider != NULL
                         ? mMixerChannelCount : channelCount;
-                ALOGVV("Creating resampler with %#x format\n", mMixerInFormat);
+                ALOGVV("Creating resampler:"
+                        " format(%#x) channels(%d) devSampleRate(%u) quality(%d)\n",
+                        mMixerInFormat, resamplerChannelCount, devSampleRate, quality);
                 resampler = AudioResampler::create(
                         mMixerInFormat,
                         resamplerChannelCount,
