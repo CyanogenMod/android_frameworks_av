@@ -754,6 +754,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             offloadInfo.has_video = (mVideoDecoder != NULL);
                             offloadInfo.is_streaming = true;
 
+                            ALOGV("try to open AudioSink in offload mode");
                             err = mAudioSink->open(
                                     sampleRate,
                                     numChannels,
@@ -793,6 +794,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     if (!mOffloadAudio) {
                         flags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+                        ALOGV("open AudioSink in NON-offload mode");
                         CHECK_EQ(mAudioSink->open(
                                     sampleRate,
                                     numChannels,
@@ -940,6 +942,21 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else if (what == Renderer::kWhatMediaRenderingStart) {
                 ALOGV("media rendering started");
                 notifyListener(MEDIA_STARTED, 0, 0);
+            } else if (what == Renderer::kWhatAudioOffloadTearDown) {
+                ALOGV("Tear down audio offload, fall back to s/w path");
+                int64_t positionUs;
+                CHECK(msg->findInt64("positionUs", &positionUs));
+                mAudioSink->close();
+                mAudioDecoder.clear();
+                mRenderer->flush(true /* audio */);
+                if (mVideoDecoder != NULL) {
+                    mRenderer->flush(false /* audio */);
+                }
+                mRenderer->signalDisableOffloadAudio();
+                mOffloadAudio = false;
+
+                performSeek(positionUs);
+                instantiateDecoder(true /* audio */, &mAudioDecoder);
             }
             break;
         }
