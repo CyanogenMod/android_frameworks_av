@@ -223,6 +223,12 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatAudioOffloadTearDown:
+        {
+            onAudioOffloadTearDown();
+            break;
+        }
+
         default:
             TRESPASS();
             break;
@@ -294,7 +300,7 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
 
         case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
         {
-            // TODO: send this to player.
+            me->notifyAudioOffloadTearDown();
             break;
         }
     }
@@ -582,6 +588,10 @@ void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult) {
     notify->post();
 }
 
+void NuPlayer::Renderer::notifyAudioOffloadTearDown() {
+    (new AMessage(kWhatAudioOffloadTearDown, id()))->post();
+}
+
 void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
     int32_t audio;
     CHECK(msg->findInt32("audio", &audio));
@@ -814,6 +824,7 @@ void NuPlayer::Renderer::onAudioSinkChanged() {
 void NuPlayer::Renderer::onDisableOffloadAudio() {
     Mutex::Autolock autoLock(mLock);
     mFlags &= ~FLAG_OFFLOAD_AUDIO;
+    ++mAudioQueueGeneration;
 }
 
 void NuPlayer::Renderer::notifyPosition() {
@@ -878,6 +889,22 @@ void NuPlayer::Renderer::onResume() {
     if (!mVideoQueue.empty()) {
         postDrainVideoQueue();
     }
+}
+
+void NuPlayer::Renderer::onAudioOffloadTearDown() {
+    uint32_t numFramesPlayed;
+    CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed), (status_t)OK);
+
+    int64_t currentPositionUs = mFirstAudioTimeUs
+            + (numFramesPlayed * mAudioSink->msecsPerFrame()) * 1000ll;
+
+    mAudioSink->stop();
+    mAudioSink->flush();
+
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatAudioOffloadTearDown);
+    notify->setInt64("positionUs", currentPositionUs);
+    notify->post();
 }
 
 }  // namespace android

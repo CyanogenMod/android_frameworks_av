@@ -62,6 +62,7 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatPosition            = 'posi',
         kWhatVideoRenderingStart = 'vdrd',
         kWhatMediaRenderingStart = 'mdrd',
+        kWhatAudioOffloadTearDown = 'aOTD',
     };
 
 protected:
@@ -143,12 +144,14 @@ private:
     void onDisableOffloadAudio();
     void onPause();
     void onResume();
+    void onAudioOffloadTearDown();
 
     void notifyEOS(bool audio, status_t finalResult);
     void notifyFlushComplete(bool audio);
     void notifyPosition();
     void notifyVideoLateBy(int64_t lateByUs);
     void notifyVideoRenderingStart();
+    void notifyAudioOffloadTearDown();
 
     void flushQueue(List<QueueEntry> *queue);
     bool dropBufferWhileFlushing(bool audio, const sp<AMessage> &msg);
