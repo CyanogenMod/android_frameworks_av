@@ -29,6 +29,7 @@
 #include <math.h>
 #include <vector>
 #include <utility>
+#include <iostream>
 #include <cutils/log.h>
 #include <gtest/gtest.h>
 #include <media/AudioBufferProvider.h>
@@ -153,6 +154,9 @@ double signalEnergy(T *start, T *end, unsigned stride)
     return accum / count;
 }
 
+// TI = resampler input type, int16_t or float
+// TO = resampler output type, int32_t or float
+template <typename TI, typename TO>
 void testStopbandDownconversion(size_t channels,
         unsigned inputFreq, unsigned outputFreq,
         unsigned passband, unsigned stopband,
@@ -161,20 +165,21 @@ void testStopbandDownconversion(size_t channels,
     // create the provider
     std::vector<int> inputIncr;
     SignalProvider provider;
-    provider.setChirp<int16_t>(channels,
+    provider.setChirp<TI>(channels,
             0., inputFreq/2., inputFreq, inputFreq/2000.);
     provider.setIncr(inputIncr);
 
     // calculate the output size
     size_t outputFrames = ((int64_t) provider.getNumFrames() * outputFreq) / inputFreq;
-    size_t outputFrameSize = channels * sizeof(int32_t);
+    size_t outputFrameSize = channels * sizeof(TO);
     size_t outputSize = outputFrameSize * outputFrames;
     outputSize &= ~7;
 
     // create the resampler
     android::AudioResampler* resampler;
 
-    resampler = android::AudioResampler::create(AUDIO_FORMAT_PCM_16_BIT,
+    resampler = android::AudioResampler::create(
+            is_same<TI, int16_t>::value ? AUDIO_FORMAT_PCM_16_BIT : AUDIO_FORMAT_PCM_FLOAT,
             channels, outputFreq, quality);
     resampler->setSampleRate(inputFreq);
     resampler->setVolume(android::AudioResampler::UNITY_GAIN_FLOAT,
@@ -186,7 +191,7 @@ void testStopbandDownconversion(size_t channels,
     void* reference = malloc(outputSize);
     resample(channels, reference, outputFrames, refIncr, &provider, resampler);
 
-    int32_t *out = reinterpret_cast<int32_t *>(reference);
+    TO *out = reinterpret_cast<TO *>(reference);
 
     // check signal energy in passband
     const unsigned passbandFrame = passband * outputFreq / 1000.;
@@ -206,10 +211,10 @@ void testStopbandDownconversion(size_t channels,
                 provider.getNumFrames(), outputFrames,
                 passbandFrame, stopbandFrame, stopbandEnergy, passbandEnergy, dbAtten);
         for (size_t i = 0; i < 10; ++i) {
-            printf("%d\n", out[i+passbandFrame*channels]);
+            std::cout << out[i+passbandFrame*channels] << std::endl;
         }
         for (size_t i = 0; i < 10; ++i) {
-            printf("%d\n", out[i+stopbandFrame*channels]);
+            std::cout << out[i+stopbandFrame*channels] << std::endl;
         }
 #endif
     }
@@ -292,7 +297,7 @@ TEST(audioflinger_resampler, bufferincrement_interpolatedphase_multi_float) {
  * are properly suppressed.  It uses downsampling because the stopband can be
  * clearly isolated by input frequencies exceeding the output sample rate (nyquist).
  */
-TEST(audioflinger_resampler, stopbandresponse) {
+TEST(audioflinger_resampler, stopbandresponse_integer) {
     // not all of these may work (old resamplers fail on downsampling)
     static const enum android::AudioResampler::src_quality kQualityArray[] = {
             //android::AudioResampler::LOW_QUALITY,
@@ -307,13 +312,100 @@ TEST(audioflinger_resampler, stopbandresponse) {
     // in this test we assume a maximum transition band between 12kHz and 20kHz.
     // there must be at least 60dB relative attenuation between stopband and passband.
     for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
-        testStopbandDownconversion(2, 48000, 32000, 12000, 20000, kQualityArray[i]);
+        testStopbandDownconversion<int16_t, int32_t>(
+                2, 48000, 32000, 12000, 20000, kQualityArray[i]);
     }
 
     // in this test we assume a maximum transition band between 7kHz and 15kHz.
     // there must be at least 60dB relative attenuation between stopband and passband.
     // (the weird ratio triggers interpolative resampling)
     for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
-        testStopbandDownconversion(2, 48000, 22101, 7000, 15000, kQualityArray[i]);
+        testStopbandDownconversion<int16_t, int32_t>(
+                2, 48000, 22101, 7000, 15000, kQualityArray[i]);
     }
 }
+
+TEST(audioflinger_resampler, stopbandresponse_integer_multichannel) {
+    // not all of these may work (old resamplers fail on downsampling)
+    static const enum android::AudioResampler::src_quality kQualityArray[] = {
+            //android::AudioResampler::LOW_QUALITY,
+            //android::AudioResampler::MED_QUALITY,
+            //android::AudioResampler::HIGH_QUALITY,
+            //android::AudioResampler::VERY_HIGH_QUALITY,
+            android::AudioResampler::DYN_LOW_QUALITY,
+            android::AudioResampler::DYN_MED_QUALITY,
+            android::AudioResampler::DYN_HIGH_QUALITY,
+    };
+
+    // in this test we assume a maximum transition band between 12kHz and 20kHz.
+    // there must be at least 60dB relative attenuation between stopband and passband.
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testStopbandDownconversion<int16_t, int32_t>(
+                8, 48000, 32000, 12000, 20000, kQualityArray[i]);
+    }
+
+    // in this test we assume a maximum transition band between 7kHz and 15kHz.
+    // there must be at least 60dB relative attenuation between stopband and passband.
+    // (the weird ratio triggers interpolative resampling)
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testStopbandDownconversion<int16_t, int32_t>(
+                8, 48000, 22101, 7000, 15000, kQualityArray[i]);
+    }
+}
+
+TEST(audioflinger_resampler, stopbandresponse_float) {
+    // not all of these may work (old resamplers fail on downsampling)
+    static const enum android::AudioResampler::src_quality kQualityArray[] = {
+            //android::AudioResampler::LOW_QUALITY,
+            //android::AudioResampler::MED_QUALITY,
+            //android::AudioResampler::HIGH_QUALITY,
+            //android::AudioResampler::VERY_HIGH_QUALITY,
+            android::AudioResampler::DYN_LOW_QUALITY,
+            android::AudioResampler::DYN_MED_QUALITY,
+            android::AudioResampler::DYN_HIGH_QUALITY,
+    };
+
+    // in this test we assume a maximum transition band between 12kHz and 20kHz.
+    // there must be at least 60dB relative attenuation between stopband and passband.
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testStopbandDownconversion<float, float>(
+                2, 48000, 32000, 12000, 20000, kQualityArray[i]);
+    }
+
+    // in this test we assume a maximum transition band between 7kHz and 15kHz.
+    // there must be at least 60dB relative attenuation between stopband and passband.
+    // (the weird ratio triggers interpolative resampling)
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testStopbandDownconversion<float, float>(
+                2, 48000, 22101, 7000, 15000, kQualityArray[i]);
+    }
+}
+
+TEST(audioflinger_resampler, stopbandresponse_float_multichannel) {
+    // not all of these may work (old resamplers fail on downsampling)
+    static const enum android::AudioResampler::src_quality kQualityArray[] = {
+            //android::AudioResampler::LOW_QUALITY,
+            //android::AudioResampler::MED_QUALITY,
+            //android::AudioResampler::HIGH_QUALITY,
+            //android::AudioResampler::VERY_HIGH_QUALITY,
+            android::AudioResampler::DYN_LOW_QUALITY,
+            android::AudioResampler::DYN_MED_QUALITY,
+            android::AudioResampler::DYN_HIGH_QUALITY,
+    };
+
+    // in this test we assume a maximum transition band between 12kHz and 20kHz.
+    // there must be at least 60dB relative attenuation between stopband and passband.
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testStopbandDownconversion<float, float>(
+                8, 48000, 32000, 12000, 20000, kQualityArray[i]);
+    }
+
+    // in this test we assume a maximum transition band between 7kHz and 15kHz.
+    // there must be at least 60dB relative attenuation between stopband and passband.
+    // (the weird ratio triggers interpolative resampling)
+    for (size_t i = 0; i < ARRAY_SIZE(kQualityArray); ++i) {
+        testStopbandDownconversion<float, float>(
+                8, 48000, 22101, 7000, 15000, kQualityArray[i]);
+    }
+}
+
