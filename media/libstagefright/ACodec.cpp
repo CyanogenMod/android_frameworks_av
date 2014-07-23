@@ -2765,6 +2765,50 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 
                     break;
                 }
+
+                case OMX_VIDEO_CodingVP8:
+                case OMX_VIDEO_CodingVP9:
+                {
+                    OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE vp8type;
+                    InitOMXParams(&vp8type);
+                    vp8type.nPortIndex = kPortIndexOutput;
+                    status_t err = mOMX->getParameter(
+                            mNode,
+                            (OMX_INDEXTYPE)OMX_IndexParamVideoAndroidVp8Encoder,
+                            &vp8type,
+                            sizeof(vp8type));
+
+                    if (err == OK) {
+                        AString tsSchema = "none";
+                        if (vp8type.eTemporalPattern
+                                == OMX_VIDEO_VPXTemporalLayerPatternWebRTC) {
+                            switch (vp8type.nTemporalLayerCount) {
+                                case 1:
+                                {
+                                    tsSchema = "webrtc.vp8.1-layer";
+                                    break;
+                                }
+                                case 2:
+                                {
+                                    tsSchema = "webrtc.vp8.2-layer";
+                                    break;
+                                }
+                                case 3:
+                                {
+                                    tsSchema = "webrtc.vp8.3-layer";
+                                    break;
+                                }
+                                default:
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        notify->setString("ts-schema", tsSchema);
+                    }
+                    // Fall through to set up mime.
+                }
+
                 default:
                 {
                     CHECK(mIsEncoder ^ (portIndex == kPortIndexInput));
