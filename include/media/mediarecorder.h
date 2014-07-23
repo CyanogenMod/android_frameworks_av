@@ -61,6 +61,9 @@ enum output_format {
     OUTPUT_FORMAT_AAC_ADIF = 5,
     OUTPUT_FORMAT_AAC_ADTS = 6,
 
+    OUTPUT_FORMAT_AUDIO_ONLY_END = 7, // Used in validating the output format.  Should be the
+                                      //  at the end of the audio only output formats.
+
     /* Stream over a socket, limited to a single stream */
     OUTPUT_FORMAT_RTP_AVP = 7,
 

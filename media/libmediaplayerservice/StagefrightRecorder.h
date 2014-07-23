@@ -128,8 +128,8 @@ private:
     sp<ALooper> mLooper;
 
     status_t prepareInternal();
-    status_t setupMPEG4Recording();
-    void setupMPEG4MetaData(sp<MetaData> *meta);
+    status_t setupMPEG4orWEBMRecording();
+    void setupMPEG4orWEBMMetaData(sp<MetaData> *meta);
     status_t setupAMRRecording();
     status_t setupAACRecording();
     status_t setupRawAudioRecording();
