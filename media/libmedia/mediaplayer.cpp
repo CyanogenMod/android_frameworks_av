@@ -283,16 +283,21 @@ status_t MediaPlayer::prepareAsync()
 status_t MediaPlayer::start()
 {
     ALOGV("start");
+
+    status_t ret = NO_ERROR;
     Mutex::Autolock _l(mLock);
-    if (mCurrentState & MEDIA_PLAYER_STARTED)
-        return NO_ERROR;
-    if ( (mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_PREPARED |
+
+    mLockThreadId = getThreadId();
+
+    if (mCurrentState & MEDIA_PLAYER_STARTED) {
+        ret = NO_ERROR;
+    } else if ( (mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_PREPARED |
                     MEDIA_PLAYER_PLAYBACK_COMPLETE | MEDIA_PLAYER_PAUSED ) ) ) {
         mPlayer->setLooping(mLoop);
         mPlayer->setVolume(mLeftVolume, mRightVolume);
         mPlayer->setAuxEffectSendLevel(mSendLevel);
         mCurrentState = MEDIA_PLAYER_STARTED;
-        status_t ret = mPlayer->start();
+        ret = mPlayer->start();
         if (ret != NO_ERROR) {
             mCurrentState = MEDIA_PLAYER_STATE_ERROR;
         } else {
@@ -300,10 +305,14 @@ status_t MediaPlayer::start()
                 ALOGV("playback completed immediately following start()");
             }
         }
-        return ret;
+    } else {
+        ALOGE("start called in state %d", mCurrentState);
+        ret = INVALID_OPERATION;
     }
-    ALOGE("start called in state %d", mCurrentState);
-    return INVALID_OPERATION;
+
+    mLockThreadId = 0;
+
+    return ret;
 }
 
 status_t MediaPlayer::stop()
@@ -706,8 +715,8 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     // running in the same process as the media server. In that case,
     // this will deadlock.
     //
-    // The threadId hack below works around this for the care of prepare
-    // and seekTo within the same process.
+    // The threadId hack below works around this for the care of prepare,
+    // seekTo and start within the same process.
     // FIXME: Remember, this is a hack, it's not even a hack that is applied
     // consistently for all use-cases, this needs to be revisited.
     if (mLockThreadId != getThreadId()) {
