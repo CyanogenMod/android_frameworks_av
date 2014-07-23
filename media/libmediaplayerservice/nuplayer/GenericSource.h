@@ -23,12 +23,15 @@
 
 #include "ATSParser.h"
 
+#include <media/mediaplayer.h>
+
 namespace android {
 
 struct AnotherPacketSource;
 struct ARTSPController;
 struct DataSource;
 struct MediaSource;
+class MediaBuffer;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(
@@ -55,6 +58,7 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual status_t getDuration(int64_t *durationUs);
     virtual size_t getTrackCount() const;
     virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
+    virtual status_t selectTrack(size_t trackIndex, bool select);
     virtual status_t seekTo(int64_t seekTimeUs);
 
     virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
@@ -62,9 +66,17 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 protected:
     virtual ~GenericSource();
 
+    virtual void onMessageReceived(const sp<AMessage> &msg);
+
     virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
+    enum {
+        kWhatFetchSubtitleData,
+        kWhatSendSubtitleData,
+        kWhatChangeAVSource,
+    };
+
     Vector<sp<MediaSource> > mSources;
 
     struct Track {
@@ -75,7 +87,9 @@ private:
 
     Track mAudioTrack;
     Track mVideoTrack;
+    Track mSubtitleTrack;
 
+    int32_t mFetchSubtitleDataGeneration;
     int64_t mDurationUs;
     bool mAudioIsVorbis;
     bool mIsWidevine;
@@ -84,9 +98,14 @@ private:
 
     void initFromDataSource(const sp<DataSource> &dataSource);
 
+    sp<ABuffer> mediaBufferToABuffer(
+            MediaBuffer *mbuf,
+            media_track_type trackType,
+            int64_t *actualTimeUs = NULL);
+
     void readBuffer(
-            bool audio,
-            int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL);
+            media_track_type trackType,
+            int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL, bool formatChange = false);
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };
