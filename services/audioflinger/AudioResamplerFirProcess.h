@@ -109,40 +109,25 @@ public:
     }
 };
 
-/*
- * Helper template functions for interpolating filter coefficients.
- */
-
-template<typename TC, typename T>
-void adjustLerp(T& lerpP __unused)
-{
-}
-
-template<int32_t, typename T>
-void adjustLerp(T& lerpP)
-{
-    lerpP >>= 16;   // lerpP is 32bit for NEON int32_t, but always 16 bit for non-NEON path
-}
-
 template<typename TC, typename TINTERP>
-static inline
+inline
 TC interpolate(TC coef_0, TC coef_1, TINTERP lerp)
 {
     return lerp * (coef_1 - coef_0) + coef_0;
 }
 
-template<int16_t, uint32_t>
-static inline
-int16_t interpolate(int16_t coef_0, int16_t coef_1, uint32_t lerp)
-{
-    return (static_cast<int16_t>(lerp) * ((coef_1-coef_0)<<1)>>16) + coef_0;
+template<>
+inline
+int16_t interpolate<int16_t, uint32_t>(int16_t coef_0, int16_t coef_1, uint32_t lerp)
+{   // in some CPU architectures 16b x 16b multiplies are faster.
+    return (static_cast<int16_t>(lerp) * static_cast<int16_t>(coef_1 - coef_0) >> 15) + coef_0;
 }
 
-template<int32_t, uint32_t>
-static inline
-int32_t interpolate(int32_t coef_0, int32_t coef_1, uint32_t lerp)
+template<>
+inline
+int32_t interpolate<int32_t, uint32_t>(int32_t coef_0, int32_t coef_1, uint32_t lerp)
 {
-    return mulAdd(static_cast<int16_t>(lerp), (coef_1-coef_0)<<1, coef_0);
+    return (lerp * static_cast<int64_t>(coef_1 - coef_0) >> 31) + coef_0;
 }
 
 /* class scope for passing in functions into templates */
@@ -283,7 +268,6 @@ void Process(TO* const out,
         TINTERP lerpP,
         const TO* const volumeLR)
 {
-    adjustLerp<TC, TINTERP>(lerpP); // coefficient type adjustment for interpolations
     ProcessBase<CHANNELS, STRIDE, InterpCompute>(out, count, coefsP, coefsN, sP, sN, lerpP, volumeLR);
 }
 
