@@ -136,6 +136,7 @@ private:
     int32_t mScanSourcesGeneration;
 
     int32_t mPollDurationGeneration;
+    int32_t mTimedTextGeneration;
 
     enum FlushStatus {
         NONE,
@@ -198,6 +199,7 @@ private:
             bool audio, bool video, const sp<AMessage> &reply);
 
     void sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex);
+    void sendTimedTextData(const sp<ABuffer> &buffer);
 
     void writeTrackInfo(Parcel* reply, const sp<AMessage> format) const;
 
