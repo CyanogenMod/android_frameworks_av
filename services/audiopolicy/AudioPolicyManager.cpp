@@ -4264,14 +4264,6 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
         device = outputDesc->device();
     }
 
-    // if volume is not 0 (not muted), force media volume to max on digital output
-    if (stream == AUDIO_STREAM_MUSIC &&
-        index != mStreams[stream].mIndexMin &&
-        (device == AUDIO_DEVICE_OUT_AUX_DIGITAL ||
-         device == AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET)) {
-        return 1.0;
-    }
-
     volume = volIndexToAmpl(device, streamDesc, index);
 
     // if a headset is connected, apply the following rules to ring tones and notifications
