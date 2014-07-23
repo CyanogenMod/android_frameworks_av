@@ -16,13 +16,13 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaCodec"
-#include <utils/Log.h>
 #include <inttypes.h>
 
-#include <media/stagefright/MediaCodec.h>
-
+#include "include/avc_utils.h"
 #include "include/SoftwareRenderer.h"
 
+#include <binder/IBatteryStats.h>
+#include <binder/IServiceManager.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -32,16 +32,85 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/BufferProducerWrapper.h>
+#include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/NativeWindowWrapper.h>
-
-#include "include/avc_utils.h"
+#include <private/android_filesystem_config.h>
+#include <utils/Log.h>
+#include <utils/Singleton.h>
 
 namespace android {
 
+struct MediaCodec::BatteryNotifier : public Singleton<BatteryNotifier> {
+    BatteryNotifier();
+
+    void noteStartVideo();
+    void noteStopVideo();
+    void noteStartAudio();
+    void noteStopAudio();
+
+private:
+    int32_t mVideoRefCount;
+    int32_t mAudioRefCount;
+    sp<IBatteryStats> mBatteryStatService;
+};
+
+ANDROID_SINGLETON_STATIC_INSTANCE(MediaCodec::BatteryNotifier)
+
+MediaCodec::BatteryNotifier::BatteryNotifier() :
+    mVideoRefCount(0),
+    mAudioRefCount(0) {
+    // get battery service
+    const sp<IServiceManager> sm(defaultServiceManager());
+    if (sm != NULL) {
+        const String16 name("batterystats");
+        mBatteryStatService = interface_cast<IBatteryStats>(sm->getService(name));
+        if (mBatteryStatService == NULL) {
+            ALOGE("batterystats service unavailable!");
+        }
+    }
+}
+
+void MediaCodec::BatteryNotifier::noteStartVideo() {
+    if (mVideoRefCount == 0 && mBatteryStatService != NULL) {
+        mBatteryStatService->noteStartVideo(AID_MEDIA);
+    }
+    mVideoRefCount++;
+}
+
+void MediaCodec::BatteryNotifier::noteStopVideo() {
+    if (mVideoRefCount == 0) {
+        ALOGW("BatteryNotifier::noteStop(): video refcount is broken!");
+        return;
+    }
+
+    mVideoRefCount--;
+    if (mVideoRefCount == 0 && mBatteryStatService != NULL) {
+        mBatteryStatService->noteStopVideo(AID_MEDIA);
+    }
+}
+
+void MediaCodec::BatteryNotifier::noteStartAudio() {
+    if (mAudioRefCount == 0 && mBatteryStatService != NULL) {
+        mBatteryStatService->noteStartAudio(AID_MEDIA);
+    }
+    mAudioRefCount++;
+}
+
+void MediaCodec::BatteryNotifier::noteStopAudio() {
+    if (mAudioRefCount == 0) {
+        ALOGW("BatteryNotifier::noteStop(): audio refcount is broken!");
+        return;
+    }
+
+    mAudioRefCount--;
+    if (mAudioRefCount == 0 && mBatteryStatService != NULL) {
+        mBatteryStatService->noteStopAudio(AID_MEDIA);
+    }
+}
 // static
 sp<MediaCodec> MediaCodec::CreateByType(
         const sp<ALooper> &looper, const char *mime, bool encoder) {
@@ -71,6 +140,8 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
       mReplyID(0),
       mFlags(0),
       mSoftRenderer(NULL),
+      mBatteryStatNotified(false),
+      mIsVideo(false),
       mDequeueInputTimeoutGeneration(0),
       mDequeueInputReplyID(0),
       mDequeueOutputTimeoutGeneration(0),
@@ -756,7 +827,6 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 case CodecBase::kWhatComponentConfigured:
                 {
                     CHECK_EQ(mState, CONFIGURING);
-                    setState(CONFIGURED);
 
                     // reset input surface flag
                     mHaveInputSurface = false;
@@ -764,6 +834,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findMessage("input-format", &mInputFormat));
                     CHECK(msg->findMessage("output-format", &mOutputFormat));
 
+                    setState(CONFIGURED);
                     (new AMessage)->postReply(mReplyID);
                     break;
                 }
@@ -1620,6 +1691,8 @@ void MediaCodec::setState(State newState) {
     mState = newState;
 
     cancelPendingDequeueOperations();
+
+    updateBatteryStat();
 }
 
 void MediaCodec::returnBuffersToCodec() {
@@ -2052,6 +2125,36 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
     }
 
     return OK;
+}
+
+void MediaCodec::updateBatteryStat() {
+    if (mState == CONFIGURED && !mBatteryStatNotified) {
+        AString mime;
+        CHECK(mOutputFormat != NULL &&
+                mOutputFormat->findString("mime", &mime));
+
+        mIsVideo = mime.startsWithIgnoreCase("video/");
+
+        BatteryNotifier& notifier(BatteryNotifier::getInstance());
+
+        if (mIsVideo) {
+            notifier.noteStartVideo();
+        } else {
+            notifier.noteStartAudio();
+        }
+
+        mBatteryStatNotified = true;
+    } else if (mState == UNINITIALIZED && mBatteryStatNotified) {
+        BatteryNotifier& notifier(BatteryNotifier::getInstance());
+
+        if (mIsVideo) {
+            notifier.noteStopVideo();
+        } else {
+            notifier.noteStopAudio();
+        }
+
+        mBatteryStatNotified = false;
+    }
 }
 
 }  // namespace android

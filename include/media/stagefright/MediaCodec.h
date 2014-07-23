@@ -30,6 +30,7 @@ struct AMessage;
 struct AString;
 struct CodecBase;
 struct ICrypto;
+struct IBatteryStats;
 struct SoftwareRenderer;
 struct Surface;
 
@@ -50,6 +51,8 @@ struct MediaCodec : public AHandler {
         CB_ERROR = 3,
         CB_OUTPUT_FORMAT_CHANGED = 4,
     };
+
+    struct BatteryNotifier;
 
     static sp<MediaCodec> CreateByType(
             const sp<ALooper> &looper, const char *mime, bool encoder);
@@ -225,6 +228,9 @@ private:
     sp<AMessage> mInputFormat;
     sp<AMessage> mCallback;
 
+    bool mBatteryStatNotified;
+    bool mIsVideo;
+
     // initial create parameters
     AString mInitName;
     bool mInitNameIsType;
@@ -294,6 +300,7 @@ private:
     status_t onSetParameters(const sp<AMessage> &params);
 
     status_t amendOutputFormatWithCodecSpecificData(const sp<ABuffer> &buffer);
+    void updateBatteryStat();
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
