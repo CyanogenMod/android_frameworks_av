@@ -41,14 +41,14 @@ public:
     ~WebmWriter() { reset(); }
 
 
-    status_t addSource(const sp<MediaSource> &source);
-    status_t start(MetaData *param = NULL);
-    status_t stop();
-    status_t pause();
-    bool reachedEOS();
+    virtual status_t addSource(const sp<MediaSource> &source);
+    virtual status_t start(MetaData *param = NULL);
+    virtual status_t stop();
+    virtual status_t pause();
+    virtual bool reachedEOS();
 
-    void setStartTimeOffsetMs(int ms) { mStartTimeOffsetMs = ms; }
-    int32_t getStartTimeOffsetMs() const { return mStartTimeOffsetMs; }
+    virtual void setStartTimeOffsetMs(int ms) { mStartTimeOffsetMs = ms; }
+    virtual int32_t getStartTimeOffsetMs() const { return mStartTimeOffsetMs; }
 
 private:
     int mFd;
