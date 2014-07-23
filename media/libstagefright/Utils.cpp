@@ -39,6 +39,7 @@
 #endif
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
+#include <QCMetaData.h>
 #endif
 
 namespace android {
@@ -547,6 +548,7 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_AAC,         AUDIO_FORMAT_AAC },
     { MEDIA_MIMETYPE_AUDIO_VORBIS,      AUDIO_FORMAT_VORBIS },
 #ifdef ENABLE_AV_ENHANCEMENTS
+    { MEDIA_MIMETYPE_AUDIO_FLAC,        AUDIO_FORMAT_FLAC },
     { MEDIA_MIMETYPE_AUDIO_AC3,         AUDIO_FORMAT_AC3 },
     { MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, AUDIO_FORMAT_AMR_WB_PLUS },
     { MEDIA_MIMETYPE_AUDIO_DTS,         AUDIO_FORMAT_DTS },
@@ -599,7 +601,10 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     } else {
 #ifdef QCOM_HARDWARE
         // Override audio format for PCM offload
-        if (info.format == AUDIO_FORMAT_PCM_16_BIT) {
+        if (info.format == AUDIO_FORMAT_PCM_24_BIT || info.bit_width == 24) {
+            ALOGD("24-bit PCM offload enabled");
+            info.format = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+        } else if (info.format == AUDIO_FORMAT_PCM_16_BIT) {
             info.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
         }
 #endif
@@ -655,6 +660,13 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
      }
     info.bit_rate = brate;
 
+    int32_t bitWidth = 16;
+#ifdef ENABLE_AV_ENHANCEMENTS
+    if (!meta->findInt32(kKeySampleBits, &bitWidth)) {
+        ALOGV("bits per sample not set, using default %d", bitWidth);
+    }
+#endif
+    info.bit_width = bitWidth;
 
     info.stream_type = streamType;
     info.has_video = hasVideo;
