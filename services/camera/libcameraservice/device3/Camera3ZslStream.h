@@ -96,6 +96,12 @@ class Camera3ZslStream :
             bool output,
             /*out*/
             sp<Fence> *releaseFenceOut);
+
+    // Disconnet the Camera3ZslStream specific bufferQueues.
+    virtual status_t disconnectLocked();
+
+    status_t clearInputRingBufferLocked();
+
 }; // class Camera3ZslStream
 
 }; // namespace camera3
