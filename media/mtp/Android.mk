@@ -39,9 +39,6 @@ LOCAL_MODULE:= libmtp
 
 LOCAL_CFLAGS := -DMTP_DEVICE -DMTP_HOST
 
-# Needed for <bionic_time.h>
-LOCAL_C_INCLUDES := bionic/libc/private
-
 LOCAL_SHARED_LIBRARIES := libutils libcutils liblog libusbhost libbinder
 
 include $(BUILD_SHARED_LIBRARY)
