@@ -19,7 +19,8 @@
 #include <stdio.h>
 #include <time.h>
 
-#include <cutils/tztime.h>
+#include <../private/bionic_time.h> /* TODO: switch this code to icu4c! */
+
 #include "MtpUtils.h"
 
 namespace android {
