@@ -155,8 +155,14 @@ void NuPlayer::Decoder::releaseAndResetMediaBuffers() {
         }
     }
     mMediaBuffers.resize(mInputBuffers.size());
+    for (size_t i = 0; i < mMediaBuffers.size(); i++) {
+        mMediaBuffers.editItemAt(i) = NULL;
+    }
     mInputBufferIsDequeued.clear();
     mInputBufferIsDequeued.resize(mInputBuffers.size());
+    for (size_t i = 0; i < mInputBufferIsDequeued.size(); i++) {
+        mInputBufferIsDequeued.editItemAt(i) = false;
+    }
 }
 
 void NuPlayer::Decoder::requestCodecNotification() {
