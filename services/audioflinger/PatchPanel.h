@@ -21,6 +21,9 @@
 
 class PatchPanel : public RefBase {
 public:
+
+    class Patch;
+
     PatchPanel(const sp<AudioFlinger>& audioFlinger);
     virtual ~PatchPanel();
 
@@ -45,16 +48,31 @@ public:
     /* Set audio port configuration */
     status_t setAudioPortConfig(const struct audio_port_config *config);
 
+    status_t createPatchConnections(Patch *patch,
+                                    const struct audio_patch *audioPatch);
+    void clearPatchConnections(Patch *patch);
+
     class Patch {
     public:
         Patch(const struct audio_patch *patch) :
-            mAudioPatch(*patch), mHandle(0), mHalHandle(0) {}
+            mAudioPatch(*patch), mHandle(AUDIO_PATCH_HANDLE_NONE),
+            mHalHandle(AUDIO_PATCH_HANDLE_NONE), mRecordPatchHandle(AUDIO_PATCH_HANDLE_NONE),
+            mPlaybackPatchHandle(AUDIO_PATCH_HANDLE_NONE) {}
+        ~Patch() {}
 
-        struct audio_patch mAudioPatch;
-        audio_patch_handle_t mHandle;
-        audio_patch_handle_t mHalHandle;
+        struct audio_patch              mAudioPatch;
+        audio_patch_handle_t            mHandle;
+        audio_patch_handle_t            mHalHandle;
+        sp<PlaybackThread>              mPlaybackThread;
+        sp<PlaybackThread::PatchTrack>  mPatchTrack;
+        sp<RecordThread>                mRecordThread;
+        sp<RecordThread::PatchRecord>   mPatchRecord;
+        audio_patch_handle_t            mRecordPatchHandle;
+        audio_patch_handle_t            mPlaybackPatchHandle;
+
     };
+
 private:
-    const wp<AudioFlinger>  mAudioFlinger;
-    SortedVector <Patch *> mPatches;
+    const wp<AudioFlinger>      mAudioFlinger;
+    SortedVector <Patch *>      mPatches;
 };

@@ -175,12 +175,11 @@ protected:
 
 // Proxy seen by AudioTrack client and AudioRecord client
 class ClientProxy : public Proxy {
-protected:
+public:
     ClientProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t frameSize,
             bool isOut, bool clientInServer);
     virtual ~ClientProxy() { }
 
-public:
     static const struct timespec kForever;
     static const struct timespec kNonBlocking;
 
@@ -394,8 +393,10 @@ protected:
 class AudioTrackServerProxy : public ServerProxy {
 public:
     AudioTrackServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
-            size_t frameSize, bool clientInServer = false)
-        : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer) { }
+            size_t frameSize, bool clientInServer = false, uint32_t sampleRate = 0)
+        : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer) {
+        mCblk->mSampleRate = sampleRate;
+    }
 protected:
     virtual ~AudioTrackServerProxy() { }
 
@@ -458,9 +459,8 @@ private:
 class AudioRecordServerProxy : public ServerProxy {
 public:
     AudioRecordServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
-            size_t frameSize)
-        : ServerProxy(cblk, buffers, frameCount, frameSize, false /*isOut*/,
-            false /*clientInServer*/) { }
+            size_t frameSize, bool clientInServer)
+        : ServerProxy(cblk, buffers, frameCount, frameSize, false /*isOut*/, clientInServer) { }
 protected:
     virtual ~AudioRecordServerProxy() { }
 };
