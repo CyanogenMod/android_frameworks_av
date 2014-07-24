@@ -30,6 +30,7 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 #include "Camera2Device.h"
+#include "CameraService.h"
 
 namespace android {
 
@@ -67,8 +68,8 @@ status_t Camera2Device::initialize(camera_module_t *module)
 
     camera2_device_t *device;
 
-    res = module->common.methods->open(&module->common, name,
-            reinterpret_cast<hw_device_t**>(&device));
+    res = CameraService::filterOpenErrorCode(module->common.methods->open(
+        &module->common, name, reinterpret_cast<hw_device_t**>(&device)));
 
     if (res != OK) {
         ALOGE("%s: Could not open camera %d: %s (%d)", __FUNCTION__,

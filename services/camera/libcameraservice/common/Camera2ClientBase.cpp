@@ -112,8 +112,6 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
 
     TClientBase::mDestructionStarted = true;
 
-    TClientBase::finishCameraOps();
-
     disconnect();
 
     ALOGI("Closed Camera %d", TClientBase::mCameraId);
