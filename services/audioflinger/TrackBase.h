@@ -44,6 +44,15 @@ public:
         ALLOC_CBLK,     // allocate immediately after control block
         ALLOC_READONLY, // allocate from a separate read-only heap per thread
         ALLOC_PIPE,     // do not allocate; use the pipe buffer
+        ALLOC_LOCAL,    // allocate a local buffer
+        ALLOC_NONE,     // do not allocate:use the buffer passed to TrackBase constructor
+    };
+
+    enum track_type {
+        TYPE_DEFAULT,
+        TYPE_TIMED,
+        TYPE_OUTPUT,
+        TYPE_PATCH,
     };
 
                         TrackBase(ThreadBase *thread,
@@ -52,14 +61,15 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
-                                const sp<IMemory>& sharedBuffer,
+                                void *buffer,
                                 int sessionId,
                                 int uid,
                                 IAudioFlinger::track_flags_t flags,
                                 bool isOut,
-                                alloc_type alloc = ALLOC_CBLK);
+                                alloc_type alloc = ALLOC_CBLK,
+                                track_type type = TYPE_DEFAULT);
     virtual             ~TrackBase();
-    virtual status_t    initCheck() const { return getCblk() != 0 ? NO_ERROR : NO_MEMORY; }
+    virtual status_t    initCheck() const;
 
     virtual status_t    start(AudioSystem::sync_event_t event,
                              int triggerSession) = 0;
@@ -71,7 +81,12 @@ public:
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
             sp<IMemory> getBuffers() const { return mBufferMemory; }
+            void*       buffer() const { return mBuffer; }
             bool        isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
+            bool        isTimedTrack() const { return (mType == TYPE_TIMED); }
+            bool        isOutputTrack() const { return (mType == TYPE_OUTPUT); }
+            bool        isPatchTrack() const { return (mType == TYPE_PATCH); }
+            bool        isExternalTrack() const { return !isOutputTrack() && !isPatchTrack(); }
 
 protected:
                         TrackBase(const TrackBase&);
@@ -150,4 +165,18 @@ protected:
     sp<NBAIO_Sink>      mTeeSink;
     sp<NBAIO_Source>    mTeeSource;
     bool                mTerminated;
+    track_type          mType;      // must be one of TYPE_DEFAULT, TYPE_OUTPUT, TYPE_PATCH ...
+};
+
+// PatchProxyBufferProvider interface is implemented by PatchTrack and PatchRecord.
+// it provides buffer access methods that map those of a ClientProxy (see AudioTrackShared.h)
+class PatchProxyBufferProvider
+{
+public:
+
+    virtual ~PatchProxyBufferProvider() {}
+
+    virtual status_t    obtainBuffer(Proxy::Buffer* buffer,
+                                     const struct timespec *requested = NULL) = 0;
+    virtual void        releaseBuffer(Proxy::Buffer* buffer) = 0;
 };

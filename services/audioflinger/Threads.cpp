@@ -1146,6 +1146,18 @@ void AudioFlinger::ThreadBase::disconnectEffect(const sp<EffectModule>& effect,
     }
 }
 
+void AudioFlinger::ThreadBase::getAudioPortConfig(struct audio_port_config *config)
+{
+    config->type = AUDIO_PORT_TYPE_MIX;
+    config->ext.mix.handle = mId;
+    config->sample_rate = mSampleRate;
+    config->format = mFormat;
+    config->channel_mask = mChannelMask;
+    config->config_mask = AUDIO_PORT_CONFIG_SAMPLE_RATE|AUDIO_PORT_CONFIG_CHANNEL_MASK|
+                            AUDIO_PORT_CONFIG_FORMAT;
+}
+
+
 // ----------------------------------------------------------------------------
 //      Playback
 // ----------------------------------------------------------------------------
@@ -1482,7 +1494,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         uint32_t strategy = AudioSystem::getStrategyForStream(streamType);
         for (size_t i = 0; i < mTracks.size(); ++i) {
             sp<Track> t = mTracks[i];
-            if (t != 0 && !t->isOutputTrack()) {
+            if (t != 0 && t->isExternalTrack()) {
                 uint32_t actual = AudioSystem::getStrategyForStream(t->streamType());
                 if (sessionId == t->sessionId() && strategy != actual) {
                     ALOGE("createTrack_l() mismatched strategy; expected %u but found %u",
@@ -1495,7 +1507,8 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
 
         if (!isTimed) {
             track = new Track(this, client, streamType, sampleRate, format,
-                    channelMask, frameCount, sharedBuffer, sessionId, uid, *flags);
+                              channelMask, frameCount, NULL, sharedBuffer,
+                              sessionId, uid, *flags, TrackBase::TYPE_DEFAULT);
         } else {
             track = TimedTrack::create(this, client, streamType, sampleRate, format,
                     channelMask, frameCount, sharedBuffer, sessionId, uid);
@@ -1608,7 +1621,7 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         // the track is newly added, make sure it fills up all its
         // buffers before playing. This is to ensure the client will
         // effectively get the latency it requested.
-        if (!track->isOutputTrack()) {
+        if (track->isExternalTrack()) {
             TrackBase::track_state state = track->mState;
             mLock.unlock();
             status = AudioSystem::startOutput(mId, track->streamType(), track->sessionId());
@@ -2044,7 +2057,7 @@ void AudioFlinger::PlaybackThread::threadLoop_removeTracks(
     if (count > 0) {
         for (size_t i = 0 ; i < count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
-            if (!track->isOutputTrack()) {
+            if (track->isExternalTrack()) {
                 AudioSystem::stopOutput(mId, track->streamType(), track->sessionId());
 #ifdef ADD_BATTERY_DATA
                 // to track the speaker usage
@@ -2711,6 +2724,26 @@ status_t AudioFlinger::PlaybackThread::releaseAudioPatch_l(const audio_patch_han
         ALOG_ASSERT(false, "releaseAudioPatch_l() called on a pre 3.0 HAL");
     }
     return status;
+}
+
+void AudioFlinger::PlaybackThread::addPatchTrack(const sp<PatchTrack>& track)
+{
+    Mutex::Autolock _l(mLock);
+    mTracks.add(track);
+}
+
+void AudioFlinger::PlaybackThread::deletePatchTrack(const sp<PatchTrack>& track)
+{
+    Mutex::Autolock _l(mLock);
+    destroyTrack_l(track);
+}
+
+void AudioFlinger::PlaybackThread::getAudioPortConfig(struct audio_port_config *config)
+{
+    ThreadBase::getAudioPortConfig(config);
+    config->role = AUDIO_PORT_ROLE_SOURCE;
+    config->ext.mix.hw_module = mOutput->audioHwDev->handle();
+    config->ext.mix.usecase.stream = AUDIO_STREAM_DEFAULT;
 }
 
 // ----------------------------------------------------------------------------
@@ -5523,8 +5556,8 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         Mutex::Autolock _l(mLock);
 
         track = new RecordTrack(this, client, sampleRate,
-                      format, channelMask, frameCount, sessionId, uid,
-                      *flags);
+                      format, channelMask, frameCount, NULL, sessionId, uid,
+                      *flags, TrackBase::TYPE_DEFAULT);
 
         lStatus = track->initCheck();
         if (lStatus != NO_ERROR) {
@@ -5601,15 +5634,19 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         recordTrack->mState = TrackBase::STARTING_1;
         mActiveTracks.add(recordTrack);
         mActiveTracksGen++;
-        mLock.unlock();
-        status_t status = AudioSystem::startInput(mId);
-        mLock.lock();
-        // FIXME should verify that recordTrack is still in mActiveTracks
-        if (status != NO_ERROR) {
-            mActiveTracks.remove(recordTrack);
-            mActiveTracksGen++;
-            recordTrack->clearSyncStartEvent();
-            return status;
+        status_t status = NO_ERROR;
+        if (recordTrack->isExternalTrack()) {
+            mLock.unlock();
+            status = AudioSystem::startInput(mId);
+            mLock.lock();
+            // FIXME should verify that recordTrack is still in mActiveTracks
+            if (status != NO_ERROR) {
+                mActiveTracks.remove(recordTrack);
+                mActiveTracksGen++;
+                recordTrack->clearSyncStartEvent();
+                ALOGV("RecordThread::start error %d", status);
+                return status;
+            }
         }
         // Catch up with current buffer indices if thread is already running.
         // This is what makes a new client discard all buffered data.  If the track's mRsmpInFront
@@ -5634,7 +5671,9 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
     }
 
 startError:
-    AudioSystem::stopInput(mId);
+    if (recordTrack->isExternalTrack()) {
+        AudioSystem::stopInput(mId);
+    }
     recordTrack->clearSyncStartEvent();
     // FIXME I wonder why we do not reset the state here?
     return status;
@@ -6177,5 +6216,24 @@ status_t AudioFlinger::RecordThread::releaseAudioPatch_l(const audio_patch_handl
     return status;
 }
 
+void AudioFlinger::RecordThread::addPatchRecord(const sp<PatchRecord>& record)
+{
+    Mutex::Autolock _l(mLock);
+    mTracks.add(record);
+}
+
+void AudioFlinger::RecordThread::deletePatchRecord(const sp<PatchRecord>& record)
+{
+    Mutex::Autolock _l(mLock);
+    destroyTrack_l(record);
+}
+
+void AudioFlinger::RecordThread::getAudioPortConfig(struct audio_port_config *config)
+{
+    ThreadBase::getAudioPortConfig(config);
+    config->role = AUDIO_PORT_ROLE_SINK;
+    config->ext.mix.hw_module = mInput->audioHwDev->handle();
+    config->ext.mix.usecase.source = mAudioSource;
+}
 
 }; // namespace android

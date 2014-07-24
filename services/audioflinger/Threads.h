@@ -235,6 +235,7 @@ public:
                 uint32_t    sampleRate() const { return mSampleRate; }
                 audio_channel_mask_t channelMask() const { return mChannelMask; }
                 audio_format_t format() const { return mHALFormat; }
+                uint32_t channelCount() const { return mChannelCount; }
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
                 // and returns the [normal mix] buffer's frame count.
     virtual     size_t      frameCount() const = 0;
@@ -264,6 +265,7 @@ public:
     virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
                                                audio_patch_handle_t *handle) = 0;
     virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle) = 0;
+    virtual     void        getAudioPortConfig(struct audio_port_config *config) = 0;
 
 
                 // see note at declaration of mStandby, mOutDevice and mInDevice
@@ -589,7 +591,12 @@ public:
                 // Return's the HAL's frame count i.e. fast mixer buffer size.
                 size_t      frameCountHAL() const { return mFrameCount; }
 
-                status_t         getTimestamp_l(AudioTimestamp& timestamp);
+                status_t    getTimestamp_l(AudioTimestamp& timestamp);
+
+                void        addPatchTrack(const sp<PatchTrack>& track);
+                void        deletePatchTrack(const sp<PatchTrack>& track);
+
+    virtual     void        getAudioPortConfig(struct audio_port_config *config);
 
 protected:
     // updated by readOutputParameters_l()
@@ -876,6 +883,7 @@ public:
                               ALOG_ASSERT(fastIndex < FastMixerState::kMaxFastTracks);
                               return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
                             }
+
 };
 
 class DirectOutputThread : public PlaybackThread {
@@ -1103,6 +1111,10 @@ public:
     virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
                                            audio_patch_handle_t *handle);
     virtual status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
+
+            void        addPatchRecord(const sp<PatchRecord>& record);
+            void        deletePatchRecord(const sp<PatchRecord>& record);
+
             void        readInputParameters_l();
     virtual uint32_t    getInputFramesLost();
 
@@ -1122,6 +1134,7 @@ public:
 
     virtual size_t      frameCount() const { return mFrameCount; }
             bool        hasFastCapture() const { return mFastCapture != 0; }
+    virtual void        getAudioPortConfig(struct audio_port_config *config);
 
 private:
             // Enter standby if not already in standby, and set mStandby flag
