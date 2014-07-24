@@ -76,6 +76,8 @@ class Camera3OutputStream :
             /*out*/
             sp<Fence> *releaseFenceOut);
 
+    virtual status_t disconnectLocked();
+
     sp<ANativeWindow> mConsumer;
   private:
     int               mTransform;
@@ -91,7 +93,6 @@ class Camera3OutputStream :
             nsecs_t timestamp);
 
     virtual status_t configureQueueLocked();
-    virtual status_t disconnectLocked();
 
     virtual status_t getEndpointUsage(uint32_t *usage);
 

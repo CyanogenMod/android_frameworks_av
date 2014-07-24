@@ -318,9 +318,19 @@ status_t Camera3ZslStream::enqueueInputBufferByTimestamp(
 status_t Camera3ZslStream::clearInputRingBuffer() {
     Mutex::Autolock l(mLock);
 
+    return clearInputRingBufferLocked();
+}
+
+status_t Camera3ZslStream::clearInputRingBufferLocked() {
     mInputBufferQueue.clear();
 
     return mProducer->clear();
+}
+
+status_t Camera3ZslStream::disconnectLocked() {
+    clearInputRingBufferLocked();
+
+    return Camera3OutputStream::disconnectLocked();
 }
 
 status_t Camera3ZslStream::setTransform(int /*transform*/) {
