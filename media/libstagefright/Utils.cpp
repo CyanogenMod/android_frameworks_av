@@ -40,6 +40,7 @@
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
 #include <QCMetaData.h>
+#include "include/ExtendedUtils.h"
 #endif
 
 namespace android {
@@ -674,7 +675,13 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
 
     // Check if offload is possible for given format, stream type, sample rate,
     // bit rate, duration, video and streaming
-    return AudioSystem::isOffloadSupported(info);
+    bool canOffload = AudioSystem::isOffloadSupported(info);
+
+#ifdef ENABLE_AV_ENHANCEMENTS
+    ExtendedUtils::updateOutputBitWidth(meta, canOffload);
+#endif
+
+    return canOffload;
 }
 
 void printFileName(int fd)
