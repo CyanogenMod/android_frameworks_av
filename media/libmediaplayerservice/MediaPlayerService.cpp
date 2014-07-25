@@ -34,6 +34,7 @@
 
 #include <utils/misc.h>
 
+#include <binder/IBatteryStats.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryHeapBase.h>
@@ -274,6 +275,20 @@ MediaPlayerService::MediaPlayerService()
     }
     // speaker is on by default
     mBatteryAudio.deviceOn[SPEAKER] = 1;
+
+    // reset battery stats
+    // if the mediaserver has crashed, battery stats could be left
+    // in bad state, reset the state upon service start.
+    const sp<IServiceManager> sm(defaultServiceManager());
+    if (sm != NULL) {
+        const String16 name("batterystats");
+        sp<IBatteryStats> batteryStats =
+                interface_cast<IBatteryStats>(sm->getService(name));
+        if (batteryStats != NULL) {
+            batteryStats->noteResetVideo();
+            batteryStats->noteResetAudio();
+        }
+    }
 
     MediaPlayerFactory::registerBuiltinFactories();
 }
