@@ -1594,15 +1594,24 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
     audio_stream_out_t *outStream = NULL;
 
     // FOR TESTING ONLY:
-    // Enable increased sink precision for mixing mode if kEnableExtendedPrecision is true.
-    if (kEnableExtendedPrecision &&  // Check only for Normal Mixing mode
-            !(flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
-        // Update format
-        //config.format = AUDIO_FORMAT_PCM_FLOAT;
-        //config.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
-        //config.format = AUDIO_FORMAT_PCM_32_BIT;
-        //config.format = AUDIO_FORMAT_PCM_8_24_BIT;
-        // ALOGV("openOutput() upgrading format to %#08x", config.format);
+    // This if statement allows overriding the audio policy settings
+    // and forcing a specific format or channel mask to the HAL/Sink device for testing.
+    if (!(flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
+        // Check only for Normal Mixing mode
+        if (kEnableExtendedPrecision) {
+            // Specify format (uncomment one below to choose)
+            //config->format = AUDIO_FORMAT_PCM_FLOAT;
+            //config->format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+            //config->format = AUDIO_FORMAT_PCM_32_BIT;
+            //config->format = AUDIO_FORMAT_PCM_8_24_BIT;
+            // ALOGV("openOutput() upgrading format to %#08x", config.format);
+        }
+        if (kEnableExtendedChannels) {
+            // Specify channel mask (uncomment one below to choose)
+            //config->channel_mask = audio_channel_out_mask_from_count(4);  // for USB 4ch
+            //config->channel_mask = audio_channel_mask_from_representation_and_bits(
+            //        AUDIO_CHANNEL_REPRESENTATION_INDEX, (1 << 4) - 1);  // another 4ch example
+        }
     }
 
     status_t status = hwDevHal->open_output_stream(hwDevHal,
@@ -1613,8 +1622,8 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
                                           &outStream);
 
     mHardwareStatus = AUDIO_HW_IDLE;
-    ALOGV("openOutput_l() openOutputStream returned output %p, SamplingRate %d, Format %#08x, "
-            "Channels %x, status %d",
+    ALOGV("openOutput() openOutputStream returned output %p, sampleRate %d, Format %#x, "
+            "channelMask %#x, status %d",
             outStream,
             config->sample_rate,
             config->format,
@@ -1630,7 +1639,7 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
             ALOGV("openOutput() created offload output: ID %d thread %p", id, thread);
         } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT)
                 || !isValidPcmSinkFormat(config->format)
-                || (config->channel_mask != AUDIO_CHANNEL_OUT_STEREO)) {
+                || !isValidPcmSinkChannelMask(config->channel_mask)) {
             thread = new DirectOutputThread(this, output, id, device);
             ALOGV("openOutput() created direct output: ID %d thread %p", id, thread);
         } else {
@@ -1792,7 +1801,6 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
         closeOutputFinish(thread);
     }
 
-    thread.clear();
     return NO_ERROR;
 }
 
@@ -2512,6 +2520,16 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
     if (chain == 0) {
         ALOGW("moveEffectChain_l() effect chain for session %d not on source thread %p",
                 sessionId, srcThread);
+        return INVALID_OPERATION;
+    }
+
+    // Check whether the destination thread has a channel count of FCC_2, which is
+    // currently required for (most) effects. Prevent moving the effect chain here rather
+    // than disabling the addEffect_l() call in dstThread below.
+    if (dstThread->mChannelCount != FCC_2) {
+        ALOGW("moveEffectChain_l() effect chain failed because"
+                " destination thread %p channel count(%u) != %u",
+                dstThread, dstThread->mChannelCount, FCC_2);
         return INVALID_OPERATION;
     }
 

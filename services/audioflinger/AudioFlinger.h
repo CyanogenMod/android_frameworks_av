@@ -55,6 +55,7 @@
 #include "FastMixer.h"
 #include <media/nbaio/NBAIO.h>
 #include "AudioWatchdog.h"
+#include "AudioMixer.h"
 
 #include <powermanager/IPowerManager.h>
 
@@ -327,6 +328,30 @@ private:
                                                 audio_devices_t devices);
     void                    purgeStaleEffects_l();
 
+    // Set kEnableExtendedChannels to true to enable greater than stereo output
+    // for the MixerThread and device sink.  Number of channels allowed is
+    // FCC_2 <= channels <= AudioMixer::MAX_NUM_CHANNELS.
+    static const bool kEnableExtendedChannels = false;
+
+    // Returns true if channel mask is permitted for the PCM sink in the MixerThread
+    static inline bool isValidPcmSinkChannelMask(audio_channel_mask_t channelMask) {
+        switch (audio_channel_mask_get_representation(channelMask)) {
+        case AUDIO_CHANNEL_REPRESENTATION_POSITION: {
+            uint32_t channelCount = FCC_2; // stereo is default
+            if (kEnableExtendedChannels) {
+                channelCount = audio_channel_count_from_out_mask(channelMask);
+                if (channelCount > AudioMixer::MAX_NUM_CHANNELS) {
+                    return false;
+                }
+            }
+            // check that channelMask is the "canonical" one we expect for the channelCount.
+            return channelMask == audio_channel_out_mask_from_count(channelCount);
+            }
+        default:
+            return false;
+        }
+    }
+
     // Set kEnableExtendedPrecision to true to use extended precision in MixerThread
     static const bool kEnableExtendedPrecision = true;
 
@@ -565,7 +590,7 @@ private:
         uint32_t version() const { return mHwDevice->common.version; }
 
     private:
-        audio_module_handle_t mHandle;
+        const audio_module_handle_t mHandle;
         const char * const mModuleName;
         audio_hw_device_t * const mHwDevice;
         const Flags mFlags;

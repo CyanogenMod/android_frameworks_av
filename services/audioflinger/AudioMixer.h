@@ -26,7 +26,7 @@
 #include <media/AudioBufferProvider.h>
 #include "AudioResampler.h"
 
-#include <audio_effects/effect_downmix.h>
+#include <hardware/audio_effect.h>
 #include <system/audio.h>
 #include <media/nbaio/NBLog.h>
 
