@@ -195,7 +195,7 @@ static void createSine(void *vbuffer, size_t frames,
         T yt = convertValue<T>(y);
 
         for (size_t j = 0; j < channels; ++j) {
-            buffer[i*channels + j] = yt / (j + 1);
+            buffer[i*channels + j] = yt / T(j + 1);
         }
     }
 }
@@ -221,7 +221,7 @@ static void createChirp(void *vbuffer, size_t frames,
         T yt = convertValue<T>(y);
 
         for (size_t j = 0; j < channels; ++j) {
-            buffer[i*channels + j] = yt / (j + 1);
+            buffer[i*channels + j] = yt / T(j + 1);
         }
     }
 }

@@ -230,6 +230,8 @@ enum {
     MIXTYPE_MULTI,
     MIXTYPE_MONOEXPAND,
     MIXTYPE_MULTI_SAVEONLY,
+    MIXTYPE_MULTI_MONOVOL,
+    MIXTYPE_MULTI_SAVEONLY_MONOVOL,
 };
 
 /*
@@ -263,6 +265,13 @@ enum {
  *   vol: represents a volume array.
  *
  *   MIXTYPE_MULTI_SAVEONLY does not accumulate into the out pointer.
+ *
+ * MIXTYPE_MULTI_MONOVOL:
+ *   Same as MIXTYPE_MULTI, but uses only volume[0].
+ *
+ * MIXTYPE_MULTI_SAVEONLY_MONOVOL:
+ *   Same as MIXTYPE_MULTI_SAVEONLY, but uses only volume[0].
+ *
  */
 
 template <int MIXTYPE, int NCHAN,
@@ -283,18 +292,30 @@ inline void volumeRampMulti(TO* out, size_t frameCount,
                     vol[i] += volinc[i];
                 }
                 break;
-            case MIXTYPE_MULTI_SAVEONLY:
-                for (int i = 0; i < NCHAN; ++i) {
-                    *out++ = MixMulAux<TO, TI, TV, TA>(*in++, vol[i], &auxaccum);
-                    vol[i] += volinc[i];
-                }
-                break;
             case MIXTYPE_MONOEXPAND:
                 for (int i = 0; i < NCHAN; ++i) {
                     *out++ += MixMulAux<TO, TI, TV, TA>(*in, vol[i], &auxaccum);
                     vol[i] += volinc[i];
                 }
                 in++;
+                break;
+            case MIXTYPE_MULTI_SAVEONLY:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMulAux<TO, TI, TV, TA>(*in++, vol[i], &auxaccum);
+                    vol[i] += volinc[i];
+                }
+                break;
+            case MIXTYPE_MULTI_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ += MixMulAux<TO, TI, TV, TA>(*in++, vol[0], &auxaccum);
+                }
+                vol[0] += volinc[0];
+                break;
+            case MIXTYPE_MULTI_SAVEONLY_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMulAux<TO, TI, TV, TA>(*in++, vol[0], &auxaccum);
+                }
+                vol[0] += volinc[0];
                 break;
             default:
                 LOG_ALWAYS_FATAL("invalid mixtype %d", MIXTYPE);
@@ -313,18 +334,30 @@ inline void volumeRampMulti(TO* out, size_t frameCount,
                     vol[i] += volinc[i];
                 }
                 break;
-            case MIXTYPE_MULTI_SAVEONLY:
-                for (int i = 0; i < NCHAN; ++i) {
-                    *out++ = MixMul<TO, TI, TV>(*in++, vol[i]);
-                    vol[i] += volinc[i];
-                }
-                break;
             case MIXTYPE_MONOEXPAND:
                 for (int i = 0; i < NCHAN; ++i) {
                     *out++ += MixMul<TO, TI, TV>(*in, vol[i]);
                     vol[i] += volinc[i];
                 }
                 in++;
+                break;
+            case MIXTYPE_MULTI_SAVEONLY:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMul<TO, TI, TV>(*in++, vol[i]);
+                    vol[i] += volinc[i];
+                }
+                break;
+            case MIXTYPE_MULTI_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ += MixMul<TO, TI, TV>(*in++, vol[0]);
+                }
+                vol[0] += volinc[0];
+                break;
+            case MIXTYPE_MULTI_SAVEONLY_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMul<TO, TI, TV>(*in++, vol[0]);
+                }
+                vol[0] += volinc[0];
                 break;
             default:
                 LOG_ALWAYS_FATAL("invalid mixtype %d", MIXTYPE);
@@ -351,16 +384,26 @@ inline void volumeMulti(TO* out, size_t frameCount,
                     *out++ += MixMulAux<TO, TI, TV, TA>(*in++, vol[i], &auxaccum);
                 }
                 break;
-            case MIXTYPE_MULTI_SAVEONLY:
-                for (int i = 0; i < NCHAN; ++i) {
-                    *out++ = MixMulAux<TO, TI, TV, TA>(*in++, vol[i], &auxaccum);
-                }
-                break;
             case MIXTYPE_MONOEXPAND:
                 for (int i = 0; i < NCHAN; ++i) {
                     *out++ += MixMulAux<TO, TI, TV, TA>(*in, vol[i], &auxaccum);
                 }
                 in++;
+                break;
+            case MIXTYPE_MULTI_SAVEONLY:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMulAux<TO, TI, TV, TA>(*in++, vol[i], &auxaccum);
+                }
+                break;
+            case MIXTYPE_MULTI_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ += MixMulAux<TO, TI, TV, TA>(*in++, vol[0], &auxaccum);
+                }
+                break;
+            case MIXTYPE_MULTI_SAVEONLY_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMulAux<TO, TI, TV, TA>(*in++, vol[0], &auxaccum);
+                }
                 break;
             default:
                 LOG_ALWAYS_FATAL("invalid mixtype %d", MIXTYPE);
@@ -377,16 +420,26 @@ inline void volumeMulti(TO* out, size_t frameCount,
                     *out++ += MixMul<TO, TI, TV>(*in++, vol[i]);
                 }
                 break;
-            case MIXTYPE_MULTI_SAVEONLY:
-                for (int i = 0; i < NCHAN; ++i) {
-                    *out++ = MixMul<TO, TI, TV>(*in++, vol[i]);
-                }
-                break;
             case MIXTYPE_MONOEXPAND:
                 for (int i = 0; i < NCHAN; ++i) {
                     *out++ += MixMul<TO, TI, TV>(*in, vol[i]);
                 }
                 in++;
+                break;
+            case MIXTYPE_MULTI_SAVEONLY:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMul<TO, TI, TV>(*in++, vol[i]);
+                }
+                break;
+            case MIXTYPE_MULTI_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ += MixMul<TO, TI, TV>(*in++, vol[0]);
+                }
+                break;
+            case MIXTYPE_MULTI_SAVEONLY_MONOVOL:
+                for (int i = 0; i < NCHAN; ++i) {
+                    *out++ = MixMul<TO, TI, TV>(*in++, vol[0]);
+                }
                 break;
             default:
                 LOG_ALWAYS_FATAL("invalid mixtype %d", MIXTYPE);
