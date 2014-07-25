@@ -158,14 +158,13 @@ public:
     virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format,
                                                audio_channel_mask_t channelMask) const;
 
-    virtual audio_io_handle_t openOutput(audio_module_handle_t module,
-                                         audio_devices_t *pDevices,
-                                         uint32_t *pSamplingRate,
-                                         audio_format_t *pFormat,
-                                         audio_channel_mask_t *pChannelMask,
-                                         uint32_t *pLatencyMs,
-                                         audio_output_flags_t flags,
-                                         const audio_offload_info_t *offloadInfo);
+    virtual status_t openOutput(audio_module_handle_t module,
+                                audio_io_handle_t *output,
+                                audio_config_t *config,
+                                audio_devices_t *devices,
+                                const String8& address,
+                                uint32_t *latencyMs,
+                                audio_output_flags_t flags);
 
     virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                                   audio_io_handle_t output2);
@@ -176,12 +175,13 @@ public:
 
     virtual status_t restoreOutput(audio_io_handle_t output);
 
-    virtual audio_io_handle_t openInput(audio_module_handle_t module,
-                                        audio_devices_t *pDevices,
-                                        uint32_t *pSamplingRate,
-                                        audio_format_t *pFormat,
-                                        audio_channel_mask_t *pChannelMask,
-                                        audio_input_flags_t flags);
+    virtual status_t openInput(audio_module_handle_t module,
+                               audio_io_handle_t *input,
+                               audio_config_t *config,
+                               audio_devices_t *device,
+                               const String8& address,
+                               audio_source_t source,
+                               audio_input_flags_t flags);
 
     virtual status_t closeInput(audio_io_handle_t input);
 
@@ -515,12 +515,17 @@ private:
               MixerThread *checkMixerThread_l(audio_io_handle_t output) const;
               RecordThread *checkRecordThread_l(audio_io_handle_t input) const;
               sp<RecordThread> openInput_l(audio_module_handle_t module,
+                                           audio_io_handle_t *input,
+                                           audio_config_t *config,
                                            audio_devices_t device,
-                                           struct audio_config *config,
+                                           const String8& address,
+                                           audio_source_t source,
                                            audio_input_flags_t flags);
               sp<PlaybackThread> openOutput_l(audio_module_handle_t module,
-                                              audio_devices_t device,
-                                              struct audio_config *config,
+                                              audio_io_handle_t *output,
+                                              audio_config_t *config,
+                                              audio_devices_t devices,
+                                              const String8& address,
                                               audio_output_flags_t flags);
 
               void closeOutputFinish(sp<PlaybackThread> thread);
