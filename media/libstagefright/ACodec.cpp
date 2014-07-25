@@ -2709,6 +2709,83 @@ void ACodec::processDeferredMessages() {
     }
 }
 
+// static
+void ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
+    MediaImage &image = params.sMediaImage;
+    memset(&image, 0, sizeof(image));
+
+    image.mType = MediaImage::MEDIA_IMAGE_TYPE_UNKNOWN;
+    image.mNumPlanes = 0;
+
+    const OMX_COLOR_FORMATTYPE fmt = params.eColorFormat;
+    // we need stride and slice-height to be non-zero
+    if (params.nStride == 0 || params.nSliceHeight == 0) {
+        ALOGW("cannot describe color format 0x%x = %d with stride=%u and sliceHeight=%u",
+                fmt, fmt, params.nStride, params.nSliceHeight);
+        return;
+    }
+
+    image.mWidth = params.nFrameWidth;
+    image.mHeight = params.nFrameHeight;
+
+    // only supporting YUV420
+    if (fmt != OMX_COLOR_FormatYUV420Planar &&
+        fmt != OMX_COLOR_FormatYUV420PackedPlanar &&
+        fmt != OMX_COLOR_FormatYUV420SemiPlanar &&
+        fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar) {
+        ALOGW("do not know color format 0x%x = %d", fmt, fmt);
+        return;
+    }
+
+    // set-up YUV format
+    image.mType = MediaImage::MEDIA_IMAGE_TYPE_YUV;
+    image.mNumPlanes = 3;
+    image.mBitDepth = 8;
+    image.mPlane[image.Y].mOffset = 0;
+    image.mPlane[image.Y].mColInc = 1;
+    image.mPlane[image.Y].mRowInc = params.nStride;
+    image.mPlane[image.Y].mHorizSubsampling = 1;
+    image.mPlane[image.Y].mVertSubsampling = 1;
+
+    switch (fmt) {
+        case OMX_COLOR_FormatYUV420Planar: // used for YV12
+        case OMX_COLOR_FormatYUV420PackedPlanar:
+            image.mPlane[image.U].mOffset = params.nStride * params.nSliceHeight;
+            image.mPlane[image.U].mColInc = 1;
+            image.mPlane[image.U].mRowInc = params.nStride / 2;
+            image.mPlane[image.U].mHorizSubsampling = 2;
+            image.mPlane[image.U].mVertSubsampling = 2;
+
+            image.mPlane[image.V].mOffset = image.mPlane[image.U].mOffset
+                    + (params.nStride * params.nSliceHeight / 4);
+            image.mPlane[image.V].mColInc = 1;
+            image.mPlane[image.V].mRowInc = params.nStride / 2;
+            image.mPlane[image.V].mHorizSubsampling = 2;
+            image.mPlane[image.V].mVertSubsampling = 2;
+            break;
+
+        case OMX_COLOR_FormatYUV420SemiPlanar:
+            // FIXME: NV21 for sw-encoder, NV12 for decoder and hw-encoder
+        case OMX_COLOR_FormatYUV420PackedSemiPlanar:
+            // NV12
+            image.mPlane[image.U].mOffset = params.nStride * params.nSliceHeight;
+            image.mPlane[image.U].mColInc = 2;
+            image.mPlane[image.U].mRowInc = params.nStride;
+            image.mPlane[image.U].mHorizSubsampling = 2;
+            image.mPlane[image.U].mVertSubsampling = 2;
+
+            image.mPlane[image.V].mOffset = image.mPlane[image.U].mOffset + 1;
+            image.mPlane[image.V].mColInc = 2;
+            image.mPlane[image.V].mRowInc = params.nStride;
+            image.mPlane[image.V].mHorizSubsampling = 2;
+            image.mPlane[image.V].mVertSubsampling = 2;
+            break;
+
+        default:
+            TRESPASS();
+    }
+}
+
 status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
     // TODO: catch errors an return them instead of using CHECK
     OMX_PARAM_PORTDEFINITIONTYPE def;
@@ -2735,6 +2812,33 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("stride", videoDef->nStride);
                     notify->setInt32("slice-height", videoDef->nSliceHeight);
                     notify->setInt32("color-format", videoDef->eColorFormat);
+
+
+                    DescribeColorFormatParams describeParams;
+                    InitOMXParams(&describeParams);
+                    describeParams.eColorFormat = videoDef->eColorFormat;
+                    describeParams.nFrameWidth = videoDef->nFrameWidth;
+                    describeParams.nFrameHeight = videoDef->nFrameHeight;
+                    describeParams.nStride = videoDef->nStride;
+                    describeParams.nSliceHeight = videoDef->nSliceHeight;
+
+                    OMX_INDEXTYPE describeColorFormatIndex;
+                    if (mOMX->getExtensionIndex(
+                            mNode, "OMX.google.android.index.describeColorFormat",
+                            &describeColorFormatIndex) ||
+                        mOMX->getParameter(
+                            mNode, describeColorFormatIndex,
+                            &describeParams, sizeof(describeParams))) {
+                        describeDefaultColorFormat(describeParams);
+                    }
+
+                    if (describeParams.sMediaImage.mType != MediaImage::MEDIA_IMAGE_TYPE_UNKNOWN) {
+                        notify->setBuffer(
+                                "image-data",
+                                ABuffer::CreateAsCopy(
+                                        &describeParams.sMediaImage,
+                                        sizeof(describeParams.sMediaImage)));
+                    }
 
                     OMX_CONFIG_RECTTYPE rect;
                     InitOMXParams(&rect);
