@@ -614,6 +614,17 @@ int32_t ExtendedUtils::getEncoderTypeFlags() {
 
 }
 
+void ExtendedUtils::updateOutputBitWidth(sp<MetaData> format, bool isOffload) {
+    char value[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.offload.24bit.enable", value, "0");
+    int32_t bitWidth = 16;
+    if (format->findInt32(kKeySampleBits, &bitWidth)) {
+        if (!((bitWidth == 24) && isOffload && atoi(value))) {
+            format->setInt32(kKeySampleBits, 16);
+        }
+    }
+}
+
 void ExtendedUtils::prefetchSecurePool(const char *uri)
 {
     if (!strncasecmp("widevine://", uri, 11)) {
