@@ -137,7 +137,6 @@ void NuPlayer::GenericSource::initFromDataSource(
         }
 
         if (track != NULL) {
-            CHECK_EQ(track->start(), (status_t)OK);
             mSources.push(track);
             int64_t durationUs;
             if (meta->findInt64(kKeyDuration, &durationUs)) {
@@ -184,6 +183,7 @@ void NuPlayer::GenericSource::start() {
     ALOGI("start");
 
     if (mAudioTrack.mSource != NULL) {
+        CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
         mAudioTrack.mPackets =
             new AnotherPacketSource(mAudioTrack.mSource->getFormat());
 
@@ -191,6 +191,7 @@ void NuPlayer::GenericSource::start() {
     }
 
     if (mVideoTrack.mSource != NULL) {
+        CHECK_EQ(mVideoTrack.mSource->start(), (status_t)OK);
         mVideoTrack.mPackets =
             new AnotherPacketSource(mVideoTrack.mSource->getFormat());
 
@@ -255,7 +256,11 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           }
 
 
+          if (track->mSource != NULL) {
+              track->mSource->stop();
+          }
           track->mSource = source;
+          track->mSource->start();
           track->mIndex = trackIndex;
 
           status_t avail;
@@ -529,6 +534,7 @@ status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
         if (track == NULL) {
             return INVALID_OPERATION;
         }
+        track->mSource->stop();
         track->mSource = NULL;
         track->mPackets->clear();
         return OK;
@@ -545,7 +551,11 @@ status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
             return OK;
         }
         track->mIndex = trackIndex;
+        if (track->mSource != NULL) {
+            track->mSource->stop();
+        }
         track->mSource = mSources.itemAt(trackIndex);
+        track->mSource->start();
         if (track->mPackets == NULL) {
             track->mPackets = new AnotherPacketSource(track->mSource->getFormat());
         } else {
