@@ -581,6 +581,7 @@ status_t CameraSource::initWithCameraAccess(
     mMeta->setInt32(kKeyFrameRate,   mVideoFrameRate);
 
     ExtendedUtils::HFR::setHFRIfEnabled(params, mMeta);
+    ExtendedUtils::applyPreRotation(params, mMeta);
 
     return OK;
 }

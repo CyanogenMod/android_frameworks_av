@@ -196,6 +196,8 @@ struct ExtendedUtils {
     static bool isVideoMuxFormatSupported(const char *mime);
 
     static void printFileName(int fd);
+    static void applyPreRotation(
+            const CameraParameters& params, sp<MetaData> &meta);
 };
 
 }
