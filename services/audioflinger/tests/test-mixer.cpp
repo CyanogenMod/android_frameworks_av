@@ -36,11 +36,12 @@
 using namespace android;
 
 static void usage(const char* name) {
-    fprintf(stderr, "Usage: %s [-f] [-m]"
+    fprintf(stderr, "Usage: %s [-f] [-m] [-c channels]"
                     " [-s sample-rate] [-o <output-file>] [-a <aux-buffer-file>] [-P csv]"
                     " (<input-file> | <command>)+\n", name);
     fprintf(stderr, "    -f    enable floating point input track\n");
     fprintf(stderr, "    -m    enable floating point mixer output\n");
+    fprintf(stderr, "    -c    number of mixer output channels\n");
     fprintf(stderr, "    -s    mixer sample-rate\n");
     fprintf(stderr, "    -o    <output-file> WAV file, pcm16 (or float if -m specified)\n");
     fprintf(stderr, "    -a    <aux-buffer-file>\n");
@@ -90,13 +91,16 @@ int main(int argc, char* argv[]) {
     std::vector<int32_t> Names;
     std::vector<SignalProvider> Providers;
 
-    for (int ch; (ch = getopt(argc, argv, "fms:o:a:P:")) != -1;) {
+    for (int ch; (ch = getopt(argc, argv, "fmc:s:o:a:P:")) != -1;) {
         switch (ch) {
         case 'f':
             useInputFloat = true;
             break;
         case 'm':
             useMixerFloat = true;
+            break;
+        case 'c':
+            outputChannels = atoi(optarg);
             break;
         case 's':
             outputSampleRate = atoi(optarg);
@@ -160,7 +164,7 @@ int main(int argc, char* argv[]) {
 
             parseCSV(argv[i] + strlen(sine), v);
             if (v.size() == 3) {
-                printf("creating sine(%d %d)\n", v[0], v[1]);
+                printf("creating sine(%d %d %d)\n", v[0], v[1], v[2]);
                 if (useInputFloat) {
                     Providers[i].setSine<float>(v[0], v[1], v[2], kSeconds);
                 } else {
@@ -191,6 +195,8 @@ int main(int argc, char* argv[]) {
     const size_t outputFrameSize = outputChannels
             * (useMixerFloat ? sizeof(float) : sizeof(int16_t));
     const size_t outputSize = outputFrames * outputFrameSize;
+    const audio_channel_mask_t outputChannelMask =
+            audio_channel_out_mask_from_count(outputChannels);
     void *outputAddr = NULL;
     (void) posix_memalign(&outputAddr, 32, outputSize);
     memset(outputAddr, 0, outputSize);
@@ -224,13 +230,27 @@ int main(int argc, char* argv[]) {
         Names.push_back(name);
         mixer->setBufferProvider(name, &Providers[i]);
         mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
-                (void *) outputAddr);
+                (void *)outputAddr);
         mixer->setParameter(
                 name,
                 AudioMixer::TRACK,
-                AudioMixer::MIXER_FORMAT, (void *)mixerFormat);
-        mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
+                AudioMixer::MIXER_FORMAT,
+                (void *)(uintptr_t)mixerFormat);
+        mixer->setParameter(
+                name,
+                AudioMixer::TRACK,
+                AudioMixer::FORMAT,
                 (void *)(uintptr_t)inputFormat);
+        mixer->setParameter(
+                name,
+                AudioMixer::TRACK,
+                AudioMixer::MIXER_CHANNEL_MASK,
+                (void *)(uintptr_t)outputChannelMask);
+        mixer->setParameter(
+                name,
+                AudioMixer::TRACK,
+                AudioMixer::CHANNEL_MASK,
+                (void *)(uintptr_t)channelMask);
         mixer->setParameter(
                 name,
                 AudioMixer::RESAMPLE,

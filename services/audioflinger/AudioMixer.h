@@ -51,12 +51,11 @@ public:
     static const uint32_t MAX_NUM_TRACKS = 32;
     // maximum number of channels supported by the mixer
 
-    // This mixer has a hard-coded upper limit of 2 channels for output.
-    // There is support for > 2 channel tracks down-mixed to 2 channel output via a down-mix effect.
-    // Adding support for > 2 channel output would require more than simply changing this value.
-    static const uint32_t MAX_NUM_CHANNELS = 2;
+    // This mixer has a hard-coded upper limit of 8 channels for output.
+    static const uint32_t MAX_NUM_CHANNELS = 8;
+    static const uint32_t MAX_NUM_VOLUMES = 2; // stereo volume only
     // maximum number of channels supported for the content
-    static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = 8;
+    static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = AUDIO_CHANNEL_COUNT_MAX;
 
     static const uint16_t UNITY_GAIN_INT = 0x1000;
     static const float    UNITY_GAIN_FLOAT = 1.0f;
@@ -82,6 +81,7 @@ public:
         AUX_BUFFER      = 0x4003,
         DOWNMIX_TYPE    = 0X4004,
         MIXER_FORMAT    = 0x4005, // AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
+        MIXER_CHANNEL_MASK = 0x4006, // Channel mask for mixer output
         // for target RESAMPLE
         SAMPLE_RATE     = 0x4100, // Configure sample rate conversion on this track name;
                                   // parameter 'value' is the new sample rate in Hz.
@@ -164,15 +164,15 @@ private:
 
         // TODO: Eventually remove legacy integer volume settings
         union {
-        int16_t     volume[MAX_NUM_CHANNELS]; // U4.12 fixed point (top bit should be zero)
+        int16_t     volume[MAX_NUM_VOLUMES]; // U4.12 fixed point (top bit should be zero)
         int32_t     volumeRL;
         };
 
-        int32_t     prevVolume[MAX_NUM_CHANNELS];
+        int32_t     prevVolume[MAX_NUM_VOLUMES];
 
         // 16-byte boundary
 
-        int32_t     volumeInc[MAX_NUM_CHANNELS];
+        int32_t     volumeInc[MAX_NUM_VOLUMES];
         int32_t     auxInc;
         int32_t     prevAuxLevel;
 
@@ -217,18 +217,20 @@ private:
         audio_format_t mMixerInFormat;   // mix internal format AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
                                          // each track must be converted to this format.
 
-        float          mVolume[MAX_NUM_CHANNELS];     // floating point set volume
-        float          mPrevVolume[MAX_NUM_CHANNELS]; // floating point previous volume
-        float          mVolumeInc[MAX_NUM_CHANNELS];  // floating point volume increment
+        float          mVolume[MAX_NUM_VOLUMES];     // floating point set volume
+        float          mPrevVolume[MAX_NUM_VOLUMES]; // floating point previous volume
+        float          mVolumeInc[MAX_NUM_VOLUMES];  // floating point volume increment
 
         float          mAuxLevel;                     // floating point set aux level
         float          mPrevAuxLevel;                 // floating point prev aux level
         float          mAuxInc;                       // floating point aux increment
 
         // 16-byte boundary
+        audio_channel_mask_t mMixerChannelMask;
+        uint32_t             mMixerChannelCount;
 
         bool        needsRamp() { return (volumeInc[0] | volumeInc[1] | auxInc) != 0; }
-        bool        setResampler(uint32_t sampleRate, uint32_t devSampleRate);
+        bool        setResampler(uint32_t trackSampleRate, uint32_t devSampleRate);
         bool        doesResample() const { return resampler != NULL; }
         void        resetResampler() { if (resampler != NULL) resampler->reset(); }
         void        adjustVolumeRamp(bool aux, bool useFloat = false);
@@ -377,7 +379,11 @@ private:
     // OK to call more often than that, but unnecessary.
     void invalidateState(uint32_t mask);
 
-    static status_t initTrackDownmix(track_t* pTrack, int trackNum, audio_channel_mask_t mask);
+    bool setChannelMasks(int name,
+            audio_channel_mask_t trackChannelMask, audio_channel_mask_t mixerChannelMask);
+
+    // TODO: remove unused trackName/trackNum from functions below.
+    static status_t initTrackDownmix(track_t* pTrack, int trackName);
     static status_t prepareTrackForDownmix(track_t* pTrack, int trackNum);
     static void unprepareTrackForDownmix(track_t* pTrack, int trackName);
     static status_t prepareTrackForReformat(track_t* pTrack, int trackNum);
@@ -418,27 +424,26 @@ private:
      * in AudioMixerOps.h).  The template parameters are as follows:
      *
      *   MIXTYPE     (see AudioMixerOps.h MIXTYPE_* enumeration)
-     *   NCHAN       (number of channels, 2 for now)
      *   USEFLOATVOL (set to true if float volume is used)
      *   ADJUSTVOL   (set to true if volume ramp parameters needs adjustment afterwards)
      *   TO: int32_t (Q4.27) or float
      *   TI: int32_t (Q4.27) or int16_t (Q0.15) or float
      *   TA: int32_t (Q4.27)
      */
-    template <int MIXTYPE, int NCHAN, bool USEFLOATVOL, bool ADJUSTVOL,
+    template <int MIXTYPE, bool USEFLOATVOL, bool ADJUSTVOL,
         typename TO, typename TI, typename TA>
     static void volumeMix(TO *out, size_t outFrames,
             const TI *in, TA *aux, bool ramp, AudioMixer::track_t *t);
 
     // multi-format process hooks
-    template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>
+    template <int MIXTYPE, typename TO, typename TI, typename TA>
     static void process_NoResampleOneTrack(state_t* state, int64_t pts);
 
     // multi-format track hooks
-    template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>
+    template <int MIXTYPE, typename TO, typename TI, typename TA>
     static void track__Resample(track_t* t, TO* out, size_t frameCount,
             TO* temp __unused, TA* aux);
-    template <int MIXTYPE, int NCHAN, typename TO, typename TI, typename TA>
+    template <int MIXTYPE, typename TO, typename TI, typename TA>
     static void track__NoResample(track_t* t, TO* out, size_t frameCount,
             TO* temp __unused, TA* aux);
 
@@ -457,9 +462,9 @@ private:
     };
 
     // functions for determining the proper process and track hooks.
-    static process_hook_t getProcessHook(int processType, int channels,
+    static process_hook_t getProcessHook(int processType, uint32_t channelCount,
             audio_format_t mixerInFormat, audio_format_t mixerOutFormat);
-    static hook_t getTrackHook(int trackType, int channels,
+    static hook_t getTrackHook(int trackType, uint32_t channelCount,
             audio_format_t mixerInFormat, audio_format_t mixerOutFormat);
 };
 
