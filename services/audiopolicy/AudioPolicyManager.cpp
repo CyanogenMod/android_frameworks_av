@@ -1055,13 +1055,14 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_in_acoustics_t acoustics)
+                                    audio_in_acoustics_t acoustics,
+                                    audio_input_flags_t flags)
 {
-    audio_io_handle_t input = 0;
-    audio_devices_t device = getDeviceForInputSource(inputSource);
+    ALOGV("getInput() inputSource %d, samplingRate %d, format %d, channelMask %x, acoustics %x, "
+          "flags %#x",
+          inputSource, samplingRate, format, channelMask, acoustics, flags);
 
-    ALOGV("getInput() inputSource %d, samplingRate %d, format %d, channelMask %x, acoustics %x",
-          inputSource, samplingRate, format, channelMask, acoustics);
+    audio_devices_t device = getDeviceForInputSource(inputSource);
 
     if (device == AUDIO_DEVICE_NONE) {
         ALOGW("getInput() could not find device for inputSource %d", inputSource);
@@ -1069,7 +1070,7 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     }
 
     // adapt channel selection to input source
-    switch(inputSource) {
+    switch (inputSource) {
     case AUDIO_SOURCE_VOICE_UPLINK:
         channelMask = AUDIO_CHANNEL_IN_VOICE_UPLINK;
         break;
@@ -1086,11 +1087,12 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     sp<IOProfile> profile = getInputProfile(device,
                                          samplingRate,
                                          format,
-                                         channelMask);
+                                         channelMask,
+                                         flags);
     if (profile == 0) {
-        ALOGW("getInput() could not find profile for device %04x, samplingRate %d, format %d, "
-                "channelMask %04x",
-                device, samplingRate, format, channelMask);
+        ALOGW("getInput() could not find profile for device 0x%X, samplingRate %u, format %#x, "
+                "channelMask 0x%X, flags %#x",
+                device, samplingRate, format, channelMask, flags);
         return 0;
     }
 
@@ -1107,19 +1109,21 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     inputDesc->mFormat = format;
     inputDesc->mChannelMask = channelMask;
     inputDesc->mRefCount = 0;
-    input = mpClientInterface->openInput(profile->mModule->mHandle,
+    inputDesc->mOpenRefCount = 1;
+
+    audio_io_handle_t input = mpClientInterface->openInput(profile->mModule->mHandle,
                                     &inputDesc->mDevice,
                                     &inputDesc->mSamplingRate,
                                     &inputDesc->mFormat,
                                     &inputDesc->mChannelMask,
-                                    AUDIO_INPUT_FLAG_FAST /*FIXME*/);
+                                    flags);
 
     // only accept input with the exact requested set of parameters
     if (input == 0 ||
         (samplingRate != inputDesc->mSamplingRate) ||
         (format != inputDesc->mFormat) ||
         (channelMask != inputDesc->mChannelMask)) {
-        ALOGI("getInput() failed opening input: samplingRate %d, format %d, channelMask %x",
+        ALOGW("getInput() failed opening input: samplingRate %d, format %d, channelMask %x",
                 samplingRate, format, channelMask);
         if (input != 0) {
             mpClientInterface->closeInput(input);
@@ -1171,7 +1175,7 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input)
 
     ALOGV("AudioPolicyManager::startInput() input source = %d", inputDesc->mInputSource);
 
-    inputDesc->mRefCount = 1;
+    inputDesc->mRefCount++;
     return NO_ERROR;
 }
 
@@ -1188,7 +1192,11 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input)
     if (inputDesc->mRefCount == 0) {
         ALOGW("stopInput() input %d already stopped", input);
         return INVALID_OPERATION;
-    } else {
+    }
+
+    inputDesc->mRefCount--;
+    if (inputDesc->mRefCount == 0) {
+
         // automatically disable the remote submix output when input is stopped
         if (audio_is_remote_submix_device(inputDesc->mDevice)) {
             setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
@@ -1196,9 +1204,8 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input)
         }
 
         resetInputDevice(input);
-        inputDesc->mRefCount = 0;
-        return NO_ERROR;
     }
+    return NO_ERROR;
 }
 
 void AudioPolicyManager::releaseInput(audio_io_handle_t input)
@@ -1209,6 +1216,18 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input)
         ALOGW("releaseInput() releasing unknown input %d", input);
         return;
     }
+    sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
+    ALOG_ASSERT(inputDesc != 0);
+    if (inputDesc->mOpenRefCount == 0) {
+        ALOGW("releaseInput() invalid open ref count %d", inputDesc->mOpenRefCount);
+        return;
+    }
+    inputDesc->mOpenRefCount--;
+    if (inputDesc->mOpenRefCount > 0) {
+        ALOGV("releaseInput() exit > 0");
+        return;
+    }
+
     mpClientInterface->closeInput(input);
     mInputs.removeItem(input);
     nextAudioPortGeneration();
@@ -1874,7 +1893,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                        patch->sources[0].sample_rate,
                                                      patch->sources[0].format,
                                                      patch->sources[0].channel_mask,
-                                                     AUDIO_OUTPUT_FLAG_NONE)) {
+                                                     AUDIO_OUTPUT_FLAG_NONE /*FIXME*/)) {
             ALOGV("createAudioPatch() profile not supported");
             return INVALID_OPERATION;
         }
@@ -1920,7 +1939,10 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                            patch->sinks[0].sample_rate,
                                                          patch->sinks[0].format,
                                                          patch->sinks[0].channel_mask,
-                                                         AUDIO_OUTPUT_FLAG_NONE)) {
+                                                         // FIXME for the parameter type,
+                                                         // and the NONE
+                                                         (audio_output_flags_t)
+                                                            AUDIO_INPUT_FLAG_NONE)) {
                 return INVALID_OPERATION;
             }
             // TODO: reconfigure output format and channels here
@@ -2321,7 +2343,6 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                         mPrimaryOutput = output;
                     }
                     addOutput(output, outputDesc);
-                    ALOGI("CSTOR setOutputDevice %08x", outputDesc->mDevice);
                     setOutputDevice(output,
                                     outputDesc->mDevice,
                                     true);
@@ -2351,7 +2372,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                     &inputDesc->mSamplingRate,
                                                     &inputDesc->mFormat,
                                                     &inputDesc->mChannelMask,
-                                                    AUDIO_INPUT_FLAG_FAST /*FIXME*/);
+                                                    AUDIO_INPUT_FLAG_NONE /*FIXME*/);
 
                 if (input != 0) {
                     for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
@@ -2919,7 +2940,7 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
                                             &desc->mSamplingRate,
                                             &desc->mFormat,
                                             &desc->mChannelMask,
-                                            AUDIO_INPUT_FLAG_FAST /*FIXME*/);
+                                            AUDIO_INPUT_FLAG_NONE /*FIXME*/);
 
             if (input != 0) {
                 if (!address.isEmpty()) {
@@ -3926,7 +3947,8 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
 sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getInputProfile(audio_devices_t device,
                                                    uint32_t samplingRate,
                                                    audio_format_t format,
-                                                   audio_channel_mask_t channelMask)
+                                                   audio_channel_mask_t channelMask,
+                                                   audio_input_flags_t flags __unused)
 {
     // Choose an input profile based on the requested capture parameters: select the first available
     // profile supporting all requested parameters.
@@ -4781,6 +4803,9 @@ status_t AudioPolicyManager::AudioInputDescriptor::dump(int fd)
     result.append(buffer);
     snprintf(buffer, SIZE, " Ref Count %d\n", mRefCount);
     result.append(buffer);
+    snprintf(buffer, SIZE, " Open Ref Count %d\n", mOpenRefCount);
+    result.append(buffer);
+
     write(fd, result.string(), result.size());
 
     return NO_ERROR;
