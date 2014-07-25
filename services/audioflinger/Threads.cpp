@@ -4140,6 +4140,37 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
     mStandby = true;
+
+#ifdef ENABLE_RESAMPLER_IN_PCM_OFFLOAD_PATH
+
+    // set reSampler initial parameters
+    mResampler         = NULL;
+    // This will not change for the entire session
+    // initial sample rate is the out samplerate of the resampler
+    mInitialSampleRate = mSampleRate;
+
+    // This will change everytime setframe rate is changed
+    // Current sample rate is the in  samplerate of the resampler
+    mCurrentSampleRate = mSampleRate;
+
+    mInitChanelCount   = mChannelCount;
+    mRsmpIPFormat      = 16;
+    mRsmpFrmFactor     = sizeof(int32_t)/mFrameSize;
+    mRsmpFrmCnt        = mFrameCount/mRsmpFrmFactor;
+
+    if(mFormat == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD) {
+        mRsmpInBuffer      = new int16_t[mRsmpFrmCnt * FCC_2];
+        mRsmpOutBuffer     = new int32_t[mRsmpFrmCnt * FCC_2];
+    } else {
+        mRsmpInBuffer      = NULL;
+        mRsmpOutBuffer     = NULL;
+    }
+
+    mRsmpInIndex       = 0;
+    mRsmpInFrmRdy      = 0;
+
+#endif
+
 }
 
 void AudioFlinger::OffloadThread::threadLoop_exit()
@@ -4436,6 +4467,140 @@ void AudioFlinger::OffloadThread::onFatalError()
    // call invalidate, to recreate track on fatal error
    invalidateTracks_l(AUDIO_STREAM_MUSIC);
 }
+
+AudioFlinger::OffloadThread::~OffloadThread()
+{
+#ifdef ENABLE_RESAMPLER_IN_PCM_OFFLOAD_PATH
+    if(mResampler != NULL) {
+        delete mResampler;
+        mResampler = NULL;
+    }
+
+    delete[] mRsmpInBuffer;
+    delete[] mRsmpOutBuffer;
+#endif
+}
+
+#ifdef ENABLE_RESAMPLER_IN_PCM_OFFLOAD_PATH
+
+void AudioFlinger::OffloadThread::checkReSamplerConfigAndResetIfNeeded()
+{
+    if(mResampler == NULL) {
+        mCurrentSampleRate = mSampleRate;
+        mResampler = AudioResampler::create(mRsmpIPFormat, FCC_2, mInitialSampleRate);
+        mResampler->setVolume(AudioMixer::UNITY_GAIN, AudioMixer::UNITY_GAIN);
+
+        mResampler->setSampleRate(mCurrentSampleRate);
+        mResampler->setPTS(AudioBufferProvider::kInvalidPTS);
+
+        LocalClock lc;
+        mResampler->setLocalTimeFreq(lc.getLocalFreq());
+        return;
+    }
+
+    if(mCurrentSampleRate != mSampleRate) {
+        mResampler->reset();
+        mCurrentSampleRate = mSampleRate;
+    }
+
+    mResampler->setSampleRate(mCurrentSampleRate);
+    mResampler->setPTS(AudioBufferProvider::kInvalidPTS);
+}
+
+void AudioFlinger::OffloadThread::resample(int32_t* out,size_t outFrameCount,
+                                           AudioBufferProvider* bufferProvider)
+{
+    checkReSamplerConfigAndResetIfNeeded();
+    mResampler->resample(out,outFrameCount,bufferProvider);
+}
+
+void AudioFlinger::OffloadThread::threadLoop_mix()
+{
+    // Use resampler path when
+    // 1. Current sample rate is != initial sample rate
+    // 2. mFormatType is 16 bit PCM offload
+    // 3. channel count is <= 2
+    // 4. channel count shouldn't change @ run time
+    if((mInitialSampleRate != mSampleRate) && (mFormat == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD) &&
+       (mInitChanelCount <= 2) && (mInitChanelCount == mChannelCount)){
+
+       memset(mRsmpOutBuffer, 0, mRsmpFrmCnt * FCC_2 * sizeof(int32_t));
+       resample(mRsmpOutBuffer, mRsmpFrmCnt, this);
+       ditherAndClamp((int32_t*)mMixBuffer,mRsmpOutBuffer,mRsmpFrmCnt);
+       mCurrentWriteLength = mFrameCount;
+
+       mActiveTrack.clear();
+       sleepTime = 0;
+       standbyTime = systemTime() + standbyDelay;
+       return;
+    }
+
+    // In this case no need of resampler
+    DirectOutputThread::threadLoop_mix();
+}
+
+status_t AudioFlinger::OffloadThread::getNextBuffer(AudioBufferProvider::Buffer* buffer,
+                                                    int64_t pts)
+{
+    status_t retVal = NO_ERROR;
+    int32_t framesReq = ((buffer->frameCount) > mRsmpFrmCnt)? mRsmpFrmCnt: (buffer->frameCount);
+    int32_t framesReady  = 0;
+
+    if (mRsmpInFrmRdy <= 0) {
+        // read data here
+        mRsmpInFrmRdy = 0;
+        mRsmpInIndex  = 0;
+        framesReady   = 0;
+
+        // no pending data in mRsmpInBuffer, reset it
+        memset((int8_t*)mRsmpInBuffer,0,sizeof(int16_t)*mRsmpFrmCnt * FCC_2 );
+
+        int8_t *curBuf = (int8_t *)mRsmpInBuffer;
+        int32_t frameCount =  framesReq;
+
+        while (frameCount > 0) {
+            AudioBufferProvider::Buffer buffer;
+            buffer.frameCount = frameCount*mRsmpFrmFactor;
+
+            mActiveTrack->getNextBuffer(&buffer);
+            if (buffer.raw == NULL) {
+                retVal = NOT_ENOUGH_DATA;
+                ALOGW("didnt get complete data .. send what ever accumulated");
+                break;
+            }
+
+            memcpy(curBuf, buffer.raw, buffer.frameCount * mFrameSize);
+            frameCount -= buffer.frameCount/mRsmpFrmFactor;
+
+            curBuf += buffer.frameCount * mFrameSize;
+            mActiveTrack->releaseBuffer(&buffer);
+        }
+
+        framesReady = framesReq - frameCount ;
+    } else {
+        ALOGE("getNextBuffer  **** frameready %d  *** mostly shouldn't happen !!!", mRsmpInFrmRdy);
+    }
+
+    mRsmpInFrmRdy += framesReady;
+
+    if (framesReq > mRsmpInFrmRdy) {
+        ALOGW("getNextBuffer  **** requested %d ready  %d ",framesReq,mRsmpInFrmRdy);
+        framesReq = mRsmpInFrmRdy;
+    }
+
+    buffer->raw = mRsmpInBuffer + mRsmpInIndex * mFrameSize * mRsmpFrmFactor;
+    buffer->frameCount = framesReq;
+
+    return NO_ERROR;
+}
+
+void AudioFlinger::OffloadThread::releaseBuffer(AudioBufferProvider::Buffer* buffer)
+{
+    mRsmpInIndex  += buffer->frameCount;
+    mRsmpInFrmRdy -= buffer->frameCount;
+    buffer->frameCount = 0;
+}
+#endif
 
 // ----------------------------------------------------------------------------
 
