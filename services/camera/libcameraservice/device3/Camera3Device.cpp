@@ -1497,6 +1497,9 @@ status_t Camera3Device::configureStreamsLocked() {
 
     ALOGV("%s: Camera %d: Stream configuration complete", __FUNCTION__, mId);
 
+    // tear down the deleted streams after configure streams.
+    mDeletedStreams.clear();
+
     return OK;
 }
 
