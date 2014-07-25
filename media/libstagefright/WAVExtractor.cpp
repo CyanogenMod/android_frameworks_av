@@ -73,6 +73,15 @@ struct WAVSource : public MediaSource {
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL);
 
+    bool use24BitOutput() {
+        int32_t bitWidth = 16;
+#ifdef ENABLE_AV_ENHANCEMENTS
+        if (getFormat() != 0)
+            getFormat()->findInt32(kKeySampleBits, &bitWidth);
+#endif
+        return bitWidth == 24;
+    }
+
 protected:
     virtual ~WAVSource();
 
@@ -90,8 +99,6 @@ private:
     bool mStarted;
     MediaBufferGroup *mGroup;
     off64_t mCurrentPos;
-
-    bool mEnable24Bit;
 
     WAVSource(const WAVSource &);
     WAVSource &operator=(const WAVSource &);
@@ -360,10 +367,6 @@ WAVSource::WAVSource(
     CHECK(mMeta->findInt32(kKeyChannelCount, &mNumChannels));
 
     mMeta->setInt32(kKeyMaxInputSize, kMaxFrameSize);
-
-    char value[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.offload.24bit.enable", value, "0");
-    mEnable24Bit = atoi(value);
 }
 
 WAVSource::~WAVSource() {
@@ -497,7 +500,7 @@ status_t WAVSource::read(
 
             buffer->release();
             buffer = tmp;
-        } else if (mBitsPerSample == 24 && !mEnable24Bit) {
+        } else if (mBitsPerSample == 24 && !use24BitOutput()) {
             // Convert 24-bit signed samples to 16-bit signed.
 
             const uint8_t *src =
