@@ -514,20 +514,22 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                 break;
             }
         }
-        // release delayed commands wake lock
-        if (mAudioCommands.isEmpty()) {
-            release_wake_lock(mName.string());
-        }
         // release mLock before releasing strong reference on the service as
         // AudioPolicyService destructor calls AudioCommandThread::exit() which acquires mLock.
         mLock.unlock();
         svc.clear();
         mLock.lock();
-        if (!exitPending()) {
+        if (!exitPending() && mAudioCommands.isEmpty()) {
+            // release delayed commands wake lock
+            release_wake_lock(mName.string());
             ALOGV("AudioCommandThread() going to sleep");
             mWaitWorkCV.waitRelative(mLock, waitTime);
             ALOGV("AudioCommandThread() waking up");
         }
+    }
+    // release delayed commands wake lock before quitting
+    if (!mAudioCommands.isEmpty()) {
+        release_wake_lock(mName.string());
     }
     mLock.unlock();
     return false;
