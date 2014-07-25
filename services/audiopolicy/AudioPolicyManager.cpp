@@ -1145,32 +1145,36 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input)
     }
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
 
-#ifdef AUDIO_POLICY_TEST
-    if (mTestInput == 0)
-#endif //AUDIO_POLICY_TEST
-    {
-        // refuse 2 active AudioRecord clients at the same time except if the active input
-        // uses AUDIO_SOURCE_HOTWORD in which case it is closed.
+    // virtual input devices are compatible with other input devices
+    if (!isVirtualInputDevice(inputDesc->mDevice)) {
+
+        // for a non-virtual input device, check if there is another (non-virtual) active input
         audio_io_handle_t activeInput = getActiveInput();
-        if (!isVirtualInputDevice(inputDesc->mDevice) && activeInput != 0) {
+        if (activeInput != 0 && activeInput != input) {
+
+            // If the already active input uses AUDIO_SOURCE_HOTWORD then it is closed,
+            // otherwise the active input continues and the new input cannot be started.
             sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
             if (activeDesc->mInputSource == AUDIO_SOURCE_HOTWORD) {
-                ALOGW("startInput() preempting already started low-priority input %d", activeInput);
+                ALOGW("startInput(%d) preempting low-priority input %d", input, activeInput);
                 stopInput(activeInput);
                 releaseInput(activeInput);
             } else {
-                ALOGW("startInput() input %d failed: other input already started", input);
+                ALOGE("startInput(%d) failed: other input %d already started", input, activeInput);
                 return INVALID_OPERATION;
             }
         }
     }
 
-    setInputDevice(input, getNewInputDevice(input), true /* force */);
+    if (inputDesc->mRefCount == 0) {
+        setInputDevice(input, getNewInputDevice(input), true /* force */);
 
-    // automatically enable the remote submix output when input is started
-    if (audio_is_remote_submix_device(inputDesc->mDevice)) {
-        setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
-                AUDIO_POLICY_DEVICE_STATE_AVAILABLE, AUDIO_REMOTE_SUBMIX_DEVICE_ADDRESS);
+        // Automatically enable the remote submix output when input is started.
+        // For remote submix (a virtual device), we open only one input per capture request.
+        if (audio_is_remote_submix_device(inputDesc->mDevice)) {
+            setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+                    AUDIO_POLICY_DEVICE_STATE_AVAILABLE, AUDIO_REMOTE_SUBMIX_DEVICE_ADDRESS);
+        }
     }
 
     ALOGV("AudioPolicyManager::startInput() input source = %d", inputDesc->mInputSource);
