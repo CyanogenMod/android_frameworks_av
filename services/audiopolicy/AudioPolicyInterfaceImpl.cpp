@@ -215,7 +215,7 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
                                     int audioSession,
-                                    audio_input_flags_t flags __unused)
+                                    audio_input_flags_t flags)
 {
     if (mAudioPolicyManager == NULL) {
         return 0;
@@ -232,7 +232,8 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
     Mutex::Autolock _l(mLock);
     // the audio_in_acoustics_t parameter is ignored by get_input()
     audio_io_handle_t input = mAudioPolicyManager->getInput(inputSource, samplingRate,
-                                                   format, channelMask, (audio_in_acoustics_t) 0);
+                                                   format, channelMask, (audio_in_acoustics_t) 0,
+                                                   flags);
 
     if (input == 0) {
         return input;

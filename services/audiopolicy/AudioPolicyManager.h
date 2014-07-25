@@ -107,7 +107,8 @@ public:
                                             uint32_t samplingRate,
                                             audio_format_t format,
                                             audio_channel_mask_t channelMask,
-                                            audio_in_acoustics_t acoustics);
+                                            audio_in_acoustics_t acoustics,
+                                            audio_input_flags_t flags);
 
         // indicates to the audio policy manager that the input starts being used.
         virtual status_t startInput(audio_io_handle_t input);
@@ -467,6 +468,7 @@ protected:
             audio_devices_t mDevice;                    // current device this input is routed to
             audio_patch_handle_t mPatchHandle;
             uint32_t mRefCount;                         // number of AudioRecord clients using this output
+            uint32_t mOpenRefCount;
             audio_source_t mInputSource;                // input source selected by application (mediarecorder.h)
             const sp<IOProfile> mProfile;                  // I/O profile this output derives from
 
@@ -674,7 +676,8 @@ protected:
         sp<IOProfile> getInputProfile(audio_devices_t device,
                                    uint32_t samplingRate,
                                    audio_format_t format,
-                                   audio_channel_mask_t channelMask);
+                                   audio_channel_mask_t channelMask,
+                                   audio_input_flags_t flags);
         sp<IOProfile> getProfileForDirectOutput(audio_devices_t device,
                                                        uint32_t samplingRate,
                                                        audio_format_t format,
