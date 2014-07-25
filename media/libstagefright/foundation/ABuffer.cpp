@@ -40,6 +40,14 @@ ABuffer::ABuffer(void *data, size_t capacity)
       mOwnsData(false) {
 }
 
+// static
+sp<ABuffer> ABuffer::CreateAsCopy(const void *data, size_t capacity)
+{
+    sp<ABuffer> res = new ABuffer(capacity);
+    memcpy(res->data(), data, capacity);
+    return res;
+}
+
 ABuffer::~ABuffer() {
     if (mOwnsData) {
         if (mData != NULL) {
