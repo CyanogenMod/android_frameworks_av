@@ -66,6 +66,8 @@ private:
     void* mSinkBuffer;                  // used for mixer output format translation
                                         // if sink format is different than mixer output.
     size_t mSinkBufferSize;
+    uint32_t mSinkChannelCount;
+    audio_channel_mask_t mSinkChannelMask;
     void* mMixerBuffer;                 // mixer output buffer.
     size_t mMixerBufferSize;
     audio_format_t mMixerBufferFormat;  // mixer output format: AUDIO_FORMAT_PCM_(16_BIT|FLOAT).

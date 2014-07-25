@@ -55,6 +55,7 @@ FastMixer::FastMixer() : FastThread(),
     mixer(NULL),
     mSinkBuffer(NULL),
     mSinkBufferSize(0),
+    mSinkChannelCount(FCC_2),
     mMixerBuffer(NULL),
     mMixerBufferSize(0),
     mMixerBufferFormat(AUDIO_FORMAT_PCM_16_BIT),
@@ -71,6 +72,9 @@ FastMixer::FastMixer() : FastThread(),
     current = &initial;
 
     mDummyDumpState = &dummyDumpState;
+    // TODO: Add channel mask to NBAIO_Format.
+    // We assume that the channel mask must be a valid positional channel mask.
+    mSinkChannelMask = audio_channel_out_mask_from_count(mSinkChannelCount);
 
     unsigned i;
     for (i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
@@ -148,10 +152,17 @@ void FastMixer::onStateChange()
         if (outputSink == NULL) {
             format = Format_Invalid;
             sampleRate = 0;
+            mSinkChannelCount = 0;
+            mSinkChannelMask = AUDIO_CHANNEL_NONE;
         } else {
             format = outputSink->format();
             sampleRate = Format_sampleRate(format);
-            ALOG_ASSERT(Format_channelCount(format) == FCC_2);
+            mSinkChannelCount = Format_channelCount(format);
+            LOG_ALWAYS_FATAL_IF(mSinkChannelCount > AudioMixer::MAX_NUM_CHANNELS);
+
+            // TODO: Add channel mask to NBAIO_Format
+            // We assume that the channel mask must be a valid positional channel mask.
+            mSinkChannelMask = audio_channel_out_mask_from_count(mSinkChannelCount);
         }
         dumpState->mSampleRate = sampleRate;
     }
@@ -169,10 +180,12 @@ void FastMixer::onStateChange()
             //       implementation; it would be better to have normal mixer allocate for us
             //       to avoid blocking here and to prevent possible priority inversion
             mixer = new AudioMixer(frameCount, sampleRate, FastMixerState::kMaxFastTracks);
-            const size_t mixerFrameSize = FCC_2 * audio_bytes_per_sample(mMixerBufferFormat);
+            const size_t mixerFrameSize = mSinkChannelCount
+                    * audio_bytes_per_sample(mMixerBufferFormat);
             mMixerBufferSize = mixerFrameSize * frameCount;
             (void)posix_memalign(&mMixerBuffer, 32, mMixerBufferSize);
-            const size_t sinkFrameSize = FCC_2 * audio_bytes_per_sample(format.mFormat);
+            const size_t sinkFrameSize = mSinkChannelCount
+                    * audio_bytes_per_sample(format.mFormat);
             if (sinkFrameSize > mixerFrameSize) { // need a sink buffer
                 mSinkBufferSize = sinkFrameSize * frameCount;
                 (void)posix_memalign(&mSinkBuffer, 32, mSinkBufferSize);
@@ -244,7 +257,7 @@ void FastMixer::onStateChange()
                 fastTrackNames[i] = name;
                 mixer->setBufferProvider(name, bufferProvider);
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
-                        (void *) mMixerBuffer);
+                        (void *)mMixerBuffer);
                 // newly allocated track names default to full scale volume
                 mixer->setParameter(
                         name,
@@ -252,6 +265,10 @@ void FastMixer::onStateChange()
                         AudioMixer::MIXER_FORMAT, (void *)mMixerBufferFormat);
                 mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
                         (void *)(uintptr_t)fastTrack->mFormat);
+                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
+                        (void *)(uintptr_t)fastTrack->mChannelMask);
+                mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MIXER_CHANNEL_MASK,
+                        (void *)(uintptr_t)mSinkChannelMask);
                 mixer->enable(name);
             }
             generations[i] = fastTrack->mGeneration;
@@ -286,7 +303,9 @@ void FastMixer::onStateChange()
                     mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::FORMAT,
                             (void *)(uintptr_t)fastTrack->mFormat);
                     mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::CHANNEL_MASK,
-                            (void *)(uintptr_t) fastTrack->mChannelMask);
+                            (void *)(uintptr_t)fastTrack->mChannelMask);
+                    mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MIXER_CHANNEL_MASK,
+                            (void *)(uintptr_t)mSinkChannelMask);
                     // already enabled
                 }
                 generations[i] = fastTrack->mGeneration;

@@ -910,6 +910,15 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         goto Exit;
     }
 
+    // Reject any effect on multichannel sinks.
+    // TODO: fix both format and multichannel issues with effects.
+    if (mChannelCount != FCC_2) {
+        ALOGW("createEffect_l() Cannot add effect %s for multichannel(%d) thread",
+                desc->name, mChannelCount);
+        lStatus = BAD_VALUE;
+        goto Exit;
+    }
+
     // Allow global effects only on offloaded and mixer threads
     if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
         switch (mType) {
@@ -1388,9 +1397,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             ) &&
             // PCM data
             audio_is_linear_pcm(format) &&
-            // mono or stereo
-            ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
-              (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
+            // identical channel mask to sink, or mono in and stereo sink
+            (channelMask == mChannelMask ||
+                    (channelMask == AUDIO_CHANNEL_OUT_MONO &&
+                            mChannelMask == AUDIO_CHANNEL_OUT_STEREO)) &&
             // hardware sample rate
             (sampleRate == mSampleRate) &&
             // normal mixer has an associated fast mixer
@@ -1814,9 +1824,10 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     if (!audio_is_output_channel(mChannelMask)) {
         LOG_ALWAYS_FATAL("HAL channel mask %#x not valid for output", mChannelMask);
     }
-    if ((mType == MIXER || mType == DUPLICATING) && mChannelMask != AUDIO_CHANNEL_OUT_STEREO) {
-        LOG_ALWAYS_FATAL("HAL channel mask %#x not supported for mixed output; "
-                "must be AUDIO_CHANNEL_OUT_STEREO", mChannelMask);
+    if ((mType == MIXER || mType == DUPLICATING)
+            && !isValidPcmSinkChannelMask(mChannelMask)) {
+        LOG_ALWAYS_FATAL("HAL channel mask %#x not supported for mixed output",
+                mChannelMask);
     }
     mChannelCount = audio_channel_count_from_out_mask(mChannelMask);
     mHALFormat = mOutput->stream->common.get_format(&mOutput->stream->common);
@@ -2765,11 +2776,6 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
             mNormalFrameCount);
     mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
 
-    // FIXME - Current mixer implementation only supports stereo output
-    if (mChannelCount != FCC_2) {
-        ALOGE("Invalid audio hardware channel count %d", mChannelCount);
-    }
-
     // create an NBAIO sink for the HAL output stream, and negotiate
     mOutputSink = new AudioStreamOutSink(output->stream);
     size_t numCounterOffers = 0;
@@ -3492,6 +3498,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 name,
                 AudioMixer::TRACK,
                 AudioMixer::CHANNEL_MASK, (void *)(uintptr_t)track->channelMask());
+            mAudioMixer->setParameter(
+                name,
+                AudioMixer::TRACK,
+                AudioMixer::MIXER_CHANNEL_MASK, (void *)(uintptr_t)mChannelMask);
             // limit track sample rate to 2 x output sample rate, which changes at re-configuration
             uint32_t maxSampleRate = mSampleRate * 2;
             uint32_t reqSampleRate = track->mAudioTrackServerProxy->getSampleRate();
@@ -3730,7 +3740,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         reconfig = true;
     }
     if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
-        if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
+        if (!isValidPcmSinkFormat((audio_format_t) value)) {
             status = BAD_VALUE;
         } else {
             // no need to save value, since it's constant
@@ -3738,7 +3748,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         }
     }
     if (param.getInt(String8(AudioParameter::keyChannels), value) == NO_ERROR) {
-        if ((audio_channel_mask_t) value != AUDIO_CHANNEL_OUT_STEREO) {
+        if (!isValidPcmSinkChannelMask((audio_channel_mask_t) value)) {
             status = BAD_VALUE;
         } else {
             // no need to save value, since it's constant
