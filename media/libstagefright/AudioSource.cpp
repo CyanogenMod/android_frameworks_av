@@ -159,6 +159,8 @@ status_t AudioSource::reset() {
     waitOutstandingEncodingFrames_l();
     releaseQueuedFrames_l();
 
+    mFrameAvailableCondition.signal();
+
     return OK;
 }
 
