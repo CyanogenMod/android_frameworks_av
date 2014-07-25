@@ -54,6 +54,7 @@
 
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
+#include <ExtendedUtils.h>
 #endif
 
 namespace android {
@@ -4614,12 +4615,36 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
             encoder = false;
         }
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+    // Call UseQCHWAACEncoder with no arguments to get the correct state since
+    // MediaCodecSource does not pass the output format details when calling
+    // kInit leading to msg passed not having enough details
+    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)
+        && ExtendedUtils::UseQCHWAACEncoder()) {
+        //use hw aac encoder
+        ALOGD("use QCOM HW AAC encoder");
+        OMXCodec::findMatchingCodecs(
+                mime.c_str(),
+                encoder, // createEncoder
+                "OMX.qcom.audio.encoder.aac",  // OMX.qcom.audio.encoder.aac
+                0,     // flags
+                &matchingCodecs);
+    }
+    else
         OMXCodec::findMatchingCodecs(
                 mime.c_str(),
                 encoder, // createEncoder
                 NULL,  // matchComponentName
                 0,     // flags
                 &matchingCodecs);
+#else
+    OMXCodec::findMatchingCodecs(
+                mime.c_str(),
+                encoder, // createEncoder
+                NULL,  // matchComponentName
+                0,     // flags
+                &matchingCodecs);
+#endif
     }
 
     sp<CodecObserver> observer = new CodecObserver;

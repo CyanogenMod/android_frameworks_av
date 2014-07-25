@@ -35,6 +35,12 @@
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/stagefright/Utils.h>
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/OMXCodec.h>
+#include <ExtendedUtils.h>
+#endif
+
 namespace android {
 
 struct MediaCodecSource::Puller : public AHandler {
@@ -352,6 +358,37 @@ MediaCodecSource::MediaCodecSource(
     if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
         mPuller = new Puller(source);
     }
+#ifdef ENABLE_AV_ENHANCEMENTS
+    int32_t bitRate = 0;
+    int32_t sampleRate = 0;
+    int32_t numChannels = 0;
+    int32_t aacProfile = 0;
+    audio_encoder aacEncoder;
+
+    outputFormat->findInt32("bitrate", &bitRate);
+    outputFormat->findInt32("channel-count", &numChannels);
+    outputFormat->findInt32("sample-rate", &sampleRate);
+    outputFormat->findInt32("aac-profile", &aacProfile);
+    ALOGD("bitrate:%d, samplerate:%d, channels:%d",
+                    bitRate, sampleRate, numChannels);
+    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)) {
+        switch(aacProfile) {
+        case OMX_AUDIO_AACObjectLC:
+            aacEncoder = AUDIO_ENCODER_AAC;
+            ALOGV("AUDIO_ENCODER_AAC");
+            break;
+        case OMX_AUDIO_AACObjectHE:
+            aacEncoder = AUDIO_ENCODER_HE_AAC;
+            ALOGV("AUDIO_ENCODER_HE_AAC");
+            break;
+        case OMX_AUDIO_AACObjectELD:
+            aacEncoder = AUDIO_ENCODER_AAC_ELD;
+            ALOGV("AUDIO_ENCODER_AAC_ELD");
+        }
+        ExtendedUtils::UseQCHWAACEncoder(aacEncoder, numChannels,
+                                          bitRate, sampleRate);
+    }
+#endif
 }
 
 MediaCodecSource::~MediaCodecSource() {

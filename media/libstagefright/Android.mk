@@ -133,6 +133,7 @@ endif
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
        LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
+       LOCAL_C_INCLUDES += $(TOP)/frameworks/av/media/libstagefright/include
        LOCAL_SRC_FILES  += ExtendedMediaDefs.cpp
        LOCAL_SRC_FILES  += ExtendedWriter.cpp
        LOCAL_SRC_FILES  += FMA2DPWriter.cpp

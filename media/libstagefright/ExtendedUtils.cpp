@@ -46,6 +46,7 @@
 
 static const int64_t kDefaultAVSyncLateMargin =  40000;
 static const int64_t kMaxAVSyncLateMargin     = 250000;
+bool android::ExtendedUtils::mIsQCHWAACEncoder = 0;
 
 static const unsigned kDefaultRtpPortRangeStart = 15550;
 static const unsigned kDefaultRtpPortRangeEnd = 65535;
@@ -240,16 +241,25 @@ Maximum    |Min(192000,6 * f_s)    |Min(192000,12 * f_s)  | Min(192000,6 * f_s) 
 */
 bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int32_t BitRate,int32_t SampleRate)
 {
-    bool ret = false;
     int minBiteRate = -1;
     int maxBiteRate = -1;
     char propValue[PROPERTY_VALUE_MAX] = {0};
-
+    bool currentState;
     ARG_TOUCH(BitRate);
+
     property_get("qcom.hw.aac.encoder",propValue,NULL);
     if (!strncmp(propValue,"true",sizeof("true"))) {
         //check for QCOM's HW AAC encoder only when qcom.aac.encoder =  true;
         ALOGV("qcom.aac.encoder enabled, check AAC encoder(%d) allowed bitrates",Encoder);
+
+        if (Channel == 0 && BitRate == 0 && SampleRate == 0) {
+            //this is a query call, simply reset and return state
+            ALOGV("mIsQCHWAACEncoder:%d", mIsQCHWAACEncoder);
+            currentState = mIsQCHWAACEncoder;
+            mIsQCHWAACEncoder = false;
+            return currentState;
+        }
+
         switch (Encoder) {
         case AUDIO_ENCODER_AAC:// for AAC-LC format
             if (Channel == 1) {//mono
@@ -276,11 +286,11 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int3
 
         //return true only when 1. minBiteRate and maxBiteRate are updated(not -1) 2. minBiteRate <= SampleRate <= maxBiteRate
         if (BitRate >= minBiteRate && BitRate <= maxBiteRate) {
-            ret = true;
+            mIsQCHWAACEncoder = true;
         }
     }
 
-    return ret;
+    return mIsQCHWAACEncoder;
 }
 
 
