@@ -29,6 +29,7 @@
 #include "RTSPSource.h"
 #include "StreamingSource.h"
 #include "GenericSource.h"
+#include "TextDescriptions.h"
 
 #include "ATSParser.h"
 
@@ -151,6 +152,7 @@ NuPlayer::NuPlayer()
       mScanSourcesPending(false),
       mScanSourcesGeneration(0),
       mPollDurationGeneration(0),
+      mTimedTextGeneration(0),
       mTimeDiscontinuityPending(false),
       mFlushingAudio(NONE),
       mFlushingVideo(NONE),
@@ -428,6 +430,16 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             if (trackIndex < inbandTracks) {
                 err = mSource->selectTrack(trackIndex, select);
+
+                if (!select && err == OK) {
+                    int32_t type;
+                    sp<AMessage> info = mSource->getTrackInfo(trackIndex);
+                    if (info != NULL
+                            && info->findInt32("type", &type)
+                            && type == MEDIA_TRACK_TYPE_TIMEDTEXT) {
+                        ++mTimedTextGeneration;
+                    }
+                }
             } else {
                 trackIndex -= inbandTracks;
 
@@ -1492,6 +1504,7 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
           seekTimeUs / 1E6);
 
     mSource->seekTo(seekTimeUs);
+    ++mTimedTextGeneration;
 
     if (mDriver != NULL) {
         sp<NuPlayerDriver> driver = mDriver.promote();
@@ -1700,6 +1713,39 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case Source::kWhatTimedTextData:
+        {
+            int32_t generation;
+            if (msg->findInt32("generation", &generation)
+                    && generation != mTimedTextGeneration) {
+                break;
+            }
+
+            sp<ABuffer> buffer;
+            CHECK(msg->findBuffer("buffer", &buffer));
+
+            sp<NuPlayerDriver> driver = mDriver.promote();
+            if (driver == NULL) {
+                break;
+            }
+
+            int posMs;
+            int64_t timeUs, posUs;
+            driver->getCurrentPosition(&posMs);
+            posUs = posMs * 1000;
+            CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+
+            if (posUs < timeUs) {
+                if (!msg->findInt32("generation", &generation)) {
+                    msg->setInt32("generation", mTimedTextGeneration);
+                }
+                msg->post(timeUs - posUs);
+            } else {
+                sendTimedTextData(buffer);
+            }
+            break;
+        }
+
         case Source::kWhatQueueDecoderShutdown:
         {
             int32_t audio, video;
@@ -1767,6 +1813,34 @@ void NuPlayer::sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex) {
     in.write(buffer->data(), buffer->size());
 
     notifyListener(MEDIA_SUBTITLE_DATA, 0, 0, &in);
+}
+
+void NuPlayer::sendTimedTextData(const sp<ABuffer> &buffer) {
+    const void *data;
+    size_t size = 0;
+    int64_t timeUs;
+    int32_t flag = TextDescriptions::LOCAL_DESCRIPTIONS;
+
+    AString mime;
+    CHECK(buffer->meta()->findString("mime", &mime));
+    CHECK(strcasecmp(mime.c_str(), MEDIA_MIMETYPE_TEXT_3GPP) == 0);
+
+    data = buffer->data();
+    size = buffer->size();
+
+    Parcel parcel;
+    if (size > 0) {
+        CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+        flag |= TextDescriptions::IN_BAND_TEXT_3GPP;
+        TextDescriptions::getParcelOfDescriptions(
+                (const uint8_t *)data, size, flag, timeUs / 1000, &parcel);
+    }
+
+    if ((parcel.dataSize() > 0)) {
+        notifyListener(MEDIA_TIMED_TEXT, 0, 0, &parcel);
+    } else {  // send an empty timed text
+        notifyListener(MEDIA_TIMED_TEXT, 0, 0);
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////
 
