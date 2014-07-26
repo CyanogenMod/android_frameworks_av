@@ -66,10 +66,6 @@ status_t TiffWriter::write(Output* out, StripSource** sources, size_t sourcesCou
         return BAD_VALUE;
     }
 
-    if (LOG_NDEBUG == 0) {
-        log();
-    }
-
     uint32_t totalSize = getTotalSize();
 
     KeyedVector<uint32_t, uint32_t> offsetVector;
@@ -104,7 +100,9 @@ status_t TiffWriter::write(Output* out, StripSource** sources, size_t sourcesCou
         ifd = ifd->getNextIfd();
     }
 
-    log();
+    if (LOG_NDEBUG == 0) {
+        log();
+    }
 
     for (size_t i = 0; i < offVecSize; ++i) {
         uint32_t ifdKey = offsetVector.keyAt(i);
