@@ -47,6 +47,7 @@ struct NuPlayer::Source : public AHandler {
         kWhatBufferingStart,
         kWhatBufferingEnd,
         kWhatSubtitleData,
+        kWhatTimedTextData,
         kWhatQueueDecoderShutdown,
     };
 
