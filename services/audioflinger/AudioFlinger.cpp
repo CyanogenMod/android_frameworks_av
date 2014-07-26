@@ -129,17 +129,29 @@ static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
 
 // ----------------------------------------------------------------------------
 
-static int getprocname(pid_t pid, char *buf, size_t len)
+static String16 get_package_name(pid_t pid)
 {
+    char buf[40];
     char filename[20];
     FILE *f;
 
     sprintf(filename, "/proc/%d/cmdline", pid);
     f = fopen(filename, "r");
-    if (!f) { *buf = '\0'; return 1; }
-    if (!fgets(buf, len, f)) { *buf = '\0'; return 2; }
+    if (!f) {
+        return String16();
+    }
+    if (!fgets(buf, 40, f)) {
+        fclose(f);
+        return String16();
+    }
     fclose(f);
-    return 0;
+
+    // get the real package name for the process name
+    char *pch = strstr(buf, ":");
+    if (pch) {
+        buf[pch - buf] = '\0';
+    }
+    return String16((const char*) buf);
 }
 
 static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
@@ -451,12 +463,7 @@ sp<AudioFlinger::Client> AudioFlinger::registerPid_l(pid_t pid)
     // (for which promote() is always != 0), otherwise create a new entry and Client.
     sp<Client> client = mClients.valueFor(pid).promote();
     if (client == 0) {
-        char process_name[40];
-        if (getprocname(pid, process_name, sizeof(process_name)) == 0) {
-            client = new Client(this, pid, String16((const char*) process_name));
-        } else {
-            client = new Client(this, pid, String16());
-        }
+        client = new Client(this, pid, get_package_name(pid));
         mClients.add(pid, client);
     }
 
@@ -521,7 +528,9 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
     // Check client has audio record access
     if (!checkAudioRecordOp()){
-        ALOGE("createTrack() permission denied for %d", tid);
+        IPCThreadState* ipcState = IPCThreadState::self();
+        pid_t pid = ipcState->getCallingPid();
+        ALOGE("createTrack() permission denied for %d", pid);
         lStatus = PERMISSION_DENIED;
         goto Exit;
     }
@@ -1601,7 +1610,9 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     // Check client has audio record access
     if (!checkAudioRecordOp()){
-        ALOGE("openRecord() permission denied for %d", tid);
+        IPCThreadState* ipcState = IPCThreadState::self();
+        pid_t pid = ipcState->getCallingPid();
+        ALOGE("openRecord() permission denied for %d", pid);
         lStatus = PERMISSION_DENIED;
         goto Exit;
     }
@@ -3034,7 +3045,6 @@ bool AudioFlinger::checkAudioRecordOp()
     IPCThreadState* ipcState = IPCThreadState::self();
     pid_t pid = ipcState->getCallingPid();
     uid_t uid = ipcState->getCallingUid();
-    char process_name[40];
 
     // Only affect to apps
     if (uid < AID_APP) {
@@ -3045,10 +3055,7 @@ bool AudioFlinger::checkAudioRecordOp()
     String16 clientName;
     sp<Client> client = mClients.valueFor(pid).promote();
     if (client == 0) {
-        char process_name[40];
-        if (getprocname(pid, process_name, sizeof(process_name)) == 0) {
-            clientName = String16((const char*) process_name);
-        }
+        clientName = get_package_name(pid);
     } else {
         clientName = client->clientName();
     }
@@ -3059,8 +3066,8 @@ bool AudioFlinger::checkAudioRecordOp()
     }
 
     // check AppOp permission
-    return (uid != AID_SYSTEM && (mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, uid,
-            clientName) == AppOpsManager::MODE_ALLOWED));
+    return (mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, uid, clientName) ==
+            AppOpsManager::MODE_ALLOWED);
 }
 
 }; // namespace android
