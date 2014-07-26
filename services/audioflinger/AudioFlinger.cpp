@@ -3045,8 +3045,12 @@ bool AudioFlinger::checkAudioRecordOp()
     String16 clientName;
     sp<Client> client = mClients.valueFor(pid).promote();
     if (client == 0) {
-        char process_name[40];
         if (getprocname(pid, process_name, sizeof(process_name)) == 0) {
+            // Do this process uses a process name? Then extract the real package name
+            char *pch = strstr(process_name, ":");
+            if (pch) {
+                process_name[pch - process_name] = '\0';
+            }
             clientName = String16((const char*) process_name);
         }
     } else {
@@ -3059,8 +3063,8 @@ bool AudioFlinger::checkAudioRecordOp()
     }
 
     // check AppOp permission
-    return (uid != AID_SYSTEM && (mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, uid,
-            clientName) == AppOpsManager::MODE_ALLOWED));
+    return (mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, uid, clientName) ==
+            AppOpsManager::MODE_ALLOWED);
 }
 
 }; // namespace android
