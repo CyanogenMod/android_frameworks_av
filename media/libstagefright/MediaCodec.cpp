@@ -1948,6 +1948,18 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
         Mutex::Autolock al(mBufferLock);
         info->mFormat = portIndex == kPortIndexInput ? mInputFormat : mOutputFormat;
         info->mOwnedByClient = true;
+
+        // set image-data
+        if (info->mFormat != NULL) {
+            sp<ABuffer> imageData;
+            if (info->mFormat->findBuffer("image-data", &imageData)) {
+                info->mData->meta()->setBuffer("image-data", imageData);
+            }
+            int32_t left, top, right, bottom;
+            if (info->mFormat->findRect("crop", &left, &top, &right, &bottom)) {
+                info->mData->meta()->setRect("crop-rect", left, top, right, bottom);
+            }
+        }
     }
 
     return index;
