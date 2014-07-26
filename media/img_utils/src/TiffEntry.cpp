@@ -203,9 +203,15 @@ String8 TiffEntry::toString() const {
             }
             break;
         }
-        case FLOAT:
-        case DOUBLE: {
+        case FLOAT: {
             const float* typed_data = getData<float>();
+            for (size_t i = 0; i < cappedCount; ++i) {
+                output.appendFormat("%f ", typed_data[i]);
+            }
+            break;
+        }
+        case DOUBLE: {
+            const double* typed_data = getData<double>();
             for (size_t i = 0; i < cappedCount; ++i) {
                 output.appendFormat("%f ", typed_data[i]);
             }
