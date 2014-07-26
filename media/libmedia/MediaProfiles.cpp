@@ -81,6 +81,12 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"timelapse1080p", CAMCORDER_QUALITY_TIME_LAPSE_1080P},
     {"timelapse2160p", CAMCORDER_QUALITY_TIME_LAPSE_2160P},
     {"timelapseqvga", CAMCORDER_QUALITY_TIME_LAPSE_QVGA},
+
+    {"highspeedlow",  CAMCORDER_QUALITY_HIGH_SPEED_LOW},
+    {"highspeedhigh", CAMCORDER_QUALITY_HIGH_SPEED_HIGH},
+    {"highspeed480p", CAMCORDER_QUALITY_HIGH_SPEED_480P},
+    {"highspeed720p", CAMCORDER_QUALITY_HIGH_SPEED_720P},
+    {"highspeed1080p", CAMCORDER_QUALITY_HIGH_SPEED_1080P},
 };
 
 #if LOG_NDEBUG
@@ -474,6 +480,11 @@ static bool isTimelapseProfile(camcorder_quality quality) {
            quality <= CAMCORDER_QUALITY_TIME_LAPSE_LIST_END;
 }
 
+static bool isHighSpeedProfile(camcorder_quality quality) {
+    return quality >= CAMCORDER_QUALITY_HIGH_SPEED_LIST_START &&
+           quality <= CAMCORDER_QUALITY_HIGH_SPEED_LIST_END;
+}
+
 void MediaProfiles::initRequiredProfileRefs(const Vector<int>& cameraIds) {
     ALOGV("Number of camera ids: %zu", cameraIds.size());
     CHECK(cameraIds.size() > 0);
@@ -521,14 +532,17 @@ void MediaProfiles::checkAndAddRequiredProfilesIfNecessary() {
         camcorder_quality refQuality;
         VideoCodec *codec = NULL;
 
-        // Check high and low from either camcorder profile or timelapse profile
-        // but not both. Default, check camcorder profile
+        // Check high and low from either camcorder profile, timelapse profile
+        // or high speed profile, but not all of them. Default, check camcorder profile
         size_t j = 0;
         size_t o = 2;
         if (isTimelapseProfile(quality)) {
             // Check timelapse profile instead.
             j = 2;
             o = kNumRequiredProfiles;
+        } else if (isHighSpeedProfile(quality)) {
+            // Skip the check for high speed profile.
+            continue;
         } else {
             // Must be camcorder profile.
             CHECK(isCamcorderProfile(quality));
