@@ -42,6 +42,9 @@ struct ABuffer : public RefBase {
 
     void setRange(size_t offset, size_t size);
 
+    // create buffer from dup of some memory block
+    static sp<ABuffer> CreateAsCopy(const void *data, size_t capacity);
+
     void setInt32Data(int32_t data) { mInt32Data = data; }
     int32_t int32Data() const { return mInt32Data; }
 
