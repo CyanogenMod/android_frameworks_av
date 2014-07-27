@@ -167,7 +167,7 @@ static int sFastTrackMultiplier = kFastTrackMultiplier;
 // Initially this heap is used to allocate client buffers for "fast" AudioRecord.
 // Eventually it will be the single buffer that FastCapture writes into via HAL read(),
 // and that all "fast" AudioRecord clients read from.  In either case, the size can be small.
-static const size_t kRecordThreadReadOnlyHeapSize = 0x1000;
+static const size_t kRecordThreadReadOnlyHeapSize = 0x2000;
 
 // ----------------------------------------------------------------------------
 
@@ -4862,8 +4862,8 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                 // or primary output sample rate is unknown, and capture sample rate is reasonable
                 ((primaryOutputSampleRate == 0) &&
                     ((mSampleRate == 44100 || mSampleRate == 48000)))) &&
-                // and the buffer size is < 10 ms
-                (mFrameCount * 1000) / mSampleRate < 10;
+                // and the buffer size is < 12 ms
+                (mFrameCount * 1000) / mSampleRate < 12;
         break;
     // case FastCapture_Dynamic:
     }
