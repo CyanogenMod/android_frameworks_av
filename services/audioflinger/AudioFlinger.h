@@ -45,6 +45,7 @@
 #include <utils/TypeHelpers.h>
 #include <utils/Vector.h>
 
+#include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/MemoryDealer.h>
 
@@ -388,10 +389,11 @@ private:
     public:
                             NotificationClient(const sp<AudioFlinger>& audioFlinger,
                                                 const sp<IAudioFlingerClient>& client,
-                                                pid_t pid);
+                                                pid_t pid, const String16 clientName);
         virtual             ~NotificationClient();
 
                 sp<IAudioFlingerClient> audioFlingerClient() const { return mAudioFlingerClient; }
+                String16     clientName() const { return mClientName; }
 
                 // IBinder::DeathRecipient
                 virtual     void        binderDied(const wp<IBinder>& who);
@@ -403,6 +405,7 @@ private:
         const sp<AudioFlinger>  mAudioFlinger;
         const pid_t             mPid;
         const sp<IAudioFlingerClient> mAudioFlingerClient;
+        const String16          mClientName;
     };
 
     class TrackHandle;
@@ -831,6 +834,10 @@ private:
     bool    mIsLowRamDevice;
     bool    mIsDeviceTypeKnown;
     nsecs_t mGlobalEffectEnableTime;  // when a global effect was last enabled
+
+    // For checking audio record access
+    AppOpsManager mAppOpsManager;
+    bool    checkAudioRecordOp();
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
