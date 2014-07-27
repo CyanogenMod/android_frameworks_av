@@ -4627,13 +4627,13 @@ AudioPolicyManager::AudioOutputDescriptor::AudioOutputDescriptor(
     }
     if (profile != NULL) {
         mAudioPort = profile;
+        mFlags = profile->mFlags;
         mSamplingRate = profile->pickSamplingRate();
         mFormat = profile->pickFormat();
         mChannelMask = profile->pickChannelMask();
         if (profile->mGains.size() > 0) {
             profile->mGains[0]->getDefaultConfig(&mGain);
         }
-        mFlags = profile->mFlags;
     }
 }
 
@@ -5470,7 +5470,7 @@ audio_format_t AudioPolicyManager::AudioPort::pickFormat() const
     // limit format otherwise
     if ((mType != AUDIO_PORT_TYPE_MIX) ||
             ((mRole == AUDIO_PORT_ROLE_SOURCE) &&
-             (((mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) == 0)))) {
+             (((mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) != 0)))) {
         bestFormat = AUDIO_FORMAT_INVALID;
     }
 
