@@ -30,6 +30,10 @@
 // A device mask for all audio output devices that are considered "remote" when evaluating
 // active output devices in isStreamActiveRemotely()
 #define APM_AUDIO_OUT_DEVICE_REMOTE_ALL  AUDIO_DEVICE_OUT_REMOTE_SUBMIX
+// A device mask for all audio input and output devices where matching inputs/outputs on device
+// type alone is not enough: the address must match too
+#define APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX | \
+                                            AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
 
 #include <inttypes.h>
 #include <math.h>
@@ -228,14 +232,6 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             }
             ALOGV("setDeviceConnectionState() connecting device %x", device);
 
-            if (checkOutputsForDevice(device, state, outputs, address) != NO_ERROR) {
-                return INVALID_OPERATION;
-            }
-            // outputs should never be empty here
-            ALOG_ASSERT(outputs.size() != 0, "setDeviceConnectionState():"
-                    "checkOutputsForDevice() returned no outputs but status OK");
-            ALOGV("setDeviceConnectionState() checkOutputsForDevice() returned %zu outputs",
-                  outputs.size());
             // register new device as available
             index = mAvailableOutputDevices.add(devDesc);
             if (index >= 0) {
@@ -248,6 +244,15 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                 return NO_MEMORY;
             }
 
+            if (checkOutputsForDevice(device, state, outputs, address) != NO_ERROR) {
+                mAvailableOutputDevices.remove(devDesc);
+                return INVALID_OPERATION;
+            }
+            // outputs should never be empty here
+            ALOG_ASSERT(outputs.size() != 0, "setDeviceConnectionState():"
+                    "checkOutputsForDevice() returned no outputs but status OK");
+            ALOGV("setDeviceConnectionState() checkOutputsForDevice() returned %zu outputs",
+                  outputs.size());
             break;
         // handle output device disconnection
         case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE: {
@@ -261,8 +266,6 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             mAvailableOutputDevices.remove(devDesc);
 
             checkOutputsForDevice(device, state, outputs, address);
-            // not currently handling multiple simultaneous submixes: ignoring remote submix
-            //   case and address
             } break;
 
         default:
@@ -295,10 +298,13 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             // do not force device change on duplicated output because if device is 0, it will
             // also force a device 0 for the two outputs it is duplicated to which may override
             // a valid device selection on those outputs.
+            bool force = !mOutputs.valueAt(i)->isDuplicated()
+                    && (!deviceDistinguishesOnAddress(device)
+                            // always force when disconnecting (a non-duplicated device)
+                            || (state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE));
             setOutputDevice(mOutputs.keyAt(i),
                             getNewOutputDevice(mOutputs.keyAt(i), true /*fromCache*/),
-                            !mOutputs.valueAt(i)->isDuplicated(),
-                            0);
+                            force, 0);
         }
 
         mpClientInterface->onAudioPortListUpdate();
@@ -2643,8 +2649,37 @@ String8 AudioPolicyManager::addressToParameter(audio_devices_t device, const Str
 {
     if (device & AUDIO_DEVICE_OUT_ALL_A2DP) {
         return String8("a2dp_sink_address=")+address;
+    } else if (device & AUDIO_DEVICE_OUT_REMOTE_SUBMIX) {
+        return String8("mix=")+address;
     }
     return address;
+}
+
+void AudioPolicyManager::findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /*in*/,
+        const String8 address /*in*/,
+        SortedVector<audio_io_handle_t>& outputs /*out*/) {
+    // look for a match on the given address on the addresses of the outputs:
+    // find the address by finding the patch that maps to this output
+    ssize_t patchIdx = mAudioPatches.indexOfKey(desc->mPatchHandle);
+    //ALOGV("    inspecting output %d (patch %d) for supported device=0x%x",
+    //        outputIdx, patchIdx,  desc->mProfile->mSupportedDevices.types());
+    if (patchIdx >= 0) {
+        const sp<AudioPatch> patchDesc = mAudioPatches.valueAt(patchIdx);
+        const int numSinks = patchDesc->mPatch.num_sinks;
+        for (ssize_t j=0; j < numSinks; j++) {
+            if (patchDesc->mPatch.sinks[j].type == AUDIO_PORT_TYPE_DEVICE) {
+                const char* patchAddr =
+                        patchDesc->mPatch.sinks[j].ext.device.address;
+                if (strncmp(patchAddr,
+                        address.string(), AUDIO_DEVICE_MAX_ADDRESS_LEN) == 0) {
+                    ALOGV("checkOutputsForDevice(): adding opened output %d on same address %s",
+                            desc->mIoHandle,  patchDesc->mPatch.sinks[j].ext.device.address);
+                    outputs.add(desc->mIoHandle);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
@@ -2659,8 +2694,13 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
         for (size_t i = 0; i < mOutputs.size(); i++) {
             desc = mOutputs.valueAt(i);
             if (!desc->isDuplicated() && (desc->mProfile->mSupportedDevices.types() & device)) {
-                ALOGV("checkOutputsForDevice(): adding opened output %d", mOutputs.keyAt(i));
-                outputs.add(mOutputs.keyAt(i));
+                if (!deviceDistinguishesOnAddress(device)) {
+                    ALOGV("checkOutputsForDevice(): adding opened output %d", mOutputs.keyAt(i));
+                    outputs.add(mOutputs.keyAt(i));
+                } else {
+                    ALOGV("  checking address match due to device 0x%x", device);
+                    findIoHandlesByAddress(desc, address, outputs);
+                }
             }
         }
         // then look for output profiles that can be routed to this device
@@ -2679,6 +2719,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
             }
         }
 
+        ALOGV("  found %d profiles, %d outputs", profiles.size(), outputs.size());
+
         if (profiles.isEmpty() && outputs.isEmpty()) {
             ALOGW("checkOutputsForDevice(): No output available for device %04x", device);
             return BAD_VALUE;
@@ -2691,13 +2733,13 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
 
             // nothing to do if one output is already opened for this profile
             size_t j;
-            for (j = 0; j < mOutputs.size(); j++) {
-                desc = mOutputs.valueAt(j);
+            for (j = 0; j < outputs.size(); j++) {
+                desc = mOutputs.valueFor(outputs.itemAt(j));
                 if (!desc->isDuplicated() && desc->mProfile == profile) {
                     break;
                 }
             }
-            if (j != mOutputs.size()) {
+            if (j != outputs.size()) {
                 continue;
             }
 
@@ -2730,7 +2772,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 if (profile->mSamplingRates[0] == 0) {
                     reply = mpClientInterface->getParameters(output,
                                             String8(AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES));
-                    ALOGV("checkOutputsForDevice() direct output sup sampling rates %s",
+                    ALOGV("checkOutputsForDevice() supported sampling rates %s",
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
@@ -2740,7 +2782,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
                     reply = mpClientInterface->getParameters(output,
                                                    String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
-                    ALOGV("checkOutputsForDevice() direct output sup formats %s",
+                    ALOGV("checkOutputsForDevice() supported formats %s",
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
@@ -2750,7 +2792,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 if (profile->mChannelMasks[0] == 0) {
                     reply = mpClientInterface->getParameters(output,
                                                   String8(AUDIO_PARAMETER_STREAM_SUP_CHANNELS));
-                    ALOGV("checkOutputsForDevice() direct output sup channel masks %s",
+                    ALOGV("checkOutputsForDevice() supported channel masks %s",
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
@@ -2763,7 +2805,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                          (profile->mFormats.size() < 2)) ||
                      ((profile->mChannelMasks[0] == 0) &&
                          (profile->mChannelMasks.size() < 2))) {
-                    ALOGW("checkOutputsForDevice() direct output missing param");
+                    ALOGW("checkOutputsForDevice() missing param");
                     mpClientInterface->closeOutput(output);
                     output = 0;
                 } else if (profile->mSamplingRates[0] == 0 || profile->mFormats[0] == 0 ||
@@ -2827,6 +2869,12 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 profile_index--;
             } else {
                 outputs.add(output);
+                if (deviceDistinguishesOnAddress(device)) {
+                    ALOGV("checkOutputsForDevice(): setOutputDevice(dev=0x%x, addr=%s)",
+                            device, address.string());
+                    setOutputDevice(output, device, true/*force*/, 0/*delay*/,
+                            NULL/*patch handle*/, address.string());
+                }
                 ALOGV("checkOutputsForDevice(): adding output %d", output);
             }
         }
@@ -2839,11 +2887,17 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
         // check if one opened output is not needed any more after disconnecting one device
         for (size_t i = 0; i < mOutputs.size(); i++) {
             desc = mOutputs.valueAt(i);
-            if (!desc->isDuplicated() &&
-                    !(desc->mProfile->mSupportedDevices.types() &
-                            mAvailableOutputDevices.types())) {
-                ALOGV("checkOutputsForDevice(): disconnecting adding output %d", mOutputs.keyAt(i));
-                outputs.add(mOutputs.keyAt(i));
+            if (!desc->isDuplicated()) {
+                if  (!(desc->mProfile->mSupportedDevices.types()
+                        & mAvailableOutputDevices.types())) {
+                    ALOGV("checkOutputsForDevice(): disconnecting adding output %d",
+                            mOutputs.keyAt(i));
+                    outputs.add(mOutputs.keyAt(i));
+                } else if (deviceDistinguishesOnAddress(device) &&
+                        // exact match on device
+                        (desc->mProfile->mSupportedDevices.types() == device)) {
+                    findIoHandlesByAddress(desc, address, outputs);
+                }
             }
         }
         // Clear any profiles associated with the disconnected device.
@@ -3736,7 +3790,8 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
                                              audio_devices_t device,
                                              bool force,
                                              int delayMs,
-                                             audio_patch_handle_t *patchHandle)
+                                             audio_patch_handle_t *patchHandle,
+                                             const char* address)
 {
     ALOGV("setOutputDevice() output %d device %04x delayMs %d", output, device, delayMs);
     sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
@@ -3782,7 +3837,9 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
     if (device == AUDIO_DEVICE_NONE) {
         resetOutputDevice(output, delayMs, NULL);
     } else {
-        DeviceVector deviceList = mAvailableOutputDevices.getDevicesFromType(device);
+        DeviceVector deviceList = (address == NULL) ?
+                mAvailableOutputDevices.getDevicesFromType(device)
+                : mAvailableOutputDevices.getDevicesFromTypeAddr(device, String8(address));
         if (!deviceList.isEmpty()) {
             struct audio_patch patch;
             outputDesc->toAudioPortConfig(&patch.sources[0]);
@@ -4044,6 +4101,10 @@ bool AudioPolicyManager::isVirtualInputDevice(audio_devices_t device)
             return true;
     }
     return false;
+}
+
+bool AudioPolicyManager::deviceDistinguishesOnAddress(audio_devices_t device) {
+    return ((device & APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL) != 0);
 }
 
 audio_io_handle_t AudioPolicyManager::getActiveInput(bool ignoreVirtualInputs)
@@ -5949,6 +6010,24 @@ AudioPolicyManager::DeviceVector AudioPolicyManager::DeviceVector::getDevicesFro
             type &= ~itemAt(i)->mDeviceType;
             ALOGV("DeviceVector::getDevicesFromType() for type %x found %p",
                   itemAt(i)->mDeviceType, itemAt(i).get());
+        }
+    }
+    return devices;
+}
+
+AudioPolicyManager::DeviceVector AudioPolicyManager::DeviceVector::getDevicesFromTypeAddr(
+        audio_devices_t type, String8 address) const
+{
+    DeviceVector devices;
+    //ALOGV("   looking for device=%x, addr=%s", type, address.string());
+    for (size_t i = 0; i < size(); i++) {
+        //ALOGV("     at i=%d: device=%x, addr=%s",
+        //        i, itemAt(i)->mDeviceType, itemAt(i)->mAddress.string());
+        if (itemAt(i)->mDeviceType == type) {
+            if (itemAt(i)->mAddress == address) {
+                //ALOGV("      found matching address %s", address.string());
+                devices.add(itemAt(i));
+            }
         }
     }
     return devices;
