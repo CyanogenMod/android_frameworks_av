@@ -240,8 +240,15 @@ protected:
             void loadGain(cnode *root, int index);
             void loadGains(cnode *root);
 
-            status_t checkSamplingRate(uint32_t samplingRate) const;
-            status_t checkChannelMask(audio_channel_mask_t channelMask) const;
+            // searches for an exact match
+            status_t checkExactSamplingRate(uint32_t samplingRate) const;
+            // searches for a compatible match, and returns the best match via updatedSamplingRate
+            status_t checkCompatibleSamplingRate(uint32_t samplingRate,
+                    uint32_t *updatedSamplingRate) const;
+            // searches for an exact match
+            status_t checkExactChannelMask(audio_channel_mask_t channelMask) const;
+            // searches for a compatible match, currently implemented for input channel masks only
+            status_t checkCompatibleChannelMask(audio_channel_mask_t channelMask) const;
             status_t checkFormat(audio_format_t format) const;
             status_t checkGain(const struct audio_gain_config *gainConfig, int index) const;
 
@@ -358,8 +365,13 @@ protected:
             IOProfile(const String8& name, audio_port_role_t role, const sp<HwModule>& module);
             virtual ~IOProfile();
 
+            // This method is used for both output and input.
+            // If parameter updatedSamplingRate is non-NULL, it is assigned the actual sample rate.
+            // For input, flags is interpreted as audio_input_flags_t.
+            // TODO: merge audio_output_flags_t and audio_input_flags_t.
             bool isCompatibleProfile(audio_devices_t device,
                                      uint32_t samplingRate,
+                                     uint32_t *updatedSamplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
                                      audio_output_flags_t flags) const;
@@ -676,8 +688,9 @@ protected:
 
         audio_io_handle_t selectOutput(const SortedVector<audio_io_handle_t>& outputs,
                                        audio_output_flags_t flags);
+        // samplingRate parameter is an in/out and so may be modified
         sp<IOProfile> getInputProfile(audio_devices_t device,
-                                   uint32_t samplingRate,
+                                   uint32_t& samplingRate,
                                    audio_format_t format,
                                    audio_channel_mask_t channelMask,
                                    audio_input_flags_t flags);
