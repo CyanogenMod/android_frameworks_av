@@ -623,20 +623,10 @@ sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getProfileForDirectOutput(
         }
         for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++) {
             sp<IOProfile> profile = mHwModules[i]->mOutputProfiles[j];
-            bool found = false;
-            if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-                if (profile->isCompatibleProfile(device, samplingRate, format,
-                                           channelMask,
-                                           AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) {
-                    found = true;
-                }
-            } else {
-                if (profile->isCompatibleProfile(device, samplingRate, format,
-                                           channelMask,
-                                           AUDIO_OUTPUT_FLAG_DIRECT)) {
-                    found = true;
-                }
-            }
+            bool found = profile->isCompatibleProfile(device, samplingRate,
+                    NULL /*updatedSamplingRate*/, format, channelMask,
+                    flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ?
+                        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD : AUDIO_OUTPUT_FLAG_DIRECT);
             if (found && (mAvailableOutputDevices.types() & profile->mSupportedDevices.types())) {
                 return profile;
             }
@@ -1901,6 +1891,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
 
         if (!outputDesc->mProfile->isCompatibleProfile(devDesc->mDeviceType,
                                                        patch->sources[0].sample_rate,
+                                                     NULL,  // updatedSamplingRate
                                                      patch->sources[0].format,
                                                      patch->sources[0].channel_mask,
                                                      AUDIO_OUTPUT_FLAG_NONE /*FIXME*/)) {
@@ -1946,7 +1937,8 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             }
 
             if (!inputDesc->mProfile->isCompatibleProfile(devDesc->mDeviceType,
-                                                           patch->sinks[0].sample_rate,
+                                                         patch->sinks[0].sample_rate,
+                                                         NULL, /*updatedSampleRate*/
                                                          patch->sinks[0].format,
                                                          patch->sinks[0].channel_mask,
                                                          // FIXME for the parameter type,
@@ -4006,10 +3998,10 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
 }
 
 sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getInputProfile(audio_devices_t device,
-                                                   uint32_t samplingRate,
+                                                   uint32_t& samplingRate,
                                                    audio_format_t format,
                                                    audio_channel_mask_t channelMask,
-                                                   audio_input_flags_t flags __unused)
+                                                   audio_input_flags_t flags)
 {
     // Choose an input profile based on the requested capture parameters: select the first available
     // profile supporting all requested parameters.
@@ -4023,8 +4015,9 @@ sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getInputProfile(audio_devi
         {
             sp<IOProfile> profile = mHwModules[i]->mInputProfiles[j];
             // profile->log();
-            if (profile->isCompatibleProfile(device, samplingRate, format,
-                                             channelMask, AUDIO_OUTPUT_FLAG_NONE)) {
+            if (profile->isCompatibleProfile(device, samplingRate,
+                                             &samplingRate /*updatedSamplingRate*/,
+                                             format, channelMask, (audio_output_flags_t) flags)) {
                 return profile;
             }
         }
@@ -5330,7 +5323,7 @@ void AudioPolicyManager::AudioPort::loadGains(cnode *root)
     }
 }
 
-status_t AudioPolicyManager::AudioPort::checkSamplingRate(uint32_t samplingRate) const
+status_t AudioPolicyManager::AudioPort::checkExactSamplingRate(uint32_t samplingRate) const
 {
     for (size_t i = 0; i < mSamplingRates.size(); i ++) {
         if (mSamplingRates[i] == samplingRate) {
@@ -5340,11 +5333,94 @@ status_t AudioPolicyManager::AudioPort::checkSamplingRate(uint32_t samplingRate)
     return BAD_VALUE;
 }
 
-status_t AudioPolicyManager::AudioPort::checkChannelMask(audio_channel_mask_t channelMask) const
+status_t AudioPolicyManager::AudioPort::checkCompatibleSamplingRate(uint32_t samplingRate,
+        uint32_t *updatedSamplingRate) const
 {
-    for (size_t i = 0; i < mChannelMasks.size(); i ++) {
+    // Search for the closest supported sampling rate that is above (preferred)
+    // or below (acceptable) the desired sampling rate, within a permitted ratio.
+    // The sampling rates do not need to be sorted in ascending order.
+    ssize_t maxBelow = -1;
+    ssize_t minAbove = -1;
+    uint32_t candidate;
+    for (size_t i = 0; i < mSamplingRates.size(); i++) {
+        candidate = mSamplingRates[i];
+        if (candidate == samplingRate) {
+            if (updatedSamplingRate != NULL) {
+                *updatedSamplingRate = candidate;
+            }
+            return NO_ERROR;
+        }
+        // candidate < desired
+        if (candidate < samplingRate) {
+            if (maxBelow < 0 || candidate > mSamplingRates[maxBelow]) {
+                maxBelow = i;
+            }
+        // candidate > desired
+        } else {
+            if (minAbove < 0 || candidate < mSamplingRates[minAbove]) {
+                minAbove = i;
+            }
+        }
+    }
+    // This uses hard-coded knowledge about AudioFlinger resampling ratios.
+    // TODO Move these assumptions out.
+    static const uint32_t kMaxDownSampleRatio = 6;  // beyond this aliasing occurs
+    static const uint32_t kMaxUpSampleRatio = 256;  // beyond this sample rate inaccuracies occur
+                                                    // due to approximation by an int32_t of the
+                                                    // phase increments
+    // Prefer to down-sample from a higher sampling rate, as we get the desired frequency spectrum.
+    if (minAbove >= 0) {
+        candidate = mSamplingRates[minAbove];
+        if (candidate / kMaxDownSampleRatio <= samplingRate) {
+            if (updatedSamplingRate != NULL) {
+                *updatedSamplingRate = candidate;
+            }
+            return NO_ERROR;
+        }
+    }
+    // But if we have to up-sample from a lower sampling rate, that's OK.
+    if (maxBelow >= 0) {
+        candidate = mSamplingRates[maxBelow];
+        if (candidate * kMaxUpSampleRatio >= samplingRate) {
+            if (updatedSamplingRate != NULL) {
+                *updatedSamplingRate = candidate;
+            }
+            return NO_ERROR;
+        }
+    }
+    // leave updatedSamplingRate unmodified
+    return BAD_VALUE;
+}
+
+status_t AudioPolicyManager::AudioPort::checkExactChannelMask(audio_channel_mask_t channelMask) const
+{
+    for (size_t i = 0; i < mChannelMasks.size(); i++) {
         if (mChannelMasks[i] == channelMask) {
             return NO_ERROR;
+        }
+    }
+    return BAD_VALUE;
+}
+
+status_t AudioPolicyManager::AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask)
+        const
+{
+    const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
+    for (size_t i = 0; i < mChannelMasks.size(); i ++) {
+        // FIXME Does not handle multi-channel automatic conversions yet
+        audio_channel_mask_t supported = mChannelMasks[i];
+        if (supported == channelMask) {
+            return NO_ERROR;
+        }
+        if (isRecordThread) {
+            // This uses hard-coded knowledge that AudioFlinger can silently down-mix and up-mix.
+            // FIXME Abstract this out to a table.
+            if (((supported == AUDIO_CHANNEL_IN_FRONT_BACK || supported == AUDIO_CHANNEL_IN_STEREO)
+                    && channelMask == AUDIO_CHANNEL_IN_MONO) ||
+                (supported == AUDIO_CHANNEL_IN_MONO && (channelMask == AUDIO_CHANNEL_IN_FRONT_BACK
+                    || channelMask == AUDIO_CHANNEL_IN_STEREO))) {
+                return NO_ERROR;
+            }
         }
     }
     return BAD_VALUE;
@@ -5684,14 +5760,14 @@ status_t AudioPolicyManager::AudioPortConfig::applyAudioPortConfig(
         goto exit;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_SAMPLE_RATE) {
-        status = mAudioPort->checkSamplingRate(config->sample_rate);
+        status = mAudioPort->checkExactSamplingRate(config->sample_rate);
         if (status != NO_ERROR) {
             goto exit;
         }
         mSamplingRate = config->sample_rate;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_CHANNEL_MASK) {
-        status = mAudioPort->checkChannelMask(config->channel_mask);
+        status = mAudioPort->checkExactChannelMask(config->channel_mask);
         if (status != NO_ERROR) {
             goto exit;
         }
@@ -5782,30 +5858,60 @@ AudioPolicyManager::IOProfile::~IOProfile()
 // get a valid a match
 bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
                                                             uint32_t samplingRate,
+                                                            uint32_t *updatedSamplingRate,
                                                             audio_format_t format,
                                                             audio_channel_mask_t channelMask,
                                                             audio_output_flags_t flags) const
 {
-    if (samplingRate == 0 || !audio_is_valid_format(format) || channelMask == 0) {
-         return false;
-     }
+    const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
+    const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
+    ALOG_ASSERT(isPlaybackThread != isRecordThread);
 
-     if ((mSupportedDevices.types() & device) != device) {
+    if ((mSupportedDevices.types() & device) != device) {
+        return false;
+    }
+
+    if (samplingRate == 0) {
          return false;
-     }
-     if ((mFlags & flags) != flags) {
+    }
+    uint32_t myUpdatedSamplingRate = samplingRate;
+    if (isPlaybackThread && checkExactSamplingRate(samplingRate) != NO_ERROR) {
          return false;
-     }
-     if (checkSamplingRate(samplingRate) != NO_ERROR) {
+    }
+    if (isRecordThread && checkCompatibleSamplingRate(samplingRate, &myUpdatedSamplingRate) !=
+            NO_ERROR) {
          return false;
-     }
-     if (checkChannelMask(channelMask) != NO_ERROR) {
-         return false;
-     }
-     if (checkFormat(format) != NO_ERROR) {
-         return false;
-     }
-     return true;
+    }
+
+    if (!audio_is_valid_format(format) || checkFormat(format) != NO_ERROR) {
+        return false;
+    }
+
+    if (isPlaybackThread && (!audio_is_output_channel(channelMask) ||
+            checkExactChannelMask(channelMask) != NO_ERROR)) {
+        return false;
+    }
+    if (isRecordThread && (!audio_is_input_channel(channelMask) ||
+            checkCompatibleChannelMask(channelMask) != NO_ERROR)) {
+        return false;
+    }
+
+    if (isPlaybackThread && (mFlags & flags) != flags) {
+        return false;
+    }
+    // The only input flag that is allowed to be different is the fast flag.
+    // An existing fast stream is compatible with a normal track request.
+    // An existing normal stream is compatible with a fast track request,
+    // but the fast request will be denied by AudioFlinger and converted to normal track.
+    if (isRecordThread && (((audio_input_flags_t) mFlags ^ (audio_input_flags_t) flags) &
+            ~AUDIO_INPUT_FLAG_FAST)) {
+        return false;
+    }
+
+    if (updatedSamplingRate != NULL) {
+        *updatedSamplingRate = myUpdatedSamplingRate;
+    }
+    return true;
 }
 
 void AudioPolicyManager::IOProfile::dump(int fd)
