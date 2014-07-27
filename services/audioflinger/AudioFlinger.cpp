@@ -44,11 +44,9 @@
 #include <dirent.h>
 #include <math.h>
 #include <signal.h>
-#include <stdio.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
-#include <binder/AppOpsManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <utils/Log.h>
@@ -109,6 +107,7 @@ namespace android {
 static const char kDeadlockedString[] = "AudioFlinger may be deadlocked\n";
 static const char kHardwareLockedString[] = "Hardware lock is taken\n";
 
+
 nsecs_t AudioFlinger::mStandbyTimeInNsecs = kDefaultStandbyTimeInNsecs;
 
 uint32_t AudioFlinger::mScreenState;
@@ -128,19 +127,6 @@ size_t AudioFlinger::mTeeSinkTrackFrames = kTeeSinkTrackFramesDefault;
 static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
 
 // ----------------------------------------------------------------------------
-
-static int getprocname(pid_t pid, char *buf, size_t len)
-{
-    char filename[20];
-    FILE *f;
-
-    sprintf(filename, "/proc/%d/cmdline", pid);
-    f = fopen(filename, "r");
-    if (!f) { *buf = '\0'; return 1; }
-    if (!fgets(buf, len, f)) { *buf = '\0'; return 2; }
-    fclose(f);
-    return 0;
-}
 
 static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
 {
@@ -451,12 +437,7 @@ sp<AudioFlinger::Client> AudioFlinger::registerPid_l(pid_t pid)
     // (for which promote() is always != 0), otherwise create a new entry and Client.
     sp<Client> client = mClients.valueFor(pid).promote();
     if (client == 0) {
-        char process_name[40];
-        if (getprocname(pid, process_name, sizeof(process_name)) == 0) {
-            client = new Client(this, pid, String16((const char*) process_name));
-        } else {
-            client = new Client(this, pid, String16());
-        }
+        client = new Client(this, pid);
         mClients.add(pid, client);
     }
 
@@ -518,13 +499,6 @@ sp<IAudioTrack> AudioFlinger::createTrack(
     sp<Client> client;
     status_t lStatus;
     int lSessionId;
-
-    // Check client has audio record access
-    if (!checkAudioRecordOp()){
-        ALOGE("createTrack() permission denied for %d", tid);
-        lStatus = PERMISSION_DENIED;
-        goto Exit;
-    }
 
     // client AudioTrack::set already implements AUDIO_STREAM_DEFAULT => AUDIO_STREAM_MUSIC,
     // but if someone uses binder directly they could bypass that and cause us to crash
@@ -1494,14 +1468,12 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::getEffectThread_l(int sessionId, 
 
 // ----------------------------------------------------------------------------
 
-AudioFlinger::Client::Client(const sp<AudioFlinger>& audioFlinger, pid_t pid,
-            const String16 clientName)
+AudioFlinger::Client::Client(const sp<AudioFlinger>& audioFlinger, pid_t pid)
     :   RefBase(),
         mAudioFlinger(audioFlinger),
         // FIXME should be a "k" constant not hard-coded, in .h or ro. property, see 4 lines below
         mMemoryDealer(new MemoryDealer(1024*1024, "AudioFlinger::Client")),
         mPid(pid),
-        mClientName(clientName),
         mTimedTrackCount(0)
 {
     // 1 MB of address space is good for 32 tracks, 8 buffers each, 4 KB/buffer
@@ -1595,13 +1567,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     // check calling permissions
     if (!recordingAllowed()) {
         ALOGE("openRecord() permission denied: recording not allowed");
-        lStatus = PERMISSION_DENIED;
-        goto Exit;
-    }
-
-    // Check client has audio record access
-    if (!checkAudioRecordOp()){
-        ALOGE("openRecord() permission denied for %d", tid);
         lStatus = PERMISSION_DENIED;
         goto Exit;
     }
@@ -3027,40 +2992,6 @@ status_t AudioFlinger::onTransact(
         uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
     return BnAudioFlinger::onTransact(code, data, reply, flags);
-}
-
-bool AudioFlinger::checkAudioRecordOp()
-{
-    IPCThreadState* ipcState = IPCThreadState::self();
-    pid_t pid = ipcState->getCallingPid();
-    uid_t uid = ipcState->getCallingUid();
-    char process_name[40];
-
-    // Only affect to apps
-    if (uid < AID_APP) {
-        // Ignore
-        return true;
-    }
-
-    String16 clientName;
-    sp<Client> client = mClients.valueFor(pid).promote();
-    if (client == 0) {
-        char process_name[40];
-        if (getprocname(pid, process_name, sizeof(process_name)) == 0) {
-            clientName = String16((const char*) process_name);
-        }
-    } else {
-        clientName = client->clientName();
-    }
-
-    if (clientName.size() <= 0) {
-        // Ignore
-        return true;
-    }
-
-    // check AppOp permission
-    return (uid != AID_SYSTEM && (mAppOpsManager.noteOp(AppOpsManager::OP_RECORD_AUDIO, uid,
-            clientName) == AppOpsManager::MODE_ALLOWED));
 }
 
 }; // namespace android
