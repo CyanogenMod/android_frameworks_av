@@ -331,7 +331,7 @@ private:
     // Set kEnableExtendedChannels to true to enable greater than stereo output
     // for the MixerThread and device sink.  Number of channels allowed is
     // FCC_2 <= channels <= AudioMixer::MAX_NUM_CHANNELS.
-    static const bool kEnableExtendedChannels = false;
+    static const bool kEnableExtendedChannels = true;
 
     // Returns true if channel mask is permitted for the PCM sink in the MixerThread
     static inline bool isValidPcmSinkChannelMask(audio_channel_mask_t channelMask) {
