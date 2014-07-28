@@ -35,22 +35,20 @@ audio_module_handle_t AudioPolicyService::AudioPolicyClient::loadHwModule(const 
     return af->loadHwModule(name);
 }
 
-audio_io_handle_t AudioPolicyService::AudioPolicyClient::openOutput(audio_module_handle_t module,
-                               audio_devices_t *pDevices,
-                               uint32_t *pSamplingRate,
-                               audio_format_t *pFormat,
-                               audio_channel_mask_t *pChannelMask,
-                               uint32_t *pLatencyMs,
-                               audio_output_flags_t flags,
-                               const audio_offload_info_t *offloadInfo)
+status_t AudioPolicyService::AudioPolicyClient::openOutput(audio_module_handle_t module,
+                                                           audio_io_handle_t *output,
+                                                           audio_config_t *config,
+                                                           audio_devices_t *devices,
+                                                           const String8& address,
+                                                           uint32_t *latencyMs,
+                                                           audio_output_flags_t flags)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
         ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
+        return PERMISSION_DENIED;
     }
-    return af->openOutput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
-                          pLatencyMs, flags, offloadInfo);
+    return af->openOutput(module, output, config, devices, address, latencyMs, flags);
 }
 
 audio_io_handle_t AudioPolicyService::AudioPolicyClient::openDuplicateOutput(
@@ -97,20 +95,21 @@ status_t AudioPolicyService::AudioPolicyClient::restoreOutput(audio_io_handle_t 
     return af->restoreOutput(output);
 }
 
-audio_io_handle_t AudioPolicyService::AudioPolicyClient::openInput(audio_module_handle_t module,
-                              audio_devices_t *pDevices,
-                              uint32_t *pSamplingRate,
-                              audio_format_t *pFormat,
-                              audio_channel_mask_t *pChannelMask,
-                              audio_input_flags_t flags)
+status_t AudioPolicyService::AudioPolicyClient::openInput(audio_module_handle_t module,
+                                                          audio_io_handle_t *input,
+                                                          audio_config_t *config,
+                                                          audio_devices_t *device,
+                                                          const String8& address,
+                                                          audio_source_t source,
+                                                          audio_input_flags_t flags)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
         ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
+        return PERMISSION_DENIED;
     }
 
-    return af->openInput(module, pDevices, pSamplingRate, pFormat, pChannelMask, flags);
+    return af->openInput(module, input, config, device, address, source, flags);
 }
 
 status_t AudioPolicyService::AudioPolicyClient::closeInput(audio_io_handle_t input)

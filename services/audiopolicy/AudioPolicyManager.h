@@ -802,8 +802,6 @@ private:
         uint32_t nextUniqueId();
         uint32_t nextAudioPortGeneration();
         uint32_t curAudioPortGeneration() const { return mAudioPortGeneration; }
-        // converts device address to string sent to audio HAL via setParameters
-        static String8 addressToParameter(audio_devices_t device, const String8 address);
         // internal method to return the output handle for the given device and format
         audio_io_handle_t getOutputForDevice(
                 audio_devices_t device,

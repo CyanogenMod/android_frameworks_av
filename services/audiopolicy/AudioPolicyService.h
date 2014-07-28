@@ -361,14 +361,13 @@ private:
         // in case the audio policy manager has no specific requirements for the output being opened.
         // When the function returns, the parameter values reflect the actual values used by the audio hardware output stream.
         // The audio policy manager can check if the proposed parameters are suitable or not and act accordingly.
-        virtual audio_io_handle_t openOutput(audio_module_handle_t module,
-                                             audio_devices_t *pDevices,
-                                             uint32_t *pSamplingRate,
-                                             audio_format_t *pFormat,
-                                             audio_channel_mask_t *pChannelMask,
-                                             uint32_t *pLatencyMs,
-                                             audio_output_flags_t flags,
-                                             const audio_offload_info_t *offloadInfo = NULL);
+        virtual status_t openOutput(audio_module_handle_t module,
+                                    audio_io_handle_t *output,
+                                    audio_config_t *config,
+                                    audio_devices_t *devices,
+                                    const String8& address,
+                                    uint32_t *latencyMs,
+                                    audio_output_flags_t flags);
         // creates a special output that is duplicated to the two outputs passed as arguments. The duplication is performed by
         // a special mixer thread in the AudioFlinger.
         virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1, audio_io_handle_t output2);
@@ -386,10 +385,11 @@ private:
 
         // opens an audio input
         virtual audio_io_handle_t openInput(audio_module_handle_t module,
-                                            audio_devices_t *pDevices,
-                                            uint32_t *pSamplingRate,
-                                            audio_format_t *pFormat,
-                                            audio_channel_mask_t *pChannelMask,
+                                            audio_io_handle_t *input,
+                                            audio_config_t *config,
+                                            audio_devices_t *devices,
+                                            const String8& address,
+                                            audio_source_t source,
                                             audio_input_flags_t flags);
         // closes an audio input
         virtual status_t closeInput(audio_io_handle_t input);

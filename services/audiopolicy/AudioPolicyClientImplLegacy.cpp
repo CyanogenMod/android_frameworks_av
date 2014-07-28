@@ -62,6 +62,46 @@ audio_module_handle_t aps_load_hw_module(void *service __unused,
     return af->loadHwModule(name);
 }
 
+static audio_io_handle_t open_output(audio_module_handle_t module,
+                                    audio_devices_t *pDevices,
+                                    uint32_t *pSamplingRate,
+                                    audio_format_t *pFormat,
+                                    audio_channel_mask_t *pChannelMask,
+                                    uint32_t *pLatencyMs,
+                                    audio_output_flags_t flags,
+                                    const audio_offload_info_t *offloadInfo)
+{
+    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
+    if (af == 0) {
+        ALOGW("%s: could not get AudioFlinger", __func__);
+        return AUDIO_IO_HANDLE_NONE;
+    }
+
+    if (pSamplingRate == NULL || pFormat == NULL || pChannelMask == NULL ||
+            pDevices == NULL || pLatencyMs == NULL) {
+        return AUDIO_IO_HANDLE_NONE;
+    }
+    audio_config_t config = AUDIO_CONFIG_INITIALIZER;
+    config.sample_rate = *pSamplingRate;
+    config.format = *pFormat;
+    config.channel_mask = *pChannelMask;
+    if (offloadInfo != NULL) {
+        config.offload_info = *offloadInfo;
+    }
+    audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
+    status_t status = af->openOutput(module, &output, &config, pDevices,
+                                     String8(""), pLatencyMs, flags);
+    if (status == NO_ERROR) {
+        *pSamplingRate = config.sample_rate;
+        *pFormat = config.format;
+        *pChannelMask = config.channel_mask;
+        if (offloadInfo != NULL) {
+            *offloadInfo = config.offload_info;
+        }
+    }
+    return output;
+}
+
 // deprecated: replaced by aps_open_output_on_module()
 audio_io_handle_t aps_open_output(void *service __unused,
                                          audio_devices_t *pDevices,
@@ -71,14 +111,8 @@ audio_io_handle_t aps_open_output(void *service __unused,
                                          uint32_t *pLatencyMs,
                                          audio_output_flags_t flags)
 {
-    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0) {
-        ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
-    }
-
-    return af->openOutput((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask,
-                          pLatencyMs, flags);
+    return open_output((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask,
+                          pLatencyMs, flags, NULL);
 }
 
 audio_io_handle_t aps_open_output_on_module(void *service __unused,
@@ -91,12 +125,7 @@ audio_io_handle_t aps_open_output_on_module(void *service __unused,
                                                    audio_output_flags_t flags,
                                                    const audio_offload_info_t *offloadInfo)
 {
-    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0) {
-        ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
-    }
-    return af->openOutput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
+    return open_output(module, pDevices, pSamplingRate, pFormat, pChannelMask,
                           pLatencyMs, flags, offloadInfo);
 }
 
@@ -144,6 +173,37 @@ int aps_restore_output(void *service __unused, audio_io_handle_t output)
     return af->restoreOutput(output);
 }
 
+static audio_io_handle_t open_input(audio_module_handle_t module,
+                                    audio_devices_t *pDevices,
+                                    uint32_t *pSamplingRate,
+                                    audio_format_t *pFormat,
+                                    audio_channel_mask_t *pChannelMask)
+{
+    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
+    if (af == 0) {
+        ALOGW("%s: could not get AudioFlinger", __func__);
+        return AUDIO_IO_HANDLE_NONE;
+    }
+
+    if (pSamplingRate == NULL || pFormat == NULL || pChannelMask == NULL || pDevices == NULL) {
+        return AUDIO_IO_HANDLE_NONE;
+    }
+    audio_config_t config = AUDIO_CONFIG_INITIALIZER;;
+    config.sample_rate = *pSamplingRate;
+    config.format = *pFormat;
+    config.channel_mask = *pChannelMask;
+    audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+    status_t status = af->openInput(module, &input, &config, pDevices,
+                                    String8(""), AUDIO_SOURCE_MIC, AUDIO_INPUT_FLAG_FAST /*FIXME*/);
+    if (status == NO_ERROR) {
+        *pSamplingRate = config.sample_rate;
+        *pFormat = config.format;
+        *pChannelMask = config.channel_mask;
+    }
+    return input;
+}
+
+
 // deprecated: replaced by aps_open_input_on_module(), and acoustics parameter is ignored
 audio_io_handle_t aps_open_input(void *service __unused,
                                         audio_devices_t *pDevices,
@@ -152,14 +212,7 @@ audio_io_handle_t aps_open_input(void *service __unused,
                                         audio_channel_mask_t *pChannelMask,
                                         audio_in_acoustics_t acoustics __unused)
 {
-    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0) {
-        ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
-    }
-
-    return af->openInput((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask,
-            AUDIO_INPUT_FLAG_FAST /*FIXME*/);
+    return  open_input((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask);
 }
 
 audio_io_handle_t aps_open_input_on_module(void *service __unused,
@@ -169,14 +222,7 @@ audio_io_handle_t aps_open_input_on_module(void *service __unused,
                                                   audio_format_t *pFormat,
                                                   audio_channel_mask_t *pChannelMask)
 {
-    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
-    if (af == 0) {
-        ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
-    }
-
-    return af->openInput(module, pDevices, pSamplingRate, pFormat, pChannelMask,
-            AUDIO_INPUT_FLAG_FAST /*FIXME*/);
+    return  open_input(module, pDevices, pSamplingRate, pFormat, pChannelMask);
 }
 
 int aps_close_input(void *service __unused, audio_io_handle_t input)
