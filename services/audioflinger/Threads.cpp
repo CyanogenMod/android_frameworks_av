@@ -5297,11 +5297,13 @@ reacquire_wakelock:
                     //       to keep mRsmpInBuffer full so resampler always has sufficient input
                     size_t framesInNeeded;
                     // FIXME only re-calculate when it changes, and optimize for common ratios
-                    double inOverOut = (double) mSampleRate / activeTrack->mSampleRate;
-                    double outOverIn = (double) activeTrack->mSampleRate / mSampleRate;
-                    framesInNeeded = ceil(framesOut * inOverOut) + 1;
+                    // Do not precompute in/out because floating point is not associative
+                    // e.g. a*b/c != a*(b/c).
+                    const double in(mSampleRate);
+                    const double out(activeTrack->mSampleRate);
+                    framesInNeeded = ceil(framesOut * in / out) + 1;
                     ALOGV("need %u frames in to produce %u out given in/out ratio of %.4g",
-                                framesInNeeded, framesOut, inOverOut);
+                                framesInNeeded, framesOut, in / out);
                     // Although we theoretically have framesIn in circular buffer, some of those are
                     // unreleased frames, and thus must be discounted for purpose of budgeting.
                     size_t unreleased = activeTrack->mRsmpInUnrel;
@@ -5309,24 +5311,24 @@ reacquire_wakelock:
                     if (framesIn < framesInNeeded) {
                         ALOGV("not enough to resample: have %u frames in but need %u in to "
                                 "produce %u out given in/out ratio of %.4g",
-                                framesIn, framesInNeeded, framesOut, inOverOut);
-                        size_t newFramesOut = framesIn > 0 ? floor((framesIn - 1) * outOverIn) : 0;
+                                framesIn, framesInNeeded, framesOut, in / out);
+                        size_t newFramesOut = framesIn > 0 ? floor((framesIn - 1) * out / in) : 0;
                         LOG_ALWAYS_FATAL_IF(newFramesOut >= framesOut);
                         if (newFramesOut == 0) {
                             break;
                         }
-                        framesInNeeded = ceil(newFramesOut * inOverOut) + 1;
+                        framesInNeeded = ceil(newFramesOut * in / out) + 1;
                         ALOGV("now need %u frames in to produce %u out given out/in ratio of %.4g",
-                                framesInNeeded, newFramesOut, outOverIn);
+                                framesInNeeded, newFramesOut, out / in);
                         LOG_ALWAYS_FATAL_IF(framesIn < framesInNeeded);
                         ALOGV("success 2: have %u frames in and need %u in to produce %u out "
                               "given in/out ratio of %.4g",
-                              framesIn, framesInNeeded, newFramesOut, inOverOut);
+                              framesIn, framesInNeeded, newFramesOut, in / out);
                         framesOut = newFramesOut;
                     } else {
                         ALOGV("success 1: have %u in and need %u in to produce %u out "
                             "given in/out ratio of %.4g",
-                            framesIn, framesInNeeded, framesOut, inOverOut);
+                            framesIn, framesInNeeded, framesOut, in / out);
                     }
 
                     // reallocate mRsmpOutBuffer as needed; we will grow but never shrink
