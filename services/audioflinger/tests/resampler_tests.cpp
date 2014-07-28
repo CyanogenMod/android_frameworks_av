@@ -60,7 +60,7 @@ void buffercmp(const void *reference, const void *test,
         int check = memcmp((const char*)reference + i * outputFrameSize,
                 (const char*)test + i * outputFrameSize, outputFrameSize);
         if (check) {
-            ALOGE("Failure at frame %d", i);
+            ALOGE("Failure at frame %zu", i);
             ASSERT_EQ(check, 0); /* fails */
         }
     }

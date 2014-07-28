@@ -177,7 +177,7 @@ struct InterpNull {
 template <int CHANNELS, int STRIDE, typename TFUNC, typename TC, typename TI, typename TO, typename TINTERP>
 static inline
 void ProcessBase(TO* const out,
-        int count,
+        size_t count,
         const TC* coefsP,
         const TC* coefsN,
         const TI* sP,
