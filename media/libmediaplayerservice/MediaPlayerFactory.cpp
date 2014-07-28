@@ -62,18 +62,18 @@ status_t MediaPlayerFactory::registerFactory_l(IFactory* factory,
 
 player_type MediaPlayerFactory::getDefaultPlayerType() {
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.use-nuplayer", value, NULL)
+    if (property_get("media.stagefright.use-awesome", value, NULL)
             && (!strcmp("1", value) || !strcasecmp("true", value))) {
-        return NU_PLAYER;
+        return STAGEFRIGHT_PLAYER;
     }
 
     // TODO: remove this EXPERIMENTAL developer settings property
-    if (property_get("persist.sys.media.use-nuplayer", value, NULL)
+    if (property_get("persist.sys.media.use-awesome", value, NULL)
             && !strcasecmp("true", value)) {
-        return NU_PLAYER;
+        return STAGEFRIGHT_PLAYER;
     }
 
-    return STAGEFRIGHT_PLAYER;
+    return NU_PLAYER;
 }
 
 status_t MediaPlayerFactory::registerFactory(IFactory* factory,
