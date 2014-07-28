@@ -139,12 +139,12 @@ public:
     // return the number of input frames lost by HAL implementation, or 0 if the handle is invalid
     static uint32_t getInputFramesLost(audio_io_handle_t ioHandle);
 
-    // Allocate a new audio session ID and return that new ID.
-    // If unable to contact AudioFlinger, returns AUDIO_SESSION_ALLOCATE instead.
-    // FIXME If AudioFlinger were to ever exhaust the session ID namespace,
-    //       this method could fail by returning either AUDIO_SESSION_ALLOCATE
-    //       or an unspecified existing session ID.
-    static int newAudioSessionId();
+    // Allocate a new unique ID for use as an audio session ID or I/O handle.
+    // If unable to contact AudioFlinger, returns AUDIO_UNIQUE_ID_ALLOCATE instead.
+    // FIXME If AudioFlinger were to ever exhaust the unique ID namespace,
+    //       this method could fail by returning either AUDIO_UNIQUE_ID_ALLOCATE
+    //       or an unspecified existing unique ID.
+    static audio_unique_id_t newAudioUniqueId();
 
     static void acquireAudioSessionId(int audioSession, pid_t pid);
     static void releaseAudioSessionId(int audioSession, pid_t pid);

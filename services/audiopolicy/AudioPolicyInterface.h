@@ -287,6 +287,8 @@ public:
     virtual void onAudioPortListUpdate() = 0;
 
     virtual void onAudioPatchListUpdate() = 0;
+
+    virtual audio_unique_id_t newAudioUniqueId() = 0;
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);
