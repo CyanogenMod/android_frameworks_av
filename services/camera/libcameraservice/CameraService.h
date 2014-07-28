@@ -138,6 +138,10 @@ public:
     // CameraDeviceFactory functionality
     int                 getDeviceVersion(int cameraId, int* facing = NULL);
 
+    /////////////////////////////////////////////////////////////////////
+    // Shared utilities
+    static status_t     filterOpenErrorCode(status_t err);
+    static status_t     filterGetInfoErrorCode(status_t err);
 
     /////////////////////////////////////////////////////////////////////
     // CameraClient functionality
@@ -149,20 +153,19 @@ public:
 
     class BasicClient : public virtual RefBase {
     public:
-        virtual status_t initialize(camera_module_t *module) = 0;
-
-        virtual void          disconnect() = 0;
+        virtual status_t    initialize(camera_module_t *module) = 0;
+        virtual void        disconnect();
 
         // because we can't virtually inherit IInterface, which breaks
         // virtual inheritance
         virtual sp<IBinder> asBinderWrapper() = 0;
 
         // Return the remote callback binder object (e.g. IProCameraCallbacks)
-        sp<IBinder>     getRemote() {
+        sp<IBinder>         getRemote() {
             return mRemoteBinder;
         }
 
-        virtual status_t      dump(int fd, const Vector<String16>& args) = 0;
+        virtual status_t    dump(int fd, const Vector<String16>& args) = 0;
 
     protected:
         BasicClient(const sp<CameraService>& cameraService,

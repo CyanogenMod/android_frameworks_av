@@ -48,6 +48,7 @@
 #include "device3/Camera3OutputStream.h"
 #include "device3/Camera3InputStream.h"
 #include "device3/Camera3ZslStream.h"
+#include "CameraService.h"
 
 using namespace android::camera3;
 
@@ -104,8 +105,9 @@ status_t Camera3Device::initialize(camera_module_t *module)
     camera3_device_t *device;
 
     ATRACE_BEGIN("camera3->open");
-    res = module->common.methods->open(&module->common, deviceName.string(),
-            reinterpret_cast<hw_device_t**>(&device));
+    res = CameraService::filterOpenErrorCode(module->common.methods->open(
+        &module->common, deviceName.string(),
+        reinterpret_cast<hw_device_t**>(&device)));
     ATRACE_END();
 
     if (res != OK) {
@@ -124,7 +126,8 @@ status_t Camera3Device::initialize(camera_module_t *module)
     }
 
     camera_info info;
-    res = module->get_camera_info(mId, &info);
+    res = CameraService::filterGetInfoErrorCode(module->get_camera_info(
+        mId, &info));
     if (res != OK) return res;
 
     if (info.device_version != device->common.version) {
