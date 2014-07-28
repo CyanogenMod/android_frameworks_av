@@ -58,6 +58,7 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual status_t getDuration(int64_t *durationUs);
     virtual size_t getTrackCount() const;
     virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
+    virtual ssize_t getSelectedTrack(media_track_type type) const;
     virtual status_t selectTrack(size_t trackIndex, bool select);
     virtual status_t seekTo(int64_t seekTimeUs);
 
@@ -73,7 +74,9 @@ protected:
 private:
     enum {
         kWhatFetchSubtitleData,
+        kWhatFetchTimedTextData,
         kWhatSendSubtitleData,
+        kWhatSendTimedTextData,
         kWhatChangeAVSource,
     };
 
@@ -88,8 +91,10 @@ private:
     Track mAudioTrack;
     Track mVideoTrack;
     Track mSubtitleTrack;
+    Track mTimedTextTrack;
 
     int32_t mFetchSubtitleDataGeneration;
+    int32_t mFetchTimedTextDataGeneration;
     int64_t mDurationUs;
     bool mAudioIsVorbis;
     bool mIsWidevine;
@@ -97,6 +102,14 @@ private:
     uid_t mUID;
 
     void initFromDataSource(const sp<DataSource> &dataSource);
+
+    void fetchTextData(
+            uint32_t what, media_track_type type,
+            int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
+
+    void sendTextData(
+            uint32_t what, media_track_type type,
+            int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
 
     sp<ABuffer> mediaBufferToABuffer(
             MediaBuffer *mbuf,
