@@ -53,10 +53,7 @@ namespace android {
 #define OFFLOAD_DEFAULT_MIN_DURATION_SECS 60
 
 #define MAX_MIXER_SAMPLING_RATE 48000
-#define MAX_MIXER_CHANNEL_COUNT 2
-// See AudioPort::compareFormats()
-#define WORST_MIXER_FORMAT AUDIO_FORMAT_PCM_16_BIT
-#define BEST_MIXER_FORMAT AUDIO_FORMAT_PCM_24_BIT_PACKED
+#define MAX_MIXER_CHANNEL_COUNT 8
 
 // ----------------------------------------------------------------------------
 // AudioPolicyManager implements audio policy manager behavior common to all platforms.
