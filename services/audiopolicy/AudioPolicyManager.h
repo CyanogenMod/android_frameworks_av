@@ -208,6 +208,7 @@ protected:
             DEVICE_CATEGORY_HEADSET,
             DEVICE_CATEGORY_SPEAKER,
             DEVICE_CATEGORY_EARPIECE,
+            DEVICE_CATEGORY_EXT_MEDIA,
             DEVICE_CATEGORY_CNT
         };
 
@@ -414,6 +415,8 @@ protected:
         static const VolumeCurvePoint sDefaultVolumeCurve[AudioPolicyManager::VOLCNT];
         // default volume curve for media strategy
         static const VolumeCurvePoint sDefaultMediaVolumeCurve[AudioPolicyManager::VOLCNT];
+        // volume curve for non-media audio on ext media outputs (HDMI, Line, etc)
+        static const VolumeCurvePoint sExtMediaSystemVolumeCurve[AudioPolicyManager::VOLCNT];
         // volume curve for media strategy on speakers
         static const VolumeCurvePoint sSpeakerMediaVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sSpeakerMediaVolumeCurveDrc[AudioPolicyManager::VOLCNT];

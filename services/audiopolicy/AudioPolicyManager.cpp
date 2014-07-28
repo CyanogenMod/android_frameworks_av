@@ -3706,6 +3706,8 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
                 if (device) break;
             }
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_LINE;
+            if (device) break;
             device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER;
             if (device) break;
             device = mDefaultOutputDevice->mDeviceType;
@@ -3761,6 +3763,9 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         }
         if (device2 == AUDIO_DEVICE_NONE) {
             device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
+        }
+        if ((device2 == AUDIO_DEVICE_NONE)) {
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_LINE;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
             device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADSET;
@@ -4295,10 +4300,13 @@ AudioPolicyManager::device_category AudioPolicyManager::getDeviceCategory(audio_
         case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP:
         case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES:
             return DEVICE_CATEGORY_HEADSET;
+        case AUDIO_DEVICE_OUT_LINE:
+        case AUDIO_DEVICE_OUT_AUX_DIGITAL:
+        /*USB?  Remote submix?*/
+            return DEVICE_CATEGORY_EXT_MEDIA;
         case AUDIO_DEVICE_OUT_SPEAKER:
         case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
         case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER:
-        case AUDIO_DEVICE_OUT_AUX_DIGITAL:
         case AUDIO_DEVICE_OUT_USB_ACCESSORY:
         case AUDIO_DEVICE_OUT_USB_DEVICE:
         case AUDIO_DEVICE_OUT_REMOTE_SUBMIX:
@@ -4365,6 +4373,11 @@ const AudioPolicyManager::VolumeCurvePoint
 };
 
 const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sExtMediaSystemVolumeCurve[AudioPolicyManager::VOLCNT] = {
+    {1, -58.0f}, {20, -40.0f}, {60, -21.0f}, {100, -10.0f}
+};
+
+const AudioPolicyManager::VolumeCurvePoint
     AudioPolicyManager::sSpeakerMediaVolumeCurve[AudioPolicyManager::VOLCNT] = {
     {1, -56.0f}, {20, -34.0f}, {60, -11.0f}, {100, 0.0f}
 };
@@ -4420,52 +4433,62 @@ const AudioPolicyManager::VolumeCurvePoint
     { // AUDIO_STREAM_VOICE_CALL
         sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerVoiceVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultVoiceVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_SYSTEM
         sHeadsetSystemVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sDefaultSystemVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultSystemVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultSystemVolumeCurve,  // DEVICE_CATEGORY_EARPIECE
+        sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_RING
         sDefaultVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerSonificationVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultVolumeCurve,  // DEVICE_CATEGORY_EARPIECE
+        sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_MUSIC
         sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerMediaVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_ALARM
         sDefaultVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerSonificationVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultVolumeCurve,  // DEVICE_CATEGORY_EARPIECE
+        sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_NOTIFICATION
         sDefaultVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerSonificationVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultVolumeCurve,  // DEVICE_CATEGORY_EARPIECE
+        sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_BLUETOOTH_SCO
         sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerVoiceVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultVoiceVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_ENFORCED_AUDIBLE
         sHeadsetSystemVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sDefaultSystemVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultSystemVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultSystemVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     {  // AUDIO_STREAM_DTMF
         sHeadsetSystemVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sDefaultSystemVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultSystemVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultSystemVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_TTS
         sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerMediaVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
 };
 
