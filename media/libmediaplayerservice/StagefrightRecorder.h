@@ -58,6 +58,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t setParameters(const String8& params);
     virtual status_t setListener(const sp<IMediaRecorderClient>& listener);
     virtual status_t setClientName(const String16& clientName);
+    virtual status_t setSourcePause(bool pause);
     virtual status_t prepare();
     virtual status_t start();
     virtual status_t pause();
@@ -77,6 +78,9 @@ private:
     String16 mClientName;
     uid_t mClientUid;
     sp<MediaWriter> mWriter;
+    sp<MediaSource> mVideoEncoderOMX;
+    sp<MediaSource> mAudioEncoderOMX;
+    sp<MediaSource> mVideoSourceNode;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;
 
@@ -120,6 +124,7 @@ private:
     MediaProfiles *mEncoderProfiles;
 
     bool mStarted;
+    bool mRecPaused;
     // Needed when GLFrames are encoded.
     // An <IGraphicBufferProducer> pointer
     // will be sent to the client side using which the

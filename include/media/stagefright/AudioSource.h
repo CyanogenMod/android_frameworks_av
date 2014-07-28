@@ -44,6 +44,7 @@ struct AudioSource : public MediaSource, public MediaBufferObserver {
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop() { return reset(); }
     virtual sp<MetaData> getFormat();
+    status_t pause();
 
     // Returns the maximum amplitude since last call.
     int16_t getMaxAmplitude();
@@ -77,6 +78,7 @@ private:
     sp<AudioRecord> mRecord;
     status_t mInitCheck;
     bool mStarted;
+    bool mRecPaused;
     int32_t mSampleRate;
 
     bool mTrackMaxAmplitude;

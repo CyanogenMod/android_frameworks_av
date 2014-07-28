@@ -59,7 +59,8 @@ AudioSource::AudioSource(
       mFormat(AUDIO_FORMAT_PCM_16_BIT),
       mMime(MEDIA_MIMETYPE_AUDIO_RAW),
       mMaxBufferSize(kMaxBufferSize),
-      mNumClientOwnedBuffers(0) {
+      mNumClientOwnedBuffers(0),
+      mRecPaused(false) {
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
     CHECK(channelCount == 1 || channelCount == 2 || channelCount == 6);
 
@@ -139,6 +140,11 @@ status_t AudioSource::initCheck() const {
 
 status_t AudioSource::start(MetaData *params) {
     Mutex::Autolock autoLock(mLock);
+    if (mRecPaused) {
+        mRecPaused = false;
+        return OK;
+    }
+
     if (mStarted) {
         return UNKNOWN_ERROR;
     }
@@ -164,6 +170,12 @@ status_t AudioSource::start(MetaData *params) {
 
 
     return err;
+}
+
+status_t AudioSource::pause() {
+    ALOGV("AudioSource::Pause");
+    mRecPaused = true;
+    return OK;
 }
 
 void AudioSource::releaseQueuedFrames_l() {
@@ -386,6 +398,14 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
 }
 
 void AudioSource::queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs) {
+    if (mRecPaused) {
+        if (!mBuffersReceived.empty()) {
+            releaseQueuedFrames_l();
+        }
+        buffer->release();
+        return;
+    }
+
     const size_t bufferSize = buffer->range_length();
     const size_t frameSize = mRecord->frameSize();
     int64_t timestampUs = mPrevSampleTimeUs;

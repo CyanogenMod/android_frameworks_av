@@ -734,6 +734,9 @@ status_t MediaCodecSource::onStart(MetaData *params) {
             resume();
         } else {
             CHECK(mPuller != NULL);
+            if (mIsVideo) {
+                mEncoder->requestIDRFrame();
+            }
             mPuller->resume();
         }
         return OK;
@@ -874,7 +877,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     }
     case kWhatPause:
     {
-        if (mFlags && FLAG_USE_SURFACE_INPUT) {
+        if (mFlags & FLAG_USE_SURFACE_INPUT) {
             suspend();
         } else {
             CHECK(mPuller != NULL);

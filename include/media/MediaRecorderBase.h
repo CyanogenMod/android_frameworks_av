@@ -52,6 +52,7 @@ struct MediaRecorderBase {
     virtual status_t prepare() = 0;
     virtual status_t start() = 0;
     virtual status_t stop() = 0;
+    virtual status_t pause() = 0;
     virtual status_t close() = 0;
     virtual status_t reset() = 0;
     virtual status_t getMaxAmplitude(int *max) = 0;
