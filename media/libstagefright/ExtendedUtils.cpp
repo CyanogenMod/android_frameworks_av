@@ -72,34 +72,40 @@ bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
 }
 
 void ExtendedUtils::ShellProp::setEncoderProfile(
-        video_encoder &videoEncoder, int32_t &videoEncoderProfile) {
+        video_encoder &videoEncoder, int32_t &videoEncoderProfile,
+        int32_t &videoEncoderLevel) {
     char value[PROPERTY_VALUE_MAX];
-    bool customProfile = false;
     if (!property_get("encoder.video.profile", value, NULL) > 0) {
         return;
     }
 
+    int32_t profile = videoEncoderProfile;
+    int32_t level = videoEncoderLevel;
     switch (videoEncoder) {
         case VIDEO_ENCODER_H264:
+            // Set the minimum valid level if the level was undefined;
+            // encoder will choose the right level anyways
+            level = (level < 0) ? OMX_VIDEO_AVCLevel1 : level;
             if (strncmp("base", value, 4) == 0) {
-                videoEncoderProfile = OMX_VIDEO_AVCProfileBaseline;
+                profile = OMX_VIDEO_AVCProfileBaseline;
                 ALOGI("H264 Baseline Profile");
             } else if (strncmp("main", value, 4) == 0) {
-                videoEncoderProfile = OMX_VIDEO_AVCProfileMain;
+                profile = OMX_VIDEO_AVCProfileMain;
                 ALOGI("H264 Main Profile");
             } else if (strncmp("high", value, 4) == 0) {
-                videoEncoderProfile = OMX_VIDEO_AVCProfileHigh;
+                profile = OMX_VIDEO_AVCProfileHigh;
                 ALOGI("H264 High Profile");
             } else {
                 ALOGW("Unsupported H264 Profile");
             }
             break;
         case VIDEO_ENCODER_MPEG_4_SP:
+            level = (level < 0) ? OMX_VIDEO_MPEG4Level0 : level;
             if (strncmp("simple", value, 5) == 0 ) {
-                videoEncoderProfile = OMX_VIDEO_MPEG4ProfileSimple;
+                profile = OMX_VIDEO_MPEG4ProfileSimple;
                 ALOGI("MPEG4 Simple profile");
             } else if (strncmp("asp", value, 3) == 0 ) {
-                videoEncoderProfile = OMX_VIDEO_MPEG4ProfileAdvancedSimple;
+                profile = OMX_VIDEO_MPEG4ProfileAdvancedSimple;
                 ALOGI("MPEG4 Advanced Simple Profile");
             } else {
                 ALOGW("Unsupported MPEG4 Profile");
@@ -108,6 +114,11 @@ void ExtendedUtils::ShellProp::setEncoderProfile(
         default:
             ALOGW("No custom profile support for other codecs");
             break;
+    }
+    // Override _both_ profile and level, only if they are valid
+    if (profile && level) {
+        videoEncoderProfile = profile;
+        videoEncoderLevel = level;
     }
 }
 
@@ -409,9 +420,11 @@ bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
 }
 
 void ExtendedUtils::ShellProp::setEncoderProfile(
-        video_encoder &videoEncoder, int32_t &videoEncoderProfile) {
+        video_encoder &videoEncoder, int32_t &videoEncoderProfile,
+        int32_t &videoEncoderLevel) {
     ARG_TOUCH(videoEncoder);
     ARG_TOUCH(videoEncoderProfile);
+    ARG_TOUCH(videoEncoderLevel);
 }
 
 int64_t ExtendedUtils::ShellProp::getMaxAVSyncLateMargin() {

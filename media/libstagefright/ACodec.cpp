@@ -1387,10 +1387,10 @@ status_t ACodec::configureCodec(
             err = setupVideoEncoder(mime, msg);
         } else {
             err = setupVideoDecoder(mime, msg);
-        }
-        if (err == OK) {
-            const char* componentName = mComponentName.c_str();
-            ExtendedCodec::configureVideoDecoder(msg, mime, mOMX, 0, mNode, componentName);
+            if (err == OK) {
+                const char* componentName = mComponentName.c_str();
+                ExtendedCodec::configureVideoDecoder(msg, mime, mOMX, 0, mNode, componentName);
+            }
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         int32_t numChannels, sampleRate;
@@ -2346,7 +2346,7 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
             break;
     }
 
-    ALOGI("setupVideoEncoder succeeded");
+    ALOGI("setupVideoEncoder %d", err == OK ? "succeeded" : "failed");
 
     return err;
 }
@@ -2669,6 +2669,8 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         err = verifySupportForProfileAndLevel(profile, level);
 
         if (err != OK) {
+            ALOGE("%s does not support profile %x @ level %x",
+                    mComponentName.c_str(), profile, level);
             return err;
         }
 
@@ -2677,11 +2679,14 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
     }
 
     // XXX
+    // Allow higher profiles to be set since the encoder seems to support
+#if 0
     if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
         ALOGW("Use baseline profile instead of %d for AVC recording",
             h264type.eProfile);
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
     }
+#endif
 
     if (h264type.eProfile == OMX_VIDEO_AVCProfileBaseline) {
         h264type.nSliceHeaderSpacing = 0;

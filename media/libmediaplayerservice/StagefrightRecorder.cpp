@@ -1614,7 +1614,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("time-scale", mVideoTimeScale);
     }
 
-    ExtendedUtils::ShellProp::setEncoderProfile(mVideoEncoder, mVideoEncoderProfile);
+    ExtendedUtils::ShellProp::setEncoderProfile(mVideoEncoder,
+            mVideoEncoderProfile, mVideoEncoderLevel);
 
     if (mVideoEncoderProfile != -1) {
         format->setInt32("profile", mVideoEncoderProfile);

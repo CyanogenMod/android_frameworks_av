@@ -61,7 +61,7 @@ struct ExtendedUtils {
 
         //helper function to set encoding profiles
         static void setEncoderProfile(video_encoder &videoEncoder,
-                int32_t &videoEncoderProfile);
+                int32_t &videoEncoderProfile, int32_t &videoEncoderLevel);
 
         static bool isSmoothStreamingEnabled();
 
