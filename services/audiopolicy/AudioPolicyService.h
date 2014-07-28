@@ -168,6 +168,12 @@ public:
 
     virtual void registerClient(const sp<IAudioPolicyServiceClient>& client);
 
+    virtual status_t acquireSoundTriggerSession(audio_session_t *session,
+                                           audio_io_handle_t *ioHandle,
+                                           audio_devices_t *device);
+
+    virtual status_t releaseSoundTriggerSession(audio_session_t session);
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   int session = 0);

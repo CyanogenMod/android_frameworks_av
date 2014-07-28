@@ -27,6 +27,8 @@ namespace android {
 
 enum {
     ON_RECOGNITION_EVENT = IBinder::FIRST_CALL_TRANSACTION,
+    ON_SOUNDMODEL_EVENT,
+    ON_SERVICE_STATE_CHANGE
 };
 
 class BpSoundTriggerClient: public BpInterface<ISoundTriggerClient>
@@ -47,6 +49,25 @@ public:
                            data,
                            &reply);
     }
+
+    virtual void onSoundModelEvent(const sp<IMemory>& eventMemory)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISoundTriggerClient::getInterfaceDescriptor());
+        data.writeStrongBinder(eventMemory->asBinder());
+        remote()->transact(ON_SOUNDMODEL_EVENT,
+                           data,
+                           &reply);
+    }
+    virtual void onServiceStateChange(const sp<IMemory>& eventMemory)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISoundTriggerClient::getInterfaceDescriptor());
+        data.writeStrongBinder(eventMemory->asBinder());
+        remote()->transact(ON_SERVICE_STATE_CHANGE,
+                           data,
+                           &reply);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(SoundTriggerClient,
@@ -63,6 +84,20 @@ status_t BnSoundTriggerClient::onTransact(
             sp<IMemory> eventMemory = interface_cast<IMemory>(
                 data.readStrongBinder());
             onRecognitionEvent(eventMemory);
+            return NO_ERROR;
+        } break;
+        case ON_SOUNDMODEL_EVENT: {
+            CHECK_INTERFACE(ISoundTriggerClient, data, reply);
+            sp<IMemory> eventMemory = interface_cast<IMemory>(
+                data.readStrongBinder());
+            onSoundModelEvent(eventMemory);
+            return NO_ERROR;
+        } break;
+        case ON_SERVICE_STATE_CHANGE: {
+            CHECK_INTERFACE(ISoundTriggerClient, data, reply);
+            sp<IMemory> eventMemory = interface_cast<IMemory>(
+                data.readStrongBinder());
+            onServiceStateChange(eventMemory);
             return NO_ERROR;
         } break;
         default:

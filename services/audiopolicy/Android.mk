@@ -30,7 +30,7 @@ LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libmedia \
     libhardware \
-    libhardware_legacy \
+    libhardware_legacy
 
 ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
 LOCAL_SHARED_LIBRARIES += \
@@ -58,7 +58,8 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
-    liblog
+    liblog \
+    libsoundtrigger
 
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper

@@ -113,6 +113,16 @@ sp<SoundTrigger> SoundTrigger::attach(const sound_trigger_module_handle_t module
 }
 
 
+status_t SoundTrigger::setCaptureState(bool active)
+{
+    ALOGV("setCaptureState(%d)", active);
+    const sp<ISoundTriggerHwService>& service = getSoundTriggerHwService();
+    if (service == 0) {
+        return NO_INIT;
+    }
+    return service->setCaptureState(active);
+}
+
 // SoundTrigger
 SoundTrigger::SoundTrigger(sound_trigger_module_handle_t module,
                                  const sp<SoundTriggerCallback>& callback)
@@ -192,6 +202,31 @@ void SoundTrigger::onRecognitionEvent(const sp<IMemory>& eventMemory)
     }
 }
 
+void SoundTrigger::onSoundModelEvent(const sp<IMemory>& eventMemory)
+{
+    Mutex::Autolock _l(mLock);
+    if (eventMemory == 0 || eventMemory->pointer() == NULL) {
+        return;
+    }
+
+    if (mCallback != 0) {
+        mCallback->onSoundModelEvent(
+                (struct sound_trigger_model_event *)eventMemory->pointer());
+    }
+}
+
+void SoundTrigger::onServiceStateChange(const sp<IMemory>& eventMemory)
+{
+    Mutex::Autolock _l(mLock);
+    if (eventMemory == 0 || eventMemory->pointer() == NULL) {
+        return;
+    }
+
+    if (mCallback != 0) {
+        mCallback->onServiceStateChange(
+                *((sound_trigger_service_state_t *)eventMemory->pointer()));
+    }
+}
 
 //IBinder::DeathRecipient
 void SoundTrigger::binderDied(const wp<IBinder>& who __unused) {
