@@ -231,14 +231,16 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                         goto exit;
                     }
                 } else {
-                    struct audio_config config;
-                    config.sample_rate = 0;
-                    config.channel_mask = AUDIO_CHANNEL_NONE;
-                    config.format = AUDIO_FORMAT_DEFAULT;
+                    audio_config_t config = AUDIO_CONFIG_INITIALIZER;
+                    audio_devices_t device = patch->sinks[0].ext.device.type;
+                    String8 address = String8(patch->sinks[0].ext.device.address);
+                    audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
                     newPatch->mPlaybackThread = audioflinger->openOutput_l(
                                                              patch->sinks[0].ext.device.hw_module,
-                                                             patch->sinks[0].ext.device.type,
+                                                             &output,
                                                              &config,
+                                                             device,
+                                                             address,
                                                              AUDIO_OUTPUT_FLAG_NONE);
                     ALOGV("audioflinger->openOutput_l() returned %p",
                                           newPatch->mPlaybackThread.get());
@@ -249,14 +251,19 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                 }
                 uint32_t channelCount = newPatch->mPlaybackThread->channelCount();
                 audio_devices_t device = patch->sources[0].ext.device.type;
-                struct audio_config config;
+                String8 address = String8(patch->sources[0].ext.device.address);
+                audio_config_t config = AUDIO_CONFIG_INITIALIZER;
                 audio_channel_mask_t inChannelMask = audio_channel_in_mask_from_count(channelCount);
                 config.sample_rate = newPatch->mPlaybackThread->sampleRate();
                 config.channel_mask = inChannelMask;
                 config.format = newPatch->mPlaybackThread->format();
+                audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
                 newPatch->mRecordThread = audioflinger->openInput_l(src_module,
-                                                                    device,
+                                                                    &input,
                                                                     &config,
+                                                                    device,
+                                                                    address,
+                                                                    AUDIO_SOURCE_MIC,
                                                                     AUDIO_INPUT_FLAG_NONE);
                 ALOGV("audioflinger->openInput_l() returned %p inChannelMask %08x",
                       newPatch->mRecordThread.get(), inChannelMask);
@@ -298,14 +305,22 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                         status = BAD_VALUE;
                         goto exit;
                     }
-                    AudioParameter param;
-                    param.addInt(String8(AudioParameter::keyRouting),
+                    char *address;
+                    if (strcmp(patch->sources[0].ext.device.address, "") != 0) {
+                        address = audio_device_address_to_parameter(
+                                                            patch->sources[0].ext.device.type,
+                                                            patch->sources[0].ext.device.address);
+                    } else {
+                        address = (char *)calloc(1, 1);
+                    }
+                    AudioParameter param = AudioParameter(String8(address));
+                    free(address);
+                    param.addInt(String8(AUDIO_PARAMETER_STREAM_ROUTING),
                                  (int)patch->sources[0].ext.device.type);
-                    param.addInt(String8(AudioParameter::keyInputSource),
-                                                         (int)patch->sinks[0].ext.mix.usecase.source);
-
+                    param.addInt(String8(AUDIO_PARAMETER_STREAM_INPUT_SOURCE),
+                                                     (int)patch->sinks[0].ext.mix.usecase.source);
                     ALOGV("createAudioPatch() AUDIO_PORT_TYPE_DEVICE setParameters %s",
-                                                                          param.toString().string());
+                                                                      param.toString().string());
                     status = thread->setParameters(param.toString());
                 }
             }
@@ -348,8 +363,17 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                 for (unsigned int i = 0; i < patch->num_sinks; i++) {
                     type |= patch->sinks[i].ext.device.type;
                 }
-                AudioParameter param;
-                param.addInt(String8(AudioParameter::keyRouting), (int)type);
+                char *address;
+                if (strcmp(patch->sinks[0].ext.device.address, "") != 0) {
+                    address = audio_device_address_to_parameter(
+                                                                patch->sinks[0].ext.device.type,
+                                                                patch->sinks[0].ext.device.address);
+                } else {
+                    address = (char *)calloc(1, 1);
+                }
+                AudioParameter param = AudioParameter(String8(address));
+                free(address);
+                param.addInt(String8(AUDIO_PARAMETER_STREAM_ROUTING), (int)type);
                 status = thread->setParameters(param.toString());
             }
 
@@ -578,7 +602,7 @@ status_t AudioFlinger::PatchPanel::releaseAudioPatch(audio_patch_handle_t handle
                     break;
                 }
                 AudioParameter param;
-                param.addInt(String8(AudioParameter::keyRouting), 0);
+                param.addInt(String8(AUDIO_PARAMETER_STREAM_ROUTING), 0);
                 ALOGV("releaseAudioPatch() AUDIO_PORT_TYPE_DEVICE setParameters %s",
                                                                       param.toString().string());
                 status = thread->setParameters(param.toString());
@@ -605,7 +629,7 @@ status_t AudioFlinger::PatchPanel::releaseAudioPatch(audio_patch_handle_t handle
                 status = thread->sendReleaseAudioPatchConfigEvent(mPatches[index]->mHalHandle);
             } else {
                 AudioParameter param;
-                param.addInt(String8(AudioParameter::keyRouting), (int)0);
+                param.addInt(String8(AUDIO_PARAMETER_STREAM_ROUTING), 0);
                 status = thread->setParameters(param.toString());
             }
         } break;
