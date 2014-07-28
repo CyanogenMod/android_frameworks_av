@@ -437,6 +437,8 @@ private:
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();
 
+        virtual audio_unique_id_t newAudioUniqueId();
+
      private:
         AudioPolicyService *mAudioPolicyService;
     };

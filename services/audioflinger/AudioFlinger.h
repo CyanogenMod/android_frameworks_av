@@ -194,7 +194,7 @@ public:
 
     virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const;
 
-    virtual int newAudioSessionId();
+    virtual audio_unique_id_t newAudioUniqueId();
 
     virtual void acquireAudioSessionId(int audioSession, pid_t pid);
 
