@@ -73,18 +73,25 @@ status_t CameraUtils::getRotationTransform(const CameraMetadata& staticInfo,
                 return INVALID_OPERATION;
         }
     } else {
+        // Front camera needs to be horizontally flipped for
+        // mirror-like behavior.
+        // Note: Flips are applied before rotates.
         switch (orientation) {
             case 0:
-                flags = HAL_TRANSFORM_FLIP_H;
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H;
                 break;
             case 90:
-                flags = HAL_TRANSFORM_FLIP_H | HAL_TRANSFORM_ROT_90;
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                        NATIVE_WINDOW_TRANSFORM_ROT_270;
                 break;
             case 180:
-                flags = HAL_TRANSFORM_FLIP_V;
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                        NATIVE_WINDOW_TRANSFORM_ROT_180;
                 break;
             case 270:
-                flags = HAL_TRANSFORM_FLIP_V | HAL_TRANSFORM_ROT_90;
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                        NATIVE_WINDOW_TRANSFORM_ROT_90;
+
                 break;
             default:
                 ALOGE("%s: Invalid HAL android.sensor.orientation value: %d",
