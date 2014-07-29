@@ -32,6 +32,10 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS += -Wall -Wextra
 
+ifeq ($(TARGET_BOARD_PLATFORM),mt6589)
+LOCAL_CFLAGS += -DMTK_MT6589
+endif
+
 LOCAL_MODULE:= camera_client_test
 LOCAL_MODULE_TAGS := tests
 
