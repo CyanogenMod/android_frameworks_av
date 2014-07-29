@@ -1062,12 +1062,12 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_in_acoustics_t acoustics,
+                                    audio_session_t session,
                                     audio_input_flags_t flags)
 {
-    ALOGV("getInput() inputSource %d, samplingRate %d, format %d, channelMask %x, acoustics %x, "
+    ALOGV("getInput() inputSource %d, samplingRate %d, format %d, channelMask %x, session %d, "
           "flags %#x",
-          inputSource, samplingRate, format, channelMask, acoustics, flags);
+          inputSource, samplingRate, format, channelMask, session, flags);
 
     audio_devices_t device = getDeviceForInputSource(inputSource);
 
@@ -1142,13 +1142,15 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     inputDesc->mFormat = format;
     inputDesc->mChannelMask = channelMask;
     inputDesc->mDevice = device;
+    inputDesc->mSessions.add(session);
 
     addInput(input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
     return input;
 }
 
-status_t AudioPolicyManager::startInput(audio_io_handle_t input)
+status_t AudioPolicyManager::startInput(audio_io_handle_t input,
+                                        audio_session_t session)
 {
     ALOGV("startInput() input %d", input);
     ssize_t index = mInputs.indexOfKey(input);
@@ -1157,6 +1159,12 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input)
         return BAD_VALUE;
     }
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
+
+    index = inputDesc->mSessions.indexOf(session);
+    if (index < 0) {
+        ALOGW("startInput() unknown session %d on input %d", session, input);
+        return BAD_VALUE;
+    }
 
     // virtual input devices are compatible with other input devices
     if (!isVirtualInputDevice(inputDesc->mDevice)) {
@@ -1170,8 +1178,8 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input)
             sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
             if (activeDesc->mInputSource == AUDIO_SOURCE_HOTWORD) {
                 ALOGW("startInput(%d) preempting low-priority input %d", input, activeInput);
-                stopInput(activeInput);
-                releaseInput(activeInput);
+                stopInput(activeInput, activeDesc->mSessions.itemAt(0));
+                releaseInput(activeInput, activeDesc->mSessions.itemAt(0));
             } else {
                 ALOGE("startInput(%d) failed: other input %d already started", input, activeInput);
                 return INVALID_OPERATION;
@@ -1196,7 +1204,8 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input)
     return NO_ERROR;
 }
 
-status_t AudioPolicyManager::stopInput(audio_io_handle_t input)
+status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
+                                       audio_session_t session)
 {
     ALOGV("stopInput() input %d", input);
     ssize_t index = mInputs.indexOfKey(input);
@@ -1205,6 +1214,12 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input)
         return BAD_VALUE;
     }
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
+
+    index = inputDesc->mSessions.indexOf(session);
+    if (index < 0) {
+        ALOGW("stopInput() unknown session %d on input %d", session, input);
+        return BAD_VALUE;
+    }
 
     if (inputDesc->mRefCount == 0) {
         ALOGW("stopInput() input %d already stopped", input);
@@ -1225,7 +1240,8 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input)
     return NO_ERROR;
 }
 
-void AudioPolicyManager::releaseInput(audio_io_handle_t input)
+void AudioPolicyManager::releaseInput(audio_io_handle_t input,
+                                      audio_session_t session)
 {
     ALOGV("releaseInput() %d", input);
     ssize_t index = mInputs.indexOfKey(input);
@@ -1235,6 +1251,13 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input)
     }
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
     ALOG_ASSERT(inputDesc != 0);
+
+    index = inputDesc->mSessions.indexOf(session);
+    if (index < 0) {
+        ALOGW("releaseInput() unknown session %d on input %d", session, input);
+        return;
+    }
+    inputDesc->mSessions.remove(session);
     if (inputDesc->mOpenRefCount == 0) {
         ALOGW("releaseInput() invalid open ref count %d", inputDesc->mOpenRefCount);
         return;

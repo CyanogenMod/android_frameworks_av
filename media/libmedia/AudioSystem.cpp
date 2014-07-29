@@ -696,25 +696,28 @@ audio_io_handle_t AudioSystem::getInput(audio_source_t inputSource,
     return aps->getInput(inputSource, samplingRate, format, channelMask, sessionId, flags);
 }
 
-status_t AudioSystem::startInput(audio_io_handle_t input)
+status_t AudioSystem::startInput(audio_io_handle_t input,
+                                 audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
-    return aps->startInput(input);
+    return aps->startInput(input, session);
 }
 
-status_t AudioSystem::stopInput(audio_io_handle_t input)
+status_t AudioSystem::stopInput(audio_io_handle_t input,
+                                audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
-    return aps->stopInput(input);
+    return aps->stopInput(input, session);
 }
 
-void AudioSystem::releaseInput(audio_io_handle_t input)
+void AudioSystem::releaseInput(audio_io_handle_t input,
+                               audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return;
-    aps->releaseInput(input);
+    aps->releaseInput(input, session);
 }
 
 status_t AudioSystem::initStreamVolume(audio_stream_type_t stream,
