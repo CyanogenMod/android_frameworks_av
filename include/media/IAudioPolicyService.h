@@ -75,9 +75,12 @@ public:
                                     audio_channel_mask_t channelMask,
                                     int audioSession,
                                     audio_input_flags_t flags) = 0;
-    virtual status_t startInput(audio_io_handle_t input) = 0;
-    virtual status_t stopInput(audio_io_handle_t input) = 0;
-    virtual void releaseInput(audio_io_handle_t input) = 0;
+    virtual status_t startInput(audio_io_handle_t input,
+                                audio_session_t session) = 0;
+    virtual status_t stopInput(audio_io_handle_t input,
+                               audio_session_t session) = 0;
+    virtual void releaseInput(audio_io_handle_t input,
+                              audio_session_t session) = 0;
     virtual status_t initStreamVolume(audio_stream_type_t stream,
                                       int indexMin,
                                       int indexMax) = 0;

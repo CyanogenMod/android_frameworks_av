@@ -235,7 +235,8 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
     return input;
 }
 
-status_t AudioPolicyService::startInput(audio_io_handle_t input)
+status_t AudioPolicyService::startInput(audio_io_handle_t input,
+                                        audio_session_t session __unused)
 {
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
@@ -245,7 +246,8 @@ status_t AudioPolicyService::startInput(audio_io_handle_t input)
     return mpAudioPolicy->start_input(mpAudioPolicy, input);
 }
 
-status_t AudioPolicyService::stopInput(audio_io_handle_t input)
+status_t AudioPolicyService::stopInput(audio_io_handle_t input,
+                                       audio_session_t session __unused)
 {
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
@@ -255,7 +257,8 @@ status_t AudioPolicyService::stopInput(audio_io_handle_t input)
     return mpAudioPolicy->stop_input(mpAudioPolicy, input);
 }
 
-void AudioPolicyService::releaseInput(audio_io_handle_t input)
+void AudioPolicyService::releaseInput(audio_io_handle_t input,
+                                      audio_session_t session __unused)
 {
     if (mpAudioPolicy == NULL) {
         return;

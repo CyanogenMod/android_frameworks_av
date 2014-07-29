@@ -240,29 +240,35 @@ public:
         return static_cast <audio_io_handle_t> (reply.readInt32());
     }
 
-    virtual status_t startInput(audio_io_handle_t input)
+    virtual status_t startInput(audio_io_handle_t input,
+                                audio_session_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(input);
+        data.writeInt32(session);
         remote()->transact(START_INPUT, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
 
-    virtual status_t stopInput(audio_io_handle_t input)
+    virtual status_t stopInput(audio_io_handle_t input,
+                               audio_session_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(input);
+        data.writeInt32(session);
         remote()->transact(STOP_INPUT, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
 
-    virtual void releaseInput(audio_io_handle_t input)
+    virtual void releaseInput(audio_io_handle_t input,
+                              audio_session_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(input);
+        data.writeInt32(session);
         remote()->transact(RELEASE_INPUT, data, &reply);
     }
 
@@ -723,21 +729,24 @@ status_t BnAudioPolicyService::onTransact(
         case START_INPUT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_io_handle_t input = static_cast <audio_io_handle_t>(data.readInt32());
-            reply->writeInt32(static_cast <uint32_t>(startInput(input)));
+            audio_session_t session = static_cast <audio_session_t>(data.readInt32());
+            reply->writeInt32(static_cast <uint32_t>(startInput(input, session)));
             return NO_ERROR;
         } break;
 
         case STOP_INPUT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_io_handle_t input = static_cast <audio_io_handle_t>(data.readInt32());
-            reply->writeInt32(static_cast <uint32_t>(stopInput(input)));
+            audio_session_t session = static_cast <audio_session_t>(data.readInt32());
+            reply->writeInt32(static_cast <uint32_t>(stopInput(input, session)));
             return NO_ERROR;
         } break;
 
         case RELEASE_INPUT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_io_handle_t input = static_cast <audio_io_handle_t>(data.readInt32());
-            releaseInput(input);
+            audio_session_t session = static_cast <audio_session_t>(data.readInt32());
+            releaseInput(input, session);
             return NO_ERROR;
         } break;
 
