@@ -2050,7 +2050,7 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
         if (recordThread->stop(this) && isExternalTrack()) {
-            AudioSystem::stopInput(recordThread->id());
+            AudioSystem::stopInput(recordThread->id(), (audio_session_t)mSessionId);
         }
     }
 }
@@ -2064,9 +2064,9 @@ void AudioFlinger::RecordThread::RecordTrack::destroy()
         if (thread != 0) {
             if (isExternalTrack()) {
                 if (mState == ACTIVE || mState == RESUMING) {
-                    AudioSystem::stopInput(thread->id());
+                    AudioSystem::stopInput(thread->id(), (audio_session_t)mSessionId);
                 }
-                AudioSystem::releaseInput(thread->id());
+                AudioSystem::releaseInput(thread->id(), (audio_session_t)mSessionId);
             }
             Mutex::Autolock _l(thread->mLock);
             RecordThread *recordThread = (RecordThread *) thread.get();

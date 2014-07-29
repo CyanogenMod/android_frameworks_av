@@ -237,9 +237,12 @@ public:
                                     int sessionId,
                                     audio_input_flags_t);
 
-    static status_t startInput(audio_io_handle_t input);
-    static status_t stopInput(audio_io_handle_t input);
-    static void releaseInput(audio_io_handle_t input);
+    static status_t startInput(audio_io_handle_t input,
+                               audio_session_t session);
+    static status_t stopInput(audio_io_handle_t input,
+                              audio_session_t session);
+    static void releaseInput(audio_io_handle_t input,
+                             audio_session_t session);
     static status_t initStreamVolume(audio_stream_type_t stream,
                                       int indexMin,
                                       int indexMax);

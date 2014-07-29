@@ -572,7 +572,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
 
 release:
-    AudioSystem::releaseInput(input);
+    AudioSystem::releaseInput(input, (audio_session_t)mSessionId);
     if (status == NO_ERROR) {
         status = NO_INIT;
     }

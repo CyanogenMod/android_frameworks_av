@@ -5649,7 +5649,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         status_t status = NO_ERROR;
         if (recordTrack->isExternalTrack()) {
             mLock.unlock();
-            status = AudioSystem::startInput(mId);
+            status = AudioSystem::startInput(mId, (audio_session_t)recordTrack->sessionId());
             mLock.lock();
             // FIXME should verify that recordTrack is still in mActiveTracks
             if (status != NO_ERROR) {
@@ -5684,7 +5684,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
 
 startError:
     if (recordTrack->isExternalTrack()) {
-        AudioSystem::stopInput(mId);
+        AudioSystem::stopInput(mId, (audio_session_t)recordTrack->sessionId());
     }
     recordTrack->clearSyncStartEvent();
     // FIXME I wonder why we do not reset the state here?

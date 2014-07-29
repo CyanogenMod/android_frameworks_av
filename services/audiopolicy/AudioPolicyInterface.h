@@ -112,14 +112,17 @@ public:
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_in_acoustics_t acoustics,
+                                    audio_session_t session,
                                     audio_input_flags_t flags) = 0;
     // indicates to the audio policy manager that the input starts being used.
-    virtual status_t startInput(audio_io_handle_t input) = 0;
+    virtual status_t startInput(audio_io_handle_t input,
+                                audio_session_t session) = 0;
     // indicates to the audio policy manager that the input stops being used.
-    virtual status_t stopInput(audio_io_handle_t input) = 0;
+    virtual status_t stopInput(audio_io_handle_t input,
+                               audio_session_t session) = 0;
     // releases the input.
-    virtual void releaseInput(audio_io_handle_t input) = 0;
+    virtual void releaseInput(audio_io_handle_t input,
+                              audio_session_t session) = 0;
 
     //
     // volume control functions

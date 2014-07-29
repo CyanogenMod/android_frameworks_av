@@ -107,15 +107,18 @@ public:
                                             uint32_t samplingRate,
                                             audio_format_t format,
                                             audio_channel_mask_t channelMask,
-                                            audio_in_acoustics_t acoustics,
+                                            audio_session_t session,
                                             audio_input_flags_t flags);
 
         // indicates to the audio policy manager that the input starts being used.
-        virtual status_t startInput(audio_io_handle_t input);
+        virtual status_t startInput(audio_io_handle_t input,
+                                    audio_session_t session);
 
         // indicates to the audio policy manager that the input stops being used.
-        virtual status_t stopInput(audio_io_handle_t input);
-        virtual void releaseInput(audio_io_handle_t input);
+        virtual status_t stopInput(audio_io_handle_t input,
+                                   audio_session_t session);
+        virtual void releaseInput(audio_io_handle_t input,
+                                  audio_session_t session);
         virtual void closeAllInputs();
         virtual void initStreamVolume(audio_stream_type_t stream,
                                                     int indexMin,
@@ -485,6 +488,7 @@ protected:
             uint32_t mOpenRefCount;
             audio_source_t mInputSource;                // input source selected by application (mediarecorder.h)
             const sp<IOProfile> mProfile;                  // I/O profile this output derives from
+            SortedVector<audio_session_t> mSessions;  // audio sessions attached to this input
 
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;

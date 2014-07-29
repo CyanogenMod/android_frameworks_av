@@ -232,8 +232,8 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
     Mutex::Autolock _l(mLock);
     // the audio_in_acoustics_t parameter is ignored by get_input()
     audio_io_handle_t input = mAudioPolicyManager->getInput(inputSource, samplingRate,
-                                                   format, channelMask, (audio_in_acoustics_t) 0,
-                                                   flags);
+                                                   format, channelMask,
+                                                   (audio_session_t)audioSession, flags);
 
     if (input == 0) {
         return input;
@@ -248,33 +248,36 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
     return input;
 }
 
-status_t AudioPolicyService::startInput(audio_io_handle_t input)
+status_t AudioPolicyService::startInput(audio_io_handle_t input,
+                                        audio_session_t session)
 {
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
     Mutex::Autolock _l(mLock);
 
-    return mAudioPolicyManager->startInput(input);
+    return mAudioPolicyManager->startInput(input, session);
 }
 
-status_t AudioPolicyService::stopInput(audio_io_handle_t input)
+status_t AudioPolicyService::stopInput(audio_io_handle_t input,
+                                       audio_session_t session)
 {
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
     Mutex::Autolock _l(mLock);
 
-    return mAudioPolicyManager->stopInput(input);
+    return mAudioPolicyManager->stopInput(input, session);
 }
 
-void AudioPolicyService::releaseInput(audio_io_handle_t input)
+void AudioPolicyService::releaseInput(audio_io_handle_t input,
+                                      audio_session_t session)
 {
     if (mAudioPolicyManager == NULL) {
         return;
     }
     Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->releaseInput(input);
+    mAudioPolicyManager->releaseInput(input, session);
 
     // release audio processors from the input
     status_t status = mAudioPolicyEffects->releaseInputEffects(input);
