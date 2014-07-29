@@ -148,24 +148,23 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
 }
 
 void ExtendedUtils::setBFrames(
-        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, int32_t &numBFrames,
-        const char* componentName) {
+        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, const char* componentName) {
     //ignore non QC components
     if (strncmp(componentName, "OMX.qcom.", 9)) {
         return;
     }
     if (mpeg4type.eProfile > OMX_VIDEO_MPEG4ProfileSimple) {
         mpeg4type.nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
-        mpeg4type.nBFrames = 1;
-        mpeg4type.nPFrames /= (mpeg4type.nBFrames + 1);
-        numBFrames = mpeg4type.nBFrames;
+        mpeg4type.nPFrames = (mpeg4type.nPFrames + kNumBFramesPerPFrame) /
+                (kNumBFramesPerPFrame + 1);
+        mpeg4type.nBFrames = mpeg4type.nPFrames * kNumBFramesPerPFrame;
     }
     return;
 }
 
 void ExtendedUtils::setBFrames(
-        OMX_VIDEO_PARAM_AVCTYPE &h264type, int32_t &numBFrames,
-        int32_t iFramesInterval, int32_t frameRate, const char* componentName) {
+        OMX_VIDEO_PARAM_AVCTYPE &h264type, const int32_t iFramesInterval,
+        const int32_t frameRate, const char* componentName) {
     //ignore non QC components
     if (strncmp(componentName, "OMX.qcom.", 9)) {
         return;
@@ -188,12 +187,13 @@ void ExtendedUtils::setBFrames(
 
     if (h264type.eProfile > OMX_VIDEO_AVCProfileBaseline) {
         h264type.nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
-        h264type.nBFrames = 1;
-        h264type.nPFrames /= (h264type.nBFrames + 1);
-        //enable CABAC as default entropy mode for Hihg/Main profiles
+        h264type.nPFrames = (h264type.nPFrames + kNumBFramesPerPFrame) /
+                (kNumBFramesPerPFrame + 1);
+        h264type.nBFrames = h264type.nPFrames * kNumBFramesPerPFrame;
+
+        //enable CABAC as default entropy mode for High/Main profiles
         h264type.bEntropyCodingCABAC = OMX_TRUE;
         h264type.nCabacInitIdc = 0;
-        numBFrames = h264type.nBFrames;
     }
     return;
 }
@@ -436,19 +436,15 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
 }
 
 void ExtendedUtils::setBFrames(
-        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, int32_t &numBFrames,
-        const char* componentName) {
+        OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, const char* componentName) {
     ARG_TOUCH(mpeg4type);
-    ARG_TOUCH(numBFrames);
     ARG_TOUCH(componentName);
 }
 
 void ExtendedUtils::setBFrames(
-        OMX_VIDEO_PARAM_AVCTYPE &h264type, int32_t &numBFrames,
-        int32_t iFramesInterval, int32_t frameRate,
-        const char* componentName) {
+        OMX_VIDEO_PARAM_AVCTYPE &h264type, const int32_t iFramesInterval,
+        const int32_t frameRate, const char* componentName) {
     ARG_TOUCH(h264type);
-    ARG_TOUCH(numBFrames);
     ARG_TOUCH(iFramesInterval);
     ARG_TOUCH(frameRate);
     ARG_TOUCH(componentName);
