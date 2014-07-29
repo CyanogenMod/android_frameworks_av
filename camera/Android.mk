@@ -21,7 +21,13 @@ LOCAL_SRC_FILES:= \
 	camera2/ICameraDeviceCallbacks.cpp \
 	camera2/CaptureRequest.cpp \
 	ProCamera.cpp \
-	CameraBase.cpp \
+	CameraBase.cpp
+
+ifeq ($(TARGET_BOARD_PLATFORM),mt6589)
+LOCAL_SRC_FILES += \
+	MtkCamera.cpp \
+	MtkCameraParameters.cpp
+endif
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
@@ -38,6 +44,10 @@ LOCAL_C_INCLUDES += \
 
 ifeq ($(BOARD_CAMERA_HAVE_ISO),true)
 	LOCAL_CFLAGS += -DHAVE_ISO
+endif
+
+ifeq ($(TARGET_BOARD_PLATFORM),mt6589)
+LOCAL_CFLAGS += -DMTK_MT6589
 endif
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
