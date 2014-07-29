@@ -143,7 +143,6 @@ private:
 
     enum FlushStatus {
         NONE,
-        AWAITING_DISCONTINUITY,
         FLUSHING_DECODER,
         FLUSHING_DECODER_SHUTDOWN,
         SHUTTING_DOWN_DECODER,

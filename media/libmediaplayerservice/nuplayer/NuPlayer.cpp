@@ -943,11 +943,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::finishFlushIfPossible() {
-    if (mFlushingAudio != FLUSHED && mFlushingAudio != SHUT_DOWN) {
+    if (mFlushingAudio != NONE && mFlushingAudio != FLUSHED
+            && mFlushingAudio != SHUT_DOWN) {
         return;
     }
 
-    if (mFlushingVideo != FLUSHED && mFlushingVideo != SHUT_DOWN) {
+    if (mFlushingVideo != NONE && mFlushingVideo != FLUSHED
+            && mFlushingVideo != SHUT_DOWN) {
         return;
     }
 
@@ -958,11 +960,11 @@ void NuPlayer::finishFlushIfPossible() {
         mTimeDiscontinuityPending = false;
     }
 
-    if (mAudioDecoder != NULL) {
+    if (mAudioDecoder != NULL && mFlushingAudio == FLUSHED) {
         mAudioDecoder->signalResume();
     }
 
-    if (mVideoDecoder != NULL) {
+    if (mVideoDecoder != NULL && mFlushingVideo == FLUSHED) {
         mVideoDecoder->signalResume();
     }
 
@@ -1195,8 +1197,8 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
 
-    if ((audio && IsFlushingState(mFlushingAudio))
-            || (!audio && IsFlushingState(mFlushingVideo))) {
+    if ((audio && mFlushingAudio != NONE)
+            || (!audio && mFlushingVideo != NONE)) {
         reply->setInt32("err", INFO_DISCONTINUITY);
         reply->post();
         return OK;
@@ -1276,15 +1278,6 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                     }
                 } else {
                     // This stream is unaffected by the discontinuity
-
-                    if (audio) {
-                        mFlushingAudio = FLUSHED;
-                    } else {
-                        mFlushingVideo = FLUSHED;
-                    }
-
-                    finishFlushIfPossible();
-
                     return -EWOULDBLOCK;
                 }
             }
@@ -1335,7 +1328,8 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
 
-    if (IsFlushingState(audio ? mFlushingAudio : mFlushingVideo)) {
+    if ((audio && mFlushingAudio != NONE)
+            || (!audio && mFlushingVideo != NONE)) {
         // We're currently attempting to flush the decoder, in order
         // to complete this, the decoder wants all its buffers back,
         // so we don't want any output buffers it sent us (from before
@@ -1480,27 +1474,13 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
         needShutdown ? FLUSHING_DECODER_SHUTDOWN : FLUSHING_DECODER;
 
     if (audio) {
-        CHECK(mFlushingAudio == NONE
-                || mFlushingAudio == AWAITING_DISCONTINUITY);
-
+        ALOGE_IF(mFlushingAudio != NONE,
+                "audio flushDecoder() is called in state %d", mFlushingAudio);
         mFlushingAudio = newStatus;
-
-        if (mFlushingVideo == NONE) {
-            mFlushingVideo = (mVideoDecoder != NULL)
-                ? AWAITING_DISCONTINUITY
-                : FLUSHED;
-        }
     } else {
-        CHECK(mFlushingVideo == NONE
-                || mFlushingVideo == AWAITING_DISCONTINUITY);
-
+        ALOGE_IF(mFlushingVideo != NONE,
+                "video flushDecoder() is called in state %d", mFlushingVideo);
         mFlushingVideo = newStatus;
-
-        if (mFlushingAudio == NONE) {
-            mFlushingAudio = (mAudioDecoder != NULL)
-                ? AWAITING_DISCONTINUITY
-                : FLUSHED;
-        }
     }
 }
 
@@ -1590,18 +1570,6 @@ void NuPlayer::processDeferredActions() {
         // an intermediate state, i.e. one more more decoders are currently
         // flushing or shutting down.
 
-        if (mRenderer != NULL) {
-            // There's an edge case where the renderer owns all output
-            // buffers and is paused, therefore the decoder will not read
-            // more input data and will never encounter the matching
-            // discontinuity. To avoid this, we resume the renderer.
-
-            if (mFlushingAudio == AWAITING_DISCONTINUITY
-                    || mFlushingVideo == AWAITING_DISCONTINUITY) {
-                mRenderer->resume();
-            }
-        }
-
         if (mFlushingAudio != NONE || mFlushingVideo != NONE) {
             // We're currently flushing, postpone the reset until that's
             // completed.
@@ -1665,14 +1633,6 @@ void NuPlayer::performDecoderShutdown(bool audio, bool video) {
     }
 
     mTimeDiscontinuityPending = true;
-
-    if (mFlushingAudio == NONE && (!audio || mAudioDecoder == NULL)) {
-        mFlushingAudio = FLUSHED;
-    }
-
-    if (mFlushingVideo == NONE && (!video || mVideoDecoder == NULL)) {
-        mFlushingVideo = FLUSHED;
-    }
 
     if (audio && mAudioDecoder != NULL) {
         flushDecoder(true /* audio */, true /* needShutdown */);
