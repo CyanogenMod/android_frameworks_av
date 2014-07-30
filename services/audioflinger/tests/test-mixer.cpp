@@ -62,7 +62,7 @@ static int writeFile(const char *filename, const void *buffer,
     info.samplerate = sampleRate;
     info.channels = channels;
     info.format = SF_FORMAT_WAV | (isBufferFloat ? SF_FORMAT_FLOAT : SF_FORMAT_PCM_16);
-    printf("saving file:%s  channels:%d  samplerate:%d  frames:%d\n",
+    printf("saving file:%s  channels:%u  samplerate:%u  frames:%zu\n",
             filename, info.channels, info.samplerate, frames);
     SNDFILE *sf = sf_open(filename, SFM_WRITE, &info);
     if (sf == NULL) {

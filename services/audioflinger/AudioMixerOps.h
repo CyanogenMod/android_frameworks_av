@@ -184,7 +184,7 @@ inline int16_t MixMul<int16_t, float, float>(float value, float volume) {
 template <typename TO, typename TI>
 inline void MixAccum(TO *auxaccum, TI value) {
     if (!is_same<TO, TI>::value) {
-        LOG_ALWAYS_FATAL("MixAccum type not properly specialized: %d %d\n",
+        LOG_ALWAYS_FATAL("MixAccum type not properly specialized: %zu %zu\n",
                 sizeof(TO), sizeof(TI));
     }
     *auxaccum += value;
