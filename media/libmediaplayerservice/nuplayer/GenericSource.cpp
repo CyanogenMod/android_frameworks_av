@@ -308,7 +308,7 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
 
           int64_t timeUs, actualTimeUs;
           const bool formatChange = true;
-          sp<AMessage> latestMeta = track->mPackets->getLatestMeta();
+          sp<AMessage> latestMeta = track->mPackets->getLatestEnqueuedMeta();
           CHECK(latestMeta != NULL && latestMeta->findInt64("timeUs", &timeUs));
           readBuffer(trackType, timeUs, &actualTimeUs, formatChange);
           readBuffer(counterpartType, -1, NULL, formatChange);
