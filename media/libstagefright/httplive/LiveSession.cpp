@@ -1164,6 +1164,14 @@ status_t LiveSession::selectTrack(size_t index, bool select) {
     return err;
 }
 
+ssize_t LiveSession::getSelectedTrack(media_track_type type) const {
+    if (mPlaylist == NULL) {
+        return -1;
+    } else {
+        return mPlaylist->getSelectedTrack(type);
+    }
+}
+
 bool LiveSession::canSwitchUp() {
     // Allow upwards bandwidth switch when a stream has buffered at least 10 seconds.
     status_t err = OK;
