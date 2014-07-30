@@ -55,10 +55,10 @@ struct MediaCodec : public AHandler {
     struct BatteryNotifier;
 
     static sp<MediaCodec> CreateByType(
-            const sp<ALooper> &looper, const char *mime, bool encoder);
+            const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err = NULL);
 
     static sp<MediaCodec> CreateByComponentName(
-            const sp<ALooper> &looper, const char *name);
+            const sp<ALooper> &looper, const char *name, status_t *err = NULL);
 
     status_t configure(
             const sp<AMessage> &format,
@@ -223,6 +223,7 @@ private:
     AString mComponentName;
     uint32_t mReplyID;
     uint32_t mFlags;
+    status_t mStickyError;
     sp<Surface> mNativeWindow;
     SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mOutputFormat;
@@ -303,6 +304,18 @@ private:
     status_t amendOutputFormatWithCodecSpecificData(const sp<ABuffer> &buffer);
     void updateBatteryStat();
     bool isExecuting() const;
+
+    /* called to get the last codec error when the sticky flag is set.
+     * if no such codec error is found, returns UNKNOWN_ERROR.
+     */
+    inline status_t getStickyError() const {
+        return mStickyError != 0 ? mStickyError : UNKNOWN_ERROR;
+    }
+
+    inline void setStickyError(status_t err) {
+        mFlags |= kFlagStickyError;
+        mStickyError = err;
+    }
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
