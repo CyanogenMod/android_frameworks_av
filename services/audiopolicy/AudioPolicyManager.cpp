@@ -5574,12 +5574,14 @@ audio_channel_mask_t AudioPolicyManager::AudioPort::pickChannelMask() const
     return channelMask;
 }
 
+/* format in order of increasing preference */
 const audio_format_t AudioPolicyManager::AudioPort::sPcmFormatCompareTable[] = {
         AUDIO_FORMAT_DEFAULT,
         AUDIO_FORMAT_PCM_16_BIT,
         AUDIO_FORMAT_PCM_8_24_BIT,
         AUDIO_FORMAT_PCM_24_BIT_PACKED,
         AUDIO_FORMAT_PCM_32_BIT,
+        AUDIO_FORMAT_PCM_FLOAT,
 };
 
 int AudioPolicyManager::AudioPort::compareFormats(audio_format_t format1,
@@ -5621,7 +5623,9 @@ audio_format_t AudioPolicyManager::AudioPort::pickFormat() const
     }
 
     audio_format_t format = AUDIO_FORMAT_DEFAULT;
-    audio_format_t bestFormat = BEST_MIXER_FORMAT;
+    audio_format_t bestFormat =
+            AudioPolicyManager::AudioPort::sPcmFormatCompareTable[
+                ARRAY_SIZE(AudioPolicyManager::AudioPort::sPcmFormatCompareTable) - 1];
     // For mixed output and inputs, use best mixer output format. Do not
     // limit format otherwise
     if ((mType != AUDIO_PORT_TYPE_MIX) ||
