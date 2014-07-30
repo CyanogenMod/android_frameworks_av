@@ -74,7 +74,6 @@ private:
     Condition mCondition;
 
     bool mIsAudio;
-    bool mIsVideo;
     sp<MetaData> mFormat;
     int64_t mLastQueuedTimeUs;
     List<sp<ABuffer> > mBuffers;

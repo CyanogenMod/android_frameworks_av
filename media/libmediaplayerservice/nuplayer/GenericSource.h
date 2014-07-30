@@ -23,15 +23,12 @@
 
 #include "ATSParser.h"
 
-#include <media/mediaplayer.h>
-
 namespace android {
 
 struct AnotherPacketSource;
 struct ARTSPController;
 struct DataSource;
 struct MediaSource;
-class MediaBuffer;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(
@@ -58,8 +55,6 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual status_t getDuration(int64_t *durationUs);
     virtual size_t getTrackCount() const;
     virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
-    virtual ssize_t getSelectedTrack(media_track_type type) const;
-    virtual status_t selectTrack(size_t trackIndex, bool select);
     virtual status_t seekTo(int64_t seekTimeUs);
 
     virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
@@ -67,19 +62,9 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 protected:
     virtual ~GenericSource();
 
-    virtual void onMessageReceived(const sp<AMessage> &msg);
-
     virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
-    enum {
-        kWhatFetchSubtitleData,
-        kWhatFetchTimedTextData,
-        kWhatSendSubtitleData,
-        kWhatSendTimedTextData,
-        kWhatChangeAVSource,
-    };
-
     Vector<sp<MediaSource> > mSources;
 
     struct Track {
@@ -90,11 +75,7 @@ private:
 
     Track mAudioTrack;
     Track mVideoTrack;
-    Track mSubtitleTrack;
-    Track mTimedTextTrack;
 
-    int32_t mFetchSubtitleDataGeneration;
-    int32_t mFetchTimedTextDataGeneration;
     int64_t mDurationUs;
     bool mAudioIsVorbis;
     bool mIsWidevine;
@@ -103,22 +84,9 @@ private:
 
     void initFromDataSource(const sp<DataSource> &dataSource);
 
-    void fetchTextData(
-            uint32_t what, media_track_type type,
-            int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
-
-    void sendTextData(
-            uint32_t what, media_track_type type,
-            int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
-
-    sp<ABuffer> mediaBufferToABuffer(
-            MediaBuffer *mbuf,
-            media_track_type trackType,
-            int64_t *actualTimeUs = NULL);
-
     void readBuffer(
-            media_track_type trackType,
-            int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL, bool formatChange = false);
+            bool audio,
+            int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL);
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };
