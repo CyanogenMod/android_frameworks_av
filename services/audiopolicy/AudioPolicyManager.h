@@ -823,7 +823,7 @@ protected:
 
         // returns true if given output is direct output
         bool isDirectOutput(audio_io_handle_t output);
-        //parameter indicates of HDMI speakers disabled from the Qualcomm settings
+        //parameter indicates of HDMI speakers disabled
         bool mHdmiAudioDisabled;
         //parameter indicates if HDMI plug in/out detected
         bool mHdmiAudioEvent;

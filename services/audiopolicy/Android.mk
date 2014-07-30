@@ -109,7 +109,6 @@ endif #DOLBY_DDP
 ifeq ($(strip $(DOLBY_DAP)),true)
     ifdef DOLBY_DAP_OPENSLES
         LOCAL_CFLAGS += -DDOLBY_DAP_OPENSLES
-        LOCAL_C_INCLUDES += $(TOP)/vendor/dolby/ds1/libds/include/
     endif
 endif #DOLBY_END
 
