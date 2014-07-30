@@ -82,17 +82,17 @@ template<typename TC, typename TI, typename TO>
 void AudioResamplerDyn<TC, TI, TO>::InBuffer::resize(int CHANNELS, int halfNumCoefs)
 {
     // calculate desired state size
-    int stateCount = halfNumCoefs * CHANNELS * 2 * kStateSizeMultipleOfFilterLength;
+    size_t stateCount = halfNumCoefs * CHANNELS * 2 * kStateSizeMultipleOfFilterLength;
 
     // check if buffer needs resizing
     if (mState
             && stateCount == mStateCount
-            && mRingFull-mState == mStateCount-halfNumCoefs*CHANNELS) {
+            && mRingFull-mState == (ssize_t) (mStateCount-halfNumCoefs*CHANNELS)) {
         return;
     }
 
     // create new buffer
-    TI* state;
+    TI* state = NULL;
     (void)posix_memalign(reinterpret_cast<void**>(&state), 32, stateCount*sizeof(*state));
     memset(state, 0, stateCount*sizeof(*state));
 
@@ -213,7 +213,7 @@ template<typename TC, typename TI, typename TO>
 void AudioResamplerDyn<TC, TI, TO>::createKaiserFir(Constants &c,
         double stopBandAtten, int inSampleRate, int outSampleRate, double tbwCheat)
 {
-    TC* buf;
+    TC* buf = NULL;
     static const double atten = 0.9998;   // to avoid ripple overflow
     double fcr;
     double tbw = firKaiserTbw(c.mHalfNumCoefs, stopBandAtten);
