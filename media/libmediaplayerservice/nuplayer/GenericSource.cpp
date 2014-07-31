@@ -60,7 +60,8 @@ NuPlayer::GenericSource::GenericSource(
         int fd, int64_t offset, int64_t length)
     : Source(notify),
       mDurationUs(0ll),
-      mAudioIsVorbis(false) {
+      mAudioIsVorbis(false),
+      mIsWidevine(false) {
     DataSource::RegisterDefaultSniffers();
 
     sp<DataSource> dataSource = new FileSource(dup(fd), offset, length);
