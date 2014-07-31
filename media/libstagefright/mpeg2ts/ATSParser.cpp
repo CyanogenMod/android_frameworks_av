@@ -503,11 +503,7 @@ ATSParser::Stream::Stream(
                     ElementaryStreamQueue::MPEG4_VIDEO);
             break;
 
-        case STREAMTYPE_PCM_AUDIO:
-            mQueue = new ElementaryStreamQueue(
-                    ElementaryStreamQueue::PCM_AUDIO);
-            break;
-
+        case STREAMTYPE_LPCM_AC3:
         case STREAMTYPE_AC3:
             mQueue = new ElementaryStreamQueue(
                     ElementaryStreamQueue::AC3);
@@ -622,7 +618,7 @@ bool ATSParser::Stream::isAudio() const {
         case STREAMTYPE_MPEG1_AUDIO:
         case STREAMTYPE_MPEG2_AUDIO:
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
-        case STREAMTYPE_PCM_AUDIO:
+        case STREAMTYPE_LPCM_AC3:
         case STREAMTYPE_AC3:
             return true;
 
