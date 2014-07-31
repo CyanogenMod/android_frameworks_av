@@ -157,6 +157,7 @@ private:
         STARTING,
         STARTED,
         FLUSHING,
+        FLUSHED,
         STOPPING,
         RELEASING,
     };
@@ -301,6 +302,7 @@ private:
 
     status_t amendOutputFormatWithCodecSpecificData(const sp<ABuffer> &buffer);
     void updateBatteryStat();
+    bool isExecuting() const;
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodec);
 };
