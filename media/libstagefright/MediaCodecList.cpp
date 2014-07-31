@@ -803,7 +803,7 @@ const char *MediaCodecList::getCodecName(size_t index) const {
 
 bool MediaCodecList::isEncoder(size_t index) const {
     if (index >= mCodecInfos.size()) {
-        return NULL;
+        return false;
     }
 
     const CodecInfo &info = mCodecInfos.itemAt(index);
@@ -813,7 +813,7 @@ bool MediaCodecList::isEncoder(size_t index) const {
 bool MediaCodecList::codecHasQuirk(
         size_t index, const char *quirkName) const {
     if (index >= mCodecInfos.size()) {
-        return NULL;
+        return false;
     }
 
     const CodecInfo &info = mCodecInfos.itemAt(index);
