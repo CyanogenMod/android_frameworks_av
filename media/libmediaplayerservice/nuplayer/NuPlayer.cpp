@@ -860,8 +860,23 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                               displayWidth, displayHeight);
                     }
 
-                    notifyListener(
-                            MEDIA_SET_VIDEO_SIZE, displayWidth, displayHeight);
+                    int32_t rotationDegrees;
+                    if (!videoInputFormat->findInt32(
+                            "rotation-degrees", &rotationDegrees)) {
+                        rotationDegrees = 0;
+                    }
+
+                    if (rotationDegrees == 90 || rotationDegrees == 270) {
+                        notifyListener(
+                                MEDIA_SET_VIDEO_SIZE,
+                                displayHeight,
+                                displayWidth);
+                    } else {
+                        notifyListener(
+                                MEDIA_SET_VIDEO_SIZE,
+                                displayWidth,
+                                displayHeight);
+                    }
                 }
             } else if (what == Decoder::kWhatShutdownCompleted) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");
