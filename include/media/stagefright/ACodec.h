@@ -238,7 +238,7 @@ private:
     status_t setSupportedOutputFormat();
 
     status_t setupVideoDecoder(
-            const char *mime, int32_t width, int32_t height);
+            const char *mime, const sp<AMessage> &msg);
 
     status_t setupVideoEncoder(
             const char *mime, const sp<AMessage> &msg);
