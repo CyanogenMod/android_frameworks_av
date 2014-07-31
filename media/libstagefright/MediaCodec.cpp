@@ -550,6 +550,10 @@ status_t MediaCodec::getInputBuffer(size_t index, sp<ABuffer> *buffer) {
     return getBufferAndFormat(kPortIndexInput, index, buffer, &format);
 }
 
+bool MediaCodec::isExecuting() const {
+    return mState == STARTED || mState == FLUSHED;
+}
+
 status_t MediaCodec::getBufferAndFormat(
         size_t portIndex, size_t index,
         sp<ABuffer> *buffer, sp<AMessage> *format) {
@@ -557,7 +561,7 @@ status_t MediaCodec::getBufferAndFormat(
 
     buffer->clear();
     format->clear();
-    if (mState != STARTED) {
+    if (!isExecuting()) {
         return INVALID_OPERATION;
     }
 
@@ -615,7 +619,7 @@ void MediaCodec::cancelPendingDequeueOperations() {
 }
 
 bool MediaCodec::handleDequeueInputBuffer(uint32_t replyID, bool newRequest) {
-    if (mState != STARTED
+    if (!isExecuting() || (mFlags & kFlagIsAsync)
             || (mFlags & kFlagStickyError)
             || (newRequest && (mFlags & kFlagDequeueInputPending))) {
         PostReplyWithError(replyID, INVALID_OPERATION);
@@ -639,7 +643,7 @@ bool MediaCodec::handleDequeueInputBuffer(uint32_t replyID, bool newRequest) {
 bool MediaCodec::handleDequeueOutputBuffer(uint32_t replyID, bool newRequest) {
     sp<AMessage> response = new AMessage;
 
-    if (mState != STARTED
+    if (!isExecuting() || (mFlags & kFlagIsAsync)
             || (mFlags & kFlagStickyError)
             || (newRequest && (mFlags & kFlagDequeueOutputPending))) {
         response->setInt32("err", INVALID_OPERATION);
@@ -760,10 +764,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                         case FLUSHING:
                         {
-                            setState(STARTED);
+                            setState(
+                                    (mFlags & kFlagIsAsync) ? FLUSHED : STARTED);
                             break;
                         }
 
+                        case FLUSHED:
                         case STARTED:
                         {
                             sendErrorReponse = false;
@@ -1105,9 +1111,13 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 case CodecBase::kWhatFlushCompleted:
                 {
                     CHECK_EQ(mState, FLUSHING);
-                    setState(STARTED);
 
-                    mCodec->signalResume();
+                    if (mFlags & kFlagIsAsync) {
+                        setState(FLUSHED);
+                    } else {
+                        setState(STARTED);
+                        mCodec->signalResume();
+                    }
 
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -1162,8 +1172,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (mState == UNINITIALIZED
                     || mState == INITIALIZING
-                    || mState == STARTED) {
-                // callback can't be set after codec is started,
+                    || isExecuting()) {
+                // callback can't be set after codec is executing,
                 // or before it's initialized (as the callback
                 // will be cleared when it goes to INITIALIZED)
                 PostReplyWithError(replyID, INVALID_OPERATION);
@@ -1265,7 +1275,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != CONFIGURED) {
+            if (mState == FLUSHED) {
+                mCodec->signalResume();
+                PostReplyWithError(replyID, OK);
+            } else if (mState != CONFIGURED) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
@@ -1287,7 +1300,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != INITIALIZED
-                    && mState != CONFIGURED && mState != STARTED) {
+                    && mState != CONFIGURED && !isExecuting()) {
                 // We may be in "UNINITIALIZED" state already without the
                 // client being aware of this if media server died while
                 // we were being stopped. The client would assume that
@@ -1388,7 +1401,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != STARTED || (mFlags & kFlagStickyError)) {
+            if (!isExecuting() || (mFlags & kFlagStickyError)) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
@@ -1459,7 +1472,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != STARTED || (mFlags & kFlagStickyError)) {
+            if (!isExecuting() || (mFlags & kFlagStickyError)) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
@@ -1475,7 +1488,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != STARTED || (mFlags & kFlagStickyError)) {
+            if (!isExecuting() || (mFlags & kFlagStickyError)) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
@@ -1490,7 +1503,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != STARTED || (mFlags & kFlagStickyError)) {
+            if (!isExecuting() || (mFlags & kFlagIsAsync)
+                    || (mFlags & kFlagStickyError)) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
@@ -1521,12 +1535,13 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != STARTED || (mFlags & kFlagStickyError)) {
+            if (!isExecuting() || (mFlags & kFlagStickyError)) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             }
 
             mReplyID = replyID;
+            // TODO: skip flushing if already FLUSHED
             setState(FLUSHING);
 
             mCodec->signalFlush();
@@ -1544,7 +1559,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if ((mState != CONFIGURED && mState != STARTING &&
-                 mState != STARTED && mState != FLUSHING)
+                 mState != STARTED && mState != FLUSHING &&
+                 mState != FLUSHED)
                     || (mFlags & kFlagStickyError)
                     || format == NULL) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
@@ -1879,7 +1895,7 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
         render = 0;
     }
 
-    if (mState != STARTED) {
+    if (!isExecuting()) {
         return -EINVAL;
     }
 
