@@ -142,6 +142,11 @@ status_t convertMetaDataToMessage(
         msg->setInt32("max-input-size", maxInputSize);
     }
 
+    int32_t rotationDegrees;
+    if (meta->findInt32(kKeyRotation, &rotationDegrees)) {
+        msg->setInt32("rotation-degrees", rotationDegrees);
+    }
+
     uint32_t type;
     const void *data;
     size_t size;
