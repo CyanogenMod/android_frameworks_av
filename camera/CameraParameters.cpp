@@ -187,6 +187,19 @@ const char CameraParameters::KEY_METERING[] = "metering";
 const char CameraParameters::KEY_WDR[] = "wdr";
 const char CameraParameters::KEY_WEATHER[] = "weather";
 const char CameraParameters::KEY_CITYID[] = "contextualtag-cityid";
+
+const char CameraParameters::KEY_DYNAMIC_RANGE_CONTROL[] = "dynamic-range-control";
+const char CameraParameters::KEY_SUPPORTED_DYNAMIC_RANGE_CONTROL[] = "dynamic-range-control-values";
+const char CameraParameters::KEY_PHASE_AF[] = "phase-af";
+const char CameraParameters::KEY_SUPPORTED_PHASE_AF[] = "phase-af-values";
+const char CameraParameters::KEY_RT_HDR[] = "rt-hdr";
+const char CameraParameters::KEY_SUPPORTED_RT_HDR[] = "rt-hdr-values";
+const char CameraParameters::DRC_ON[] = "on";
+const char CameraParameters::DRC_OFF[] = "off";
+const char CameraParameters::PAF_ON[] = "on";
+const char CameraParameters::PAF_OFF[] = "off";
+const char CameraParameters::RTHDR_ON[] = "on";
+const char CameraParameters::RTHDR_OFF[] = "off";
 #endif
 
 #ifdef HTC_CAMERA_HARDWARE
