@@ -97,12 +97,10 @@ status_t FMA2DPWriter::start(MetaData *params) {
     }
 
     if(!mStarted) {
-        if(!params) {
-            ALOGE("%s fatal: params cannot be null", __func__);
-            return NO_INIT;
+        if(params) {
+            params->findInt32(kKeyChannelCount, &mAudioChannels);
+            params->findInt32(kKeySampleRate, &mSampleRate);
         }
-        params->findInt32(kKeyChannelCount, &mAudioChannels);
-        params->findInt32(kKeySampleRate, &mSampleRate);
         if (0 == mAudioChannels) {
              ALOGD("%s set default channel count:%", __func__, mAudioChannels);
              mAudioChannels = AUDIO_CHANNELS;
