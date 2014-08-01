@@ -126,18 +126,20 @@ struct NuPlayer::CCDecoder : public RefBase {
     bool isSelected() const;
     void decode(const sp<ABuffer> &accessUnit);
     void display(int64_t timeUs);
+    void flush();
 
 private:
-    struct CCData;
-
     sp<AMessage> mNotify;
     KeyedVector<int64_t, sp<ABuffer> > mCCMap;
-    size_t mTrackCount;
+    size_t mCurrentChannel;
     int32_t mSelectedTrack;
+    int32_t mTrackIndices[4];
+    Vector<size_t> mFoundChannels;
 
-    bool isNullPad(CCData *cc) const;
-    void dumpBytePair(const sp<ABuffer> &ccBuf) const;
+    bool isTrackValid(size_t index) const;
+    int32_t getTrackIndex(size_t channel) const;
     bool extractFromSEI(const sp<ABuffer> &accessUnit);
+    sp<ABuffer> filterCCBuf(const sp<ABuffer> &ccBuf, size_t index);
 
     DISALLOW_EVIL_CONSTRUCTORS(CCDecoder);
 };
