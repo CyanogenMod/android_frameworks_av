@@ -1289,16 +1289,20 @@ status_t ACodec::configureCodec(
             err = INVALID_OPERATION;
         } else {
             int32_t isADTS, aacProfile;
+            int32_t sbrMode;
             if (!msg->findInt32("is-adts", &isADTS)) {
                 isADTS = 0;
             }
             if (!msg->findInt32("aac-profile", &aacProfile)) {
                 aacProfile = OMX_AUDIO_AACObjectNull;
             }
+            if (!msg->findInt32("aac-sbr-mode", &sbrMode)) {
+                sbrMode = -1;
+            }
 
             err = setupAACCodec(
                     encoder, numChannels, sampleRate, bitRate, aacProfile,
-                    isADTS != 0);
+                    isADTS != 0, sbrMode);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)) {
         err = setupAMRCodec(encoder, false /* isWAMR */, bitRate);
@@ -1460,7 +1464,7 @@ status_t ACodec::selectAudioPortFormat(
 
 status_t ACodec::setupAACCodec(
         bool encoder, int32_t numChannels, int32_t sampleRate,
-        int32_t bitRate, int32_t aacProfile, bool isADTS) {
+        int32_t bitRate, int32_t aacProfile, bool isADTS, int32_t sbrMode) {
     if (encoder && isADTS) {
         return -EINVAL;
     }
@@ -1527,6 +1531,32 @@ status_t ACodec::setupAACCodec(
         profile.nAACERtools = OMX_AUDIO_AACERNone;
         profile.eAACProfile = (OMX_AUDIO_AACPROFILETYPE) aacProfile;
         profile.eAACStreamFormat = OMX_AUDIO_AACStreamFormatMP4FF;
+        switch (sbrMode) {
+        case 0:
+            // disable sbr
+            profile.nAACtools &= ~OMX_AUDIO_AACToolAndroidSSBR;
+            profile.nAACtools &= ~OMX_AUDIO_AACToolAndroidDSBR;
+            break;
+        case 1:
+            // enable single-rate sbr
+            profile.nAACtools |= OMX_AUDIO_AACToolAndroidSSBR;
+            profile.nAACtools &= ~OMX_AUDIO_AACToolAndroidDSBR;
+            break;
+        case 2:
+            // enable dual-rate sbr
+            profile.nAACtools &= ~OMX_AUDIO_AACToolAndroidSSBR;
+            profile.nAACtools |= OMX_AUDIO_AACToolAndroidDSBR;
+            break;
+        case -1:
+            // enable both modes -> the codec will decide which mode should be used
+            profile.nAACtools |= OMX_AUDIO_AACToolAndroidSSBR;
+            profile.nAACtools |= OMX_AUDIO_AACToolAndroidDSBR;
+            break;
+        default:
+            // unsupported sbr mode
+            return BAD_VALUE;
+        }
+
 
         err = mOMX->setParameter(
                 mNode, OMX_IndexParamAudioAac, &profile, sizeof(profile));
