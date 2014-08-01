@@ -1230,14 +1230,15 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                 mTimeDiscontinuityPending =
                     mTimeDiscontinuityPending || timeChange;
 
+                if (mFlushingAudio == NONE && mFlushingVideo == NONE) {
+                    // And we'll resume scanning sources once we're done
+                    // flushing.
+                    mDeferredActions.push_front(
+                            new SimpleAction(
+                                &NuPlayer::performScanSources));
+                }
+
                 if (formatChange || timeChange) {
-                    if (mFlushingAudio == NONE && mFlushingVideo == NONE) {
-                        // And we'll resume scanning sources once we're done
-                        // flushing.
-                        mDeferredActions.push_front(
-                                new SimpleAction(
-                                    &NuPlayer::performScanSources));
-                    }
 
                     sp<AMessage> newFormat = mSource->getFormat(audio);
                     sp<Decoder> &decoder = audio ? mAudioDecoder : mVideoDecoder;
