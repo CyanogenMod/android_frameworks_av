@@ -712,6 +712,9 @@ bool MediaCodec::handleDequeueOutputBuffer(uint32_t replyID, bool newRequest) {
         if (omxFlags & OMX_BUFFERFLAG_EOS) {
             flags |= BUFFER_FLAG_EOS;
         }
+        if (omxFlags & OMX_BUFFERFLAG_EXTRADATA) {
+            flags |= BUFFER_FLAG_EXTRADATA;
+        }
 
         response->setInt32("flags", flags);
     }

@@ -586,6 +586,24 @@ void ExtendedCodec::configureVideoDecoder(
         ALOGI("Thumbnail mode enabled.");
     }
 
+    // MediaCodec clients can request decoder extradata by setting
+    // "enable-extradata-<type>" in MediaFormat.
+    // Following <type>s are supported:
+    //    "user" => user-extradata
+    int extraDataRequested = 0;
+    if (msg->findInt32("enable-extradata-user", &extraDataRequested) &&
+            extraDataRequested == 1) {
+        ALOGI("[%s] User-extradata requested", componentName);
+        QOMX_ENABLETYPE enableType;
+        enableType.bEnable = OMX_TRUE;
+
+        status_t err = OMXhandle->setParameter(
+                nodeID, (OMX_INDEXTYPE)OMX_QcomIndexEnableExtnUserData,
+                (OMX_PTR)&enableType, sizeof(enableType));
+        if (err != OK) {
+            ALOGW("[%s] Failed to enable user-extradata", componentName);
+        }
+    }
 }
 
 void ExtendedCodec::configureVideoDecoder(
