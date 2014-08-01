@@ -450,6 +450,13 @@ void AudioSystem::releaseAudioSessionId(int audioSession, pid_t pid)
     }
 }
 
+audio_hw_sync_t AudioSystem::getAudioHwSyncForSession(audio_session_t sessionId)
+{
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return AUDIO_HW_SYNC_INVALID;
+    return af->getAudioHwSyncForSession(sessionId);
+}
+
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who __unused)
