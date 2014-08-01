@@ -111,6 +111,7 @@ private:
     uint32_t mPlayerFlags;
 
     bool mAtEOS;
+    bool mLooping;
 
     int64_t mStartupSeekTimeUs;
 

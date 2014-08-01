@@ -42,6 +42,7 @@ NuPlayerDriver::NuPlayerDriver()
       mLooper(new ALooper),
       mPlayerFlags(0),
       mAtEOS(false),
+      mLooping(false),
       mStartupSeekTimeUs(-1) {
     mLooper->setName("NuPlayerDriver Looper");
 
@@ -76,6 +77,7 @@ status_t NuPlayerDriver::setDataSource(
         const KeyedVector<String8, String8> *headers) {
     Mutex::Autolock autoLock(mLock);
 
+    ALOGV("setDataSource: url=%s", url);
     if (mState != STATE_IDLE) {
         return INVALID_OPERATION;
     }
@@ -94,6 +96,7 @@ status_t NuPlayerDriver::setDataSource(
 status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
     Mutex::Autolock autoLock(mLock);
 
+    ALOGV("setDataSource: fd=%d", fd);
     if (mState != STATE_IDLE) {
         return INVALID_OPERATION;
     }
@@ -112,6 +115,7 @@ status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
 status_t NuPlayerDriver::setDataSource(const sp<IStreamSource> &source) {
     Mutex::Autolock autoLock(mLock);
 
+    ALOGV("setDataSource: stream source");
     if (mState != STATE_IDLE) {
         return INVALID_OPERATION;
     }
@@ -378,12 +382,14 @@ status_t NuPlayerDriver::reset() {
     mDurationUs = -1;
     mPositionUs = -1;
     mStartupSeekTimeUs = -1;
+    mLooping = false;
 
     return OK;
 }
 
-status_t NuPlayerDriver::setLooping(int /* loop */) {
-    return INVALID_OPERATION;
+status_t NuPlayerDriver::setLooping(int loop) {
+    mLooping = loop != 0;
+    return OK;
 }
 
 player_type NuPlayerDriver::playerType() {
@@ -534,11 +540,26 @@ status_t NuPlayerDriver::dump(
 
 void NuPlayerDriver::notifyListener(
         int msg, int ext1, int ext2, const Parcel *in) {
-    if (msg == MEDIA_PLAYBACK_COMPLETE || msg == MEDIA_ERROR) {
-        mAtEOS = true;
-        if (msg == MEDIA_PLAYBACK_COMPLETE) {
-            mState = STATE_PAUSED;
+    switch (msg) {
+        case MEDIA_PLAYBACK_COMPLETE:
+        {
+            if (mLooping) {
+                mPlayer->seekToAsync(0);
+                break;
+            } else {
+                mState = STATE_PAUSED;
+            }
+            // fall through
         }
+
+        case MEDIA_ERROR:
+        {
+            mAtEOS = true;
+            break;
+        }
+
+        default:
+            break;
     }
 
     sendEvent(msg, ext1, ext2, in);
