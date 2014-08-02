@@ -206,9 +206,10 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                                                           audio_policy_dev_state_t state,
                                                   const char *device_address)
 {
-    String8 address = String8(device_address);
+    String8 address = (device_address == NULL) ? String8("") : String8(device_address);
 
-    ALOGV("setDeviceConnectionState() device: %x, state %d, address %s", device, state, device_address);
+    ALOGV("setDeviceConnectionState() device: %x, state %d, address %s",
+            device, state, address.string());
 
     // connect/disconnect only 1 device at a time
     if (!audio_is_output_device(device) && !audio_is_input_device(device)) return BAD_VALUE;
@@ -376,9 +377,8 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
                                                   const char *device_address)
 {
     audio_policy_dev_state_t state = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
-    String8 address = String8(device_address);
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
-    devDesc->mAddress = String8(device_address);
+    devDesc->mAddress = (device_address == NULL) ? String8("") : String8(device_address);
     ssize_t index;
     DeviceVector *deviceVector;
 
