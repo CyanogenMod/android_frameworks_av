@@ -22,18 +22,18 @@
 #include <sys/types.h>
 #include <pthread.h>
 
+#include <system/sound_trigger.h>
+#include <cutils/atomic.h>
+#include <cutils/properties.h>
+#include <utils/Errors.h>
+#include <utils/Log.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
-#include <cutils/atomic.h>
-#include <cutils/properties.h>
 #include <hardware/hardware.h>
-#include <utils/Errors.h>
-#include <utils/Log.h>
-
-#include "SoundTriggerHwService.h"
-#include <system/sound_trigger.h>
 #include <hardware/sound_trigger.h>
+#include <ServiceUtilities.h>
+#include "SoundTriggerHwService.h"
 
 namespace android {
 
@@ -103,6 +103,10 @@ status_t SoundTriggerHwService::listModules(struct sound_trigger_module_descript
                              uint32_t *numModules)
 {
     ALOGV("listModules");
+    if (!captureHotwordAllowed()) {
+        return PERMISSION_DENIED;
+    }
+
     AutoMutex lock(mServiceLock);
     if (numModules == NULL || (*numModules != 0 && modules == NULL)) {
         return BAD_VALUE;
@@ -120,6 +124,10 @@ status_t SoundTriggerHwService::attach(const sound_trigger_module_handle_t handl
                         sp<ISoundTrigger>& moduleInterface)
 {
     ALOGV("attach module %d", handle);
+    if (!captureHotwordAllowed()) {
+        return PERMISSION_DENIED;
+    }
+
     AutoMutex lock(mServiceLock);
     moduleInterface.clear();
     if (client == 0) {
@@ -139,8 +147,8 @@ status_t SoundTriggerHwService::attach(const sound_trigger_module_handle_t handl
 }
 
 void SoundTriggerHwService::detachModule(sp<Module> module) {
-    AutoMutex lock(mServiceLock);
     ALOGV("detachModule");
+    AutoMutex lock(mServiceLock);
     module->clearClient();
 }
 
@@ -310,6 +318,9 @@ SoundTriggerHwService::Module::~Module() {
 
 void SoundTriggerHwService::Module::detach() {
     ALOGV("detach()");
+    if (!captureHotwordAllowed()) {
+        return;
+    }
     {
         AutoMutex lock(mLock);
         for (size_t i = 0; i < mModels.size(); i++) {
@@ -337,6 +348,9 @@ status_t SoundTriggerHwService::Module::loadSoundModel(const sp<IMemory>& modelM
                                 sound_model_handle_t *handle)
 {
     ALOGV("loadSoundModel() handle");
+    if (!captureHotwordAllowed()) {
+        return PERMISSION_DENIED;
+    }
 
     if (modelMemory == 0 || modelMemory->pointer() == NULL) {
         ALOGE("loadSoundModel() modelMemory is 0 or has NULL pointer()");
@@ -361,6 +375,9 @@ status_t SoundTriggerHwService::Module::loadSoundModel(const sp<IMemory>& modelM
 status_t SoundTriggerHwService::Module::unloadSoundModel(sound_model_handle_t handle)
 {
     ALOGV("unloadSoundModel() model handle %d", handle);
+    if (!captureHotwordAllowed()) {
+        return PERMISSION_DENIED;
+    }
 
     AutoMutex lock(mLock);
     ssize_t index = mModels.indexOfKey(handle);
@@ -380,6 +397,9 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
                                  const sp<IMemory>& dataMemory)
 {
     ALOGV("startRecognition() model handle %d", handle);
+    if (!captureHotwordAllowed()) {
+        return PERMISSION_DENIED;
+    }
 
     if (dataMemory != 0 && dataMemory->pointer() == NULL) {
         ALOGE("startRecognition() dataMemory is non-0 but has NULL pointer()");
@@ -415,6 +435,9 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
 status_t SoundTriggerHwService::Module::stopRecognition(sound_model_handle_t handle)
 {
     ALOGV("stopRecognition() model handle %d", handle);
+    if (!captureHotwordAllowed()) {
+        return PERMISSION_DENIED;
+    }
 
     AutoMutex lock(mLock);
     sp<Model> model = getModel(handle);
