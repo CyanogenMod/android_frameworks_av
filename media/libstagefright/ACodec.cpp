@@ -1290,6 +1290,8 @@ status_t ACodec::configureCodec(
         } else {
             int32_t isADTS, aacProfile;
             int32_t sbrMode;
+            int32_t maxOutputChannelCount;
+            drcParams_t drc;
             if (!msg->findInt32("is-adts", &isADTS)) {
                 isADTS = 0;
             }
@@ -1300,9 +1302,33 @@ status_t ACodec::configureCodec(
                 sbrMode = -1;
             }
 
+            if (!msg->findInt32("aac-max-output-channel_count", &maxOutputChannelCount)) {
+                maxOutputChannelCount = -1;
+            }
+            if (!msg->findInt32("aac-encoded-target-level", &drc.encodedTargetLevel)) {
+                // value is unknown
+                drc.encodedTargetLevel = -1;
+            }
+            if (!msg->findInt32("aac-drc-cut-level", &drc.drcCut)) {
+                // value is unknown
+                drc.drcCut = -1;
+            }
+            if (!msg->findInt32("aac-drc-boost-level", &drc.drcBoost)) {
+                // value is unknown
+                drc.drcBoost = -1;
+            }
+            if (!msg->findInt32("aac-drc-heavy-compression", &drc.heavyCompression)) {
+                // value is unknown
+                drc.heavyCompression = -1;
+            }
+            if (!msg->findInt32("aac-target-ref-level", &drc.targetRefLevel)) {
+                // value is unknown
+                drc.targetRefLevel = -1;
+            }
+
             err = setupAACCodec(
                     encoder, numChannels, sampleRate, bitRate, aacProfile,
-                    isADTS != 0, sbrMode);
+                    isADTS != 0, sbrMode, maxOutputChannelCount, drc);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)) {
         err = setupAMRCodec(encoder, false /* isWAMR */, bitRate);
@@ -1464,7 +1490,8 @@ status_t ACodec::selectAudioPortFormat(
 
 status_t ACodec::setupAACCodec(
         bool encoder, int32_t numChannels, int32_t sampleRate,
-        int32_t bitRate, int32_t aacProfile, bool isADTS, int32_t sbrMode) {
+        int32_t bitRate, int32_t aacProfile, bool isADTS, int32_t sbrMode,
+        int32_t maxOutputChannelCount, const drcParams_t& drc) {
     if (encoder && isADTS) {
         return -EINVAL;
     }
@@ -1587,8 +1614,23 @@ status_t ACodec::setupAACCodec(
             ? OMX_AUDIO_AACStreamFormatMP4ADTS
             : OMX_AUDIO_AACStreamFormatMP4FF;
 
-    return mOMX->setParameter(
-            mNode, OMX_IndexParamAudioAac, &profile, sizeof(profile));
+    OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE presentation;
+    presentation.nMaxOutputChannels = maxOutputChannelCount;
+    presentation.nDrcCut = drc.drcCut;
+    presentation.nDrcBoost = drc.drcBoost;
+    presentation.nHeavyCompression = drc.heavyCompression;
+    presentation.nTargetReferenceLevel = drc.targetRefLevel;
+    presentation.nEncodedTargetLevel = drc.encodedTargetLevel;
+
+    status_t res = mOMX->setParameter(mNode, OMX_IndexParamAudioAac, &profile, sizeof(profile));
+    if (res == OK) {
+        // optional parameters, will not cause configuration failure
+        mOMX->setParameter(mNode, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAacPresentation,
+                &presentation, sizeof(presentation));
+    } else {
+        ALOGW("did not set AudioAndroidAacPresentation due to error %d when setting AudioAac", res);
+    }
+    return res;
 }
 
 status_t ACodec::setupAC3Codec(
