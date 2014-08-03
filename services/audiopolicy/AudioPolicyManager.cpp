@@ -1055,7 +1055,7 @@ sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getProfileForDirectOutput(
             bool found = profile->isCompatibleProfile(device, samplingRate,
                     NULL /*updatedSamplingRate*/, format, channelMask,
                     flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ?
-                        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD : (AUDIO_OUTPUT_FLAG_DIRECT | flags));
+                        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD : (audio_output_flags_t) (AUDIO_OUTPUT_FLAG_DIRECT | flags));
             if (found && (mAvailableOutputDevices.types() & profile->mSupportedDevices.types())) {
                 return profile;
             }
