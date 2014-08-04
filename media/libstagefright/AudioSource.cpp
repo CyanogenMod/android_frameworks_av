@@ -155,11 +155,11 @@ status_t AudioSource::reset() {
     }
 
     mStarted = false;
+    mFrameAvailableCondition.signal();
+
     mRecord->stop();
     waitOutstandingEncodingFrames_l();
     releaseQueuedFrames_l();
-
-    mFrameAvailableCondition.signal();
 
     return OK;
 }
