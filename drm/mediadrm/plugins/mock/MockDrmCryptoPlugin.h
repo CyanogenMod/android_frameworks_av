@@ -85,6 +85,8 @@ namespace android {
                                           Vector<uint8_t> &certificate,
                                           Vector<uint8_t> &wrappedKey);
 
+        status_t unprovisionDevice();
+
         status_t getSecureStops(List<Vector<uint8_t> > &secureStops);
         status_t releaseSecureStops(Vector<uint8_t> const &ssRelease);
 
