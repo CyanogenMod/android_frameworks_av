@@ -1159,6 +1159,9 @@ status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrame
 void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
 {
     Mutex::Autolock _l(mLock);
+    if (client == 0) {
+        return;
+    }
     bool clientAdded = false;
     {
         Mutex::Autolock _cl(mClientLock);
@@ -1453,6 +1456,9 @@ Exit:
 
 audio_module_handle_t AudioFlinger::loadHwModule(const char *name)
 {
+    if (name == NULL) {
+        return 0;
+    }
     if (!settingsAllowed()) {
         return 0;
     }
