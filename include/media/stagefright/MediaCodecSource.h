@@ -106,7 +106,6 @@ private:
     bool mStarted;
     bool mStopping;
     bool mDoMoreWorkPending;
-    bool mPullerReachedEOS;
     sp<AMessage> mEncoderActivityNotify;
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
     Vector<sp<ABuffer> > mEncoderInputBuffers;
@@ -123,7 +122,7 @@ private:
     Mutex mOutputBufferLock;
     Condition mOutputBufferCond;
     List<MediaBuffer*> mOutputBufferQueue;
-    bool mEncodedReachedEOS;
+    bool mEncoderReachedEOS;
     status_t mErrorCode;
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecSource);
