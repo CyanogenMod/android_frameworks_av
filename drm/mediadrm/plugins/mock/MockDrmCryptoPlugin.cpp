@@ -299,6 +299,12 @@ namespace android {
         return OK;
     }
 
+    status_t MockDrmPlugin::unprovisionDevice()
+    {
+        ALOGD("MockDrmPlugin::unprovisionDevice()");
+        return OK;
+    }
+
     status_t MockDrmPlugin::getSecureStops(List<Vector<uint8_t> > &secureStops)
     {
         Mutex::Autolock lock(mLock);
