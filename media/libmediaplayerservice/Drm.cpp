@@ -417,6 +417,23 @@ status_t Drm::provideProvisionResponse(Vector<uint8_t> const &response,
     return mPlugin->provideProvisionResponse(response, certificate, wrappedKey);
 }
 
+status_t Drm::unprovisionDevice() {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    if (!checkPermission("android.permission.REMOVE_DRM_CERTIFICATES")) {
+        return -EPERM;
+    }
+
+    return mPlugin->unprovisionDevice();
+}
 
 status_t Drm::getSecureStops(List<Vector<uint8_t> > &secureStops) {
     Mutex::Autolock autoLock(mLock);
