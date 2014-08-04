@@ -70,6 +70,8 @@ struct IDrm : public IInterface {
                                               Vector<uint8_t> &certificate,
                                               Vector<uint8_t> &wrappedKey) = 0;
 
+    virtual status_t unprovisionDevice() = 0;
+
     virtual status_t getSecureStops(List<Vector<uint8_t> > &secureStops) = 0;
 
     virtual status_t releaseSecureStops(Vector<uint8_t> const &ssRelease) = 0;
