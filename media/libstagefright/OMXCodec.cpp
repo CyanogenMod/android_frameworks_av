@@ -2500,12 +2500,6 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
                        data1, data2);
 
             if (data2 == 0 || data2 == OMX_IndexParamPortDefinition) {
-                // There is no need to check whether mFilledBuffers is empty or not
-                // when the OMX_EventPortSettingsChanged is not meant for reallocating
-                // the output buffers.
-                if (data1 == kPortIndexOutput) {
-                    CHECK(mFilledBuffers.empty());
-                }
                 onPortSettingsChanged(data1);
             } else if (data1 == kPortIndexOutput &&
                         (data2 == OMX_IndexConfigCommonOutputCrop ||
@@ -2899,7 +2893,7 @@ status_t OMXCodec::freeBuffer(OMX_U32 portIndex, size_t bufIndex) {
 void OMXCodec::onPortSettingsChanged(OMX_U32 portIndex) {
     CODEC_LOGV("PORT_SETTINGS_CHANGED(%ld)", portIndex);
 
-    CHECK_EQ((int)mState, (int)EXECUTING);
+    CHECK(mState == EXECUTING || mState == EXECUTING_TO_IDLE);
     CHECK_EQ(portIndex, (OMX_U32)kPortIndexOutput);
     CHECK(!mOutputPortSettingsChangedPending);
 
