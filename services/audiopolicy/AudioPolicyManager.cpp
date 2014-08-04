@@ -709,7 +709,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
             config.sample_rate = mTestSamplingRate;
             config.channel_mask = mTestChannels;
             config.format = mTestFormat;
-            config.offload_info = *offloadInfo;
+            if (offloadInfo != NULL) {
+                config.offload_info = *offloadInfo;
+            }
             status = mpClientInterface->openOutput(0,
                                                   &mTestOutputs[mCurOutput],
                                                   &config,
@@ -784,7 +786,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         config.sample_rate = samplingRate;
         config.channel_mask = channelMask;
         config.format = format;
-        config.offload_info = *offloadInfo;
+        if (offloadInfo != NULL) {
+            config.offload_info = *offloadInfo;
+        }
         status = mpClientInterface->openOutput(profile->mModule->mHandle,
                                                &output,
                                                &config,
