@@ -31,6 +31,10 @@ public:
 
     virtual void onRecognitionEvent(const sp<IMemory>& eventMemory) = 0;
 
+    virtual void onSoundModelEvent(const sp<IMemory>& eventMemory) = 0;
+
+    virtual void onServiceStateChange(const sp<IMemory>& eventMemory) = 0;
+
 };
 
 // ----------------------------------------------------------------------------

@@ -43,6 +43,7 @@
 #include <hardware/audio.h>
 #include <hardware/audio_effect.h>
 #include <media/AudioParameter.h>
+#include <soundtrigger/SoundTrigger.h>
 #include "AudioPolicyManager.h"
 #include "audio_policy_conf.h"
 
@@ -1119,6 +1120,17 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     config.channel_mask = channelMask;
     config.format = format;
     audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+
+    bool isSoundTrigger = false;
+    if (inputSource == AUDIO_SOURCE_HOTWORD) {
+        ssize_t index = mSoundTriggerSessions.indexOfKey(session);
+        if (index >= 0) {
+            input = mSoundTriggerSessions.valueFor(session);
+            isSoundTrigger = true;
+            ALOGV("SoundTrigger capture on session %d input %d", session, input);
+        }
+    }
+
     status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
                                                    &input,
                                                    &config,
@@ -1149,6 +1161,7 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     inputDesc->mChannelMask = channelMask;
     inputDesc->mDevice = device;
     inputDesc->mSessions.add(session);
+    inputDesc->mIsSoundTrigger = isSoundTrigger;
 
     addInput(input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
@@ -1194,6 +1207,9 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
     }
 
     if (inputDesc->mRefCount == 0) {
+        if (activeInputsCount() == 0) {
+            SoundTrigger::setCaptureState(true);
+        }
         setInputDevice(input, getNewInputDevice(input), true /* force */);
 
         // Automatically enable the remote submix output when input is started.
@@ -1242,6 +1258,10 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
         }
 
         resetInputDevice(input);
+
+        if (activeInputsCount() == 0) {
+            SoundTrigger::setCaptureState(false);
+        }
     }
     return NO_ERROR;
 }
@@ -2251,6 +2271,31 @@ void AudioPolicyManager::clearAudioPatches(uid_t uid)
             }
         }
     }
+}
+
+status_t AudioPolicyManager::acquireSoundTriggerSession(audio_session_t *session,
+                                       audio_io_handle_t *ioHandle,
+                                       audio_devices_t *device)
+{
+    *session = (audio_session_t)mpClientInterface->newAudioUniqueId();
+    *ioHandle = (audio_io_handle_t)mpClientInterface->newAudioUniqueId();
+    *device = getDeviceForInputSource(AUDIO_SOURCE_HOTWORD);
+
+    mSoundTriggerSessions.add(*session, *ioHandle);
+
+    return NO_ERROR;
+}
+
+status_t AudioPolicyManager::releaseSoundTriggerSession(audio_session_t session)
+{
+    ssize_t index = mSoundTriggerSessions.indexOfKey(session);
+    if (index < 0) {
+        ALOGW("acquireSoundTriggerSession() session %d not registered", session);
+        return BAD_VALUE;
+    }
+
+    mSoundTriggerSessions.removeItem(session);
+    return NO_ERROR;
 }
 
 status_t AudioPolicyManager::addAudioPatch(audio_patch_handle_t handle,
@@ -4013,7 +4058,8 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
             inputDesc->toAudioPortConfig(&patch.sinks[0]);
             // AUDIO_SOURCE_HOTWORD is for internal use only:
             // handled as AUDIO_SOURCE_VOICE_RECOGNITION by the audio HAL
-            if (patch.sinks[0].ext.mix.usecase.source == AUDIO_SOURCE_HOTWORD) {
+            if (patch.sinks[0].ext.mix.usecase.source == AUDIO_SOURCE_HOTWORD &&
+                    !inputDesc->mIsSoundTrigger) {
                 patch.sinks[0].ext.mix.usecase.source = AUDIO_SOURCE_VOICE_RECOGNITION;
             }
             patch.num_sinks = 1;
@@ -4196,6 +4242,18 @@ audio_io_handle_t AudioPolicyManager::getActiveInput(bool ignoreVirtualInputs)
         }
     }
     return 0;
+}
+
+uint32_t AudioPolicyManager::activeInputsCount() const
+{
+    uint32_t count = 0;
+    for (size_t i = 0; i < mInputs.size(); i++) {
+        const sp<AudioInputDescriptor>  desc = mInputs.valueAt(i);
+        if (desc->mRefCount > 0) {
+            return count++;
+        }
+    }
+    return count;
 }
 
 
@@ -4883,7 +4941,7 @@ status_t AudioPolicyManager::AudioOutputDescriptor::dump(int fd)
 AudioPolicyManager::AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
     : mId(0), mIoHandle(0),
       mDevice(AUDIO_DEVICE_NONE), mPatchHandle(0), mRefCount(0),
-      mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile)
+      mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile), mIsSoundTrigger(false)
 {
     if (profile != NULL) {
         mAudioPort = profile;

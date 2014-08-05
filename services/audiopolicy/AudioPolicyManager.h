@@ -172,6 +172,12 @@ public:
         virtual status_t setAudioPortConfig(const struct audio_port_config *config);
         virtual void clearAudioPatches(uid_t uid);
 
+        virtual status_t acquireSoundTriggerSession(audio_session_t *session,
+                                               audio_io_handle_t *ioHandle,
+                                               audio_devices_t *device);
+
+        virtual status_t releaseSoundTriggerSession(audio_session_t session);
+
 protected:
 
         enum routing_strategy {
@@ -477,15 +483,18 @@ protected:
 
             status_t    dump(int fd);
 
-            audio_port_handle_t mId;
-            audio_io_handle_t mIoHandle;              // input handle
-            audio_devices_t mDevice;                    // current device this input is routed to
-            audio_patch_handle_t mPatchHandle;
-            uint32_t mRefCount;                         // number of AudioRecord clients using this output
-            uint32_t mOpenRefCount;
-            audio_source_t mInputSource;                // input source selected by application (mediarecorder.h)
-            const sp<IOProfile> mProfile;                  // I/O profile this output derives from
-            SortedVector<audio_session_t> mSessions;  // audio sessions attached to this input
+            audio_port_handle_t           mId;
+            audio_io_handle_t             mIoHandle;       // input handle
+            audio_devices_t               mDevice;         // current device this input is routed to
+            audio_patch_handle_t          mPatchHandle;
+            uint32_t                      mRefCount;       // number of AudioRecord clients using
+                                                           // this input
+            uint32_t                      mOpenRefCount;
+            audio_source_t                mInputSource;    // input source selected by application
+                                                           //(mediarecorder.h)
+            const sp<IOProfile>           mProfile;        // I/O profile this output derives from
+            SortedVector<audio_session_t> mSessions;       // audio sessions attached to this input
+            bool                          mIsSoundTrigger; // used by a soundtrigger capture
 
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;
@@ -568,6 +577,8 @@ protected:
         //    Only considers inputs from physical devices (e.g. main mic, headset mic) when
         //    ignoreVirtualInputs is true.
         audio_io_handle_t getActiveInput(bool ignoreVirtualInputs = true);
+
+        uint32_t activeInputsCount() const;
 
         // initialize volume curves for each strategy and device category
         void initializeVolumeCurves();
@@ -768,6 +779,8 @@ protected:
         volatile int32_t mAudioPortGeneration;
 
         DefaultKeyedVector<audio_patch_handle_t, sp<AudioPatch> > mAudioPatches;
+
+        DefaultKeyedVector<audio_session_t, audio_io_handle_t> mSoundTriggerSessions;
 
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;

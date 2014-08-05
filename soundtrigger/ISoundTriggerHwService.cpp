@@ -37,6 +37,7 @@ namespace android {
 enum {
     LIST_MODULES = IBinder::FIRST_CALL_TRANSACTION,
     ATTACH,
+    SET_CAPTURE_STATE,
 };
 
 class BpSoundTriggerHwService: public BpInterface<ISoundTriggerHwService>
@@ -86,6 +87,18 @@ public:
         status_t status = reply.readInt32();
         if (reply.readInt32() != 0) {
             module = interface_cast<ISoundTrigger>(reply.readStrongBinder());
+        }
+        return status;
+    }
+
+    virtual status_t setCaptureState(bool active)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISoundTriggerHwService::getInterfaceDescriptor());
+        data.writeInt32(active);
+        status_t status = remote()->transact(SET_CAPTURE_STATE, data, &reply);
+        if (status == NO_ERROR) {
+            status = reply.readInt32();
         }
         return status;
     }
@@ -140,6 +153,13 @@ status_t BnSoundTriggerHwService::onTransact(
             }
             return NO_ERROR;
         } break;
+
+        case SET_CAPTURE_STATE: {
+            CHECK_INTERFACE(ISoundTriggerHwService, data, reply);
+            reply->writeInt32(setCaptureState((bool)data.readInt32()));
+            return NO_ERROR;
+        } break;
+
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }
