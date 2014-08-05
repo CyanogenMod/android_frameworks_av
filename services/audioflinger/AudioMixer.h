@@ -408,10 +408,6 @@ private:
     static void process__genericResampling(state_t* state, int64_t pts);
     static void process__OneTrack16BitsStereoNoResampling(state_t* state,
                                                           int64_t pts);
-#if 0
-    static void process__TwoTracks16BitsStereoNoResampling(state_t* state,
-                                                           int64_t pts);
-#endif
 
     static int64_t calculateOutputPTS(const track_t& t, int64_t basePTS,
                                       int outputFrameIndex);
