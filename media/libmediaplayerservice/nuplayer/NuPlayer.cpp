@@ -227,7 +227,9 @@ void NuPlayer::setDataSourceAsync(
     } else if ((!strncasecmp(url, "widevine://", 11))) {
         source = new GenericSource(notify, httpService, url, headers,
                 true /* isWidevine */, mUIDValid, mUID);
-        mSourceFlags |= Source::FLAG_SECURE;
+        // Don't set FLAG_SECURE on mSourceFlags here, the correct flags
+        // will be updated in Source::kWhatFlagsChanged handler when
+        // GenericSource is prepared.
     } else {
         source = new GenericSource(notify, httpService, url, headers);
     }
