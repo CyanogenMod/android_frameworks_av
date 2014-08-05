@@ -913,6 +913,21 @@ void AudioSystem::setAudioPortCallback(sp<AudioPortCallback> callBack)
     gAudioPortCallback = callBack;
 }
 
+status_t AudioSystem::acquireSoundTriggerSession(audio_session_t *session,
+                                       audio_io_handle_t *ioHandle,
+                                       audio_devices_t *device)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->acquireSoundTriggerSession(session, ioHandle, device);
+}
+
+status_t AudioSystem::releaseSoundTriggerSession(audio_session_t session)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->releaseSoundTriggerSession(session);
+}
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)

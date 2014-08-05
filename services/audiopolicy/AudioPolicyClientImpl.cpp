@@ -17,6 +17,7 @@
 #define LOG_TAG "AudioPolicyClientImpl"
 //#define LOG_NDEBUG 0
 
+#include <soundtrigger/SoundTrigger.h>
 #include <utils/Log.h>
 #include "AudioPolicyService.h"
 

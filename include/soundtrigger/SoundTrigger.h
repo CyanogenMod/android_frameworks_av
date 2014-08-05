@@ -18,6 +18,7 @@
 #define ANDROID_HARDWARE_SOUNDTRIGGER_H
 
 #include <binder/IBinder.h>
+#include <utils/threads.h>
 #include <soundtrigger/SoundTriggerCallback.h>
 #include <soundtrigger/ISoundTrigger.h>
 #include <soundtrigger/ISoundTriggerHwService.h>
@@ -32,12 +33,15 @@ class SoundTrigger : public BnSoundTriggerClient,
                         public IBinder::DeathRecipient
 {
 public:
+
+    virtual ~SoundTrigger();
+
     static  status_t listModules(struct sound_trigger_module_descriptor *modules,
                                  uint32_t *numModules);
     static  sp<SoundTrigger> attach(const sound_trigger_module_handle_t module,
                                        const sp<SoundTriggerCallback>& callback);
 
-            virtual ~SoundTrigger();
+    static  status_t setCaptureState(bool active);
 
             void detach();
 
@@ -51,6 +55,8 @@ public:
 
             // BpSoundTriggerClient
             virtual void onRecognitionEvent(const sp<IMemory>& eventMemory);
+            virtual void onSoundModelEvent(const sp<IMemory>& eventMemory);
+            virtual void onServiceStateChange(const sp<IMemory>& eventMemory);
 
             //IBinder::DeathRecipient
             virtual void binderDied(const wp<IBinder>& who);

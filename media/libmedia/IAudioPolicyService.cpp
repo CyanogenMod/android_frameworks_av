@@ -65,7 +65,9 @@ enum {
     LIST_AUDIO_PATCHES,
     SET_AUDIO_PORT_CONFIG,
     REGISTER_CLIENT,
-    GET_OUTPUT_FOR_ATTR
+    GET_OUTPUT_FOR_ATTR,
+    ACQUIRE_SOUNDTRIGGER_SESSION,
+    RELEASE_SOUNDTRIGGER_SESSION
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -563,12 +565,47 @@ public:
         }
         return status;
     }
+
     virtual void registerClient(const sp<IAudioPolicyServiceClient>& client)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeStrongBinder(client->asBinder());
         remote()->transact(REGISTER_CLIENT, data, &reply);
+    }
+
+    virtual status_t acquireSoundTriggerSession(audio_session_t *session,
+                                            audio_io_handle_t *ioHandle,
+                                            audio_devices_t *device)
+    {
+        if (session == NULL || ioHandle == NULL || device == NULL) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        status_t status = remote()->transact(ACQUIRE_SOUNDTRIGGER_SESSION, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        status = (status_t)reply.readInt32();
+        if (status == NO_ERROR) {
+            *session = (audio_session_t)reply.readInt32();
+            *ioHandle = (audio_io_handle_t)reply.readInt32();
+            *device = (audio_devices_t)reply.readInt32();
+        }
+        return status;
+    }
+
+    virtual status_t releaseSoundTriggerSession(audio_session_t session)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32(session);
+        status_t status = remote()->transact(RELEASE_SOUNDTRIGGER_SESSION, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        return (status_t)reply.readInt32();
     }
 };
 
@@ -984,11 +1021,39 @@ status_t BnAudioPolicyService::onTransact(
             reply->writeInt32(status);
             return NO_ERROR;
         }
+
         case REGISTER_CLIENT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
                     data.readStrongBinder());
             registerClient(client);
+            return NO_ERROR;
+        } break;
+
+        case ACQUIRE_SOUNDTRIGGER_SESSION: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
+                    data.readStrongBinder());
+            audio_session_t session;
+            audio_io_handle_t ioHandle;
+            audio_devices_t device;
+            status_t status = acquireSoundTriggerSession(&session, &ioHandle, &device);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->writeInt32(session);
+                reply->writeInt32(ioHandle);
+                reply->writeInt32(device);
+            }
+            return NO_ERROR;
+        } break;
+
+        case RELEASE_SOUNDTRIGGER_SESSION: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
+                    data.readStrongBinder());
+            audio_session_t session = (audio_session_t)data.readInt32();
+            status_t status = releaseSoundTriggerSession(session);
+            reply->writeInt32(status);
             return NO_ERROR;
         } break;
 
