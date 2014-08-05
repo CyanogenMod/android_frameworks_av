@@ -328,6 +328,12 @@ int JetPlayer::loadFromFile(const char* path)
     Mutex::Autolock lock(mMutex);
 
     mEasJetFileLoc = (EAS_FILE_LOCATOR) malloc(sizeof(EAS_FILE));
+    if (mEasJetFileLoc == NULL) {
+        ALOGE("Failed to allocate file locator object");
+        mState = EAS_STATE_ERROR;
+        return EAS_ERROR_MALLOC_FAILED;
+    }
+
     strncpy(mJetFilePath, path, sizeof(mJetFilePath));
     mJetFilePath[sizeof(mJetFilePath) - 1] = '\0';
     mEasJetFileLoc->path = mJetFilePath;
@@ -353,6 +359,12 @@ int JetPlayer::loadFromFD(const int fd, const long long offset, const long long 
     Mutex::Autolock lock(mMutex);
 
     mEasJetFileLoc = (EAS_FILE_LOCATOR) malloc(sizeof(EAS_FILE));
+    if (mEasJetFileLoc == NULL) {
+        ALOGE("Failed to allocate file locator object");
+        mState = EAS_STATE_ERROR;
+        return EAS_ERROR_MALLOC_FAILED;
+    }
+
     mEasJetFileLoc->fd = fd;
     mEasJetFileLoc->offset = offset;
     mEasJetFileLoc->length = length;
