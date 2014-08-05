@@ -5305,7 +5305,7 @@ AudioPolicyManager::device_category AudioPolicyManager::getDeviceCategory(audio_
 bool AudioPolicyManager::isDirectOutput(audio_io_handle_t output) {
     for (size_t i = 0; i < mOutputs.size(); i++) {
         audio_io_handle_t curOutput = mOutputs.keyAt(i);
-        sp<AudioOutputDescriptor> desc = mOutputs.valueFor(i);
+        sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
         if ((curOutput == output) && (desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
             return true;
         }
