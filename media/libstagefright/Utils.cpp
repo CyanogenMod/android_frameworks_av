@@ -135,6 +135,11 @@ status_t convertMetaDataToMessage(
         if (meta->findInt32(kKeyIsADTS, &isADTS)) {
             msg->setInt32("is-adts", true);
         }
+
+        int32_t aacProfile = -1;
+        if (meta->findInt32(kKeyAACAOT, &aacProfile)) {
+            msg->setInt32("aac-profile", aacProfile);
+        }
     }
 
     int32_t maxInputSize;

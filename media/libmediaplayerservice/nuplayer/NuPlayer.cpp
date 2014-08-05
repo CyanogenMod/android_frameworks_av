@@ -749,6 +749,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
                                     mime.c_str(), audioFormat);
 
+                            int32_t aacProfile = -1;
+                            if (audioFormat == AUDIO_FORMAT_AAC
+                                    && format->findInt32("aac-profile", &aacProfile)) {
+                                // Redefine AAC format as per aac profile
+                                mapAACProfileToAudioFormat(
+                                        audioFormat,
+                                        aacProfile);
+                            }
+
                             flags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
 
                             offloadInfo.duration_us = -1;
