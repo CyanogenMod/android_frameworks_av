@@ -239,10 +239,14 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             // register new device as available
             index = mAvailableOutputDevices.add(devDesc);
             if (index >= 0) {
-                mAvailableOutputDevices[index]->mId = nextUniqueId();
                 sp<HwModule> module = getModuleForDevice(device);
-                ALOG_ASSERT(module != NULL, "setDeviceConnectionState():"
-                        "could not find HW module for device %08x", device);
+                if (module == 0) {
+                    ALOGD("setDeviceConnectionState() could not find HW module for device %08x",
+                          device);
+                    mAvailableOutputDevices.remove(devDesc);
+                    return INVALID_OPERATION;
+                }
+                mAvailableOutputDevices[index]->mId = nextUniqueId();
                 mAvailableOutputDevices[index]->mModule = module;
             } else {
                 return NO_MEMORY;
