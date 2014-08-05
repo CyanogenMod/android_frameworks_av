@@ -703,6 +703,8 @@ status_t CameraSource::pause() {
     mRecPause = true;
     mPauseStartTimeUs = mLastFrameTimestampUs;
     RECORDER_STATS(notifyPause, mPauseStartTimeUs);
+    //record the end time too, or there is a risk the end time is 0
+    mPauseEndTimeUs = mLastFrameTimestampUs;
     ALOGV("pause : mPauseStart %lld us, #Queued Frames : %d",
         mPauseStartTimeUs, mFramesReceived.size());
     return OK;
@@ -904,6 +906,13 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         return;
     }
 
+    // May need to skip frame or modify timestamp. Currently implemented
+    // by the subclass CameraSourceTimeLapse.
+    if (skipCurrentFrame(timestampUs)) {
+        releaseOneRecordingFrame(data);
+        return;
+    }
+
     if (mRecPause == true) {
         if(!mFramesReceived.empty()) {
             ALOGV("releaseQueuedFrames - #Queued Frames : %d", mFramesReceived.size());
@@ -922,13 +931,6 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         if (timestampUs - mLastFrameTimestampUs > mGlitchDurationThresholdUs) {
             ++mNumGlitches;
         }
-    }
-
-    // May need to skip frame or modify timestamp. Currently implemented
-    // by the subclass CameraSourceTimeLapse.
-    if (skipCurrentFrame(timestampUs)) {
-        releaseOneRecordingFrame(data);
-        return;
     }
 
     mLastFrameTimestampUs = timestampUs;
