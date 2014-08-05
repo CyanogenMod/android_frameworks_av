@@ -1169,11 +1169,11 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
 
-    if ((audio && IsFlushingState(mFlushingAudio))
-            || (!audio && IsFlushingState(mFlushingVideo))) {
-        reply->setInt32("err", INFO_DISCONTINUITY);
-        reply->post();
-        return OK;
+    if ((audio && mFlushingAudio != NONE
+                && mFlushingAudio != AWAITING_DISCONTINUITY)
+            || (!audio && mFlushingVideo != NONE
+                       && mFlushingVideo != AWAITING_DISCONTINUITY)) {
+        return -EWOULDBLOCK;
     }
 
     sp<ABuffer> accessUnit;
