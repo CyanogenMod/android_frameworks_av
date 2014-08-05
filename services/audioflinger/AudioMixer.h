@@ -236,6 +236,12 @@ private:
         void        adjustVolumeRamp(bool aux, bool useFloat = false);
         size_t      getUnreleasedFrames() const { return resampler != NULL ?
                                                     resampler->getUnreleasedFrames() : 0; };
+
+        status_t    prepareForDownmix();
+        void        unprepareForDownmix();
+        status_t    prepareForReformat();
+        void        unprepareForReformat();
+        void        reconfigureBufferProviders();
     };
 
     typedef void (*process_hook_t)(state_t* state, int64_t pts);
@@ -381,14 +387,6 @@ private:
 
     bool setChannelMasks(int name,
             audio_channel_mask_t trackChannelMask, audio_channel_mask_t mixerChannelMask);
-
-    // TODO: remove unused trackName/trackNum from functions below.
-    static status_t initTrackDownmix(track_t* pTrack, int trackName);
-    static status_t prepareTrackForDownmix(track_t* pTrack, int trackNum);
-    static void unprepareTrackForDownmix(track_t* pTrack, int trackName);
-    static status_t prepareTrackForReformat(track_t* pTrack, int trackNum);
-    static void unprepareTrackForReformat(track_t* pTrack, int trackName);
-    static void reconfigureBufferProviders(track_t* pTrack);
 
     static void track__genericResample(track_t* t, int32_t* out, size_t numFrames, int32_t* temp,
             int32_t* aux);
