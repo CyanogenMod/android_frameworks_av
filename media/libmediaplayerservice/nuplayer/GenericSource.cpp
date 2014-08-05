@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#define LOG_TAG "GenericSource"
+
 #include "GenericSource.h"
 
 #include "AnotherPacketSource.h"
@@ -65,7 +68,9 @@ NuPlayer::GenericSource::GenericSource(
       mFetchTimedTextDataGeneration(0),
       mDurationUs(0ll),
       mAudioIsVorbis(false),
-      mIsWidevine(false) {
+      mIsWidevine(false),
+      mUIDValid(false),
+      mUID(0) {
     DataSource::RegisterDefaultSniffers();
 
     sp<DataSource> dataSource = new FileSource(dup(fd), offset, length);
@@ -134,6 +139,12 @@ void NuPlayer::GenericSource::initFromDataSource(
             if (mVideoTrack.mSource == NULL) {
                 mVideoTrack.mIndex = i;
                 mVideoTrack.mSource = track;
+
+                // check if the source requires secure buffers
+                int32_t secure;
+                if (meta->findInt32(kKeyRequiresSecureBuffers, &secure) && secure) {
+                    mIsWidevine = true;
+                }
             }
         }
 
