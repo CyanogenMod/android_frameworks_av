@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+//#define LOG_NDEBUG 0
+#define LOG_TAG "DataSource"
 
 #include "include/AMRExtractor.h"
 
@@ -33,6 +35,7 @@
 
 #include <media/IMediaHTTPConnection.h>
 #include <media/IMediaHTTPService.h>
+#include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/DataURISource.h>
@@ -182,7 +185,12 @@ void DataSource::RegisterDefaultSniffers() {
 sp<DataSource> DataSource::CreateFromURI(
         const sp<IMediaHTTPService> &httpService,
         const char *uri,
-        const KeyedVector<String8, String8> *headers) {
+        const KeyedVector<String8, String8> *headers,
+        AString *sniffedMIME) {
+    if (sniffedMIME != NULL) {
+        *sniffedMIME = "";
+    }
+
     bool isWidevine = !strncasecmp("widevine://", uri, 11);
 
     sp<DataSource> source;
@@ -202,6 +210,7 @@ sp<DataSource> DataSource::CreateFromURI(
         }
 
         if (httpSource->connect(uri, headers) != OK) {
+            ALOGE("Failed to connect http source!");
             return NULL;
         }
 
@@ -214,9 +223,76 @@ sp<DataSource> DataSource::CreateFromURI(
                         &copy, &cacheConfig, &disconnectAtHighwatermark);
             }
 
-            source = new NuCachedSource2(
+            sp<NuCachedSource2> cachedSource = new NuCachedSource2(
                     httpSource,
                     cacheConfig.isEmpty() ? NULL : cacheConfig.string());
+
+            String8 contentType = httpSource->getMIMEType();
+
+            if (strncasecmp(contentType.string(), "audio/", 6)) {
+                // We're not doing this for streams that appear to be audio-only
+                // streams to ensure that even low bandwidth streams start
+                // playing back fairly instantly.
+
+                // We're going to prefill the cache before trying to instantiate
+                // the extractor below, as the latter is an operation that otherwise
+                // could block on the datasource for a significant amount of time.
+                // During that time we'd be unable to abort the preparation phase
+                // without this prefill.
+
+                // Initially make sure we have at least 192 KB for the sniff
+                // to complete without blocking.
+                static const size_t kMinBytesForSniffing = 192 * 1024;
+
+                off64_t metaDataSize = -1ll;
+                for (;;) {
+                    status_t finalStatus;
+                    size_t cachedDataRemaining =
+                            cachedSource->approxDataRemaining(&finalStatus);
+
+                    if (finalStatus != OK || (metaDataSize >= 0
+                            && (off64_t)cachedDataRemaining >= metaDataSize)) {
+                        ALOGV("stop caching, status %d, "
+                                "metaDataSize %lld, cachedDataRemaining %zu",
+                                finalStatus, metaDataSize, cachedDataRemaining);
+                        break;
+                    }
+
+                    ALOGV("now cached %zu bytes of data", cachedDataRemaining);
+
+                    if (metaDataSize < 0
+                            && cachedDataRemaining >= kMinBytesForSniffing) {
+                        String8 tmp;
+                        float confidence;
+                        sp<AMessage> meta;
+                        if (!cachedSource->sniff(&tmp, &confidence, &meta)) {
+                            return NULL;
+                        }
+
+                        // We successfully identified the file's extractor to
+                        // be, remember this mime type so we don't have to
+                        // sniff it again when we call MediaExtractor::Create()
+                        if (sniffedMIME != NULL) {
+                            *sniffedMIME = tmp.string();
+                        }
+
+                        if (meta == NULL
+                                || !meta->findInt64("meta-data-size",
+                                     reinterpret_cast<int64_t*>(&metaDataSize))) {
+                            metaDataSize = kDefaultMetaSize;
+                        }
+
+                        if (metaDataSize < 0ll) {
+                            ALOGE("invalid metaDataSize = %lld bytes", metaDataSize);
+                            return NULL;
+                        }
+                    }
+
+                    usleep(200000);
+                }
+            }
+
+            source = cachedSource;
         } else {
             // We do not want that prefetching, caching, datasource wrapper
             // in the widevine:// case.
