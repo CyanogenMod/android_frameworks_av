@@ -207,6 +207,7 @@ void NuPlayer::setDataSourceAsync(
         const sp<IMediaHTTPService> &httpService,
         const char *url,
         const KeyedVector<String8, String8> *headers) {
+
     sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
     size_t len = strlen(url);
 
@@ -224,16 +225,21 @@ void NuPlayer::setDataSourceAsync(
                     || strstr(url, ".sdp?"))) {
         source = new RTSPSource(
                 notify, httpService, url, headers, mUIDValid, mUID, true);
-    } else if ((!strncasecmp(url, "widevine://", 11))) {
-        source = new GenericSource(notify, httpService, url, headers,
-                true /* isWidevine */, mUIDValid, mUID);
-        // Don't set FLAG_SECURE on mSourceFlags here, the correct flags
-        // will be updated in Source::kWhatFlagsChanged handler when
-        // GenericSource is prepared.
     } else {
-        source = new GenericSource(notify, httpService, url, headers);
-    }
+        sp<GenericSource> genericSource =
+                new GenericSource(notify, mUIDValid, mUID);
+        // Don't set FLAG_SECURE on mSourceFlags here for widevine.
+        // The correct flags will be updated in Source::kWhatFlagsChanged
+        // handler when  GenericSource is prepared.
 
+        status_t err = genericSource->init(httpService, url, headers);
+
+        if (err == OK) {
+            source = genericSource;
+        } else {
+            ALOGE("Failed to initialize generic source!");
+        }
+    }
     msg->setObject("source", source);
     msg->post();
 }
@@ -243,7 +249,16 @@ void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
 
     sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
 
-    sp<Source> source = new GenericSource(notify, fd, offset, length);
+    sp<GenericSource> source =
+            new GenericSource(notify, mUIDValid, mUID);
+
+    status_t err = source->init(fd, offset, length);
+
+    if (err != OK) {
+        ALOGE("Failed to initialize generic source!");
+        source = NULL;
+    }
+
     msg->setObject("source", source);
     msg->post();
 }
@@ -352,17 +367,20 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             CHECK(mSource == NULL);
 
+            status_t err = OK;
             sp<RefBase> obj;
             CHECK(msg->findObject("source", &obj));
-
-            mSource = static_cast<Source *>(obj.get());
-
-            looper()->registerHandler(mSource);
+            if (obj != NULL) {
+                mSource = static_cast<Source *>(obj.get());
+                looper()->registerHandler(mSource);
+            } else {
+                err = UNKNOWN_ERROR;
+            }
 
             CHECK(mDriver != NULL);
             sp<NuPlayerDriver> driver = mDriver.promote();
             if (driver != NULL) {
-                driver->notifySetDataSourceCompleted(OK);
+                driver->notifySetDataSourceCompleted(err);
             }
             break;
         }
