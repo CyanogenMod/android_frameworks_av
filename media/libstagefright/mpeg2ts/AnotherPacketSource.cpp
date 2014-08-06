@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#define LOG_TAG "AnotherPacketSource"
+
 #include "AnotherPacketSource.h"
 
 #include <media/stagefright/foundation/ABuffer.h>
@@ -38,7 +41,8 @@ AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
       mFormat(NULL),
       mLastQueuedTimeUs(0),
       mEOSResult(OK),
-      mLatestEnqueuedMeta(NULL) {
+      mLatestEnqueuedMeta(NULL),
+      mLatestDequeuedMeta(NULL) {
     setFormat(meta);
 }
 
@@ -92,7 +96,7 @@ sp<MetaData> AnotherPacketSource::getFormat() {
 
         sp<RefBase> object;
         if (buffer->meta()->findObject("format", &object)) {
-            return static_cast<MetaData*>(object.get());
+            return mFormat = static_cast<MetaData*>(object.get());
         }
 
         ++it;
@@ -121,6 +125,8 @@ status_t AnotherPacketSource::dequeueAccessUnit(sp<ABuffer> *buffer) {
             return INFO_DISCONTINUITY;
         }
 
+        mLatestDequeuedMeta = (*buffer)->meta()->dup();
+
         sp<RefBase> object;
         if ((*buffer)->meta()->findObject("format", &object)) {
             mFormat = static_cast<MetaData*>(object.get());
@@ -142,8 +148,10 @@ status_t AnotherPacketSource::read(
     }
 
     if (!mBuffers.empty()) {
+
         const sp<ABuffer> buffer = *mBuffers.begin();
         mBuffers.erase(mBuffers.begin());
+        mLatestDequeuedMeta = buffer->meta()->dup();
 
         int32_t discontinuity;
         if (buffer->meta()->findInt32("discontinuity", &discontinuity)) {
@@ -202,7 +210,7 @@ void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {
     mBuffers.push_back(buffer);
     mCondition.signal();
 
-    if (!mLatestEnqueuedMeta.get()) {
+    if (mLatestEnqueuedMeta == NULL) {
         mLatestEnqueuedMeta = buffer->meta();
     } else {
         int64_t latestTimeUs = 0;
@@ -341,9 +349,14 @@ bool AnotherPacketSource::isFinished(int64_t duration) const {
     return (mEOSResult != OK);
 }
 
-sp<AMessage> AnotherPacketSource::getLatestMeta() {
+sp<AMessage> AnotherPacketSource::getLatestEnqueuedMeta() {
     Mutex::Autolock autoLock(mLock);
     return mLatestEnqueuedMeta;
+}
+
+sp<AMessage> AnotherPacketSource::getLatestDequeuedMeta() {
+    Mutex::Autolock autoLock(mLock);
+    return mLatestDequeuedMeta;
 }
 
 }  // namespace android

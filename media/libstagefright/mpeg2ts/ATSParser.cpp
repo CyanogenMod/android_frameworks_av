@@ -894,6 +894,12 @@ void ATSParser::Stream::onPayloadData(
                 ALOGV("Stream PID 0x%08x of type 0x%02x now has data.",
                      mElementaryPID, mStreamType);
 
+                const char *mime;
+                if (meta->findCString(kKeyMIMEType, &mime)
+                        && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                        && !IsIDR(accessUnit)) {
+                    continue;
+                }
                 mSource = new AnotherPacketSource(meta);
                 mSource->queueAccessUnit(accessUnit);
             }
