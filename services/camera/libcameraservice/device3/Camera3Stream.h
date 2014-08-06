@@ -159,6 +159,13 @@ class Camera3Stream :
     status_t         finishConfiguration(camera3_device *hal3Device);
 
     /**
+     * Cancels the stream configuration process. This returns the stream to the
+     * initial state, allowing it to be configured again later.
+     * This is done if the HAL rejects the proposed combined stream configuration
+     */
+    status_t         cancelConfiguration();
+
+    /**
      * Fill in the camera3_stream_buffer with the next valid buffer for this
      * stream, to hand over to the HAL.
      *
