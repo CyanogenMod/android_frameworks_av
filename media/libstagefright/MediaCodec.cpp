@@ -195,16 +195,16 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
         if (tmp.endsWith(".secure")) {
             tmp.erase(tmp.size() - 7, 7);
         }
-        const MediaCodecList *mcl = MediaCodecList::getInstance();
+        const sp<IMediaCodecList> mcl = MediaCodecList::getInstance();
         ssize_t codecIdx = mcl->findCodecByName(tmp.c_str());
         if (codecIdx >= 0) {
-            Vector<AString> types;
-            if (mcl->getSupportedTypes(codecIdx, &types) == OK) {
-                for (size_t i = 0; i < types.size(); i++) {
-                    if (types[i].startsWith("video/")) {
-                        needDedicatedLooper = true;
-                        break;
-                    }
+            const sp<MediaCodecInfo> info = mcl->getCodecInfo(codecIdx);
+            Vector<AString> mimes;
+            info->getSupportedMimes(&mimes);
+            for (size_t i = 0; i < mimes.size(); i++) {
+                if (mimes[i].startsWith("video/")) {
+                    needDedicatedLooper = true;
+                    break;
                 }
             }
         }

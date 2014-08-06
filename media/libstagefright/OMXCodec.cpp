@@ -197,7 +197,7 @@ void OMXCodec::findMatchingCodecs(
         Vector<CodecNameAndQuirks> *matchingCodecs) {
     matchingCodecs->clear();
 
-    const MediaCodecList *list = MediaCodecList::getInstance();
+    const sp<IMediaCodecList> list = MediaCodecList::getInstance();
     if (list == NULL) {
         return;
     }
@@ -213,7 +213,9 @@ void OMXCodec::findMatchingCodecs(
 
         index = matchIndex + 1;
 
-        const char *componentName = list->getCodecName(matchIndex);
+        const sp<MediaCodecInfo> info = list->getCodecInfo(matchIndex);
+        CHECK(info != NULL);
+        const char *componentName = info->getCodecName();
 
         // If a specific codec is requested, skip the non-matching ones.
         if (matchComponentName && strcmp(componentName, matchComponentName)) {
@@ -231,7 +233,7 @@ void OMXCodec::findMatchingCodecs(
             ssize_t index = matchingCodecs->add();
             CodecNameAndQuirks *entry = &matchingCodecs->editItemAt(index);
             entry->mName = String8(componentName);
-            entry->mQuirks = getComponentQuirks(list, matchIndex);
+            entry->mQuirks = getComponentQuirks(info);
 
             ALOGV("matching '%s' quirks 0x%08x",
                   entry->mName.string(), entry->mQuirks);
@@ -245,18 +247,15 @@ void OMXCodec::findMatchingCodecs(
 
 // static
 uint32_t OMXCodec::getComponentQuirks(
-        const MediaCodecList *list, size_t index) {
+        const sp<MediaCodecInfo> &info) {
     uint32_t quirks = 0;
-    if (list->codecHasQuirk(
-                index, "requires-allocate-on-input-ports")) {
+    if (info->hasQuirk("requires-allocate-on-input-ports")) {
         quirks |= kRequiresAllocateBufferOnInputPorts;
     }
-    if (list->codecHasQuirk(
-                index, "requires-allocate-on-output-ports")) {
+    if (info->hasQuirk("requires-allocate-on-output-ports")) {
         quirks |= kRequiresAllocateBufferOnOutputPorts;
     }
-    if (list->codecHasQuirk(
-                index, "output-buffers-are-unreadable")) {
+    if (info->hasQuirk("output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
     }
 
@@ -265,8 +264,7 @@ uint32_t OMXCodec::getComponentQuirks(
 
 // static
 bool OMXCodec::findCodecQuirks(const char *componentName, uint32_t *quirks) {
-    const MediaCodecList *list = MediaCodecList::getInstance();
-
+    const sp<IMediaCodecList> list = MediaCodecList::getInstance();
     if (list == NULL) {
         return false;
     }
@@ -277,7 +275,9 @@ bool OMXCodec::findCodecQuirks(const char *componentName, uint32_t *quirks) {
         return false;
     }
 
-    *quirks = getComponentQuirks(list, index);
+    const sp<MediaCodecInfo> info = list->getCodecInfo(index);
+    CHECK(info != NULL);
+    *quirks = getComponentQuirks(info);
 
     return true;
 }
