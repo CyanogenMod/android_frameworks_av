@@ -2639,12 +2639,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
     threadLoop_exit();
 
-    // for DuplicatingThread, standby mode is handled by the outputTracks, otherwise ...
-    if (mType == MIXER || mType == DIRECT || mType == OFFLOAD) {
-        // put output stream into standby mode
-        if (!mStandby) {
-            mOutput->stream->common.standby(&mOutput->stream->common);
-        }
+    if (!mStandby) {
+        threadLoop_standby();
+        mStandby = true;
     }
 
     releaseWakeLock();
