@@ -49,6 +49,7 @@ public:
     virtual sp<MediaSource> getTrack(size_t index);
     virtual sp<MetaData> getTrackMetaData(size_t index, uint32_t flags);
     virtual sp<MetaData> getMetaData();
+    virtual void setUID(uid_t uid);
 
     // Return the amount of data cached from the current
     // playback positiion (in us).
@@ -73,8 +74,6 @@ public:
     // with the MediaCodec model, which handles the decryption in the
     // codec.
     void setCryptoPluginMode(bool cryptoPluginMode);
-
-    void setUID(uid_t uid);
 
     static bool getVendorLibHandle();
 
