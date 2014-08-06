@@ -149,6 +149,11 @@ public:
     static void acquireAudioSessionId(int audioSession, pid_t pid);
     static void releaseAudioSessionId(int audioSession, pid_t pid);
 
+    // Get the HW synchronization source used for an audio session.
+    // Return a valid source or AUDIO_HW_SYNC_INVALID if an error occurs
+    // or no HW sync source is used.
+    static audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId);
+
     // types of io configuration change events received with ioConfigChanged()
     enum io_config_event {
         OUTPUT_OPENED,

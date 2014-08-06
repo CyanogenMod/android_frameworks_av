@@ -1579,6 +1579,25 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice)
     return NO_ERROR;
 }
 
+audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId)
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        sp<PlaybackThread> thread = mPlaybackThreads.valueAt(i);
+        if ((thread->hasAudioSession(sessionId) & ThreadBase::TRACK_SESSION) != 0) {
+            // A session can only be on one thread, so exit after first match
+            String8 reply = thread->getParameters(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC));
+            AudioParameter param = AudioParameter(reply);
+            int value;
+            if (param.getInt(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC), value) == NO_ERROR) {
+                return value;
+            }
+            break;
+        }
+    }
+    return AUDIO_HW_SYNC_INVALID;
+}
+
 // ----------------------------------------------------------------------------
 
 
