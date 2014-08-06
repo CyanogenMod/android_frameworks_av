@@ -157,8 +157,8 @@ void M3UParser::MediaGroup::pickRandomMediaItems() {
 }
 
 status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
-    if (mType != TYPE_SUBS) {
-        ALOGE("only select subtitile tracks for now!");
+    if (mType != TYPE_SUBS && mType != TYPE_AUDIO) {
+        ALOGE("only select subtitile/audio tracks for now!");
         return INVALID_OPERATION;
     }
 
@@ -246,6 +246,7 @@ M3UParser::M3UParser(
       mIsVariantPlaylist(false),
       mIsComplete(false),
       mIsEvent(false),
+      mDiscontinuitySeq(0),
       mSelectedIndex(-1) {
     mInitCheck = parse(data, size);
 }
@@ -271,6 +272,10 @@ bool M3UParser::isComplete() const {
 
 bool M3UParser::isEvent() const {
     return mIsEvent;
+}
+
+size_t M3UParser::getDiscontinuitySeq() const {
+    return mDiscontinuitySeq;
 }
 
 sp<AMessage> M3UParser::meta() {
@@ -567,6 +572,12 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                 }
             } else if (line.startsWith("#EXT-X-MEDIA")) {
                 err = parseMedia(line);
+            } else if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) {
+                size_t seq;
+                err = parseDiscontinuitySequence(line, &seq);
+                if (err == OK) {
+                    mDiscontinuitySeq = seq;
+                }
             }
 
             if (err != OK) {
@@ -1107,6 +1118,30 @@ status_t M3UParser::parseMedia(const AString &line) {
             haveGroupURI ? groupURI.c_str() : NULL,
             haveGroupLanguage ? groupLanguage.c_str() : NULL,
             flags);
+}
+
+// static
+status_t M3UParser::parseDiscontinuitySequence(const AString &line, size_t *seq) {
+    ssize_t colonPos = line.find(":");
+
+    if (colonPos < 0) {
+        return ERROR_MALFORMED;
+    }
+
+    int32_t x;
+    status_t err = ParseInt32(line.c_str() + colonPos + 1, &x);
+    if (err != OK) {
+        return err;
+    }
+
+    if (x < 0) {
+        return ERROR_MALFORMED;
+    }
+
+    if (seq) {
+        *seq = x;
+    }
+    return OK;
 }
 
 // static

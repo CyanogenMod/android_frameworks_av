@@ -64,7 +64,8 @@ struct AnotherPacketSource : public MediaSource {
 
     bool isFinished(int64_t duration) const;
 
-    sp<AMessage> getLatestMeta();
+    sp<AMessage> getLatestEnqueuedMeta();
+    sp<AMessage> getLatestDequeuedMeta();
 
 protected:
     virtual ~AnotherPacketSource();
@@ -80,6 +81,7 @@ private:
     List<sp<ABuffer> > mBuffers;
     status_t mEOSResult;
     sp<AMessage> mLatestEnqueuedMeta;
+    sp<AMessage> mLatestDequeuedMeta;
 
     bool wasFormatChange(int32_t discontinuityType) const;
 
