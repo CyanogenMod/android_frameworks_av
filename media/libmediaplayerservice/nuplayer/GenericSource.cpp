@@ -37,10 +37,6 @@ namespace android {
 
 NuPlayer::GenericSource::GenericSource(
         const sp<AMessage> &notify,
-        const sp<IMediaHTTPService> &httpService,
-        const char *url,
-        const KeyedVector<String8, String8> *headers,
-        bool isWidevine,
         bool uidValid,
         uid_t uid)
     : Source(notify),
@@ -48,38 +44,41 @@ NuPlayer::GenericSource::GenericSource(
       mFetchTimedTextDataGeneration(0),
       mDurationUs(0ll),
       mAudioIsVorbis(false),
-      mIsWidevine(isWidevine),
+      mIsWidevine(false),
       mUIDValid(uidValid),
       mUID(uid) {
     DataSource::RegisterDefaultSniffers();
+}
+
+status_t NuPlayer::GenericSource::init(
+        const sp<IMediaHTTPService> &httpService,
+        const char *url,
+        const KeyedVector<String8, String8> *headers) {
+    mIsWidevine = !strncasecmp(url, "widevine://", 11);
+
+    AString sniffedMIME;
 
     sp<DataSource> dataSource =
-        DataSource::CreateFromURI(httpService, url, headers);
-    CHECK(dataSource != NULL);
+        DataSource::CreateFromURI(httpService, url, headers, &sniffedMIME);
 
-    initFromDataSource(dataSource);
+    if (dataSource == NULL) {
+        return UNKNOWN_ERROR;
+    }
+
+    return initFromDataSource(
+            dataSource, sniffedMIME.empty() ? NULL : sniffedMIME.c_str());
 }
 
-NuPlayer::GenericSource::GenericSource(
-        const sp<AMessage> &notify,
-        int fd, int64_t offset, int64_t length)
-    : Source(notify),
-      mFetchSubtitleDataGeneration(0),
-      mFetchTimedTextDataGeneration(0),
-      mDurationUs(0ll),
-      mAudioIsVorbis(false),
-      mIsWidevine(false),
-      mUIDValid(false),
-      mUID(0) {
-    DataSource::RegisterDefaultSniffers();
-
+status_t NuPlayer::GenericSource::init(
+        int fd, int64_t offset, int64_t length) {
     sp<DataSource> dataSource = new FileSource(dup(fd), offset, length);
 
-    initFromDataSource(dataSource);
+    return initFromDataSource(dataSource, NULL);
 }
 
-void NuPlayer::GenericSource::initFromDataSource(
-        const sp<DataSource> &dataSource) {
+status_t NuPlayer::GenericSource::initFromDataSource(
+        const sp<DataSource> &dataSource,
+        const char* mime) {
     sp<MediaExtractor> extractor;
 
     if (mIsWidevine) {
@@ -93,7 +92,7 @@ void NuPlayer::GenericSource::initFromDataSource(
                 || strcasecmp(
                     mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM)) {
             ALOGE("unsupported widevine mime: %s", mimeType.string());
-            return;
+            return UNKNOWN_ERROR;
         }
 
         sp<WVMExtractor> wvmExtractor = new WVMExtractor(dataSource);
@@ -103,10 +102,12 @@ void NuPlayer::GenericSource::initFromDataSource(
         }
         extractor = wvmExtractor;
     } else {
-        extractor = MediaExtractor::Create(dataSource);
+        extractor = MediaExtractor::Create(dataSource, mime);
     }
 
-    CHECK(extractor != NULL);
+    if (extractor == NULL) {
+        return UNKNOWN_ERROR;
+    }
 
     sp<MetaData> fileMeta = extractor->getMetaData();
     if (fileMeta != NULL) {
@@ -144,6 +145,9 @@ void NuPlayer::GenericSource::initFromDataSource(
                 int32_t secure;
                 if (meta->findInt32(kKeyRequiresSecureBuffers, &secure) && secure) {
                     mIsWidevine = true;
+                    if (mUIDValid) {
+                        extractor->setUID(mUID);
+                    }
                 }
             }
         }
@@ -158,6 +162,8 @@ void NuPlayer::GenericSource::initFromDataSource(
             }
         }
     }
+
+    return OK;
 }
 
 status_t NuPlayer::GenericSource::setBuffers(bool audio, Vector<MediaBuffer *> &buffers) {
