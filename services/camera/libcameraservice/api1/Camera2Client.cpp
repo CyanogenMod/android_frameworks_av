@@ -810,7 +810,9 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
             return res;
         }
     }
-    if (params.zslMode && !params.recordingHint) {
+
+    if (params.zslMode && !params.recordingHint &&
+            getRecordingStreamId() == NO_STREAM) {
         res = updateProcessorStream(mZslProcessor, params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to update ZSL stream: %s (%d)",
@@ -1033,6 +1035,36 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
             return res;
         }
     }
+
+    if (mZslProcessor->getStreamId() != NO_STREAM) {
+        ALOGV("%s: Camera %d: Clearing out zsl stream before "
+                "creating recording stream", __FUNCTION__, mCameraId);
+        res = mStreamingProcessor->stopStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't stop streaming to delete callback stream",
+                    __FUNCTION__, mCameraId);
+            return res;
+        }
+        res = mDevice->waitUntilDrained();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+        res = mZslProcessor->clearZslQueue();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't clear zsl queue",
+                    __FUNCTION__, mCameraId);
+            return res;
+        }
+        res = mZslProcessor->deleteStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to delete zsl stream before "
+                    "record: %s (%d)", __FUNCTION__, mCameraId,
+                    strerror(-res), res);
+            return res;
+        }
+    }
+
     // Disable callbacks if they're enabled; can't record and use callbacks,
     // and we can't fail record start without stagefright asserting.
     params.previewCallbackFlags = 0;
