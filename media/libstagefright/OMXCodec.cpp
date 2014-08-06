@@ -399,7 +399,7 @@ sp<MediaSource> OMXCodec::Create(
             return softwareCodec;
         }
 
-        const char* ext_componentName = ExtendedCodec::overrideComponentName(quirks, meta);
+        const char* ext_componentName = ExtendedCodec::overrideComponentName(quirks, meta, mime, createEncoder);
         if(ext_componentName != NULL) {
           componentName = ext_componentName;
         }

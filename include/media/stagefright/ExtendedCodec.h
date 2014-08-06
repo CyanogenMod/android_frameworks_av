@@ -89,11 +89,13 @@ struct ExtendedCodec {
             int format, AString* mime);
 
     static const char* overrideComponentName(
-            uint32_t quirks, const sp<MetaData> &meta);
+            uint32_t quirks, const sp<MetaData> &meta,
+            const char *mime, bool isEncoder);
 
     static void overrideComponentName(
             uint32_t quirks, const sp<AMessage> &msg,
-            AString* componentName);
+            AString* componentName, AString* mime,
+            int32_t isEncoder);
 
     static void getRawCodecSpecificData(
             const sp<MetaData> &meta,
