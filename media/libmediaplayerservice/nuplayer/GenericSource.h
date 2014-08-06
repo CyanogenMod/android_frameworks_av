@@ -34,18 +34,14 @@ struct MediaSource;
 class MediaBuffer;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
-    GenericSource(
-            const sp<AMessage> &notify,
+    GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
+
+    status_t init(
             const sp<IMediaHTTPService> &httpService,
             const char *url,
-            const KeyedVector<String8, String8> *headers,
-            bool isWidevine = false,
-            bool uidValid = false,
-            uid_t uid = 0);
+            const KeyedVector<String8, String8> *headers);
 
-    GenericSource(
-            const sp<AMessage> &notify,
-            int fd, int64_t offset, int64_t length);
+    status_t init(int fd, int64_t offset, int64_t length);
 
     virtual void prepareAsync();
 
@@ -101,7 +97,9 @@ private:
     bool mUIDValid;
     uid_t mUID;
 
-    void initFromDataSource(const sp<DataSource> &dataSource);
+    status_t initFromDataSource(
+            const sp<DataSource> &dataSource,
+            const char *mime);
 
     void fetchTextData(
             uint32_t what, media_track_type type,

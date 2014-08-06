@@ -31,6 +31,7 @@
 namespace android {
 
 struct AMessage;
+struct AString;
 struct IMediaHTTPService;
 class String8;
 
@@ -46,7 +47,8 @@ public:
     static sp<DataSource> CreateFromURI(
             const sp<IMediaHTTPService> &httpService,
             const char *uri,
-            const KeyedVector<String8, String8> *headers = NULL);
+            const KeyedVector<String8, String8> *headers = NULL,
+            AString *sniffedMIME = NULL);
 
     DataSource() {}
 
@@ -100,6 +102,10 @@ protected:
     virtual ~DataSource() {}
 
 private:
+    enum {
+        kDefaultMetaSize = 200000,
+    };
+
     static Mutex gSnifferMutex;
     static List<SnifferFunc> gSniffers;
     static bool gSniffersRegistered;
