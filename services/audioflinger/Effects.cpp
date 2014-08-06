@@ -1387,7 +1387,12 @@ void AudioFlinger::EffectChain::clearInputBuffer()
 // Must be called with EffectChain::mLock locked
 void AudioFlinger::EffectChain::clearInputBuffer_l(sp<ThreadBase> thread)
 {
-    memset(mInBuffer, 0, thread->frameCount() * thread->frameSize());
+    // TODO: This will change in the future, depending on multichannel
+    // and sample format changes for effects.
+    // Currently effects processing is only available for stereo, AUDIO_FORMAT_PCM_16_BIT
+    // (4 bytes frame size)
+    const size_t frameSize = audio_bytes_per_sample(AUDIO_FORMAT_PCM_16_BIT) * FCC_2;
+    memset(mInBuffer, 0, thread->frameCount() * frameSize);
 }
 
 // Must be called with EffectChain::mLock locked
