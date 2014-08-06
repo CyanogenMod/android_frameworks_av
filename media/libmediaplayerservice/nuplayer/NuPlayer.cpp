@@ -148,6 +148,8 @@ NuPlayer::NuPlayer()
       mVideoIsAVC(false),
       mOffloadAudio(false),
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
+      mAudioDecoderGeneration(0),
+      mVideoDecoderGeneration(0),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -691,6 +693,25 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             bool audio = msg->what() == kWhatAudioNotify;
 
+            int32_t currentDecoderGeneration =
+                (audio? mAudioDecoderGeneration : mVideoDecoderGeneration);
+            int32_t requesterGeneration = currentDecoderGeneration - 1;
+            CHECK(msg->findInt32("generation", &requesterGeneration));
+
+            if (requesterGeneration != currentDecoderGeneration) {
+                ALOGV("got message from old %s decoder, generation(%d:%d)",
+                        audio ? "audio" : "video", requesterGeneration,
+                        currentDecoderGeneration);
+                sp<AMessage> reply;
+                if (!(msg->findMessage("reply", &reply))) {
+                    return;
+                }
+
+                reply->setInt32("err", INFO_DISCONTINUITY);
+                reply->post();
+                return;
+            }
+
             int32_t what;
             CHECK(msg->findInt32("what", &what));
 
@@ -1150,17 +1171,21 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         }
     }
 
-    sp<AMessage> notify =
-        new AMessage(audio ? kWhatAudioNotify : kWhatVideoNotify,
-                     id());
-
     if (audio) {
+        sp<AMessage> notify = new AMessage(kWhatAudioNotify, id());
+        ++mAudioDecoderGeneration;
+        notify->setInt32("generation", mAudioDecoderGeneration);
+
         if (mOffloadAudio) {
             *decoder = new DecoderPassThrough(notify);
         } else {
             *decoder = new Decoder(notify);
         }
     } else {
+        sp<AMessage> notify = new AMessage(kWhatVideoNotify, id());
+        ++mVideoDecoderGeneration;
+        notify->setInt32("generation", mVideoDecoderGeneration);
+
         *decoder = new Decoder(notify, mNativeWindow);
     }
     (*decoder)->init();

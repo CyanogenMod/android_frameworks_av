@@ -129,6 +129,8 @@ private:
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
     sp<ALooper> mRendererLooper;
+    int32_t mAudioDecoderGeneration;
+    int32_t mVideoDecoderGeneration;
 
     List<sp<Action> > mDeferredActions;
 
