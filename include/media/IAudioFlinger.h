@@ -235,6 +235,8 @@ public:
     /* Set audio port configuration */
     virtual status_t setAudioPortConfig(const struct audio_port_config *config) = 0;
 
+    /* Get the HW synchronization source used for an audio session */
+    virtual audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId) = 0;
 };
 
 

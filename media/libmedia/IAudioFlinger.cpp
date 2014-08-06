@@ -79,7 +79,8 @@ enum {
     CREATE_AUDIO_PATCH,
     RELEASE_AUDIO_PATCH,
     LIST_AUDIO_PATCHES,
-    SET_AUDIO_PORT_CONFIG
+    SET_AUDIO_PORT_CONFIG,
+    GET_AUDIO_HW_SYNC
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -883,6 +884,17 @@ public:
         }
         return status;
     }
+    virtual audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(sessionId);
+        status_t status = remote()->transact(GET_AUDIO_HW_SYNC, data, &reply);
+        if (status != NO_ERROR) {
+            return AUDIO_HW_SYNC_INVALID;
+        }
+        return (audio_hw_sync_t)reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -1343,6 +1355,11 @@ status_t BnAudioFlinger::onTransact(
             data.read(&config, sizeof(struct audio_port_config));
             status_t status = setAudioPortConfig(&config);
             reply->writeInt32(status);
+            return NO_ERROR;
+        } break;
+        case GET_AUDIO_HW_SYNC: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            reply->writeInt32(getAudioHwSyncForSession((audio_session_t)data.readInt32()));
             return NO_ERROR;
         } break;
         default:

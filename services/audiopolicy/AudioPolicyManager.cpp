@@ -118,6 +118,7 @@ const StringToEnum sFlagNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NON_BLOCKING),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_HW_AV_SYNC),
 };
 
 const StringToEnum sFormatNameToEnumTable[] = {
@@ -671,12 +672,17 @@ audio_io_handle_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t 
         ALOGE("getOutputForAttr() called with NULL audio attributes");
         return 0;
     }
-    ALOGV("getOutputForAttr() usage=%d, content=%d, tag=%s",
-            attr->usage, attr->content_type, attr->tags);
+    ALOGV("getOutputForAttr() usage=%d, content=%d, tag=%s flags=%08x",
+            attr->usage, attr->content_type, attr->tags, attr->flags);
 
     // TODO this is where filtering for custom policies (rerouting, dynamic sources) will go
     routing_strategy strategy = (routing_strategy) getStrategyForAttr(attr);
     audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
+
+    if ((attr->flags & AUDIO_FLAG_HW_AV_SYNC) != 0) {
+        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_HW_AV_SYNC);
+    }
+
     ALOGV("getOutputForAttr() device %d, samplingRate %d, format %x, channelMask %x, flags %x",
           device, samplingRate, format, channelMask, flags);
 
@@ -744,6 +750,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     // and all common behaviors are driven by checking only the direct flag
     // this should normally be set appropriately in the policy configuration file
     if ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
+    }
+    if ((flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
 
