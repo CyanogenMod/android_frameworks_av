@@ -125,8 +125,19 @@ private:
     struct StreamItem {
         const char *mType;
         AString mUri;
-        StreamItem() : mType("") {}
-        StreamItem(const char *type) : mType(type) {}
+        size_t mCurDiscontinuitySeq;
+        int64_t mLastDequeuedTimeUs;
+        int64_t mLastSampleDurationUs;
+        StreamItem()
+            : mType(""),
+              mCurDiscontinuitySeq(0),
+              mLastDequeuedTimeUs(0),
+              mLastSampleDurationUs(0) {}
+        StreamItem(const char *type)
+            : mType(type),
+              mCurDiscontinuitySeq(0),
+              mLastDequeuedTimeUs(0),
+              mLastSampleDurationUs(0) {}
         AString uriKey() {
             AString key(mType);
             key.append("URI");
@@ -147,7 +158,7 @@ private:
     AString mMasterURL;
 
     Vector<BandwidthItem> mBandwidthItems;
-    ssize_t mPrevBandwidthIndex;
+    ssize_t mCurBandwidthIndex;
 
     sp<M3UParser> mPlaylist;
 
@@ -163,6 +174,7 @@ private:
     // we use this to track reconfiguration progress.
     uint32_t mSwapMask;
 
+    KeyedVector<StreamType, sp<AnotherPacketSource> > mDiscontinuities;
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources;
     // A second set of packet sources that buffer content for the variant we're switching to.
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources2;
@@ -186,6 +198,12 @@ private:
     bool mSwitchInProgress;
     uint32_t mDisconnectReplyID;
     uint32_t mSeekReplyID;
+
+    bool mFirstTimeUsValid;
+    int64_t mFirstTimeUs;
+    int64_t mLastSeekTimeUs;
+    KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
+    KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
