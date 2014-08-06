@@ -31,7 +31,8 @@ LOCAL_SHARED_LIBRARIES:= \
     libbinder \
     libcutils \
     libhardware \
-    libsoundtrigger
+    libsoundtrigger \
+    libmedia
 
 LOCAL_STATIC_LIBRARIES := \
     libserviceutility

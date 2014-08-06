@@ -190,6 +190,11 @@ public:
     virtual status_t setAudioPortConfig(const struct audio_port_config *config) = 0;
     virtual void clearAudioPatches(uid_t uid) = 0;
 
+    virtual status_t acquireSoundTriggerSession(audio_session_t *session,
+                                           audio_io_handle_t *ioHandle,
+                                           audio_devices_t *device) = 0;
+
+    virtual status_t releaseSoundTriggerSession(audio_session_t session) = 0;
 };
 
 

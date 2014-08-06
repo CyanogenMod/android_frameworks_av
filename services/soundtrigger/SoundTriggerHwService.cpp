@@ -25,12 +25,13 @@
 #include <system/sound_trigger.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
+#include <hardware/hardware.h>
+#include <media/AudioSystem.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
-#include <hardware/hardware.h>
 #include <hardware/sound_trigger.h>
 #include <ServiceUtilities.h>
 #include "SoundTriggerHwService.h"
@@ -45,7 +46,9 @@ namespace android {
 
 SoundTriggerHwService::SoundTriggerHwService()
     : BnSoundTriggerHwService(),
-      mNextUniqueId(1)
+      mNextUniqueId(1),
+      mMemoryDealer(new MemoryDealer(1024 * 1024, "SoundTriggerHwService")),
+      mCaptureState(false)
 {
 }
 
@@ -143,14 +146,30 @@ status_t SoundTriggerHwService::attach(const sound_trigger_module_handle_t handl
     client->asBinder()->linkToDeath(module);
     moduleInterface = module;
 
+    module->setCaptureState_l(mCaptureState);
+
     return NO_ERROR;
 }
 
-void SoundTriggerHwService::detachModule(sp<Module> module) {
+status_t SoundTriggerHwService::setCaptureState(bool active)
+{
+    ALOGV("setCaptureState %d", active);
+    AutoMutex lock(mServiceLock);
+    mCaptureState = active;
+    for (size_t i = 0; i < mModules.size(); i++) {
+        mModules.valueAt(i)->setCaptureState_l(active);
+    }
+    return NO_ERROR;
+}
+
+
+void SoundTriggerHwService::detachModule(sp<Module> module)
+{
     ALOGV("detachModule");
     AutoMutex lock(mServiceLock);
     module->clearClient();
 }
+
 
 static const int kDumpLockRetries = 50;
 static const int kDumpLockSleep = 60000;
@@ -200,18 +219,175 @@ void SoundTriggerHwService::recognitionCallback(struct sound_trigger_recognition
     if (module == NULL) {
         return;
     }
-    module->sendRecognitionEvent(event);
+    sp<SoundTriggerHwService> service = module->service().promote();
+    if (service == 0) {
+        return;
+    }
+
+    service->sendRecognitionEvent(event, module);
+}
+
+sp<IMemory> SoundTriggerHwService::prepareRecognitionEvent_l(
+                                                    struct sound_trigger_recognition_event *event)
+{
+    sp<IMemory> eventMemory;
+
+    //sanitize event
+    switch (event->type) {
+    case SOUND_MODEL_TYPE_KEYPHRASE:
+        ALOGW_IF(event->data_size != 0 && event->data_offset !=
+                    sizeof(struct sound_trigger_phrase_recognition_event),
+                    "prepareRecognitionEvent_l(): invalid data offset %u for keyphrase event type",
+                    event->data_offset);
+        event->data_offset = sizeof(struct sound_trigger_phrase_recognition_event);
+        break;
+    case SOUND_MODEL_TYPE_UNKNOWN:
+        ALOGW_IF(event->data_size != 0 && event->data_offset !=
+                    sizeof(struct sound_trigger_recognition_event),
+                    "prepareRecognitionEvent_l(): invalid data offset %u for unknown event type",
+                    event->data_offset);
+        event->data_offset = sizeof(struct sound_trigger_recognition_event);
+        break;
+    default:
+            return eventMemory;
+    }
+
+    size_t size = event->data_offset + event->data_size;
+    eventMemory = mMemoryDealer->allocate(size);
+    if (eventMemory == 0 || eventMemory->pointer() == NULL) {
+        eventMemory.clear();
+        return eventMemory;
+    }
+    memcpy(eventMemory->pointer(), event, size);
+
+    return eventMemory;
+}
+
+void SoundTriggerHwService::sendRecognitionEvent(struct sound_trigger_recognition_event *event,
+                                                 Module *module)
+ {
+     AutoMutex lock(mServiceLock);
+     if (module == NULL) {
+         return;
+     }
+     sp<IMemory> eventMemory = prepareRecognitionEvent_l(event);
+     if (eventMemory == 0) {
+         return;
+     }
+     sp<Module> strongModule;
+     for (size_t i = 0; i < mModules.size(); i++) {
+         if (mModules.valueAt(i).get() == module) {
+             strongModule = mModules.valueAt(i);
+             break;
+         }
+     }
+     if (strongModule == 0) {
+         return;
+     }
+
+     sendCallbackEvent_l(new CallbackEvent(CallbackEvent::TYPE_RECOGNITION,
+                                                  eventMemory, strongModule));
+}
+
+// static
+void SoundTriggerHwService::soundModelCallback(struct sound_trigger_model_event *event,
+                                               void *cookie)
+{
+    Module *module = (Module *)cookie;
+    if (module == NULL) {
+        return;
+    }
+    sp<SoundTriggerHwService> service = module->service().promote();
+    if (service == 0) {
+        return;
+    }
+
+    service->sendSoundModelEvent(event, module);
+}
+
+sp<IMemory> SoundTriggerHwService::prepareSoundModelEvent_l(struct sound_trigger_model_event *event)
+{
+    sp<IMemory> eventMemory;
+
+    size_t size = event->data_offset + event->data_size;
+    eventMemory = mMemoryDealer->allocate(size);
+    if (eventMemory == 0 || eventMemory->pointer() == NULL) {
+        eventMemory.clear();
+        return eventMemory;
+    }
+    memcpy(eventMemory->pointer(), event, size);
+
+    return eventMemory;
+}
+
+void SoundTriggerHwService::sendSoundModelEvent(struct sound_trigger_model_event *event,
+                                                Module *module)
+{
+    AutoMutex lock(mServiceLock);
+    sp<IMemory> eventMemory = prepareSoundModelEvent_l(event);
+    if (eventMemory == 0) {
+        return;
+    }
+    sp<Module> strongModule;
+    for (size_t i = 0; i < mModules.size(); i++) {
+        if (mModules.valueAt(i).get() == module) {
+            strongModule = mModules.valueAt(i);
+            break;
+        }
+    }
+    if (strongModule == 0) {
+        return;
+    }
+    sendCallbackEvent_l(new CallbackEvent(CallbackEvent::TYPE_SOUNDMODEL,
+                                                 eventMemory, strongModule));
 }
 
 
-void SoundTriggerHwService::sendRecognitionEvent(const sp<RecognitionEvent>& event)
+sp<IMemory> SoundTriggerHwService::prepareServiceStateEvent_l(sound_trigger_service_state_t state)
 {
-    mCallbackThread->sendRecognitionEvent(event);
+    sp<IMemory> eventMemory;
+
+    size_t size = sizeof(sound_trigger_service_state_t);
+    eventMemory = mMemoryDealer->allocate(size);
+    if (eventMemory == 0 || eventMemory->pointer() == NULL) {
+        eventMemory.clear();
+        return eventMemory;
+    }
+    *((sound_trigger_service_state_t *)eventMemory->pointer()) = state;
+    return eventMemory;
 }
 
-void SoundTriggerHwService::onRecognitionEvent(const sp<RecognitionEvent>& event)
+// call with mServiceLock held
+void SoundTriggerHwService::sendServiceStateEvent_l(sound_trigger_service_state_t state,
+                                                  Module *module)
 {
-    ALOGV("onRecognitionEvent");
+    sp<IMemory> eventMemory = prepareServiceStateEvent_l(state);
+    if (eventMemory == 0) {
+        return;
+    }
+    sp<Module> strongModule;
+    for (size_t i = 0; i < mModules.size(); i++) {
+        if (mModules.valueAt(i).get() == module) {
+            strongModule = mModules.valueAt(i);
+            break;
+        }
+    }
+    if (strongModule == 0) {
+        return;
+    }
+    sendCallbackEvent_l(new CallbackEvent(CallbackEvent::TYPE_SERVICE_STATE,
+                                                 eventMemory, strongModule));
+}
+
+// call with mServiceLock held
+void SoundTriggerHwService::sendCallbackEvent_l(const sp<CallbackEvent>& event)
+{
+    mCallbackThread->sendCallbackEvent(event);
+}
+
+void SoundTriggerHwService::onCallbackEvent(const sp<CallbackEvent>& event)
+{
+    ALOGV("onCallbackEvent");
     sp<Module> module;
     {
         AutoMutex lock(mServiceLock);
@@ -220,15 +396,12 @@ void SoundTriggerHwService::onRecognitionEvent(const sp<RecognitionEvent>& event
             return;
         }
     }
-    module->onRecognitionEvent(event->mEventMemory);
-}
-
-// static
-void SoundTriggerHwService::soundModelCallback(struct sound_trigger_model_event *event __unused,
-                                               void *cookie)
-{
-    Module *module = (Module *)cookie;
-
+    module->onCallbackEvent(event);
+    {
+        AutoMutex lock(mServiceLock);
+        // clear now to execute with mServiceLock locked
+        event->mMemory.clear();
+    }
 }
 
 #undef LOG_TAG
@@ -241,7 +414,10 @@ SoundTriggerHwService::CallbackThread::CallbackThread(const wp<SoundTriggerHwSer
 
 SoundTriggerHwService::CallbackThread::~CallbackThread()
 {
-    mEventQueue.clear();
+    while (!mEventQueue.isEmpty()) {
+        mEventQueue[0]->mMemory.clear();
+        mEventQueue.removeAt(0);
+    }
 }
 
 void SoundTriggerHwService::CallbackThread::onFirstRef()
@@ -252,7 +428,7 @@ void SoundTriggerHwService::CallbackThread::onFirstRef()
 bool SoundTriggerHwService::CallbackThread::threadLoop()
 {
     while (!exitPending()) {
-        sp<RecognitionEvent> event;
+        sp<CallbackEvent> event;
         sp<SoundTriggerHwService> service;
         {
             Mutex::Autolock _l(mCallbackLock);
@@ -269,7 +445,7 @@ bool SoundTriggerHwService::CallbackThread::threadLoop()
             service = mService.promote();
         }
         if (service != 0) {
-            service->onRecognitionEvent(event);
+            service->onCallbackEvent(event);
         }
     }
     return false;
@@ -282,24 +458,24 @@ void SoundTriggerHwService::CallbackThread::exit()
     mCallbackCond.broadcast();
 }
 
-void SoundTriggerHwService::CallbackThread::sendRecognitionEvent(
-                        const sp<SoundTriggerHwService::RecognitionEvent>& event)
+void SoundTriggerHwService::CallbackThread::sendCallbackEvent(
+                        const sp<SoundTriggerHwService::CallbackEvent>& event)
 {
     AutoMutex lock(mCallbackLock);
     mEventQueue.add(event);
     mCallbackCond.signal();
 }
 
-SoundTriggerHwService::RecognitionEvent::RecognitionEvent(
-                                            sp<IMemory> eventMemory,
-                                            wp<Module> module)
-    : mEventMemory(eventMemory), mModule(module)
+SoundTriggerHwService::CallbackEvent::CallbackEvent(event_type type, sp<IMemory> memory,
+                                                    wp<Module> module)
+    : mType(type), mMemory(memory), mModule(module)
 {
 }
 
-SoundTriggerHwService::RecognitionEvent::~RecognitionEvent()
+SoundTriggerHwService::CallbackEvent::~CallbackEvent()
 {
 }
+
 
 #undef LOG_TAG
 #define LOG_TAG "SoundTriggerHwService::Module"
@@ -309,7 +485,7 @@ SoundTriggerHwService::Module::Module(const sp<SoundTriggerHwService>& service,
                                       sound_trigger_module_descriptor descriptor,
                                       const sp<ISoundTriggerClient>& client)
  : mService(service), mHwDevice(hwDevice), mDescriptor(descriptor),
-   mClient(client)
+   mClient(client), mServiceState(SOUND_TRIGGER_STATE_NO_INIT)
 {
 }
 
@@ -328,7 +504,6 @@ void SoundTriggerHwService::Module::detach() {
             ALOGV("detach() unloading model %d", model->mHandle);
             if (model->mState == Model::STATE_ACTIVE) {
                 mHwDevice->stop_recognition(mHwDevice, model->mHandle);
-                model->deallocateMemory();
             }
             mHwDevice->unload_sound_model(mHwDevice, model->mHandle);
         }
@@ -365,9 +540,20 @@ status_t SoundTriggerHwService::Module::loadSoundModel(const sp<IMemory>& modelM
                                                   SoundTriggerHwService::soundModelCallback,
                                                   this,
                                                   handle);
-    if (status == NO_ERROR) {
-        mModels.replaceValueFor(*handle, new Model(*handle));
+    if (status != NO_ERROR) {
+        return status;
     }
+    audio_session_t session;
+    audio_io_handle_t ioHandle;
+    audio_devices_t device;
+
+    status = AudioSystem::acquireSoundTriggerSession(&session, &ioHandle, &device);
+    if (status != NO_ERROR) {
+        return status;
+    }
+
+    sp<Model> model = new Model(*handle, session, ioHandle, device, sound_model->type);
+    mModels.replaceValueFor(*handle, model);
 
     return status;
 }
@@ -388,8 +574,8 @@ status_t SoundTriggerHwService::Module::unloadSoundModel(sound_model_handle_t ha
     mModels.removeItem(handle);
     if (model->mState == Model::STATE_ACTIVE) {
         mHwDevice->stop_recognition(mHwDevice, model->mHandle);
-        model->deallocateMemory();
     }
+    AudioSystem::releaseSoundTriggerSession(model->mCaptureSession);
     return mHwDevice->unload_sound_model(mHwDevice, handle);
 }
 
@@ -407,6 +593,9 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
 
     }
     AutoMutex lock(mLock);
+    if (mServiceState == SOUND_TRIGGER_STATE_DISABLED) {
+        return INVALID_OPERATION;
+    }
     sp<Model> model = getModel(handle);
     if (model == 0) {
         return BAD_VALUE;
@@ -419,17 +608,23 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
     if (model->mState == Model::STATE_ACTIVE) {
         return INVALID_OPERATION;
     }
-    model->mState = Model::STATE_ACTIVE;
 
     struct sound_trigger_recognition_config *config =
             (struct sound_trigger_recognition_config *)dataMemory->pointer();
 
     //TODO: get capture handle and device from audio policy service
-    config->capture_handle = AUDIO_IO_HANDLE_NONE;
-    config->capture_device = AUDIO_DEVICE_NONE;
-    return mHwDevice->start_recognition(mHwDevice, handle, config,
+    config->capture_handle = model->mCaptureIOHandle;
+    config->capture_device = model->mCaptureDevice;
+    status_t status = mHwDevice->start_recognition(mHwDevice, handle, config,
                                         SoundTriggerHwService::recognitionCallback,
                                         this);
+
+    if (status == NO_ERROR) {
+        model->mState = Model::STATE_ACTIVE;
+        model->mConfig = *config;
+    }
+
+    return status;
 }
 
 status_t SoundTriggerHwService::Module::stopRecognition(sound_model_handle_t handle)
@@ -449,93 +644,62 @@ status_t SoundTriggerHwService::Module::stopRecognition(sound_model_handle_t han
         return INVALID_OPERATION;
     }
     mHwDevice->stop_recognition(mHwDevice, handle);
-    model->deallocateMemory();
     model->mState = Model::STATE_IDLE;
     return NO_ERROR;
 }
 
-void SoundTriggerHwService::Module::sendRecognitionEvent(
-                                                    struct sound_trigger_recognition_event *event)
+
+void SoundTriggerHwService::Module::onCallbackEvent(const sp<CallbackEvent>& event)
 {
-    sp<SoundTriggerHwService> service;
-    sp<IMemory> eventMemory;
-    ALOGV("sendRecognitionEvent for model %d", event->model);
-    {
-        AutoMutex lock(mLock);
-        sp<Model> model = getModel(event->model);
-        if (model == 0) {
-            return;
-        }
-        if (model->mState != Model::STATE_ACTIVE) {
-            ALOGV("sendRecognitionEvent model->mState %d != Model::STATE_ACTIVE", model->mState);
-            return;
-        }
-        if (mClient == 0) {
-            return;
-        }
-        service = mService.promote();
-        if (service == 0) {
-            return;
-        }
-
-        //sanitize event
-        switch (event->type) {
-        case SOUND_MODEL_TYPE_KEYPHRASE:
-            ALOGW_IF(event->data_offset !=
-                        sizeof(struct sound_trigger_phrase_recognition_event),
-                        "sendRecognitionEvent(): invalid data offset %u for keyphrase event type",
-                        event->data_offset);
-            event->data_offset = sizeof(struct sound_trigger_phrase_recognition_event);
-            break;
-        case SOUND_MODEL_TYPE_UNKNOWN:
-            ALOGW_IF(event->data_offset !=
-                        sizeof(struct sound_trigger_recognition_event),
-                        "sendRecognitionEvent(): invalid data offset %u for unknown event type",
-                        event->data_offset);
-            event->data_offset = sizeof(struct sound_trigger_recognition_event);
-            break;
-        default:
-                return;
-        }
-
-        size_t size = event->data_offset + event->data_size;
-        eventMemory = model->allocateMemory(size);
-        if (eventMemory == 0 || eventMemory->pointer() == NULL) {
-            return;
-        }
-        memcpy(eventMemory->pointer(), event, size);
-    }
-    service->sendRecognitionEvent(new RecognitionEvent(eventMemory, this));
-}
-
-void SoundTriggerHwService::Module::onRecognitionEvent(sp<IMemory> eventMemory)
-{
-    ALOGV("Module::onRecognitionEvent");
+    ALOGV("onCallbackEvent type %d", event->mType);
 
     AutoMutex lock(mLock);
+    sp<IMemory> eventMemory = event->mMemory;
 
     if (eventMemory == 0 || eventMemory->pointer() == NULL) {
-        return;
-    }
-    struct sound_trigger_recognition_event *event =
-            (struct sound_trigger_recognition_event *)eventMemory->pointer();
-
-    sp<Model> model = getModel(event->model);
-    if (model == 0) {
-        ALOGI("%s model == 0", __func__);
-        return;
-    }
-    if (model->mState != Model::STATE_ACTIVE) {
-        ALOGV("onRecognitionEvent model->mState %d != Model::STATE_ACTIVE", model->mState);
         return;
     }
     if (mClient == 0) {
         ALOGI("%s mClient == 0", __func__);
         return;
     }
-    mClient->onRecognitionEvent(eventMemory);
-    model->mState = Model::STATE_IDLE;
-    model->deallocateMemory();
+
+    switch (event->mType) {
+    case CallbackEvent::TYPE_RECOGNITION: {
+        struct sound_trigger_recognition_event *recognitionEvent =
+                (struct sound_trigger_recognition_event *)eventMemory->pointer();
+
+        sp<Model> model = getModel(recognitionEvent->model);
+        if (model == 0) {
+            ALOGW("%s model == 0", __func__);
+            return;
+        }
+        if (model->mState != Model::STATE_ACTIVE) {
+            ALOGV("onCallbackEvent model->mState %d != Model::STATE_ACTIVE", model->mState);
+            return;
+        }
+
+        recognitionEvent->capture_session = model->mCaptureSession;
+        mClient->onRecognitionEvent(eventMemory);
+        model->mState = Model::STATE_IDLE;
+    } break;
+    case CallbackEvent::TYPE_SOUNDMODEL: {
+        struct sound_trigger_model_event *soundmodelEvent =
+                (struct sound_trigger_model_event *)eventMemory->pointer();
+
+        sp<Model> model = getModel(soundmodelEvent->model);
+        if (model == 0) {
+            ALOGW("%s model == 0", __func__);
+            return;
+        }
+        mClient->onSoundModelEvent(eventMemory);
+    } break;
+    case CallbackEvent::TYPE_SERVICE_STATE: {
+        mClient->onServiceStateChange(eventMemory);
+    } break;
+    default:
+        LOG_ALWAYS_FATAL("onCallbackEvent unknown event type %d", event->mType);
+    }
 }
 
 sp<SoundTriggerHwService::Model> SoundTriggerHwService::Module::getModel(
@@ -555,30 +719,80 @@ void SoundTriggerHwService::Module::binderDied(
     detach();
 }
 
-
-SoundTriggerHwService::Model::Model(sound_model_handle_t handle) :
-    mHandle(handle), mState(STATE_IDLE), mInputHandle(AUDIO_IO_HANDLE_NONE),
-    mCaptureSession(AUDIO_SESSION_ALLOCATE),
-    mMemoryDealer(new MemoryDealer(sizeof(struct sound_trigger_recognition_event),
-                                   "SoundTriggerHwService::Event"))
+// Called with mServiceLock held
+void SoundTriggerHwService::Module::setCaptureState_l(bool active)
 {
+    ALOGV("Module::setCaptureState_l %d", active);
+    sp<SoundTriggerHwService> service;
+    sound_trigger_service_state_t state;
 
-}
+    Vector< sp<IMemory> > events;
+    {
+        AutoMutex lock(mLock);
+        state = (active && !mDescriptor.properties.concurrent_capture) ?
+                                        SOUND_TRIGGER_STATE_DISABLED : SOUND_TRIGGER_STATE_ENABLED;
 
+        if (state == mServiceState) {
+            return;
+        }
 
-sp<IMemory> SoundTriggerHwService::Model::allocateMemory(size_t size)
-{
-    sp<IMemory> memory;
-    if (mMemoryDealer->getMemoryHeap()->getSize() < size) {
-        mMemoryDealer = new MemoryDealer(size, "SoundTriggerHwService::Event");
+        mServiceState = state;
+
+        service = mService.promote();
+        if (service == 0) {
+            return;
+        }
+
+        if (state == SOUND_TRIGGER_STATE_ENABLED) {
+            goto exit;
+        }
+
+        for (size_t i = 0; i < mModels.size(); i++) {
+            sp<Model> model = mModels.valueAt(i);
+            if (model->mState == Model::STATE_ACTIVE) {
+                mHwDevice->stop_recognition(mHwDevice, model->mHandle);
+                // keep model in ACTIVE state so that event is processed by onCallbackEvent()
+                struct sound_trigger_phrase_recognition_event phraseEvent;
+                switch (model->mType) {
+                case SOUND_MODEL_TYPE_KEYPHRASE:
+                    phraseEvent.num_phrases = model->mConfig.num_phrases;
+                    for (size_t i = 0; i < phraseEvent.num_phrases; i++) {
+                        phraseEvent.phrase_extras[i] = model->mConfig.phrases[i];
+                    }
+                    break;
+                case SOUND_MODEL_TYPE_UNKNOWN:
+                default:
+                    break;
+                }
+                phraseEvent.common.status = RECOGNITION_STATUS_ABORT;
+                phraseEvent.common.type = model->mType;
+                phraseEvent.common.model = model->mHandle;
+                phraseEvent.common.data_size = 0;
+                sp<IMemory> eventMemory = service->prepareRecognitionEvent_l(&phraseEvent.common);
+                if (eventMemory != 0) {
+                    events.add(eventMemory);
+                }
+            }
+        }
     }
-    memory = mMemoryDealer->allocate(size);
-    return memory;
+
+    for (size_t i = 0; i < events.size(); i++) {
+        service->sendCallbackEvent_l(new CallbackEvent(CallbackEvent::TYPE_RECOGNITION, events[i],
+                                                     this));
+    }
+
+exit:
+    service->sendServiceStateEvent_l(state, this);
 }
 
-void SoundTriggerHwService::Model::deallocateMemory()
+
+SoundTriggerHwService::Model::Model(sound_model_handle_t handle, audio_session_t session,
+                                    audio_io_handle_t ioHandle, audio_devices_t device,
+                                    sound_trigger_sound_model_type_t type) :
+    mHandle(handle), mState(STATE_IDLE), mCaptureSession(session),
+    mCaptureIOHandle(ioHandle), mCaptureDevice(device), mType(type)
 {
-    mMemoryDealer->deallocate(0);
+
 }
 
 status_t SoundTriggerHwService::Module::dump(int fd __unused,

@@ -309,6 +309,12 @@ public:
     /* Set audio port configuration */
     static status_t setAudioPortConfig(const struct audio_port_config *config);
 
+
+    static status_t acquireSoundTriggerSession(audio_session_t *session,
+                                           audio_io_handle_t *ioHandle,
+                                           audio_devices_t *device);
+    static status_t releaseSoundTriggerSession(audio_session_t session);
+
     // ----------------------------------------------------------------------------
 
     class AudioPortCallback : public RefBase

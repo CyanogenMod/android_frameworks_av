@@ -53,6 +53,8 @@ public:
                             const sp<ISoundTriggerClient>& client,
                             sp<ISoundTrigger>& module);
 
+    virtual status_t setCaptureState(bool active);
+
     virtual status_t    onTransact(uint32_t code, const Parcel& data,
                                    Parcel* reply, uint32_t flags);
 
@@ -66,17 +68,33 @@ public:
             STATE_ACTIVE
         };
 
-        Model(sound_model_handle_t handle);
+        Model(sound_model_handle_t handle, audio_session_t session, audio_io_handle_t ioHandle,
+              audio_devices_t device, sound_trigger_sound_model_type_t type);
         ~Model() {}
-
-        sp<IMemory> allocateMemory(size_t size);
-        void deallocateMemory();
 
         sound_model_handle_t    mHandle;
         int                     mState;
-        audio_io_handle_t       mInputHandle;
         audio_session_t         mCaptureSession;
-        sp<MemoryDealer>        mMemoryDealer;
+        audio_io_handle_t       mCaptureIOHandle;
+        audio_devices_t         mCaptureDevice;
+        sound_trigger_sound_model_type_t mType;
+        struct sound_trigger_recognition_config mConfig;
+    };
+
+    class CallbackEvent : public RefBase {
+    public:
+        typedef enum {
+            TYPE_RECOGNITION,
+            TYPE_SOUNDMODEL,
+            TYPE_SERVICE_STATE,
+        } event_type;
+        CallbackEvent(event_type type, sp<IMemory> memory, wp<Module> module);
+
+        virtual             ~CallbackEvent();
+
+        event_type mType;
+        sp<IMemory> mMemory;
+        wp<Module> mModule;
     };
 
     class Module : public virtual RefBase,
@@ -109,35 +127,28 @@ public:
        struct sound_trigger_module_descriptor descriptor() { return mDescriptor; }
        void setClient(sp<ISoundTriggerClient> client) { mClient = client; }
        void clearClient() { mClient.clear(); }
-       sp<ISoundTriggerClient> client() { return mClient; }
+       sp<ISoundTriggerClient> client() const { return mClient; }
+       wp<SoundTriggerHwService> service() const { return mService; }
 
-       void sendRecognitionEvent(struct sound_trigger_recognition_event *event);
-       void onRecognitionEvent(sp<IMemory> eventMemory);
+       void onCallbackEvent(const sp<CallbackEvent>& event);
 
        sp<Model> getModel(sound_model_handle_t handle);
+
+       void setCaptureState_l(bool active);
 
        // IBinder::DeathRecipient implementation
        virtual void        binderDied(const wp<IBinder> &who);
 
     private:
+
         Mutex                                  mLock;
         wp<SoundTriggerHwService>              mService;
         struct sound_trigger_hw_device*        mHwDevice;
         struct sound_trigger_module_descriptor mDescriptor;
         sp<ISoundTriggerClient>                mClient;
         DefaultKeyedVector< sound_model_handle_t, sp<Model> >     mModels;
+        sound_trigger_service_state_t          mServiceState;
     }; // class Module
-
-    class RecognitionEvent : public RefBase {
-    public:
-
-        RecognitionEvent(sp<IMemory> eventMemory, wp<Module> module);
-
-        virtual             ~RecognitionEvent();
-
-        sp<IMemory> mEventMemory;
-        wp<Module> mModule;
-    };
 
     class CallbackThread : public Thread {
     public:
@@ -153,22 +164,30 @@ public:
         virtual void        onFirstRef();
 
                 void        exit();
-                void        sendRecognitionEvent(const sp<RecognitionEvent>& event);
+                void        sendCallbackEvent(const sp<CallbackEvent>& event);
 
     private:
         wp<SoundTriggerHwService>   mService;
         Condition                   mCallbackCond;
         Mutex                       mCallbackLock;
-        Vector< sp<RecognitionEvent> > mEventQueue;
+        Vector< sp<CallbackEvent> > mEventQueue;
     };
 
-    void detachModule(sp<Module> module);
+           void detachModule(sp<Module> module);
 
     static void recognitionCallback(struct sound_trigger_recognition_event *event, void *cookie);
-    void sendRecognitionEvent(const sp<RecognitionEvent>& event);
-    void onRecognitionEvent(const sp<RecognitionEvent>& event);
+           sp<IMemory> prepareRecognitionEvent_l(struct sound_trigger_recognition_event *event);
+           void sendRecognitionEvent(struct sound_trigger_recognition_event *event, Module *module);
 
     static void soundModelCallback(struct sound_trigger_model_event *event, void *cookie);
+           sp<IMemory> prepareSoundModelEvent_l(struct sound_trigger_model_event *event);
+           void sendSoundModelEvent(struct sound_trigger_model_event *event, Module *module);
+
+           sp<IMemory> prepareServiceStateEvent_l(sound_trigger_service_state_t state);
+           void sendServiceStateEvent_l(sound_trigger_service_state_t state, Module *module);
+
+           void sendCallbackEvent_l(const sp<CallbackEvent>& event);
+           void onCallbackEvent(const sp<CallbackEvent>& event);
 
 private:
 
@@ -178,6 +197,8 @@ private:
     volatile int32_t    mNextUniqueId;
     DefaultKeyedVector< sound_trigger_module_handle_t, sp<Module> >     mModules;
     sp<CallbackThread>  mCallbackThread;
+    sp<MemoryDealer>    mMemoryDealer;
+    bool                mCaptureState;
 };
 
 } // namespace android

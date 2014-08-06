@@ -31,6 +31,10 @@ public:
 
     virtual void onRecognitionEvent(struct sound_trigger_recognition_event *event) = 0;
 
+    virtual void onSoundModelEvent(struct sound_trigger_model_event *event) = 0;
+
+    virtual void onServiceStateChange(sound_trigger_service_state_t state) = 0;
+
     virtual void onServiceDied() = 0;
 
 };

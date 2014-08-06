@@ -39,6 +39,8 @@ public:
     virtual status_t attach(const sound_trigger_module_handle_t handle,
                                       const sp<ISoundTriggerClient>& client,
                                       sp<ISoundTrigger>& module) = 0;
+
+    virtual status_t setCaptureState(bool active) = 0;
 };
 
 // ----------------------------------------------------------------------------
