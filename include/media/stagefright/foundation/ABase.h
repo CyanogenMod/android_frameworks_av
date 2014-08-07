@@ -18,6 +18,8 @@
 
 #define A_BASE_H_
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
+
 #define DISALLOW_EVIL_CONSTRUCTORS(name) \
     name(const name &); \
     name &operator=(const name &)

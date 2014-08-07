@@ -27,8 +27,6 @@
 #include <utils/threads.h>
 #include <utils/Vector.h>
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
-
 namespace android {
 
 struct SoftVideoDecoderOMXComponent : public SimpleSoftOMXComponent {
