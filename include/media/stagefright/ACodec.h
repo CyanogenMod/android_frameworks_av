@@ -76,6 +76,10 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
         DISALLOW_EVIL_CONSTRUCTORS(PortDescription);
     };
 
+    static bool isFlexibleColorFormat(
+        const sp<IOMX> &omx, IOMX::node_id node,
+        uint32_t colorFormat, OMX_U32 *flexibleEquivalent);
+
 protected:
     virtual ~ACodec();
 
@@ -307,7 +311,10 @@ private:
             OMX_ERRORTYPE error = OMX_ErrorUndefined,
             status_t internalError = UNKNOWN_ERROR);
 
-    static void describeDefaultColorFormat(DescribeColorFormatParams &describeParams);
+    static bool describeDefaultColorFormat(DescribeColorFormatParams &describeParams);
+    static bool describeColorFormat(
+        const sp<IOMX> &omx, IOMX::node_id node,
+        DescribeColorFormatParams &describeParams);
 
     status_t requestIDRFrame();
     status_t setParameters(const sp<AMessage> &params);
