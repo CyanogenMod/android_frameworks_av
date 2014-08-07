@@ -30,18 +30,19 @@ namespace android {
 struct AnotherPacketSource;
 struct ARTSPController;
 struct DataSource;
+struct IMediaHTTPService;
 struct MediaSource;
 class MediaBuffer;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
 
-    status_t init(
+    status_t setDataSource(
             const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers);
 
-    status_t init(int fd, int64_t offset, int64_t length);
+    status_t setDataSource(int fd, int64_t offset, int64_t length);
 
     virtual void prepareAsync();
 
@@ -96,6 +97,14 @@ private:
     bool mIsWidevine;
     bool mUIDValid;
     uid_t mUID;
+    sp<IMediaHTTPService> mHTTPService;
+    AString mUri;
+    KeyedVector<String8, String8> mUriHeaders;
+    int mFd;
+    int64_t mOffset;
+    int64_t mLength;
+
+    void resetDataSource();
 
     status_t initFromDataSource(
             const sp<DataSource> &dataSource,

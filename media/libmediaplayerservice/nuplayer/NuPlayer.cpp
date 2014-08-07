@@ -232,12 +232,12 @@ void NuPlayer::setDataSourceAsync(
         // The correct flags will be updated in Source::kWhatFlagsChanged
         // handler when  GenericSource is prepared.
 
-        status_t err = genericSource->init(httpService, url, headers);
+        status_t err = genericSource->setDataSource(httpService, url, headers);
 
         if (err == OK) {
             source = genericSource;
         } else {
-            ALOGE("Failed to initialize generic source!");
+            ALOGE("Failed to set data source!");
         }
     }
     msg->setObject("source", source);
@@ -252,10 +252,10 @@ void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
     sp<GenericSource> source =
             new GenericSource(notify, mUIDValid, mUID);
 
-    status_t err = source->init(fd, offset, length);
+    status_t err = source->setDataSource(fd, offset, length);
 
     if (err != OK) {
-        ALOGE("Failed to initialize generic source!");
+        ALOGE("Failed to set data source!");
         source = NULL;
     }
 
