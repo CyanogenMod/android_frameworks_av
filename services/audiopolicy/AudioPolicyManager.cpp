@@ -95,8 +95,8 @@ const StringToEnum sDeviceNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_DEVICE_IN_WIRED_HEADSET),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_AUX_DIGITAL),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_HDMI),
-    STRING_TO_ENUM(AUDIO_DEVICE_IN_VOICE_CALL),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_TELEPHONY_RX),
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_VOICE_CALL),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_BACK_MIC),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_REMOTE_SUBMIX),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET),
@@ -304,17 +304,24 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
         }
 
         updateDevicesAndOutputs();
+        if (mPhoneState == AUDIO_MODE_IN_CALL) {
+            audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
+            updateCallRouting(newDevice);
+        }
         for (size_t i = 0; i < mOutputs.size(); i++) {
-            // do not force device change on duplicated output because if device is 0, it will
-            // also force a device 0 for the two outputs it is duplicated to which may override
-            // a valid device selection on those outputs.
-            bool force = !mOutputs.valueAt(i)->isDuplicated()
-                    && (!deviceDistinguishesOnAddress(device)
-                            // always force when disconnecting (a non-duplicated device)
-                            || (state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE));
-            setOutputDevice(mOutputs.keyAt(i),
-                            getNewOutputDevice(mOutputs.keyAt(i), true /*fromCache*/),
-                            force, 0);
+            audio_io_handle_t output = mOutputs.keyAt(i);
+            if ((mPhoneState != AUDIO_MODE_IN_CALL) || (output != mPrimaryOutput)) {
+                audio_devices_t newDevice = getNewOutputDevice(mOutputs.keyAt(i),
+                                                               true /*fromCache*/);
+                // do not force device change on duplicated output because if device is 0, it will
+                // also force a device 0 for the two outputs it is duplicated to which may override
+                // a valid device selection on those outputs.
+                bool force = !mOutputs.valueAt(i)->isDuplicated()
+                        && (!deviceDistinguishesOnAddress(device)
+                                // always force when disconnecting (a non-duplicated device)
+                                || (state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE));
+                setOutputDevice(output, newDevice, force, 0);
+            }
         }
 
         mpClientInterface->onAudioPortListUpdate();
@@ -372,6 +379,11 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
 
         closeAllInputs();
 
+        if (mPhoneState == AUDIO_MODE_IN_CALL) {
+            audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
+            updateCallRouting(newDevice);
+        }
+
         mpClientInterface->onAudioPortListUpdate();
         return NO_ERROR;
     } // end if is input device
@@ -406,10 +418,124 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
     }
 }
 
+void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs)
+{
+    bool createTxPatch = false;
+    struct audio_patch patch;
+    patch.num_sources = 1;
+    patch.num_sinks = 1;
+    status_t status;
+    audio_patch_handle_t afPatchHandle;
+    DeviceVector deviceList;
+
+    audio_devices_t txDevice = getDeviceForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+    ALOGV("updateCallRouting device rxDevice %08x txDevice %08x", rxDevice, txDevice);
+
+    // release existing RX patch if any
+    if (mCallRxPatch != 0) {
+        mpClientInterface->releaseAudioPatch(mCallRxPatch->mAfPatchHandle, 0);
+        mCallRxPatch.clear();
+    }
+    // release TX patch if any
+    if (mCallTxPatch != 0) {
+        mpClientInterface->releaseAudioPatch(mCallTxPatch->mAfPatchHandle, 0);
+        mCallTxPatch.clear();
+    }
+
+    // If the RX device is on the primary HW module, then use legacy routing method for voice calls
+    // via setOutputDevice() on primary output.
+    // Otherwise, create two audio patches for TX and RX path.
+    if (availablePrimaryOutputDevices() & rxDevice) {
+        setOutputDevice(mPrimaryOutput, rxDevice, true, delayMs);
+        // If the TX device is also on the primary HW module, setOutputDevice() will take care
+        // of it due to legacy implementation. If not, create a patch.
+        if ((availablePrimaryInputDevices() & txDevice & ~AUDIO_DEVICE_BIT_IN)
+                == AUDIO_DEVICE_NONE) {
+            createTxPatch = true;
+        }
+    } else {
+        // create RX path audio patch
+        deviceList = mAvailableOutputDevices.getDevicesFromType(rxDevice);
+        ALOG_ASSERT(!deviceList.isEmpty(),
+                    "updateCallRouting() selected device not in output device list");
+        sp<DeviceDescriptor> rxSinkDeviceDesc = deviceList.itemAt(0);
+        deviceList = mAvailableInputDevices.getDevicesFromType(AUDIO_DEVICE_IN_TELEPHONY_RX);
+        ALOG_ASSERT(!deviceList.isEmpty(),
+                    "updateCallRouting() no telephony RX device");
+        sp<DeviceDescriptor> rxSourceDeviceDesc = deviceList.itemAt(0);
+
+        rxSourceDeviceDesc->toAudioPortConfig(&patch.sources[0]);
+        rxSinkDeviceDesc->toAudioPortConfig(&patch.sinks[0]);
+
+        // request to reuse existing output stream if one is already opened to reach the RX device
+        SortedVector<audio_io_handle_t> outputs =
+                                getOutputsForDevice(rxDevice, mOutputs);
+        audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+        if (output != AUDIO_IO_HANDLE_NONE) {
+            sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
+            ALOG_ASSERT(!outputDesc->isDuplicated(),
+                        "updateCallRouting() RX device output is duplicated");
+            outputDesc->toAudioPortConfig(&patch.sources[1]);
+            patch.num_sources = 2;
+        }
+
+        afPatchHandle = AUDIO_PATCH_HANDLE_NONE;
+        status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, 0);
+        ALOGW_IF(status != NO_ERROR, "updateCallRouting() error %d creating RX audio patch",
+                                               status);
+        if (status == NO_ERROR) {
+            mCallRxPatch = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
+                                       &patch, mUidCached);
+            mCallRxPatch->mAfPatchHandle = afPatchHandle;
+            mCallRxPatch->mUid = mUidCached;
+        }
+        createTxPatch = true;
+    }
+    if (createTxPatch) {
+
+        struct audio_patch patch;
+        patch.num_sources = 1;
+        patch.num_sinks = 1;
+        deviceList = mAvailableInputDevices.getDevicesFromType(txDevice);
+        ALOG_ASSERT(!deviceList.isEmpty(),
+                    "updateCallRouting() selected device not in input device list");
+        sp<DeviceDescriptor> txSourceDeviceDesc = deviceList.itemAt(0);
+        txSourceDeviceDesc->toAudioPortConfig(&patch.sources[0]);
+        deviceList = mAvailableOutputDevices.getDevicesFromType(AUDIO_DEVICE_OUT_TELEPHONY_TX);
+        ALOG_ASSERT(!deviceList.isEmpty(),
+                    "updateCallRouting() no telephony TX device");
+        sp<DeviceDescriptor> txSinkDeviceDesc = deviceList.itemAt(0);
+        txSinkDeviceDesc->toAudioPortConfig(&patch.sinks[0]);
+
+        SortedVector<audio_io_handle_t> outputs =
+                                getOutputsForDevice(AUDIO_DEVICE_OUT_TELEPHONY_TX, mOutputs);
+        audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+        // request to reuse existing output stream if one is already opened to reach the TX
+        // path output device
+        if (output != AUDIO_IO_HANDLE_NONE) {
+            sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
+            ALOG_ASSERT(!outputDesc->isDuplicated(),
+                        "updateCallRouting() RX device output is duplicated");
+            outputDesc->toAudioPortConfig(&patch.sources[1]);
+            patch.num_sources = 2;
+        }
+
+        afPatchHandle = AUDIO_PATCH_HANDLE_NONE;
+        status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, 0);
+        ALOGW_IF(status != NO_ERROR, "setPhoneState() error %d creating TX audio patch",
+                                               status);
+        if (status == NO_ERROR) {
+            mCallTxPatch = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
+                                       &patch, mUidCached);
+            mCallTxPatch->mAfPatchHandle = afPatchHandle;
+            mCallTxPatch->mUid = mUidCached;
+        }
+    }
+}
+
 void AudioPolicyManager::setPhoneState(audio_mode_t state)
 {
     ALOGV("setPhoneState() state %d", state);
-    audio_devices_t newDevice = AUDIO_DEVICE_NONE;
     if (state < 0 || state >= AUDIO_MODE_CNT) {
         ALOGW("setPhoneState() invalid state %d", state);
         return;
@@ -461,18 +587,11 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     }
 
     // check for device and output changes triggered by new phone state
-    newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
     checkA2dpSuspend();
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
 
     sp<AudioOutputDescriptor> hwOutputDesc = mOutputs.valueFor(mPrimaryOutput);
-
-    // force routing command to audio hardware when ending call
-    // even if no device change is needed
-    if (isStateInCall(oldState) && newDevice == AUDIO_DEVICE_NONE) {
-        newDevice = hwOutputDesc->device();
-    }
 
     int delayMs = 0;
     if (isStateInCall(state)) {
@@ -500,9 +619,30 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
         }
     }
 
-    // change routing is necessary
-    setOutputDevice(mPrimaryOutput, newDevice, force, delayMs);
+    // Note that despite the fact that getNewOutputDevice() is called on the primary output,
+    // the device returned is not necessarily reachable via this output
+    audio_devices_t rxDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
+    // force routing command to audio hardware when ending call
+    // even if no device change is needed
+    if (isStateInCall(oldState) && rxDevice == AUDIO_DEVICE_NONE) {
+        rxDevice = hwOutputDesc->device();
+    }
 
+    if (state == AUDIO_MODE_IN_CALL) {
+        updateCallRouting(rxDevice, delayMs);
+    } else if (oldState == AUDIO_MODE_IN_CALL) {
+        if (mCallRxPatch != 0) {
+            mpClientInterface->releaseAudioPatch(mCallRxPatch->mAfPatchHandle, 0);
+            mCallRxPatch.clear();
+        }
+        if (mCallTxPatch != 0) {
+            mpClientInterface->releaseAudioPatch(mCallTxPatch->mAfPatchHandle, 0);
+            mCallTxPatch.clear();
+        }
+        setOutputDevice(mPrimaryOutput, rxDevice, force, 0);
+    } else {
+        setOutputDevice(mPrimaryOutput, rxDevice, force, 0);
+    }
     // if entering in call state, handle special case of active streams
     // pertaining to sonification strategy see handleIncallSonification()
     if (isStateInCall(state)) {
@@ -591,10 +731,16 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
     checkA2dpSuspend();
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
+    if (mPhoneState == AUDIO_MODE_IN_CALL) {
+        audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, true /*fromCache*/);
+        updateCallRouting(newDevice);
+    }
     for (size_t i = 0; i < mOutputs.size(); i++) {
         audio_io_handle_t output = mOutputs.keyAt(i);
         audio_devices_t newDevice = getNewOutputDevice(output, true /*fromCache*/);
-        setOutputDevice(output, newDevice, (newDevice != AUDIO_DEVICE_NONE));
+        if ((mPhoneState != AUDIO_MODE_IN_CALL) || (output != mPrimaryOutput)) {
+            setOutputDevice(output, newDevice, (newDevice != AUDIO_DEVICE_NONE));
+        }
         if (forceVolumeReeval && (newDevice != AUDIO_DEVICE_NONE)) {
             applyStreamVolumes(output, newDevice, 0, true);
         }
@@ -1901,6 +2047,25 @@ sp <AudioPolicyManager::HwModule> AudioPolicyManager::getModuleFromName(const ch
     return module;
 }
 
+audio_devices_t AudioPolicyManager::availablePrimaryOutputDevices()
+{
+    sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(mPrimaryOutput);
+    audio_devices_t devices = outputDesc->mProfile->mSupportedDevices.types();
+    return devices & mAvailableOutputDevices.types();
+}
+
+audio_devices_t AudioPolicyManager::availablePrimaryInputDevices()
+{
+    audio_module_handle_t primaryHandle =
+                                mOutputs.valueFor(mPrimaryOutput)->mProfile->mModule->mHandle;
+    audio_devices_t devices = AUDIO_DEVICE_NONE;
+    for (size_t i = 0; i < mAvailableInputDevices.size(); i++) {
+        if (mAvailableInputDevices[i]->mModule->mHandle == primaryHandle) {
+            devices |= mAvailableInputDevices[i]->mDeviceType;
+        }
+    }
+    return devices;
+}
 
 status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                audio_patch_handle_t *handle,
@@ -3650,6 +3815,21 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         // FALL THROUGH
 
     case STRATEGY_PHONE:
+        // Force use of only devices on primary output if:
+        // - in call AND
+        //   - cannot route from voice call RX OR
+        //   - audio HAL version is < 3.0 and TX device is on the primary HW module
+        if (mPhoneState == AUDIO_MODE_IN_CALL) {
+            audio_devices_t txDevice = getDeviceForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+            sp<AudioOutputDescriptor> hwOutputDesc = mOutputs.valueFor(mPrimaryOutput);
+            if (((mAvailableInputDevices.types() &
+                    AUDIO_DEVICE_IN_TELEPHONY_RX & ~AUDIO_DEVICE_BIT_IN) == 0) ||
+                    (((txDevice & availablePrimaryInputDevices() & ~AUDIO_DEVICE_BIT_IN) != 0) &&
+                         (hwOutputDesc->mAudioPort->mModule->mHalVersion <
+                             AUDIO_DEVICE_API_VERSION_3_0))) {
+                availableOutputDeviceTypes = availablePrimaryOutputDevices();
+            }
+        }
         // for phone strategy, we first consider the forced use and then the available devices by order
         // of priority
         switch (mForceUse[AUDIO_POLICY_FORCE_FOR_COMMUNICATION]) {
@@ -3679,10 +3859,10 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
             if (device) break;
             device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADSET;
             if (device) break;
+            device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
+            if (device) break;
             if (mPhoneState != AUDIO_MODE_IN_CALL) {
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_ACCESSORY;
-                if (device) break;
-                device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
                 if (device) break;
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;
                 if (device) break;
@@ -4187,19 +4367,60 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
           device = AUDIO_DEVICE_IN_VOICE_CALL;
           break;
       }
-      // FALL THROUGH
+      break;
 
     case AUDIO_SOURCE_DEFAULT:
     case AUDIO_SOURCE_MIC:
     if (availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_A2DP) {
         device = AUDIO_DEVICE_IN_BLUETOOTH_A2DP;
-        break;
+    } else if (availableDeviceTypes & AUDIO_DEVICE_IN_WIRED_HEADSET) {
+        device = AUDIO_DEVICE_IN_WIRED_HEADSET;
+    } else if (availableDeviceTypes & AUDIO_DEVICE_IN_USB_DEVICE) {
+        device = AUDIO_DEVICE_IN_USB_DEVICE;
+    } else if (availableDeviceTypes & AUDIO_DEVICE_IN_BUILTIN_MIC) {
+        device = AUDIO_DEVICE_IN_BUILTIN_MIC;
     }
-    // FALL THROUGH
+    break;
+
+    case AUDIO_SOURCE_VOICE_COMMUNICATION:
+        // Allow only use of devices on primary input if in call and HAL does not support routing
+        // to voice call path.
+        if ((mPhoneState == AUDIO_MODE_IN_CALL) &&
+                (mAvailableOutputDevices.types() & AUDIO_DEVICE_OUT_TELEPHONY_TX) == 0) {
+            availableDeviceTypes = availablePrimaryInputDevices() & ~AUDIO_DEVICE_BIT_IN;
+        }
+
+        switch (mForceUse[AUDIO_POLICY_FORCE_FOR_COMMUNICATION]) {
+        case AUDIO_POLICY_FORCE_BT_SCO:
+            // if SCO device is requested but no SCO device is available, fall back to default case
+            if (availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
+                device = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
+                break;
+            }
+            // FALL THROUGH
+
+        default:    // FORCE_NONE
+            if (availableDeviceTypes & AUDIO_DEVICE_IN_WIRED_HEADSET) {
+                device = AUDIO_DEVICE_IN_WIRED_HEADSET;
+            } else if (availableDeviceTypes & AUDIO_DEVICE_IN_USB_DEVICE) {
+                device = AUDIO_DEVICE_IN_USB_DEVICE;
+            } else if (availableDeviceTypes & AUDIO_DEVICE_IN_BUILTIN_MIC) {
+                device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+            }
+            break;
+
+        case AUDIO_POLICY_FORCE_SPEAKER:
+            if (availableDeviceTypes & AUDIO_DEVICE_IN_BACK_MIC) {
+                device = AUDIO_DEVICE_IN_BACK_MIC;
+            } else if (availableDeviceTypes & AUDIO_DEVICE_IN_BUILTIN_MIC) {
+                device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+            }
+            break;
+        }
+        break;
 
     case AUDIO_SOURCE_VOICE_RECOGNITION:
     case AUDIO_SOURCE_HOTWORD:
-    case AUDIO_SOURCE_VOICE_COMMUNICATION:
         if (mForceUse[AUDIO_POLICY_FORCE_FOR_RECORD] == AUDIO_POLICY_FORCE_BT_SCO &&
                 availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
             device = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
