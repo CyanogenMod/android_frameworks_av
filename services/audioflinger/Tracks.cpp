@@ -1885,10 +1885,10 @@ status_t AudioFlinger::PlaybackThread::PatchTrack::getNextBuffer(
     buf.mFrameCount = buffer->frameCount;
     status_t status = mPeerProxy->obtainBuffer(&buf, &mPeerTimeout);
     ALOGV_IF(status != NO_ERROR, "PatchTrack() %p getNextBuffer status %d", this, status);
+    buffer->frameCount = buf.mFrameCount;
     if (buf.mFrameCount == 0) {
         return WOULD_BLOCK;
     }
-    buffer->frameCount = buf.mFrameCount;
     status = Track::getNextBuffer(buffer, pts);
     return status;
 }
@@ -2166,10 +2166,10 @@ status_t AudioFlinger::RecordThread::PatchRecord::getNextBuffer(
     status_t status = mPeerProxy->obtainBuffer(&buf, &mPeerTimeout);
     ALOGV_IF(status != NO_ERROR,
              "PatchRecord() %p mPeerProxy->obtainBuffer status %d", this, status);
+    buffer->frameCount = buf.mFrameCount;
     if (buf.mFrameCount == 0) {
         return WOULD_BLOCK;
     }
-    buffer->frameCount = buf.mFrameCount;
     status = RecordTrack::getNextBuffer(buffer, pts);
     return status;
 }
