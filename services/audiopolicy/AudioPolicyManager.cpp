@@ -4955,6 +4955,12 @@ const AudioPolicyManager::VolumeCurvePoint
         sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_EARPIECE
         sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
+    { // AUDIO_STREAM_INCALL_MUSIC
+        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET
+        sSpeakerMediaVolumeCurve, // DEVICE_CATEGORY_SPEAKER
+        sDefaultMediaVolumeCurve,  // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
+    },
 };
 
 void AudioPolicyManager::initializeVolumeCurves()
