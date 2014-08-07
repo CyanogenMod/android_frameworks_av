@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <cutils/properties.h>
 #include <media/AudioParameter.h>
+#include <media/AudioResamplerPublic.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
@@ -1479,8 +1480,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 lStatus = BAD_VALUE;
                 goto Exit;
         }
-        // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-        if (sampleRate > mSampleRate*2) {
+        if (sampleRate > mSampleRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
             ALOGE("Sample rate out of range: %u mSampleRate %u", sampleRate, mSampleRate);
             lStatus = BAD_VALUE;
             goto Exit;
@@ -3500,7 +3500,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 AudioMixer::TRACK,
                 AudioMixer::MIXER_CHANNEL_MASK, (void *)(uintptr_t)mChannelMask);
             // limit track sample rate to 2 x output sample rate, which changes at re-configuration
-            uint32_t maxSampleRate = mSampleRate * 2;
+            uint32_t maxSampleRate = mSampleRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX;
             uint32_t reqSampleRate = track->mAudioTrackServerProxy->getSampleRate();
             if (reqSampleRate == 0) {
                 reqSampleRate = mSampleRate;

@@ -28,6 +28,7 @@
 #include <utils/Log.h>
 #include <private/media/AudioTrackShared.h>
 #include <media/IAudioFlinger.h>
+#include <media/AudioResamplerPublic.h>
 
 #define WAIT_PERIOD_MS                  10
 #define WAIT_STREAM_END_TIMEOUT_SEC     120
@@ -82,7 +83,7 @@ status_t AudioTrack::getMinFrameCount(
     }
 
     *frameCount = (sampleRate == 0) ? afFrameCount * minBufCount :
-            afFrameCount * minBufCount * sampleRate / afSampleRate;
+            afFrameCount * minBufCount * uint64_t(sampleRate) / afSampleRate;
     // The formula above should always produce a non-zero value, but return an error
     // in the unlikely event that it does not, as that's part of the API contract.
     if (*frameCount == 0) {
@@ -646,8 +647,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (AudioSystem::getOutputSamplingRateForAttr(&afSamplingRate, &mAttributes) != NO_ERROR) {
         return NO_INIT;
     }
-    // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-    if (rate == 0 || rate > afSamplingRate*2 ) {
+    if (rate == 0 || rate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
         return BAD_VALUE;
     }
 
@@ -1002,7 +1002,7 @@ status_t AudioTrack::createTrack_l(size_t epoch)
             minBufCount = nBuffering;
         }
 
-        size_t minFrameCount = (afFrameCount*mSampleRate*minBufCount)/afSampleRate;
+        size_t minFrameCount = afFrameCount * minBufCount * uint64_t(mSampleRate) / afSampleRate;
         ALOGV("minFrameCount: %zu, afFrameCount=%zu, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
                 ", afLatency=%d",
                 minFrameCount, afFrameCount, minBufCount, mSampleRate, afSampleRate, afLatency);
