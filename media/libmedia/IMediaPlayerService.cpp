@@ -23,6 +23,7 @@
 #include <media/ICrypto.h>
 #include <media/IDrm.h>
 #include <media/IHDCP.h>
+#include <media/IMediaCodecList.h>
 #include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
@@ -49,6 +50,7 @@ enum {
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA,
     LISTEN_FOR_REMOTE_DISPLAY,
+    GET_CODEC_LIST,
 };
 
 class BpMediaPlayerService: public BpInterface<IMediaPlayerService>
@@ -191,6 +193,13 @@ public:
         remote()->transact(LISTEN_FOR_REMOTE_DISPLAY, data, &reply);
         return interface_cast<IRemoteDisplay>(reply.readStrongBinder());
     }
+
+    virtual sp<IMediaCodecList> getCodecList() const {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        remote()->transact(GET_CODEC_LIST, data, &reply);
+        return interface_cast<IMediaCodecList>(reply.readStrongBinder());
+    }
 };
 
 IMPLEMENT_META_INTERFACE(MediaPlayerService, "android.media.IMediaPlayerService");
@@ -316,6 +325,12 @@ status_t BnMediaPlayerService::onTransact(
             String8 iface(data.readString8());
             sp<IRemoteDisplay> display(listenForRemoteDisplay(client, iface));
             reply->writeStrongBinder(display->asBinder());
+            return NO_ERROR;
+        } break;
+        case GET_CODEC_LIST: {
+            CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            sp<IMediaCodecList> mcl = getCodecList();
+            reply->writeStrongBinder(mcl->asBinder());
             return NO_ERROR;
         } break;
         default:
