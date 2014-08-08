@@ -343,7 +343,8 @@ private:
             uint32_t channelCount = FCC_2; // stereo is default
             if (kEnableExtendedChannels) {
                 channelCount = audio_channel_count_from_out_mask(channelMask);
-                if (channelCount > AudioMixer::MAX_NUM_CHANNELS) {
+                if (channelCount < FCC_2 // mono is not supported at this time
+                        || channelCount > AudioMixer::MAX_NUM_CHANNELS) {
                     return false;
                 }
             }
