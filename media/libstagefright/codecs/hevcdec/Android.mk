@@ -20,6 +20,10 @@ LOCAL_SHARED_LIBRARIES  += libstagefright_foundation
 LOCAL_SHARED_LIBRARIES  += libutils
 LOCAL_SHARED_LIBRARIES  += liblog
 
+# We need this because the current asm generates the following link error:
+# requires unsupported dynamic reloc R_ARM_REL32; recompile with -fPIC
+# Bug: 16853291
+LOCAL_LDFLAGS := -Wl,-Bsymbolic
 
 include $(BUILD_SHARED_LIBRARY)
 
