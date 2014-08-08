@@ -93,11 +93,9 @@ class Camera3Device :
 
     // Actual stream creation/deletion is delayed until first request is submitted
     // If adding streams while actively capturing, will pause device before adding
-    // stream, reconfiguring device, and unpausing. Note that, for JPEG stream, the
-    // buffer size may be overwritten by an more accurate value calculated by Camera3Device.
+    // stream, reconfiguring device, and unpausing.
     virtual status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format, size_t size,
-            int *id);
+            uint32_t width, uint32_t height, int format, int *id);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);
@@ -136,6 +134,8 @@ class Camera3Device :
     virtual status_t flush(int64_t *lastFrameNumber = NULL);
 
     virtual uint32_t getDeviceVersion();
+
+    virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
 
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker
@@ -315,12 +315,6 @@ class Camera3Device :
      * Return Size(0, 0) if static metatdata is invalid
      */
     Size getMaxJpegResolution() const;
-
-    /**
-     * Get Jpeg buffer size for a given jpeg resolution.
-     * Negative values are error codes.
-     */
-    ssize_t             getJpegBufferSize(uint32_t width, uint32_t height) const;
 
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger

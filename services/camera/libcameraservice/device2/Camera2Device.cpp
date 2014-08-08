@@ -242,13 +242,16 @@ status_t Camera2Device::waitUntilRequestReceived(int32_t requestId, nsecs_t time
 }
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, int format, size_t size, int *id) {
+        uint32_t width, uint32_t height, int format, int *id) {
     ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
     sp<StreamAdapter> stream = new StreamAdapter(mHal2Device);
-
+    size_t size = 0;
+    if (format == HAL_PIXEL_FORMAT_BLOB) {
+        size = getJpegBufferSize(width, height);
+    }
     res = stream->connectToDevice(consumer, width, height, format, size);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to create stream (%d x %d, format %x):"
@@ -261,6 +264,17 @@ status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
 
     mStreams.push_back(stream);
     return OK;
+}
+
+ssize_t Camera2Device::getJpegBufferSize(uint32_t width, uint32_t height) const {
+    // Always give the max jpeg buffer size regardless of the actual jpeg resolution.
+    camera_metadata_ro_entry jpegBufMaxSize = mDeviceInfo.find(ANDROID_JPEG_MAX_SIZE);
+    if (jpegBufMaxSize.count == 0) {
+        ALOGE("%s: Camera %d: Can't find maximum JPEG size in static metadata!", __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
+
+    return jpegBufMaxSize.data.i32[0];
 }
 
 status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
