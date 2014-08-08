@@ -358,7 +358,7 @@ AString AString::FromParcel(const Parcel &parcel) {
 }
 
 status_t AString::writeToParcel(Parcel *parcel) const {
-    CHECK_LE(mSize, (size_t)INT32_MAX);
+    CHECK_LE(mSize, static_cast<size_t>(INT32_MAX));
     status_t err = parcel->writeInt32(mSize);
     if (err == OK) {
         err = parcel->write(mData, mSize);
