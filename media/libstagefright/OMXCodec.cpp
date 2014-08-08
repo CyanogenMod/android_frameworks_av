@@ -35,6 +35,7 @@
 #include <HardwareAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/IMediaPlayerService.h>
+#include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaDefs.h>
@@ -1551,7 +1552,7 @@ OMXCodec::~OMXCodec() {
     status_t err = mOMX->freeNode(mNode);
     CHECK_EQ(err, (status_t)OK);
 
-    mNode = NULL;
+    mNode = 0;
     setState(DEAD);
 
     clearCodecSpecificData();
@@ -4746,6 +4747,8 @@ status_t QueryCodec(
     }
 
     // Color format query
+    // return colors in the order reported by the OMX component
+    // prefix "flexible" standard ones with the flexible equivalent
     OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
     InitOMXParams(&portFormat);
     portFormat.nPortIndex = !isEncoder ? 1 : 0;
@@ -4755,6 +4758,21 @@ status_t QueryCodec(
                 &portFormat, sizeof(portFormat));
         if (err != OK) {
             break;
+        }
+
+        OMX_U32 flexibleEquivalent;
+        if (ACodec::isFlexibleColorFormat(
+                    omx, node, portFormat.eColorFormat, &flexibleEquivalent)) {
+            bool marked = false;
+            for (size_t i = 0; i < caps->mColorFormats.size(); i++) {
+                if (caps->mColorFormats.itemAt(i) == flexibleEquivalent) {
+                    marked = true;
+                    break;
+                }
+            }
+            if (!marked) {
+                caps->mColorFormats.push(flexibleEquivalent);
+            }
         }
         caps->mColorFormats.push(portFormat.eColorFormat);
     }
