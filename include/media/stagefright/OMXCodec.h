@@ -28,7 +28,7 @@
 
 namespace android {
 
-struct MediaCodecList;
+struct MediaCodecInfo;
 class MemoryDealer;
 struct OMXCodecObserver;
 struct CodecProfileLevel;
@@ -115,7 +115,7 @@ struct OMXCodec : public MediaSource,
             Vector<CodecNameAndQuirks> *matchingCodecNamesAndQuirks);
 
     static uint32_t getComponentQuirks(
-            const MediaCodecList *list, size_t index);
+            const sp<MediaCodecInfo> &list);
 
     static bool findCodecQuirks(const char *componentName, uint32_t *quirks);
 
