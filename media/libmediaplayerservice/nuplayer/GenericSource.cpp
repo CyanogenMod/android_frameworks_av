@@ -21,6 +21,7 @@
 
 #include "AnotherPacketSource.h"
 
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -47,33 +48,48 @@ NuPlayer::GenericSource::GenericSource(
       mIsWidevine(false),
       mUIDValid(uidValid),
       mUID(uid) {
+    resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
 
-status_t NuPlayer::GenericSource::init(
+void NuPlayer::GenericSource::resetDataSource() {
+    mHTTPService.clear();
+    mUri.clear();
+    mUriHeaders.clear();
+    mFd = -1;
+    mOffset = 0;
+    mLength = 0;
+}
+
+status_t NuPlayer::GenericSource::setDataSource(
         const sp<IMediaHTTPService> &httpService,
         const char *url,
         const KeyedVector<String8, String8> *headers) {
-    mIsWidevine = !strncasecmp(url, "widevine://", 11);
+    resetDataSource();
 
-    AString sniffedMIME;
+    mHTTPService = httpService;
+    mUri = url;
 
-    sp<DataSource> dataSource =
-        DataSource::CreateFromURI(httpService, url, headers, &sniffedMIME);
-
-    if (dataSource == NULL) {
-        return UNKNOWN_ERROR;
+    if (headers) {
+        mUriHeaders = *headers;
     }
 
-    return initFromDataSource(
-            dataSource, sniffedMIME.empty() ? NULL : sniffedMIME.c_str());
+    // delay data source creation to prepareAsync() to avoid blocking
+    // the calling thread in setDataSource for any significant time.
+    return OK;
 }
 
-status_t NuPlayer::GenericSource::init(
+status_t NuPlayer::GenericSource::setDataSource(
         int fd, int64_t offset, int64_t length) {
-    sp<DataSource> dataSource = new FileSource(dup(fd), offset, length);
+    resetDataSource();
 
-    return initFromDataSource(dataSource, NULL);
+    mFd = dup(fd);
+    mOffset = offset;
+    mLength = length;
+
+    // delay data source creation to prepareAsync() to avoid blocking
+    // the calling thread in setDataSource for any significant time.
+    return OK;
 }
 
 status_t NuPlayer::GenericSource::initFromDataSource(
@@ -143,7 +159,8 @@ status_t NuPlayer::GenericSource::initFromDataSource(
 
                 // check if the source requires secure buffers
                 int32_t secure;
-                if (meta->findInt32(kKeyRequiresSecureBuffers, &secure) && secure) {
+                if (meta->findInt32(kKeyRequiresSecureBuffers, &secure)
+                        && secure) {
                     mIsWidevine = true;
                     if (mUIDValid) {
                         extractor->setUID(mUID);
@@ -166,7 +183,8 @@ status_t NuPlayer::GenericSource::initFromDataSource(
     return OK;
 }
 
-status_t NuPlayer::GenericSource::setBuffers(bool audio, Vector<MediaBuffer *> &buffers) {
+status_t NuPlayer::GenericSource::setBuffers(
+        bool audio, Vector<MediaBuffer *> &buffers) {
     if (mIsWidevine && !audio) {
         return mVideoTrack.mSource->setBuffers(buffers);
     }
@@ -177,6 +195,38 @@ NuPlayer::GenericSource::~GenericSource() {
 }
 
 void NuPlayer::GenericSource::prepareAsync() {
+    // delayed data source creation
+    AString sniffedMIME;
+    sp<DataSource> dataSource;
+
+    if (!mUri.empty()) {
+        mIsWidevine = !strncasecmp(mUri.c_str(), "widevine://", 11);
+
+        dataSource = DataSource::CreateFromURI(
+               mHTTPService, mUri.c_str(), &mUriHeaders, &sniffedMIME);
+    } else {
+        // set to false first, if the extractor
+        // comes back as secure, set it to true then.
+        mIsWidevine = false;
+
+        dataSource = new FileSource(mFd, mOffset, mLength);
+    }
+
+    if (dataSource == NULL) {
+        ALOGE("Failed to create data source!");
+        notifyPrepared(UNKNOWN_ERROR);
+        return;
+    }
+
+    status_t err = initFromDataSource(
+            dataSource, sniffedMIME.empty() ? NULL : sniffedMIME.c_str());
+
+    if (err != OK) {
+        ALOGE("Failed to init from data source!");
+        notifyPrepared(err);
+        return;
+    }
+
     if (mVideoTrack.mSource != NULL) {
         sp<MetaData> meta = mVideoTrack.mSource->getFormat();
 
