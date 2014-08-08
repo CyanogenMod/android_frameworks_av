@@ -34,6 +34,7 @@ namespace android {
 struct ICrypto;
 struct IDrm;
 struct IHDCP;
+struct IMediaCodecList;
 struct IMediaHTTPService;
 class IMediaRecorder;
 class IOMX;
@@ -65,6 +66,7 @@ public:
     virtual sp<ICrypto>         makeCrypto() = 0;
     virtual sp<IDrm>            makeDrm() = 0;
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule) = 0;
+    virtual sp<IMediaCodecList> getCodecList() const = 0;
 
     // Connects to a remote display.
     // 'iface' specifies the address of the local interface on which to listen for

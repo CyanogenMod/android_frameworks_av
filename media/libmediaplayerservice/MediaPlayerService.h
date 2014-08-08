@@ -273,6 +273,7 @@ public:
                                        uint32_t *pSampleRate, int* pNumChannels,
                                        audio_format_t* pFormat,
                                        const sp<IMemoryHeap>& heap, size_t *pSize);
+    virtual sp<IMediaCodecList> getCodecList() const;
     virtual sp<IOMX>            getOMX();
     virtual sp<ICrypto>         makeCrypto();
     virtual sp<IDrm>            makeDrm();

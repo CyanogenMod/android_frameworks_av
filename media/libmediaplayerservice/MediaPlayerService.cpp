@@ -54,6 +54,7 @@
 #include <media/Metadata.h>
 #include <media/AudioTrack.h>
 #include <media/MemoryLeakTrackUtil.h>
+#include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/AudioPlayer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -343,6 +344,10 @@ sp<IMediaPlayer> MediaPlayerService::create(const sp<IMediaPlayerClient>& client
         mClients.add(w);
     }
     return c;
+}
+
+sp<IMediaCodecList> MediaPlayerService::getCodecList() const {
+    return MediaCodecList::getLocalInstance();
 }
 
 sp<IOMX> MediaPlayerService::getOMX() {
