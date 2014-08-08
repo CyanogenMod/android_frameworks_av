@@ -210,9 +210,9 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             int32_t height;
             if (format != NULL &&
                     format->findInt32("width", &width) && format->findInt32("height", &height)) {
-                notifyVideoSizeChanged(width, height);
+                notifyVideoSizeChanged(format);
             } else {
-                notifyVideoSizeChanged(0, 0);
+                notifyVideoSizeChanged();
             }
 
             uint32_t flags = FLAG_CAN_PAUSE;
