@@ -52,11 +52,6 @@ LOCAL_CFLAGS := \
 
 LOCAL_CFLAGS += -Werror
 
-# We need this because the current asm generates the following link error:
-# requires unsupported dynamic reloc R_ARM_REL32; recompile with -fPIC
-# Bug: 16853291
-LOCAL_LDFLAGS := -Wl,-Bsymbolic
-
 LOCAL_MODULE := libstagefright_mp3dec
 
 LOCAL_ARM_MODE := arm
@@ -83,11 +78,6 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_mp3dec
-
-# We need this because the current asm generates the following link error:
-# requires unsupported dynamic reloc R_ARM_REL32; recompile with -fPIC
-# Bug: 16853291
-LOCAL_LDFLAGS := -Wl,-Bsymbolic
 
 LOCAL_MODULE := libstagefright_soft_mp3dec
 LOCAL_MODULE_TAGS := optional
