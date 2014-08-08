@@ -44,7 +44,7 @@ NuPlayer::StreamingSource::~StreamingSource() {
 }
 
 void NuPlayer::StreamingSource::prepareAsync() {
-    notifyVideoSizeChanged(0, 0);
+    notifyVideoSizeChanged();
     notifyFlagsChanged(0);
     notifyPrepared();
 }

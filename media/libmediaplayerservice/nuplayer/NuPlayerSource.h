@@ -110,7 +110,7 @@ protected:
     sp<AMessage> dupNotify() const { return mNotify->dup(); }
 
     void notifyFlagsChanged(uint32_t flags);
-    void notifyVideoSizeChanged(int32_t width, int32_t height);
+    void notifyVideoSizeChanged(const sp<AMessage> &format = NULL);
     void notifyPrepared(status_t err = OK);
 
 private:
