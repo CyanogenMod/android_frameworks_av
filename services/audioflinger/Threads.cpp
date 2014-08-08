@@ -910,11 +910,11 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         goto Exit;
     }
 
-    // Reject any effect on multichannel sinks.
+    // Reject any effect on mixer or duplicating multichannel sinks.
     // TODO: fix both format and multichannel issues with effects.
-    if (mChannelCount != FCC_2) {
-        ALOGW("createEffect_l() Cannot add effect %s for multichannel(%d) thread",
-                desc->name, mChannelCount);
+    if ((mType == MIXER || mType == DUPLICATING) && mChannelCount != FCC_2) {
+        ALOGW("createEffect_l() Cannot add effect %s for multichannel(%d) %s threads",
+                desc->name, mChannelCount, mType == MIXER ? "MIXER" : "DUPLICATING");
         lStatus = BAD_VALUE;
         goto Exit;
     }
