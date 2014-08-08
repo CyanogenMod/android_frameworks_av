@@ -51,6 +51,48 @@
 
 namespace android {
 
+// OMX errors are directly mapped into status_t range if
+// there is no corresponding MediaError status code.
+// Use the statusFromOMXError(int32_t omxError) function.
+//
+// Currently this is a direct map.
+// See frameworks/native/include/media/openmax/OMX_Core.h
+//
+// Vendor OMX errors     from 0x90000000 - 0x9000FFFF
+// Extension OMX errors  from 0x8F000000 - 0x90000000
+// Standard OMX errors   from 0x80001000 - 0x80001024 (0x80001024 current)
+//
+
+// returns true if err is a recognized OMX error code.
+// as OMX error is OMX_S32, this is an int32_t type
+static inline bool isOMXError(int32_t err) {
+    return (ERROR_CODEC_MIN <= err && err <= ERROR_CODEC_MAX);
+}
+
+// converts an OMX error to a status_t
+static inline status_t statusFromOMXError(int32_t omxError) {
+    switch (omxError) {
+    case OMX_ErrorInvalidComponentName:
+    case OMX_ErrorComponentNotFound:
+        return NAME_NOT_FOUND; // can trigger illegal argument error for provided names.
+    default:
+        return isOMXError(omxError) ? omxError : 0; // no translation required
+    }
+}
+
+// checks and converts status_t to a non-side-effect status_t
+static inline status_t makeNoSideEffectStatus(status_t err) {
+    switch (err) {
+    // the following errors have side effects and may come
+    // from other code modules. Remap for safety reasons.
+    case INVALID_OPERATION:
+    case DEAD_OBJECT:
+        return UNKNOWN_ERROR;
+    default:
+        return err;
+    }
+}
+
 template<class T>
 static void InitOMXParams(T *params) {
     params->nSize = sizeof(T);
@@ -3287,8 +3329,18 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
 void ACodec::signalError(OMX_ERRORTYPE error, status_t internalError) {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", CodecBase::kWhatError);
-    notify->setInt32("omx-error", error);
+    ALOGE("signalError(omxError %#x, internalError %d)", error, internalError);
+
+    if (internalError == UNKNOWN_ERROR) { // find better error code
+        const status_t omxStatus = statusFromOMXError(error);
+        if (omxStatus != 0) {
+            internalError = omxStatus;
+        } else {
+            ALOGW("Invalid OMX error %#x", error);
+        }
+    }
     notify->setInt32("err", internalError);
+    notify->setInt32("actionCode", ACTION_CODE_FATAL); // could translate from OMX error.
     notify->post();
 }
 
@@ -3512,6 +3564,7 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
         case ACodec::kWhatCreateInputSurface:
         case ACodec::kWhatSignalEndOfInputStream:
         {
+            // This may result in an app illegal state exception.
             ALOGE("Message 0x%x was not handled", msg->what());
             mCodec->signalError(OMX_ErrorUndefined, INVALID_OPERATION);
             return true;
@@ -3519,6 +3572,7 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
 
         case ACodec::kWhatOMXDied:
         {
+            // This will result in kFlagSawMediaServerDie handling in MediaCodec.
             ALOGE("OMX/mediaserver died, signalling error!");
             mCodec->signalError(OMX_ErrorResourcesLost, DEAD_OBJECT);
             break;
@@ -3617,7 +3671,13 @@ bool ACodec::BaseState::onOMXEvent(
 
     ALOGE("[%s] ERROR(0x%08lx)", mCodec->mComponentName.c_str(), data1);
 
-    mCodec->signalError((OMX_ERRORTYPE)data1);
+    // verify OMX component sends back an error we expect.
+    OMX_ERRORTYPE omxError = (OMX_ERRORTYPE)data1;
+    if (!isOMXError(omxError)) {
+        ALOGW("Invalid OMX error %#x", omxError);
+        omxError = OMX_ErrorUndefined;
+    }
+    mCodec->signalError(omxError);
 
     return true;
 }
@@ -4060,7 +4120,7 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
                     info->mGraphicBuffer.get(), -1)) == OK) {
             info->mStatus = BufferInfo::OWNED_BY_NATIVE_WINDOW;
         } else {
-            mCodec->signalError(OMX_ErrorUndefined, err);
+            mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
             info->mStatus = BufferInfo::OWNED_BY_US;
         }
     } else {
@@ -4432,7 +4492,7 @@ bool ACodec::LoadedState::onConfigureComponent(
         ALOGE("[%s] configureCodec returning error %d",
               mCodec->mComponentName.c_str(), err);
 
-        mCodec->signalError(OMX_ErrorUndefined, err);
+        mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
         return false;
     }
 
@@ -4579,7 +4639,7 @@ void ACodec::LoadedToIdleState::stateEntered() {
              "(error 0x%08x)",
              err);
 
-        mCodec->signalError(OMX_ErrorUndefined, err);
+        mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
 
         mCodec->changeState(mCodec->mLoadedState);
     }
@@ -5107,7 +5167,7 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
                          "port reconfiguration (error 0x%08x)",
                          err);
 
-                    mCodec->signalError(OMX_ErrorUndefined, err);
+                    mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
 
                     // This is technically not correct, but appears to be
                     // the only way to free the component instance.
