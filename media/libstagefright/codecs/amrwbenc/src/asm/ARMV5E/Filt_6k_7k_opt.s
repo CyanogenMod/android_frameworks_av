@@ -29,6 +29,7 @@
           .global  Filt_6k_7k_asm
           .extern  voAWB_Copy
           .extern  fir_6k_7k
+          .hidden  fir_6k_7k
 
 Filt_6k_7k_asm:
 

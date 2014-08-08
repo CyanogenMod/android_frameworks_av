@@ -20,6 +20,14 @@
     .global armVCM4P10_QPModuloTable
     .global armVCM4P10_VMatrixU16
 
+    .hidden armVCM4P10_QPDivTable
+    .hidden armVCM4P10_VMatrixQPModTable
+    .hidden armVCM4P10_PosToVCol4x4
+    .hidden armVCM4P10_PosToVCol2x2
+    .hidden armVCM4P10_VMatrix
+    .hidden armVCM4P10_QPModuloTable
+    .hidden armVCM4P10_VMatrixU16
+
 armVCM4P10_PosToVCol4x4:
     .byte  0, 2, 0, 2
     .byte  2, 1, 2, 1
