@@ -252,10 +252,19 @@ private:
             int32_t width, int32_t height,
             OMX_VIDEO_CODINGTYPE compressionFormat);
 
+    typedef struct drcParams {
+        int32_t drcCut;
+        int32_t drcBoost;
+        int32_t heavyCompression;
+        int32_t targetRefLevel;
+        int32_t encodedTargetLevel;
+    } drcParams_t;
+
     status_t setupAACCodec(
             bool encoder,
             int32_t numChannels, int32_t sampleRate, int32_t bitRate,
-            int32_t aacProfile, bool isADTS, int32_t sbrMode);
+            int32_t aacProfile, bool isADTS, int32_t sbrMode,
+            int32_t maxOutputChannelCount, const drcParams_t& drc);
 
     status_t setupAC3Codec(bool encoder, int32_t numChannels, int32_t sampleRate);
 
