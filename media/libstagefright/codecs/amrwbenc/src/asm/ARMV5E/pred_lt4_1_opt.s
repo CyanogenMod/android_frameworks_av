@@ -32,6 +32,7 @@
          .section  .text
 	 .global   pred_lt4_asm
 	 .extern   inter4_2
+	 .hidden   inter4_2
 
 pred_lt4_asm:
 

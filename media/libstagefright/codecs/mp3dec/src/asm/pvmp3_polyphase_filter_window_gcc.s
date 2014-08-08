@@ -35,6 +35,7 @@
 .text
 
 .extern pqmfSynthWin
+.hidden pqmfSynthWin
 
 
 
