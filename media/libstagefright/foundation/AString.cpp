@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <binder/Parcel.h>
 #include <utils/String8.h>
 #include "ADebug.h"
 #include "AString.h"
@@ -306,6 +307,14 @@ int AString::compare(const AString &other) const {
     return strcmp(mData, other.mData);
 }
 
+int AString::compareIgnoreCase(const AString &other) const {
+    return strcasecmp(mData, other.mData);
+}
+
+bool AString::equalsIgnoreCase(const AString &other) const {
+    return compareIgnoreCase(other) == 0;
+}
+
 void AString::tolower() {
     makeMutable();
 
@@ -340,6 +349,21 @@ bool AString::endsWithIgnoreCase(const char *suffix) const {
     }
 
     return !strcasecmp(mData + mSize - suffixLen, suffix);
+}
+
+// static
+AString AString::FromParcel(const Parcel &parcel) {
+    size_t size = static_cast<size_t>(parcel.readInt32());
+    return AString(static_cast<const char *>(parcel.readInplace(size)), size);
+}
+
+status_t AString::writeToParcel(Parcel *parcel) const {
+    CHECK_LE(mSize, INT32_MAX);
+    status_t err = parcel->writeInt32(mSize);
+    if (err == OK) {
+        err = parcel->write(mData, mSize);
+    }
+    return err;
 }
 
 AString StringPrintf(const char *format, ...) {
