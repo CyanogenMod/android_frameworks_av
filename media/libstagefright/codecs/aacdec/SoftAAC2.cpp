@@ -19,6 +19,8 @@
 #include <utils/Log.h>
 
 #include "SoftAAC2.h"
+#include <OMX_AudioExt.h>
+#include <OMX_IndexExt.h>
 
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -119,6 +121,7 @@ void SoftAAC2::initPorts() {
 }
 
 status_t SoftAAC2::initDecoder() {
+    ALOGV("initDecoder()");
     status_t status = UNKNOWN_ERROR;
     mAACDecoder = aacDecoder_Open(TT_MP4_ADIF, /* num layers */ 1);
     if (mAACDecoder != NULL) {
@@ -275,7 +278,7 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
 
 OMX_ERRORTYPE SoftAAC2::internalSetParameter(
         OMX_INDEXTYPE index, const OMX_PTR params) {
-    switch (index) {
+    switch ((int)index) {
         case OMX_IndexParamStandardComponentRole:
         {
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
@@ -306,6 +309,67 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
                 mIsADTS = true;
             } else {
                 return OMX_ErrorUndefined;
+            }
+
+            return OMX_ErrorNone;
+        }
+
+        case OMX_IndexParamAudioAndroidAacPresentation:
+        {
+            const OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE *aacPresParams =
+                    (const OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE *)params;
+            // for the following parameters of the OMX_AUDIO_PARAM_AACPROFILETYPE structure,
+            // a value of -1 implies the parameter is not set by the application:
+            //   nMaxOutputChannels     uses default platform properties, see configureDownmix()
+            //   nDrcCut                uses default platform properties, see initDecoder()
+            //   nDrcBoost                idem
+            //   nHeavyCompression        idem
+            //   nTargetReferenceLevel    idem
+            //   nEncodedTargetLevel      idem
+            if (aacPresParams->nMaxOutputChannels >= 0) {
+                int max;
+                if (aacPresParams->nMaxOutputChannels >= 8) { max = 8; }
+                else if (aacPresParams->nMaxOutputChannels >= 6) { max = 6; }
+                else if (aacPresParams->nMaxOutputChannels >= 2) { max = 2; }
+                else {
+                    // -1 or 0: disable downmix,  1: mono
+                    max = aacPresParams->nMaxOutputChannels;
+                }
+                ALOGV("set nMaxOutputChannels=%d", max);
+                aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, max);
+            }
+            bool updateDrcWrapper = false;
+            if (aacPresParams->nDrcBoost >= 0) {
+                ALOGV("set nDrcBoost=%d", aacPresParams->nDrcBoost);
+                mDrcWrap.setParam(DRC_PRES_MODE_WRAP_DESIRED_BOOST_FACTOR,
+                        aacPresParams->nDrcBoost);
+                updateDrcWrapper = true;
+            }
+            if (aacPresParams->nDrcCut >= 0) {
+                ALOGV("set nDrcCut=%d", aacPresParams->nDrcCut);
+                mDrcWrap.setParam(DRC_PRES_MODE_WRAP_DESIRED_ATT_FACTOR, aacPresParams->nDrcCut);
+                updateDrcWrapper = true;
+            }
+            if (aacPresParams->nHeavyCompression >= 0) {
+                ALOGV("set nHeavyCompression=%d", aacPresParams->nHeavyCompression);
+                mDrcWrap.setParam(DRC_PRES_MODE_WRAP_DESIRED_HEAVY,
+                        aacPresParams->nHeavyCompression);
+                updateDrcWrapper = true;
+            }
+            if (aacPresParams->nTargetReferenceLevel >= 0) {
+                ALOGV("set nTargetReferenceLevel=%d", aacPresParams->nTargetReferenceLevel);
+                mDrcWrap.setParam(DRC_PRES_MODE_WRAP_DESIRED_TARGET,
+                        aacPresParams->nTargetReferenceLevel);
+                updateDrcWrapper = true;
+            }
+            if (aacPresParams->nEncodedTargetLevel >= 0) {
+                ALOGV("set nEncodedTargetLevel=%d", aacPresParams->nEncodedTargetLevel);
+                mDrcWrap.setParam(DRC_PRES_MODE_WRAP_ENCODER_TARGET,
+                        aacPresParams->nEncodedTargetLevel);
+                updateDrcWrapper = true;
+            }
+            if (updateDrcWrapper) {
+                mDrcWrap.update();
             }
 
             return OMX_ErrorNone;
