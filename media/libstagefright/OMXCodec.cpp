@@ -4519,7 +4519,7 @@ status_t OMXCodec::setFLACFormat(const sp<MetaData> &meta)
 
     CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
     CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
-    //CHECK(meta->findInt32(kKeyBitspersample, &bitsPerSample));
+    CHECK(meta->findInt32(kKeySampleBits, &bitsPerSample));
 
     CODEC_LOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
@@ -4622,7 +4622,7 @@ status_t OMXCodec::setAPEFormat(const sp<MetaData> &meta)
 
     CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
     CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
-    CHECK(meta->findInt32(kKeyBitspersample, &bitsPerSample));
+    CHECK(meta->findInt32(kKeySampleBits, &bitsPerSample));
 
     CODEC_LOGV("Channels:%d, SampleRate:%d, bitsPerSample:%d",
             numChannels, sampleRate, bitsPerSample);
@@ -4699,7 +4699,7 @@ status_t OMXCodec::setFFmpegAudioFormat(const sp<MetaData> &meta)
     CHECK(meta->findInt32(kKeyCodecId, &codec_id));
     CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
     CHECK(meta->findInt32(kKeyBitRate, &bitRate));
-    CHECK(meta->findInt32(kKeyBitspersample, &bitsPerSample));
+    CHECK(meta->findInt32(kKeySampleBits, &bitsPerSample));
     CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
     CHECK(meta->findInt32(kKeyBlockAlign, &blockAlign));
     CHECK(meta->findInt32(kKeySampleFormat, &sampleFormat));
@@ -4722,6 +4722,7 @@ status_t OMXCodec::setFFmpegAudioFormat(const sp<MetaData> &meta)
 
     err = mOMX->setParameter(
             mNode, OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
+
     return err;
 }
 
