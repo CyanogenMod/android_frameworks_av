@@ -10,6 +10,22 @@
     .fpu neon
     .text
 
+    .extern   armVCM4P10_CAVLCCoeffTokenTables
+    .extern   armVCM4P10_SuffixToLevel
+    .extern   armVCM4P10_CAVLCTotalZeros2x2Tables
+    .extern   armVCM4P10_CAVLCTotalZeroTables
+    .extern   armVCM4P10_CAVLCRunBeforeTables
+    .extern   armVCM4P10_ZigZag_2x2
+    .extern   armVCM4P10_ZigZag_4x4
+
+    .hidden   armVCM4P10_CAVLCCoeffTokenTables
+    .hidden   armVCM4P10_SuffixToLevel
+    .hidden   armVCM4P10_CAVLCTotalZeros2x2Tables
+    .hidden   armVCM4P10_CAVLCTotalZeroTables
+    .hidden   armVCM4P10_CAVLCRunBeforeTables
+    .hidden   armVCM4P10_ZigZag_2x2
+    .hidden   armVCM4P10_ZigZag_4x4
+
     .global armVCM4P10_DecodeCoeffsToPair
     .func   armVCM4P10_DecodeCoeffsToPair
 armVCM4P10_DecodeCoeffsToPair:

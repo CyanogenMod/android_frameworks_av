@@ -28,6 +28,7 @@
           .section  .text
           .global   Filt_6k_7k_asm
           .extern   fir_6k_7k
+          .hidden   fir_6k_7k
 
 Filt_6k_7k_asm:
 
