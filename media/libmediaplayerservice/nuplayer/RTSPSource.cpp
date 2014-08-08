@@ -356,7 +356,7 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         {
             onConnected();
 
-            notifyVideoSizeChanged(0, 0);
+            notifyVideoSizeChanged();
 
             uint32_t flags = 0;
 

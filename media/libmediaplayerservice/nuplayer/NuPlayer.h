@@ -167,6 +167,10 @@ private:
 
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
+    void updateVideoSize(
+            const sp<AMessage> &inputFormat,
+            const sp<AMessage> &outputFormat = NULL);
+
     status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
     void renderBuffer(bool audio, const sp<AMessage> &msg);
 

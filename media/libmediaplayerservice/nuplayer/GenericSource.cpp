@@ -228,13 +228,7 @@ void NuPlayer::GenericSource::prepareAsync() {
     }
 
     if (mVideoTrack.mSource != NULL) {
-        sp<MetaData> meta = mVideoTrack.mSource->getFormat();
-
-        int32_t width, height;
-        CHECK(meta->findInt32(kKeyWidth, &width));
-        CHECK(meta->findInt32(kKeyHeight, &height));
-
-        notifyVideoSizeChanged(width, height);
+        notifyVideoSizeChanged(getFormat(false /* audio */));
     }
 
     notifyFlagsChanged(
