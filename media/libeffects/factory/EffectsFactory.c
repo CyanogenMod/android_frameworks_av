@@ -503,15 +503,31 @@ int loadLibrary(cnode *root, const char *name)
     audio_effect_library_t *desc;
     list_elem_t *e;
     lib_entry_t *l;
+    char path[PATH_MAX];
+    char *str;
+    size_t len;
 
     node = config_find(root, PATH_TAG);
     if (node == NULL) {
         return -EINVAL;
     }
+    // audio_effects.conf always specifies 32 bit lib path: convert to 64 bit path if needed
+    strlcpy(path, node->value, PATH_MAX);
+#ifdef __LP64__
+    str = strstr(path, "/lib/");
+    if (str == NULL)
+        return -EINVAL;
+    len = str - path;
+    path[len] = '\0';
+    strlcat(path, "/lib64/", PATH_MAX);
+    strlcat(path, node->value + len + strlen("/lib/"), PATH_MAX);
+#endif
+    if (strlen(path) >= PATH_MAX - 1)
+        return -EINVAL;
 
-    hdl = dlopen(node->value, RTLD_NOW);
+    hdl = dlopen(path, RTLD_NOW);
     if (hdl == NULL) {
-        ALOGW("loadLibrary() failed to open %s", node->value);
+        ALOGW("loadLibrary() failed to open %s", path);
         goto error;
     }
 
@@ -535,7 +551,7 @@ int loadLibrary(cnode *root, const char *name)
     // add entry for library in gLibraryList
     l = malloc(sizeof(lib_entry_t));
     l->name = strndup(name, PATH_MAX);
-    l->path = strndup(node->value, PATH_MAX);
+    l->path = strndup(path, PATH_MAX);
     l->handle = hdl;
     l->desc = desc;
     l->effects = NULL;
@@ -547,7 +563,7 @@ int loadLibrary(cnode *root, const char *name)
     e->next = gLibraryList;
     gLibraryList = e;
     pthread_mutex_unlock(&gLibLock);
-    ALOGV("getLibrary() linked library %p for path %s", l, node->value);
+    ALOGV("getLibrary() linked library %p for path %s", l, path);
 
     return 0;
 
