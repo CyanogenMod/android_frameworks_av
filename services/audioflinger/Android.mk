@@ -34,7 +34,6 @@ include $(BUILD_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
-    PackageManager.cpp          \
     AudioFlinger.cpp            \
     Threads.cpp                 \
     Tracks.cpp                  \

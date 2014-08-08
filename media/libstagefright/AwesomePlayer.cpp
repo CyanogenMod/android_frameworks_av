@@ -1084,6 +1084,9 @@ status_t AwesomePlayer::play_l() {
             }
 
             if (err != OK) {
+                mAudioSource.clear();
+                mOmxSource.clear();
+
                 delete mAudioPlayer;
                 mAudioPlayer = NULL;
 
@@ -1157,6 +1160,7 @@ status_t AwesomePlayer::fallbackToSWDecoder() {
     if (!(mFlags & AUDIOPLAYER_STARTED)) {
         mAudioSource->stop();
     }
+    mAudioSource.clear();
     modifyFlags((AUDIO_RUNNING | AUDIOPLAYER_STARTED), CLEAR);
     mOffloadAudio = false;
 #ifdef ENABLE_AV_ENHANCEMENTS
@@ -1166,11 +1170,7 @@ status_t AwesomePlayer::fallbackToSWDecoder() {
 
     mAudioSource = mOmxSource;
     if (mAudioSource != NULL) {
-        err = mAudioSource->start();
-
-        if (err != OK) {
-            mAudioSource.clear();
-        } else {
+        if ((err = mAudioSource->start()) == OK) {
             mSeekNotificationSent = true;
             if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
                 seekTo_l(curTimeUs);
@@ -2340,6 +2340,9 @@ void AwesomePlayer::onVideoEvent() {
         if (err != OK) {
             ALOGE("Failed to fallback to SW decoder err = %d", err);
             notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+
+            mAudioSource.clear();
+            mOmxSource.clear();
 
             delete mAudioPlayer;
             mAudioPlayer = NULL;
