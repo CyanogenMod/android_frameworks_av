@@ -852,60 +852,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     mRenderer->signalAudioSinkChanged();
                 } else {
                     // video
+                    sp<AMessage> inputFormat =
+                            mSource->getFormat(false /* audio */);
 
-                    int32_t width, height;
-                    CHECK(format->findInt32("width", &width));
-                    CHECK(format->findInt32("height", &height));
-
-                    int32_t cropLeft, cropTop, cropRight, cropBottom;
-                    CHECK(format->findRect(
-                                "crop",
-                                &cropLeft, &cropTop, &cropRight, &cropBottom));
-
-                    int32_t displayWidth = cropRight - cropLeft + 1;
-                    int32_t displayHeight = cropBottom - cropTop + 1;
-
-                    ALOGV("Video output format changed to %d x %d "
-                         "(crop: %d x %d @ (%d, %d))",
-                         width, height,
-                         displayWidth,
-                         displayHeight,
-                         cropLeft, cropTop);
-
-                    sp<AMessage> videoInputFormat =
-                        mSource->getFormat(false /* audio */);
-
-                    // Take into account sample aspect ratio if necessary:
-                    int32_t sarWidth, sarHeight;
-                    if (videoInputFormat->findInt32("sar-width", &sarWidth)
-                            && videoInputFormat->findInt32(
-                                "sar-height", &sarHeight)) {
-                        ALOGV("Sample aspect ratio %d : %d",
-                              sarWidth, sarHeight);
-
-                        displayWidth = (displayWidth * sarWidth) / sarHeight;
-
-                        ALOGV("display dimensions %d x %d",
-                              displayWidth, displayHeight);
-                    }
-
-                    int32_t rotationDegrees;
-                    if (!videoInputFormat->findInt32(
-                            "rotation-degrees", &rotationDegrees)) {
-                        rotationDegrees = 0;
-                    }
-
-                    if (rotationDegrees == 90 || rotationDegrees == 270) {
-                        notifyListener(
-                                MEDIA_SET_VIDEO_SIZE,
-                                displayHeight,
-                                displayWidth);
-                    } else {
-                        notifyListener(
-                                MEDIA_SET_VIDEO_SIZE,
-                                displayWidth,
-                                displayHeight);
-                    }
+                    updateVideoSize(inputFormat, format);
                 }
             } else if (what == Decoder::kWhatShutdownCompleted) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");
@@ -1383,6 +1333,72 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
     mRenderer->queueBuffer(audio, buffer, reply);
 }
 
+void NuPlayer::updateVideoSize(
+        const sp<AMessage> &inputFormat,
+        const sp<AMessage> &outputFormat) {
+    if (inputFormat == NULL) {
+        ALOGW("Unknown video size, reporting 0x0!");
+        notifyListener(MEDIA_SET_VIDEO_SIZE, 0, 0);
+        return;
+    }
+
+    int32_t displayWidth, displayHeight;
+    int32_t cropLeft, cropTop, cropRight, cropBottom;
+
+    if (outputFormat != NULL) {
+        int32_t width, height;
+        CHECK(outputFormat->findInt32("width", &width));
+        CHECK(outputFormat->findInt32("height", &height));
+
+        int32_t cropLeft, cropTop, cropRight, cropBottom;
+        CHECK(outputFormat->findRect(
+                    "crop",
+                    &cropLeft, &cropTop, &cropRight, &cropBottom));
+
+        displayWidth = cropRight - cropLeft + 1;
+        displayHeight = cropBottom - cropTop + 1;
+
+        ALOGV("Video output format changed to %d x %d "
+             "(crop: %d x %d @ (%d, %d))",
+             width, height,
+             displayWidth,
+             displayHeight,
+             cropLeft, cropTop);
+    } else {
+        CHECK(inputFormat->findInt32("width", &displayWidth));
+        CHECK(inputFormat->findInt32("height", &displayHeight));
+
+        ALOGV("Video input format %d x %d", displayWidth, displayHeight);
+    }
+
+    // Take into account sample aspect ratio if necessary:
+    int32_t sarWidth, sarHeight;
+    if (inputFormat->findInt32("sar-width", &sarWidth)
+            && inputFormat->findInt32("sar-height", &sarHeight)) {
+        ALOGV("Sample aspect ratio %d : %d", sarWidth, sarHeight);
+
+        displayWidth = (displayWidth * sarWidth) / sarHeight;
+
+        ALOGV("display dimensions %d x %d", displayWidth, displayHeight);
+    }
+
+    int32_t rotationDegrees;
+    if (!inputFormat->findInt32("rotation-degrees", &rotationDegrees)) {
+        rotationDegrees = 0;
+    }
+
+    if (rotationDegrees == 90 || rotationDegrees == 270) {
+        int32_t tmp = displayWidth;
+        displayWidth = displayHeight;
+        displayHeight = tmp;
+    }
+
+    notifyListener(
+            MEDIA_SET_VIDEO_SIZE,
+            displayWidth,
+            displayHeight);
+}
+
 void NuPlayer::notifyListener(int msg, int ext1, int ext2, const Parcel *in) {
     if (mDriver == NULL) {
         return;
@@ -1441,19 +1457,19 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
     }
 }
 
-sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
-    sp<MetaData> meta = getFormatMeta(audio);
+void NuPlayer::queueDecoderShutdown(
+        bool audio, bool video, const sp<AMessage> &reply) {
+    ALOGI("queueDecoderShutdown audio=%d, video=%d", audio, video);
 
-    if (meta == NULL) {
-        return NULL;
-    }
+    mDeferredActions.push_back(
+            new ShutdownDecoderAction(audio, video));
 
-    sp<AMessage> msg = new AMessage;
+    mDeferredActions.push_back(
+            new SimpleAction(&NuPlayer::performScanSources));
 
-    if(convertMetaDataToMessage(meta, &msg) == OK) {
-        return msg;
-    }
-    return NULL;
+    mDeferredActions.push_back(new PostMessageAction(reply));
+
+    processDeferredActions();
 }
 
 status_t NuPlayer::setVideoScalingMode(int32_t mode) {
@@ -1729,11 +1745,10 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
         case Source::kWhatVideoSizeChanged:
         {
-            int32_t width, height;
-            CHECK(msg->findInt32("width", &width));
-            CHECK(msg->findInt32("height", &height));
+            sp<AMessage> format;
+            CHECK(msg->findMessage("format", &format));
 
-            notifyListener(MEDIA_SET_VIDEO_SIZE, width, height);
+            updateVideoSize(format);
             break;
         }
 
@@ -1889,6 +1904,21 @@ void NuPlayer::sendTimedTextData(const sp<ABuffer> &buffer) {
 }
 ////////////////////////////////////////////////////////////////////////////////
 
+sp<AMessage> NuPlayer::Source::getFormat(bool audio) {
+    sp<MetaData> meta = getFormatMeta(audio);
+
+    if (meta == NULL) {
+        return NULL;
+    }
+
+    sp<AMessage> msg = new AMessage;
+
+    if(convertMetaDataToMessage(meta, &msg) == OK) {
+        return msg;
+    }
+    return NULL;
+}
+
 void NuPlayer::Source::notifyFlagsChanged(uint32_t flags) {
     sp<AMessage> notify = dupNotify();
     notify->setInt32("what", kWhatFlagsChanged);
@@ -1896,11 +1926,10 @@ void NuPlayer::Source::notifyFlagsChanged(uint32_t flags) {
     notify->post();
 }
 
-void NuPlayer::Source::notifyVideoSizeChanged(int32_t width, int32_t height) {
+void NuPlayer::Source::notifyVideoSizeChanged(const sp<AMessage> &format) {
     sp<AMessage> notify = dupNotify();
     notify->setInt32("what", kWhatVideoSizeChanged);
-    notify->setInt32("width", width);
-    notify->setInt32("height", height);
+    notify->setMessage("format", format);
     notify->post();
 }
 
@@ -1913,21 +1942,6 @@ void NuPlayer::Source::notifyPrepared(status_t err) {
 
 void NuPlayer::Source::onMessageReceived(const sp<AMessage> & /* msg */) {
     TRESPASS();
-}
-
-void NuPlayer::queueDecoderShutdown(
-        bool audio, bool video, const sp<AMessage> &reply) {
-    ALOGI("queueDecoderShutdown audio=%d, video=%d", audio, video);
-
-    mDeferredActions.push_back(
-            new ShutdownDecoderAction(audio, video));
-
-    mDeferredActions.push_back(
-            new SimpleAction(&NuPlayer::performScanSources));
-
-    mDeferredActions.push_back(new PostMessageAction(reply));
-
-    processDeferredActions();
 }
 
 }  // namespace android
