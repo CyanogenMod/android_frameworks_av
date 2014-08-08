@@ -125,6 +125,11 @@ LOCAL_STATIC_LIBRARIES := \
         libFLAC \
         libmedia_helper
 
+ifeq ($(TARGET_USES_QCOM_BSP), true)
+    LOCAL_C_INCLUDES += hardware/qcom/display/libgralloc
+    LOCAL_CFLAGS += -DQCOM_BSP
+endif
+
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
        LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
