@@ -112,6 +112,17 @@ SoftwareRenderer::SoftwareRenderer(
                 bufHeight,
                 halFormat));
 
+    // NOTE: native window uses extended right-bottom coordinate
+    android_native_rect_t crop;
+    crop.left = mCropLeft;
+    crop.top = mCropTop;
+    crop.right = mCropRight + 1;
+    crop.bottom = mCropBottom + 1;
+    ALOGV("setting crop: [%d, %d, %d, %d] for size [%zu, %zu]",
+          crop.left, crop.top, crop.right, crop.bottom, bufWidth, bufHeight);
+
+    CHECK_EQ(0, native_window_set_crop(mNativeWindow.get(), &crop));
+
     uint32_t transform;
     switch (rotationDegrees) {
         case 0: transform = 0; break;
