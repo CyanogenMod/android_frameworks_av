@@ -489,6 +489,22 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                     continue;
                 }
 
+                // Make sure the candidate frame has good focus.
+                entry = frame.find(ANDROID_CONTROL_AF_STATE);
+                if (entry.count == 0) {
+                    ALOGW("%s: ZSL queue frame has no AF state field!",
+                            __FUNCTION__);
+                    continue;
+                }
+                uint8_t afState = entry.data.u8[0];
+                if (afState != ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED &&
+                        afState != ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED &&
+                        afState != ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
+                    ALOGW("%s: ZSL queue frame AF state is %d is not good for capture, skip it",
+                            __FUNCTION__, afState);
+                    continue;
+                }
+
                 minTimestamp = frameTimestamp;
                 idx = j;
             }
