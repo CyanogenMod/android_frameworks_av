@@ -20,6 +20,9 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/foundation/AString.h>
+#include <media/IMediaCodecList.h>
+#include <media/IOMX.h>
+#include <media/MediaCodecInfo.h>
 
 #include <sys/types.h>
 #include <utils/Errors.h>
@@ -31,32 +34,22 @@ namespace android {
 
 struct AMessage;
 
-struct MediaCodecList {
-    static const MediaCodecList *getInstance();
+struct MediaCodecList : public BnMediaCodecList {
+    static sp<IMediaCodecList> getInstance();
 
-    ssize_t findCodecByType(
+    virtual ssize_t findCodecByType(
             const char *type, bool encoder, size_t startIndex = 0) const;
 
-    ssize_t findCodecByName(const char *name) const;
+    virtual ssize_t findCodecByName(const char *name) const;
 
-    size_t countCodecs() const;
-    const char *getCodecName(size_t index) const;
-    bool isEncoder(size_t index) const;
-    bool codecHasQuirk(size_t index, const char *quirkName) const;
+    virtual size_t countCodecs() const;
 
-    status_t getSupportedTypes(size_t index, Vector<AString> *types) const;
+    virtual sp<MediaCodecInfo> getCodecInfo(size_t index) const {
+        return mCodecInfos.itemAt(index);
+    }
 
-    struct ProfileLevel {
-        uint32_t mProfile;
-        uint32_t mLevel;
-    };
-    status_t getCodecCapabilities(
-            size_t index, const char *type,
-            Vector<ProfileLevel> *profileLevels,
-            Vector<uint32_t> *colorFormats,
-            uint32_t *flags,
-            // TODO default argument is only for compatibility with existing JNI
-            sp<AMessage> *capabilities = NULL) const;
+    // to be used by MediaPlayerService alone
+    static sp<IMediaCodecList> getLocalInstance();
 
 private:
     enum Section {
@@ -70,17 +63,8 @@ private:
         SECTION_INCLUDE,
     };
 
-    struct CodecInfo {
-        AString mName;
-        bool mIsEncoder;
-        uint32_t mTypes;
-        uint32_t mSoleType;
-        uint32_t mQuirks;
-        KeyedVector<uint32_t, sp<AMessage> > mCaps;
-        sp<AMessage> mCurrentCaps;
-    };
-
-    static MediaCodecList *sCodecList;
+    static sp<IMediaCodecList> sCodecList;
+    static sp<IMediaCodecList> sRemoteList;
 
     status_t mInitCheck;
     Section mCurrentSection;
@@ -88,9 +72,9 @@ private:
     int32_t mDepth;
     AString mHrefBase;
 
-    Vector<CodecInfo> mCodecInfos;
-    KeyedVector<AString, size_t> mCodecQuirks;
-    KeyedVector<AString, size_t> mTypes;
+    Vector<sp<MediaCodecInfo> > mCodecInfos;
+    sp<MediaCodecInfo> mCurrentInfo;
+    sp<IOMX> mOMX;
 
     MediaCodecList();
     ~MediaCodecList();
@@ -116,6 +100,8 @@ private:
     status_t addLimit(const char **attrs);
     status_t addFeature(const char **attrs);
     void addType(const char *name);
+
+    status_t initializeCapabilities(const char *type);
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecList);
 };

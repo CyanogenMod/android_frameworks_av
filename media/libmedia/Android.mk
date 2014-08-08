@@ -25,6 +25,7 @@ LOCAL_SRC_FILES:= \
     AudioRecord.cpp \
     AudioSystem.cpp \
     mediaplayer.cpp \
+    IMediaCodecList.cpp \
     IMediaHTTPConnection.cpp \
     IMediaHTTPService.cpp \
     IMediaLogService.cpp \
@@ -36,6 +37,7 @@ LOCAL_SRC_FILES:= \
     IRemoteDisplay.cpp \
     IRemoteDisplayClient.cpp \
     IStreamSource.cpp \
+    MediaCodecInfo.cpp \
     Metadata.cpp \
     mediarecorder.cpp \
     IMediaMetadataRetriever.cpp \
@@ -74,6 +76,7 @@ LOCAL_MODULE:= libmedia
 
 LOCAL_C_INCLUDES := \
     $(TOP)/frameworks/native/include/media/openmax \
+    $(TOP)/frameworks/av/media/libstagefright \
     external/icu/icu4c/source/common \
     external/icu/icu4c/source/i18n \
     $(call include-path-for, audio-effects) \
