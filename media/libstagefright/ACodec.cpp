@@ -1806,6 +1806,17 @@ status_t ACodec::setVideoPortFormatType(
             return err;
         }
 
+        // substitute back flexible color format to codec supported format
+        OMX_U32 flexibleEquivalent;
+        if (compressionFormat == OMX_VIDEO_CodingUnused &&
+                isFlexibleColorFormat(
+                        mOMX, mNode, format.eColorFormat, &flexibleEquivalent) &&
+                colorFormat == flexibleEquivalent) {
+            ALOGI("[%s] using color format %#x in place of %#x",
+                    mComponentName.c_str(), format.eColorFormat, colorFormat);
+            colorFormat = format.eColorFormat;
+        }
+
         // The following assertion is violated by TI's video decoder.
         // CHECK_EQ(format.nIndex, index);
 
@@ -2782,7 +2793,7 @@ void ACodec::processDeferredMessages() {
 }
 
 // static
-void ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
+bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
     MediaImage &image = params.sMediaImage;
     memset(&image, 0, sizeof(image));
 
@@ -2794,7 +2805,7 @@ void ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
     if (params.nStride == 0 || params.nSliceHeight == 0) {
         ALOGW("cannot describe color format 0x%x = %d with stride=%u and sliceHeight=%u",
                 fmt, fmt, params.nStride, params.nSliceHeight);
-        return;
+        return false;
     }
 
     image.mWidth = params.nFrameWidth;
@@ -2806,7 +2817,7 @@ void ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         fmt != OMX_COLOR_FormatYUV420SemiPlanar &&
         fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar) {
         ALOGW("do not know color format 0x%x = %d", fmt, fmt);
-        return;
+        return false;
     }
 
     // set-up YUV format
@@ -2856,6 +2867,67 @@ void ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         default:
             TRESPASS();
     }
+    return true;
+}
+
+// static
+bool ACodec::describeColorFormat(
+        const sp<IOMX> &omx, IOMX::node_id node,
+        DescribeColorFormatParams &describeParams)
+{
+    OMX_INDEXTYPE describeColorFormatIndex;
+    if (omx->getExtensionIndex(
+            node, "OMX.google.android.index.describeColorFormat",
+            &describeColorFormatIndex) != OK ||
+        omx->getParameter(
+            node, describeColorFormatIndex,
+            &describeParams, sizeof(describeParams)) != OK) {
+        return describeDefaultColorFormat(describeParams);
+    }
+    return describeParams.sMediaImage.mType !=
+            MediaImage::MEDIA_IMAGE_TYPE_UNKNOWN;
+}
+
+// static
+bool ACodec::isFlexibleColorFormat(
+         const sp<IOMX> &omx, IOMX::node_id node,
+         uint32_t colorFormat, OMX_U32 *flexibleEquivalent) {
+    DescribeColorFormatParams describeParams;
+    InitOMXParams(&describeParams);
+    describeParams.eColorFormat = (OMX_COLOR_FORMATTYPE)colorFormat;
+    // reasonable dummy values
+    describeParams.nFrameWidth = 128;
+    describeParams.nFrameHeight = 128;
+    describeParams.nStride = 128;
+    describeParams.nSliceHeight = 128;
+
+    CHECK(flexibleEquivalent != NULL);
+
+    if (!describeColorFormat(omx, node, describeParams)) {
+        return false;
+    }
+
+    const MediaImage &img = describeParams.sMediaImage;
+    if (img.mType == MediaImage::MEDIA_IMAGE_TYPE_YUV) {
+        if (img.mNumPlanes != 3 ||
+            img.mPlane[img.Y].mHorizSubsampling != 1 ||
+            img.mPlane[img.Y].mVertSubsampling != 1) {
+            return false;
+        }
+
+        // YUV 420
+        if (img.mPlane[img.U].mHorizSubsampling == 2
+                && img.mPlane[img.U].mVertSubsampling == 2
+                && img.mPlane[img.V].mHorizSubsampling == 2
+                && img.mPlane[img.V].mVertSubsampling == 2) {
+            // possible flexible YUV420 format
+            if (img.mBitDepth <= 8) {
+               *flexibleEquivalent = OMX_COLOR_FormatYUV420Flexible;
+               return true;
+            }
+        }
+    }
+    return false;
 }
 
 status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
@@ -2885,7 +2957,6 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("slice-height", videoDef->nSliceHeight);
                     notify->setInt32("color-format", videoDef->eColorFormat);
 
-
                     DescribeColorFormatParams describeParams;
                     InitOMXParams(&describeParams);
                     describeParams.eColorFormat = videoDef->eColorFormat;
@@ -2894,17 +2965,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     describeParams.nStride = videoDef->nStride;
                     describeParams.nSliceHeight = videoDef->nSliceHeight;
 
-                    OMX_INDEXTYPE describeColorFormatIndex;
-                    if (mOMX->getExtensionIndex(
-                            mNode, "OMX.google.android.index.describeColorFormat",
-                            &describeColorFormatIndex) ||
-                        mOMX->getParameter(
-                            mNode, describeColorFormatIndex,
-                            &describeParams, sizeof(describeParams))) {
-                        describeDefaultColorFormat(describeParams);
-                    }
-
-                    if (describeParams.sMediaImage.mType != MediaImage::MEDIA_IMAGE_TYPE_UNKNOWN) {
+                    if (describeColorFormat(mOMX, mNode, describeParams)) {
                         notify->setBuffer(
                                 "image-data",
                                 ABuffer::CreateAsCopy(
