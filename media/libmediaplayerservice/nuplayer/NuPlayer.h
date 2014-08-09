@@ -63,6 +63,7 @@ struct NuPlayer : public AHandler {
 
     status_t setVideoScalingMode(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
+    status_t getSelectedTrack(int32_t type, Parcel* reply) const;
     status_t selectTrack(size_t trackIndex, bool select);
 
 protected:
@@ -109,6 +110,7 @@ private:
         kWhatPollDuration               = 'polD',
         kWhatSourceNotify               = 'srcN',
         kWhatGetTrackInfo               = 'gTrI',
+        kWhatGetSelectedTrack           = 'gSel',
         kWhatSelectTrack                = 'selT',
     };
 
