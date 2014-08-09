@@ -2078,22 +2078,37 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
     }
     ALOGV("createAudioPatch() num sources %d num sinks %d", patch->num_sources, patch->num_sinks);
 
-    if (patch->num_sources > 1 || patch->num_sinks > 1) {
+    if (patch->num_sources == 0 || patch->num_sources > AUDIO_PATCH_PORTS_MAX ||
+            patch->num_sinks == 0 || patch->num_sinks > AUDIO_PATCH_PORTS_MAX) {
+        return BAD_VALUE;
+    }
+    // only one source per audio patch supported for now
+    if (patch->num_sources > 1) {
         return INVALID_OPERATION;
     }
-    if (patch->sources[0].role != AUDIO_PORT_ROLE_SOURCE ||
-            patch->sinks[0].role != AUDIO_PORT_ROLE_SINK) {
+
+    if (patch->sources[0].role != AUDIO_PORT_ROLE_SOURCE) {
         return INVALID_OPERATION;
+    }
+    for (size_t i = 0; i < patch->num_sinks; i++) {
+        if (patch->sinks[i].role != AUDIO_PORT_ROLE_SINK) {
+            return INVALID_OPERATION;
+        }
     }
 
     sp<AudioPatch> patchDesc;
     ssize_t index = mAudioPatches.indexOfKey(*handle);
 
-    ALOGV("createAudioPatch sink id %d role %d type %d", patch->sinks[0].id, patch->sinks[0].role,
-                                                         patch->sinks[0].type);
     ALOGV("createAudioPatch source id %d role %d type %d", patch->sources[0].id,
                                                            patch->sources[0].role,
                                                            patch->sources[0].type);
+#if LOG_NDEBUG == 0
+    for (size_t i = 0; i < patch->num_sinks; i++) {
+        ALOGV("createAudioPatch sink %d: id %d role %d type %d", i, patch->sinks[i].id,
+                                                             patch->sinks[i].role,
+                                                             patch->sinks[i].type);
+    }
+#endif
 
     if (index >= 0) {
         patchDesc = mAudioPatches.valueAt(index);
@@ -2107,12 +2122,6 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
     }
 
     if (patch->sources[0].type == AUDIO_PORT_TYPE_MIX) {
-        // TODO add support for mix to mix connection
-        if (patch->sinks[0].type != AUDIO_PORT_TYPE_DEVICE) {
-            ALOGV("createAudioPatch() source mix sink not device");
-            return BAD_VALUE;
-        }
-        // output mix to output device connection
         sp<AudioOutputDescriptor> outputDesc = getOutputFromId(patch->sources[0].id);
         if (outputDesc == NULL) {
             ALOGV("createAudioPatch() output not found for id %d", patch->sources[0].id);
@@ -2127,30 +2136,41 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 return BAD_VALUE;
             }
         }
-        sp<DeviceDescriptor> devDesc =
-                mAvailableOutputDevices.getDeviceFromId(patch->sinks[0].id);
-        if (devDesc == 0) {
-            ALOGV("createAudioPatch() out device not found for id %d", patch->sinks[0].id);
-            return BAD_VALUE;
-        }
+        DeviceVector devices;
+        for (size_t i = 0; i < patch->num_sinks; i++) {
+            // Only support mix to devices connection
+            // TODO add support for mix to mix connection
+            if (patch->sinks[i].type != AUDIO_PORT_TYPE_DEVICE) {
+                ALOGV("createAudioPatch() source mix but sink is not a device");
+                return INVALID_OPERATION;
+            }
+            sp<DeviceDescriptor> devDesc =
+                    mAvailableOutputDevices.getDeviceFromId(patch->sinks[i].id);
+            if (devDesc == 0) {
+                ALOGV("createAudioPatch() out device not found for id %d", patch->sinks[i].id);
+                return BAD_VALUE;
+            }
 
-        if (!outputDesc->mProfile->isCompatibleProfile(devDesc->mDeviceType,
-                                                       patch->sources[0].sample_rate,
-                                                     NULL,  // updatedSamplingRate
-                                                     patch->sources[0].format,
-                                                     patch->sources[0].channel_mask,
-                                                     AUDIO_OUTPUT_FLAG_NONE /*FIXME*/)) {
-            ALOGV("createAudioPatch() profile not supported");
+            if (!outputDesc->mProfile->isCompatibleProfile(devDesc->mDeviceType,
+                                                           patch->sources[0].sample_rate,
+                                                         NULL,  // updatedSamplingRate
+                                                         patch->sources[0].format,
+                                                         patch->sources[0].channel_mask,
+                                                         AUDIO_OUTPUT_FLAG_NONE /*FIXME*/)) {
+                ALOGV("createAudioPatch() profile not supported for device %08x",
+                      devDesc->mDeviceType);
+                return INVALID_OPERATION;
+            }
+            devices.add(devDesc);
+        }
+        if (devices.size() == 0) {
             return INVALID_OPERATION;
         }
+
         // TODO: reconfigure output format and channels here
         ALOGV("createAudioPatch() setting device %08x on output %d",
-                                              devDesc->mDeviceType, outputDesc->mIoHandle);
-        setOutputDevice(outputDesc->mIoHandle,
-                        devDesc->mDeviceType,
-                       true,
-                       0,
-                       handle);
+              devices.types(), outputDesc->mIoHandle);
+        setOutputDevice(outputDesc->mIoHandle, devices.types(), true, 0, handle);
         index = mAudioPatches.indexOfKey(*handle);
         if (index >= 0) {
             if (patchDesc != 0 && patchDesc != mAudioPatches.valueAt(index)) {
@@ -2166,6 +2186,10 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
     } else if (patch->sources[0].type == AUDIO_PORT_TYPE_DEVICE) {
         if (patch->sinks[0].type == AUDIO_PORT_TYPE_MIX) {
             // input device to input mix connection
+            // only one sink supported when connecting an input device to a mix
+            if (patch->num_sinks > 1) {
+                return INVALID_OPERATION;
+            }
             sp<AudioInputDescriptor> inputDesc = getInputFromId(patch->sinks[0].id);
             if (inputDesc == NULL) {
                 return BAD_VALUE;
@@ -2195,10 +2219,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             // TODO: reconfigure output format and channels here
             ALOGV("createAudioPatch() setting device %08x on output %d",
                                                   devDesc->mDeviceType, inputDesc->mIoHandle);
-            setInputDevice(inputDesc->mIoHandle,
-                           devDesc->mDeviceType,
-                           true,
-                           handle);
+            setInputDevice(inputDesc->mIoHandle, devDesc->mDeviceType, true, handle);
             index = mAudioPatches.indexOfKey(*handle);
             if (index >= 0) {
                 if (patchDesc != 0 && patchDesc != mAudioPatches.valueAt(index)) {
@@ -2214,38 +2235,53 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
         } else if (patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE) {
             // device to device connection
             if (patchDesc != 0) {
-                if (patchDesc->mPatch.sources[0].id != patch->sources[0].id &&
-                    patchDesc->mPatch.sinks[0].id != patch->sinks[0].id) {
+                if (patchDesc->mPatch.sources[0].id != patch->sources[0].id) {
                     return BAD_VALUE;
                 }
             }
-
             sp<DeviceDescriptor> srcDeviceDesc =
                     mAvailableInputDevices.getDeviceFromId(patch->sources[0].id);
-            sp<DeviceDescriptor> sinkDeviceDesc =
-                    mAvailableOutputDevices.getDeviceFromId(patch->sinks[0].id);
-            if (srcDeviceDesc == 0 || sinkDeviceDesc == 0) {
-                return BAD_VALUE;
-            }
+
             //update source and sink with our own data as the data passed in the patch may
             // be incomplete.
             struct audio_patch newPatch = *patch;
             srcDeviceDesc->toAudioPortConfig(&newPatch.sources[0], &patch->sources[0]);
-            sinkDeviceDesc->toAudioPortConfig(&newPatch.sinks[0], &patch->sinks[0]);
+            if (srcDeviceDesc == 0) {
+                return BAD_VALUE;
+            }
 
-            if (srcDeviceDesc->mModule != sinkDeviceDesc->mModule) {
-                SortedVector<audio_io_handle_t> outputs =
-                                        getOutputsForDevice(sinkDeviceDesc->mDeviceType, mOutputs);
-                // if the sink device is reachable via an opened output stream, request to go via
-                // this output stream by adding a second source to the patch description
-                audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
-                if (output != AUDIO_IO_HANDLE_NONE) {
-                    sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
-                    if (outputDesc->isDuplicated()) {
+            for (size_t i = 0; i < patch->num_sinks; i++) {
+                if (patch->sinks[i].type != AUDIO_PORT_TYPE_DEVICE) {
+                    ALOGV("createAudioPatch() source device but one sink is not a device");
+                    return INVALID_OPERATION;
+                }
+
+                sp<DeviceDescriptor> sinkDeviceDesc =
+                        mAvailableOutputDevices.getDeviceFromId(patch->sinks[i].id);
+                if (sinkDeviceDesc == 0) {
+                    return BAD_VALUE;
+                }
+                sinkDeviceDesc->toAudioPortConfig(&newPatch.sinks[i], &patch->sinks[i]);
+
+                if (srcDeviceDesc->mModule != sinkDeviceDesc->mModule) {
+                    // only one sink supported when connected devices across HW modules
+                    if (patch->num_sinks > 1) {
                         return INVALID_OPERATION;
                     }
-                    outputDesc->toAudioPortConfig(&newPatch.sources[1], &patch->sources[0]);
-                    newPatch.num_sources = 2;
+                    SortedVector<audio_io_handle_t> outputs =
+                                            getOutputsForDevice(sinkDeviceDesc->mDeviceType,
+                                                                mOutputs);
+                    // if the sink device is reachable via an opened output stream, request to go via
+                    // this output stream by adding a second source to the patch description
+                    audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+                    if (output != AUDIO_IO_HANDLE_NONE) {
+                        sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
+                        if (outputDesc->isDuplicated()) {
+                            return INVALID_OPERATION;
+                        }
+                        outputDesc->toAudioPortConfig(&newPatch.sources[1], &patch->sources[0]);
+                        newPatch.num_sources = 2;
+                    }
                 }
             }
             // TODO: check from routing capabilities in config file and other conflicting patches
