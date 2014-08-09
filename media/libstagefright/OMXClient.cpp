@@ -78,6 +78,10 @@ struct MuxOMX : public IOMX {
             node_id node, OMX_U32 port_index, OMX_BOOL enable,
             OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight);
 
+    virtual status_t configureVideoTunnelMode(
+            node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
+            OMX_U32 audioHwSync, native_handle_t **sidebandHandle);
+
     virtual status_t enableGraphicBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable);
 
@@ -289,6 +293,13 @@ status_t MuxOMX::prepareForAdaptivePlayback(
         OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) {
     return getOMX(node)->prepareForAdaptivePlayback(
             node, port_index, enable, maxFrameWidth, maxFrameHeight);
+}
+
+status_t MuxOMX::configureVideoTunnelMode(
+        node_id node, OMX_U32 portIndex, OMX_BOOL enable,
+        OMX_U32 audioHwSync, native_handle_t **sidebandHandle) {
+    return getOMX(node)->configureVideoTunnelMode(
+            node, portIndex, enable, audioHwSync, sidebandHandle);
 }
 
 status_t MuxOMX::enableGraphicBuffers(

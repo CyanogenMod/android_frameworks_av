@@ -62,6 +62,10 @@ struct OMXNodeInstance {
             OMX_U32 portIndex, OMX_BOOL enable,
             OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight);
 
+    status_t configureVideoTunnelMode(
+            OMX_U32 portIndex, OMX_BOOL tunneled,
+            OMX_U32 audioHwSync, native_handle_t **sidebandHandle);
+
     status_t useBuffer(
             OMX_U32 portIndex, const sp<IMemory> &params,
             OMX::buffer_id *buffer);
