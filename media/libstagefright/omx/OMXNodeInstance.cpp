@@ -460,6 +460,49 @@ status_t OMXNodeInstance::prepareForAdaptivePlayback(
     return err;
 }
 
+status_t OMXNodeInstance::configureVideoTunnelMode(
+        OMX_U32 portIndex, OMX_BOOL tunneled, OMX_U32 audioHwSync,
+        native_handle_t **sidebandHandle) {
+    Mutex::Autolock autolock(mLock);
+
+    OMX_INDEXTYPE index;
+    OMX_STRING name = const_cast<OMX_STRING>(
+            "OMX.google.android.index.configureVideoTunnelMode");
+
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
+    if (err != OMX_ErrorNone) {
+        ALOGE("configureVideoTunnelMode extension is missing!");
+        return StatusFromOMXError(err);
+    }
+
+    ConfigureVideoTunnelModeParams tunnelParams;
+    tunnelParams.nSize = sizeof(tunnelParams);
+    tunnelParams.nVersion.s.nVersionMajor = 1;
+    tunnelParams.nVersion.s.nVersionMinor = 0;
+    tunnelParams.nVersion.s.nRevision = 0;
+    tunnelParams.nVersion.s.nStep = 0;
+
+    tunnelParams.nPortIndex = portIndex;
+    tunnelParams.bTunneled = tunneled;
+    tunnelParams.nAudioHwSync = audioHwSync;
+    err = OMX_SetParameter(mHandle, index, &tunnelParams);
+    if (err != OMX_ErrorNone) {
+        ALOGE("configureVideoTunnelMode failed! (err %d).", err);
+        return UNKNOWN_ERROR;
+    }
+
+    err = OMX_GetParameter(mHandle, index, &tunnelParams);
+    if (err != OMX_ErrorNone) {
+        ALOGE("GetVideoTunnelWindow failed! (err %d).", err);
+        return UNKNOWN_ERROR;
+    }
+    if (sidebandHandle) {
+        *sidebandHandle = (native_handle_t*)tunnelParams.pSidebandWindow;
+    }
+
+    return err;
+}
+
 status_t OMXNodeInstance::useBuffer(
         OMX_U32 portIndex, const sp<IMemory> &params,
         OMX::buffer_id *buffer) {

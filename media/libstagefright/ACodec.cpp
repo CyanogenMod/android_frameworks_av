@@ -1224,77 +1224,99 @@ status_t ACodec::configureCodec(
         }
     }
 
-    // Always try to enable dynamic output buffers on native surface
     sp<RefBase> obj;
     int32_t haveNativeWindow = msg->findObject("native-window", &obj) &&
-            obj != NULL;
+        obj != NULL;
     mStoreMetaDataInOutputBuffers = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
     }
     if (!encoder && video && haveNativeWindow) {
-        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_TRUE);
-        if (err != OK) {
-            ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
-                  mComponentName.c_str(), err);
+        sp<NativeWindowWrapper> windowWrapper(
+                static_cast<NativeWindowWrapper *>(obj.get()));
+        sp<ANativeWindow> nativeWindow = windowWrapper->getNativeWindow();
 
-            // if adaptive playback has been requested, try JB fallback
-            // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
-            // LARGE MEMORY REQUIREMENT
+        int32_t tunneled;
+        if (msg->findInt32("feature-tunneled-playback", &tunneled) &&
+            tunneled != 0) {
+            ALOGI("Configuring TUNNELED video playback.");
 
-            // we will not do adaptive playback on software accessed
-            // surfaces as they never had to respond to changes in the
-            // crop window, and we don't trust that they will be able to.
-            int usageBits = 0;
-            bool canDoAdaptivePlayback;
-
-            sp<NativeWindowWrapper> windowWrapper(
-                    static_cast<NativeWindowWrapper *>(obj.get()));
-            sp<ANativeWindow> nativeWindow = windowWrapper->getNativeWindow();
-
-            if (nativeWindow->query(
-                    nativeWindow.get(),
-                    NATIVE_WINDOW_CONSUMER_USAGE_BITS,
-                    &usageBits) != OK) {
-                canDoAdaptivePlayback = false;
-            } else {
-                canDoAdaptivePlayback =
-                    (usageBits &
-                            (GRALLOC_USAGE_SW_READ_MASK |
-                             GRALLOC_USAGE_SW_WRITE_MASK)) == 0;
+            int64_t audioHwSync = 0;
+            if (!msg->findInt64("audio-hw-sync", &audioHwSync)) {
+                ALOGW("No Audio HW Sync provided for video tunnel");
+            }
+            err = configureTunneledVideoPlayback(audioHwSync, nativeWindow);
+            if (err != OK) {
+                ALOGE("configureTunneledVideoPlayback(%" PRId64 ",%p) failed!",
+                        audioHwSync, nativeWindow.get());
+                return err;
             }
 
-            int32_t maxWidth = 0, maxHeight = 0;
-            if (canDoAdaptivePlayback &&
-                msg->findInt32("max-width", &maxWidth) &&
-                msg->findInt32("max-height", &maxHeight)) {
-                ALOGV("[%s] prepareForAdaptivePlayback(%dx%d)",
-                      mComponentName.c_str(), maxWidth, maxHeight);
-
-                err = mOMX->prepareForAdaptivePlayback(
-                        mNode, kPortIndexOutput, OMX_TRUE, maxWidth, maxHeight);
-                ALOGW_IF(err != OK,
-                        "[%s] prepareForAdaptivePlayback failed w/ err %d",
+            inputFormat->setInt32("adaptive-playback", true);
+        } else {
+            // Always try to enable dynamic output buffers on native surface
+            err = mOMX->storeMetaDataInBuffers(
+                    mNode, kPortIndexOutput, OMX_TRUE);
+            if (err != OK) {
+                ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
                         mComponentName.c_str(), err);
 
-                if (err == OK) {
-                    inputFormat->setInt32("max-width", maxWidth);
-                    inputFormat->setInt32("max-height", maxHeight);
-                    inputFormat->setInt32("adaptive-playback", true);
-                }
-            }
-            // allow failure
-            err = OK;
-        } else {
-            ALOGV("[%s] storeMetaDataInBuffers succeeded", mComponentName.c_str());
-            mStoreMetaDataInOutputBuffers = true;
-            inputFormat->setInt32("adaptive-playback", true);
-        }
+                // if adaptive playback has been requested, try JB fallback
+                // NOTE: THIS FALLBACK MECHANISM WILL BE REMOVED DUE TO ITS
+                // LARGE MEMORY REQUIREMENT
 
-        int32_t push;
-        if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
-                && push != 0) {
-            mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
+                // we will not do adaptive playback on software accessed
+                // surfaces as they never had to respond to changes in the
+                // crop window, and we don't trust that they will be able to.
+                int usageBits = 0;
+                bool canDoAdaptivePlayback;
+
+                if (nativeWindow->query(
+                        nativeWindow.get(),
+                        NATIVE_WINDOW_CONSUMER_USAGE_BITS,
+                        &usageBits) != OK) {
+                    canDoAdaptivePlayback = false;
+                } else {
+                    canDoAdaptivePlayback =
+                        (usageBits &
+                                (GRALLOC_USAGE_SW_READ_MASK |
+                                 GRALLOC_USAGE_SW_WRITE_MASK)) == 0;
+                }
+
+                int32_t maxWidth = 0, maxHeight = 0;
+                if (canDoAdaptivePlayback &&
+                        msg->findInt32("max-width", &maxWidth) &&
+                        msg->findInt32("max-height", &maxHeight)) {
+                    ALOGV("[%s] prepareForAdaptivePlayback(%dx%d)",
+                            mComponentName.c_str(), maxWidth, maxHeight);
+
+                    err = mOMX->prepareForAdaptivePlayback(
+                            mNode, kPortIndexOutput, OMX_TRUE, maxWidth,
+                            maxHeight);
+                    ALOGW_IF(err != OK,
+                            "[%s] prepareForAdaptivePlayback failed w/ err %d",
+                            mComponentName.c_str(), err);
+
+                    if (err == OK) {
+                        inputFormat->setInt32("max-width", maxWidth);
+                        inputFormat->setInt32("max-height", maxHeight);
+                        inputFormat->setInt32("adaptive-playback", true);
+                    }
+                }
+                // allow failure
+                err = OK;
+            } else {
+                ALOGV("[%s] storeMetaDataInBuffers succeeded",
+                        mComponentName.c_str());
+                mStoreMetaDataInOutputBuffers = true;
+                inputFormat->setInt32("adaptive-playback", true);
+            }
+
+            int32_t push;
+            if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
+                    && push != 0) {
+                mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
+            }
         }
 
         int32_t rotationDegrees;
@@ -1867,6 +1889,27 @@ status_t ACodec::setupRawAudioFormat(
 
     return mOMX->setParameter(
             mNode, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+}
+
+status_t ACodec::configureTunneledVideoPlayback(
+        int64_t audioHwSync, const sp<ANativeWindow> &nativeWindow) {
+    native_handle_t* sidebandHandle;
+
+    status_t err = mOMX->configureVideoTunnelMode(
+            mNode, kPortIndexOutput, OMX_TRUE, audioHwSync, &sidebandHandle);
+    if (err != OK) {
+        ALOGE("configureVideoTunnelMode failed! (err %d).", err);
+        return err;
+    }
+
+    err = native_window_set_sideband_stream(nativeWindow.get(), sidebandHandle);
+    if (err != OK) {
+        ALOGE("native_window_set_sideband_stream(%p) failed! (err %d).",
+                sidebandHandle, err);
+        return err;
+    }
+
+    return OK;
 }
 
 status_t ACodec::setVideoPortFormatType(
