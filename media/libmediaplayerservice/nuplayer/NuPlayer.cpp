@@ -427,6 +427,31 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatGetSelectedTrack:
+        {
+            status_t err = INVALID_OPERATION;
+            if (mSource != NULL) {
+                err = OK;
+
+                int32_t type32;
+                CHECK(msg->findInt32("type", (int32_t*)&type32));
+                media_track_type type = (media_track_type)type32;
+                ssize_t selectedTrack = mSource->getSelectedTrack(type);
+
+                Parcel* reply;
+                CHECK(msg->findPointer("reply", (void**)&reply));
+                reply->writeInt32(selectedTrack);
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            response->postReply(replyID);
+            break;
+        }
+
         case kWhatSelectTrack:
         {
             uint32_t replyID;
@@ -1492,6 +1517,19 @@ status_t NuPlayer::getTrackInfo(Parcel* reply) const {
 
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
+    return err;
+}
+
+status_t NuPlayer::getSelectedTrack(int32_t type, Parcel* reply) const {
+    sp<AMessage> msg = new AMessage(kWhatGetSelectedTrack, id());
+    msg->setPointer("reply", reply);
+    msg->setInt32("type", type);
+
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
     return err;
 }
 

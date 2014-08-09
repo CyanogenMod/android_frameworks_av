@@ -22,6 +22,7 @@
 
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MetaData.h>
+#include <media/mediaplayer.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -84,6 +85,10 @@ struct NuPlayer::Source : public AHandler {
 
     virtual sp<AMessage> getTrackInfo(size_t /* trackIndex */) const {
         return NULL;
+    }
+
+    virtual ssize_t getSelectedTrack(media_track_type /* type */) const {
+        return INVALID_OPERATION;
     }
 
     virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */) {

@@ -433,6 +433,12 @@ status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
             return mPlayer->selectTrack(trackIndex, false /* select */);
         }
 
+        case INVOKE_ID_GET_SELECTED_TRACK:
+        {
+            int32_t type = request.readInt32();
+            return mPlayer->getSelectedTrack(type, reply);
+        }
+
         default:
         {
             return INVALID_OPERATION;
