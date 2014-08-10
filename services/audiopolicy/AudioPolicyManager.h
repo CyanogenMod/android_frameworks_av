@@ -309,6 +309,8 @@ protected:
                        const struct audio_patch *patch, uid_t uid) :
                            mHandle(handle), mPatch(*patch), mUid(uid), mAfPatchHandle(0) {}
 
+            status_t dump(int fd, int spaces, int index) const;
+
             audio_patch_handle_t mHandle;
             struct audio_patch mPatch;
             uid_t mUid;
