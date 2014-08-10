@@ -254,7 +254,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                 return NO_MEMORY;
             }
 
-            if (checkOutputsForDevice(device, state, outputs, address) != NO_ERROR) {
+            if (checkOutputsForDevice(devDesc, state, outputs, address) != NO_ERROR) {
                 mAvailableOutputDevices.remove(devDesc);
                 return INVALID_OPERATION;
             }
@@ -275,7 +275,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             // remove device from available output devices
             mAvailableOutputDevices.remove(devDesc);
 
-            checkOutputsForDevice(device, state, outputs, address);
+            checkOutputsForDevice(devDesc, state, outputs, address);
             } break;
 
         default:
@@ -2947,7 +2947,7 @@ void AudioPolicyManager::findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /
                         patchDesc->mPatch.sinks[j].ext.device.address;
                 if (strncmp(patchAddr,
                         address.string(), AUDIO_DEVICE_MAX_ADDRESS_LEN) == 0) {
-                    ALOGV("checkOutputsForDevice(): adding opened output %d on same address %s",
+                    ALOGV("findIoHandlesByAddress(): adding opened output %d on same address %s",
                             desc->mIoHandle,  patchDesc->mPatch.sinks[j].ext.device.address);
                     outputs.add(desc->mIoHandle);
                     break;
@@ -2957,12 +2957,15 @@ void AudioPolicyManager::findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /
     }
 }
 
-status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
+status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> devDesc,
                                                        audio_policy_dev_state_t state,
                                                        SortedVector<audio_io_handle_t>& outputs,
                                                        const String8 address)
 {
+    audio_devices_t device = devDesc->mDeviceType;
     sp<AudioOutputDescriptor> desc;
+    // erase all current sample rates, formats and channel masks
+    devDesc->clearCapabilities();
 
     if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
         // first list already open outputs that can be routed to this device
@@ -3011,6 +3014,9 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
             for (j = 0; j < outputs.size(); j++) {
                 desc = mOutputs.valueFor(outputs.itemAt(j));
                 if (!desc->isDuplicated() && desc->mProfile == profile) {
+                    // matching profile: save the sample rates, format and channel masks supported
+                    // by the profile in our device descriptor
+                    devDesc->importAudioPort(profile);
                     break;
                 }
             }
@@ -3160,6 +3166,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(audio_devices_t device,
                 profile_index--;
             } else {
                 outputs.add(output);
+                devDesc->importAudioPort(profile);
+
                 if (deviceDistinguishesOnAddress(device)) {
                     ALOGV("checkOutputsForDevice(): setOutputDevice(dev=0x%x, addr=%s)",
                             device, address.string());
@@ -5539,15 +5547,21 @@ void AudioPolicyManager::AudioPort::toAudioPort(struct audio_port *port) const
     port->type = mType;
     unsigned int i;
     for (i = 0; i < mSamplingRates.size() && i < AUDIO_PORT_MAX_SAMPLING_RATES; i++) {
-        port->sample_rates[i] = mSamplingRates[i];
+        if (mSamplingRates[i] != 0) {
+            port->sample_rates[i] = mSamplingRates[i];
+        }
     }
     port->num_sample_rates = i;
     for (i = 0; i < mChannelMasks.size() && i < AUDIO_PORT_MAX_CHANNEL_MASKS; i++) {
-        port->channel_masks[i] = mChannelMasks[i];
+        if (mChannelMasks[i] != 0) {
+            port->channel_masks[i] = mChannelMasks[i];
+        }
     }
     port->num_channel_masks = i;
     for (i = 0; i < mFormats.size() && i < AUDIO_PORT_MAX_FORMATS; i++) {
-        port->formats[i] = mFormats[i];
+        if (mFormats[i] != 0) {
+            port->formats[i] = mFormats[i];
+        }
     }
     port->num_formats = i;
 
@@ -5559,6 +5573,59 @@ void AudioPolicyManager::AudioPort::toAudioPort(struct audio_port *port) const
     port->num_gains = i;
 }
 
+void AudioPolicyManager::AudioPort::importAudioPort(const sp<AudioPort> port) {
+    for (size_t k = 0 ; k < port->mSamplingRates.size() ; k++) {
+        const uint32_t rate = port->mSamplingRates.itemAt(k);
+        if (rate != 0) { // skip "dynamic" rates
+            bool hasRate = false;
+            for (size_t l = 0 ; l < mSamplingRates.size() ; l++) {
+                if (rate == mSamplingRates.itemAt(l)) {
+                    hasRate = true;
+                    break;
+                }
+            }
+            if (!hasRate) { // never import a sampling rate twice
+                mSamplingRates.add(rate);
+            }
+        }
+    }
+    for (size_t k = 0 ; k < port->mChannelMasks.size() ; k++) {
+        const audio_channel_mask_t mask = port->mChannelMasks.itemAt(k);
+        if (mask != 0) { // skip "dynamic" masks
+            bool hasMask = false;
+            for (size_t l = 0 ; l < mChannelMasks.size() ; l++) {
+                if (mask == mChannelMasks.itemAt(l)) {
+                    hasMask = true;
+                    break;
+                }
+            }
+            if (!hasMask) { // never import a channel mask twice
+                mChannelMasks.add(mask);
+            }
+        }
+    }
+    for (size_t k = 0 ; k < port->mFormats.size() ; k++) {
+        const audio_format_t format = port->mFormats.itemAt(k);
+        if (format != 0) { // skip "dynamic" formats
+            bool hasFormat = false;
+            for (size_t l = 0 ; l < mFormats.size() ; l++) {
+                if (format == mFormats.itemAt(l)) {
+                    hasFormat = true;
+                    break;
+                }
+            }
+            if (!hasFormat) { // never import a channel mask twice
+                mFormats.add(format);
+            }
+        }
+    }
+}
+
+void AudioPolicyManager::AudioPort::clearCapabilities() {
+    mChannelMasks.clear();
+    mFormats.clear();
+    mSamplingRates.clear();
+}
 
 void AudioPolicyManager::AudioPort::loadSamplingRates(char *name)
 {
