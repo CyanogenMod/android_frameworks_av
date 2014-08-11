@@ -384,23 +384,7 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
     // after each call, but only once we are done with all.
 
     int streamId = -1;
-    if (format == HAL_PIXEL_FORMAT_BLOB) {
-        // JPEG buffers need to be sized for maximum possible compressed size
-        CameraMetadata staticInfo = mDevice->info();
-        camera_metadata_entry_t entry = staticInfo.find(ANDROID_JPEG_MAX_SIZE);
-        if (entry.count == 0) {
-            ALOGE("%s: Camera %d: Can't find maximum JPEG size in "
-                    "static metadata!", __FUNCTION__, mCameraId);
-            return INVALID_OPERATION;
-        }
-        int32_t maxJpegSize = entry.data.i32[0];
-        res = mDevice->createStream(anw, width, height, format, maxJpegSize,
-                &streamId);
-    } else {
-        // All other streams are a known size
-        res = mDevice->createStream(anw, width, height, format, /*size*/0,
-                &streamId);
-    }
+    res = mDevice->createStream(anw, width, height, format, &streamId);
 
     if (res == OK) {
         mStreamMap.add(bufferProducer->asBinder(), streamId);
