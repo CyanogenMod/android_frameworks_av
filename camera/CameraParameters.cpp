@@ -275,6 +275,15 @@ const char CameraParameters::KEY_SHUTTER_SOUND_SELECT[] = "shutter-sound-select"
 const char CameraParameters::KEY_SHUTTER_SOUND[] = "shutter-sound";
 #endif
 
+#ifdef ZTE_MSM8610_CAMERA_HARDWARE
+const char CameraParameters::KEY_SUPPORTED_ZTE_BURST_NUM[] = "supported-zte-burst-num";
+const char CameraParameters::KEY_ZTE_BURST_NUM[] = "zte-burst-num";
+const char CameraParameters::KEY_SUPPORTED_ZTE_HDR_MODES[] = "supported-zte-hdr-modes";
+const char CameraParameters::KEY_ZTE_HDR_MODE[] = "zte-hdr-mode";
+const char CameraParameters::ZTE_HDR_MODE_OFF[] = "zte-hdr-mode-off";
+const char CameraParameters::ZTE_HDR_MODE_HDR[] = "zte-hdr-mode-hdr";
+#endif
+
 const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
 const char CameraParameters::FOCUS_DISTANCE_INFINITY[] = "Infinity";
