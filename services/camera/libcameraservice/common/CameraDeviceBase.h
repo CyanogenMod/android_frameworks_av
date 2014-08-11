@@ -109,8 +109,7 @@ class CameraDeviceBase : public virtual RefBase {
      * other formats, the size parameter is ignored.
      */
     virtual status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format, size_t size,
-            int *id) = 0;
+            uint32_t width, uint32_t height, int format, int *id) = 0;
 
     /**
      * Create an input reprocess stream that uses buffers from an existing
@@ -154,6 +153,12 @@ class CameraDeviceBase : public virtual RefBase {
      * finished processing in 10 seconds.
      */
     virtual status_t waitUntilDrained() = 0;
+
+    /**
+     * Get Jpeg buffer size for a given jpeg resolution.
+     * Negative values are error codes.
+     */
+    virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const = 0;
 
     /**
      * Abstract class for HAL notification listeners
