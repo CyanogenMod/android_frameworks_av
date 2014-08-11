@@ -1368,7 +1368,8 @@ String8 Camera2Client::getParameters() const {
     ATRACE_CALL();
     ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
     Mutex::Autolock icl(mBinderSerializationLock);
-    if ( checkPid(__FUNCTION__) != OK) return String8();
+    // The camera service can unconditionally get the parameters at all times
+    if (getCallingPid() != mServicePid && checkPid(__FUNCTION__) != OK) return String8();
 
     SharedParameters::ReadLock l(mParameters);
 
