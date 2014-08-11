@@ -107,6 +107,7 @@ private:
     status_t initializeCapabilities(const CodecCapabilities &caps);
     void addDetail(const AString &key, const AString &value);
     void addFeature(const AString &key, int32_t value);
+    void removeMime(const char *mime);
     void complete();
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecInfo);
