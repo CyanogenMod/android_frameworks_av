@@ -393,7 +393,7 @@ void AudioResamplerDyn<TC, TI, TO>::setSampleRate(int32_t inSampleRate)
     mPhaseFraction = static_cast<unsigned long long>(mPhaseFraction)
             * phaseWrapLimit / oldPhaseWrapLimit;
     mPhaseFraction %= phaseWrapLimit; // should not do anything, but just in case.
-    mPhaseIncrement = static_cast<uint32_t>(static_cast<double>(phaseWrapLimit)
+    mPhaseIncrement = static_cast<uint32_t>(static_cast<uint64_t>(phaseWrapLimit)
             * inSampleRate / mSampleRate);
 
     // determine which resampler to use
