@@ -280,7 +280,7 @@ status_t ProCamera2Client::createStream(int width, int height, int format,
         window = new Surface(bufferProducer);
     }
 
-    return mDevice->createStream(window, width, height, format, /*size*/1,
+    return mDevice->createStream(window, width, height, format,
                                  streamId);
 }
 
