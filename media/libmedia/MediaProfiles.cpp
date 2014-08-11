@@ -27,6 +27,7 @@
 #include <media/MediaProfiles.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <OMX_Video.h>
+#include <OMX_VideoExt.h>
 
 namespace android {
 
@@ -99,6 +100,11 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"highspeed720p", CAMCORDER_QUALITY_HIGH_SPEED_720P},
     {"highspeed1080p", CAMCORDER_QUALITY_HIGH_SPEED_1080P},
     {"highspeed2160p", CAMCORDER_QUALITY_HIGH_SPEED_2160P},
+
+    {"hevc720p", CAMCORDER_QUALITY_HEVC720P},
+    {"hevc1080p", CAMCORDER_QUALITY_HEVC1080P},
+    {"hevc4kuhd",CAMCORDER_QUALITY_HEVC4kUHD},
+    {"hevc4kdci",CAMCORDER_QUALITY_HEVC4kDCI},
 };
 
 #if LOG_NDEBUG
@@ -934,6 +940,9 @@ MediaProfiles::createDefaultExportVideoProfiles(MediaProfiles *profiles)
     profiles->mVideoEditorExportProfiles.add(
         new ExportVideoProfile(VIDEO_ENCODER_H264,
             OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel13));
+    profiles->mVideoEditorExportProfiles.add(
+        new ExportVideoProfile(VIDEO_ENCODER_H265,
+            OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_HEVCMainTierLevel1));
 }
 
 /*static*/ MediaProfiles*
