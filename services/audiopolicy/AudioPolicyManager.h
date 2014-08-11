@@ -238,6 +238,9 @@ protected:
 
             virtual void toAudioPort(struct audio_port *port) const;
 
+            void importAudioPort(const sp<AudioPort> port);
+            void clearCapabilities();
+
             void loadSamplingRates(char *name);
             void loadFormats(char *name);
             void loadOutChannels(char *name);
@@ -628,7 +631,7 @@ protected:
         // when a device is disconnected, checks if an output is not used any more and
         // returns its handle if any.
         // transfers the audio tracks and effects from one output thread to another accordingly.
-        status_t checkOutputsForDevice(audio_devices_t device,
+        status_t checkOutputsForDevice(const sp<DeviceDescriptor> devDesc,
                                        audio_policy_dev_state_t state,
                                        SortedVector<audio_io_handle_t>& outputs,
                                        const String8 address);
