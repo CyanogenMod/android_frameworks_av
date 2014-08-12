@@ -860,6 +860,7 @@ private:
 
         // Used for voip + voice concurrency usecase
         int mPrevPhoneState;
+        int mvoice_call_state;
 
 };
 
