@@ -206,6 +206,14 @@ status_t MediaCodecInfo::addMime(const char *mime) {
     return OK;
 }
 
+void MediaCodecInfo::removeMime(const char *mime) {
+    ssize_t ix = getCapabilityIndex(mime);
+    if (ix >= 0) {
+        mCaps.removeItemsAt(ix);
+        // mCurrentCaps will be removed when completed
+    }
+}
+
 status_t MediaCodecInfo::initializeCapabilities(const CodecCapabilities &caps) {
     mCurrentCaps->mProfileLevels.clear();
     mCurrentCaps->mColorFormats.clear();

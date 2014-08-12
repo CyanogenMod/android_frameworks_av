@@ -482,11 +482,21 @@ status_t MediaCodecList::addMediaCodecFromAttributes(
     }
 
     mCurrentInfo = new MediaCodecInfo(name, encoder, type);
-    mCodecInfos.push_back(mCurrentInfo);
-    return initializeCapabilities(type);
+    // The next step involves trying to load the codec, which may
+    // fail.  Only list the codec if this succeeds.
+    // However, keep mCurrentInfo object around until parsing
+    // of full codec info is completed.
+    if (initializeCapabilities(type) == OK) {
+        mCodecInfos.push_back(mCurrentInfo);
+    }
+    return OK;
 }
 
 status_t MediaCodecList::initializeCapabilities(const char *type) {
+    if (type == NULL) {
+        return OK;
+    }
+
     ALOGV("initializeCapabilities %s:%s",
             mCurrentInfo->mName.c_str(), type);
 
@@ -553,10 +563,16 @@ status_t MediaCodecList::addTypeFromAttributes(const char **attrs) {
     }
 
     status_t ret = mCurrentInfo->addMime(name);
-    if (ret == OK) {
-        ret = initializeCapabilities(name);
+    if (ret != OK) {
+        return ret;
     }
-    return ret;
+
+    // The next step involves trying to load the codec, which may
+    // fail.  Handle this gracefully (by not reporting such mime).
+    if (initializeCapabilities(name) != OK) {
+        mCurrentInfo->removeMime(name);
+    }
+    return OK;
 }
 
 // legacy method for non-advanced codecs
