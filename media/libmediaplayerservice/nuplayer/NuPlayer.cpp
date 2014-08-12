@@ -901,7 +901,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGE("Received error from %s decoder, aborting playback.",
                      audio ? "audio" : "video");
 
-                mRenderer->queueEOS(audio, UNKNOWN_ERROR);
+                status_t err;
+                if (!msg->findInt32("err", &err)) {
+                    err = UNKNOWN_ERROR;
+                }
+                mRenderer->queueEOS(audio, err);
             } else if (what == Decoder::kWhatDrainThisBuffer) {
                 renderBuffer(audio, msg);
             } else {
