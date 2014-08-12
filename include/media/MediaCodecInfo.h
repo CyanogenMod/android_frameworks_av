@@ -45,7 +45,7 @@ struct MediaCodecInfo : public RefBase {
         void getSupportedProfileLevels(Vector<ProfileLevel> *profileLevels) const;
         void getSupportedColorFormats(Vector<uint32_t> *colorFormats) const;
         uint32_t getFlags() const;
-        const sp<AMessage> &getDetails() const;
+        const sp<AMessage> getDetails() const;
 
     private:
         Vector<ProfileLevel> mProfileLevels;
@@ -67,7 +67,7 @@ struct MediaCodecInfo : public RefBase {
     bool isEncoder() const;
     bool hasQuirk(const char *name) const;
     void getSupportedMimes(Vector<AString> *mimes) const;
-    const sp<Capabilities> &getCapabilitiesFor(const char *mime) const;
+    const sp<Capabilities> getCapabilitiesFor(const char *mime) const;
     const char *getCodecName() const;
 
     /**

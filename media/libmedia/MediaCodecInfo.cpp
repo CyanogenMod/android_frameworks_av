@@ -46,7 +46,7 @@ uint32_t MediaCodecInfo::Capabilities::getFlags() const {
     return mFlags;
 }
 
-const sp<AMessage> &MediaCodecInfo::Capabilities::getDetails() const {
+const sp<AMessage> MediaCodecInfo::Capabilities::getDetails() const {
     return mDetails;
 }
 
@@ -121,7 +121,7 @@ void MediaCodecInfo::getSupportedMimes(Vector<AString> *mimes) const {
     }
 }
 
-const sp<MediaCodecInfo::Capabilities> &
+const sp<MediaCodecInfo::Capabilities>
 MediaCodecInfo::getCapabilitiesFor(const char *mime) const {
     ssize_t ix = getCapabilityIndex(mime);
     if (ix >= 0) {
