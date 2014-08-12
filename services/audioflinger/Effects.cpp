@@ -44,6 +44,8 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -1391,7 +1393,8 @@ void AudioFlinger::EffectChain::clearInputBuffer_l(sp<ThreadBase> thread)
     // and sample format changes for effects.
     // Currently effects processing is only available for stereo, AUDIO_FORMAT_PCM_16_BIT
     // (4 bytes frame size)
-    const size_t frameSize = audio_bytes_per_sample(AUDIO_FORMAT_PCM_16_BIT) * FCC_2;
+    const size_t frameSize =
+            audio_bytes_per_sample(AUDIO_FORMAT_PCM_16_BIT) * min(FCC_2, thread->channelCount());
     memset(mInBuffer, 0, thread->frameCount() * frameSize);
 }
 
