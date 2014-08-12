@@ -1672,21 +1672,26 @@ status_t Parameters::set(const String8& paramString) {
     if (validatedParams.videoWidth != videoWidth ||
             validatedParams.videoHeight != videoHeight) {
         if (state == RECORD) {
-            ALOGE("%s: Video size cannot be updated when recording is active!",
-                    __FUNCTION__);
-            return BAD_VALUE;
-        }
-        for (i = 0; i < availableVideoSizes.size(); i++) {
-            if ((availableVideoSizes[i].width ==
-                    validatedParams.videoWidth) &&
-                (availableVideoSizes[i].height ==
-                    validatedParams.videoHeight)) break;
-        }
-        if (i == availableVideoSizes.size()) {
-            ALOGE("%s: Requested video size %d x %d is not supported",
-                    __FUNCTION__, validatedParams.videoWidth,
+            ALOGW("%s: Video size cannot be updated (from %d x %d to %d x %d)"
+                    " when recording is active! Ignore the size update!",
+                    __FUNCTION__, videoWidth, videoHeight, validatedParams.videoWidth,
                     validatedParams.videoHeight);
-            return BAD_VALUE;
+            validatedParams.videoWidth = videoWidth;
+            validatedParams.videoHeight = videoHeight;
+            newParams.setVideoSize(videoWidth, videoHeight);
+        } else {
+            for (i = 0; i < availableVideoSizes.size(); i++) {
+                if ((availableVideoSizes[i].width ==
+                        validatedParams.videoWidth) &&
+                    (availableVideoSizes[i].height ==
+                        validatedParams.videoHeight)) break;
+            }
+            if (i == availableVideoSizes.size()) {
+                ALOGE("%s: Requested video size %d x %d is not supported",
+                        __FUNCTION__, validatedParams.videoWidth,
+                        validatedParams.videoHeight);
+                return BAD_VALUE;
+            }
         }
     }
 
