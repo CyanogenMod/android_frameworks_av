@@ -98,32 +98,47 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
     mCropWidth = mCropRight - mCropLeft + 1;
     mCropHeight = mCropBottom - mCropTop + 1;
 
-    int halFormat;
-    size_t bufWidth, bufHeight;
+    // by default convert everything to RGB565
+    int halFormat = HAL_PIXEL_FORMAT_RGB_565;
+    size_t bufWidth = mCropWidth;
+    size_t bufHeight = mCropHeight;
 
-    switch (mColorFormat) {
-        case OMX_COLOR_FormatYUV420Planar:
-        case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
-        {
-            if (!runningInEmulator()) {
+    // hardware has YUV12 and RGBA8888 support, so convert known formats
+    if (!runningInEmulator()) {
+        switch (mColorFormat) {
+            case OMX_COLOR_FormatYUV420Planar:
+            case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+            {
                 halFormat = HAL_PIXEL_FORMAT_YV12;
                 bufWidth = (mCropWidth + 1) & ~1;
                 bufHeight = (mCropHeight + 1) & ~1;
                 break;
             }
-
-            // fall through.
+            case OMX_COLOR_Format24bitRGB888:
+            {
+                halFormat = HAL_PIXEL_FORMAT_RGB_888;
+                bufWidth = (mCropWidth + 1) & ~1;
+                bufHeight = (mCropHeight + 1) & ~1;
+                break;
+            }
+            case OMX_COLOR_Format32bitARGB8888:
+            {
+                halFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+                bufWidth = (mCropWidth + 1) & ~1;
+                bufHeight = (mCropHeight + 1) & ~1;
+                break;
+            }
+            default:
+            {
+                break;
+            }
         }
+    }
 
-        default:
-            halFormat = HAL_PIXEL_FORMAT_RGB_565;
-            bufWidth = mCropWidth;
-            bufHeight = mCropHeight;
-
-            mConverter = new ColorConverter(
-                    mColorFormat, OMX_COLOR_Format16bitRGB565);
-            CHECK(mConverter->isValid());
-            break;
+    if (halFormat == HAL_PIXEL_FORMAT_RGB_565) {
+        mConverter = new ColorConverter(
+                mColorFormat, OMX_COLOR_Format16bitRGB565);
+        CHECK(mConverter->isValid());
     }
 
     CHECK(mNativeWindow != NULL);
@@ -200,6 +215,8 @@ void SoftwareRenderer::render(
     CHECK_EQ(0, mapper.lock(
                 buf->handle, GRALLOC_USAGE_SW_WRITE_OFTEN, bounds, &dst));
 
+    // TODO move the other conversions also into ColorConverter, and
+    // fix cropping issues (when mCropLeft/Top != 0 or mWidth != mCropWidth)
     if (mConverter) {
         mConverter->convert(
                 data,
@@ -210,7 +227,8 @@ void SoftwareRenderer::render(
                 0, 0, mCropWidth - 1, mCropHeight - 1);
     } else if (mColorFormat == OMX_COLOR_FormatYUV420Planar) {
         const uint8_t *src_y = (const uint8_t *)data;
-        const uint8_t *src_u = (const uint8_t *)data + mWidth * mHeight;
+        const uint8_t *src_u =
+                (const uint8_t *)data + mWidth * mHeight;
         const uint8_t *src_v = src_u + (mWidth / 2 * mHeight / 2);
 
         uint8_t *dst_y = (uint8_t *)dst;
@@ -236,14 +254,10 @@ void SoftwareRenderer::render(
             dst_u += dst_c_stride;
             dst_v += dst_c_stride;
         }
-    } else {
-        CHECK_EQ(mColorFormat, OMX_TI_COLOR_FormatYUV420PackedSemiPlanar);
-
-        const uint8_t *src_y =
-            (const uint8_t *)data;
-
-        const uint8_t *src_uv =
-            (const uint8_t *)data + mWidth * (mHeight - mCropTop / 2);
+    } else if (mColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar) {
+        const uint8_t *src_y = (const uint8_t *)data;
+        const uint8_t *src_uv = (const uint8_t *)data
+                + mWidth * (mHeight - mCropTop / 2);
 
         uint8_t *dst_y = (uint8_t *)dst;
 
@@ -271,6 +285,31 @@ void SoftwareRenderer::render(
             dst_u += dst_c_stride;
             dst_v += dst_c_stride;
         }
+    } else if (mColorFormat == OMX_COLOR_Format24bitRGB888) {
+        uint8_t* srcPtr = (uint8_t*)data;
+        uint8_t* dstPtr = (uint8_t*)dst;
+
+        for (size_t y = 0; y < (size_t)mCropHeight; ++y) {
+            memcpy(dstPtr, srcPtr, mCropWidth * 3);
+            srcPtr += mWidth * 3;
+            dstPtr += buf->stride * 3;
+        }
+    } else if (mColorFormat == OMX_COLOR_Format32bitARGB8888) {
+        uint8_t *srcPtr, *dstPtr;
+
+        for (size_t y = 0; y < (size_t)mCropHeight; ++y) {
+            srcPtr = (uint8_t*)data + mWidth * 4 * y;
+            dstPtr = (uint8_t*)dst + buf->stride * 4 * y;
+            for (size_t x = 0; x < (size_t)mCropWidth; ++x) {
+                uint8_t a = *srcPtr++;
+                for (size_t i = 0; i < 3; ++i) {   // copy RGB
+                    *dstPtr++ = *srcPtr++;
+                }
+                *dstPtr++ = a;  // alpha last (ARGB to RGBA)
+            }
+        }
+    } else {
+        LOG_ALWAYS_FATAL("bad color format %#x", mColorFormat);
     }
 
     CHECK_EQ(0, mapper.unlock(buf->handle));
