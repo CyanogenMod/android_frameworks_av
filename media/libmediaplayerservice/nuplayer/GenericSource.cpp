@@ -192,9 +192,26 @@ status_t NuPlayer::GenericSource::setBuffers(
 }
 
 NuPlayer::GenericSource::~GenericSource() {
+    if (mLooper != NULL) {
+        mLooper->unregisterHandler(id());
+        mLooper->stop();
+    }
 }
 
 void NuPlayer::GenericSource::prepareAsync() {
+    if (mLooper == NULL) {
+        mLooper = new ALooper;
+        mLooper->setName("generic");
+        mLooper->start();
+
+        mLooper->registerHandler(this);
+    }
+
+    sp<AMessage> msg = new AMessage(kWhatPrepareAsync, id());
+    msg->post();
+}
+
+void NuPlayer::GenericSource::onPrepareAsync() {
     // delayed data source creation
     AString sniffedMIME;
     sp<DataSource> dataSource;
@@ -267,6 +284,11 @@ status_t NuPlayer::GenericSource::feedMoreTSData() {
 
 void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
+      case kWhatPrepareAsync:
+      {
+          onPrepareAsync();
+          break;
+      }
       case kWhatFetchSubtitleData:
       {
           fetchTextData(kWhatSendSubtitleData, MEDIA_TRACK_TYPE_SUBTITLE,
