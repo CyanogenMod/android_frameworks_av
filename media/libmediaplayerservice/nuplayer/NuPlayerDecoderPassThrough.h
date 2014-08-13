@@ -61,12 +61,13 @@ private:
     void onConfigure(const sp<AMessage> &format);
     void onFlush();
     void onInputBufferFilled(const sp<AMessage> &msg);
-    void onBufferConsumed();
+    void onBufferConsumed(int32_t size);
     void onShutdown();
 
     int32_t mBufferGeneration;
     bool mReachedEOS;
     int32_t mPendingBuffers;
+    int32_t mCachedBytes;
     AString mComponentName;
 
     DISALLOW_EVIL_CONSTRUCTORS(DecoderPassThrough);
