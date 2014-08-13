@@ -84,6 +84,8 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
 namespace android {
 
 // retry counts for buffer fill timeout
@@ -4868,7 +4870,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     if (initFastCapture) {
         // create a Pipe for FastMixer to write to, and for us and fast tracks to read from
         NBAIO_Format format = mInputSource->format();
-        size_t pipeFramesP2 = roundup(mFrameCount * 8);
+        size_t pipeFramesP2 = roundup(mSampleRate / 25);    // double-buffering of 20 ms each
         size_t pipeSize = pipeFramesP2 * Format_frameSize(format);
         void *pipeBuffer;
         const sp<MemoryDealer> roHeap(readOnlyHeap());
@@ -5537,20 +5539,25 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         // ignore requested notificationFrames, and always notify exactly once every HAL buffer
         *notificationFrames = mFrameCount;
     } else {
-        // not fast track: frame count is at least 2 HAL buffers and at least 20 ms
-        size_t minFrameCount = ((int64_t) mFrameCount * 2 * sampleRate + mSampleRate - 1) /
-                mSampleRate;
-        if (frameCount < minFrameCount) {
-            frameCount = minFrameCount;
-        }
-        minFrameCount = (sampleRate * 20 / 1000 + 1) & ~1;
-        if (frameCount < minFrameCount) {
-            frameCount = minFrameCount;
-        }
-        // notification is forced to be at least double-buffering
-        size_t maxNotification = frameCount / 2;
-        if (*notificationFrames == 0 || *notificationFrames > maxNotification) {
-            *notificationFrames = maxNotification;
+        // not fast track: max notification period is resampled equivalent of one HAL buffer time
+        //                 or 20 ms if there is a fast capture
+        // TODO This could be a roundupRatio inline, and const
+        size_t maxNotificationFrames = ((int64_t) (hasFastCapture() ? mSampleRate/50 : mFrameCount)
+                * sampleRate + mSampleRate - 1) / mSampleRate;
+        // minimum number of notification periods is at least kMinNotifications,
+        // and at least kMinMs rounded up to a whole notification period (minNotificationsByMs)
+        static const size_t kMinNotifications = 3;
+        static const uint32_t kMinMs = 30;
+        // TODO This could be a roundupRatio inline
+        const size_t minFramesByMs = (sampleRate * kMinMs + 1000 - 1) / 1000;
+        // TODO This could be a roundupRatio inline
+        const size_t minNotificationsByMs = (minFramesByMs + maxNotificationFrames - 1) /
+                maxNotificationFrames;
+        const size_t minFrameCount = maxNotificationFrames *
+                max(kMinNotifications, minNotificationsByMs);
+        frameCount = max(frameCount, minFrameCount);
+        if (*notificationFrames == 0 || *notificationFrames > maxNotificationFrames) {
+            *notificationFrames = maxNotificationFrames;
         }
     }
     *pFrameCount = frameCount;
@@ -6073,6 +6080,14 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
     delete[] mRsmpInBuffer;
+
+    // TODO optimize audio capture buffer sizes ...
+    // Here we calculate the size of the sliding buffer used as a source
+    // for resampling.  mRsmpInFramesP2 is currently roundup(mFrameCount * 7).
+    // For current HAL frame counts, this is usually 2048 = 40 ms.  It would
+    // be better to have it derived from the pipe depth in the long term.
+    // The current value is higher than necessary.  However it should not add to latency.
+
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
     mRsmpInBuffer = new int16_t[(mRsmpInFramesP2 + mFrameCount - 1) * mChannelCount];
 
