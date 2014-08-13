@@ -209,25 +209,29 @@ sp<DataSource> DataSource::CreateFromURI(
             uri = tmp.string();
         }
 
-        if (httpSource->connect(uri, headers) != OK) {
+        String8 cacheConfig;
+        bool disconnectAtHighwatermark;
+        KeyedVector<String8, String8> nonCacheSpecificHeaders;
+        if (headers != NULL) {
+            nonCacheSpecificHeaders = *headers;
+            NuCachedSource2::RemoveCacheSpecificHeaders(
+                    &nonCacheSpecificHeaders,
+                    &cacheConfig,
+                    &disconnectAtHighwatermark);
+        }
+
+        if (httpSource->connect(uri, &nonCacheSpecificHeaders) != OK) {
             ALOGE("Failed to connect http source!");
             return NULL;
         }
 
         if (!isWidevine) {
-            String8 cacheConfig;
-            bool disconnectAtHighwatermark;
-            if (headers != NULL) {
-                KeyedVector<String8, String8> copy = *headers;
-                NuCachedSource2::RemoveCacheSpecificHeaders(
-                        &copy, &cacheConfig, &disconnectAtHighwatermark);
-            }
+            String8 contentType = httpSource->getMIMEType();
 
             sp<NuCachedSource2> cachedSource = new NuCachedSource2(
                     httpSource,
-                    cacheConfig.isEmpty() ? NULL : cacheConfig.string());
-
-            String8 contentType = httpSource->getMIMEType();
+                    cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
+                    disconnectAtHighwatermark);
 
             if (strncasecmp(contentType.string(), "audio/", 6)) {
                 // We're not doing this for streams that appear to be audio-only
