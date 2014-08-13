@@ -66,7 +66,6 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     void notifySetDataSourceCompleted(status_t err);
     void notifyPrepareCompleted(status_t err);
     void notifyResetComplete();
-    void notifySetSurfaceComplete();
     void notifyDuration(int64_t durationUs);
     void notifyPosition(int64_t positionUs);
     void notifySeekComplete();
@@ -99,7 +98,6 @@ private:
 
     // The following are protected through "mLock"
     // >>>
-    bool mSetSurfaceInProgress;
     int64_t mDurationUs;
     int64_t mPositionUs;
     int64_t mNumFramesTotal;

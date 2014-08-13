@@ -22,8 +22,6 @@
 
 #include "ATSParser.h"
 
-#include <media/stagefright/foundation/AHandlerReflector.h>
-
 namespace android {
 
 struct ALooper;
@@ -102,7 +100,6 @@ private:
     bool mBuffering;
 
     sp<ALooper> mLooper;
-    sp<AHandlerReflector<RTSPSource> > mReflector;
     sp<MyHandler> mHandler;
     sp<SDPLoader> mSDPLoader;
 

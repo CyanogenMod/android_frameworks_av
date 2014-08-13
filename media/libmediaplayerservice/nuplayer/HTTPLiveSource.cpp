@@ -62,17 +62,24 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
 NuPlayer::HTTPLiveSource::~HTTPLiveSource() {
     if (mLiveSession != NULL) {
         mLiveSession->disconnect();
-        mLiveSession.clear();
 
+        mLiveLooper->unregisterHandler(mLiveSession->id());
+        mLiveLooper->unregisterHandler(id());
         mLiveLooper->stop();
+
+        mLiveSession.clear();
         mLiveLooper.clear();
     }
 }
 
 void NuPlayer::HTTPLiveSource::prepareAsync() {
-    mLiveLooper = new ALooper;
-    mLiveLooper->setName("http live");
-    mLiveLooper->start();
+    if (mLiveLooper == NULL) {
+        mLiveLooper = new ALooper;
+        mLiveLooper->setName("http live");
+        mLiveLooper->start();
+
+        mLiveLooper->registerHandler(this);
+    }
 
     sp<AMessage> notify = new AMessage(kWhatSessionNotify, id());
 
