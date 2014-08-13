@@ -172,6 +172,7 @@ private:
         size_t mSize;
         void *mData;
         MediaBuffer *mMediaBuffer;
+        bool mOutputCropChanged;
     };
 
     struct CodecSpecificData {
@@ -368,6 +369,8 @@ private:
     OMXCodec &operator=(const OMXCodec &);
 
     int32_t mNumBFrames;
+    bool mInSmoothStreamingMode;
+    bool mOutputCropChanged;
 };
 
 struct CodecCapabilities {
