@@ -31,6 +31,7 @@
 namespace android {
 
 static const int kMaxPendingBuffers = 10;
+static const int kMaxCachedBytes = 200000;
 
 NuPlayer::DecoderPassThrough::DecoderPassThrough(
         const sp<AMessage> &notify)
@@ -39,6 +40,7 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
       mBufferGeneration(0),
       mReachedEOS(true),
       mPendingBuffers(0),
+      mCachedBytes(0),
       mComponentName("pass through decoder") {
     mDecoderLooper = new ALooper;
     mDecoderLooper->setName("NuPlayerDecoderPassThrough");
@@ -78,6 +80,7 @@ bool NuPlayer::DecoderPassThrough::supportsSeamlessFormatChange(
 void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure", mComponentName.c_str());
     mPendingBuffers = 0;
+    mCachedBytes = 0;
     mReachedEOS = false;
     ++mBufferGeneration;
 
@@ -96,7 +99,7 @@ bool NuPlayer::DecoderPassThrough::isStaleReply(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::DecoderPassThrough::requestABuffer() {
-    if (mPendingBuffers >= kMaxPendingBuffers || mReachedEOS) {
+    if (mCachedBytes >= kMaxCachedBytes || mReachedEOS) {
         ALOGV("[%s] mReachedEOS=%d, max pending buffers(%d:%d)",
                 mComponentName.c_str(), (mReachedEOS ? 1 : 0),
                 mPendingBuffers, kMaxPendingBuffers);
@@ -136,8 +139,11 @@ void android::NuPlayer::DecoderPassThrough::onInputBufferFilled(
         return;
     }
 
+    mCachedBytes += buffer->size();
+
     sp<AMessage> reply = new AMessage(kWhatBufferConsumed, id());
     reply->setInt32("generation", mBufferGeneration);
+    reply->setInt32("size", buffer->size());
 
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatDrainThisBuffer);
@@ -146,8 +152,9 @@ void android::NuPlayer::DecoderPassThrough::onInputBufferFilled(
     notify->post();
 }
 
-void NuPlayer::DecoderPassThrough::onBufferConsumed() {
+void NuPlayer::DecoderPassThrough::onBufferConsumed(int32_t size) {
     mPendingBuffers--;
+    mCachedBytes -= size;
     sp<AMessage> message = new AMessage(kWhatRequestABuffer, id());
     message->setInt32("generation", mBufferGeneration);
     message->post();
@@ -160,6 +167,7 @@ void NuPlayer::DecoderPassThrough::onFlush() {
     notify->setInt32("what", kWhatFlushCompleted);
     notify->post();
     mPendingBuffers = 0;
+    mCachedBytes = 0;
     mReachedEOS = false;
 }
 
@@ -205,7 +213,9 @@ void NuPlayer::DecoderPassThrough::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatBufferConsumed:
         {
             if (!isStaleReply(msg)) {
-                onBufferConsumed();
+                int32_t size;
+                CHECK(msg->findInt32("size", &size));
+                onBufferConsumed(size);
             }
             break;
         }
