@@ -640,8 +640,17 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
         focusMode = Parameters::FOCUS_MODE_AUTO;
         params.set(CameraParameters::KEY_FOCUS_MODE,
                 CameraParameters::FOCUS_MODE_AUTO);
-        String8 supportedFocusModes(CameraParameters::FOCUS_MODE_INFINITY);
-        bool addComma = true;
+        String8 supportedFocusModes;
+        bool addComma = false;
+        camera_metadata_ro_entry_t focusDistanceCalibration =
+            staticInfo(ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION, 0, 0, false);
+
+        if (focusDistanceCalibration.count &&
+                focusDistanceCalibration.data.u8[0] !=
+                ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION_UNCALIBRATED) {
+            supportedFocusModes += CameraParameters::FOCUS_MODE_INFINITY;
+            addComma = true;
+        }
 
         for (size_t i=0; i < availableAfModes.count; i++) {
             if (addComma) supportedFocusModes += ",";
