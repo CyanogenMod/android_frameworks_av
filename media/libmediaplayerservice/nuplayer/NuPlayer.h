@@ -124,6 +124,7 @@ private:
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
     bool mOffloadAudio;
+    audio_offload_info_t mCurrentOffloadInfo;
     sp<Decoder> mAudioDecoder;
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
@@ -166,6 +167,9 @@ private:
     int32_t mVideoScalingMode;
 
     bool mStarted;
+
+    void openAudioSink(const sp<AMessage> &format, bool offloadOnly);
+    void closeAudioSink();
 
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
