@@ -1,7 +1,3 @@
-#ifdef HAVE_EXTRA_PARAMETERS
-#include "BCameraParameters.h"
-#else
-
 /*
  * Copyright (C) 2008 The Android Open Source Project
  *
@@ -24,6 +20,8 @@
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 
+/* Avoid this option in favour of your file BCameraParameters.h */
+#ifndef HAVE_EXTRA_PARAMETERS
 namespace android {
 
 struct Size {
@@ -1092,6 +1090,8 @@ private:
 
 }; // namespace android
 
+#else
+#include "BCameraParameters.h"
 #endif
 
 #endif
