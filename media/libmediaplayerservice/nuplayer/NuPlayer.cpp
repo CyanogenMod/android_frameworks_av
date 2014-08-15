@@ -147,6 +147,7 @@ NuPlayer::NuPlayer()
       mSourceFlags(0),
       mVideoIsAVC(false),
       mOffloadAudio(false),
+      mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -639,11 +640,18 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             bool mHadAnySourcesBefore =
                 (mAudioDecoder != NULL) || (mVideoDecoder != NULL);
 
+            // initialize video before audio because successful initialization of
+            // video may change deep buffer mode of audio.
             if (mNativeWindow != NULL) {
                 instantiateDecoder(false, &mVideoDecoder);
             }
 
             if (mAudioSink != NULL) {
+                if (mOffloadAudio) {
+                    // open audio sink early under offload mode.
+                    sp<AMessage> format = mSource->getFormat(true /*audio*/);
+                    openAudioSink(format, true /*offloadOnly*/);
+                }
                 instantiateDecoder(true, &mAudioDecoder);
             }
 
@@ -743,138 +751,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 CHECK(msg->findMessage("format", &format));
 
                 if (audio) {
-                    int32_t numChannels;
-                    CHECK(format->findInt32(
-                                "channel-count", &numChannels));
-
-                    int32_t sampleRate;
-                    CHECK(format->findInt32("sample-rate", &sampleRate));
-
-                    ALOGV("Audio output format changed to %d Hz, %d channels",
-                         sampleRate, numChannels);
-
-                    mAudioSink->close();
-
-                    uint32_t flags;
-                    int64_t durationUs;
-                    // FIXME: we should handle the case where the video decoder
-                    // is created after we receive the format change indication.
-                    // Current code will just make that we select deep buffer
-                    // with video which should not be a problem as it should
-                    // not prevent from keeping A/V sync.
-                    if (mVideoDecoder == NULL &&
-                            mSource->getDuration(&durationUs) == OK &&
-                            durationUs
-                                > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
-                        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
-                    } else {
-                        flags = AUDIO_OUTPUT_FLAG_NONE;
-                    }
-
-                    int32_t channelMask;
-                    if (!format->findInt32("channel-mask", &channelMask)) {
-                        channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
-                    }
-
-                    if (mOffloadAudio) {
-                        audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
-                        audio_offload_info_t offloadInfo =
-                                AUDIO_INFO_INITIALIZER;
-
-                        AString mime;
-                        CHECK(format->findString("mime", &mime));
-
-                        status_t err =
-                            mapMimeToAudioFormat(audioFormat, mime.c_str());
-                        if (err != OK) {
-                            ALOGE("Couldn't map mime \"%s\" to a valid "
-                                    "audio_format", mime.c_str());
-                            mOffloadAudio = false;
-                        } else {
-                            ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
-                                    mime.c_str(), audioFormat);
-
-                            int32_t aacProfile = -1;
-                            if (audioFormat == AUDIO_FORMAT_AAC
-                                    && format->findInt32("aac-profile", &aacProfile)) {
-                                // Redefine AAC format as per aac profile
-                                mapAACProfileToAudioFormat(
-                                        audioFormat,
-                                        aacProfile);
-                            }
-
-                            flags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
-
-                            offloadInfo.duration_us = -1;
-                            format->findInt64(
-                                    "durationUs", &offloadInfo.duration_us);
-
-                            int avgBitRate = -1;
-                            format->findInt32("bit-rate", &avgBitRate);
-
-                            offloadInfo.sample_rate = sampleRate;
-                            offloadInfo.channel_mask = channelMask;
-                            offloadInfo.format = audioFormat;
-                            offloadInfo.stream_type = AUDIO_STREAM_MUSIC;
-                            offloadInfo.bit_rate = avgBitRate;
-                            offloadInfo.has_video = (mVideoDecoder != NULL);
-                            offloadInfo.is_streaming = true;
-
-                            ALOGV("try to open AudioSink in offload mode");
-                            err = mAudioSink->open(
-                                    sampleRate,
-                                    numChannels,
-                                    (audio_channel_mask_t)channelMask,
-                                    audioFormat,
-                                    8 /* bufferCount */,
-                                    &NuPlayer::Renderer::AudioSinkCallback,
-                                    mRenderer.get(),
-                                    (audio_output_flags_t)flags,
-                                    &offloadInfo);
-
-                            if (err == OK) {
-                                // If the playback is offloaded to h/w, we pass
-                                // the HAL some metadata information.
-                                // We don't want to do this for PCM because it
-                                // will be going through the AudioFlinger mixer
-                                // before reaching the hardware.
-                                sp<MetaData> audioMeta =
-                                    mSource->getFormatMeta(true /* audio */);
-                                sendMetaDataToHal(mAudioSink, audioMeta);
-
-                                err = mAudioSink->start();
-                            }
-                        }
-
-                        if (err != OK) {
-                            // Clean up, fall back to non offload mode.
-                            mAudioSink->close();
-                            mAudioDecoder.clear();
-                            mRenderer->signalDisableOffloadAudio();
-                            mOffloadAudio = false;
-
-                            instantiateDecoder(
-                                    true /* audio */, &mAudioDecoder);
-                        }
-                    }
-
-                    if (!mOffloadAudio) {
-                        flags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
-                        ALOGV("open AudioSink in NON-offload mode");
-                        CHECK_EQ(mAudioSink->open(
-                                    sampleRate,
-                                    numChannels,
-                                    (audio_channel_mask_t)channelMask,
-                                    AUDIO_FORMAT_PCM_16_BIT,
-                                    8 /* bufferCount */,
-                                    NULL,
-                                    NULL,
-                                    (audio_output_flags_t)flags),
-                                 (status_t)OK);
-                        mAudioSink->start();
-                    }
-
-                    mRenderer->signalAudioSinkChanged();
+                    openAudioSink(format, false /*offloadOnly*/);
                 } else {
                     // video
                     sp<AMessage> inputFormat =
@@ -981,7 +858,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGV("Tear down audio offload, fall back to s/w path");
                 int64_t positionUs;
                 CHECK(msg->findInt64("positionUs", &positionUs));
-                mAudioSink->close();
+                closeAudioSink();
                 mAudioDecoder.clear();
                 mRenderer->flush(true /* audio */);
                 if (mVideoDecoder != NULL) {
@@ -1106,6 +983,148 @@ void NuPlayer::postScanSources() {
     msg->post();
 
     mScanSourcesPending = true;
+}
+
+void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
+    ALOGV("openAudioSink: offloadOnly(%d) mOffloadAudio(%d)",
+            offloadOnly, mOffloadAudio);
+    bool audioSinkChanged = false;
+
+    int32_t numChannels;
+    CHECK(format->findInt32("channel-count", &numChannels));
+
+    int32_t channelMask;
+    if (!format->findInt32("channel-mask", &channelMask)) {
+        // signal to the AudioSink to derive the mask from count.
+        channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
+    }
+
+    int32_t sampleRate;
+    CHECK(format->findInt32("sample-rate", &sampleRate));
+
+    uint32_t flags;
+    int64_t durationUs;
+    // FIXME: we should handle the case where the video decoder
+    // is created after we receive the format change indication.
+    // Current code will just make that we select deep buffer
+    // with video which should not be a problem as it should
+    // not prevent from keeping A/V sync.
+    if (mVideoDecoder == NULL &&
+            mSource->getDuration(&durationUs) == OK &&
+            durationUs
+                > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
+        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+    } else {
+        flags = AUDIO_OUTPUT_FLAG_NONE;
+    }
+
+    if (mOffloadAudio) {
+        audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+        AString mime;
+        CHECK(format->findString("mime", &mime));
+        status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
+
+        if (err != OK) {
+            ALOGE("Couldn't map mime \"%s\" to a valid "
+                    "audio_format", mime.c_str());
+            mOffloadAudio = false;
+        } else {
+            ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
+                    mime.c_str(), audioFormat);
+
+            int avgBitRate = -1;
+            format->findInt32("bit-rate", &avgBitRate);
+
+            int32_t aacProfile = -1;
+            if (audioFormat == AUDIO_FORMAT_AAC
+                    && format->findInt32("aac-profile", &aacProfile)) {
+                // Redefine AAC format as per aac profile
+                mapAACProfileToAudioFormat(
+                        audioFormat,
+                        aacProfile);
+            }
+
+            audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
+            offloadInfo.duration_us = -1;
+            format->findInt64(
+                    "durationUs", &offloadInfo.duration_us);
+            offloadInfo.sample_rate = sampleRate;
+            offloadInfo.channel_mask = channelMask;
+            offloadInfo.format = audioFormat;
+            offloadInfo.stream_type = AUDIO_STREAM_MUSIC;
+            offloadInfo.bit_rate = avgBitRate;
+            offloadInfo.has_video = (mVideoDecoder != NULL);
+            offloadInfo.is_streaming = true;
+
+            if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
+                ALOGV("openAudioSink: no change in offload mode");
+                return;  // no change from previous configuration, everything ok.
+            }
+            ALOGV("openAudioSink: try to open AudioSink in offload mode");
+            flags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+            audioSinkChanged = true;
+            mAudioSink->close();
+            err = mAudioSink->open(
+                    sampleRate,
+                    numChannels,
+                    (audio_channel_mask_t)channelMask,
+                    audioFormat,
+                    8 /* bufferCount */,
+                    &NuPlayer::Renderer::AudioSinkCallback,
+                    mRenderer.get(),
+                    (audio_output_flags_t)flags,
+                    &offloadInfo);
+
+            if (err == OK) {
+                // If the playback is offloaded to h/w, we pass
+                // the HAL some metadata information.
+                // We don't want to do this for PCM because it
+                // will be going through the AudioFlinger mixer
+                // before reaching the hardware.
+                sp<MetaData> audioMeta =
+                        mSource->getFormatMeta(true /* audio */);
+                sendMetaDataToHal(mAudioSink, audioMeta);
+                mCurrentOffloadInfo = offloadInfo;
+                err = mAudioSink->start();
+                ALOGV_IF(err == OK, "openAudioSink: offload succeeded");
+            }
+            if (err != OK) {
+                // Clean up, fall back to non offload mode.
+                mAudioSink->close();
+                mRenderer->signalDisableOffloadAudio();
+                mOffloadAudio = false;
+                mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+                ALOGV("openAudioSink: offload failed");
+            }
+        }
+    }
+    if (!offloadOnly && !mOffloadAudio) {
+        flags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+        ALOGV("openAudioSink: open AudioSink in NON-offload mode");
+
+        audioSinkChanged = true;
+        mAudioSink->close();
+        mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+        CHECK_EQ(mAudioSink->open(
+                    sampleRate,
+                    numChannels,
+                    (audio_channel_mask_t)channelMask,
+                    AUDIO_FORMAT_PCM_16_BIT,
+                    8 /* bufferCount */,
+                    NULL,
+                    NULL,
+                    (audio_output_flags_t)flags),
+                 (status_t)OK);
+        mAudioSink->start();
+    }
+    if (audioSinkChanged) {
+        mRenderer->signalAudioSinkChanged();
+    }
+}
+
+void NuPlayer::closeAudioSink() {
+    mAudioSink->close();
+    mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
 }
 
 status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
