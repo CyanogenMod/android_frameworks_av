@@ -373,7 +373,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findObject("source", &obj));
             if (obj != NULL) {
                 mSource = static_cast<Source *>(obj.get());
-                looper()->registerHandler(mSource);
             } else {
                 err = UNKNOWN_ERROR;
             }
@@ -1707,8 +1706,6 @@ void NuPlayer::performReset() {
     if (mSource != NULL) {
         mSource->stop();
 
-        looper()->unregisterHandler(mSource->id());
-
         mSource.clear();
     }
 
@@ -1741,13 +1738,6 @@ void NuPlayer::performSetSurface(const sp<NativeWindowWrapper> &wrapper) {
 
     // XXX - ignore error from setVideoScalingMode for now
     setVideoScalingMode(mVideoScalingMode);
-
-    if (mDriver != NULL) {
-        sp<NuPlayerDriver> driver = mDriver.promote();
-        if (driver != NULL) {
-            driver->notifySetSurfaceComplete();
-        }
-    }
 }
 
 void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {

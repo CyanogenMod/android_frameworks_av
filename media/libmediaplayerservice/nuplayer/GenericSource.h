@@ -70,6 +70,7 @@ protected:
 
 private:
     enum {
+        kWhatPrepareAsync,
         kWhatFetchSubtitleData,
         kWhatFetchTimedTextData,
         kWhatSendSubtitleData,
@@ -104,11 +105,16 @@ private:
     int64_t mOffset;
     int64_t mLength;
 
+    sp<ALooper> mLooper;
+
+
     void resetDataSource();
 
     status_t initFromDataSource(
             const sp<DataSource> &dataSource,
             const char *mime);
+
+    void onPrepareAsync();
 
     void fetchTextData(
             uint32_t what, media_track_type type,
