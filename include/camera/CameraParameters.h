@@ -19,6 +19,7 @@
 
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
+#include <camera/CameraParametersExtra.h>
 
 namespace android {
 
@@ -682,6 +683,10 @@ public:
     static const char LIGHTFX_LOWLIGHT[];
     // High-dynamic range mode
     static const char LIGHTFX_HDR[];
+
+#ifdef CAMERA_PARAMETERS_EXTRA_H
+CAMERA_PARAMETERS_EXTRA_H
+#endif
 
     /**
      * Returns the the supported preview formats as an enum given in graphics.h
