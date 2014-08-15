@@ -967,7 +967,7 @@ status_t AudioPlayer::seekTo(int64_t time_us) {
         which is in Msec converted from Usec */
         if((time_us/1000) == (playPosition/1000))
         {
-            ALOGE("Ignore seek and post seek complete");
+            ALOGV("Ignore seek and post seek complete");
             if(mObserver)
                 mObserver->postAudioSeekComplete();
             return OK;
