@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <camera/CameraParameters.h>
+#include <camera/CameraParametersExtra.h>
 
 namespace android {
 // Parameter keys to communicate between camera application and driver.
@@ -566,6 +567,9 @@ void CameraParameters::setOrientation(int orientation)
 }
 #endif
 
+#ifdef CAMERA_PARAMETERS_EXTRA_C
+CAMERA_PARAMETERS_EXTRA_C
+#endif
 
 // Values for light fx settings
 const char CameraParameters::LIGHTFX_LOWLIGHT[] = "low-light";

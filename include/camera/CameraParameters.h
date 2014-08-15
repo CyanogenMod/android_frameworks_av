@@ -19,6 +19,7 @@
 
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
+#include <camera/CameraParametersExtra.h>
 
 namespace android {
 
@@ -1096,6 +1097,10 @@ public:
     static const char SCENE_MODE_FALL[];
     static const char SCENE_MODE_FALL_COLOR[];
     static const char SCENE_MODE_TEXT[];
+#endif
+
+#ifdef CAMERA_PARAMETERS_EXTRA_H
+CAMERA_PARAMETERS_EXTRA_H
 #endif
 
    // Values for Redeye Reduction settings.
