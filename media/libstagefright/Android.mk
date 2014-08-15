@@ -100,6 +100,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libstagefright_aacenc \
         libstagefright_matroska \
+        libstagefright_mediafilter \
         libstagefright_webm \
         libstagefright_timedtext \
         libvpx \
@@ -107,7 +108,8 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_mpeg2ts \
         libstagefright_id3 \
         libFLAC \
-        libmedia_helper
+        libmedia_helper \
+        libRScpp_static
 
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \
