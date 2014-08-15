@@ -1419,8 +1419,10 @@ status_t ACodec::configureCodec(
         } else {
             if (encoder) {
                 if (!msg->findInt32(
+                            "complexity", &compressionLevel) &&
+                    !msg->findInt32(
                             "flac-compression-level", &compressionLevel)) {
-                    compressionLevel = 5;// default FLAC compression level
+                    compressionLevel = 5; // default FLAC compression level
                 } else if (compressionLevel < 0) {
                     ALOGW("compression level %d outside [0..8] range, "
                           "using 0",
