@@ -783,6 +783,7 @@ status_t MediaCodecList::addFeature(const char **attrs) {
     const char *name = NULL;
     int32_t optional = -1;
     int32_t required = -1;
+    const char *value = NULL;
 
     while (attrs[i] != NULL) {
         if (attrs[i + 1] == NULL) {
@@ -801,6 +802,9 @@ status_t MediaCodecList::addFeature(const char **attrs) {
                 required = value;
             }
             ++i;
+        } else if (!strcmp(attrs[i], "value")) {
+            value = attrs[i + 1];
+            ++i;
         } else {
             return -EINVAL;
         }
@@ -816,7 +820,16 @@ status_t MediaCodecList::addFeature(const char **attrs) {
         return -EINVAL;
     }
 
-    mCurrentInfo->addFeature(name, (required == 1) || (optional == 0));
+    if ((optional != -1 || required != -1) && (value != NULL)) {
+        ALOGE("feature '%s' has both a value and optional/required attribute", name);
+        return -EINVAL;
+    }
+
+    if (value != NULL) {
+        mCurrentInfo->addFeature(name, value);
+    } else {
+        mCurrentInfo->addFeature(name, (required == 1) || (optional == 0));
+    }
     return OK;
 }
 
