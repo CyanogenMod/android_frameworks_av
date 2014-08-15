@@ -257,4 +257,10 @@ void MediaCodecInfo::addFeature(const AString &key, int32_t value) {
     mCurrentCaps->mDetails->setInt32(tag.c_str(), value);
 }
 
+void MediaCodecInfo::addFeature(const AString &key, const char *value) {
+    AString tag = "feature-";
+    tag.append(key);
+    mCurrentCaps->mDetails->setString(tag.c_str(), value);
+}
+
 }  // namespace android
