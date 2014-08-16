@@ -759,15 +759,6 @@ public:
     static const char KEY_SHUTTER_SOUND[];
 #endif
 
-#ifdef ZTE_MSM8610_CAMERA_HARDWARE
-    static const char KEY_SUPPORTED_ZTE_BURST_NUM[];
-    static const char KEY_ZTE_BURST_NUM[];
-    static const char KEY_SUPPORTED_ZTE_HDR_MODES[];
-    static const char KEY_ZTE_HDR_MODE[];
-    static const char ZTE_HDR_MODE_OFF[];
-    static const char ZTE_HDR_MODE_HDR[];
-#endif
-
     static const char KEY_AE_BRACKET_HDR[];
 
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
