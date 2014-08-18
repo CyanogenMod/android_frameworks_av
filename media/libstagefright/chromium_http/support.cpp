@@ -159,7 +159,7 @@ bool logMessageHandler(
 
 struct AutoPrioritySaver {
     AutoPrioritySaver()
-        : mTID(androidGetTid()),
+        : mTID(gettid()),
           mPrevPriority(androidGetThreadPriority(mTID)) {
         androidSetThreadPriority(mTID, ANDROID_PRIORITY_NORMAL);
     }
