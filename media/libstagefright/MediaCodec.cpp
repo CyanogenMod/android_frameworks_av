@@ -716,7 +716,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findInt32("err", &err));
                     CHECK(msg->findInt32("actionCode", &actionCode));
 
-                    ALOGE("Codec reported err %#x, actionCode %d", err, actionCode);
+                    ALOGE("Codec reported err %#x, actionCode %d, while in state %d",
+                            err, actionCode, mState);
                     if (err == DEAD_OBJECT) {
                         mFlags |= kFlagSawMediaServerDie;
                     }
@@ -767,8 +768,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                         case FLUSHING:
                         {
-                            setState(
-                                    (mFlags & kFlagIsAsync) ? FLUSHED : STARTED);
+                            if (actionCode == ACTION_CODE_FATAL) {
+                                setState(UNINITIALIZED);
+                            } else {
+                                setState(
+                                        (mFlags & kFlagIsAsync) ? FLUSHED : STARTED);
+                            }
                             break;
                         }
 
