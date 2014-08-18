@@ -21,7 +21,7 @@
 
 #include <cutils/properties.h> // for property_get
 #include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/MetaData.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include <system/window.h>
 #include <ui/GraphicBufferMapper.h>
 #include <gui/IGraphicBufferProducer.h>
@@ -33,33 +33,70 @@ static bool runningInEmulator() {
     return (property_get("ro.kernel.qemu", prop, NULL) > 0);
 }
 
-SoftwareRenderer::SoftwareRenderer(
-        const sp<ANativeWindow> &nativeWindow, const sp<MetaData> &meta)
-    : mConverter(NULL),
+static int ALIGN(int x, int y) {
+    // y must be a power of 2.
+    return (x + y - 1) & ~(y - 1);
+}
+
+SoftwareRenderer::SoftwareRenderer(const sp<ANativeWindow> &nativeWindow)
+    : mColorFormat(OMX_COLOR_FormatUnused),
+      mConverter(NULL),
       mYUVMode(None),
-      mNativeWindow(nativeWindow) {
-    int32_t tmp;
-    CHECK(meta->findInt32(kKeyColorFormat, &tmp));
-    mColorFormat = (OMX_COLOR_FORMATTYPE)tmp;
+      mNativeWindow(nativeWindow),
+      mWidth(0),
+      mHeight(0),
+      mCropLeft(0),
+      mCropTop(0),
+      mCropRight(0),
+      mCropBottom(0),
+      mCropWidth(0),
+      mCropHeight(0) {
+}
 
-    CHECK(meta->findInt32(kKeyWidth, &mWidth));
-    CHECK(meta->findInt32(kKeyHeight, &mHeight));
+SoftwareRenderer::~SoftwareRenderer() {
+    delete mConverter;
+    mConverter = NULL;
+}
 
-    if (!meta->findRect(
-                kKeyCropRect,
-                &mCropLeft, &mCropTop, &mCropRight, &mCropBottom)) {
-        mCropLeft = mCropTop = 0;
-        mCropRight = mWidth - 1;
-        mCropBottom = mHeight - 1;
+void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
+    CHECK(format != NULL);
+
+    int32_t colorFormatNew;
+    CHECK(format->findInt32("color-format", &colorFormatNew));
+
+    int32_t widthNew, heightNew;
+    CHECK(format->findInt32("width", &widthNew));
+    CHECK(format->findInt32("height", &heightNew));
+
+    int32_t cropLeftNew, cropTopNew, cropRightNew, cropBottomNew;
+    if (!format->findRect(
+            "crop", &cropLeftNew, &cropTopNew, &cropRightNew, &cropBottomNew)) {
+        cropLeftNew = cropTopNew = 0;
+        cropRightNew = widthNew - 1;
+        cropBottomNew = heightNew - 1;
     }
+
+    if (static_cast<int32_t>(mColorFormat) == colorFormatNew &&
+        mWidth == widthNew &&
+        mHeight == heightNew &&
+        mCropLeft == cropLeftNew &&
+        mCropTop == cropTopNew &&
+        mCropRight == cropRightNew &&
+        mCropBottom == cropBottomNew) {
+        // Nothing changed, no need to reset renderer.
+        return;
+    }
+
+    mColorFormat = static_cast<OMX_COLOR_FORMATTYPE>(colorFormatNew);
+    mWidth = widthNew;
+    mHeight = heightNew;
+    mCropLeft = cropLeftNew;
+    mCropTop = cropTopNew;
+    mCropRight = cropRightNew;
+    mCropBottom = cropBottomNew;
 
     mCropWidth = mCropRight - mCropLeft + 1;
     mCropHeight = mCropBottom - mCropTop + 1;
-
-    int32_t rotationDegrees;
-    if (!meta->findInt32(kKeyRotation, &rotationDegrees)) {
-        rotationDegrees = 0;
-    }
 
     int halFormat;
     size_t bufWidth, bufHeight;
@@ -106,10 +143,12 @@ SoftwareRenderer::SoftwareRenderer(
             NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW));
 
     // Width must be multiple of 32???
-    CHECK_EQ(0, native_window_set_buffers_geometry(
+    CHECK_EQ(0, native_window_set_buffers_dimensions(
                 mNativeWindow.get(),
                 bufWidth,
-                bufHeight,
+                bufHeight));
+    CHECK_EQ(0, native_window_set_buffers_format(
+                mNativeWindow.get(),
                 halFormat));
 
     // NOTE: native window uses extended right-bottom coordinate
@@ -123,6 +162,10 @@ SoftwareRenderer::SoftwareRenderer(
 
     CHECK_EQ(0, native_window_set_crop(mNativeWindow.get(), &crop));
 
+    int32_t rotationDegrees;
+    if (!format->findInt32("rotation-degrees", &rotationDegrees)) {
+        rotationDegrees = 0;
+    }
     uint32_t transform;
     switch (rotationDegrees) {
         case 0: transform = 0; break;
@@ -132,24 +175,15 @@ SoftwareRenderer::SoftwareRenderer(
         default: transform = 0; break;
     }
 
-    if (transform) {
-        CHECK_EQ(0, native_window_set_buffers_transform(
-                    mNativeWindow.get(), transform));
-    }
-}
-
-SoftwareRenderer::~SoftwareRenderer() {
-    delete mConverter;
-    mConverter = NULL;
-}
-
-static int ALIGN(int x, int y) {
-    // y must be a power of 2.
-    return (x + y - 1) & ~(y - 1);
+    CHECK_EQ(0, native_window_set_buffers_transform(
+                mNativeWindow.get(), transform));
 }
 
 void SoftwareRenderer::render(
-        const void *data, size_t size, int64_t timestampNs, void *platformPrivate) {
+        const void *data, size_t /*size*/, int64_t timestampNs,
+        void* /*platformPrivate*/, const sp<AMessage>& format) {
+    resetFormatIfChanged(format);
+
     ANativeWindowBuffer *buf;
     int err;
     if ((err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(),

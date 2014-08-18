@@ -958,36 +958,14 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     ALOGV("codec output format changed");
 
-                    if ((mFlags & kFlagIsSoftwareCodec)
-                            && mNativeWindow != NULL) {
+                    if (mSoftRenderer == NULL &&
+                            mNativeWindow != NULL &&
+                            (mFlags & kFlagIsSoftwareCodec)) {
                         AString mime;
                         CHECK(msg->findString("mime", &mime));
 
-                        if (!strncasecmp("video/", mime.c_str(), 6)) {
-                            delete mSoftRenderer;
-                            mSoftRenderer = NULL;
-
-                            int32_t width, height;
-                            CHECK(msg->findInt32("width", &width));
-                            CHECK(msg->findInt32("height", &height));
-
-                            int32_t cropLeft, cropTop, cropRight, cropBottom;
-                            CHECK(msg->findRect("crop",
-                                &cropLeft, &cropTop, &cropRight, &cropBottom));
-
-                            int32_t colorFormat;
-                            CHECK(msg->findInt32(
-                                        "color-format", &colorFormat));
-
-                            sp<MetaData> meta = new MetaData;
-                            meta->setInt32(kKeyWidth, width);
-                            meta->setInt32(kKeyHeight, height);
-                            meta->setRect(kKeyCropRect,
-                                cropLeft, cropTop, cropRight, cropBottom);
-                            meta->setInt32(kKeyColorFormat, colorFormat);
-
-                            mSoftRenderer =
-                                new SoftwareRenderer(mNativeWindow, meta);
+                        if (mime.startsWithIgnoreCase("video/")) {
+                            mSoftRenderer = new SoftwareRenderer(mNativeWindow);
                         }
                     }
 
@@ -1799,6 +1777,8 @@ size_t MediaCodec::updateBuffers(
             CHECK(info->mNotify == NULL);
             CHECK(msg->findMessage("reply", &info->mNotify));
 
+            info->mFormat =
+                (portIndex == kPortIndexInput) ? mInputFormat : mOutputFormat;
             mAvailPortBuffers[portIndex].push_back(i);
 
             return i;
@@ -1978,7 +1958,8 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
 
         if (mSoftRenderer != NULL) {
             mSoftRenderer->render(
-                    info->mData->data(), info->mData->size(), timestampNs, NULL);
+                    info->mData->data(), info->mData->size(),
+                    timestampNs, NULL, info->mFormat);
         }
     }
 
@@ -2004,7 +1985,6 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
     CHECK(!info->mOwnedByClient);
     {
         Mutex::Autolock al(mBufferLock);
-        info->mFormat = portIndex == kPortIndexInput ? mInputFormat : mOutputFormat;
         info->mOwnedByClient = true;
 
         // set image-data

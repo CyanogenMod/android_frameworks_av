@@ -24,17 +24,17 @@
 
 namespace android {
 
-struct MetaData;
+struct AMessage;
 
 class SoftwareRenderer {
 public:
-    SoftwareRenderer(
-            const sp<ANativeWindow> &nativeWindow, const sp<MetaData> &meta);
+    explicit SoftwareRenderer(const sp<ANativeWindow> &nativeWindow);
 
     ~SoftwareRenderer();
 
     void render(
-            const void *data, size_t size, int64_t timestampNs, void *platformPrivate);
+            const void *data, size_t size, int64_t timestampNs,
+            void *platformPrivate, const sp<AMessage> &format);
 
 private:
     enum YUVMode {
@@ -51,6 +51,8 @@ private:
 
     SoftwareRenderer(const SoftwareRenderer &);
     SoftwareRenderer &operator=(const SoftwareRenderer &);
+
+    void resetFormatIfChanged(const sp<AMessage> &format);
 };
 
 }  // namespace android
