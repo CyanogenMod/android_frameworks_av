@@ -3654,7 +3654,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         componentName = matchingCodecs.itemAt(matchIndex).mName.string();
         quirks = matchingCodecs.itemAt(matchIndex).mQuirks;
 
-        pid_t tid = androidGetTid();
+        pid_t tid = gettid();
         int prevPriority = androidGetThreadPriority(tid);
         androidSetThreadPriority(tid, ANDROID_PRIORITY_FOREGROUND);
         status_t err = omx->allocateNode(componentName.c_str(), observer, &node);
