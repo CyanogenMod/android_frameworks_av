@@ -16,6 +16,10 @@
 
 <Included>
     <Decoders>
-        <MediaCodec name="OMX.google.gsm.decoder" type="audio/gsm" />
+        <MediaCodec name="OMX.google.gsm.decoder" type="audio/gsm">
+            <Limit name="channel-count" max="1" />
+            <Limit name="sample-rate" ranges="8000" />
+            <Limit name="bitrate" range="13000" />
+        </MediaCodec>
     </Decoders>
 </Included>
