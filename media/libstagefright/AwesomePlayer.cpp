@@ -103,8 +103,9 @@ private:
 
 struct AwesomeLocalRenderer : public AwesomeRenderer {
     AwesomeLocalRenderer(
-            const sp<ANativeWindow> &nativeWindow, const sp<MetaData> &meta)
-        : mTarget(new SoftwareRenderer(nativeWindow, meta)) {
+            const sp<ANativeWindow> &nativeWindow, const sp<AMessage> &format)
+        : mFormat(format),
+          mTarget(new SoftwareRenderer(nativeWindow)) {
     }
 
     virtual void render(MediaBuffer *buffer) {
@@ -116,7 +117,7 @@ struct AwesomeLocalRenderer : public AwesomeRenderer {
     }
 
     void render(const void *data, size_t size, int64_t timestampNs) {
-        mTarget->render(data, size, timestampNs, NULL);
+        mTarget->render(data, size, timestampNs, NULL, mFormat);
     }
 
 protected:
@@ -126,6 +127,7 @@ protected:
     }
 
 private:
+    sp<AMessage> mFormat;
     SoftwareRenderer *mTarget;
 
     AwesomeLocalRenderer(const AwesomeLocalRenderer &);
@@ -1236,7 +1238,9 @@ void AwesomePlayer::initRenderer_l() {
         // allocate their buffers in local address space.  This renderer
         // then performs a color conversion and copy to get the data
         // into the ANativeBuffer.
-        mVideoRenderer = new AwesomeLocalRenderer(mNativeWindow, meta);
+        sp<AMessage> format;
+        convertMetaDataToMessage(meta, &format);
+        mVideoRenderer = new AwesomeLocalRenderer(mNativeWindow, format);
     }
 }
 

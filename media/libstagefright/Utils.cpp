@@ -109,6 +109,25 @@ status_t convertMetaDataToMessage(
             msg->setInt32("sar-width", sarWidth);
             msg->setInt32("sar-height", sarHeight);
         }
+
+        int32_t colorFormat;
+        if (meta->findInt32(kKeyColorFormat, &colorFormat)) {
+            msg->setInt32("color-format", colorFormat);
+        }
+
+        int32_t cropLeft, cropTop, cropRight, cropBottom;
+        if (meta->findRect(kKeyCropRect,
+                           &cropLeft,
+                           &cropTop,
+                           &cropRight,
+                           &cropBottom)) {
+            msg->setRect("crop", cropLeft, cropTop, cropRight, cropBottom);
+        }
+
+        int32_t rotationDegrees;
+        if (meta->findInt32(kKeyRotation, &rotationDegrees)) {
+            msg->setInt32("rotation-degrees", rotationDegrees);
+        }
     } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
@@ -474,6 +493,25 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 && msg->findInt32("sar-height", &sarHeight)) {
             meta->setInt32(kKeySARWidth, sarWidth);
             meta->setInt32(kKeySARHeight, sarHeight);
+        }
+
+        int32_t colorFormat;
+        if (msg->findInt32("color-format", &colorFormat)) {
+            meta->setInt32(kKeyColorFormat, colorFormat);
+        }
+
+        int32_t cropLeft, cropTop, cropRight, cropBottom;
+        if (msg->findRect("crop",
+                          &cropLeft,
+                          &cropTop,
+                          &cropRight,
+                          &cropBottom)) {
+            meta->setRect(kKeyCropRect, cropLeft, cropTop, cropRight, cropBottom);
+        }
+
+        int32_t rotationDegrees;
+        if (msg->findInt32("rotation-degrees", &rotationDegrees)) {
+            meta->setInt32(kKeyRotation, rotationDegrees);
         }
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;
