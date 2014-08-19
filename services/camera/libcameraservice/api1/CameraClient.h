@@ -64,7 +64,8 @@ public:
             int cameraFacing,
             int clientPid,
             int clientUid,
-            int servicePid);
+            int servicePid,
+            bool legacyMode = false);
     ~CameraClient();
 
     status_t initialize(camera_module_t *module);
@@ -129,6 +130,7 @@ private:
     int                             mPreviewCallbackFlag;
     int                             mOrientation;     // Current display orientation
     bool                            mPlayShutterSound;
+    bool                            mLegacyMode; // camera2 api legacy mode?
 
     // Ensures atomicity among the public methods
     mutable Mutex                   mLock;

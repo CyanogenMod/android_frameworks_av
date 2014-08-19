@@ -89,7 +89,8 @@ public:
             int cameraFacing,
             int clientPid,
             uid_t clientUid,
-            int servicePid);
+            int servicePid,
+            bool legacyMode);
 
     virtual ~Camera2Client();
 
@@ -203,6 +204,7 @@ private:
     bool mAfInMotion;
 
     /** Utility members */
+    bool mLegacyMode;
 
     // Wait until the camera device has received the latest control settings
     status_t syncWithDevice();
