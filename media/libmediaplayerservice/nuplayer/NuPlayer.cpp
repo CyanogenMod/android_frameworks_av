@@ -1061,6 +1061,7 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
             }
             ALOGV("openAudioSink: try to open AudioSink in offload mode");
             flags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+            flags &= ~AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
             audioSinkChanged = true;
             mAudioSink->close();
             err = mAudioSink->open(
