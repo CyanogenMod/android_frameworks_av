@@ -93,10 +93,14 @@ void NuPlayer::Renderer::flush(bool audio) {
     {
         Mutex::Autolock autoLock(mFlushLock);
         if (audio) {
-            CHECK(!mFlushingAudio);
+            if (mFlushingAudio) {
+                return;
+            }
             mFlushingAudio = true;
         } else {
-            CHECK(!mFlushingVideo);
+            if (mFlushingVideo) {
+                return;
+            }
             mFlushingVideo = true;
         }
     }
@@ -113,6 +117,14 @@ void NuPlayer::Renderer::signalTimeDiscontinuity() {
     mAnchorTimeMediaUs = -1;
     mAnchorTimeRealUs = -1;
     mSyncQueues = false;
+}
+
+void NuPlayer::Renderer::signalAudioSinkChanged() {
+    (new AMessage(kWhatAudioSinkChanged, id()))->post();
+}
+
+void NuPlayer::Renderer::signalDisableOffloadAudio() {
+    (new AMessage(kWhatDisableOffloadAudio, id()))->post();
 }
 
 void NuPlayer::Renderer::pause() {
@@ -249,14 +261,6 @@ void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
     sp<AMessage> msg = new AMessage(kWhatDrainAudioQueue, id());
     msg->setInt32("generation", mAudioQueueGeneration);
     msg->post(delayUs);
-}
-
-void NuPlayer::Renderer::signalAudioSinkChanged() {
-    (new AMessage(kWhatAudioSinkChanged, id()))->post();
-}
-
-void NuPlayer::Renderer::signalDisableOffloadAudio() {
-    (new AMessage(kWhatDisableOffloadAudio, id()))->post();
 }
 
 void NuPlayer::Renderer::prepareForMediaRenderingStart() {
@@ -717,6 +721,15 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     int32_t audio;
     CHECK(msg->findInt32("audio", &audio));
 
+    {
+        Mutex::Autolock autoLock(mFlushLock);
+        if (audio) {
+            mFlushingAudio = false;
+        } else {
+            mFlushingVideo = false;
+        }
+    }
+
     // If we're currently syncing the queues, i.e. dropping audio while
     // aligning the first audio/video buffer times and only one of the
     // two queues has data, we may starve that queue by not requesting
@@ -735,26 +748,24 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         {
             Mutex::Autolock autoLock(mLock);
             flushQueue(&mAudioQueue);
+
+            ++mAudioQueueGeneration;
+            prepareForMediaRenderingStart();
+
+            if (offloadingAudio()) {
+                mFirstAudioTimeUs = -1;
+            }
         }
 
-        Mutex::Autolock autoLock(mFlushLock);
-        mFlushingAudio = false;
-
         mDrainAudioQueuePending = false;
-        ++mAudioQueueGeneration;
 
-        prepareForMediaRenderingStart();
         if (offloadingAudio()) {
-            mFirstAudioTimeUs = -1;
             mAudioSink->pause();
             mAudioSink->flush();
             mAudioSink->start();
         }
     } else {
         flushQueue(&mVideoQueue);
-
-        Mutex::Autolock autoLock(mFlushLock);
-        mFlushingVideo = false;
 
         mDrainVideoQueuePending = false;
         ++mVideoQueueGeneration;
@@ -853,13 +864,15 @@ void NuPlayer::Renderer::notifyPosition() {
 void NuPlayer::Renderer::onPause() {
     CHECK(!mPaused);
 
+    {
+        Mutex::Autolock autoLock(mLock);
+        ++mAudioQueueGeneration;
+        ++mVideoQueueGeneration;
+        prepareForMediaRenderingStart();
+    }
+
     mDrainAudioQueuePending = false;
-    ++mAudioQueueGeneration;
-
     mDrainVideoQueuePending = false;
-    ++mVideoQueueGeneration;
-
-    prepareForMediaRenderingStart();
 
     if (mHasAudio) {
         mAudioSink->pause();
@@ -896,7 +909,12 @@ void NuPlayer::Renderer::onAudioOffloadTearDown() {
     uint32_t numFramesPlayed;
     CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed), (status_t)OK);
 
-    int64_t currentPositionUs = mFirstAudioTimeUs
+    int64_t firstAudioTimeUs;
+    {
+        Mutex::Autolock autoLock(mLock);
+        firstAudioTimeUs = mFirstAudioTimeUs;
+    }
+    int64_t currentPositionUs = firstAudioTimeUs
             + (numFramesPlayed * mAudioSink->msecsPerFrame()) * 1000ll;
 
     mAudioSink->stop();
