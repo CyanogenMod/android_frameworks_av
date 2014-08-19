@@ -5017,8 +5017,11 @@ reacquire_wakelock:
         // activeTracks accumulates a copy of a subset of mActiveTracks
         Vector< sp<RecordTrack> > activeTracks;
 
-        // reference to the (first and only) fast track
+        // reference to the (first and only) active fast track
         sp<RecordTrack> fastTrack;
+
+        // reference to a fast track which is about to be removed
+        sp<RecordTrack> fastTrackToRemove;
 
         { // scope for mLock
             Mutex::Autolock _l(mLock);
@@ -5058,6 +5061,10 @@ reacquire_wakelock:
 
                 activeTrack = mActiveTracks[i];
                 if (activeTrack->isTerminated()) {
+                    if (activeTrack->isFastTrack()) {
+                        ALOG_ASSERT(fastTrackToRemove == 0);
+                        fastTrackToRemove = activeTrack;
+                    }
                     removeTrack_l(activeTrack);
                     mActiveTracks.remove(activeTrack);
                     mActiveTracksGen++;
@@ -5130,10 +5137,12 @@ reacquire_wakelock:
             effectChains[i]->process_l();
         }
 
-        // Start the fast capture if it's not already running
+        // Push a new fast capture state if fast capture is not already running, or cblk change
         if (mFastCapture != 0) {
             FastCaptureStateQueue *sq = mFastCapture->sq();
             FastCaptureState *state = sq->begin();
+            bool didModify = false;
+            FastCaptureStateQueue::block_t block = FastCaptureStateQueue::BLOCK_UNTIL_PUSHED;
             if (state->mCommand != FastCaptureState::READ_WRITE /* FIXME &&
                     (kUseFastMixer != FastMixer_Dynamic || state->mTrackMask > 1)*/) {
                 if (state->mCommand == FastCaptureState::COLD_IDLE) {
@@ -5147,18 +5156,31 @@ reacquire_wakelock:
                 mFastCaptureDumpState.increaseSamplingN(mAudioFlinger->isLowRamDevice() ?
                         FastCaptureDumpState::kSamplingNforLowRamDevice : FastMixerDumpState::kSamplingN);
 #endif
-                state->mCblk = fastTrack != 0 ? fastTrack->cblk() : NULL;
-                sq->end();
-                sq->push(FastCaptureStateQueue::BLOCK_UNTIL_PUSHED);
+                didModify = true;
+            }
+            audio_track_cblk_t *cblkOld = state->mCblk;
+            audio_track_cblk_t *cblkNew = fastTrack != 0 ? fastTrack->cblk() : NULL;
+            if (cblkNew != cblkOld) {
+                state->mCblk = cblkNew;
+                // block until acked if removing a fast track
+                if (cblkOld != NULL) {
+                    block = FastCaptureStateQueue::BLOCK_UNTIL_ACKED;
+                }
+                didModify = true;
+            }
+            sq->end(didModify);
+            if (didModify) {
+                sq->push(block);
 #if 0
                 if (kUseFastCapture == FastCapture_Dynamic) {
                     mNormalSource = mPipeSource;
                 }
 #endif
-            } else {
-                sq->end(false /*didModify*/);
             }
         }
+
+        // now run the fast track destructor with thread mutex unlocked
+        fastTrackToRemove.clear();
 
         // Read from HAL to keep up with fastest client if multiple active tracks, not slowest one.
         // Only the client(s) that are too slow will overrun. But if even the fastest client is too
