@@ -3222,9 +3222,9 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
         size_t size = specific->mSize;
 
-        // Do not add start-code for HEVC since QC parser adds it
-        if ((!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mMIME))
-                && !(mQuirks & kWantsNALFragments)) {
+        if ((!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mMIME) ||
+             !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mMIME))
+             && !(mQuirks & kWantsNALFragments)) {
             static const uint8_t kNALStartCode[4] =
                     { 0x00, 0x00, 0x00, 0x01 };
 

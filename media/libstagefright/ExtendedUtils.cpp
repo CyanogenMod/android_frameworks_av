@@ -301,6 +301,7 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     bool videoTrackFound         = false;
     bool audioTrackFound         = false;
     bool amrwbAudio              = false;
+    bool hevcVideo               = false;
     int  numOfTrack              = 0;
 
     if (defaultExt != NULL) {
@@ -323,6 +324,9 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
                 }
             } else if (!strncasecmp(mime.string(), "video/", 6)) {
                 videoTrackFound = true;
+                if(!strncasecmp(mime.string(), "video/hevc", 10)) {
+                    hevcVideo = true;
+                }
             }
         }
 
@@ -337,7 +341,7 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             }
         } else if (numOfTrack >= 2) {
             if (videoTrackFound && audioTrackFound) {
-                if (amrwbAudio) {
+                if (amrwbAudio || hevcVideo ) {
                     bCheckExtendedExtractor = true;
                 }
             } else {
