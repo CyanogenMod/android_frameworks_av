@@ -86,6 +86,9 @@ private:
         STATE_RUNNING,
         STATE_PAUSED,
         STATE_RESET_IN_PROGRESS,
+        STATE_STOPPED,                  // equivalent to PAUSED
+        STATE_STOPPED_AND_PREPARING,    // equivalent to PAUSED, but seeking
+        STATE_STOPPED_AND_PREPARED,     // equivalent to PAUSED, but seek complete
     };
 
     mutable Mutex mLock;
