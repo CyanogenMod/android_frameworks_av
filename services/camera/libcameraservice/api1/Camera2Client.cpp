@@ -53,7 +53,8 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
         int cameraFacing,
         int clientPid,
         uid_t clientUid,
-        int servicePid):
+        int servicePid,
+        bool legacyMode):
         Camera2ClientBase(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
         mParameters(cameraId, cameraFacing)
@@ -62,6 +63,8 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
 
     SharedParameters::Lock l(mParameters);
     l.mParameters.state = Parameters::DISCONNECTED;
+
+    mLegacyMode = legacyMode;
 }
 
 status_t Camera2Client::initialize(camera_module_t *module)
@@ -1446,6 +1449,13 @@ status_t Camera2Client::commandEnableShutterSoundL(bool enable) {
     SharedParameters::Lock l(mParameters);
     if (enable) {
         l.mParameters.playShutterSound = true;
+        return OK;
+    }
+
+    // the camera2 api legacy mode can unconditionally disable the shutter sound
+    if (mLegacyMode) {
+        ALOGV("%s: Disable shutter sound in legacy mode", __FUNCTION__);
+        l.mParameters.playShutterSound = false;
         return OK;
     }
 
