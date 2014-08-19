@@ -318,6 +318,7 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
     bool hasEOS = false;
 
     size_t sizeCopied = 0;
+    bool firstEntry = true;
     while (sizeCopied < size && !mAudioQueue.empty()) {
         QueueEntry *entry = &*mAudioQueue.begin();
 
@@ -328,14 +329,14 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
             break;
         }
 
-        if (entry->mOffset == 0) {
+        if (firstEntry && entry->mOffset == 0) {
+            firstEntry = false;
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
             ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
             if (mFirstAudioTimeUs == -1) {
                 mFirstAudioTimeUs = mediaTimeUs;
             }
-            mAnchorTimeMediaUs = mediaTimeUs;
 
             uint32_t numFramesPlayed;
             CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed), (status_t)OK);
