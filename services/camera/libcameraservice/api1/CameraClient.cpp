@@ -38,7 +38,7 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
         const String16& clientPackageName,
         int cameraId, int cameraFacing,
         int clientPid, int clientUid,
-        int servicePid):
+        int servicePid, bool legacyMode):
         Client(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid)
 {
@@ -54,6 +54,7 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
     // Callback is disabled by default
     mPreviewCallbackFlag = CAMERA_FRAME_CALLBACK_FLAG_NOOP;
     mOrientation = getOrientation(0, mCameraFacing == CAMERA_FACING_FRONT);
+    mLegacyMode = legacyMode;
     mPlayShutterSound = true;
     LOG1("CameraClient::CameraClient X (pid %d, id %d)", callingPid, cameraId);
 }
@@ -573,6 +574,13 @@ status_t CameraClient::enableShutterSound(bool enable) {
 
     if (enable) {
         mPlayShutterSound = true;
+        return OK;
+    }
+
+    // the camera2 api legacy mode can unconditionally disable the shutter sound
+    if (mLegacyMode) {
+        ALOGV("%s: Disable shutter sound in legacy mode", __FUNCTION__);
+        mPlayShutterSound = false;
         return OK;
     }
 
