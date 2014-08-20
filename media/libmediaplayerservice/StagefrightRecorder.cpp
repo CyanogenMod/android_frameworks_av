@@ -1433,6 +1433,10 @@ status_t StagefrightRecorder::setupVideoEncoder(
             format->setString("mime", MEDIA_MIMETYPE_VIDEO_AVC);
             break;
 
+        case VIDEO_ENCODER_VP8:
+            format->setString("mime", MEDIA_MIMETYPE_VIDEO_VP8);
+            break;
+
         default:
             CHECK(!"Should not be here, unsupported video encoding.");
             break;
