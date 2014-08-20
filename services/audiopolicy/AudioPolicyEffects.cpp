@@ -98,8 +98,12 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
         inputDesc = new EffectVector(audioSession);
         mInputs.add(input, inputDesc);
     } else {
+        // EffectVector is existing and we just need to increase ref count
         inputDesc = mInputs.valueAt(idx);
     }
+    inputDesc->mRefCount++;
+
+    ALOGV("addInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
 
     Vector <EffectDesc *> effects = mInputSources.valueAt(index)->mEffects;
     for (size_t i = 0; i < effects.size(); i++) {
@@ -133,10 +137,14 @@ status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input)
         return status;
     }
     EffectVector *inputDesc = mInputs.valueAt(index);
-    setProcessorEnabled(inputDesc, false);
-    delete inputDesc;
-    mInputs.removeItemsAt(index);
-    ALOGV("releaseInputEffects(): all effects released");
+    inputDesc->mRefCount--;
+    ALOGV("releaseInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
+    if (inputDesc->mRefCount == 0) {
+        setProcessorEnabled(inputDesc, false);
+        delete inputDesc;
+        mInputs.removeItemsAt(index);
+        ALOGV("releaseInputEffects(): all effects released");
+    }
     return status;
 }
 
@@ -223,8 +231,12 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         procDesc = new EffectVector(audioSession);
         mOutputSessions.add(audioSession, procDesc);
     } else {
+        // EffectVector is existing and we just need to increase ref count
         procDesc = mOutputSessions.valueAt(idx);
     }
+    procDesc->mRefCount++;
+
+    ALOGV("addOutputSessionEffects(): session: %d, refCount: %d", audioSession, procDesc->mRefCount);
 
     Vector <EffectDesc *> effects = mOutputStreams.valueAt(index)->mEffects;
     for (size_t i = 0; i < effects.size(); i++) {
@@ -262,12 +274,16 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     }
 
     EffectVector *procDesc = mOutputSessions.valueAt(index);
-    setProcessorEnabled(procDesc, false);
-    procDesc->mEffects.clear();
-    delete procDesc;
-    mOutputSessions.removeItemsAt(index);
-    ALOGV("releaseOutputSessionEffects(): output processing released from session: %d",
-          audioSession);
+    procDesc->mRefCount--;
+    ALOGV("releaseOutputSessionEffects(): session: %d, refCount: %d", audioSession, procDesc->mRefCount);
+    if (procDesc->mRefCount == 0) {
+        setProcessorEnabled(procDesc, false);
+        procDesc->mEffects.clear();
+        delete procDesc;
+        mOutputSessions.removeItemsAt(index);
+        ALOGV("releaseOutputSessionEffects(): output processing released from session: %d",
+              audioSession);
+    }
     return status;
 }
 
