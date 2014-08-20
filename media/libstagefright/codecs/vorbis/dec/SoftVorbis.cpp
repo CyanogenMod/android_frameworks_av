@@ -54,8 +54,6 @@ SoftVorbis::SoftVorbis(
       mAnchorTimeUs(0),
       mNumFramesOutput(0),
       mNumFramesLeftOnPage(-1),
-      mSawInputEos(false),
-      mSignalledOutputEos(false),
       mOutputPortSettingsChange(NONE) {
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
@@ -292,47 +290,48 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
         return;
     }
 
-    while ((!inQueue.empty() || (mSawInputEos && !mSignalledOutputEos)) && !outQueue.empty()) {
-        BufferInfo *inInfo = NULL;
-        OMX_BUFFERHEADERTYPE *inHeader = NULL;
-        if (!inQueue.empty()) {
-            inInfo = *inQueue.begin();
-            inHeader = inInfo->mHeader;
-        }
+    while (!inQueue.empty() && !outQueue.empty()) {
+        BufferInfo *inInfo = *inQueue.begin();
+        OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
 
         BufferInfo *outInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
 
-        int32_t numPageSamples = 0;
+        if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+            inQueue.erase(inQueue.begin());
+            inInfo->mOwnedByUs = false;
+            notifyEmptyBufferDone(inHeader);
 
-        if (inHeader) {
-            if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
-                mSawInputEos = true;
-            }
+            outHeader->nFilledLen = 0;
+            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
-            if (inHeader->nFilledLen || !mSawInputEos) {
-                CHECK_GE(inHeader->nFilledLen, sizeof(numPageSamples));
-                memcpy(&numPageSamples,
-                       inHeader->pBuffer
-                        + inHeader->nOffset + inHeader->nFilledLen - 4,
-                       sizeof(numPageSamples));
-
-                if (inHeader->nOffset == 0) {
-                    mAnchorTimeUs = inHeader->nTimeStamp;
-                    mNumFramesOutput = 0;
-                }
-
-                inHeader->nFilledLen -= sizeof(numPageSamples);;
-            }
+            outQueue.erase(outQueue.begin());
+            outInfo->mOwnedByUs = false;
+            notifyFillBufferDone(outHeader);
+            return;
         }
+
+        int32_t numPageSamples;
+        CHECK_GE(inHeader->nFilledLen, sizeof(numPageSamples));
+        memcpy(&numPageSamples,
+               inHeader->pBuffer
+                + inHeader->nOffset + inHeader->nFilledLen - 4,
+               sizeof(numPageSamples));
 
         if (numPageSamples >= 0) {
             mNumFramesLeftOnPage = numPageSamples;
         }
 
+        if (inHeader->nOffset == 0) {
+            mAnchorTimeUs = inHeader->nTimeStamp;
+            mNumFramesOutput = 0;
+        }
+
+        inHeader->nFilledLen -= sizeof(numPageSamples);;
+
         ogg_buffer buf;
-        buf.data = inHeader ? inHeader->pBuffer + inHeader->nOffset : NULL;
-        buf.size = inHeader ? inHeader->nFilledLen : 0;
+        buf.data = inHeader->pBuffer + inHeader->nOffset;
+        buf.size = inHeader->nFilledLen;
         buf.refcount = 1;
         buf.ptr.owner = NULL;
 
@@ -352,7 +351,6 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
 
         int numFrames = 0;
 
-        outHeader->nFlags = 0;
         int err = vorbis_dsp_synthesis(mState, &pack, 1);
         if (err != 0) {
             ALOGW("vorbis_dsp_synthesis returned %d", err);
@@ -372,16 +370,13 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
                 ALOGV("discarding %d frames at end of page",
                      numFrames - mNumFramesLeftOnPage);
                 numFrames = mNumFramesLeftOnPage;
-                if (mSawInputEos) {
-                    outHeader->nFlags = OMX_BUFFERFLAG_EOS;
-                    mSignalledOutputEos = true;
-                }
             }
             mNumFramesLeftOnPage -= numFrames;
         }
 
         outHeader->nFilledLen = numFrames * sizeof(int16_t) * mVi->channels;
         outHeader->nOffset = 0;
+        outHeader->nFlags = 0;
 
         outHeader->nTimeStamp =
             mAnchorTimeUs
@@ -389,13 +384,11 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
 
         mNumFramesOutput += numFrames;
 
-        if (inHeader) {
-            inInfo->mOwnedByUs = false;
-            inQueue.erase(inQueue.begin());
-            inInfo = NULL;
-            notifyEmptyBufferDone(inHeader);
-            inHeader = NULL;
-        }
+        inInfo->mOwnedByUs = false;
+        inQueue.erase(inQueue.begin());
+        inInfo = NULL;
+        notifyEmptyBufferDone(inHeader);
+        inHeader = NULL;
 
         outInfo->mOwnedByUs = false;
         outQueue.erase(outQueue.begin());
@@ -432,8 +425,6 @@ void SoftVorbis::onReset() {
         mVi = NULL;
     }
 
-    mSawInputEos = false;
-    mSignalledOutputEos = false;
     mOutputPortSettingsChange = NONE;
 }
 
