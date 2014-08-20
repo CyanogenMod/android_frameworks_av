@@ -71,7 +71,6 @@ class MediaPlayerFactory {
 
     static status_t registerFactory_l(IFactory* factory,
                                       player_type type);
-    static player_type getDefaultPlayerType();
 
     static Mutex       sLock;
     static tFactoryMap sFactoryMap;
