@@ -112,6 +112,7 @@ ifeq ($(BOARD_HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB),true)
     LOCAL_CFLAGS += -DHAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
 endif
 
+
 LOCAL_CFLAGS += -fvisibility=hidden
 ifeq ($(strip $(BOARD_USES_SRS_TRUEMEDIA)),true)
 LOCAL_SHARED_LIBRARIES += libsrsprocessing
