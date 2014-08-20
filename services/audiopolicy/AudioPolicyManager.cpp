@@ -271,7 +271,13 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                 return INVALID_OPERATION;
             }
 
-            ALOGV("setDeviceConnectionState() disconnecting device %x", device);
+            ALOGV("setDeviceConnectionState() disconnecting output device %x", device);
+
+            // Set Disconnect to HALs
+            AudioParameter param = AudioParameter(address);
+            param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
+            mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
+
             // remove device from available output devices
             mAvailableOutputDevices.remove(devDesc);
 
@@ -368,8 +374,17 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                 ALOGW("setDeviceConnectionState() device not connected: %d", device);
                 return INVALID_OPERATION;
             }
+
+            ALOGV("setDeviceConnectionState() disconnecting input device %x", device);
+
+            // Set Disconnect to HALs
+            AudioParameter param = AudioParameter(address);
+            param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
+            mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
+
             checkInputsForDevice(device, state, inputs, address);
             mAvailableInputDevices.remove(devDesc);
+
         } break;
 
         default:
