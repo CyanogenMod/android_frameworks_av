@@ -803,6 +803,14 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     err = UNKNOWN_ERROR;
                 }
                 mRenderer->queueEOS(audio, err);
+                if (audio && mFlushingAudio != NONE) {
+                    mAudioDecoder.clear();
+                    mFlushingAudio = SHUT_DOWN;
+                } else if (!audio && mFlushingVideo != NONE){
+                    mVideoDecoder.clear();
+                    mFlushingVideo = SHUT_DOWN;
+                }
+                finishFlushIfPossible();
             } else if (what == Decoder::kWhatDrainThisBuffer) {
                 renderBuffer(audio, msg);
             } else {
