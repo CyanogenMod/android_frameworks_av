@@ -478,10 +478,13 @@ void NuPlayer::Decoder::onShutdown() {
 
         if (mNativeWindow != NULL) {
             // reconnect to surface as MediaCodec disconnected from it
-            CHECK_EQ((int)NO_ERROR,
+            status_t error =
                     native_window_api_connect(
                             mNativeWindow->getNativeWindow().get(),
-                            NATIVE_WINDOW_API_MEDIA));
+                            NATIVE_WINDOW_API_MEDIA);
+            ALOGW_IF(error != NO_ERROR,
+                    "[%s] failed to connect to native window, error=%d",
+                    mComponentName.c_str(), error);
         }
         mComponentName = "decoder";
     }
