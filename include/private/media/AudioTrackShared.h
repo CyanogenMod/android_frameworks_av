@@ -305,8 +305,6 @@ public:
         return mEpoch;
     }
 
-    size_t      getFramesFilled();
-
 private:
     Modulo<uint32_t> mEpoch;
 };

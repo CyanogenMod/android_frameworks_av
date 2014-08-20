@@ -347,27 +347,6 @@ size_t ClientProxy::getMisalignment()
             (mFrameCountP2 - 1);
 }
 
-size_t ClientProxy::getFramesFilled() {
-    audio_track_cblk_t* cblk = mCblk;
-    int32_t front;
-    int32_t rear;
-
-    if (mIsOut) {
-        front = android_atomic_acquire_load(&cblk->u.mStreaming.mFront);
-        rear = cblk->u.mStreaming.mRear;
-    } else {
-        rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
-        front = cblk->u.mStreaming.mFront;
-    }
-    ssize_t filled = rear - front;
-    // pipe should not be overfull
-    if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-        ALOGE("Shared memory control block is corrupt (filled=%zd); shutting down", filled);
-        return 0;
-    }
-    return (size_t)filled;
-}
-
 // ---------------------------------------------------------------------------
 
 void AudioTrackClientProxy::flush()
