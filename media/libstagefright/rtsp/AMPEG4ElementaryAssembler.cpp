@@ -249,11 +249,15 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::addPacket(
         mPackets.push_back(buffer);
     } else {
         // hexdump(buffer->data(), buffer->size());
+        if (buffer->size() < 2) {
+            return MALFORMED_PACKET;
+        }
 
-        CHECK_GE(buffer->size(), 2u);
         unsigned AU_headers_length = U16_AT(buffer->data());  // in bits
 
-        CHECK_GE(buffer->size(), 2 + (AU_headers_length + 7) / 8);
+        if (buffer->size() < 2 + (AU_headers_length + 7) / 8) {
+            return MALFORMED_PACKET;
+        }
 
         List<AUHeader> headers;
 
@@ -342,7 +346,9 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::addPacket(
              it != headers.end(); ++it) {
             const AUHeader &header = *it;
 
-            CHECK_LE(offset + header.mSize, buffer->size());
+            if (buffer->size() < offset + header.mSize) {
+                return MALFORMED_PACKET;
+            }
 
             sp<ABuffer> accessUnit = new ABuffer(header.mSize);
             memcpy(accessUnit->data(), buffer->data() + offset, header.mSize);
@@ -352,8 +358,6 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::addPacket(
             CopyTimes(accessUnit, buffer);
             mPackets.push_back(accessUnit);
         }
-
-        CHECK_EQ(offset, buffer->size());
     }
 
     queue->erase(queue->begin());
@@ -400,6 +404,7 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::assembleMore(
         const sp<ARTPSource> &source) {
     AssemblyStatus status = addPacket(source);
     if (status == MALFORMED_PACKET) {
+        ALOGI("access unit is damaged");
         mAccessUnitDamaged = true;
     }
     return status;
