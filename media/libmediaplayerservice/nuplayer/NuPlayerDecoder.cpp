@@ -44,11 +44,11 @@ NuPlayer::Decoder::Decoder(
     // Every decoder has its own looper because MediaCodec operations
     // are blocking, but NuPlayer needs asynchronous operations.
     mDecoderLooper = new ALooper;
-    mDecoderLooper->setName("NuPlayerDecoder");
+    mDecoderLooper->setName("NPDecoder");
     mDecoderLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
 
     mCodecLooper = new ALooper;
-    mCodecLooper->setName("NuPlayerDecoder-MC");
+    mCodecLooper->setName("NPDecoder-CL");
     mCodecLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
 }
 
