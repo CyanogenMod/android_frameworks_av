@@ -254,9 +254,17 @@ status_t CameraDeviceClient::beginConfigure() {
 }
 
 status_t CameraDeviceClient::endConfigure() {
-    // TODO: Implement this.
-    ALOGE("%s: Not implemented yet.", __FUNCTION__);
-    return OK;
+    ALOGV("%s: ending configure (%zu streams)",
+            __FUNCTION__, mStreamMap.size());
+
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    if (!mDevice.get()) return DEAD_OBJECT;
+
+    return mDevice->configureStreams();
 }
 
 status_t CameraDeviceClient::deleteStream(int streamId) {
