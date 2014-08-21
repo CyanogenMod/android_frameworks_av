@@ -59,8 +59,6 @@ private:
     int64_t mAnchorTimeUs;
     int64_t mNumFramesOutput;
     int32_t mNumFramesLeftOnPage;
-    bool mSawInputEos;
-    bool mSignalledOutputEos;
 
     enum {
         NONE,

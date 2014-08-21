@@ -310,7 +310,7 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
         return 0;
     }
 
-#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+#ifdef HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
     if (inputSource == AUDIO_SOURCE_HOTWORD)
       inputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
 #endif
@@ -555,7 +555,7 @@ bool AudioPolicyService::isSourceActive(audio_source_t source) const
     }
     Mutex::Autolock _l(mLock);
 
-#ifdef HAVE_PRE_KITKAT_AUDIO_BLOB
+#ifdef HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
     if (source == AUDIO_SOURCE_HOTWORD)
       source = AUDIO_SOURCE_VOICE_RECOGNITION;
 #endif
