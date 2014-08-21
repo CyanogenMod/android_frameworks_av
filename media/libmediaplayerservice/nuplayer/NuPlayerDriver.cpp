@@ -227,7 +227,7 @@ status_t NuPlayerDriver::start() {
 
             if (mStartupSeekTimeUs >= 0) {
                 if (mStartupSeekTimeUs == 0) {
-                    notifySeekComplete();
+                    notifySeekComplete_l();
                 } else {
                     mPlayer->seekToAsync(mStartupSeekTimeUs);
                 }
@@ -331,7 +331,7 @@ status_t NuPlayerDriver::seekTo(int msec) {
             // pretend that the seek completed. It will actually happen when starting playback.
             // TODO: actually perform the seek here, so the player is ready to go at the new
             // location
-            notifySeekComplete();
+            notifySeekComplete_l();
             break;
         }
 
@@ -536,23 +536,28 @@ void NuPlayerDriver::notifyPosition(int64_t positionUs) {
 }
 
 void NuPlayerDriver::notifySeekComplete() {
+    Mutex::Autolock autoLock(mLock);
+    notifySeekComplete_l();
+}
+
+void NuPlayerDriver::notifySeekComplete_l() {
     bool wasSeeking = true;
-    {
-        Mutex::Autolock autoLock(mLock);
-        if (mState == STATE_STOPPED_AND_PREPARING) {
-            wasSeeking = false;
-            mState = STATE_STOPPED_AND_PREPARED;
-            mCondition.broadcast();
-            if (!mIsAsyncPrepare) {
-                // if we are preparing synchronously, no need to notify listener
-                return;
-            }
-        } else if (mState == STATE_STOPPED) {
-            // no need to notify listener
+    if (mState == STATE_STOPPED_AND_PREPARING) {
+        wasSeeking = false;
+        mState = STATE_STOPPED_AND_PREPARED;
+        mCondition.broadcast();
+        if (!mIsAsyncPrepare) {
+            // if we are preparing synchronously, no need to notify listener
             return;
         }
+    } else if (mState == STATE_STOPPED) {
+        // no need to notify listener
+        return;
     }
+    // note: notifyListener called with lock held
+    mLock.unlock();
     notifyListener(wasSeeking ? MEDIA_SEEK_COMPLETE : MEDIA_PREPARED);
+    mLock.lock();
 }
 
 void NuPlayerDriver::notifyFrameStats(
