@@ -1000,6 +1000,15 @@ status_t Camera3Device::deleteReprocessStream(int id) {
     return INVALID_OPERATION;
 }
 
+status_t Camera3Device::configureStreams() {
+    ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
+
+    Mutex::Autolock il(mInterfaceLock);
+    Mutex::Autolock l(mLock);
+
+    return configureStreamsLocked();
+}
 
 status_t Camera3Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
