@@ -114,6 +114,8 @@ class Camera3Device :
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);
 
+    virtual status_t configureStreams();
+
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
 
     // Transitions to the idle state on success

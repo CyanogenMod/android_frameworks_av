@@ -141,6 +141,18 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t deleteReprocessStream(int id) = 0;
 
     /**
+     * Take the currently-defined set of streams and configure the HAL to use
+     * them. This is a long-running operation (may be several hundered ms).
+     *
+     * The device must be idle (see waitUntilDrained) before calling this.
+     *
+     * Returns OK on success; otherwise on error:
+     * - BAD_VALUE if the set of streams was invalid (e.g. fmts or sizes)
+     * - INVALID_OPERATION if the device was in the wrong state
+     */
+    virtual status_t configureStreams() = 0;
+
+    /**
      * Create a metadata buffer with fields that the HAL device believes are
      * best for the given use case
      */

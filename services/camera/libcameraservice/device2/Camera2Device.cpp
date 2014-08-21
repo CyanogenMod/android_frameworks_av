@@ -415,6 +415,19 @@ status_t Camera2Device::deleteReprocessStream(int id) {
     return OK;
 }
 
+status_t Camera2Device::configureStreams() {
+    ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
+
+    /**
+     * HAL2 devices do not need to configure streams;
+     * streams are created on the fly.
+     */
+    ALOGW("%s: No-op for HAL2 devices", __FUNCTION__);
+
+    return OK;
+}
+
 
 status_t Camera2Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {

@@ -64,6 +64,8 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t setStreamTransform(int id, int transform);
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);
+    // No-op on HAL2 devices
+    virtual status_t configureStreams();
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
     virtual status_t waitUntilDrained();
     virtual status_t setNotifyCallback(NotificationListener *listener);
