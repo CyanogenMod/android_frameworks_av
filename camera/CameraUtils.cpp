@@ -73,23 +73,23 @@ status_t CameraUtils::getRotationTransform(const CameraMetadata& staticInfo,
                 return INVALID_OPERATION;
         }
     } else {
-        // Front camera needs to be horizontally flipped for
-        // mirror-like behavior.
-        // Note: Flips are applied before rotates.
+        // Front camera needs to be horizontally flipped for mirror-like behavior.
+        // Note: Flips are applied before rotates; using XOR here as some of these flags are
+        // composed in terms of other flip/rotation flags, and are not bitwise-ORable.
         switch (orientation) {
             case 0:
                 flags = NATIVE_WINDOW_TRANSFORM_FLIP_H;
                 break;
             case 90:
-                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H ^
                         NATIVE_WINDOW_TRANSFORM_ROT_270;
                 break;
             case 180:
-                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H ^
                         NATIVE_WINDOW_TRANSFORM_ROT_180;
                 break;
             case 270:
-                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H |
+                flags = NATIVE_WINDOW_TRANSFORM_FLIP_H ^
                         NATIVE_WINDOW_TRANSFORM_ROT_90;
 
                 break;
