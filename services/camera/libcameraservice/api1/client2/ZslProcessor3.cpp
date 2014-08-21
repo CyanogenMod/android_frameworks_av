@@ -51,7 +51,8 @@ ZslProcessor3::ZslProcessor3(
         mZslStreamId(NO_STREAM),
         mFrameListHead(0),
         mZslQueueHead(0),
-        mZslQueueTail(0) {
+        mZslQueueTail(0),
+        mHasFocuser(false) {
     // Initialize buffer queue and frame list based on pipeline max depth.
     size_t pipelineMaxDepth = kDefaultMaxPipelineDepth;
     if (client != 0) {
@@ -66,6 +67,11 @@ ZslProcessor3::ZslProcessor3(
                 ALOGW("%s: Unable to find the android.request.pipelineMaxDepth,"
                         " use default pipeline max depth %zu", __FUNCTION__,
                         kDefaultMaxPipelineDepth);
+            }
+
+            entry = device->info().find(ANDROID_LENS_INFO_MINIMUM_FOCUS_DISTANCE);
+            if (entry.count > 0 && entry.data.f[0] != 0.) {
+                mHasFocuser = true;
             }
         }
     }
@@ -489,20 +495,23 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                     continue;
                 }
 
-                // Make sure the candidate frame has good focus.
-                entry = frame.find(ANDROID_CONTROL_AF_STATE);
-                if (entry.count == 0) {
-                    ALOGW("%s: ZSL queue frame has no AF state field!",
-                            __FUNCTION__);
-                    continue;
-                }
-                uint8_t afState = entry.data.u8[0];
-                if (afState != ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED &&
-                        afState != ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED &&
-                        afState != ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
-                    ALOGW("%s: ZSL queue frame AF state is %d is not good for capture, skip it",
-                            __FUNCTION__, afState);
-                    continue;
+                // Check AF state if device has focuser
+                if (mHasFocuser) {
+                    // Make sure the candidate frame has good focus.
+                    entry = frame.find(ANDROID_CONTROL_AF_STATE);
+                    if (entry.count == 0) {
+                        ALOGW("%s: ZSL queue frame has no AF state field!",
+                                __FUNCTION__);
+                        continue;
+                    }
+                    uint8_t afState = entry.data.u8[0];
+                    if (afState != ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED &&
+                            afState != ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED &&
+                            afState != ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
+                        ALOGW("%s: ZSL queue frame AF state is %d is not good for capture, skip it",
+                                __FUNCTION__, afState);
+                        continue;
+                    }
                 }
 
                 minTimestamp = frameTimestamp;
