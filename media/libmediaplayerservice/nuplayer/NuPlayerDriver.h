@@ -104,6 +104,8 @@ private:
     // >>>
     int64_t mDurationUs;
     int64_t mPositionUs;
+    int64_t mNotifyTimeRealUs;
+    int64_t mPauseStartedTimeUs;
     int64_t mNumFramesTotal;
     int64_t mNumFramesDropped;
     // <<<
