@@ -444,11 +444,13 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             copy = numBytesAvailableToWrite;
         }
 
-        CHECK_EQ(mAudioSink->write(
-                    entry->mBuffer->data() + entry->mOffset, copy),
-                 (ssize_t)copy);
+        ssize_t written = mAudioSink->write(entry->mBuffer->data() + entry->mOffset, copy);
+        if (written < 0) {
+            // An error in AudioSink write is fatal here.
+            LOG_ALWAYS_FATAL("AudioSink write error(%zd) when writing %zu bytes", written, copy);
+        }
 
-        entry->mOffset += copy;
+        entry->mOffset += written;
         if (entry->mOffset == entry->mBuffer->size()) {
             entry->mNotifyConsumed->post();
             mAudioQueue.erase(mAudioQueue.begin());
@@ -456,13 +458,33 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             entry = NULL;
         }
 
-        numBytesAvailableToWrite -= copy;
-        size_t copiedFrames = copy / mAudioSink->frameSize();
+        numBytesAvailableToWrite -= written;
+        size_t copiedFrames = written / mAudioSink->frameSize();
         mNumFramesWritten += copiedFrames;
 
         notifyIfMediaRenderingStarted();
-    }
 
+        if (written != (ssize_t)copy) {
+            // A short count was received from AudioSink::write()
+            //
+            // AudioSink write should block until exactly the number of bytes are delivered.
+            // But it may return with a short count (without an error) when:
+            //
+            // 1) Size to be copied is not a multiple of the frame size. We consider this fatal.
+            // 2) AudioSink is an AudioCache for data retrieval, and the AudioCache is exceeded.
+
+            // (Case 1)
+            // Must be a multiple of the frame size.  If it is not a multiple of a frame size, it
+            // needs to fail, as we should not carry over fractional frames between calls.
+            CHECK_EQ(copy % mAudioSink->frameSize(), 0);
+
+            // (Case 2)
+            // Return early to the caller.
+            // Beware of calling immediately again as this may busy-loop if you are not careful.
+            ALOGW("AudioSink write short frame count %zd < %zu", written, copy);
+            break;
+        }
+    }
     notifyPosition();
 
     return !mAudioQueue.empty();

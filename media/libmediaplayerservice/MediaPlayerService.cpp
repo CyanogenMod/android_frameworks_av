@@ -1798,7 +1798,9 @@ ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size)
     //ALOGV("write(%p, %u)", buffer, size);
     if (mTrack != 0) {
         ssize_t ret = mTrack->write(buffer, size);
-        mBytesWritten += ret;
+        if (ret >= 0) {
+            mBytesWritten += ret;
+        }
         return ret;
     }
     return NO_INIT;
@@ -1945,7 +1947,7 @@ uint32_t MediaPlayerService::AudioOutput::getSampleRate() const
 #define LOG_TAG "AudioCache"
 MediaPlayerService::AudioCache::AudioCache(const sp<IMemoryHeap>& heap) :
     mHeap(heap), mChannelCount(0), mFrameCount(1024), mSampleRate(0), mSize(0),
-    mError(NO_ERROR),  mCommandComplete(false)
+    mFrameSize(1), mError(NO_ERROR),  mCommandComplete(false)
 {
 }
 
@@ -1962,14 +1964,14 @@ float MediaPlayerService::AudioCache::msecsPerFrame() const
 status_t MediaPlayerService::AudioCache::getPosition(uint32_t *position) const
 {
     if (position == 0) return BAD_VALUE;
-    *position = mSize;
+    *position = mSize / mFrameSize;
     return NO_ERROR;
 }
 
 status_t MediaPlayerService::AudioCache::getFramesWritten(uint32_t *written) const
 {
     if (written == 0) return BAD_VALUE;
-    *written = mSize;
+    *written = mSize / mFrameSize;
     return NO_ERROR;
 }
 
@@ -2031,6 +2033,8 @@ bool CallbackThread::threadLoop() {
 
     if (actualSize > 0) {
         sink->write(mBuffer, actualSize);
+        // Could return false on sink->write() error or short count.
+        // Not necessarily appropriate but would work for AudioCache behavior.
     }
 
     return true;
@@ -2053,6 +2057,9 @@ status_t MediaPlayerService::AudioCache::open(
     mChannelCount = (uint16_t)channelCount;
     mFormat = format;
     mMsecsPerFrame = 1.e3 / (float) sampleRate;
+    mFrameSize =  audio_is_linear_pcm(mFormat)
+            ? mChannelCount * audio_bytes_per_sample(mFormat) : 1;
+    mFrameCount = mHeap->getSize() / mFrameSize;
 
     if (cb != NULL) {
         mCallbackThread = new CallbackThread(this, cb, cookie);
@@ -2082,12 +2089,26 @@ ssize_t MediaPlayerService::AudioCache::write(const void* buffer, size_t size)
     if (p == NULL) return NO_INIT;
     p += mSize;
     ALOGV("memcpy(%p, %p, %u)", p, buffer, size);
-    if (mSize + size > mHeap->getSize()) {
+
+    bool overflow = mSize + size > mHeap->getSize();
+    if (overflow) {
         ALOGE("Heap size overflow! req size: %d, max size: %d", (mSize + size), mHeap->getSize());
         size = mHeap->getSize() - mSize;
     }
+    size -= size % mFrameSize; // consume only integral amounts of frame size
     memcpy(p, buffer, size);
     mSize += size;
+
+    if (overflow) {
+        // Signal heap filled here (last frame may be truncated).
+        // After this point, no more data should be written as the
+        // heap is filled and the AudioCache should be effectively
+        // immutable with respect to future writes.
+        //
+        // It is thus safe for another thread to read the AudioCache.
+        mCommandComplete = true;
+        mSignal.signal();
+    }
     return size;
 }
 
