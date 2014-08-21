@@ -194,7 +194,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual ssize_t         bufferSize() const { return frameSize() * mFrameCount; }
         virtual ssize_t         frameCount() const { return mFrameCount; }
         virtual ssize_t         channelCount() const { return (ssize_t)mChannelCount; }
-        virtual ssize_t         frameSize() const { return ssize_t(mChannelCount * ((mFormat == AUDIO_FORMAT_PCM_16_BIT)?sizeof(int16_t):sizeof(u_int8_t))); }
+        virtual ssize_t         frameSize() const { return (ssize_t)mFrameSize; }
         virtual uint32_t        latency() const;
         virtual float           msecsPerFrame() const;
         virtual status_t        getPosition(uint32_t *position) const;
@@ -244,6 +244,7 @@ class MediaPlayerService : public BnMediaPlayerService
         ssize_t             mFrameCount;
         uint32_t            mSampleRate;
         uint32_t            mSize;
+        size_t              mFrameSize;
         int                 mError;
         bool                mCommandComplete;
 
