@@ -484,6 +484,8 @@ class Camera3Device :
         TriggerMap         mTriggerMap;
         TriggerMap         mTriggerRemovedMap;
         TriggerMap         mTriggerReplacedMap;
+        uint32_t           mCurrentAfTriggerId;
+        uint32_t           mCurrentPreCaptureTriggerId;
 
         int64_t            mRepeatingLastFrameNumber;
     };
