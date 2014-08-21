@@ -36,6 +36,8 @@ NuPlayerDriver::NuPlayerDriver()
       mAsyncResult(UNKNOWN_ERROR),
       mDurationUs(-1),
       mPositionUs(-1),
+      mNotifyTimeRealUs(0),
+      mPauseStartedTimeUs(0),
       mNumFramesTotal(0),
       mNumFramesDropped(0),
       mLooper(new ALooper),
@@ -244,6 +246,7 @@ status_t NuPlayerDriver::start() {
         case STATE_STOPPED_AND_PREPARED:
         {
             mPlayer->resume();
+            mPositionUs -= ALooper::GetNowUs() - mPauseStartedTimeUs;
             break;
         }
 
@@ -278,6 +281,7 @@ status_t NuPlayerDriver::stop() {
         default:
             return INVALID_OPERATION;
     }
+    mPauseStartedTimeUs = ALooper::GetNowUs();
 
     return OK;
 }
@@ -299,6 +303,7 @@ status_t NuPlayerDriver::pause() {
             return INVALID_OPERATION;
     }
 
+    mPauseStartedTimeUs = ALooper::GetNowUs();
     mState = STATE_PAUSED;
 
     return OK;
@@ -347,7 +352,10 @@ status_t NuPlayerDriver::getCurrentPosition(int *msec) {
     if (mPositionUs < 0) {
         *msec = 0;
     } else {
-        *msec = (mPositionUs + 500ll) / 1000;
+        int64_t nowUs =
+                (mState != STATE_RUNNING ?
+                        mPauseStartedTimeUs : ALooper::GetNowUs());
+        *msec = (mPositionUs + nowUs - mNotifyTimeRealUs + 500ll) / 1000;
     }
 
     return OK;
@@ -522,6 +530,7 @@ void NuPlayerDriver::notifyDuration(int64_t durationUs) {
 void NuPlayerDriver::notifyPosition(int64_t positionUs) {
     Mutex::Autolock autoLock(mLock);
     mPositionUs = positionUs;
+    mNotifyTimeRealUs = ALooper::GetNowUs();
 }
 
 void NuPlayerDriver::notifySeekComplete() {
