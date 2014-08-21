@@ -194,6 +194,8 @@ struct ExtendedUtils {
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
 
     static bool isVideoMuxFormatSupported(const char *mime);
+
+    static void printFileName(int fd);
 };
 
 }

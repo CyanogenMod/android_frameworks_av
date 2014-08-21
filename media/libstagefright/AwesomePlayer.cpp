@@ -396,6 +396,10 @@ status_t AwesomePlayer::setDataSource(
        printFileName(fd);
     }
 
+    if (fd) {
+        ExtendedUtils::printFileName(fd);
+    }
+
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
     status_t err = dataSource->initCheck();

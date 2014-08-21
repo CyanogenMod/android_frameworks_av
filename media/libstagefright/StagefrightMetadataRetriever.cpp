@@ -32,6 +32,8 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/Utils.h>
+#include "include/ExtendedUtils.h"
 #include <CharacterEncodingDetector.h>
 
 namespace android {
@@ -58,7 +60,7 @@ status_t StagefrightMetadataRetriever::setDataSource(
         const sp<IMediaHTTPService> &httpService,
         const char *uri,
         const KeyedVector<String8, String8> *headers) {
-    ALOGV("setDataSource(%s)", uri);
+    ALOGI("setDataSource(%s)", uriDebugString(uri, false).c_str());
 
     mParsedMetaData = false;
     mMetaData.clear();
@@ -91,6 +93,9 @@ status_t StagefrightMetadataRetriever::setDataSource(
     fd = dup(fd);
 
     ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
+    if (fd) {
+        ExtendedUtils::printFileName(fd);
+    }
 
     mParsedMetaData = false;
     mMetaData.clear();

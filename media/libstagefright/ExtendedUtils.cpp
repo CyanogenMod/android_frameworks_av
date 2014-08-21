@@ -1254,6 +1254,7 @@ bool ExtendedUtils::HEVCMuxer::getHEVCCodecConfigData(const sp<MetaData> &meta,
     *size = 0;
     return false;
 }
+
 }
 #endif //ENABLE_AV_ENHANCEMENTS
 
@@ -1274,6 +1275,23 @@ bool ExtendedUtils::isVideoMuxFormatSupported(const char *mime) {
     }
 
     return false;
+}
+
+void ExtendedUtils::printFileName(int fd) {
+    if (fd) {
+        char prop[PROPERTY_VALUE_MAX];
+        if (property_get("media.stagefright.log-uri", prop, "false") &&
+                (!strcmp(prop, "1") || !strcmp(prop, "true"))) {
+
+            char symName[40] = {0};
+            char fileName[256] = {0};
+            snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
+
+            if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
+                ALOGI("printFileName fd(%d) -> %s", fd, fileName);
+            }
+        }
+    }
 }
 
 }
