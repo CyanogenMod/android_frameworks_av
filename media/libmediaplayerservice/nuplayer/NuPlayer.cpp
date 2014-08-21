@@ -756,7 +756,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     ALOGV("initiating %s decoder shutdown",
                          audio ? "audio" : "video");
 
-                    (audio ? mAudioDecoder : mVideoDecoder)->initiateShutdown();
+                    getDecoder(audio)->initiateShutdown();
 
                     if (audio) {
                         mFlushingAudio = SHUTTING_DOWN_DECODER;
@@ -1292,7 +1292,24 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                 mTimeDiscontinuityPending =
                     mTimeDiscontinuityPending || timeChange;
 
-                if (mFlushingAudio == NONE && mFlushingVideo == NONE) {
+                bool seamlessFormatChange = false;
+                sp<AMessage> newFormat = mSource->getFormat(audio);
+                if (formatChange) {
+                    seamlessFormatChange =
+                        getDecoder(audio)->supportsSeamlessFormatChange(newFormat);
+                    // treat seamless format change separately
+                    formatChange = !seamlessFormatChange;
+                }
+                bool shutdownOrFlush = formatChange || timeChange;
+
+                // We want to queue up scan-sources only once per discontinuity.
+                // We control this by doing it only if neither audio nor video are
+                // flushing or shutting down.  (After handling 1st discontinuity, one
+                // of the flushing states will not be NONE.)
+                // No need to scan sources if this discontinuity does not result
+                // in a flush or shutdown, as the flushing state will stay NONE.
+                if (mFlushingAudio == NONE && mFlushingVideo == NONE &&
+                        shutdownOrFlush) {
                     // And we'll resume scanning sources once we're done
                     // flushing.
                     mDeferredActions.push_front(
@@ -1300,16 +1317,17 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                                 &NuPlayer::performScanSources));
                 }
 
-                if (formatChange || timeChange) {
-
-                    sp<AMessage> newFormat = mSource->getFormat(audio);
-                    sp<Decoder> &decoder = audio ? mAudioDecoder : mVideoDecoder;
-                    if (formatChange && !decoder->supportsSeamlessFormatChange(newFormat)) {
-                        flushDecoder(audio, /* needShutdown = */ true);
-                    } else {
-                        flushDecoder(audio, /* needShutdown = */ false);
-                        err = OK;
-                    }
+                if (formatChange /* not seamless */) {
+                    // must change decoder
+                    flushDecoder(audio, /* needShutdown = */ true);
+                } else if (timeChange) {
+                    // need to flush
+                    flushDecoder(audio, /* needShutdown = */ false, newFormat);
+                    err = OK;
+                } else if (seamlessFormatChange) {
+                    // reuse existing decoder and don't flush
+                    updateDecoderFormatWithoutFlush(audio, newFormat);
+                    err = OK;
                 } else {
                     // This stream is unaffected by the discontinuity
                     return -EWOULDBLOCK;
@@ -1488,20 +1506,23 @@ void NuPlayer::notifyListener(int msg, int ext1, int ext2, const Parcel *in) {
     driver->notifyListener(msg, ext1, ext2, in);
 }
 
-void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
+void NuPlayer::flushDecoder(
+        bool audio, bool needShutdown, const sp<AMessage> &newFormat) {
     ALOGV("[%s] flushDecoder needShutdown=%d",
           audio ? "audio" : "video", needShutdown);
 
-    if ((audio && mAudioDecoder == NULL) || (!audio && mVideoDecoder == NULL)) {
+    const sp<Decoder> &decoder = getDecoder(audio);
+    if (decoder == NULL) {
         ALOGI("flushDecoder %s without decoder present",
              audio ? "audio" : "video");
+        return;
     }
 
     // Make sure we don't continue to scan sources until we finish flushing.
     ++mScanSourcesGeneration;
     mScanSourcesPending = false;
 
-    (audio ? mAudioDecoder : mVideoDecoder)->signalFlush();
+    decoder->signalFlush(newFormat);
     mRenderer->flush(audio);
 
     FlushStatus newStatus =
@@ -1516,6 +1537,20 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
                 "video flushDecoder() is called in state %d", mFlushingVideo);
         mFlushingVideo = newStatus;
     }
+}
+
+void NuPlayer::updateDecoderFormatWithoutFlush(
+        bool audio, const sp<AMessage> &format) {
+    ALOGV("[%s] updateDecoderFormatWithoutFlush", audio ? "audio" : "video");
+
+    const sp<Decoder> &decoder = getDecoder(audio);
+    if (decoder == NULL) {
+        ALOGI("updateDecoderFormatWithoutFlush %s without decoder present",
+             audio ? "audio" : "video");
+        return;
+    }
+
+    decoder->signalUpdateFormat(format);
 }
 
 void NuPlayer::queueDecoderShutdown(

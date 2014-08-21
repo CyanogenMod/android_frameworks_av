@@ -71,6 +71,19 @@ status_t PostAndAwaitResponse(
     return err;
 }
 
+void NuPlayer::Decoder::rememberCodecSpecificData(const sp<AMessage> &format) {
+    mCSDsForCurrentFormat.clear();
+    for (int32_t i = 0; ; ++i) {
+        AString tag = "csd-";
+        tag.append(i);
+        sp<ABuffer> buffer;
+        if (!format->findBuffer(tag.c_str(), &buffer)) {
+            break;
+        }
+        mCSDsForCurrentFormat.push(buffer);
+    }
+}
+
 void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     CHECK(mCodec == NULL);
 
@@ -123,6 +136,8 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
         handleError(err);
         return;
     }
+    rememberCodecSpecificData(format);
+
     // the following should work in configured state
     CHECK_EQ((status_t)OK, mCodec->getOutputFormat(&mOutputFormat));
     CHECK_EQ((status_t)OK, mCodec->getInputFormat(&mInputFormat));
@@ -189,6 +204,12 @@ void NuPlayer::Decoder::configure(const sp<AMessage> &format) {
     msg->post();
 }
 
+void NuPlayer::Decoder::signalUpdateFormat(const sp<AMessage> &format) {
+    sp<AMessage> msg = new AMessage(kWhatUpdateFormat, id());
+    msg->setMessage("format", format);
+    msg->post();
+}
+
 status_t NuPlayer::Decoder::getInputBuffers(Vector<sp<ABuffer> > *buffers) const {
     sp<AMessage> msg = new AMessage(kWhatGetInputBuffers, id());
     msg->setPointer("buffers", buffers);
@@ -228,6 +249,15 @@ bool NuPlayer::Decoder::handleAnInputBuffer() {
     sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, id());
     reply->setSize("buffer-ix", bufferIx);
     reply->setInt32("generation", mBufferGeneration);
+
+    if (!mCSDsToSubmit.isEmpty()) {
+        sp<ABuffer> buffer = mCSDsToSubmit.itemAt(0);
+        ALOGI("[%s] resubmitting CSD", mComponentName.c_str());
+        reply->setBuffer("buffer", buffer);
+        mCSDsToSubmit.removeAt(0);
+        reply->post();
+        return true;
+    }
 
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatFillThisBuffer);
@@ -312,10 +342,12 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
         uint32_t flags = 0;
         CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
 
-        int32_t eos;
-        // we do not expect CODECCONFIG or SYNCFRAME for decoder
+        int32_t eos, csd;
+        // we do not expect SYNCFRAME for decoder
         if (buffer->meta()->findInt32("eos", &eos) && eos) {
             flags |= MediaCodec::BUFFER_FLAG_EOS;
+        } else if (buffer->meta()->findInt32("csd", &csd) && csd) {
+            flags |= MediaCodec::BUFFER_FLAG_CODECCONFIG;
         }
 
         // copy into codec buffer
@@ -448,6 +480,7 @@ void NuPlayer::Decoder::onFlush() {
     status_t err = OK;
     if (mCodec != NULL) {
         err = mCodec->flush();
+        mCSDsToSubmit = mCSDsForCurrentFormat; // copy operator
         ++mBufferGeneration;
     }
 
@@ -515,6 +548,14 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatUpdateFormat:
+        {
+            sp<AMessage> format;
+            CHECK(msg->findMessage("format", &format));
+            rememberCodecSpecificData(format);
+            break;
+        }
+
         case kWhatGetInputBuffers:
         {
             uint32_t replyID;
@@ -566,6 +607,10 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatFlush:
         {
+            sp<AMessage> format;
+            if (msg->findMessage("new-format", &format)) {
+                rememberCodecSpecificData(format);
+            }
             onFlush();
             break;
         }
@@ -588,8 +633,12 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-void NuPlayer::Decoder::signalFlush() {
-    (new AMessage(kWhatFlush, id()))->post();
+void NuPlayer::Decoder::signalFlush(const sp<AMessage> &format) {
+    sp<AMessage> msg = new AMessage(kWhatFlush, id());
+    if (format != NULL) {
+        msg->setMessage("new-format", format);
+    }
+    msg->post();
 }
 
 void NuPlayer::Decoder::signalResume() {
