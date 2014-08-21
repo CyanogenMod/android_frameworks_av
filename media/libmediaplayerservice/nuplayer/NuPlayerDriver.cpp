@@ -554,7 +554,7 @@ void NuPlayerDriver::notifySeekComplete_l() {
         // no need to notify listener
         return;
     }
-    // note: notifyListener called with lock held
+    // note: notifyListener called with lock released
     mLock.unlock();
     notifyListener(wasSeeking ? MEDIA_SEEK_COMPLETE : MEDIA_PREPARED);
     mLock.lock();
