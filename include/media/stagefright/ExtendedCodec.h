@@ -32,6 +32,7 @@
 
 #include <android/native_window.h>
 #include <media/IOMX.h>
+#include <media/MediaCodecInfo.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -60,7 +61,7 @@ struct ExtendedCodec {
             const sp<MetaData> &meta, sp<AMessage> *format);
 
     static uint32_t getComponentQuirks (
-            const MediaCodecList *list, size_t index);
+            const sp<MediaCodecInfo> &info);
 
     static status_t setAudioFormat(
             const sp<MetaData> &meta, const char* mime,

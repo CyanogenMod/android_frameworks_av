@@ -300,20 +300,17 @@ uint32_t OMXCodec::getComponentQuirks(
     if (info->hasQuirk("output-buffers-are-unreadable")) {
         quirks |= kOutputBuffersAreUnreadable;
     }
-    if (list->codecHasQuirk(
-                index, "requies-loaded-to-idle-after-allocation")) {
+    if (info->hasQuirk("requies-loaded-to-idle-after-allocation")) {
         quirks |= kRequiresLoadedToIdleAfterAllocation;
     }
-    if (list->codecHasQuirk(
-                index, "requires-global-flush")) {
+    if (info->hasQuirk("requires-global-flush")) {
         quirks |= kRequiresGlobalFlush;
     }
-    if (list->codecHasQuirk(
-                index, "defers-output-buffer-allocation")) {
+    if (info->hasQuirk("defers-output-buffer-allocation")) {
         quirks |= kDefersOutputBufferAllocation;
     }
 
-    quirks |= ExtendedCodec::getComponentQuirks(list,index);
+    quirks |= ExtendedCodec::getComponentQuirks(info);
 
     return quirks;
 }

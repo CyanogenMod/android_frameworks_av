@@ -178,11 +178,10 @@ status_t ExtendedCodec::convertMetaDataToMessage(
 }
 
 uint32_t ExtendedCodec::getComponentQuirks(
-        const MediaCodecList *list, size_t index) {
+        const sp<MediaCodecInfo> &info) {
     uint32_t quirks = 0;
 
-    if (list->codecHasQuirk(
-                index, "requires-wma-pro-component")) {
+    if (info->hasQuirk("requires-wma-pro-component")) {
         quirks |= kRequiresWMAProComponent;
     }
     return quirks;
@@ -1031,9 +1030,8 @@ namespace android {
     }
 
     uint32_t ExtendedCodec::getComponentQuirks (
-            const MediaCodecList *list, size_t index) {
-        ARG_TOUCH(list);
-        ARG_TOUCH(index);
+            const sp<MediaCodecInfo> &info) {
+        ARG_TOUCH(info);
         return 0;
     }
 
