@@ -32,6 +32,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
+#include "../../libstagefright/include/NuCachedSource2.h"
 #include "../../libstagefright/include/WVMExtractor.h"
 
 namespace android {
@@ -47,7 +48,8 @@ NuPlayer::GenericSource::GenericSource(
       mAudioIsVorbis(false),
       mIsWidevine(false),
       mUIDValid(uidValid),
-      mUID(uid) {
+      mUID(uid),
+      mMetaDataSize(-1ll) {
     resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
@@ -92,10 +94,10 @@ status_t NuPlayer::GenericSource::setDataSource(
     return OK;
 }
 
-status_t NuPlayer::GenericSource::initFromDataSource(
-        const sp<DataSource> &dataSource,
-        const char* mime) {
+status_t NuPlayer::GenericSource::initFromDataSource() {
     sp<MediaExtractor> extractor;
+
+    CHECK(mDataSource != NULL);
 
     if (mIsWidevine) {
         String8 mimeType;
@@ -103,7 +105,7 @@ status_t NuPlayer::GenericSource::initFromDataSource(
         sp<AMessage> dummy;
         bool success;
 
-        success = SniffWVM(dataSource, &mimeType, &confidence, &dummy);
+        success = SniffWVM(mDataSource, &mimeType, &confidence, &dummy);
         if (!success
                 || strcasecmp(
                     mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM)) {
@@ -111,14 +113,15 @@ status_t NuPlayer::GenericSource::initFromDataSource(
             return UNKNOWN_ERROR;
         }
 
-        sp<WVMExtractor> wvmExtractor = new WVMExtractor(dataSource);
+        sp<WVMExtractor> wvmExtractor = new WVMExtractor(mDataSource);
         wvmExtractor->setAdaptiveStreamingMode(true);
         if (mUIDValid) {
             wvmExtractor->setUID(mUID);
         }
         extractor = wvmExtractor;
     } else {
-        extractor = MediaExtractor::Create(dataSource, mime);
+        extractor = MediaExtractor::Create(mDataSource,
+                mSniffedMIME.empty() ? NULL: mSniffedMIME.c_str());
     }
 
     if (extractor == NULL) {
@@ -213,34 +216,49 @@ void NuPlayer::GenericSource::prepareAsync() {
 
 void NuPlayer::GenericSource::onPrepareAsync() {
     // delayed data source creation
-    AString sniffedMIME;
-    sp<DataSource> dataSource;
+    if (mDataSource == NULL) {
+        if (!mUri.empty()) {
+            mIsWidevine = !strncasecmp(mUri.c_str(), "widevine://", 11);
 
-    if (!mUri.empty()) {
-        mIsWidevine = !strncasecmp(mUri.c_str(), "widevine://", 11);
+            mDataSource = DataSource::CreateFromURI(
+                   mHTTPService, mUri.c_str(), &mUriHeaders, &mContentType);
+        } else {
+            // set to false first, if the extractor
+            // comes back as secure, set it to true then.
+            mIsWidevine = false;
 
-        dataSource = DataSource::CreateFromURI(
-               mHTTPService, mUri.c_str(), &mUriHeaders, &sniffedMIME);
-    } else {
-        // set to false first, if the extractor
-        // comes back as secure, set it to true then.
-        mIsWidevine = false;
+            mDataSource = new FileSource(mFd, mOffset, mLength);
+        }
 
-        dataSource = new FileSource(mFd, mOffset, mLength);
+        if (mDataSource == NULL) {
+            ALOGE("Failed to create data source!");
+            notifyPreparedAndCleanup(UNKNOWN_ERROR);
+            return;
+        }
+
+        if (mDataSource->flags() & DataSource::kIsCachingDataSource) {
+            mCachedSource = static_cast<NuCachedSource2 *>(mDataSource.get());
+        }
     }
 
-    if (dataSource == NULL) {
-        ALOGE("Failed to create data source!");
-        notifyPrepared(UNKNOWN_ERROR);
+    // check initial caching status
+    status_t err = prefillCacheIfNecessary();
+    if (err != OK) {
+        if (err == -EAGAIN) {
+            (new AMessage(kWhatPrepareAsync, id()))->post(200000);
+        } else {
+            ALOGE("Failed to prefill data cache!");
+            notifyPreparedAndCleanup(UNKNOWN_ERROR);
+        }
         return;
     }
 
-    status_t err = initFromDataSource(
-            dataSource, sniffedMIME.empty() ? NULL : sniffedMIME.c_str());
+    // init extrator from data source
+    err = initFromDataSource();
 
     if (err != OK) {
         ALOGE("Failed to init from data source!");
-        notifyPrepared(err);
+        notifyPreparedAndCleanup(err);
         return;
     }
 
@@ -256,6 +274,87 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             | FLAG_CAN_SEEK);
 
     notifyPrepared();
+}
+
+void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
+    if (err != OK) {
+        mMetaDataSize = -1ll;
+        mContentType = "";
+        mSniffedMIME = "";
+        mDataSource.clear();
+        mCachedSource.clear();
+    }
+    notifyPrepared(err);
+}
+
+status_t NuPlayer::GenericSource::prefillCacheIfNecessary() {
+    CHECK(mDataSource != NULL);
+
+    if (mCachedSource == NULL) {
+        // no prefill if the data source is not cached
+        return OK;
+    }
+
+    // We're not doing this for streams that appear to be audio-only
+    // streams to ensure that even low bandwidth streams start
+    // playing back fairly instantly.
+    if (!strncasecmp(mContentType.string(), "audio/", 6)) {
+        return OK;
+    }
+
+    // We're going to prefill the cache before trying to instantiate
+    // the extractor below, as the latter is an operation that otherwise
+    // could block on the datasource for a significant amount of time.
+    // During that time we'd be unable to abort the preparation phase
+    // without this prefill.
+
+    // Initially make sure we have at least 192 KB for the sniff
+    // to complete without blocking.
+    static const size_t kMinBytesForSniffing = 192 * 1024;
+    static const size_t kDefaultMetaSize = 200000;
+
+    status_t finalStatus;
+
+    size_t cachedDataRemaining =
+            mCachedSource->approxDataRemaining(&finalStatus);
+
+    if (finalStatus != OK || (mMetaDataSize >= 0
+            && (off64_t)cachedDataRemaining >= mMetaDataSize)) {
+        ALOGV("stop caching, status %d, "
+                "metaDataSize %lld, cachedDataRemaining %zu",
+                finalStatus, mMetaDataSize, cachedDataRemaining);
+        return OK;
+    }
+
+    ALOGV("now cached %zu bytes of data", cachedDataRemaining);
+
+    if (mMetaDataSize < 0
+            && cachedDataRemaining >= kMinBytesForSniffing) {
+        String8 tmp;
+        float confidence;
+        sp<AMessage> meta;
+        if (!mCachedSource->sniff(&tmp, &confidence, &meta)) {
+            return UNKNOWN_ERROR;
+        }
+
+        // We successfully identified the file's extractor to
+        // be, remember this mime type so we don't have to
+        // sniff it again when we call MediaExtractor::Create()
+        mSniffedMIME = tmp.string();
+
+        if (meta == NULL
+                || !meta->findInt64("meta-data-size",
+                        reinterpret_cast<int64_t*>(&mMetaDataSize))) {
+            mMetaDataSize = kDefaultMetaSize;
+        }
+
+        if (mMetaDataSize < 0ll) {
+            ALOGE("invalid metaDataSize = %lld bytes", mMetaDataSize);
+            return UNKNOWN_ERROR;
+        }
+    }
+
+    return -EAGAIN;
 }
 
 void NuPlayer::GenericSource::start() {
