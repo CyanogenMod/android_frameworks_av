@@ -184,15 +184,6 @@ status_t Camera3IOStreamBase::getBufferPreconditionCheckLocked() const {
         return INVALID_OPERATION;
     }
 
-    // Only limit dequeue amount when fully configured
-    if (mState == STATE_CONFIGURED &&
-            mHandoutTotalBufferCount == camera3_stream::max_buffers) {
-        ALOGE("%s: Stream %d: Already dequeued maximum number of simultaneous"
-                " buffers (%d)", __FUNCTION__, mId,
-                camera3_stream::max_buffers);
-        return INVALID_OPERATION;
-    }
-
     return OK;
 }
 
