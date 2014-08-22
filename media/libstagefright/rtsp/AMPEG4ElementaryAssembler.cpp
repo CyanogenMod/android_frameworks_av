@@ -358,6 +358,11 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::addPacket(
             CopyTimes(accessUnit, buffer);
             mPackets.push_back(accessUnit);
         }
+
+        if (offset != buffer->size()) {
+            ALOGW("potentially malformed packet (offset %d, size %d)",
+                    offset, buffer->size());
+        }
     }
 
     queue->erase(queue->begin());
