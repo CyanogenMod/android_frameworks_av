@@ -55,6 +55,9 @@ protected:
     virtual OMX_ERRORTYPE getConfig(
             OMX_INDEXTYPE index, OMX_PTR params);
 
+    virtual OMX_ERRORTYPE getExtensionIndex(
+            const char *name, OMX_INDEXTYPE *index);
+
     void initPorts(OMX_U32 numInputBuffers,
             OMX_U32 inputBufferSize,
             OMX_U32 numOutputBuffers,
@@ -68,6 +71,8 @@ protected:
         kMaxPortIndex = 1,
     };
 
+    bool mIsAdaptive;
+    uint32_t mAdaptiveMaxWidth, mAdaptiveMaxHeight;
     uint32_t mWidth, mHeight;
     uint32_t mCropLeft, mCropTop, mCropWidth, mCropHeight;
 
