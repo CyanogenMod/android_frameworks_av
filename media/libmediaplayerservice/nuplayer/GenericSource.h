@@ -33,6 +33,7 @@ struct DataSource;
 struct IMediaHTTPService;
 struct MediaSource;
 class MediaBuffer;
+struct NuCachedSource2;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
@@ -105,14 +106,21 @@ private:
     int64_t mOffset;
     int64_t mLength;
 
-    sp<ALooper> mLooper;
+    sp<DataSource> mDataSource;
+    sp<NuCachedSource2> mCachedSource;
+    String8 mContentType;
+    AString mSniffedMIME;
+    off64_t mMetaDataSize;
 
+    sp<ALooper> mLooper;
 
     void resetDataSource();
 
-    status_t initFromDataSource(
-            const sp<DataSource> &dataSource,
-            const char *mime);
+    status_t initFromDataSource();
+
+    status_t prefillCacheIfNecessary();
+
+    void notifyPreparedAndCleanup(status_t err);
 
     void onPrepareAsync();
 
