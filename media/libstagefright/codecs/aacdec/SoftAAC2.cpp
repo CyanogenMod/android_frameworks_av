@@ -720,16 +720,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
                  * Thus, we could not say for sure whether a stream is
                  * AAC+/eAAC+ until the first data frame is decoded.
                  */
-                if (mOutputBufferCount > 1) {
-                    if (mStreamInfo->sampleRate != prevSampleRate ||
-                        mStreamInfo->numChannels != prevNumChannels) {
-                        ALOGE("can not reconfigure AAC output");
-                        mSignalledError = true;
-                        notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
-                        return;
-                    }
-                }
-                if (mInputBufferCount <= 2) { // TODO: <= 1
+                if (mInputBufferCount <= 2 || mOutputBufferCount > 1) { // TODO: <= 1
                     if (mStreamInfo->sampleRate != prevSampleRate ||
                         mStreamInfo->numChannels != prevNumChannels) {
                         ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
