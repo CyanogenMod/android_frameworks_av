@@ -36,8 +36,8 @@ NuPlayerDriver::NuPlayerDriver()
       mAsyncResult(UNKNOWN_ERROR),
       mDurationUs(-1),
       mPositionUs(-1),
-      mNotifyTimeRealUs(0),
-      mPauseStartedTimeUs(0),
+      mNotifyTimeRealUs(-1),
+      mPauseStartedTimeUs(-1),
       mNumFramesTotal(0),
       mNumFramesDropped(0),
       mLooper(new ALooper),
@@ -240,7 +240,14 @@ status_t NuPlayerDriver::start() {
         }
 
         case STATE_RUNNING:
+        {
+            if (mAtEOS) {
+                mPlayer->seekToAsync(0);
+                mAtEOS = false;
+                mPositionUs = -1;
+            }
             break;
+        }
 
         case STATE_PAUSED:
         case STATE_STOPPED_AND_PREPARED:
@@ -258,6 +265,7 @@ status_t NuPlayerDriver::start() {
     }
 
     mState = STATE_RUNNING;
+    mPauseStartedTimeUs = -1;
 
     return OK;
 }
@@ -271,7 +279,7 @@ status_t NuPlayerDriver::stop() {
             // fall through
 
         case STATE_PAUSED:
-            notifyListener(MEDIA_STOPPED);
+            notifyListener_l(MEDIA_STOPPED);
             // fall through
 
         case STATE_PREPARED:
@@ -284,7 +292,7 @@ status_t NuPlayerDriver::stop() {
         default:
             return INVALID_OPERATION;
     }
-    mPauseStartedTimeUs = ALooper::GetNowUs();
+    setPauseStartedTimeIfNeeded();
 
     return OK;
 }
@@ -298,7 +306,7 @@ status_t NuPlayerDriver::pause() {
             return OK;
 
         case STATE_RUNNING:
-            notifyListener(MEDIA_PAUSED);
+            notifyListener_l(MEDIA_PAUSED);
             mPlayer->pause();
             break;
 
@@ -306,7 +314,7 @@ status_t NuPlayerDriver::pause() {
             return INVALID_OPERATION;
     }
 
-    mPauseStartedTimeUs = ALooper::GetNowUs();
+    setPauseStartedTimeIfNeeded();
     mState = STATE_PAUSED;
 
     return OK;
@@ -345,7 +353,7 @@ status_t NuPlayerDriver::seekTo(int msec) {
         {
             mAtEOS = false;
             // seeks can take a while, so we essentially paused
-            notifyListener(MEDIA_PAUSED);
+            notifyListener_l(MEDIA_PAUSED);
             mPlayer->seekToAsync(seekTimeUs);
             break;
         }
@@ -354,6 +362,8 @@ status_t NuPlayerDriver::seekTo(int msec) {
             return INVALID_OPERATION;
     }
 
+    mPositionUs = seekTimeUs;
+    mNotifyTimeRealUs = -1;
     return OK;
 }
 
@@ -362,10 +372,11 @@ status_t NuPlayerDriver::getCurrentPosition(int *msec) {
 
     if (mPositionUs < 0) {
         *msec = 0;
+    } else if (mNotifyTimeRealUs == -1) {
+        *msec = mPositionUs / 1000;
     } else {
         int64_t nowUs =
-                (mState != STATE_RUNNING ?
-                        mPauseStartedTimeUs : ALooper::GetNowUs());
+                (isPlaying() ?  ALooper::GetNowUs() : mPauseStartedTimeUs);
         *msec = (mPositionUs + nowUs - mNotifyTimeRealUs + 500ll) / 1000;
     }
 
@@ -399,7 +410,7 @@ status_t NuPlayerDriver::reset() {
         {
             CHECK(mIsAsyncPrepare);
 
-            notifyListener(MEDIA_PREPARED);
+            notifyListener_l(MEDIA_PREPARED);
             break;
         }
 
@@ -408,7 +419,7 @@ status_t NuPlayerDriver::reset() {
     }
 
     if (mState != STATE_STOPPED) {
-        notifyListener(MEDIA_STOPPED);
+        notifyListener_l(MEDIA_STOPPED);
     }
 
     mState = STATE_RESET_IN_PROGRESS;
@@ -563,10 +574,7 @@ void NuPlayerDriver::notifySeekComplete_l() {
         // no need to notify listener
         return;
     }
-    // note: notifyListener called with lock released
-    mLock.unlock();
-    notifyListener(wasSeeking ? MEDIA_SEEK_COMPLETE : MEDIA_PREPARED);
-    mLock.lock();
+    notifyListener_l(wasSeeking ? MEDIA_SEEK_COMPLETE : MEDIA_PREPARED);
 }
 
 void NuPlayerDriver::notifyFrameStats(
@@ -598,11 +606,19 @@ status_t NuPlayerDriver::dump(
 
 void NuPlayerDriver::notifyListener(
         int msg, int ext1, int ext2, const Parcel *in) {
+    Mutex::Autolock autoLock(mLock);
+    notifyListener_l(msg, ext1, ext2, in);
+}
+
+void NuPlayerDriver::notifyListener_l(
+        int msg, int ext1, int ext2, const Parcel *in) {
     switch (msg) {
         case MEDIA_PLAYBACK_COMPLETE:
         {
             if (mLooping) {
+                mLock.unlock();
                 mPlayer->seekToAsync(0);
+                mLock.lock();
                 break;
             } else {
                 mState = STATE_PAUSED;
@@ -613,6 +629,7 @@ void NuPlayerDriver::notifyListener(
         case MEDIA_ERROR:
         {
             mAtEOS = true;
+            setPauseStartedTimeIfNeeded();
             break;
         }
 
@@ -620,7 +637,9 @@ void NuPlayerDriver::notifyListener(
             break;
     }
 
+    mLock.unlock();
     sendEvent(msg, ext1, ext2, in);
+    mLock.lock();
 }
 
 void NuPlayerDriver::notifySetDataSourceCompleted(status_t err) {
@@ -650,12 +669,12 @@ void NuPlayerDriver::notifyPrepareCompleted(status_t err) {
 
     if (err == OK) {
         if (mIsAsyncPrepare) {
-            notifyListener(MEDIA_PREPARED);
+            notifyListener_l(MEDIA_PREPARED);
         }
         mState = STATE_PREPARED;
     } else {
         if (mIsAsyncPrepare) {
-            notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+            notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
         }
         mState = STATE_UNPREPARED;
     }
@@ -667,6 +686,12 @@ void NuPlayerDriver::notifyFlagsChanged(uint32_t flags) {
     Mutex::Autolock autoLock(mLock);
 
     mPlayerFlags = flags;
+}
+
+void NuPlayerDriver::setPauseStartedTimeIfNeeded() {
+    if (mPauseStartedTimeUs == -1) {
+        mPauseStartedTimeUs = ALooper::GetNowUs();
+    }
 }
 
 }  // namespace android
