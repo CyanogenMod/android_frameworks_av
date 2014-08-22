@@ -1797,6 +1797,15 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case Source::kWhatBufferingUpdate:
+        {
+            int32_t percentage;
+            CHECK(msg->findInt32("percentage", &percentage));
+
+            notifyListener(MEDIA_BUFFERING_UPDATE, percentage, 0);
+            break;
+        }
+
         case Source::kWhatBufferingStart:
         {
             notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);

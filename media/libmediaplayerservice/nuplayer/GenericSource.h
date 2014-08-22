@@ -34,6 +34,7 @@ struct IMediaHTTPService;
 struct MediaSource;
 class MediaBuffer;
 struct NuCachedSource2;
+struct WVMExtractor;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
@@ -77,6 +78,7 @@ private:
         kWhatSendSubtitleData,
         kWhatSendTimedTextData,
         kWhatChangeAVSource,
+        kWhatPollBuffering,
     };
 
     Vector<sp<MediaSource> > mSources;
@@ -108,9 +110,12 @@ private:
 
     sp<DataSource> mDataSource;
     sp<NuCachedSource2> mCachedSource;
+    sp<WVMExtractor> mWVMExtractor;
     String8 mContentType;
     AString mSniffedMIME;
     off64_t mMetaDataSize;
+    int64_t mBitrate;
+    int32_t mPollBufferingGeneration;
 
     sp<ALooper> mLooper;
 
@@ -140,6 +145,11 @@ private:
     void readBuffer(
             media_track_type trackType,
             int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL, bool formatChange = false);
+
+    void schedulePollBuffering();
+    void cancelPollBuffering();
+    void onPollBuffering();
+    void notifyBufferingUpdate(int percentage);
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };

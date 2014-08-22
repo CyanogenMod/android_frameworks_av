@@ -49,7 +49,9 @@ NuPlayer::GenericSource::GenericSource(
       mIsWidevine(false),
       mUIDValid(uidValid),
       mUID(uid),
-      mMetaDataSize(-1ll) {
+      mMetaDataSize(-1ll),
+      mBitrate(-1ll),
+      mPollBufferingGeneration(0) {
     resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
@@ -113,12 +115,12 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             return UNKNOWN_ERROR;
         }
 
-        sp<WVMExtractor> wvmExtractor = new WVMExtractor(mDataSource);
-        wvmExtractor->setAdaptiveStreamingMode(true);
+        mWVMExtractor = new WVMExtractor(mDataSource);
+        mWVMExtractor->setAdaptiveStreamingMode(true);
         if (mUIDValid) {
-            wvmExtractor->setUID(mUID);
+            mWVMExtractor->setUID(mUID);
         }
-        extractor = wvmExtractor;
+        extractor = mWVMExtractor;
     } else {
         extractor = MediaExtractor::Create(mDataSource,
                 mSniffedMIME.empty() ? NULL: mSniffedMIME.c_str());
@@ -135,6 +137,8 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             mDurationUs = duration;
         }
     }
+
+    int32_t totalBitrate = 0;
 
     for (size_t i = 0; i < extractor->countTracks(); ++i) {
         sp<MetaData> meta = extractor->getTrackMetaData(i);
@@ -180,8 +184,17 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
                     mDurationUs = durationUs;
                 }
             }
+
+            int32_t bitrate;
+            if (totalBitrate >= 0 && meta->findInt32(kKeyBitRate, &bitrate)) {
+                totalBitrate += bitrate;
+            } else {
+                totalBitrate = -1;
+            }
         }
     }
+
+    mBitrate = totalBitrate;
 
     return OK;
 }
@@ -239,6 +252,10 @@ void NuPlayer::GenericSource::onPrepareAsync() {
         if (mDataSource->flags() & DataSource::kIsCachingDataSource) {
             mCachedSource = static_cast<NuCachedSource2 *>(mDataSource.get());
         }
+
+        if (mIsWidevine || mCachedSource != NULL) {
+            schedulePollBuffering();
+        }
     }
 
     // check initial caching status
@@ -283,6 +300,8 @@ void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
         mSniffedMIME = "";
         mDataSource.clear();
         mCachedSource.clear();
+
+        cancelPollBuffering();
     }
     notifyPrepared(err);
 }
@@ -381,6 +400,65 @@ status_t NuPlayer::GenericSource::feedMoreTSData() {
     return OK;
 }
 
+void NuPlayer::GenericSource::schedulePollBuffering() {
+    sp<AMessage> msg = new AMessage(kWhatPollBuffering, id());
+    msg->setInt32("generation", mPollBufferingGeneration);
+    msg->post(1000000ll);
+}
+
+void NuPlayer::GenericSource::cancelPollBuffering() {
+    ++mPollBufferingGeneration;
+}
+
+void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage) {
+    sp<AMessage> msg = dupNotify();
+    msg->setInt32("what", kWhatBufferingUpdate);
+    msg->setInt32("percentage", percentage);
+    msg->post();
+}
+
+void NuPlayer::GenericSource::onPollBuffering() {
+    status_t finalStatus = UNKNOWN_ERROR;
+    int64_t cachedDurationUs = 0ll;
+
+    if (mCachedSource != NULL) {
+        size_t cachedDataRemaining =
+                mCachedSource->approxDataRemaining(&finalStatus);
+
+        if (finalStatus == OK) {
+            off64_t size;
+            int64_t bitrate = 0ll;
+            if (mDurationUs > 0 && mCachedSource->getSize(&size) == OK) {
+                bitrate = size * 8000000ll / mDurationUs;
+            } else if (mBitrate > 0) {
+                bitrate = mBitrate;
+            }
+            if (bitrate > 0) {
+                cachedDurationUs = cachedDataRemaining * 8000000ll / bitrate;
+            }
+        }
+    } else if (mWVMExtractor != NULL) {
+        cachedDurationUs
+            = mWVMExtractor->getCachedDurationUs(&finalStatus);
+    }
+
+    if (finalStatus == ERROR_END_OF_STREAM) {
+        notifyBufferingUpdate(100);
+        cancelPollBuffering();
+        return;
+    } else if (cachedDurationUs > 0ll && mDurationUs > 0ll) {
+        int percentage = 100.0 * cachedDurationUs / mDurationUs;
+        if (percentage > 100) {
+            percentage = 100;
+        }
+
+        notifyBufferingUpdate(percentage);
+    }
+
+    schedulePollBuffering();
+}
+
+
 void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
       case kWhatPrepareAsync:
@@ -463,7 +541,15 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
 
           break;
       }
-
+      case kWhatPollBuffering:
+      {
+          int32_t generation;
+          CHECK(msg->findInt32("generation", &generation));
+          if (generation == mPollBufferingGeneration) {
+              onPollBuffering();
+          }
+          break;
+      }
       default:
           Source::onMessageReceived(msg);
           break;
