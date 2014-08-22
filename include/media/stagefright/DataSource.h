@@ -48,7 +48,7 @@ public:
             const sp<IMediaHTTPService> &httpService,
             const char *uri,
             const KeyedVector<String8, String8> *headers = NULL,
-            AString *sniffedMIME = NULL);
+            String8 *contentType = NULL);
 
     DataSource() {}
 
@@ -102,10 +102,6 @@ protected:
     virtual ~DataSource() {}
 
 private:
-    enum {
-        kDefaultMetaSize = 200000,
-    };
-
     static Mutex gSnifferMutex;
     static List<SnifferFunc> gSniffers;
     static bool gSniffersRegistered;
