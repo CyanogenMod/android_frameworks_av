@@ -494,7 +494,7 @@ int32_t SoftAAC2::outputDelayRingBufferSamplesLeft() {
 }
 
 
-void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
+void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError || mOutputPortSettingsChange != NONE) {
         return;
     }
@@ -513,8 +513,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 portIndex) {
             OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
 
             mEndOfInput = (inHeader->nFlags & OMX_BUFFERFLAG_EOS) != 0;
-            if (portIndex == 0 &&
-                    (inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) != 0) {
+            if ((inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) != 0) {
                 BufferInfo *inInfo = *inQueue.begin();
                 OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
 
