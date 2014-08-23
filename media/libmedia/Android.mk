@@ -70,7 +70,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES += libinstantssq
 
-LOCAL_WHOLE_STATIC_LIBRARY := libmedia_helper
+LOCAL_WHOLE_STATIC_LIBRARIES := libmedia_helper
 
 LOCAL_MODULE:= libmedia
 
