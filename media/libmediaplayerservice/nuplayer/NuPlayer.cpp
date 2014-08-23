@@ -1732,6 +1732,13 @@ void NuPlayer::performSetSurface(const sp<NativeWindowWrapper> &wrapper) {
 
     // XXX - ignore error from setVideoScalingMode for now
     setVideoScalingMode(mVideoScalingMode);
+
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifySetSurfaceComplete();
+        }
+    }
 }
 
 void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
