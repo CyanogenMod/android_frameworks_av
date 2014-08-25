@@ -1019,11 +1019,19 @@ bool LiveSession::hasDynamicDuration() const {
 }
 
 size_t LiveSession::getTrackCount() const {
-    return mPlaylist->getTrackCount();
+    if (mPlaylist == NULL) {
+        return 0;
+    } else {
+        return mPlaylist->getTrackCount();
+    }
 }
 
 sp<AMessage> LiveSession::getTrackInfo(size_t trackIndex) const {
-    return mPlaylist->getTrackInfo(trackIndex);
+    if (mPlaylist == NULL) {
+        return NULL;
+    } else {
+        return mPlaylist->getTrackInfo(trackIndex);
+    }
 }
 
 status_t LiveSession::selectTrack(size_t index, bool select) {
