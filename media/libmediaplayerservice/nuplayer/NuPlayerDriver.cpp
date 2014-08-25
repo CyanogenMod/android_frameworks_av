@@ -34,6 +34,7 @@ NuPlayerDriver::NuPlayerDriver()
     : mState(STATE_IDLE),
       mIsAsyncPrepare(false),
       mAsyncResult(UNKNOWN_ERROR),
+      mSetSurfaceInProgress(false),
       mDurationUs(-1),
       mPositionUs(-1),
       mNotifyTimeRealUs(-1),
@@ -136,6 +137,10 @@ status_t NuPlayerDriver::setVideoSurfaceTexture(
         const sp<IGraphicBufferProducer> &bufferProducer) {
     Mutex::Autolock autoLock(mLock);
 
+    if (mSetSurfaceInProgress) {
+        return INVALID_OPERATION;
+    }
+
     switch (mState) {
         case STATE_SET_DATASOURCE_PENDING:
         case STATE_RESET_IN_PROGRESS:
@@ -145,7 +150,13 @@ status_t NuPlayerDriver::setVideoSurfaceTexture(
             break;
     }
 
+    mSetSurfaceInProgress = true;
+
     mPlayer->setVideoSurfaceTextureAsync(bufferProducer);
+
+    while (mSetSurfaceInProgress) {
+        mCondition.wait(mLock);
+    }
 
     return OK;
 }
@@ -541,6 +552,15 @@ void NuPlayerDriver::notifyResetComplete() {
 
     CHECK_EQ(mState, STATE_RESET_IN_PROGRESS);
     mState = STATE_IDLE;
+    mCondition.broadcast();
+}
+
+void NuPlayerDriver::notifySetSurfaceComplete() {
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK(mSetSurfaceInProgress);
+    mSetSurfaceInProgress = false;
+
     mCondition.broadcast();
 }
 
