@@ -36,7 +36,8 @@ struct NuPlayer::Decoder : public AHandler {
     virtual void init();
 
     status_t getInputBuffers(Vector<sp<ABuffer> > *dstBuffers) const;
-    virtual void signalFlush();
+    virtual void signalFlush(const sp<AMessage> &format = NULL);
+    virtual void signalUpdateFormat(const sp<AMessage> &format);
     virtual void signalResume();
     virtual void initiateShutdown();
 
@@ -67,6 +68,7 @@ private:
         kWhatRenderBuffer       = 'rndr',
         kWhatFlush              = 'flus',
         kWhatShutdown           = 'shuD',
+        kWhatUpdateFormat       = 'uFmt',
     };
 
     sp<AMessage> mNotify;
@@ -80,6 +82,8 @@ private:
 
     Vector<sp<ABuffer> > mInputBuffers;
     Vector<sp<ABuffer> > mOutputBuffers;
+    Vector<sp<ABuffer> > mCSDsForCurrentFormat;
+    Vector<sp<ABuffer> > mCSDsToSubmit;
     Vector<bool> mInputBufferIsDequeued;
     Vector<MediaBuffer *> mMediaBuffers;
 
@@ -103,6 +107,7 @@ private:
     AString mComponentName;
 
     bool supportsSeamlessAudioFormatChange(const sp<AMessage> &targetFormat) const;
+    void rememberCodecSpecificData(const sp<AMessage> &format);
 
     DISALLOW_EVIL_CONSTRUCTORS(Decoder);
 };
