@@ -3874,7 +3874,7 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
             if (((mAvailableInputDevices.types() &
                     AUDIO_DEVICE_IN_TELEPHONY_RX & ~AUDIO_DEVICE_BIT_IN) == 0) ||
                     (((txDevice & availablePrimaryInputDevices() & ~AUDIO_DEVICE_BIT_IN) != 0) &&
-                         (hwOutputDesc->mAudioPort->mModule->mHalVersion <
+                         (hwOutputDesc->getAudioPort()->mModule->mHalVersion <
                              AUDIO_DEVICE_API_VERSION_3_0))) {
                 availableOutputDeviceTypes = availablePrimaryOutputDevices();
             }
@@ -5070,7 +5070,6 @@ AudioPolicyManager::AudioOutputDescriptor::AudioOutputDescriptor(
         mStrategyMutedByDevice[i] = false;
     }
     if (profile != NULL) {
-        mAudioPort = profile;
         mFlags = profile->mFlags;
         mSamplingRate = profile->pickSamplingRate();
         mFormat = profile->pickFormat();
@@ -5253,7 +5252,6 @@ AudioPolicyManager::AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfil
       mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile), mIsSoundTrigger(false)
 {
     if (profile != NULL) {
-        mAudioPort = profile;
         mSamplingRate = profile->pickSamplingRate();
         mFormat = profile->pickFormat();
         mChannelMask = profile->pickChannelMask();
@@ -6273,33 +6271,34 @@ status_t AudioPolicyManager::AudioPortConfig::applyAudioPortConfig(
     localBackupConfig.config_mask = config->config_mask;
     toAudioPortConfig(&localBackupConfig);
 
-    if (mAudioPort == 0) {
+    sp<AudioPort> audioport = getAudioPort();
+    if (audioport == 0) {
         status = NO_INIT;
         goto exit;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_SAMPLE_RATE) {
-        status = mAudioPort->checkExactSamplingRate(config->sample_rate);
+        status = audioport->checkExactSamplingRate(config->sample_rate);
         if (status != NO_ERROR) {
             goto exit;
         }
         mSamplingRate = config->sample_rate;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_CHANNEL_MASK) {
-        status = mAudioPort->checkExactChannelMask(config->channel_mask);
+        status = audioport->checkExactChannelMask(config->channel_mask);
         if (status != NO_ERROR) {
             goto exit;
         }
         mChannelMask = config->channel_mask;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_FORMAT) {
-        status = mAudioPort->checkFormat(config->format);
+        status = audioport->checkFormat(config->format);
         if (status != NO_ERROR) {
             goto exit;
         }
         mFormat = config->format;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_GAIN) {
-        status = mAudioPort->checkGain(&config->gain, config->gain.index);
+        status = audioport->checkGain(&config->gain, config->gain.index);
         if (status != NO_ERROR) {
             goto exit;
         }
@@ -6486,7 +6485,6 @@ AudioPolicyManager::DeviceDescriptor::DeviceDescriptor(const String8& name, audi
                              NULL),
                      mDeviceType(type), mAddress(""), mId(0)
 {
-    mAudioPort = this;
     if (mGains.size() > 0) {
         mGains[0]->getDefaultConfig(&mGain);
     }
