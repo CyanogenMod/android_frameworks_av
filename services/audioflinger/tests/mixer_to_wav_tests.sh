@@ -63,8 +63,18 @@ function createwav() {
 # process__genericResampling
 # track__Resample / track__genericResample
     adb shell test-mixer $1 -s 48000 \
+        -o /sdcard/tm48000grif.wav \
+        sine:2,4000,7520 chirp:2,9200 sine:1,3000,18000 \
+        sine:f,6,6000,19000  chirp:i,4,30000
+    adb pull /sdcard/tm48000grif.wav $2
+
+# Test:
+# process__genericResampling
+# track__Resample / track__genericResample
+    adb shell test-mixer $1 -s 48000 \
         -o /sdcard/tm48000gr.wav \
-        sine:2,4000,7520 chirp:2,9200 sine:1,3000,18000
+        sine:2,4000,7520 chirp:2,9200 sine:1,3000,18000 \
+        sine:6,6000,19000
     adb pull /sdcard/tm48000gr.wav $2
 
 # Test:

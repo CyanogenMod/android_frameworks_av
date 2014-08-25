@@ -39,7 +39,7 @@ static void usage(const char* name) {
     fprintf(stderr, "Usage: %s [-f] [-m] [-c channels]"
                     " [-s sample-rate] [-o <output-file>] [-a <aux-buffer-file>] [-P csv]"
                     " (<input-file> | <command>)+\n", name);
-    fprintf(stderr, "    -f    enable floating point input track\n");
+    fprintf(stderr, "    -f    enable floating point input track by default\n");
     fprintf(stderr, "    -m    enable floating point mixer output\n");
     fprintf(stderr, "    -c    number of mixer output channels\n");
     fprintf(stderr, "    -s    mixer sample-rate\n");
@@ -47,8 +47,8 @@ static void usage(const char* name) {
     fprintf(stderr, "    -a    <aux-buffer-file>\n");
     fprintf(stderr, "    -P    # frames provided per call to resample() in CSV format\n");
     fprintf(stderr, "    <input-file> is a WAV file\n");
-    fprintf(stderr, "    <command> can be 'sine:<channels>,<frequency>,<samplerate>'\n");
-    fprintf(stderr, "                     'chirp:<channels>,<samplerate>'\n");
+    fprintf(stderr, "    <command> can be 'sine:[(i|f),]<channels>,<frequency>,<samplerate>'\n");
+    fprintf(stderr, "                     'chirp:[(i|f),]<channels>,<samplerate>'\n");
 }
 
 static int writeFile(const char *filename, const void *buffer,
@@ -78,6 +78,18 @@ static int writeFile(const char *filename, const void *buffer,
     return EXIT_SUCCESS;
 }
 
+const char *parseFormat(const char *s, bool *useFloat) {
+    if (!strncmp(s, "f,", 2)) {
+        *useFloat = true;
+        return s + 2;
+    }
+    if (!strncmp(s, "i,", 2)) {
+        *useFloat = false;
+        return s + 2;
+    }
+    return s;
+}
+
 int main(int argc, char* argv[]) {
     const char* const progname = argv[0];
     bool useInputFloat = false;
@@ -88,8 +100,9 @@ int main(int argc, char* argv[]) {
     std::vector<int> Pvalues;
     const char* outputFilename = NULL;
     const char* auxFilename = NULL;
-    std::vector<int32_t> Names;
-    std::vector<SignalProvider> Providers;
+    std::vector<int32_t> names;
+    std::vector<SignalProvider> providers;
+    std::vector<audio_format_t> formats;
 
     for (int ch; (ch = getopt(argc, argv, "fmc:s:o:a:P:")) != -1;) {
         switch (ch) {
@@ -138,54 +151,65 @@ int main(int argc, char* argv[]) {
     size_t outputFrames = 0;
 
     // create providers for each track
-    Providers.resize(argc);
+    names.resize(argc);
+    providers.resize(argc);
+    formats.resize(argc);
     for (int i = 0; i < argc; ++i) {
         static const char chirp[] = "chirp:";
         static const char sine[] = "sine:";
         static const double kSeconds = 1;
+        bool useFloat = useInputFloat;
 
         if (!strncmp(argv[i], chirp, strlen(chirp))) {
             std::vector<int> v;
+            const char *s = parseFormat(argv[i] + strlen(chirp), &useFloat);
 
-            parseCSV(argv[i] + strlen(chirp), v);
+            parseCSV(s, v);
             if (v.size() == 2) {
                 printf("creating chirp(%d %d)\n", v[0], v[1]);
-                if (useInputFloat) {
-                    Providers[i].setChirp<float>(v[0], 0, v[1]/2, v[1], kSeconds);
+                if (useFloat) {
+                    providers[i].setChirp<float>(v[0], 0, v[1]/2, v[1], kSeconds);
+                    formats[i] = AUDIO_FORMAT_PCM_FLOAT;
                 } else {
-                    Providers[i].setChirp<int16_t>(v[0], 0, v[1]/2, v[1], kSeconds);
+                    providers[i].setChirp<int16_t>(v[0], 0, v[1]/2, v[1], kSeconds);
+                    formats[i] = AUDIO_FORMAT_PCM_16_BIT;
                 }
-                Providers[i].setIncr(Pvalues);
+                providers[i].setIncr(Pvalues);
             } else {
                 fprintf(stderr, "malformed input '%s'\n", argv[i]);
             }
         } else if (!strncmp(argv[i], sine, strlen(sine))) {
             std::vector<int> v;
+            const char *s = parseFormat(argv[i] + strlen(sine), &useFloat);
 
-            parseCSV(argv[i] + strlen(sine), v);
+            parseCSV(s, v);
             if (v.size() == 3) {
                 printf("creating sine(%d %d %d)\n", v[0], v[1], v[2]);
-                if (useInputFloat) {
-                    Providers[i].setSine<float>(v[0], v[1], v[2], kSeconds);
+                if (useFloat) {
+                    providers[i].setSine<float>(v[0], v[1], v[2], kSeconds);
+                    formats[i] = AUDIO_FORMAT_PCM_FLOAT;
                 } else {
-                    Providers[i].setSine<int16_t>(v[0], v[1], v[2], kSeconds);
+                    providers[i].setSine<int16_t>(v[0], v[1], v[2], kSeconds);
+                    formats[i] = AUDIO_FORMAT_PCM_16_BIT;
                 }
-                Providers[i].setIncr(Pvalues);
+                providers[i].setIncr(Pvalues);
             } else {
                 fprintf(stderr, "malformed input '%s'\n", argv[i]);
             }
         } else {
             printf("creating filename(%s)\n", argv[i]);
             if (useInputFloat) {
-                Providers[i].setFile<float>(argv[i]);
+                providers[i].setFile<float>(argv[i]);
+                formats[i] = AUDIO_FORMAT_PCM_FLOAT;
             } else {
-                Providers[i].setFile<short>(argv[i]);
+                providers[i].setFile<short>(argv[i]);
+                formats[i] = AUDIO_FORMAT_PCM_16_BIT;
             }
-            Providers[i].setIncr(Pvalues);
+            providers[i].setIncr(Pvalues);
         }
         // calculate the number of output frames
-        size_t nframes = (int64_t) Providers[i].getNumFrames() * outputSampleRate
-                / Providers[i].getSampleRate();
+        size_t nframes = (int64_t) providers[i].getNumFrames() * outputSampleRate
+                / providers[i].getSampleRate();
         if (i == 0 || outputFrames > nframes) { // choose minimum for outputFrames
             outputFrames = nframes;
         }
@@ -213,22 +237,20 @@ int main(int argc, char* argv[]) {
     // create the mixer.
     const size_t mixerFrameCount = 320; // typical numbers may range from 240 or 960
     AudioMixer *mixer = new AudioMixer(mixerFrameCount, outputSampleRate);
-    audio_format_t inputFormat = useInputFloat
-            ? AUDIO_FORMAT_PCM_FLOAT : AUDIO_FORMAT_PCM_16_BIT;
     audio_format_t mixerFormat = useMixerFloat
             ? AUDIO_FORMAT_PCM_FLOAT : AUDIO_FORMAT_PCM_16_BIT;
-    float f = AudioMixer::UNITY_GAIN_FLOAT / Providers.size(); // normalize volume by # tracks
+    float f = AudioMixer::UNITY_GAIN_FLOAT / providers.size(); // normalize volume by # tracks
     static float f0; // zero
 
     // set up the tracks.
-    for (size_t i = 0; i < Providers.size(); ++i) {
-        //printf("track %d out of %d\n", i, Providers.size());
-        uint32_t channelMask = audio_channel_out_mask_from_count(Providers[i].getNumChannels());
+    for (size_t i = 0; i < providers.size(); ++i) {
+        //printf("track %d out of %d\n", i, providers.size());
+        uint32_t channelMask = audio_channel_out_mask_from_count(providers[i].getNumChannels());
         int32_t name = mixer->getTrackName(channelMask,
-                inputFormat, AUDIO_SESSION_OUTPUT_MIX);
+                formats[i], AUDIO_SESSION_OUTPUT_MIX);
         ALOG_ASSERT(name >= 0);
-        Names.push_back(name);
-        mixer->setBufferProvider(name, &Providers[i]);
+        names[i] = name;
+        mixer->setBufferProvider(name, &providers[i]);
         mixer->setParameter(name, AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                 (void *)outputAddr);
         mixer->setParameter(
@@ -240,7 +262,7 @@ int main(int argc, char* argv[]) {
                 name,
                 AudioMixer::TRACK,
                 AudioMixer::FORMAT,
-                (void *)(uintptr_t)inputFormat);
+                (void *)(uintptr_t)formats[i]);
         mixer->setParameter(
                 name,
                 AudioMixer::TRACK,
@@ -255,7 +277,7 @@ int main(int argc, char* argv[]) {
                 name,
                 AudioMixer::RESAMPLE,
                 AudioMixer::SAMPLE_RATE,
-                (void *)(uintptr_t)Providers[i].getSampleRate());
+                (void *)(uintptr_t)providers[i].getSampleRate());
         if (useRamp) {
             mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME0, &f0);
             mixer->setParameter(name, AudioMixer::VOLUME, AudioMixer::VOLUME1, &f0);
@@ -277,11 +299,11 @@ int main(int argc, char* argv[]) {
     // pump the mixer to process data.
     size_t i;
     for (i = 0; i < outputFrames - mixerFrameCount; i += mixerFrameCount) {
-        for (size_t j = 0; j < Names.size(); ++j) {
-            mixer->setParameter(Names[j], AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
+        for (size_t j = 0; j < names.size(); ++j) {
+            mixer->setParameter(names[j], AudioMixer::TRACK, AudioMixer::MAIN_BUFFER,
                     (char *) outputAddr + i * outputFrameSize);
             if (auxFilename) {
-                mixer->setParameter(Names[j], AudioMixer::TRACK, AudioMixer::AUX_BUFFER,
+                mixer->setParameter(names[j], AudioMixer::TRACK, AudioMixer::AUX_BUFFER,
                         (char *) auxAddr + i * auxFrameSize);
             }
         }
