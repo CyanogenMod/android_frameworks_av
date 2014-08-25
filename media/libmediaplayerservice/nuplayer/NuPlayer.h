@@ -25,6 +25,7 @@
 namespace android {
 
 struct ABuffer;
+struct AMessage;
 struct MetaData;
 struct NuPlayerDriver;
 
@@ -169,6 +170,10 @@ private:
 
     bool mStarted;
 
+    inline const sp<Decoder> &getDecoder(bool audio) {
+        return audio ? mAudioDecoder : mVideoDecoder;
+    }
+
     void openAudioSink(const sp<AMessage> &format, bool offloadOnly);
     void closeAudioSink();
 
@@ -185,7 +190,9 @@ private:
 
     void finishFlushIfPossible();
 
-    void flushDecoder(bool audio, bool needShutdown);
+    void flushDecoder(
+            bool audio, bool needShutdown, const sp<AMessage> &newFormat = NULL);
+    void updateDecoderFormatWithoutFlush(bool audio, const sp<AMessage> &format);
 
     static bool IsFlushingState(FlushStatus state, bool *needShutdown = NULL);
 
