@@ -732,7 +732,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mFlags |= kFlagSawMediaServerDie;
                     }
 
-                    bool sendErrorReponse = true;
+                    bool sendErrorResponse = true;
 
                     switch (mState) {
                         case INITIALIZING:
@@ -759,7 +759,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             // Ignore the error, assuming we'll still get
                             // the shutdown complete notification.
 
-                            sendErrorReponse = false;
+                            sendErrorResponse = false;
 
                             if (mFlags & kFlagSawMediaServerDie) {
                                 // MediaServer died, there definitely won't
@@ -790,7 +790,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         case FLUSHED:
                         case STARTED:
                         {
-                            sendErrorReponse = false;
+                            sendErrorResponse = false;
 
                             setStickyError(err);
                             postActivityNotificationIfPossible();
@@ -815,7 +815,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                         default:
                         {
-                            sendErrorReponse = false;
+                            sendErrorResponse = false;
 
                             setStickyError(err);
                             postActivityNotificationIfPossible();
@@ -841,7 +841,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         }
                     }
 
-                    if (sendErrorReponse) {
+                    if (sendErrorResponse) {
                         PostReplyWithError(mReplyID, err);
                     }
                     break;
@@ -1128,7 +1128,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                 case CodecBase::kWhatFlushCompleted:
                 {
-                    CHECK_EQ(mState, FLUSHING);
+                    if (mState != FLUSHING) {
+                        ALOGW("received FlushCompleted message in state %d",
+                                mState);
+                        break;
+                    }
 
                     if (mFlags & kFlagIsAsync) {
                         setState(FLUSHED);
