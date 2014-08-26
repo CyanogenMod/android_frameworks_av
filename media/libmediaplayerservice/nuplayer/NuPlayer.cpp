@@ -280,7 +280,7 @@ void NuPlayer::setVideoSurfaceTextureAsync(
         msg->setObject(
                 "native-window",
                 new NativeWindowWrapper(
-                    new Surface(bufferProducer)));
+                    new Surface(bufferProducer, true /* controlledByApp */)));
     }
 
     msg->post();
