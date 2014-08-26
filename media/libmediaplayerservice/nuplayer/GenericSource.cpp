@@ -134,13 +134,17 @@ status_t NuPlayer::GenericSource::initFromDataSource(
     }
 
     for (size_t i = 0; i < extractor->countTracks(); ++i) {
+        sp<MediaSource> track = extractor->getTrack(i);
+
         sp<MetaData> meta = extractor->getTrackMetaData(i);
 
         const char *mime;
         CHECK(meta->findCString(kKeyMIMEType, &mime));
 
-        sp<MediaSource> track = extractor->getTrack(i);
-
+        // Do the string compare immediately with "mime",
+        // we can't assume "mime" would stay valid after another
+        // extractor operation, some extractors might modify meta
+        // during getTrack() and make it invalid.
         if (!strncasecmp(mime, "audio/", 6)) {
             if (mAudioTrack.mSource == NULL) {
                 mAudioTrack.mIndex = i;
