@@ -740,6 +740,10 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
         ALOGE(" Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format !", mime);
         return false;
     } else {
+        // Override audio format for PCM offload
+        if (info.format == AUDIO_FORMAT_PCM_16_BIT) {
+            info.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+        }
         ALOGV("Mime type \"%s\" mapped to audio_format %d", mime, info.format);
     }
 
