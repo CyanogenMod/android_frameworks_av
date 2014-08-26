@@ -27,6 +27,7 @@ namespace android {
 MediaScannerClient::MediaScannerClient()
     :   mNames(NULL),
         mValues(NULL),
+        mTagsAreUtf8(false),
         mLocaleEncoding(kEncodingNone)
 {
 }
@@ -56,15 +57,16 @@ void MediaScannerClient::setLocale(const char* locale)
     }
 }
 
-void MediaScannerClient::beginFile()
+void MediaScannerClient::beginFile(bool tagsAreUtf8)
 {
     mNames = new StringArray;
     mValues = new StringArray;
+    mTagsAreUtf8 = tagsAreUtf8;
 }
 
 status_t MediaScannerClient::addStringTag(const char* name, const char* value)
 {
-    if (mLocaleEncoding != kEncodingNone) {
+    if (mLocaleEncoding != kEncodingNone && !mTagsAreUtf8) {
         // don't bother caching strings that are all ASCII.
         // call handleStringTag directly instead.
         // check to see if value (which should be utf8) has any non-ASCII characters

@@ -84,7 +84,7 @@ public:
     MediaScannerClient();
     virtual ~MediaScannerClient();
     void setLocale(const char* locale);
-    void beginFile();
+    void beginFile(bool tagsAreUtf8);
     status_t addStringTag(const char* name, const char* value);
     void endFile();
 
@@ -100,6 +100,9 @@ protected:
     // cached name and value strings, for native encoding support.
     StringArray*    mNames;
     StringArray*    mValues;
+
+    // whether to try any locale-specific decoding or not
+    bool            mTagsAreUtf8;
 
     // default encoding based on MediaScanner::mLocale string
     uint32_t        mLocaleEncoding;

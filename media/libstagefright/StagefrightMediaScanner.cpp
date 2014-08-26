@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/StagefrightMediaScanner.h>
 
 #include <media/mediametadataretriever.h>
@@ -113,8 +114,12 @@ MediaScanResult StagefrightMediaScanner::processFile(
         MediaScannerClient &client) {
     ALOGV("processFile '%s'.", path);
 
+    bool tagsAreUtf8 = mimeType != NULL &&
+            (!strcmp(mimeType, MEDIA_MIMETYPE_AUDIO_VORBIS) ||
+             !strcmp(mimeType, MEDIA_MIMETYPE_AUDIO_FLAC));
+
     client.setLocale(locale());
-    client.beginFile();
+    client.beginFile(tagsAreUtf8);
     MediaScanResult result = processFileInternal(path, mimeType, client);
     client.endFile();
     return result;
