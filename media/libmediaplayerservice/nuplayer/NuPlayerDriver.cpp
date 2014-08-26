@@ -287,8 +287,9 @@ status_t NuPlayerDriver::stop() {
             // fall through
 
         case STATE_PAUSED:
+            mState = STATE_STOPPED;
             notifyListener_l(MEDIA_STOPPED);
-            // fall through
+            break;
 
         case STATE_PREPARED:
         case STATE_STOPPED:
@@ -314,6 +315,8 @@ status_t NuPlayerDriver::pause() {
             return OK;
 
         case STATE_RUNNING:
+            setPauseStartedTimeIfNeeded();
+            mState = STATE_PAUSED;
             notifyListener_l(MEDIA_PAUSED);
             mPlayer->pause();
             break;
@@ -321,9 +324,6 @@ status_t NuPlayerDriver::pause() {
         default:
             return INVALID_OPERATION;
     }
-
-    setPauseStartedTimeIfNeeded();
-    mState = STATE_PAUSED;
 
     return OK;
 }
@@ -675,15 +675,17 @@ void NuPlayerDriver::notifyPrepareCompleted(status_t err) {
     mAsyncResult = err;
 
     if (err == OK) {
+        // update state before notifying client, so that if client calls back into NuPlayerDriver
+        // in response, NuPlayerDriver has the right state
+        mState = STATE_PREPARED;
         if (mIsAsyncPrepare) {
             notifyListener_l(MEDIA_PREPARED);
         }
-        mState = STATE_PREPARED;
     } else {
+        mState = STATE_UNPREPARED;
         if (mIsAsyncPrepare) {
             notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
         }
-        mState = STATE_UNPREPARED;
     }
 
     mCondition.broadcast();
