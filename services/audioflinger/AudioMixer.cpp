@@ -1068,6 +1068,9 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
 
     // compute everything we need...
     int countActiveTracks = 0;
+    // TODO: fix all16BitsStereNoResample logic to
+    // either properly handle muted tracks (it should ignore them)
+    // or remove altogether as an obsolete optimization.
     bool all16BitsStereoNoResample = true;
     bool resampling = false;
     bool volumeRamp = false;
@@ -1152,8 +1155,15 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
                 if (countActiveTracks == 1) {
                     const int i = 31 - __builtin_clz(state->enabledTracks);
                     track_t& t = state->tracks[i];
-                    state->hook = getProcessHook(PROCESSTYPE_NORESAMPLEONETRACK,
-                            t.mMixerChannelCount, t.mMixerInFormat, t.mMixerFormat);
+                    if ((t.needs & NEEDS_MUTE) == 0) {
+                        // The check prevents a muted track from acquiring a process hook.
+                        //
+                        // This is dangerous if the track is MONO as that requires
+                        // special case handling due to implicit channel duplication.
+                        // Stereo or Multichannel should actually be fine here.
+                        state->hook = getProcessHook(PROCESSTYPE_NORESAMPLEONETRACK,
+                                t.mMixerChannelCount, t.mMixerInFormat, t.mMixerFormat);
+                    }
                 }
             }
         }
@@ -1188,6 +1198,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
             if (countActiveTracks == 1) {
                 const int i = 31 - __builtin_clz(state->enabledTracks);
                 track_t& t = state->tracks[i];
+                // Muted single tracks handled by allMuted above.
                 state->hook = getProcessHook(PROCESSTYPE_NORESAMPLEONETRACK,
                         t.mMixerChannelCount, t.mMixerInFormat, t.mMixerFormat);
             }
@@ -1745,9 +1756,10 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
         if (in == NULL || (((uintptr_t)in) & 3)) {
             memset(out, 0, numFrames
                     * t.mMixerChannelCount * audio_bytes_per_sample(t.mMixerFormat));
-            ALOGE_IF((((uintptr_t)in) & 3), "process stereo track: input buffer alignment pb: "
-                                              "buffer %p track %d, channels %d, needs %08x",
-                    in, i, t.channelCount, t.needs);
+            ALOGE_IF((((uintptr_t)in) & 3),
+                    "process__OneTrack16BitsStereoNoResampling: misaligned buffer"
+                    " %p track %d, channels %d, needs %08x, volume %08x vfl %f vfr %f",
+                    in, i, t.channelCount, t.needs, vrl, t.mVolume[0], t.mVolume[1]);
             return;
         }
         size_t outFrames = b.frameCount;
@@ -2173,6 +2185,10 @@ AudioMixer::hook_t AudioMixer::getTrackHook(int trackType, uint32_t channelCount
 
 /* Returns the proper process hook for mixing tracks. Currently works only for
  * PROCESSTYPE_NORESAMPLEONETRACK, a mix involving one track, no resampling.
+ *
+ * TODO: Due to the special mixing considerations of duplicating to
+ * a stereo output track, the input track cannot be MONO.  This should be
+ * prevented by the caller.
  */
 AudioMixer::process_hook_t AudioMixer::getProcessHook(int processType, uint32_t channelCount,
         audio_format_t mixerInFormat, audio_format_t mixerOutFormat)
