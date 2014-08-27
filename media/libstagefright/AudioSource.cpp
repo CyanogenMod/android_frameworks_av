@@ -414,7 +414,7 @@ void AudioSource::queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs) {
         recordDurationUs = ((1000000LL * (bufferSize / (2 * mRecord->channelCount()))) +
                     (mSampleRate >> 1)) / mSampleRate;
     } else if ( mFormat == AUDIO_FORMAT_AMR_WB) {
-       recordDurationUs = (bufferSize/AMR_WB_FRAMESIZE)*20;//20ms
+       recordDurationUs = (bufferSize/AMR_WB_FRAMESIZE)*20*1000;//20ms
     }
     timestampUs += recordDurationUs;
 
