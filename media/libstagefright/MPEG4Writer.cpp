@@ -362,7 +362,8 @@ MPEG4Writer::MPEG4Writer(const char *filename)
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1),
-      mHFRRatio(1) {
+      mHFRRatio(1),
+      mIsVideoHEVC(false) {
 
     mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     if (mFd >= 0) {
@@ -388,7 +389,8 @@ MPEG4Writer::MPEG4Writer(int fd)
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1),
-      mHFRRatio(1) {
+      mHFRRatio(1),
+      mIsVideoHEVC(false) {
 }
 
 MPEG4Writer::~MPEG4Writer() {
