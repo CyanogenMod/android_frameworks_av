@@ -1145,6 +1145,7 @@ status_t Camera3Device::setNotifyCallback(NotificationListener *listener) {
         ALOGW("%s: Replacing old callback listener", __FUNCTION__);
     }
     mListener = listener;
+    mRequestThread->setNotifyCallback(listener);
 
     return OK;
 }
@@ -1268,9 +1269,15 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
     ALOGV("%s: Camera %d: Flushing all requests", __FUNCTION__, mId);
     Mutex::Autolock il(mInterfaceLock);
 
+    NotificationListener* listener;
+    {
+        Mutex::Autolock l(mOutputLock);
+        listener = mListener;
+    }
+
     {
         Mutex::Autolock l(mLock);
-        mRequestThread->clear(/*out*/frameNumber);
+        mRequestThread->clear(listener, /*out*/frameNumber);
     }
 
     status_t res;
@@ -1458,7 +1465,42 @@ status_t Camera3Device::configureStreamsLocked() {
     res = mHal3Device->ops->configure_streams(mHal3Device, &config);
     ATRACE_END();
 
-    if (res != OK) {
+    if (res == BAD_VALUE) {
+        // HAL rejected this set of streams as unsupported, clean up config
+        // attempt and return to unconfigured state
+        if (mInputStream != NULL && mInputStream->isConfiguring()) {
+            res = mInputStream->cancelConfiguration();
+            if (res != OK) {
+                SET_ERR_L("Can't cancel configuring input stream %d: %s (%d)",
+                        mInputStream->getId(), strerror(-res), res);
+                return res;
+            }
+        }
+
+        for (size_t i = 0; i < mOutputStreams.size(); i++) {
+            sp<Camera3OutputStreamInterface> outputStream =
+                    mOutputStreams.editValueAt(i);
+            if (outputStream->isConfiguring()) {
+                res = outputStream->cancelConfiguration();
+                if (res != OK) {
+                    SET_ERR_L(
+                        "Can't cancel configuring output stream %d: %s (%d)",
+                        outputStream->getId(), strerror(-res), res);
+                    return res;
+                }
+            }
+        }
+
+        // Return state to that at start of call, so that future configures
+        // properly clean things up
+        mStatus = STATUS_UNCONFIGURED;
+        mNeedConfig = true;
+
+        ALOGV("%s: Camera %d: Stream configuration failed", __FUNCTION__, mId);
+        return BAD_VALUE;
+    } else if (res != OK) {
+        // Some other kind of error from configure_streams - this is not
+        // expected
         SET_ERR_L("Unable to configure streams with HAL: %s (%d)",
                 strerror(-res), res);
         return res;
@@ -1544,14 +1586,20 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
     // But only do error state transition steps for the first error
     if (mStatus == STATUS_ERROR || mStatus == STATUS_UNINITIALIZED) return;
 
-    // Save stack trace. View by dumping it later.
-    CameraTraces::saveTrace();
-    // TODO: consider adding errorCause and client pid/procname
-
     mErrorCause = errorCause;
 
     mRequestThread->setPaused(true);
     mStatus = STATUS_ERROR;
+
+    // Notify upstream about a device error
+    if (mListener != NULL) {
+        mListener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
+                CaptureResultExtras());
+    }
+
+    // Save stack trace. View by dumping it later.
+    CameraTraces::saveTrace();
+    // TODO: consider adding errorCause and client pid/procname
 }
 
 /**
@@ -2022,84 +2070,11 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
 
     switch (msg->type) {
         case CAMERA3_MSG_ERROR: {
-            int streamId = 0;
-            if (msg->message.error.error_stream != NULL) {
-                Camera3Stream *stream =
-                        Camera3Stream::cast(
-                                  msg->message.error.error_stream);
-                streamId = stream->getId();
-            }
-            ALOGV("Camera %d: %s: HAL error, frame %d, stream %d: %d",
-                    mId, __FUNCTION__, msg->message.error.frame_number,
-                    streamId, msg->message.error.error_code);
-
-            CaptureResultExtras resultExtras;
-            // Set request error status for the request in the in-flight tracking
-            {
-                Mutex::Autolock l(mInFlightLock);
-                ssize_t idx = mInFlightMap.indexOfKey(msg->message.error.frame_number);
-                if (idx >= 0) {
-                    InFlightRequest &r = mInFlightMap.editValueAt(idx);
-                    r.requestStatus = msg->message.error.error_code;
-                    resultExtras = r.resultExtras;
-                } else {
-                    resultExtras.frameNumber = msg->message.error.frame_number;
-                    ALOGE("Camera %d: %s: cannot find in-flight request on frame %" PRId64
-                          " error", mId, __FUNCTION__, resultExtras.frameNumber);
-                }
-            }
-
-            if (listener != NULL) {
-                if (msg->message.error.error_code == CAMERA3_MSG_ERROR_DEVICE) {
-                    listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
-                                          resultExtras);
-                }
-            } else {
-                ALOGE("Camera %d: %s: no listener available", mId, __FUNCTION__);
-            }
+            notifyError(msg->message.error, listener);
             break;
         }
         case CAMERA3_MSG_SHUTTER: {
-            ssize_t idx;
-            uint32_t frameNumber = msg->message.shutter.frame_number;
-            nsecs_t timestamp = msg->message.shutter.timestamp;
-            // Verify ordering of shutter notifications
-            {
-                Mutex::Autolock l(mOutputLock);
-                // TODO: need to track errors for tighter bounds on expected frame number.
-                if (frameNumber < mNextShutterFrameNumber) {
-                    SET_ERR("Shutter notification out-of-order. Expected "
-                            "notification for frame %d, got frame %d",
-                            mNextShutterFrameNumber, frameNumber);
-                    break;
-                }
-                mNextShutterFrameNumber = frameNumber + 1;
-            }
-
-            CaptureResultExtras resultExtras;
-
-            // Set timestamp for the request in the in-flight tracking
-            // and get the request ID to send upstream
-            {
-                Mutex::Autolock l(mInFlightLock);
-                idx = mInFlightMap.indexOfKey(frameNumber);
-                if (idx >= 0) {
-                    InFlightRequest &r = mInFlightMap.editValueAt(idx);
-                    r.captureTimestamp = timestamp;
-                    resultExtras = r.resultExtras;
-                }
-            }
-            if (idx < 0) {
-                SET_ERR("Shutter notification for non-existent frame number %d",
-                        frameNumber);
-                break;
-            }
-            ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
-                    mId, __FUNCTION__, frameNumber, resultExtras.requestId, timestamp);
-            // Call listener, if any
-            if (listener != NULL) {
-                listener->notifyShutter(resultExtras, timestamp);
-            }
+            notifyShutter(msg->message.shutter, listener);
             break;
         }
         default:
@@ -2107,6 +2082,121 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
                     msg->type);
     }
 }
+
+void Camera3Device::notifyError(const camera3_error_msg_t &msg,
+        NotificationListener *listener) {
+
+    // Map camera HAL error codes to ICameraDeviceCallback error codes
+    // Index into this with the HAL error code
+    static const ICameraDeviceCallbacks::CameraErrorCode
+            halErrorMap[CAMERA3_MSG_NUM_ERRORS] = {
+        // 0 = Unused error code
+        ICameraDeviceCallbacks::ERROR_CAMERA_INVALID_ERROR,
+        // 1 = CAMERA3_MSG_ERROR_DEVICE
+        ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
+        // 2 = CAMERA3_MSG_ERROR_REQUEST
+        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+        // 3 = CAMERA3_MSG_ERROR_RESULT
+        ICameraDeviceCallbacks::ERROR_CAMERA_RESULT,
+        // 4 = CAMERA3_MSG_ERROR_BUFFER
+        ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER
+    };
+
+    ICameraDeviceCallbacks::CameraErrorCode errorCode =
+            ((msg.error_code >= 0) &&
+                    (msg.error_code < CAMERA3_MSG_NUM_ERRORS)) ?
+            halErrorMap[msg.error_code] :
+            ICameraDeviceCallbacks::ERROR_CAMERA_INVALID_ERROR;
+
+    int streamId = 0;
+    if (msg.error_stream != NULL) {
+        Camera3Stream *stream =
+                Camera3Stream::cast(msg.error_stream);
+        streamId = stream->getId();
+    }
+    ALOGV("Camera %d: %s: HAL error, frame %d, stream %d: %d",
+            mId, __FUNCTION__, msg.frame_number,
+            streamId, msg.error_code);
+
+    CaptureResultExtras resultExtras;
+    switch (errorCode) {
+        case ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
+            // SET_ERR calls notifyError
+            SET_ERR("Camera HAL reported serious device error");
+            break;
+        case ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST:
+        case ICameraDeviceCallbacks::ERROR_CAMERA_RESULT:
+        case ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER:
+            {
+                Mutex::Autolock l(mInFlightLock);
+                ssize_t idx = mInFlightMap.indexOfKey(msg.frame_number);
+                if (idx >= 0) {
+                    InFlightRequest &r = mInFlightMap.editValueAt(idx);
+                    r.requestStatus = msg.error_code;
+                    resultExtras = r.resultExtras;
+                } else {
+                    resultExtras.frameNumber = msg.frame_number;
+                    ALOGE("Camera %d: %s: cannot find in-flight request on "
+                            "frame %" PRId64 " error", mId, __FUNCTION__,
+                            resultExtras.frameNumber);
+                }
+            }
+            if (listener != NULL) {
+                listener->notifyError(errorCode, resultExtras);
+            } else {
+                ALOGE("Camera %d: %s: no listener available", mId, __FUNCTION__);
+            }
+            break;
+        default:
+            // SET_ERR calls notifyError
+            SET_ERR("Unknown error message from HAL: %d", msg.error_code);
+            break;
+    }
+}
+
+void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
+        NotificationListener *listener) {
+    ssize_t idx;
+    // Verify ordering of shutter notifications
+    {
+        Mutex::Autolock l(mOutputLock);
+        // TODO: need to track errors for tighter bounds on expected frame number.
+        if (msg.frame_number < mNextShutterFrameNumber) {
+            SET_ERR("Shutter notification out-of-order. Expected "
+                    "notification for frame %d, got frame %d",
+                    mNextShutterFrameNumber, msg.frame_number);
+            return;
+        }
+        mNextShutterFrameNumber = msg.frame_number + 1;
+    }
+
+    CaptureResultExtras resultExtras;
+
+    // Set timestamp for the request in the in-flight tracking
+    // and get the request ID to send upstream
+    {
+        Mutex::Autolock l(mInFlightLock);
+        idx = mInFlightMap.indexOfKey(msg.frame_number);
+        if (idx >= 0) {
+            InFlightRequest &r = mInFlightMap.editValueAt(idx);
+            r.captureTimestamp = msg.timestamp;
+            resultExtras = r.resultExtras;
+        }
+    }
+    if (idx < 0) {
+        SET_ERR("Shutter notification for non-existent frame number %d",
+                msg.frame_number);
+        return;
+    }
+    ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
+            mId, __FUNCTION__,
+            msg.frame_number, resultExtras.requestId, msg.timestamp);
+    // Call listener, if any
+    if (listener != NULL) {
+        listener->notifyShutter(resultExtras, msg.timestamp);
+    }
+}
+
 
 CameraMetadata Camera3Device::getLatestRequestLocked() {
     ALOGV("%s", __FUNCTION__);
@@ -2142,6 +2232,12 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mCurrentPreCaptureTriggerId(0),
         mRepeatingLastFrameNumber(NO_IN_FLIGHT_REPEATING_FRAMES) {
     mStatusId = statusTracker->addComponent();
+}
+
+void Camera3Device::RequestThread::setNotifyCallback(
+        NotificationListener *listener) {
+    Mutex::Autolock l(mRequestLock);
+    mListener = listener;
 }
 
 void Camera3Device::RequestThread::configurationComplete() {
@@ -2266,20 +2362,26 @@ status_t Camera3Device::RequestThread::clearRepeatingRequests(/*out*/int64_t *la
     return OK;
 }
 
-status_t Camera3Device::RequestThread::clear(/*out*/int64_t *lastFrameNumber) {
+status_t Camera3Device::RequestThread::clear(
+        NotificationListener *listener,
+        /*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
     ALOGV("RequestThread::%s:", __FUNCTION__);
+
     mRepeatingRequests.clear();
 
-    // Decrement repeating frame count for those requests never sent to device
-    // TODO: Remove this after we have proper error handling so these requests
-    // will generate an error callback. This might be the only place calling
-    // isRepeatingRequestLocked. If so, isRepeatingRequestLocked should also be removed.
-    const RequestList &requests = mRequestQueue;
-    for (RequestList::const_iterator it = requests.begin();
-            it != requests.end(); ++it) {
-        if (isRepeatingRequestLocked(*it)) {
-            mRepeatingLastFrameNumber--;
+    // Send errors for all requests pending in the request queue, including
+    // pending repeating requests
+    if (listener != NULL) {
+        for (RequestList::iterator it = mRequestQueue.begin();
+                 it != mRequestQueue.end(); ++it) {
+            // Set the frame number this request would have had, if it
+            // had been submitted; this frame number will not be reused.
+            // The requestId and burstId fields were set when the request was
+            // submitted originally (in convertMetadataListToRequestListLocked)
+            (*it)->mResultExtras.frameNumber = mFrameNumber++;
+            listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                    (*it)->mResultExtras);
         }
     }
     mRequestQueue.clear();
@@ -2421,8 +2523,17 @@ bool Camera3Device::RequestThread::threadLoop() {
         request.input_buffer = &inputBuffer;
         res = nextRequest->mInputStream->getInputBuffer(&inputBuffer);
         if (res != OK) {
+            // Can't get input buffer from gralloc queue - this could be due to
+            // disconnected queue or other producer misbehavior, so not a fatal
+            // error
             ALOGE("RequestThread: Can't get input buffer, skipping request:"
                     " %s (%d)", strerror(-res), res);
+            Mutex::Autolock l(mRequestLock);
+            if (mListener != NULL) {
+                mListener->notifyError(
+                        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                        nextRequest->mResultExtras);
+            }
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
         }
@@ -2438,8 +2549,17 @@ bool Camera3Device::RequestThread::threadLoop() {
         res = nextRequest->mOutputStreams.editItemAt(i)->
                 getBuffer(&outputBuffers.editItemAt(i));
         if (res != OK) {
+            // Can't get output buffer from gralloc queue - this could be due to
+            // abandoned queue or other consumer misbehavior, so not a fatal
+            // error
             ALOGE("RequestThread: Can't get output buffer, skipping request:"
                     " %s (%d)", strerror(-res), res);
+            Mutex::Autolock l(mRequestLock);
+            if (mListener != NULL) {
+                mListener->notifyError(
+                        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                        nextRequest->mResultExtras);
+            }
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
         }
@@ -2450,6 +2570,7 @@ bool Camera3Device::RequestThread::threadLoop() {
     // Log request in the in-flight queue
     sp<Camera3Device> parent = mParent.promote();
     if (parent == NULL) {
+        // Should not happen, and nowhere to send errors to, so just log it
         CLOGE("RequestThread: Parent is gone");
         cleanUpFailedRequest(request, nextRequest, outputBuffers);
         return false;
@@ -2485,6 +2606,9 @@ bool Camera3Device::RequestThread::threadLoop() {
     ATRACE_END();
 
     if (res != OK) {
+        // Should only get a failure here for malformed requests or device-level
+        // errors, so consider all errors fatal.  Bad metadata failures should
+        // come through notify.
         SET_ERR("RequestThread: Unable to submit capture request %d to HAL"
                 " device: %s (%d)", request.frame_number, strerror(-res), res);
         cleanUpFailedRequest(request, nextRequest, outputBuffers);
