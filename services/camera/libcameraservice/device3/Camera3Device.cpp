@@ -48,6 +48,7 @@
 #include "device3/Camera3OutputStream.h"
 #include "device3/Camera3InputStream.h"
 #include "device3/Camera3ZslStream.h"
+#include "device3/Camera3DummyStream.h"
 #include "CameraService.h"
 
 using namespace android::camera3;
@@ -181,6 +182,7 @@ status_t Camera3Device::initialize(camera_module_t *module)
     mHal3Device = device;
     mStatus = STATUS_UNCONFIGURED;
     mNextStreamId = 0;
+    mDummyStreamId = NO_STREAM;
     mNeedConfig = true;
     mPauseStateNotify = false;
 
@@ -1418,6 +1420,15 @@ status_t Camera3Device::configureStreamsLocked() {
         return OK;
     }
 
+    // Workaround for device HALv3.2 or older spec bug - zero streams requires
+    // adding a dummy stream instead.
+    // TODO: Bug: 17321404 for fixing the HAL spec and removing this workaround.
+    if (mOutputStreams.size() == 0) {
+        addDummyStreamLocked();
+    } else {
+        tryRemoveDummyStreamLocked();
+    }
+
     // Start configuring the streams
     ALOGV("%s: Camera %d: Starting stream configuration", __FUNCTION__, mId);
 
@@ -1540,7 +1551,7 @@ status_t Camera3Device::configureStreamsLocked() {
 
     mNeedConfig = false;
 
-    if (config.num_streams > 0) {
+    if (mDummyStreamId == NO_STREAM) {
         mStatus = STATUS_CONFIGURED;
     } else {
         mStatus = STATUS_UNCONFIGURED;
@@ -1552,6 +1563,69 @@ status_t Camera3Device::configureStreamsLocked() {
     mDeletedStreams.clear();
 
     return OK;
+}
+
+status_t Camera3Device::addDummyStreamLocked() {
+    ATRACE_CALL();
+    status_t res;
+
+    if (mDummyStreamId != NO_STREAM) {
+        // Should never be adding a second dummy stream when one is already
+        // active
+        SET_ERR_L("%s: Camera %d: A dummy stream already exists!",
+                __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    ALOGV("%s: Camera %d: Adding a dummy stream", __FUNCTION__, mId);
+
+    sp<Camera3OutputStreamInterface> dummyStream =
+            new Camera3DummyStream(mNextStreamId);
+
+    res = mOutputStreams.add(mNextStreamId, dummyStream);
+    if (res < 0) {
+        SET_ERR_L("Can't add dummy stream to set: %s (%d)", strerror(-res), res);
+        return res;
+    }
+
+    mDummyStreamId = mNextStreamId;
+    mNextStreamId++;
+
+    return OK;
+}
+
+status_t Camera3Device::tryRemoveDummyStreamLocked() {
+    ATRACE_CALL();
+    status_t res;
+
+    if (mDummyStreamId == NO_STREAM) return OK;
+    if (mOutputStreams.size() == 1) return OK;
+
+    ALOGV("%s: Camera %d: Removing the dummy stream", __FUNCTION__, mId);
+
+    // Ok, have a dummy stream and there's at least one other output stream,
+    // so remove the dummy
+
+    sp<Camera3StreamInterface> deletedStream;
+    ssize_t outputStreamIdx = mOutputStreams.indexOfKey(mDummyStreamId);
+    if (outputStreamIdx == NAME_NOT_FOUND) {
+        SET_ERR_L("Dummy stream %d does not appear to exist", mDummyStreamId);
+        return INVALID_OPERATION;
+    }
+
+    deletedStream = mOutputStreams.editValueAt(outputStreamIdx);
+    mOutputStreams.removeItemsAt(outputStreamIdx);
+
+    // Free up the stream endpoint so that it can be used by some other stream
+    res = deletedStream->disconnect();
+    if (res != OK) {
+        SET_ERR_L("Can't disconnect deleted dummy stream %d", mDummyStreamId);
+        // fall through since we want to still list the stream as deleted.
+    }
+    mDeletedStreams.add(deletedStream);
+    mDummyStreamId = NO_STREAM;
+
+    return res;
 }
 
 void Camera3Device::setErrorState(const char *fmt, ...) {
