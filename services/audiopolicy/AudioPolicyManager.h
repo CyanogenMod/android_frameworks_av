@@ -646,6 +646,9 @@ protected:
         // close an output and its companion duplicating output.
         void closeOutput(audio_io_handle_t output);
 
+        // close an input.
+        void closeInput(audio_io_handle_t input);
+
         // checks and if necessary changes outputs used for all strategies.
         // must be called every time a condition that affects the output choice for a given strategy
         // changes: connected device, phone state, force use...

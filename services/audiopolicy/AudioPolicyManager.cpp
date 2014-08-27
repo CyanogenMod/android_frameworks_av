@@ -1454,19 +1454,31 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input,
         return;
     }
 
-    mpClientInterface->closeInput(input);
-    mInputs.removeItem(input);
-    nextAudioPortGeneration();
+    closeInput(input);
     mpClientInterface->onAudioPortListUpdate();
     ALOGV("releaseInput() exit");
 }
 
 void AudioPolicyManager::closeAllInputs() {
+    bool patchRemoved = false;
+
     for(size_t input_index = 0; input_index < mInputs.size(); input_index++) {
+        sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(input_index);
+        ssize_t patch_index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+        if (patch_index >= 0) {
+            sp<AudioPatch> patchDesc = mAudioPatches.valueAt(patch_index);
+            status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
+            mAudioPatches.removeItemsAt(patch_index);
+            patchRemoved = true;
+        }
         mpClientInterface->closeInput(mInputs.keyAt(input_index));
     }
     mInputs.clear();
     nextAudioPortGeneration();
+
+    if (patchRemoved) {
+        mpClientInterface->onAudioPatchListUpdate();
+    }
 }
 
 void AudioPolicyManager::initStreamVolume(audio_stream_type_t stream,
@@ -3497,6 +3509,16 @@ void AudioPolicyManager::closeOutput(audio_io_handle_t output)
         }
     }
 
+    nextAudioPortGeneration();
+
+    ssize_t index = mAudioPatches.indexOfKey(outputDesc->mPatchHandle);
+    if (index >= 0) {
+        sp<AudioPatch> patchDesc = mAudioPatches.valueAt(index);
+        status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
+        mAudioPatches.removeItemsAt(index);
+        mpClientInterface->onAudioPatchListUpdate();
+    }
+
     AudioParameter param;
     param.add(String8("closing"), String8("true"));
     mpClientInterface->setParameters(output, param.toString());
@@ -3504,7 +3526,30 @@ void AudioPolicyManager::closeOutput(audio_io_handle_t output)
     mpClientInterface->closeOutput(output);
     mOutputs.removeItem(output);
     mPreviousOutputs = mOutputs;
+}
+
+void AudioPolicyManager::closeInput(audio_io_handle_t input)
+{
+    ALOGV("closeInput(%d)", input);
+
+    sp<AudioInputDescriptor> inputDesc = mInputs.valueFor(input);
+    if (inputDesc == NULL) {
+        ALOGW("closeInput() unknown input %d", input);
+        return;
+    }
+
     nextAudioPortGeneration();
+
+    ssize_t index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+    if (index >= 0) {
+        sp<AudioPatch> patchDesc = mAudioPatches.valueAt(index);
+        status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
+        mAudioPatches.removeItemsAt(index);
+        mpClientInterface->onAudioPatchListUpdate();
+    }
+
+    mpClientInterface->closeInput(input);
+    mInputs.removeItem(input);
 }
 
 SortedVector<audio_io_handle_t> AudioPolicyManager::getOutputsForDevice(audio_devices_t device,
