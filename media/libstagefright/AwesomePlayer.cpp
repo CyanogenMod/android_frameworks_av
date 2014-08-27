@@ -1084,6 +1084,10 @@ status_t AwesomePlayer::play_l() {
             }
 
             if (err != OK) {
+                mAudioSource->stop();
+                if (mAudioSource != mOmxSource && mOmxSource != NULL) {
+                    mOmxSource->stop();
+                }
                 mAudioSource.clear();
                 mOmxSource.clear();
 
