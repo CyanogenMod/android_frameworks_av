@@ -78,8 +78,12 @@ ZslProcessor3::ZslProcessor3(
 
     ALOGV("%s: Initialize buffer queue and frame list depth based on max pipeline depth (%d)",
           __FUNCTION__, pipelineMaxDepth);
-    mBufferQueueDepth = pipelineMaxDepth + 1;
-    mFrameListDepth = pipelineMaxDepth + 1;
+    // Need to keep buffer queue longer than metadata queue because sometimes buffer arrives
+    // earlier than metadata which causes the buffer corresponding to oldest metadata being
+    // removed.
+    mFrameListDepth = pipelineMaxDepth;
+    mBufferQueueDepth = mFrameListDepth + 1;
+
 
     mZslQueue.insertAt(0, mBufferQueueDepth);
     mFrameList.insertAt(0, mFrameListDepth);
