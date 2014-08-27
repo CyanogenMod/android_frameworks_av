@@ -405,14 +405,13 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
         }
 
         updateDevicesAndOutputs();
+        audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
         if (mPhoneState == AUDIO_MODE_IN_CALL) {
-            audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
             updateCallRouting(newDevice);
         }
 
 #ifdef AUDIO_EXTN_FM_ENABLED
         if(device == AUDIO_DEVICE_OUT_FM) {
-            audio_devices_t newDevice = AUDIO_DEVICE_NONE ;
             if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
                 mOutputs.valueFor(mPrimaryOutput)->changeRefCount(AUDIO_STREAM_MUSIC, 1);
                 newDevice = (audio_devices_t)(getNewOutputDevice(mPrimaryOutput, false) | AUDIO_DEVICE_OUT_FM);
