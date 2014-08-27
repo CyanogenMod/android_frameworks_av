@@ -108,6 +108,7 @@ ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
 LOCAL_SRC_FILES += FLACDecoder.cpp
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-flac
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
 LOCAL_CFLAGS := -DQTI_FLAC_DECODER
 endif
 endif
@@ -138,6 +139,19 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_SRC_FILES  += ExtendedWriter.cpp
        LOCAL_SRC_FILES  += FMA2DPWriter.cpp
 endif #TARGET_ENABLE_AV_ENHANCEMENTS
+
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD_24)),true)
+       LOCAL_CFLAGS     += -DPCM_OFFLOAD_ENABLED_24
+       LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
+endif
+endif
+
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
+       LOCAL_CFLAGS     += -DFLAC_OFFLOAD_ENABLED
+endif
+endif
 
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \

@@ -39,6 +39,10 @@
 #include "include/ExtendedUtils.h"
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include "QCMediaDefs.h"
+#include "QCMetaData.h"
+#if defined(FLAC_OFFLOAD_ENABLED) || defined(PCM_OFFLOAD_ENABLED_24)
+#include "audio_defs.h"
+#endif
 #endif
 
 namespace android {
@@ -650,6 +654,23 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     if (meta->findInt32(kKeyEncoderPadding, &paddingSamples)) {
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES), paddingSamples);
     }
+#ifdef ENABLE_AV_ENHANCEMENTS
+#ifdef FLAC_OFFLOAD_ENABLED
+    int32_t minBlkSize, maxBlkSize, minFrmSize, maxFrmSize; //FLAC params
+    if (meta->findInt32(kKeyMinBlkSize, &minBlkSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
+    }
+    if (meta->findInt32(kKeyMaxBlkSize, &maxBlkSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
+    }
+    if (meta->findInt32(kKeyMinFrmSize, &minFrmSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
+    }
+    if (meta->findInt32(kKeyMaxFrmSize, &maxFrmSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
+    }
+#endif
+#endif
 
     ALOGV("sendMetaDataToHal: bitRate %d, sampleRate %d, chanMask %d,"
           "delaySample %d, paddingSample %d", bitRate, sampleRate,
@@ -756,13 +777,25 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     audio_offload_info_t info = AUDIO_INFO_INITIALIZER;
 
     info.format = AUDIO_FORMAT_INVALID;
+    int32_t bitWidth = 16;
+#ifdef ENABLE_AV_ENHANCEMENTS
+#ifdef PCM_OFFLOAD_ENABLED_24
+    if(meta->findInt32(kKeySampleBits, &bitWidth) && 24 == bitWidth)
+        ALOGV("%s Bits per sample is 24", __func__);
+    else
+        ALOGW("%s No Sample Bit info in meta data", __func__);
+#endif
+#endif
     if (mapMimeToAudioFormat(info.format, mime) != OK) {
         ALOGE(" Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format !", mime);
         return false;
     } else {
         // Override audio format for PCM offload
         if (info.format == AUDIO_FORMAT_PCM_16_BIT) {
-            info.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+            if (16 == bitWidth)
+                info.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+            else if (24 == bitWidth)
+                info.format = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
         }
         ALOGV("Mime type \"%s\" mapped to audio_format %d", mime, info.format);
     }
@@ -812,7 +845,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
      }
     info.bit_rate = brate;
 
-
+    info.bit_width = bitWidth;
     info.stream_type = streamType;
     info.has_video = hasVideo;
     info.is_streaming = isStreaming;

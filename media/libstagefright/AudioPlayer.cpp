@@ -38,6 +38,11 @@
 
 #include "include/AwesomePlayer.h"
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include "QCMetaData.h"
+#include "QCMediaDefs.h"
+#endif
+
 namespace android {
 
 AudioPlayer::AudioPlayer(
@@ -150,18 +155,29 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     }
 
     audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+    int32_t bitWidth = 16;
+#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(FLAC_OFFLOAD_ENABLED) || defined(PCM_OFFLOAD_ENABLED_24)
+    format->findInt32(kKeySampleBits, &bitWidth);
+#endif
+#endif
 
     if (useOffload()) {
         if (mapMimeToAudioFormat(audioFormat, mime) != OK) {
-            ALOGE("Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format", mime);
+            ALOGE("%s Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format",
+                  __func__, mime);
             audioFormat = AUDIO_FORMAT_INVALID;
         } else {
             // Override audio format for PCM offload
             if (audioFormat == AUDIO_FORMAT_PCM_16_BIT) {
-                audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+                if (16 == bitWidth)
+                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+                else if (24 == bitWidth)
+                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
             }
 
-            ALOGV("Mime type \"%s\" mapped to audio_format 0x%x", mime, audioFormat);
+            ALOGV("%s Mime type \"%s\" mapped to audio_format 0x%x",
+                  __func__, mime, audioFormat);
         }
 
         int32_t aacaot = -1;
@@ -192,6 +208,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
                 offloadInfo.duration_us = -1;
             }
 
+            offloadInfo.bit_width = bitWidth;
             offloadInfo.sample_rate = mSampleRate;
             offloadInfo.channel_mask = channelMask;
             offloadInfo.format = audioFormat;
