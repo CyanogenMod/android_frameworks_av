@@ -129,6 +129,7 @@ private:
     size_t fillAudioBuffer(void *buffer, size_t size);
 
     bool onDrainAudioQueue();
+    int64_t getAudioPendingPlayoutUs();
     void postDrainAudioQueue_l(int64_t delayUs = 0);
 
     void onDrainVideoQueue();
@@ -146,7 +147,7 @@ private:
     void onResume();
     void onAudioOffloadTearDown();
 
-    void notifyEOS(bool audio, status_t finalResult);
+    void notifyEOS(bool audio, status_t finalResult, int64_t delayUs = 0);
     void notifyFlushComplete(bool audio);
     void notifyPosition();
     void notifyVideoLateBy(int64_t lateByUs);
