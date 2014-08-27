@@ -410,8 +410,11 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
 
         if (entry->mBuffer == NULL) {
             // EOS
-
-            notifyEOS(true /* audio */, entry->mFinalResult);
+            int64_t postEOSDelayUs = 0;
+            if (mAudioSink->needsTrailingPadding()) {
+                postEOSDelayUs = getAudioPendingPlayoutUs() + 1000 * mAudioSink->latency();
+            }
+            notifyEOS(true /* audio */, entry->mFinalResult, postEOSDelayUs);
 
             mAudioQueue.erase(mAudioQueue.begin());
             entry = NULL;
@@ -421,26 +424,11 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
         if (entry->mOffset == 0) {
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
-
             ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
-
             mAnchorTimeMediaUs = mediaTimeUs;
 
-            uint32_t numFramesPlayed;
-            CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed), (status_t)OK);
-
-            uint32_t numFramesPendingPlayout =
-                mNumFramesWritten - numFramesPlayed;
-
-            int64_t realTimeOffsetUs =
-                (mAudioSink->latency() / 2  /* XXX */
-                    + numFramesPendingPlayout
-                        * mAudioSink->msecsPerFrame()) * 1000ll;
-
-            // ALOGI("realTimeOffsetUs = %lld us", realTimeOffsetUs);
-
-            mAnchorTimeRealUs =
-                ALooper::GetNowUs() + realTimeOffsetUs;
+            mAnchorTimeRealUs = ALooper::GetNowUs()
+                    + getAudioPendingPlayoutUs() + 1000 * mAudioSink->latency() / 2;
         }
 
         size_t copy = entry->mBuffer->size() - entry->mOffset;
@@ -492,6 +480,14 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     notifyPosition();
 
     return !mAudioQueue.empty();
+}
+
+int64_t NuPlayer::Renderer::getAudioPendingPlayoutUs() {
+    uint32_t numFramesPlayed;
+    CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed), (status_t)OK);
+
+    uint32_t numFramesPendingPlayout = mNumFramesWritten - numFramesPlayed;
+    return numFramesPendingPlayout * mAudioSink->msecsPerFrame() * 1000;
 }
 
 void NuPlayer::Renderer::postDrainVideoQueue() {
@@ -607,12 +603,12 @@ void NuPlayer::Renderer::notifyVideoRenderingStart() {
     notify->post();
 }
 
-void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult) {
+void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult, int64_t delayUs) {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatEOS);
     notify->setInt32("audio", static_cast<int32_t>(audio));
     notify->setInt32("finalResult", finalResult);
-    notify->post();
+    notify->post(delayUs);
 }
 
 void NuPlayer::Renderer::notifyAudioOffloadTearDown() {
