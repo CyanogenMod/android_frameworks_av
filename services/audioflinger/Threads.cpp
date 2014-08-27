@@ -2132,6 +2132,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         } else {
             bytesWritten = framesWritten;
         }
+        mLatchDValid = false;
         status_t status = mNormalSink->getTimestamp(mLatchD.mTimestamp);
         if (status == NO_ERROR) {
             size_t totalFramesWritten = mNormalSink->framesWritten();

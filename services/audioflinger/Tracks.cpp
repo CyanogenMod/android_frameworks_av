@@ -853,6 +853,7 @@ void AudioFlinger::PlaybackThread::Track::reset()
         if (mState == FLUSHED) {
             mState = IDLE;
         }
+        mPreviousValid = false;
     }
 }
 
