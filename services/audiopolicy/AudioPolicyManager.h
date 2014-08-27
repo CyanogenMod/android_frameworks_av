@@ -297,7 +297,7 @@ protected:
                                           struct audio_port_config *backupConfig = NULL);
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const = 0;
-            sp<AudioPort> mAudioPort;
+            virtual sp<AudioPort> getAudioPort() const = 0;
             uint32_t mSamplingRate;
             audio_format_t mFormat;
             audio_channel_mask_t mChannelMask;
@@ -330,6 +330,7 @@ protected:
             bool equals(const sp<DeviceDescriptor>& other) const;
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;
+            virtual sp<AudioPort> getAudioPort() const { return (AudioPort*) this; }
 
             virtual void toAudioPort(struct audio_port *port) const;
 
@@ -462,6 +463,7 @@ protected:
 
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;
+            virtual sp<AudioPort> getAudioPort() const { return mProfile; }
             void toAudioPort(struct audio_port *port) const;
 
             audio_port_handle_t mId;
@@ -506,6 +508,7 @@ protected:
 
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;
+            virtual sp<AudioPort> getAudioPort() const { return mProfile; }
             void toAudioPort(struct audio_port *port) const;
         };
 
