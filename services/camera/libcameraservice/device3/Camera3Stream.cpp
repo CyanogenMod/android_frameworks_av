@@ -209,6 +209,35 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
     return res;
 }
 
+status_t Camera3Stream::cancelConfiguration() {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+    switch (mState) {
+        case STATE_ERROR:
+            ALOGE("%s: In error state", __FUNCTION__);
+            return INVALID_OPERATION;
+        case STATE_IN_CONFIG:
+        case STATE_IN_RECONFIG:
+            // OK
+            break;
+        case STATE_CONSTRUCTED:
+        case STATE_CONFIGURED:
+            ALOGE("%s: Cannot cancel configuration that hasn't been started",
+                    __FUNCTION__);
+            return INVALID_OPERATION;
+        default:
+            ALOGE("%s: Unknown state", __FUNCTION__);
+            return INVALID_OPERATION;
+    }
+
+    camera3_stream::usage = oldUsage;
+    camera3_stream::max_buffers = oldMaxBuffers;
+
+    mState = STATE_CONSTRUCTED;
+
+    return OK;
+}
+
 status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);

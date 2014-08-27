@@ -42,9 +42,13 @@ public:
      * Error codes for CAMERA_MSG_ERROR
      */
     enum CameraErrorCode {
+        ERROR_CAMERA_INVALID_ERROR = -1, // To indicate all invalid error codes
         ERROR_CAMERA_DISCONNECTED = 0,
         ERROR_CAMERA_DEVICE = 1,
-        ERROR_CAMERA_SERVICE = 2
+        ERROR_CAMERA_SERVICE = 2,
+        ERROR_CAMERA_REQUEST = 3,
+        ERROR_CAMERA_RESULT = 4,
+        ERROR_CAMERA_BUFFER = 5,
     };
 
     // One way
