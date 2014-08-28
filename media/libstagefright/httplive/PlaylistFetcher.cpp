@@ -754,6 +754,9 @@ void PlaylistFetcher::onDownloadNext() {
             if (!mPlaylist->isComplete() && !mPlaylist->isEvent()) {
                 // If this is a live session, start 3 segments from the end on connect
                 mSeqNumber = lastSeqNumberInPlaylist - 3;
+                if (mSeqNumber < firstSeqNumberInPlaylist) {
+                    mSeqNumber = firstSeqNumberInPlaylist;
+                }
             } else {
                 mSeqNumber = getSeqNumberForTime(mStartTimeUs);
                 mStartTimeUs -= getSegmentStartTimeUs(mSeqNumber);
