@@ -2037,6 +2037,8 @@ void AwesomePlayer::onVideoEvent() {
     if (mFlags & FIRST_FRAME) {
         modifyFlags(FIRST_FRAME, CLEAR);
         mSinceLastDropped = 0;
+        mTimeSourceDeltaUs = ts->getRealTimeUs() - timeUs;
+
         {
             Mutex::Autolock autoLock(mStatsLock);
             if(mStats.mVeryFirstFrame){
