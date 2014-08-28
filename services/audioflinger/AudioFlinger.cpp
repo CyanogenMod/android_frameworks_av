@@ -1941,9 +1941,8 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
             TEE_SINK_NEW,   // copy input using a new pipe
             TEE_SINK_OLD,   // copy input using an existing pipe
         } kind;
-        NBAIO_Format format = Format_from_SR_C(inStream->common.get_sample_rate(&inStream->common),
-                audio_channel_count_from_in_mask(
-                        inStream->common.get_channels(&inStream->common)));
+        NBAIO_Format format = Format_from_SR_C(halconfig.sample_rate,
+                audio_channel_count_from_in_mask(halconfig.channel_mask), halconfig.format);
         if (!mTeeSinkInputEnabled) {
             kind = TEE_SINK_NO;
         } else if (!Format_isValid(format)) {
@@ -2700,24 +2699,26 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
         // if 2 dumpsys are done within 1 second, and rotation didn't work, then discard 2nd
         int teeFd = open(teePath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR);
         if (teeFd >= 0) {
+            // FIXME use libsndfile
             char wavHeader[44];
             memcpy(wavHeader,
                 "RIFF\0\0\0\0WAVEfmt \20\0\0\0\1\0\2\0\104\254\0\0\0\0\0\0\4\0\20\0data\0\0\0\0",
                 sizeof(wavHeader));
             NBAIO_Format format = teeSource->format();
             unsigned channelCount = Format_channelCount(format);
-            ALOG_ASSERT(channelCount <= FCC_2);
             uint32_t sampleRate = Format_sampleRate(format);
+            size_t frameSize = Format_frameSize(format);
             wavHeader[22] = channelCount;       // number of channels
             wavHeader[24] = sampleRate;         // sample rate
             wavHeader[25] = sampleRate >> 8;
-            wavHeader[32] = channelCount * 2;   // block alignment
+            wavHeader[32] = frameSize;          // block alignment
+            wavHeader[33] = frameSize >> 8;
             write(teeFd, wavHeader, sizeof(wavHeader));
             size_t total = 0;
             bool firstRead = true;
+#define TEE_SINK_READ 1024                      // frames per I/O operation
+            void *buffer = malloc(TEE_SINK_READ * frameSize);
             for (;;) {
-#define TEE_SINK_READ 1024
-                short buffer[TEE_SINK_READ * FCC_2];
                 size_t count = TEE_SINK_READ;
                 ssize_t actual = teeSource->read(buffer, count,
                         AudioBufferProvider::kInvalidPTS);
@@ -2730,14 +2731,17 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
                     break;
                 }
                 ALOG_ASSERT(actual <= (ssize_t)count);
-                write(teeFd, buffer, actual * channelCount * sizeof(short));
+                write(teeFd, buffer, actual * frameSize);
                 total += actual;
             }
+            free(buffer);
             lseek(teeFd, (off_t) 4, SEEK_SET);
-            uint32_t temp = 44 + total * channelCount * sizeof(short) - 8;
+            uint32_t temp = 44 + total * frameSize - 8;
+            // FIXME not big-endian safe
             write(teeFd, &temp, sizeof(temp));
             lseek(teeFd, (off_t) 40, SEEK_SET);
-            temp =  total * channelCount * sizeof(short);
+            temp =  total * frameSize;
+            // FIXME not big-endian safe
             write(teeFd, &temp, sizeof(temp));
             close(teeFd);
             if (fd >= 0) {
