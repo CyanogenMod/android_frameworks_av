@@ -68,14 +68,14 @@ int64_t ALooper::GetNowUs() {
 
 ALooper::ALooper()
     : mRunningLocally(false) {
+    // clean up stale AHandlers. Doing it here instead of in the destructor avoids
+    // the side effect of objects being deleted from the unregister function recursively.
+    gLooperRoster.unregisterStaleHandlers();
 }
 
 ALooper::~ALooper() {
     stop();
-
-    // Since this looper is "dead" (or as good as dead by now),
-    // have ALooperRoster unregister any handlers still registered for it.
-    gLooperRoster.unregisterStaleHandlers();
+    // stale AHandlers are now cleaned up in the constructor of the next ALooper to come along
 }
 
 void ALooper::setName(const char *name) {
