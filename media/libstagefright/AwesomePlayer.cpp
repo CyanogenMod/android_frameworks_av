@@ -63,6 +63,11 @@
 
 #include <cutils/properties.h>
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include "QCMediaDefs.h"
+#include "QCMetaData.h"
+#endif
+
 #define USE_SURFACE_ALLOC 1
 #define FRAME_DROP_FREQ 0
 
@@ -1621,6 +1626,7 @@ status_t AwesomePlayer::initAudioDecoder() {
 
     sp<MetaData> meta = mAudioTrack->getFormat();
     sp<MetaData> vMeta;
+    status_t err;
     if (mVideoTrack != NULL && mVideoSource != NULL) {
         vMeta = mVideoTrack->getFormat();
     }
@@ -1684,7 +1690,22 @@ status_t AwesomePlayer::initAudioDecoder() {
             }
         }
 
-        status_t err = mAudioSource->start();
+#if defined(ENABLE_AV_ENHANCEMENTS) && defined(PCM_OFFLOAD_ENABLED_24)
+        sp<MetaData> tempMetadata;
+        if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+            ALOGV("%s MEDIA_MIMETYPE_AUDIO_RAW", __func__);
+            tempMetadata = new MetaData;
+            sp<MetaData> format = mAudioSource->getFormat();
+            int bitWidth = 16;
+            format->findInt32(kKeySampleBits, &bitWidth);
+            if (24 == bitWidth)
+                tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_8_24_BIT);
+        }
+        err = mAudioSource->start(tempMetadata.get());
+        tempMetadata.clear();
+#else
+        err = mAudioSource->start();
+#endif
 
         if (err != OK) {
             mAudioSource.clear();
