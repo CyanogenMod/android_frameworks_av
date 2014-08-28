@@ -3643,7 +3643,7 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
 
     PlaybackThread::dumpInternals(fd, args);
 
-    snprintf(buffer, SIZE, "AudioMixer tracks: %08x\n", mAudioMixer->trackNames());
+    snprintf(buffer, SIZE, "AudioMixer tracks: %016llx\n", mAudioMixer->trackNames());
     result.append(buffer);
     write(fd, result.string(), result.size());
 
