@@ -554,13 +554,15 @@ void ZslProcessor3::onBufferAcquired(const BufferInfo& /*bufferInfo*/) {
 }
 
 void ZslProcessor3::onBufferReleased(const BufferInfo& bufferInfo) {
-    Mutex::Autolock l(mInputMutex);
 
     // ignore output buffers
     if (bufferInfo.mOutput) {
         return;
     }
 
+    // Lock mutex only once we know this is an input buffer returned to avoid
+    // potential deadlock
+    Mutex::Autolock l(mInputMutex);
     // TODO: Verify that the buffer is in our queue by looking at timestamp
     // theoretically unnecessary unless we change the following assumptions:
     // -- only 1 buffer reprocessed at a time (which is the case now)
