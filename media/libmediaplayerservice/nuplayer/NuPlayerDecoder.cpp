@@ -220,6 +220,8 @@ status_t NuPlayer::Decoder::getInputBuffers(Vector<sp<ABuffer> > *buffers) const
 
 void NuPlayer::Decoder::handleError(int32_t err)
 {
+    mCodec->release();
+
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatError);
     notify->setInt32("err", err);
