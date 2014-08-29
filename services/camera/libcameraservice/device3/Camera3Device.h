@@ -151,6 +151,8 @@ class Camera3Device :
     struct                     RequestTrigger;
     // minimal jpeg buffer size: 256KB + blob header
     static const ssize_t       kMinJpegBufferSize = 256 * 1024 + sizeof(camera3_jpeg_blob);
+    // Constant to use for stream ID when one doesn't exist
+    static const int           NO_STREAM = -1;
 
     // A lock to enforce serialization on the input/configure side
     // of the public interface.
@@ -195,6 +197,8 @@ class Camera3Device :
     sp<camera3::Camera3Stream> mInputStream;
     int                        mNextStreamId;
     bool                       mNeedConfig;
+
+    int                        mDummyStreamId;
 
     // Whether to send state updates upstream
     // Pause when doing transparent reconfiguration
@@ -289,6 +293,17 @@ class Camera3Device :
      * them. This is a long-running operation (may be several hundered ms).
      */
     status_t           configureStreamsLocked();
+
+    /**
+     * Add a dummy stream to the current stream set as a workaround for
+     * not allowing 0 streams in the camera HAL spec.
+     */
+    status_t           addDummyStreamLocked();
+
+    /**
+     * Remove a dummy stream if the current config includes real streams.
+     */
+    status_t           tryRemoveDummyStreamLocked();
 
     /**
      * Set device into an error state due to some fatal failure, and set an
