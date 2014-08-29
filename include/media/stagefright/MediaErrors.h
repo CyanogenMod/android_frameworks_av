@@ -58,20 +58,22 @@ enum {
     // drm/drm_framework_common.h
     DRM_ERROR_BASE = -2000,
 
-    ERROR_DRM_UNKNOWN                       = DRM_ERROR_BASE,
-    ERROR_DRM_NO_LICENSE                    = DRM_ERROR_BASE - 1,
-    ERROR_DRM_LICENSE_EXPIRED               = DRM_ERROR_BASE - 2,
-    ERROR_DRM_SESSION_NOT_OPENED            = DRM_ERROR_BASE - 3,
-    ERROR_DRM_DECRYPT_UNIT_NOT_INITIALIZED  = DRM_ERROR_BASE - 4,
-    ERROR_DRM_DECRYPT                       = DRM_ERROR_BASE - 5,
-    ERROR_DRM_CANNOT_HANDLE                 = DRM_ERROR_BASE - 6,
-    ERROR_DRM_TAMPER_DETECTED               = DRM_ERROR_BASE - 7,
-    ERROR_DRM_NOT_PROVISIONED               = DRM_ERROR_BASE - 8,
-    ERROR_DRM_DEVICE_REVOKED                = DRM_ERROR_BASE - 9,
-    ERROR_DRM_RESOURCE_BUSY                 = DRM_ERROR_BASE - 10,
+    ERROR_DRM_UNKNOWN                        = DRM_ERROR_BASE,
+    ERROR_DRM_NO_LICENSE                     = DRM_ERROR_BASE - 1,
+    ERROR_DRM_LICENSE_EXPIRED                = DRM_ERROR_BASE - 2,
+    ERROR_DRM_SESSION_NOT_OPENED             = DRM_ERROR_BASE - 3,
+    ERROR_DRM_DECRYPT_UNIT_NOT_INITIALIZED   = DRM_ERROR_BASE - 4,
+    ERROR_DRM_DECRYPT                        = DRM_ERROR_BASE - 5,
+    ERROR_DRM_CANNOT_HANDLE                  = DRM_ERROR_BASE - 6,
+    ERROR_DRM_TAMPER_DETECTED                = DRM_ERROR_BASE - 7,
+    ERROR_DRM_NOT_PROVISIONED                = DRM_ERROR_BASE - 8,
+    ERROR_DRM_DEVICE_REVOKED                 = DRM_ERROR_BASE - 9,
+    ERROR_DRM_RESOURCE_BUSY                  = DRM_ERROR_BASE - 10,
+    ERROR_DRM_INSUFFICIENT_OUTPUT_PROTECTION = DRM_ERROR_BASE - 11,
+    ERROR_DRM_LAST_USED_ERRORCODE            = DRM_ERROR_BASE - 11,
 
-    ERROR_DRM_VENDOR_MAX                    = DRM_ERROR_BASE - 500,
-    ERROR_DRM_VENDOR_MIN                    = DRM_ERROR_BASE - 999,
+    ERROR_DRM_VENDOR_MAX                     = DRM_ERROR_BASE - 500,
+    ERROR_DRM_VENDOR_MIN                     = DRM_ERROR_BASE - 999,
 
     // Heartbeat Error Codes
     HEARTBEAT_ERROR_BASE = -3000,
@@ -100,7 +102,7 @@ enum ActionCode {
 
 // returns true if err is a recognized DRM error code
 static inline bool isCryptoError(status_t err) {
-    return (ERROR_DRM_RESOURCE_BUSY <= err && err <= ERROR_DRM_UNKNOWN)
+    return (ERROR_DRM_LAST_USED_ERRORCODE <= err && err <= ERROR_DRM_UNKNOWN)
             || (ERROR_DRM_VENDOR_MIN <= err && err <= ERROR_DRM_VENDOR_MAX);
 }
 
