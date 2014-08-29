@@ -4317,6 +4317,20 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
                 mpClientInterface->onAudioPatchListUpdate();
             }
         }
+
+        // inform all input as well
+        for (size_t i = 0; i < mInputs.size(); i++) {
+            const sp<AudioInputDescriptor>  inputDescriptor = mInputs.valueAt(i);
+            if (!isVirtualInputDevice(inputDescriptor->mDevice)) {
+                AudioParameter inputCmd = AudioParameter();
+                ALOGV("%s: inform input %d of device:%d", __func__,
+                      inputDescriptor->mIoHandle, device);
+                inputCmd.addInt(String8(AudioParameter::keyRouting),device);
+                mpClientInterface->setParameters(inputDescriptor->mIoHandle,
+                                                 inputCmd.toString(),
+                                                 delayMs);
+            }
+        }
     }
 
     // update stream volumes according to new device
