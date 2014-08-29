@@ -131,9 +131,11 @@ private:
     // class to store voctor of AudioEffects
     class EffectVector {
     public:
-        EffectVector(int session) : mSessionId(session) {}
+        EffectVector(int session) : mSessionId(session), mRefCount(0) {}
         /*virtual*/ ~EffectVector() {}
         const int mSessionId;
+        // AudioPolicyManager keeps mLock, no need for lock on reference count here
+        int mRefCount;
         Vector< sp<AudioEffect> >mEffects;
     };
 
