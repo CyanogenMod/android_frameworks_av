@@ -1297,21 +1297,23 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
 
     bool isSoundTrigger = false;
+    audio_source_t halInputSource = inputSource;
     if (inputSource == AUDIO_SOURCE_HOTWORD) {
         ssize_t index = mSoundTriggerSessions.indexOfKey(session);
         if (index >= 0) {
             input = mSoundTriggerSessions.valueFor(session);
             isSoundTrigger = true;
             ALOGV("SoundTrigger capture on session %d input %d", session, input);
+        } else {
+            halInputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
         }
     }
-
     status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
                                                    &input,
                                                    &config,
                                                    &device,
                                                    String8(""),
-                                                   inputSource,
+                                                   halInputSource,
                                                    flags);
 
     // only accept input with the exact requested set of parameters
