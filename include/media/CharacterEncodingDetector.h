@@ -43,7 +43,7 @@ class CharacterEncodingDetector {
         const UCharsetMatch *getPreferred(
                 const char *input, size_t len,
                 const UCharsetMatch** ucma, size_t matches,
-                bool *goodmatch);
+                bool *goodmatch, int *highestmatch);
 
         bool isFrequent(const uint16_t *values, uint32_t c);
 

@@ -32,6 +32,7 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/MediaDefs.h>
+#include <CharacterEncodingDetector.h>
 
 namespace android {
 
@@ -450,32 +451,58 @@ void StagefrightMetadataRetriever::parseMetaData() {
     struct Map {
         int from;
         int to;
+        const char *name;
     };
     static const Map kMap[] = {
-        { kKeyMIMEType, METADATA_KEY_MIMETYPE },
-        { kKeyCDTrackNumber, METADATA_KEY_CD_TRACK_NUMBER },
-        { kKeyDiscNumber, METADATA_KEY_DISC_NUMBER },
-        { kKeyAlbum, METADATA_KEY_ALBUM },
-        { kKeyArtist, METADATA_KEY_ARTIST },
-        { kKeyAlbumArtist, METADATA_KEY_ALBUMARTIST },
-        { kKeyAuthor, METADATA_KEY_AUTHOR },
-        { kKeyComposer, METADATA_KEY_COMPOSER },
-        { kKeyDate, METADATA_KEY_DATE },
-        { kKeyGenre, METADATA_KEY_GENRE },
-        { kKeyTitle, METADATA_KEY_TITLE },
-        { kKeyYear, METADATA_KEY_YEAR },
-        { kKeyWriter, METADATA_KEY_WRITER },
-        { kKeyCompilation, METADATA_KEY_COMPILATION },
-        { kKeyLocation, METADATA_KEY_LOCATION },
+        { kKeyMIMEType, METADATA_KEY_MIMETYPE, NULL },
+        { kKeyCDTrackNumber, METADATA_KEY_CD_TRACK_NUMBER, "tracknumber" },
+        { kKeyDiscNumber, METADATA_KEY_DISC_NUMBER, "discnumber" },
+        { kKeyAlbum, METADATA_KEY_ALBUM, "album" },
+        { kKeyArtist, METADATA_KEY_ARTIST, "artist" },
+        { kKeyAlbumArtist, METADATA_KEY_ALBUMARTIST, "albumartist" },
+        { kKeyAuthor, METADATA_KEY_AUTHOR, NULL },
+        { kKeyComposer, METADATA_KEY_COMPOSER, "composer" },
+        { kKeyDate, METADATA_KEY_DATE, NULL },
+        { kKeyGenre, METADATA_KEY_GENRE, "genre" },
+        { kKeyTitle, METADATA_KEY_TITLE, "title" },
+        { kKeyYear, METADATA_KEY_YEAR, "year" },
+        { kKeyWriter, METADATA_KEY_WRITER, "writer" },
+        { kKeyCompilation, METADATA_KEY_COMPILATION, "compilation" },
+        { kKeyLocation, METADATA_KEY_LOCATION, NULL },
     };
+
     static const size_t kNumMapEntries = sizeof(kMap) / sizeof(kMap[0]);
+
+    CharacterEncodingDetector *detector = new CharacterEncodingDetector();
 
     for (size_t i = 0; i < kNumMapEntries; ++i) {
         const char *value;
         if (meta->findCString(kMap[i].from, &value)) {
-            mMetaData.add(kMap[i].to, String8(value));
+            if (kMap[i].name) {
+                // add to charset detector
+                detector->addTag(kMap[i].name, value);
+            } else {
+                // directly add to output list
+                mMetaData.add(kMap[i].to, String8(value));
+            }
         }
     }
+
+    detector->detectAndConvert();
+    int size = detector->size();
+    if (size) {
+        for (int i = 0; i < size; i++) {
+            const char *name;
+            const char *value;
+            detector->getTag(i, &name, &value);
+            for (size_t j = 0; j < kNumMapEntries; ++j) {
+                if (kMap[j].name && !strcmp(kMap[j].name, name)) {
+                    mMetaData.add(kMap[j].to, String8(value));
+                }
+            }
+        }
+    }
+    delete detector;
 
     const void *data;
     uint32_t type;
