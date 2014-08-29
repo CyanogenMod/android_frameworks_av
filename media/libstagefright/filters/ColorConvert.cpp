@@ -88,4 +88,24 @@ void convertYUV420spToRGB888(
     }
 }
 
+// HACK - not even slightly optimized
+// TODO: remove when RGBA support is added to SoftwareRenderer
+void convertRGBAToARGB(
+        uint8_t *src, int32_t width, int32_t height, uint32_t stride,
+        uint8_t *dest) {
+    for (size_t i = 0; i < height; ++i) {
+        for (size_t j = 0; j < width; ++j) {
+            uint8_t r = *src++;
+            uint8_t g = *src++;
+            uint8_t b = *src++;
+            uint8_t a = *src++;
+            *dest++ = a;
+            *dest++ = r;
+            *dest++ = g;
+            *dest++ = b;
+        }
+        src += (stride - width) * 4;
+    }
+}
+
 }   // namespace android

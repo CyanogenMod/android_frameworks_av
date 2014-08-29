@@ -24,6 +24,8 @@ const static float3 gMonoMult = {0.299f, 0.587f, 0.114f};
 float gSaturation = 1.0f;
 
 void root(const uchar4 *v_in, uchar4 *v_out) {
+    v_out->x = v_in->x; // don't modify A
+
     // get RGB, scale 0-255 uchar to 0-1.0 float
     float3 rgb = {v_in->y * 0.003921569f, v_in->z * 0.003921569f,
             v_in->w * 0.003921569f};
@@ -32,7 +34,6 @@ void root(const uchar4 *v_in, uchar4 *v_out) {
     float3 result = dot(rgb, gMonoMult);
     result = mix(result, rgb, gSaturation);
 
-    v_out->x = v_in->x; // don't modify A
     v_out->y = (uchar)clamp((result.r * 255.f + 0.5f), 0.f, 255.f);
     v_out->z = (uchar)clamp((result.g * 255.f + 0.5f), 0.f, 255.f);
     v_out->w = (uchar)clamp((result.b * 255.f + 0.5f), 0.f, 255.f);
