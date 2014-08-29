@@ -1245,13 +1245,13 @@ status_t ACodec::configureCodec(
             tunneled != 0) {
             ALOGI("Configuring TUNNELED video playback.");
 
-            int64_t audioHwSync = 0;
-            if (!msg->findInt64("audio-hw-sync", &audioHwSync)) {
+            int32_t audioHwSync = 0;
+            if (!msg->findInt32("audio-hw-sync", &audioHwSync)) {
                 ALOGW("No Audio HW Sync provided for video tunnel");
             }
             err = configureTunneledVideoPlayback(audioHwSync, nativeWindow);
             if (err != OK) {
-                ALOGE("configureTunneledVideoPlayback(%" PRId64 ",%p) failed!",
+                ALOGE("configureTunneledVideoPlayback(%d,%p) failed!",
                         audioHwSync, nativeWindow.get());
                 return err;
             }
@@ -1898,7 +1898,7 @@ status_t ACodec::setupRawAudioFormat(
 }
 
 status_t ACodec::configureTunneledVideoPlayback(
-        int64_t audioHwSync, const sp<ANativeWindow> &nativeWindow) {
+        int32_t audioHwSync, const sp<ANativeWindow> &nativeWindow) {
     native_handle_t* sidebandHandle;
 
     status_t err = mOMX->configureVideoTunnelMode(
