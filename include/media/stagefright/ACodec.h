@@ -234,7 +234,7 @@ private:
     status_t setComponentRole(bool isEncoder, const char *mime);
     status_t configureCodec(const char *mime, const sp<AMessage> &msg);
 
-    status_t configureTunneledVideoPlayback(int64_t audioHwSync,
+    status_t configureTunneledVideoPlayback(int32_t audioHwSync,
             const sp<ANativeWindow> &nativeWindow);
 
     status_t setVideoPortFormatType(
