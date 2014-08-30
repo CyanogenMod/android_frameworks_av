@@ -69,6 +69,10 @@ struct PlaylistFetcher : public AHandler {
 
     void resumeUntilAsync(const sp<AMessage> &params);
 
+    uint32_t getStreamTypeMask() const {
+        return mStreamTypeMask;
+    }
+
 protected:
     virtual ~PlaylistFetcher();
     virtual void onMessageReceived(const sp<AMessage> &msg);
