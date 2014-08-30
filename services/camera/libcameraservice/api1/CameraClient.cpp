@@ -938,7 +938,20 @@ void CameraClient::copyFrameAndPostCopiedFrame(
     }
     previewBuffer = mPreviewBuffer;
 
-    memcpy(previewBuffer->base(), (uint8_t *)heap->base() + offset, size);
+    void* previewBufferBase = previewBuffer->base();
+    void* heapBase = heap->base();
+
+    if (heapBase == MAP_FAILED) {
+        ALOGE("%s: Failed to mmap heap for preview frame.", __FUNCTION__);
+        mLock.unlock();
+        return;
+    } else if (previewBufferBase == MAP_FAILED) {
+        ALOGE("%s: Failed to mmap preview buffer for preview frame.", __FUNCTION__);
+        mLock.unlock();
+        return;
+    }
+
+    memcpy(previewBufferBase, (uint8_t *) heapBase + offset, size);
 
     sp<MemoryBase> frame = new MemoryBase(previewBuffer, 0, size);
     if (frame == 0) {
