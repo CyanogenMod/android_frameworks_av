@@ -108,6 +108,8 @@ private:
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
         kWhatSwapped                    = 'swap',
+        kWhatCheckSwitchDown            = 'ckSD',
+        kWhatSwitchDown                 = 'sDwn',
     };
 
     struct BandwidthItem {
@@ -202,6 +204,7 @@ private:
     bool mFirstTimeUsValid;
     int64_t mFirstTimeUs;
     int64_t mLastSeekTimeUs;
+    sp<AMessage> mSwitchDownMonitor;
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
 
@@ -246,6 +249,8 @@ private:
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
     void onSwapped(const sp<AMessage> &msg);
+    void onCheckSwitchDown();
+    void onSwitchDown();
     void tryToFinishBandwidthSwitch();
 
     void scheduleCheckBandwidthEvent();

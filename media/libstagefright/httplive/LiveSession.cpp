@@ -531,6 +531,19 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
             onSwapped(msg);
             break;
         }
+
+        case kWhatCheckSwitchDown:
+        {
+            onCheckSwitchDown();
+            break;
+        }
+
+        case kWhatSwitchDown:
+        {
+            onSwitchDown();
+            break;
+        }
+
         default:
             TRESPASS();
             break;
@@ -642,6 +655,9 @@ void LiveSession::finishDisconnect() {
     // Protect mPacketSources from a swapPacketSource race condition through disconnect.
     // (finishDisconnect, onFinishDisconnect2)
     cancelBandwidthSwitch();
+
+    // cancel switch down monitor
+    mSwitchDownMonitor.clear();
 
     for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
         mFetcherInfos.valueAt(i).mFetcher->stopAsync();
@@ -1435,6 +1451,44 @@ void LiveSession::onSwapped(const sp<AMessage> &msg) {
     tryToFinishBandwidthSwitch();
 }
 
+void LiveSession::onCheckSwitchDown() {
+    if (mSwitchDownMonitor == NULL) {
+        return;
+    }
+
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        int32_t targetDuration;
+        sp<AnotherPacketSource> packetSource = mPacketSources.valueFor(indexToType(i));
+        sp<AMessage> meta = packetSource->getLatestDequeuedMeta();
+
+        if (meta != NULL && meta->findInt32("targetDuration", &targetDuration) ) {
+            int64_t bufferedDurationUs = packetSource->getEstimatedDurationUs();
+            int64_t targetDurationUs = targetDuration * 1000000ll;
+
+            if (bufferedDurationUs < targetDurationUs / 3) {
+                (new AMessage(kWhatSwitchDown, id()))->post();
+                break;
+            }
+        }
+    }
+
+    mSwitchDownMonitor->post(1000000ll);
+}
+
+void LiveSession::onSwitchDown() {
+    if (mReconfigurationInProgress || mSwitchInProgress || mCurBandwidthIndex == 0) {
+        return;
+    }
+
+    ssize_t bandwidthIndex = getBandwidthIndex();
+    if (bandwidthIndex < mCurBandwidthIndex) {
+        changeConfiguration(-1, bandwidthIndex, false);
+        return;
+    }
+
+    changeConfiguration(-1, mCurBandwidthIndex - 1, false);
+}
+
 // Mark switch done when:
 //   1. all old buffers are swapped out
 void LiveSession::tryToFinishBandwidthSwitch() {
@@ -1522,6 +1576,9 @@ void LiveSession::postPrepared(status_t err) {
     notify->post();
 
     mInPreparationPhase = false;
+
+    mSwitchDownMonitor = new AMessage(kWhatCheckSwitchDown, id());
+    mSwitchDownMonitor->post();
 }
 
 }  // namespace android
