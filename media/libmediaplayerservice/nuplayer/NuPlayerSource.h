@@ -51,6 +51,7 @@ struct NuPlayer::Source : public AHandler {
         kWhatSubtitleData,
         kWhatTimedTextData,
         kWhatQueueDecoderShutdown,
+        kWhatDrmNoLicense,
     };
 
     // The provides message is used to notify the player about various

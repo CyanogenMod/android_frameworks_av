@@ -32,6 +32,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
+#include "../../libstagefright/include/DRMExtractor.h"
 #include "../../libstagefright/include/NuCachedSource2.h"
 #include "../../libstagefright/include/WVMExtractor.h"
 
@@ -49,6 +50,7 @@ NuPlayer::GenericSource::GenericSource(
       mIsWidevine(false),
       mUIDValid(uidValid),
       mUID(uid),
+      mDrmManagerClient(NULL),
       mMetaDataSize(-1ll),
       mBitrate(-1ll),
       mPollBufferingGeneration(0) {
@@ -57,12 +59,18 @@ NuPlayer::GenericSource::GenericSource(
 }
 
 void NuPlayer::GenericSource::resetDataSource() {
+    mAudioTimeUs = 0;
+    mVideoTimeUs = 0;
     mHTTPService.clear();
     mUri.clear();
     mUriHeaders.clear();
     mFd = -1;
     mOffset = 0;
     mLength = 0;
+    setDrmPlaybackStatusIfNeeded(Playback::STOP, 0);
+    mDecryptHandle = NULL;
+    mDrmManagerClient = NULL;
+    mStarted = false;
 }
 
 status_t NuPlayer::GenericSource::setDataSource(
@@ -128,6 +136,10 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
 
     if (extractor == NULL) {
         return UNKNOWN_ERROR;
+    }
+
+    if (extractor->getDrmFlag()) {
+        checkDrmStatus(mDataSource);
     }
 
     sp<MetaData> fileMeta = extractor->getMetaData();
@@ -201,6 +213,28 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
     mBitrate = totalBitrate;
 
     return OK;
+}
+
+void NuPlayer::GenericSource::checkDrmStatus(const sp<DataSource>& dataSource) {
+    dataSource->getDrmInfo(mDecryptHandle, &mDrmManagerClient);
+    if (mDecryptHandle != NULL) {
+        CHECK(mDrmManagerClient);
+        if (RightsStatus::RIGHTS_VALID != mDecryptHandle->status) {
+            sp<AMessage> msg = dupNotify();
+            msg->setInt32("what", kWhatDrmNoLicense);
+            msg->post();
+        }
+    }
+}
+
+int64_t NuPlayer::GenericSource::getLastReadPosition() {
+    if (mAudioTrack.mSource != NULL) {
+        return mAudioTimeUs;
+    } else if (mVideoTrack.mSource != NULL) {
+        return mVideoTimeUs;
+    } else {
+        return 0;
+    }
 }
 
 status_t NuPlayer::GenericSource::setBuffers(
@@ -397,6 +431,33 @@ void NuPlayer::GenericSource::start() {
             new AnotherPacketSource(mVideoTrack.mSource->getFormat());
 
         readBuffer(MEDIA_TRACK_TYPE_VIDEO);
+    }
+
+    setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
+    mStarted = true;
+}
+
+void NuPlayer::GenericSource::stop() {
+    // nothing to do, just account for DRM playback status
+    setDrmPlaybackStatusIfNeeded(Playback::STOP, 0);
+    mStarted = false;
+}
+
+void NuPlayer::GenericSource::pause() {
+    // nothing to do, just account for DRM playback status
+    setDrmPlaybackStatusIfNeeded(Playback::PAUSE, 0);
+    mStarted = false;
+}
+
+void NuPlayer::GenericSource::resume() {
+    // nothing to do, just account for DRM playback status
+    setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
+    mStarted = true;
+}
+
+void NuPlayer::GenericSource::setDrmPlaybackStatusIfNeeded(int playbackStatus, int64_t position) {
+    if (mDecryptHandle != NULL) {
+        mDrmManagerClient->setPlaybackStatus(mDecryptHandle, playbackStatus, position);
     }
 }
 
@@ -872,6 +933,10 @@ status_t NuPlayer::GenericSource::seekTo(int64_t seekTimeUs) {
         readBuffer(MEDIA_TRACK_TYPE_AUDIO, seekTimeUs);
     }
 
+    setDrmPlaybackStatusIfNeeded(Playback::START, seekTimeUs / 1000);
+    if (!mStarted) {
+        setDrmPlaybackStatusIfNeeded(Playback::PAUSE, 0);
+    }
     return OK;
 }
 
@@ -989,6 +1054,14 @@ void NuPlayer::GenericSource::readBuffer(
         options.clearSeekTo();
 
         if (err == OK) {
+            int64_t timeUs;
+            CHECK(mbuf->meta_data()->findInt64(kKeyTime, &timeUs));
+            if (trackType == MEDIA_TRACK_TYPE_AUDIO) {
+                mAudioTimeUs = timeUs;
+            } else if (trackType == MEDIA_TRACK_TYPE_VIDEO) {
+                mVideoTimeUs = timeUs;
+            }
+
             // formatChange && seeking: track whose source is changed during selection
             // formatChange && !seeking: track whose source is not changed during selection
             // !formatChange: normal seek

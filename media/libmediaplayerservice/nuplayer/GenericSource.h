@@ -27,6 +27,8 @@
 
 namespace android {
 
+class DecryptHandle;
+class DrmManagerClient;
 struct AnotherPacketSource;
 struct ARTSPController;
 struct DataSource;
@@ -49,6 +51,9 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual void prepareAsync();
 
     virtual void start();
+    virtual void stop();
+    virtual void pause();
+    virtual void resume();
 
     virtual status_t feedMoreTSData();
 
@@ -90,7 +95,9 @@ private:
     };
 
     Track mAudioTrack;
+    int64_t mAudioTimeUs;
     Track mVideoTrack;
+    int64_t mVideoTimeUs;
     Track mSubtitleTrack;
     Track mTimedTextTrack;
 
@@ -111,6 +118,9 @@ private:
     sp<DataSource> mDataSource;
     sp<NuCachedSource2> mCachedSource;
     sp<WVMExtractor> mWVMExtractor;
+    DrmManagerClient *mDrmManagerClient;
+    sp<DecryptHandle> mDecryptHandle;
+    bool mStarted;
     String8 mContentType;
     AString mSniffedMIME;
     off64_t mMetaDataSize;
@@ -122,6 +132,9 @@ private:
     void resetDataSource();
 
     status_t initFromDataSource();
+    void checkDrmStatus(const sp<DataSource>& dataSource);
+    int64_t getLastReadPosition();
+    void setDrmPlaybackStatusIfNeeded(int playbackStatus, int64_t position);
 
     status_t prefillCacheIfNecessary();
 
