@@ -5138,13 +5138,16 @@ status_t OMXCodec::read(
             mPaused = false;
         }
 
+        if (mQuirks & kRequiresFlushCompleteEmulation)
+            drainInputBuffers();
 
         if (mState == EXECUTING) {
             // Otherwise mState == RECONFIGURING and this code will trigger
             // after the output port is reenabled.
             fillOutputBuffers();
         }
-        drainInputBuffers();
+        if (!(mQuirks & kRequiresFlushCompleteEmulation))
+            drainInputBuffers();
     }
 
     if (seeking) {
