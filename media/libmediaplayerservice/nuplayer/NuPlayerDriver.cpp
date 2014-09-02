@@ -571,8 +571,10 @@ void NuPlayerDriver::notifyDuration(int64_t durationUs) {
 
 void NuPlayerDriver::notifyPosition(int64_t positionUs) {
     Mutex::Autolock autoLock(mLock);
-    mPositionUs = positionUs;
-    mNotifyTimeRealUs = ALooper::GetNowUs();
+    if (isPlaying()) {
+        mPositionUs = positionUs;
+        mNotifyTimeRealUs = ALooper::GetNowUs();
+    }
 }
 
 void NuPlayerDriver::notifySeekComplete() {
