@@ -10,6 +10,7 @@ LOCAL_SRC_FILES := \
         MediaFilter.cpp           \
         SaturationFilter.cpp      \
         saturationARGB.rs         \
+        SimpleFilter.cpp          \
         ZeroFilter.cpp
 
 LOCAL_C_INCLUDES := \

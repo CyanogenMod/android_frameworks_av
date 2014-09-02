@@ -27,6 +27,20 @@
 
 namespace android {
 
+status_t IntrinsicBlurFilter::configure(const sp<AMessage> &msg) {
+    status_t err = SimpleFilter::configure(msg);
+    if (err != OK) {
+        return err;
+    }
+
+    if (!msg->findString("cacheDir", &mCacheDir)) {
+        ALOGE("Failed to find cache directory in config message.");
+        return NAME_NOT_FOUND;
+    }
+
+    return OK;
+}
+
 status_t IntrinsicBlurFilter::start() {
     // TODO: use a single RS context object for entire application
     mRS = new RSC::RS();
