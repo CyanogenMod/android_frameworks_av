@@ -743,13 +743,15 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                         case CONFIGURING:
                         {
-                            setState(INITIALIZED);
+                            setState(actionCode == ACTION_CODE_FATAL ?
+                                    UNINITIALIZED : INITIALIZED);
                             break;
                         }
 
                         case STARTING:
                         {
-                            setState(CONFIGURED);
+                            setState(actionCode == ACTION_CODE_FATAL ?
+                                    UNINITIALIZED : CONFIGURED);
                             break;
                         }
 
