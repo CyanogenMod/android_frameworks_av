@@ -386,6 +386,9 @@ status_t WAVSource::start(MetaData *params) {
     if (mBitsPerSample == 8) {
         // As a temporary buffer for 8->16 bit conversion.
         mGroup->add_buffer(new MediaBuffer(kMaxFrameSize));
+    } else if (use24BitOutput() && mBitsPerSample == 24) {
+        // Used to pad 24 bit samples to 32 bits
+        mGroup->add_buffer(new MediaBuffer(kMaxFrameSize + (kMaxFrameSize / 2)));
     }
 
     mCurrentPos = mOffset;
@@ -500,24 +503,49 @@ status_t WAVSource::read(
 
             buffer->release();
             buffer = tmp;
-        } else if (mBitsPerSample == 24 && !use24BitOutput()) {
-            // Convert 24-bit signed samples to 16-bit signed.
+        } else if (mBitsPerSample == 24) {
 
             const uint8_t *src =
                 (const uint8_t *)buffer->data() + buffer->range_offset();
-            int16_t *dst = (int16_t *)src;
 
-            size_t numSamples = buffer->range_length() / 3;
-            for (size_t i = 0; i < numSamples; ++i) {
-                int32_t x = (int32_t)(src[0] | src[1] << 8 | src[2] << 16);
-                x = (x << 8) >> 8;  // sign extension
+            if (use24BitOutput()) {
 
-                x = x >> 8;
-                *dst++ = (int16_t)x;
-                src += 3;
+                // Pad 24-bit signed samples to 32-bit signed.
+                MediaBuffer *tmp;
+                CHECK_EQ(mGroup->acquire_buffer(&tmp), (status_t)OK);
+
+                // The new buffer holds the same number of samples, but each
+                // one is 4 bytes wide.
+                tmp->set_range(0, n + (n / 3));
+
+                int32_t *dst = (int32_t *)tmp->data();
+                size_t numSamples = buffer->range_length() / 3;
+
+                for (size_t i = 0; i < numSamples; ++i) {
+                    *dst++ = (int32_t)(src[0] << 8 | src[1] << 16 | src[2] << 24);
+                    src += 3;
+                }
+
+                buffer->release();
+                buffer = tmp;
+
+            } else {
+
+                // Convert 24-bit signed samples to 16-bit signed.
+                int16_t *dst = (int16_t *)src;
+
+                size_t numSamples = buffer->range_length() / 3;
+                for (size_t i = 0; i < numSamples; ++i) {
+                    int32_t x = (int32_t)(src[0] | src[1] << 8 | src[2] << 16);
+                    x = (x << 8) >> 8;  // sign extension
+
+                    x = x >> 8;
+                    *dst++ = (int16_t)x;
+                    src += 3;
+                }
+
+                buffer->set_range(buffer->range_offset(), 2 * numSamples);
             }
-
-            buffer->set_range(buffer->range_offset(), 2 * numSamples);
         }
     }
 
