@@ -58,7 +58,6 @@ SoftAVC::SoftAVC(
             320 /* width */, 240 /* height */, callbacks, appData, component),
       mHandle(NULL),
       mInputBufferCount(0),
-      mPictureSize(mWidth * mHeight * 3 / 2),
       mFirstPicture(NULL),
       mFirstPictureId(-1),
       mPicId(0),
@@ -118,7 +117,7 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
     }
 
     H264SwDecRet ret = H264SWDEC_PIC_RDY;
-    bool portSettingsChanged = false;
+    bool portWillReset = false;
     while ((mEOSStatus != INPUT_DATA_AVAILABLE || !inQueue.empty())
             && outQueue.size() == kNumOutputBuffers) {
 
@@ -161,17 +160,13 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
                     H264SwDecInfo decoderInfo;
                     CHECK(H264SwDecGetInfo(mHandle, &decoderInfo) == H264SWDEC_OK);
 
-                    if (handlePortSettingChangeEvent(&decoderInfo)) {
-                        portSettingsChanged = true;
-                    }
-
-                    if (decoderInfo.croppingFlag &&
-                        handleCropRectEvent(&decoderInfo.cropParams)) {
-                        portSettingsChanged = true;
-                    }
+                    bool cropChanged = handleCropChange(decoderInfo);
+                    handlePortSettingsChange(
+                            &portWillReset, decoderInfo.picWidth, decoderInfo.picHeight,
+                            cropChanged);
                 }
             } else {
-                if (portSettingsChanged) {
+                if (portWillReset) {
                     if (H264SwDecNextPicture(mHandle, &decodedPicture, 0)
                         == H264SWDEC_PIC_RDY) {
 
@@ -199,8 +194,7 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
         inInfo->mOwnedByUs = false;
         notifyEmptyBufferDone(inHeader);
 
-        if (portSettingsChanged) {
-            portSettingsChanged = false;
+        if (portWillReset) {
             return;
         }
 
@@ -215,44 +209,33 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
     }
 }
 
-bool SoftAVC::handlePortSettingChangeEvent(const H264SwDecInfo *info) {
-    if (mWidth != info->picWidth || mHeight != info->picHeight) {
-        mWidth  = info->picWidth;
-        mHeight = info->picHeight;
-        mPictureSize = mWidth * mHeight * 3 / 2;
-        updatePortDefinitions();
-        notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-        mOutputPortSettingsChange = AWAITING_DISABLED;
-        return true;
+bool SoftAVC::handleCropChange(const H264SwDecInfo& decInfo) {
+    if (!decInfo.croppingFlag) {
+        return false;
     }
 
-    return false;
-}
-
-bool SoftAVC::handleCropRectEvent(const CropParams *crop) {
-    if (mCropLeft != crop->cropLeftOffset ||
-        mCropTop != crop->cropTopOffset ||
-        mCropWidth != crop->cropOutWidth ||
-        mCropHeight != crop->cropOutHeight) {
-        mCropLeft = crop->cropLeftOffset;
-        mCropTop = crop->cropTopOffset;
-        mCropWidth = crop->cropOutWidth;
-        mCropHeight = crop->cropOutHeight;
-
-        notify(OMX_EventPortSettingsChanged, 1,
-                OMX_IndexConfigCommonOutputCrop, NULL);
-
-        return true;
+    const CropParams& crop = decInfo.cropParams;
+    if (mCropLeft == crop.cropLeftOffset &&
+        mCropTop == crop.cropTopOffset &&
+        mCropWidth == crop.cropOutWidth &&
+        mCropHeight == crop.cropOutHeight) {
+        return false;
     }
-    return false;
+
+    mCropLeft = crop.cropLeftOffset;
+    mCropTop = crop.cropTopOffset;
+    mCropWidth = crop.cropOutWidth;
+    mCropHeight = crop.cropOutHeight;
+    return true;
 }
 
 void SoftAVC::saveFirstOutputBuffer(int32_t picId, uint8_t *data) {
     CHECK(mFirstPicture == NULL);
     mFirstPictureId = picId;
 
-    mFirstPicture = new uint8_t[mPictureSize];
-    memcpy(mFirstPicture, data, mPictureSize);
+    uint32_t pictureSize = mWidth * mHeight * 3 / 2;
+    mFirstPicture = new uint8_t[pictureSize];
+    memcpy(mFirstPicture, data, pictureSize);
 }
 
 void SoftAVC::drainOneOutputBuffer(int32_t picId, uint8_t* data) {
@@ -263,9 +246,17 @@ void SoftAVC::drainOneOutputBuffer(int32_t picId, uint8_t* data) {
     OMX_BUFFERHEADERTYPE *header = mPicToHeaderMap.valueFor(picId);
     outHeader->nTimeStamp = header->nTimeStamp;
     outHeader->nFlags = header->nFlags;
-    outHeader->nFilledLen = mPictureSize;
-    memcpy(outHeader->pBuffer + outHeader->nOffset,
-            data, mPictureSize);
+    outHeader->nFilledLen = mWidth * mHeight * 3 / 2;
+
+    uint8_t *dst = outHeader->pBuffer + outHeader->nOffset;
+    const uint8_t *srcY = data;
+    const uint8_t *srcU = srcY + mWidth * mHeight;
+    const uint8_t *srcV = srcU + mWidth * mHeight / 4;
+    size_t srcYStride = mWidth;
+    size_t srcUStride = mWidth / 2;
+    size_t srcVStride = srcUStride;
+    copyYV12FrameToOutputBuffer(dst, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride);
+
     mPicToHeaderMap.removeItem(picId);
     delete header;
     outInfo->mOwnedByUs = false;
