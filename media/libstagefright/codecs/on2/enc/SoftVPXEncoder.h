@@ -91,10 +91,6 @@ protected:
             const char *name, OMX_INDEXTYPE *index);
 
 private:
-    enum {
-        kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1,
-    };
-
     enum TemporalReferences {
         // For 1 layer case: reference all (last, golden, and alt ref), but only
         // update last.

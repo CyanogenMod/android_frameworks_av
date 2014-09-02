@@ -67,10 +67,6 @@ private:
         kNumBuffers = 2,
     };
 
-    enum {
-        kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1
-    };
-
     // OMX input buffer's timestamp and flags
     typedef struct {
         int64_t mTimeUs;

@@ -58,6 +58,11 @@ protected:
         } mTransition;
     };
 
+    enum {
+        kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1,
+        kPrepareForAdaptivePlaybackIndex,
+    };
+
     void addPort(const OMX_PARAM_PORTDEFINITIONTYPE &def);
 
     virtual OMX_ERRORTYPE internalGetParameter(

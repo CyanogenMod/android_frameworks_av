@@ -22,6 +22,7 @@
 
 #include "include/SoftVideoDecoderOMXComponent.h"
 
+#include <media/hardware/HardwareAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -50,6 +51,9 @@ SoftVideoDecoderOMXComponent::SoftVideoDecoderOMXComponent(
         OMX_PTR appData,
         OMX_COMPONENTTYPE **component)
         : SimpleSoftOMXComponent(name, callbacks, appData, component),
+        mIsAdaptive(false),
+        mAdaptiveMaxWidth(0),
+        mAdaptiveMaxHeight(0),
         mWidth(width),
         mHeight(height),
         mCropLeft(0),
@@ -127,8 +131,8 @@ void SoftVideoDecoderOMXComponent::updatePortDefinitions() {
     def->format.video.nSliceHeight = def->format.video.nFrameHeight;
 
     def = &editPortInfo(kOutputPortIndex)->mDef;
-    def->format.video.nFrameWidth = mWidth;
-    def->format.video.nFrameHeight = mHeight;
+    def->format.video.nFrameWidth = mIsAdaptive ? mAdaptiveMaxWidth : mWidth;
+    def->format.video.nFrameHeight = mIsAdaptive ? mAdaptiveMaxHeight : mHeight;
     def->format.video.nStride = def->format.video.nFrameWidth;
     def->format.video.nSliceHeight = def->format.video.nFrameHeight;
 
@@ -199,7 +203,10 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalGetParameter(
 
 OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
         OMX_INDEXTYPE index, const OMX_PTR params) {
-    switch (index) {
+    // Include extension index OMX_INDEXEXTTYPE.
+    const int32_t indexFull = index;
+
+    switch (indexFull) {
         case OMX_IndexParamStandardComponentRole:
         {
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
@@ -230,6 +237,24 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
             return OMX_ErrorNone;
         }
 
+        case kPrepareForAdaptivePlaybackIndex:
+        {
+            const PrepareForAdaptivePlaybackParams* adaptivePlaybackParams =
+                    (const PrepareForAdaptivePlaybackParams *)params;
+            mIsAdaptive = adaptivePlaybackParams->bEnable;
+            if (mIsAdaptive) {
+                mAdaptiveMaxWidth = adaptivePlaybackParams->nMaxFrameWidth;
+                mAdaptiveMaxHeight = adaptivePlaybackParams->nMaxFrameHeight;
+                mWidth = mAdaptiveMaxWidth;
+                mHeight = mAdaptiveMaxHeight;
+            } else {
+                mAdaptiveMaxWidth = 0;
+                mAdaptiveMaxHeight = 0;
+            }
+            updatePortDefinitions();
+            return OMX_ErrorNone;
+        }
+
         default:
             return SimpleSoftOMXComponent::internalSetParameter(index, params);
     }
@@ -257,6 +282,16 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::getConfig(
         default:
             return OMX_ErrorUnsupportedIndex;
     }
+}
+
+OMX_ERRORTYPE SoftVideoDecoderOMXComponent::getExtensionIndex(
+        const char *name, OMX_INDEXTYPE *index) {
+    if (!strcmp(name, "OMX.google.android.index.prepareForAdaptivePlayback")) {
+        *(int32_t*)index = kPrepareForAdaptivePlaybackIndex;
+        return OMX_ErrorNone;
+    }
+
+    return SimpleSoftOMXComponent::getExtensionIndex(name, index);
 }
 
 void SoftVideoDecoderOMXComponent::onReset() {
