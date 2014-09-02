@@ -315,7 +315,7 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
 size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
     Mutex::Autolock autoLock(mLock);
 
-    if (!offloadingAudio()) {
+    if (!offloadingAudio() || mPaused) {
         return 0;
     }
 
@@ -887,6 +887,7 @@ void NuPlayer::Renderer::onPause() {
         ++mAudioQueueGeneration;
         ++mVideoQueueGeneration;
         prepareForMediaRenderingStart();
+        mPaused = true;
     }
 
     mDrainAudioQueuePending = false;
@@ -898,8 +899,6 @@ void NuPlayer::Renderer::onPause() {
 
     ALOGV("now paused audio queue has %d entries, video has %d entries",
           mAudioQueue.size(), mVideoQueue.size());
-
-    mPaused = true;
 }
 
 void NuPlayer::Renderer::onResume() {
@@ -911,9 +910,9 @@ void NuPlayer::Renderer::onResume() {
         mAudioSink->start();
     }
 
+    Mutex::Autolock autoLock(mLock);
     mPaused = false;
 
-    Mutex::Autolock autoLock(mLock);
     if (!mAudioQueue.empty()) {
         postDrainAudioQueue_l();
     }
