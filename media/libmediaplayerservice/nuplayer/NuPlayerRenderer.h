@@ -119,6 +119,7 @@ private:
     bool mSyncQueues;
 
     bool mPaused;
+    bool mVideoSampleReceived;
     bool mVideoRenderingStarted;
     int32_t mVideoRenderingStartGeneration;
     int32_t mAudioRenderingStartGeneration;
