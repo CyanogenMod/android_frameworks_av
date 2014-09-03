@@ -984,6 +984,8 @@ void NuPlayer::finishFlushIfPossible() {
 
     ALOGV("both audio and video are flushed now.");
 
+    mPendingAudioAccessUnit.clear();
+
     if (mTimeDiscontinuityPending) {
         mRenderer->signalTimeDiscontinuity();
         mTimeDiscontinuityPending = false;
@@ -1240,14 +1242,48 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
     sp<ABuffer> accessUnit;
 
+    // Aggregate smaller buffers into a larger buffer.
+    // The goal is to reduce power consumption.
+    // Unfortunately this does not work with the software AAC decoder.
+    // TODO optimize buffer size for power consumption
+    // The offload read buffer size is 32 KB but 24 KB uses less power.
+    const int kAudioBigBufferSizeBytes = 24 * 1024;
+    bool doBufferAggregation = (audio && mOffloadAudio);
+    sp<ABuffer> biggerBuffer;
+    bool needMoreData = false;
+    int numSmallBuffers = 0;
+    bool gotTime = false;
+
     bool dropAccessUnit;
     do {
-        status_t err = mSource->dequeueAccessUnit(audio, &accessUnit);
+        status_t err;
+        // Did we save an accessUnit earlier because of a discontinuity?
+        if (audio && (mPendingAudioAccessUnit != NULL)) {
+            accessUnit = mPendingAudioAccessUnit;
+            mPendingAudioAccessUnit.clear();
+            err = mPendingAudioErr;
+            ALOGV("feedDecoderInputData() use mPendingAudioAccessUnit");
+        } else {
+            err = mSource->dequeueAccessUnit(audio, &accessUnit);
+        }
 
         if (err == -EWOULDBLOCK) {
-            return err;
+            ALOGD("feedDecoderInputData() got EWOULDBLOCK");
+            if (biggerBuffer == NULL) {
+                return err;
+            } else {
+                break; // Reply with data that we already have.
+            }
         } else if (err != OK) {
             if (err == INFO_DISCONTINUITY) {
+                if (biggerBuffer != NULL) {
+                    // We already have some data so save this for later.
+                    mPendingAudioErr = err;
+                    mPendingAudioAccessUnit = accessUnit;
+                    accessUnit.clear();
+                    ALOGD("feedDecoderInputData() save discontinuity for later");
+                    break;
+                }
                 int32_t type;
                 CHECK(accessUnit->meta()->findInt32("discontinuity", &type));
 
@@ -1352,7 +1388,52 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
             dropAccessUnit = true;
             ++mNumFramesDropped;
         }
-    } while (dropAccessUnit);
+
+        size_t smallSize = accessUnit->size();
+        needMoreData = false;
+        if (doBufferAggregation && (biggerBuffer == NULL)
+                // Don't bother if only room for a few small buffers.
+                && (smallSize < (kAudioBigBufferSizeBytes / 3))) {
+            // Create a larger buffer for combining smaller buffers from the extractor.
+            biggerBuffer = new ABuffer(kAudioBigBufferSizeBytes);
+            biggerBuffer->setRange(0, 0); // start empty
+        }
+
+        if (biggerBuffer != NULL) {
+            int64_t timeUs;
+            bool smallTimestampValid = accessUnit->meta()->findInt64("timeUs", &timeUs);
+            // Will the smaller buffer fit?
+            size_t bigSize = biggerBuffer->size();
+            size_t roomLeft = biggerBuffer->capacity() - bigSize;
+            // Should we save this small buffer for the next big buffer?
+            // If the first small buffer did not have a timestamp then save
+            // any buffer that does have a timestamp until the next big buffer.
+            if ((smallSize > roomLeft)
+                || (!gotTime && (numSmallBuffers > 0) && smallTimestampValid)) {
+                mPendingAudioErr = err;
+                mPendingAudioAccessUnit = accessUnit;
+                accessUnit.clear();
+            } else {
+                // Append small buffer to the bigger buffer.
+                memcpy(biggerBuffer->base() + bigSize, accessUnit->data(), smallSize);
+                bigSize += smallSize;
+                biggerBuffer->setRange(0, bigSize);
+
+                // Keep looping until we run out of room in the biggerBuffer.
+                needMoreData = true;
+
+                // Grab time from first small buffer if available.
+                if ((numSmallBuffers == 0) && smallTimestampValid) {
+                    biggerBuffer->meta()->setInt64("timeUs", timeUs);
+                    gotTime = true;
+                }
+
+                ALOGV("feedDecoderInputData() #%d, smallSize = %zu, bigSize = %zu, capacity = %zu",
+                        numSmallBuffers, smallSize, bigSize, biggerBuffer->capacity());
+                numSmallBuffers++;
+            }
+        }
+    } while (dropAccessUnit || needMoreData);
 
     // ALOGV("returned a valid buffer of %s data", audio ? "audio" : "video");
 
@@ -1368,7 +1449,13 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
         mCCDecoder->decode(accessUnit);
     }
 
-    reply->setBuffer("buffer", accessUnit);
+    if (biggerBuffer != NULL) {
+        ALOGV("feedDecoderInputData() reply with aggregated buffer, %d", numSmallBuffers);
+        reply->setBuffer("buffer", biggerBuffer);
+    } else {
+        reply->setBuffer("buffer", accessUnit);
+    }
+
     reply->post();
 
     return OK;

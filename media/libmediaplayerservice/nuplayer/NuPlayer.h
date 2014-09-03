@@ -157,6 +157,9 @@ private:
     // notion of time has changed.
     bool mTimeDiscontinuityPending;
 
+    sp<ABuffer> mPendingAudioAccessUnit;
+    status_t    mPendingAudioErr;
+
     FlushStatus mFlushingAudio;
     FlushStatus mFlushingVideo;
 
