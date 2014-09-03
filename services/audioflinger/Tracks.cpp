@@ -182,7 +182,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
 
 #ifdef TEE_SINK
         if (mTeeSinkTrackEnabled) {
-            NBAIO_Format pipeFormat = Format_from_SR_C(mSampleRate, mChannelCount);
+            NBAIO_Format pipeFormat = Format_from_SR_C(mSampleRate, mChannelCount, mFormat);
             if (Format_isValid(pipeFormat)) {
                 Pipe *pipe = new Pipe(mTeeSinkTrackFrames, pipeFormat);
                 size_t numCounterOffers = 0;
