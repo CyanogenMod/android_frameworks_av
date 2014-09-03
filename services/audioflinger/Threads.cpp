@@ -3663,6 +3663,10 @@ track_is_ready: ;
     // remove all the tracks that need to be...
     removeTracks_l(*tracksToRemove);
 
+    if (getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX) != 0) {
+        mEffectBufferValid = true;
+    }
+
     // sink or mix buffer must be cleared if all tracks are connected to an
     // effect chain as in this case the mixer will not write to the sink or mix buffer
     // and track effects will accumulate into it
