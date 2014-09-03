@@ -56,8 +56,6 @@ private:
 
     KeyedVector<uint32_t, sp<AMessage> > mReplies;
 
-    status_t postMessage_l(const sp<AMessage> &msg, int64_t delayUs);
-
     DISALLOW_EVIL_CONSTRUCTORS(ALooperRoster);
 };
 
