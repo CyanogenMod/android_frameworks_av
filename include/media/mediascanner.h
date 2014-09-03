@@ -122,7 +122,6 @@ public:
 protected:
     // default encoding from MediaScanner::mLocale
     String8 mLocale;
-    CharacterEncodingDetector *mEncodingDetector;
 };
 
 }; // namespace android

@@ -25,14 +25,10 @@
 
 namespace android {
 
-MediaScannerClient::MediaScannerClient()
-    :   mEncodingDetector(NULL)
-{
+MediaScannerClient::MediaScannerClient() {
 }
 
-MediaScannerClient::~MediaScannerClient()
-{
-    delete mEncodingDetector;
+MediaScannerClient::~MediaScannerClient() {
 }
 
 void MediaScannerClient::setLocale(const char* locale)
@@ -40,31 +36,16 @@ void MediaScannerClient::setLocale(const char* locale)
     mLocale = locale; // not currently used
 }
 
-void MediaScannerClient::beginFile()
-{
-    delete mEncodingDetector;
-    mEncodingDetector = new CharacterEncodingDetector();
+void MediaScannerClient::beginFile() {
 }
 
 status_t MediaScannerClient::addStringTag(const char* name, const char* value)
 {
-    mEncodingDetector->addTag(name, value);
+    handleStringTag(name, value);
     return OK;
 }
 
-void MediaScannerClient::endFile()
-{
-    mEncodingDetector->detectAndConvert();
-
-    int size = mEncodingDetector->size();
-    if (size) {
-        for (int i = 0; i < size; i++) {
-            const char *name;
-            const char *value;
-            mEncodingDetector->getTag(i, &name, &value);
-            handleStringTag(name, value);
-        }
-    }
+void MediaScannerClient::endFile() {
 }
 
 }  // namespace android
