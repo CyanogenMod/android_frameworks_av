@@ -145,6 +145,7 @@ private:
 NuPlayer::NuPlayer()
     : mUIDValid(false),
       mSourceFlags(0),
+      mCurrentPositionUs(0),
       mVideoIsAVC(false),
       mOffloadAudio(false),
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
@@ -540,6 +541,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         static_cast<NativeWindowWrapper *>(obj.get())));
 
             if (obj != NULL) {
+                mDeferredActions.push_back(new SeekAction(mCurrentPositionUs));
+
                 // If there is a new surface texture, instantiate decoders
                 // again if possible.
                 mDeferredActions.push_back(
@@ -860,6 +863,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else if (what == Renderer::kWhatPosition) {
                 int64_t positionUs;
                 CHECK(msg->findInt64("positionUs", &positionUs));
+                mCurrentPositionUs = positionUs;
 
                 CHECK(msg->findInt64("videoLateByUs", &mVideoLateByUs));
 

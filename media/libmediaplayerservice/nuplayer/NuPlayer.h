@@ -121,6 +121,7 @@ private:
     sp<Source> mSource;
     uint32_t mSourceFlags;
     sp<NativeWindowWrapper> mNativeWindow;
+    int64_t mCurrentPositionUs;
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
