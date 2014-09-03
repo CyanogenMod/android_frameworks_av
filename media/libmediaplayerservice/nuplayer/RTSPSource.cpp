@@ -30,6 +30,7 @@
 namespace android {
 
 const int64_t kNearEOSTimeoutUs = 2000000ll; // 2 secs
+const uint32_t kMaxNumKeepDamagedAccessUnits = 30;
 
 NuPlayer::RTSPSource::RTSPSource(
         const sp<AMessage> &notify,
@@ -48,6 +49,8 @@ NuPlayer::RTSPSource::RTSPSource(
       mFinalResult(OK),
       mDisconnectReplyID(0),
       mBuffering(true),
+      mIsH263(false),
+      mNumKeepDamagedAccessUnits(0),
       mSeekGeneration(0),
       mEOSTimeoutAudio(0),
       mEOSTimeoutVideo(0),
@@ -426,8 +429,15 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             int32_t damaged;
             if (accessUnit->meta()->findInt32("damaged", &damaged)
                     && damaged) {
-                ALOGI("dropping damaged access unit.");
-                break;
+                if (mIsH263 && mNumKeepDamagedAccessUnits < kMaxNumKeepDamagedAccessUnits) {
+                    ALOGI("keep a damaged  access unit");
+                    ++mNumKeepDamagedAccessUnits;
+                } else {
+                    ALOGI("dropping damaged access unit.");
+                    break;
+                }
+            } else {
+                mNumKeepDamagedAccessUnits = 0;
             }
 
             if (mTSParser != NULL) {
@@ -585,6 +595,10 @@ void NuPlayer::RTSPSource::onConnected() {
 
             mTSParser = new ATSParser;
             return;
+        }
+
+        if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_H263)) {
+            mIsH263 = true;
         }
 
         bool isAudio = !strncasecmp(mime, "audio/", 6);

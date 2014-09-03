@@ -600,8 +600,8 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     if (!meta->findInt32(kKeySampleBits, &bitWidth)) {
         ALOGV("bits per sample not set, using default %d", bitWidth);
     }
-#endif
     info.bit_width = bitWidth;
+#endif
 
     info.format = AUDIO_FORMAT_INVALID;
     if (mapMimeToAudioFormat(info.format, mime) != OK) {
