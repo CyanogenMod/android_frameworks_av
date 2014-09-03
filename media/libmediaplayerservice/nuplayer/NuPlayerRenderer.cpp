@@ -58,7 +58,8 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
       mLastPositionUpdateUs(-1ll),
-      mVideoLateByUs(0ll) {
+      mVideoLateByUs(0ll),
+      mVideoSampleReceived(false) {
 }
 
 NuPlayer::Renderer::~Renderer() {
@@ -491,7 +492,9 @@ int64_t NuPlayer::Renderer::getAudioPendingPlayoutUs() {
 }
 
 void NuPlayer::Renderer::postDrainVideoQueue() {
-    if (mDrainVideoQueuePending || mSyncQueues || mPaused) {
+    if (mDrainVideoQueuePending
+            || mSyncQueues
+            || (mPaused && mVideoSampleReceived)) {
         return;
     }
 
@@ -570,16 +573,22 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         realTimeUs = mediaTimeUs - mAnchorTimeMediaUs + mAnchorTimeRealUs;
     }
 
-    mVideoLateByUs = ALooper::GetNowUs() - realTimeUs;
-    bool tooLate = (mVideoLateByUs > 40000);
+    bool tooLate = false;
 
-    if (tooLate) {
-        ALOGV("video late by %lld us (%.2f secs)",
-             mVideoLateByUs, mVideoLateByUs / 1E6);
+    if (!mPaused) {
+        mVideoLateByUs = ALooper::GetNowUs() - realTimeUs;
+        tooLate = (mVideoLateByUs > 40000);
+
+        if (tooLate) {
+            ALOGV("video late by %lld us (%.2f secs)",
+                 mVideoLateByUs, mVideoLateByUs / 1E6);
+        } else {
+            ALOGV("rendering video at media time %.2f secs",
+                    (mFlags & FLAG_REAL_TIME ? realTimeUs :
+                    (realTimeUs + mAnchorTimeMediaUs - mAnchorTimeRealUs)) / 1E6);
+        }
     } else {
-        ALOGV("rendering video at media time %.2f secs",
-                (mFlags & FLAG_REAL_TIME ? realTimeUs :
-                (realTimeUs + mAnchorTimeMediaUs - mAnchorTimeRealUs)) / 1E6);
+        mVideoLateByUs = 0ll;
     }
 
     entry->mNotifyConsumed->setInt32("render", !tooLate);
@@ -587,12 +596,15 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
     mVideoQueue.erase(mVideoQueue.begin());
     entry = NULL;
 
-    if (!mVideoRenderingStarted) {
-        mVideoRenderingStarted = true;
-        notifyVideoRenderingStart();
-    }
+    mVideoSampleReceived = true;
 
-    notifyIfMediaRenderingStarted();
+    if (!mPaused) {
+        if (!mVideoRenderingStarted) {
+            mVideoRenderingStarted = true;
+            notifyVideoRenderingStart();
+        }
+        notifyIfMediaRenderingStarted();
+    }
 
     notifyPosition();
 }
@@ -791,6 +803,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         prepareForMediaRenderingStart();
     }
 
+    mVideoSampleReceived = false;
     notifyFlushComplete(audio);
 }
 
