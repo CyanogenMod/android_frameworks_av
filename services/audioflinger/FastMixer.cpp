@@ -420,7 +420,7 @@ void FastMixer::onWork()
         // if non-NULL, then duplicate write() to this non-blocking sink
         NBAIO_Sink* teeSink;
         if ((teeSink = current->mTeeSink) != NULL) {
-            (void) teeSink->write(mMixerBuffer, frameCount);
+            (void) teeSink->write(buffer, frameCount);
         }
         // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,
         //       but this code should be modified to handle both non-blocking and blocking sinks
