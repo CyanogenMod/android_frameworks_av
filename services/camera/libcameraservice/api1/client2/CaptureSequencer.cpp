@@ -445,11 +445,18 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardPrecaptureWait(
     if (mNewAEState) {
         if (!mAeInPrecapture) {
             // Waiting to see PRECAPTURE state
-            if (mAETriggerId == mTriggerId &&
-                    mAEState == ANDROID_CONTROL_AE_STATE_PRECAPTURE) {
-                ALOGV("%s: Got precapture start", __FUNCTION__);
-                mAeInPrecapture = true;
-                mTimeoutCount = kMaxTimeoutsForPrecaptureEnd;
+            if (mAETriggerId == mTriggerId) {
+                if (mAEState == ANDROID_CONTROL_AE_STATE_PRECAPTURE) {
+                    ALOGV("%s: Got precapture start", __FUNCTION__);
+                    mAeInPrecapture = true;
+                    mTimeoutCount = kMaxTimeoutsForPrecaptureEnd;
+                } else if (mAEState == ANDROID_CONTROL_AE_STATE_CONVERGED ||
+                        mAEState == ANDROID_CONTROL_AE_STATE_FLASH_REQUIRED) {
+                    // It is legal to transit to CONVERGED or FLASH_REQUIRED
+                    // directly after a trigger.
+                    ALOGV("%s: AE is already in good state, start capture", __FUNCTION__);
+                    return STANDARD_CAPTURE;
+                }
             }
         } else {
             // Waiting to see PRECAPTURE state end
