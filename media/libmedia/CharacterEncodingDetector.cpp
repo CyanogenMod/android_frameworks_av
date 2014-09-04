@@ -18,7 +18,7 @@
 #define LOG_TAG "CharacterEncodingDector"
 #include <utils/Log.h>
 
-#include "CharacterEncodingDetector.h"
+#include <CharacterEncodingDetector.h>
 #include "CharacterEncodingDetectorTables.h"
 
 #include "utils/Vector.h"
@@ -118,10 +118,12 @@ void CharacterEncodingDetector::detectAndConvert() {
             int32_t matches;
             const UCharsetMatch** ucma = ucsdet_detectAll(csd, &matches, &status);
             bool goodmatch = true;
+            int highest = 0;
             const UCharsetMatch* bestCombinedMatch = getPreferred(buf, strlen(buf),
-                    ucma, matches, &goodmatch);
+                    ucma, matches, &goodmatch, &highest);
 
-            if (!goodmatch && strlen(buf) < 20) {
+            ALOGV("goodmatch: %s, highest: %d", goodmatch ? "true" : "false", highest);
+            if (!goodmatch && (highest < 15 || strlen(buf) < 20)) {
                 ALOGV("not a good match, trying with more data");
                 // This string might be too short for ICU to do anything useful with.
                 // (real world example: "Björk" in ISO-8859-1 might be detected as GB18030, because
@@ -146,9 +148,10 @@ void CharacterEncodingDetector::detectAndConvert() {
                     ucsdet_setText(csd, buf, strlen(buf), &status);
                     ucma = ucsdet_detectAll(csd, &matches, &status);
                     bestCombinedMatch = getPreferred(buf, strlen(buf),
-                            ucma, matches, &goodmatch);
-                    if (!goodmatch) {
+                            ucma, matches, &goodmatch, &highest);
+                    if (!goodmatch && highest <= 15) {
                         ALOGV("still not a good match after adding printable tags");
+                        bestCombinedMatch = NULL;
                     }
                 } else {
                     ALOGV("no printable tags to add");
@@ -157,6 +160,8 @@ void CharacterEncodingDetector::detectAndConvert() {
 
             if (bestCombinedMatch != NULL) {
                 combinedenc = ucsdet_getName(bestCombinedMatch, &status);
+            } else {
+                combinedenc = "ISO-8859-1";
             }
         }
 
@@ -199,10 +204,17 @@ void CharacterEncodingDetector::detectAndConvert() {
             if (strcmp(enc,"UTF-8") != 0) {
                 // only convert if the source encoding isn't already UTF-8
                 ALOGV("@@@ using converter %s for %s", enc, mNames.getEntry(i));
+                status = U_ZERO_ERROR;
                 UConverter *conv = ucnv_open(enc, &status);
                 if (U_FAILURE(status)) {
-                    ALOGE("could not create UConverter for %s", enc);
-                    continue;
+                    ALOGW("could not create UConverter for %s (%d), falling back to ISO-8859-1",
+                            enc, status);
+                    status = U_ZERO_ERROR;
+                    conv = ucnv_open("ISO-8859-1", &status);
+                    if (U_FAILURE(status)) {
+                        ALOGW("could not create UConverter for ISO-8859-1 either");
+                        continue;
+                    }
                 }
 
                 // convert from native encoding to UTF-8
@@ -224,7 +236,16 @@ void CharacterEncodingDetector::detectAndConvert() {
                 } else {
                     // zero terminate
                     *target = 0;
-                    mValues.setEntry(i, buffer);
+                    // strip trailing spaces
+                    while (--target > buffer && *target == ' ') {
+                        *target = 0;
+                    }
+                    // skip leading spaces
+                    char *start = buffer;
+                    while (*start == ' ') {
+                        start++;
+                    }
+                    mValues.setEntry(i, start);
                 }
 
                 delete[] buffer;
@@ -261,7 +282,7 @@ void CharacterEncodingDetector::detectAndConvert() {
 const UCharsetMatch *CharacterEncodingDetector::getPreferred(
         const char *input, size_t len,
         const UCharsetMatch** ucma, size_t nummatches,
-        bool *goodmatch) {
+        bool *goodmatch, int *highestmatch) {
 
     *goodmatch = false;
     Vector<const UCharsetMatch*> matches;
@@ -316,11 +337,17 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
         }
 
         ALOGV("%zu: %s %d", i, encname, confidence);
+        status = U_ZERO_ERROR;
         UConverter *conv = ucnv_open(encname, &status);
+        int demerit = 0;
+        if (U_FAILURE(status)) {
+            ALOGV("failed to open %s: %d", encname, status);
+            confidence = 0;
+            demerit += 1000;
+        }
         const char *source = input;
         const char *sourceLimit = input + len;
         status = U_ZERO_ERROR;
-        int demerit = 0;
         int frequentchars = 0;
         int totalchars = 0;
         while (true) {
@@ -337,7 +364,8 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
             if (c < 0x20 || (c >= 0x7f && c <= 0x009f)) {
                 ALOGV("control character %x", c);
                 demerit += 100;
-            } else if ((c >= 0xa0 && c <= 0xbe)         // symbols, superscripts
+            } else if ((c == 0xa0)                      // no-break space
+                    || (c >= 0xa2 && c <= 0xbe)         // symbols, superscripts
                     || (c == 0xd7) || (c == 0xf7)       // multiplication and division signs
                     || (c >= 0x2000 && c <= 0x209f)) {  // punctuation, superscripts
                 ALOGV("unlikely character %x", c);
@@ -408,10 +436,14 @@ const UCharsetMatch *CharacterEncodingDetector::getPreferred(
     } else {
         ALOGV("runner up: '%s' w/ %d confidence",
                 ucsdet_getName(matches[runnerupidx], &status), runnerup);
+        if (runnerup < 0) {
+            runnerup = 0;
+        }
         if ((highest - runnerup) > 15) {
             *goodmatch = true;
         }
     }
+    *highestmatch = highest;
     return matches[highestidx];
 }
 
