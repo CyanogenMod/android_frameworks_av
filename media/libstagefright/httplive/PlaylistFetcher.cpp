@@ -490,11 +490,11 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
 
     mStreamTypeMask = streamTypeMask;
 
-    mStartTimeUs = startTimeUs;
     mSegmentStartTimeUs = segmentStartTimeUs;
     mDiscontinuitySeq = startDiscontinuitySeq;
 
-    if (mStartTimeUs >= 0ll) {
+    if (startTimeUs >= 0) {
+        mStartTimeUs = startTimeUs;
         mSeqNumber = -1;
         mStartup = true;
         mPrepared = false;
