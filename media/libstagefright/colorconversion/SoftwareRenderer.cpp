@@ -122,6 +122,7 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
                 break;
             }
             case OMX_COLOR_Format32bitARGB8888:
+            case OMX_COLOR_Format32BitRGBA8888:
             {
                 halFormat = HAL_PIXEL_FORMAT_RGBA_8888;
                 bufWidth = (mCropWidth + 1) & ~1;
@@ -307,6 +308,15 @@ void SoftwareRenderer::render(
                 }
                 *dstPtr++ = a;  // alpha last (ARGB to RGBA)
             }
+        }
+    } else if (mColorFormat == OMX_COLOR_Format32BitRGBA8888) {
+        uint8_t* srcPtr = (uint8_t*)data;
+        uint8_t* dstPtr = (uint8_t*)dst;
+
+        for (size_t y = 0; y < (size_t)mCropHeight; ++y) {
+            memcpy(dstPtr, srcPtr, mCropWidth * 4);
+            srcPtr += mWidth * 4;
+            dstPtr += buf->stride * 4;
         }
     } else {
         LOG_ALWAYS_FATAL("bad color format %#x", mColorFormat);
