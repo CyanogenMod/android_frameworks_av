@@ -338,7 +338,7 @@ void TimedEventQueue::acquireWakeLock_l()
             status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                                                              binder,
                                                              String16("TimedEventQueue"),
-                                                             String16("media"));
+                                                             String16("media"));    // not oneway
             IPCThreadState::self()->restoreCallingIdentity(token);
             if (status == NO_ERROR) {
                 mWakeLockToken = binder;
@@ -363,7 +363,7 @@ void TimedEventQueue::releaseWakeLock_l(bool force)
         CHECK(mWakeLockToken != 0);
         if (mPowerManager != 0) {
             int64_t token = IPCThreadState::self()->clearCallingIdentity();
-            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0);  // not oneway
             IPCThreadState::self()->restoreCallingIdentity(token);
         }
         mWakeLockToken.clear();
