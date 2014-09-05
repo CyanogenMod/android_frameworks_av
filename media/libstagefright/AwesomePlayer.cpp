@@ -247,6 +247,7 @@ AwesomePlayer::AwesomePlayer()
 
     mDurationUs = -1;
     mAudioTearDownPosition = 0;
+    mVideoFrameDeltaUs = 0;
 
     reset();
 }
@@ -2177,16 +2178,23 @@ void AwesomePlayer::onVideoEvent() {
             }
         }
 
-        if (latenessUs < -30000) {
+        // Queueing early-frames helps absorb scheduling jitters and is desirable
+        // for high-framerate content. However, for sub-30fps, this simply
+        // seems to increase display-updates. Queue early selectively for >30fps
+        int64_t earlyRescheduleOffset = (mVideoFrameDeltaUs > 30000) ? -10000 : -30000;
+        if (latenessUs < earlyRescheduleOffset) {
 
             logOnTime(timeUs,nowUs,latenessUs);
             {
                 Mutex::Autolock autoLock(mStatsLock);
                 mStats.mConsecutiveFramesDropped = 0;
             }
-            // We're more than 30ms early, schedule at most 20 ms before time due
-            postVideoEvent_l(latenessUs < -60000 ? 30000 : -latenessUs - 20000);
-
+            if (mVideoFrameDeltaUs > 30000) {
+                // We're more than 30ms early, schedule at most 20 ms before time due
+                postVideoEvent_l(latenessUs < -60000 ? 30000 : -latenessUs - 20000);
+            } else {
+                postVideoEvent_l(latenessUs < -22000 ? 10000 : -latenessUs);
+            }
             return;
         }
     }
@@ -2273,6 +2281,7 @@ void AwesomePlayer::onVideoEvent() {
         int64_t nextTimeUs;
         CHECK(mVideoBuffer->meta_data()->findInt64(kKeyTime, &nextTimeUs));
         int64_t delayUs = nextTimeUs - ts->getRealTimeUs() + mTimeSourceDeltaUs;
+        mVideoFrameDeltaUs = nextTimeUs - timeUs;
         ATRACE_INT("Frame delta (ms)", (nextTimeUs - timeUs) / 1E3);
         ALOGV("next frame in %" PRId64, delayUs);
         // try to schedule 30ms before time due

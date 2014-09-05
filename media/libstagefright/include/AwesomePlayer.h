@@ -194,6 +194,7 @@ private:
 
     int64_t mTimeSourceDeltaUs;
     int64_t mVideoTimeUs;
+    int64_t mVideoFrameDeltaUs;
 
     enum SeekType {
         NO_SEEK,
