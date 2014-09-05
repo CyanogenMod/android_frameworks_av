@@ -84,6 +84,11 @@ private:
         kWhatSendTimedTextData,
         kWhatChangeAVSource,
         kWhatPollBuffering,
+        kWhatGetFormat,
+        kWhatGetSelectedTrack,
+        kWhatSelectTrack,
+        kWhatSeek,
+        kWhatReadBuffer,
     };
 
     Vector<sp<MediaSource> > mSources;
@@ -140,6 +145,18 @@ private:
 
     void notifyPreparedAndCleanup(status_t err);
 
+    void onGetFormatMeta(sp<AMessage> msg) const;
+    sp<MetaData> doGetFormatMeta(bool audio) const;
+
+    void onGetSelectedTrack(sp<AMessage> msg) const;
+    ssize_t doGetSelectedTrack(media_track_type type) const;
+
+    void onSelectTrack(sp<AMessage> msg);
+    status_t doSelectTrack(size_t trackIndex, bool select);
+
+    void onSeek(sp<AMessage> msg);
+    status_t doSeek(int64_t seekTimeUs);
+
     void onPrepareAsync();
 
     void fetchTextData(
@@ -155,6 +172,8 @@ private:
             media_track_type trackType,
             int64_t *actualTimeUs = NULL);
 
+    void postReadBuffer(media_track_type trackType);
+    void onReadBuffer(sp<AMessage> msg);
     void readBuffer(
             media_track_type trackType,
             int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL, bool formatChange = false);
