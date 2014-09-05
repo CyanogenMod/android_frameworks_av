@@ -278,6 +278,7 @@ private:
     bool                        mPrepareSync;
     status_t                    mPrepareStatus;
     audio_stream_type_t         mStreamType;
+    Parcel*                     mAudioAttributesParcel;
     bool                        mLoop;
     float                       mLeftVolume;
     float                       mRightVolume;
