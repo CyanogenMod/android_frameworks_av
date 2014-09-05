@@ -765,7 +765,16 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
         sp<AudioCommand> command2 = mAudioCommands[i];
         // commands are sorted by increasing time stamp: no need to scan the rest of mAudioCommands
         if (command2->mTime <= command->mTime) break;
-        if (command2->mCommand != command->mCommand) continue;
+
+        // create audio patch or release audio patch commands are equivalent
+        // with regard to filtering
+        if ((command->mCommand == CREATE_AUDIO_PATCH) ||
+                (command->mCommand == RELEASE_AUDIO_PATCH)) {
+            if ((command2->mCommand != CREATE_AUDIO_PATCH) &&
+                    (command2->mCommand != RELEASE_AUDIO_PATCH)) {
+                continue;
+            }
+        } else if (command2->mCommand != command->mCommand) continue;
 
         switch (command->mCommand) {
         case SET_PARAMETERS: {
@@ -817,6 +826,31 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
             // command status as the command is now delayed
             delayMs = 1;
         } break;
+
+        case CREATE_AUDIO_PATCH:
+        case RELEASE_AUDIO_PATCH: {
+            audio_patch_handle_t handle;
+            if (command->mCommand == CREATE_AUDIO_PATCH) {
+                handle = ((CreateAudioPatchData *)command->mParam.get())->mHandle;
+            } else {
+                handle = ((ReleaseAudioPatchData *)command->mParam.get())->mHandle;
+            }
+            audio_patch_handle_t handle2;
+            if (command2->mCommand == CREATE_AUDIO_PATCH) {
+                handle2 = ((CreateAudioPatchData *)command2->mParam.get())->mHandle;
+            } else {
+                handle2 = ((ReleaseAudioPatchData *)command2->mParam.get())->mHandle;
+            }
+            if (handle != handle2) break;
+            ALOGV("Filtering out %s audio patch command for handle %d",
+                  (command->mCommand == CREATE_AUDIO_PATCH) ? "create" : "release", handle);
+            removedCommands.add(command2);
+            command->mTime = command2->mTime;
+            // force delayMs to non 0 so that code below does not request to wait for
+            // command status as the command is now delayed
+            delayMs = 1;
+        } break;
+
         case START_TONE:
         case STOP_TONE:
         default:
