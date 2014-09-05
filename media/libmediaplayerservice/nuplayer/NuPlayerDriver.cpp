@@ -637,7 +637,7 @@ void NuPlayerDriver::notifyListener_l(
     switch (msg) {
         case MEDIA_PLAYBACK_COMPLETE:
         {
-            if (mLooping) {
+            if (mLooping && mState != STATE_RESET_IN_PROGRESS) {
                 mLock.unlock();
                 mPlayer->seekToAsync(0);
                 mLock.lock();

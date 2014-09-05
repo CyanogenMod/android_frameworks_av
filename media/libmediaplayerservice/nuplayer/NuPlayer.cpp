@@ -1669,6 +1669,14 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
           seekTimeUs,
           seekTimeUs / 1E6);
 
+    if (mSource == NULL) {
+        // This happens when reset occurs right before the loop mode
+        // asynchronously seeks to the start of the stream.
+        LOG_ALWAYS_FATAL_IF(mAudioDecoder != NULL || mVideoDecoder != NULL,
+                "mSource is NULL and decoders not NULL audio(%p) video(%p)",
+                mAudioDecoder.get(), mVideoDecoder.get());
+        return;
+    }
     mSource->seekTo(seekTimeUs);
     ++mTimedTextGeneration;
 
