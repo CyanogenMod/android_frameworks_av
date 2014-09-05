@@ -8,6 +8,7 @@ LOCAL_SRC_FILES := \
         GraphicBufferListener.cpp \
         IntrinsicBlurFilter.cpp   \
         MediaFilter.cpp           \
+        RSFilter.cpp              \
         SaturationFilter.cpp      \
         saturationARGB.rs         \
         SimpleFilter.cpp          \
