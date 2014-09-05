@@ -52,6 +52,9 @@ struct Parameters {
     int previewTransform; // set by CAMERA_CMD_SET_DISPLAY_ORIENTATION
 
     int pictureWidth, pictureHeight;
+    // Store the picture size before they are overriden by video snapshot
+    int pictureWidthLastSet, pictureHeightLastSet;
+    bool pictureSizeOverriden;
 
     int32_t jpegThumbSize[2];
     uint8_t jpegQuality, jpegThumbQuality;
@@ -253,6 +256,12 @@ struct Parameters {
     // Add/update JPEG entries in metadata
     status_t updateRequestJpeg(CameraMetadata *request) const;
 
+    /* Helper functions to override jpeg size for video snapshot */
+    // Override jpeg size by video size. Called during startRecording.
+    status_t overrideJpegSizeByVideoSize();
+    // Recover overridden jpeg size.  Called during stopRecording.
+    status_t recoverOverriddenJpegSize();
+
     // Calculate the crop region rectangle based on current stream sizes
     struct CropRegion {
         float left;
@@ -347,6 +356,12 @@ private:
     status_t getFilteredSizes(Size limit, Vector<Size> *sizes);
     // Get max size (from the size array) that matches the given aspect ratio.
     Size getMaxSizeForRatio(float ratio, const int32_t* sizeArray, size_t count);
+
+    // Helper function for overriding jpeg size for video snapshot
+    // Check if overridden jpeg size needs to be updated after Parameters::set.
+    // The behavior of this function is tailored to the implementation of Parameters::set.
+    // Do not use this function for other purpose.
+    status_t updateOverriddenJpegSize();
 
     struct StreamConfiguration {
         int32_t format;

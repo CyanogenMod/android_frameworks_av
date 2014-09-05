@@ -1088,6 +1088,22 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
 
     res = mStreamingProcessor->startStream(StreamingProcessor::RECORD,
             outputStreams);
+    // try to reconfigure jpeg to video size if configureStreams failed
+    if (res == BAD_VALUE) {
+
+        ALOGV("%s: Camera %d: configure still size to video size before recording"
+                , __FUNCTION__, mCameraId);
+        params.overrideJpegSizeByVideoSize();
+        res = updateProcessorStream(mJpegProcessor, params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't configure still image size to video size: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
+        res = mStreamingProcessor->startStream(StreamingProcessor::RECORD,
+                outputStreams);
+    }
+
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to start recording stream: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1127,6 +1143,7 @@ void Camera2Client::stopRecording() {
 
     mCameraService->playSound(CameraService::SOUND_RECORDING);
 
+    l.mParameters.recoverOverriddenJpegSize();
     res = startPreviewL(l.mParameters, true);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to return to preview",

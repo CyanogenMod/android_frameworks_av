@@ -601,10 +601,18 @@ sp<Camera3Device::CaptureRequest> Camera3Device::setUpRequestLocked(
 
     if (mStatus == STATUS_UNCONFIGURED || mNeedConfig) {
         res = configureStreamsLocked();
+        // Stream configuration failed due to unsupported configuration.
+        // Device back to unconfigured state. Client might try other configuraitons
+        if (res == BAD_VALUE && mStatus == STATUS_UNCONFIGURED) {
+            CLOGE("No streams configured");
+            return NULL;
+        }
+        // Stream configuration failed for other reason. Fatal.
         if (res != OK) {
             SET_ERR_L("Can't set up streams: %s (%d)", strerror(-res), res);
             return NULL;
         }
+        // Stream configuration successfully configure to empty stream configuration.
         if (mStatus == STATUS_UNCONFIGURED) {
             CLOGE("No streams configured");
             return NULL;
