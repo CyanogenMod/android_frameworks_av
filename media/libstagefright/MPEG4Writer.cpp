@@ -2160,15 +2160,25 @@ status_t MPEG4Writer::Track::threadEntry() {
             continue;
         }
 
-        // Make a deep copy of the MediaBuffer and Metadata and release
-        // the original as soon as we can
-        MediaBuffer *copy = new MediaBuffer(buffer->range_length());
-        memcpy(copy->data(), (uint8_t *)buffer->data() + buffer->range_offset(),
-                buffer->range_length());
-        copy->set_range(0, buffer->range_length());
-        meta_data = new MetaData(*buffer->meta_data().get());
-        buffer->release();
-        buffer = NULL;
+        MediaBuffer *copy = NULL;
+        int32_t deferRelease = false;
+        // Check if the upstream source hints it is OK to hold on to the
+        // buffer without releasing immediately and avoid cloning the buffer
+        buffer->meta_data()->findInt32(kKeyCanDeferRelease, &deferRelease);
+        if (deferRelease) {
+            copy = buffer;
+            meta_data = new MetaData(*buffer->meta_data().get());
+        } else {
+            // Make a deep copy of the MediaBuffer and Metadata and release
+            // the original as soon as we can
+            copy = new MediaBuffer(buffer->range_length());
+            memcpy(copy->data(), (uint8_t *)buffer->data() + buffer->range_offset(),
+                    buffer->range_length());
+            copy->set_range(0, buffer->range_length());
+            meta_data = new MetaData(*buffer->meta_data().get());
+            buffer->release();
+            buffer = NULL;
+        }
 
         if (mIsAvc) StripStartcode(copy);
 

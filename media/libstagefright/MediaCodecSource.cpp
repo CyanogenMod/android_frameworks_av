@@ -698,6 +698,7 @@ status_t MediaCodecSource::doMoreWork(int32_t numInput, int32_t numOutput) {
 
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
             memcpy(mbuf->data(), outbuf->data(), outbuf->size());
+            mbuf->meta_data()->setInt32(kKeyCanDeferRelease, true);
 
             if (!(flags & MediaCodec::BUFFER_FLAG_CODECCONFIG)) {
                 if (mIsVideo) {
