@@ -1540,6 +1540,10 @@ void NuPlayer::flushDecoder(
         ALOGE_IF(mFlushingVideo != NONE,
                 "video flushDecoder() is called in state %d", mFlushingVideo);
         mFlushingVideo = newStatus;
+
+        if (mCCDecoder != NULL) {
+            mCCDecoder->flush();
+        }
     }
 }
 
