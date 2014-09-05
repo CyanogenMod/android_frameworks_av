@@ -32,6 +32,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
 #include "../../libstagefright/include/DRMExtractor.h"
 #include "../../libstagefright/include/NuCachedSource2.h"
 #include "../../libstagefright/include/WVMExtractor.h"
@@ -318,7 +319,14 @@ void NuPlayer::GenericSource::onPrepareAsync() {
     }
 
     if (mVideoTrack.mSource != NULL) {
-        notifyVideoSizeChanged(getFormat(false /* audio */));
+        sp<MetaData> meta = doGetFormatMeta(false /* audio */);
+        sp<AMessage> msg = new AMessage;
+        err = convertMetaDataToMessage(meta, &msg);
+        if(err != OK) {
+            notifyPreparedAndCleanup(err);
+            return;
+        }
+        notifyVideoSizeChanged(msg);
     }
 
     notifyFlagsChanged(
@@ -422,7 +430,7 @@ void NuPlayer::GenericSource::start() {
         mAudioTrack.mPackets =
             new AnotherPacketSource(mAudioTrack.mSource->getFormat());
 
-        readBuffer(MEDIA_TRACK_TYPE_AUDIO);
+        postReadBuffer(MEDIA_TRACK_TYPE_AUDIO);
     }
 
     if (mVideoTrack.mSource != NULL) {
@@ -430,7 +438,7 @@ void NuPlayer::GenericSource::start() {
         mVideoTrack.mPackets =
             new AnotherPacketSource(mVideoTrack.mSource->getFormat());
 
-        readBuffer(MEDIA_TRACK_TYPE_VIDEO);
+        postReadBuffer(MEDIA_TRACK_TYPE_VIDEO);
     }
 
     setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
@@ -459,6 +467,8 @@ void NuPlayer::GenericSource::setDrmPlaybackStatusIfNeeded(int playbackStatus, i
     if (mDecryptHandle != NULL) {
         mDrmManagerClient->setPlaybackStatus(mDecryptHandle, playbackStatus, position);
     }
+    mSubtitleTrack.mPackets = new AnotherPacketSource(NULL);
+    mTimedTextTrack.mPackets = new AnotherPacketSource(NULL);
 }
 
 status_t NuPlayer::GenericSource::feedMoreTSData() {
@@ -615,6 +625,37 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           }
           break;
       }
+
+      case kWhatGetFormat:
+      {
+          onGetFormatMeta(msg);
+          break;
+      }
+
+      case kWhatGetSelectedTrack:
+      {
+          onGetSelectedTrack(msg);
+          break;
+      }
+
+      case kWhatSelectTrack:
+      {
+          onSelectTrack(msg);
+          break;
+      }
+
+      case kWhatSeek:
+      {
+          onSeek(msg);
+          break;
+      }
+
+      case kWhatReadBuffer:
+      {
+          onReadBuffer(msg);
+          break;
+      }
+
       default:
           Source::onMessageReceived(msg);
           break;
@@ -690,6 +731,34 @@ void NuPlayer::GenericSource::sendTextData(
 }
 
 sp<MetaData> NuPlayer::GenericSource::getFormatMeta(bool audio) {
+    sp<AMessage> msg = new AMessage(kWhatGetFormat, id());
+    msg->setInt32("audio", audio);
+
+    sp<AMessage> response;
+    void *format;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findPointer("format", &format));
+        return (MetaData *)format;
+    } else {
+        return NULL;
+    }
+}
+
+void NuPlayer::GenericSource::onGetFormatMeta(sp<AMessage> msg) const {
+    int32_t audio;
+    CHECK(msg->findInt32("audio", &audio));
+
+    sp<AMessage> response = new AMessage;
+    sp<MetaData> format = doGetFormatMeta(audio);
+    response->setPointer("format", format.get());
+
+    uint32_t replyID;
+    CHECK(msg->senderAwaitsResponse(&replyID));
+    response->postReply(replyID);
+}
+
+sp<MetaData> NuPlayer::GenericSource::doGetFormatMeta(bool audio) const {
     sp<MediaSource> source = audio ? mAudioTrack.mSource : mVideoTrack.mSource;
 
     if (source == NULL) {
@@ -709,7 +778,7 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
 
     if (mIsWidevine && !audio) {
         // try to read a buffer as we may not have been able to the last time
-        readBuffer(MEDIA_TRACK_TYPE_VIDEO, -1ll);
+        postReadBuffer(MEDIA_TRACK_TYPE_VIDEO);
     }
 
     status_t finalResult;
@@ -720,18 +789,7 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
     status_t result = track->mPackets->dequeueAccessUnit(accessUnit);
 
     if (!track->mPackets->hasBufferAvailable(&finalResult)) {
-        readBuffer(audio? MEDIA_TRACK_TYPE_AUDIO : MEDIA_TRACK_TYPE_VIDEO, -1ll);
-    }
-
-    if (mSubtitleTrack.mSource == NULL && mTimedTextTrack.mSource == NULL) {
-        return result;
-    }
-
-    if (mSubtitleTrack.mSource != NULL) {
-        CHECK(mSubtitleTrack.mPackets != NULL);
-    }
-    if (mTimedTextTrack.mSource != NULL) {
-        CHECK(mTimedTextTrack.mPackets != NULL);
+        postReadBuffer(audio? MEDIA_TRACK_TYPE_AUDIO : MEDIA_TRACK_TYPE_VIDEO);
     }
 
     if (result != OK) {
@@ -825,6 +883,35 @@ sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
 }
 
 ssize_t NuPlayer::GenericSource::getSelectedTrack(media_track_type type) const {
+    sp<AMessage> msg = new AMessage(kWhatGetSelectedTrack, id());
+    msg->setInt32("type", type);
+
+    sp<AMessage> response;
+    int32_t index;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("index", &index));
+        return index;
+    } else {
+        return -1;
+    }
+}
+
+void NuPlayer::GenericSource::onGetSelectedTrack(sp<AMessage> msg) const {
+    int32_t tmpType;
+    CHECK(msg->findInt32("type", &tmpType));
+    media_track_type type = (media_track_type)tmpType;
+
+    sp<AMessage> response = new AMessage;
+    ssize_t index = doGetSelectedTrack(type);
+    response->setInt32("index", index);
+
+    uint32_t replyID;
+    CHECK(msg->senderAwaitsResponse(&replyID));
+    response->postReply(replyID);
+}
+
+ssize_t NuPlayer::GenericSource::doGetSelectedTrack(media_track_type type) const {
     const Track *track = NULL;
     switch (type) {
     case MEDIA_TRACK_TYPE_VIDEO:
@@ -852,6 +939,34 @@ ssize_t NuPlayer::GenericSource::getSelectedTrack(media_track_type type) const {
 
 status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
     ALOGV("%s track: %zu", select ? "select" : "deselect", trackIndex);
+    sp<AMessage> msg = new AMessage(kWhatSelectTrack, id());
+    msg->setInt32("trackIndex", trackIndex);
+    msg->setInt32("select", trackIndex);
+
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+
+    return err;
+}
+
+void NuPlayer::GenericSource::onSelectTrack(sp<AMessage> msg) {
+    int32_t trackIndex, select;
+    CHECK(msg->findInt32("trackIndex", &trackIndex));
+    CHECK(msg->findInt32("select", &select));
+
+    sp<AMessage> response = new AMessage;
+    status_t err = doSelectTrack(trackIndex, select);
+    response->setInt32("err", err);
+
+    uint32_t replyID;
+    CHECK(msg->senderAwaitsResponse(&replyID));
+    response->postReply(replyID);
+}
+
+status_t NuPlayer::GenericSource::doSelectTrack(size_t trackIndex, bool select) {
     if (trackIndex >= mSources.size()) {
         return BAD_INDEX;
     }
@@ -922,6 +1037,32 @@ status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
 }
 
 status_t NuPlayer::GenericSource::seekTo(int64_t seekTimeUs) {
+    sp<AMessage> msg = new AMessage(kWhatSeek, id());
+    msg->setInt64("seekTimeUs", seekTimeUs);
+
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+
+    return err;
+}
+
+void NuPlayer::GenericSource::onSeek(sp<AMessage> msg) {
+    int64_t seekTimeUs;
+    CHECK(msg->findInt64("seekTimeUs", &seekTimeUs));
+
+    sp<AMessage> response = new AMessage;
+    status_t err = doSeek(seekTimeUs);
+    response->setInt32("err", err);
+
+    uint32_t replyID;
+    CHECK(msg->senderAwaitsResponse(&replyID));
+    response->postReply(replyID);
+}
+
+status_t NuPlayer::GenericSource::doSeek(int64_t seekTimeUs) {
     if (mVideoTrack.mSource != NULL) {
         int64_t actualTimeUs;
         readBuffer(MEDIA_TRACK_TYPE_VIDEO, seekTimeUs, &actualTimeUs);
@@ -1004,6 +1145,19 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
     mb = NULL;
 
     return ab;
+}
+
+void NuPlayer::GenericSource::postReadBuffer(media_track_type trackType) {
+    sp<AMessage> msg = new AMessage(kWhatReadBuffer, id());
+    msg->setInt32("trackType", trackType);
+    msg->post();
+}
+
+void NuPlayer::GenericSource::onReadBuffer(sp<AMessage> msg) {
+    int32_t tmpType;
+    CHECK(msg->findInt32("trackType", &tmpType));
+    media_track_type trackType = (media_track_type)tmpType;
+    readBuffer(trackType);
 }
 
 void NuPlayer::GenericSource::readBuffer(
