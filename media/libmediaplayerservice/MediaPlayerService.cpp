@@ -204,6 +204,8 @@ const int32_t kAudioAttributesMarshallTagFlattenTags = 1;
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 // |                       content_type                            |
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                       source                                  |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 // |                       flags                                   |
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 // |                       kAudioAttributesMarshallTagFlattenTags  | // ignore tags if not found
@@ -219,6 +221,7 @@ void unmarshallAudioAttributes(const Parcel& parcel, audio_attributes_t *attribu
 {
     attributes->usage = (audio_usage_t) parcel.readInt32();
     attributes->content_type = (audio_content_type_t) parcel.readInt32();
+    attributes->source = (audio_source_t) parcel.readInt32();
     attributes->flags = (audio_flags_mask_t) parcel.readInt32();
     const bool hasFlattenedTag = (parcel.readInt32() == kAudioAttributesMarshallTagFlattenTags);
     if (hasFlattenedTag) {
