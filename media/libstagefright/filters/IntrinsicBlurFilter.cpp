@@ -31,9 +31,7 @@ status_t IntrinsicBlurFilter::start() {
     // TODO: use a single RS context object for entire application
     mRS = new RSC::RS();
 
-    // only legitimate because this is a standalone executable
-    // TODO: do we need to dynamically determine the cache directory?
-    if (!mRS->init("/system/bin")) {
+    if (!mRS->init(mCacheDir.c_str())) {
         ALOGE("Failed to initialize RenderScript context.");
         return NO_INIT;
     }

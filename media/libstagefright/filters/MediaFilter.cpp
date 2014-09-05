@@ -22,6 +22,7 @@
 
 #include <binder/MemoryDealer.h>
 
+#include <media/stagefright/BufferProducerWrapper.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -30,6 +31,8 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaFilter.h>
 
+#include "ColorConvert.h"
+#include "GraphicBufferListener.h"
 #include "IntrinsicBlurFilter.h"
 #include "SaturationFilter.h"
 #include "ZeroFilter.h"
@@ -41,7 +44,8 @@ static const size_t kBufferCountActual = 4;
 
 MediaFilter::MediaFilter()
     : mState(UNINITIALIZED),
-      mGeneration(0) {
+      mGeneration(0),
+      mGraphicBufferListener(NULL) {
 }
 
 MediaFilter::~MediaFilter() {
@@ -152,6 +156,21 @@ void MediaFilter::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatSetParameters:
         {
             onSetParameters(msg);
+            break;
+        }
+        case kWhatCreateInputSurface:
+        {
+            onCreateInputSurface();
+            break;
+        }
+        case GraphicBufferListener::kWhatFrameAvailable:
+        {
+            onInputFrameAvailable();
+            break;
+        }
+        case kWhatSignalEndOfInputStream:
+        {
+            onSignalEndOfInputStream();
             break;
         }
         default:
@@ -400,7 +419,11 @@ void MediaFilter::processBuffers() {
                 inputInfo->mBufferID, inputInfo->mData->size(),
                 outputInfo->mBufferID, outputInfo->mData->size());
 
-    postFillThisBuffer(inputInfo);
+    if (mGraphicBufferListener != NULL) {
+        delete inputInfo;
+    } else {
+        postFillThisBuffer(inputInfo);
+    }
     postDrainThisBuffer(outputInfo);
 
     // prevent any corner case where buffers could get stuck in queue
@@ -468,11 +491,19 @@ void MediaFilter::onConfigureComponent(const sp<AMessage> &msg) {
         mColorFormatIn = OMX_COLOR_Format32bitARGB8888;
     }
     mColorFormatOut = mColorFormatIn;
+
     mMaxOutputSize = mWidth * mHeight * 4;  // room for ARGB8888
+
+    AString cacheDir;
+    if (!msg->findString("cacheDir", &cacheDir)) {
+        ALOGE("Failed to find cache directory in config message.");
+        signalError(NAME_NOT_FOUND);
+        return;
+    }
 
     status_t err;
     err = mFilter->configure(
-            mWidth, mHeight, mStride, mSliceHeight, mColorFormatIn);
+            mWidth, mHeight, mStride, mSliceHeight, mColorFormatIn, cacheDir);
     if (err != (status_t)OK) {
         ALOGE("Failed to configure filter component, err %d", err);
         signalError(err);
@@ -595,8 +626,7 @@ void MediaFilter::onInputBufferFilled(const sp<AMessage> &msg) {
         mInputEOSResult = err;
     }
 
-    ALOGV("Handled kWhatInputBufferFilled. [ID %u]",
-            bufferID);
+    ALOGV("Handled kWhatInputBufferFilled. [ID %u]", bufferID);
 }
 
 void MediaFilter::onOutputBufferDrained(const sp<AMessage> &msg) {
@@ -671,6 +701,96 @@ void MediaFilter::onSetParameters(const sp<AMessage> &msg) {
     if (err != (status_t)OK) {
         ALOGE("setParameters returned err %d", err);
     }
+}
+
+void MediaFilter::onCreateInputSurface() {
+    CHECK(mState == CONFIGURED);
+
+    mGraphicBufferListener = new GraphicBufferListener;
+
+    sp<AMessage> notify = new AMessage();
+    notify->setTarget(id());
+    status_t err = mGraphicBufferListener->init(
+            notify, mStride, mSliceHeight, kBufferCountActual);
+
+    if (err != OK) {
+        ALOGE("Failed to init mGraphicBufferListener: %d", err);
+        signalError(err);
+        return;
+    }
+
+    sp<AMessage> reply = mNotify->dup();
+    reply->setInt32("what", CodecBase::kWhatInputSurfaceCreated);
+    reply->setObject(
+            "input-surface",
+            new BufferProducerWrapper(
+                    mGraphicBufferListener->getIGraphicBufferProducer()));
+    reply->post();
+}
+
+void MediaFilter::onInputFrameAvailable() {
+    BufferQueue::BufferItem item = mGraphicBufferListener->getBufferItem();
+    sp<GraphicBuffer> buf = mGraphicBufferListener->getBuffer(item);
+
+    // get pointer to graphic buffer
+    void* bufPtr;
+    buf->lock(GraphicBuffer::USAGE_SW_READ_OFTEN, &bufPtr);
+
+    // HACK - there is no OMX_COLOR_FORMATTYPE value for RGBA, so the format
+    // conversion is hardcoded until we add this.
+    // TODO: check input format and convert only if necessary
+    // copy RGBA graphic buffer into temporary ARGB input buffer
+    BufferInfo *inputInfo = new BufferInfo;
+    inputInfo->mData = new ABuffer(buf->getWidth() * buf->getHeight() * 4);
+    ALOGV("Copying surface data into temp buffer.");
+    convertRGBAToARGB(
+            (uint8_t*)bufPtr, buf->getWidth(), buf->getHeight(),
+            buf->getStride(), inputInfo->mData->data());
+    inputInfo->mBufferID = item.mBuf;
+    inputInfo->mGeneration = mGeneration;
+    inputInfo->mOutputFlags = 0;
+    inputInfo->mStatus = BufferInfo::OWNED_BY_US;
+    inputInfo->mData->meta()->setInt64("timeUs", item.mTimestamp / 1000);
+
+    mAvailableInputBuffers.push_back(inputInfo);
+
+    mGraphicBufferListener->releaseBuffer(item);
+
+    signalProcessBuffers();
+}
+
+void MediaFilter::onSignalEndOfInputStream() {
+    // if using input surface, need to send an EOS output buffer
+    if (mGraphicBufferListener != NULL) {
+        Vector<BufferInfo> *outputBufs = &mBuffers[kPortIndexOutput];
+        BufferInfo* eosBuf;
+        bool foundBuf = false;
+        for (size_t i = 0; i < kBufferCountActual; i++) {
+            eosBuf = &outputBufs->editItemAt(i);
+            if (eosBuf->mStatus == BufferInfo::OWNED_BY_US) {
+                foundBuf = true;
+                break;
+            }
+        }
+
+        if (!foundBuf) {
+            ALOGE("onSignalEndOfInputStream failed to find an output buffer");
+            return;
+        }
+
+        eosBuf->mOutputFlags = OMX_BUFFERFLAG_EOS;
+        eosBuf->mGeneration = mGeneration;
+        eosBuf->mData->setRange(0, 0);
+        postDrainThisBuffer(eosBuf);
+        ALOGV("Posted EOS on output buffer %zu", eosBuf->mBufferID);
+    }
+
+    mPortEOS[kPortIndexOutput] = true;
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", CodecBase::kWhatSignaledInputEOS);
+    notify->post();
+
+    ALOGV("Output stream saw EOS.");
 }
 
 }   // namespace android

@@ -22,6 +22,7 @@
 namespace android {
 
 struct ABuffer;
+struct GraphicBufferListener;
 struct MemoryDealer;
 struct SimpleFilter;
 
@@ -129,6 +130,7 @@ private:
     bool mPortEOS[2];
 
     sp<SimpleFilter> mFilter;
+    sp<GraphicBufferListener> mGraphicBufferListener;
 
     // helper functions
     void signalProcessBuffers();
@@ -153,6 +155,9 @@ private:
     void onShutdown(const sp<AMessage> &msg);
     void onFlush();
     void onSetParameters(const sp<AMessage> &msg);
+    void onCreateInputSurface();
+    void onInputFrameAvailable();
+    void onSignalEndOfInputStream();
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaFilter);
 };

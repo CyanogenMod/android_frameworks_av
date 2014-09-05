@@ -5,6 +5,7 @@ LOCAL_NDK_STL_VARIANT := stlport_static
 
 LOCAL_SRC_FILES := \
         ColorConvert.cpp          \
+        GraphicBufferListener.cpp \
         IntrinsicBlurFilter.cpp   \
         MediaFilter.cpp           \
         SaturationFilter.cpp      \

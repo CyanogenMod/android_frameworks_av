@@ -33,6 +33,11 @@ void convertYUV420spToRGB888(
         uint8_t *pY, uint8_t *pUV, int32_t width, int32_t height,
         uint8_t *dest);
 
+// TODO: remove when RGBA support is added to SoftwareRenderer
+void convertRGBAToARGB(
+        uint8_t *src, int32_t width, int32_t height, uint32_t stride,
+        uint8_t *dest);
+
 }   // namespace android
 
 #endif  // COLOR_CONVERT_H_
