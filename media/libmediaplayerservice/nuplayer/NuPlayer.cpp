@@ -541,7 +541,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         static_cast<NativeWindowWrapper *>(obj.get())));
 
             if (obj != NULL) {
-                mDeferredActions.push_back(new SeekAction(mCurrentPositionUs));
+                if (mStarted && mVideoDecoder != NULL) {
+                    // Issue a seek to refresh the video screen only if started otherwise
+                    // the extractor may not yet be started and will assert.
+                    // If the video decoder is not set (perhaps audio only in this case)
+                    // do not perform a seek as it is not needed.
+                    mDeferredActions.push_back(new SeekAction(mCurrentPositionUs));
+                }
 
                 // If there is a new surface texture, instantiate decoders
                 // again if possible.
