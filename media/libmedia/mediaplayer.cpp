@@ -50,6 +50,7 @@ MediaPlayer::MediaPlayer()
     mListener = NULL;
     mCookie = NULL;
     mStreamType = AUDIO_STREAM_MUSIC;
+    mAudioAttributesParcel = NULL;
     mCurrentPosition = -1;
     mSeekPosition = -1;
     mCurrentState = MEDIA_PLAYER_IDLE;
@@ -68,6 +69,10 @@ MediaPlayer::MediaPlayer()
 MediaPlayer::~MediaPlayer()
 {
     ALOGV("destructor");
+    if (mAudioAttributesParcel != NULL) {
+        delete mAudioAttributesParcel;
+        mAudioAttributesParcel = NULL;
+    }
     AudioSystem::releaseAudioSessionId(mAudioSessionId, -1);
     disconnect();
     IPCThreadState::self()->flushCommands();
@@ -237,6 +242,9 @@ status_t MediaPlayer::prepareAsync_l()
 {
     if ( (mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_INITIALIZED | MEDIA_PLAYER_STOPPED) ) ) {
         mPlayer->setAudioStreamType(mStreamType);
+        if (mAudioAttributesParcel != NULL) {
+            mPlayer->setParameter(KEY_PARAMETER_AUDIO_ATTRIBUTES, *mAudioAttributesParcel);
+        }
         mCurrentState = MEDIA_PLAYER_PREPARING;
         return mPlayer->prepareAsync();
     }
@@ -662,8 +670,17 @@ status_t MediaPlayer::setParameter(int key, const Parcel& request)
     if (mPlayer != NULL) {
         return  mPlayer->setParameter(key, request);
     }
-    ALOGV("setParameter: no active player");
-    return INVALID_OPERATION;
+    switch (key) {
+    case KEY_PARAMETER_AUDIO_ATTRIBUTES:
+        // no player, save the marshalled audio attributes
+        if (mAudioAttributesParcel != NULL) { delete mAudioAttributesParcel; };
+        mAudioAttributesParcel = new Parcel();
+        mAudioAttributesParcel->appendFrom(&request, 0, request.dataSize());
+        return OK;
+    default:
+        ALOGV("setParameter: no active player");
+        return INVALID_OPERATION;
+    }
 }
 
 status_t MediaPlayer::getParameter(int key, Parcel *reply)
