@@ -2810,7 +2810,6 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
 
     {
         if (objectType == AOT_SBR || objectType == AOT_PS) {
-            const int32_t extensionSamplingFrequency = br.getBits(4);
             objectType = br.getBits(5);
 
             if (objectType == AOT_ESCAPE) {
@@ -2828,9 +2827,30 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
                 const int32_t coreCoderDelay = br.getBits(14);
             }
 
-            const int32_t extensionFlag = br.getBits(1);
+            int32_t extensionFlag = -1;
+            if (br.numBitsLeft() > 0) {
+                extensionFlag = br.getBits(1);
+            } else {
+                switch (objectType) {
+                // 14496-3 4.5.1.1 extensionFlag
+                case AOT_AAC_LC:
+                    extensionFlag = 0;
+                    break;
+                case AOT_ER_AAC_LC:
+                case AOT_ER_AAC_SCAL:
+                case AOT_ER_BSAC:
+                case AOT_ER_AAC_LD:
+                    extensionFlag = 1;
+                    break;
+                default:
+                    TRESPASS();
+                    break;
+                }
+                ALOGW("csd missing extension flag; assuming %d for object type %u.",
+                        extensionFlag, objectType);
+            }
 
-            if (numChannels == 0 ) {
+            if (numChannels == 0) {
                 int32_t channelsEffectiveNum = 0;
                 int32_t channelsNum = 0;
                 const int32_t ElementInstanceTag = br.getBits(4);
