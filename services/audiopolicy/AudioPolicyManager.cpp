@@ -6032,14 +6032,26 @@ uint32_t AudioPolicyManager::AudioPort::pickSamplingRate() const
         return 0;
     }
 
+    // For direct outputs, pick minimum sampling rate: this helps ensuring that the
+    // channel count / sampling rate combination chosen will be supported by the connected
+    // sink
+    if ((mType == AUDIO_PORT_TYPE_MIX) && (mRole == AUDIO_PORT_ROLE_SOURCE) &&
+            (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))) {
+        uint32_t samplingRate = UINT_MAX;
+        for (size_t i = 0; i < mSamplingRates.size(); i ++) {
+            if ((mSamplingRates[i] < samplingRate) && (mSamplingRates[i] > 0)) {
+                samplingRate = mSamplingRates[i];
+            }
+        }
+        return (samplingRate == UINT_MAX) ? 0 : samplingRate;
+    }
+
     uint32_t samplingRate = 0;
     uint32_t maxRate = MAX_MIXER_SAMPLING_RATE;
 
     // For mixed output and inputs, use max mixer sampling rates. Do not
     // limit sampling rate otherwise
-    if ((mType != AUDIO_PORT_TYPE_MIX) ||
-            ((mRole == AUDIO_PORT_ROLE_SOURCE) &&
-            (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)))) {
+    if (mType != AUDIO_PORT_TYPE_MIX) {
         maxRate = UINT_MAX;
     }
     for (size_t i = 0; i < mSamplingRates.size(); i ++) {
@@ -6056,16 +6068,35 @@ audio_channel_mask_t AudioPolicyManager::AudioPort::pickChannelMask() const
     if (mChannelMasks.size() == 1 && mChannelMasks[0] == 0) {
         return AUDIO_CHANNEL_NONE;
     }
-
     audio_channel_mask_t channelMask = AUDIO_CHANNEL_NONE;
+
+    // For direct outputs, pick minimum channel count: this helps ensuring that the
+    // channel count / sampling rate combination chosen will be supported by the connected
+    // sink
+    if ((mType == AUDIO_PORT_TYPE_MIX) && (mRole == AUDIO_PORT_ROLE_SOURCE) &&
+            (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))) {
+        uint32_t channelCount = UINT_MAX;
+        for (size_t i = 0; i < mChannelMasks.size(); i ++) {
+            uint32_t cnlCount;
+            if (mUseInChannelMask) {
+                cnlCount = audio_channel_count_from_in_mask(mChannelMasks[i]);
+            } else {
+                cnlCount = audio_channel_count_from_out_mask(mChannelMasks[i]);
+            }
+            if ((cnlCount < channelCount) && (cnlCount > 0)) {
+                channelMask = mChannelMasks[i];
+                channelCount = cnlCount;
+            }
+        }
+        return channelMask;
+    }
+
     uint32_t channelCount = 0;
     uint32_t maxCount = MAX_MIXER_CHANNEL_COUNT;
 
     // For mixed output and inputs, use max mixer channel count. Do not
     // limit channel count otherwise
-    if ((mType != AUDIO_PORT_TYPE_MIX) ||
-            ((mRole == AUDIO_PORT_ROLE_SOURCE) &&
-            (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)))) {
+    if (mType != AUDIO_PORT_TYPE_MIX) {
         maxCount = UINT_MAX;
     }
     for (size_t i = 0; i < mChannelMasks.size(); i ++) {
@@ -6077,6 +6108,7 @@ audio_channel_mask_t AudioPolicyManager::AudioPort::pickChannelMask() const
         }
         if ((cnlCount > channelCount) && (cnlCount <= maxCount)) {
             channelMask = mChannelMasks[i];
+            channelCount = cnlCount;
         }
     }
     return channelMask;
