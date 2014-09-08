@@ -249,6 +249,9 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     // TODO: Pick maximum
     pictureWidth = availableJpegSizes[0].width;
     pictureHeight = availableJpegSizes[0].height;
+    pictureWidthLastSet = pictureWidth;
+    pictureHeightLastSet = pictureHeight;
+    pictureSizeOverriden = false;
 
     params.setPictureSize(pictureWidth,
             pictureHeight);
@@ -1381,8 +1384,8 @@ status_t Parameters::set(const String8& paramString) {
     // PICTURE_SIZE
     newParams.getPictureSize(&validatedParams.pictureWidth,
             &validatedParams.pictureHeight);
-    if (validatedParams.pictureWidth == pictureWidth ||
-            validatedParams.pictureHeight == pictureHeight) {
+    if (validatedParams.pictureWidth != pictureWidth ||
+            validatedParams.pictureHeight != pictureHeight) {
         Vector<Size> availablePictureSizes = getAvailableJpegSizes();
         for (i = 0; i < availablePictureSizes.size(); i++) {
             if ((availablePictureSizes[i].width ==
@@ -1798,6 +1801,7 @@ status_t Parameters::set(const String8& paramString) {
     /** Update internal parameters */
 
     *this = validatedParams;
+    updateOverriddenJpegSize();
 
     /** Update external parameters calculated from the internal ones */
 
@@ -2115,6 +2119,52 @@ status_t Parameters::updateRequestJpeg(CameraMetadata *request) const {
     return OK;
 }
 
+status_t Parameters::overrideJpegSizeByVideoSize() {
+    if (pictureSizeOverriden) {
+        ALOGV("Picture size has been overridden. Skip overriding");
+        return OK;
+    }
+
+    pictureSizeOverriden = true;
+    pictureWidthLastSet = pictureWidth;
+    pictureHeightLastSet = pictureHeight;
+    pictureWidth = videoWidth;
+    pictureHeight = videoHeight;
+    // This change of picture size is invisible to app layer.
+    // Do not update app visible params
+    return OK;
+}
+
+status_t Parameters::updateOverriddenJpegSize() {
+    if (!pictureSizeOverriden) {
+        ALOGV("Picture size has not been overridden. Skip checking");
+        return OK;
+    }
+
+    pictureWidthLastSet = pictureWidth;
+    pictureHeightLastSet = pictureHeight;
+
+    if (pictureWidth <= videoWidth && pictureHeight <= videoHeight) {
+        // Picture size is now smaller than video size. No need to override anymore
+        return recoverOverriddenJpegSize();
+    }
+
+    pictureWidth = videoWidth;
+    pictureHeight = videoHeight;
+
+    return OK;
+}
+
+status_t Parameters::recoverOverriddenJpegSize() {
+    if (!pictureSizeOverriden) {
+        ALOGV("Picture size has not been overridden. Skip recovering");
+        return OK;
+    }
+    pictureSizeOverriden = false;
+    pictureWidth = pictureWidthLastSet;
+    pictureHeight = pictureHeightLastSet;
+    return OK;
+}
 
 const char* Parameters::getStateName(State state) {
 #define CASE_ENUM_TO_CHAR(x) case x: return(#x); break;
