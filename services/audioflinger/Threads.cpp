@@ -662,12 +662,14 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
                     binder,
                     getWakeLockTag(),
                     String16("media"),
-                    uid);
+                    uid,
+                    true /* FIXME force oneway contrary to .aidl */);
         } else {
             status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
                     getWakeLockTag(),
-                    String16("media"));
+                    String16("media"),
+                    true /* FIXME force oneway contrary to .aidl */);
         }
         if (status == NO_ERROR) {
             mWakeLockToken = binder;
@@ -687,7 +689,8 @@ void AudioFlinger::ThreadBase::releaseWakeLock_l()
     if (mWakeLockToken != 0) {
         ALOGV("releaseWakeLock_l() %s", mName);
         if (mPowerManager != 0) {
-            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0,
+                    true /* FIXME force oneway contrary to .aidl */);
         }
         mWakeLockToken.clear();
     }
@@ -723,7 +726,8 @@ void AudioFlinger::ThreadBase::updateWakeLockUids_l(const SortedVector<int> &uid
     if (mPowerManager != 0) {
         sp<IBinder> binder = new BBinder();
         status_t status;
-        status = mPowerManager->updateWakeLockUids(mWakeLockToken, uids.size(), uids.array());
+        status = mPowerManager->updateWakeLockUids(mWakeLockToken, uids.size(), uids.array(),
+                    true /* FIXME force oneway contrary to .aidl */);
         ALOGV("acquireWakeLock_l() %s status %d", mName, status);
     }
 }
