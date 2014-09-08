@@ -582,9 +582,13 @@ const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
         }
         binder->linkToDeath(gAudioPolicyServiceClient);
         gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
-        gAudioPolicyService->registerClient(gAudioPolicyServiceClient);
         gLock.unlock();
+        // Registering the client takes the AudioPolicyService lock.
+        // Don't hold the AudioSystem lock at the same time.
+        gAudioPolicyService->registerClient(gAudioPolicyServiceClient);
     } else {
+        // There exists a benign race condition where gAudioPolicyService
+        // is set, but gAudioPolicyServiceClient is not yet registered.
         gLock.unlock();
     }
     return gAudioPolicyService;
