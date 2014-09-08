@@ -233,8 +233,7 @@ status_t Camera3Stream::cancelConfiguration() {
     camera3_stream::usage = oldUsage;
     camera3_stream::max_buffers = oldMaxBuffers;
 
-    mState = STATE_CONSTRUCTED;
-
+    mState = (mState == STATE_IN_RECONFIG) ? STATE_CONFIGURED : STATE_CONSTRUCTED;
     return OK;
 }
 
