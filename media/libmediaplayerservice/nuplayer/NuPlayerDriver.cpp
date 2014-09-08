@@ -627,11 +627,11 @@ void NuPlayerDriver::notifyListener_l(
         case MEDIA_PLAYBACK_COMPLETE:
         {
             if (mLooping && mState != STATE_RESET_IN_PROGRESS) {
-                mLock.unlock();
                 mPlayer->seekToAsync(0);
-                mLock.lock();
                 break;
             }
+            mPlayer->pause();
+            mState = STATE_PAUSED;
             // fall through
         }
 
