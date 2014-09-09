@@ -315,20 +315,24 @@ status_t Camera3ZslStream::enqueueInputBufferByTimestamp(
     return OK;
 }
 
-status_t Camera3ZslStream::clearInputRingBuffer() {
+status_t Camera3ZslStream::clearInputRingBuffer(nsecs_t* latestTimestamp) {
     Mutex::Autolock l(mLock);
 
-    return clearInputRingBufferLocked();
+    return clearInputRingBufferLocked(latestTimestamp);
 }
 
-status_t Camera3ZslStream::clearInputRingBufferLocked() {
+status_t Camera3ZslStream::clearInputRingBufferLocked(nsecs_t* latestTimestamp) {
+
+    if (latestTimestamp) {
+        *latestTimestamp = mProducer->getLatestTimestamp();
+    }
     mInputBufferQueue.clear();
 
     return mProducer->clear();
 }
 
 status_t Camera3ZslStream::disconnectLocked() {
-    clearInputRingBufferLocked();
+    clearInputRingBufferLocked(NULL);
 
     return Camera3OutputStream::disconnectLocked();
 }
