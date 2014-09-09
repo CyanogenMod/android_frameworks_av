@@ -713,7 +713,8 @@ protected:
                                             uint32_t delayMs);
 
         audio_io_handle_t selectOutput(const SortedVector<audio_io_handle_t>& outputs,
-                                       audio_output_flags_t flags);
+                                       audio_output_flags_t flags,
+                                       audio_format_t format);
         // samplingRate parameter is an in/out and so may be modified
         sp<IOProfile> getInputProfile(audio_devices_t device,
                                    uint32_t& samplingRate,
