@@ -489,6 +489,7 @@ void MediaFilter::onConfigureComponent(const sp<AMessage> &msg) {
     if (!msg->findInt32("color-format", &mColorFormatIn)) {
         // default to OMX_COLOR_Format32bitARGB8888
         mColorFormatIn = OMX_COLOR_Format32bitARGB8888;
+        msg->setInt32("color-format", mColorFormatIn);
     }
     mColorFormatOut = mColorFormatIn;
 
@@ -502,8 +503,7 @@ void MediaFilter::onConfigureComponent(const sp<AMessage> &msg) {
     }
 
     status_t err;
-    err = mFilter->configure(
-            mWidth, mHeight, mStride, mSliceHeight, mColorFormatIn, cacheDir);
+    err = mFilter->configure(msg);
     if (err != (status_t)OK) {
         ALOGE("Failed to configure filter component, err %d", err);
         signalError(err);
@@ -631,7 +631,7 @@ void MediaFilter::onInputBufferFilled(const sp<AMessage> &msg) {
 
 void MediaFilter::onOutputBufferDrained(const sp<AMessage> &msg) {
     IOMX::buffer_id bufferID;
-    CHECK(msg->findInt32("buffer-id",(int32_t*) &bufferID));
+    CHECK(msg->findInt32("buffer-id", (int32_t*)&bufferID));
     BufferInfo *info = findBufferByID(kPortIndexOutput, bufferID);
 
     if (mState != STARTED) {

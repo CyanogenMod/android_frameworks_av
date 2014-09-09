@@ -26,6 +26,7 @@ struct IntrinsicBlurFilter : public SimpleFilter {
 public:
     IntrinsicBlurFilter() : mBlurRadius(1.f) {};
 
+    virtual status_t configure(const sp<AMessage> &msg);
     virtual status_t start();
     virtual void reset();
     virtual status_t setParameters(const sp<AMessage> &msg);
@@ -36,6 +37,7 @@ protected:
     virtual ~IntrinsicBlurFilter() {};
 
 private:
+    AString mCacheDir;
     RSC::sp<RSC::RS> mRS;
     RSC::sp<RSC::Allocation> mAllocIn;
     RSC::sp<RSC::Allocation> mAllocOut;

@@ -31,22 +31,7 @@ public:
     SimpleFilter() : mWidth(0), mHeight(0), mStride(0), mSliceHeight(0),
             mColorFormatIn(0), mColorFormatOut(0) {};
 
-    // TODO: change this to take the configure AMessage so that parameters
-    // aren't hardcoded for all filters
-    virtual status_t configure(
-            int32_t srcWidth, int32_t srcHeight,
-            int32_t srcStride, int32_t srcSliceHeight,
-            int32_t srcColorFormat, AString cacheDir) {
-        mWidth = srcWidth;
-        mHeight = srcHeight;
-        mStride = srcStride;
-        mSliceHeight = srcSliceHeight;
-        mColorFormatIn = srcColorFormat;
-        mColorFormatOut = mColorFormatIn;
-        mCacheDir = cacheDir;
-
-        return OK;
-    }
+    virtual status_t configure(const sp<AMessage> &msg);
 
     virtual status_t start() = 0;
     virtual void reset() = 0;
@@ -58,7 +43,6 @@ protected:
     int32_t mWidth, mHeight;
     int32_t mStride, mSliceHeight;
     int32_t mColorFormatIn, mColorFormatOut;
-    AString mCacheDir;
 
     virtual ~SimpleFilter() {};
 };
