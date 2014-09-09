@@ -87,6 +87,7 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"highspeed480p", CAMCORDER_QUALITY_HIGH_SPEED_480P},
     {"highspeed720p", CAMCORDER_QUALITY_HIGH_SPEED_720P},
     {"highspeed1080p", CAMCORDER_QUALITY_HIGH_SPEED_1080P},
+    {"highspeed2160p", CAMCORDER_QUALITY_HIGH_SPEED_2160P},
 };
 
 #if LOG_NDEBUG
