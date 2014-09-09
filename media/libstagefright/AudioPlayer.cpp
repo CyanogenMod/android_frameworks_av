@@ -796,7 +796,7 @@ int64_t AudioPlayer::getOutputPlayPositionUs_l()
     if (mAudioSink != NULL) {
         mAudioSink->getPosition(&playedSamples);
         sampleRate = mAudioSink->getSampleRate();
-    } else {
+    } else if (mAudioTrack != NULL) {
         mAudioTrack->getPosition(&playedSamples);
         sampleRate = mAudioTrack->getSampleRate();
     }
