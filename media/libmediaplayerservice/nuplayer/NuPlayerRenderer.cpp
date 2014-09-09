@@ -30,6 +30,10 @@
 
 namespace android {
 
+// Maximum time in paused state when offloading audio decompression. When elapsed, the AudioSink
+// is closed to allow the audio DSP to power down.
+static const int64_t kOffloadPauseMaxUs = 60000000ll;
+
 // static
 const int64_t NuPlayer::Renderer::kMinPositionUpdateDelayUs = 100000ll;
 
@@ -59,7 +63,9 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
       mLastPositionUpdateUs(-1ll),
-      mVideoLateByUs(0ll) {
+      mVideoLateByUs(0ll),
+      mAudioOffloadPauseTimeoutGeneration(0),
+      mAudioOffloadTornDown(false) {
 }
 
 NuPlayer::Renderer::~Renderer() {
@@ -239,6 +245,17 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatAudioOffloadTearDown:
         {
+            onAudioOffloadTearDown();
+            break;
+        }
+
+        case kWhatAudioOffloadPauseTimeout:
+        {
+            int32_t generation;
+            CHECK(msg->findInt32("generation", &generation));
+            if (generation != mAudioOffloadPauseTimeoutGeneration) {
+                break;
+            }
             onAudioOffloadTearDown();
             break;
         }
@@ -919,6 +936,7 @@ void NuPlayer::Renderer::onPause() {
 
     if (mHasAudio) {
         mAudioSink->pause();
+        startAudioOffloadPauseTimeout();
     }
 
     ALOGV("now paused audio queue has %d entries, video has %d entries",
@@ -931,6 +949,7 @@ void NuPlayer::Renderer::onResume() {
     }
 
     if (mHasAudio) {
+        cancelAudioOffloadPauseTimeout();
         mAudioSink->start();
     }
 
@@ -1012,6 +1031,11 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
 }
 
 void NuPlayer::Renderer::onAudioOffloadTearDown() {
+    if (mAudioOffloadTornDown) {
+        return;
+    }
+    mAudioOffloadTornDown = true;
+
     int64_t firstAudioTimeUs;
     {
         Mutex::Autolock autoLock(mLock);
@@ -1028,6 +1052,20 @@ void NuPlayer::Renderer::onAudioOffloadTearDown() {
     notify->setInt32("what", kWhatAudioOffloadTearDown);
     notify->setInt64("positionUs", currentPositionUs);
     notify->post();
+}
+
+void NuPlayer::Renderer::startAudioOffloadPauseTimeout() {
+    if (offloadingAudio()) {
+        sp<AMessage> msg = new AMessage(kWhatAudioOffloadPauseTimeout, id());
+        msg->setInt32("generation", mAudioOffloadPauseTimeoutGeneration);
+        msg->post(kOffloadPauseMaxUs);
+    }
+}
+
+void NuPlayer::Renderer::cancelAudioOffloadPauseTimeout() {
+    if (offloadingAudio()) {
+        ++mAudioOffloadPauseTimeoutGeneration;
+    }
 }
 
 }  // namespace android
