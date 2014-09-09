@@ -434,6 +434,9 @@ void Camera2Client::disconnect() {
     mCallbackProcessor->deleteStream();
     mZslProcessor->deleteStream();
 
+    // Remove all ZSL stream state before disconnect; needed to work around b/15408128.
+    mZslProcessor->disconnect();
+
     ALOGV("Camera %d: Disconnecting device", mCameraId);
 
     mDevice->disconnect();
