@@ -1279,7 +1279,6 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
         }
 
         if (err == -EWOULDBLOCK) {
-            ALOGD("feedDecoderInputData() got EWOULDBLOCK");
             if (biggerBuffer == NULL) {
                 return err;
             } else {
