@@ -1244,7 +1244,8 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
     CHECK(msg->findMessage("reply", &reply));
 
     if ((audio && mFlushingAudio != NONE)
-            || (!audio && mFlushingVideo != NONE)) {
+            || (!audio && mFlushingVideo != NONE)
+            || mSource == NULL) {
         reply->setInt32("err", INFO_DISCONTINUITY);
         reply->post();
         return OK;
