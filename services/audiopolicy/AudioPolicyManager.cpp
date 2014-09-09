@@ -485,7 +485,9 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         // request to reuse existing output stream if one is already opened to reach the RX device
         SortedVector<audio_io_handle_t> outputs =
                                 getOutputsForDevice(rxDevice, mOutputs);
-        audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+        audio_io_handle_t output = selectOutput(outputs,
+                                                AUDIO_OUTPUT_FLAG_NONE,
+                                                AUDIO_FORMAT_INVALID);
         if (output != AUDIO_IO_HANDLE_NONE) {
             sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
             ALOG_ASSERT(!outputDesc->isDuplicated(),
@@ -524,7 +526,9 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
 
         SortedVector<audio_io_handle_t> outputs =
                                 getOutputsForDevice(AUDIO_DEVICE_OUT_TELEPHONY_TX, mOutputs);
-        audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+        audio_io_handle_t output = selectOutput(outputs,
+                                                AUDIO_OUTPUT_FLAG_NONE,
+                                                AUDIO_FORMAT_INVALID);
         // request to reuse existing output stream if one is already opened to reach the TX
         // path output device
         if (output != AUDIO_IO_HANDLE_NONE) {
@@ -1016,7 +1020,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         // routing change will happen when startOutput() will be called
         SortedVector<audio_io_handle_t> outputs = getOutputsForDevice(device, mOutputs);
 
-        output = selectOutput(outputs, flags);
+        // at this stage we should ignore the DIRECT flag as no direct output could be found earlier
+        flags = (audio_output_flags_t)(flags & ~AUDIO_OUTPUT_FLAG_DIRECT);
+        output = selectOutput(outputs, flags, format);
     }
     ALOGW_IF((output == 0), "getOutput() could not find output for stream %d, samplingRate %d,"
             "format %d, channels %x, flags %x", stream, samplingRate, format, channelMask, flags);
@@ -1027,7 +1033,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
 }
 
 audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_handle_t>& outputs,
-                                                       audio_output_flags_t flags)
+                                                       audio_output_flags_t flags,
+                                                       audio_format_t format)
 {
     // select one output among several that provide a path to a particular device or set of
     // devices (the list was previously build by getOutputsForDevice()).
@@ -1050,6 +1057,17 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
     for (size_t i = 0; i < outputs.size(); i++) {
         sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(outputs[i]);
         if (!outputDesc->isDuplicated()) {
+            // if a valid format is specified, skip output if not compatible
+            if (format != AUDIO_FORMAT_INVALID) {
+                if (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+                    if (format != outputDesc->mFormat) {
+                        continue;
+                    }
+                } else if (!audio_is_linear_pcm(format)) {
+                    continue;
+                }
+            }
+
             int commonFlags = popcount(outputDesc->mProfile->mFlags & flags);
             if (commonFlags > maxCommonFlags) {
                 outputFlags = outputs[i];
@@ -2307,7 +2325,9 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                                 mOutputs);
                     // if the sink device is reachable via an opened output stream, request to go via
                     // this output stream by adding a second source to the patch description
-                    audio_io_handle_t output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_NONE);
+                    audio_io_handle_t output = selectOutput(outputs,
+                                                            AUDIO_OUTPUT_FLAG_NONE,
+                                                            AUDIO_FORMAT_INVALID);
                     if (output != AUDIO_IO_HANDLE_NONE) {
                         sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
                         if (outputDesc->isDuplicated()) {
