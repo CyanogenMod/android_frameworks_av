@@ -893,8 +893,10 @@ void NuPlayer::Renderer::notifyPosition() {
 }
 
 void NuPlayer::Renderer::onPause() {
-    CHECK(!mPaused);
-
+    if (mPaused) {
+        ALOGW("Renderer::onPause() called while already paused!");
+        return;
+    }
     {
         Mutex::Autolock autoLock(mLock);
         ++mAudioQueueGeneration;
