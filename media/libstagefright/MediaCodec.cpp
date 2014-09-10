@@ -270,7 +270,20 @@ status_t MediaCodec::configure(
     }
 
     sp<AMessage> response;
-    return PostAndAwaitResponse(msg, &response);
+    status_t err = PostAndAwaitResponse(msg, &response);
+
+    if (err != OK && err != INVALID_OPERATION) {
+        // MediaCodec now set state to UNINITIALIZED upon any fatal error.
+        // To maintain backward-compatibility, do a reset() to put codec
+        // back into INITIALIZED state.
+        // But don't reset if the err is INVALID_OPERATION, which means
+        // the configure failure is due to wrong state.
+
+        ALOGE("configure failed with err 0x%08x, resetting...", err);
+        reset();
+    }
+
+    return err;
 }
 
 status_t MediaCodec::createInputSurface(
