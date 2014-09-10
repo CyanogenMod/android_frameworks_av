@@ -1832,6 +1832,9 @@ void NuPlayer::performReset() {
     ++mScanSourcesGeneration;
     mScanSourcesPending = false;
 
+    ++mAudioDecoderGeneration;
+    ++mVideoDecoderGeneration;
+
     if (mRendererLooper != NULL) {
         if (mRenderer != NULL) {
             mRendererLooper->unregisterHandler(mRenderer->id());
