@@ -181,6 +181,9 @@ private:
     // By default, real time recording is on.
     bool isRealTimeRecording() const;
 
+    // To use 3gp4 box for clips with AMR audio
+    bool mIsAudioAMR;
+
     void lock();
     void unlock();
 

@@ -385,7 +385,8 @@ MPEG4Writer::MPEG4Writer(int fd)
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1),
-      mMetaKeys(new AMessage()) {
+      mMetaKeys(new AMessage()),
+      mIsAudioAMR(false) {
     addDeviceMeta();
 
     // Verify mFd is seekable
@@ -492,6 +493,9 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
         ALOGE("Unsupported mime '%s'", mime);
         return ERROR_UNSUPPORTED;
     }
+    mIsAudioAMR = isAudio && (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime) ||
+                              !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime));
+
 
     // At this point, we know the track to be added is either
     // video or audio. Thus, we only need to check whether it
@@ -1047,8 +1051,8 @@ void MPEG4Writer::writeFtypBox(MetaData *param) {
     beginBox("ftyp");
 
     int32_t fileType;
-    if (param && param->findInt32(kKeyFileType, &fileType) &&
-        fileType != OUTPUT_FORMAT_MPEG_4) {
+    if (mIsAudioAMR || (param && param->findInt32(kKeyFileType, &fileType) &&
+        fileType != OUTPUT_FORMAT_MPEG_4)) {
         writeFourcc("3gp4");
         writeInt32(0);
         writeFourcc("isom");
