@@ -454,6 +454,23 @@ void ZslProcessor3::dumpZslQueue(int fd) const {
     }
 }
 
+bool ZslProcessor3::isFixedFocusMode(uint8_t afMode) const {
+    switch (afMode) {
+        case ANDROID_CONTROL_AF_MODE_AUTO:
+        case ANDROID_CONTROL_AF_MODE_CONTINUOUS_VIDEO:
+        case ANDROID_CONTROL_AF_MODE_CONTINUOUS_PICTURE:
+        case ANDROID_CONTROL_AF_MODE_MACRO:
+            return false;
+            break;
+        case ANDROID_CONTROL_AF_MODE_OFF:
+        case ANDROID_CONTROL_AF_MODE_EDOF:
+            return true;
+        default:
+            ALOGE("%s: unknown focus mode %d", __FUNCTION__, afMode);
+            return false;
+    }
+}
+
 nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
     /**
      * Find the smallest timestamp we know about so far
@@ -499,8 +516,16 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                     continue;
                 }
 
-                // Check AF state if device has focuser
-                if (mHasFocuser) {
+                entry = frame.find(ANDROID_CONTROL_AF_MODE);
+                if (entry.count == 0) {
+                    ALOGW("%s: ZSL queue frame has no AF mode field!",
+                            __FUNCTION__);
+                    continue;
+                }
+                uint8_t afMode = entry.data.u8[0];
+
+                // Check AF state if device has focuser and focus mode isn't fixed
+                if (mHasFocuser && !isFixedFocusMode(afMode)) {
                     // Make sure the candidate frame has good focus.
                     entry = frame.find(ANDROID_CONTROL_AF_STATE);
                     if (entry.count == 0) {
