@@ -59,9 +59,8 @@ private:
     size_t mOutputBufferCount;
     bool mSignalledError;
     OMX_BUFFERHEADERTYPE *mLastInHeader;
-    Vector<int32_t> mBufferSizes;
-    Vector<int32_t> mDecodedSizes;
-    Vector<int64_t> mBufferTimestamps;
+    int64_t mCurrentInputTime;
+    Vector<int64_t> mAnchorTimes;
 
     CDrcPresModeWrapper mDrcWrap;
 
