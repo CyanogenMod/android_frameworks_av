@@ -593,10 +593,10 @@ status_t AudioFlinger::PatchPanel::releaseAudioPatch(audio_patch_handle_t handle
                         status = BAD_VALUE;
                         break;
                     }
-                    status = thread->sendReleaseAudioPatchConfigEvent(mPatches[index]->mHalHandle);
+                    status = thread->sendReleaseAudioPatchConfigEvent(removedPatch->mHalHandle);
                 } else {
                     audio_hw_device_t *hwDevice = audioHwDevice->hwDevice();
-                    status = hwDevice->release_audio_patch(hwDevice, mPatches[index]->mHalHandle);
+                    status = hwDevice->release_audio_patch(hwDevice, removedPatch->mHalHandle);
                 }
             } else {
                 sp<ThreadBase> thread = audioflinger->checkRecordThread_l(
@@ -632,7 +632,7 @@ status_t AudioFlinger::PatchPanel::releaseAudioPatch(audio_patch_handle_t handle
             }
             AudioHwDevice *audioHwDevice = audioflinger->mAudioHwDevs.valueAt(index);
             if (audioHwDevice->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
-                status = thread->sendReleaseAudioPatchConfigEvent(mPatches[index]->mHalHandle);
+                status = thread->sendReleaseAudioPatchConfigEvent(removedPatch->mHalHandle);
             } else {
                 AudioParameter param;
                 param.addInt(String8(AUDIO_PARAMETER_STREAM_ROUTING), 0);
