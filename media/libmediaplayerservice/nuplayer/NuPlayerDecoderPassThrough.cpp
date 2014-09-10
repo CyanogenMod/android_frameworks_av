@@ -115,9 +115,12 @@ void NuPlayer::DecoderPassThrough::requestABuffer() {
     notify->post();
     mPendingBuffers++;
 
-    sp<AMessage> message = new AMessage(kWhatRequestABuffer, id());
-    message->setInt32("generation", mBufferGeneration);
-    message->post();
+    // pending buffers will already result in requestABuffer
+    if (mPendingBuffers < kMaxPendingBuffers) {
+        sp<AMessage> message = new AMessage(kWhatRequestABuffer, id());
+        message->setInt32("generation", mBufferGeneration);
+        message->post();
+    }
     return;
 }
 
@@ -155,9 +158,7 @@ void android::NuPlayer::DecoderPassThrough::onInputBufferFilled(
 void NuPlayer::DecoderPassThrough::onBufferConsumed(int32_t size) {
     mPendingBuffers--;
     mCachedBytes -= size;
-    sp<AMessage> message = new AMessage(kWhatRequestABuffer, id());
-    message->setInt32("generation", mBufferGeneration);
-    message->post();
+    requestABuffer();
 }
 
 void NuPlayer::DecoderPassThrough::onFlush() {
