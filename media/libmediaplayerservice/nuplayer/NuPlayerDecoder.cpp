@@ -595,7 +595,18 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
         {
             if (!isStaleReply(msg)) {
                 onInputBufferFilled(msg);
+            } else {
+                /* release any MediaBuffer passed in the stale buffer */
+                sp<ABuffer> buffer;
+                MediaBuffer *mediaBuffer = NULL;
+                if (msg->findBuffer("buffer", &buffer) &&
+                    buffer->meta()->findPointer(
+                            "mediaBuffer", (void **)&mediaBuffer) &&
+                    mediaBuffer != NULL) {
+                    mediaBuffer->release();
+                }
             }
+
             break;
         }
 
