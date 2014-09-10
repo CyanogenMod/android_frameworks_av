@@ -207,6 +207,7 @@ private:
     MPEG4Writer &operator=(const MPEG4Writer &);
 
     bool mIsVideoHEVC;
+    bool mIsAudioAMR;
 };
 
 }  // namespace android

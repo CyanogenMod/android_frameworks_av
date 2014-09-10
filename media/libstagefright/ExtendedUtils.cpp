@@ -1321,4 +1321,13 @@ void ExtendedUtils::printFileName(int fd) {
     }
 }
 
+bool ExtendedUtils::isAudioAMR(const char* mime) {
+    if (mime && (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime)
+            || !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime))) {
+        return true;
+    }
+
+    return false;
+}
+
 }

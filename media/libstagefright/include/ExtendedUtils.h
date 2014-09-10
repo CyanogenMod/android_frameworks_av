@@ -198,6 +198,8 @@ struct ExtendedUtils {
     static void printFileName(int fd);
     static void applyPreRotation(
             const CameraParameters& params, sp<MetaData> &meta);
+
+    static bool isAudioAMR(const char* mime);
 };
 
 }

@@ -363,7 +363,8 @@ MPEG4Writer::MPEG4Writer(const char *filename)
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1),
       mHFRRatio(1),
-      mIsVideoHEVC(false) {
+      mIsVideoHEVC(false),
+      mIsAudioAMR(false) {
 
     mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     if (mFd >= 0) {
@@ -390,7 +391,8 @@ MPEG4Writer::MPEG4Writer(int fd)
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1),
       mHFRRatio(1),
-      mIsVideoHEVC(false) {
+      mIsVideoHEVC(false),
+      mIsAudioAMR(false) {
 }
 
 MPEG4Writer::~MPEG4Writer() {
@@ -464,6 +466,10 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
 
     if (isVideo) {
         mIsVideoHEVC = ExtendedUtils::HEVCMuxer::isVideoHEVC(mime);
+    }
+
+    if (isAudio) {
+        mIsAudioAMR = ExtendedUtils::isAudioAMR(mime);
     }
 
     if (!isAudio && !isVideo) {
@@ -1002,8 +1008,9 @@ void MPEG4Writer::writeFtypBox(MetaData *param) {
     int32_t fileType;
     if (mIsVideoHEVC) {
         ExtendedUtils::HEVCMuxer::writeHEVCFtypBox(this);
-    } else if (param && param->findInt32(kKeyFileType, &fileType) &&
-        fileType != OUTPUT_FORMAT_MPEG_4) {
+    } else if ((param && param->findInt32(kKeyFileType, &fileType) &&
+            fileType != OUTPUT_FORMAT_MPEG_4) || mIsAudioAMR) {
+        // 'damr' is only supported by the 3gp4 standard, not mp42
         writeFourcc("3gp4");
         writeInt32(0);
         writeFourcc("isom");
