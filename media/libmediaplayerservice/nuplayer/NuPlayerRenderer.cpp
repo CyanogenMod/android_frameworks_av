@@ -87,7 +87,9 @@ NuPlayer::Renderer::Renderer(
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
       mTotalBuffersQueued(0),
       mLastAudioBufferDrained(0) {
+
     readProperties();
+    notify->findObject(MEDIA_EXTENDED_STATS, (sp<RefBase>*)&mPlayerExtendedStats);
 }
 
 NuPlayer::Renderer::~Renderer() {
@@ -874,6 +876,12 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         }
         notifyIfMediaRenderingStarted();
     }
+
+    if (tooLate) { //dropped!
+        PLAYER_STATS(logFrameDropped);
+    } else {
+        PLAYER_STATS(logFrameRendered);
+    }
 }
 
 void NuPlayer::Renderer::notifyVideoRenderingStart() {
@@ -1171,6 +1179,8 @@ void NuPlayer::Renderer::onPause() {
 
     ALOGV("now paused audio queue has %d entries, video has %d entries",
           mAudioQueue.size(), mVideoQueue.size());
+
+    PLAYER_STATS(notifyPause, (ALooper::GetNowUs() - mAnchorTimeRealUs) + mAnchorTimeMediaUs);
 }
 
 void NuPlayer::Renderer::onResume() {
