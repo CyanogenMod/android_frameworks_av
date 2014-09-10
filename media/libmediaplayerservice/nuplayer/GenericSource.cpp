@@ -1176,12 +1176,14 @@ void NuPlayer::GenericSource::onReadBuffer(sp<AMessage> msg) {
 void NuPlayer::GenericSource::readBuffer(
         media_track_type trackType, int64_t seekTimeUs, int64_t *actualTimeUs, bool formatChange) {
     Track *track;
+    size_t maxBuffers = 1;
     switch (trackType) {
         case MEDIA_TRACK_TYPE_VIDEO:
             track = &mVideoTrack;
             break;
         case MEDIA_TRACK_TYPE_AUDIO:
             track = &mAudioTrack;
+            maxBuffers = 64;
             break;
         case MEDIA_TRACK_TYPE_SUBTITLE:
             track = &mSubtitleTrack;
@@ -1214,7 +1216,7 @@ void NuPlayer::GenericSource::readBuffer(
         options.setNonBlocking();
     }
 
-    for (;;) {
+    for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
         MediaBuffer *mbuf;
         status_t err = track->mSource->read(&mbuf, &options);
 
@@ -1245,7 +1247,7 @@ void NuPlayer::GenericSource::readBuffer(
 
             sp<ABuffer> buffer = mediaBufferToABuffer(mbuf, trackType, actualTimeUs);
             track->mPackets->queueAccessUnit(buffer);
-            break;
+            ++numBuffers;
         } else if (err == WOULD_BLOCK) {
             break;
         } else if (err == INFO_FORMAT_CHANGED) {
