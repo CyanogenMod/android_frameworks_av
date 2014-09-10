@@ -626,12 +626,15 @@ void NuPlayerDriver::notifyListener_l(
     switch (msg) {
         case MEDIA_PLAYBACK_COMPLETE:
         {
-            if (mLooping && mState != STATE_RESET_IN_PROGRESS) {
-                mPlayer->seekToAsync(0);
-                break;
+            if (mState != STATE_RESET_IN_PROGRESS) {
+                if (mLooping) {
+                    mPlayer->seekToAsync(0);
+                    break;
+                }
+
+                mPlayer->pause();
+                mState = STATE_PAUSED;
             }
-            mPlayer->pause();
-            mState = STATE_PAUSED;
             // fall through
         }
 
