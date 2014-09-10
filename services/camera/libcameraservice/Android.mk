@@ -34,6 +34,7 @@ LOCAL_SRC_FILES:=               \
     api1/client2/JpegProcessor.cpp \
     api1/client2/CallbackProcessor.cpp \
     api1/client2/ZslProcessor.cpp \
+    api1/client2/ZslProcessorInterface.cpp \
     api1/client2/BurstCapture.cpp \
     api1/client2/JpegCompressor.cpp \
     api1/client2/CaptureSequencer.cpp \
