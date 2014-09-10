@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-//#define LOG_NDEBUG 0
 #define LOG_TAG "SoftAAC2"
+//#define LOG_NDEBUG 0
 #include <utils/Log.h>
 
 #include "SoftAAC2.h"
@@ -68,6 +68,7 @@ SoftAAC2::SoftAAC2(
       mOutputBufferCount(0),
       mSignalledError(false),
       mLastInHeader(NULL),
+      mCurrentInputTime(0),
       mOutputPortSettingsChange(NONE) {
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
@@ -609,24 +610,9 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                     notify(OMX_EventError, OMX_ErrorStreamCorrupt, ERROR_MALFORMED, NULL);
                     return;
                 }
-
-                // insert buffer size and time stamp
-                mBufferSizes.add(inBufferLength[0]);
-                if (mLastInHeader != inHeader) {
-                    mBufferTimestamps.add(inHeader->nTimeStamp);
-                    mLastInHeader = inHeader;
-                } else {
-                    int64_t currentTime = mBufferTimestamps.top();
-                    currentTime += mStreamInfo->aacSamplesPerFrame *
-                            1000000ll / mStreamInfo->sampleRate;
-                    mBufferTimestamps.add(currentTime);
-                }
             } else {
                 inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
                 inBufferLength[0] = inHeader->nFilledLen;
-                mLastInHeader = inHeader;
-                mBufferTimestamps.add(inHeader->nTimeStamp);
-                mBufferSizes.add(inHeader->nFilledLen);
             }
 
             // Fill and decode
@@ -635,130 +621,136 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
             INT prevSampleRate = mStreamInfo->sampleRate;
             INT prevNumChannels = mStreamInfo->numChannels;
 
+            if (inHeader != mLastInHeader) {
+                mLastInHeader = inHeader;
+                mCurrentInputTime = inHeader->nTimeStamp;
+            } else {
+                if (mStreamInfo->sampleRate) {
+                    mCurrentInputTime += mStreamInfo->aacSamplesPerFrame *
+                            1000000ll / mStreamInfo->sampleRate;
+                } else {
+                    ALOGW("no sample rate yet");
+                }
+            }
+            mAnchorTimes.add(mCurrentInputTime);
             aacDecoder_Fill(mAACDecoder,
                             inBuffer,
                             inBufferLength,
                             bytesValid);
 
-            // run DRC check
-            mDrcWrap.submitStreamData(mStreamInfo);
-            mDrcWrap.update();
+             // run DRC check
+             mDrcWrap.submitStreamData(mStreamInfo);
+             mDrcWrap.update();
 
-            UINT inBufferUsedLength = inBufferLength[0] - bytesValid[0];
-            inHeader->nFilledLen -= inBufferUsedLength;
-            inHeader->nOffset += inBufferUsedLength;
+            AAC_DECODER_ERROR decoderErr =
+                aacDecoder_DecodeFrame(mAACDecoder,
+                                       tmpOutBuffer,
+                                       2048 * MAX_CHANNEL_COUNT,
+                                       0 /* flags */);
 
-            AAC_DECODER_ERROR decoderErr;
-            do {
-                int numconsumed = mStreamInfo->numTotalBytes + mStreamInfo->numBadBytes;
-                decoderErr = aacDecoder_DecodeFrame(mAACDecoder,
-                                           tmpOutBuffer,
-                                           2048 * MAX_CHANNEL_COUNT,
-                                           0 /* flags */);
+            if (decoderErr != AAC_DEC_OK) {
+                ALOGW("aacDecoder_DecodeFrame decoderErr = 0x%4.4x", decoderErr);
+            }
 
-                numconsumed = (mStreamInfo->numTotalBytes + mStreamInfo->numBadBytes) - numconsumed;
-                if (numconsumed != 0) {
-                    mDecodedSizes.add(numconsumed);
-                }
+            if (decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
+                ALOGE("AAC_DEC_NOT_ENOUGH_BITS should never happen");
+                mSignalledError = true;
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                return;
+            }
 
-                if (decoderErr == AAC_DEC_NOT_ENOUGH_BITS) {
-                    break;
-                }
+            if (bytesValid[0] != 0) {
+                ALOGE("bytesValid[0] != 0 should never happen");
+                mSignalledError = true;
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                return;
+            }
 
-                if (decoderErr != AAC_DEC_OK) {
-                    ALOGW("aacDecoder_DecodeFrame decoderErr = 0x%4.4x", decoderErr);
-                }
+            size_t numOutBytes =
+                mStreamInfo->frameSize * sizeof(int16_t) * mStreamInfo->numChannels;
 
-                if (bytesValid[0] != 0) {
-                    ALOGE("bytesValid[0] != 0 should never happen");
-                    mSignalledError = true;
-                    notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
-                    return;
-                }
-
-                size_t numOutBytes =
-                    mStreamInfo->frameSize * sizeof(int16_t) * mStreamInfo->numChannels;
-
-                if (decoderErr == AAC_DEC_OK) {
-                    if (!outputDelayRingBufferPutSamples(tmpOutBuffer,
-                            mStreamInfo->frameSize * mStreamInfo->numChannels)) {
-                        mSignalledError = true;
-                        notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
-                        return;
-                    }
-                } else {
-                    ALOGW("AAC decoder returned error 0x%4.4x, substituting silence", decoderErr);
-
-                    memset(tmpOutBuffer, 0, numOutBytes); // TODO: check for overflow
-
-                    if (!outputDelayRingBufferPutSamples(tmpOutBuffer,
-                            mStreamInfo->frameSize * mStreamInfo->numChannels)) {
-                        mSignalledError = true;
-                        notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
-                        return;
-                    }
-
-                    // Discard input buffer.
-                    inHeader->nFilledLen = 0;
-
-                    aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
-
-                    // fall through
-                }
-
-                /*
-                 * AAC+/eAAC+ streams can be signalled in two ways: either explicitly
-                 * or implicitly, according to MPEG4 spec. AAC+/eAAC+ is a dual
-                 * rate system and the sampling rate in the final output is actually
-                 * doubled compared with the core AAC decoder sampling rate.
-                 *
-                 * Explicit signalling is done by explicitly defining SBR audio object
-                 * type in the bitstream. Implicit signalling is done by embedding
-                 * SBR content in AAC extension payload specific to SBR, and hence
-                 * requires an AAC decoder to perform pre-checks on actual audio frames.
-                 *
-                 * Thus, we could not say for sure whether a stream is
-                 * AAC+/eAAC+ until the first data frame is decoded.
-                 */
-                if (mInputBufferCount <= 2 || mOutputBufferCount > 1) { // TODO: <= 1
-                    if (mStreamInfo->sampleRate != prevSampleRate ||
-                        mStreamInfo->numChannels != prevNumChannels) {
-                        ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
-                              prevSampleRate, mStreamInfo->sampleRate,
-                              prevNumChannels, mStreamInfo->numChannels);
-
-                        notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-                        mOutputPortSettingsChange = AWAITING_DISABLED;
-
-                        if (inHeader->nFilledLen == 0) {
-                            inInfo->mOwnedByUs = false;
-                            mInputBufferCount++;
-                            inQueue.erase(inQueue.begin());
-                            mLastInHeader = NULL;
-                            inInfo = NULL;
-                            notifyEmptyBufferDone(inHeader);
-                            inHeader = NULL;
-                        }
-                        return;
-                    }
-                } else if (!mStreamInfo->sampleRate || !mStreamInfo->numChannels) {
-                    ALOGW("Invalid AAC stream");
+            if (decoderErr == AAC_DEC_OK) {
+                if (!outputDelayRingBufferPutSamples(tmpOutBuffer,
+                        mStreamInfo->frameSize * mStreamInfo->numChannels)) {
                     mSignalledError = true;
                     notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
                     return;
                 }
-                if (inHeader && inHeader->nFilledLen == 0) {
-                    inInfo->mOwnedByUs = false;
-                    mInputBufferCount++;
-                    inQueue.erase(inQueue.begin());
-                    mLastInHeader = NULL;
-                    inInfo = NULL;
-                    notifyEmptyBufferDone(inHeader);
-                    inHeader = NULL;
-                } else {
-                    ALOGV("inHeader->nFilledLen = %d", inHeader ? inHeader->nFilledLen : 0);
+                UINT inBufferUsedLength = inBufferLength[0] - bytesValid[0];
+                inHeader->nFilledLen -= inBufferUsedLength;
+                inHeader->nOffset += inBufferUsedLength;
+            } else {
+                ALOGW("AAC decoder returned error 0x%4.4x, substituting silence", decoderErr);
+
+                memset(tmpOutBuffer, 0, numOutBytes); // TODO: check for overflow
+
+                if (!outputDelayRingBufferPutSamples(tmpOutBuffer,
+                        mStreamInfo->frameSize * mStreamInfo->numChannels)) {
+                    mSignalledError = true;
+                    notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
+                    return;
                 }
-            } while (decoderErr == AAC_DEC_OK);
+
+                // Discard input buffer.
+                inHeader->nFilledLen = 0;
+
+                aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
+
+                // fall through
+            }
+
+            /*
+             * AAC+/eAAC+ streams can be signalled in two ways: either explicitly
+             * or implicitly, according to MPEG4 spec. AAC+/eAAC+ is a dual
+             * rate system and the sampling rate in the final output is actually
+             * doubled compared with the core AAC decoder sampling rate.
+             *
+             * Explicit signalling is done by explicitly defining SBR audio object
+             * type in the bitstream. Implicit signalling is done by embedding
+             * SBR content in AAC extension payload specific to SBR, and hence
+             * requires an AAC decoder to perform pre-checks on actual audio frames.
+             *
+             * Thus, we could not say for sure whether a stream is
+             * AAC+/eAAC+ until the first data frame is decoded.
+             */
+            if (mInputBufferCount <= 2 || mOutputBufferCount > 1) { // TODO: <= 1
+                if (mStreamInfo->sampleRate != prevSampleRate ||
+                    mStreamInfo->numChannels != prevNumChannels) {
+                    ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
+                          prevSampleRate, mStreamInfo->sampleRate,
+                          prevNumChannels, mStreamInfo->numChannels);
+
+                    notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
+                    mOutputPortSettingsChange = AWAITING_DISABLED;
+
+                    if (inHeader->nFilledLen == 0) {
+                        inInfo->mOwnedByUs = false;
+                        mInputBufferCount++;
+                        inQueue.erase(inQueue.begin());
+                        mLastInHeader = NULL;
+                        inInfo = NULL;
+                        notifyEmptyBufferDone(inHeader);
+                        inHeader = NULL;
+                    }
+                    return;
+                }
+            } else if (!mStreamInfo->sampleRate || !mStreamInfo->numChannels) {
+                ALOGW("Invalid AAC stream");
+                mSignalledError = true;
+                notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
+                return;
+            }
+            if (inHeader->nFilledLen == 0) {
+                inInfo->mOwnedByUs = false;
+                mInputBufferCount++;
+                inQueue.erase(inQueue.begin());
+                mLastInHeader = NULL;
+                inInfo = NULL;
+                notifyEmptyBufferDone(inHeader);
+                inHeader = NULL;
+            } else {
+                ALOGV("inHeader->nFilledLen = %d", inHeader->nFilledLen);
+            }
         }
 
         int32_t outputDelay = mStreamInfo->outputDelay * mStreamInfo->numChannels;
@@ -817,9 +809,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
 
             INT_PCM *outBuffer =
                     reinterpret_cast<INT_PCM *>(outHeader->pBuffer + outHeader->nOffset);
-            int samplesize = mStreamInfo->numChannels * sizeof(int16_t);
             if (outHeader->nOffset
-                    + mStreamInfo->frameSize * samplesize
+                    + mStreamInfo->frameSize * mStreamInfo->numChannels * sizeof(int16_t)
                     > outHeader->nAllocLen) {
                 ALOGE("buffer overflow");
                 mSignalledError = true;
@@ -827,67 +818,17 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                 return;
 
             }
-
-            int available = outputDelayRingBufferSamplesAvailable();
-            int numSamples = outHeader->nAllocLen / samplesize;
-            if (numSamples > available) {
-                numSamples = available;
-            }
-            int64_t currentTime = 0;
-            if (available) {
-
-                int numFrames = numSamples / (mStreamInfo->frameSize * mStreamInfo->numChannels);
-                numSamples = numFrames * (mStreamInfo->frameSize * mStreamInfo->numChannels);
-
-                ALOGV("%d samples available (%d), or %d frames",
-                        numSamples, available, numFrames);
-                int64_t *nextTimeStamp = &mBufferTimestamps.editItemAt(0);
-                currentTime = *nextTimeStamp;
-                int32_t *currentBufLeft = &mBufferSizes.editItemAt(0);
-                for (int i = 0; i < numFrames; i++) {
-                    int32_t decodedSize = mDecodedSizes.itemAt(0);
-                    mDecodedSizes.removeAt(0);
-                    ALOGV("decoded %d of %d", decodedSize, *currentBufLeft);
-                    if (*currentBufLeft > decodedSize) {
-                        // adjust/interpolate next time stamp
-                        *currentBufLeft -= decodedSize;
-                        *nextTimeStamp += mStreamInfo->aacSamplesPerFrame *
-                                1000000ll / mStreamInfo->sampleRate;
-                        ALOGV("adjusted nextTimeStamp/size to %lld/%d",
-                                *nextTimeStamp, *currentBufLeft);
-                    } else {
-                        // move to next timestamp in list
-                        if (mBufferTimestamps.size() > 0) {
-                            mBufferTimestamps.removeAt(0);
-                            nextTimeStamp = &mBufferTimestamps.editItemAt(0);
-                            mBufferSizes.removeAt(0);
-                            currentBufLeft = &mBufferSizes.editItemAt(0);
-                            ALOGV("moved to next time/size: %lld/%d",
-                                    *nextTimeStamp, *currentBufLeft);
-                        }
-                        // try to limit output buffer size to match input buffers
-                        // (e.g when an input buffer contained 4 "sub" frames, output
-                        // at most 4 decoded units in the corresponding output buffer)
-                        // This is optional. Remove the next three lines to fill the output
-                        // buffer with as many units as available.
-                        numFrames = i + 1;
-                        numSamples = numFrames * mStreamInfo->frameSize * mStreamInfo->numChannels;
-                        break;
-                    }
-                }
-
-                ALOGV("getting %d from ringbuffer", numSamples);
-                int32_t ns = outputDelayRingBufferGetSamples(outBuffer, numSamples);
-                if (ns != numSamples) {
-                    ALOGE("not a complete frame of samples available");
-                    mSignalledError = true;
-                    notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
-                    return;
-                }
+            int32_t ns = outputDelayRingBufferGetSamples(outBuffer,
+                    mStreamInfo->frameSize * mStreamInfo->numChannels); // TODO: check for overflow
+            if (ns != mStreamInfo->frameSize * mStreamInfo->numChannels) {
+                ALOGE("not a complete frame of samples available");
+                mSignalledError = true;
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                return;
             }
 
-            outHeader->nFilledLen = numSamples * sizeof(int16_t);
-
+            outHeader->nFilledLen = mStreamInfo->frameSize * mStreamInfo->numChannels
+                    * sizeof(int16_t);
             if (mEndOfInput && !outQueue.empty() && outputDelayRingBufferSamplesAvailable() == 0) {
                 outHeader->nFlags = OMX_BUFFERFLAG_EOS;
                 mEndOfOutput = true;
@@ -895,13 +836,13 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                 outHeader->nFlags = 0;
             }
 
-            outHeader->nTimeStamp = currentTime;
+            outHeader->nTimeStamp = mAnchorTimes.isEmpty() ? 0 : mAnchorTimes.itemAt(0);
+            mAnchorTimes.removeAt(0);
 
             mOutputBufferCount++;
             outInfo->mOwnedByUs = false;
             outQueue.erase(outQueue.begin());
             outInfo = NULL;
-            ALOGV("out timestamp %lld / %d", outHeader->nTimeStamp, outHeader->nFilledLen);
             notifyFillBufferDone(outHeader);
             outHeader = NULL;
         }
@@ -936,10 +877,8 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                     outHeader->nFilledLen = 0;
                     outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
-                    outHeader->nTimeStamp = mBufferTimestamps.itemAt(0);
-                    mBufferTimestamps.clear();
-                    mBufferSizes.clear();
-                    mDecodedSizes.clear();
+                    outHeader->nTimeStamp = mAnchorTimes.itemAt(0);
+                    mAnchorTimes.removeAt(0);
 
                     mOutputBufferCount++;
                     outInfo->mOwnedByUs = false;
@@ -960,9 +899,7 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         // depend on fragments from the last one decoded.
         // drain all existing data
         drainDecoder();
-        mBufferTimestamps.clear();
-        mBufferSizes.clear();
-        mDecodedSizes.clear();
+        mAnchorTimes.clear();
         mLastInHeader = NULL;
     } else {
         while (outputDelayRingBufferSamplesAvailable() > 0) {
@@ -1018,9 +955,7 @@ void SoftAAC2::onReset() {
     mOutputDelayRingBufferReadPos = 0;
     mEndOfInput = false;
     mEndOfOutput = false;
-    mBufferTimestamps.clear();
-    mBufferSizes.clear();
-    mDecodedSizes.clear();
+    mAnchorTimes.clear();
     mLastInHeader = NULL;
 
     // To make the codec behave the same before and after a reset, we need to invalidate the
