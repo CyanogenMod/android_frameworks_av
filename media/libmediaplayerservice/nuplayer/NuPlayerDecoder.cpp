@@ -108,7 +108,19 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), surface.get());
 
     ExtendedCodec::overrideMimeType(format, &mime);
-    mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
+
+    /* time allocateNode here */
+    {
+        if (mPlayerExtendedStats == NULL) {
+            format->findObject(MEDIA_EXTENDED_STATS, (sp<RefBase>*)&mPlayerExtendedStats);
+        }
+        int32_t isVideo = !strncasecmp(mime.c_str(), "video/", 6);
+        ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_ALLOCATE_NODE(isVideo),
+                mPlayerExtendedStats == NULL ? NULL : mPlayerExtendedStats->getProfileTimes());
+
+        mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
+    }
+
     int32_t secure = 0;
     if (format->findInt32("secure", &secure) && secure != 0) {
         if (mCodec != NULL) {
@@ -139,6 +151,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
         // any error signaling will occur.
         ALOGW_IF(err != OK, "failed to disconnect from surface: %d", err);
     }
+    format->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
     err = mCodec->configure(
             format, surface, NULL /* crypto */, 0 /* flags */);
     if (err != OK) {
@@ -417,6 +430,8 @@ bool android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
                 mMediaBuffers.editItemAt(bufferIx) = mediaBuffer;
             }
         }
+
+        PLAYER_STATS(logBitRate, buffer->size(), timeUs);
     }
     return true;
 }
