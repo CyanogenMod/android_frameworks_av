@@ -16,6 +16,8 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+ifneq ($(TARGET_PROVIDES_DRMSERVER),true)
+
 LOCAL_SRC_FILES:= \
     main_drmserver.cpp \
     DrmManager.cpp \
@@ -40,3 +42,5 @@ LOCAL_MODULE:= drmserver
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_EXECUTABLE)
+
+endif # TARGET_PROVIDES_DRMSERVER
