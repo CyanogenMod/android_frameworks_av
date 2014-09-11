@@ -59,8 +59,6 @@ struct MediaSource : public virtual RefBase {
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
 
-    virtual void notifyError(status_t err) {}
-
     // Options that modify read() behaviour. The default is to
     // a) not request a seek
     // b) not be late, i.e. lateness_us = 0
@@ -113,6 +111,12 @@ struct MediaSource : public virtual RefBase {
 
 protected:
     virtual ~MediaSource();
+
+public:
+    // Please put all new virtual methods at the end of the object
+    // to not have mysterious breakages when an older signature is
+    // accidentally used in a plug-in, etc.
+    virtual void notifyError(status_t err) {}
 
 private:
     MediaSource(const MediaSource &);
