@@ -169,6 +169,44 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 
+LOCAL_NDK_STL_VARIANT := stlport_static
+
+LOCAL_SRC_FILES:= \
+	filters/argbtorgba.rs \
+	filters/nightvision.rs \
+	filters/saturation.rs \
+	mediafilter.cpp \
+
+LOCAL_SHARED_LIBRARIES := \
+	libstagefright liblog libutils libbinder libstagefright_foundation \
+	libmedia libgui libcutils libui
+
+LOCAL_C_INCLUDES:= \
+	$(TOP)/bionic \
+	$(TOP)/external/stlport/stlport \
+	$(TOP)/frameworks/av/media/libstagefright \
+	$(TOP)/frameworks/native/include/media/openmax \
+	$(TOP)/frameworks/rs/cpp \
+	$(TOP)/frameworks/rs \
+
+intermediates := $(call intermediates-dir-for,STATIC_LIBRARIES,libRS,TARGET,)
+LOCAL_C_INCLUDES += $(intermediates)
+
+LOCAL_STATIC_LIBRARIES:= \
+	libstagefright_mediafilter
+
+LOCAL_CFLAGS += -Wno-multichar
+
+LOCAL_MODULE_TAGS := optional
+
+LOCAL_MODULE:= mediafilter
+
+include $(BUILD_EXECUTABLE)
+
+################################################################################
+
+include $(CLEAR_VARS)
+
 LOCAL_SRC_FILES:=               \
         muxer.cpp            \
 
