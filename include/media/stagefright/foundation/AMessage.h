@@ -137,7 +137,9 @@ private:
             Rect rectValue;
         } u;
         const char *mName;
+        size_t      mNameLength;
         Type mType;
+        void setName(const char *name, size_t len);
     };
 
     enum {
@@ -147,11 +149,13 @@ private:
     size_t mNumItems;
 
     Item *allocateItem(const char *name);
-    void freeItem(Item *item);
+    void freeItemValue(Item *item);
     const Item *findItem(const char *name, Type type) const;
 
     void setObjectInternal(
             const char *name, const sp<RefBase> &obj, Type type);
+
+    size_t findItemIndex(const char *name, size_t len) const;
 
     DISALLOW_EVIL_CONSTRUCTORS(AMessage);
 };
