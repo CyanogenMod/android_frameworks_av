@@ -122,6 +122,16 @@ status_t CameraClient::dump(int fd, const Vector<String16>& args) {
             mClientPid);
     len = (len > SIZE - 1) ? SIZE - 1 : len;
     write(fd, buffer, len);
+
+    len = snprintf(buffer, SIZE, "Latest set parameters:\n");
+    len = (len > SIZE - 1) ? SIZE - 1 : len;
+    write(fd, buffer, len);
+
+    mLatestSetParameters.dump(fd, args);
+
+    const char *enddump = "\n\n";
+    write(fd, enddump, strlen(enddump));
+
     return mHardware->dump(fd, args);
 }
 
@@ -550,6 +560,7 @@ status_t CameraClient::setParameters(const String8& params) {
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
 
+    mLatestSetParameters = CameraParameters(params);
     CameraParameters p(params);
     return mHardware->setParameters(p);
 }
