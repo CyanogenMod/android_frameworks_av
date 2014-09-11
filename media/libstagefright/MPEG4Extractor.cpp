@@ -45,6 +45,7 @@
 
 #include <byteswap.h>
 #include "include/ID3.h"
+#include "include/ExtendedUtils.h"
 
 namespace android {
 
@@ -1668,6 +1669,8 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     return err;
                 }
             }
+
+            ExtendedUtils::updateVideoTrackInfoFromESDS_MPEG4Video(mLastTrack->meta);
 
             break;
         }
