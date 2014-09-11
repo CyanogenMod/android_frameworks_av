@@ -737,12 +737,6 @@ void PlaylistFetcher::onDownloadNext() {
     const int32_t lastSeqNumberInPlaylist =
         firstSeqNumberInPlaylist + (int32_t)mPlaylist->size() - 1;
 
-    if (mStartup && mSeqNumber >= 0
-            && (mSeqNumber < firstSeqNumberInPlaylist || mSeqNumber > lastSeqNumberInPlaylist)) {
-        // in case we guessed wrong during reconfiguration, try fetching the latest content.
-        mSeqNumber = lastSeqNumberInPlaylist;
-    }
-
     if (mDiscontinuitySeq < 0) {
         mDiscontinuitySeq = mPlaylist->getDiscontinuitySeq();
     }
