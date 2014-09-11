@@ -19,7 +19,6 @@ LOCAL_CFLAGS += -Wno-multichar
 
 LOCAL_SHARED_LIBRARIES += \
         libbinder \
-        libstlport \
         libchromium_net \
         libutils \
         libbinder \
