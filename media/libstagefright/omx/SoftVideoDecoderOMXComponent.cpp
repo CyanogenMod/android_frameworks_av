@@ -123,12 +123,14 @@ void SoftVideoDecoderOMXComponent::initPorts(
     updatePortDefinitions();
 }
 
-void SoftVideoDecoderOMXComponent::updatePortDefinitions() {
+void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop) {
     OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
     def->format.video.nFrameWidth = mWidth;
     def->format.video.nFrameHeight = mHeight;
     def->format.video.nStride = def->format.video.nFrameWidth;
     def->format.video.nSliceHeight = def->format.video.nFrameHeight;
+
+    def->nBufferSize = def->format.video.nFrameWidth * def->format.video.nFrameHeight * 3 / 2;
 
     def = &editPortInfo(kOutputPortIndex)->mDef;
     def->format.video.nFrameWidth = mIsAdaptive ? mAdaptiveMaxWidth : mWidth;
@@ -140,10 +142,77 @@ void SoftVideoDecoderOMXComponent::updatePortDefinitions() {
             (def->format.video.nFrameWidth *
              def->format.video.nFrameHeight * 3) / 2;
 
-    mCropLeft = 0;
-    mCropTop = 0;
-    mCropWidth = mWidth;
-    mCropHeight = mHeight;
+    if (updateCrop) {
+        mCropLeft = 0;
+        mCropTop = 0;
+        mCropWidth = mWidth;
+        mCropHeight = mHeight;
+    }
+}
+
+void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
+        bool *portWillReset, uint32_t width, uint32_t height, bool cropChanged) {
+    *portWillReset = false;
+    bool sizeChanged = (width != mWidth || height != mHeight);
+
+    if (sizeChanged || cropChanged) {
+        mWidth = width;
+        mHeight = height;
+
+        bool updateCrop = !cropChanged;
+        if ((sizeChanged && !mIsAdaptive)
+            || width > mAdaptiveMaxWidth
+            || height > mAdaptiveMaxHeight) {
+            if (mIsAdaptive) {
+                if (width > mAdaptiveMaxWidth) {
+                    mAdaptiveMaxWidth = width;
+                }
+                if (height > mAdaptiveMaxHeight) {
+                    mAdaptiveMaxHeight = height;
+                }
+            }
+            updatePortDefinitions(updateCrop);
+            notify(OMX_EventPortSettingsChanged, kOutputPortIndex, 0, NULL);
+            mOutputPortSettingsChange = AWAITING_DISABLED;
+            *portWillReset = true;
+        } else {
+            updatePortDefinitions(updateCrop);
+            notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
+                   OMX_IndexConfigCommonOutputCrop, NULL);
+        }
+    }
+}
+
+void SoftVideoDecoderOMXComponent::copyYV12FrameToOutputBuffer(
+        uint8_t *dst, const uint8_t *srcY, const uint8_t *srcU, const uint8_t *srcV,
+        size_t srcYStride, size_t srcUStride, size_t srcVStride) {
+    size_t dstYStride = mIsAdaptive ? mAdaptiveMaxWidth : mWidth;
+    size_t dstUVStride = dstYStride / 2;
+    size_t dstHeight = mIsAdaptive ? mAdaptiveMaxHeight : mHeight;
+
+    for (size_t i = 0; i < dstHeight; ++i) {
+        if (i < mHeight) {
+            memcpy(dst, srcY, mWidth);
+            srcY += srcYStride;
+        }
+        dst += dstYStride;
+    }
+
+    for (size_t i = 0; i < dstHeight / 2; ++i) {
+        if (i < mHeight / 2) {
+            memcpy(dst, srcU, mWidth / 2);
+            srcU += srcUStride;
+        }
+        dst += dstUVStride;
+    }
+
+    for (size_t i = 0; i < dstHeight / 2; ++i) {
+        if (i < mHeight / 2) {
+            memcpy(dst, srcV, mWidth / 2);
+            srcV += srcVStride;
+        }
+        dst += dstUVStride;
+    }
 }
 
 OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalGetParameter(
