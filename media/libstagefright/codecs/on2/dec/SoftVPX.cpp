@@ -137,29 +137,10 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
 
             uint32_t width = mImg->d_w;
             uint32_t height = mImg->d_h;
-
-            if (width != mWidth || height != mHeight) {
-                mWidth = width;
-                mHeight = height;
-
-                if (!mIsAdaptive || width > mAdaptiveMaxWidth || height > mAdaptiveMaxHeight) {
-                    if (mIsAdaptive) {
-                        if (width > mAdaptiveMaxWidth) {
-                            mAdaptiveMaxWidth = width;
-                        }
-                        if (height > mAdaptiveMaxHeight) {
-                            mAdaptiveMaxHeight = height;
-                        }
-                    }
-                    updatePortDefinitions();
-                    notify(OMX_EventPortSettingsChanged, kOutputPortIndex, 0, NULL);
-                    mOutputPortSettingsChange = AWAITING_DISABLED;
-                    return;
-                } else {
-                    updatePortDefinitions();
-                    notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
-                           OMX_IndexConfigCommonOutputCrop, NULL);
-                }
+            bool portWillReset = false;
+            handlePortSettingsChange(&portWillReset, width, height);
+            if (portWillReset) {
+                return;
             }
 
             outHeader->nOffset = 0;
@@ -167,36 +148,14 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
             outHeader->nFlags = EOSseen ? OMX_BUFFERFLAG_EOS : 0;
             outHeader->nTimeStamp = inHeader->nTimeStamp;
 
-            uint32_t buffer_stride = mIsAdaptive ? mAdaptiveMaxWidth : mWidth;
-            uint32_t buffer_height = mIsAdaptive ? mAdaptiveMaxHeight : mHeight;
-
-            const uint8_t *srcLine = (const uint8_t *)mImg->planes[PLANE_Y];
             uint8_t *dst = outHeader->pBuffer;
-            for (size_t i = 0; i < buffer_height; ++i) {
-                if (i < mImg->d_h) {
-                    memcpy(dst, srcLine, mImg->d_w);
-                    srcLine += mImg->stride[PLANE_Y];
-                }
-                dst += buffer_stride;
-            }
-
-            srcLine = (const uint8_t *)mImg->planes[PLANE_U];
-            for (size_t i = 0; i < buffer_height / 2; ++i) {
-                if (i < mImg->d_h / 2) {
-                    memcpy(dst, srcLine, mImg->d_w / 2);
-                    srcLine += mImg->stride[PLANE_U];
-                }
-                dst += buffer_stride / 2;
-            }
-
-            srcLine = (const uint8_t *)mImg->planes[PLANE_V];
-            for (size_t i = 0; i < buffer_height / 2; ++i) {
-                if (i < mImg->d_h / 2) {
-                    memcpy(dst, srcLine, mImg->d_w / 2);
-                    srcLine += mImg->stride[PLANE_V];
-                }
-                dst += buffer_stride / 2;
-            }
+            const uint8_t *srcY = (const uint8_t *)mImg->planes[PLANE_Y];
+            const uint8_t *srcU = (const uint8_t *)mImg->planes[PLANE_U];
+            const uint8_t *srcV = (const uint8_t *)mImg->planes[PLANE_V];
+            size_t srcYStride = mImg->stride[PLANE_Y];
+            size_t srcUStride = mImg->stride[PLANE_U];
+            size_t srcVStride = mImg->stride[PLANE_V];
+            copyYV12FrameToOutputBuffer(dst, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride);
 
             mImg = NULL;
             outInfo->mOwnedByUs = false;

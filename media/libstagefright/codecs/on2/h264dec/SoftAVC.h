@@ -55,8 +55,6 @@ private:
 
     size_t mInputBufferCount;
 
-    uint32_t mPictureSize;
-
     uint8_t *mFirstPicture;
     int32_t mFirstPictureId;
 
@@ -75,8 +73,7 @@ private:
     void drainAllOutputBuffers(bool eos);
     void drainOneOutputBuffer(int32_t picId, uint8_t *data);
     void saveFirstOutputBuffer(int32_t pidId, uint8_t *data);
-    bool handleCropRectEvent(const CropParams* crop);
-    bool handlePortSettingChangeEvent(const H264SwDecInfo *info);
+    bool handleCropChange(const H264SwDecInfo& decInfo);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAVC);
 };
