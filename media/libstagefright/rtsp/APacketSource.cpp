@@ -37,6 +37,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -534,6 +535,8 @@ APacketSource::APacketSource(
             mInitCheck = ERROR_UNSUPPORTED;
             return;
         }
+
+        updateVideoTrackInfoFromESDS_MPEG4Video(mFormat);
 
         mFormat->setInt32(kKeyWidth, width);
         mFormat->setInt32(kKeyHeight, height);

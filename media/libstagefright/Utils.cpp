@@ -37,6 +37,7 @@
 
 #include <stagefright/AVExtensions.h>
 #include <media/stagefright/FFMPEGSoftCodec.h>
+#include <media/stagefright/foundation/ABitReader.h>
 
 namespace android {
 
@@ -1055,6 +1056,228 @@ audio_format_t getPCMFormat(const sp<AMessage> &format) {
             return AUDIO_FORMAT_PCM_FLOAT;
     }
     return AUDIO_FORMAT_PCM_16_BIT;
+}
+
+void updateVideoTrackInfoFromESDS_MPEG4Video(sp<MetaData> meta) {
+    const char* mime = NULL;
+    if (meta != NULL && meta->findCString(kKeyMIMEType, &mime) &&
+            mime && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4)) {
+        uint32_t type;
+        const void *data;
+        size_t size;
+        if (!meta->findData(kKeyESDS, &type, &data, &size) || !data) {
+            ALOGW("ESDS atom is invalid");
+            return;
+        }
+
+        if (checkDPFromCodecSpecificData((const uint8_t*) data, size)) {
+            meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_MPEG4_DP);
+        }
+    }
+}
+
+bool checkDPFromCodecSpecificData(const uint8_t *data, size_t size) {
+    bool retVal = false;
+    size_t offset = 0, startCodeOffset = 0;
+    bool isStartCode = false;
+    const int kVolStartCode = 0x20;
+    const char kStartCode[] = "\x00\x00\x01";
+    // must contain at least 4 bytes for video_object_layer_start_code
+    const size_t kMinCsdSize = 4;
+
+    if (!data || (size < kMinCsdSize)) {
+        ALOGV("Invalid CSD (expected at least %zu bytes)", kMinCsdSize);
+        return retVal;
+    }
+
+    while (offset < size - 3) {
+        if ((data[offset + 3] & 0xf0) == kVolStartCode) {
+            if (!memcmp(&data[offset], kStartCode, 3)) {
+                startCodeOffset = offset;
+                isStartCode = true;
+                break;
+            }
+        }
+
+        offset++;
+    }
+
+    if (isStartCode) {
+        retVal = checkDPFromVOLHeader((const uint8_t*) &data[startCodeOffset],
+                (size - startCodeOffset));
+    }
+
+    return retVal;
+}
+
+bool checkDPFromVOLHeader(const uint8_t *data, size_t size) {
+    bool retVal = false; 
+    // must contain at least 4 bytes for video_object_layer_start_code + 9 bits of data
+    const size_t kMinHeaderSize = 6;
+
+    if (!data || (size < kMinHeaderSize)) {
+        ALOGV("Invalid VOL header (expected at least %zu bytes)", kMinHeaderSize);
+        return false;
+    }
+
+    ALOGV("Checking for MPEG4 DP bit");
+    ABitReader br(&data[4], (size - 4));
+    br.skipBits(1); // random_accessible_vol
+
+    unsigned videoObjectTypeIndication = br.getBits(8);
+    if (videoObjectTypeIndication == 0x12u) {
+        ALOGW("checkDPFromVOLHeader: videoObjectTypeIndication:%u",
+               videoObjectTypeIndication);
+        return false;
+    }
+
+    unsigned videoObjectLayerVerid = 1;
+    if (br.getBits(1)) {
+        videoObjectLayerVerid = br.getBits(4);
+        br.skipBits(3); // video_object_layer_priority
+        ALOGV("checkDPFromVOLHeader: videoObjectLayerVerid:%u",
+               videoObjectLayerVerid);
+    }
+
+    if (br.getBits(4) == 0x0f) { // aspect_ratio_info
+        ALOGV("checkDPFromVOLHeader: extended PAR");
+        br.skipBits(8); // par_width
+        br.skipBits(8); // par_height
+    }
+
+    if (br.getBits(1)) { // vol_control_parameters
+        br.skipBits(2);  // chroma_format
+        br.skipBits(1);  // low_delay
+        if (br.getBits(1)) { // vbv_parameters
+            br.skipBits(15); // first_half_bit_rate
+            br.skipBits(1);  // marker_bit
+            br.skipBits(15); // latter_half_bit_rate
+            br.skipBits(1);  // marker_bit
+            br.skipBits(15); // first_half_vbv_buffer_size
+            br.skipBits(1);  // marker_bit
+            br.skipBits(3);  // latter_half_vbv_buffer_size
+            br.skipBits(11); // first_half_vbv_occupancy
+            br.skipBits(1);  // marker_bit
+            br.skipBits(15); // latter_half_vbv_occupancy
+            br.skipBits(1);  // marker_bit
+        }
+    }
+
+    unsigned videoObjectLayerShape = br.getBits(2);
+    if (videoObjectLayerShape != 0x00u /* rectangular */) {
+        ALOGV("checkDPFromVOLHeader: videoObjectLayerShape:%x",
+               videoObjectLayerShape);
+        return false;
+    }
+
+    br.skipBits(1); // marker_bit
+    unsigned vopTimeIncrementResolution = br.getBits(16);
+    br.skipBits(1); // marker_bit
+    if (br.getBits(1)) {  // fixed_vop_rate
+        // range [0..vopTimeIncrementResolution)
+
+        // vopTimeIncrementResolution
+        // 2 => 0..1, 1 bit
+        // 3 => 0..2, 2 bits
+        // 4 => 0..3, 2 bits
+        // 5 => 0..4, 3 bits
+        // ...
+
+        if (vopTimeIncrementResolution <= 0u) {
+            return BAD_VALUE;
+        }
+
+        --vopTimeIncrementResolution;
+        unsigned numBits = 0;
+        while (vopTimeIncrementResolution > 0) {
+            ++numBits;
+            vopTimeIncrementResolution >>= 1;
+        }
+
+        br.skipBits(numBits);  // fixed_vop_time_increment
+    }
+
+    br.skipBits(1);  // marker_bit
+    br.skipBits(13); // video_object_layer_width
+    br.skipBits(1);  // marker_bit
+    br.skipBits(13); // video_object_layer_height
+    br.skipBits(1);  // marker_bit
+    br.skipBits(1);  // interlaced
+    br.skipBits(1);  // obmc_disable
+    unsigned spriteEnable = 0;
+    if (videoObjectLayerVerid == 1) {
+        spriteEnable = br.getBits(1);
+    } else {
+        spriteEnable = br.getBits(2);
+    }
+
+    if (spriteEnable == 0x1) { // static
+        int spriteWidth = br.getBits(13);
+        ALOGV("checkDPFromVOLHeader: spriteWidth:%d", spriteWidth);
+        br.skipBits(1) ; // marker_bit
+        br.skipBits(13); // sprite_height
+        br.skipBits(1);  // marker_bit
+        br.skipBits(13); // sprite_left_coordinate
+        br.skipBits(1);  // marker_bit
+        br.skipBits(13); // sprite_top_coordinate
+        br.skipBits(1);  // marker_bit
+        br.skipBits(6);  // no_of_sprite_warping_points
+        br.skipBits(2);  // sprite_warping_accuracy
+        br.skipBits(1);  // sprite_brightness_change
+        br.skipBits(1);  // low_latency_sprite_enable
+    } else if (spriteEnable == 0x2) { // GMC
+        br.skipBits(6); // no_of_sprite_warping_points
+        br.skipBits(2); // sprite_warping_accuracy
+        br.skipBits(1); // sprite_brightness_change
+    }
+
+    if (videoObjectLayerVerid != 1
+            && videoObjectLayerShape != 0x0u) {
+        br.skipBits(1);
+    }
+
+    if (br.getBits(1)) { // not_8_bit
+        br.skipBits(4);  // quant_precision
+        br.skipBits(4);  // bits_per_pixel
+    }
+
+    if (videoObjectLayerShape == 0x3) {
+        br.skipBits(1);
+        br.skipBits(1);
+        br.skipBits(1);
+    }
+
+    if (br.getBits(1)) { // quant_type
+        if (br.getBits(1)) { // load_intra_quant_mat
+            unsigned IntraQuantMat = 1;
+            for (int i = 0; i < 64 && IntraQuantMat; i++) {
+                 IntraQuantMat = br.getBits(8);
+            }
+        }
+
+        if (br.getBits(1)) { // load_non_intra_quant_matrix
+            unsigned NonIntraQuantMat = 1;
+            for (int i = 0; i < 64 && NonIntraQuantMat; i++) {
+                 NonIntraQuantMat = br.getBits(8);
+            }
+        }
+    } /* quantType */
+
+    if (videoObjectLayerVerid != 1) {
+        unsigned quarterSample = br.getBits(1);
+        ALOGV("checkDPFromVOLHeader: quarterSample:%u",
+                quarterSample);
+    }
+
+    br.skipBits(1); // complexity_estimation_disable
+    br.skipBits(1); // resync_marker_disable
+    unsigned dataPartitioned = br.getBits(1);
+    if (dataPartitioned) {
+        retVal = true;
+    }
+
+    ALOGD("checkDPFromVOLHeader: DP:%u", dataPartitioned);
+    return retVal;
 }
 
 }  // namespace android
