@@ -293,6 +293,7 @@ MediaFilter::BufferInfo* MediaFilter::findBufferByID(
 }
 
 void MediaFilter::postFillThisBuffer(BufferInfo *info) {
+    ALOGV("postFillThisBuffer on buffer %d", info->mBufferID);
     if (mPortEOS[kPortIndexInput]) {
         return;
     }
@@ -313,13 +314,14 @@ void MediaFilter::postFillThisBuffer(BufferInfo *info) {
 
     notify->setMessage("reply", reply);
 
-    notify->post();
-
     info->mStatus = BufferInfo::OWNED_BY_UPSTREAM;
+    notify->post();
 }
 
 void MediaFilter::postDrainThisBuffer(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);
+
+    info->mGeneration = mGeneration;
 
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", CodecBase::kWhatDrainThisBuffer);
@@ -578,9 +580,11 @@ void MediaFilter::onInputBufferFilled(const sp<AMessage> &msg) {
     }
 
     if (info->mGeneration != mGeneration) {
+        ALOGV("Caught a stale input buffer [ID %d]", bufferID);
         // buffer is stale (taken before a flush/shutdown) - repost it
         CHECK_EQ(info->mStatus, BufferInfo::OWNED_BY_US);
         postFillThisBuffer(info);
+        return;
     }
 
     CHECK_EQ(info->mStatus, BufferInfo::OWNED_BY_UPSTREAM);
@@ -597,6 +601,7 @@ void MediaFilter::onInputBufferFilled(const sp<AMessage> &msg) {
         if (err == OK) {
             // buffers with no errors are returned on MediaCodec.flush
             ALOGV("saw unfilled buffer (MediaCodec.flush)");
+            postFillThisBuffer(info);
             return;
         } else {
             ALOGV("saw error %d instead of an input buffer", err);
@@ -643,6 +648,13 @@ void MediaFilter::onOutputBufferDrained(const sp<AMessage> &msg) {
         return;
     }
 
+    if (info->mGeneration != mGeneration) {
+        ALOGV("Caught a stale output buffer [ID %d]", bufferID);
+        // buffer is stale (taken before a flush/shutdown) - keep it
+        CHECK_EQ(info->mStatus, BufferInfo::OWNED_BY_US);
+        return;
+    }
+
     CHECK_EQ(info->mStatus, BufferInfo::OWNED_BY_UPSTREAM);
     info->mStatus = BufferInfo::OWNED_BY_US;
 
@@ -677,13 +689,16 @@ void MediaFilter::onShutdown(const sp<AMessage> &msg) {
 void MediaFilter::onFlush() {
     mGeneration++;
 
+    mAvailableInputBuffers.clear();
     for (size_t i = 0; i < mBuffers[kPortIndexInput].size(); ++i) {
         BufferInfo *info = &mBuffers[kPortIndexInput].editItemAt(i);
         info->mStatus = BufferInfo::OWNED_BY_US;
     }
+    mAvailableOutputBuffers.clear();
     for (size_t i = 0; i < mBuffers[kPortIndexOutput].size(); ++i) {
         BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
         info->mStatus = BufferInfo::OWNED_BY_US;
+        mAvailableOutputBuffers.push_back(info);
     }
 
     mPortEOS[kPortIndexInput] = false;
@@ -693,8 +708,10 @@ void MediaFilter::onFlush() {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", CodecBase::kWhatFlushCompleted);
     notify->post();
+    ALOGV("Posted kWhatFlushCompleted");
 
-    requestFillEmptyInput();
+    // MediaCodec returns all input buffers after flush, so in
+    // onInputBufferFilled we call postFillThisBuffer on them
 }
 
 void MediaFilter::onSetParameters(const sp<AMessage> &msg) {
