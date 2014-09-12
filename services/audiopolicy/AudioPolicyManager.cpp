@@ -64,6 +64,7 @@ struct StringToEnum {
 const StringToEnum sDeviceNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_DEVICE_OUT_EARPIECE),
     STRING_TO_ENUM(AUDIO_DEVICE_OUT_SPEAKER),
+    STRING_TO_ENUM(AUDIO_DEVICE_OUT_SPEAKER_SAFE),
     STRING_TO_ENUM(AUDIO_DEVICE_OUT_WIRED_HEADSET),
     STRING_TO_ENUM(AUDIO_DEVICE_OUT_WIRED_HEADPHONE),
     STRING_TO_ENUM(AUDIO_DEVICE_OUT_BLUETOOTH_SCO),
@@ -3824,6 +3825,14 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
             break;
         }
     }
+
+    /*Filter SPEAKER_SAFE out of results, as AudioService doesn't know about it
+      and doesn't really need to.*/
+    if (devices & AUDIO_DEVICE_OUT_SPEAKER_SAFE) {
+        devices |= AUDIO_DEVICE_OUT_SPEAKER;
+        devices &= ~AUDIO_DEVICE_OUT_SPEAKER_SAFE;
+    }
+
     return devices;
 }
 
@@ -3926,12 +3935,20 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
             //   the isStreamActive() method only informs about the activity of a stream, not
             //   if it's for local playback. Note also that we use the same delay between both tests
             device = getDeviceForStrategy(STRATEGY_SONIFICATION, false /*fromCache*/);
+            //user "safe" speaker if available instead of normal speaker to avoid triggering
+            //other acoustic safety mechanisms for notification
+            if (device == AUDIO_DEVICE_OUT_SPEAKER && (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER_SAFE))
+                device = AUDIO_DEVICE_OUT_SPEAKER_SAFE;
         } else if (isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY)) {
             // while media is playing (or has recently played), use the same device
             device = getDeviceForStrategy(STRATEGY_MEDIA, false /*fromCache*/);
         } else {
             // when media is not playing anymore, fall back on the sonification behavior
             device = getDeviceForStrategy(STRATEGY_SONIFICATION, false /*fromCache*/);
+            //user "safe" speaker if available instead of normal speaker to avoid triggering
+            //other acoustic safety mechanisms for notification
+            if (device == AUDIO_DEVICE_OUT_SPEAKER && (availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER_SAFE))
+                device = AUDIO_DEVICE_OUT_SPEAKER_SAFE;
         }
 
         break;
@@ -4667,6 +4684,10 @@ audio_devices_t AudioPolicyManager::getDeviceForVolume(audio_devices_t device)
             device = (audio_devices_t)(device & AUDIO_DEVICE_OUT_ALL_A2DP);
         }
     }
+
+    /*SPEAKER_SAFE is an alias of SPEAKER for purposes of volume control*/
+    if (device == AUDIO_DEVICE_OUT_SPEAKER_SAFE)
+        device = AUDIO_DEVICE_OUT_SPEAKER;
 
     ALOGW_IF(popcount(device) != 1,
             "getDeviceForVolume() invalid device combination: %08x",
