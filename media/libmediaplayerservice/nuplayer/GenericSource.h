@@ -131,6 +131,8 @@ private:
     off64_t mMetaDataSize;
     int64_t mBitrate;
     int32_t mPollBufferingGeneration;
+    uint32_t mPendingReadBufferTypes;
+    mutable Mutex mReadBufferLock;
 
     sp<ALooper> mLooper;
 

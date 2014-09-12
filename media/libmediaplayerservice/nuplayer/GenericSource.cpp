@@ -54,7 +54,8 @@ NuPlayer::GenericSource::GenericSource(
       mDrmManagerClient(NULL),
       mMetaDataSize(-1ll),
       mBitrate(-1ll),
-      mPollBufferingGeneration(0) {
+      mPollBufferingGeneration(0),
+      mPendingReadBufferTypes(0) {
     resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
@@ -1148,15 +1149,27 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
 }
 
 void NuPlayer::GenericSource::postReadBuffer(media_track_type trackType) {
-    sp<AMessage> msg = new AMessage(kWhatReadBuffer, id());
-    msg->setInt32("trackType", trackType);
-    msg->post();
+    Mutex::Autolock _l(mReadBufferLock);
+
+    if ((mPendingReadBufferTypes & (1 << trackType)) == 0) {
+        mPendingReadBufferTypes |= (1 << trackType);
+        sp<AMessage> msg = new AMessage(kWhatReadBuffer, id());
+        msg->setInt32("trackType", trackType);
+        msg->post();
+    }
 }
 
 void NuPlayer::GenericSource::onReadBuffer(sp<AMessage> msg) {
     int32_t tmpType;
     CHECK(msg->findInt32("trackType", &tmpType));
     media_track_type trackType = (media_track_type)tmpType;
+    {
+        // only protect the variable change, as readBuffer may
+        // take considerable time.  This may result in one extra
+        // read being processed, but that is benign.
+        Mutex::Autolock _l(mReadBufferLock);
+        mPendingReadBufferTypes &= ~(1 << trackType);
+    }
     readBuffer(trackType);
 }
 
