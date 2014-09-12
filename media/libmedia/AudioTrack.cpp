@@ -398,7 +398,7 @@ status_t AudioTrack::set(
     }
 
     // create the IAudioTrack
-    status = createTrack_l(0 /*epoch*/);
+    status = createTrack_l();
 
     if (status != NO_ERROR) {
         if (mAudioTrackThread != 0) {
@@ -417,6 +417,9 @@ status_t AudioTrack::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
+    mServer = 0;
+    mPosition = 0;
+    mReleased = 0;
     AudioSystem::acquireAudioSessionId(mSessionId, mClientPid);
     mSequence = 1;
     mObservedSequence = mSequence;
@@ -443,14 +446,16 @@ status_t AudioTrack::start()
     } else {
         mState = STATE_ACTIVE;
     }
+    (void) updateAndGetPosition_l();
     if (previousState == STATE_STOPPED || previousState == STATE_FLUSHED) {
         // reset current position as seen by client to 0
-        mProxy->setEpoch(mProxy->getEpoch() - mProxy->getPosition());
+        mPosition = 0;
+        mReleased = 0;
         // force refresh of remaining frames by processAudioBuffer() as last
         // write before stop could be partial.
         mRefreshRemaining = true;
     }
-    mNewPosition = mProxy->getPosition() + mUpdatePeriod;
+    mNewPosition = mPosition + mUpdatePeriod;
     int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
 
     sp<AudioTrackThread> t = mAudioTrackThread;
@@ -709,7 +714,7 @@ void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
     // FIXME If setting a loop also sets position to start of loop, then
     //       this is correct.  Otherwise it should be removed.
-    mNewPosition = mProxy->getPosition() + mUpdatePeriod;
+    mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
     mLoopPeriod = loopCount != 0 ? loopEnd - loopStart : 0;
     mStaticProxy->setLoop(loopStart, loopEnd, loopCount);
 }
@@ -751,7 +756,7 @@ status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
     }
 
     AutoMutex lock(mLock);
-    mNewPosition = mProxy->getPosition() + updatePeriod;
+    mNewPosition = updateAndGetPosition_l() + updatePeriod;
     mUpdatePeriod = updatePeriod;
 
     return NO_ERROR;
@@ -791,7 +796,7 @@ status_t AudioTrack::setPosition(uint32_t position)
     if (mState == STATE_ACTIVE) {
         return INVALID_OPERATION;
     }
-    mNewPosition = mProxy->getPosition() + mUpdatePeriod;
+    mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
     mLoopPeriod = 0;
     // FIXME Check whether loops and setting position are incompatible in old code.
     // If we use setLoop for both purposes we lose the capability to set the position while looping.
@@ -800,7 +805,7 @@ status_t AudioTrack::setPosition(uint32_t position)
     return NO_ERROR;
 }
 
-status_t AudioTrack::getPosition(uint32_t *position) const
+status_t AudioTrack::getPosition(uint32_t *position)
 {
     if (position == NULL) {
         return BAD_VALUE;
@@ -823,8 +828,8 @@ status_t AudioTrack::getPosition(uint32_t *position) const
         *position = dspFrames;
     } else {
         // IAudioTrack::stop() isn't synchronous; we don't know when presentation completes
-        *position = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ? 0 :
-                mProxy->getPosition();
+        *position = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ?
+                0 : updateAndGetPosition_l();
     }
     return NO_ERROR;
 }
@@ -881,7 +886,7 @@ status_t AudioTrack::attachAuxEffect(int effectId)
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
-status_t AudioTrack::createTrack_l(size_t epoch)
+status_t AudioTrack::createTrack_l()
 {
     status_t status;
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
@@ -1184,7 +1189,6 @@ status_t AudioTrack::createTrack_l(size_t epoch)
     mProxy->setVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY);
     mProxy->setSendLevel(mSendLevel);
     mProxy->setSampleRate(mSampleRate);
-    mProxy->setEpoch(epoch);
     mProxy->setMinimum(mNotificationFramesAct);
 
     mDeathNotifier = new DeathNotifier(this);
@@ -1319,6 +1323,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
     buffer.mRaw = audioBuffer->raw;
 
     AutoMutex lock(mLock);
+    mReleased += stepCount;
     mInUnderrun = false;
     mProxy->releaseBuffer(&buffer);
 
@@ -1531,7 +1536,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     }
 
     // Get current position of server
-    size_t position = mProxy->getPosition();
+    size_t position = updateAndGetPosition_l();
 
     // Manage marker callback
     bool markerReached = false;
@@ -1796,14 +1801,18 @@ status_t AudioTrack::restoreTrack_l(const char *from)
         return DEAD_OBJECT;
     }
 
-    // if the new IAudioTrack is created, createTrack_l() will modify the
+    // save the old static buffer position
+    size_t bufferPosition = mStaticProxy != NULL ? mStaticProxy->getBufferPosition() : 0;
+
+    // If a new IAudioTrack is successfully created, createTrack_l() will modify the
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
-    // It will also delete the strong references on previous IAudioTrack and IMemory
+    // It will also delete the strong references on previous IAudioTrack and IMemory.
+    // If a new IAudioTrack cannot be created, the previous (dead) instance will be left intact.
+    result = createTrack_l();
 
     // take the frames that will be lost by track recreation into account in saved position
-    size_t position = mProxy->getPosition() + mProxy->getFramesFilled();
-    size_t bufferPosition = mStaticProxy != NULL ? mStaticProxy->getBufferPosition() : 0;
-    result = createTrack_l(position /*epoch*/);
+    (void) updateAndGetPosition_l();
+    mPosition = mReleased;
 
     if (result == NO_ERROR) {
         // continue playback from last known position, but
@@ -1838,6 +1847,27 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     return result;
 }
 
+uint32_t AudioTrack::updateAndGetPosition_l()
+{
+    // This is the sole place to read server consumed frames
+    uint32_t newServer = mProxy->getPosition();
+    int32_t delta = newServer - mServer;
+    mServer = newServer;
+    // TODO There is controversy about whether there can be "negative jitter" in server position.
+    //      This should be investigated further, and if possible, it should be addressed.
+    //      A more definite failure mode is infrequent polling by client.
+    //      One could call (void)getPosition_l() in releaseBuffer(),
+    //      so mReleased and mPosition are always lock-step as best possible.
+    //      That should ensure delta never goes negative for infrequent polling
+    //      unless the server has more than 2^31 frames in its buffer,
+    //      in which case the use of uint32_t for these counters has bigger issues.
+    if (delta < 0) {
+        ALOGE("detected illegal retrograde motion by the server: mServer advanced by %d", delta);
+        delta = 0;
+    }
+    return mPosition += (uint32_t) delta;
+}
+
 status_t AudioTrack::setParameters(const String8& keyValuePairs)
 {
     AutoMutex lock(mLock);
@@ -1854,9 +1884,34 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     if (mState != STATE_ACTIVE && mState != STATE_PAUSED) {
         return INVALID_OPERATION;
     }
+    // The presented frame count must always lag behind the consumed frame count.
+    // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
     status_t status = mAudioTrack->getTimestamp(timestamp);
     if (status == NO_ERROR) {
-        timestamp.mPosition += mProxy->getEpoch();
+        // Update the mapping between local consumed (mPosition) and server consumed (mServer)
+        (void) updateAndGetPosition_l();
+        // Server consumed (mServer) and presented both use the same server time base,
+        // and server consumed is always >= presented.
+        // The delta between these represents the number of frames in the buffer pipeline.
+        // If this delta between these is greater than the client position, it means that
+        // actually presented is still stuck at the starting line (figuratively speaking),
+        // waiting for the first frame to go by.  So we can't report a valid timestamp yet.
+        if ((uint32_t) (mServer - timestamp.mPosition) > mPosition) {
+            return INVALID_OPERATION;
+        }
+        // Convert timestamp position from server time base to client time base.
+        // TODO The following code should work OK now because timestamp.mPosition is 32-bit.
+        // But if we change it to 64-bit then this could fail.
+        // If (mPosition - mServer) can be negative then should use:
+        //   (int32_t)(mPosition - mServer)
+        timestamp.mPosition += mPosition - mServer;
+        // Immediately after a call to getPosition_l(), mPosition and
+        // mServer both represent the same frame position.  mPosition is
+        // in client's point of view, and mServer is in server's point of
+        // view.  So the difference between them is the "fudge factor"
+        // between client and server views due to stop() and/or new
+        // IAudioTrack.  And timestamp.mPosition is initially in server's
+        // point of view, so we need to apply the same fudge factor to it.
     }
     return status;
 }
