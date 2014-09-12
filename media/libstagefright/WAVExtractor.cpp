@@ -75,7 +75,7 @@ struct WAVSource : public MediaSource {
 
     bool use24BitOutput() {
         int32_t bitWidth = 16;
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
         if (getFormat() != 0)
             getFormat()->findInt32(kKeySampleBits, &bitWidth);
 #endif
@@ -298,7 +298,7 @@ status_t WAVExtractor::init() {
                     case WAVE_FORMAT_PCM:
                         mTrackMeta->setCString(
                                 kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
                         mTrackMeta->setInt32(kKeySampleBits, mBitsPerSample);
 #endif
                         break;
