@@ -59,8 +59,10 @@ class Camera3ZslStream :
 
     /**
      * Clears the buffers that can be used by enqueueInputBufferByTimestamp
+     * latestTimestamp will be filled with the largest timestamp of buffers
+     * being cleared, 0 if there is no buffer being clear.
      */
-    status_t clearInputRingBuffer();
+    status_t clearInputRingBuffer(nsecs_t* latestTimestamp);
 
   protected:
 
@@ -100,7 +102,7 @@ class Camera3ZslStream :
     // Disconnet the Camera3ZslStream specific bufferQueues.
     virtual status_t disconnectLocked();
 
-    status_t clearInputRingBufferLocked();
+    status_t clearInputRingBufferLocked(nsecs_t* latestTimestamp);
 
 }; // class Camera3ZslStream
 
