@@ -498,7 +498,7 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
 
-            onCheckBandwidth();
+            onCheckBandwidth(msg);
             break;
         }
 
@@ -919,14 +919,22 @@ size_t LiveSession::getBandwidthIndex() {
             }
         }
 
-        // Consider only 80% of the available bandwidth usable.
-        bandwidthBps = (bandwidthBps * 8) / 10;
-
         // Pick the highest bandwidth stream below or equal to estimated bandwidth.
 
         index = mBandwidthItems.size() - 1;
-        while (index > 0 && mBandwidthItems.itemAt(index).mBandwidth
-                                > (size_t)bandwidthBps) {
+        while (index > 0) {
+            // consider only 80% of the available bandwidth, but if we are switching up,
+            // be even more conservative (70%) to avoid overestimating and immediately
+            // switching back.
+            size_t adjustedBandwidthBps = bandwidthBps;
+            if (index > mCurBandwidthIndex) {
+                adjustedBandwidthBps = adjustedBandwidthBps * 7 / 10;
+            } else {
+                adjustedBandwidthBps = adjustedBandwidthBps * 8 / 10;
+            }
+            if (mBandwidthItems.itemAt(index).mBandwidth <= adjustedBandwidthBps) {
+                break;
+            }
             --index;
         }
     }
@@ -1394,6 +1402,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     // All fetchers have now been started, the configuration change
     // has completed.
 
+    cancelCheckBandwidthEvent();
     scheduleCheckBandwidthEvent();
 
     ALOGV("XXX configuration change completed.");
@@ -1492,20 +1501,16 @@ bool LiveSession::canSwitchBandwidthTo(size_t bandwidthIndex) {
     }
 }
 
-void LiveSession::onCheckBandwidth() {
+void LiveSession::onCheckBandwidth(const sp<AMessage> &msg) {
     size_t bandwidthIndex = getBandwidthIndex();
     if (canSwitchBandwidthTo(bandwidthIndex)) {
         changeConfiguration(-1ll /* timeUs */, bandwidthIndex);
     } else {
-        scheduleCheckBandwidthEvent();
+        // Come back and check again 10 seconds later in case there is nothing to do now.
+        // If we DO change configuration, once that completes it'll schedule a new
+        // check bandwidth event with an incremented mCheckBandwidthGeneration.
+        msg->post(10000000ll);
     }
-
-    // Handling the kWhatCheckBandwidth even here does _not_ automatically
-    // schedule another one on return, only an explicit call to
-    // scheduleCheckBandwidthEvent will do that.
-    // This ensures that only one configuration change is ongoing at any
-    // one time, once that completes it'll schedule another check bandwidth
-    // event.
 }
 
 void LiveSession::postPrepared(status_t err) {
