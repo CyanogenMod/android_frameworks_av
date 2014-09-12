@@ -227,7 +227,7 @@ public:
 
     // Returns NO_ERROR if a timestamp is available.  The timestamp includes the total number
     // of frames presented to an external observer, together with the value of CLOCK_MONOTONIC
-    // as of this presentation count.
+    // as of this presentation count.  The timestamp parameter is undefined if error is returned.
     virtual status_t getTimestamp(AudioTimestamp& timestamp) { return INVALID_OPERATION; }
 
 protected:
