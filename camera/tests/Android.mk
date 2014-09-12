@@ -14,16 +14,15 @@
 
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
 LOCAL_SRC_FILES:= \
-	main.cpp \
 	ProCameraTests.cpp \
 	VendorTagDescriptorTests.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libutils \
 	libcutils \
-	libstlport \
 	libcamera_metadata \
 	libcamera_client \
 	libgui \
@@ -32,14 +31,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libdl \
 	libbinder
 
-LOCAL_STATIC_LIBRARIES := \
-	libgtest
-
 LOCAL_C_INCLUDES += \
-	bionic \
-	bionic/libstdc++/include \
-	external/gtest/include \
-	external/stlport/stlport \
 	system/media/camera/include \
 	system/media/private/camera/include \
 	system/media/camera/tests \
