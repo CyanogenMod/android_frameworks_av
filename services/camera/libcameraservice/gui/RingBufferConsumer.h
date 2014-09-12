@@ -159,6 +159,9 @@ class RingBufferConsumer : public ConsumerBase,
     // Release all the non-pinned buffers in the ring buffer
     status_t clear();
 
+    // Return 0 if RingBuffer is empty, otherwise return timestamp of latest buffer.
+    nsecs_t getLatestTimestamp();
+
   private:
 
     // Override ConsumerBase::onFrameAvailable
@@ -180,6 +183,9 @@ class RingBufferConsumer : public ConsumerBase,
     // List of acquired buffers in our ring buffer
     List<RingBufferItem>       mBufferItemList;
     const int                  mBufferCount;
+
+    // Timestamp of latest buffer
+    nsecs_t mLatestTimestamp;
 };
 
 } // namespace android

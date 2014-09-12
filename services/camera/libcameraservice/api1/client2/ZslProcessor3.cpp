@@ -44,6 +44,7 @@ ZslProcessor3::ZslProcessor3(
     sp<Camera2Client> client,
     wp<CaptureSequencer> sequencer):
         Thread(false),
+        mLatestClearedBufferTimestamp(0),
         mState(RUNNING),
         mClient(client),
         mSequencer(sequencer),
@@ -107,7 +108,6 @@ void ZslProcessor3::onResultAvailable(const CaptureResult &result) {
         ALOGE("%s: metadata doesn't have timestamp, skip this result", __FUNCTION__);
         return;
     }
-    (void)timestamp;
 
     entry = result.mMetadata.find(ANDROID_REQUEST_FRAME_COUNT);
     if (entry.count == 0) {
@@ -119,6 +119,9 @@ void ZslProcessor3::onResultAvailable(const CaptureResult &result) {
     ALOGVV("Got preview metadata for frame %d with timestamp %" PRId64, frameNumber, timestamp);
 
     if (mState != RUNNING) return;
+
+    // Corresponding buffer has been cleared. No need to push into mFrameList
+    if (timestamp <= mLatestClearedBufferTimestamp) return;
 
     mFrameList.editItemAt(mFrameListHead) = result.mMetadata;
     mFrameListHead = (mFrameListHead + 1) % mFrameListDepth;
@@ -392,7 +395,7 @@ status_t ZslProcessor3::clearZslQueueLocked() {
     if (mZslStream != 0) {
         // clear result metadata list first.
         clearZslResultQueueLocked();
-        return mZslStream->clearInputRingBuffer();
+        return mZslStream->clearInputRingBuffer(&mLatestClearedBufferTimestamp);
     }
     return OK;
 }
