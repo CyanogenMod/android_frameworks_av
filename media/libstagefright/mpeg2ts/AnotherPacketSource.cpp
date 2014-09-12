@@ -42,7 +42,8 @@ AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
       mLastQueuedTimeUs(0),
       mEOSResult(OK),
       mLatestEnqueuedMeta(NULL),
-      mLatestDequeuedMeta(NULL) {
+      mLatestDequeuedMeta(NULL),
+      mQueuedDiscontinuityCount(0) {
     setFormat(meta);
 }
 
@@ -122,6 +123,7 @@ status_t AnotherPacketSource::dequeueAccessUnit(sp<ABuffer> *buffer) {
                 mFormat.clear();
             }
 
+            --mQueuedDiscontinuityCount;
             return INFO_DISCONTINUITY;
         }
 
@@ -210,6 +212,11 @@ void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {
     mBuffers.push_back(buffer);
     mCondition.signal();
 
+    int32_t discontinuity;
+    if (buffer->meta()->findInt32("discontinuity", &discontinuity)) {
+        ++mQueuedDiscontinuityCount;
+    }
+
     if (mLatestEnqueuedMeta == NULL) {
         mLatestEnqueuedMeta = buffer->meta();
     } else {
@@ -226,6 +233,7 @@ void AnotherPacketSource::clear() {
 
     mBuffers.clear();
     mEOSResult = OK;
+    mQueuedDiscontinuityCount = 0;
 
     mFormat = NULL;
     mLatestEnqueuedMeta = NULL;
@@ -262,6 +270,7 @@ void AnotherPacketSource::queueDiscontinuity(
     mEOSResult = OK;
     mLastQueuedTimeUs = 0;
     mLatestEnqueuedMeta = NULL;
+    ++mQueuedDiscontinuityCount;
 
     sp<ABuffer> buffer = new ABuffer(0);
     buffer->meta()->setInt32("discontinuity", static_cast<int32_t>(type));
@@ -291,7 +300,10 @@ bool AnotherPacketSource::hasBufferAvailable(status_t *finalResult) {
 
 int64_t AnotherPacketSource::getBufferedDurationUs(status_t *finalResult) {
     Mutex::Autolock autoLock(mLock);
+    return getBufferedDurationUs_l(finalResult);
+}
 
+int64_t AnotherPacketSource::getBufferedDurationUs_l(status_t *finalResult) {
     *finalResult = mEOSResult;
 
     if (mBuffers.empty()) {
@@ -300,6 +312,7 @@ int64_t AnotherPacketSource::getBufferedDurationUs(status_t *finalResult) {
 
     int64_t time1 = -1;
     int64_t time2 = -1;
+    int64_t durationUs = 0;
 
     List<sp<ABuffer> >::iterator it = mBuffers.begin();
     while (it != mBuffers.end()) {
@@ -307,20 +320,64 @@ int64_t AnotherPacketSource::getBufferedDurationUs(status_t *finalResult) {
 
         int64_t timeUs;
         if (buffer->meta()->findInt64("timeUs", &timeUs)) {
-            if (time1 < 0) {
+            if (time1 < 0 || timeUs < time1) {
                 time1 = timeUs;
             }
 
-            time2 = timeUs;
+            if (time2 < 0 || timeUs > time2) {
+                time2 = timeUs;
+            }
         } else {
             // This is a discontinuity, reset everything.
+            durationUs += time2 - time1;
             time1 = time2 = -1;
         }
 
         ++it;
     }
 
-    return time2 - time1;
+    return durationUs + (time2 - time1);
+}
+
+// A cheaper but less precise version of getBufferedDurationUs that we would like to use in
+// LiveSession::dequeueAccessUnit to trigger downwards adaptation.
+int64_t AnotherPacketSource::getEstimatedDurationUs() {
+    Mutex::Autolock autoLock(mLock);
+    if (mBuffers.empty()) {
+        return 0;
+    }
+
+    if (mQueuedDiscontinuityCount > 0) {
+        status_t finalResult;
+        return getBufferedDurationUs_l(&finalResult);
+    }
+
+    List<sp<ABuffer> >::iterator it = mBuffers.begin();
+    sp<ABuffer> buffer = *it;
+
+    int64_t startTimeUs;
+    buffer->meta()->findInt64("timeUs", &startTimeUs);
+    if (startTimeUs < 0) {
+        return 0;
+    }
+
+    it = mBuffers.end();
+    --it;
+    buffer = *it;
+
+    int64_t endTimeUs;
+    buffer->meta()->findInt64("timeUs", &endTimeUs);
+    if (endTimeUs < 0) {
+        return 0;
+    }
+
+    int64_t diffUs;
+    if (endTimeUs > startTimeUs) {
+        diffUs = endTimeUs - startTimeUs;
+    } else {
+        diffUs = startTimeUs - endTimeUs;
+    }
+    return diffUs;
 }
 
 status_t AnotherPacketSource::nextBufferTime(int64_t *timeUs) {
