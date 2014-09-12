@@ -66,7 +66,8 @@ protected:
     virtual void updatePortDefinitions(bool updateCrop = true);
 
     void handlePortSettingsChange(
-            bool *portWillReset, uint32_t width, uint32_t height, bool cropChanged = false);
+            bool *portWillReset, uint32_t width, uint32_t height,
+            bool cropChanged = false, bool fakeStride = false);
 
     void copyYV12FrameToOutputBuffer(
             uint8_t *dst, const uint8_t *srcY, const uint8_t *srcU, const uint8_t *srcV,
