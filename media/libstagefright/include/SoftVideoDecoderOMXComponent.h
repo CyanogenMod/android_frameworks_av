@@ -65,6 +65,9 @@ protected:
 
     virtual void updatePortDefinitions(bool updateCrop = true);
 
+    uint32_t outputBufferWidth();
+    uint32_t outputBufferHeight();
+
     void handlePortSettingsChange(
             bool *portWillReset, uint32_t width, uint32_t height,
             bool cropChanged = false, bool fakeStride = false);
