@@ -257,7 +257,7 @@ private:
     void cancelBandwidthSwitch();
 
     bool canSwitchBandwidthTo(size_t bandwidthIndex);
-    void onCheckBandwidth();
+    void onCheckBandwidth(const sp<AMessage> &msg);
 
     void finishDisconnect();
 
