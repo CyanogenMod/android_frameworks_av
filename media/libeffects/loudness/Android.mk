@@ -12,16 +12,12 @@ LOCAL_CFLAGS+= -O2 -fvisibility=hidden
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \
 	liblog \
-	libstlport
 
 LOCAL_MODULE_RELATIVE_PATH := soundfx
 LOCAL_MODULE:= libldnhncr
 
 LOCAL_C_INCLUDES := \
 	$(call include-path-for, audio-effects) \
-	bionic \
-	bionic/libstdc++/include \
-	external/stlport/stlport
 
-
+include external/stlport/libstlport.mk
 include $(BUILD_SHARED_LIBRARY)
