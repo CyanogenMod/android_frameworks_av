@@ -142,6 +142,9 @@ private:
     // of the original one), we allocate mPreviewBuffer and reuse it if possible.
     sp<MemoryHeapBase>              mPreviewBuffer;
 
+    // Debugging information
+    CameraParameters                mLatestSetParameters;
+
     // We need to avoid the deadlock when the incoming command thread and
     // the CameraHardwareInterface callback thread both want to grab mLock.
     // An extra flag is used to tell the callback thread that it should stop
