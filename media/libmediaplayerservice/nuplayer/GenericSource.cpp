@@ -170,6 +170,8 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             if (mAudioTrack.mSource == NULL) {
                 mAudioTrack.mIndex = i;
                 mAudioTrack.mSource = track;
+                mAudioTrack.mPackets =
+                    new AnotherPacketSource(mAudioTrack.mSource->getFormat());
 
                 if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_VORBIS)) {
                     mAudioIsVorbis = true;
@@ -181,6 +183,8 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             if (mVideoTrack.mSource == NULL) {
                 mVideoTrack.mIndex = i;
                 mVideoTrack.mSource = track;
+                mVideoTrack.mPackets =
+                    new AnotherPacketSource(mVideoTrack.mSource->getFormat());
 
                 // check if the source requires secure buffers
                 int32_t secure;
@@ -428,16 +432,12 @@ void NuPlayer::GenericSource::start() {
 
     if (mAudioTrack.mSource != NULL) {
         CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
-        mAudioTrack.mPackets =
-            new AnotherPacketSource(mAudioTrack.mSource->getFormat());
 
         postReadBuffer(MEDIA_TRACK_TYPE_AUDIO);
     }
 
     if (mVideoTrack.mSource != NULL) {
         CHECK_EQ(mVideoTrack.mSource->start(), (status_t)OK);
-        mVideoTrack.mPackets =
-            new AnotherPacketSource(mVideoTrack.mSource->getFormat());
 
         postReadBuffer(MEDIA_TRACK_TYPE_VIDEO);
     }
