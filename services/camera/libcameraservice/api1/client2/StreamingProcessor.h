@@ -54,6 +54,9 @@ class StreamingProcessor:
 
     status_t setRecordingBufferCount(size_t count);
     status_t updateRecordingRequest(const Parameters &params);
+    // If needsUpdate is set to true, a updateRecordingStream call with params will recreate
+    // recording stream
+    status_t recordingStreamNeedsUpdate(const Parameters &params, bool *needsUpdate);
     status_t updateRecordingStream(const Parameters &params);
     status_t deleteRecordingStream();
     int getRecordingStreamId() const;
