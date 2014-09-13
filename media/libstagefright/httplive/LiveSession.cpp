@@ -81,6 +81,7 @@ LiveSession::LiveSession(
         mDiscontinuities.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
+        mBuffering[i] = false;
     }
 }
 
@@ -133,8 +134,26 @@ status_t LiveSession::dequeueAccessUnit(
 
     sp<AnotherPacketSource> packetSource = mPacketSources.valueFor(stream);
 
+    ssize_t idx = typeToIndex(stream);
     if (!packetSource->hasBufferAvailable(&finalResult)) {
-        return finalResult == OK ? -EAGAIN : finalResult;
+        if (finalResult == OK) {
+            mBuffering[idx] = true;
+            return -EAGAIN;
+        } else {
+            return finalResult;
+        }
+    }
+
+    if (mBuffering[idx]) {
+        if (mSwitchInProgress
+                || packetSource->isFinished(0)
+                || packetSource->getEstimatedDurationUs() > 10000000ll) {
+            mBuffering[idx] = false;
+        }
+    }
+
+    if (mBuffering[idx]) {
+        return -EAGAIN;
     }
 
     // wait for counterpart
@@ -565,6 +584,21 @@ int LiveSession::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b)
 LiveSession::StreamType LiveSession::indexToType(int idx) {
     CHECK(idx >= 0 && idx < kMaxStreams);
     return (StreamType)(1 << idx);
+}
+
+// static
+ssize_t LiveSession::typeToIndex(int32_t type) {
+    switch (type) {
+        case STREAMTYPE_AUDIO:
+            return 0;
+        case STREAMTYPE_VIDEO:
+            return 1;
+        case STREAMTYPE_SUBTITLES:
+            return 2;
+        default:
+            return -1;
+    };
+    return -1;
 }
 
 void LiveSession::onConnect(const sp<AMessage> &msg) {
