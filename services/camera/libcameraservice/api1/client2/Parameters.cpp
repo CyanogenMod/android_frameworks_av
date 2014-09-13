@@ -76,9 +76,29 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     res = getFilteredSizes(MAX_VIDEO_SIZE, &availableVideoSizes);
     if (res != OK) return res;
 
-    // TODO: Pick more intelligently
-    previewWidth = availablePreviewSizes[0].width;
-    previewHeight = availablePreviewSizes[0].height;
+    // Select initial preview and video size that's under the initial bound and
+    // on the list of both preview and recording sizes
+    previewWidth = 0;
+    previewHeight = 0;
+    for (size_t i = 0 ; i < availablePreviewSizes.size(); i++) {
+        int newWidth = availablePreviewSizes[i].width;
+        int newHeight = availablePreviewSizes[i].height;
+        if (newWidth >= previewWidth && newHeight >= previewHeight &&
+                newWidth <= MAX_INITIAL_PREVIEW_WIDTH &&
+                newHeight <= MAX_INITIAL_PREVIEW_HEIGHT) {
+            for (size_t j = 0; j < availableVideoSizes.size(); j++) {
+                if (availableVideoSizes[j].width == newWidth &&
+                        availableVideoSizes[j].height == newHeight) {
+                    previewWidth = newWidth;
+                    previewHeight = newHeight;
+                }
+            }
+        }
+    }
+    if (previewWidth == 0) {
+        ALOGE("%s: No initial preview size can be found!", __FUNCTION__);
+        return BAD_VALUE;
+    }
     videoWidth = previewWidth;
     videoHeight = previewHeight;
 
