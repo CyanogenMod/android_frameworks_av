@@ -151,7 +151,7 @@ void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop) {
 }
 
 void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
-        bool *portWillReset, uint32_t width, uint32_t height, bool cropChanged) {
+        bool *portWillReset, uint32_t width, uint32_t height, bool cropChanged, bool fakeStride) {
     *portWillReset = false;
     bool sizeChanged = (width != mWidth || height != mHeight);
 
@@ -177,6 +177,19 @@ void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
             *portWillReset = true;
         } else {
             updatePortDefinitions(updateCrop);
+
+            if (fakeStride) {
+                // MAJOR HACK that is not pretty, it's just to fool the renderer to read the correct
+                // data.
+                // Some software decoders (e.g. SoftMPEG4) fill decoded frame directly to output
+                // buffer without considering the output buffer stride and slice height. So this is
+                // used to signal how the buffer is arranged.  The alternative is to re-arrange the
+                // output buffer in SoftMPEG4, but that results in memcopies.
+                OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kOutputPortIndex)->mDef;
+                def->format.video.nStride = mWidth;
+                def->format.video.nSliceHeight = mHeight;
+            }
+
             notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
                    OMX_IndexConfigCommonOutputCrop, NULL);
         }
