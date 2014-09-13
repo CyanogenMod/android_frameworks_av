@@ -1286,12 +1286,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     CHECK(msg->findInt32("streamMask", (int32_t *)&streamMask));
     CHECK(msg->findInt32("resumeMask", (int32_t *)&resumeMask));
 
-    for (size_t i = 0; i < kMaxStreams; ++i) {
-        if (streamMask & indexToType(i)) {
-            CHECK(msg->findString(mStreams[i].uriKey().c_str(), &mStreams[i].mUri));
-        }
-    }
-
     int64_t timeUs;
     int32_t pickTrack;
     bool switching = false;
@@ -1307,7 +1301,20 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         mRealTimeBaseUs = ALooper::GetNowUs() - timeUs;
     }
 
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        if (streamMask & indexToType(i)) {
+            if (switching) {
+                CHECK(msg->findString(mStreams[i].uriKey().c_str(), &mStreams[i].mNewUri));
+            } else {
+                CHECK(msg->findString(mStreams[i].uriKey().c_str(), &mStreams[i].mUri));
+            }
+        }
+    }
+
     mNewStreamMask = streamMask | resumeMask;
+    if (switching) {
+        mSwapMask = mStreamMask & ~resumeMask;
+    }
 
     // Of all existing fetchers:
     // * Resume fetchers that are still needed and assign them original packet sources.
@@ -1357,7 +1364,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         }
 
         AString uri;
-        uri = mStreams[i].mUri;
+        uri = switching ? mStreams[i].mNewUri : mStreams[i].mUri;
 
         sp<PlaylistFetcher> fetcher = addFetcher(uri.c_str());
         CHECK(fetcher != NULL);
@@ -1370,7 +1377,8 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
 
         // TRICKY: looping from i as earlier streams are already removed from streamMask
         for (size_t j = i; j < kMaxStreams; ++j) {
-            if ((streamMask & indexToType(j)) && uri == mStreams[j].mUri) {
+            const AString &streamUri = switching ? mStreams[j].mNewUri : mStreams[j].mUri;
+            if ((streamMask & indexToType(j)) && uri == streamUri) {
                 sources[j] = mPacketSources.valueFor(indexToType(j));
 
                 if (timeUs >= 0) {
@@ -1459,7 +1467,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     mReconfigurationInProgress = false;
     if (switching) {
         mSwitchInProgress = true;
-        mSwapMask = streamMask;
     } else {
         mStreamMask = mNewStreamMask;
     }
@@ -1478,6 +1485,15 @@ void LiveSession::onSwapped(const sp<AMessage> &msg) {
 
     int32_t stream;
     CHECK(msg->findInt32("stream", &stream));
+
+    ssize_t idx = typeToIndex(stream);
+    CHECK(idx >= 0);
+    if ((mNewStreamMask & stream) && mStreams[idx].mNewUri.empty()) {
+        ALOGW("swapping stream type %d %s to empty stream", stream, mStreams[idx].mUri.c_str());
+    }
+    mStreams[idx].mUri = mStreams[idx].mNewUri;
+    mStreams[idx].mNewUri.clear();
+
     mSwapMask &= ~stream;
     if (mSwapMask != 0) {
         return;
@@ -1489,6 +1505,15 @@ void LiveSession::onSwapped(const sp<AMessage> &msg) {
         StreamType extraStream = (StreamType) (extraStreams & ~(extraStreams - 1));
         swapPacketSource(extraStream);
         extraStreams &= ~extraStream;
+
+        idx = typeToIndex(extraStream);
+        CHECK(idx >= 0);
+        if (mStreams[idx].mNewUri.empty()) {
+            ALOGW("swapping extra stream type %d %s to empty stream",
+                    extraStream, mStreams[idx].mUri.c_str());
+        }
+        mStreams[idx].mUri = mStreams[idx].mNewUri;
+        mStreams[idx].mNewUri.clear();
     }
 
     tryToFinishBandwidthSwitch();
@@ -1569,6 +1594,28 @@ void LiveSession::cancelBandwidthSwitch() {
     mSwitchGeneration++;
     mSwitchInProgress = false;
     mSwapMask = 0;
+
+    for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
+        FetcherInfo& info = mFetcherInfos.editValueAt(i);
+        if (info.mToBeRemoved) {
+            info.mToBeRemoved = false;
+        }
+    }
+
+    for (size_t i = 0; i < kMaxStreams; ++i) {
+        if (!mStreams[i].mNewUri.empty()) {
+            ssize_t j = mFetcherInfos.indexOfKey(mStreams[i].mNewUri);
+            if (j < 0) {
+                mStreams[i].mNewUri.clear();
+                continue;
+            }
+
+            const FetcherInfo &info = mFetcherInfos.valueAt(j);
+            info.mFetcher->stopAsync();
+            mFetcherInfos.removeItemsAt(j);
+            mStreams[i].mNewUri.clear();
+        }
+    }
 }
 
 bool LiveSession::canSwitchBandwidthTo(size_t bandwidthIndex) {
