@@ -921,6 +921,13 @@ void Camera2Client::stopPreviewL() {
                         "stop preview: %s (%d)",
                         __FUNCTION__, mCameraId, strerror(-res), res);
             }
+            {
+                // Ideally we should recover the override after recording stopped, but
+                // right now recording stream will live until here, so we are forced to
+                // recover here. TODO: find a better way to handle that (b/17495165)
+                SharedParameters::Lock l(mParameters);
+                l.mParameters.recoverOverriddenJpegSize();
+            }
             // no break
         case Parameters::WAITING_FOR_PREVIEW_WINDOW: {
             SharedParameters::Lock l(mParameters);
@@ -1075,14 +1082,51 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     // and we can't fail record start without stagefright asserting.
     params.previewCallbackFlags = 0;
 
-    res = updateProcessorStream<
-            StreamingProcessor,
-            &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
-                                                        params);
+    bool recordingStreamNeedsUpdate;
+    res = mStreamingProcessor->recordingStreamNeedsUpdate(params, &recordingStreamNeedsUpdate);
     if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
+        ALOGE("%s: Camera %d: Can't query recording stream",
+                __FUNCTION__, mCameraId);
         return res;
+    }
+
+    if (recordingStreamNeedsUpdate) {
+        // Need to stop stream here in case updateRecordingStream fails
+        // Right now camera device cannot handle configureStream failure gracefully
+        // when device is streaming
+        res = mStreamingProcessor->stopStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't stop streaming to update record stream",
+                    __FUNCTION__, mCameraId);
+            return res;
+        }
+        res = mDevice->waitUntilDrained();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+        res = updateProcessorStream<
+                StreamingProcessor,
+                &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
+                                                            params);
+
+        // updateRecordingStream might trigger a configureStream call and device might fail
+        // configureStream due to jpeg size > video size. Try again with jpeg size overridden
+        // to video size.
+        // TODO: This may not be needed after we add stop streaming above. Remove that if
+        // it's the case.
+        if (res == BAD_VALUE) {
+            overrideVideoSnapshotSize(params);
+            res = updateProcessorStream<
+                    StreamingProcessor,
+                    &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
+                                                                params);
+        }
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
 
     Vector<int32_t> outputStreams;
@@ -1091,18 +1135,12 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
 
     res = mStreamingProcessor->startStream(StreamingProcessor::RECORD,
             outputStreams);
-    // try to reconfigure jpeg to video size if configureStreams failed
-    if (res == BAD_VALUE) {
 
-        ALOGV("%s: Camera %d: configure still size to video size before recording"
-                , __FUNCTION__, mCameraId);
-        params.overrideJpegSizeByVideoSize();
-        res = updateProcessorStream(mJpegProcessor, params);
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't configure still image size to video size: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-            return res;
-        }
+    // startStream might trigger a configureStream call and device might fail
+    // configureStream due to jpeg size > video size. Try again with jpeg size overridden
+    // to video size.
+    if (res == BAD_VALUE) {
+        overrideVideoSnapshotSize(params);
         res = mStreamingProcessor->startStream(StreamingProcessor::RECORD,
                 outputStreams);
     }
@@ -1146,7 +1184,6 @@ void Camera2Client::stopRecording() {
 
     mCameraService->playSound(CameraService::SOUND_RECORDING);
 
-    l.mParameters.recoverOverriddenJpegSize();
     res = startPreviewL(l.mParameters, true);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to return to preview",
@@ -1920,6 +1957,18 @@ status_t Camera2Client::updateProcessorStream(sp<ProcessorT> processor,
         }
     }
 
+    return res;
+}
+
+status_t Camera2Client::overrideVideoSnapshotSize(Parameters &params) {
+    ALOGV("%s: Camera %d: configure still size to video size before recording"
+            , __FUNCTION__, mCameraId);
+    params.overrideJpegSizeByVideoSize();
+    status_t res = updateProcessorStream(mJpegProcessor, params);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Can't override video snapshot size to video size: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+    }
     return res;
 }
 
