@@ -2294,14 +2294,14 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             }
             sp<DeviceDescriptor> srcDeviceDesc =
                     mAvailableInputDevices.getDeviceFromId(patch->sources[0].id);
+            if (srcDeviceDesc == 0) {
+                return BAD_VALUE;
+            }
 
             //update source and sink with our own data as the data passed in the patch may
             // be incomplete.
             struct audio_patch newPatch = *patch;
             srcDeviceDesc->toAudioPortConfig(&newPatch.sources[0], &patch->sources[0]);
-            if (srcDeviceDesc == 0) {
-                return BAD_VALUE;
-            }
 
             for (size_t i = 0; i < patch->num_sinks; i++) {
                 if (patch->sinks[i].type != AUDIO_PORT_TYPE_DEVICE) {
