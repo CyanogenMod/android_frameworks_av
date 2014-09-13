@@ -208,6 +208,9 @@ private:
 
     // Wait until the camera device has received the latest control settings
     status_t syncWithDevice();
+
+    // Video snapshot jpeg size overriding helper function
+    status_t overrideVideoSnapshotSize(Parameters &params);
 };
 
 }; // namespace android
