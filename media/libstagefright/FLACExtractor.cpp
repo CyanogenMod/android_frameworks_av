@@ -548,7 +548,7 @@ status_t FLACParser::init()
             // sample rate is non-zero, so division by zero not possible
             mTrackMetadata->setInt64(kKeyDuration,
                     (getTotalSamples() * 1000000LL) / getSampleRate());
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
             mTrackMetadata->setInt32(kKeySampleBits, getBitsPerSample());
 #endif
         }
@@ -663,7 +663,7 @@ status_t FLACSource::start(MetaData *params)
     ALOGV("FLACSource::start");
 
     CHECK(!mStarted);
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
     if (mTrackMetadata != 0) {
         int32_t bitwidth = 16;
         mTrackMetadata->findInt32(kKeySampleBits, &bitwidth);
