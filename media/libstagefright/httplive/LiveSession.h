@@ -153,6 +153,7 @@ private:
     sp<IMediaHTTPService> mHTTPService;
 
     bool mInPreparationPhase;
+    bool mBuffering[kMaxStreams];
 
     sp<HTTPBase> mHTTPDataSource;
     KeyedVector<String8, String8> mExtraHeaders;
@@ -242,6 +243,7 @@ private:
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
     static StreamType indexToType(int idx);
+    static ssize_t typeToIndex(int32_t type);
 
     void changeConfiguration(
             int64_t timeUs, size_t bandwidthIndex, bool pickTrack = false);
