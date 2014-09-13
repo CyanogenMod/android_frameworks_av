@@ -569,6 +569,23 @@ private:
                 bool isNonOffloadableGlobalEffectEnabled_l();
                 void onNonOffloadableGlobalEffectEnable();
 
+                // Store an effect chain to mOrphanEffectChains keyed vector.
+                // Called when a thread exits and effects are still attached to it.
+                // If effects are later created on the same session, they will reuse the same
+                // effect chain and same instances in the effect library.
+                // return ALREADY_EXISTS if a chain with the same session already exists in
+                // mOrphanEffectChains. Note that this should never happen as there is only one
+                // chain for a given session and it is attached to only one thread at a time.
+                status_t        putOrphanEffectChain_l(const sp<EffectChain>& chain);
+                // Get an effect chain for the specified session in mOrphanEffectChains and remove
+                // it if found. Returns 0 if not found (this is the most common case).
+                sp<EffectChain> getOrphanEffectChain_l(audio_session_t session);
+                // Called when the last effect handle on an effect instance is removed. If this
+                // effect belongs to an effect chain in mOrphanEffectChains, the chain is updated
+                // and removed from mOrphanEffectChains if it does not contain any effect.
+                // Return true if the effect was found in mOrphanEffectChains, false otherwise.
+                bool            updateOrphanEffectChains(const sp<EffectModule>& effect);
+
     class AudioHwDevice {
     public:
         enum Flags {
@@ -712,6 +729,9 @@ private:
 
                 Vector < sp<SyncEvent> > mPendingSyncEvents; // sync events awaiting for a session
                                                              // to be created
+
+                // Effect chains without a valid thread
+                DefaultKeyedVector< audio_session_t , sp<EffectChain> > mOrphanEffectChains;
 
 private:
     sp<Client>  registerPid(pid_t pid);    // always returns non-0

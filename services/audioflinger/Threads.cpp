@@ -1147,21 +1147,6 @@ void AudioFlinger::ThreadBase::setMode(audio_mode_t mode)
     }
 }
 
-void AudioFlinger::ThreadBase::disconnectEffect(const sp<EffectModule>& effect,
-                                                    EffectHandle *handle,
-                                                    bool unpinIfLast) {
-
-    Mutex::Autolock _l(mLock);
-    ALOGV("disconnectEffect() %p effect %p", this, effect.get());
-    // delete the effect module if removing last handle on it
-    if (effect->removeHandle(handle) == 0) {
-        if (!effect->isPinned() || unpinIfLast) {
-            removeEffect_l(effect);
-            AudioSystem::unregisterEffect(effect->id());
-        }
-    }
-}
-
 void AudioFlinger::ThreadBase::getAudioPortConfig(struct audio_port_config *config)
 {
     config->type = AUDIO_PORT_TYPE_MIX;
@@ -2278,7 +2263,7 @@ status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& c
             }
         }
     }
-
+    chain->setThread(this);
     chain->setInBuffer(buffer, ownsBuffer);
     chain->setOutBuffer(reinterpret_cast<int16_t*>(mEffectBufferEnabled
             ? mEffectBuffer : mSinkBuffer));
@@ -6188,10 +6173,11 @@ status_t AudioFlinger::RecordThread::addEffectChain_l(const sp<EffectChain>& cha
 {
     // only one chain per input thread
     if (mEffectChains.size() != 0) {
+        ALOGW("addEffectChain_l() already one chain %p on thread %p", chain.get(), this);
         return INVALID_OPERATION;
     }
     ALOGV("addEffectChain_l() %p on thread %p", chain.get(), this);
-
+    chain->setThread(this);
     chain->setInBuffer(NULL);
     chain->setOutBuffer(NULL);
 
