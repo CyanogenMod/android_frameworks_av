@@ -983,6 +983,13 @@ status_t Parameters::buildFastInfo() {
     bool fixedLens = minFocusDistance.count == 0 ||
         minFocusDistance.data.f[0] == 0;
 
+    camera_metadata_ro_entry_t focusDistanceCalibration =
+            staticInfo(ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION, 0, 0,
+                    false);
+    bool canFocusInfinity = (focusDistanceCalibration.count &&
+            focusDistanceCalibration.data.u8[0] !=
+            ANDROID_LENS_INFO_FOCUS_DISTANCE_CALIBRATION_UNCALIBRATED);
+
     camera_metadata_ro_entry_t availableFocalLengths =
         staticInfo(ANDROID_LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
     if (!availableFocalLengths.count) return NO_INIT;
@@ -1033,6 +1040,13 @@ status_t Parameters::buildFastInfo() {
                     sceneModeOverrides.data.u8[i * kModesPerSceneMode + 2];
             switch(afMode) {
                 case ANDROID_CONTROL_AF_MODE_OFF:
+                    if (!fixedLens && !canFocusInfinity) {
+                        ALOGE("%s: Camera %d: Scene mode override lists asks for"
+                                " fixed focus on a device with focuser but not"
+                                " calibrated for infinity focus", __FUNCTION__,
+                                cameraId);
+                        return NO_INIT;
+                    }
                     modes.focusMode = fixedLens ?
                             FOCUS_MODE_FIXED : FOCUS_MODE_INFINITY;
                     break;
