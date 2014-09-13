@@ -126,7 +126,7 @@ private:
 
     struct StreamItem {
         const char *mType;
-        AString mUri;
+        AString mUri, mNewUri;
         size_t mCurDiscontinuitySeq;
         int64_t mLastDequeuedTimeUs;
         int64_t mLastSampleDurationUs;
