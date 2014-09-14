@@ -174,6 +174,8 @@ class Camera3Device :
 
     CameraMetadata             mDeviceInfo;
 
+    CameraMetadata             mRequestTemplateCache[CAMERA3_TEMPLATE_COUNT];
+
     uint32_t                   mDeviceVersion;
 
     enum Status {
