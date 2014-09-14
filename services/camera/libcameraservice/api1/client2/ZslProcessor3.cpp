@@ -244,6 +244,46 @@ int ZslProcessor3::getStreamId() const {
     return mZslStreamId;
 }
 
+status_t ZslProcessor3::updateRequestWithDefaultStillRequest(CameraMetadata &request) const {
+    sp<Camera2Client> client = mClient.promote();
+    if (client == 0) {
+        ALOGE("%s: Camera %d: Client does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+    sp<Camera3Device> device =
+        static_cast<Camera3Device*>(client->getCameraDevice().get());
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    CameraMetadata stillTemplate;
+    device->createDefaultRequest(CAMERA3_TEMPLATE_STILL_CAPTURE, &stillTemplate);
+
+    // Find some of the post-processing tags, and assign the value from template to the request.
+    // Only check the aberration mode and noise reduction mode for now, as they are very important
+    // for image quality.
+    uint32_t postProcessingTags[] = {
+            ANDROID_NOISE_REDUCTION_MODE,
+            ANDROID_COLOR_CORRECTION_ABERRATION_MODE,
+            ANDROID_COLOR_CORRECTION_MODE,
+            ANDROID_TONEMAP_MODE,
+            ANDROID_SHADING_MODE,
+            ANDROID_HOT_PIXEL_MODE,
+            ANDROID_EDGE_MODE
+    };
+
+    camera_metadata_entry_t entry;
+    for (size_t i = 0; i < sizeof(postProcessingTags) / sizeof(uint32_t); i++) {
+        entry = stillTemplate.find(postProcessingTags[i]);
+        if (entry.count > 0) {
+            request.update(postProcessingTags[i], entry.data.u8, 1);
+        }
+    }
+
+    return OK;
+}
+
 status_t ZslProcessor3::pushToReprocess(int32_t requestId) {
     ALOGV("%s: Send in reprocess request with id %d",
             __FUNCTION__, requestId);
@@ -367,6 +407,13 @@ status_t ZslProcessor3::pushToReprocess(int32_t requestId) {
                         strerror(-res), res);
                 return res;
             }
+        }
+
+        // Update post-processing settings
+        res = updateRequestWithDefaultStillRequest(request);
+        if (res != OK) {
+            ALOGW("%s: Unable to update post-processing tags, the reprocessed image quality "
+                    "may be compromised", __FUNCTION__);
         }
 
         mLatestCapturedRequest = request;

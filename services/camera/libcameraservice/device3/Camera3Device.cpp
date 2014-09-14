@@ -1044,6 +1044,11 @@ status_t Camera3Device::createDefaultRequest(int templateId,
             return INVALID_OPERATION;
     }
 
+    if (!mRequestTemplateCache[templateId].isEmpty()) {
+        *request = mRequestTemplateCache[templateId];
+        return OK;
+    }
+
     const camera_metadata_t *rawRequest;
     ATRACE_BEGIN("camera3->construct_default_request_settings");
     rawRequest = mHal3Device->ops->construct_default_request_settings(
@@ -1055,6 +1060,7 @@ status_t Camera3Device::createDefaultRequest(int templateId,
         return DEAD_OBJECT;
     }
     *request = rawRequest;
+    mRequestTemplateCache[templateId] = rawRequest;
 
     return OK;
 }
