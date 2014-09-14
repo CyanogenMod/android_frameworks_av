@@ -3670,8 +3670,11 @@ void AudioPolicyManager::checkOutputForStrategy(routing_strategy strategy)
 
 void AudioPolicyManager::checkOutputForAllStrategies()
 {
-    checkOutputForStrategy(STRATEGY_ENFORCED_AUDIBLE);
+    if (mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED)
+        checkOutputForStrategy(STRATEGY_ENFORCED_AUDIBLE);
     checkOutputForStrategy(STRATEGY_PHONE);
+    if (mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] != AUDIO_POLICY_FORCE_SYSTEM_ENFORCED)
+        checkOutputForStrategy(STRATEGY_ENFORCED_AUDIBLE);
     checkOutputForStrategy(STRATEGY_SONIFICATION);
     checkOutputForStrategy(STRATEGY_SONIFICATION_RESPECTFUL);
     checkOutputForStrategy(STRATEGY_MEDIA);
@@ -3752,23 +3755,28 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
     }
 
     // check the following by order of priority to request a routing change if necessary:
-    // 1: the strategy enforced audible is active on the output:
+    // 1: the strategy enforced audible is active and enforced on the output:
     //      use device for strategy enforced audible
     // 2: we are in call or the strategy phone is active on the output:
     //      use device for strategy phone
-    // 3: the strategy sonification is active on the output:
+    // 3: the strategy for enforced audible is active but not enforced on the output:
+    //      use the device for strategy enforced audible
+    // 4: the strategy sonification is active on the output:
     //      use device for strategy sonification
-    // 4: the strategy "respectful" sonification is active on the output:
+    // 5: the strategy "respectful" sonification is active on the output:
     //      use device for strategy "respectful" sonification
-    // 5: the strategy media is active on the output:
+    // 6: the strategy media is active on the output:
     //      use device for strategy media
-    // 6: the strategy DTMF is active on the output:
+    // 7: the strategy DTMF is active on the output:
     //      use device for strategy DTMF
-    if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE)) {
+    if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE) &&
+        mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
     } else if (isInCall() ||
                     outputDesc->isStrategyActive(STRATEGY_PHONE)) {
         device = getDeviceForStrategy(STRATEGY_PHONE, fromCache);
+    } else if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE)) {
+        device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_SONIFICATION)) {
         device = getDeviceForStrategy(STRATEGY_SONIFICATION, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_SONIFICATION_RESPECTFUL)) {
