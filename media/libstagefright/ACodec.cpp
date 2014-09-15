@@ -661,6 +661,12 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
     def.format.video.nFrameWidth,
     def.format.video.nFrameHeight,
     eNativeColorFormat);
+#elif defined(MTK_HARDWARE)
+    err = native_window_set_buffers_geometry(
+            mNativeWindow.get(),
+            def.format.video.nStride,
+            def.format.video.nSliceHeight,
+            def.format.video.eColorFormat);
 #else
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),

@@ -235,6 +235,9 @@ AwesomePlayer::AwesomePlayer()
       mTextDriver(NULL),
       mOffloadAudio(false),
       mAudioTearDown(false),
+#ifdef MTK_HARDWARE
+      mAVSyncTimeUs(-1),
+#endif
       mIsFirstFrameAfterResume(false),
       mConsumeRights(true) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
@@ -2077,6 +2080,17 @@ void AwesomePlayer::setVideoSource(sp<MediaSource> source) {
     mVideoTrack = source;
 }
 
+#ifdef MTK_HARDWARE
+void AwesomePlayer::mtk_omx_get_current_time(int64_t* pReal_time) {
+    if((mFlags & FIRST_FRAME) || mSeeking == SEEK) {
+            *pReal_time = -1;
+    } else {
+            *pReal_time = mAVSyncTimeUs;
+    }
+
+}
+#endif
+
 status_t AwesomePlayer::initVideoDecoder(uint32_t flags) {
     ATRACE_CALL();
 
@@ -2463,6 +2477,10 @@ void AwesomePlayer::onVideoEvent() {
         nowUs = ts->getRealTimeUs() - mTimeSourceDeltaUs;
 
         latenessUs = nowUs - timeUs;
+#ifdef MTK_HARDWARE
+        mAVSyncTimeUs = nowUs;
+#endif
+
 
         ATRACE_INT("Video Lateness (ms)", latenessUs / 1E3);
 
