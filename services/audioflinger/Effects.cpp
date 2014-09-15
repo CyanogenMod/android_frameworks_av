@@ -68,7 +68,8 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
       mStatus(NO_INIT), mState(IDLE),
       // mMaxDisableWaitCnt is set by configure() and not used before then
       // mDisableWaitCnt is set by process() and updateState() and not used before then
-      mSuspended(false)
+      mSuspended(false),
+      mAudioFlinger(thread->mAudioFlinger)
 {
     ALOGV("Constructor %p", this);
     int lStatus;
@@ -197,9 +198,19 @@ size_t AudioFlinger::EffectModule::disconnect(EffectHandle *handle, bool unpinIf
     // destructor before we exit
     sp<EffectModule> keep(this);
     {
-        sp<ThreadBase> thread = mThread.promote();
-        if (thread != 0) {
-            thread->disconnectEffect(keep, handle, unpinIfLast);
+        if (removeHandle(handle) == 0) {
+            if (!isPinned() || unpinIfLast) {
+                sp<ThreadBase> thread = mThread.promote();
+                if (thread != 0) {
+                    Mutex::Autolock _l(thread->mLock);
+                    thread->removeEffect_l(this);
+                }
+                sp<AudioFlinger> af = mAudioFlinger.promote();
+                if (af != 0) {
+                    af->updateOrphanEffectChains(this);
+                }
+                AudioSystem::unregisterEffect(mId);
+            }
         }
     }
     return mHandles.size();
@@ -1909,6 +1920,15 @@ bool AudioFlinger::EffectChain::isNonOffloadableEnabled()
         }
     }
     return false;
+}
+
+void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
+{
+    Mutex::Autolock _l(mLock);
+    mThread = thread;
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        mEffects[i]->setThread(thread);
+    }
 }
 
 }; // namespace android
