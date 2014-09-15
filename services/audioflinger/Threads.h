@@ -283,9 +283,6 @@ public:
                                     effect_descriptor_t *desc,
                                     int *enabled,
                                     status_t *status /*non-NULL*/);
-                void disconnectEffect(const sp< EffectModule>& effect,
-                                      EffectHandle *handle,
-                                      bool unpinIfLast);
 
                 // return values for hasAudioSession (bit field)
                 enum effect_state {

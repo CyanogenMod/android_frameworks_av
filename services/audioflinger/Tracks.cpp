@@ -96,7 +96,8 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mServerProxy(NULL),
         mId(android_atomic_inc(&nextTrackId)),
         mTerminated(false),
-        mType(type)
+        mType(type),
+        mThreadIoHandle(thread->id())
 {
     // if the caller is us, trust the specified uid
     if (IPCThreadState::self()->getCallingPid() != getpid_cached || clientUid == -1) {
@@ -482,14 +483,15 @@ void AudioFlinger::PlaybackThread::Track::destroy()
     // this Track with its member mTrack.
     sp<Track> keep(this);
     { // scope for mLock
+        bool wasActive = false;
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
             Mutex::Autolock _l(thread->mLock);
             PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-            bool wasActive = playbackThread->destroyTrack_l(this);
-            if (isExternalTrack() && !wasActive) {
-                AudioSystem::releaseOutput(thread->id());
-            }
+            wasActive = playbackThread->destroyTrack_l(this);
+        }
+        if (isExternalTrack() && !wasActive) {
+            AudioSystem::releaseOutput(mThreadIoHandle);
         }
     }
 }
@@ -2050,7 +2052,7 @@ void AudioFlinger::RecordThread::RecordTrack::stop()
     if (thread != 0) {
         RecordThread *recordThread = (RecordThread *)thread.get();
         if (recordThread->stop(this) && isExternalTrack()) {
-            AudioSystem::stopInput(recordThread->id(), (audio_session_t)mSessionId);
+            AudioSystem::stopInput(mThreadIoHandle, (audio_session_t)mSessionId);
         }
     }
 }
@@ -2060,14 +2062,14 @@ void AudioFlinger::RecordThread::RecordTrack::destroy()
     // see comments at AudioFlinger::PlaybackThread::Track::destroy()
     sp<RecordTrack> keep(this);
     {
+        if (isExternalTrack()) {
+            if (mState == ACTIVE || mState == RESUMING) {
+                AudioSystem::stopInput(mThreadIoHandle, (audio_session_t)mSessionId);
+            }
+            AudioSystem::releaseInput(mThreadIoHandle, (audio_session_t)mSessionId);
+        }
         sp<ThreadBase> thread = mThread.promote();
         if (thread != 0) {
-            if (isExternalTrack()) {
-                if (mState == ACTIVE || mState == RESUMING) {
-                    AudioSystem::stopInput(thread->id(), (audio_session_t)mSessionId);
-                }
-                AudioSystem::releaseInput(thread->id(), (audio_session_t)mSessionId);
-            }
             Mutex::Autolock _l(thread->mLock);
             RecordThread *recordThread = (RecordThread *) thread.get();
             recordThread->destroyTrack_l(this);

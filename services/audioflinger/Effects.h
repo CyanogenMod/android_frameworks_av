@@ -153,6 +153,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     uint32_t mDisableWaitCnt;       // current process() calls count during disable period.
     bool     mSuspended;            // effect is suspended: temporarily disabled by framework
     bool     mOffloaded;            // effect is currently offloaded to the audio DSP
+    wp<AudioFlinger>    mAudioFlinger;
 };
 
 // The EffectHandle class implements the IEffect interface. It provides resources
@@ -346,6 +347,8 @@ protected:
     bool isEffectEligibleForSuspend(const effect_descriptor_t& desc);
 
     void clearInputBuffer_l(sp<ThreadBase> thread);
+
+    void setThread(const sp<ThreadBase>& thread);
 
     wp<ThreadBase> mThread;     // parent mixer thread
     Mutex mLock;                // mutex protecting effect list
