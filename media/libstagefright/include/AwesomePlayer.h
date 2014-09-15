@@ -107,6 +107,9 @@ struct AwesomePlayer {
     void postAudioEOS(int64_t delayUs = 0ll);
     void postAudioSeekComplete();
     void postAudioTearDown();
+#ifdef MTK_HARDWARE
+    void mtk_omx_get_current_time(int64_t* pReal_time);
+#endif
     status_t dump(int fd, const Vector<String16> &args) const;
 
     status_t suspend();
@@ -412,6 +415,9 @@ private:
 #endif
     AwesomePlayer(const AwesomePlayer &);
     AwesomePlayer &operator=(const AwesomePlayer &);
+#ifdef MTK_HARDWARE
+    int64_t mAVSyncTimeUs;
+#endif
     bool mReadRetry;
     bool mCustomAVSync;
 
