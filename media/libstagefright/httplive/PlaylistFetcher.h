@@ -104,7 +104,12 @@ private:
 
     uint32_t mStreamTypeMask;
     int64_t mStartTimeUs;
+
+    // Start time relative to the beginning of the first segment in the initial
+    // playlist. It's value is initialized to a non-negative value only when we are
+    // adapting or switching tracks.
     int64_t mSegmentStartTimeUs;
+
     ssize_t mDiscontinuitySeq;
     bool mStartTimeUsRelative;
     sp<AMessage> mStopParams; // message containing the latest timestamps we should fetch.

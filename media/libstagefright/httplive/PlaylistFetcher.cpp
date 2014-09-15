@@ -945,7 +945,7 @@ void PlaylistFetcher::onDownloadNext() {
         }
 
         if (err == -EAGAIN) {
-            // starting sequence number too low
+            // starting sequence number too low/high
             mTSParser.clear();
             postMonitorQueue();
             return;
@@ -1017,10 +1017,37 @@ void PlaylistFetcher::onDownloadNext() {
         return;
     }
 
-    mStartup = false;
     ++mSeqNumber;
 
     postMonitorQueue();
+}
+
+int32_t PlaylistFetcher::getSeqNumberWithAnchorTime(int64_t anchorTimeUs) const {
+    int32_t firstSeqNumberInPlaylist, lastSeqNumberInPlaylist;
+    if (mPlaylist->meta() == NULL
+            || !mPlaylist->meta()->findInt32("media-sequence", &firstSeqNumberInPlaylist)) {
+        firstSeqNumberInPlaylist = 0;
+    }
+    lastSeqNumberInPlaylist = firstSeqNumberInPlaylist + mPlaylist->size() - 1;
+
+    int32_t index = mSeqNumber - firstSeqNumberInPlaylist - 1;
+    while (index >= 0 && anchorTimeUs > mStartTimeUs) {
+        sp<AMessage> itemMeta;
+        CHECK(mPlaylist->itemAt(index, NULL /* uri */, &itemMeta));
+
+        int64_t itemDurationUs;
+        CHECK(itemMeta->findInt64("durationUs", &itemDurationUs));
+
+        anchorTimeUs -= itemDurationUs;
+        --index;
+    }
+
+    int32_t newSeqNumber = firstSeqNumberInPlaylist + index + 1;
+    if (newSeqNumber <= lastSeqNumberInPlaylist) {
+        return newSeqNumber;
+    } else {
+        return lastSeqNumberInPlaylist;
+    }
 }
 
 int32_t PlaylistFetcher::getSeqNumberForDiscontinuity(size_t discontinuitySeq) const {
@@ -1192,60 +1219,84 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                     if (timeUs < 0) {
                         timeUs = 0;
                     }
-                } else if (mAdaptive && timeUs > mStartTimeUs) {
-                    int32_t seq;
-                    if (mStartTimeUsNotify != NULL
-                            && !mStartTimeUsNotify->findInt32("discontinuitySeq", &seq)) {
-                        mStartTimeUsNotify->setInt32("discontinuitySeq", mDiscontinuitySeq);
-                    }
-                    int64_t startTimeUs;
-                    if (mStartTimeUsNotify != NULL
-                            && !mStartTimeUsNotify->findInt64(key, &startTimeUs)) {
-                        mStartTimeUsNotify->setInt64(key, timeUs);
-
-                        uint32_t streamMask = 0;
-                        mStartTimeUsNotify->findInt32("streamMask", (int32_t *) &streamMask);
-                        streamMask |= mPacketSources.keyAt(i);
-                        mStartTimeUsNotify->setInt32("streamMask", streamMask);
-
-                        if (streamMask == mStreamTypeMask) {
-                            mStartTimeUsNotify->post();
-                            mStartTimeUsNotify.clear();
-                        }
-                    }
                 }
 
                 if (timeUs < mStartTimeUs) {
-                    if (mAdaptive) {
-                        int32_t targetDuration;
-                        mPlaylist->meta()->findInt32("target-duration", &targetDuration);
-                        int32_t incr = (mStartTimeUs - timeUs) / 1000000 / targetDuration;
-                        if (incr == 0) {
-                            // increment mSeqNumber by at least one
-                            incr = 1;
-                        }
-                        mSeqNumber += incr;
-                        err = -EAGAIN;
-                        break;
-                    } else {
-                        // buffer up to the closest preceding IDR frame
-                        ALOGV("timeUs %" PRId64 " us < mStartTimeUs %" PRId64 " us",
-                                timeUs, mStartTimeUs);
-                        const char *mime;
-                        sp<MetaData> format  = source->getFormat();
-                        bool isAvc = false;
-                        if (format != NULL && format->findCString(kKeyMIMEType, &mime)
-                                && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
-                            isAvc = true;
-                        }
-                        if (isAvc && IsIDR(accessUnit)) {
-                            mVideoBuffer->clear();
-                        }
-                        if (isAvc) {
-                            mVideoBuffer->queueAccessUnit(accessUnit);
-                        }
+                    // buffer up to the closest preceding IDR frame
+                    ALOGV("timeUs %" PRId64 " us < mStartTimeUs %" PRId64 " us",
+                            timeUs, mStartTimeUs);
+                    const char *mime;
+                    sp<MetaData> format  = source->getFormat();
+                    bool isAvc = false;
+                    if (format != NULL && format->findCString(kKeyMIMEType, &mime)
+                            && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                        isAvc = true;
+                    }
+                    if (isAvc && IsIDR(accessUnit)) {
+                        mVideoBuffer->clear();
+                    }
+                    if (isAvc) {
+                        mVideoBuffer->queueAccessUnit(accessUnit);
+                    }
 
-                        continue;
+                    continue;
+                }
+            }
+
+            CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+            if (mStartTimeUsNotify != NULL && timeUs > mStartTimeUs) {
+
+                int32_t targetDurationSecs;
+                CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
+                int64_t targetDurationUs = targetDurationSecs * 1000000ll;
+                // mStartup
+                //   mStartup is true until we have queued a packet for all the streams
+                //   we are fetching. We queue packets whose timestamps are greater than
+                //   mStartTimeUs.
+                // mSegmentStartTimeUs >= 0
+                //   mSegmentStartTimeUs is non-negative when adapting or switching tracks
+                // timeUs - mStartTimeUs > targetDurationUs:
+                //   This and the 2 above conditions should only happen when adapting in a live
+                //   stream; the old fetcher has already fetched to mStartTimeUs; the new fetcher
+                //   would start fetching after timeUs, which should be greater than mStartTimeUs;
+                //   the old fetcher would then continue fetching data until timeUs. We don't want
+                //   timeUs to be too far ahead of mStartTimeUs because we want the old fetcher to
+                //   stop as early as possible. The definition of being "too far ahead" is
+                //   arbitrary; here we use targetDurationUs as threshold.
+                if (mStartup && mSegmentStartTimeUs >= 0
+                        && timeUs - mStartTimeUs > targetDurationUs) {
+                    // we just guessed a starting timestamp that is too high when adapting in a
+                    // live stream; re-adjust based on the actual timestamp extracted from the
+                    // media segment; if we didn't move backward after the re-adjustment
+                    // (newSeqNumber), start at least 1 segment prior.
+                    int32_t newSeqNumber = getSeqNumberWithAnchorTime(timeUs);
+                    if (newSeqNumber >= mSeqNumber) {
+                        --mSeqNumber;
+                    } else {
+                        mSeqNumber = newSeqNumber;
+                    }
+                    mStartTimeUsNotify = mNotify->dup();
+                    mStartTimeUsNotify->setInt32("what", kWhatStartedAt);
+                    return -EAGAIN;
+                }
+
+                int32_t seq;
+                if (!mStartTimeUsNotify->findInt32("discontinuitySeq", &seq)) {
+                    mStartTimeUsNotify->setInt32("discontinuitySeq", mDiscontinuitySeq);
+                }
+                int64_t startTimeUs;
+                if (!mStartTimeUsNotify->findInt64(key, &startTimeUs)) {
+                    mStartTimeUsNotify->setInt64(key, timeUs);
+
+                    uint32_t streamMask = 0;
+                    mStartTimeUsNotify->findInt32("streamMask", (int32_t *) &streamMask);
+                    streamMask |= mPacketSources.keyAt(i);
+                    mStartTimeUsNotify->setInt32("streamMask", streamMask);
+
+                    if (streamMask == mStreamTypeMask) {
+                        mStartup = false;
+                        mStartTimeUsNotify->post();
+                        mStartTimeUsNotify.clear();
                     }
                 }
             }
