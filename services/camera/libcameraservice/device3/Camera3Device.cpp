@@ -1092,6 +1092,10 @@ status_t Camera3Device::waitUntilDrainedLocked() {
 
     ALOGV("%s: Camera %d: Waiting until idle", __FUNCTION__, mId);
     status_t res = waitUntilStateThenRelock(/*active*/ false, kShutdownTimeout);
+    if (res != OK) {
+        SET_ERR_L("Error waiting for HAL to drain: %s (%d)", strerror(-res),
+                res);
+    }
     return res;
 }
 
