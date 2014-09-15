@@ -796,9 +796,14 @@ status_t AudioFlinger::setMicMute(bool state)
     }
 
     AutoMutex lock(mHardwareLock);
-    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
     mHardwareStatus = AUDIO_HW_SET_MIC_MUTE;
-    ret = dev->set_mic_mute(dev, state);
+    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+        audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
+        status_t result = dev->set_mic_mute(dev, state);
+        if (result != NO_ERROR) {
+            ret = result;
+        }
+    }
     mHardwareStatus = AUDIO_HW_IDLE;
     return ret;
 }
