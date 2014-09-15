@@ -67,6 +67,8 @@ struct NuPlayer : public AHandler {
     status_t getSelectedTrack(int32_t type, Parcel* reply) const;
     status_t selectTrack(size_t trackIndex, bool select);
 
+    static const size_t kAggregateBufferSizeBytes;
+
 protected:
     virtual ~NuPlayer();
 
@@ -158,8 +160,11 @@ private:
     // notion of time has changed.
     bool mTimeDiscontinuityPending;
 
+    // Used by feedDecoderInputData to aggregate small buffers into
+    // one large buffer.
     sp<ABuffer> mPendingAudioAccessUnit;
     status_t    mPendingAudioErr;
+    sp<ABuffer> mAggregateBuffer;
 
     FlushStatus mFlushingAudio;
     FlushStatus mFlushingVideo;

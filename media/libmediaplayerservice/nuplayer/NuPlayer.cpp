@@ -50,6 +50,10 @@
 
 namespace android {
 
+// TODO optimize buffer size for power consumption
+// The offload read buffer size is 32 KB but 24 KB uses less power.
+const size_t NuPlayer::kAggregateBufferSizeBytes = 24 * 1024;
+
 struct NuPlayer::Action : public RefBase {
     Action() {}
 
@@ -730,7 +734,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                 if (err == -EWOULDBLOCK) {
                     if (mSource->feedMoreTSData() == OK) {
-                        msg->post(10000ll);
+                        msg->post(10 * 1000ll);
                     }
                 }
             } else if (what == Decoder::kWhatEOS) {
@@ -995,6 +999,7 @@ void NuPlayer::finishFlushIfPossible() {
     ALOGV("both audio and video are flushed now.");
 
     mPendingAudioAccessUnit.clear();
+    mAggregateBuffer.clear();
 
     if (mTimeDiscontinuityPending) {
         mRenderer->signalTimeDiscontinuity();
@@ -1256,14 +1261,8 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
     // Aggregate smaller buffers into a larger buffer.
     // The goal is to reduce power consumption.
     // Unfortunately this does not work with the software AAC decoder.
-    // TODO optimize buffer size for power consumption
-    // The offload read buffer size is 32 KB but 24 KB uses less power.
-    const int kAudioBigBufferSizeBytes = 24 * 1024;
-    bool doBufferAggregation = (audio && mOffloadAudio);
-    sp<ABuffer> biggerBuffer;
+    bool doBufferAggregation = (audio && mOffloadAudio);;
     bool needMoreData = false;
-    int numSmallBuffers = 0;
-    bool gotTime = false;
 
     bool dropAccessUnit;
     do {
@@ -1279,14 +1278,10 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
         }
 
         if (err == -EWOULDBLOCK) {
-            if (biggerBuffer == NULL) {
-                return err;
-            } else {
-                break; // Reply with data that we already have.
-            }
+            return err;
         } else if (err != OK) {
             if (err == INFO_DISCONTINUITY) {
-                if (biggerBuffer != NULL) {
+                if (mAggregateBuffer != NULL) {
                     // We already have some data so save this for later.
                     mPendingAudioErr = err;
                     mPendingAudioAccessUnit = accessUnit;
@@ -1401,46 +1396,45 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
         size_t smallSize = accessUnit->size();
         needMoreData = false;
-        if (doBufferAggregation && (biggerBuffer == NULL)
+        if (doBufferAggregation && (mAggregateBuffer == NULL)
                 // Don't bother if only room for a few small buffers.
-                && (smallSize < (kAudioBigBufferSizeBytes / 3))) {
+                && (smallSize < (kAggregateBufferSizeBytes / 3))) {
             // Create a larger buffer for combining smaller buffers from the extractor.
-            biggerBuffer = new ABuffer(kAudioBigBufferSizeBytes);
-            biggerBuffer->setRange(0, 0); // start empty
+            mAggregateBuffer = new ABuffer(kAggregateBufferSizeBytes);
+            mAggregateBuffer->setRange(0, 0); // start empty
         }
 
-        if (biggerBuffer != NULL) {
+        if (mAggregateBuffer != NULL) {
             int64_t timeUs;
+            int64_t dummy;
             bool smallTimestampValid = accessUnit->meta()->findInt64("timeUs", &timeUs);
+            bool bigTimestampValid = mAggregateBuffer->meta()->findInt64("timeUs", &dummy);
             // Will the smaller buffer fit?
-            size_t bigSize = biggerBuffer->size();
-            size_t roomLeft = biggerBuffer->capacity() - bigSize;
+            size_t bigSize = mAggregateBuffer->size();
+            size_t roomLeft = mAggregateBuffer->capacity() - bigSize;
             // Should we save this small buffer for the next big buffer?
             // If the first small buffer did not have a timestamp then save
             // any buffer that does have a timestamp until the next big buffer.
             if ((smallSize > roomLeft)
-                || (!gotTime && (numSmallBuffers > 0) && smallTimestampValid)) {
+                || (!bigTimestampValid && (bigSize > 0) && smallTimestampValid)) {
                 mPendingAudioErr = err;
                 mPendingAudioAccessUnit = accessUnit;
                 accessUnit.clear();
             } else {
+                // Grab time from first small buffer if available.
+                if ((bigSize == 0) && smallTimestampValid) {
+                    mAggregateBuffer->meta()->setInt64("timeUs", timeUs);
+                }
                 // Append small buffer to the bigger buffer.
-                memcpy(biggerBuffer->base() + bigSize, accessUnit->data(), smallSize);
+                memcpy(mAggregateBuffer->base() + bigSize, accessUnit->data(), smallSize);
                 bigSize += smallSize;
-                biggerBuffer->setRange(0, bigSize);
+                mAggregateBuffer->setRange(0, bigSize);
 
-                // Keep looping until we run out of room in the biggerBuffer.
+                // Keep looping until we run out of room in the mAggregateBuffer.
                 needMoreData = true;
 
-                // Grab time from first small buffer if available.
-                if ((numSmallBuffers == 0) && smallTimestampValid) {
-                    biggerBuffer->meta()->setInt64("timeUs", timeUs);
-                    gotTime = true;
-                }
-
-                ALOGV("feedDecoderInputData() #%d, smallSize = %zu, bigSize = %zu, capacity = %zu",
-                        numSmallBuffers, smallSize, bigSize, biggerBuffer->capacity());
-                numSmallBuffers++;
+                ALOGV("feedDecoderInputData() smallSize = %zu, bigSize = %zu, capacity = %zu",
+                        smallSize, bigSize, mAggregateBuffer->capacity());
             }
         }
     } while (dropAccessUnit || needMoreData);
@@ -1459,9 +1453,11 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
         mCCDecoder->decode(accessUnit);
     }
 
-    if (biggerBuffer != NULL) {
-        ALOGV("feedDecoderInputData() reply with aggregated buffer, %d", numSmallBuffers);
-        reply->setBuffer("buffer", biggerBuffer);
+    if (mAggregateBuffer != NULL) {
+        ALOGV("feedDecoderInputData() reply with aggregated buffer, %zu",
+                mAggregateBuffer->size());
+        reply->setBuffer("buffer", mAggregateBuffer);
+        mAggregateBuffer.clear();
     } else {
         reply->setBuffer("buffer", accessUnit);
     }
