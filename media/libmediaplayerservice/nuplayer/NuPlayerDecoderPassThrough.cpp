@@ -30,8 +30,10 @@
 
 namespace android {
 
-static const int kMaxPendingBuffers = 10;
-static const int kMaxCachedBytes = 200000;
+static const size_t kMaxCachedBytes = 200000;
+// The buffers will contain a bit less than kAggregateBufferSizeBytes.
+// So we can start off with just enough buffers to keep the cache full.
+static const size_t kMaxPendingBuffers = 1 + (kMaxCachedBytes / NuPlayer::kAggregateBufferSizeBytes);
 
 NuPlayer::DecoderPassThrough::DecoderPassThrough(
         const sp<AMessage> &notify)
@@ -39,7 +41,8 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
       mNotify(notify),
       mBufferGeneration(0),
       mReachedEOS(true),
-      mPendingBuffers(0),
+      mPendingBuffersToFill(0),
+      mPendingBuffersToDrain(0),
       mCachedBytes(0),
       mComponentName("pass through decoder") {
     mDecoderLooper = new ALooper;
@@ -79,12 +82,13 @@ bool NuPlayer::DecoderPassThrough::supportsSeamlessFormatChange(
 
 void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure", mComponentName.c_str());
-    mPendingBuffers = 0;
     mCachedBytes = 0;
+    mPendingBuffersToFill = 0;
+    mPendingBuffersToDrain = 0;
     mReachedEOS = false;
     ++mBufferGeneration;
 
-    requestABuffer();
+    requestMaxBuffers();
 
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatOutputFormatChanged);
@@ -98,12 +102,15 @@ bool NuPlayer::DecoderPassThrough::isStaleReply(const sp<AMessage> &msg) {
     return generation != mBufferGeneration;
 }
 
-void NuPlayer::DecoderPassThrough::requestABuffer() {
-    if (mCachedBytes >= kMaxCachedBytes || mReachedEOS) {
-        ALOGV("[%s] mReachedEOS=%d, max pending buffers(%d:%d)",
-                mComponentName.c_str(), (mReachedEOS ? 1 : 0),
-                mPendingBuffers, kMaxPendingBuffers);
-        return;
+bool NuPlayer::DecoderPassThrough::requestABuffer() {
+    if (mCachedBytes >= kMaxCachedBytes) {
+        ALOGV("[%s] mCachedBytes = %zu",
+                mComponentName.c_str(), mCachedBytes);
+        return false;
+    }
+    if (mReachedEOS) {
+        ALOGV("[%s] reached EOS", mComponentName.c_str());
+        return false;
     }
 
     sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, id());
@@ -113,19 +120,16 @@ void NuPlayer::DecoderPassThrough::requestABuffer() {
     notify->setInt32("what", kWhatFillThisBuffer);
     notify->setMessage("reply", reply);
     notify->post();
-    mPendingBuffers++;
+    mPendingBuffersToFill++;
+    ALOGV("requestABuffer: #ToFill = %zu, #ToDrain = %zu", mPendingBuffersToFill,
+            mPendingBuffersToDrain);
 
-    // pending buffers will already result in requestABuffer
-    if (mPendingBuffers < kMaxPendingBuffers) {
-        sp<AMessage> message = new AMessage(kWhatRequestABuffer, id());
-        message->setInt32("generation", mBufferGeneration);
-        message->post();
-    }
-    return;
+    return true;
 }
 
 void android::NuPlayer::DecoderPassThrough::onInputBufferFilled(
         const sp<AMessage> &msg) {
+    --mPendingBuffersToFill;
     if (mReachedEOS) {
         return;
     }
@@ -153,11 +157,16 @@ void android::NuPlayer::DecoderPassThrough::onInputBufferFilled(
     notify->setBuffer("buffer", buffer);
     notify->setMessage("reply", reply);
     notify->post();
+    ++mPendingBuffersToDrain;
+    ALOGV("onInputBufferFilled: #ToFill = %zu, #ToDrain = %zu, cachedBytes = %zu",
+            mPendingBuffersToFill, mPendingBuffersToDrain, mCachedBytes);
 }
 
 void NuPlayer::DecoderPassThrough::onBufferConsumed(int32_t size) {
-    mPendingBuffers--;
+    --mPendingBuffersToDrain;
     mCachedBytes -= size;
+    ALOGV("onBufferConsumed: #ToFill = %zu, #ToDrain = %zu, cachedBytes = %zu",
+           mPendingBuffersToFill, mPendingBuffersToDrain, mCachedBytes);
     requestABuffer();
 }
 
@@ -167,9 +176,18 @@ void NuPlayer::DecoderPassThrough::onFlush() {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatFlushCompleted);
     notify->post();
-    mPendingBuffers = 0;
+    mPendingBuffersToFill = 0;
+    mPendingBuffersToDrain = 0;
     mCachedBytes = 0;
     mReachedEOS = false;
+}
+
+void NuPlayer::DecoderPassThrough::requestMaxBuffers() {
+    for (size_t i = 0; i < kMaxPendingBuffers; i++) {
+        if (!requestABuffer()) {
+            break;
+        }
+    }
 }
 
 void NuPlayer::DecoderPassThrough::onShutdown() {
@@ -229,7 +247,7 @@ void NuPlayer::DecoderPassThrough::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatResume:
         {
-            requestABuffer();
+            requestMaxBuffers();
             break;
         }
 

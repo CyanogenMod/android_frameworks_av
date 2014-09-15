@@ -55,19 +55,26 @@ private:
     sp<AMessage> mNotify;
     sp<ALooper> mDecoderLooper;
 
-    void requestABuffer();
+    /** Returns true if a buffer was requested.
+     * Returns false if at EOS or cache already full.
+     */
+    bool requestABuffer();
     bool isStaleReply(const sp<AMessage> &msg);
 
     void onConfigure(const sp<AMessage> &format);
     void onFlush();
     void onInputBufferFilled(const sp<AMessage> &msg);
     void onBufferConsumed(int32_t size);
+    void requestMaxBuffers();
     void onShutdown();
 
     int32_t mBufferGeneration;
-    bool mReachedEOS;
-    int32_t mPendingBuffers;
-    int32_t mCachedBytes;
+    bool    mReachedEOS;
+    // TODO mPendingBuffersToFill and mPendingBuffersToDrain are only for
+    // debugging. They can be removed when the power investigation is done.
+    size_t  mPendingBuffersToFill;
+    size_t  mPendingBuffersToDrain;
+    size_t  mCachedBytes;
     AString mComponentName;
 
     DISALLOW_EVIL_CONSTRUCTORS(DecoderPassThrough);
