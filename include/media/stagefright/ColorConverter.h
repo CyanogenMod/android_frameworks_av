@@ -27,7 +27,15 @@
 
 namespace android {
 
+#ifdef MTK_HARDWARE
+struct MtkColorConverter;
+#endif
+
 struct ColorConverter {
+#ifdef MTK_HARDWARE
+    // Needs access to BitmapParams.
+    friend struct MtkColorConverter;
+#endif
     ColorConverter(OMX_COLOR_FORMATTYPE from, OMX_COLOR_FORMATTYPE to);
     ~ColorConverter();
 
@@ -61,6 +69,10 @@ private:
 
     OMX_COLOR_FORMATTYPE mSrcFormat, mDstFormat;
     uint8_t *mClip;
+
+#ifdef MTK_HARDWARE
+    MtkColorConverter *mMtkColorConverter;
+#endif
 
     uint8_t *initClip();
 

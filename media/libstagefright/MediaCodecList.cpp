@@ -556,6 +556,16 @@ status_t MediaCodecList::getCodecCapabilities(
     }
 
     for (size_t i = 0; i < caps.mColorFormats.size(); ++i) {
+#ifdef MTK_HARDWARE
+        // Implicitly push YUV420Planar as a supported format if the codec supports an internal
+        // format that is compatible. This behavior is tested by the CTS VideoEncoderDecoderTest
+        if (!info.mIsEncoder &&
+            (OMX_COLOR_FormatVendorMTKYUV == caps.mColorFormats.itemAt(i)) ||
+            (OMX_MTK_COLOR_FormatYV12 == caps.mColorFormats.itemAt(i)) ||
+            (OMX_COLOR_FormatVendorMTKYUV_FCM == caps.mColorFormats.itemAt(i))) {
+            colorFormats->push(OMX_COLOR_FormatYUV420Planar);
+        }
+#endif
         colorFormats->push(caps.mColorFormats.itemAt(i));
     }
 

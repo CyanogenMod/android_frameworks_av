@@ -2176,7 +2176,9 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     // resample the input and do mono to stereo or stereo to mono conversions on 16 bit PCM inputs.
     if (status == BAD_VALUE &&
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
+#ifndef MTK_HARDWARE
         (config.sample_rate <= 2 * reqSamplingRate) &&
+#endif
         (getInputChannelCount(config.channel_mask) <= FCC_2) && (getInputChannelCount(reqChannels) <= FCC_2)) {
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;

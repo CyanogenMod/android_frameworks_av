@@ -67,6 +67,10 @@
 #endif
 #endif
 
+#ifdef MTK_HARDWARE
+#include <bufferallocator/StagefrightRecorderMemoryHandler.h>
+#endif
+
 #include "ARTPWriter.h"
 #include <cutils/properties.h>
 #include "ExtendedUtils.h"
@@ -96,13 +100,19 @@ StagefrightRecorder::StagefrightRecorder()
       mStarted(false),
       mSurfaceMediaSource(NULL),
       mRecPaused(false) {
-
     ALOGV("Constructor");
+#ifdef MTK_HARDWARE
+    mMtkMemoryHandler = new StagefrightRecorderMemoryHandler();
+#endif
     reset();
 }
 
 StagefrightRecorder::~StagefrightRecorder() {
     ALOGV("Destructor");
+#ifdef MTK_HARDWARE
+    delete mMtkMemoryHandler;
+    mMtkMemoryHandler = NULL;
+#endif
     stop();
 }
 
@@ -226,7 +236,11 @@ status_t StagefrightRecorder::setVideoEncoder(video_encoder ve) {
     }
 
     if (ve == VIDEO_ENCODER_DEFAULT) {
+#ifdef MTK_HARDWARE //In order to pass CTS test case for preview size: 320 x 240
+        mVideoEncoder = VIDEO_ENCODER_MPEG_4_SP;
+#else
         mVideoEncoder = VIDEO_ENCODER_H263;
+#endif
     } else {
         mVideoEncoder = ve;
     }
@@ -1629,8 +1643,18 @@ status_t StagefrightRecorder::setupVideoEncoder(
     CHECK(meta->findInt32(kKeySliceHeight, &sliceHeight));
     CHECK(meta->findInt32(kKeyColorFormat, &colorFormat));
 
+#ifdef MTK_HARDWARE
+    mMtkMemoryHandler->setupVideoEncoder(&enc_meta, &meta);
+#endif
+
+#ifdef MTK_HARDWARE
+    //tell codec the real width and height ap want to record
+    enc_meta->setInt32(kKeyWidth, mVideoWidth);
+    enc_meta->setInt32(kKeyHeight, mVideoHeight);
+#else
     enc_meta->setInt32(kKeyWidth, width);
     enc_meta->setInt32(kKeyHeight, height);
+#endif
     enc_meta->setInt32(kKeyIFramesInterval, mIFramesIntervalSec);
     enc_meta->setInt32(kKeyStride, stride);
     enc_meta->setInt32(kKeySliceHeight, sliceHeight);
@@ -1940,7 +1964,11 @@ status_t StagefrightRecorder::reset() {
     // Default parameters
     mOutputFormat  = OUTPUT_FORMAT_THREE_GPP;
     mAudioEncoder  = AUDIO_ENCODER_AMR_NB;
+#ifdef MTK_HARDWARE    //In order to pass CTS test case for preview size: 320 x 240
+    mVideoEncoder  = VIDEO_ENCODER_MPEG_4_SP;
+#else
     mVideoEncoder  = VIDEO_ENCODER_H263;
+#endif
     mVideoWidth    = 176;
     mVideoHeight   = 144;
     mFrameRate     = -1;
@@ -2164,5 +2192,4 @@ status_t StagefrightRecorder::setSourcePause(bool pause) {
     }
     return err;
 }
-
 }  // namespace android

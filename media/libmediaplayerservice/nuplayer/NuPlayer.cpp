@@ -1128,6 +1128,12 @@ void NuPlayer::renderBuffer(bool audio, const sp<AMessage> &msg) {
         skipUntilMediaTimeUs = -1;
     }
 
+#ifdef MTK_HARDWARE
+    int32_t flags;
+    CHECK(msg->findInt32("flags", &flags));
+    buffer->meta()->setInt32("flags", flags);
+#endif
+
     mRenderer->queueBuffer(audio, buffer, reply);
 }
 

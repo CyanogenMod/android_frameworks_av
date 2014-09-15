@@ -79,6 +79,26 @@ public:
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
             buffer_id *buffer);
 
+#ifdef MTK_HARDWARE
+    virtual status_t useBuffer(
+            node_id node, OMX_U32 port_index, unsigned char* virAddr, size_t size,
+            buffer_id *buffer);
+
+    virtual status_t useBuffer(
+            node_id node, OMX_U32 port_index, unsigned char* virAddr, size_t size, OMX_U32 offset,
+            buffer_id *buffer);
+
+    virtual status_t registerBuffer(
+            node_id node, OMX_U32 port_index, const sp<IMemoryHeap> &heap);
+
+    virtual status_t registerBuffer2(
+            node_id node, OMX_U32 port_index,  const sp<IMemoryHeap> &HeapBase);
+
+  virtual status_t useIonBuffer(
+            node_id node, OMX_U32 port_index,
+            unsigned char* virAddr, OMX_S32 fd, size_t size, buffer_id *buffer);
+#endif
+
     virtual status_t useGraphicBuffer(
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id *buffer);
