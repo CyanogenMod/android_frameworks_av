@@ -1091,7 +1091,7 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     }
 
     if (recordingStreamNeedsUpdate) {
-        // Need to stop stream here in case updateRecordingStream fails
+        // Need to stop stream here so updateProcessorStream won't trigger configureStream
         // Right now camera device cannot handle configureStream failure gracefully
         // when device is streaming
         res = mStreamingProcessor->stopStream();
@@ -1110,18 +1110,6 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
                 &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
                                                             params);
 
-        // updateRecordingStream might trigger a configureStream call and device might fail
-        // configureStream due to jpeg size > video size. Try again with jpeg size overridden
-        // to video size.
-        // TODO: This may not be needed after we add stop streaming above. Remove that if
-        // it's the case.
-        if (res == BAD_VALUE) {
-            overrideVideoSnapshotSize(params);
-            res = updateProcessorStream<
-                    StreamingProcessor,
-                    &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
-                                                                params);
-        }
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
@@ -1380,6 +1368,12 @@ status_t Camera2Client::takePicture(int msgType) {
 
         int lastJpegStreamId = mJpegProcessor->getStreamId();
         res = updateProcessorStream(mJpegProcessor, l.mParameters);
+        // If video snapshot fail to configureStream, try override video snapshot size to
+        // video size
+        if (res == BAD_VALUE && l.mParameters.state == Parameters::VIDEO_SNAPSHOT) {
+            overrideVideoSnapshotSize(l.mParameters);
+            res = updateProcessorStream(mJpegProcessor, l.mParameters);
+        }
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't set up still image stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
