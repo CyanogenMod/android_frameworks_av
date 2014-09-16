@@ -67,6 +67,9 @@ struct NuPlayer::Source : public AHandler {
     virtual void pause() {}
     virtual void resume() {}
 
+    // Explicitly disconnect the underling data source
+    virtual void disconnect() {}
+
     // Returns OK iff more data was available,
     // an error or ERROR_END_OF_STREAM if not.
     virtual status_t feedMoreTSData() = 0;

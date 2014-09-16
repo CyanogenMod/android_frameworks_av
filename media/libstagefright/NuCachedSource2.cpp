@@ -191,6 +191,7 @@ NuCachedSource2::NuCachedSource2(
       mFinalStatus(OK),
       mLastAccessPos(0),
       mFetching(true),
+      mDisconnecting(false),
       mLastFetchTimeUs(-1),
       mNumRetriesLeft(kMaxNumRetries),
       mHighwaterThresholdBytes(kDefaultHighWaterThreshold),
@@ -242,6 +243,23 @@ status_t NuCachedSource2::getEstimatedBandwidthKbps(int32_t *kbps) {
         return source->getEstimatedBandwidthKbps(kbps);
     }
     return ERROR_UNSUPPORTED;
+}
+
+void NuCachedSource2::disconnect() {
+    if (mSource->flags() & kIsHTTPBasedSource) {
+        ALOGV("disconnecting HTTPBasedSource");
+
+        {
+            Mutex::Autolock autoLock(mLock);
+            // set mDisconnecting to true, if a fetch returns after
+            // this, the source will be marked as EOS.
+            mDisconnecting = true;
+        }
+
+        // explicitly disconnect from the source, to allow any
+        // pending reads to return more promptly
+        static_cast<HTTPBase *>(mSource.get())->disconnect();
+    }
 }
 
 status_t NuCachedSource2::setCacheStatCollectFreq(int32_t freqMs) {
@@ -327,7 +345,14 @@ void NuCachedSource2::fetchInternal() {
 
     Mutex::Autolock autoLock(mLock);
 
-    if (n < 0) {
+    if (n == 0 || mDisconnecting) {
+        ALOGI("ERROR_END_OF_STREAM");
+
+        mNumRetriesLeft = 0;
+        mFinalStatus = ERROR_END_OF_STREAM;
+
+        mCache->releasePage(page);
+    } else if (n < 0) {
         mFinalStatus = n;
         if (n == ERROR_UNSUPPORTED || n == -EPIPE) {
             // These are errors that are not likely to go away even if we
@@ -336,13 +361,6 @@ void NuCachedSource2::fetchInternal() {
         }
 
         ALOGE("source returned error %zd, %d retries left", n, mNumRetriesLeft);
-        mCache->releasePage(page);
-    } else if (n == 0) {
-        ALOGI("ERROR_END_OF_STREAM");
-
-        mNumRetriesLeft = 0;
-        mFinalStatus = ERROR_END_OF_STREAM;
-
         mCache->releasePage(page);
     } else {
         if (mFinalStatus != OK) {

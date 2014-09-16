@@ -310,6 +310,16 @@ void NuPlayer::resume() {
 }
 
 void NuPlayer::resetAsync() {
+    if (mSource != NULL) {
+        // During a reset, the data source might be unresponsive already, we need to
+        // disconnect explicitly so that reads exit promptly.
+        // We can't queue the disconnect request to the looper, as it might be
+        // queued behind a stuck read and never gets processed.
+        // Doing a disconnect outside the looper to allows the pending reads to exit
+        // (either successfully or with error).
+        mSource->disconnect();
+    }
+
     (new AMessage(kWhatReset, id()))->post();
 }
 
