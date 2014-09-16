@@ -418,6 +418,13 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             mRecordThreads.valueAt(i)->dump(fd, args);
         }
 
+        // dump orphan effect chains
+        if (mOrphanEffectChains.size() != 0) {
+            write(fd, "  Orphan Effect Chains\n", strlen("  Orphan Effect Chains\n"));
+            for (size_t i = 0; i < mOrphanEffectChains.size(); i++) {
+                mOrphanEffectChains.valueAt(i)->dump(fd, args);
+            }
+        }
         // dump all hardware devs
         for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
             audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
@@ -1421,7 +1428,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
                 *sessionId = lSessionId;
             }
         }
-        ALOGV("openRecord() lSessionId: %d", lSessionId);
+        ALOGV("openRecord() lSessionId: %d input %d", lSessionId, input);
 
         // TODO: the uid should be passed in as a parameter to openRecord
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
@@ -2027,6 +2034,16 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
         }
 
         ALOGV("closeInput() %d", input);
+        {
+            // If we still have effect chains, it means that a client still holds a handle
+            // on at least one effect. We must keep the chain alive in case a new record
+            // thread is opened for a new capture on the same session
+            Mutex::Autolock _sl(thread->mLock);
+            Vector< sp<EffectChain> > effectChains = thread->getEffectChains_l();
+            for (size_t i = 0; i < effectChains.size(); i++) {
+                putOrphanEffectChain_l(effectChains[i]);
+            }
+        }
         audioConfigChanged(AudioSystem::INPUT_CLOSED, input, NULL);
         mRecordThreads.removeItem(input);
     }
@@ -2456,6 +2473,13 @@ sp<IEffect> AudioFlinger::createEffect(
                 lStatus = BAD_VALUE;
                 goto Exit;
             }
+        } else {
+            // Check if one effect chain was awaiting for an effect to be created on this
+            // session and used it instead of creating a new one.
+            sp<EffectChain> chain = getOrphanEffectChain_l((audio_session_t)sessionId);
+            if (chain != 0) {
+                thread->addEffectChain_l(chain);
+            }
         }
 
         sp<Client> client = registerPid(pid);
@@ -2627,6 +2651,49 @@ void AudioFlinger::onNonOffloadableGlobalEffectEnable()
     }
 
 }
+
+status_t AudioFlinger::putOrphanEffectChain_l(const sp<AudioFlinger::EffectChain>& chain)
+{
+    audio_session_t session = (audio_session_t)chain->sessionId();
+    ssize_t index = mOrphanEffectChains.indexOfKey(session);
+    ALOGV("putOrphanEffectChain_l session %d index %d", session, index);
+    if (index >= 0) {
+        ALOGW("putOrphanEffectChain_l chain for session %d already present", session);
+        return ALREADY_EXISTS;
+    }
+    mOrphanEffectChains.add(session, chain);
+    return NO_ERROR;
+}
+
+sp<AudioFlinger::EffectChain> AudioFlinger::getOrphanEffectChain_l(audio_session_t session)
+{
+    sp<EffectChain> chain;
+    ssize_t index = mOrphanEffectChains.indexOfKey(session);
+    ALOGV("getOrphanEffectChain_l session %d index %d", session, index);
+    if (index >= 0) {
+        chain = mOrphanEffectChains.valueAt(index);
+        mOrphanEffectChains.removeItemsAt(index);
+    }
+    return chain;
+}
+
+bool AudioFlinger::updateOrphanEffectChains(const sp<AudioFlinger::EffectModule>& effect)
+{
+    Mutex::Autolock _l(mLock);
+    audio_session_t session = (audio_session_t)effect->sessionId();
+    ssize_t index = mOrphanEffectChains.indexOfKey(session);
+    ALOGV("updateOrphanEffectChains session %d index %d", session, index);
+    if (index >= 0) {
+        sp<EffectChain> chain = mOrphanEffectChains.valueAt(index);
+        if (chain->removeEffect_l(effect) == 0) {
+            ALOGV("updateOrphanEffectChains removing effect chain at index %d", index);
+            mOrphanEffectChains.removeItemsAt(index);
+        }
+        return true;
+    }
+    return false;
+}
+
 
 struct Entry {
 #define MAX_NAME 32     // %Y%m%d%H%M%S_%d.wav
