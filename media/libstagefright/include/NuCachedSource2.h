@@ -37,6 +37,8 @@ struct NuCachedSource2 : public DataSource {
 
     virtual ssize_t readAt(off64_t offset, void *data, size_t size);
 
+    virtual void disconnect();
+
     virtual status_t getSize(off64_t *size);
     virtual uint32_t flags();
 
@@ -103,6 +105,7 @@ private:
     off64_t mLastAccessPos;
     sp<AMessage> mAsyncResult;
     bool mFetching;
+    bool mDisconnecting;
     int64_t mLastFetchTimeUs;
 
     int32_t mNumRetriesLeft;
