@@ -202,29 +202,26 @@ void SoftVideoDecoderOMXComponent::copyYV12FrameToOutputBuffer(
     size_t dstYStride = mIsAdaptive ? mAdaptiveMaxWidth : mWidth;
     size_t dstUVStride = dstYStride / 2;
     size_t dstHeight = mIsAdaptive ? mAdaptiveMaxHeight : mHeight;
+    uint8_t *dstStart = dst;
 
-    for (size_t i = 0; i < dstHeight; ++i) {
-        if (i < mHeight) {
-            memcpy(dst, srcY, mWidth);
-            srcY += srcYStride;
-        }
-        dst += dstYStride;
+    for (size_t i = 0; i < mHeight; ++i) {
+         memcpy(dst, srcY, mWidth);
+         srcY += srcYStride;
+         dst += dstYStride;
     }
 
-    for (size_t i = 0; i < dstHeight / 2; ++i) {
-        if (i < mHeight / 2) {
-            memcpy(dst, srcU, mWidth / 2);
-            srcU += srcUStride;
-        }
-        dst += dstUVStride;
+    dst = dstStart + dstYStride * dstHeight;
+    for (size_t i = 0; i < mHeight / 2; ++i) {
+         memcpy(dst, srcU, mWidth / 2);
+         srcU += srcUStride;
+         dst += dstUVStride;
     }
 
-    for (size_t i = 0; i < dstHeight / 2; ++i) {
-        if (i < mHeight / 2) {
-            memcpy(dst, srcV, mWidth / 2);
-            srcV += srcVStride;
-        }
-        dst += dstUVStride;
+    dst = dstStart + (5 * dstYStride * dstHeight) / 4;
+    for (size_t i = 0; i < mHeight / 2; ++i) {
+         memcpy(dst, srcV, mWidth / 2);
+         srcV += srcVStride;
+         dst += dstUVStride;
     }
 }
 
