@@ -67,6 +67,8 @@ struct NuPlayer : public AHandler {
     status_t getSelectedTrack(int32_t type, Parcel* reply) const;
     status_t selectTrack(size_t trackIndex, bool select);
 
+    sp<MetaData> getFileMeta();
+
     static const size_t kAggregateBufferSizeBytes;
 
 protected:

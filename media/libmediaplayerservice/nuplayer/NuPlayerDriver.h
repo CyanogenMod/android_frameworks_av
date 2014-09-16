@@ -114,10 +114,12 @@ private:
 
     sp<ALooper> mLooper;
     sp<NuPlayer> mPlayer;
+    sp<AudioSink> mAudioSink;
     uint32_t mPlayerFlags;
 
     bool mAtEOS;
     bool mLooping;
+    bool mAutoLoop;
 
     int64_t mStartupSeekTimeUs;
 
