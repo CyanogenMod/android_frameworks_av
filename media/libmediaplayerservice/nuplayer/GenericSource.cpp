@@ -106,6 +106,10 @@ status_t NuPlayer::GenericSource::setDataSource(
     return OK;
 }
 
+sp<MetaData> NuPlayer::GenericSource::getFileFormatMeta() const {
+    return mFileMeta;
+}
+
 status_t NuPlayer::GenericSource::initFromDataSource() {
     sp<MediaExtractor> extractor;
 
@@ -144,10 +148,10 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         checkDrmStatus(mDataSource);
     }
 
-    sp<MetaData> fileMeta = extractor->getMetaData();
-    if (fileMeta != NULL) {
+    mFileMeta = extractor->getMetaData();
+    if (mFileMeta != NULL) {
         int64_t duration;
-        if (fileMeta->findInt64(kKeyDuration, &duration)) {
+        if (mFileMeta->findInt64(kKeyDuration, &duration)) {
             mDurationUs = duration;
         }
     }

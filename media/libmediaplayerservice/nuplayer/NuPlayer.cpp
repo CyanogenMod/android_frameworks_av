@@ -1720,6 +1720,10 @@ status_t NuPlayer::selectTrack(size_t trackIndex, bool select) {
     return err;
 }
 
+sp<MetaData> NuPlayer::getFileMeta() {
+    return mSource->getFileFormatMeta();
+}
+
 void NuPlayer::schedulePollDuration() {
     sp<AMessage> msg = new AMessage(kWhatPollDuration, id());
     msg->setInt32("generation", mPollDurationGeneration);

@@ -45,6 +45,7 @@ NuPlayerDriver::NuPlayerDriver()
       mPlayerFlags(0),
       mAtEOS(false),
       mLooping(false),
+      mAutoLoop(false),
       mStartupSeekTimeUs(-1) {
     mLooper->setName("NuPlayerDriver Looper");
 
@@ -498,6 +499,7 @@ status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
 
 void NuPlayerDriver::setAudioSink(const sp<AudioSink> &audioSink) {
     mPlayer->setAudioSink(audioSink);
+    mAudioSink = audioSink;
 }
 
 status_t NuPlayerDriver::setParameter(
@@ -627,7 +629,8 @@ void NuPlayerDriver::notifyListener_l(
         case MEDIA_PLAYBACK_COMPLETE:
         {
             if (mState != STATE_RESET_IN_PROGRESS) {
-                if (mLooping) {
+                if (mLooping || (mAutoLoop
+                        && (mAudioSink == NULL || mAudioSink->realtime()))) {
                     mPlayer->seekToAsync(0);
                     break;
                 }
@@ -691,6 +694,13 @@ void NuPlayerDriver::notifyPrepareCompleted(status_t err) {
         if (mIsAsyncPrepare) {
             notifyListener_l(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
         }
+    }
+
+    sp<MetaData> meta = mPlayer->getFileMeta();
+    int32_t loop;
+    if (meta != NULL
+            && meta->findInt32(kKeyAutoLoop, &loop) && loop != 0) {
+        mAutoLoop = true;
     }
 
     mCondition.broadcast();
