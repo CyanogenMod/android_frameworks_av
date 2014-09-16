@@ -166,6 +166,7 @@ protected:
     sp<NBAIO_Source>    mTeeSource;
     bool                mTerminated;
     track_type          mType;      // must be one of TYPE_DEFAULT, TYPE_OUTPUT, TYPE_PATCH ...
+    audio_io_handle_t   mThreadIoHandle; // I/O handle of the thread the track is attached to
 };
 
 // PatchProxyBufferProvider interface is implemented by PatchTrack and PatchRecord.
