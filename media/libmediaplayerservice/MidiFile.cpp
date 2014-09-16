@@ -259,6 +259,7 @@ status_t MidiFile::stop()
             ALOGE("EAS_Pause returned error %ld", result);
             return ERROR_EAS_FAILURE;
         }
+        updateState();
     }
     mPaused = false;
     sendEvent(MEDIA_STOPPED);
