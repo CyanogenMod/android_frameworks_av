@@ -265,9 +265,13 @@ status_t NuPlayerDriver::start() {
         {
             if (mAtEOS) {
                 mPlayer->seekToAsync(0);
+                mAtEOS = false;
+                mPlayer->resume();
+                mPositionUs = -1;
+            } else {
+                mPlayer->resume();
+                mPositionUs -= ALooper::GetNowUs() - mPauseStartedTimeUs;
             }
-            mPlayer->resume();
-            mPositionUs -= ALooper::GetNowUs() - mPauseStartedTimeUs;
             break;
         }
 
