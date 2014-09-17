@@ -130,7 +130,8 @@ private:
     size_t fillAudioBuffer(void *buffer, size_t size);
 
     bool onDrainAudioQueue();
-    int64_t getAudioPendingPlayoutUs();
+    int64_t getPendingAudioPlayoutDurationUs(int64_t nowUs);
+    int64_t getPlayedOutAudioDurationUs(int64_t nowUs);
     void postDrainAudioQueue_l(int64_t delayUs = 0);
 
     void onDrainVideoQueue();
