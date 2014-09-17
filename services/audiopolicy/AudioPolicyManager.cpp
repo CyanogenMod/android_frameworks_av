@@ -2667,58 +2667,68 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                 continue;
             }
 
+            if ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
+                continue;
+            }
             audio_devices_t profileType = outProfile->mSupportedDevices.types();
             if ((profileType & mDefaultOutputDevice->mDeviceType) != AUDIO_DEVICE_NONE) {
                 profileType = mDefaultOutputDevice->mDeviceType;
             } else {
-                profileType = outProfile->mSupportedDevices[0]->mDeviceType;
-            }
-            if ((profileType & outputDeviceTypes) &&
-                    ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0)) {
-                sp<AudioOutputDescriptor> outputDesc = new AudioOutputDescriptor(outProfile);
-
-                outputDesc->mDevice = profileType;
-                audio_config_t config = AUDIO_CONFIG_INITIALIZER;
-                config.sample_rate = outputDesc->mSamplingRate;
-                config.channel_mask = outputDesc->mChannelMask;
-                config.format = outputDesc->mFormat;
-                audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
-                status_t status = mpClientInterface->openOutput(outProfile->mModule->mHandle,
-                                                                &output,
-                                                                &config,
-                                                                &outputDesc->mDevice,
-                                                                String8(""),
-                                                                &outputDesc->mLatency,
-                                                                outputDesc->mFlags);
-
-                if (status != NO_ERROR) {
-                    ALOGW("Cannot open output stream for device %08x on hw module %s",
-                          outputDesc->mDevice,
-                          mHwModules[i]->mName);
-                } else {
-                    outputDesc->mSamplingRate = config.sample_rate;
-                    outputDesc->mChannelMask = config.channel_mask;
-                    outputDesc->mFormat = config.format;
-
-                    for (size_t k = 0; k  < outProfile->mSupportedDevices.size(); k++) {
-                        audio_devices_t type = outProfile->mSupportedDevices[k]->mDeviceType;
-                        ssize_t index =
-                                mAvailableOutputDevices.indexOf(outProfile->mSupportedDevices[k]);
-                        // give a valid ID to an attached device once confirmed it is reachable
-                        if ((index >= 0) && (mAvailableOutputDevices[index]->mId == 0)) {
-                            mAvailableOutputDevices[index]->mId = nextUniqueId();
-                            mAvailableOutputDevices[index]->mModule = mHwModules[i];
-                        }
+                // chose first device present in mSupportedDevices also part of
+                // outputDeviceTypes
+                for (size_t k = 0; k  < outProfile->mSupportedDevices.size(); k++) {
+                    profileType = outProfile->mSupportedDevices[k]->mDeviceType;
+                    if ((profileType & outputDeviceTypes) != 0) {
+                        break;
                     }
-                    if (mPrimaryOutput == 0 &&
-                            outProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
-                        mPrimaryOutput = output;
-                    }
-                    addOutput(output, outputDesc);
-                    setOutputDevice(output,
-                                    outputDesc->mDevice,
-                                    true);
                 }
+            }
+            if ((profileType & outputDeviceTypes) == 0) {
+                continue;
+            }
+            sp<AudioOutputDescriptor> outputDesc = new AudioOutputDescriptor(outProfile);
+
+            outputDesc->mDevice = profileType;
+            audio_config_t config = AUDIO_CONFIG_INITIALIZER;
+            config.sample_rate = outputDesc->mSamplingRate;
+            config.channel_mask = outputDesc->mChannelMask;
+            config.format = outputDesc->mFormat;
+            audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
+            status_t status = mpClientInterface->openOutput(outProfile->mModule->mHandle,
+                                                            &output,
+                                                            &config,
+                                                            &outputDesc->mDevice,
+                                                            String8(""),
+                                                            &outputDesc->mLatency,
+                                                            outputDesc->mFlags);
+
+            if (status != NO_ERROR) {
+                ALOGW("Cannot open output stream for device %08x on hw module %s",
+                      outputDesc->mDevice,
+                      mHwModules[i]->mName);
+            } else {
+                outputDesc->mSamplingRate = config.sample_rate;
+                outputDesc->mChannelMask = config.channel_mask;
+                outputDesc->mFormat = config.format;
+
+                for (size_t k = 0; k  < outProfile->mSupportedDevices.size(); k++) {
+                    audio_devices_t type = outProfile->mSupportedDevices[k]->mDeviceType;
+                    ssize_t index =
+                            mAvailableOutputDevices.indexOf(outProfile->mSupportedDevices[k]);
+                    // give a valid ID to an attached device once confirmed it is reachable
+                    if ((index >= 0) && (mAvailableOutputDevices[index]->mId == 0)) {
+                        mAvailableOutputDevices[index]->mId = nextUniqueId();
+                        mAvailableOutputDevices[index]->mModule = mHwModules[i];
+                    }
+                }
+                if (mPrimaryOutput == 0 &&
+                        outProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
+                    mPrimaryOutput = output;
+                }
+                addOutput(output, outputDesc);
+                setOutputDevice(output,
+                                outputDesc->mDevice,
+                                true);
             }
         }
         // open input streams needed to access attached devices to validate
@@ -2731,44 +2741,52 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                 ALOGW("Input profile contains no device on module %s", mHwModules[i]->mName);
                 continue;
             }
-
-            audio_devices_t profileType = inProfile->mSupportedDevices[0]->mDeviceType;
-            if (profileType & inputDeviceTypes) {
-                sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(inProfile);
-
-                inputDesc->mInputSource = AUDIO_SOURCE_MIC;
-                inputDesc->mDevice = profileType;
-
-                audio_config_t config = AUDIO_CONFIG_INITIALIZER;
-                config.sample_rate = inputDesc->mSamplingRate;
-                config.channel_mask = inputDesc->mChannelMask;
-                config.format = inputDesc->mFormat;
-                audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
-                status_t status = mpClientInterface->openInput(inProfile->mModule->mHandle,
-                                                               &input,
-                                                               &config,
-                                                               &inputDesc->mDevice,
-                                                               String8(""),
-                                                               AUDIO_SOURCE_MIC,
-                                                               AUDIO_INPUT_FLAG_NONE);
-
-                if (status == NO_ERROR) {
-                    for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
-                        audio_devices_t type = inProfile->mSupportedDevices[k]->mDeviceType;
-                        ssize_t index =
-                                mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[k]);
-                        // give a valid ID to an attached device once confirmed it is reachable
-                        if ((index >= 0) && (mAvailableInputDevices[index]->mId == 0)) {
-                            mAvailableInputDevices[index]->mId = nextUniqueId();
-                            mAvailableInputDevices[index]->mModule = mHwModules[i];
-                        }
-                    }
-                    mpClientInterface->closeInput(input);
-                } else {
-                    ALOGW("Cannot open input stream for device %08x on hw module %s",
-                          inputDesc->mDevice,
-                          mHwModules[i]->mName);
+            // chose first device present in mSupportedDevices also part of
+            // inputDeviceTypes
+            audio_devices_t profileType = AUDIO_DEVICE_NONE;
+            for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
+                profileType = inProfile->mSupportedDevices[k]->mDeviceType;
+                if (profileType & inputDeviceTypes) {
+                    break;
                 }
+            }
+            if ((profileType & inputDeviceTypes) == 0) {
+                continue;
+            }
+            sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(inProfile);
+
+            inputDesc->mInputSource = AUDIO_SOURCE_MIC;
+            inputDesc->mDevice = profileType;
+
+            audio_config_t config = AUDIO_CONFIG_INITIALIZER;
+            config.sample_rate = inputDesc->mSamplingRate;
+            config.channel_mask = inputDesc->mChannelMask;
+            config.format = inputDesc->mFormat;
+            audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+            status_t status = mpClientInterface->openInput(inProfile->mModule->mHandle,
+                                                           &input,
+                                                           &config,
+                                                           &inputDesc->mDevice,
+                                                           String8(""),
+                                                           AUDIO_SOURCE_MIC,
+                                                           AUDIO_INPUT_FLAG_NONE);
+
+            if (status == NO_ERROR) {
+                for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
+                    audio_devices_t type = inProfile->mSupportedDevices[k]->mDeviceType;
+                    ssize_t index =
+                            mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[k]);
+                    // give a valid ID to an attached device once confirmed it is reachable
+                    if ((index >= 0) && (mAvailableInputDevices[index]->mId == 0)) {
+                        mAvailableInputDevices[index]->mId = nextUniqueId();
+                        mAvailableInputDevices[index]->mModule = mHwModules[i];
+                    }
+                }
+                mpClientInterface->closeInput(input);
+            } else {
+                ALOGW("Cannot open input stream for device %08x on hw module %s",
+                      inputDesc->mDevice,
+                      mHwModules[i]->mName);
             }
         }
     }
