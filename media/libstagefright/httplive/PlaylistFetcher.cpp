@@ -1009,7 +1009,16 @@ void PlaylistFetcher::onDownloadNext() {
 
     // bulk extract non-ts files
     if (tsBuffer == NULL) {
-      err = extractAndQueueAccessUnits(buffer, itemMeta);
+        err = extractAndQueueAccessUnits(buffer, itemMeta);
+        if (err == -EAGAIN) {
+            // starting sequence number too low/high
+            postMonitorQueue();
+            return;
+        } else if (err == ERROR_OUT_OF_RANGE) {
+            // reached stopping point
+            stopAsync(/* clear = */false);
+            return;
+        }
     }
 
     if (err != OK) {
@@ -1552,14 +1561,52 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
             if (startTimeUs < mStartTimeUs) {
                 continue;
             }
+
+            if (mStartTimeUsNotify != NULL) {
+                int32_t targetDurationSecs;
+                CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
+                int64_t targetDurationUs = targetDurationSecs * 1000000ll;
+
+                // Duplicated logic from how we handle .ts playlists.
+                if (mStartup && mSegmentStartTimeUs >= 0
+                        && timeUs - mStartTimeUs > targetDurationUs) {
+                    int32_t newSeqNumber = getSeqNumberWithAnchorTime(timeUs);
+                    if (newSeqNumber >= mSeqNumber) {
+                        --mSeqNumber;
+                    } else {
+                        mSeqNumber = newSeqNumber;
+                    }
+                    return -EAGAIN;
+                }
+
+                mStartTimeUsNotify->setInt64("timeUsAudio", timeUs);
+                mStartTimeUsNotify->setInt32("discontinuitySeq", mDiscontinuitySeq);
+                mStartTimeUsNotify->setInt32("streamMask", LiveSession::STREAMTYPE_AUDIO);
+                mStartTimeUsNotify->post();
+                mStartTimeUsNotify.clear();
+            }
+        }
+
+        if (mStopParams != NULL) {
+            // Queue discontinuity in original stream.
+            int32_t discontinuitySeq;
+            int64_t stopTimeUs;
+            if (!mStopParams->findInt32("discontinuitySeq", &discontinuitySeq)
+                    || discontinuitySeq > mDiscontinuitySeq
+                    || !mStopParams->findInt64("timeUsAudio", &stopTimeUs)
+                    || (discontinuitySeq == mDiscontinuitySeq && unitTimeUs >= stopTimeUs)) {
+                packetSource->queueAccessUnit(mSession->createFormatChangeBuffer());
+                mStreamTypeMask = 0;
+                mPacketSources.clear();
+                return ERROR_OUT_OF_RANGE;
+            }
         }
 
         sp<ABuffer> unit = new ABuffer(aac_frame_length);
         memcpy(unit->data(), adtsHeader, aac_frame_length);
 
         unit->meta()->setInt64("timeUs", unitTimeUs);
-        unit->meta()->setInt64("segmentStartTimeUs", getSegmentStartTimeUs(mSeqNumber));
-        unit->meta()->setInt32("discontinuitySeq", mDiscontinuitySeq);
+        setAccessUnitProperties(unit, packetSource);
         packetSource->queueAccessUnit(unit);
     }
 
