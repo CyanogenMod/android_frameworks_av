@@ -37,6 +37,19 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
+static int64_t convertTimespecToUs(const struct timespec &tv)
+{
+    return tv.tv_sec * 1000000ll + tv.tv_nsec / 1000;
+}
+
+// current monotonic time in microseconds.
+static int64_t getNowUs()
+{
+    struct timespec tv;
+    (void) clock_gettime(CLOCK_MONOTONIC, &tv);
+    return convertTimespecToUs(tv);
+}
+
 // static
 status_t AudioTrack::getMinFrameCount(
         size_t* frameCount,
@@ -420,6 +433,7 @@ status_t AudioTrack::set(
     mServer = 0;
     mPosition = 0;
     mReleased = 0;
+    mStartUs = 0;
     AudioSystem::acquireAudioSessionId(mSessionId, mClientPid);
     mSequence = 1;
     mObservedSequence = mSequence;
@@ -451,6 +465,12 @@ status_t AudioTrack::start()
         // reset current position as seen by client to 0
         mPosition = 0;
         mReleased = 0;
+        // For offloaded tracks, we don't know if the hardware counters are really zero here,
+        // since the flush is asynchronous and stop may not fully drain.
+        // We save the time when the track is started to later verify whether
+        // the counters are realistic (i.e. start from zero after this time).
+        mStartUs = getNowUs();
+
         // force refresh of remaining frames by processAudioBuffer() as last
         // write before stop could be partial.
         mRefreshRemaining = true;
@@ -587,9 +607,18 @@ void AudioTrack::pause()
 
     if (isOffloaded_l()) {
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
+            // An offload output can be re-used between two audio tracks having
+            // the same configuration. A timestamp query for a paused track
+            // while the other is running would return an incorrect time.
+            // To fix this, cache the playback position on a pause() and return
+            // this time when requested until the track is resumed.
+
+            // OffloadThread sends HAL pause in its threadLoop. Time saved
+            // here can be slightly off.
+
+            // TODO: check return code for getRenderPosition.
+
             uint32_t halFrames;
-            // OffloadThread sends HAL pause in its threadLoop.. time saved
-            // here can be slightly off
             AudioSystem::getRenderPosition(mOutput, &halFrames, &mPausedPosition);
             ALOGV("AudioTrack::pause for offload, cache current position %u", mPausedPosition);
         }
@@ -825,6 +854,8 @@ status_t AudioTrack::getPosition(uint32_t *position)
             uint32_t halFrames;
             AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
         }
+        // FIXME: dspFrames may not be zero in (mState == STATE_STOPPED || mState == STATE_FLUSHED)
+        // due to hardware latency. We leave this behavior for now.
         *position = dspFrames;
     } else {
         // IAudioTrack::stop() isn't synchronous; we don't know when presentation completes
@@ -1881,13 +1912,70 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         return INVALID_OPERATION;
     }
-    if (mState != STATE_ACTIVE && mState != STATE_PAUSED) {
-        return INVALID_OPERATION;
+
+    switch (mState) {
+    case STATE_ACTIVE:
+    case STATE_PAUSED:
+        break; // handle below
+    case STATE_FLUSHED:
+    case STATE_STOPPED:
+        return WOULD_BLOCK;
+    case STATE_STOPPING:
+    case STATE_PAUSED_STOPPING:
+        if (!isOffloaded_l()) {
+            return INVALID_OPERATION;
+        }
+        break; // offloaded tracks handled below
+    default:
+        LOG_ALWAYS_FATAL("Invalid mState in getTimestamp(): %d", mState);
+        break;
     }
+
     // The presented frame count must always lag behind the consumed frame count.
     // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
     status_t status = mAudioTrack->getTimestamp(timestamp);
-    if (status == NO_ERROR) {
+    if (status != NO_ERROR) {
+        ALOGW_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
+        return status;
+    }
+    if (isOffloadedOrDirect_l()) {
+        if (isOffloaded_l() && (mState == STATE_PAUSED || mState == STATE_PAUSED_STOPPING)) {
+            // use cached paused position in case another offloaded track is running.
+            timestamp.mPosition = mPausedPosition;
+            clock_gettime(CLOCK_MONOTONIC, &timestamp.mTime);
+            return NO_ERROR;
+        }
+
+        // Check whether a pending flush or stop has completed, as those commands may
+        // be asynchronous or return near finish.
+        if (mStartUs != 0 && mSampleRate != 0) {
+            static const int kTimeJitterUs = 100000; // 100 ms
+            static const int k1SecUs = 1000000;
+
+            const int64_t timeNow = getNowUs();
+
+            if (timeNow < mStartUs + k1SecUs) { // within first second of starting
+                const int64_t timestampTimeUs = convertTimespecToUs(timestamp.mTime);
+                if (timestampTimeUs < mStartUs) {
+                    return WOULD_BLOCK;  // stale timestamp time, occurs before start.
+                }
+                const int64_t deltaTimeUs = timestampTimeUs - mStartUs;
+                const int64_t deltaPositionByUs = timestamp.mPosition * 1000000LL / mSampleRate;
+
+                if (deltaPositionByUs > deltaTimeUs + kTimeJitterUs) {
+                    // Verify that the counter can't count faster than the sample rate
+                    // since the start time.  If greater, then that means we have failed
+                    // to completely flush or stop the previous playing track.
+                    ALOGW("incomplete flush or stop:"
+                            " deltaTimeUs(%lld) deltaPositionUs(%lld) tsmPosition(%u)",
+                            (long long)deltaTimeUs, (long long)deltaPositionByUs,
+                            timestamp.mPosition);
+                    return WOULD_BLOCK;
+                }
+            }
+            mStartUs = 0; // no need to check again, start timestamp has either expired or unneeded.
+        }
+    } else {
         // Update the mapping between local consumed (mPosition) and server consumed (mServer)
         (void) updateAndGetPosition_l();
         // Server consumed (mServer) and presented both use the same server time base,
