@@ -604,6 +604,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
     // having to interpolate.
     // The final AAC frame may well extend into the next RangeInfo but
     // that's ok.
+    // TODO: the logic commented above is skipped because codec cannot take
+    // arbitrary sized input buffers;
     size_t offset = 0;
     while (offset < info.mLength) {
         if (offset + 7 > mBuffer->size()) {
@@ -668,9 +670,12 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
         size_t headerSize = protection_absent ? 7 : 9;
 
         offset += aac_frame_length;
+        // TODO: move back to concatenation when codec can support arbitrary input buffers.
+        // For now only queue a single buffer
+        break;
     }
 
-    int64_t timeUs = fetchTimestamp(offset);
+    int64_t timeUs = fetchTimestampAAC(offset);
 
     sp<ABuffer> accessUnit = new ABuffer(offset);
     memcpy(accessUnit->data(), mBuffer->data(), offset);
@@ -700,6 +705,45 @@ int64_t ElementaryStreamQueue::fetchTimestamp(size_t size) {
 
         if (info->mLength > size) {
             info->mLength -= size;
+            size = 0;
+        } else {
+            size -= info->mLength;
+
+            mRangeInfos.erase(mRangeInfos.begin());
+            info = NULL;
+        }
+
+    }
+
+    if (timeUs == 0ll) {
+        ALOGV("Returning 0 timestamp");
+    }
+
+    return timeUs;
+}
+
+// TODO: avoid interpolating timestamps once codec supports arbitrary sized input buffers
+int64_t ElementaryStreamQueue::fetchTimestampAAC(size_t size) {
+    int64_t timeUs = -1;
+    bool first = true;
+
+    size_t samplesize = size;
+    while (size > 0) {
+        CHECK(!mRangeInfos.empty());
+
+        RangeInfo *info = &*mRangeInfos.begin();
+
+        if (first) {
+            timeUs = info->mTimestampUs;
+            first = false;
+        }
+
+        if (info->mLength > size) {
+            int32_t sampleRate;
+            CHECK(mFormat->findInt32(kKeySampleRate, &sampleRate));
+            info->mLength -= size;
+            size_t numSamples = 1024 * size / samplesize;
+            info->mTimestampUs += numSamples * 1000000ll / sampleRate;
             size = 0;
         } else {
             size -= info->mLength;
