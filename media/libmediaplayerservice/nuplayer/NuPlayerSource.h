@@ -76,6 +76,7 @@ struct NuPlayer::Source : public AHandler {
 
     virtual sp<AMessage> getFormat(bool audio);
     virtual sp<MetaData> getFormatMeta(bool /* audio */) { return NULL; }
+    virtual sp<MetaData> getFileFormatMeta() const { return NULL; }
 
     virtual status_t dequeueAccessUnit(
             bool audio, sp<ABuffer> *accessUnit) = 0;
