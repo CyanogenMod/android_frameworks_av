@@ -705,7 +705,9 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                     }
 
                     // Discard input buffer.
-                    inHeader->nFilledLen = 0;
+                    if (inHeader) {
+                        inHeader->nFilledLen = 0;
+                    }
 
                     aacDecoder_SetParam(mAACDecoder, AAC_TPDEC_CLEAR_BUFFER, 1);
 
@@ -736,7 +738,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
                         mOutputPortSettingsChange = AWAITING_DISABLED;
 
-                        if (inHeader->nFilledLen == 0) {
+                        if (inHeader && inHeader->nFilledLen == 0) {
                             inInfo->mOwnedByUs = false;
                             mInputBufferCount++;
                             inQueue.erase(inQueue.begin());
