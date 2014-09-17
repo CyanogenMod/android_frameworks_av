@@ -271,7 +271,14 @@ status_t NuPlayerDriver::start() {
                 mPositionUs = -1;
             } else {
                 mPlayer->resume();
-                mPositionUs -= ALooper::GetNowUs() - mPauseStartedTimeUs;
+                if (mNotifyTimeRealUs != -1) {
+                    // Pause time must be set if here by setPauseStartedTimeIfNeeded().
+                    //CHECK(mPauseStartedTimeUs != -1);
+
+                    // if no seek occurs, adjust our notify time so that getCurrentPosition()
+                    // is continuous if read immediately after calling start().
+                    mNotifyTimeRealUs += ALooper::GetNowUs() - mPauseStartedTimeUs;
+                }
             }
             break;
         }
@@ -387,15 +394,36 @@ status_t NuPlayerDriver::getCurrentPosition(int *msec) {
     Mutex::Autolock autoLock(mLock);
 
     if (mPositionUs < 0) {
+        // mPositionUs is the media time.
+        // It is negative under these cases
+        // (1) == -1 after reset, or very first playback, no stream notification yet.
+        // (2) == -1 start after end of stream, no stream notification yet.
+        // (3) == large negative # after ~292,471 years of continuous playback.
+
+        //CHECK_EQ(mPositionUs, -1);
         *msec = 0;
     } else if (mNotifyTimeRealUs == -1) {
+        // A seek has occurred just occurred, no stream notification yet.
+        // mPositionUs (>= 0) is the new media position.
         *msec = mPositionUs / 1000;
     } else {
+        // mPosition must be valid (i.e. >= 0) by the first check above.
+        // We're either playing or have pause time set: mPauseStartedTimeUs is >= 0
+        //LOG_ALWAYS_FATAL_IF(
+        //        !isPlaying() && mPauseStartedTimeUs < 0,
+        //        "Player in non-playing mState(%d) and mPauseStartedTimeUs(%lld) < 0",
+        //        mState, (long long)mPauseStartedTimeUs);
+        ALOG_ASSERT(mNotifyTimeRealUs >= 0);
         int64_t nowUs =
                 (isPlaying() ?  ALooper::GetNowUs() : mPauseStartedTimeUs);
         *msec = (mPositionUs + nowUs - mNotifyTimeRealUs + 500ll) / 1000;
+        // It is possible for *msec to be negative if the media position is > 596 hours.
+        // but we turn on this checking in NDEBUG == 0 mode.
+        ALOG_ASSERT(*msec >= 0);
+        ALOGV("getCurrentPosition nowUs(%lld)", (long long)nowUs);
     }
-
+    ALOGV("getCurrentPosition returning(%d) mPositionUs(%lld) mNotifyRealTimeUs(%lld)",
+            *msec, (long long)mPositionUs, (long long)mNotifyTimeRealUs);
     return OK;
 }
 
