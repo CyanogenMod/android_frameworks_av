@@ -158,9 +158,16 @@ status_t LiveSession::dequeueAccessUnit(
 
     // wait for counterpart
     sp<AnotherPacketSource> otherSource;
-    if (stream == STREAMTYPE_AUDIO && (mStreamMask & STREAMTYPE_VIDEO)) {
+    uint32_t mask = mNewStreamMask & mStreamMask;
+    uint32_t fetchersMask  = 0;
+    for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
+        uint32_t fetcherMask = mFetcherInfos.valueAt(i).mFetcher->getStreamTypeMask();
+        fetchersMask |= fetcherMask;
+    }
+    mask &= fetchersMask;
+    if (stream == STREAMTYPE_AUDIO && (mask & STREAMTYPE_VIDEO)) {
         otherSource = mPacketSources.valueFor(STREAMTYPE_VIDEO);
-    } else if (stream == STREAMTYPE_VIDEO && (mStreamMask & STREAMTYPE_AUDIO)) {
+    } else if (stream == STREAMTYPE_VIDEO && (mask & STREAMTYPE_AUDIO)) {
         otherSource = mPacketSources.valueFor(STREAMTYPE_AUDIO);
     }
     if (otherSource != NULL && !otherSource->hasBufferAvailable(&finalResult)) {
