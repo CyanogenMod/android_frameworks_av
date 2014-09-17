@@ -3991,8 +3991,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             minFrames = 1;
         }
 
-        ALOGI("prepareTracks_l minFrames %d state %d frames ready %d, ",
-              minFrames, track->mState, track->framesReady());
         if ((track->framesReady() >= minFrames) && track->isReady() && !track->isPaused() &&
                 !track->isStopping_2() && !track->isStopped())
         {
