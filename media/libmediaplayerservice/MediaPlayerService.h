@@ -85,6 +85,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual uint32_t        latency() const;
         virtual float           msecsPerFrame() const;
         virtual status_t        getPosition(uint32_t *position) const;
+        virtual status_t        getTimestamp(AudioTimestamp &ts) const;
         virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
         virtual int             getSessionId() const;
         virtual uint32_t        getSampleRate() const;
@@ -198,6 +199,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual uint32_t        latency() const;
         virtual float           msecsPerFrame() const;
         virtual status_t        getPosition(uint32_t *position) const;
+        virtual status_t        getTimestamp(AudioTimestamp &ts) const;
         virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
         virtual int             getSessionId() const;
         virtual uint32_t        getSampleRate() const;
