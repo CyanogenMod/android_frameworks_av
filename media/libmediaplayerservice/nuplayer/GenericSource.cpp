@@ -1256,6 +1256,8 @@ void NuPlayer::GenericSource::readBuffer(
 
             sp<ABuffer> buffer = mediaBufferToABuffer(mbuf, trackType, actualTimeUs);
             track->mPackets->queueAccessUnit(buffer);
+            formatChange = false;
+            seeking = false;
             ++numBuffers;
         } else if (err == WOULD_BLOCK) {
             break;
