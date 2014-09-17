@@ -580,7 +580,14 @@ public:
      * Caution: calling this method too often may be inefficient;
      * if you need a high resolution mapping between frame position and presentation time,
      * consider implementing that at application level, based on the low resolution timestamps.
-     * Returns NO_ERROR if timestamp is valid.
+     * Returns NO_ERROR    if timestamp is valid.
+     *         WOULD_BLOCK if called in STOPPED or FLUSHED state, or if called immediately after
+     *                     start/ACTIVE, when the number of frames consumed is less than the
+     *                     overall hardware latency to physical output. In WOULD_BLOCK cases,
+     *                     one might poll again, or use getPosition(), or use 0 position and
+     *                     current time for the timestamp.
+     *         INVALID_OPERATION  if called on a FastTrack, wrong state, or some other error.
+     *
      * The timestamp parameter is undefined on return, if status is not NO_ERROR.
      */
             status_t    getTimestamp(AudioTimestamp& timestamp);
@@ -747,6 +754,8 @@ protected:
                                                     // reset by stop() but continues monotonically
                                                     // after new IAudioTrack to restore mPosition,
                                                     // and could be easily widened to uint64_t
+    int64_t                 mStartUs;               // the start time after flush or stop.
+                                                    // only used for offloaded and direct tracks.
 
     audio_output_flags_t    mFlags;
         // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
