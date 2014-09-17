@@ -122,14 +122,17 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
 
     mCodec->getName(&mComponentName);
 
+    status_t err;
     if (mNativeWindow != NULL) {
         // disconnect from surface as MediaCodec will reconnect
-        CHECK_EQ((int)NO_ERROR,
-                native_window_api_disconnect(
-                        surface.get(),
-                        NATIVE_WINDOW_API_MEDIA));
+        err = native_window_api_disconnect(
+                surface.get(), NATIVE_WINDOW_API_MEDIA);
+        // We treat this as a warning, as this is a preparatory step.
+        // Codec will try to connect to the surface, which is where
+        // any error signaling will occur.
+        ALOGW_IF(err != OK, "failed to disconnect from surface: %d", err);
     }
-    status_t err = mCodec->configure(
+    err = mCodec->configure(
             format, surface, NULL /* crypto */, 0 /* flags */);
     if (err != OK) {
         ALOGE("Failed to configure %s decoder (err=%d)", mComponentName.c_str(), err);
