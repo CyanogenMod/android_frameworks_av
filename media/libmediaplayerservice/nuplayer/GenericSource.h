@@ -59,6 +59,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual status_t feedMoreTSData();
 
+    virtual sp<MetaData> getFileFormatMeta() const;
+
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
 
     virtual status_t getDuration(int64_t *durationUs);
@@ -125,6 +127,7 @@ private:
     sp<DataSource> mDataSource;
     sp<NuCachedSource2> mCachedSource;
     sp<WVMExtractor> mWVMExtractor;
+    sp<MetaData> mFileMeta;
     DrmManagerClient *mDrmManagerClient;
     sp<DecryptHandle> mDecryptHandle;
     bool mStarted;
