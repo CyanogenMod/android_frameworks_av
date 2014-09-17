@@ -464,6 +464,15 @@ void NuPlayer::GenericSource::resume() {
     mStarted = true;
 }
 
+void NuPlayer::GenericSource::disconnect() {
+    if (mDataSource != NULL) {
+        // disconnect data source
+        if (mDataSource->flags() & DataSource::kIsCachingDataSource) {
+            static_cast<NuCachedSource2 *>(mDataSource.get())->disconnect();
+        }
+    }
+}
+
 void NuPlayer::GenericSource::setDrmPlaybackStatusIfNeeded(int playbackStatus, int64_t position) {
     if (mDecryptHandle != NULL) {
         mDrmManagerClient->setPlaybackStatus(mDecryptHandle, playbackStatus, position);
