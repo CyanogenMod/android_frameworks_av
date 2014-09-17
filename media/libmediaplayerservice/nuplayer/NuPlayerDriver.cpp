@@ -263,8 +263,15 @@ status_t NuPlayerDriver::start() {
         case STATE_PAUSED:
         case STATE_STOPPED_AND_PREPARED:
         {
-            mPlayer->resume();
-            mPositionUs -= ALooper::GetNowUs() - mPauseStartedTimeUs;
+            if (mAtEOS) {
+                mPlayer->seekToAsync(0);
+                mAtEOS = false;
+                mPlayer->resume();
+                mPositionUs = -1;
+            } else {
+                mPlayer->resume();
+                mPositionUs -= ALooper::GetNowUs() - mPauseStartedTimeUs;
+            }
             break;
         }
 
