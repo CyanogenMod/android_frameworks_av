@@ -1270,8 +1270,8 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
     // Aggregate smaller buffers into a larger buffer.
     // The goal is to reduce power consumption.
-    // Unfortunately this does not work with the software AAC decoder.
-    bool doBufferAggregation = (audio && mOffloadAudio);;
+    // Note this will not work if the decoder requires one frame per buffer.
+    bool doBufferAggregation = (audio && mOffloadAudio);
     bool needMoreData = false;
 
     bool dropAccessUnit;
@@ -1291,7 +1291,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
             return err;
         } else if (err != OK) {
             if (err == INFO_DISCONTINUITY) {
-                if (mAggregateBuffer != NULL) {
+                if (doBufferAggregation && (mAggregateBuffer != NULL)) {
                     // We already have some data so save this for later.
                     mPendingAudioErr = err;
                     mPendingAudioAccessUnit = accessUnit;
@@ -1414,7 +1414,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
             mAggregateBuffer->setRange(0, 0); // start empty
         }
 
-        if (mAggregateBuffer != NULL) {
+        if (doBufferAggregation && (mAggregateBuffer != NULL)) {
             int64_t timeUs;
             int64_t dummy;
             bool smallTimestampValid = accessUnit->meta()->findInt64("timeUs", &timeUs);
@@ -1463,7 +1463,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
         mCCDecoder->decode(accessUnit);
     }
 
-    if (mAggregateBuffer != NULL) {
+    if (doBufferAggregation && (mAggregateBuffer != NULL)) {
         ALOGV("feedDecoderInputData() reply with aggregated buffer, %zu",
                 mAggregateBuffer->size());
         reply->setBuffer("buffer", mAggregateBuffer);
