@@ -106,7 +106,7 @@ private:
     int32_t mAudioQueueGeneration;
     int32_t mVideoQueueGeneration;
 
-    int64_t mFirstAudioTimeUs;
+    int64_t mFirstAnchorTimeMediaUs;
     int64_t mAnchorTimeMediaUs;
     int64_t mAnchorTimeRealUs;
 
