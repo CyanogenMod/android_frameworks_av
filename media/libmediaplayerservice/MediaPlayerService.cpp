@@ -82,6 +82,7 @@
 #include "HDCP.h"
 #include "HTTPBase.h"
 #include "RemoteDisplay.h"
+#define DEFAULT_SAMPLE_RATE 44100
 
 namespace {
 using android::media::Metadata;
@@ -1511,6 +1512,11 @@ uint32_t MediaPlayerService::AudioOutput::latency () const
     return mTrack->latency();
 }
 
+audio_stream_type_t MediaPlayerService::AudioOutput::streamType () const
+{
+    return mStreamType;
+}
+
 float MediaPlayerService::AudioOutput::msecsPerFrame() const
 {
     return mMsecsPerFrame;
@@ -1526,6 +1532,24 @@ status_t MediaPlayerService::AudioOutput::getTimestamp(AudioTimestamp &ts) const
 {
     if (mTrack == 0) return NO_INIT;
     return mTrack->getTimestamp(ts);
+}
+ssize_t MediaPlayerService::AudioOutput::sampleRate() const
+{
+    if (mTrack == 0) return NO_INIT;
+    return DEFAULT_SAMPLE_RATE;
+}
+
+status_t MediaPlayerService::AudioOutput::getTimeStamp(uint64_t *tstamp)
+{
+    if (tstamp == 0) return BAD_VALUE;
+    if (mTrack == 0) return NO_INIT;
+    mTrack->getTimeStamp(tstamp);
+    return NO_ERROR;
+}
+
+ssize_t MediaPlayerService::AudioCache::sampleRate() const
+{
+    return mSampleRate;
 }
 
 status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritten) const
@@ -1588,6 +1612,48 @@ status_t MediaPlayerService::AudioOutput::open(
     mCallback = cb;
     mCallbackCookie = cookie;
 
+    if (flags & AUDIO_OUTPUT_FLAG_LPA || flags & AUDIO_OUTPUT_FLAG_TUNNEL) {
+        ALOGV("AudioOutput open: with flags %x",flags);
+        channelMask = audio_channel_out_mask_from_count(channelCount);
+        if (0 == channelMask) {
+            ALOGE("open() error, can't derive mask for %d audio channels", channelCount);
+            return NO_INIT;
+        }
+        AudioTrack *audioTrack = NULL;
+        CallbackData *newcbd = NULL;
+        if (mCallback != NULL) {
+            newcbd = new CallbackData(this);
+            audioTrack = new AudioTrack(
+                             mStreamType,
+                             sampleRate,
+                             format,
+                             channelMask,
+                             0,
+                             flags,
+                             CallbackWrapper,
+                             newcbd,
+                             0,
+                             mSessionId);
+            if ((audioTrack == 0) || (audioTrack->initCheck() != NO_ERROR)) {
+                ALOGE("Unable to create audio track");
+                delete audioTrack;
+                delete newcbd;
+                return NO_INIT;
+            }
+        } else {
+            ALOGE("no callback supplied");
+            return NO_INIT;
+        }
+        deleteRecycledTrack();
+
+        ALOGV("setVolume");
+        mCallbackData = newcbd;
+        audioTrack->setVolume(mLeftVolume, mRightVolume);
+        mSampleRateHz = sampleRate;
+        mFlags = flags;
+        mTrack = audioTrack;
+        return NO_ERROR;
+    }
     // Check argument "bufferCount" against the mininum buffer count
     if (bufferCount < mMinBufferCount) {
         ALOGD("bufferCount (%d) is too small and increased to %d", bufferCount, mMinBufferCount);
@@ -1828,8 +1894,6 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
 
 ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size)
 {
-    LOG_ALWAYS_FATAL_IF(mCallback != NULL, "Don't call write if supplying a callback.");
-
     //ALOGV("write(%p, %u)", buffer, size);
     if (mTrack != 0) {
         ssize_t ret = mTrack->write(buffer, size);
@@ -1934,7 +1998,6 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         size_t actualSize = (*me->mCallback)(
                 me, buffer->raw, buffer->size, me->mCallbackCookie,
                 CB_EVENT_FILL_BUFFER);
-
         if ((me->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0 &&
             actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL) {
             // We've reached EOS but the audio track is not stopped yet,
@@ -1960,6 +2023,46 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
                 me->mCallbackCookie, CB_EVENT_TEAR_DOWN);
         break;
 
+    case AudioTrack::EVENT_UNDERRUN :
+        {
+        ALOGW("Event underrun");
+      //  CallbackData *data = (CallbackData*)cookie;
+        //data->lock();
+        //AudioOutput *me = data->getOutput();
+        //if (me == NULL) {
+            // no output set, likely because the track was scheduled to be reused
+            // by another player, but the format turned out to be incompatible.
+          //  data->unlock();
+            //return;
+        //}
+        ALOGD("Callback!!!");
+        (*me->mCallback)(
+            me, NULL, (size_t)AudioTrack::EVENT_UNDERRUN, me->mCallbackCookie, CB_EVENT_UNDERRUN);
+        //data->unlock();
+        break;
+       }
+    case AudioTrack::EVENT_HW_FAIL :
+       {
+        ALOGW("Event hardware failure");
+        //CallbackData *data1 = (CallbackData*)cookie;
+       // if (data1 != NULL) {
+           // data1->lock();
+         //   AudioOutput *me1 = data1->getOutput();
+          //  if (me == NULL) {
+                // no output set, likely because the track was
+                // scheduled to be reused
+                // by another player, but the format turned out
+                // to be incompatible.
+            //    data->unlock();
+          //      return;
+            //}
+            ALOGV("Callback!!!");
+            (*me->mCallback)(me, NULL, (size_t)AudioTrack::EVENT_HW_FAIL,
+                             me->mCallbackCookie, CB_EVENT_HW_FAIL);
+            //data->unlock();
+        // }
+         break;
+       } 
     default:
         ALOGE("received unknown event type: %d inside CallbackWrapper !", event);
     }
@@ -2404,4 +2507,7 @@ status_t MediaPlayerService::pullBatteryData(Parcel* reply) {
     }
     return NO_ERROR;
 }
+
+
+
 } // namespace android

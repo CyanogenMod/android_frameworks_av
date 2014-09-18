@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,27 +53,27 @@ public:
     virtual ~AudioPlayer();
 
     // Caller retains ownership of "source".
-    void setSource(const sp<MediaSource> &source);
+    virtual void setSource(const sp<MediaSource> &source);
 
     // Return time in us.
     virtual int64_t getRealTimeUs();
 
-    status_t start(bool sourceAlreadyStarted = false);
+    virtual status_t start(bool sourceAlreadyStarted = false);
 
-    void pause(bool playPendingSamples = false);
-    status_t resume();
+    virtual void pause(bool playPendingSamples = false);
+    virtual status_t resume();
 
     // Returns the timestamp of the last buffer played (in us).
-    int64_t getMediaTimeUs();
+    virtual int64_t getMediaTimeUs();
 
     // Returns true iff a mapping is established, i.e. the AudioPlayer
     // has played at least one frame of audio.
-    bool getMediaTimeMapping(int64_t *realtime_us, int64_t *mediatime_us);
+    virtual bool getMediaTimeMapping(int64_t *realtime_us, int64_t *mediatime_us);
 
-    status_t seekTo(int64_t time_us);
+    virtual status_t seekTo(int64_t time_us);
 
-    bool isSeeking();
-    bool reachedEOS(status_t *finalStatus);
+    virtual bool isSeeking();
+    virtual bool reachedEOS(status_t *finalStatus);
 
     status_t setPlaybackRatePermille(int32_t ratePermille);
 
