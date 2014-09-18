@@ -443,6 +443,23 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 
                     ALOGE("XXX Received error %d from PlaylistFetcher.", err);
 
+                    // handle EOS on subtitle tracks independently
+                    AString uri;
+                    if (err == ERROR_END_OF_STREAM && msg->findString("uri", &uri)) {
+                        ssize_t i = mFetcherInfos.indexOfKey(uri);
+                        if (i >= 0) {
+                            const sp<PlaylistFetcher> &fetcher = mFetcherInfos.valueAt(i).mFetcher;
+                            if (fetcher != NULL) {
+                                uint32_t type = fetcher->getStreamTypeMask();
+                                if (type == STREAMTYPE_SUBTITLES) {
+                                    mPacketSources.valueFor(
+                                            STREAMTYPE_SUBTITLES)->signalEOS(err);;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     if (mInPreparationPhase) {
                         postPrepared(err);
                     }
