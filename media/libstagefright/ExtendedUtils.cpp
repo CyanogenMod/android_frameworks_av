@@ -1242,6 +1242,37 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
     return isInThumbnailMode;
 }
 
+void ExtendedUtils::setArbitraryModeIfInterlaced(
+	const uint8_t *ptr, const sp<MetaData> &meta) {
+
+   if (ptr == NULL) {
+	return;
+   }
+   uint16_t spsSize = (((uint16_t)ptr[6]) << 8) + (uint16_t)(ptr[7]);
+   int32_t width = 0, height = 0, isInterlaced = 0;
+   const uint8_t *spsStart = &ptr[8];
+
+   sp<ABuffer> seqParamSet = new ABuffer(spsSize);
+   memcpy(seqParamSet->data(), spsStart, spsSize);
+   FindAVCDimensions(seqParamSet, &width, &height, NULL, NULL, &isInterlaced);
+
+   ALOGV("height is %d, width is %d, isInterlaced is %d\n", height, width, isInterlaced);
+   if (isInterlaced) {
+       meta->setInt32(kKeyUseArbitraryMode, 1);
+       meta->setInt32(kKeyInterlace, 1);	   
+   }
+   return; 
+}
+
+int32_t ExtendedUtils::checkIsInterlace(sp<MetaData> &meta) {
+    int32_t isInterlaceFormat = 0;
+
+    if(meta->findInt32(kKeyInterlace, &isInterlaceFormat)) {
+	ALOGI("interlace format detected");
+    }
+    return isInterlaceFormat;
+}
+
 void ExtendedUtils::applyPreRotation(
         const CameraParameters& params, sp<MetaData> &meta) {
 
@@ -2077,6 +2108,17 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
     ARG_TOUCH(flags);
     ARG_TOUCH(componentName);
     return false;
+}
+
+void ExtendedUtils::setArbitraryModeIfInterlaced(const uint8_t *ptr,
+        const sp<MetaData> &meta) {
+    ARG_TOUCH(ptr);
+    ARG_TOUCH(meta);
+}
+
+int32_t ExtendedUtils::checkIsInterlace(sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return 0;
 }
 
 void ExtendedUtils::HEVCMuxer::writeHEVCFtypBox(MPEG4Writer *writer) {

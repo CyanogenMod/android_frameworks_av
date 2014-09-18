@@ -123,6 +123,20 @@ LOCAL_SHARED_LIBRARIES := \
         libz \
         libpowermanager
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ifneq ($(filter msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
+ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+   ifeq ($(USE_TUNNEL_MODE),true)
+        LOCAL_CFLAGS += -DUSE_TUNNEL_MODE
+   endif
+   ifeq ($(NO_TUNNEL_MODE_FOR_MULTICHANNEL),true)
+        LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
+   endif
+   LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
+endif
+endif
+endif
+
 #QTI FLAC Decoder
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
