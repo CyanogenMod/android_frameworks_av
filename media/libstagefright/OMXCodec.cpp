@@ -282,7 +282,7 @@ void OMXCodec::findMatchingCodecs(
     size_t index = 0;
 
 #ifdef ENABLE_AV_ENHANCEMENTS
-    //Check if application specially reuqested for  aac hardware encoder
+    //Check if application specially reuqested for aac hardware encoder/decoder
     //This is not a part of  mediacodec list
     if (matchComponentName &&
             !strncmp("OMX.qcom.audio.encoder.aac", matchComponentName, 26)) {
@@ -304,6 +304,17 @@ void OMXCodec::findMatchingCodecs(
             return;
     }
 #endif
+
+    if (matchComponentName &&
+            !strncmp("OMX.qcom.audio.decoder.multiaac", matchComponentName, 31)) {
+        matchingCodecs->add();
+
+        CodecNameAndQuirks *entry = &matchingCodecs->editItemAt(index);
+        entry->mName = String8("OMX.qcom.audio.decoder.multiaac");
+        entry->mQuirks |= kRequiresAllocateBufferOnInputPorts;
+        entry->mQuirks |= kRequiresAllocateBufferOnOutputPorts;
+        return;
+    }
 #endif
 
     for (;;) {
@@ -397,6 +408,17 @@ bool OMXCodec::findCodecQuirks(const char *componentName, uint32_t *quirks) {
         return false;
     }
 
+#ifdef ENABLE_AV_ENHANCEMENTS
+    //Check for aac hardware decoder
+    //This is not a part of  mediacodec list
+    if (componentName &&
+            !strncmp("OMX.qcom.audio.decoder.multiaac", componentName, 31)) {
+        *quirks |= kRequiresAllocateBufferOnInputPorts;
+        *quirks |= kRequiresAllocateBufferOnOutputPorts;
+        return true;
+    }
+#endif
+
     const sp<MediaCodecInfo> info = list->getCodecInfo(index);
     CHECK(info != NULL);
     *quirks = getComponentQuirks(info);
@@ -433,8 +455,14 @@ sp<MediaSource> OMXCodec::Create(
             "FLACDecoder", flags, &matchingCodecs);
     } else
 #endif
+    if (!strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, 15) &&
+            ExtendedUtils::UseQCHWAACDecoder(mime)) {
+        findMatchingCodecs(mime, createEncoder,
+            "OMX.qcom.audio.decoder.multiaac", flags, &matchingCodecs);
+    } else {
         findMatchingCodecs(
             mime, createEncoder, matchComponentName, flags, &matchingCodecs);
+    }
 
     if (matchingCodecs.isEmpty()) {
         ALOGV("No matching codecs! (mime: %s, createEncoder: %s, "

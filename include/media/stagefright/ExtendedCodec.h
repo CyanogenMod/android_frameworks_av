@@ -156,8 +156,6 @@ struct ExtendedCodec {
             const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
             const char* componentName);
 
-    static bool useHWAACDecoder(const char *mime);
-
     static bool isSourcePauseRequired(const char *componentName);
 
     static const char* getMsgKey(int key );

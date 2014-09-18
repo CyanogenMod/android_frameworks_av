@@ -975,6 +975,17 @@ bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
         return false;
 }
 
+bool ExtendedUtils::UseQCHWAACDecoder(const char *mime) {
+    if (!strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
+        char value[PROPERTY_VALUE_MAX] = {0};
+        if (property_get("media.aaccodectype", value, 0) && (atoi(value) == 1)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
 //- returns NULL if we dont really need a new extractor (or cannot),
 //  valid extractor is returned otherwise
 //- caller needs to check for NULL
@@ -2160,6 +2171,11 @@ bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
 
 bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
     ARG_TOUCH(format);
+    return false;
+}
+
+bool ExtendedUtils::UseQCHWAACDecoder(const char *mime) {
+    ARG_TOUCH(mime);
     return false;
 }
 
