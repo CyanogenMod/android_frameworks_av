@@ -216,6 +216,7 @@ struct ExtendedUtils {
 
     static bool isRAWFormat(const sp<MetaData> &meta);
     static bool isRAWFormat(const sp<AMessage> &format);
+    static bool UseQCHWAACDecoder(const char *mime);
 
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(
             sp<MediaExtractor> defaultExt, const sp<DataSource> &source,
