@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  * Copyright (C) 2007 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +24,8 @@
 #include <media/AudioTimestamp.h>
 #include <media/IAudioTrack.h>
 #include <utils/threads.h>
-
+#include <media/IDirectTrack.h>
+#include <media/IDirectTrackClient.h>
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -33,7 +36,8 @@ class StaticAudioTrackClientProxy;
 
 // ----------------------------------------------------------------------------
 
-class AudioTrack : public RefBase
+class AudioTrack : public BnDirectTrackClient,
+                   virtual public RefBase
 {
 public:
 
@@ -61,6 +65,7 @@ public:
         EVENT_NEW_TIMESTAMP = 8,    // Delivered periodically and when there's a significant change
                                     // in the mapping from frame position to presentation time.
                                     // See AudioTimestamp for the information included with event.
+        EVENT_HW_FAIL = 9,          // ADSP failure.
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()
@@ -221,9 +226,8 @@ public:
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
      */
-protected:
+
                         virtual ~AudioTrack();
-public:
 
     /* Initialize an AudioTrack that was created using the AudioTrack() constructor.
      * Don't call set() more than once, or after the AudioTrack() constructors that take parameters.
@@ -590,7 +594,9 @@ public:
      *
      * The timestamp parameter is undefined on return, if status is not NO_ERROR.
      */
-            status_t    getTimestamp(AudioTimestamp& timestamp);
+      virtual status_t    getTimestamp(AudioTimestamp& timestamp);
+      virtual void notify(int msg);
+      virtual status_t    getTimeStamp(uint64_t *tstamp);
 
 protected:
     /* copying audio tracks is not allowed */
@@ -671,12 +677,14 @@ protected:
             uint32_t updateAndGetPosition_l();
 
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
+    sp<IDirectTrack>        mDirectTrack;
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
     audio_io_handle_t       mOutput;                // returned by AudioSystem::getOutput()
 
     sp<AudioTrackThread>    mAudioTrackThread;
+    sp<IAudioFlinger>       mAudioFlinger;
 
     float                   mVolume[2];
     float                   mSendLevel;
@@ -758,6 +766,9 @@ protected:
                                                     // only used for offloaded and direct tracks.
 
     audio_output_flags_t    mFlags;
+    audio_io_handle_t       mAudioDirectOutput;
+    void*                   mObserver;
+
         // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
         // mLock must be held to read or write those bits reliably.
 

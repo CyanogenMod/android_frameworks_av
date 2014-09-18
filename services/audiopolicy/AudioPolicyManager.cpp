@@ -15,9 +15,9 @@
  */
 
 #define LOG_TAG "AudioPolicyManager"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 
-//#define VERY_VERBOSE_LOGGING
+#define VERY_VERBOSE_LOGGING
 #ifdef VERY_VERBOSE_LOGGING
 #define ALOGVV ALOGV
 #else
@@ -140,6 +140,8 @@ const StringToEnum sOutputFlagNameToEnumTable[] = {
 #ifdef AUDIO_EXTN_COMPRESS_VOIP_ENABLED
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_VOIP_RX),
 #endif
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_LPA),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_TUNNEL),
 };
 
 const StringToEnum sInputFlagNameToEnumTable[] = {
@@ -1082,6 +1084,11 @@ sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getProfileForDirectOutput(
                                                                audio_channel_mask_t channelMask,
                                                                audio_output_flags_t flags)
 {
+    if( !((flags & AUDIO_OUTPUT_FLAG_LPA)   ||
+          (flags & AUDIO_OUTPUT_FLAG_TUNNEL)||
+          (flags & AUDIO_OUTPUT_FLAG_VOIP_RX)) )
+        flags = AUDIO_OUTPUT_FLAG_DIRECT;
+
     for (size_t i = 0; i < mHwModules.size(); i++) {
         if (mHwModules[i]->mHandle == 0) {
             continue;
@@ -1381,9 +1388,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
             (format != AUDIO_FORMAT_DEFAULT && format != config.format) ||
             (channelMask != 0 && channelMask != config.channel_mask)) {
             ALOGV("getOutput() failed opening direct output: output %d samplingRate %d %d,"
-                    "format %d %d, channelMask %04x %04x", output, samplingRate,
+                    "format %d %d, channelMask %04x %04x status =%d", output, samplingRate,
                     outputDesc->mSamplingRate, format, outputDesc->mFormat, channelMask,
-                    outputDesc->mChannelMask);
+                    outputDesc->mChannelMask,status);
             if (output != AUDIO_IO_HANDLE_NONE) {
                 mpClientInterface->closeOutput(output);
             }
@@ -1639,12 +1646,18 @@ void AudioPolicyManager::releaseOutput(audio_io_handle_t output)
 
     sp<AudioOutputDescriptor> desc = mOutputs.valueAt(index);
     if (desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
-        if (desc->mDirectOpenCount <= 0) {
+        if (desc->mDirectOpenCount <= 0 &&!(desc -> mFlags &AUDIO_OUTPUT_FLAG_LPA || desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL ||
+                desc->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)) {
             ALOGW("releaseOutput() invalid open count %d for output %d",
                                                               desc->mDirectOpenCount, output);
             return;
         }
-        if (--desc->mDirectOpenCount == 0) {
+         if ((--desc->mDirectOpenCount == 0) && ((desc->mFlags & AUDIO_OUTPUT_FLAG_LPA || desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL ||
+                desc->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX))) {
+            ALOGV("releaseOutput() closing output");
+            closeOutput(output);
+        }
+        else if (--desc->mDirectOpenCount == 0) {
             closeOutput(output);
             // If effects where present on the output, audioflinger moved them to the primary
             // output by default: move them back to the appropriate output.
@@ -1696,7 +1709,8 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
         break;
     default:
         break;
-    }*/
+    }
+*/
 
 #ifdef VOICE_CONCURRENCY
 
@@ -2471,6 +2485,7 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
      offloadInfo.stream_type, offloadInfo.bit_rate, offloadInfo.duration_us,
      offloadInfo.has_video);
 
+return false;
 #ifdef VOICE_CONCURRENCY
     char concpropValue[PROPERTY_VALUE_MAX];
     if (property_get("voice.playback.conc.disabled", concpropValue, NULL)) {
@@ -2501,7 +2516,7 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
     // Check if stream type is music, then only allow offload as of now.
     if (offloadInfo.stream_type != AUDIO_STREAM_MUSIC)
     {
-        ALOGD("isOffloadSupported: stream_type != MUSIC, returning false");
+        ALOGE("isOffloadSupported: stream_type != MUSIC, returning false");
         return false;
     }
 
@@ -3790,6 +3805,11 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             config.offload_info.channel_mask = desc->mChannelMask;
             config.offload_info.format = desc->mFormat;
             audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
+//#ifdef QCOM_OUTPUT_FLAGS_ENABLED
+            if (!(desc->mFlags & AUDIO_OUTPUT_FLAG_LPA || desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL ||
+                desc->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)) {
+//#endif
+
             status_t status = mpClientInterface->openOutput(profile->mModule->mHandle,
                                                             &output,
                                                             &config,
@@ -3797,6 +3817,9 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                                                             address,
                                                             &desc->mLatency,
                                                             desc->mFlags);
+#ifdef QCOM_OUTPUT_FLAGS_ENABLED
+            }
+#endif
             if (status == NO_ERROR) {
                 desc->mSamplingRate = config.sample_rate;
                 desc->mChannelMask = config.channel_mask;
@@ -3914,6 +3937,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             } else {
                 output = AUDIO_IO_HANDLE_NONE;
             }
+            }
+//#endif
             if (output == AUDIO_IO_HANDLE_NONE) {
                 ALOGW("checkOutputsForDevice() could not open output for device %x", device);
                 profiles.removeAt(profile_index);
@@ -4965,6 +4990,11 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
             if (outputDesc->isStrategyActive((routing_strategy)i)) {
                 setStrategyMute((routing_strategy)i, true, outputDesc->mIoHandle);
                 // do tempMute unmute after twice the mute wait time
+                if((outputDesc->mFlags & AUDIO_OUTPUT_FLAG_LPA) || (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL))
+                    {
+                     setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,muteWaitMs*4 ,device);
+                }
+                else
                 setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,
                                 muteWaitMs *2, device);
             }
@@ -7339,7 +7369,6 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
     const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
     ALOG_ASSERT(isPlaybackThread != isRecordThread);
-
     if ((mSupportedDevices.types() & device) != device) {
         return false;
     }
@@ -7380,7 +7409,6 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
             ~AUDIO_INPUT_FLAG_FAST)) {
         return false;
     }
-
     if (updatedSamplingRate != NULL) {
         *updatedSamplingRate = myUpdatedSamplingRate;
     }
