@@ -1,5 +1,6 @@
 /*
-**
+** Copyright (c) 2013, The Linux Foundation. All rights reserved.
+** Not a Contribution.
 ** Copyright 2012, The Android Open Source Project
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
@@ -85,6 +86,9 @@
 #endif
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#define DIRECT_TRACK_EOS 1
+#define DIRECT_TRACK_HW_FAIL 6
+static const char lockName[] = "DirectTrack";
 
 namespace android {
 
@@ -410,6 +414,13 @@ status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
     }
     mLock.lock();
     return status;
+}
+
+void AudioFlinger::ThreadBase::effectConfigChanged() {
+    mAudioFlinger->mLock.lock();
+    ALOGV("New effect is being added to LPA chain, Notifying LPA Direct Track");
+    mAudioFlinger->audioConfigChanged(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
+    mAudioFlinger->mLock.unlock();
 }
 
 void AudioFlinger::ThreadBase::sendIoConfigEvent(int event, int param)
@@ -964,6 +975,19 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             addEffectChain_l(chain);
             chain->setStrategy(getStrategyForSession_l(sessionId));
             chainCreated = true;
+            if(sessionId == mAudioFlinger->mLPASessionId) {
+                // Clear reference to previous effect chain if any
+                if(mAudioFlinger->mLPAEffectChain.get()) {
+                    mAudioFlinger->mLPAEffectChain.clear();
+                }
+                ALOGV("New EffectChain is created for LPA session ID %d", sessionId);
+                mAudioFlinger->mLPAEffectChain = chain;
+                chain->setLPAFlag(true);
+                // For LPA, the volume will be applied in DSP. No need for volume
+                // control in the Effect chain, so setting it to unity.
+                uint32_t volume = 0x1000000; // Equals to 1.0 in 8.24 format
+                chain->setVolume_l(&volume,&volume);
+            }
         } else {
             effect = chain->getEffectFromDesc_l(desc);
         }
@@ -6346,5 +6370,285 @@ void AudioFlinger::RecordThread::getAudioPortConfig(struct audio_port_config *co
     config->ext.mix.hw_module = mInput->audioHwDev->handle();
     config->ext.mix.usecase.source = mAudioSource;
 }
+// ----------------------------------------------------------------------------
 
+AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
+                                                 int output, AudioSessionDescriptor *outputDesc,
+                                                 IDirectTrackClient* client, audio_output_flags_t outflag)
+    : BnDirectTrack(), mIsPaused(false), mAudioFlinger(audioFlinger), mOutput(output), mOutputDesc(outputDesc),
+      mClient(client), mEffectConfigChanged(false), mKillEffectsThread(false), mFlag(outflag),
+      mEffectsThreadScratchBuffer(NULL)
+{
+    if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
+        ALOGV("create effects thread for LPA");
+        createEffectThread();
+
+        mAudioFlingerClient = new AudioFlingerDirectTrackClient(this);
+        mAudioFlinger->registerClient(mAudioFlingerClient);
+
+        allocateBufPool();
+    } else if (mFlag & AUDIO_OUTPUT_FLAG_TUNNEL) {
+        ALOGV("create effects thread for TUNNEL");
+        createEffectThread();
+        mAudioFlingerClient = new AudioFlingerDirectTrackClient(this);
+        mAudioFlinger->registerClient(mAudioFlingerClient);
+    }
+    outputDesc->mVolumeScale = 1.0;
+    mDeathRecipient = new PMDeathRecipient(this);
+    acquireWakeLock();
+}
+
+AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
+    if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
+        requestAndWaitForEffectsThreadExit();
+        mAudioFlinger->deregisterClient(mAudioFlingerClient);
+        mAudioFlinger->deleteEffectSession();
+        deallocateBufPool();
+    } else if (mFlag & AUDIO_OUTPUT_FLAG_TUNNEL) {
+        requestAndWaitForEffectsThreadExit();
+        mAudioFlinger->deregisterClient(mAudioFlingerClient);
+        mAudioFlinger->deleteEffectSession();
+    }
+    AudioSystem::releaseOutput(mOutput);
+    releaseWakeLock();
+
+    {
+        Mutex::Autolock _l(pmLock);
+        if (mPowerManager != 0) {
+            sp<IBinder> binder = mPowerManager->asBinder();
+            binder->unlinkToDeath(mDeathRecipient);
+        }
+    }
+}
+
+status_t AudioFlinger::DirectAudioTrack::start() {
+    AudioSystem::startOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType, NULL);
+    if(mIsPaused) {
+        mIsPaused = false;
+        mOutputDesc->stream->start(mOutputDesc->stream);
+    }
+    mOutputDesc->mActive = true;
+    return NO_ERROR;
+}
+
+void AudioFlinger::DirectAudioTrack::stop() {
+    ALOGV("DirectAudioTrack::stop");
+    mOutputDesc->mActive = false;
+    mOutputDesc->stream->stop(mOutputDesc->stream);
+    AudioSystem::stopOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType, NULL);
+}
+
+void AudioFlinger::DirectAudioTrack::pause() {
+    if(!mIsPaused) {
+        mIsPaused = true;
+        mOutputDesc->stream->pause(mOutputDesc->stream);
+        mOutputDesc->mActive = false;
+        AudioSystem::stopOutput(mOutput, (audio_stream_type_t)mOutputDesc->mStreamType,NULL);
+    }
+}
+
+ssize_t AudioFlinger::DirectAudioTrack::write(const void *buffer, size_t size) {
+    ALOGV("Writing to AudioSessionOut");
+    int isAvail = 0;
+    mOutputDesc->stream->is_buffer_available(mOutputDesc->stream, &isAvail);
+    if (!isAvail) {
+        return 0;
+    }
+
+    if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
+        mEffectLock.lock();
+        List<BufferInfo>::iterator it = mEffectsPool.begin();
+        BufferInfo buf = *it;
+        mEffectsPool.erase(it);
+        memcpy((char *) buf.localBuf, (char *)buffer, size);
+        buf.bytesToWrite = size;
+        mEffectsPool.push_back(buf);
+        mAudioFlinger->applyEffectsOn(static_cast<void *>(this),
+            (int16_t*)buf.localBuf, (int16_t*)buffer, (int)size, true);
+        mEffectLock.unlock();
+    }
+    ALOGV("out of Writing to AudioSessionOut");
+    return mOutputDesc->stream->write(mOutputDesc->stream, buffer, size);
+}
+
+void AudioFlinger::DirectAudioTrack::flush() {
+    if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
+        mEffectsPool.clear();
+        mEffectsPool = mBufPool;
+    }
+    mOutputDesc->stream->flush(mOutputDesc->stream);
+}
+
+void AudioFlinger::DirectAudioTrack::mute(bool muted) {
+}
+
+void AudioFlinger::DirectAudioTrack::setVolume(float left, float right) {
+    ALOGV("DirectAudioTrack::setVolume left: %f, right: %f", left, right);
+    if(mOutputDesc && mOutputDesc->mActive) {
+        mOutputDesc->mVolumeLeft = left;
+        mOutputDesc->mVolumeRight = right;
+        mOutputDesc->stream->set_volume(mOutputDesc->stream,
+                                    left * mOutputDesc->mVolumeScale,
+                                    right* mOutputDesc->mVolumeScale);
+    }
+}
+
+int64_t AudioFlinger::DirectAudioTrack::getTimeStamp() {
+    int64_t time;
+    mOutputDesc->stream->get_next_write_timestamp(mOutputDesc->stream, &time);
+    ALOGV("Timestamp %lld",time);
+    return time;
+}
+
+void AudioFlinger::DirectAudioTrack::postEOS(int64_t delayUs) {
+    if (delayUs == 0 ) {
+       ALOGV("Notify Audio Track of EOS event");
+       mClient->notify(DIRECT_TRACK_EOS);
+    } else {
+       ALOGV("Notify Audio Track of hardware failure event");
+       mClient->notify(DIRECT_TRACK_HW_FAIL);
+    }
+}
+
+void AudioFlinger::DirectAudioTrack::allocateBufPool() {
+    void *dsp_buf = NULL;
+    void *local_buf = NULL;
+
+    //1. get the ion buffer information
+    struct buf_info* buf = NULL;
+    mOutputDesc->stream->get_buffer_info(mOutputDesc->stream, &buf);
+    ALOGV("get buffer info %p",buf);
+    if (!buf) {
+        ALOGV("buffer is NULL");
+        return;
+    }
+    int nSize = buf->bufsize;
+    int bufferCount = buf->nBufs;
+
+    //2. allocate the buffer pool, allocate local buffers
+    for (int i = 0; i < bufferCount; i++) {
+        dsp_buf = (void *)buf->buffers[i];
+        local_buf = malloc(nSize);
+        memset(local_buf, 0, nSize);
+        // Store this information for internal mapping / maintanence
+        BufferInfo buf(local_buf, dsp_buf, nSize);
+        buf.bytesToWrite = 0;
+        mBufPool.push_back(buf);
+        mEffectsPool.push_back(buf);
+
+        ALOGV("The MEM that is allocated buffer is %x, size %d",(unsigned int)dsp_buf,nSize);
+    }
+
+    mEffectsThreadScratchBuffer = malloc(nSize);
+    ALOGV("effectsThreadScratchBuffer = %x",mEffectsThreadScratchBuffer);
+
+    free(buf);
+}
+
+void AudioFlinger::DirectAudioTrack::deallocateBufPool() {
+
+    //1. Deallocate the local memory
+    //2. Remove all the buffers from bufpool
+    while (!mBufPool.empty())  {
+        List<BufferInfo>::iterator it = mBufPool.begin();
+        BufferInfo &memBuffer = *it;
+        // free the local buffer corresponding to mem buffer
+        if (memBuffer.localBuf) {
+            free(memBuffer.localBuf);
+            memBuffer.localBuf = NULL;
+        }
+        ALOGV("Removing from bufpool");
+        mBufPool.erase(it);
+    }
+
+    free(mEffectsThreadScratchBuffer);
+    mEffectsThreadScratchBuffer = NULL;
+}
+
+status_t AudioFlinger::DirectAudioTrack::onTransact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{
+    return BnDirectTrack::onTransact(code, data, reply, flags);
+}
+
+AudioFlinger::DirectAudioTrack::AudioFlingerDirectTrackClient::AudioFlingerDirectTrackClient(void *obj)
+{
+    ALOGV("AudioFlinger::DirectAudioTrack::AudioFlingerDirectTrackClient");
+    pBaseClass = (DirectAudioTrack*)obj;
+}
+
+void AudioFlinger::DirectAudioTrack::AudioFlingerDirectTrackClient::binderDied(const wp<IBinder>& who) {
+    pBaseClass->mAudioFlinger.clear();
+    ALOGW("AudioFlinger server died!");
+}
+
+void AudioFlinger::DirectAudioTrack::AudioFlingerDirectTrackClient
+     ::ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2) {
+    ALOGV("ioConfigChanged() event %d", event);
+    if (event == AudioSystem::EFFECT_CONFIG_CHANGED) {
+        ALOGV("Received notification for change in effect module");
+        // Seek to current media time - flush the decoded buffers with the driver
+        pBaseClass->mEffectConfigChanged = true;
+        // Signal effects thread to re-apply effects
+        ALOGV("Signalling Effects Thread");
+        pBaseClass->mEffectCv.signal();
+
+    }
+    ALOGV("ioConfigChanged Out");
+}
+
+void AudioFlinger::DirectAudioTrack::acquireWakeLock()
+{
+    Mutex::Autolock _l(pmLock);
+
+    if (mPowerManager == 0) {
+        // use checkService() to avoid blocking if power service is not up yet
+        sp<IBinder> binder =
+            defaultServiceManager()->checkService(String16("power"));
+        if (binder == 0) {
+            ALOGW("Thread %s cannot connect to the power manager service", lockName);
+        } else {
+            mPowerManager = interface_cast<IPowerManager>(binder);
+            binder->linkToDeath(mDeathRecipient);
+        }
+    }
+    if (mPowerManager != 0 && mWakeLockToken == 0) {
+        sp<IBinder> binder = new BBinder();
+        status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
+                                                         binder,
+                                                         String16(lockName),
+                                                         String16("media"));
+        if (status == NO_ERROR) {
+            mWakeLockToken = binder;
+        }
+        ALOGV("acquireWakeLock() status %d", status);
+    }
+}
+
+void AudioFlinger::DirectAudioTrack::releaseWakeLock()
+{
+   Mutex::Autolock _l(pmLock);
+
+    if (mWakeLockToken != 0) {
+        ALOGV("releaseWakeLock()");
+        if (mPowerManager != 0) {
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+        }
+        mWakeLockToken.clear();
+    }
+}
+
+void AudioFlinger::DirectAudioTrack::clearPowerManager()
+{
+    releaseWakeLock();
+    Mutex::Autolock _l(pmLock);
+    mPowerManager.clear();
+}
+
+void AudioFlinger::DirectAudioTrack::PMDeathRecipient::binderDied(const wp<IBinder>& who)
+{
+    parentClass->clearPowerManager();
+    ALOGW("power manager service died !!!");
+}
+// ----------------------------------------------------------------------------
 }; // namespace android
