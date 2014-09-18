@@ -139,6 +139,12 @@ void NuPlayer::Renderer::resume() {
     (new AMessage(kWhatResume, id()))->post();
 }
 
+void NuPlayer::Renderer::setVideoFrameRate(float fps) {
+    sp<AMessage> msg = new AMessage(kWhatSetVideoFrameRate, id());
+    msg->setFloat("frame-rate", fps);
+    msg->post();
+}
+
 void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatStopAudioSink:
@@ -236,6 +242,14 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatResume:
         {
             onResume();
+            break;
+        }
+
+        case kWhatSetVideoFrameRate:
+        {
+            float fps;
+            CHECK(msg->findFloat("frame-rate", &fps));
+            onSetVideoFrameRate(fps);
             break;
         }
 
@@ -809,6 +823,10 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         mDrainVideoQueuePending = false;
         ++mVideoQueueGeneration;
 
+        if (mVideoScheduler != NULL) {
+            mVideoScheduler->restart();
+        }
+
         prepareForMediaRenderingStart();
     }
 
@@ -958,6 +976,13 @@ void NuPlayer::Renderer::onResume() {
     if (!mVideoQueue.empty()) {
         postDrainVideoQueue();
     }
+}
+
+void NuPlayer::Renderer::onSetVideoFrameRate(float fps) {
+    if (mVideoScheduler == NULL) {
+        mVideoScheduler = new VideoFrameScheduler();
+    }
+    mVideoScheduler->init(fps);
 }
 
 // TODO: Remove unnecessary calls to getPlayedOutAudioDurationUs()
