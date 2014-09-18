@@ -145,15 +145,19 @@ status_t AudioEffect::set(const effect_uuid_t *type,
         return mStatus;
     }
 
-    mIEffect = iEffect;
     mCblkMemory = cblk;
     mCblk = static_cast<effect_param_cblk_t*>(cblk->pointer());
     int bufOffset = ((sizeof(effect_param_cblk_t) - 1) / sizeof(int) + 1) * sizeof(int);
     mCblk->buffer = (uint8_t *)mCblk + bufOffset;
 
     iEffect->asBinder()->linkToDeath(mIEffectClient);
-    ALOGV("set() %p OK effect: %s id: %d status %d enabled %d", this, mDescriptor.name, mId,
-            mStatus, mEnabled);
+    mClientPid = IPCThreadState::self()->getCallingPid();
+    ALOGV("set() %p OK effect: %s id: %d status %d enabled %d pid %d", this, mDescriptor.name, mId,
+            mStatus, mEnabled, mClientPid);
+
+    if (mSessionId > AUDIO_SESSION_OUTPUT_MIX) {
+        AudioSystem::acquireAudioSessionId(mSessionId, mClientPid);
+    }
 
     return mStatus;
 }
@@ -164,6 +168,9 @@ AudioEffect::~AudioEffect()
     ALOGV("Destructor %p", this);
 
     if (mStatus == NO_ERROR || mStatus == ALREADY_EXISTS) {
+        if (mSessionId > AUDIO_SESSION_OUTPUT_MIX) {
+            AudioSystem::releaseAudioSessionId(mSessionId, mClientPid);
+        }
         if (mIEffect != NULL) {
             mIEffect->disconnect();
             mIEffect->asBinder()->unlinkToDeath(mIEffectClient);
