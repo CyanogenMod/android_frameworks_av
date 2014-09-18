@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Not a Contribution.
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -211,6 +213,7 @@ private:
 
     bool mWatchForAudioSeekComplete;
     bool mWatchForAudioEOS;
+    static int mTunnelAliveAP;
 
     bool mIsFirstFrameAfterResume;
 
@@ -325,6 +328,7 @@ private:
         ASSIGN
     };
     void modifyFlags(unsigned value, FlagMode mode);
+    void checkTunnelExceptions();
     void logFirstFrame();
     void logCatchUp(int64_t ts, int64_t clock, int64_t delta);
     void logLate(int64_t ts, int64_t clock, int64_t delta);
@@ -392,6 +396,10 @@ private:
     status_t selectTrack(size_t trackIndex, bool select);
 
     size_t countTracks() const;
+    bool inSupportedTunnelFormats(const char * mime);
+    //Flag to check if tunnel mode audio is enabled
+    bool mIsTunnelAudio;
+
     bool isWidevineContent() const;
 
     AwesomePlayer(const AwesomePlayer &);
