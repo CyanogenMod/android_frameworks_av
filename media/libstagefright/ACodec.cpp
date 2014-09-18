@@ -4794,7 +4794,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     // MediaCodecSource does not pass the output format details when calling
     // kInit leading to msg passed not having enough details
     if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)
-        && ExtendedUtils::UseQCHWAACEncoder()) {
+        && ExtendedUtils::UseQCHWAACEncoder() && encoder) {
         //use hw aac encoder
         ALOGD("use QCOM HW AAC encoder");
         OMXCodec::findMatchingCodecs(
@@ -4813,6 +4813,16 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 0, //flags
                 &matchingCodecs);
 #endif
+    } else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)
+        && ExtendedUtils::UseQCHWAACDecoder(mime.c_str()) && !encoder) {
+        //use hw aac decoder
+        ALOGD("use QCOM HW AAC decoder");
+        OMXCodec::findMatchingCodecs(
+                mime.c_str(),
+                encoder, // createEncoder
+                "OMX.qcom.audio.decoder.multiaac",  // OMX.qcom.audio.decoder.multiaac
+                0,     // flags
+                &matchingCodecs);
     } else
 #endif
         OMXCodec::findMatchingCodecs(
