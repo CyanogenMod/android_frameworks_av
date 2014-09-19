@@ -283,14 +283,9 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
 
     // handle widevine classic source - that fills an arbitrary input buffer
     MediaBuffer *mediaBuffer = NULL;
-    if (hasBuffer && buffer->meta()->findPointer(
-            "mediaBuffer", (void **)&mediaBuffer)) {
-        if (mediaBuffer == NULL) {
-            // received no actual buffer
-            ALOGW("[%s] received null MediaBuffer %s",
-                    mComponentName.c_str(), msg->debugString().c_str());
-            buffer = NULL;
-        } else {
+    if (hasBuffer) {
+        mediaBuffer = (MediaBuffer *)(buffer->getMediaBufferBase());
+        if (mediaBuffer != NULL) {
             // likely filled another buffer than we requested: adjust buffer index
             size_t ix;
             for (ix = 0; ix < mInputBuffers.size(); ix++) {
@@ -600,16 +595,6 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
         {
             if (!isStaleReply(msg)) {
                 onInputBufferFilled(msg);
-            } else {
-                /* release any MediaBuffer passed in the stale buffer */
-                sp<ABuffer> buffer;
-                MediaBuffer *mediaBuffer = NULL;
-                if (msg->findBuffer("buffer", &buffer) &&
-                    buffer->meta()->findPointer(
-                            "mediaBuffer", (void **)&mediaBuffer) &&
-                    mediaBuffer != NULL) {
-                    mediaBuffer->release();
-                }
             }
 
             break;
