@@ -553,6 +553,7 @@ private:
         virtual void        setVolume(float left, float right);
         virtual int64_t     getTimeStamp();
         virtual void        postEOS(int64_t delayUs);
+        void                signalEffect();
 
         virtual status_t    onTransact(
             uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
@@ -871,6 +872,7 @@ private:
                 Vector<AudioSessionRef*> mAudioSessionRefs;
                 sp<EffectChain> mLPAEffectChain;
                 int         mLPASessionId;
+                audio_devices_t mDirectDevice;//device for directTrack,used for effects
                 int                                 mLPASampleRate;
                 int                                 mLPANumChannels;
                 volatile bool                       mAllChainsLocked;
