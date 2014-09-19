@@ -85,10 +85,11 @@ private:
     short *mOutputDelayRingBuffer;
     int32_t mOutputDelayRingBufferWritePos;
     int32_t mOutputDelayRingBufferReadPos;
+    int32_t mOutputDelayRingBufferFilled;
     bool outputDelayRingBufferPutSamples(INT_PCM *samples, int numSamples);
     int32_t outputDelayRingBufferGetSamples(INT_PCM *samples, int numSamples);
     int32_t outputDelayRingBufferSamplesAvailable();
-    int32_t outputDelayRingBufferSamplesLeft();
+    int32_t outputDelayRingBufferSpaceLeft();
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAAC2);
 };

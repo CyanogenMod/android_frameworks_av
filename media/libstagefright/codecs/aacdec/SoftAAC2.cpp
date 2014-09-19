@@ -137,6 +137,7 @@ status_t SoftAAC2::initDecoder() {
     mOutputDelayRingBuffer = new short[mOutputDelayRingBufferSize];
     mOutputDelayRingBufferWritePos = 0;
     mOutputDelayRingBufferReadPos = 0;
+    mOutputDelayRingBufferFilled = 0;
 
     if (mAACDecoder == NULL) {
         ALOGE("AAC decoder is null. TODO: Can not call aacDecoder_SetParam in the following code");
@@ -411,6 +412,10 @@ bool SoftAAC2::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_t numSamp
     if (numSamples == 0) {
         return true;
     }
+    if (outputDelayRingBufferSpaceLeft() < numSamples) {
+        ALOGE("RING BUFFER WOULD OVERFLOW");
+        return false;
+    }
     if (mOutputDelayRingBufferWritePos + numSamples <= mOutputDelayRingBufferSize
             && (mOutputDelayRingBufferReadPos <= mOutputDelayRingBufferWritePos
                     || mOutputDelayRingBufferReadPos > mOutputDelayRingBufferWritePos + numSamples)) {
@@ -422,10 +427,6 @@ bool SoftAAC2::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_t numSamp
         if (mOutputDelayRingBufferWritePos >= mOutputDelayRingBufferSize) {
             mOutputDelayRingBufferWritePos -= mOutputDelayRingBufferSize;
         }
-        if (mOutputDelayRingBufferWritePos == mOutputDelayRingBufferReadPos) {
-            ALOGE("RING BUFFER OVERFLOW");
-            return false;
-        }
     } else {
         ALOGV("slow SoftAAC2::outputDelayRingBufferPutSamples()");
 
@@ -435,16 +436,19 @@ bool SoftAAC2::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_t numSamp
             if (mOutputDelayRingBufferWritePos >= mOutputDelayRingBufferSize) {
                 mOutputDelayRingBufferWritePos -= mOutputDelayRingBufferSize;
             }
-            if (mOutputDelayRingBufferWritePos == mOutputDelayRingBufferReadPos) {
-                ALOGE("RING BUFFER OVERFLOW");
-                return false;
-            }
         }
     }
+    mOutputDelayRingBufferFilled += numSamples;
     return true;
 }
 
 int32_t SoftAAC2::outputDelayRingBufferGetSamples(INT_PCM *samples, int32_t numSamples) {
+
+    if (numSamples > mOutputDelayRingBufferFilled) {
+        ALOGE("RING BUFFER WOULD UNDERRUN");
+        return -1;
+    }
+
     if (mOutputDelayRingBufferReadPos + numSamples <= mOutputDelayRingBufferSize
             && (mOutputDelayRingBufferWritePos < mOutputDelayRingBufferReadPos
                     || mOutputDelayRingBufferWritePos >= mOutputDelayRingBufferReadPos + numSamples)) {
@@ -463,10 +467,6 @@ int32_t SoftAAC2::outputDelayRingBufferGetSamples(INT_PCM *samples, int32_t numS
         ALOGV("slow SoftAAC2::outputDelayRingBufferGetSamples()");
 
         for (int32_t i = 0; i < numSamples; i++) {
-            if (mOutputDelayRingBufferWritePos == mOutputDelayRingBufferReadPos) {
-                ALOGE("RING BUFFER UNDERRUN");
-                return -1;
-            }
             if (samples != 0) {
                 samples[i] = mOutputDelayRingBuffer[mOutputDelayRingBufferReadPos];
             }
@@ -476,22 +476,15 @@ int32_t SoftAAC2::outputDelayRingBufferGetSamples(INT_PCM *samples, int32_t numS
             }
         }
     }
+    mOutputDelayRingBufferFilled -= numSamples;
     return numSamples;
 }
 
 int32_t SoftAAC2::outputDelayRingBufferSamplesAvailable() {
-    int32_t available = mOutputDelayRingBufferWritePos - mOutputDelayRingBufferReadPos;
-    if (available < 0) {
-        available += mOutputDelayRingBufferSize;
-    }
-    if (available < 0) {
-        ALOGE("FATAL RING BUFFER ERROR");
-        return 0;
-    }
-    return available;
+    return mOutputDelayRingBufferFilled;
 }
 
-int32_t SoftAAC2::outputDelayRingBufferSamplesLeft() {
+int32_t SoftAAC2::outputDelayRingBufferSpaceLeft() {
     return mOutputDelayRingBufferSize - outputDelayRingBufferSamplesAvailable();
 }
 
@@ -658,7 +651,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
 
             AAC_DECODER_ERROR decoderErr;
             do {
-                if (outputDelayRingBufferSamplesLeft() <
+                if (outputDelayRingBufferSpaceLeft() <
                         (mStreamInfo->frameSize * mStreamInfo->numChannels)) {
                     ALOGV("skipping decode: not enough space left in ringbuffer");
                     break;
@@ -1032,6 +1025,7 @@ void SoftAAC2::onReset() {
     mOutputDelayCompensated = 0;
     mOutputDelayRingBufferWritePos = 0;
     mOutputDelayRingBufferReadPos = 0;
+    mOutputDelayRingBufferFilled = 0;
     mEndOfInput = false;
     mEndOfOutput = false;
     mBufferTimestamps.clear();
