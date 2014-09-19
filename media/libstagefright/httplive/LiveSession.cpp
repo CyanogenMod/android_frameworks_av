@@ -63,6 +63,7 @@ LiveSession::LiveSession(
       mSwapMask(0),
       mCheckBandwidthGeneration(0),
       mSwitchGeneration(0),
+      mSubtitleGeneration(0),
       mLastDequeuedTimeUs(0ll),
       mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
@@ -289,6 +290,11 @@ status_t LiveSession::dequeueAccessUnit(
             mLastDequeuedTimeUs = timeUs;
             mRealTimeBaseUs = ALooper::GetNowUs() - timeUs;
         } else if (stream == STREAMTYPE_SUBTITLES) {
+            int32_t subtitleGeneration;
+            if ((*accessUnit)->meta()->findInt32("subtitleGeneration", &subtitleGeneration)
+                    && subtitleGeneration != mSubtitleGeneration) {
+               return -EAGAIN;
+            };
             (*accessUnit)->meta()->setInt32(
                     "trackIndex", mPlaylist->getSelectedIndex());
             (*accessUnit)->meta()->setInt64("baseUs", mRealTimeBaseUs);
@@ -759,7 +765,7 @@ sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
     notify->setInt32("switchGeneration", mSwitchGeneration);
 
     FetcherInfo info;
-    info.mFetcher = new PlaylistFetcher(notify, this, uri);
+    info.mFetcher = new PlaylistFetcher(notify, this, uri, mSubtitleGeneration);
     info.mDurationUs = -1ll;
     info.mIsPrepared = false;
     info.mToBeRemoved = false;
@@ -1065,6 +1071,24 @@ size_t LiveSession::getBandwidthIndex() {
     return index;
 }
 
+int64_t LiveSession::latestMediaSegmentStartTimeUs() {
+    sp<AMessage> audioMeta = mPacketSources.valueFor(STREAMTYPE_AUDIO)->getLatestDequeuedMeta();
+    int64_t minSegmentStartTimeUs = -1, videoSegmentStartTimeUs = -1;
+    if (audioMeta != NULL) {
+        audioMeta->findInt64("segmentStartTimeUs", &minSegmentStartTimeUs);
+    }
+
+    sp<AMessage> videoMeta = mPacketSources.valueFor(STREAMTYPE_VIDEO)->getLatestDequeuedMeta();
+    if (videoMeta != NULL
+            && videoMeta->findInt64("segmentStartTimeUs", &videoSegmentStartTimeUs)) {
+        if (minSegmentStartTimeUs < 0 || videoSegmentStartTimeUs < minSegmentStartTimeUs) {
+            minSegmentStartTimeUs = videoSegmentStartTimeUs;
+        }
+
+    }
+    return minSegmentStartTimeUs;
+}
+
 status_t LiveSession::onSeek(const sp<AMessage> &msg) {
     int64_t timeUs;
     CHECK(msg->findInt64("timeUs", &timeUs));
@@ -1117,6 +1141,11 @@ sp<AMessage> LiveSession::getTrackInfo(size_t trackIndex) const {
 }
 
 status_t LiveSession::selectTrack(size_t index, bool select) {
+    if (mPlaylist == NULL) {
+        return INVALID_OPERATION;
+    }
+
+    ++mSubtitleGeneration;
     status_t err = mPlaylist->selectTrack(index, select);
     if (err == OK) {
         sp<AMessage> msg = new AMessage(kWhatChangeConfiguration, id());
@@ -1398,6 +1427,10 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         int64_t segmentStartTimeUs = -1ll;
         int32_t discontinuitySeq = -1;
         sp<AnotherPacketSource> sources[kMaxStreams];
+
+        if (i == kSubtitleIndex) {
+            segmentStartTimeUs = latestMediaSegmentStartTimeUs();
+        }
 
         // TRICKY: looping from i as earlier streams are already removed from streamMask
         for (size_t j = i; j < kMaxStreams; ++j) {
