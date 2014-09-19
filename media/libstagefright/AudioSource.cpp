@@ -99,7 +99,8 @@ AudioSource::AudioSource( audio_source_t inputSource, const sp<MetaData>& meta )
       mNumFramesReceived(0),
       mNumClientOwnedBuffers(0),
       mFormat(AUDIO_FORMAT_PCM_16_BIT),
-      mMime(MEDIA_MIMETYPE_AUDIO_RAW) {
+      mMime(MEDIA_MIMETYPE_AUDIO_RAW),
+      mRecPaused(false) {
 
     const char * mime;
     ALOGV("AudioSource CTOR compress offload capture: inputSource: %d", inputSource);
