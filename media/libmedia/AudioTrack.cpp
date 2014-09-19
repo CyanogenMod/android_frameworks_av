@@ -1935,7 +1935,7 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
     status_t status = mAudioTrack->getTimestamp(timestamp);
     if (status != NO_ERROR) {
-        ALOGW_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
+        ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
         return status;
     }
     if (isOffloadedOrDirect_l()) {
