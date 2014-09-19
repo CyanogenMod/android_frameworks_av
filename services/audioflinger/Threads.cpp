@@ -1016,7 +1016,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             }
             effectCreated = true;
 
-            effect->setDevice(mOutDevice);
+            effect->setDevice(mAudioFlinger->mLPASessionId == sessionId ? mAudioFlinger->mDirectDevice:mOutDevice);
             effect->setDevice(mInDevice);
             effect->setMode(mAudioFlinger->getMode());
             effect->setAudioSource(mAudioSource);
@@ -6382,31 +6382,30 @@ AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFl
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         ALOGV("create effects thread for LPA");
         createEffectThread();
-
-        mAudioFlingerClient = new AudioFlingerDirectTrackClient(this);
-        mAudioFlinger->registerClient(mAudioFlingerClient);
-
         allocateBufPool();
     } else if (mFlag & AUDIO_OUTPUT_FLAG_TUNNEL) {
         ALOGV("create effects thread for TUNNEL");
         createEffectThread();
-        mAudioFlingerClient = new AudioFlingerDirectTrackClient(this);
-        mAudioFlinger->registerClient(mAudioFlingerClient);
     }
     outputDesc->mVolumeScale = 1.0;
     mDeathRecipient = new PMDeathRecipient(this);
     acquireWakeLock();
 }
 
+void AudioFlinger::DirectAudioTrack::signalEffect() {
+    if (mFlag & AUDIO_OUTPUT_FLAG_LPA){
+        mEffectConfigChanged = true;
+        mEffectCv.signal();
+    }
+}
+
 AudioFlinger::DirectAudioTrack::~DirectAudioTrack() {
     if (mFlag & AUDIO_OUTPUT_FLAG_LPA) {
         requestAndWaitForEffectsThreadExit();
-        mAudioFlinger->deregisterClient(mAudioFlingerClient);
         mAudioFlinger->deleteEffectSession();
         deallocateBufPool();
     } else if (mFlag & AUDIO_OUTPUT_FLAG_TUNNEL) {
         requestAndWaitForEffectsThreadExit();
-        mAudioFlinger->deregisterClient(mAudioFlingerClient);
         mAudioFlinger->deleteEffectSession();
     }
     AudioSystem::releaseOutput(mOutput);
@@ -6428,6 +6427,9 @@ status_t AudioFlinger::DirectAudioTrack::start() {
         mOutputDesc->stream->start(mOutputDesc->stream);
     }
     mOutputDesc->mActive = true;
+    mOutputDesc->stream->set_volume(mOutputDesc->stream,
+                                    mOutputDesc->mVolumeLeft * mOutputDesc->mVolumeScale,
+                                    mOutputDesc->mVolumeRight* mOutputDesc->mVolumeScale);
     return NO_ERROR;
 }
 
@@ -6484,12 +6486,18 @@ void AudioFlinger::DirectAudioTrack::mute(bool muted) {
 
 void AudioFlinger::DirectAudioTrack::setVolume(float left, float right) {
     ALOGV("DirectAudioTrack::setVolume left: %f, right: %f", left, right);
-    if(mOutputDesc && mOutputDesc->mActive) {
+    if(mOutputDesc) {
         mOutputDesc->mVolumeLeft = left;
         mOutputDesc->mVolumeRight = right;
-        mOutputDesc->stream->set_volume(mOutputDesc->stream,
+        if(mOutputDesc->mActive &&  mOutputDesc->stream) {
+            mOutputDesc->stream->set_volume(mOutputDesc->stream,
                                     left * mOutputDesc->mVolumeScale,
                                     right* mOutputDesc->mVolumeScale);
+        } else {
+            ALOGD("stream is not active, so cache and send when stream is active");
+        }
+    } else {
+        ALOGD("output descriptor is not valid to set the volume");
     }
 }
 
