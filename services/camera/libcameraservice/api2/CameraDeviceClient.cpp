@@ -512,12 +512,24 @@ status_t CameraDeviceClient::flush(int64_t* lastFrameNumber) {
 
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     String8 result;
-    result.appendFormat("CameraDeviceClient[%d] (%p) PID: %d, dump:\n",
+    result.appendFormat("CameraDeviceClient[%d] (%p) dump:\n",
             mCameraId,
-            getRemoteCallback()->asBinder().get(),
-            mClientPid);
-    result.append("  State: ");
+            getRemoteCallback()->asBinder().get());
+    result.appendFormat("  Current client: %s (PID %d, UID %u)\n",
+            String8(mClientPackageName).string(),
+            mClientPid, mClientUid);
 
+    result.append("  State:\n");
+    result.appendFormat("    Request ID counter: %d\n", mRequestIdCounter);
+    if (!mStreamMap.isEmpty()) {
+        result.append("    Current stream IDs:\n");
+        for (size_t i = 0; i < mStreamMap.size(); i++) {
+            result.appendFormat("      Stream %d\n", mStreamMap.valueAt(i));
+        }
+    } else {
+        result.append("    No streams configured.\n");
+    }
+    write(fd, result.string(), result.size());
     // TODO: print dynamic/request section from most recent requests
     mFrameProcessor->dump(fd, args);
 

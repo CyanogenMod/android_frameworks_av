@@ -336,11 +336,11 @@ status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
             mCameraId,
             getRemoteCallback()->asBinder().get(),
             mClientPid);
-    result.append("  State: ");
+    result.append("  State:\n");
+    write(fd, result.string(), result.size());
 
     // TODO: print dynamic/request section from most recent requests
     mFrameProcessor->dump(fd, args);
-
     return dumpDevice(fd, args);
 }
 
