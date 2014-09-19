@@ -101,6 +101,7 @@ public:
         virtual ssize_t     channelCount() const = 0;
         virtual ssize_t     frameSize() const = 0;
         virtual uint32_t    latency() const = 0;
+        virtual audio_stream_type_t    streamType() const {return AUDIO_STREAM_DEFAULT;}
         virtual float       msecsPerFrame() const = 0;
         virtual status_t    getPosition(uint32_t *position) const = 0;
         virtual status_t    getTimestamp(AudioTimestamp &ts) const = 0;
