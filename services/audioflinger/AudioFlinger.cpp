@@ -1203,6 +1203,7 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             String8 key = String8(AudioParameter::keyRouting);
             int device;
             if (param.getInt(key, device) == NO_ERROR) {
+                mDirectDevice = device;
                 if(mLPAEffectChain != NULL){
                     mLPAEffectChain->setDevice_l(device);
                     audioConfigChanged(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
@@ -1434,14 +1435,27 @@ void AudioFlinger::audioConfigChanged(int event, audio_io_handle_t ioHandle, con
         mIsEffectConfigChanged = true;
     }
 
-    size_t size = mNotificationClients.size();
-    for (size_t i = 0; i < size; i++) {
-        mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event,
-                                                                              ioHandle,
-                                                                              param2);
+    if (!mNotificationClients.isEmpty()){
+        size_t size = mNotificationClients.size();
+        for (size_t i = 0; i < size; i++) {
+            mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event, ioHandle,
+                                                                                   param2);
+        }
+    }
+    if ((!mDirectAudioTracks.isEmpty())&& (event == AudioSystem::EFFECT_CONFIG_CHANGED)){
+        size_t dsize = mDirectAudioTracks.size();
+        for(size_t i = 0; i < dsize; i++) {
+            AudioSessionDescriptor *desc = mDirectAudioTracks.valueAt(i);
+            if(desc) {
+                ALOGV("signalling directAudioTrack ");
+                ((DirectAudioTrack*)desc->trackRefPtr)->signalEffect();
+            } else{
+                ALOGV("not found track to signal directAudioTrack ");
+            }
+        }
+
     }
 }
-
 // removeClient_l() must be called with AudioFlinger::mClientLock held
 void AudioFlinger::removeClient_l(pid_t pid)
 {
@@ -2013,6 +2027,7 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
         desc->mActive = false;
         desc->stream->common.standby(&desc->stream->common);
         desc->hwDev->close_output_stream(desc->hwDev, desc->stream);
+        desc->stream = NULL;
         desc->trackRefPtr = NULL;
         mDirectAudioTracks.removeItem(output);
         audioConfigChanged(AudioSystem::OUTPUT_CLOSED, output, NULL);

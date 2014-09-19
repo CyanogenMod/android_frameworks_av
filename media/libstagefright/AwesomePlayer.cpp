@@ -405,10 +405,23 @@ status_t AwesomePlayer::setDataSource_l(
     return OK;
 }
 
+void AwesomePlayer::printFileName(int fd) {
+
+    char symName[40] = {0};
+    char fileName[256] = {0};
+
+    snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
+
+    if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
+        ALOGD("printFileName fd(%d) -> %s", fd, fileName);
+    }
+}
+
 status_t AwesomePlayer::setDataSource(
         int fd, int64_t offset, int64_t length) {
     Mutex::Autolock autoLock(mLock);
-
+    ALOGD("Before reset_l");
+    
     reset_l();
     if (fd) {
        printFileName(fd);
@@ -1191,10 +1204,10 @@ void AwesomePlayer::createAudioPlayer_l()
             TunnelPlayer::mTunnelObjectsAlive = %d,\
             (mAudioPlayer == NULL) %d",
             mIsTunnelAudio, TunnelPlayer::mTunnelObjectsAlive,
-            LPAPlayer::objectsAlive,(mAudioPlayer == NULL));
+            LPAPlayer::mObjectsAlive,(mAudioPlayer == NULL));
 
     if(mIsTunnelAudio && (mAudioPlayer == NULL) &&
-            (LPAPlayer::objectsAlive == 0) &&
+            (LPAPlayer::mObjectsAlive == 0) &&
             (TunnelPlayer::mTunnelObjectsAlive == 0)) {
         ALOGD("Tunnel player created for  mime %s duration %lld\n",\
             mime, mDurationUs);
@@ -1233,20 +1246,27 @@ void AwesomePlayer::createAudioPlayer_l()
     minDurationForLPA = atoi(minUserDefDuration);
     if(minDurationForLPA < LPA_MIN_DURATION_USEC_ALLOWED) {
         ALOGE("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
-        minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
+        if(mAudioPlayer == NULL) {
+            ALOGE("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
+            minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
+        }
     }
     if((strcmp("true",lpaDecode) == 0) && (mAudioPlayer == NULL) &&
-       (tunnelObjectsAlive==0) && (nchannels && (nchannels <= 2)))
+#ifdef USE_TUNNEL_MODE
+       (tunnelObjectsAlive < TunnelPlayer::getTunnelObjectsAliveMax()) &&
+#endif
+       (nchannels && (nchannels <= 2)))
+
     {
-        ALOGE("LPAPlayer::getObjectsAlive() %d",LPAPlayer::objectsAlive);
+        ALOGE("LPAPlayer::getObjectsAlive() %d",LPAPlayer::mObjectsAlive);
         if ( mDurationUs > minDurationForLPA
              && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
-             && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL) {
+             && LPAPlayer::mObjectsAlive == 0 && mVideoSource == NULL) {
             ALOGE("LPAPlayer created, LPA MODE detected mime %s duration %lld", mime, mDurationUs);
             bool initCheck =  false;
-            uint32_t flags = 0;
             mAudioPlayer = new LPAPlayer(mAudioSink, initCheck, this);
             if(!initCheck) {
+                 ALOGE("deleting Tunnel Player - initCheck failed");
                  delete mAudioPlayer;
                  mAudioPlayer = NULL;
             }
@@ -1777,9 +1797,10 @@ status_t AwesomePlayer::initAudioDecoder() {
             mime, (TunnelPlayer::mTunnelObjectsAlive), mTunnelAliveAP);
 
     bool sys_prop_enabled = !strcmp("true",tunnelDecode) || atoi(tunnelDecode);
+    ALOGD("maxPossible tunnels = %d", TunnelPlayer::getTunnelObjectsAliveMax());
     //widevine will fallback to software decoder
-    if (sys_prop_enabled && (TunnelPlayer::mTunnelObjectsAlive == 0) &&
-       (mTunnelAliveAP == 0) && (isADTS == 0) &&
+    if (sys_prop_enabled && (TunnelPlayer::mTunnelObjectsAlive < TunnelPlayer::getTunnelObjectsAliveMax()) &&
+       (mTunnelAliveAP < TunnelPlayer::getTunnelObjectsAliveMax()) && (isADTS == 0) &&
         mAudioSink->realtime() &&
         inSupportedTunnelFormats(mime)) {
 
@@ -1796,6 +1817,12 @@ status_t AwesomePlayer::initAudioDecoder() {
             ALOGI("Tunnel Mode Audio Enabled");
             mIsTunnelAudio = true;
         }
+#ifdef NO_TUNNEL_MODE_FOR_MULTICHANNEL
+        if (nchannels > 2 || nchannels <= 0) {
+            ALOGD("Use tunnel mode only for mono and stereo channels");
+            mIsTunnelAudio = false;
+        }
+#endif
     }
     else
        ALOGD("Normal Audio Playback");
@@ -1804,7 +1831,11 @@ status_t AwesomePlayer::initAudioDecoder() {
     checkTunnelExceptions();
 
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW) ||
-             (mIsTunnelAudio && (mTunnelAliveAP == 0))) {
+             (mIsTunnelAudio
+#ifdef USE_TUNNEL_MODE
+             && (mTunnelAliveAP < TunnelPlayer::getTunnelObjectsAliveMax())
+#endif
+    )) {
         ALOGD("Set Audio Track as Audio Source");
         if(mIsTunnelAudio) {
             mTunnelAliveAP++;
@@ -1840,7 +1871,7 @@ status_t AwesomePlayer::initAudioDecoder() {
         }
         if ( mDurationUs > minDurationForLPA
              && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
-             && LPAPlayer::objectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)
+             && LPAPlayer::mObjectsAlive == 0 && mVideoSource == NULL && (strcmp("true",lpaDecode) == 0)
              && (nchannels && (nchannels <= 2)) ) {
             char nonOMXDecoder[128];
             if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
@@ -3614,6 +3645,13 @@ bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
     const char * tunnelFormats [ ] = {
         MEDIA_MIMETYPE_AUDIO_MPEG,
         MEDIA_MIMETYPE_AUDIO_AAC,
+    #ifdef TUNNEL_MODE_SUPPORTS_AMRWB
+        MEDIA_MIMETYPE_AUDIO_AMR_WB,
+    #ifdef ENABLE_QC_AV_ENHANCEMENTS
+        MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS
+    #endif
+    #endif
+
     };
 
     if (!mime) {
@@ -3643,18 +3681,32 @@ void AwesomePlayer::checkTunnelExceptions()
         mIsTunnelAudio = false;
         return;
     }
-#if 0
-+    /* exception 2: use tunnel player only for AUDIO_STREAM_MUSIC */
+
+    CHECK(mAudioTrack != NULL);
+
+    /*
+     * exception 2: No AAC-LD content,
+     * hint given by setting kKeyTunnelException in the track meta
+     */
+    int32_t exception = 0;
+    if (mAudioTrack->getFormat()->findInt32(kKeyTunnelException, &exception) &&
+        exception) {
+        ALOGV("kKeyTunnelException set, disable tunnel mode");
+        mIsTunnelAudio = false;
+        return;
+    }
+
+    /* exception 3: use tunnel player only for AUDIO_STREAM_MUSIC */
+
     if (mAudioSink->streamType() != AUDIO_STREAM_MUSIC ) {
         ALOGD("Use tunnel player only for AUDIO_STREAM_MUSIC");
         mIsTunnelAudio = false;
         return;
     }
-#endif
     /* below exceptions are only for av content */
     if (mVideoTrack == NULL) return;
 
-    /* exception 2: No avi having video + mp3 */
+    /* exception 4: No avi having video + mp3 */
     if (mExtractor == NULL) return;
 
     sp<MetaData> metaData = mExtractor->getMetaData();
