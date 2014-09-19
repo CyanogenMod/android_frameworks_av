@@ -408,6 +408,9 @@ void SoftAAC2::configureDownmix() const {
 }
 
 bool SoftAAC2::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_t numSamples) {
+    if (numSamples == 0) {
+        return true;
+    }
     if (mOutputDelayRingBufferWritePos + numSamples <= mOutputDelayRingBufferSize
             && (mOutputDelayRingBufferReadPos <= mOutputDelayRingBufferWritePos
                     || mOutputDelayRingBufferReadPos > mOutputDelayRingBufferWritePos + numSamples)) {
@@ -512,6 +515,11 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
             OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
 
             mEndOfInput = (inHeader->nFlags & OMX_BUFFERFLAG_EOS) != 0;
+
+            if (mInputBufferCount == 0 && !(inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG)) {
+                ALOGE("first buffer should have OMX_BUFFERFLAG_CODECCONFIG set");
+                inHeader->nFlags |= OMX_BUFFERFLAG_CODECCONFIG;
+            }
             if ((inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) != 0) {
                 BufferInfo *inInfo = *inQueue.begin();
                 OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
