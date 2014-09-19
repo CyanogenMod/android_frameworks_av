@@ -535,25 +535,9 @@ status_t ATSParser::Stream::parse(
 
     if (mExpectedContinuityCounter >= 0
             && (unsigned)mExpectedContinuityCounter != continuity_counter) {
-        ALOGI("discontinuity on stream pid 0x%04x", mElementaryPID);
+        ALOGI("discontinuity on stream pid 0x%04x, Ignored", mElementaryPID);
 
-        mPayloadStarted = false;
-        mBuffer->setRange(0, 0);
         mExpectedContinuityCounter = -1;
-
-#if 0
-        // Uncomment this if you'd rather see no corruption whatsoever on
-        // screen and suspend updates until we come across another IDR frame.
-
-        if (mStreamType == STREAMTYPE_H264) {
-            ALOGI("clearing video queue");
-            mQueue->clear(true /* clearFormat */);
-        }
-#endif
-
-        if (!payload_unit_start_indicator) {
-            return OK;
-        }
     }
 
     mExpectedContinuityCounter = (continuity_counter + 1) & 0x0f;
