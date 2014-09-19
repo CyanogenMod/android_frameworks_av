@@ -158,7 +158,12 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
 
     int32_t totalBitrate = 0;
 
-    for (size_t i = 0; i < extractor->countTracks(); ++i) {
+    size_t numtracks = extractor->countTracks();
+    if (numtracks == 0) {
+        return UNKNOWN_ERROR;
+    }
+
+    for (size_t i = 0; i < numtracks; ++i) {
         sp<MediaSource> track = extractor->getTrack(i);
 
         sp<MetaData> meta = extractor->getTrackMetaData(i);
