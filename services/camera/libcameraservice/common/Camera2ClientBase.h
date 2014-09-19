@@ -107,6 +107,9 @@ public:
 
 protected:
 
+    // The PID provided in the constructor call
+    pid_t mInitialClientPid;
+
     virtual sp<IBinder> asBinderWrapper() {
         return IInterface::asBinder();
     }
