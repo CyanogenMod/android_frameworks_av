@@ -643,6 +643,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mRendererLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
             mRendererLooper->registerHandler(mRenderer);
 
+            sp<MetaData> meta = getFileMeta();
+            int32_t rate;
+            if (meta != NULL
+                    && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
+                mRenderer->setVideoFrameRate(rate);
+            }
+
             postScanSources();
             break;
         }
