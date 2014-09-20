@@ -573,6 +573,11 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                     continue;
                 }
                 uint8_t afMode = entry.data.u8[0];
+                if (afMode == ANDROID_CONTROL_AF_MODE_OFF) {
+                    // Skip all the ZSL buffer for manual AF mode, as we don't really
+                    // know the af state.
+                    continue;
+                }
 
                 // Check AF state if device has focuser and focus mode isn't fixed
                 if (mHasFocuser && !isFixedFocusMode(afMode)) {
