@@ -26,6 +26,8 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 
+#include <VideoFrameScheduler.h>
+
 #include <inttypes.h>
 
 namespace android {
@@ -502,16 +504,20 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
     sp<AMessage> msg = new AMessage(kWhatDrainVideoQueue, id());
     msg->setInt32("generation", mVideoQueueGeneration);
 
-    int64_t delayUs;
-
     if (entry.mBuffer == NULL) {
         // EOS doesn't carry a timestamp.
-        delayUs = 0;
-    } else if (mFlags & FLAG_REAL_TIME) {
+        msg->post();
+        mDrainVideoQueuePending = true;
+        return;
+    }
+
+    int64_t delayUs;
+    int64_t nowUs = ALooper::GetNowUs();
+    int64_t realTimeUs;
+    if (mFlags & FLAG_REAL_TIME) {
         int64_t mediaTimeUs;
         CHECK(entry.mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
-
-        delayUs = mediaTimeUs - ALooper::GetNowUs();
+        realTimeUs = mediaTimeUs;
     } else {
         int64_t mediaTimeUs;
         CHECK(entry.mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
@@ -520,23 +526,26 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
             mFirstAnchorTimeMediaUs = mediaTimeUs;
         }
         if (mAnchorTimeMediaUs < 0) {
-            delayUs = 0;
-
             if (!mHasAudio) {
                 mAnchorTimeMediaUs = mediaTimeUs;
-                mAnchorTimeRealUs = ALooper::GetNowUs();
+                mAnchorTimeRealUs = nowUs;
                 notifyPosition();
             }
+            realTimeUs = nowUs;
         } else {
-            int64_t realTimeUs =
+            realTimeUs =
                 (mediaTimeUs - mAnchorTimeMediaUs) + mAnchorTimeRealUs;
-
-            delayUs = realTimeUs - ALooper::GetNowUs();
         }
     }
 
+    realTimeUs = mVideoScheduler->schedule(realTimeUs * 1000) / 1000;
+    int64_t twoVsyncsUs = 2 * (mVideoScheduler->getVsyncPeriod() / 1000);
+
+    delayUs = realTimeUs - nowUs;
+
     ALOGW_IF(delayUs > 500000, "unusually high delayUs: %" PRId64, delayUs);
-    msg->post(delayUs);
+    // post 2 display refreshes before rendering is due
+    msg->post(delayUs > twoVsyncsUs ? delayUs - twoVsyncsUs : 0);
 
     mDrainVideoQueuePending = true;
 }
@@ -588,6 +597,7 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         mVideoLateByUs = 0ll;
     }
 
+    entry->mNotifyConsumed->setInt64("timestampNs", realTimeUs * 1000ll);
     entry->mNotifyConsumed->setInt32("render", !tooLate);
     entry->mNotifyConsumed->post();
     mVideoQueue.erase(mVideoQueue.begin());
@@ -630,6 +640,10 @@ void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
         mHasAudio = true;
     } else {
         mHasVideo = true;
+        if (mVideoScheduler == NULL) {
+            mVideoScheduler = new VideoFrameScheduler();
+            mVideoScheduler->init();
+        }
     }
 
     if (dropBufferWhileFlushing(audio, msg)) {
