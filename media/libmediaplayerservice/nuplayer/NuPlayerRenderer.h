@@ -23,6 +23,7 @@
 namespace android {
 
 struct ABuffer;
+struct VideoFrameScheduler;
 
 struct NuPlayer::Renderer : public AHandler {
     enum Flags {
@@ -100,6 +101,7 @@ private:
     List<QueueEntry> mAudioQueue;
     List<QueueEntry> mVideoQueue;
     uint32_t mNumFramesWritten;
+    sp<VideoFrameScheduler> mVideoScheduler;
 
     bool mDrainAudioQueuePending;
     bool mDrainVideoQueuePending;
