@@ -57,6 +57,8 @@ struct NuPlayer::Renderer : public AHandler {
     void pause();
     void resume();
 
+    void setVideoFrameRate(float fps);
+
     enum {
         kWhatEOS                 = 'eos ',
         kWhatFlushComplete       = 'fluC',
@@ -83,6 +85,7 @@ private:
         kWhatResume              = 'resm',
         kWhatStopAudioSink       = 'stpA',
         kWhatDisableOffloadAudio = 'noOA',
+        kWhatSetVideoFrameRate   = 'sVFR',
     };
 
     struct QueueEntry {
@@ -149,6 +152,7 @@ private:
     void onDisableOffloadAudio();
     void onPause();
     void onResume();
+    void onSetVideoFrameRate(float fps);
     void onAudioOffloadTearDown();
 
     void notifyEOS(bool audio, status_t finalResult, int64_t delayUs = 0);
