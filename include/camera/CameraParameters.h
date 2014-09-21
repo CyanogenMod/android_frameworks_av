@@ -811,7 +811,7 @@ public:
     static const char WHITE_BALANCE_CLOUDY_DAYLIGHT[];
     static const char WHITE_BALANCE_TWILIGHT[];
     static const char WHITE_BALANCE_SHADE[];
-#ifdef OPPO_CAMERA_HARDWARE
+#ifdef QCOM_HARDWARE
     static const char WHITE_BALANCE_MANUAL_CCT[];
 #endif
 
@@ -975,7 +975,7 @@ public:
     // other modes.
     static const char FOCUS_MODE_CONTINUOUS_PICTURE[];
 
-#ifdef OPPO_CAMERA_HARDWARE
+#ifdef QCOM_HARDWARE
     static const char FOCUS_MODE_MANUAL_POSITION[];
 #endif
 
