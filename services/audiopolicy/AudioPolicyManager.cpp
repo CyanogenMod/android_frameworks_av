@@ -26,7 +26,7 @@
 
 // A device mask for all audio input devices that are considered "virtual" when evaluating
 // active inputs in getActiveInput()
-#define APM_AUDIO_IN_DEVICE_VIRTUAL_ALL  AUDIO_DEVICE_IN_REMOTE_SUBMIX
+#define APM_AUDIO_IN_DEVICE_VIRTUAL_ALL  (AUDIO_DEVICE_IN_REMOTE_SUBMIX|AUDIO_DEVICE_IN_FM_TUNER)
 // A device mask for all audio output devices that are considered "remote" when evaluating
 // active output devices in isStreamActiveRemotely()
 #define APM_AUDIO_OUT_DEVICE_REMOTE_ALL  AUDIO_DEVICE_OUT_REMOTE_SUBMIX
@@ -707,7 +707,7 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
             config != AUDIO_POLICY_FORCE_WIRED_ACCESSORY &&
             config != AUDIO_POLICY_FORCE_ANALOG_DOCK &&
             config != AUDIO_POLICY_FORCE_DIGITAL_DOCK && config != AUDIO_POLICY_FORCE_NONE &&
-            config != AUDIO_POLICY_FORCE_NO_BT_A2DP) {
+            config != AUDIO_POLICY_FORCE_NO_BT_A2DP && config != AUDIO_POLICY_FORCE_SPEAKER ) {
             ALOGW("setForceUse() invalid config %d for FOR_MEDIA", config);
             return;
         }
@@ -4156,6 +4156,10 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
                 device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
             }
         }
+        if ((device2 == AUDIO_DEVICE_NONE) &&
+            (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] == AUDIO_POLICY_FORCE_SPEAKER)) {
+            device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER;
+        }
         if (device2 == AUDIO_DEVICE_NONE) {
             device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
         }
@@ -4663,6 +4667,11 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
     case AUDIO_SOURCE_REMOTE_SUBMIX:
         if (availableDeviceTypes & AUDIO_DEVICE_IN_REMOTE_SUBMIX) {
             device = AUDIO_DEVICE_IN_REMOTE_SUBMIX;
+        }
+        break;
+     case AUDIO_SOURCE_FM_TUNER:
+        if (availableDeviceTypes & AUDIO_DEVICE_IN_FM_TUNER) {
+            device = AUDIO_DEVICE_IN_FM_TUNER;
         }
         break;
     default:
