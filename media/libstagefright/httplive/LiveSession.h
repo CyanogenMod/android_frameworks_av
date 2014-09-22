@@ -189,6 +189,7 @@ private:
 
     int32_t mCheckBandwidthGeneration;
     int32_t mSwitchGeneration;
+    int32_t mSubtitleGeneration;
 
     size_t mContinuationCounter;
     sp<AMessage> mContinuation;
@@ -240,6 +241,7 @@ private:
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
 
     size_t getBandwidthIndex();
+    int64_t latestMediaSegmentStartTimeUs();
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
     static StreamType indexToType(int idx);
