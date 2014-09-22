@@ -187,6 +187,7 @@ protected:
             STRATEGY_SONIFICATION_RESPECTFUL,
             STRATEGY_DTMF,
             STRATEGY_ENFORCED_AUDIBLE,
+            STRATEGY_TRANSMITTED_THROUGH_SPEAKER,
             NUM_STRATEGIES
         };
 
@@ -434,6 +435,8 @@ protected:
         static const VolumeCurvePoint sHeadsetSystemVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sDefaultVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sLinearVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sSilentVolumeCurve[AudioPolicyManager::VOLCNT];
         // default volume curves per stream and device category. See initializeVolumeCurves()
         static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][DEVICE_CATEGORY_CNT];
 
@@ -808,6 +811,18 @@ protected:
         sp<AudioPatch> mCallTxPatch;
         sp<AudioPatch> mCallRxPatch;
 
+        // for supporting "beacon" streams, i.e. streams that only play on speaker, and never
+        // when something other than STREAM_TTS (a.k.a. "Transmitted Through Speaker") is playing
+        enum {
+            STARTING_OUTPUT,
+            STARTING_BEACON,
+            STOPPING_OUTPUT,
+            STOPPING_BEACON
+        };
+        uint32_t mBeaconMuteRefCount;   // ref count for stream that would mute beacon
+        uint32_t mBeaconPlayingRefCount;// ref count for the playing beacon streams
+        bool mBeaconMuted;              // has STREAM_TTS been muted
+
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
         Condition mWaitWorkCV;
@@ -852,6 +867,13 @@ private:
                 const audio_offload_info_t *offloadInfo);
         // internal function to derive a stream type value from audio attributes
         audio_stream_type_t streamTypefromAttributesInt(const audio_attributes_t *attr);
+        // return true if any output is playing anything besides the stream to ignore
+        bool isAnyOutputActive(audio_stream_type_t streamToIgnore);
+        // event is one of STARTING_OUTPUT, STARTING_BEACON, STOPPING_OUTPUT, STOPPING_BEACON
+        // returns 0 if no mute/unmute event happened, the largest latency of the device where
+        //   the mute/unmute happened
+        uint32_t handleEventForBeacon(int event);
+        uint32_t setBeaconMute(bool mute);
 };
 
 };
