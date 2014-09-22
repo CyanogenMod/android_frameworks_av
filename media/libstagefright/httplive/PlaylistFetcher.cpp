@@ -55,7 +55,8 @@ const int32_t PlaylistFetcher::kNumSkipFrames = 10;
 PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
         const sp<LiveSession> &session,
-        const char *uri)
+        const char *uri,
+        int32_t subtitleGeneration)
     : mNotify(notify),
       mStartTimeUsNotify(notify->dup()),
       mSession(session),
@@ -73,6 +74,7 @@ PlaylistFetcher::PlaylistFetcher(
       mPrepared(false),
       mNextPTSTimeUs(-1ll),
       mMonitorQueueGeneration(0),
+      mSubtitleGeneration(subtitleGeneration),
       mRefreshState(INITIAL_MINIMUM_RELOAD_DELAY),
       mFirstPTSValid(false),
       mAbsoluteTimeAnchorUs(0ll),
@@ -1407,6 +1409,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
         buffer->meta()->setInt64("durationUs", durationUs);
         buffer->meta()->setInt64("segmentStartTimeUs", getSegmentStartTimeUs(mSeqNumber));
         buffer->meta()->setInt32("discontinuitySeq", mDiscontinuitySeq);
+        buffer->meta()->setInt32("subtitleGeneration", mSubtitleGeneration);
 
         packetSource->queueAccessUnit(buffer);
         return OK;
