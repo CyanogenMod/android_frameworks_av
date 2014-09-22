@@ -268,7 +268,7 @@ private:
 
     static void PostReplyWithError(int32_t replyID, int32_t err);
 
-    status_t init(const char *name, bool nameIsType, bool encoder);
+    status_t init(const AString &name, bool nameIsType, bool encoder);
 
     void setState(State newState);
     void returnBuffersToCodec();
