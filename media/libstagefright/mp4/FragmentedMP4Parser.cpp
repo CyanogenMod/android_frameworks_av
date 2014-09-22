@@ -127,13 +127,13 @@ const FragmentedMP4Parser::DispatchEntry FragmentedMP4Parser::kDispatchTable[] =
     { FOURCC('s', 'i', 'd', 'x'), 0, &FragmentedMP4Parser::parseSegmentIndex },
 };
 
-struct FileSource : public FragmentedMP4Parser::Source {
-    FileSource(const char *filename)
+struct MP4FileSource : public FragmentedMP4Parser::Source {
+    MP4FileSource(const char *filename)
         : mFile(fopen(filename, "rb")) {
             CHECK(mFile != NULL);
         }
 
-    virtual ~FileSource() {
+    virtual ~MP4FileSource() {
         fclose(mFile);
     }
 
@@ -149,7 +149,7 @@ struct FileSource : public FragmentedMP4Parser::Source {
     private:
     FILE *mFile;
 
-    DISALLOW_EVIL_CONSTRUCTORS(FileSource);
+    DISALLOW_EVIL_CONSTRUCTORS(MP4FileSource);
 };
 
 struct ReadTracker : public RefBase {
@@ -236,7 +236,7 @@ FragmentedMP4Parser::~FragmentedMP4Parser() {
 
 void FragmentedMP4Parser::start(const char *filename) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
-    msg->setObject("source", new FileSource(filename));
+    msg->setObject("source", new MP4FileSource(filename));
     msg->post();
     ALOGV("Parser::start(%s)", filename);
 }
