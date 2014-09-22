@@ -27,6 +27,7 @@
 namespace android {
 
 struct AMessage;
+class MediaBufferBase;
 
 struct ABuffer : public RefBase {
     ABuffer(size_t capacity);
@@ -50,12 +51,17 @@ struct ABuffer : public RefBase {
 
     sp<AMessage> meta();
 
+    MediaBufferBase *getMediaBufferBase();
+    void setMediaBufferBase(MediaBufferBase *mediaBuffer);
+
 protected:
     virtual ~ABuffer();
 
 private:
     sp<AMessage> mFarewell;
     sp<AMessage> mMeta;
+
+    MediaBufferBase *mMediaBufferBase;
 
     void *mData;
     size_t mCapacity;

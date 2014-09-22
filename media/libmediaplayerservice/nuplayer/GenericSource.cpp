@@ -1115,8 +1115,8 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
     if (mIsWidevine && !audio) {
         // data is already provided in the buffer
         ab = new ABuffer(NULL, mb->range_length());
-        ab->meta()->setPointer("mediaBuffer", mb);
         mb->add_ref();
+        ab->setMediaBufferBase(mb);
     } else {
         ab = new ABuffer(outLength);
         memcpy(ab->data(),
