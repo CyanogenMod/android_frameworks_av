@@ -313,8 +313,6 @@ status_t WAVExtractor::init() {
                 }
 
                 mTrackMeta->setInt32(kKeyChannelCount, mNumChannels);
-                if (0 == mChannelMask)
-                    mChannelMask = AUDIO_CHANNEL_OUT_STEREO;
                 mTrackMeta->setInt32(kKeyChannelMask, mChannelMask);
                 mTrackMeta->setInt32(kKeySampleRate, mSampleRate);
 
