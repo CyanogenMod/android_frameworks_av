@@ -64,16 +64,18 @@ private:
 };
 
 struct NuPlayer::SeekAction : public Action {
-    SeekAction(int64_t seekTimeUs)
-        : mSeekTimeUs(seekTimeUs) {
+    SeekAction(int64_t seekTimeUs, bool needNotify)
+        : mSeekTimeUs(seekTimeUs),
+          mNeedNotify(needNotify) {
     }
 
     virtual void execute(NuPlayer *player) {
-        player->performSeek(mSeekTimeUs);
+        player->performSeek(mSeekTimeUs, mNeedNotify);
     }
 
 private:
     int64_t mSeekTimeUs;
+    bool mNeedNotify;
 
     DISALLOW_EVIL_CONSTRUCTORS(SeekAction);
 };
@@ -323,9 +325,10 @@ void NuPlayer::resetAsync() {
     (new AMessage(kWhatReset, id()))->post();
 }
 
-void NuPlayer::seekToAsync(int64_t seekTimeUs) {
+void NuPlayer::seekToAsync(int64_t seekTimeUs, bool needNotify) {
     sp<AMessage> msg = new AMessage(kWhatSeek, id());
     msg->setInt64("seekTimeUs", seekTimeUs);
+    msg->setInt32("needNotify", needNotify);
     msg->post();
 }
 
@@ -560,7 +563,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     // the extractor may not yet be started and will assert.
                     // If the video decoder is not set (perhaps audio only in this case)
                     // do not perform a seek as it is not needed.
-                    mDeferredActions.push_back(new SeekAction(mCurrentPositionUs));
+                    mDeferredActions.push_back(
+                            new SeekAction(mCurrentPositionUs, false /* needNotify */));
                 }
 
                 // If there is a new surface texture, instantiate decoders
@@ -926,7 +930,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mRenderer->signalDisableOffloadAudio();
                 mOffloadAudio = false;
 
-                performSeek(positionUs);
+                performSeek(positionUs, false /* needNotify */);
                 instantiateDecoder(true /* audio */, &mAudioDecoder);
             }
             break;
@@ -955,14 +959,18 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatSeek:
         {
             int64_t seekTimeUs;
+            int32_t needNotify;
             CHECK(msg->findInt64("seekTimeUs", &seekTimeUs));
+            CHECK(msg->findInt32("needNotify", &needNotify));
 
-            ALOGV("kWhatSeek seekTimeUs=%lld us", seekTimeUs);
+            ALOGV("kWhatSeek seekTimeUs=%lld us, needNotify=%d",
+                    seekTimeUs, needNotify);
 
             mDeferredActions.push_back(
                     new SimpleAction(&NuPlayer::performDecoderFlush));
 
-            mDeferredActions.push_back(new SeekAction(seekTimeUs));
+            mDeferredActions.push_back(
+                    new SeekAction(seekTimeUs, needNotify));
 
             processDeferredActions();
             break;
@@ -1774,10 +1782,11 @@ void NuPlayer::processDeferredActions() {
     }
 }
 
-void NuPlayer::performSeek(int64_t seekTimeUs) {
-    ALOGV("performSeek seekTimeUs=%lld us (%.2f secs)",
+void NuPlayer::performSeek(int64_t seekTimeUs, bool needNotify) {
+    ALOGV("performSeek seekTimeUs=%lld us (%.2f secs), needNotify(%d)",
           seekTimeUs,
-          seekTimeUs / 1E6);
+          seekTimeUs / 1E6,
+          needNotify);
 
     if (mSource == NULL) {
         // This happens when reset occurs right before the loop mode
@@ -1794,7 +1803,9 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
         sp<NuPlayerDriver> driver = mDriver.promote();
         if (driver != NULL) {
             driver->notifyPosition(seekTimeUs);
-            driver->notifySeekComplete();
+            if (needNotify) {
+                driver->notifySeekComplete();
+            }
         }
     }
 
