@@ -1217,6 +1217,8 @@ status_t Camera2Client::autoFocus() {
     {
         SharedParameters::Lock l(mParameters);
         if (l.mParameters.state < Parameters::PREVIEW) {
+            ALOGE("%s: Camera %d: Call autoFocus when preview is inactive (state = %d).",
+                    __FUNCTION__, mCameraId, l.mParameters.state);
             return INVALID_OPERATION;
         }
 
