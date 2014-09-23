@@ -74,19 +74,6 @@ Converter::Converter(
     }
 }
 
-static void ReleaseMediaBufferReference(const sp<ABuffer> &accessUnit) {
-    void *mbuf;
-    if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
-            && mbuf != NULL) {
-        ALOGV("releasing mbuf %p", mbuf);
-
-        accessUnit->meta()->setPointer("mediaBuffer", NULL);
-
-        static_cast<MediaBuffer *>(mbuf)->release();
-        mbuf = NULL;
-    }
-}
-
 void Converter::releaseEncoder() {
     if (mEncoder == NULL) {
         return;
@@ -95,18 +82,7 @@ void Converter::releaseEncoder() {
     mEncoder->release();
     mEncoder.clear();
 
-    while (!mInputBufferQueue.empty()) {
-        sp<ABuffer> accessUnit = *mInputBufferQueue.begin();
-        mInputBufferQueue.erase(mInputBufferQueue.begin());
-
-        ReleaseMediaBufferReference(accessUnit);
-    }
-
-    for (size_t i = 0; i < mEncoderInputBuffers.size(); ++i) {
-        sp<ABuffer> accessUnit = mEncoderInputBuffers.itemAt(i);
-        ReleaseMediaBufferReference(accessUnit);
-    }
-
+    mInputBufferQueue.clear();
     mEncoderInputBuffers.clear();
     mEncoderOutputBuffers.clear();
 }
@@ -328,7 +304,7 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
                     sp<ABuffer> accessUnit;
                     CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
-                    ReleaseMediaBufferReference(accessUnit);
+                    accessUnit->setMediaBufferBase(NULL);
                 }
                 break;
             }
@@ -351,15 +327,16 @@ void Converter::onMessageReceived(const sp<AMessage> &msg) {
                         ALOGI("dropping frame.");
                     }
 
-                    ReleaseMediaBufferReference(accessUnit);
+                    accessUnit->setMediaBufferBase(NULL);
                     break;
                 }
 
 #if 0
-                void *mbuf;
-                if (accessUnit->meta()->findPointer("mediaBuffer", &mbuf)
-                        && mbuf != NULL) {
+                MediaBuffer *mbuf =
+                    (MediaBuffer *)(accessUnit->getMediaBufferBase());
+                if (mbuf != NULL) {
                     ALOGI("queueing mbuf %p", mbuf);
+                    mbuf->release();
                 }
 #endif
 
@@ -647,13 +624,13 @@ status_t Converter::feedEncoderInputBuffers() {
                    buffer->data(),
                    buffer->size());
 
-            void *mediaBuffer;
-            if (buffer->meta()->findPointer("mediaBuffer", &mediaBuffer)
-                    && mediaBuffer != NULL) {
-                mEncoderInputBuffers.itemAt(bufferIndex)->meta()
-                    ->setPointer("mediaBuffer", mediaBuffer);
+            MediaBuffer *mediaBuffer =
+                (MediaBuffer *)(buffer->getMediaBufferBase());
+            if (mediaBuffer != NULL) {
+                mEncoderInputBuffers.itemAt(bufferIndex)->setMediaBufferBase(
+                        mediaBuffer);
 
-                buffer->meta()->setPointer("mediaBuffer", NULL);
+                buffer->setMediaBufferBase(NULL);
             }
         } else {
             flags = MediaCodec::BUFFER_FLAG_EOS;
