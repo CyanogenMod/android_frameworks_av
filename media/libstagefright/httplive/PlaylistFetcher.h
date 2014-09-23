@@ -49,7 +49,8 @@ struct PlaylistFetcher : public AHandler {
     PlaylistFetcher(
             const sp<AMessage> &notify,
             const sp<LiveSession> &session,
-            const char *uri);
+            const char *uri,
+            int32_t subtitleGeneration);
 
     sp<DataSource> getDataSource();
 
@@ -133,6 +134,7 @@ private:
     int64_t mNextPTSTimeUs;
 
     int32_t mMonitorQueueGeneration;
+    const int32_t mSubtitleGeneration;
 
     enum RefreshState {
         INITIAL_MINIMUM_RELOAD_DELAY,
