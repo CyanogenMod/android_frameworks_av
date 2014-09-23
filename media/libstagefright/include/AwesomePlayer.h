@@ -28,6 +28,14 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
+#include <media/stagefright/ExtendedStats.h>
+
+#define PLAYER_STATS(func, ...) \
+    do { \
+        if(mPlayerExtendedStats != NULL) { \
+            mPlayerExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
 
 namespace android {
 
@@ -111,6 +119,8 @@ struct AwesomePlayer {
 private:
     friend struct AwesomeEvent;
     friend struct PreviewPlayer;
+
+    sp<PlayerExtendedStats> mPlayerExtendedStats;
 
     enum {
         PLAYING             = 0x01,

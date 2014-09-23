@@ -26,6 +26,15 @@
 
 #include <OMX_Audio.h>
 
+#include <media/stagefright/ExtendedStats.h>
+
+#define PLAYER_STATS(func, ...) \
+    do { \
+        if(mPlayerExtendedStats != NULL) { \
+            mPlayerExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
+
 namespace android {
 
 struct MediaCodecInfo;
@@ -131,6 +140,8 @@ protected:
     virtual ~OMXCodec();
 
 private:
+
+    sp<PlayerExtendedStats> mPlayerExtendedStats;
 
     // Make sure mLock is accessible to OMXCodecObserver
     friend class OMXCodecObserver;
