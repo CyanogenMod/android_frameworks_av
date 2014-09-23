@@ -191,10 +191,10 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     // we need to invest in an extra looper to free the main event
     // queue.
 
-    if (nameIsType || !strncasecmp(name, "omx.", 4)) {
+    if (nameIsType || !strncasecmp(name.c_str(), "omx.", 4)) {
         mCodec = new ACodec;
     } else if (!nameIsType
-            && !strncasecmp(name, "android.filter.", 15)) {
+            && !strncasecmp(name.c_str(), "android.filter.", 15)) {
         mCodec = new MediaFilter;
     } else {
         return NAME_NOT_FOUND;
