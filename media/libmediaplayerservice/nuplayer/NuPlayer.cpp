@@ -155,6 +155,7 @@ NuPlayer::NuPlayer()
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
+      mRendererGeneration(0),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -633,10 +634,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 flags |= Renderer::FLAG_OFFLOAD_AUDIO;
             }
 
-            mRenderer = new Renderer(
-                    mAudioSink,
-                    new AMessage(kWhatRendererNotify, id()),
-                    flags);
+            sp<AMessage> notify = new AMessage(kWhatRendererNotify, id());
+            ++mRendererGeneration;
+            notify->setInt32("generation", mRendererGeneration);
+            mRenderer = new Renderer(mAudioSink, notify, flags);
 
             mRendererLooper = new ALooper;
             mRendererLooper->setName("NuPlayerRenderer");
@@ -813,11 +814,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");
                 if (audio) {
                     mAudioDecoder.clear();
+                    ++mAudioDecoderGeneration;
 
                     CHECK_EQ((int)mFlushingAudio, (int)SHUTTING_DOWN_DECODER);
                     mFlushingAudio = SHUT_DOWN;
                 } else {
                     mVideoDecoder.clear();
+                    ++mVideoDecoderGeneration;
 
                     CHECK_EQ((int)mFlushingVideo, (int)SHUTTING_DOWN_DECODER);
                     mFlushingVideo = SHUT_DOWN;
@@ -835,9 +838,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mRenderer->queueEOS(audio, err);
                 if (audio && mFlushingAudio != NONE) {
                     mAudioDecoder.clear();
+                    ++mAudioDecoderGeneration;
                     mFlushingAudio = SHUT_DOWN;
                 } else if (!audio && mFlushingVideo != NONE){
                     mVideoDecoder.clear();
+                    ++mVideoDecoderGeneration;
                     mFlushingVideo = SHUT_DOWN;
                 }
                 finishFlushIfPossible();
@@ -857,6 +862,14 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatRendererNotify:
         {
+            int32_t requesterGeneration = mRendererGeneration - 1;
+            CHECK(msg->findInt32("generation", &requesterGeneration));
+            if (requesterGeneration != mRendererGeneration) {
+                ALOGV("got message from old renderer, generation(%d:%d)",
+                        requesterGeneration, mRendererGeneration);
+                return;
+            }
+
             int32_t what;
             CHECK(msg->findInt32("what", &what));
 
@@ -919,6 +932,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 CHECK(msg->findInt64("positionUs", &positionUs));
                 closeAudioSink();
                 mAudioDecoder.clear();
+                ++mAudioDecoderGeneration;
                 mRenderer->flush(true /* audio */);
                 if (mVideoDecoder != NULL) {
                     mRenderer->flush(false /* audio */);
@@ -1849,9 +1863,6 @@ void NuPlayer::performReset() {
     ++mScanSourcesGeneration;
     mScanSourcesPending = false;
 
-    ++mAudioDecoderGeneration;
-    ++mVideoDecoderGeneration;
-
     if (mRendererLooper != NULL) {
         if (mRenderer != NULL) {
             mRendererLooper->unregisterHandler(mRenderer->id());
@@ -1860,6 +1871,7 @@ void NuPlayer::performReset() {
         mRendererLooper.clear();
     }
     mRenderer.clear();
+    ++mRendererGeneration;
 
     if (mSource != NULL) {
         mSource->stop();
