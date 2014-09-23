@@ -223,7 +223,11 @@ status_t NuPlayer::Decoder::getInputBuffers(Vector<sp<ABuffer> > *buffers) const
 
 void NuPlayer::Decoder::handleError(int32_t err)
 {
-    mCodec->release();
+    // We cannot immediately release the codec due to buffers still outstanding
+    // in the renderer.  We signal to the player the error so it can shutdown/release the
+    // decoder after flushing and increment the generation to discard unnecessary messages.
+
+    ++mBufferGeneration;
 
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatError);
@@ -238,6 +242,8 @@ bool NuPlayer::Decoder::handleAnInputBuffer() {
             mComponentName.c_str(), res == OK ? (int)bufferIx : res);
     if (res != OK) {
         if (res != -EAGAIN) {
+            ALOGE("Failed to dequeue input buffer for %s (err=%d)",
+                    mComponentName.c_str(), res);
             handleError(res);
         }
         return false;
@@ -311,7 +317,7 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
         }
     }
 
-    mInputBufferIsDequeued.editItemAt(bufferIx) = false;
+
 
     if (buffer == NULL /* includes !hasBuffer */) {
         int32_t streamErr = ERROR_END_OF_STREAM;
@@ -329,12 +335,18 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
                 0,
                 0,
                 MediaCodec::BUFFER_FLAG_EOS);
-        if (streamErr == ERROR_END_OF_STREAM && err != OK) {
+        if (err == OK) {
+            mInputBufferIsDequeued.editItemAt(bufferIx) = false;
+        } else if (streamErr == ERROR_END_OF_STREAM) {
             streamErr = err;
             // err will not be ERROR_END_OF_STREAM
         }
 
         if (streamErr != ERROR_END_OF_STREAM) {
+            ALOGE("Stream error for %s (err=%d), EOS %s queued",
+                    mComponentName.c_str(),
+                    streamErr,
+                    err == OK ? "successfully" : "unsuccessfully");
             handleError(streamErr);
         }
     } else {
@@ -364,14 +376,18 @@ void android::NuPlayer::Decoder::onInputBufferFilled(const sp<AMessage> &msg) {
                         timeUs,
                         flags);
         if (err != OK) {
+            if (mediaBuffer != NULL) {
+                mediaBuffer->release();
+            }
             ALOGE("Failed to queue input buffer for %s (err=%d)",
                     mComponentName.c_str(), err);
             handleError(err);
-        }
-
-        if (mediaBuffer != NULL) {
-            CHECK(mMediaBuffers[bufferIx] == NULL);
-            mMediaBuffers.editItemAt(bufferIx) = mediaBuffer;
+        } else {
+            mInputBufferIsDequeued.editItemAt(bufferIx) = false;
+            if (mediaBuffer != NULL) {
+                CHECK(mMediaBuffers[bufferIx] == NULL);
+                mMediaBuffers.editItemAt(bufferIx) = mediaBuffer;
+            }
         }
     }
 }
@@ -422,6 +438,8 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
         return true;
     } else if (res != OK) {
         if (res != -EAGAIN) {
+            ALOGE("Failed to dequeue output buffer for %s (err=%d)",
+                    mComponentName.c_str(), res);
             handleError(res);
         }
         return false;
