@@ -66,6 +66,7 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatVideoRenderingStart = 'vdrd',
         kWhatMediaRenderingStart = 'mdrd',
         kWhatAudioOffloadTearDown = 'aOTD',
+        kWhatAudioOffloadPauseTimeout = 'aOPT',
     };
 
 protected:
@@ -132,6 +133,9 @@ private:
     int64_t mLastPositionUpdateUs;
     int64_t mVideoLateByUs;
 
+    int32_t mAudioOffloadPauseTimeoutGeneration;
+    bool mAudioOffloadTornDown;
+
     size_t fillAudioBuffer(void *buffer, size_t size);
 
     bool onDrainAudioQueue();
@@ -167,6 +171,9 @@ private:
     void syncQueuesDone_l();
 
     bool offloadingAudio() const { return (mFlags & FLAG_OFFLOAD_AUDIO) != 0; }
+
+    void startAudioOffloadPauseTimeout();
+    void cancelAudioOffloadPauseTimeout();
 
     DISALLOW_EVIL_CONSTRUCTORS(Renderer);
 };
