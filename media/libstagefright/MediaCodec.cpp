@@ -180,7 +180,7 @@ void MediaCodec::PostReplyWithError(int32_t replyID, int32_t err) {
     response->postReply(replyID);
 }
 
-status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
+status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     // save init parameters for reset
     mInitName = name;
     mInitNameIsType = nameIsType;
@@ -201,7 +201,7 @@ status_t MediaCodec::init(const char *name, bool nameIsType, bool encoder) {
     }
 
     bool needDedicatedLooper = false;
-    if (nameIsType && !strncasecmp(name, "video/", 6)) {
+    if (nameIsType && !strncasecmp(name.c_str(), "video/", 6)) {
         needDedicatedLooper = true;
     } else {
         AString tmp = name;
@@ -367,7 +367,7 @@ status_t MediaCodec::reset() {
     mHaveInputSurface = false;
 
     if (err == OK) {
-        err = init(mInitName.c_str(), mInitNameIsType, mInitIsEncoder);
+        err = init(mInitName, mInitNameIsType, mInitIsEncoder);
     }
     return err;
 }
