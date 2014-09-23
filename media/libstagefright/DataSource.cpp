@@ -199,7 +199,18 @@ sp<DataSource> DataSource::CreateFromURI(
     } else if (!strncasecmp("http://", uri, 7)
             || !strncasecmp("https://", uri, 8)
             || isWidevine) {
-        sp<HTTPBase> httpSource = new MediaHTTP(httpService->makeHTTPConnection());
+        if (httpService == NULL) {
+            ALOGE("Invalid http service!");
+            return NULL;
+        }
+
+        sp<IMediaHTTPConnection> conn = httpService->makeHTTPConnection();
+        if (conn == NULL) {
+            ALOGE("Failed to make http connection from http service!");
+            return NULL;
+        }
+
+        sp<HTTPBase> httpSource = new MediaHTTP(conn);
 
         String8 tmp;
         if (isWidevine) {
