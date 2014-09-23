@@ -420,7 +420,8 @@ ACodec::ACodec()
       mMaxPtsGapUs(-1ll),
       mTimePerFrameUs(-1ll),
       mTimePerCaptureUs(-1ll),
-      mCreateInputBuffersSuspended(false) {
+      mCreateInputBuffersSuspended(false),
+      mTunneled(false) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -696,6 +697,21 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
+    // Exits here for tunneled video playback codecs -- i.e. skips native window
+    // buffer allocation step as this is managed by the tunneled OMX omponent
+    // itself and explicitly sets def.nBufferCountActual to 0.
+    if (mTunneled) {
+        ALOGV("Tunneled Playback: skipping native window buffer allocation.");
+        def.nBufferCountActual = 0;
+        err = mOMX->setParameter(
+                mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+
+        *minUndequeuedBuffers = 0;
+        *bufferCount = 0;
+        *bufferSize = 0;
+        return err;
+    }
+
     *minUndequeuedBuffers = 0;
     err = mNativeWindow->query(
             mNativeWindow.get(), NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
@@ -903,6 +919,13 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     ANativeWindowBuffer *buf;
     int fenceFd = -1;
     CHECK(mNativeWindow.get() != NULL);
+
+    if (mTunneled) {
+        ALOGW("dequeueBufferFromNativeWindow() should not be called in tunnel"
+              " video playback mode mode!");
+        return NULL;
+    }
+
     if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
         ALOGE("dequeueBuffer failed.");
         return NULL;
@@ -1244,6 +1267,7 @@ status_t ACodec::configureCodec(
         if (msg->findInt32("feature-tunneled-playback", &tunneled) &&
             tunneled != 0) {
             ALOGI("Configuring TUNNELED video playback.");
+            mTunneled = true;
 
             int32_t audioHwSync = 0;
             if (!msg->findInt32("audio-hw-sync", &audioHwSync)) {
@@ -1258,6 +1282,9 @@ status_t ACodec::configureCodec(
 
             inputFormat->setInt32("adaptive-playback", true);
         } else {
+            ALOGV("Configuring CPU controlled video playback.");
+            mTunneled = false;
+
             // Always try to enable dynamic output buffers on native surface
             err = mOMX->storeMetaDataInBuffers(
                     mNode, kPortIndexOutput, OMX_TRUE);
