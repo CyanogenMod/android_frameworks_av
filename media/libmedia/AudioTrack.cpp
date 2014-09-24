@@ -2133,6 +2133,7 @@ void AudioTrack::setAttributesFromStreamType(audio_stream_type_t streamType) {
     switch(streamType) {
     case AUDIO_STREAM_DEFAULT:
     case AUDIO_STREAM_MUSIC:
+    case AUDIO_STREAM_INCALL_MUSIC:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_MUSIC;
         mAttributes.usage = AUDIO_USAGE_MEDIA;
         break;
