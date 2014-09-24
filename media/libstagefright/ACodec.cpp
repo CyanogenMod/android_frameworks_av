@@ -2933,13 +2933,6 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
     image.mNumPlanes = 0;
 
     const OMX_COLOR_FORMATTYPE fmt = params.eColorFormat;
-    // we need stride and slice-height to be non-zero
-    if (params.nStride == 0 || params.nSliceHeight == 0) {
-        ALOGW("cannot describe color format 0x%x = %d with stride=%u and sliceHeight=%u",
-                fmt, fmt, params.nStride, params.nSliceHeight);
-        return false;
-    }
-
     image.mWidth = params.nFrameWidth;
     image.mHeight = params.nFrameHeight;
 
@@ -2949,6 +2942,20 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         fmt != OMX_COLOR_FormatYUV420SemiPlanar &&
         fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar) {
         ALOGW("do not know color format 0x%x = %d", fmt, fmt);
+        return false;
+    }
+
+    // TEMPORARY FIX for some vendors that advertise sliceHeight as 0
+    if (params.nStride != 0 && params.nSliceHeight == 0) {
+        ALOGW("using sliceHeight=%u instead of what codec advertised (=0)",
+                params.nFrameHeight);
+        params.nSliceHeight = params.nFrameHeight;
+    }
+
+    // we need stride and slice-height to be non-zero
+    if (params.nStride == 0 || params.nSliceHeight == 0) {
+        ALOGW("cannot describe color format 0x%x = %d with stride=%u and sliceHeight=%u",
+                fmt, fmt, params.nStride, params.nSliceHeight);
         return false;
     }
 
