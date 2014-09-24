@@ -67,22 +67,16 @@ SoftHEVC::SoftHEVC(
     : SoftVideoDecoderOMXComponent(name, componentName, codingType,
             kProfileLevels, ARRAY_SIZE(kProfileLevels),
             320 /* width */, 240 /* height */, callbacks,
-            appData, component) {
+            appData, component),
+      mMemRecords(NULL),
+      mFlushOutBuffer(NULL),
+      mOmxColorFormat(OMX_COLOR_FormatYUV420Planar),
+      mIvColorFormat(IV_YUV_420P),
+      mNewWidth(mWidth),
+      mNewHeight(mHeight),
+      mChangingResolution(false) {
     initPorts(kNumBuffers, INPUT_BUF_SIZE, kNumBuffers,
             CODEC_MIME_TYPE);
-
-    mOmxColorFormat = OMX_COLOR_FormatYUV420Planar;
-    mStride = mWidth;
-
-    if (OMX_COLOR_FormatYUV420Planar == mOmxColorFormat) {
-        mIvColorFormat = IV_YUV_420P;
-    } else if (OMX_COLOR_FormatYUV420SemiPlanar == mOmxColorFormat) {
-        mIvColorFormat = IV_YUV_420SP_UV;
-    }
-
-    mInitWidth = mWidth;
-    mInitHeight = mHeight;
-
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
 
@@ -144,7 +138,7 @@ status_t SoftHEVC::setParams(size_t stride) {
     s_ctl_ip.u4_size = sizeof(ivd_ctl_set_config_ip_t);
     s_ctl_op.u4_size = sizeof(ivd_ctl_set_config_op_t);
 
-    ALOGD("Set the run-time (dynamic) parameters");
+    ALOGV("Set the run-time (dynamic) parameters stride = %u", stride);
     status = ivdec_api_function(mCodecCtx, (void *)&s_ctl_ip,
             (void *)&s_ctl_op);
 
@@ -188,7 +182,7 @@ status_t SoftHEVC::resetDecoder() {
     }
 
     /* Set the run-time (dynamic) parameters */
-    setParams(0);
+    setParams(outputBufferWidth());
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
@@ -250,23 +244,25 @@ status_t SoftHEVC::initDecoder() {
     WORD32 i4_level;
 
     mNumCores = GetCPUCoreCount();
-    mMemRecords = NULL;
-    mFlushOutBuffer = NULL;
 
     /* Initialize number of ref and reorder modes (for HEVC) */
     u4_num_reorder_frames = 16;
     u4_num_ref_frames = 16;
     u4_share_disp_buf = 0;
 
-    if ((mWidth * mHeight) > (1920 * 1088)) {
+    uint32_t displayStride = outputBufferWidth();
+    uint32_t displayHeight = outputBufferHeight();
+    uint32_t displaySizeY = displayStride * displayHeight;
+
+    if (displaySizeY > (1920 * 1088)) {
         i4_level = 50;
-    } else if ((mWidth * mHeight) > (1280 * 720)) {
+    } else if (displaySizeY > (1280 * 720)) {
         i4_level = 40;
-    } else if ((mWidth * mHeight) > (960 * 540)) {
+    } else if (displaySizeY > (960 * 540)) {
         i4_level = 31;
-    } else if ((mWidth * mHeight) > (640 * 360)) {
+    } else if (displaySizeY > (640 * 360)) {
         i4_level = 30;
-    } else if ((mWidth * mHeight) > (352 * 288)) {
+    } else if (displaySizeY > (352 * 288)) {
         i4_level = 21;
     } else {
         i4_level = 20;
@@ -317,8 +313,8 @@ status_t SoftHEVC::initDecoder() {
 
         s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.e_cmd = IV_CMD_FILL_NUM_MEM_REC;
         s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.pv_mem_rec_location = mMemRecords;
-        s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.u4_max_frm_wd = mWidth;
-        s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.u4_max_frm_ht = mHeight;
+        s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.u4_max_frm_wd = displayStride;
+        s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.u4_max_frm_ht = displayHeight;
         s_fill_mem_op.s_ivd_fill_mem_rec_op_t.u4_size =
             sizeof(ivdext_fill_mem_rec_op_t);
 
@@ -363,8 +359,8 @@ status_t SoftHEVC::initDecoder() {
         s_init_ip.s_ivd_init_ip_t.u4_size = sizeof(ivdext_init_ip_t);
         s_init_ip.s_ivd_init_ip_t.e_cmd = (IVD_API_COMMAND_TYPE_T)IV_CMD_INIT;
         s_init_ip.s_ivd_init_ip_t.pv_mem_rec_location = mMemRecords;
-        s_init_ip.s_ivd_init_ip_t.u4_frm_max_wd = mWidth;
-        s_init_ip.s_ivd_init_ip_t.u4_frm_max_ht = mHeight;
+        s_init_ip.s_ivd_init_ip_t.u4_frm_max_wd = displayStride;
+        s_init_ip.s_ivd_init_ip_t.u4_frm_max_ht = displayHeight;
 
         s_init_ip.i4_level = i4_level;
         s_init_ip.u4_num_reorder_frames = u4_num_reorder_frames;
@@ -395,7 +391,7 @@ status_t SoftHEVC::initDecoder() {
     resetPlugin();
 
     /* Set the run time (dynamic) parameters */
-    setParams(0);
+    setParams(displayStride);
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
@@ -404,12 +400,15 @@ status_t SoftHEVC::initDecoder() {
     logVersion();
 
     /* Allocate internal picture buffer */
-    mFlushOutBuffer = (uint8_t *)ivd_aligned_malloc(128, mStride * mHeight * 3 / 2);
+    uint32_t bufferSize = displaySizeY * 3 / 2;
+    mFlushOutBuffer = (uint8_t *)ivd_aligned_malloc(128, bufferSize);
     if (NULL == mFlushOutBuffer) {
-        ALOGE("Could not allocate flushOutputBuffer of size %zu", mStride * mHeight * 3 / 2);
+        ALOGE("Could not allocate flushOutputBuffer of size %zu", bufferSize);
         return NO_MEMORY;
     }
 
+    mInitNeeded = false;
+    mFlushNeeded = false;
     return OK;
 }
 
@@ -428,11 +427,17 @@ status_t SoftHEVC::deInitDecoder() {
             ps_mem_rec++;
         }
         ivd_aligned_free(mMemRecords);
+        mMemRecords = NULL;
     }
 
     if(mFlushOutBuffer) {
         ivd_aligned_free(mFlushOutBuffer);
+        mFlushOutBuffer = NULL;
     }
+
+    mInitNeeded = true;
+    mChangingResolution = false;
+
     return OK;
 }
 
@@ -449,6 +454,7 @@ status_t SoftHEVC::reInitDecoder() {
     }
     return OK;
 }
+
 void SoftHEVC::onReset() {
     ALOGD("onReset called");
     SoftVideoDecoderOMXComponent::onReset();
@@ -457,12 +463,22 @@ void SoftHEVC::onReset() {
     resetPlugin();
 }
 
+OMX_ERRORTYPE SoftHEVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR params) {
+    const uint32_t oldWidth = mWidth;
+    const uint32_t oldHeight = mHeight;
+    OMX_ERRORTYPE ret = SoftVideoDecoderOMXComponent::internalSetParameter(index, params);
+    if (mWidth != oldWidth || mHeight != oldHeight) {
+        reInitDecoder();
+    }
+    return ret;
+}
+
 void SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
         ivd_video_decode_op_t *ps_dec_op,
         OMX_BUFFERHEADERTYPE *inHeader,
         OMX_BUFFERHEADERTYPE *outHeader,
-        size_t sizeY,
         size_t timeStampIx) {
+    size_t sizeY = outputBufferWidth() * outputBufferHeight();
     size_t sizeUV;
     uint8_t *pBuf;
 
@@ -502,8 +518,6 @@ void SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
     return;
 }
 void SoftHEVC::onPortFlushCompleted(OMX_U32 portIndex) {
-    ALOGD("onPortFlushCompleted on port %d", portIndex);
-
     /* Once the output buffers are flushed, ignore any buffers that are held in decoder */
     if (kOutputPortIndex == portIndex) {
         setFlushMode();
@@ -514,7 +528,7 @@ void SoftHEVC::onPortFlushCompleted(OMX_U32 portIndex) {
             IV_API_CALL_STATUS_T status;
             size_t sizeY, sizeUV;
 
-            setDecodeArgs(&s_dec_ip, &s_dec_op, NULL, NULL, mStride * mHeight, 0);
+            setDecodeArgs(&s_dec_ip, &s_dec_op, NULL, NULL, 0);
 
             status = ivdec_api_function(mCodecCtx, (void *)&s_dec_ip,
                     (void *)&s_dec_op);
@@ -527,8 +541,6 @@ void SoftHEVC::onPortFlushCompleted(OMX_U32 portIndex) {
 }
 
 void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
-    IV_API_CALL_STATUS_T status;
-
     UNUSED(portIndex);
 
     if (mOutputPortSettingsChange != NONE) {
@@ -548,7 +560,7 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
         setFlushMode();
     }
 
-    while (outQueue.size() == kNumBuffers) {
+    while (!outQueue.empty()) {
         BufferInfo *inInfo;
         OMX_BUFFERHEADERTYPE *inHeader;
 
@@ -586,6 +598,16 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             }
         }
 
+        // When there is an init required and the decoder is not in flush mode,
+        // update output port's definition and reinitialize decoder.
+        if (mInitNeeded && !mIsInFlush) {
+            bool portWillReset = false;
+            handlePortSettingsChange(&portWillReset, mNewWidth, mNewHeight);
+
+            CHECK_EQ(reInitDecoder(), (status_t)OK);
+            return;
+        }
+
         /* Get a free slot in timestamp array to hold input timestamp */
         {
             size_t i;
@@ -608,68 +630,91 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             WORD32 timeDelay, timeTaken;
             size_t sizeY, sizeUV;
 
-            setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader,
-                          mStride * mHeight, timeStampIx);
+            setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx);
 
             GETTIME(&mTimeStart, NULL);
             /* Compute time elapsed between end of previous decode()
              * to start of current decode() */
             TIME_DIFF(mTimeEnd, mTimeStart, timeDelay);
 
-            status = ivdec_api_function(mCodecCtx, (void *)&s_dec_ip,
-                    (void *)&s_dec_op);
+            IV_API_CALL_STATUS_T status;
+            status = ivdec_api_function(mCodecCtx, (void *)&s_dec_ip, (void *)&s_dec_op);
+            // FIXME: Compare |status| to IHEVCD_UNSUPPORTED_DIMENSIONS, which is not one of the
+            // IV_API_CALL_STATUS_T, seems be wrong. But this is what the decoder returns right now.
+            // The decoder should be fixed so that |u4_error_code| instead of |status| returns
+            // IHEVCD_UNSUPPORTED_DIMENSIONS.
+            bool unsupportedDimensions =
+                ((IHEVCD_UNSUPPORTED_DIMENSIONS == status)
+                    || (IHEVCD_UNSUPPORTED_DIMENSIONS == s_dec_op.u4_error_code));
+            bool resChanged = (IVD_RES_CHANGED == (s_dec_op.u4_error_code & 0xFF));
 
             GETTIME(&mTimeEnd, NULL);
             /* Compute time taken for decode() */
             TIME_DIFF(mTimeStart, mTimeEnd, timeTaken);
 
-            ALOGD("timeTaken=%6d delay=%6d numBytes=%6d", timeTaken, timeDelay,
-                    s_dec_op.u4_num_bytes_consumed);
-
-            /* If width and height are greater than the
-             * the dimensions used during codec create, then
-             * delete the current instance and recreate an instance with
-             * new dimensions */
-
-            if(IHEVCD_UNSUPPORTED_DIMENSIONS == s_dec_op.u4_error_code) {
-                mInitWidth = s_dec_op.u4_pic_wd;
-                mInitHeight = s_dec_op.u4_pic_ht;
-                mStride = mInitWidth;
-                CHECK_EQ(reInitDecoder(), (status_t)OK);
-
-                setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader,
-                              mStride * mHeight, timeStampIx);
-
-                status = ivdec_api_function(mCodecCtx, (void *)&s_dec_ip,
-                        (void *)&s_dec_op);
+            ALOGV("timeTaken=%6d delay=%6d numBytes=%6d", timeTaken, timeDelay,
+                   s_dec_op.u4_num_bytes_consumed);
+            if (s_dec_op.u4_frame_decoded_flag && !mFlushNeeded) {
+                mFlushNeeded = true;
             }
+
             if ((inHeader != NULL) && (1 != s_dec_op.u4_frame_decoded_flag)) {
                 /* If the input did not contain picture data, then ignore
                  * the associated timestamp */
                 mTimeStampsValid[timeStampIx] = false;
             }
 
-            /* If valid height and width are decoded,
-             * then look at change in resolution */
+            // This is needed to handle CTS DecoderTest testCodecResetsHEVCWithoutSurface,
+            // which is not sending SPS/PPS after port reconfiguration and flush to the codec.
+            if (unsupportedDimensions && !mFlushNeeded) {
+                bool portWillReset = false;
+                handlePortSettingsChange(&portWillReset, s_dec_op.u4_pic_wd, s_dec_op.u4_pic_ht);
+
+                CHECK_EQ(reInitDecoder(), (status_t)OK);
+
+                setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx);
+
+                ivdec_api_function(mCodecCtx, (void *)&s_dec_ip, (void *)&s_dec_op);
+                return;
+            }
+
+            // If the decoder is in the changing resolution mode and there is no output present,
+            // that means the switching is done and it's ready to reset the decoder and the plugin.
+            if (mChangingResolution && !s_dec_op.u4_output_present) {
+                mChangingResolution = false;
+                resetDecoder();
+                resetPlugin();
+                continue;
+            }
+
+            if (unsupportedDimensions || resChanged) {
+                mChangingResolution = true;
+                if (mFlushNeeded) {
+                    setFlushMode();
+                }
+
+                if (unsupportedDimensions) {
+                    mNewWidth = s_dec_op.u4_pic_wd;
+                    mNewHeight = s_dec_op.u4_pic_ht;
+                    mInitNeeded = true;
+                }
+                continue;
+            }
+
             if ((0 < s_dec_op.u4_pic_wd) && (0 < s_dec_op.u4_pic_ht)) {
                 uint32_t width = s_dec_op.u4_pic_wd;
                 uint32_t height = s_dec_op.u4_pic_ht;
+                bool portWillReset = false;
+                handlePortSettingsChange(&portWillReset, width, height);
 
-                if ((width != mWidth) || (height != mHeight)) {
-                    mWidth = width;
-                    mHeight = height;
-                    mStride = mWidth;
-
-                    updatePortDefinitions();
-
-                    notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-                    mOutputPortSettingsChange = AWAITING_DISABLED;
+                if (portWillReset) {
+                    resetDecoder();
                     return;
                 }
             }
 
             if (s_dec_op.u4_output_present) {
-                outHeader->nFilledLen = (mStride * mHeight * 3) / 2;
+                outHeader->nFilledLen = (mWidth * mHeight * 3) / 2;
 
                 outHeader->nTimeStamp = mTimeStamps[s_dec_op.u4_ts];
                 mTimeStampsValid[s_dec_op.u4_ts] = false;
@@ -711,7 +756,7 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
     }
 }
 
-} // namespace android
+}  // namespace android
 
 android::SoftOMXComponent *createSoftOMXComponent(const char *name,
         const OMX_CALLBACKTYPE *callbacks, OMX_PTR appData,
