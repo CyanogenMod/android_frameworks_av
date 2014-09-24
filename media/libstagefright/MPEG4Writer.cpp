@@ -2811,8 +2811,6 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
     mOwner->writeInt16(0x18);        // depth
     mOwner->writeInt16(-1);          // predefined
 
-    CHECK_LT(23 + mCodecSpecificDataSize, 128);
-
     if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
         writeMp4vEsdsBox();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
@@ -2905,6 +2903,9 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
     CHECK(mCodecSpecificData);
     CHECK_GT(mCodecSpecificDataSize, 0);
     mOwner->beginBox("esds");
+
+    // Make sure all sizes encode to a single byte.
+    CHECK_LT(mCodecSpecificDataSize + 23, 128);
 
     mOwner->writeInt32(0);    // version=0, flags=0
 
