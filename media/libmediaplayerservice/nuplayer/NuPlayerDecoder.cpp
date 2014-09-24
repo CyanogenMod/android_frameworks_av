@@ -53,6 +53,10 @@ NuPlayer::Decoder::Decoder(
 }
 
 NuPlayer::Decoder::~Decoder() {
+    mDecoderLooper->unregisterHandler(id());
+    mDecoderLooper->stop();
+
+    releaseAndResetMediaBuffers();
 }
 
 static
