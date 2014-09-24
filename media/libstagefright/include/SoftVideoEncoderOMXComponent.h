@@ -18,6 +18,8 @@
 
 #define SOFT_VIDEO_ENCODER_OMX_COMPONENT_H_
 
+#include <media/IOMX.h>
+
 #include "SimpleSoftOMXComponent.h"
 #include <system/window.h>
 
@@ -28,11 +30,26 @@ namespace android {
 struct SoftVideoEncoderOMXComponent : public SimpleSoftOMXComponent {
     SoftVideoEncoderOMXComponent(
             const char *name,
+            const char *componentRole,
+            OMX_VIDEO_CODINGTYPE codingType,
+            const CodecProfileLevel *profileLevels,
+            size_t numProfileLevels,
+            int32_t width,
+            int32_t height,
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component);
 
+    virtual OMX_ERRORTYPE internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR param);
+    virtual OMX_ERRORTYPE internalGetParameter(OMX_INDEXTYPE index, OMX_PTR params);
+
 protected:
+    void initPorts(
+            OMX_U32 numInputBuffers, OMX_U32 numOutputBuffers, OMX_U32 outputBufferSize,
+            const char *mime, OMX_U32 minCompressionRatio = 1);
+
+    static void setRawVideoSize(OMX_PARAM_PORTDEFINITIONTYPE *def);
+
     static void ConvertFlexYUVToPlanar(
             uint8_t *dst, size_t dstStride, size_t dstVStride,
             struct android_ycbcr *ycbcr, int32_t width, int32_t height);
@@ -56,8 +73,29 @@ protected:
         kOutputPortIndex = 1,
     };
 
+    bool mInputDataIsMeta;
+    int32_t mWidth;      // width of the input frames
+    int32_t mHeight;     // height of the input frames
+    uint32_t mBitrate;   // target bitrate set for the encoder, in bits per second
+    uint32_t mFramerate; // target framerate set for the encoder, in Q16 format
+    OMX_COLOR_FORMATTYPE mColorFormat;  // Color format for the input port
+
 private:
+    void updatePortParams();
+    OMX_ERRORTYPE internalSetPortParams(const OMX_PARAM_PORTDEFINITIONTYPE* port);
+
+    static const uint32_t kInputBufferAlignment = 1;
+    static const uint32_t kOutputBufferAlignment = 2;
+
     mutable const hw_module_t *mGrallocModule;
+
+    uint32_t mMinOutputBufferSize;
+    uint32_t mMinCompressionRatio;
+
+    const char *mComponentRole;
+    OMX_VIDEO_CODINGTYPE mCodingType;
+    const CodecProfileLevel *mProfileLevels;
+    size_t mNumProfileLevels;
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftVideoEncoderOMXComponent);
 };
