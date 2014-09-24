@@ -984,17 +984,31 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatPause:
         {
-            CHECK(mRenderer != NULL);
-            mSource->pause();
-            mRenderer->pause();
+            if (mSource != NULL) {
+                mSource->pause();
+            } else {
+                ALOGW("pause called when source is gone or not set");
+            }
+            if (mRenderer != NULL) {
+                mRenderer->pause();
+            } else {
+                ALOGW("pause called when renderer is gone or not set");
+            }
             break;
         }
 
         case kWhatResume:
         {
-            CHECK(mRenderer != NULL);
-            mSource->resume();
-            mRenderer->resume();
+            if (mSource != NULL) {
+                mSource->resume();
+            } else {
+                ALOGW("resume called when source is gone or not set");
+            }
+            if (mRenderer != NULL) {
+                mRenderer->resume();
+            } else {
+                ALOGW("resume called when renderer is gone or not set");
+            }
             break;
         }
 
