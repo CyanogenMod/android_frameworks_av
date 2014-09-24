@@ -386,9 +386,9 @@ status_t AwesomePlayer::setDataSource_l(
     reset_l();
 
     mUri = uri;
-    ExtendedUtils::printFileName(uri);
 
 #ifdef ENABLE_AV_ENHANCEMENTS
+    ExtendedUtils::printFileName(uri);
     ExtendedUtils::prefetchSecurePool(uri);
 #endif
 
@@ -427,12 +427,10 @@ status_t AwesomePlayer::setDataSource(
 
     ALOGD("Before reset_l");
     reset_l();
-    if (fd) {
-       ExtendedUtils::printFileName(fd);
-    }
 
 #ifdef ENABLE_AV_ENHANCEMENTS
     if (fd) {
+        ExtendedUtils::printFileName(fd);
         ExtendedUtils::prefetchSecurePool(fd);
     }
 #endif
