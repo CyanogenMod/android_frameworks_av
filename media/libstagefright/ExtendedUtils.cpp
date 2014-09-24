@@ -1028,23 +1028,5 @@ void ExtendedUtils::updateOutputBitWidth(sp<MetaData> format, bool isOffload) {
     }
 }
 
-void ExtendedUtils::printFileName(int fd) {
-    if (fd) {
-        char symName[40] = {0};
-        char fileName[256] = {0};
-        snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
-
-        if (readlink(symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
-            ALOGD("printFileName fd(%d) -> %s", fd, fileName);
-        }
-    }
-}
-
-void ExtendedUtils::printFileName(const char *uri) {
-    if (uri) {
-        ALOGD("printFileName %s", uri);
-    }
-}
-
 }
 #endif

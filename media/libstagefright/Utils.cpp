@@ -688,5 +688,25 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     return canOffload;
 }
 
+void printFileName(int fd)
+{
+    if (fd) {
+        char symName[40] = {0};
+        char fileName[256] = {0};
+        snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
+
+        if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
+            ALOGD("printFileName fd(%d) -> %s", fd, fileName);
+        }
+    }
+}
+
+void printFileName(const char *uri)
+{
+    if (uri) {
+        ALOGD("printFileName %s",uri);
+    }
+}
+
 }  // namespace android
 
