@@ -283,8 +283,8 @@ protected:
             Vector <audio_format_t> mFormats; // supported audio formats
             Vector < sp<AudioGain> > mGains; // gain controllers
             sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
-            audio_output_flags_t mFlags; // attribute flags (e.g primary output,
-                                                // direct output...). For outputs only.
+            uint32_t mFlags; // attribute flags (e.g primary output,
+                                                // direct output...).
         };
 
         class AudioPortConfig: public virtual RefBase
@@ -387,7 +387,7 @@ protected:
                                      uint32_t *updatedSamplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
-                                     audio_output_flags_t flags) const;
+                                     uint32_t flags) const;
 
             void dump(int fd);
             void log();
@@ -754,7 +754,8 @@ protected:
                                       size_t size,
                                       uint32_t value);
         static bool stringToBool(const char *value);
-        static audio_output_flags_t parseFlagNames(char *name);
+        static uint32_t parseOutputFlagNames(char *name);
+        static uint32_t parseInputFlagNames(char *name);
         static audio_devices_t parseDeviceNames(char *name);
         void loadHwModule(cnode *root);
         void loadHwModules(cnode *root);
