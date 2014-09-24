@@ -112,7 +112,7 @@ const StringToEnum sDeviceNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_DEVICE_IN_LOOPBACK),
 };
 
-const StringToEnum sFlagNameToEnumTable[] = {
+const StringToEnum sOutputFlagNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_FAST),
@@ -120,6 +120,11 @@ const StringToEnum sFlagNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NON_BLOCKING),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_HW_AV_SYNC),
+};
+
+const StringToEnum sInputFlagNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_FAST),
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_HW_HOTWORD),
 };
 
 const StringToEnum sFormatNameToEnumTable[] = {
@@ -1292,16 +1297,41 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
         break;
     }
 
+    audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+    bool isSoundTrigger = false;
+    audio_source_t halInputSource = inputSource;
+    if (inputSource == AUDIO_SOURCE_HOTWORD) {
+        ssize_t index = mSoundTriggerSessions.indexOfKey(session);
+        if (index >= 0) {
+            input = mSoundTriggerSessions.valueFor(session);
+            isSoundTrigger = true;
+            flags = (audio_input_flags_t)(flags | AUDIO_INPUT_FLAG_HW_HOTWORD);
+            ALOGV("SoundTrigger capture on session %d input %d", session, input);
+        } else {
+            halInputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
+        }
+    }
+
     sp<IOProfile> profile = getInputProfile(device,
                                          samplingRate,
                                          format,
                                          channelMask,
                                          flags);
     if (profile == 0) {
-        ALOGW("getInput() could not find profile for device 0x%X, samplingRate %u, format %#x, "
-                "channelMask 0x%X, flags %#x",
-                device, samplingRate, format, channelMask, flags);
-        return AUDIO_IO_HANDLE_NONE;
+        //retry without flags
+        audio_input_flags_t log_flags = flags;
+        flags = AUDIO_INPUT_FLAG_NONE;
+        profile = getInputProfile(device,
+                                 samplingRate,
+                                 format,
+                                 channelMask,
+                                 flags);
+        if (profile == 0) {
+            ALOGW("getInput() could not find profile for device 0x%X, samplingRate %u, format %#x, "
+                    "channelMask 0x%X, flags %#x",
+                    device, samplingRate, format, channelMask, log_flags);
+            return AUDIO_IO_HANDLE_NONE;
+        }
     }
 
     if (profile->mModule->mHandle == 0) {
@@ -1313,20 +1343,7 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     config.sample_rate = samplingRate;
     config.channel_mask = channelMask;
     config.format = format;
-    audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
 
-    bool isSoundTrigger = false;
-    audio_source_t halInputSource = inputSource;
-    if (inputSource == AUDIO_SOURCE_HOTWORD) {
-        ssize_t index = mSoundTriggerSessions.indexOfKey(session);
-        if (index >= 0) {
-            input = mSoundTriggerSessions.valueFor(session);
-            isSoundTrigger = true;
-            ALOGV("SoundTrigger capture on session %d input %d", session, input);
-        } else {
-            halInputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
-        }
-    }
     status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
                                                    &input,
                                                    &config,
@@ -5220,7 +5237,7 @@ AudioPolicyManager::AudioOutputDescriptor::AudioOutputDescriptor(
         mStrategyMutedByDevice[i] = false;
     }
     if (profile != NULL) {
-        mFlags = profile->mFlags;
+        mFlags = (audio_output_flags_t)profile->mFlags;
         mSamplingRate = profile->pickSamplingRate();
         mFormat = profile->pickFormat();
         mChannelMask = profile->pickChannelMask();
@@ -5568,6 +5585,8 @@ status_t AudioPolicyManager::HwModule::loadInput(cnode *root)
         } else if (strcmp(node->name, DEVICES_TAG) == 0) {
             profile->mSupportedDevices.loadDevicesFromName((char *)node->value,
                                                            mDeclaredDevices);
+        } else if (strcmp(node->name, FLAGS_TAG) == 0) {
+            profile->mFlags = parseInputFlagNames((char *)node->value);
         } else if (strcmp(node->name, GAINS_TAG) == 0) {
             profile->loadGains(node);
         }
@@ -5613,7 +5632,7 @@ status_t AudioPolicyManager::HwModule::loadOutput(cnode *root)
             profile->mSupportedDevices.loadDevicesFromName((char *)node->value,
                                                            mDeclaredDevices);
         } else if (strcmp(node->name, FLAGS_TAG) == 0) {
-            profile->mFlags = parseFlagNames((char *)node->value);
+            profile->mFlags = parseOutputFlagNames((char *)node->value);
         } else if (strcmp(node->name, GAINS_TAG) == 0) {
             profile->loadGains(node);
         }
@@ -5728,7 +5747,7 @@ void AudioPolicyManager::HwModule::dump(int fd)
 
 AudioPolicyManager::AudioPort::AudioPort(const String8& name, audio_port_type_t type,
           audio_port_role_t role, const sp<HwModule>& module) :
-    mName(name), mType(type), mRole(role), mModule(module), mFlags((audio_output_flags_t)0)
+    mName(name), mType(type), mRole(role), mModule(module), mFlags(0)
 {
     mUseInChannelMask = ((type == AUDIO_PORT_TYPE_DEVICE) && (role == AUDIO_PORT_ROLE_SOURCE)) ||
                     ((type == AUDIO_PORT_TYPE_MIX) && (role == AUDIO_PORT_ROLE_SINK));
@@ -6560,7 +6579,7 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
                                                             uint32_t *updatedSamplingRate,
                                                             audio_format_t format,
                                                             audio_channel_mask_t channelMask,
-                                                            audio_output_flags_t flags) const
+                                                            uint32_t flags) const
 {
     const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
@@ -6602,7 +6621,7 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
     // An existing fast stream is compatible with a normal track request.
     // An existing normal stream is compatible with a fast track request,
     // but the fast request will be denied by AudioFlinger and converted to normal track.
-    if (isRecordThread && (((audio_input_flags_t) mFlags ^ (audio_input_flags_t) flags) &
+    if (isRecordThread && ((mFlags ^ flags) &
             ~AUDIO_INPUT_FLAG_FAST)) {
         return false;
     }
@@ -6958,7 +6977,7 @@ status_t AudioPolicyManager::AudioPatch::dump(int fd, int spaces, int index) con
 
 // --- audio_policy.conf file parsing
 
-audio_output_flags_t AudioPolicyManager::parseFlagNames(char *name)
+uint32_t AudioPolicyManager::parseOutputFlagNames(char *name)
 {
     uint32_t flag = 0;
 
@@ -6967,8 +6986,8 @@ audio_output_flags_t AudioPolicyManager::parseFlagNames(char *name)
     char *flagName = strtok(name, "|");
     while (flagName != NULL) {
         if (strlen(flagName) != 0) {
-            flag |= stringToEnum(sFlagNameToEnumTable,
-                               ARRAY_SIZE(sFlagNameToEnumTable),
+            flag |= stringToEnum(sOutputFlagNameToEnumTable,
+                               ARRAY_SIZE(sOutputFlagNameToEnumTable),
                                flagName);
         }
         flagName = strtok(NULL, "|");
@@ -6980,7 +6999,25 @@ audio_output_flags_t AudioPolicyManager::parseFlagNames(char *name)
         flag |= AUDIO_OUTPUT_FLAG_DIRECT;
     }
 
-    return (audio_output_flags_t)flag;
+    return flag;
+}
+
+uint32_t AudioPolicyManager::parseInputFlagNames(char *name)
+{
+    uint32_t flag = 0;
+
+    // it is OK to cast name to non const here as we are not going to use it after
+    // strtok() modifies it
+    char *flagName = strtok(name, "|");
+    while (flagName != NULL) {
+        if (strlen(flagName) != 0) {
+            flag |= stringToEnum(sInputFlagNameToEnumTable,
+                               ARRAY_SIZE(sInputFlagNameToEnumTable),
+                               flagName);
+        }
+        flagName = strtok(NULL, "|");
+    }
+    return flag;
 }
 
 audio_devices_t AudioPolicyManager::parseDeviceNames(char *name)
