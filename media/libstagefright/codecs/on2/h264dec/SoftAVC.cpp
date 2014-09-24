@@ -160,10 +160,11 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
                     H264SwDecInfo decoderInfo;
                     CHECK(H264SwDecGetInfo(mHandle, &decoderInfo) == H264SWDEC_OK);
 
-                    bool cropChanged = handleCropChange(decoderInfo);
+                    SoftVideoDecoderOMXComponent::CropSettingsMode cropSettingsMode =
+                        handleCropParams(decoderInfo);
                     handlePortSettingsChange(
                             &portWillReset, decoderInfo.picWidth, decoderInfo.picHeight,
-                            cropChanged);
+                            cropSettingsMode);
                 }
             } else {
                 if (portWillReset) {
@@ -209,9 +210,10 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
     }
 }
 
-bool SoftAVC::handleCropChange(const H264SwDecInfo& decInfo) {
+SoftVideoDecoderOMXComponent::CropSettingsMode SoftAVC::handleCropParams(
+        const H264SwDecInfo& decInfo) {
     if (!decInfo.croppingFlag) {
-        return false;
+        return kCropUnSet;
     }
 
     const CropParams& crop = decInfo.cropParams;
@@ -219,14 +221,14 @@ bool SoftAVC::handleCropChange(const H264SwDecInfo& decInfo) {
         mCropTop == crop.cropTopOffset &&
         mCropWidth == crop.cropOutWidth &&
         mCropHeight == crop.cropOutHeight) {
-        return false;
+        return kCropSet;
     }
 
     mCropLeft = crop.cropLeftOffset;
     mCropTop = crop.cropTopOffset;
     mCropWidth = crop.cropOutWidth;
     mCropHeight = crop.cropOutHeight;
-    return true;
+    return kCropChanged;
 }
 
 void SoftAVC::saveFirstOutputBuffer(int32_t picId, uint8_t *data) {
