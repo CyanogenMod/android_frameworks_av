@@ -62,6 +62,7 @@ protected:
     virtual void onQueueFilled(OMX_U32 portIndex);
     virtual void onPortFlushCompleted(OMX_U32 portIndex);
     virtual void onReset();
+    virtual OMX_ERRORTYPE internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR params);
 private:
     // Number of input and output buffers
     enum {
@@ -71,12 +72,6 @@ private:
     iv_obj_t *mCodecCtx;         // Codec context
     iv_mem_rec_t *mMemRecords;   // Memory records requested by the codec
     size_t mNumMemRecords;       // Number of memory records requested by the codec
-
-    uint32_t mNewWidth;          // New width after change in resolution
-    uint32_t mNewHeight;         // New height after change in resolution
-    uint32_t mInitWidth;         // Width used during codec creation
-    uint32_t mInitHeight;        // Height used during codec creation
-    size_t mStride;              // Stride to be used for display buffers
 
     size_t mNumCores;            // Number of cores to be uesd by the codec
 
@@ -98,7 +93,13 @@ private:
 
     bool mIsInFlush;        // codec is flush mode
     bool mReceivedEOS;      // EOS is receieved on input port
-    bool mIsAdapting;       // plugin in middle of change in resolution
+    bool mInitNeeded;
+    uint32_t mNewWidth;
+    uint32_t mNewHeight;
+    // The input stream has changed to a different resolution, which is still supported by the
+    // codec. So the codec is switching to decode the new resolution.
+    bool mChangingResolution;
+    bool mFlushNeeded;
 
     status_t initDecoder();
     status_t deInitDecoder();
@@ -114,7 +115,6 @@ private:
         ivd_video_decode_op_t *ps_dec_op,
         OMX_BUFFERHEADERTYPE *inHeader,
         OMX_BUFFERHEADERTYPE *outHeader,
-        size_t sizeY,
         size_t timeStampIx);
 
     DISALLOW_EVIL_CONSTRUCTORS (SoftHEVC);
