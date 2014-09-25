@@ -1198,10 +1198,17 @@ void NuPlayer::GenericSource::readBuffer(
     switch (trackType) {
         case MEDIA_TRACK_TYPE_VIDEO:
             track = &mVideoTrack;
+            if (mIsWidevine) {
+                maxBuffers = 2;
+            }
             break;
         case MEDIA_TRACK_TYPE_AUDIO:
             track = &mAudioTrack;
-            maxBuffers = 64;
+            if (mIsWidevine) {
+                maxBuffers = 8;
+            } else {
+                maxBuffers = 64;
+            }
             break;
         case MEDIA_TRACK_TYPE_SUBTITLE:
             track = &mSubtitleTrack;
