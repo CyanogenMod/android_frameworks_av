@@ -345,6 +345,40 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
             return OMX_ErrorNone;
         }
 
+        case OMX_IndexParamPortDefinition:
+        {
+            OMX_PARAM_PORTDEFINITIONTYPE *newParams =
+                (OMX_PARAM_PORTDEFINITIONTYPE *)params;
+            OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &newParams->format.video;
+            OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(newParams->nPortIndex)->mDef;
+
+            uint32_t oldWidth = def->format.video.nFrameWidth;
+            uint32_t oldHeight = def->format.video.nFrameHeight;
+            uint32_t newWidth = video_def->nFrameWidth;
+            uint32_t newHeight = video_def->nFrameHeight;
+            if (newWidth != oldWidth || newHeight != oldHeight) {
+                bool outputPort = (newParams->nPortIndex == kOutputPortIndex);
+                def->format.video.nFrameWidth =
+                    (mIsAdaptive && outputPort) ? mAdaptiveMaxWidth : newWidth;
+                def->format.video.nFrameHeight =
+                    (mIsAdaptive && outputPort) ? mAdaptiveMaxHeight : newHeight;
+                def->format.video.nStride = def->format.video.nFrameWidth;
+                def->format.video.nSliceHeight = def->format.video.nFrameHeight;
+                def->nBufferSize =
+                    def->format.video.nFrameWidth * def->format.video.nFrameHeight * 3 / 2;
+                if (outputPort) {
+                    mWidth = newWidth;
+                    mHeight = newHeight;
+                    mCropLeft = 0;
+                    mCropTop = 0;
+                    mCropWidth = newWidth;
+                    mCropHeight = newHeight;
+                }
+                newParams->nBufferSize = def->nBufferSize;
+            }
+            return SimpleSoftOMXComponent::internalSetParameter(index, params);
+        }
+
         default:
             return SimpleSoftOMXComponent::internalSetParameter(index, params);
     }
