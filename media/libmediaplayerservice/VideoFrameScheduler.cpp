@@ -152,7 +152,7 @@ void VideoFrameScheduler::PLL::test() {
 
 #endif
 
-void VideoFrameScheduler::PLL::fit(
+bool VideoFrameScheduler::PLL::fit(
         nsecs_t phase, nsecs_t period, size_t numSamplesToUse,
         int64_t *a, int64_t *b, int64_t *err) {
     if (numSamplesToUse > mNumSamples) {
@@ -187,6 +187,10 @@ void VideoFrameScheduler::PLL::fit(
     }
 
     int64_t div   = numSamplesToUse * sumXX - sumX * sumX;
+    if (div == 0) {
+        return false;
+    }
+
     int64_t a_nom = numSamplesToUse * sumXY - sumX * sumY;
     int64_t b_nom = sumXX * sumY            - sumX * sumXY;
     *a = divRound(a_nom, div);
@@ -198,6 +202,7 @@ void VideoFrameScheduler::PLL::fit(
             (long long)*a,   (*a / (float)(1 << kPrecision)),
             (long long)*b,   (*b / (float)(1 << kPrecision)),
             (long long)*err, (*err / (float)(1 << (kPrecision * 2))));
+    return true;
 }
 
 void VideoFrameScheduler::PLL::prime(size_t numSamplesToUse) {
@@ -226,7 +231,7 @@ void VideoFrameScheduler::PLL::prime(size_t numSamplesToUse) {
     deltas.sort(compare<nsecs_t>);
     size_t numDeltas = deltas.size();
     if (numDeltas > 1) {
-        nsecs_t deltaMinLimit = min(deltas[0] / kMultiplesThresholdDiv, kMinPeriod);
+        nsecs_t deltaMinLimit = max(deltas[0] / kMultiplesThresholdDiv, kMinPeriod);
         nsecs_t deltaMaxLimit = deltas[numDeltas / 2] * kMultiplesThresholdDiv;
         for (size_t i = numDeltas / 2 + 1; i < numDeltas; ++i) {
             if (deltas[i] > deltaMaxLimit) {
@@ -314,8 +319,15 @@ nsecs_t VideoFrameScheduler::PLL::addSample(nsecs_t time) {
 
         if (doFit) {
             int64_t a, b, err;
+            if (!fit(mPhase, mPeriod, kMaxSamplesToEstimatePeriod, &a, &b, &err)) {
+                // samples are not suitable for fitting.  this means they are
+                // also not suitable for priming.
+                ALOGV("could not fit - keeping old period:%lld", (long long)mPeriod);
+                return mPeriod;
+            }
+
             mRefitAt = time + kRefitRefreshPeriod;
-            fit(mPhase, mPeriod, kMaxSamplesToEstimatePeriod, &a, &b, &err);
+
             mPhase += (mPeriod * b) >> kPrecision;
             mPeriod = (mPeriod * a) >> kPrecision;
             ALOGV("new phase:%lld period:%lld", (long long)mPhase, (long long)mPeriod);

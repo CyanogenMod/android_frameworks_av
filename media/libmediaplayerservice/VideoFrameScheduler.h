@@ -71,7 +71,8 @@ private:
         nsecs_t mTimes[kHistorySize];
 
         void test();
-        void fit(nsecs_t phase, nsecs_t period, size_t numSamples,
+        // returns whether fit was successful
+        bool fit(nsecs_t phase, nsecs_t period, size_t numSamples,
                 int64_t *a, int64_t *b, int64_t *err);
         void prime(size_t numSamples);
     };
