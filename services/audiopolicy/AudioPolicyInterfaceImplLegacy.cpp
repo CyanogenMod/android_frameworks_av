@@ -84,7 +84,14 @@ status_t AudioPolicyService::setPhoneState(audio_mode_t state)
 
     Mutex::Autolock _l(mLock);
     mpAudioPolicy->set_phone_state(mpAudioPolicy, state);
+    mPhoneState = state;
     return NO_ERROR;
+}
+
+audio_mode_t AudioPolicyService::getPhoneState()
+{
+    Mutex::Autolock _l(mLock);
+    return mPhoneState;
 }
 
 status_t AudioPolicyService::setForceUse(audio_policy_force_use_t usage,

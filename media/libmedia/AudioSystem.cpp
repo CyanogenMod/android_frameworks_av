@@ -939,6 +939,15 @@ status_t AudioSystem::releaseSoundTriggerSession(audio_session_t session)
     if (aps == 0) return PERMISSION_DENIED;
     return aps->releaseSoundTriggerSession(session);
 }
+
+audio_mode_t AudioSystem::getPhoneState()
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return AUDIO_MODE_INVALID;
+    return aps->getPhoneState();
+}
+
+
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
