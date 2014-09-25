@@ -37,7 +37,8 @@ Camera3OutputStream::Camera3OutputStream(int id,
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
                             /*maxSize*/0, format),
         mConsumer(consumer),
-        mTransform(0) {
+        mTransform(0),
+        mTraceFirstBuffer(true) {
 
     if (mConsumer == NULL) {
         ALOGE("%s: Consumer is NULL!", __FUNCTION__);
@@ -51,7 +52,8 @@ Camera3OutputStream::Camera3OutputStream(int id,
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
                             format),
         mConsumer(consumer),
-        mTransform(0) {
+        mTransform(0),
+        mTraceFirstBuffer(true) {
 
     if (format != HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
@@ -202,6 +204,15 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
                   " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
     } else {
+        if (mTraceFirstBuffer && (stream_type == CAMERA3_STREAM_OUTPUT)) {
+            {
+                char traceLog[48];
+                snprintf(traceLog, sizeof(traceLog), "Stream %d: first full buffer\n", mId);
+                ATRACE_NAME(traceLog);
+            }
+            mTraceFirstBuffer = false;
+        }
+
         res = currentConsumer->queueBuffer(currentConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
@@ -257,6 +268,7 @@ status_t Camera3OutputStream::setTransformLocked(int transform) {
 status_t Camera3OutputStream::configureQueueLocked() {
     status_t res;
 
+    mTraceFirstBuffer = true;
     if ((res = Camera3IOStreamBase::configureQueueLocked()) != OK) {
         return res;
     }
