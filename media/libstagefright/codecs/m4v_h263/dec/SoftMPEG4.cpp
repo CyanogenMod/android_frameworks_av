@@ -295,19 +295,23 @@ bool SoftMPEG4::handlePortSettingsChange() {
     ALOGV("disp_width = %d, disp_height = %d, buf_width = %d, buf_height = %d",
             disp_width, disp_height, buf_width, buf_height);
 
-    bool cropChanged = false;
-    if (mCropWidth != disp_width || mCropHeight != disp_height) {
-        mCropLeft = 0;
-        mCropTop = 0;
-        mCropWidth = disp_width;
-        mCropHeight = disp_height;
-        cropChanged = true;
+    CropSettingsMode cropSettingsMode = kCropUnSet;
+    if (disp_width != buf_width || disp_height != buf_height) {
+        cropSettingsMode = kCropSet;
+
+        if (mCropWidth != disp_width || mCropHeight != disp_height) {
+            mCropLeft = 0;
+            mCropTop = 0;
+            mCropWidth = disp_width;
+            mCropHeight = disp_height;
+            cropSettingsMode = kCropChanged;
+        }
     }
 
     bool portWillReset = false;
     const bool fakeStride = true;
     SoftVideoDecoderOMXComponent::handlePortSettingsChange(
-            &portWillReset, buf_width, buf_height, cropChanged, fakeStride);
+            &portWillReset, buf_width, buf_height, cropSettingsMode, fakeStride);
     if (portWillReset) {
         if (mMode == MODE_H263) {
             PVCleanUpVideoDecoder(mHandle);
