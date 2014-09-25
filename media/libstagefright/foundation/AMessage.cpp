@@ -485,7 +485,7 @@ AString AMessage::debugString(int32_t indent) const {
             {
                 sp<ABuffer> buffer = static_cast<ABuffer *>(item.u.refValue);
 
-                if (buffer != NULL && buffer->size() <= 64) {
+                if (buffer != NULL && buffer->data() != NULL && buffer->size() <= 64) {
                     tmp = StringPrintf("Buffer %s = {\n", item.mName);
                     hexdump(buffer->data(), buffer->size(), indent + 4, &tmp);
                     appendIndent(&tmp, indent + 2);

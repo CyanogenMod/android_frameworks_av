@@ -832,24 +832,31 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                 finishFlushIfPossible();
             } else if (what == Decoder::kWhatError) {
-                ALOGE("Received error from %s decoder, aborting playback.",
-                     audio ? "audio" : "video");
-
                 status_t err;
                 if (!msg->findInt32("err", &err)) {
                     err = UNKNOWN_ERROR;
                 }
-                mRenderer->queueEOS(audio, err);
+                ALOGE("received error from %s decoder %#x", audio ? "audio" : "video", err);
+
+                ALOGI("shutting down %s", audio ? "audio" : "video");
                 if (audio && mFlushingAudio != NONE) {
+                    mRenderer->queueEOS(audio, err);
                     mAudioDecoder.clear();
                     ++mAudioDecoderGeneration;
                     mFlushingAudio = SHUT_DOWN;
-                } else if (!audio && mFlushingVideo != NONE){
+                    finishFlushIfPossible();
+                } else if (!audio && mFlushingVideo != NONE) {
+                    mRenderer->queueEOS(audio, err);
                     mVideoDecoder.clear();
                     ++mVideoDecoderGeneration;
                     mFlushingVideo = SHUT_DOWN;
+                    finishFlushIfPossible();
+                }  else {
+                    mDeferredActions.push_back(
+                            new ShutdownDecoderAction(audio, !audio /* video */));
+                    processDeferredActions();
+                    notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
                 }
-                finishFlushIfPossible();
             } else if (what == Decoder::kWhatDrainThisBuffer) {
                 renderBuffer(audio, msg);
             } else {
