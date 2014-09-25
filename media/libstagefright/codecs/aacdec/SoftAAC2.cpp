@@ -974,11 +974,15 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         mDecodedSizes.clear();
         mLastInHeader = NULL;
     } else {
-        while (outputDelayRingBufferSamplesAvailable() > 0) {
-            int32_t ns = outputDelayRingBufferGetSamples(0,
-                    mStreamInfo->frameSize * mStreamInfo->numChannels);
-            if (ns != mStreamInfo->frameSize * mStreamInfo->numChannels) {
+        int avail;
+        while ((avail = outputDelayRingBufferSamplesAvailable()) > 0) {
+            if (avail > mStreamInfo->frameSize * mStreamInfo->numChannels) {
+                avail = mStreamInfo->frameSize * mStreamInfo->numChannels;
+            }
+            int32_t ns = outputDelayRingBufferGetSamples(0, avail);
+            if (ns != avail) {
                 ALOGE("not a complete frame of samples available");
+                break;
             }
             mOutputBufferCount++;
         }
