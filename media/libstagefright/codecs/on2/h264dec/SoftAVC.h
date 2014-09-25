@@ -73,7 +73,7 @@ private:
     void drainAllOutputBuffers(bool eos);
     void drainOneOutputBuffer(int32_t picId, uint8_t *data);
     void saveFirstOutputBuffer(int32_t pidId, uint8_t *data);
-    bool handleCropChange(const H264SwDecInfo& decInfo);
+    CropSettingsMode handleCropParams(const H264SwDecInfo& decInfo);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAVC);
 };
