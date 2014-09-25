@@ -353,10 +353,6 @@ status_t LiveSession::seekTo(int64_t timeUs) {
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
 
-    uint32_t replyID;
-    CHECK(response == mSeekReply && 0 != mSeekReplyID);
-    mSeekReply.clear();
-    mSeekReplyID = 0;
     return err;
 }
 
@@ -382,12 +378,16 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSeek:
         {
-            CHECK(msg->senderAwaitsResponse(&mSeekReplyID));
+            uint32_t seekReplyID;
+            CHECK(msg->senderAwaitsResponse(&seekReplyID));
+            mSeekReplyID = seekReplyID;
+            mSeekReply = new AMessage;
 
             status_t err = onSeek(msg);
 
-            mSeekReply = new AMessage;
-            mSeekReply->setInt32("err", err);
+            if (err != OK) {
+                msg->post(50000);
+            }
             break;
         }
 
@@ -422,7 +422,10 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 
                             if (mSeekReplyID != 0) {
                                 CHECK(mSeekReply != NULL);
+                                mSeekReply->setInt32("err", OK);
                                 mSeekReply->postReply(mSeekReplyID);
+                                mSeekReplyID = 0;
+                                mSeekReply.clear();
                             }
                         }
                     }
@@ -1094,10 +1097,11 @@ status_t LiveSession::onSeek(const sp<AMessage> &msg) {
     CHECK(msg->findInt64("timeUs", &timeUs));
 
     if (!mReconfigurationInProgress) {
-        changeConfiguration(timeUs, getBandwidthIndex());
+        changeConfiguration(timeUs, mCurBandwidthIndex);
+        return OK;
+    } else {
+        return -EWOULDBLOCK;
     }
-
-    return OK;
 }
 
 status_t LiveSession::getDuration(int64_t *durationUs) const {
@@ -1254,7 +1258,10 @@ void LiveSession::changeConfiguration(
 
         if (mSeekReplyID != 0) {
             CHECK(mSeekReply != NULL);
+            mSeekReply->setInt32("err", OK);
             mSeekReply->postReply(mSeekReplyID);
+            mSeekReplyID = 0;
+            mSeekReply.clear();
         }
     }
 }
