@@ -160,15 +160,17 @@ uint32_t SoftVideoDecoderOMXComponent::outputBufferHeight() {
 }
 
 void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
-        bool *portWillReset, uint32_t width, uint32_t height, bool cropChanged, bool fakeStride) {
+        bool *portWillReset, uint32_t width, uint32_t height,
+        CropSettingsMode cropSettingsMode, bool fakeStride) {
     *portWillReset = false;
     bool sizeChanged = (width != mWidth || height != mHeight);
+    bool updateCrop = (cropSettingsMode == kCropUnSet);
+    bool cropChanged = (cropSettingsMode == kCropChanged);
 
     if (sizeChanged || cropChanged) {
         mWidth = width;
         mHeight = height;
 
-        bool updateCrop = !cropChanged;
         if ((sizeChanged && !mIsAdaptive)
             || width > mAdaptiveMaxWidth
             || height > mAdaptiveMaxHeight) {
