@@ -320,6 +320,8 @@ public:
                                            audio_devices_t *device);
     static status_t releaseSoundTriggerSession(audio_session_t session);
 
+    static audio_mode_t getPhoneState();
+
     // ----------------------------------------------------------------------------
 
     class AudioPortCallback : public RefBase
