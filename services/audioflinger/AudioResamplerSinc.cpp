@@ -31,7 +31,10 @@
 
 #include "AudioResamplerSinc.h"
 
-
+#if defined(__clang__) && !__has_builtin(__builtin_assume_aligned)
+#define __builtin_assume_aligned(p, a) \
+	(((uintptr_t(p) % (a)) == 0) ? (p) : (__builtin_unreachable(), (p)))
+#endif
 
 #if defined(__arm__) && !defined(__thumb__)
 #define USE_INLINE_ASSEMBLY (true)
