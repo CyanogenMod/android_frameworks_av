@@ -2124,9 +2124,16 @@ void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
 
     // usage to stream type mapping
     switch (aa.usage) {
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+        // TODO once AudioPolicyManager fully supports audio_attributes_t,
+        //   remove stream change based on phone state
+        if (AudioSystem::getPhoneState() == AUDIO_MODE_RINGTONE) {
+            mStreamType = AUDIO_STREAM_RING;
+            break;
+        }
+        /// FALL THROUGH
     case AUDIO_USAGE_MEDIA:
     case AUDIO_USAGE_GAME:
-    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
     case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
         mStreamType = AUDIO_STREAM_MUSIC;
         return;
