@@ -238,7 +238,7 @@ private:
      */
     bool isDotOrDDot(const struct dirent* pEntry) const {
         String8 sName(pEntry->d_name);
-        return "." == sName || ".." == sName;
+        return sName == "." || sName == "..";
     }
 
     /**
