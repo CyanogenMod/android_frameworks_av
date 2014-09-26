@@ -1049,32 +1049,35 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         }
     }
 
-    if (mZslProcessor->getStreamId() != NO_STREAM) {
-        ALOGV("%s: Camera %d: Clearing out zsl stream before "
-                "creating recording stream", __FUNCTION__, mCameraId);
-        res = mStreamingProcessor->stopStream();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't stop streaming to delete callback stream",
-                    __FUNCTION__, mCameraId);
-            return res;
-        }
-        res = mDevice->waitUntilDrained();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-        }
-        res = mZslProcessor->clearZslQueue();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't clear zsl queue",
-                    __FUNCTION__, mCameraId);
-            return res;
-        }
-        res = mZslProcessor->deleteStream();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to delete zsl stream before "
-                    "record: %s (%d)", __FUNCTION__, mCameraId,
-                    strerror(-res), res);
-            return res;
+    // On current HALs, clean up ZSL before transitioning into recording
+    if (mDeviceVersion != CAMERA_DEVICE_API_VERSION_2_0) {
+        if (mZslProcessor->getStreamId() != NO_STREAM) {
+            ALOGV("%s: Camera %d: Clearing out zsl stream before "
+                    "creating recording stream", __FUNCTION__, mCameraId);
+            res = mStreamingProcessor->stopStream();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't stop streaming to delete callback stream",
+                        __FUNCTION__, mCameraId);
+                return res;
+            }
+            res = mDevice->waitUntilDrained();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+            }
+            res = mZslProcessor->clearZslQueue();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't clear zsl queue",
+                        __FUNCTION__, mCameraId);
+                return res;
+            }
+            res = mZslProcessor->deleteStream();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to delete zsl stream before "
+                        "record: %s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
         }
     }
 
@@ -1082,34 +1085,53 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     // and we can't fail record start without stagefright asserting.
     params.previewCallbackFlags = 0;
 
-    bool recordingStreamNeedsUpdate;
-    res = mStreamingProcessor->recordingStreamNeedsUpdate(params, &recordingStreamNeedsUpdate);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Can't query recording stream",
-                __FUNCTION__, mCameraId);
-        return res;
-    }
-
-    if (recordingStreamNeedsUpdate) {
-        // Need to stop stream here so updateProcessorStream won't trigger configureStream
-        // Right now camera device cannot handle configureStream failure gracefully
-        // when device is streaming
-        res = mStreamingProcessor->stopStream();
+    if (mDeviceVersion != CAMERA_DEVICE_API_VERSION_2_0) {
+        // For newer devices, may need to reconfigure video snapshot JPEG sizes
+        // during recording startup, so need a more complex sequence here to
+        // ensure an early stream reconfiguration doesn't happen
+        bool recordingStreamNeedsUpdate;
+        res = mStreamingProcessor->recordingStreamNeedsUpdate(params, &recordingStreamNeedsUpdate);
         if (res != OK) {
-            ALOGE("%s: Camera %d: Can't stop streaming to update record stream",
+            ALOGE("%s: Camera %d: Can't query recording stream",
                     __FUNCTION__, mCameraId);
             return res;
         }
-        res = mDevice->waitUntilDrained();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
+
+        if (recordingStreamNeedsUpdate) {
+            // Need to stop stream here so updateProcessorStream won't trigger configureStream
+            // Right now camera device cannot handle configureStream failure gracefully
+            // when device is streaming
+            res = mStreamingProcessor->stopStream();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Can't stop streaming to update record "
+                        "stream", __FUNCTION__, mCameraId);
+                return res;
+            }
+            res = mDevice->waitUntilDrained();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Waiting to stop streaming failed: "
+                        "%s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+            }
+
+            res = updateProcessorStream<
+                    StreamingProcessor,
+                    &StreamingProcessor::updateRecordingStream>(
+                        mStreamingProcessor,
+                        params);
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to update recording stream: "
+                        "%s (%d)", __FUNCTION__, mCameraId,
+                        strerror(-res), res);
+                return res;
+            }
         }
+    } else {
+        // Maintain call sequencing for HALv2 devices.
         res = updateProcessorStream<
                 StreamingProcessor,
                 &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
-                                                            params);
-
+                    params);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
                     __FUNCTION__, mCameraId, strerror(-res), res);
