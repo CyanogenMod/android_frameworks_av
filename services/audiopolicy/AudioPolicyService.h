@@ -174,6 +174,8 @@ public:
 
     virtual status_t releaseSoundTriggerSession(audio_session_t session);
 
+    virtual audio_mode_t getPhoneState();
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   int session = 0);
@@ -493,6 +495,7 @@ private:
 
     // Manage all effects configured in audio_effects.conf
     sp<AudioPolicyEffects> mAudioPolicyEffects;
+    audio_mode_t mPhoneState;
 };
 
 }; // namespace android
