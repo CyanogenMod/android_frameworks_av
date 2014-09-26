@@ -3734,7 +3734,11 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         // about any notifications in the afterlife.
         mDeathNotifier.clear();
     }
-
+    int32_t hardwarecodecOnly = 0;
+    if (msg->findInt32("hardwarecodecOnly", &hardwarecodecOnly)
+            && hardwarecodecOnly == 1) {
+        ALOGV("use hardware codec only");
+    }
     Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
     AString mime;
@@ -3769,7 +3773,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 mime.c_str(),
                 encoder, // createEncoder
                 NULL,  // matchComponentName
-                0,     // flags
+                hardwarecodecOnly ? OMXCodec::kHardwareCodecsOnly : 0,     // flags
                 &matchingCodecs);
     }
 
