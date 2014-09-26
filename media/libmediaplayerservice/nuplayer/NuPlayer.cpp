@@ -559,7 +559,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         static_cast<NativeWindowWrapper *>(obj.get())));
 
             if (obj != NULL) {
-                if (mStarted && mVideoDecoder != NULL) {
+                if (mStarted && mSource->getFormat(false /* audio */) != NULL) {
                     // Issue a seek to refresh the video screen only if started otherwise
                     // the extractor may not yet be started and will assert.
                     // If the video decoder is not set (perhaps audio only in this case)
