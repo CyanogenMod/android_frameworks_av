@@ -161,7 +161,8 @@ NuPlayer::NuPlayer()
       mNumFramesDropped(0ll),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
       mStarted(false),
-      mSeeking(false) {
+      mSeeking(false),
+      isCodecSpecific(false) {
 }
 
 NuPlayer::~NuPlayer() {
@@ -215,6 +216,13 @@ void NuPlayer::setDataSourceAsync(
     size_t len = strlen(url);
 
     sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+
+    if (headers) {
+        ssize_t index = headers->indexOfKey(String8("codecspecific"));
+        if (index >= 0) {
+            isCodecSpecific = true;
+        }
+    }
 
     sp<Source> source;
     if (IsHTTPLiveURL(url)) {
@@ -922,6 +930,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         AString mime;
         CHECK(format->findString("mime", &mime));
         mVideoIsAVC = !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime.c_str());
+        if(isCodecSpecific)
+            format->setInt32("hardwarecodecOnly", 1);
     }
 
     sp<AMessage> notify =
