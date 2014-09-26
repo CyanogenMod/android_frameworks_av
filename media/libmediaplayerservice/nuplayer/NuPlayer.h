@@ -160,6 +160,8 @@ private:
     bool mStarted;
     bool mSeeking;
 
+    bool isCodecSpecific;
+
     status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
 
     status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
