@@ -22,6 +22,8 @@
 #include <utils/Vector.h>
 #include <utils/threads.h>
 
+#include "foundation/ABase.h"
+
 namespace android {
 
 struct ABuffer;

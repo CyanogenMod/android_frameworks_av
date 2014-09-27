@@ -19,7 +19,7 @@
 
 #define CLOCK_ESTIMATOR_H_
 
-
+#include "foundation/ABase.h"
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
 
