@@ -32,6 +32,8 @@ public:
         OFFLOAD             // Thread class is OffloadThread
     };
 
+    static const char *threadTypeToString(type_t type);
+
     ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
                 audio_devices_t outDevice, audio_devices_t inDevice, type_t type);
     virtual             ~ThreadBase();
@@ -406,6 +408,7 @@ protected:
                 audio_channel_mask_t    mChannelMask;
                 uint32_t                mChannelCount;
                 size_t                  mFrameSize;
+                // not HAL frame size, this is for output sink (to pipe to fast mixer)
                 audio_format_t          mFormat;           // Source format for Recording and
                                                            // Sink format for Playback.
                                                            // Sink format may be different than
