@@ -1289,8 +1289,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // mono or stereo
             ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
               (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
-            // hardware sample rate
-            (sampleRate == mSampleRate) &&
             // normal mixer has an associated fast mixer
             hasFastMixer() &&
             // there are sufficient fast track slots available
