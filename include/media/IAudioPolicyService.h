@@ -142,6 +142,8 @@ public:
                                            audio_devices_t *device) = 0;
 
     virtual status_t releaseSoundTriggerSession(audio_session_t session) = 0;
+
+    virtual audio_mode_t getPhoneState() = 0;
 };
 
 

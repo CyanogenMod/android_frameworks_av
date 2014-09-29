@@ -67,7 +67,8 @@ enum {
     REGISTER_CLIENT,
     GET_OUTPUT_FOR_ATTR,
     ACQUIRE_SOUNDTRIGGER_SESSION,
-    RELEASE_SOUNDTRIGGER_SESSION
+    RELEASE_SOUNDTRIGGER_SESSION,
+    GET_PHONE_STATE
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -607,6 +608,17 @@ public:
         }
         return (status_t)reply.readInt32();
     }
+
+    virtual audio_mode_t getPhoneState()
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        status_t status = remote()->transact(GET_PHONE_STATE, data, &reply);
+        if (status != NO_ERROR) {
+            return AUDIO_MODE_INVALID;
+        }
+        return (audio_mode_t)reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -1054,6 +1066,12 @@ status_t BnAudioPolicyService::onTransact(
             audio_session_t session = (audio_session_t)data.readInt32();
             status_t status = releaseSoundTriggerSession(session);
             reply->writeInt32(status);
+            return NO_ERROR;
+        } break;
+
+        case GET_PHONE_STATE: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            reply->writeInt32((int32_t)getPhoneState());
             return NO_ERROR;
         } break;
 
