@@ -622,8 +622,8 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     camera_metadata_ro_entry_t availableAeModes =
         staticInfo(ANDROID_CONTROL_AE_AVAILABLE_MODES, 0, 0, false);
 
+    flashMode = Parameters::FLASH_MODE_OFF;
     if (isFlashAvailable) {
-        flashMode = Parameters::FLASH_MODE_OFF;
         params.set(CameraParameters::KEY_FLASH_MODE,
                 CameraParameters::FLASH_MODE_OFF);
 
