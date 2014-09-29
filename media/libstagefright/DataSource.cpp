@@ -186,7 +186,8 @@ sp<DataSource> DataSource::CreateFromURI(
         const sp<IMediaHTTPService> &httpService,
         const char *uri,
         const KeyedVector<String8, String8> *headers,
-        String8 *contentType) {
+        String8 *contentType,
+        HTTPBase *httpSource) {
     if (contentType != NULL) {
         *contentType = "";
     }
@@ -204,13 +205,14 @@ sp<DataSource> DataSource::CreateFromURI(
             return NULL;
         }
 
-        sp<IMediaHTTPConnection> conn = httpService->makeHTTPConnection();
-        if (conn == NULL) {
-            ALOGE("Failed to make http connection from http service!");
-            return NULL;
+        if (httpSource == NULL) {
+            sp<IMediaHTTPConnection> conn = httpService->makeHTTPConnection();
+            if (conn == NULL) {
+                ALOGE("Failed to make http connection from http service!");
+                return NULL;
+            }
+            httpSource = new MediaHTTP(conn);
         }
-
-        sp<HTTPBase> httpSource = new MediaHTTP(conn);
 
         String8 tmp;
         if (isWidevine) {
@@ -262,6 +264,19 @@ sp<DataSource> DataSource::CreateFromURI(
     }
 
     return source;
+}
+
+sp<DataSource> DataSource::CreateMediaHTTP(const sp<IMediaHTTPService> &httpService) {
+    if (httpService == NULL) {
+        return NULL;
+    }
+
+    sp<IMediaHTTPConnection> conn = httpService->makeHTTPConnection();
+    if (conn == NULL) {
+        return NULL;
+    } else {
+        return new MediaHTTP(conn);
+    }
 }
 
 String8 DataSource::getMIMEType() const {
