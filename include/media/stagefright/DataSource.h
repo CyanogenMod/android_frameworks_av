@@ -34,6 +34,7 @@ struct AMessage;
 struct AString;
 struct IMediaHTTPService;
 class String8;
+struct HTTPBase;
 
 class DataSource : public RefBase {
 public:
@@ -48,7 +49,10 @@ public:
             const sp<IMediaHTTPService> &httpService,
             const char *uri,
             const KeyedVector<String8, String8> *headers = NULL,
-            String8 *contentType = NULL);
+            String8 *contentType = NULL,
+            HTTPBase *httpSource = NULL);
+
+    static sp<DataSource> CreateMediaHTTP(const sp<IMediaHTTPService> &httpService);
 
     DataSource() {}
 
