@@ -4040,6 +4040,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                         track->mState = TrackBase::STOPPED;
                     }
                     if (track->isStopped()) {
+                        if (track->mState == TrackBase::FLUSHED) {
+                            flushHw_l();
+                        }
                         track->reset();
                     }
                     tracksToRemove->add(track);
@@ -4210,6 +4213,12 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
     } else {
         standbyDelay = kOffloadStandbyDelayNs;
     }
+}
+
+void AudioFlinger::DirectOutputThread::flushHw_l()
+{
+    if (mOutput->stream->flush != NULL)
+        mOutput->stream->flush(mOutput->stream);
 }
 
 // ----------------------------------------------------------------------------
@@ -4579,7 +4588,7 @@ bool AudioFlinger::OffloadThread::waitingAsyncCallback()
 
 void AudioFlinger::OffloadThread::flushHw_l()
 {
-    mOutput->stream->flush(mOutput->stream);
+    DirectOutputThread::flushHw_l();
     // Flush anything still waiting in the mixbuffer
     mCurrentWriteLength = 0;
     mBytesRemaining = 0;
