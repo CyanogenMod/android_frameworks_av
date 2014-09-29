@@ -154,7 +154,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                     mId, strerror(-res), res);
             return res;
         }
-        if (mDeleted || currentWidth != (uint32_t)params.fastInfo.arrayWidth ||
+        if (currentWidth != (uint32_t)params.fastInfo.arrayWidth ||
                 currentHeight != (uint32_t)params.fastInfo.arrayHeight) {
             res = device->deleteReprocessStream(mZslReprocessStreamId);
             if (res != OK) {
