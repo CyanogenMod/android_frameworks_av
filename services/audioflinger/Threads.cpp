@@ -2803,6 +2803,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
 
         // create a MonoPipe to connect our submix to FastMixer
         NBAIO_Format format = mOutputSink->format();
+        NBAIO_Format origformat = format;
         // adjust format to match that of the Fast Mixer
         format.mFormat = fastMixerFormat;
         format.mFrameSize = audio_bytes_per_sample(format.mFormat) * format.mChannelCount;
@@ -2822,14 +2823,15 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
 #ifdef TEE_SINK
         if (mTeeSinkOutputEnabled) {
             // create a Pipe to archive a copy of FastMixer's output for dumpsys
-            Pipe *teeSink = new Pipe(mTeeSinkOutputFrames, format);
+            Pipe *teeSink = new Pipe(mTeeSinkOutputFrames, origformat);
+            const NBAIO_Format offers2[1] = {origformat};
             numCounterOffers = 0;
-            index = teeSink->negotiate(offers, 1, NULL, numCounterOffers);
+            index = teeSink->negotiate(offers2, 1, NULL, numCounterOffers);
             ALOG_ASSERT(index == 0);
             mTeeSink = teeSink;
             PipeReader *teeSource = new PipeReader(*teeSink);
             numCounterOffers = 0;
-            index = teeSource->negotiate(offers, 1, NULL, numCounterOffers);
+            index = teeSource->negotiate(offers2, 1, NULL, numCounterOffers);
             ALOG_ASSERT(index == 0);
             mTeeSource = teeSource;
         }
