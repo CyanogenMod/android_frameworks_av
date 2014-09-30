@@ -894,6 +894,7 @@ public:
 
     virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
                                                    status_t& status);
+    virtual     void        flushHw_l();
 
 protected:
     virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
@@ -929,6 +930,7 @@ public:
     OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                         audio_io_handle_t id, uint32_t device);
     virtual                 ~OffloadThread() {};
+    virtual     void        flushHw_l();
 
 protected:
     // threadLoop snippets
@@ -939,9 +941,6 @@ protected:
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
     virtual     void        onAddNewTrack_l();
-
-private:
-                void        flushHw_l();
 
 private:
     bool        mHwPaused;
