@@ -43,6 +43,10 @@
 namespace android {
 
 // static
+const int64_t WifiDisplaySource::kReaperIntervalUs;
+const int64_t WifiDisplaySource::kTeardownTriggerTimeouSecs;
+const int64_t WifiDisplaySource::kPlaybackSessionTimeoutSecs;
+const int64_t WifiDisplaySource::kPlaybackSessionTimeoutUs;
 const AString WifiDisplaySource::sUserAgent = MakeUserAgent();
 
 WifiDisplaySource::WifiDisplaySource(
