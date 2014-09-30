@@ -50,6 +50,8 @@ struct ARTPConnection : public AHandler {
     static void MakePortPair(
             int *rtpSocket, int *rtcpSocket, unsigned *rtpPort);
 
+    void setIPVersion(int ipVersion);
+
 protected:
     virtual ~ARTPConnection();
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -71,6 +73,7 @@ private:
 
     bool mPollEventPending;
     int64_t mLastReceiverReportTimeUs;
+    int mIPVersion;
 
     void onAddStream(const sp<AMessage> &msg);
     void onRemoveStream(const sp<AMessage> &msg);

@@ -45,6 +45,9 @@
 #define MIN_BITERATE_AAC 24000
 #define MAX_BITERATE_AAC 192000
 
+#define IPV4 4
+#define IPV6 6
+
 namespace android {
 
 /*
@@ -165,6 +168,36 @@ struct ExtendedUtils {
         //helper function to parse rtp port range form system property
         static void getRtpPortRange(unsigned *start, unsigned *end);
     };
+
+    struct RTSPStream {
+
+        static bool ParseURL_V6(
+                AString *host, const char **colonPos);
+
+        // Creates a pair of UDP datagram sockets bound to adjacent ports
+        // (the rtpSocket is bound to an even port, the rtcpSocket to the
+        // next higher port) for IPV6.
+        static void MakePortPair_V6(
+                int *rtpSocket, int *rtcpSocket, unsigned *rtpPort);
+
+        // In case we're behind NAT, fire off two UDP packets to the remote
+        // rtp/rtcp ports to poke a hole into the firewall for future incoming
+        // packets. We're going to send an RR/SDES RTCP packet to both of them.
+        static bool pokeAHole_V6(int rtpSocket, int rtcpSocket,
+                 const AString &transport, AString &sessionHost);
+
+        private:
+
+        static void bumpSocketBufferSize_V6(int s);
+
+        static bool GetAttribute(const char *s, const char *key, AString *value);
+
+        static void addRR(const sp<ABuffer> &buf);
+
+        static void addSDES(int s, const sp<ABuffer> &buffer);
+
+    };
+
 
     static const int32_t kNumBFramesPerPFrame = 1;
     static bool mIsQCHWAACEncoder;

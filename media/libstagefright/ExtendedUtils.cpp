@@ -43,6 +43,12 @@
 #include <cutils/properties.h>
 #include <media/stagefright/MediaExtractor.h>
 #include <media/MediaProfiles.h>
+#include <media/stagefright/Utils.h>
+
+//RTSPStream
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #include "include/ExtendedUtils.h"
 
@@ -1343,6 +1349,282 @@ bool ExtendedUtils::checkDPFromVOLHeader(const uint8_t *data, size_t size) {
     return retVal;
 }
 
+bool ExtendedUtils::RTSPStream::ParseURL_V6(
+        AString *host, const char **colonPos) {
+
+    ssize_t bracketEnd = host->find("]");
+    ALOGI("ExtendedUtils::ParseURL_V6() : host->c_str() = %s", host->c_str());
+
+    if (bracketEnd > 0) {
+        if (host->find(":", bracketEnd) == bracketEnd + 1) {
+            *colonPos = host->c_str() + bracketEnd + 1;
+        }
+    } else {
+        return false;
+    }
+
+    host->erase(bracketEnd, host->size() - bracketEnd);
+    host->erase(0, 1);
+
+    return true;
+}
+
+void ExtendedUtils::RTSPStream::MakePortPair_V6(
+        int *rtpSocket, int *rtcpSocket, unsigned *rtpPort) {
+
+    struct addrinfo hints, *result = NULL;
+
+    ALOGV("ExtendedUtils::RTSPStream::MakePortPair_V6()");
+
+    *rtpSocket = socket(AF_INET6, SOCK_DGRAM, 0);
+    CHECK_GE(*rtpSocket, 0);
+    bumpSocketBufferSize_V6(*rtpSocket);
+
+    *rtcpSocket = socket(AF_INET6, SOCK_DGRAM, 0);
+    CHECK_GE(*rtcpSocket, 0);
+
+    bumpSocketBufferSize_V6(*rtcpSocket);
+
+    /* rand() * 1000 may overflow int type, use long long */
+    unsigned start = (unsigned)((rand()* 1000ll)/RAND_MAX) + 15550;
+    start &= ~1;
+
+     for (unsigned port = start; port < 65536; port += 2) {
+         struct sockaddr_in6 addr;
+         addr.sin6_family = AF_INET6;
+         addr.sin6_addr = in6addr_any;
+         addr.sin6_port = htons(port);
+
+         if (bind(*rtpSocket,
+                  (const struct sockaddr *)&addr, sizeof(addr)) < 0) {
+             continue;
+         }
+
+         addr.sin6_port = htons(port + 1);
+
+         if (bind(*rtcpSocket,
+                  (const struct sockaddr *)&addr, sizeof(addr)) == 0) {
+             *rtpPort = port;
+             ALOGV("END MakePortPair_V6: %u", port);
+             return;
+         }
+    }
+    TRESPASS();
+}
+
+void ExtendedUtils::RTSPStream::bumpSocketBufferSize_V6(int s) {
+    int size = 256 * 1024;
+    CHECK_EQ(setsockopt(s, IPPROTO_IPV6, IPV6_RECVPKTINFO, &size, sizeof(size)), 0);
+}
+
+bool ExtendedUtils::RTSPStream::pokeAHole_V6(int rtpSocket, int rtcpSocket,
+                const AString &transport, AString &sessionHost) {
+    struct sockaddr_in addr;
+    memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
+    addr.sin_family = AF_INET6;
+
+    struct addrinfo hints, *result = NULL;
+    ALOGV("Inside ExtendedUtils::RTSPStream::pokeAHole_V6");
+    memset(&hints, 0, sizeof (hints));
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    AString source;
+    AString server_port;
+
+    Vector<struct sockaddr_in> s_addrs;
+    if (GetAttribute(transport.c_str(), "source", &source)) {
+        ALOGI("found 'source' = %s field in Transport response",
+            source.c_str());
+        int err = getaddrinfo(source.c_str(), NULL, &hints, &result);
+        if (err != 0 || result == NULL) {
+            ALOGI("no need to poke the hole");
+        } else {
+            s_addrs.push(*(struct sockaddr_in *)result->ai_addr);
+        }
+    }
+
+    int err = getaddrinfo(sessionHost.c_str(), NULL, &hints, &result);
+    if (err != 0 || result == NULL) {
+        ALOGE("Failed to look up address of session host '%s' err:%d(%s)",
+            sessionHost.c_str(), err, gai_strerror(err));
+
+        return false;
+     } else {
+        ALOGD("get the endpoint address of session host");
+        addr = (*(struct sockaddr_in *)result->ai_addr);
+
+        if (addr.sin_addr.s_addr == INADDR_NONE || IN_LOOPBACK(ntohl(addr.sin_addr.s_addr))) {
+            ALOGI("no need to poke the hole");
+        } else if (s_addrs.size() == 0 || s_addrs[0].sin_addr.s_addr != addr.sin_addr.s_addr) {
+            s_addrs.push(addr);
+        }
+    }
+
+    if (s_addrs.size() == 0){
+        ALOGW("Failed to get any session address");
+        return false;
+    }
+
+    if (!GetAttribute(transport.c_str(),
+                             "server_port",
+                             &server_port)) {
+        ALOGW("Missing 'server_port' field in Transport response.");
+        return false;
+    }
+
+    int rtpPort, rtcpPort;
+    if (sscanf(server_port.c_str(), "%d-%d", &rtpPort, &rtcpPort) != 2
+            || rtpPort <= 0 || rtpPort > 65535
+            || rtcpPort <=0 || rtcpPort > 65535
+            || rtcpPort != rtpPort + 1) {
+        ALOGE("Server picked invalid RTP/RTCP port pair %s,"
+             " RTP port must be even, RTCP port must be one higher.",
+             server_port.c_str());
+
+        return false;
+    }
+
+    if (rtpPort & 1) {
+        ALOGW("Server picked an odd RTP port, it should've picked an "
+             "even one, we'll let it pass for now, but this may break "
+             "in the future.");
+    }
+
+    // Make up an RR/SDES RTCP packet.
+    sp<ABuffer> buf = new ABuffer(65536);
+    buf->setRange(0, 0);
+    addRR(buf);
+    addSDES(rtpSocket, buf);
+
+    for (uint32_t i = 0; i < s_addrs.size(); i++){
+        addr.sin_addr.s_addr = s_addrs[i].sin_addr.s_addr;
+
+        addr.sin_port = htons(rtpPort);
+
+        ssize_t n = sendto(
+                rtpSocket, buf->data(), buf->size(), 0,
+                (const sockaddr *)&addr, sizeof(sockaddr_in6));
+
+        if (n < (ssize_t)buf->size()) {
+            ALOGE("failed to poke a hole for RTP packets");
+            continue;
+        }
+
+        addr.sin_port = htons(rtcpPort);
+
+        n = sendto(
+                rtcpSocket, buf->data(), buf->size(), 0,
+                (const sockaddr *)&addr, sizeof(sockaddr_in6));
+
+        if (n < (ssize_t)buf->size()) {
+            ALOGE("failed to poke a hole for RTCP packets");
+            continue;
+        }
+
+        ALOGV("successfully poked holes for the address = %u", s_addrs[i].sin_addr.s_addr);
+    }
+
+    return true;
+}
+
+bool ExtendedUtils::RTSPStream::GetAttribute(const char *s, const char *key, AString *value) {
+    value->clear();
+
+    size_t keyLen = strlen(key);
+
+    for (;;) {
+        while (isspace(*s)) {
+            ++s;
+        }
+
+        const char *colonPos = strchr(s, ';');
+
+        size_t len =
+            (colonPos == NULL) ? strlen(s) : colonPos - s;
+
+        if (len >= keyLen + 1 && s[keyLen] == '=' && !strncmp(s, key, keyLen)) {
+            value->setTo(&s[keyLen + 1], len - keyLen - 1);
+            return true;
+        }
+
+        if (colonPos == NULL) {
+            return false;
+        }
+
+        s = colonPos + 1;
+    }
+}
+
+void ExtendedUtils::RTSPStream::addRR(const sp<ABuffer> &buf) {
+    uint8_t *ptr = buf->data() + buf->size();
+    ptr[0] = 0x80 | 0;
+    ptr[1] = 201;  // RR
+    ptr[2] = 0;
+    ptr[3] = 1;
+    ptr[4] = 0xde;  // SSRC
+    ptr[5] = 0xad;
+    ptr[6] = 0xbe;
+    ptr[7] = 0xef;
+
+    buf->setRange(0, buf->size() + 8);
+}
+
+void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {
+    struct sockaddr_in addr;
+    socklen_t addrSize = sizeof(addr);
+    CHECK_EQ(0, getsockname(s, (sockaddr *)&addr, &addrSize));
+
+    uint8_t *data = buffer->data() + buffer->size();
+    data[0] = 0x80 | 1;
+    data[1] = 202;  // SDES
+    data[4] = 0xde;  // SSRC
+    data[5] = 0xad;
+    data[6] = 0xbe;
+    data[7] = 0xef;
+
+    size_t offset = 8;
+
+    data[offset++] = 1;  // CNAME
+
+    AString cname = "stagefright@";
+    cname.append(inet_ntoa(addr.sin_addr));
+    data[offset++] = cname.size();
+
+    memcpy(&data[offset], cname.c_str(), cname.size());
+    offset += cname.size();
+
+    data[offset++] = 6;  // TOOL
+
+    AString tool = MakeUserAgent();
+
+    data[offset++] = tool.size();
+
+    memcpy(&data[offset], tool.c_str(), tool.size());
+    offset += tool.size();
+
+    data[offset++] = 0;
+
+    if ((offset % 4) > 0) {
+        size_t count = 4 - (offset % 4);
+        switch (count) {
+            case 3:
+                data[offset++] = 0;
+            case 2:
+                data[offset++] = 0;
+            case 1:
+                data[offset++] = 0;
+        }
+    }
+
+    size_t numWords = (offset / 4) - 1;
+    data[2] = numWords >> 8;
+    data[3] = numWords & 0xff;
+
+    buffer->setRange(buffer->offset(), buffer->size() + offset);
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -1520,6 +1802,30 @@ bool ExtendedUtils::checkDPFromVOLHeader(const uint8_t *data, size_t size) {
     ARG_TOUCH(size);
     return false;
 }
+
+bool ExtendedUtils::RTSPStream::ParseURL_V6(
+        AString *host, const char **colonPos) {
+    return false;
+}
+
+void ExtendedUtils::RTSPStream::MakePortPair_V6(
+        int *rtpSocket, int *rtcpSocket, unsigned *rtpPort){}
+
+bool ExtendedUtils::RTSPStream::pokeAHole_V6(int rtpSocket, int rtcpSocket,
+        const AString &transport, AString &sessionHost) {
+    return false;
+}
+
+void ExtendedUtils::RTSPStream::bumpSocketBufferSize_V6(int s) {}
+
+bool ExtendedUtils::RTSPStream::GetAttribute(const char *s, const char *key, AString *value) {
+    return false;
+}
+
+void ExtendedUtils::RTSPStream::addRR(const sp<ABuffer> &buf) {}
+
+void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {}
+
 
 } // namespace android
 #endif //ENABLE_AV_ENHANCEMENTS
