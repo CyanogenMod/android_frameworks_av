@@ -567,7 +567,7 @@ status_t ExtendedUtils::HEVCMuxer::makeHEVCCodecSpecificData(
 
     int count = 0;
     void *codecConfigData = malloc(*codecSpecificDataSize);
-    if (codecSpecificData == NULL) {
+    if (codecConfigData == NULL) {
         ALOGE("Failed to allocate memory, bailing out");
         return NO_MEMORY;
     }
