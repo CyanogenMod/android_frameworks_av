@@ -494,6 +494,10 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                     AString uri;
                     CHECK(msg->findString("uri", &uri));
 
+                    if (mFetcherInfos.indexOfKey(uri) < 0) {
+                        ALOGE("couldn't find uri");
+                        break;
+                    }
                     FetcherInfo *info = &mFetcherInfos.editValueFor(uri);
                     info->mIsPrepared = true;
 
