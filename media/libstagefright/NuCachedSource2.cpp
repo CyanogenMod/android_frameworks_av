@@ -456,6 +456,10 @@ void NuCachedSource2::onRead(const sp<AMessage> &msg) {
     }
 
     Mutex::Autolock autoLock(mLock);
+    if (mDisconnecting) {
+        mCondition.signal();
+        return;
+    }
 
     CHECK(mAsyncResult == NULL);
 
@@ -502,6 +506,9 @@ ssize_t NuCachedSource2::readAt(off64_t offset, void *data, size_t size) {
     ALOGV("readAt offset %lld, size %zu", offset, size);
 
     Mutex::Autolock autoLock(mLock);
+    if (mDisconnecting) {
+        return ERROR_END_OF_STREAM;
+    }
 
     // If the request can be completely satisfied from the cache, do so.
 
@@ -528,6 +535,7 @@ ssize_t NuCachedSource2::readAt(off64_t offset, void *data, size_t size) {
     }
 
     if (mDisconnecting) {
+        mAsyncResult.clear();
         return ERROR_END_OF_STREAM;
     }
 
