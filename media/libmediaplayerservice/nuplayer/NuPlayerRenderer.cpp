@@ -1031,7 +1031,7 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
             // become stale. Assuming that the MixerThread runs 20ms, with FastMixer at 5ms,
             // the max latency should be about 25ms with an average around 12ms (to be verified).
             // For safety we use 100ms.
-            ALOGW("getTimestamp: returned stale timestamp nowUs(%lld) numFramesPlayedAt(%lld)",
+            ALOGV("getTimestamp: returned stale timestamp nowUs(%lld) numFramesPlayedAt(%lld)",
                     (long long)nowUs, (long long)numFramesPlayedAt);
             numFramesPlayedAt = nowUs - kStaleTimestamp100ms;
         }
@@ -1061,7 +1061,7 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
         //     numFramesPlayedAt, by a time amount greater than numFramesPlayed.
         //
         // Both of these are transitory conditions.
-        ALOGW("getPlayedOutAudioDurationUs: negative timestamp %lld set to zero", (long long)durationUs);
+        ALOGV("getPlayedOutAudioDurationUs: negative duration %lld set to zero", (long long)durationUs);
         durationUs = 0;
     }
     ALOGV("getPlayedOutAudioDurationUs(%lld) nowUs(%lld) frames(%u) framesAt(%lld)",
