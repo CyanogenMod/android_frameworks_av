@@ -89,14 +89,27 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         mCaptureConsumer->setFrameAvailableListener(this);
         mCaptureConsumer->setName(String8("Camera2Client::CaptureConsumer"));
         mCaptureWindow = new Surface(producer);
+    }
+
+    // Since ashmem heaps are rounded up to page size, don't reallocate if
+    // the capture heap isn't exactly the same size as the required JPEG buffer
+    const size_t HEAP_SLACK_FACTOR = 2;
+    if (mCaptureHeap == 0 ||
+            (mCaptureHeap->getSize() < static_cast<size_t>(maxJpegSize)) ||
+            (mCaptureHeap->getSize() >
+                    static_cast<size_t>(maxJpegSize) * HEAP_SLACK_FACTOR) ) {
         // Create memory for API consumption
-        mCaptureHeap = new MemoryHeapBase(maxJpegSize, 0, "Camera2Client::CaptureHeap");
+        mCaptureHeap.clear();
+        mCaptureHeap =
+                new MemoryHeapBase(maxJpegSize, 0, "Camera2Client::CaptureHeap");
         if (mCaptureHeap->getSize() == 0) {
             ALOGE("%s: Camera %d: Unable to allocate memory for capture",
                     __FUNCTION__, mId);
             return NO_MEMORY;
         }
     }
+    ALOGV("%s: Camera %d: JPEG capture heap now %d bytes; requested %d bytes",
+            __FUNCTION__, mId, mCaptureHeap->getSize(), maxJpegSize);
 
     if (mCaptureStreamId != NO_STREAM) {
         // Check if stream parameters have to change
