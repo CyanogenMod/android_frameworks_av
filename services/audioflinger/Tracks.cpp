@@ -824,6 +824,10 @@ void AudioFlinger::PlaybackThread::Track::flush()
             // remove from active track list, reset(), and trigger presentation complete
             if (playbackThread->mActiveTracks.indexOf(this) < 0) {
                 reset();
+                if (thread->type() == ThreadBase::DIRECT) {
+                    DirectOutputThread *t = (DirectOutputThread *)playbackThread;
+                    t->flushHw_l();
+                }
             }
         }
         // Prevent flush being lost if the track is flushed and then resumed
