@@ -1017,12 +1017,16 @@ void ExtendedUtils::parseRtpPortRangeFromSystemProperty(unsigned *start, unsigne
 #if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
 namespace android {
 
-void ExtendedUtils::updateOutputBitWidth(sp<MetaData> format, bool isOffload) {
+bool ExtendedUtils::isHiresAudioEnabled() {
     char value[PROPERTY_VALUE_MAX] = {0};
     property_get("audio.offload.24bit.enable", value, "0");
+    return atoi(value) == 1;
+}
+
+void ExtendedUtils::updateOutputBitWidth(sp<MetaData> format, bool isOffload) {
     int32_t bitWidth = 16;
     if (format->findInt32(kKeySampleBits, &bitWidth)) {
-        if (!((bitWidth == 24) && isOffload && atoi(value))) {
+        if (!((bitWidth == 24) && isOffload && isHiresAudioEnabled())) {
             format->setInt32(kKeySampleBits, 16);
         }
     }

@@ -868,6 +868,12 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             CODEC_LOGE("setDTSFormat() failed (err = %d)", err);
             return err;
         }
+#ifdef ENABLE_AV_ENHANCEMENTS
+        // FFMPEG will convert DTS floating point to 24-bit PCM
+        if (ExtendedUtils::isHiresAudioEnabled()) {
+            meta->setInt32(kKeySampleBits, 24);
+        }
+#endif
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_FFMPEG, mMIME))  {
         status_t err = setFFmpegAudioFormat(meta);
         if (err != OK) {
