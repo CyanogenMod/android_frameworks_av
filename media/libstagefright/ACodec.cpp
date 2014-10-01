@@ -1359,6 +1359,7 @@ status_t ACodec::configureCodec(
             int32_t isADTS, aacProfile;
             int32_t sbrMode;
             int32_t maxOutputChannelCount;
+            int32_t pcmLimiterEnable;
             drcParams_t drc;
             if (!msg->findInt32("is-adts", &isADTS)) {
                 isADTS = 0;
@@ -1372,6 +1373,10 @@ status_t ACodec::configureCodec(
 
             if (!msg->findInt32("aac-max-output-channel_count", &maxOutputChannelCount)) {
                 maxOutputChannelCount = -1;
+            }
+            if (!msg->findInt32("aac-pcm-limiter-enable", &pcmLimiterEnable)) {
+                // value is unknown
+                pcmLimiterEnable = -1;
             }
             if (!msg->findInt32("aac-encoded-target-level", &drc.encodedTargetLevel)) {
                 // value is unknown
@@ -1396,7 +1401,8 @@ status_t ACodec::configureCodec(
 
             err = setupAACCodec(
                     encoder, numChannels, sampleRate, bitRate, aacProfile,
-                    isADTS != 0, sbrMode, maxOutputChannelCount, drc);
+                    isADTS != 0, sbrMode, maxOutputChannelCount, drc,
+                    pcmLimiterEnable);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)) {
         err = setupAMRCodec(encoder, false /* isWAMR */, bitRate);
@@ -1561,7 +1567,8 @@ status_t ACodec::selectAudioPortFormat(
 status_t ACodec::setupAACCodec(
         bool encoder, int32_t numChannels, int32_t sampleRate,
         int32_t bitRate, int32_t aacProfile, bool isADTS, int32_t sbrMode,
-        int32_t maxOutputChannelCount, const drcParams_t& drc) {
+        int32_t maxOutputChannelCount, const drcParams_t& drc,
+        int32_t pcmLimiterEnable) {
     if (encoder && isADTS) {
         return -EINVAL;
     }
@@ -1691,6 +1698,7 @@ status_t ACodec::setupAACCodec(
     presentation.nHeavyCompression = drc.heavyCompression;
     presentation.nTargetReferenceLevel = drc.targetRefLevel;
     presentation.nEncodedTargetLevel = drc.encodedTargetLevel;
+    presentation.nPCMLimiterEnable = pcmLimiterEnable;
 
     status_t res = mOMX->setParameter(mNode, OMX_IndexParamAudioAac, &profile, sizeof(profile));
     if (res == OK) {

@@ -368,6 +368,10 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
                         aacPresParams->nEncodedTargetLevel);
                 updateDrcWrapper = true;
             }
+            if (aacPresParams->nPCMLimiterEnable >= 0) {
+                aacDecoder_SetParam(mAACDecoder, AAC_PCM_LIMITER_ENABLE,
+                        (aacPresParams->nPCMLimiterEnable != 0));
+            }
             if (updateDrcWrapper) {
                 mDrcWrap.update();
             }
