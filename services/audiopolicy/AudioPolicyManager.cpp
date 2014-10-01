@@ -930,7 +930,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     sp<IOProfile> profile;
 
     // skip direct output selection if the request can obviously be attached to a mixed output
-    if (audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE &&
+    // and not explicitly requested
+    if (((flags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) &&
+            audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE &&
             audio_channel_count_from_out_mask(channelMask) <= 2) {
         goto non_direct_output;
     }
