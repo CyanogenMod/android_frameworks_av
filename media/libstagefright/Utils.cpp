@@ -40,6 +40,9 @@
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
 #include <QCMetaData.h>
+#endif
+
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
 #include "include/ExtendedUtils.h"
 #endif
 
@@ -596,7 +599,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     audio_offload_info_t info = AUDIO_INFO_INITIALIZER;
 
     int32_t bitWidth = 16;
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
     if (!meta->findInt32(kKeySampleBits, &bitWidth)) {
         ALOGV("bits per sample not set, using default %d", bitWidth);
     }
@@ -608,7 +611,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
         ALOGE(" Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format !", mime);
         return false;
     } else {
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
         // Override audio format for PCM offload
         if (bitWidth == 24) {
             ALOGD("24-bit PCM offload enabled");
@@ -678,31 +681,11 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     // bit rate, duration, video and streaming
     bool canOffload = AudioSystem::isOffloadSupported(info);
 
-#ifdef ENABLE_AV_ENHANCEMENTS
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
     ExtendedUtils::updateOutputBitWidth(meta, canOffload);
 #endif
 
     return canOffload;
-}
-
-void printFileName(int fd)
-{
-    if (fd) {
-        char symName[40] = {0};
-        char fileName[256] = {0};
-        snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
-
-        if (readlink( symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
-            ALOGD("printFileName fd(%d) -> %s", fd, fileName);
-        }
-    }
-}
-
-void printFileName(const char *uri)
-{
-    if (uri) {
-        ALOGD("printFileName %s",uri);
-    }
 }
 
 }  // namespace android

@@ -204,15 +204,17 @@ status_t PrefetchSource::setBuffers(const Vector<MediaBuffer *> &buffers) {
     stop();
     if (mAvailBufferQueue) {
         delete mAvailBufferQueue;
-        mAvailBufferQueue = new SyncQueue(buffers.size());
-        mAvailBufferQueue->setName("useAvailQ");
     }
+
+    mAvailBufferQueue = new SyncQueue(buffers.size());
+    mAvailBufferQueue->setName("useAvailQ");
 
     if (mFilledBufferQueue) {
         delete mFilledBufferQueue;
-        mFilledBufferQueue = new SyncQueue(buffers.size());
-        mFilledBufferQueue->setName("useFilledQ");
     }
+
+    mFilledBufferQueue = new SyncQueue(buffers.size());
+    mFilledBufferQueue->setName("useFilledQ");
 
     for (size_t i = 0; i < buffers.size(); ++i) {
         mAvailBufferQueue->add(buffers.itemAt(i));

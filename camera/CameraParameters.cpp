@@ -278,7 +278,7 @@ const char CameraParameters::WHITE_BALANCE_DAYLIGHT[] = "daylight";
 const char CameraParameters::WHITE_BALANCE_CLOUDY_DAYLIGHT[] = "cloudy-daylight";
 const char CameraParameters::WHITE_BALANCE_TWILIGHT[] = "twilight";
 const char CameraParameters::WHITE_BALANCE_SHADE[] = "shade";
-#ifdef OPPO_CAMERA_HARDWARE
+#ifdef QCOM_HARDWARE
 const char CameraParameters::WHITE_BALANCE_MANUAL_CCT[] = "manual-cct";
 #endif
 
@@ -389,7 +389,7 @@ const char CameraParameters::FOCUS_MODE_FIXED[] = "fixed";
 const char CameraParameters::FOCUS_MODE_EDOF[] = "edof";
 const char CameraParameters::FOCUS_MODE_CONTINUOUS_VIDEO[] = "continuous-video";
 const char CameraParameters::FOCUS_MODE_CONTINUOUS_PICTURE[] = "continuous-picture";
-#ifdef OPPO_CAMERA_HARDWARE
+#ifdef QCOM_HARDWARE
 const char CameraParameters::FOCUS_MODE_MANUAL_POSITION[] = "manual";
 #endif
 #if defined(QCOM_HARDWARE)

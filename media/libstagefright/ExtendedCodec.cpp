@@ -653,7 +653,7 @@ bool ExtendedCodec::checkDPFromVOLHeader(const uint8_t *data, size_t size) {
     size_t minHeaderSize = 5;
     size_t maxHeaderSize = 46;
 
-    if (!data && (size < minHeaderSize)) {
+    if (!data || (size < minHeaderSize)) {
         return false;
     }
 

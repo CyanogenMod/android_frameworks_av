@@ -711,7 +711,7 @@ MatroskaExtractor::MatroskaExtractor(const sp<DataSource> &source)
 
     long len;
     ret = mSegment->LoadCluster(pos, len);
-    CHECK_EQ(ret, 0);
+    // CHECK_EQ(ret, 0);
 
     if (ret < 0) {
         delete mSegment;
