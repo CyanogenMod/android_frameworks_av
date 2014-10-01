@@ -170,6 +170,8 @@ struct ExtendedUtils {
 
     static void updateOutputBitWidth(sp<MetaData> format, bool isOffload);
 
+    static bool isHiresAudioEnabled(void);
+
     static void printFileName(int fd);
 
     static void printFileName(const char *uri);
