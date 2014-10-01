@@ -29,7 +29,6 @@ struct ABuffer;
 struct AnotherPacketSource;
 struct DataSource;
 struct HTTPBase;
-struct LiveDataSource;
 struct M3UParser;
 struct String8;
 
