@@ -899,7 +899,15 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
         uint32_t unpresentedFrames =
                 ((int64_t) playbackThread->mLatchQ.mUnpresentedFrames * mSampleRate) /
                 playbackThread->mSampleRate;
-        uint32_t framesWritten = mAudioTrackServerProxy->framesReleased();
+        // FIXME Since we're using a raw pointer as the key, it is theoretically possible
+        //       for a brand new track to share the same address as a recently destroyed
+        //       track, and thus for us to get the frames released of the wrong track.
+        //       It is unlikely that we would be able to call getTimestamp() so quickly
+        //       right after creating a new track.  Nevertheless, the index here should
+        //       be changed to something that is unique.  Or use a completely different strategy.
+        ssize_t i = playbackThread->mLatchQ.mFramesReleased.indexOfKey(this);
+        uint32_t framesWritten = i >= 0 ?
+                playbackThread->mLatchQ.mFramesReleased[i] : mAudioTrackServerProxy->framesReleased();
         bool checkPreviousTimestamp = mPreviousValid && framesWritten >= mPreviousFramesWritten;
         if (framesWritten < unpresentedFrames) {
             mPreviousValid = false;
