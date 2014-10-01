@@ -2126,7 +2126,6 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
             size_t totalFramesWritten = mNormalSink->framesWritten();
             if (totalFramesWritten >= mLatchD.mTimestamp.mPosition) {
                 mLatchD.mUnpresentedFrames = totalFramesWritten - mLatchD.mTimestamp.mPosition;
-                // mLatchD.mFramesReleased is set in threadloop_mix()
                 mLatchDValid = true;
             }
         }
@@ -3092,18 +3091,6 @@ void AudioFlinger::MixerThread::threadLoop_mix()
     sleepTime = 0;
     standbyTime = systemTime() + standbyDelay;
     //TODO: delay standby when effects have a tail
-
-    mLatchD.mFramesReleased.clear();
-    {
-        Mutex::Autolock _l(mLock);
-        size_t size = mActiveTracks.size();
-        for (size_t i = 0; i < size; i++) {
-            sp<Track> t = mActiveTracks[i].promote();
-            if (t != 0) {
-                mLatchD.mFramesReleased.add(t.get(), t->mAudioTrackServerProxy->framesReleased());
-            }
-        }
-    }
 }
 
 void AudioFlinger::MixerThread::threadLoop_sleepTime()
