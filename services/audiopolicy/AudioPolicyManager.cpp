@@ -2370,10 +2370,11 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
             }
         }
 
-        //check if it's multi-channel AAC format
-        if (popcount(offloadInfo.channel_mask) > 2
-              && (offloadInfo.format & AUDIO_FORMAT_AAC)) {
-            ALOGD("offload disabled for multi-channel AAC format");
+        //check if it's multi-channel AAC (includes sub formats) and FLAC format
+        if ((popcount(offloadInfo.channel_mask) > 2) &&
+            (((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC) ||
+            ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_FLAC))) {
+            ALOGD("offload disabled for multi-channel AAC and FLAC format");
             return false;
         }
 
@@ -2416,7 +2417,10 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
         ALOGV("Offload denied by duration < default min(=%u)", OFFLOAD_DEFAULT_MIN_DURATION_SECS);
         //duration checks only valid for MP3/AAC formats,
         //do not check duration for other audio formats, e.g. dolby AAC/AC3 and amrwb+ formats
-        if (offloadInfo.format == AUDIO_FORMAT_MP3 || (offloadInfo.format & AUDIO_FORMAT_AAC) || pcmOffload)
+        if ((offloadInfo.format == AUDIO_FORMAT_MP3) ||
+            ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC) ||
+            ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_FLAC) ||
+            pcmOffload)
             return false;
     }
 
