@@ -318,6 +318,12 @@ public:
     // At least one non offloadable effect in the chain is enabled
     bool isNonOffloadableEnabled();
 
+    // use release_cas because we don't care about the observed value, just want to make sure the
+    // new value is observable.
+    void forceVolume() { android_atomic_release_cas(false, true, &mForceVolume); }
+    // use acquire_cas because we are interested in the observed value and
+    // we are the only observers.
+    bool isVolumeForced() { return (android_atomic_acquire_cas(true, false, &mForceVolume) == 0); }
 
     void dump(int fd, const Vector<String16>& args);
 
@@ -375,4 +381,5 @@ protected:
     // timeLow fields among effect type UUIDs.
     // Updated by updateSuspendedSessions_l() only.
     KeyedVector< int, sp<SuspendedEffectDesc> > mSuspendedEffects;
+    volatile int32_t mForceVolume; // force next volume command because a new effect was enabled
 };
