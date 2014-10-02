@@ -30,6 +30,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/ALooper.h>
+#include <media/stagefright/ACodec.h>
 #include <media/stagefright/AudioSource.h>
 #include <media/stagefright/AMRWriter.h>
 #include <media/stagefright/AACWriter.h>
@@ -1243,6 +1244,10 @@ void StagefrightRecorder::setDefaultProfileIfNecessary() {
         if (videoCodec == VIDEO_ENCODER_H264) {
             ALOGI("Force to use AVC baseline profile");
             setParamVideoEncoderProfile(OMX_VIDEO_AVCProfileBaseline);
+            // set 0 for invalid levels - this will be rejected by the
+            // codec if it cannot handle it during configure
+            setParamVideoEncoderLevel(ACodec::getAVCLevelFor(
+                    videoFrameWidth, videoFrameHeight, videoFrameRate, videoBitRate));
         }
     }
 }
