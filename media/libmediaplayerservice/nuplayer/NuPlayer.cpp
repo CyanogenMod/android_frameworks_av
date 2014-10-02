@@ -791,6 +791,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     ALOGV("initiating %s decoder shutdown",
                          audio ? "audio" : "video");
 
+                    // Widevine source reads must stop before releasing the video decoder.
+                    if (!audio && mSource != NULL && mSourceFlags & Source::FLAG_SECURE) {
+                        mSource->stop();
+                    }
+
                     getDecoder(audio)->initiateShutdown();
 
                     if (audio) {
@@ -833,30 +838,50 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 finishFlushIfPossible();
             } else if (what == Decoder::kWhatError) {
                 status_t err;
-                if (!msg->findInt32("err", &err)) {
+                if (!msg->findInt32("err", &err) || err == OK) {
                     err = UNKNOWN_ERROR;
                 }
-                ALOGE("received error from %s decoder %#x", audio ? "audio" : "video", err);
 
-                ALOGI("shutting down %s", audio ? "audio" : "video");
-                if (audio && mFlushingAudio != NONE) {
-                    mRenderer->queueEOS(audio, err);
-                    mAudioDecoder.clear();
-                    ++mAudioDecoderGeneration;
-                    mFlushingAudio = SHUT_DOWN;
-                    finishFlushIfPossible();
-                } else if (!audio && mFlushingVideo != NONE) {
-                    mRenderer->queueEOS(audio, err);
-                    mVideoDecoder.clear();
-                    ++mVideoDecoderGeneration;
-                    mFlushingVideo = SHUT_DOWN;
-                    finishFlushIfPossible();
-                }  else {
-                    mDeferredActions.push_back(
-                            new ShutdownDecoderAction(audio, !audio /* video */));
-                    processDeferredActions();
-                    notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+                // Decoder errors can be due to Source (e.g. from streaming),
+                // or from decoding corrupted bitstreams, or from other decoder
+                // MediaCodec operations (e.g. from an ongoing reset or seek).
+                //
+                // We try to gracefully shut down the affected decoder if possible,
+                // rather than trying to force the shutdown with something
+                // similar to performReset(). This method can lead to a hang
+                // if MediaCodec functions block after an error, but they should
+                // typically return INVALID_OPERATION instead of blocking.
+
+                FlushStatus *flushing = audio ? &mFlushingAudio : &mFlushingVideo;
+                ALOGE("received error(%#x) from %s decoder, flushing(%d), now shutting down",
+                        err, audio ? "audio" : "video", *flushing);
+
+                switch (*flushing) {
+                    case NONE:
+                        mDeferredActions.push_back(
+                                new ShutdownDecoderAction(audio, !audio /* video */));
+                        processDeferredActions();
+                        break;
+                    case FLUSHING_DECODER:
+                        *flushing = FLUSHING_DECODER_SHUTDOWN; // initiate shutdown after flush.
+                        break; // Wait for flush to complete.
+                    case FLUSHING_DECODER_SHUTDOWN:
+                        break; // Wait for flush to complete.
+                    case SHUTTING_DOWN_DECODER:
+                        break; // Wait for shutdown to complete.
+                    case FLUSHED:
+                        // Widevine source reads must stop before releasing the video decoder.
+                        if (!audio && mSource != NULL && mSourceFlags & Source::FLAG_SECURE) {
+                            mSource->stop();
+                        }
+                        getDecoder(audio)->initiateShutdown(); // In the middle of a seek.
+                        *flushing = SHUTTING_DOWN_DECODER;     // Shut down.
+                        break;
+                    case SHUT_DOWN:
+                        finishFlushIfPossible();  // Should not occur.
+                        break;                    // Finish anyways.
                 }
+                notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
             } else if (what == Decoder::kWhatDrainThisBuffer) {
                 renderBuffer(audio, msg);
             } else {

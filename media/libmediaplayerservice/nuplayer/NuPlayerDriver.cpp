@@ -27,6 +27,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
 
 namespace android {
 
@@ -47,6 +48,7 @@ NuPlayerDriver::NuPlayerDriver()
       mLooping(false),
       mAutoLoop(false),
       mStartupSeekTimeUs(-1) {
+    ALOGV("NuPlayerDriver(%p)", this);
     mLooper->setName("NuPlayerDriver Looper");
 
     mLooper->start(
@@ -61,6 +63,7 @@ NuPlayerDriver::NuPlayerDriver()
 }
 
 NuPlayerDriver::~NuPlayerDriver() {
+    ALOGV("~NuPlayerDriver(%p)", this);
     mLooper->stop();
 }
 
@@ -78,9 +81,9 @@ status_t NuPlayerDriver::setDataSource(
         const sp<IMediaHTTPService> &httpService,
         const char *url,
         const KeyedVector<String8, String8> *headers) {
+    ALOGV("setDataSource(%p) url(%s)", this, uriDebugString(url, false).c_str());
     Mutex::Autolock autoLock(mLock);
 
-    ALOGV("setDataSource: url=%s", url);
     if (mState != STATE_IDLE) {
         return INVALID_OPERATION;
     }
@@ -97,9 +100,9 @@ status_t NuPlayerDriver::setDataSource(
 }
 
 status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
+    ALOGV("setDataSource(%p) file(%d)", this, fd);
     Mutex::Autolock autoLock(mLock);
 
-    ALOGV("setDataSource: fd=%d", fd);
     if (mState != STATE_IDLE) {
         return INVALID_OPERATION;
     }
@@ -116,9 +119,9 @@ status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
 }
 
 status_t NuPlayerDriver::setDataSource(const sp<IStreamSource> &source) {
+    ALOGV("setDataSource(%p) stream source", this);
     Mutex::Autolock autoLock(mLock);
 
-    ALOGV("setDataSource: stream source");
     if (mState != STATE_IDLE) {
         return INVALID_OPERATION;
     }
@@ -136,6 +139,7 @@ status_t NuPlayerDriver::setDataSource(const sp<IStreamSource> &source) {
 
 status_t NuPlayerDriver::setVideoSurfaceTexture(
         const sp<IGraphicBufferProducer> &bufferProducer) {
+    ALOGV("setVideoSurfaceTexture(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     if (mSetSurfaceInProgress) {
@@ -163,6 +167,7 @@ status_t NuPlayerDriver::setVideoSurfaceTexture(
 }
 
 status_t NuPlayerDriver::prepare() {
+    ALOGV("prepare(%p)", this);
     Mutex::Autolock autoLock(mLock);
     return prepare_l();
 }
@@ -197,6 +202,7 @@ status_t NuPlayerDriver::prepare_l() {
 }
 
 status_t NuPlayerDriver::prepareAsync() {
+    ALOGV("prepareAsync(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     switch (mState) {
@@ -218,6 +224,7 @@ status_t NuPlayerDriver::prepareAsync() {
 }
 
 status_t NuPlayerDriver::start() {
+    ALOGD("start(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     switch (mState) {
@@ -292,6 +299,7 @@ status_t NuPlayerDriver::start() {
 }
 
 status_t NuPlayerDriver::stop() {
+    ALOGD("stop(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     switch (mState) {
@@ -346,6 +354,7 @@ bool NuPlayerDriver::isPlaying() {
 }
 
 status_t NuPlayerDriver::seekTo(int msec) {
+    ALOGD("seekTo(%p) %d ms", this, msec);
     Mutex::Autolock autoLock(mLock);
 
     int64_t seekTimeUs = msec * 1000ll;
@@ -438,6 +447,7 @@ status_t NuPlayerDriver::getDuration(int *msec) {
 }
 
 status_t NuPlayerDriver::reset() {
+    ALOGD("reset(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     switch (mState) {
@@ -580,6 +590,7 @@ status_t NuPlayerDriver::getMetadata(
 }
 
 void NuPlayerDriver::notifyResetComplete() {
+    ALOGI("notifyResetComplete(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     CHECK_EQ(mState, STATE_RESET_IN_PROGRESS);
@@ -588,6 +599,7 @@ void NuPlayerDriver::notifyResetComplete() {
 }
 
 void NuPlayerDriver::notifySetSurfaceComplete() {
+    ALOGV("notifySetSurfaceComplete(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     CHECK(mSetSurfaceInProgress);
@@ -610,6 +622,7 @@ void NuPlayerDriver::notifyPosition(int64_t positionUs) {
 }
 
 void NuPlayerDriver::notifySeekComplete() {
+    ALOGV("notifySeekComplete(%p)", this);
     Mutex::Autolock autoLock(mLock);
     notifySeekComplete_l();
 }
