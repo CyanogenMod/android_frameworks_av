@@ -600,8 +600,10 @@ protected:
                                     audio_io_handle_t output, audio_devices_t device);
 
         // check that volume change is permitted, compute and send new volume to audio hardware
-        status_t checkAndSetVolume(audio_stream_type_t stream, int index, audio_io_handle_t output,
-                                   audio_devices_t device, int delayMs = 0, bool force = false);
+        virtual status_t checkAndSetVolume(audio_stream_type_t stream, int index,
+                                           audio_io_handle_t output,
+                                           audio_devices_t device,
+                                           int delayMs = 0, bool force = false);
 
         // apply all stream volumes to the specified output and device
         void applyStreamVolumes(audio_io_handle_t output, audio_devices_t device, int delayMs = 0, bool force = false);
@@ -820,10 +822,9 @@ protected:
         uint32_t        mTestChannels;
         uint32_t        mTestLatencyMs;
 #endif //AUDIO_POLICY_TEST
-
-private:
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
+private:
         // updates device caching and output for streams that can influence the
         //    routing of notifications
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
