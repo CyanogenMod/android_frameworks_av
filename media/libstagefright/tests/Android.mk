@@ -9,7 +9,7 @@ LOCAL_MODULE := SurfaceMediaSource_test
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := \
-    SurfaceMediaSource_test.cpp \
+	SurfaceMediaSource_test.cpp \
 	DummyRecorder.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
@@ -33,10 +33,10 @@ LOCAL_STATIC_LIBRARIES := \
 	libgtest_main \
 
 LOCAL_C_INCLUDES := \
-    bionic \
-    bionic/libstdc++/include \
-    external/gtest/include \
-    external/stlport/stlport \
+	bionic \
+	bionic/libstdc++/include \
+	external/gtest/include \
+	external/stlport/stlport \
 	frameworks/av/media/libstagefright \
 	frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax \
@@ -46,6 +46,41 @@ LOCAL_32_BIT_ONLY := true
 include $(BUILD_EXECUTABLE)
 
 endif
+
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := Utils_test
+
+LOCAL_MODULE_TAGS := tests
+
+LOCAL_SRC_FILES := \
+	Utils_test.cpp \
+
+LOCAL_SHARED_LIBRARIES := \
+	libcutils \
+	liblog \
+	libmedia \
+	libstagefright \
+	libstagefright_foundation \
+	libstagefright_omx \
+	libstlport \
+
+LOCAL_STATIC_LIBRARIES := \
+	libgtest \
+	libgtest_main \
+
+LOCAL_C_INCLUDES := \
+	bionic \
+	bionic/libstdc++/include \
+	external/gtest/include \
+	external/stlport/stlport \
+	frameworks/av/include \
+	frameworks/av/media/libstagefright \
+	frameworks/av/media/libstagefright/include \
+	$(TOP)/frameworks/native/include/media/openmax \
+
+include $(BUILD_EXECUTABLE)
 
 # Include subdirectory makefiles
 # ============================================================

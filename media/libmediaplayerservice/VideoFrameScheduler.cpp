@@ -27,42 +27,13 @@
 #include <ui/DisplayStatInfo.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 
 #include "VideoFrameScheduler.h"
 
 namespace android {
 
 static const nsecs_t kNanosIn1s = 1000000000;
-
-template<class T>
-inline static const T divRound(const T &nom, const T &den) {
-    if ((nom >= 0) ^ (den >= 0)) {
-        return (nom - den / 2) / den;
-    } else {
-        return (nom + den / 2) / den;
-    }
-}
-
-template<class T>
-inline static T abs(const T &a) {
-    return a < 0 ? -a : a;
-}
-
-template<class T>
-inline static const T &min(const T &a, const T &b) {
-    return a < b ? a : b;
-}
-
-template<class T>
-inline static const T &max(const T &a, const T &b) {
-    return a > b ? a : b;
-}
-
-template<class T>
-inline static T periodicError(const T &val, const T &period) {
-    T err = abs(val) % period;
-    return (err < (period / 2)) ? err : (period - err);
-}
 
 template<class T>
 static int compare(const T *lhs, const T *rhs) {
