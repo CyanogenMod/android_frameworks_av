@@ -126,6 +126,7 @@ private:
 
     sp<DataSource> mDataSource;
     sp<NuCachedSource2> mCachedSource;
+    sp<DataSource> mHttpSource;
     sp<WVMExtractor> mWVMExtractor;
     sp<MetaData> mFileMeta;
     DrmManagerClient *mDrmManagerClient;
