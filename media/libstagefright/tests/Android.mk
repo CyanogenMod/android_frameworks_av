@@ -8,7 +8,7 @@ LOCAL_MODULE := SurfaceMediaSource_test
 LOCAL_MODULE_TAGS := tests
 
 LOCAL_SRC_FILES := \
-    SurfaceMediaSource_test.cpp \
+	SurfaceMediaSource_test.cpp \
 	DummyRecorder.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
@@ -32,6 +32,33 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/native/include/media/openmax \
 
 LOCAL_32_BIT_ONLY := true
+
+include $(BUILD_NATIVE_TEST)
+
+
+include $(CLEAR_VARS)
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+
+LOCAL_MODULE := Utils_test
+
+LOCAL_MODULE_TAGS := tests
+
+LOCAL_SRC_FILES := \
+	Utils_test.cpp \
+
+LOCAL_SHARED_LIBRARIES := \
+	libcutils \
+	liblog \
+	libmedia \
+	libstagefright \
+	libstagefright_foundation \
+	libstagefright_omx \
+
+LOCAL_C_INCLUDES := \
+	frameworks/av/include \
+	frameworks/av/media/libstagefright \
+	frameworks/av/media/libstagefright/include \
+	$(TOP)/frameworks/native/include/media/openmax \
 
 include $(BUILD_NATIVE_TEST)
 
