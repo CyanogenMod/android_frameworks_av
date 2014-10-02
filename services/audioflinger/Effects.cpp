@@ -465,15 +465,20 @@ status_t AudioFlinger::EffectModule::start_l()
     if (status == 0) {
         status = cmdStatus;
     }
-    if (status == 0 &&
-            ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
-             (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC)) {
-        sp<ThreadBase> thread = mThread.promote();
-        if (thread != 0) {
-            audio_stream_t *stream = thread->stream();
-            if (stream != NULL) {
-                stream->add_audio_effect(stream, mEffectInterface);
+    if (status == 0) {
+        if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
+             (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC) {
+            sp<ThreadBase> thread = mThread.promote();
+            if (thread != 0) {
+                audio_stream_t *stream = thread->stream();
+                if (stream != NULL) {
+                    stream->add_audio_effect(stream, mEffectInterface);
+                }
             }
+        }
+        sp<EffectChain> chain = mChain.promote();
+        if (chain != 0) {
+            chain->forceVolume();
         }
     }
     return status;
@@ -1326,7 +1331,7 @@ AudioFlinger::EffectChain::EffectChain(ThreadBase *thread,
                                         int sessionId)
     : mThread(thread), mSessionId(sessionId), mActiveTrackCnt(0), mTrackCnt(0), mTailBufferCount(0),
       mOwnInBuffer(false), mVolumeCtrlIdx(-1), mLeftVolume(UINT_MAX), mRightVolume(UINT_MAX),
-      mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX)
+      mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX), mForceVolume(false)
 {
     mStrategy = AudioSystem::getStrategyForStream(AUDIO_STREAM_MUSIC);
     if (thread == NULL) {
@@ -1649,7 +1654,8 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
         }
     }
 
-    if (ctrlIdx == mVolumeCtrlIdx && *left == mLeftVolume && *right == mRightVolume) {
+    if (!isVolumeForced() && ctrlIdx == mVolumeCtrlIdx &&
+            *left == mLeftVolume && *right == mRightVolume) {
         if (hasControl) {
             *left = mNewLeftVolume;
             *right = mNewRightVolume;
