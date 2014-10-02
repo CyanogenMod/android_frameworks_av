@@ -27,7 +27,7 @@
 
 namespace android {
 
-class AMessage;
+struct AMessage;
 class MediaPlayerBase;
 class TimedTextDriver;
 class TimedTextSource;
