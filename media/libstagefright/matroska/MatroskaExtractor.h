@@ -23,7 +23,7 @@
 #include <utils/threads.h>
 
 namespace mkvparser {
-struct Segment;
+class Segment;
 };
 
 namespace android {

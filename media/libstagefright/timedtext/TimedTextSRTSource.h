@@ -25,7 +25,7 @@
 
 namespace android {
 
-class AString;
+struct AString;
 class DataSource;
 class MediaBuffer;
 class Parcel;
