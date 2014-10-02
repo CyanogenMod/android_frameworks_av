@@ -229,7 +229,9 @@ status_t OpcodeListBuilder::addGainMap(uint32_t top,
     err = mEndianOut.write(version, 0, NELEMS(version));
     if (err != OK) return err;
 
-    uint32_t flags = FLAG_OPTIONAL | FLAG_OPTIONAL_FOR_PREVIEW;
+    // Do not include optional flag for preview, as this can have a large effect on the output.
+    uint32_t flags = FLAG_OPTIONAL;
+
     err = mEndianOut.write(&flags, 0, 1);
     if (err != OK) return err;
 
