@@ -1436,6 +1436,16 @@ sp<IAudioRecord> AudioFlinger::openRecord(
                                                   IPCThreadState::self()->getCallingUid(),
                                                   flags, tid, &lStatus);
         LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (recordTrack == 0));
+
+        if (lStatus == NO_ERROR) {
+            // Check if one effect chain was awaiting for an AudioRecord to be created on this
+            // session and move it to this thread.
+            sp<EffectChain> chain = getOrphanEffectChain_l((audio_session_t)lSessionId);
+            if (chain != 0) {
+                Mutex::Autolock _l(thread->mLock);
+                thread->addEffectChain_l(chain);
+            }
+        }
     }
 
     if (lStatus != NO_ERROR) {
@@ -2034,14 +2044,41 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
         }
 
         ALOGV("closeInput() %d", input);
+
+        // If we still have effect chains, it means that a client still holds a handle
+        // on at least one effect. We must either move the chain to an existing thread with the
+        // same session ID or put it aside in case a new record thread is opened for a
+        // new capture on the same session
+        sp<EffectChain> chain;
         {
-            // If we still have effect chains, it means that a client still holds a handle
-            // on at least one effect. We must keep the chain alive in case a new record
-            // thread is opened for a new capture on the same session
             Mutex::Autolock _sl(thread->mLock);
             Vector< sp<EffectChain> > effectChains = thread->getEffectChains_l();
-            for (size_t i = 0; i < effectChains.size(); i++) {
-                putOrphanEffectChain_l(effectChains[i]);
+            // Note: maximum one chain per record thread
+            if (effectChains.size() != 0) {
+                chain = effectChains[0];
+            }
+        }
+        if (chain != 0) {
+            // first check if a record thread is already opened with a client on the same session.
+            // This should only happen in case of overlap between one thread tear down and the
+            // creation of its replacement
+            size_t i;
+            for (i = 0; i < mRecordThreads.size(); i++) {
+                sp<RecordThread> t = mRecordThreads.valueAt(i);
+                if (t == thread) {
+                    continue;
+                }
+                if (t->hasAudioSession(chain->sessionId()) != 0) {
+                    Mutex::Autolock _l(t->mLock);
+                    ALOGV("closeInput() found thread %d for effect session %d",
+                          t->id(), chain->sessionId());
+                    t->addEffectChain_l(chain);
+                    break;
+                }
+            }
+            // put the chain aside if we could not find a record thread with the same session id.
+            if (i == mRecordThreads.size()) {
+                putOrphanEffectChain_l(chain);
             }
         }
         audioConfigChanged(AudioSystem::INPUT_CLOSED, input, NULL);
@@ -2478,6 +2515,7 @@ sp<IEffect> AudioFlinger::createEffect(
             // session and used it instead of creating a new one.
             sp<EffectChain> chain = getOrphanEffectChain_l((audio_session_t)sessionId);
             if (chain != 0) {
+                Mutex::Autolock _l(thread->mLock);
                 thread->addEffectChain_l(chain);
             }
         }

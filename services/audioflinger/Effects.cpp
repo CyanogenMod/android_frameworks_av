@@ -440,6 +440,20 @@ status_t AudioFlinger::EffectModule::init()
     return status;
 }
 
+void AudioFlinger::EffectModule::addEffectToHal_l()
+{
+    if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
+         (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC) {
+        sp<ThreadBase> thread = mThread.promote();
+        if (thread != 0) {
+            audio_stream_t *stream = thread->stream();
+            if (stream != NULL) {
+                stream->add_audio_effect(stream, mEffectInterface);
+            }
+        }
+    }
+}
+
 status_t AudioFlinger::EffectModule::start()
 {
     Mutex::Autolock _l(mLock);
@@ -466,16 +480,7 @@ status_t AudioFlinger::EffectModule::start_l()
         status = cmdStatus;
     }
     if (status == 0) {
-        if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC ||
-             (mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC) {
-            sp<ThreadBase> thread = mThread.promote();
-            if (thread != 0) {
-                audio_stream_t *stream = thread->stream();
-                if (stream != NULL) {
-                    stream->add_audio_effect(stream, mEffectInterface);
-                }
-            }
-        }
+        addEffectToHal_l();
         sp<EffectChain> chain = mChain.promote();
         if (chain != 0) {
             chain->forceVolume();
@@ -1694,6 +1699,17 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
     *right = newRight;
 
     return hasControl;
+}
+
+void AudioFlinger::EffectChain::syncHalEffectsState()
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        if (mEffects[i]->state() == EffectModule::ACTIVE ||
+                mEffects[i]->state() == EffectModule::STOPPING) {
+            mEffects[i]->addEffectToHal_l();
+        }
+    }
 }
 
 void AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)

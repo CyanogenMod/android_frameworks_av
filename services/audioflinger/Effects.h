@@ -119,6 +119,7 @@ public:
                         { return (mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0; }
     status_t         setOffloaded(bool offloaded, audio_io_handle_t io);
     bool             isOffloaded() const;
+    void             addEffectToHal_l();
 
     void             dump(int fd, const Vector<String16>& args);
 
@@ -324,6 +325,8 @@ public:
     // use acquire_cas because we are interested in the observed value and
     // we are the only observers.
     bool isVolumeForced() { return (android_atomic_acquire_cas(true, false, &mForceVolume) == 0); }
+
+    void syncHalEffectsState();
 
     void dump(int fd, const Vector<String16>& args);
 
