@@ -166,8 +166,15 @@ void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
     bool sizeChanged = (width != mWidth || height != mHeight);
     bool updateCrop = (cropSettingsMode == kCropUnSet);
     bool cropChanged = (cropSettingsMode == kCropChanged);
+    bool strideChanged = false;
+    if (fakeStride) {
+        OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kOutputPortIndex)->mDef;
+        if (def->format.video.nStride != width || def->format.video.nSliceHeight != height) {
+            strideChanged = true;
+        }
+    }
 
-    if (sizeChanged || cropChanged) {
+    if (sizeChanged || cropChanged || strideChanged) {
         mWidth = width;
         mHeight = height;
 
