@@ -177,10 +177,6 @@ AVCEnc_Status  SetEncodeParam(AVCHandle* avcHandle, AVCEncParams* encParam,
             seqParam->offset_for_non_ref_pic = extS->offset_for_non_ref_pic;
             seqParam->offset_for_top_to_bottom_field = extS->offset_for_top_to_bottom_field;
             seqParam->num_ref_frames_in_pic_order_cnt_cycle = extS->num_ref_frames_in_pic_order_cnt_cycle;
-            if (extS->offset_for_ref_frame == NULL)
-            {
-                return AVCENC_ENCPARAM_MEM_FAIL;
-            }
             for (ii = 0; ii < (int) extS->num_ref_frames; ii++)
             {
                 seqParam->offset_for_ref_frame[ii] = extS->offset_for_ref_frame[ii];
