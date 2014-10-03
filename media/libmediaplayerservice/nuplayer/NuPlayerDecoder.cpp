@@ -622,13 +622,21 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatCodecNotify:
         {
             if (!isStaleReply(msg)) {
-                if (!mPaused) {
-                    while (handleAnInputBuffer()) {
-                    }
+                int32_t numInput, numOutput;
+
+                if (!msg->findInt32("input-buffers", &numInput)) {
+                    numInput = INT32_MAX;
                 }
 
-                while (handleAnOutputBuffer()) {
+                if (!msg->findInt32("output-buffers", &numOutput)) {
+                    numOutput = INT32_MAX;
                 }
+
+                if (!mPaused) {
+                    while (numInput-- > 0 && handleAnInputBuffer()) {}
+                }
+
+                while (numOutput-- > 0 && handleAnOutputBuffer()) {}
             }
 
             requestCodecNotification();
