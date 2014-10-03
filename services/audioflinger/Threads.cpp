@@ -6192,6 +6192,10 @@ status_t AudioFlinger::RecordThread::addEffectChain_l(const sp<EffectChain>& cha
 
     checkSuspendOnAddEffectChain_l(chain);
 
+    // make sure enabled pre processing effects state is communicated to the HAL as we
+    // just moved them to a new input stream.
+    chain->syncHalEffectsState();
+
     mEffectChains.add(chain);
 
     return NO_ERROR;
