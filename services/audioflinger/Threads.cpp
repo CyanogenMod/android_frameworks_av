@@ -2101,6 +2101,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
 
     // If an NBAIO sink is present, use it to write the normal mixer's submix
     if (mNormalSink != 0) {
+
         const size_t count = mBytesRemaining / mFrameSize;
 
         ATRACE_BEGIN("write");
@@ -2127,6 +2128,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
             size_t totalFramesWritten = mNormalSink->framesWritten();
             if (totalFramesWritten >= mLatchD.mTimestamp.mPosition) {
                 mLatchD.mUnpresentedFrames = totalFramesWritten - mLatchD.mTimestamp.mPosition;
+                // mLatchD.mFramesReleased is set immediately before D is clocked into Q
                 mLatchDValid = true;
             }
         }
@@ -2419,6 +2421,18 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 logString = NULL;
             }
 
+            // Gather the framesReleased counters for all active tracks,
+            // and latch them atomically with the timestamp.
+            // FIXME We're using raw pointers as indices. A unique track ID would be a better index.
+            mLatchD.mFramesReleased.clear();
+            size_t size = mActiveTracks.size();
+            for (size_t i = 0; i < size; i++) {
+                sp<Track> t = mActiveTracks[i].promote();
+                if (t != 0) {
+                    mLatchD.mFramesReleased.add(t.get(),
+                            t->mAudioTrackServerProxy->framesReleased());
+                }
+            }
             if (mLatchDValid) {
                 mLatchQ = mLatchD;
                 mLatchDValid = false;
@@ -3094,6 +3108,7 @@ void AudioFlinger::MixerThread::threadLoop_mix()
     sleepTime = 0;
     standbyTime = systemTime() + standbyDelay;
     //TODO: delay standby when effects have a tail
+
 }
 
 void AudioFlinger::MixerThread::threadLoop_sleepTime()
