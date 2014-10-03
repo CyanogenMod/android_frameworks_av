@@ -819,8 +819,11 @@ private:
     struct {
         AudioTimestamp  mTimestamp;
         uint32_t        mUnpresentedFrames;
+        KeyedVector<Track *, uint32_t> mFramesReleased;
     } mLatchD, mLatchQ;
-    bool mLatchDValid;  // true means mLatchD is valid, and clock it into latch at next opportunity
+    bool mLatchDValid;  // true means mLatchD is valid
+                        //     (except for mFramesReleased which is filled in later),
+                        //     and clock it into latch at next opportunity
     bool mLatchQValid;  // true means mLatchQ is valid
 };
 
