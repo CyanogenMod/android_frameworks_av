@@ -119,15 +119,10 @@ ifneq ($(filter caf bfam legacy,$(TARGET_QCOM_AUDIO_VARIANT)),)
     endif
 endif
 
-ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
 LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
+    $(call project-path-for,qcom-media)/mm-core/inc
 ifneq ($(TARGET_QCOM_MEDIA_VARIANT),caf-new)
     LOCAL_CFLAGS += -DLEGACY_MEDIA
-endif
-else
-LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media/mm-core/inc
 endif
 
 LOCAL_SHARED_LIBRARIES := \
@@ -175,13 +170,8 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
     LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
-    ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
-    else
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media/mm-core/inc
-    endif
+    LOCAL_C_INCLUDES += \
+        $(call project-path-for,qcom-media)/mm-core/inc
 
 else #TARGET_ENABLE_AV_ENHANCEMENTS
 ifeq ($(TARGET_ENABLE_OFFLOAD_ENHANCEMENTS),true)
