@@ -615,11 +615,11 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
     return OK;
 }
 
-status_t MediaCodecSource::doMoreWork() {
-    status_t err;
+status_t MediaCodecSource::doMoreWork(int32_t numInput, int32_t numOutput) {
+    status_t err = OK;
 
     if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
-        for (;;) {
+        while (numInput-- > 0) {
             size_t bufferIndex;
             err = mEncoder->dequeueInputBuffer(&bufferIndex);
 
@@ -633,7 +633,7 @@ status_t MediaCodecSource::doMoreWork() {
         feedEncoderInputBuffers();
     }
 
-    for (;;) {
+    while (numOutput-- > 0) {
         size_t bufferIndex;
         size_t offset;
         size_t size;
@@ -805,7 +805,16 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        status_t err = doMoreWork();
+        int32_t numInput, numOutput;
+
+        if (!msg->findInt32("input-buffers", &numInput)) {
+            numInput = INT32_MAX;
+        }
+        if (!msg->findInt32("output-buffers", &numOutput)) {
+            numOutput = INT32_MAX;
+        }
+
+        status_t err = doMoreWork(numInput, numOutput);
 
         if (err == OK) {
             scheduleDoMoreWork();
