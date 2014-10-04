@@ -274,7 +274,7 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatAudioOffloadTearDown:
         {
-            onAudioOffloadTearDown();
+            onAudioOffloadTearDown(kDueToError);
             break;
         }
 
@@ -285,7 +285,8 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             if (generation != mAudioOffloadPauseTimeoutGeneration) {
                 break;
             }
-            onAudioOffloadTearDown();
+            ALOGV("Audio Offload tear down due to pause timeout.");
+            onAudioOffloadTearDown(kDueToTimeout);
             break;
         }
 
@@ -1089,7 +1090,7 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
     return durationUs;
 }
 
-void NuPlayer::Renderer::onAudioOffloadTearDown() {
+void NuPlayer::Renderer::onAudioOffloadTearDown(AudioOffloadTearDownReason reason) {
     if (mAudioOffloadTornDown) {
         return;
     }
@@ -1110,6 +1111,7 @@ void NuPlayer::Renderer::onAudioOffloadTearDown() {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatAudioOffloadTearDown);
     notify->setInt64("positionUs", currentPositionUs);
+    notify->setInt32("reason", reason);
     notify->post();
 }
 
