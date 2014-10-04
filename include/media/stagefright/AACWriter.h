@@ -17,6 +17,7 @@
 #ifndef AAC_WRITER_H_
 #define AAC_WRITER_H_
 
+#include "foundation/ABase.h"
 #include <media/stagefright/MediaWriter.h>
 #include <utils/threads.h>
 
