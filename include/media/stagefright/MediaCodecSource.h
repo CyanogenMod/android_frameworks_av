@@ -86,7 +86,7 @@ private:
     void releaseEncoder();
     status_t feedEncoderInputBuffers();
     void scheduleDoMoreWork();
-    status_t doMoreWork();
+    status_t doMoreWork(int32_t numInput, int32_t numOutput);
     void suspend();
     void resume(int64_t skipFramesBeforeUs = -1ll);
     void signalEOS(status_t err = ERROR_END_OF_STREAM);
