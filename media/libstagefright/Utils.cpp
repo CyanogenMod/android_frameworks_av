@@ -468,6 +468,9 @@ static void reassembleESDS(const sp<ABuffer> &csd0, char *esds) {
 
 void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     AString mime;
+    if(msg == NULL)
+        return;
+
     if (msg->findString("mime", &mime)) {
         meta->setCString(kKeyMIMEType, mime.c_str());
     } else {
