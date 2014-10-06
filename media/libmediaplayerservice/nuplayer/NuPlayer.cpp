@@ -1048,9 +1048,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else {
                 ALOGW("resume called when source is gone or not set");
             }
-            // |mAudioDecoder| may have been released due to the pause timeout, so try to re-create
-            // it if needed.
-            if (mFlushingAudio != SHUT_DOWN) {
+            // |mAudioDecoder| may have been released due to the pause timeout, so re-create it if
+            // needed.
+            if (audioDecoderStillNeeded() && mAudioDecoder == NULL) {
                 instantiateDecoder(true /* audio */, &mAudioDecoder);
             }
             if (mRenderer != NULL) {
@@ -1077,6 +1077,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             TRESPASS();
             break;
     }
+}
+
+bool NuPlayer::audioDecoderStillNeeded() {
+    // Audio decoder is no longer needed if it's in shut/shutting down status.
+    return ((mFlushingAudio != SHUT_DOWN) && (mFlushingAudio != SHUTTING_DOWN_DECODER));
 }
 
 void NuPlayer::finishFlushIfPossible() {
