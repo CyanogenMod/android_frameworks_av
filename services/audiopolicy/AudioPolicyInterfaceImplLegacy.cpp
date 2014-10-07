@@ -24,6 +24,7 @@
 #include <system/audio.h>
 #include <system/audio_policy.h>
 #include <hardware/audio_policy.h>
+#include <media/AudioPolicyHelper.h>
 
 namespace android {
 
@@ -525,7 +526,7 @@ status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *
     return INVALID_OPERATION;
 }
 
-audio_io_handle_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr __unused,
+audio_io_handle_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
