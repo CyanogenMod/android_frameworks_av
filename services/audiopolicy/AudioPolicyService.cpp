@@ -66,51 +66,56 @@ AudioPolicyService::AudioPolicyService()
     int forced_val;
     int rc;
 
-    Mutex::Autolock _l(mLock);
+    {
+        Mutex::Autolock _l(mLock);
 
-    // start tone playback thread
-    mTonePlaybackThread = new AudioCommandThread(String8("ApmTone"), this);
-    // start audio commands thread
-    mAudioCommandThread = new AudioCommandThread(String8("ApmAudio"), this);
-    // start output activity command thread
-    mOutputCommandThread = new AudioCommandThread(String8("ApmOutput"), this);
+        // start tone playback thread
+        mTonePlaybackThread = new AudioCommandThread(String8("ApmTone"), this);
+        // start audio commands thread
+        mAudioCommandThread = new AudioCommandThread(String8("ApmAudio"), this);
+        // start output activity command thread
+        mOutputCommandThread = new AudioCommandThread(String8("ApmOutput"), this);
 
 #ifdef USE_LEGACY_AUDIO_POLICY
-    ALOGI("AudioPolicyService CSTOR in legacy mode");
+        ALOGI("AudioPolicyService CSTOR in legacy mode");
 
-    /* instantiate the audio policy manager */
-    rc = hw_get_module(AUDIO_POLICY_HARDWARE_MODULE_ID, &module);
-    if (rc) {
-        return;
-    }
-    rc = audio_policy_dev_open(module, &mpAudioPolicyDev);
-    ALOGE_IF(rc, "couldn't open audio policy device (%s)", strerror(-rc));
-    if (rc) {
-        return;
-    }
+        /* instantiate the audio policy manager */
+        rc = hw_get_module(AUDIO_POLICY_HARDWARE_MODULE_ID, &module);
+        if (rc) {
+            return;
+        }
+        rc = audio_policy_dev_open(module, &mpAudioPolicyDev);
+        ALOGE_IF(rc, "couldn't open audio policy device (%s)", strerror(-rc));
+        if (rc) {
+            return;
+        }
 
-    rc = mpAudioPolicyDev->create_audio_policy(mpAudioPolicyDev, &aps_ops, this,
-                                               &mpAudioPolicy);
-    ALOGE_IF(rc, "couldn't create audio policy (%s)", strerror(-rc));
-    if (rc) {
-        return;
-    }
+        rc = mpAudioPolicyDev->create_audio_policy(mpAudioPolicyDev, &aps_ops, this,
+                                                   &mpAudioPolicy);
+        ALOGE_IF(rc, "couldn't create audio policy (%s)", strerror(-rc));
+        if (rc) {
+            return;
+        }
 
-    rc = mpAudioPolicy->init_check(mpAudioPolicy);
-    ALOGE_IF(rc, "couldn't init_check the audio policy (%s)", strerror(-rc));
-    if (rc) {
-        return;
-    }
-    ALOGI("Loaded audio policy from %s (%s)", module->name, module->id);
+        rc = mpAudioPolicy->init_check(mpAudioPolicy);
+        ALOGE_IF(rc, "couldn't init_check the audio policy (%s)", strerror(-rc));
+        if (rc) {
+            return;
+        }
+        ALOGI("Loaded audio policy from %s (%s)", module->name, module->id);
 #else
-    ALOGI("AudioPolicyService CSTOR in new mode");
+        ALOGI("AudioPolicyService CSTOR in new mode");
 
-    mAudioPolicyClient = new AudioPolicyClient(this);
-    mAudioPolicyManager = createAudioPolicyManager(mAudioPolicyClient);
+        mAudioPolicyClient = new AudioPolicyClient(this);
+        mAudioPolicyManager = createAudioPolicyManager(mAudioPolicyClient);
 #endif
-
+    }
     // load audio processing modules
-    mAudioPolicyEffects = new AudioPolicyEffects();
+    sp<AudioPolicyEffects>audioPolicyEffects = new AudioPolicyEffects();
+    {
+        Mutex::Autolock _l(mLock);
+        mAudioPolicyEffects = audioPolicyEffects;
+    }
 }
 
 AudioPolicyService::~AudioPolicyService()

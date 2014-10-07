@@ -150,14 +150,20 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
         return NO_INIT;
     }
     ALOGV("startOutput()");
-    Mutex::Autolock _l(mLock);
-
     // create audio processors according to stream
-    status_t status = mAudioPolicyEffects->addOutputSessionEffects(output, stream, session);
-    if (status != NO_ERROR && status != ALREADY_EXISTS) {
-        ALOGW("Failed to add effects on session %d", session);
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        audioPolicyEffects = mAudioPolicyEffects;
+    }
+    if (audioPolicyEffects != 0) {
+        status_t status = audioPolicyEffects->addOutputSessionEffects(output, stream, session);
+        if (status != NO_ERROR && status != ALREADY_EXISTS) {
+            ALOGW("Failed to add effects on session %d", session);
+        }
     }
 
+    Mutex::Autolock _l(mLock);
     return mpAudioPolicy->start_output(mpAudioPolicy, output, stream, session);
 }
 
@@ -178,14 +184,19 @@ status_t  AudioPolicyService::doStopOutput(audio_io_handle_t output,
                                       int session)
 {
     ALOGV("doStopOutput from tid %d", gettid());
-    Mutex::Autolock _l(mLock);
-
     // release audio processors from the stream
-    status_t status = mAudioPolicyEffects->releaseOutputSessionEffects(output, stream, session);
-    if (status != NO_ERROR && status != ALREADY_EXISTS) {
-        ALOGW("Failed to release effects on session %d", session);
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        audioPolicyEffects = mAudioPolicyEffects;
     }
-
+    if (audioPolicyEffects != 0) {
+        status_t status = audioPolicyEffects->releaseOutputSessionEffects(output, stream, session);
+        if (status != NO_ERROR && status != ALREADY_EXISTS) {
+            ALOGW("Failed to release effects on session %d", session);
+        }
+    }
+    Mutex::Autolock _l(mLock);
     return mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
 }
 
@@ -224,21 +235,26 @@ audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
         return 0;
     }
 
-    Mutex::Autolock _l(mLock);
-    // the audio_in_acoustics_t parameter is ignored by get_input()
-    audio_io_handle_t input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
-                                                   format, channelMask, (audio_in_acoustics_t) 0);
-
+    audio_io_handle_t input;
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        // the audio_in_acoustics_t parameter is ignored by get_input()
+        input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
+                                             format, channelMask, (audio_in_acoustics_t) 0);
+        audioPolicyEffects = mAudioPolicyEffects;
+    }
     if (input == 0) {
         return input;
     }
 
-    // create audio pre processors according to input source
-    status_t status = mAudioPolicyEffects->addInputEffects(input, inputSource, audioSession);
-    if (status != NO_ERROR && status != ALREADY_EXISTS) {
-        ALOGW("Failed to add effects on input %d", input);
+    if (audioPolicyEffects != 0) {
+        // create audio pre processors according to input source
+        status_t status = audioPolicyEffects->addInputEffects(input, inputSource, audioSession);
+        if (status != NO_ERROR && status != ALREADY_EXISTS) {
+            ALOGW("Failed to add effects on input %d", input);
+        }
     }
-
     return input;
 }
 
@@ -270,13 +286,19 @@ void AudioPolicyService::releaseInput(audio_io_handle_t input,
     if (mpAudioPolicy == NULL) {
         return;
     }
-    Mutex::Autolock _l(mLock);
-    mpAudioPolicy->release_input(mpAudioPolicy, input);
 
-    // release audio processors from the input
-    status_t status = mAudioPolicyEffects->releaseInputEffects(input);
-    if(status != NO_ERROR) {
-        ALOGW("Failed to release effects on input %d", input);
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        mpAudioPolicy->release_input(mpAudioPolicy, input);
+        audioPolicyEffects = mAudioPolicyEffects;
+    }
+    if (audioPolicyEffects != 0) {
+        // release audio processors from the input
+        status_t status = audioPolicyEffects->releaseInputEffects(input);
+        if(status != NO_ERROR) {
+            ALOGW("Failed to release effects on input %d", input);
+        }
     }
 }
 
@@ -437,9 +459,16 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
         *count = 0;
         return NO_INIT;
     }
-    Mutex::Autolock _l(mLock);
-
-    return mAudioPolicyEffects->queryDefaultInputEffects(audioSession, descriptors, count);
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        audioPolicyEffects = mAudioPolicyEffects;
+    }
+    if (audioPolicyEffects == 0) {
+        *count = 0;
+        return NO_INIT;
+    }
+    return audioPolicyEffects->queryDefaultInputEffects(audioSession, descriptors, count);
 }
 
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
