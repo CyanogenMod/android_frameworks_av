@@ -590,7 +590,7 @@ status_t NuPlayerDriver::getMetadata(
 }
 
 void NuPlayerDriver::notifyResetComplete() {
-    ALOGI("notifyResetComplete(%p)", this);
+    ALOGD("notifyResetComplete(%p)", this);
     Mutex::Autolock autoLock(mLock);
 
     CHECK_EQ(mState, STATE_RESET_IN_PROGRESS);
