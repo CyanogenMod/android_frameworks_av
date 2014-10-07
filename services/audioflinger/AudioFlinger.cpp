@@ -401,6 +401,9 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             String8 result(kClientLockedString);
             write(fd, result.string(), result.size());
         }
+
+        EffectDumpEffects(fd);
+
         dumpClients(fd, args);
         if (clientLocked) {
             mClientLock.unlock();

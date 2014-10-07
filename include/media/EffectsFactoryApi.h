@@ -171,6 +171,8 @@ int EffectGetDescriptor(const effect_uuid_t *pEffectUuid, effect_descriptor_t *p
 ////////////////////////////////////////////////////////////////////////////////
 int EffectIsNullUuid(const effect_uuid_t *pEffectUuid);
 
+int EffectDumpEffects(int fd);
+
 #if __cplusplus
 }  // extern "C"
 #endif
