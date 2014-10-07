@@ -234,14 +234,6 @@ private:
     }
 
     /**
-     * True if the input entry is "." or ".."
-     */
-    bool isDotOrDDot(const struct dirent* pEntry) const {
-        String8 sName(pEntry->d_name);
-        return sName == "." || sName == "..";
-    }
-
-    /**
      * True if input entry is directory
      */
     bool isDirectory(const struct dirent* pEntry) const {
