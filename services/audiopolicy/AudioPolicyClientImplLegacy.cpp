@@ -96,7 +96,7 @@ static audio_io_handle_t open_output(audio_module_handle_t module,
         *pFormat = config.format;
         *pChannelMask = config.channel_mask;
         if (offloadInfo != NULL) {
-            *offloadInfo = config.offload_info;
+            *((audio_offload_info_t *)offloadInfo) = config.offload_info;
         }
     }
     return output;
