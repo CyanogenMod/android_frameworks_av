@@ -174,6 +174,7 @@ NuPlayer::NuPlayer()
       mNumFramesDropped(0ll),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
       mStarted(false) {
+    clearFlushComplete();
 }
 
 NuPlayer::~NuPlayer() {
@@ -333,25 +334,6 @@ void NuPlayer::seekToAsync(int64_t seekTimeUs, bool needNotify) {
     msg->post();
 }
 
-// static
-bool NuPlayer::IsFlushingState(FlushStatus state, bool *needShutdown) {
-    switch (state) {
-        case FLUSHING_DECODER:
-            if (needShutdown != NULL) {
-                *needShutdown = false;
-            }
-            return true;
-
-        case FLUSHING_DECODER_SHUTDOWN:
-            if (needShutdown != NULL) {
-                *needShutdown = true;
-            }
-            return true;
-
-        default:
-            return false;
-    }
-}
 
 void NuPlayer::writeTrackInfo(
         Parcel* reply, const sp<AMessage> format) const {
@@ -773,38 +755,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                 mRenderer->queueEOS(audio, err);
             } else if (what == Decoder::kWhatFlushCompleted) {
-                bool needShutdown;
-
-                if (audio) {
-                    CHECK(IsFlushingState(mFlushingAudio, &needShutdown));
-                    mFlushingAudio = FLUSHED;
-                } else {
-                    CHECK(IsFlushingState(mFlushingVideo, &needShutdown));
-                    mFlushingVideo = FLUSHED;
-
-                    mVideoLateByUs = 0;
-                }
-
                 ALOGV("decoder %s flush completed", audio ? "audio" : "video");
 
-                if (needShutdown) {
-                    ALOGV("initiating %s decoder shutdown",
-                         audio ? "audio" : "video");
-
-                    // Widevine source reads must stop before releasing the video decoder.
-                    if (!audio && mSource != NULL && mSourceFlags & Source::FLAG_SECURE) {
-                        mSource->stop();
-                    }
-
-                    getDecoder(audio)->initiateShutdown();
-
-                    if (audio) {
-                        mFlushingAudio = SHUTTING_DOWN_DECODER;
-                    } else {
-                        mFlushingVideo = SHUTTING_DOWN_DECODER;
-                    }
-                }
-
+                handleFlushComplete(audio, true /* isDecoder */);
                 finishFlushIfPossible();
             } else if (what == Decoder::kWhatOutputFormatChanged) {
                 sp<AMessage> format;
@@ -957,6 +910,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 CHECK(msg->findInt32("audio", &audio));
 
                 ALOGV("renderer %s flush completed.", audio ? "audio" : "video");
+                handleFlushComplete(audio, false /* isDecoder */);
+                finishFlushIfPossible();
             } else if (what == Renderer::kWhatVideoRenderingStart) {
                 notifyListener(MEDIA_INFO, MEDIA_INFO_RENDERING_START, 0);
             } else if (what == Renderer::kWhatMediaRenderingStart) {
@@ -1084,6 +1039,50 @@ bool NuPlayer::audioDecoderStillNeeded() {
     return ((mFlushingAudio != SHUT_DOWN) && (mFlushingAudio != SHUTTING_DOWN_DECODER));
 }
 
+void NuPlayer::handleFlushComplete(bool audio, bool isDecoder) {
+    // We wait for both the decoder flush and the renderer flush to complete
+    // before entering either the FLUSHED or the SHUTTING_DOWN_DECODER state.
+
+    mFlushComplete[audio][isDecoder] = true;
+    if (!mFlushComplete[audio][!isDecoder]) {
+        return;
+    }
+
+    FlushStatus *state = audio ? &mFlushingAudio : &mFlushingVideo;
+    switch (*state) {
+        case FLUSHING_DECODER:
+        {
+            *state = FLUSHED;
+
+            if (!audio) {
+                mVideoLateByUs = 0;
+            }
+            break;
+        }
+
+        case FLUSHING_DECODER_SHUTDOWN:
+        {
+            *state = SHUTTING_DOWN_DECODER;
+
+            ALOGV("initiating %s decoder shutdown", audio ? "audio" : "video");
+            if (!audio) {
+                mVideoLateByUs = 0;
+                // Widevine source reads must stop before releasing the video decoder.
+                if (mSource != NULL && mSourceFlags & Source::FLAG_SECURE) {
+                    mSource->stop();
+                }
+            }
+            getDecoder(audio)->initiateShutdown();
+            break;
+        }
+
+        default:
+            // decoder flush completes only occur in a flushing state.
+            LOG_ALWAYS_FATAL_IF(isDecoder, "decoder flush in invalid state %d", *state);
+            break;
+    }
+}
+
 void NuPlayer::finishFlushIfPossible() {
     if (mFlushingAudio != NONE && mFlushingAudio != FLUSHED
             && mFlushingAudio != SHUT_DOWN) {
@@ -1115,6 +1114,8 @@ void NuPlayer::finishFlushIfPossible() {
 
     mFlushingAudio = NONE;
     mFlushingVideo = NONE;
+
+    clearFlushComplete();
 
     processDeferredActions();
 }
@@ -1720,6 +1721,8 @@ void NuPlayer::flushDecoder(
     FlushStatus newStatus =
         needShutdown ? FLUSHING_DECODER_SHUTDOWN : FLUSHING_DECODER;
 
+    mFlushComplete[audio][false /* isDecoder */] = false;
+    mFlushComplete[audio][true /* isDecoder */] = false;
     if (audio) {
         ALOGE_IF(mFlushingAudio != NONE,
                 "audio flushDecoder() is called in state %d", mFlushingAudio);
