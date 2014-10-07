@@ -87,6 +87,7 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
     audio_source_t aliasSource = (inputSource == AUDIO_SOURCE_HOTWORD) ?
                                     AUDIO_SOURCE_VOICE_RECOGNITION : inputSource;
 
+    Mutex::Autolock _l(mLock);
     ssize_t index = mInputSources.indexOfKey(aliasSource);
     if (index < 0) {
         ALOGV("addInputEffects(): no processing needs to be attached to this source");
@@ -122,7 +123,7 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
         ALOGV("addInputEffects(): added Fx %s on source: %d", effect->mName, (int32_t)aliasSource);
         inputDesc->mEffects.add(fx);
     }
-    setProcessorEnabled(inputDesc, true);
+    inputDesc->setProcessorEnabled(true);
 
     return status;
 }
@@ -132,6 +133,7 @@ status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input)
 {
     status_t status = NO_ERROR;
 
+    Mutex::Autolock _l(mLock);
     ssize_t index = mInputs.indexOfKey(input);
     if (index < 0) {
         return status;
@@ -140,7 +142,7 @@ status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input)
     inputDesc->mRefCount--;
     ALOGV("releaseInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
     if (inputDesc->mRefCount == 0) {
-        setProcessorEnabled(inputDesc, false);
+        inputDesc->setProcessorEnabled(false);
         delete inputDesc;
         mInputs.removeItemsAt(index);
         ALOGV("releaseInputEffects(): all effects released");
@@ -154,6 +156,7 @@ status_t AudioPolicyEffects::queryDefaultInputEffects(int audioSession,
 {
     status_t status = NO_ERROR;
 
+    Mutex::Autolock _l(mLock);
     size_t index;
     for (index = 0; index < mInputs.size(); index++) {
         if (mInputs.valueAt(index)->mSessionId == audioSession) {
@@ -186,6 +189,7 @@ status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(int audioSession,
 {
     status_t status = NO_ERROR;
 
+    Mutex::Autolock _l(mLock);
     size_t index;
     for (index = 0; index < mOutputSessions.size(); index++) {
         if (mOutputSessions.valueAt(index)->mSessionId == audioSession) {
@@ -218,6 +222,7 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 {
     status_t status = NO_ERROR;
 
+    Mutex::Autolock _l(mLock);
     // create audio processors according to stream
     ssize_t index = mOutputStreams.indexOfKey(stream);
     if (index < 0) {
@@ -254,7 +259,7 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         procDesc->mEffects.add(fx);
     }
 
-    setProcessorEnabled(procDesc, true);
+    procDesc->setProcessorEnabled(true);
 
     return status;
 }
@@ -267,6 +272,7 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     (void) output; // argument not used for now
     (void) stream; // argument not used for now
 
+    Mutex::Autolock _l(mLock);
     ssize_t index = mOutputSessions.indexOfKey(audioSession);
     if (index < 0) {
         ALOGV("releaseOutputSessionEffects: no output processing was attached to this stream");
@@ -277,7 +283,7 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     procDesc->mRefCount--;
     ALOGV("releaseOutputSessionEffects(): session: %d, refCount: %d", audioSession, procDesc->mRefCount);
     if (procDesc->mRefCount == 0) {
-        setProcessorEnabled(procDesc, false);
+        procDesc->setProcessorEnabled(false);
         procDesc->mEffects.clear();
         delete procDesc;
         mOutputSessions.removeItemsAt(index);
@@ -288,11 +294,10 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
 }
 
 
-void AudioPolicyEffects::setProcessorEnabled(const EffectVector *effectVector, bool enabled)
+void AudioPolicyEffects::EffectVector::setProcessorEnabled(bool enabled)
 {
-    const Vector<sp<AudioEffect> > &fxVector = effectVector->mEffects;
-    for (size_t i = 0; i < fxVector.size(); i++) {
-        fxVector.itemAt(i)->setEnabled(enabled);
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        mEffects.itemAt(i)->setEnabled(enabled);
     }
 }
 
@@ -313,7 +318,7 @@ void AudioPolicyEffects::setProcessorEnabled(const EffectVector *effectVector, b
 
 // returns the audio_source_t enum corresponding to the input source name or
 // AUDIO_SOURCE_CNT is no match found
-audio_source_t AudioPolicyEffects::inputSourceNameToEnum(const char *name)
+/*static*/ audio_source_t AudioPolicyEffects::inputSourceNameToEnum(const char *name)
 {
     int i;
     for (i = AUDIO_SOURCE_MIC; i < AUDIO_SOURCE_CNT; i++) {
