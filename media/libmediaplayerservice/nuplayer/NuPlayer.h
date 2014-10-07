@@ -164,6 +164,9 @@ private:
     // notion of time has changed.
     bool mTimeDiscontinuityPending;
 
+    // Status of flush responses from the decoder and renderer.
+    bool mFlushComplete[2][2];
+
     // Used by feedDecoderInputData to aggregate small buffers into
     // one large buffer.
     sp<ABuffer> mPendingAudioAccessUnit;
@@ -187,6 +190,13 @@ private:
         return audio ? mAudioDecoder : mVideoDecoder;
     }
 
+    inline void clearFlushComplete() {
+        mFlushComplete[0][0] = false;
+        mFlushComplete[0][1] = false;
+        mFlushComplete[1][0] = false;
+        mFlushComplete[1][1] = false;
+    }
+
     void openAudioSink(const sp<AMessage> &format, bool offloadOnly);
     void closeAudioSink();
 
@@ -201,6 +211,7 @@ private:
 
     void notifyListener(int msg, int ext1, int ext2, const Parcel *in = NULL);
 
+    void handleFlushComplete(bool audio, bool isDecoder);
     void finishFlushIfPossible();
 
     bool audioDecoderStillNeeded();
@@ -208,8 +219,6 @@ private:
     void flushDecoder(
             bool audio, bool needShutdown, const sp<AMessage> &newFormat = NULL);
     void updateDecoderFormatWithoutFlush(bool audio, const sp<AMessage> &format);
-
-    static bool IsFlushingState(FlushStatus state, bool *needShutdown = NULL);
 
     void postScanSources();
 
