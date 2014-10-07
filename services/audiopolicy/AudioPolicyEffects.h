@@ -45,6 +45,10 @@ public:
 	         AudioPolicyEffects();
     virtual ~AudioPolicyEffects();
 
+    // NOTE: methods on AudioPolicyEffects should never be called with the AudioPolicyService
+    // main mutex (mLock) held as they will indirectly call back into AudioPolicyService when
+    // managing audio effects.
+
     // Return a list of effect descriptors for default input effects
     // associated with audioSession
     status_t queryDefaultInputEffects(int audioSession,
@@ -133,6 +137,10 @@ private:
     public:
         EffectVector(int session) : mSessionId(session), mRefCount(0) {}
         /*virtual*/ ~EffectVector() {}
+
+        // Enable or disable all effects in effect vector
+        void setProcessorEnabled(bool enabled);
+
         const int mSessionId;
         // AudioPolicyManager keeps mLock, no need for lock on reference count here
         int mRefCount;
@@ -141,13 +149,10 @@ private:
 
 
     static const char * const kInputSourceNames[AUDIO_SOURCE_CNT -1];
-    audio_source_t inputSourceNameToEnum(const char *name);
+    static audio_source_t inputSourceNameToEnum(const char *name);
 
     static const char *kStreamNames[AUDIO_STREAM_CNT+1]; //+1 required as streams start from -1
     audio_stream_type_t streamNameToEnum(const char *name);
-
-    // Enable or disable all effects in effect vector
-    void setProcessorEnabled(const EffectVector *effectVector, bool enabled);
 
     // Parse audio_effects.conf
     status_t loadAudioEffectConfig(const char *path);
@@ -173,6 +178,8 @@ private:
                          size_t *curSize,
                          size_t *totSize);
 
+    // protects access to mInputSources, mInputs, mOutputStreams, mOutputSessions
+    Mutex mLock;
     // Automatic input effects are configured per audio_source_t
     KeyedVector< audio_source_t, EffectDescVector* > mInputSources;
     // Automatic input effects are unique for audio_io_handle_t
