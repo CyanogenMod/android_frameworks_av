@@ -89,6 +89,12 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             ALOGV("setDeviceConnectionState() connecting device %x", device);
 
 #ifdef LEGACY_ALSA_AUDIO
+            if (device & AUDIO_DEVICE_OUT_ALL_A2DP) {
+               AudioParameter param;
+               param.add(String8("a2dp_connected"), String8("true"));
+               mpClientInterface->setParameters(0, param.toString());
+            }
+
             if (device & AUDIO_DEVICE_OUT_USB_ACCESSORY) {
                AudioParameter param;
                param.add(String8("usb_connected"), String8("true"));
@@ -148,6 +154,12 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             mAvailableOutputDevices.remove(devDesc);
 
 #ifdef LEGACY_ALSA_AUDIO
+            if (device & AUDIO_DEVICE_OUT_ALL_A2DP) {
+               AudioParameter param;
+               param.add(String8("a2dp_connected"), String8("false"));
+               mpClientInterface->setParameters(0, param.toString());
+            }
+
             if (device & AUDIO_DEVICE_OUT_USB_ACCESSORY) {
                AudioParameter param;
                param.add(String8("usb_connected"), String8("true"));
@@ -3905,11 +3917,13 @@ void AudioPolicyManager::checkOutputForAllStrategies()
 
 void AudioPolicyManager::checkA2dpSuspend()
 {
+#ifndef LEGACY_ALSA_AUDIO
     audio_io_handle_t a2dpOutput = mOutputs.getA2dpOutput();
     if (a2dpOutput == 0) {
         mA2dpSuspended = false;
         return;
     }
+#endif
 
     bool isScoConnected =
             ((mAvailableInputDevices.types() & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET &
@@ -3934,7 +3948,9 @@ void AudioPolicyManager::checkA2dpSuspend()
              ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) &&
               (mEngine->getPhoneState() != AUDIO_MODE_RINGTONE))) {
 
+#ifndef LEGACY_ALSA_AUDIO
             mpClientInterface->restoreOutput(a2dpOutput);
+#endif
             mA2dpSuspended = false;
         }
     } else {
@@ -3944,7 +3960,9 @@ void AudioPolicyManager::checkA2dpSuspend()
              ((mEngine->getPhoneState() == AUDIO_MODE_IN_CALL) ||
               (mEngine->getPhoneState() == AUDIO_MODE_RINGTONE))) {
 
+#ifndef LEGACY_ALSA_AUDIO
             mpClientInterface->suspendOutput(a2dpOutput);
+#endif
             mA2dpSuspended = true;
         }
     }

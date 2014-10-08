@@ -422,6 +422,7 @@ bool SwAudioOutputCollection::isStreamActiveRemotely(audio_stream_type_t stream,
 
 audio_io_handle_t SwAudioOutputCollection::getA2dpOutput() const
 {
+#ifndef LEGACY_ALSA_AUDIO
     for (size_t i = 0; i < size(); i++) {
         sp<SwAudioOutputDescriptor> outputDesc = valueAt(i);
         if (!outputDesc->isDuplicated() && outputDesc->device() & AUDIO_DEVICE_OUT_ALL_A2DP) {
@@ -429,6 +430,9 @@ audio_io_handle_t SwAudioOutputCollection::getA2dpOutput() const
         }
     }
     return 0;
+#else
+    return 1;
+#endif
 }
 
 sp<SwAudioOutputDescriptor> SwAudioOutputCollection::getPrimaryOutput() const
