@@ -323,7 +323,7 @@ status_t ExtendedCodec::setAudioFormat(
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID, bool isEncoder ) {
     ALOGV("setAudioFormat called");
-    status_t err = OK;
+    status_t err = ERROR_UNSUPPORTED;
 
     if ((!strcasecmp(MEDIA_MIMETYPE_AUDIO_AC3, mime)) ||
         (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EAC3, mime))){
@@ -333,16 +333,19 @@ status_t ExtendedCodec::setAudioFormat(
         //setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
+        err = OK;
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EVRC, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         setEVRCFormat(numChannels, sampleRate, OMXhandle, nodeID, isEncoder );
+        err = OK;
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_QCELP, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         setQCELPFormat(numChannels, sampleRate, OMXhandle, nodeID, isEncoder);
+        err = OK;
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_WMA, mime))  {
         err = setWMAFormat(msg, OMXhandle, nodeID, isEncoder);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, mime)) {
@@ -418,8 +421,10 @@ status_t ExtendedCodec::setSupportedRole(
           "video_decoder.divx", NULL },
         { MEDIA_MIMETYPE_VIDEO_WMV,
           "video_decoder.vc1",  NULL },
+#if 0 // handled by FFMPEG
         { MEDIA_MIMETYPE_AUDIO_AC3,
           "audio_decoder.ac3", NULL },
+#endif
         { MEDIA_MIMETYPE_AUDIO_WMA,
           "audio_decoder.wma" , NULL },
         { MEDIA_MIMETYPE_VIDEO_HEVC,
@@ -1399,3 +1404,37 @@ namespace android {
 } //namespace android
 
 #endif //ENABLE_AV_ENHANCEMENTS
+
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
+namespace android {
+
+    status_t ExtendedCodec::updatePcmOutputFormat(
+            const sp<MetaData> &meta, sp<IOMX> OMXhandle, IOMX::node_id nodeID,
+            const char* componentName) {
+
+        OMX_AUDIO_PARAM_PCMMODETYPE param;
+        int32_t bits_per_sample = 16;
+        int32_t sample_rate;
+        int32_t channels;
+        status_t err = OK;
+
+        CHECK(meta->findInt32(kKeyChannelCount, &channels));
+        CHECK(meta->findInt32(kKeySampleRate, &sample_rate));
+
+        if (!meta->findInt32(kKeySampleBits, &bits_per_sample)) {
+            ALOGD("Bits per sample not specified, using default 16");
+        }
+        ALOGD("Update output bit width = %d", bits_per_sample);
+
+        InitOMXParams(&param);
+        param.nPortIndex = kPortIndexOutput; 
+        param.nChannels = channels;
+        param.nSamplingRate = sample_rate;
+        param.nBitPerSample = bits_per_sample;
+
+        return OMXhandle->setParameter(nodeID, OMX_IndexParamAudioPcm,
+                &param, sizeof(param));
+    }
+
+} // namespace android
+#endif
