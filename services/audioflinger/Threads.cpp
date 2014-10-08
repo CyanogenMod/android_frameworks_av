@@ -2292,12 +2292,12 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     POSTPRO_PATCH_PARAMS_SET(bt_param);
     if (mType == MIXER) {
         POSTPRO_PATCH_OUTPROC_PLAY_INIT(this, myName);
-    } else if (mType == DUPLICATING) {
-        POSTPRO_PATCH_OUTPROC_DUPE_INIT(this, myName);
     } else if (mType == OFFLOAD) {
         POSTPRO_PATCH_OUTPROC_DIRECT_INIT(this, myName);
+        POSTPRO_PATCH_OUTPROC_PLAY_ROUTE_BY_VALUE(this, mOutDevice);
     } else if (mType == DIRECT) {
         POSTPRO_PATCH_OUTPROC_DIRECT_INIT(this, myName);
+        POSTPRO_PATCH_OUTPROC_PLAY_ROUTE_BY_VALUE(this, mOutDevice);
     }
 #endif
 
@@ -2476,8 +2476,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 #ifdef SRS_PROCESSING
                 if (mType == MIXER && mMixerStatus == MIXER_TRACKS_READY) {
                     POSTPRO_PATCH_OUTPROC_PLAY_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
-                } else if (mType == DUPLICATING) {
-                    POSTPRO_PATCH_OUTPROC_DUPE_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
                 } /* else if (mType == OFFLOAD) {
                     POSTPRO_PATCH_OUTPROC_DIRECT_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
                 } else if (mType == DIRECT) {
@@ -2552,8 +2550,6 @@ if (mType == MIXER) {
 #ifdef SRS_PROCESSING
     if (mType == MIXER) {
         POSTPRO_PATCH_OUTPROC_PLAY_EXIT(this, myName);
-    } else if (mType == DUPLICATING) {
-        POSTPRO_PATCH_OUTPROC_DUPE_EXIT(this, myName);
     } else if (mType == OFFLOAD) {
         POSTPRO_PATCH_OUTPROC_DIRECT_EXIT(this, myName);
     } else if (mType == DIRECT) {
