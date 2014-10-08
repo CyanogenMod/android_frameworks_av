@@ -4463,11 +4463,13 @@ audio_io_handle_t AudioPolicyManager::getA2dpOutput()
 
 void AudioPolicyManager::checkA2dpSuspend()
 {
+#ifndef QCOM_DIRECTTRACK
     audio_io_handle_t a2dpOutput = getA2dpOutput();
     if (a2dpOutput == 0) {
         mA2dpSuspended = false;
         return;
     }
+#endif
 
     bool isScoConnected =
             (mAvailableInputDevices.types() & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) != 0;
@@ -4490,7 +4492,9 @@ void AudioPolicyManager::checkA2dpSuspend()
              ((mPhoneState != AUDIO_MODE_IN_CALL) &&
               (mPhoneState != AUDIO_MODE_RINGTONE))) {
 
+#ifndef QCOM_DIRECTTRACK
             mpClientInterface->restoreOutput(a2dpOutput);
+#endif
             mA2dpSuspended = false;
         }
     } else {
@@ -4500,7 +4504,9 @@ void AudioPolicyManager::checkA2dpSuspend()
              ((mPhoneState == AUDIO_MODE_IN_CALL) ||
               (mPhoneState == AUDIO_MODE_RINGTONE))) {
 
+#ifndef QCOM_DIRECTTRACK
             mpClientInterface->suspendOutput(a2dpOutput);
+#endif
             mA2dpSuspended = true;
         }
     }
@@ -4781,7 +4787,10 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
             // when not in a phone call, phone strategy should route STREAM_VOICE_CALL to A2DP
             if (!isInCall() &&
                     (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
-                    (getA2dpOutput() != 0) && !mA2dpSuspended) {
+#ifndef QCOM_DIRECTTRACK
+                    (getA2dpOutput() != 0) &&
+#endif
+                    !mA2dpSuspended) {
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
                 if (device) break;
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES;
@@ -4819,7 +4828,10 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
             // A2DP speaker when forcing to speaker output
             if (!isInCall() &&
                     (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
-                    (getA2dpOutput() != 0) && !mA2dpSuspended) {
+#ifndef QCOM_DIRECTTRACK
+                    (getA2dpOutput() != 0) &&
+#endif
+                    !mA2dpSuspended) {
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
                 if (device) break;
             }
@@ -4908,7 +4920,10 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         }
         if ((device2 == AUDIO_DEVICE_NONE) &&
                 (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
-                (getA2dpOutput() != 0) && !mA2dpSuspended) {
+#ifndef QCOM_DIRECTTRACK
+                (getA2dpOutput() != 0) &&
+#endif
+                !mA2dpSuspended) {
             device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
             if (device2 == AUDIO_DEVICE_NONE) {
                 device2 = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES;
