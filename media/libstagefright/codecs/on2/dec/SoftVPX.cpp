@@ -189,4 +189,5 @@ android::SoftOMXComponent *createSoftOMXComponent(
     } else {
         CHECK(!"Unknown component");
     }
+    return NULL;
 }
