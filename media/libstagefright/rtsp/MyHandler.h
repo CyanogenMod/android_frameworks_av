@@ -321,23 +321,33 @@ struct MyHandler : public AHandler {
 
         AString source;
         AString server_port;
-        if (!GetAttribute(transport.c_str(),
-                          "source",
-                          &source)) {
-            ALOGW("Missing 'source' field in Transport response. Using "
-                 "RTSP endpoint address.");
 
-            struct hostent *ent = gethostbyname(mSessionHost.c_str());
-            if (ent == NULL) {
-                ALOGE("Failed to look up address of session host '%s'",
-                     mSessionHost.c_str());
-
-                return false;
+        Vector<uint32_t> s_addrs;
+        if (GetAttribute(transport.c_str(), "source", &source)){
+            ALOGI("found 'source' = %s field in Transport response",
+                source.c_str());
+            uint32_t addr = inet_addr(source.c_str());
+            if (addr == INADDR_NONE || IN_LOOPBACK(ntohl(addr))){
+                ALOGI("no need to poke the hole");
+            } else {
+                s_addrs.push(addr);
             }
+        }
 
-            addr.sin_addr.s_addr = *(in_addr_t *)ent->h_addr;
-        } else {
-            addr.sin_addr.s_addr = inet_addr(source.c_str());
+        struct hostent *ent = gethostbyname(mSessionHost.c_str());
+        if (ent != NULL){
+            ALOGI("get the endpoint address of session host");
+            uint32_t addr = *(in_addr_t *)ent->h_addr;
+            if (addr == INADDR_NONE || IN_LOOPBACK(ntohl(addr))){
+                ALOGI("no need to poke the hole");
+            } else if (s_addrs.size() == 0 || s_addrs[0] != addr){
+                s_addrs.push(addr);
+            }
+        }
+
+        if (s_addrs.size() == 0){
+            ALOGI("Failed to get any session address");
+            return false;
         }
 
         if (!GetAttribute(transport.c_str(),
@@ -365,44 +375,39 @@ struct MyHandler : public AHandler {
                  "in the future.");
         }
 
-        if (addr.sin_addr.s_addr == INADDR_NONE) {
-            return true;
-        }
-
-        if (IN_LOOPBACK(ntohl(addr.sin_addr.s_addr))) {
-            // No firewalls to traverse on the loopback interface.
-            return true;
-        }
-
         // Make up an RR/SDES RTCP packet.
         sp<ABuffer> buf = new ABuffer(65536);
         buf->setRange(0, 0);
         addRR(buf);
         addSDES(rtpSocket, buf);
 
-        addr.sin_port = htons(rtpPort);
+        for (uint32_t i = 0; i < s_addrs.size(); i++){
+            addr.sin_addr.s_addr = s_addrs[i];
 
-        ssize_t n = sendto(
-                rtpSocket, buf->data(), buf->size(), 0,
-                (const sockaddr *)&addr, sizeof(addr));
+            addr.sin_port = htons(rtpPort);
 
-        if (n < (ssize_t)buf->size()) {
-            ALOGE("failed to poke a hole for RTP packets");
-            return false;
+            ssize_t n = sendto(
+                    rtpSocket, buf->data(), buf->size(), 0,
+                    (const sockaddr *)&addr, sizeof(addr));
+
+            if (n < (ssize_t)buf->size()) {
+                ALOGE("failed to poke a hole for RTP packets");
+                continue;
+            }
+
+            addr.sin_port = htons(rtcpPort);
+
+            n = sendto(
+                    rtcpSocket, buf->data(), buf->size(), 0,
+                    (const sockaddr *)&addr, sizeof(addr));
+
+            if (n < (ssize_t)buf->size()) {
+                ALOGE("failed to poke a hole for RTCP packets");
+                continue;
+            }
+
+            ALOGI("successfully poked holes for the address = %u", s_addrs[i]);
         }
-
-        addr.sin_port = htons(rtcpPort);
-
-        n = sendto(
-                rtcpSocket, buf->data(), buf->size(), 0,
-                (const sockaddr *)&addr, sizeof(addr));
-
-        if (n < (ssize_t)buf->size()) {
-            ALOGE("failed to poke a hole for RTCP packets");
-            return false;
-        }
-
-        ALOGV("successfully poked holes.");
 
         return true;
     }

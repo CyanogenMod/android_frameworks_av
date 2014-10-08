@@ -526,6 +526,16 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             goto Exit;
         }
 
+        {
+            Mutex::Autolock _l(thread->mLock);
+            // avoid two active tracks added to offload thread
+            if (thread->mType == PlaybackThread::OFFLOAD && (thread->mActiveTracks.size() > 0)) {
+                ALOGD("decline track creation for offload as an active track already exsits");
+                lStatus = BAD_VALUE;
+                goto Exit;
+            }
+        }
+
         pid_t pid = IPCThreadState::self()->getCallingPid();
 
         client = registerPid_l(pid);

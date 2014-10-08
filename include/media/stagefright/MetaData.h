@@ -55,7 +55,6 @@ enum {
     kKeyFrameRate         = 'frmR',  // int32_t (video frame rate fps)
     kKeyBitRate           = 'brte',  // int32_t (bps)
     kKeyCodecId           = 'cdid',  // int32_t
-    kKeyBitspersample     = '#bps',  // int32_t
     kKeySampleFormat      = 'sfmt',  // int32_t
     kKeyESDS              = 'esds',  // raw data
     kKeyAACProfile        = 'aacp',  // int32_t
@@ -187,6 +186,8 @@ enum {
 #ifdef QCOM_HARDWARE
     kKeyTunnelException   = 'Ntnl', // not tunnel
 #endif
+
+    kKeySampleBits        = 'sbit', // int32_t (audio sample bit-width)
 };
 
 enum {

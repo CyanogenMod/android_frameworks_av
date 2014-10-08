@@ -43,9 +43,9 @@ public:
     /*virtual*/             ~AudioMixer();  // non-virtual saves a v-table, restore if sub-classed
 
 
-    // This mixer has a hard-coded upper limit of 32 active track inputs.
-    // Adding support for > 32 tracks would require more than simply changing this value.
-    static const uint32_t MAX_NUM_TRACKS = 32;
+    // This mixer has a hard-coded upper limit of 64 active track inputs.
+    // Adding support for > 64 tracks would require more than simply changing this value.
+    static const uint32_t MAX_NUM_TRACKS = 64;
     // maximum number of channels supported by the mixer
 
     // This mixer has a hard-coded upper limit of 2 channels for output.
@@ -113,7 +113,7 @@ public:
     void        setBufferProvider(int name, AudioBufferProvider* bufferProvider);
     void        process(int64_t pts);
 
-    uint32_t    trackNames() const { return mTrackNames; }
+    uint64_t    trackNames() const { return mTrackNames; }
 
     size_t      getUnreleasedFrames(int name) const;
 
@@ -241,11 +241,11 @@ private:
     };
 
     // bitmask of allocated track names, where bit 0 corresponds to TRACK0 etc.
-    uint32_t        mTrackNames;
+    uint64_t        mTrackNames;
 
     // bitmask of configured track names; ~0 if maxNumTracks == MAX_NUM_TRACKS,
     // but will have fewer bits set if maxNumTracks < MAX_NUM_TRACKS
-    const uint32_t  mConfiguredNames;
+    const uint64_t  mConfiguredNames;
 
     const uint32_t  mSampleRate;
 

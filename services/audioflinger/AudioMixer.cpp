@@ -95,10 +95,9 @@ bool AudioMixer::isMultichannelCapable = false;
 effect_descriptor_t AudioMixer::dwnmFxDesc;
 
 // Ensure mConfiguredNames bitmask is initialized properly on all architectures.
-// The value of 1 << x is undefined in C when x >= 32.
 
 AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTracks)
-    :   mTrackNames(0), mConfiguredNames((maxNumTracks >= 32 ? 0 : 1 << maxNumTracks) - 1),
+    :   mTrackNames(0), mConfiguredNames((maxNumTracks >= 64 ? 0ULL : 1ULL << maxNumTracks) - 1),
         mSampleRate(sampleRate)
 {
     // AudioMixer is not yet capable of multi-channel beyond stereo
@@ -107,12 +106,11 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
     ALOG_ASSERT(maxNumTracks <= MAX_NUM_TRACKS, "maxNumTracks %u > MAX_NUM_TRACKS %u",
             maxNumTracks, MAX_NUM_TRACKS);
 
-    // AudioMixer is not yet capable of more than 32 active track inputs
-    ALOG_ASSERT(32 >= MAX_NUM_TRACKS, "bad MAX_NUM_TRACKS %d", MAX_NUM_TRACKS);
+    // AudioMixer is not yet capable of more than 64 active track inputs
+    ALOG_ASSERT(64 >= MAX_NUM_TRACKS, "bad MAX_NUM_TRACKS %d", MAX_NUM_TRACKS);
 
     // AudioMixer is not yet capable of multi-channel output beyond stereo
     ALOG_ASSERT(2 == MAX_NUM_CHANNELS, "bad MAX_NUM_CHANNELS %d", MAX_NUM_CHANNELS);
-
     LocalClock lc;
 
     pthread_once(&sOnceControl, &sInitRoutine);
@@ -178,11 +176,11 @@ void AudioMixer::setLog(NBLog::Writer *log)
 
 int AudioMixer::getTrackName(audio_channel_mask_t channelMask, int sessionId)
 {
-    uint32_t names = (~mTrackNames) & mConfiguredNames;
+    uint64_t names = (~mTrackNames) & mConfiguredNames;
     if (names != 0) {
-        int n = __builtin_ctz(names);
+        int n = __builtin_ctzll(names);
         ALOGV("add track (%d)", n);
-        mTrackNames |= 1 << n;
+        mTrackNames |= 1ULL << n;
         // assume default parameters for the track, except where noted below
         track_t* t = &mState.tracks[n];
         t->needs = 0;
@@ -386,7 +384,7 @@ void AudioMixer::deleteTrackName(int name)
     // delete the downmixer
     unprepareTrackForDownmix(&mState.tracks[name], name);
 
-    mTrackNames &= ~(1<<name);
+    mTrackNames &= ~(1ULL<<name);
 }
 
 void AudioMixer::enable(int name)

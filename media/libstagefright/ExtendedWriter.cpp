@@ -129,6 +129,11 @@ status_t ExtendedWriter::start(MetaData *params) {
     //space for header;
     size_t headerSize = sizeof( struct QCPEVRCHeader );
     uint8_t * header = (uint8_t *)malloc(headerSize);
+    if (header == NULL) {
+        ALOGE("Failed to allocate header");
+        return -ENOMEM;
+    }
+
     memset( header, '?', headerSize);
     fwrite( header, 1, headerSize, mFile );
     mOffset += headerSize;

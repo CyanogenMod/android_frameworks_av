@@ -313,6 +313,13 @@ int EffectCreate(const effect_uuid_t *uuid, int32_t sessionId, int32_t ioId, eff
 
     // add entry to effect list
     fx = (effect_entry_t *)malloc(sizeof(effect_entry_t));
+
+    if (!fx) {
+        ALOGE("failed to allocate effect_entry");
+        ret = -ENOMEM;
+        goto exit;
+    }
+
     fx->subItfe = itfe;
     if ((*itfe)->process_reverse != NULL) {
         fx->itfe = (struct effect_interface_s *)&gInterfaceWithReverse;
@@ -324,6 +331,11 @@ int EffectCreate(const effect_uuid_t *uuid, int32_t sessionId, int32_t ioId, eff
     fx->lib = l;
 
     e = (list_elem_t *)malloc(sizeof(list_elem_t));
+    if (!e) {
+        ret = -ENOMEM;
+        goto exit;
+    }
+
     e->object = fx;
     e->next = gEffectList;
     gEffectList = e;
@@ -470,6 +482,9 @@ int loadEffectConfigFile(const char *path)
         return -ENODEV;
     }
     root = config_node("", "");
+    if (root == NULL) {
+        return -ENOMEM;
+    }
     config_load(root, data);
     loadLibraries(root);
     loadEffects(root);
@@ -534,6 +549,12 @@ int loadLibrary(cnode *root, const char *name)
 
     // add entry for library in gLibraryList
     l = malloc(sizeof(lib_entry_t));
+
+    if (!l) {
+        ALOGE("failed to allocate lib_entry_t");
+        goto error;
+    }
+
     l->name = strndup(name, PATH_MAX);
     l->path = strndup(node->value, PATH_MAX);
     l->handle = hdl;
@@ -606,10 +627,21 @@ int addSubEffect(cnode *root)
         return -EINVAL;
     }
     sub_effect_entry_t *sub_effect = malloc(sizeof(sub_effect_entry_t));
+
+    if (!sub_effect) {
+        ALOGE("failed to allocate sub effect memory");
+        return -ENOMEM;
+    }
+
     sub_effect->object = d;
     // lib_entry_t is stored since the sub effects are not linked to the library
     sub_effect->lib = l;
     e = malloc(sizeof(list_elem_t));
+    if (!e) {
+        ALOGE("failed to allocate list elem memory");
+        return -ENOMEM;
+    }
+
     e->object = sub_effect;
     e->next = gSubEffectList->sub_elem;
     gSubEffectList->sub_elem = e;
@@ -681,6 +713,10 @@ int loadEffect(cnode *root)
         return -EINVAL;
     }
     e = malloc(sizeof(list_elem_t));
+    if (!e) {
+        return -ENOMEM;
+    }
+
     e->object = d;
     e->next = l->effects;
     l->effects = e;
@@ -695,6 +731,11 @@ int loadEffect(cnode *root)
     if (node != NULL) {
         ALOGV("Adding the effect to gEffectSubList as there are sub effects");
         sube = malloc(sizeof(list_sub_elem_t));
+        if (!sube) {
+            ALOGE("failed to allocate sub element list");
+            return -ENOMEM;
+        }
+
         sube->object = d;
         sube->sub_elem = NULL;
         sube->next = gSubEffectList;

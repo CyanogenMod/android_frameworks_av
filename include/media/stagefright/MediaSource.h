@@ -59,7 +59,9 @@ struct MediaSource : public virtual RefBase {
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
 
+#ifdef QCOM_HARDWARE
     virtual void notifyError(status_t err) {}
+#endif
 
     // Options that modify read() behaviour. The default is to
     // a) not request a seek
@@ -117,6 +119,11 @@ protected:
 private:
     MediaSource(const MediaSource &);
     MediaSource &operator=(const MediaSource &);
+
+#ifndef QCOM_HARDWARE
+public:
+    virtual void notifyError(status_t err) {}
+#endif
 };
 
 }  // namespace android

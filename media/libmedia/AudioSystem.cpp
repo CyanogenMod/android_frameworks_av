@@ -617,6 +617,11 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return 0;
+
+    if (stream == AUDIO_STREAM_DEFAULT) {
+        stream = AUDIO_STREAM_MUSIC;
+    }
+
     return aps->getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
 }
 

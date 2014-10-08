@@ -102,6 +102,8 @@ private:
     status_t mFinalResult;
     uint32_t mDisconnectReplyID;
     bool mBuffering;
+    bool mIsH263;
+    uint32_t mNumKeepDamagedAccessUnits;
 
     sp<ALooper> mLooper;
     sp<AHandlerReflector<RTSPSource> > mReflector;
