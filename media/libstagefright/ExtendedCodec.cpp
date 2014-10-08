@@ -1012,7 +1012,10 @@ status_t ExtendedCodec::setWMAFormat(
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         CHECK(msg->findInt32(getMsgKey(kKeyBitRate), &bitRate));
-        CHECK(msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions));
+        if (!msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions)) {
+            ALOGE("Unsupported encode options");
+            return ERROR_UNSUPPORTED;
+        }
         CHECK(msg->findInt32(getMsgKey(kKeyWMABlockAlign), &blockAlign));
         ALOGV("Channels: %d, SampleRate: %d, BitRate; %d"
                    "EncodeOptions: %d, blockAlign: %d", numChannels,
