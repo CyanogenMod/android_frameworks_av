@@ -428,7 +428,11 @@ audio_io_handle_t SwAudioOutputCollection::getA2dpOutput() const
             return this->keyAt(i);
         }
     }
+#ifdef LEGACY_ALSA_AUDIO
+    return 1;
+#else
     return 0;
+#endif
 }
 
 sp<SwAudioOutputDescriptor> SwAudioOutputCollection::getPrimaryOutput() const
