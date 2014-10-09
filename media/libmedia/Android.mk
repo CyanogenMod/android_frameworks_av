@@ -84,6 +84,9 @@ ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
             LOCAL_SRC_FILES += IDirectTrack.cpp IDirectTrackClient.cpp
         endif
     endif
+    ifneq ($(AUDIO_FEATURE_ENABLED_ULTRA_LOW_LATENCY),true)
+        LOCAL_CFLAGS += -DNATIVE_FAST_TRACKS_ONLY
+    endif
 endif
 
 # for <cutils/atomic-inline.h>
