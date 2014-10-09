@@ -831,8 +831,12 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (AudioSystem::getOutputSamplingRate(&afSamplingRate, mStreamType) != NO_ERROR) {
         return NO_INIT;
     }
-    // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-    if (rate == 0 || rate > afSamplingRate*2 ) {
+    // Resampler implementation limits input sampling rate to 2/4 x output sampling rate.
+#ifdef QTI_RESAMPLER
+    if (rate == 0 || rate > afSamplingRate * 4) {
+#else
+    if (rate == 0 || rate > afSamplingRate * 2) {
+#endif
         return BAD_VALUE;
     }
 
@@ -1140,12 +1144,6 @@ status_t AudioTrack::createTrack_l(
         mFlags = flags;
     }
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
-
-    if ((flags & AUDIO_OUTPUT_FLAG_FAST) && sampleRate != afSampleRate) {
-        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client due to mismatching sample rate (%d vs %d)",
-              sampleRate, afSampleRate);
-        flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
-    }
 
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
     //  n = 1   fast track with single buffering; nBuffering is ignored

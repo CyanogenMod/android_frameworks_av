@@ -182,13 +182,13 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         if (mapMimeToAudioFormat(audioFormat, mime) != OK) {
             ALOGE("Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format", mime);
             audioFormat = AUDIO_FORMAT_INVALID;
-        } else {
+        } else if (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat)) {
 #if defined(QCOM_HARDWARE) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
             // Override audio format for PCM offload
-            if (audioFormat == AUDIO_FORMAT_PCM_24_BIT || bitWidth == 24) {
-                ALOGI("24-bit PCM offload enabled");
+            if (bitWidth >= 24) {
+                ALOGD("24-bit PCM offload enabled format=%d", audioFormat);
                 audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
-            } else if (audioFormat == AUDIO_FORMAT_PCM_16_BIT) {
+            } else {
                 audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
             }
 #endif
@@ -225,7 +225,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             offloadInfo.has_video = ((mCreateFlags & HAS_VIDEO) != 0);
             offloadInfo.is_streaming = ((mCreateFlags & IS_STREAMING) != 0);
 #if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
-            offloadInfo.bit_width = bitWidth;
+            offloadInfo.bit_width = bitWidth >= 24 ? 24 : bitWidth;
 #endif
         }
 

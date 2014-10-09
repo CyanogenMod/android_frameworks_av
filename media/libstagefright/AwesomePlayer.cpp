@@ -1931,6 +1931,7 @@ status_t AwesomePlayer::initAudioDecoder() {
             mAudioSource = mAudioTrack;
 #ifndef QCOM_DIRECTTRACK
         } else {
+            mOmxSource->getFormat()->setInt32(kKeySampleBits, 16);
             mAudioSource = mOmxSource;
 #endif
         }
@@ -1942,7 +1943,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     mAudioTrack->getFormat()->findInt32(kKeySampleBits, &bitsPerSample);
 
     if (!mOffloadAudio && mAudioSource != NULL) {
-        ALOGI("Could not offload audio decode, try pcm offload");
+        ALOGI("Could not offload audio decode, try pcm offload (%d-bit)", bitsPerSample);
         sp<MetaData> format = mAudioSource->getFormat();
         if (durationUs >= 0) {
             format->setInt64(kKeyDuration, durationUs);
