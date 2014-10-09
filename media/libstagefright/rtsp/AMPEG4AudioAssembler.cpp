@@ -423,6 +423,11 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
             CHECK_LE(offset + (mOtherDataLenBits / 8), buffer->size());
             offset += mOtherDataLenBits / 8;
         }
+
+        if (i < mNumSubFrames && offset >= buffer->size()) {
+            ALOGW("Skip subframes after %d, total %d", (int)i, (int)mNumSubFrames);
+            break;
+        }
     }
 
     if (offset < buffer->size()) {
