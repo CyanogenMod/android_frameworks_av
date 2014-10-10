@@ -132,6 +132,7 @@ private:
     sp<Decoder> mVideoDecoder;
     bool mVideoIsAVC;
     bool mOffloadAudio;
+    bool mIsStreaming;
     sp<Decoder> mAudioDecoder;
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
