@@ -790,7 +790,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                                 // STOPPING->UNINITIALIZED, instead of the
                                 // usual STOPPING->INITIALIZED state.
                                 setState(UNINITIALIZED);
-
+                                if (mState == RELEASING) {
+                                    mComponentName.clear();
+                                }
                                 (new AMessage)->postReply(mReplyID);
                             }
                             break;
@@ -1056,7 +1058,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     }
 
                     if (mFlags & kFlagIsAsync) {
-                        onInputBufferAvailable();
+                        if (!mHaveInputSurface) {
+                            onInputBufferAvailable();
+                        }
                     } else if (mFlags & kFlagDequeueInputPending) {
                         CHECK(handleDequeueInputBuffer(mDequeueInputReplyID));
 
@@ -1140,6 +1144,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     } else {
                         CHECK_EQ(mState, RELEASING);
                         setState(UNINITIALIZED);
+                        mComponentName.clear();
                     }
 
                     (new AMessage)->postReply(mReplyID);
@@ -1349,12 +1354,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 // after stop() returned, it would be safe to call release()
                 // and it should be in this case, no harm to allow a release()
                 // if we're already uninitialized.
-                // Similarly stopping a stopped MediaCodec should be benign.
                 sp<AMessage> response = new AMessage;
-                response->setInt32(
-                        "err",
-                        mState == targetState ? OK : INVALID_OPERATION);
-
+                status_t err = mState == targetState ? OK : INVALID_OPERATION;
+                response->setInt32("err", err);
+                if (err == OK && targetState == UNINITIALIZED) {
+                    mComponentName.clear();
+                }
                 response->postReply(replyID);
                 break;
             }
@@ -1363,6 +1368,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 // It's dead, Jim. Don't expect initiateShutdown to yield
                 // any useful results now...
                 setState(UNINITIALIZED);
+                if (targetState == UNINITIALIZED) {
+                    mComponentName.clear();
+                }
                 (new AMessage)->postReply(replyID);
                 break;
             }
@@ -1754,8 +1762,6 @@ void MediaCodec::setState(State newState) {
     if (newState == UNINITIALIZED) {
         // return any straggling buffers, e.g. if we got here on an error
         returnBuffersToCodec();
-
-        mComponentName.clear();
 
         // The component is gone, mediaserver's probably back up already
         // but should definitely be back up should we try to instantiate
