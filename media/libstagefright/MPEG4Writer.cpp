@@ -41,8 +41,13 @@
 
 #include "include/ESDS.h"
 
+
+#ifndef __predict_false
+#define __predict_false(exp) __builtin_expect((exp) != 0, 0)
+#endif
+
 #define WARN_UNLESS(condition, message, ...) \
-( (CONDITION(condition)) ? false : ({ \
+( (__predict_false(condition)) ? false : ({ \
     ALOGW("Condition %s failed "  message, #condition, ##__VA_ARGS__); \
     true; \
 }))
