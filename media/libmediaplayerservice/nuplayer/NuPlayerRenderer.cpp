@@ -72,6 +72,7 @@ NuPlayer::Renderer::Renderer(
       mHasVideo(false),
       mSyncQueues(false),
       mPaused(false),
+      mPauseStartedTimeRealUs(-1),
       mVideoSampleReceived(false),
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
@@ -574,7 +575,9 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
             if (!mHasAudio) {
                 mAnchorTimeMediaUs = mediaTimeUs;
                 mAnchorTimeRealUs = nowUs;
-                notifyPosition();
+                if (!mPaused || mVideoSampleReceived) {
+                    notifyPosition();
+                }
             }
             realTimeUs = nowUs;
         } else {
@@ -645,6 +648,10 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         }
     } else {
         mVideoLateByUs = 0ll;
+        if (!mHasAudio && !mVideoSampleReceived) {
+            mAnchorTimeMediaUs = -1;
+            mAnchorTimeRealUs = -1;
+        }
     }
 
     entry->mNotifyConsumed->setInt64("timestampNs", realTimeUs * 1000ll);
@@ -830,6 +837,9 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     {
          Mutex::Autolock autoLock(mLock);
          syncQueuesDone_l();
+         if (!mHasAudio) {
+             mPauseStartedTimeRealUs = -1;
+         }
     }
 
     ALOGV("flushing %s", audio ? "audio" : "video");
@@ -980,6 +990,9 @@ void NuPlayer::Renderer::onPause() {
         ++mVideoQueueGeneration;
         prepareForMediaRenderingStart();
         mPaused = true;
+        if (!mHasAudio) {
+            mPauseStartedTimeRealUs = ALooper::GetNowUs();
+        }
     }
 
     mDrainAudioQueuePending = false;
@@ -1008,6 +1021,10 @@ void NuPlayer::Renderer::onResume() {
 
     Mutex::Autolock autoLock(mLock);
     mPaused = false;
+    if (!mHasAudio && mPauseStartedTimeRealUs != -1) {
+        mAnchorTimeRealUs += ALooper::GetNowUs() - mPauseStartedTimeRealUs;
+        mPauseStartedTimeRealUs = -1;
+    }
 
     if (!mAudioQueue.empty()) {
         postDrainAudioQueue_l();
