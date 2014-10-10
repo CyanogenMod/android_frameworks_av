@@ -134,6 +134,9 @@ public:
     // IBinder::DeathRecipient
     virtual     void        binderDied(const wp<IBinder>& who);
 
+    // RefBase
+    virtual     void        onFirstRef();
+
     //
     // Helpers for the struct audio_policy_service_ops implementation.
     // This is used by the audio policy manager for certain operations that
