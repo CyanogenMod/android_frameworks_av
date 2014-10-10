@@ -806,6 +806,8 @@ protected:
         sp<AudioPatch> mCallTxPatch;
         sp<AudioPatch> mCallRxPatch;
 
+        bool mForceDeepBufferForMedia;
+
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
         Condition mWaitWorkCV;
