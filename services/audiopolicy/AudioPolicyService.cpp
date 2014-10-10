@@ -61,6 +61,10 @@ AudioPolicyService::AudioPolicyService()
     : BnAudioPolicyService(), mpAudioPolicyDev(NULL), mpAudioPolicy(NULL),
       mAudioPolicyManager(NULL), mAudioPolicyClient(NULL), mPhoneState(AUDIO_MODE_INVALID)
 {
+}
+
+void AudioPolicyService::onFirstRef()
+{
     char value[PROPERTY_VALUE_MAX];
     const struct hw_module_t *module;
     int forced_val;
