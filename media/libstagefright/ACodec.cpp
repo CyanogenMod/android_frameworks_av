@@ -4551,6 +4551,8 @@ void ACodec::LoadedState::stateEntered() {
         onShutdown(keepComponentAllocated);
     }
     mCodec->mExplicitShutdown = false;
+
+    mCodec->processDeferredMessages();
 }
 
 void ACodec::LoadedState::onShutdown(bool keepComponentAllocated) {
