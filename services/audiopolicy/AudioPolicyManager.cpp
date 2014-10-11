@@ -926,10 +926,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     if ((flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
-    if (mForceDeepBufferForMedia && (flags & AUDIO_OUTPUT_FLAG_DIRECT) == 0 &&
-            stream == AUDIO_STREAM_MUSIC) {
-        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
-    }
 
     sp<IOProfile> profile;
 
@@ -2657,14 +2653,8 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mTotalEffectsCpuLoad(0), mTotalEffectsMemory(0),
     mA2dpSuspended(false),
     mSpeakerDrcEnabled(false), mNextUniqueId(1),
-    mAudioPortGeneration(1),
-    mForceDeepBufferForMedia(false)
+    mAudioPortGeneration(1)
 {
-    char propValue[PROPERTY_VALUE_MAX];
-    if (property_get("ro.audio.media_deep_buffer", propValue, "0")) {
-        mForceDeepBufferForMedia = atoi(propValue);
-    }
-
     mUidCached = getuid();
     mpClientInterface = clientInterface;
 
