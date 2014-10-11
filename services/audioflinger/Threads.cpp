@@ -1289,8 +1289,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // mono or stereo
             ( (channelMask == AUDIO_CHANNEL_OUT_MONO) ||
               (channelMask == AUDIO_CHANNEL_OUT_STEREO) ) &&
+#ifdef NATIVE_FAST_TRACKS_ONLY
             // hardware sample rate
             (sampleRate == mSampleRate) &&
+#endif
             // normal mixer has an associated fast mixer
             hasFastMixer() &&
             // there are sufficient fast track slots available
@@ -1362,8 +1364,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 lStatus = BAD_VALUE;
                 goto Exit;
         }
-        // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-        if (sampleRate > mSampleRate*2) {
+        // Resampler implementation limits input sampling rate to 2/4 x output sampling rate.
+#ifdef QTI_RESAMPLER
+        if (sampleRate > mSampleRate * 4) {
+#else
+        if (sampleRate > mSampleRate * 2) {
+#endif
             ALOGE("Sample rate out of range: %u mSampleRate %u", sampleRate, mSampleRate);
             lStatus = BAD_VALUE;
             goto Exit;
@@ -3333,8 +3339,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 name,
                 AudioMixer::TRACK,
                 AudioMixer::CHANNEL_MASK, (void *)track->channelMask());
-            // limit track sample rate to 2 x output sample rate, which changes at re-configuration
+            // limit track sample rate to 2/4 x output sample rate, which changes at re-configuration
+#ifdef QTI_RESAMPLER
+            uint32_t maxSampleRate = mSampleRate * 4;
+#else
             uint32_t maxSampleRate = mSampleRate * 2;
+#endif
             uint32_t reqSampleRate = track->mAudioTrackServerProxy->getSampleRate();
             if (reqSampleRate == 0) {
                 reqSampleRate = mSampleRate;

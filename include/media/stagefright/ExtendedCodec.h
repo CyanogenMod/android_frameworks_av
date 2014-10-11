@@ -147,6 +147,12 @@ struct ExtendedCodec {
 
     static bool isSourcePauseRequired(const char *componentName);
 
+#if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
+    static status_t updatePcmOutputFormat(const sp<MetaData> &meta,
+        sp<IOMX> OMXhandle, IOMX::node_id nodeID,
+        const char* componentName);
+#endif
+
 private:
     static const char* getMsgKey(int key );
 
