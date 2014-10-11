@@ -49,8 +49,10 @@
 
 #include <OMX_Audio.h>
 #include <OMX_Component.h>
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
 #include <media/stagefright/ExtendedCodec.h>
+#endif
+#ifdef QCOM_HARDWARE
 #include "include/ExtendedUtils.h"
 #include "include/ExtendedPrefetchSource.h"
 #endif

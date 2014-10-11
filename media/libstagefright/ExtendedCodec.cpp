@@ -43,16 +43,29 @@
 #include <media/stagefright/ExtendedCodec.h>
 #include <media/stagefright/OMXCodec.h>
 
-#ifdef ENABLE_AV_ENHANCEMENTS
+#include <OMX_Component.h>
 
+#ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMetaData.h>
 #include <QCMediaDefs.h>
 #include <OMX_QCOMExtns.h>
-#include <OMX_Component.h>
 #include <QOMX_AudioExtensions.h>
 #include "include/ExtendedUtils.h"
+#endif
+
 
 namespace android {
+
+template<class T>
+static void InitOMXParams(T *params) {
+    params->nSize = sizeof(T);
+    params->nVersion.s.nVersionMajor = 1;
+    params->nVersion.s.nVersionMinor = 0;
+    params->nVersion.s.nRevision = 0;
+    params->nVersion.s.nStep = 0;
+}
+
+#ifdef ENABLE_AV_ENHANCEMENTS
 enum MetaKeyType{
     INT32, INT64, STRING, DATA, CSD
 };
@@ -224,15 +237,6 @@ void ExtendedCodec::overrideComponentName(
            }
        }
     }
-}
-
-template<class T>
-static void InitOMXParams(T *params) {
-    params->nSize = sizeof(T);
-    params->nVersion.s.nVersionMajor = 1;
-    params->nVersion.s.nVersionMinor = 0;
-    params->nVersion.s.nRevision = 0;
-    params->nVersion.s.nStep = 0;
 }
 
 status_t ExtendedCodec::setDIVXFormat(
@@ -1235,11 +1239,8 @@ bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
     return false;
 }
 
-} //namespace android
-
 #else //ENABLE_AV_ENHANCEMENTS
 
-namespace android {
     status_t ExtendedCodec::convertMetaDataToMessage(
             const sp<MetaData> &meta, sp<AMessage> *format) {
         return OK;
@@ -1404,9 +1405,10 @@ namespace android {
     bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
         return false;
     }
-} //namespace android
 
 #endif //ENABLE_AV_ENHANCEMENTS
+
+} //namespace android
 
 #if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
 namespace android {
