@@ -3458,6 +3458,27 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     break;
                 }
 
+                case OMX_AUDIO_CodingG711:
+                {
+                    OMX_AUDIO_PARAM_PCMMODETYPE params;
+                    InitOMXParams(&params);
+                    params.nPortIndex = portIndex;
+
+                    CHECK_EQ((status_t)OK, mOMX->getParameter(
+                            mNode,
+                            (OMX_INDEXTYPE)OMX_IndexParamAudioPcm,
+                            &params,
+                            sizeof(params)));
+
+                    // mime type:
+                    // MEDIA_MIMETYPE_AUDIO_G711_ALAW or
+                    // MEDIA_MIMETYPE_AUDIO_G711_MLAW
+                    notify->setString("mime", audioDef->cMIMEType);
+                    notify->setInt32("channel-count", params.nChannels);
+                    notify->setInt32("sample-rate", params.nSamplingRate);
+                    break;
+                }
+
                 default:
                     ALOGE("UNKNOWN AUDIO CODING: %d\n", audioDef->eEncoding);
                     TRESPASS();
