@@ -1584,12 +1584,17 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
     }
     mStreams[stream].mIndexCur.add(device, index);
 
-    // compute and apply stream volume on all outputs according to connected device
+    // update volume on all outputs whose current device is also selected by the same
+    // strategy as the device specified by the caller
+    audio_devices_t strategyDevice = getDeviceForStrategy(getStrategy(stream), true /*fromCache*/);
+    if ((device != AUDIO_DEVICE_OUT_DEFAULT) && (device & strategyDevice) == 0) {
+        return NO_ERROR;
+    }
     status_t status = NO_ERROR;
     for (size_t i = 0; i < mOutputs.size(); i++) {
         audio_devices_t curDevice =
                 getDeviceForVolume(mOutputs.valueAt(i)->device());
-        if ((device == AUDIO_DEVICE_OUT_DEFAULT) || (device == curDevice)) {
+        if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & strategyDevice) != 0)) {
             status_t volStatus = checkAndSetVolume(stream, index, mOutputs.keyAt(i), curDevice);
             if (volStatus != NO_ERROR) {
                 status = volStatus;
@@ -4252,6 +4257,7 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
 
     for (size_t i = 0; i < NUM_STRATEGIES; i++) {
         audio_devices_t curDevice = getDeviceForStrategy((routing_strategy)i, false /*fromCache*/);
+        curDevice = curDevice & outputDesc->mProfile->mSupportedDevices.types();
         bool mute = shouldMute && (curDevice & device) && (curDevice != device);
         bool doMute = false;
 
