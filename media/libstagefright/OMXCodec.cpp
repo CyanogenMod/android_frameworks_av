@@ -892,17 +892,17 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             }
         }
 #ifdef QCOM_HARDWARE
-    } else if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
-        if (!mIsVideo) {
-            if (mIsEncoder) {
-                int32_t numChannels, sampleRate;
-                CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
-                CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
-                setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
-            }
+    } else {
+        if (!mIsVideo && mIsEncoder) {
+            int32_t numChannels, sampleRate;
+            CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
+            CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+            setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+        }
+        if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
             status_t err = ExtendedCodec::setAudioFormat(
-                    meta, mMIME, mOMX, mNode, mIsEncoder);
-            if(OK != err) {
+                   meta, mMIME, mOMX, mNode, mIsEncoder);
+            if (OK != err) {
                 return err;
             }
         }
