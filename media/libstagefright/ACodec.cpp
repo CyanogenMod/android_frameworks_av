@@ -3599,7 +3599,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                                       &mimeType,
                                       mOMX,
                                       mNode,
-                                      kPortIndexOutput,
+                                      portIndex,
                                       &channelCount,
                                       &sampleRate);
                         notify->setString("mime", mimeType.c_str());

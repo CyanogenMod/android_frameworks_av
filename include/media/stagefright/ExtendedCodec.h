@@ -107,6 +107,9 @@ struct ExtendedCodec {
             AString* componentName, AString* mime,
             int32_t isEncoder);
 
+    static void overrideMimeType(
+        const sp<AMessage> &msg, AString* mime);
+
     static void getRawCodecSpecificData(
             const sp<MetaData> &meta,
             const void* &data,

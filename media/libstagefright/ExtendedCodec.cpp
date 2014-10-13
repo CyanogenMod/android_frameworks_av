@@ -53,6 +53,7 @@
 #include <OMX_VideoExt.h>
 #include <OMX_IndexExt.h>
 #include <QOMX_AudioExtensions.h>
+#include <QOMX_AudioIndexExtensions.h>
 #include "include/ExtendedUtils.h"
 
 namespace android {
@@ -246,6 +247,26 @@ void ExtendedCodec::overrideComponentName(
         enableSwHevc = atoi(value);
         if (sw_codectype && enableSwHevc) {
            componentName->setTo("OMX.qcom.video.decoder.hevcswvdec");
+        }
+    }
+}
+
+void ExtendedCodec::overrideMimeType(
+        const sp<AMessage> &msg, AString* mime) {
+
+    if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_WMA,
+         strlen(MEDIA_MIMETYPE_AUDIO_WMA))) {
+        int32_t WMAVersion = 0;
+        if ((msg->findInt32(getMsgKey(kKeyWMAVersion), &WMAVersion))) {
+            if (WMAVersion==kTypeWMA) {
+                //no need to update mime type
+            } else if (WMAVersion==kTypeWMAPro) {
+                mime->setTo("audio/x-ms-wma-pro");
+            } else if (WMAVersion==kTypeWMALossLess) {
+                mime->setTo("audio/x-ms-wma-lossless");
+            } else {
+                ALOGE("could not set valid wma mime type");
+            }
         }
     }
 }
@@ -494,6 +515,39 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
         *channelCount = params.nChannels;
         /* EVRC supports only 8k sample rate*/
         *sampleRate = 8000;
+    } else if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS))) {
+        OMX_INDEXTYPE index;
+        QOMX_AUDIO_PARAM_AMRWBPLUSTYPE params;
+
+        InitOMXParams(&params);
+        params.nPortIndex = portIndex;
+        OMXhandle->getExtensionIndex(nodeID, OMX_QCOM_INDEX_PARAM_AMRWBPLUS, &index);
+        CHECK_EQ(OMXhandle->getParameter(nodeID, index, &params, sizeof(params)),(status_t)OK);
+        *channelCount = params.nChannels;
+        *sampleRate = params.nSampleRate;
+    } else if (!strncmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA))) {
+        status_t err = OK;
+        OMX_INDEXTYPE index;
+        OMX_AUDIO_PARAM_WMATYPE paramWMA;
+        QOMX_AUDIO_PARAM_WMA10PROTYPE paramWMA10;
+
+        InitOMXParams(&paramWMA);
+        paramWMA.nPortIndex = portIndex;
+        err = OMXhandle->getParameter(
+                   nodeID, OMX_IndexParamAudioWma, &paramWMA, sizeof(paramWMA));
+        if(err == OK) {
+            ALOGV("WMA format");
+            *channelCount = paramWMA.nChannels;
+            *sampleRate = paramWMA.nSamplingRate;
+        } else {
+            InitOMXParams(&paramWMA10);
+            paramWMA10.nPortIndex = portIndex;
+            OMXhandle->getExtensionIndex(nodeID,"OMX.Qualcomm.index.audio.wma10Pro",&index);
+            CHECK_EQ(OMXhandle->getParameter(nodeID, index, &paramWMA10, sizeof(paramWMA10)),(status_t)OK);
+            ALOGV("WMA10 format");
+            *channelCount = paramWMA10.nChannels;
+            *sampleRate = paramWMA10.nSamplingRate;
+        }
     } else {
         retVal = BAD_VALUE;
     }
@@ -501,12 +555,16 @@ status_t ExtendedCodec::getSupportedAudioFormatInfo(
 }
 
 status_t ExtendedCodec::handleSupportedAudioFormats(int format, AString* mime) {
-    ALOGV("checkQCFormats called");
+    ALOGV("handleSupportedAudioFormats called for format:%x",format);
     status_t retVal = OK;
     if (format == OMX_AUDIO_CodingQCELP13 ) {
         *mime = MEDIA_MIMETYPE_AUDIO_QCELP;
     } else if (format == OMX_AUDIO_CodingEVRC ) {
         *mime = MEDIA_MIMETYPE_AUDIO_EVRC;
+    } else if (format == OMX_AUDIO_CodingWMA ) {
+        *mime = MEDIA_MIMETYPE_AUDIO_WMA;
+    } else if (format == QOMX_IndexParamAudioAmrWbPlus ) {
+        *mime = MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS;
     } else {
         retVal = BAD_VALUE;
     }
@@ -1245,6 +1303,12 @@ namespace android {
         ARG_TOUCH(componentName);
         ARG_TOUCH(mime);
         ARG_TOUCH(isEncoder);
+    }
+
+    void ExtendedCodec::overrideMimeType(
+        const sp<AMessage> &msg, AString* mime) {
+        ARG_TOUCH(msg);
+        ARG_TOUCH(mime);
     }
 
     void ExtendedCodec::getRawCodecSpecificData(
