@@ -117,7 +117,14 @@ OMX_ERRORTYPE SoftG711::internalGetParameter(
             pcmParams->eEndian = OMX_EndianBig;
             pcmParams->bInterleaved = OMX_TRUE;
             pcmParams->nBitPerSample = 16;
-            pcmParams->ePCMMode = OMX_AUDIO_PCMModeLinear;
+            if (pcmParams->nPortIndex == 0) {
+                // input port
+                pcmParams->ePCMMode = mIsMLaw ? OMX_AUDIO_PCMModeMULaw
+                                              : OMX_AUDIO_PCMModeALaw;
+            } else {
+                // output port
+                pcmParams->ePCMMode = OMX_AUDIO_PCMModeLinear;
+            }
             pcmParams->eChannelMapping[0] = OMX_AUDIO_ChannelLF;
             pcmParams->eChannelMapping[1] = OMX_AUDIO_ChannelRF;
 
