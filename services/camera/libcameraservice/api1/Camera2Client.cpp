@@ -995,6 +995,10 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         case Parameters::STOPPED:
             res = startPreviewL(params, false);
             if (res != OK) return res;
+            // Make sure first preview request is submitted to the HAL device to avoid
+            // two consecutive set of configure_streams being called into the HAL.
+            // TODO: Refactor this to avoid initial preview configuration.
+            syncWithDevice();
             break;
         case Parameters::PREVIEW:
             // Ready to go
