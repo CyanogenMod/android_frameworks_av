@@ -191,7 +191,7 @@ status_t NuPlayerDriver::prepare_l() {
             mAtEOS = false;
             mState = STATE_STOPPED_AND_PREPARING;
             mIsAsyncPrepare = false;
-            mPlayer->seekToAsync(0);
+            mPlayer->seekToAsync(0, true /* needNotify */);
             while (mState == STATE_STOPPED_AND_PREPARING) {
                 mCondition.wait(mLock);
             }
@@ -216,7 +216,7 @@ status_t NuPlayerDriver::prepareAsync() {
             mAtEOS = false;
             mState = STATE_STOPPED_AND_PREPARING;
             mIsAsyncPrepare = true;
-            mPlayer->seekToAsync(0);
+            mPlayer->seekToAsync(0, true /* needNotify */);
             return OK;
         default:
             return INVALID_OPERATION;
