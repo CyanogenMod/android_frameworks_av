@@ -37,7 +37,8 @@ static const bool EXTRA_CHECK = true;
 
 
 GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
-        uint32_t bufferWidth, uint32_t bufferHeight, uint32_t bufferCount) :
+        uint32_t bufferWidth, uint32_t bufferHeight, uint32_t bufferCount,
+        bool useGraphicBufferInMeta) :
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
     mExecuting(false),
@@ -59,7 +60,8 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mTimePerCaptureUs(-1ll),
     mTimePerFrameUs(-1ll),
     mPrevCaptureUs(-1ll),
-    mPrevFrameUs(-1ll) {
+    mPrevFrameUs(-1ll),
+    mUseGraphicBufferInMeta(useGraphicBufferInMeta) {
 
     ALOGV("GraphicBufferSource w=%u h=%u c=%u",
             bufferWidth, bufferHeight, bufferCount);
@@ -254,13 +256,25 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         // Pull the graphic buffer handle back out of the buffer, and confirm
         // that it matches expectations.
         OMX_U8* data = header->pBuffer;
-        buffer_handle_t bufferHandle;
-        memcpy(&bufferHandle, data + 4, sizeof(buffer_handle_t));
-        if (bufferHandle != codecBuffer.mGraphicBuffer->handle) {
-            // should never happen
-            ALOGE("codecBufferEmptied: buffer's handle is %p, expected %p",
-                    bufferHandle, codecBuffer.mGraphicBuffer->handle);
-            CHECK(!"codecBufferEmptied: mismatched buffer");
+        MetadataBufferType type = *(MetadataBufferType *)data;
+        if (type == kMetadataBufferTypeGrallocSource) {
+            buffer_handle_t bufferHandle;
+            memcpy(&bufferHandle, data + 4, sizeof(buffer_handle_t));
+            if (bufferHandle != codecBuffer.mGraphicBuffer->handle) {
+                // should never happen
+                ALOGE("codecBufferEmptied: buffer's handle is %p, expected %p",
+                        bufferHandle, codecBuffer.mGraphicBuffer->handle);
+                CHECK(!"codecBufferEmptied: mismatched buffer");
+            }
+        } else if (type == kMetadataBufferTypeGraphicBuffer) {
+            GraphicBuffer *buffer;
+            memcpy(&buffer, data + 4, sizeof(buffer));
+            if (buffer != codecBuffer.mGraphicBuffer.get()) {
+                // should never happen
+                ALOGE("codecBufferEmptied: buffer is %p, expected %p",
+                        buffer, codecBuffer.mGraphicBuffer.get());
+                CHECK(!"codecBufferEmptied: mismatched buffer");
+            }
         }
     }
 
@@ -642,10 +656,22 @@ status_t GraphicBufferSource::submitBuffer_l(
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
     CHECK(header->nAllocLen >= 4 + sizeof(buffer_handle_t));
     OMX_U8* data = header->pBuffer;
-    const OMX_U32 type = kMetadataBufferTypeGrallocSource;
-    buffer_handle_t handle = codecBuffer.mGraphicBuffer->handle;
-    memcpy(data, &type, 4);
-    memcpy(data + 4, &handle, sizeof(buffer_handle_t));
+    buffer_handle_t handle;
+    if (!mUseGraphicBufferInMeta) {
+        const OMX_U32 type = kMetadataBufferTypeGrallocSource;
+        handle = codecBuffer.mGraphicBuffer->handle;
+        memcpy(data, &type, 4);
+        memcpy(data + 4, &handle, sizeof(buffer_handle_t));
+    } else {
+        // codecBuffer holds a reference to the GraphicBuffer, so
+        // it is valid while it is with the OMX component
+        const OMX_U32 type = kMetadataBufferTypeGraphicBuffer;
+        memcpy(data, &type, 4);
+        // passing a non-reference-counted graphicBuffer
+        GraphicBuffer *buffer = codecBuffer.mGraphicBuffer.get();
+        handle = buffer->handle;
+        memcpy(data + 4, &buffer, sizeof(buffer));
+    }
 
     status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
             4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
