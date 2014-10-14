@@ -50,90 +50,11 @@ static int GetCPUCoreCount() {
     return cpuCoreCount;
 }
 
-
-// This color conversion utility is copied from SoftMPEG4Encoder.cpp
-inline static void ConvertSemiPlanarToPlanar(uint8_t *inyuv,
-                                             uint8_t* outyuv,
-                                             int32_t width,
-                                             int32_t height) {
-    int32_t outYsize = width * height;
-    uint32_t *outy =  (uint32_t *) outyuv;
-    uint16_t *outcb = (uint16_t *) (outyuv + outYsize);
-    uint16_t *outcr = (uint16_t *) (outyuv + outYsize + (outYsize >> 2));
-
-    /* Y copying */
-    memcpy(outy, inyuv, outYsize);
-
-    /* U & V copying */
-    uint32_t *inyuv_4 = (uint32_t *) (inyuv + outYsize);
-    for (int32_t i = height >> 1; i > 0; --i) {
-        for (int32_t j = width >> 2; j > 0; --j) {
-            uint32_t temp = *inyuv_4++;
-            uint32_t tempU = temp & 0xFF;
-            tempU = tempU | ((temp >> 8) & 0xFF00);
-
-            uint32_t tempV = (temp >> 8) & 0xFF;
-            tempV = tempV | ((temp >> 16) & 0xFF00);
-
-            // Flip U and V
-            *outcb++ = tempV;
-            *outcr++ = tempU;
-        }
-    }
-}
-
-static void ConvertRGB32ToPlanar(
-        const uint8_t *src, uint8_t *dstY, int32_t width, int32_t height) {
-    CHECK((width & 1) == 0);
-    CHECK((height & 1) == 0);
-
-    uint8_t *dstU = dstY + width * height;
-    uint8_t *dstV = dstU + (width / 2) * (height / 2);
-
-    for (int32_t y = 0; y < height; ++y) {
-        for (int32_t x = 0; x < width; ++x) {
-#ifdef SURFACE_IS_BGR32
-            unsigned blue = src[4 * x];
-            unsigned green = src[4 * x + 1];
-            unsigned red= src[4 * x + 2];
-#else
-            unsigned red= src[4 * x];
-            unsigned green = src[4 * x + 1];
-            unsigned blue = src[4 * x + 2];
-#endif
-
-            unsigned luma =
-                ((red * 66 + green * 129 + blue * 25) >> 8) + 16;
-
-            dstY[x] = luma;
-
-            if ((x & 1) == 0 && (y & 1) == 0) {
-                unsigned U =
-                    ((-red * 38 - green * 74 + blue * 112) >> 8) + 128;
-
-                unsigned V =
-                    ((red * 112 - green * 94 - blue * 18) >> 8) + 128;
-
-                dstU[x / 2] = U;
-                dstV[x / 2] = V;
-            }
-        }
-
-        if ((y & 1) == 0) {
-            dstU += width / 2;
-            dstV += width / 2;
-        }
-
-        src += 4 * width;
-        dstY += width;
-    }
-}
-
 SoftVPXEncoder::SoftVPXEncoder(const char *name,
                                const OMX_CALLBACKTYPE *callbacks,
                                OMX_PTR appData,
                                OMX_COMPONENTTYPE **component)
-    : SimpleSoftOMXComponent(name, callbacks, appData, component),
+    : SoftVideoEncoderOMXComponent(name, callbacks, appData, component),
       mCodecContext(NULL),
       mCodecConfiguration(NULL),
       mCodecInterface(NULL),
@@ -157,7 +78,6 @@ SoftVPXEncoder::SoftVPXEncoder(const char *name,
       mLastTimestamp(0x7FFFFFFFFFFFFFFFLL),
       mConversionBuffer(NULL),
       mInputDataIsMeta(false),
-      mGrallocModule(NULL),
       mKeyFrameRequested(false) {
     memset(mTemporalLayerBitrateRatio, 0, sizeof(mTemporalLayerBitrateRatio));
     mTemporalLayerBitrateRatio[0] = 100;
@@ -447,13 +367,12 @@ status_t SoftVPXEncoder::initEncoder() {
         }
     }
 
-    if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar || mInputDataIsMeta) {
+    if (mColorFormat != OMX_COLOR_FormatYUV420Planar || mInputDataIsMeta) {
+        free(mConversionBuffer);
+        mConversionBuffer = (uint8_t *)malloc(mWidth * mHeight * 3 / 2);
         if (mConversionBuffer == NULL) {
-            mConversionBuffer = (uint8_t *)malloc(mWidth * mHeight * 3 / 2);
-            if (mConversionBuffer == NULL) {
-                ALOGE("Allocating conversion buffer failed.");
-                return UNKNOWN_ERROR;
-            }
+            ALOGE("Allocating conversion buffer failed.");
+            return UNKNOWN_ERROR;
         }
     }
     return OK;
@@ -473,7 +392,7 @@ status_t SoftVPXEncoder::releaseEncoder() {
     }
 
     if (mConversionBuffer != NULL) {
-        delete mConversionBuffer;
+        free(mConversionBuffer);
         mConversionBuffer = NULL;
     }
 
@@ -1035,49 +954,28 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
             return;
         }
 
-        uint8_t *source =
+        const uint8_t *source =
             inputBufferHeader->pBuffer + inputBufferHeader->nOffset;
 
         if (mInputDataIsMeta) {
-            CHECK_GE(inputBufferHeader->nFilledLen,
-                     4 + sizeof(buffer_handle_t));
-
-            uint32_t bufferType = *(uint32_t *)source;
-            CHECK_EQ(bufferType, kMetadataBufferTypeGrallocSource);
-
-            if (mGrallocModule == NULL) {
-                CHECK_EQ(0, hw_get_module(
-                            GRALLOC_HARDWARE_MODULE_ID, &mGrallocModule));
+            source = extractGraphicBuffer(
+                    mConversionBuffer, mWidth * mHeight * 3 / 2,
+                    source, inputBufferHeader->nFilledLen,
+                    mWidth, mHeight);
+            if (source == NULL) {
+                ALOGE("Unable to extract gralloc buffer in metadata mode");
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
+                return;
             }
-
-            const gralloc_module_t *grmodule =
-                (const gralloc_module_t *)mGrallocModule;
-
-            buffer_handle_t handle = *(buffer_handle_t *)(source + 4);
-
-            void *bits;
-            CHECK_EQ(0,
-                     grmodule->lock(
-                         grmodule, handle,
-                         GRALLOC_USAGE_SW_READ_OFTEN
-                            | GRALLOC_USAGE_SW_WRITE_NEVER,
-                         0, 0, mWidth, mHeight, &bits));
-
-            ConvertRGB32ToPlanar(
-                    (const uint8_t *)bits, mConversionBuffer, mWidth, mHeight);
-
-            source = mConversionBuffer;
-
-            CHECK_EQ(0, grmodule->unlock(grmodule, handle));
         } else if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
-            ConvertSemiPlanarToPlanar(
+            ConvertYUV420SemiPlanarToYUV420Planar(
                     source, mConversionBuffer, mWidth, mHeight);
 
             source = mConversionBuffer;
         }
         vpx_image_t raw_frame;
         vpx_img_wrap(&raw_frame, VPX_IMG_FMT_I420, mWidth, mHeight,
-                     kInputBufferAlignment, source);
+                     kInputBufferAlignment, (uint8_t *)source);
 
         vpx_enc_frame_flags_t flags = 0;
         if (mTemporalPatternLength > 0) {
@@ -1151,15 +1049,6 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
         inputBufferInfoQueue.erase(inputBufferInfoQueue.begin());
         notifyEmptyBufferDone(inputBufferHeader);
     }
-}
-
-OMX_ERRORTYPE SoftVPXEncoder::getExtensionIndex(
-        const char *name, OMX_INDEXTYPE *index) {
-    if (!strcmp(name, "OMX.google.android.index.storeMetaDataInBuffers")) {
-        *(int32_t*)index = kStoreMetaDataExtensionIndex;
-        return OMX_ErrorNone;
-    }
-    return SimpleSoftOMXComponent::getExtensionIndex(name, index);
 }
 
 }  // namespace android
