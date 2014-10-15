@@ -182,7 +182,9 @@ private:
             OMX_IN OMX_PTR pAppData,
             OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
 
-    status_t storeMetaDataInBuffers_l(OMX_U32 portIndex, OMX_BOOL enable);
+    status_t storeMetaDataInBuffers_l(
+            OMX_U32 portIndex, OMX_BOOL enable,
+            OMX_BOOL useGraphicBuffer, OMX_BOOL *usingGraphicBufferInMeta);
 
     sp<GraphicBufferSource> getGraphicBufferSource();
     void setGraphicBufferSource(const sp<GraphicBufferSource>& bufferSource);
