@@ -25,6 +25,7 @@
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 
@@ -63,22 +64,21 @@ NuPlayer::Renderer::Renderer(
       mDrainVideoQueuePending(false),
       mAudioQueueGeneration(0),
       mVideoQueueGeneration(0),
-      mFirstAnchorTimeMediaUs(-1),
-      mAnchorTimeMediaUs(-1),
-      mAnchorTimeRealUs(-1),
-      mFlushingAudio(false),
-      mFlushingVideo(false),
+      mAudioFirstAnchorTimeMediaUs(-1),
+      mVideoAnchorTimeMediaUs(-1),
+      mVideoAnchorTimeRealUs(-1),
+      mVideoLateByUs(0ll),
       mHasAudio(false),
       mHasVideo(false),
+      mPauseStartedTimeRealUs(-1),
+      mFlushingAudio(false),
+      mFlushingVideo(false),
       mSyncQueues(false),
       mPaused(false),
-      mPauseStartedTimeRealUs(-1),
       mVideoSampleReceived(false),
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
-      mLastPositionUpdateUs(-1ll),
-      mVideoLateByUs(0ll),
       mAudioOffloadPauseTimeoutGeneration(0),
       mAudioOffloadTornDown(false) {
     readProperties();
@@ -137,9 +137,9 @@ void NuPlayer::Renderer::signalTimeDiscontinuity() {
     Mutex::Autolock autoLock(mLock);
     // CHECK(mAudioQueue.empty());
     // CHECK(mVideoQueue.empty());
-    mFirstAnchorTimeMediaUs = -1;
-    mAnchorTimeMediaUs = -1;
-    mAnchorTimeRealUs = -1;
+    setAudioFirstAnchorTime(-1);
+    setVideoAnchorTime(-1, -1);
+    setVideoLateByUs(0);
     mSyncQueues = false;
 }
 
@@ -163,6 +163,78 @@ void NuPlayer::Renderer::setVideoFrameRate(float fps) {
     sp<AMessage> msg = new AMessage(kWhatSetVideoFrameRate, id());
     msg->setFloat("frame-rate", fps);
     msg->post();
+}
+
+status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs) {
+    return getCurrentPosition(mediaUs, ALooper::GetNowUs());
+}
+
+status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs, int64_t nowUs) {
+    Mutex::Autolock autoLock(mTimeLock);
+    if (!mHasAudio && !mHasVideo) {
+        return NO_INIT;
+    }
+
+    int64_t positionUs = 0;
+    if (!mHasAudio) {
+        if (mVideoAnchorTimeMediaUs < 0) {
+            return NO_INIT;
+        }
+        positionUs = (nowUs - mVideoAnchorTimeRealUs) + mVideoAnchorTimeMediaUs;
+
+        if (mPauseStartedTimeRealUs != -1) {
+            positionUs -= (nowUs - mPauseStartedTimeRealUs);
+        }
+    } else {
+        if (mAudioFirstAnchorTimeMediaUs < 0) {
+            return NO_INIT;
+        }
+        positionUs = mAudioFirstAnchorTimeMediaUs + getPlayedOutAudioDurationUs(nowUs);
+    }
+    *mediaUs = (positionUs <= 0) ? 0 : positionUs;
+    return OK;
+}
+
+void NuPlayer::Renderer::setHasMedia(bool audio) {
+    Mutex::Autolock autoLock(mTimeLock);
+    if (audio) {
+        mHasAudio = true;
+    } else {
+        mHasVideo = true;
+    }
+}
+
+void NuPlayer::Renderer::setAudioFirstAnchorTime(int64_t mediaUs) {
+    Mutex::Autolock autoLock(mTimeLock);
+    mAudioFirstAnchorTimeMediaUs = mediaUs;
+}
+
+void NuPlayer::Renderer::setAudioFirstAnchorTimeIfNeeded(int64_t mediaUs) {
+    Mutex::Autolock autoLock(mTimeLock);
+    if (mAudioFirstAnchorTimeMediaUs == -1) {
+        mAudioFirstAnchorTimeMediaUs = mediaUs;
+    }
+}
+
+void NuPlayer::Renderer::setVideoAnchorTime(int64_t mediaUs, int64_t realUs) {
+    Mutex::Autolock autoLock(mTimeLock);
+    mVideoAnchorTimeMediaUs = mediaUs;
+    mVideoAnchorTimeRealUs = realUs;
+}
+
+void NuPlayer::Renderer::setVideoLateByUs(int64_t lateUs) {
+    Mutex::Autolock autoLock(mTimeLock);
+    mVideoLateByUs = lateUs;
+}
+
+int64_t NuPlayer::Renderer::getVideoLateByUs() {
+    Mutex::Autolock autoLock(mTimeLock);
+    return mVideoLateByUs;
+}
+
+void NuPlayer::Renderer::setPauseStartedTimeRealUs(int64_t realUs) {
+    Mutex::Autolock autoLock(mTimeLock);
+    mPauseStartedTimeRealUs = realUs;
 }
 
 void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
@@ -388,16 +460,7 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
             ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
-            if (mFirstAnchorTimeMediaUs == -1) {
-                mFirstAnchorTimeMediaUs = mediaTimeUs;
-            }
-
-            int64_t nowUs = ALooper::GetNowUs();
-            mAnchorTimeMediaUs =
-                mFirstAnchorTimeMediaUs + getPlayedOutAudioDurationUs(nowUs);
-            mAnchorTimeRealUs = nowUs;
-
-            notifyPosition();
+            setAudioFirstAnchorTimeIfNeeded(mediaTimeUs);
         }
 
         size_t copy = entry->mBuffer->size() - entry->mOffset;
@@ -468,15 +531,8 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
             ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
-            if (mFirstAnchorTimeMediaUs == -1) {
-                mFirstAnchorTimeMediaUs = mediaTimeUs;
-            }
-            mAnchorTimeMediaUs = mediaTimeUs;
 
-            int64_t nowUs = ALooper::GetNowUs();
-            mAnchorTimeRealUs = nowUs + getPendingAudioPlayoutDurationUs(nowUs);
-
-            notifyPosition();
+            setAudioFirstAnchorTimeIfNeeded(mediaTimeUs);
         }
 
         size_t copy = entry->mBuffer->size() - entry->mOffset;
@@ -534,6 +590,14 @@ int64_t NuPlayer::Renderer::getPendingAudioPlayoutDurationUs(int64_t nowUs) {
     return writtenAudioDurationUs - getPlayedOutAudioDurationUs(nowUs);
 }
 
+int64_t NuPlayer::Renderer::getRealTimeUs(int64_t mediaTimeUs, int64_t nowUs) {
+    int64_t currentPositionUs;
+    if (getCurrentPosition(&currentPositionUs, nowUs) != OK) {
+        currentPositionUs = 0;
+    }
+    return (mediaTimeUs - currentPositionUs) + nowUs;
+}
+
 void NuPlayer::Renderer::postDrainVideoQueue() {
     if (mDrainVideoQueuePending
             || mSyncQueues
@@ -568,21 +632,11 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
         int64_t mediaTimeUs;
         CHECK(entry.mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
-        if (mFirstAnchorTimeMediaUs == -1 && !mHasAudio) {
-            mFirstAnchorTimeMediaUs = mediaTimeUs;
-        }
-        if (mAnchorTimeMediaUs < 0) {
-            if (!mHasAudio) {
-                mAnchorTimeMediaUs = mediaTimeUs;
-                mAnchorTimeRealUs = nowUs;
-                if (!mPaused || mVideoSampleReceived) {
-                    notifyPosition();
-                }
-            }
+        if (mVideoAnchorTimeMediaUs < 0) {
+            setVideoAnchorTime(mediaTimeUs, nowUs);
             realTimeUs = nowUs;
         } else {
-            realTimeUs =
-                (mediaTimeUs - mAnchorTimeMediaUs) + mAnchorTimeRealUs;
+            realTimeUs = getRealTimeUs(mediaTimeUs, nowUs);
         }
     }
 
@@ -618,10 +672,11 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         mVideoQueue.erase(mVideoQueue.begin());
         entry = NULL;
 
-        mVideoLateByUs = 0ll;
+        setVideoLateByUs(0);
         return;
     }
 
+    int64_t nowUs = -1;
     int64_t realTimeUs;
     if (mFlags & FLAG_REAL_TIME) {
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &realTimeUs));
@@ -629,13 +684,17 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         int64_t mediaTimeUs;
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
-        realTimeUs = mediaTimeUs - mAnchorTimeMediaUs + mAnchorTimeRealUs;
+        nowUs = ALooper::GetNowUs();
+        realTimeUs = getRealTimeUs(mediaTimeUs, nowUs);
     }
 
     bool tooLate = false;
 
     if (!mPaused) {
-        mVideoLateByUs = ALooper::GetNowUs() - realTimeUs;
+        if (nowUs == -1) {
+            nowUs = ALooper::GetNowUs();
+        }
+        setVideoLateByUs(nowUs - realTimeUs);
         tooLate = (mVideoLateByUs > 40000);
 
         if (tooLate) {
@@ -644,13 +703,14 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         } else {
             ALOGV("rendering video at media time %.2f secs",
                     (mFlags & FLAG_REAL_TIME ? realTimeUs :
-                    (realTimeUs + mAnchorTimeMediaUs - mAnchorTimeRealUs)) / 1E6);
+                    (realTimeUs + mVideoAnchorTimeMediaUs - mVideoAnchorTimeRealUs)) / 1E6);
         }
     } else {
-        mVideoLateByUs = 0ll;
-        if (!mHasAudio && !mVideoSampleReceived) {
-            mAnchorTimeMediaUs = -1;
-            mAnchorTimeRealUs = -1;
+        setVideoLateByUs(0);
+        if (!mVideoSampleReceived) {
+            // This will ensure that the first frame after a flush won't be used as anchor
+            // when renderer is in paused state, because resume can happen any time after seek.
+            setVideoAnchorTime(-1, -1);
         }
     }
 
@@ -693,10 +753,9 @@ void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
     int32_t audio;
     CHECK(msg->findInt32("audio", &audio));
 
-    if (audio) {
-        mHasAudio = true;
-    } else {
-        mHasVideo = true;
+    setHasMedia(audio);
+
+    if (mHasVideo) {
         if (mVideoScheduler == NULL) {
             mVideoScheduler = new VideoFrameScheduler();
             mVideoScheduler->init();
@@ -837,9 +896,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     {
          Mutex::Autolock autoLock(mLock);
          syncQueuesDone_l();
-         if (!mHasAudio) {
-             mPauseStartedTimeRealUs = -1;
-         }
+         setPauseStartedTimeRealUs(-1);
     }
 
     ALOGV("flushing %s", audio ? "audio" : "video");
@@ -852,7 +909,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             prepareForMediaRenderingStart();
 
             if (offloadingAudio()) {
-                mFirstAnchorTimeMediaUs = -1;
+                setAudioFirstAnchorTime(-1);
             }
         }
 
@@ -943,42 +1000,6 @@ void NuPlayer::Renderer::onDisableOffloadAudio() {
     ++mAudioQueueGeneration;
 }
 
-void NuPlayer::Renderer::notifyPosition() {
-    // notifyPosition() must be called only after setting mAnchorTimeRealUs
-    // and mAnchorTimeMediaUs, and must not be paused as it extrapolates position.
-    //CHECK_GE(mAnchorTimeRealUs, 0);
-    //CHECK_GE(mAnchorTimeMediaUs, 0);
-    //CHECK(!mPaused || !mHasAudio);  // video-only does display in paused mode.
-
-    int64_t nowUs = ALooper::GetNowUs();
-
-    if (mLastPositionUpdateUs >= 0
-            && nowUs < mLastPositionUpdateUs + kMinPositionUpdateDelayUs) {
-        return;
-    }
-    mLastPositionUpdateUs = nowUs;
-
-    int64_t positionUs = (nowUs - mAnchorTimeRealUs) + mAnchorTimeMediaUs;
-
-    //ALOGD("notifyPosition: positionUs(%lld) nowUs(%lld) mAnchorTimeRealUs(%lld)"
-    //        " mAnchorTimeMediaUs(%lld) mFirstAnchorTimeMediaUs(%lld)",
-    //        (long long)positionUs, (long long)nowUs, (long long)mAnchorTimeRealUs,
-    //        (long long)mAnchorTimeMediaUs, (long long)mFirstAnchorTimeMediaUs);
-
-    // Due to adding the latency to mAnchorTimeRealUs in onDrainAudioQueue(),
-    // positionUs may be less than the first media time.  This is avoided
-    // here to prevent potential retrograde motion of the position bar
-    // when starting up after a seek.
-    if (positionUs < mFirstAnchorTimeMediaUs) {
-        positionUs = mFirstAnchorTimeMediaUs;
-    }
-    sp<AMessage> notify = mNotify->dup();
-    notify->setInt32("what", kWhatPosition);
-    notify->setInt64("positionUs", positionUs);
-    notify->setInt64("videoLateByUs", mVideoLateByUs);
-    notify->post();
-}
-
 void NuPlayer::Renderer::onPause() {
     if (mPaused) {
         ALOGW("Renderer::onPause() called while already paused!");
@@ -990,9 +1011,7 @@ void NuPlayer::Renderer::onPause() {
         ++mVideoQueueGeneration;
         prepareForMediaRenderingStart();
         mPaused = true;
-        if (!mHasAudio) {
-            mPauseStartedTimeRealUs = ALooper::GetNowUs();
-        }
+        setPauseStartedTimeRealUs(ALooper::GetNowUs());
     }
 
     mDrainAudioQueuePending = false;
@@ -1021,9 +1040,11 @@ void NuPlayer::Renderer::onResume() {
 
     Mutex::Autolock autoLock(mLock);
     mPaused = false;
-    if (!mHasAudio && mPauseStartedTimeRealUs != -1) {
-        mAnchorTimeRealUs += ALooper::GetNowUs() - mPauseStartedTimeRealUs;
-        mPauseStartedTimeRealUs = -1;
+    if (mPauseStartedTimeRealUs != -1) {
+        int64_t newAnchorRealUs =
+            mVideoAnchorTimeRealUs + ALooper::GetNowUs() - mPauseStartedTimeRealUs;
+        setVideoAnchorTime(mVideoAnchorTimeMediaUs, newAnchorRealUs);
+        setPauseStartedTimeRealUs(-1);
     }
 
     if (!mAudioQueue.empty()) {
@@ -1045,7 +1066,6 @@ void NuPlayer::Renderer::onSetVideoFrameRate(float fps) {
 // TODO: Remove unnecessary calls to getPlayedOutAudioDurationUs()
 // as it acquires locks and may query the audio driver.
 //
-// Some calls are not needed since notifyPosition() doesn't always deliver a message.
 // Some calls could conceivably retrieve extrapolated data instead of
 // accessing getTimestamp() or getPosition() every time a data buffer with
 // a media time is received.
@@ -1113,14 +1133,10 @@ void NuPlayer::Renderer::onAudioOffloadTearDown(AudioOffloadTearDownReason reaso
     }
     mAudioOffloadTornDown = true;
 
-    int64_t firstAudioTimeUs;
-    {
-        Mutex::Autolock autoLock(mLock);
-        firstAudioTimeUs = mFirstAnchorTimeMediaUs;
+    int64_t currentPositionUs;
+    if (getCurrentPosition(&currentPositionUs) != OK) {
+        currentPositionUs = 0;
     }
-
-    int64_t currentPositionUs =
-        firstAudioTimeUs + getPlayedOutAudioDurationUs(ALooper::GetNowUs());
 
     mAudioSink->stop();
     mAudioSink->flush();

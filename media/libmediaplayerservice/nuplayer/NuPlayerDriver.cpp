@@ -26,6 +26,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
@@ -38,10 +39,7 @@ NuPlayerDriver::NuPlayerDriver()
       mSetSurfaceInProgress(false),
       mDurationUs(-1),
       mPositionUs(-1),
-      mNotifyTimeRealUs(-1),
-      mPauseStartedTimeUs(-1),
-      mNumFramesTotal(0),
-      mNumFramesDropped(0),
+      mSeekInProgress(false),
       mLooper(new ALooper),
       mPlayerFlags(0),
       mAtEOS(false),
@@ -276,14 +274,6 @@ status_t NuPlayerDriver::start() {
                 mPositionUs = -1;
             } else {
                 mPlayer->resume();
-                if (mNotifyTimeRealUs != -1) {
-                    // Pause time must be set if here by setPauseStartedTimeIfNeeded().
-                    //CHECK(mPauseStartedTimeUs != -1);
-
-                    // if no seek occurs, adjust our notify time so that getCurrentPosition()
-                    // is continuous if read immediately after calling start().
-                    mNotifyTimeRealUs += ALooper::GetNowUs() - mPauseStartedTimeUs;
-                }
             }
             break;
         }
@@ -293,7 +283,6 @@ status_t NuPlayerDriver::start() {
     }
 
     mState = STATE_RUNNING;
-    mPauseStartedTimeUs = -1;
 
     return OK;
 }
@@ -322,7 +311,6 @@ status_t NuPlayerDriver::stop() {
         default:
             return INVALID_OPERATION;
     }
-    setPauseStartedTimeIfNeeded();
 
     return OK;
 }
@@ -336,7 +324,6 @@ status_t NuPlayerDriver::pause() {
             return OK;
 
         case STATE_RUNNING:
-            setPauseStartedTimeIfNeeded();
             mState = STATE_PAUSED;
             notifyListener_l(MEDIA_PAUSED);
             mPlayer->pause();
@@ -382,6 +369,7 @@ status_t NuPlayerDriver::seekTo(int msec) {
         case STATE_PAUSED:
         {
             mAtEOS = false;
+            mSeekInProgress = true;
             // seeks can take a while, so we essentially paused
             notifyListener_l(MEDIA_PAUSED);
             mPlayer->seekToAsync(seekTimeUs, true /* needNotify */);
@@ -393,44 +381,23 @@ status_t NuPlayerDriver::seekTo(int msec) {
     }
 
     mPositionUs = seekTimeUs;
-    mNotifyTimeRealUs = -1;
     return OK;
 }
 
 status_t NuPlayerDriver::getCurrentPosition(int *msec) {
+    int64_t tempUs = 0;
+    status_t ret = mPlayer->getCurrentPosition(&tempUs);
+
     Mutex::Autolock autoLock(mLock);
-
-    if (mPositionUs < 0) {
-        // mPositionUs is the media time.
-        // It is negative under these cases
-        // (1) == -1 after reset, or very first playback, no stream notification yet.
-        // (2) == -1 start after end of stream, no stream notification yet.
-        // (3) == large negative # after ~292,471 years of continuous playback.
-
-        //CHECK_EQ(mPositionUs, -1);
-        *msec = 0;
-    } else if (mNotifyTimeRealUs == -1) {
-        // A seek has occurred just occurred, no stream notification yet.
-        // mPositionUs (>= 0) is the new media position.
-        *msec = mPositionUs / 1000;
+    // We need to check mSeekInProgress here because mPlayer->seekToAsync is an async call, which
+    // means getCurrentPosition can be called before seek is completed. Iow, renderer may return a
+    // position value that's different the seek to position.
+    if (ret != OK || mSeekInProgress) {
+        tempUs = (mPositionUs <= 0) ? 0 : mPositionUs;
     } else {
-        // mPosition must be valid (i.e. >= 0) by the first check above.
-        // We're either playing or have pause time set: mPauseStartedTimeUs is >= 0
-        //LOG_ALWAYS_FATAL_IF(
-        //        !isPlaying() && mPauseStartedTimeUs < 0,
-        //        "Player in non-playing mState(%d) and mPauseStartedTimeUs(%lld) < 0",
-        //        mState, (long long)mPauseStartedTimeUs);
-        ALOG_ASSERT(mNotifyTimeRealUs >= 0);
-        int64_t nowUs =
-                (isPlaying() ?  ALooper::GetNowUs() : mPauseStartedTimeUs);
-        *msec = (mPositionUs + nowUs - mNotifyTimeRealUs + 500ll) / 1000;
-        // It is possible for *msec to be negative if the media position is > 596 hours.
-        // but we turn on this checking in NDEBUG == 0 mode.
-        ALOG_ASSERT(*msec >= 0);
-        ALOGV("getCurrentPosition nowUs(%lld)", (long long)nowUs);
+        mPositionUs = tempUs;
     }
-    ALOGV("getCurrentPosition returning(%d) mPositionUs(%lld) mNotifyRealTimeUs(%lld)",
-            *msec, (long long)mPositionUs, (long long)mNotifyTimeRealUs);
+    *msec = (int)divRound(tempUs, (int64_t)(1000));
     return OK;
 }
 
@@ -613,17 +580,10 @@ void NuPlayerDriver::notifyDuration(int64_t durationUs) {
     mDurationUs = durationUs;
 }
 
-void NuPlayerDriver::notifyPosition(int64_t positionUs) {
-    Mutex::Autolock autoLock(mLock);
-    if (isPlaying()) {
-        mPositionUs = positionUs;
-        mNotifyTimeRealUs = ALooper::GetNowUs();
-    }
-}
-
 void NuPlayerDriver::notifySeekComplete() {
     ALOGV("notifySeekComplete(%p)", this);
     Mutex::Autolock autoLock(mLock);
+    mSeekInProgress = false;
     notifySeekComplete_l();
 }
 
@@ -644,26 +604,21 @@ void NuPlayerDriver::notifySeekComplete_l() {
     notifyListener_l(wasSeeking ? MEDIA_SEEK_COMPLETE : MEDIA_PREPARED);
 }
 
-void NuPlayerDriver::notifyFrameStats(
-        int64_t numFramesTotal, int64_t numFramesDropped) {
-    Mutex::Autolock autoLock(mLock);
-    mNumFramesTotal = numFramesTotal;
-    mNumFramesDropped = numFramesDropped;
-}
-
 status_t NuPlayerDriver::dump(
         int fd, const Vector<String16> & /* args */) const {
-    Mutex::Autolock autoLock(mLock);
+    int64_t numFramesTotal;
+    int64_t numFramesDropped;
+    mPlayer->getStats(&numFramesTotal, &numFramesDropped);
 
     FILE *out = fdopen(dup(fd), "w");
 
     fprintf(out, " NuPlayer\n");
     fprintf(out, "  numFramesTotal(%" PRId64 "), numFramesDropped(%" PRId64 "), "
                  "percentageDropped(%.2f)\n",
-                 mNumFramesTotal,
-                 mNumFramesDropped,
-                 mNumFramesTotal == 0
-                    ? 0.0 : (double)mNumFramesDropped / mNumFramesTotal);
+                 numFramesTotal,
+                 numFramesDropped,
+                 numFramesTotal == 0
+                    ? 0.0 : (double)numFramesDropped / numFramesTotal);
 
     fclose(out);
     out = NULL;
@@ -698,7 +653,6 @@ void NuPlayerDriver::notifyListener_l(
         case MEDIA_ERROR:
         {
             mAtEOS = true;
-            setPauseStartedTimeIfNeeded();
             break;
         }
 
@@ -764,12 +718,6 @@ void NuPlayerDriver::notifyFlagsChanged(uint32_t flags) {
     Mutex::Autolock autoLock(mLock);
 
     mPlayerFlags = flags;
-}
-
-void NuPlayerDriver::setPauseStartedTimeIfNeeded() {
-    if (mPauseStartedTimeUs == -1) {
-        mPauseStartedTimeUs = ALooper::GetNowUs();
-    }
 }
 
 }  // namespace android
