@@ -1713,7 +1713,11 @@ status_t AwesomePlayer::initAudioDecoder() {
             sp<MetaData> format = mAudioSource->getFormat();
             int bitWidth = 16;
             format->findInt32(kKeySampleBits, &bitWidth);
-            if (24 == bitWidth)
+            char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
+            property_get("audio.offload.pcm.enable", prop_pcmoffload, "0");
+            if ((mOffloadAudio) &&
+                (24 == bitWidth) &&
+                (!strcmp(prop_pcmoffload, "true") || atoi(prop_pcmoffload)))
                 tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_8_24_BIT);
         }
         err = mAudioSource->start(tempMetadata.get());
