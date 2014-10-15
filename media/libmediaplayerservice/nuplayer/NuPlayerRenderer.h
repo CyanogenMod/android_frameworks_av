@@ -59,6 +59,17 @@ struct NuPlayer::Renderer : public AHandler {
 
     void setVideoFrameRate(float fps);
 
+    // Following setters and getters are protected by mTimeLock.
+    status_t getCurrentPosition(int64_t *mediaUs);
+    status_t getCurrentPosition(int64_t *mediaUs, int64_t nowUs);
+    void setHasMedia(bool audio);
+    void setAudioFirstAnchorTime(int64_t mediaUs);
+    void setAudioFirstAnchorTimeIfNeeded(int64_t mediaUs);
+    void setVideoAnchorTime(int64_t mediaUs, int64_t realUs);
+    void setVideoLateByUs(int64_t lateUs);
+    int64_t getVideoLateByUs();
+    void setPauseStartedTimeRealUs(int64_t realUs);
+
     enum {
         kWhatEOS                 = 'eos ',
         kWhatFlushComplete       = 'fluC',
@@ -117,27 +128,33 @@ private:
     int32_t mAudioQueueGeneration;
     int32_t mVideoQueueGeneration;
 
-    int64_t mFirstAnchorTimeMediaUs;
-    int64_t mAnchorTimeMediaUs;
-    int64_t mAnchorTimeRealUs;
+    Mutex mTimeLock;
+    // |mTimeLock| protects the following 7 member vars that are related to time.
+    // Note: those members are only written on Renderer thread, so reading on Renderer thread
+    // doesn't need to be protected. Otherwise accessing those members must be protected by
+    // |mTimeLock|.
+    // TODO: move those members to a seperated media clock class.
+    int64_t mAudioFirstAnchorTimeMediaUs;
+    int64_t mVideoAnchorTimeMediaUs;
+    int64_t mVideoAnchorTimeRealUs;
+    int64_t mVideoLateByUs;
+    bool mHasAudio;
+    bool mHasVideo;
+    int64_t mPauseStartedTimeRealUs;
 
     Mutex mFlushLock;  // protects the following 2 member vars.
     bool mFlushingAudio;
     bool mFlushingVideo;
 
-    bool mHasAudio;
-    bool mHasVideo;
     bool mSyncQueues;
 
     bool mPaused;
-    int64_t mPauseStartedTimeRealUs;
     bool mVideoSampleReceived;
     bool mVideoRenderingStarted;
     int32_t mVideoRenderingStartGeneration;
     int32_t mAudioRenderingStartGeneration;
 
     int64_t mLastPositionUpdateUs;
-    int64_t mVideoLateByUs;
 
     int32_t mAudioOffloadPauseTimeoutGeneration;
     bool mAudioOffloadTornDown;
@@ -148,6 +165,8 @@ private:
     int64_t getPendingAudioPlayoutDurationUs(int64_t nowUs);
     int64_t getPlayedOutAudioDurationUs(int64_t nowUs);
     void postDrainAudioQueue_l(int64_t delayUs = 0);
+
+    int64_t getRealTimeUs(int64_t mediaTimeUs, int64_t nowUs);
 
     void onDrainVideoQueue();
     void postDrainVideoQueue();
