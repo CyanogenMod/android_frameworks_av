@@ -50,6 +50,13 @@ bool captureHotwordAllowed() {
     return ok;
 }
 
+bool captureFmTunerAllowed() {
+    static const String16 sCaptureFmTunerAllowed("android.permission.ACCESS_FM_RADIO");
+    bool ok = checkCallingPermission(sCaptureFmTunerAllowed);
+    if (!ok) ALOGE("android.permission.ACCESS_FM_RADIO");
+    return ok;
+}
+
 bool settingsAllowed() {
     if (getpid_cached == IPCThreadState::self()->getCallingPid()) return true;
     static const String16 sAudioSettings("android.permission.MODIFY_AUDIO_SETTINGS");
