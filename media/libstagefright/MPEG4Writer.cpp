@@ -2425,7 +2425,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             trackProgressStatus(timestampUs);
         }
         if (!hasMultipleTracks) {
-            off64_t offset = mIsAvc? mOwner->addLengthPrefixedSample_l(copy)
+            off64_t offset = (mIsAvc | mIsHEVC) ? mOwner->addLengthPrefixedSample_l(copy)
                                  : mOwner->addSample_l(copy);
 
             uint32_t count = (mOwner->use32BitFileOffset()
