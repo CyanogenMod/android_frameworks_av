@@ -1560,7 +1560,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (!isExecuting() || (mFlags & kFlagIsAsync)) {
+            if (!isExecuting()) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             } else if (mFlags & kFlagStickyError) {
