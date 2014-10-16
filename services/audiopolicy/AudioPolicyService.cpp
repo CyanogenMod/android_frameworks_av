@@ -839,18 +839,38 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
         case CREATE_AUDIO_PATCH:
         case RELEASE_AUDIO_PATCH: {
             audio_patch_handle_t handle;
+            struct audio_patch patch;
             if (command->mCommand == CREATE_AUDIO_PATCH) {
                 handle = ((CreateAudioPatchData *)command->mParam.get())->mHandle;
+                patch = ((CreateAudioPatchData *)command->mParam.get())->mPatch;
             } else {
                 handle = ((ReleaseAudioPatchData *)command->mParam.get())->mHandle;
             }
             audio_patch_handle_t handle2;
+            struct audio_patch patch2;
             if (command2->mCommand == CREATE_AUDIO_PATCH) {
                 handle2 = ((CreateAudioPatchData *)command2->mParam.get())->mHandle;
+                patch2 = ((CreateAudioPatchData *)command2->mParam.get())->mPatch;
             } else {
                 handle2 = ((ReleaseAudioPatchData *)command2->mParam.get())->mHandle;
             }
             if (handle != handle2) break;
+            /* Filter CREATE_AUDIO_PATCH commands only when they are issued for
+               same output. */
+            if( (command->mCommand == CREATE_AUDIO_PATCH) &&
+                (command2->mCommand == CREATE_AUDIO_PATCH) ) {
+                bool isOutputDiff = false;
+                if (patch.num_sources == patch2.num_sources) {
+                    for (unsigned count = 0; count < patch.num_sources; count++) {
+                        if (patch.sources[count].id != patch2.sources[count].id) {
+                            isOutputDiff = true;
+                            break;
+                        }
+                    }
+                    if (isOutputDiff)
+                       break;
+                }
+            }
             ALOGV("Filtering out %s audio patch command for handle %d",
                   (command->mCommand == CREATE_AUDIO_PATCH) ? "create" : "release", handle);
             removedCommands.add(command2);
