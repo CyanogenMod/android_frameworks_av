@@ -490,6 +490,10 @@ status_t MediaCodecSource::initEncoder() {
         }
     }
 
+    mEncoderActivityNotify = new AMessage(
+            kWhatEncoderActivity, mReflector->id());
+    mEncoder->setCallback(mEncoderActivityNotify);
+
     err = mEncoder->start();
 
     if (err != OK) {
@@ -607,20 +611,6 @@ void MediaCodecSource::resume(int64_t skipFramesBeforeUs) {
     }
 }
 
-void MediaCodecSource::scheduleDoMoreWork() {
-    if (mDoMoreWorkPending) {
-        return;
-    }
-
-    mDoMoreWorkPending = true;
-
-    if (mEncoderActivityNotify == NULL) {
-        mEncoderActivityNotify = new AMessage(
-                kWhatEncoderActivity, mReflector->id());
-    }
-    mEncoder->requestActivityNotification(mEncoderActivityNotify);
-}
-
 status_t MediaCodecSource::feedEncoderInputBuffers() {
     while (!mInputBufferQueue.empty()
             && !mAvailEncoderInputIndices.empty()) {
@@ -683,116 +673,6 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
     return OK;
 }
 
-status_t MediaCodecSource::doMoreWork(int32_t numInput, int32_t numOutput) {
-    status_t err = OK;
-
-    if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
-        while (numInput-- > 0) {
-            size_t bufferIndex;
-            err = mEncoder->dequeueInputBuffer(&bufferIndex);
-
-            if (err != OK) {
-                break;
-            }
-
-            mAvailEncoderInputIndices.push_back(bufferIndex);
-        }
-
-        feedEncoderInputBuffers();
-    }
-
-    while (numOutput-- > 0) {
-        size_t bufferIndex;
-        size_t offset;
-        size_t size;
-        int64_t timeUs;
-        uint32_t flags;
-        native_handle_t* handle = NULL;
-        err = mEncoder->dequeueOutputBuffer(
-                &bufferIndex, &offset, &size, &timeUs, &flags);
-
-        if (err != OK) {
-            if (err == INFO_FORMAT_CHANGED) {
-                continue;
-            } else if (err == INFO_OUTPUT_BUFFERS_CHANGED) {
-                mEncoder->getOutputBuffers(&mEncoderOutputBuffers);
-                continue;
-            }
-
-            if (err == -EAGAIN) {
-                err = OK;
-            }
-            break;
-        }
-        if (!(flags & MediaCodec::BUFFER_FLAG_EOS)) {
-            sp<ABuffer> outbuf = mEncoderOutputBuffers.itemAt(bufferIndex);
-
-            MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
-            memcpy(mbuf->data(), outbuf->data(), outbuf->size());
-            mbuf->meta_data()->setInt32(kKeyCanDeferRelease, true);
-
-            if (!(flags & MediaCodec::BUFFER_FLAG_CODECCONFIG)) {
-                if (mIsVideo) {
-                    int64_t decodingTimeUs;
-                    if (mFlags & FLAG_USE_SURFACE_INPUT) {
-                        // GraphicBufferSource is supposed to discard samples
-                        // queued before start, and offset timeUs by start time
-                        CHECK_GE(timeUs, 0ll);
-                        // TODO:
-                        // Decoding time for surface source is unavailable,
-                        // use presentation time for now. May need to move
-                        // this logic into MediaCodec.
-                        decodingTimeUs = timeUs;
-                    } else {
-                        CHECK(!mDecodingTimeQueue.empty());
-                        decodingTimeUs = *(mDecodingTimeQueue.begin());
-                        mDecodingTimeQueue.erase(mDecodingTimeQueue.begin());
-                    }
-                    mbuf->meta_data()->setInt64(kKeyDecodingTime, decodingTimeUs);
-
-                    RECORDER_STATS(logBitRate, outbuf->size(), decodingTimeUs);
-
-                    ALOGV("[video] time %" PRId64 " us (%.2f secs), dts/pts diff %" PRId64,
-                            timeUs, timeUs / 1E6, decodingTimeUs - timeUs);
-                } else {
-                    int64_t driftTimeUs = 0;
-#if DEBUG_DRIFT_TIME
-                    CHECK(!mDriftTimeQueue.empty());
-                    driftTimeUs = *(mDriftTimeQueue.begin());
-                    mDriftTimeQueue.erase(mDriftTimeQueue.begin());
-                    mbuf->meta_data()->setInt64(kKeyDriftTime, driftTimeUs);
-#endif // DEBUG_DRIFT_TIME
-                    ALOGV("[audio] time %" PRId64 " us (%.2f secs), drift %" PRId64,
-                            timeUs, timeUs / 1E6, driftTimeUs);
-                }
-                mbuf->meta_data()->setInt64(kKeyTime, timeUs);
-            } else {
-                mbuf->meta_data()->setInt32(kKeyIsCodecConfig, true);
-            }
-            if (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME) {
-                mbuf->meta_data()->setInt32(kKeyIsSyncFrame, true);
-            }
-            mbuf->setObserver(this);
-            mbuf->add_ref();
-
-            {
-                Mutex::Autolock autoLock(mOutputBufferLock);
-                mOutputBufferQueue.push_back(mbuf);
-                mOutputBufferCond.signal();
-            }
-        }
-
-        mEncoder->releaseOutputBuffer(bufferIndex);
-
-        if (flags & MediaCodec::BUFFER_FLAG_EOS) {
-            err = ERROR_END_OF_STREAM;
-            break;
-        }
-    }
-
-    return err;
-}
-
 status_t MediaCodecSource::onStart(MetaData *params) {
     if (mStopping) {
         ALOGE("Failed to start while we're stopping");
@@ -823,7 +703,6 @@ status_t MediaCodecSource::onStart(MetaData *params) {
             startTimeUs = -1ll;
         }
         resume(startTimeUs);
-        scheduleDoMoreWork();
     } else {
         CHECK(mPuller != NULL);
         sp<AMessage> notify = new AMessage(
@@ -867,36 +746,117 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
         mInputBufferQueue.push_back(mbuf);
 
         feedEncoderInputBuffers();
-        scheduleDoMoreWork();
 
         break;
     }
     case kWhatEncoderActivity:
     {
-        mDoMoreWorkPending = false;
-
-        if (mEncoder == NULL) {
+        if (mEncoder == NULL || mEncoderReachedEOS) {
             break;
         }
 
-        int32_t numInput, numOutput;
+        int32_t cbID;
+        msg->findInt32("callbackID", &cbID);
+        if (cbID == MediaCodec::CB_INPUT_AVAILABLE) {
+            int32_t index;
+            msg->findInt32("index", &index);
 
-        if (!msg->findInt32("input-buffers", &numInput)) {
-            numInput = INT32_MAX;
+            mAvailEncoderInputIndices.push_back(index);
+            feedEncoderInputBuffers();
+        } else if (cbID == MediaCodec::CB_OUTPUT_AVAILABLE) {
+            int32_t index;
+            size_t offset;
+            size_t size;
+            int64_t timeUs;
+            int32_t flags;
+            native_handle_t* handle = NULL;
+
+            msg->findInt32("index", &index);
+            msg->findSize("offset", &offset);
+            msg->findSize("size", &size);
+            msg->findInt64("timeUs", &timeUs);
+            msg->findInt32("flags", &flags);
+
+            if (flags & MediaCodec::BUFFER_FLAG_EOS) {
+                mEncoder->releaseOutputBuffer(index);
+                signalEOS(ERROR_END_OF_STREAM);
+                break;
+            }
+
+            if (index < 0 || index >= mEncoderOutputBuffers.size()) {
+                if (index == INFO_FORMAT_CHANGED) {
+                    // do nothing
+                } else if (index == INFO_OUTPUT_BUFFERS_CHANGED) {
+                    mEncoder->getOutputBuffers(&mEncoderOutputBuffers);
+                    break;
+                } else if (index == -EAGAIN) {
+                    // do nothing
+                } else {
+                    ALOGE("encoder (%s) reported error", mIsVideo ? "video" : "audio");
+                    signalEOS(index);
+                    break;
+                }
+            }
+
+            sp<ABuffer> outbuf = mEncoderOutputBuffers.itemAt(index);
+
+            MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
+            memcpy(mbuf->data(), outbuf->data(), outbuf->size());
+
+            if (!(flags & MediaCodec::BUFFER_FLAG_CODECCONFIG)) {
+                if (mIsVideo) {
+                    int64_t decodingTimeUs;
+                    if (mFlags & FLAG_USE_SURFACE_INPUT) {
+                        // GraphicBufferSource is supposed to discard samples
+                        // queued before start, and offset timeUs by start time
+                        CHECK_GE(timeUs, 0ll);
+                        // TODO:
+                        // Decoding time for surface source is unavailable,
+                        // use presentation time for now. May need to move
+                        // this logic into MediaCodec.
+                        decodingTimeUs = timeUs;
+                    } else {
+                        CHECK(!mDecodingTimeQueue.empty());
+                        decodingTimeUs = *(mDecodingTimeQueue.begin());
+                        mDecodingTimeQueue.erase(mDecodingTimeQueue.begin());
+                    }
+                    mbuf->meta_data()->setInt64(kKeyDecodingTime, decodingTimeUs);
+
+                    ALOGV("[video] time %" PRId64 " us (%.2f secs), dts/pts diff %" PRId64,
+                            timeUs, timeUs / 1E6, decodingTimeUs - timeUs);
+                } else {
+                    int64_t driftTimeUs = 0;
+#if DEBUG_DRIFT_TIME
+                    CHECK(!mDriftTimeQueue.empty());
+                    driftTimeUs = *(mDriftTimeQueue.begin());
+                    mDriftTimeQueue.erase(mDriftTimeQueue.begin());
+                    mbuf->meta_data()->setInt64(kKeyDriftTime, driftTimeUs);
+#endif // DEBUG_DRIFT_TIME
+                    ALOGV("[audio] time %" PRId64 " us (%.2f secs), drift %" PRId64,
+                            timeUs, timeUs / 1E6, driftTimeUs);
+                }
+                mbuf->meta_data()->setInt64(kKeyTime, timeUs);
+            } else {
+                mbuf->meta_data()->setInt32(kKeyIsCodecConfig, true);
+            }
+            if (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME) {
+                mbuf->meta_data()->setInt32(kKeyIsSyncFrame, true);
+            }
+            mbuf->setObserver(this);
+            mbuf->add_ref();
+
+            {
+                Mutex::Autolock autoLock(mOutputBufferLock);
+                mOutputBufferQueue.push_back(mbuf);
+                mOutputBufferCond.signal();
+            }
+
+            mEncoder->releaseOutputBuffer(index);
+        } else if (cbID == MediaCodec::CB_ERROR) {
+            ALOGI("Encoder (%s) reported error",
+                mIsVideo ? "video" : "audio");
+            signalEOS();
         }
-        if (!msg->findInt32("output-buffers", &numOutput)) {
-            numOutput = INT32_MAX;
-        }
-
-        status_t err = doMoreWork(numInput, numOutput);
-
-        if (err == OK) {
-            scheduleDoMoreWork();
-        } else {
-            // reached EOS, or error
-            signalEOS(err);
-        }
-
         break;
     }
     case kWhatStart:
