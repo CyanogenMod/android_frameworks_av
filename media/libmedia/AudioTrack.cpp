@@ -18,20 +18,14 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioTrack"
-#define ATRACE_TAG ATRACE_TAG_AUDIO
 
 #include <sys/resource.h>
 #include <audio_utils/primitives.h>
 #include <binder/IPCThreadState.h>
 #include <media/AudioTrack.h>
 #include <utils/Log.h>
-#include <utils/Trace.h>
 #include <private/media/AudioTrackShared.h>
 #include <media/IAudioFlinger.h>
-
-extern "C" {
-#include "../private/bionic_futex.h"
-}
 
 #define WAIT_PERIOD_MS                  10
 #define WAIT_STREAM_END_TIMEOUT_SEC     120
@@ -1612,21 +1606,7 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
                 if (ns < 0 || myns < ns) {
                     ns = myns;
                 }
-                int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &mCblk->mFutex);
-                char str[64] = {0};
-                struct timespec ts;
-
-                snprintf(str, sizeof(str), "futex_wait timeout %lld Us", ns/1000LL);
-
-                ATRACE_BEGIN(str);
-                ts.tv_sec = 0;
-                ts.tv_nsec = ns;
-                // wait for max ns allowing server to wake us up if possible
-                int ret = __futex_syscall4(&mCblk->mFutex,
-                                           FUTEX_WAIT,
-                                           old & ~CBLK_FUTEX_WAKE, &ts);
-                ATRACE_END();
-                return 0; //retry immediately as space (possibly) became available
+                return ns;
             }
         }
 
