@@ -464,7 +464,6 @@ status_t AudioTrack::start()
     if (previousState == STATE_STOPPED || previousState == STATE_FLUSHED) {
         // reset current position as seen by client to 0
         mPosition = 0;
-        mReleased = 0;
         // For offloaded tracks, we don't know if the hardware counters are really zero here,
         // since the flush is asynchronous and stop may not fully drain.
         // We save the time when the track is started to later verify whether
@@ -529,6 +528,7 @@ void AudioTrack::stop()
         mState = STATE_STOPPING;
     } else {
         mState = STATE_STOPPED;
+        mReleased = 0;
     }
 
     mProxy->interrupt();
@@ -585,6 +585,7 @@ void AudioTrack::flush_l()
     mRefreshRemaining = true;
 
     mState = STATE_FLUSHED;
+    mReleased = 0;
     if (isOffloaded_l()) {
         mProxy->interrupt();
     }
@@ -1625,6 +1626,7 @@ nsecs_t AudioTrack::processAudioBuffer()
                 waitStreamEnd = mState == STATE_STOPPING;
                 if (waitStreamEnd) {
                     mState = STATE_STOPPED;
+                    mReleased = 0;
                 }
             }
             if (waitStreamEnd && status != DEAD_OBJECT) {
@@ -1873,6 +1875,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     if (result != NO_ERROR) {
         ALOGW("restoreTrack_l() failed status %d", result);
         mState = STATE_STOPPED;
+        mReleased = 0;
     }
 
     return result;
