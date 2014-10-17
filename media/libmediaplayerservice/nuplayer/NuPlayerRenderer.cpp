@@ -28,6 +28,7 @@
 #include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
 
 #include <VideoFrameScheduler.h>
 
@@ -80,7 +81,8 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
       mAudioOffloadPauseTimeoutGeneration(0),
-      mAudioOffloadTornDown(false) {
+      mAudioOffloadTornDown(false),
+      mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER) {
     readProperties();
 }
 
@@ -237,8 +239,72 @@ void NuPlayer::Renderer::setPauseStartedTimeRealUs(int64_t realUs) {
     mPauseStartedTimeRealUs = realUs;
 }
 
+bool NuPlayer::Renderer::openAudioSink(
+        const sp<AMessage> &format,
+        bool offloadOnly,
+        bool hasVideo,
+        uint32_t flags) {
+    sp<AMessage> msg = new AMessage(kWhatOpenAudioSink, id());
+    msg->setMessage("format", format);
+    msg->setInt32("offload-only", offloadOnly);
+    msg->setInt32("has-video", hasVideo);
+    msg->setInt32("flags", flags);
+
+    sp<AMessage> response;
+    msg->postAndAwaitResponse(&response);
+
+    int32_t offload;
+    CHECK(response->findInt32("offload", &offload));
+    return (offload != 0);
+}
+
+void NuPlayer::Renderer::closeAudioSink() {
+    sp<AMessage> msg = new AMessage(kWhatCloseAudioSink, id());
+
+    sp<AMessage> response;
+    msg->postAndAwaitResponse(&response);
+}
+
 void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
+        case kWhatOpenAudioSink:
+        {
+            sp<AMessage> format;
+            CHECK(msg->findMessage("format", &format));
+
+            int32_t offloadOnly;
+            CHECK(msg->findInt32("offload-only", &offloadOnly));
+
+            int32_t hasVideo;
+            CHECK(msg->findInt32("has-video", &hasVideo));
+
+            uint32_t flags;
+            CHECK(msg->findInt32("flags", (int32_t *)&flags));
+
+            bool offload = onOpenAudioSink(format, offloadOnly, hasVideo, flags);
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("offload", offload);
+
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            response->postReply(replyID);
+
+            break;
+        }
+
+        case kWhatCloseAudioSink:
+        {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            onCloseAudioSink();
+
+            sp<AMessage> response = new AMessage;
+            response->postReply(replyID);
+            break;
+        }
+
         case kWhatStopAudioSink:
         {
             mAudioSink->stop();
@@ -1160,6 +1226,137 @@ void NuPlayer::Renderer::cancelAudioOffloadPauseTimeout() {
     if (offloadingAudio()) {
         ++mAudioOffloadPauseTimeoutGeneration;
     }
+}
+
+bool NuPlayer::Renderer::onOpenAudioSink(
+        const sp<AMessage> &format,
+        bool offloadOnly,
+        bool hasVideo,
+        uint32_t flags) {
+    ALOGV("openAudioSink: offloadOnly(%d) offloadingAudio(%d)",
+            offloadOnly, offloadingAudio());
+    bool audioSinkChanged = false;
+
+    int32_t numChannels;
+    CHECK(format->findInt32("channel-count", &numChannels));
+
+    int32_t channelMask;
+    if (!format->findInt32("channel-mask", &channelMask)) {
+        // signal to the AudioSink to derive the mask from count.
+        channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
+    }
+
+    int32_t sampleRate;
+    CHECK(format->findInt32("sample-rate", &sampleRate));
+
+    if (offloadingAudio()) {
+        audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+        AString mime;
+        CHECK(format->findString("mime", &mime));
+        status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
+
+        if (err != OK) {
+            ALOGE("Couldn't map mime \"%s\" to a valid "
+                    "audio_format", mime.c_str());
+            onDisableOffloadAudio();
+        } else {
+            ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
+                    mime.c_str(), audioFormat);
+
+            int avgBitRate = -1;
+            format->findInt32("bit-rate", &avgBitRate);
+
+            int32_t aacProfile = -1;
+            if (audioFormat == AUDIO_FORMAT_AAC
+                    && format->findInt32("aac-profile", &aacProfile)) {
+                // Redefine AAC format as per aac profile
+                mapAACProfileToAudioFormat(
+                        audioFormat,
+                        aacProfile);
+            }
+
+            audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
+            offloadInfo.duration_us = -1;
+            format->findInt64(
+                    "durationUs", &offloadInfo.duration_us);
+            offloadInfo.sample_rate = sampleRate;
+            offloadInfo.channel_mask = channelMask;
+            offloadInfo.format = audioFormat;
+            offloadInfo.stream_type = AUDIO_STREAM_MUSIC;
+            offloadInfo.bit_rate = avgBitRate;
+            offloadInfo.has_video = hasVideo;
+            offloadInfo.is_streaming = true;
+
+            if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
+                ALOGV("openAudioSink: no change in offload mode");
+                // no change from previous configuration, everything ok.
+                return offloadingAudio();
+            }
+            ALOGV("openAudioSink: try to open AudioSink in offload mode");
+            flags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+            flags &= ~AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+            audioSinkChanged = true;
+            mAudioSink->close();
+            err = mAudioSink->open(
+                    sampleRate,
+                    numChannels,
+                    (audio_channel_mask_t)channelMask,
+                    audioFormat,
+                    8 /* bufferCount */,
+                    &NuPlayer::Renderer::AudioSinkCallback,
+                    this,
+                    (audio_output_flags_t)flags,
+                    &offloadInfo);
+
+            if (err == OK) {
+                // If the playback is offloaded to h/w, we pass
+                // the HAL some metadata information.
+                // We don't want to do this for PCM because it
+                // will be going through the AudioFlinger mixer
+                // before reaching the hardware.
+                // TODO
+                mCurrentOffloadInfo = offloadInfo;
+                err = mAudioSink->start();
+                ALOGV_IF(err == OK, "openAudioSink: offload succeeded");
+            }
+            if (err != OK) {
+                // Clean up, fall back to non offload mode.
+                mAudioSink->close();
+                onDisableOffloadAudio();
+                mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+                ALOGV("openAudioSink: offload failed");
+            }
+        }
+    }
+    if (!offloadOnly && !offloadingAudio()) {
+        flags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+        ALOGV("openAudioSink: open AudioSink in NON-offload mode");
+
+        audioSinkChanged = true;
+        mAudioSink->close();
+        mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+        CHECK_EQ(mAudioSink->open(
+                    sampleRate,
+                    numChannels,
+                    (audio_channel_mask_t)channelMask,
+                    AUDIO_FORMAT_PCM_16_BIT,
+                    8 /* bufferCount */,
+                    NULL,
+                    NULL,
+                    (audio_output_flags_t)flags),
+                 (status_t)OK);
+        mAudioSink->start();
+    }
+    if (audioSinkChanged) {
+        onAudioSinkChanged();
+    }
+
+    return offloadingAudio();
+}
+
+void NuPlayer::Renderer::onCloseAudioSink() {
+    mAudioSink->close();
+    mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
 }
 
 }  // namespace android
