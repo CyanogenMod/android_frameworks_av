@@ -70,6 +70,13 @@ struct NuPlayer::Renderer : public AHandler {
     int64_t getVideoLateByUs();
     void setPauseStartedTimeRealUs(int64_t realUs);
 
+    bool openAudioSink(
+            const sp<AMessage> &format,
+            bool offloadOnly,
+            bool hasVideo,
+            uint32_t flags);
+    void closeAudioSink();
+
     enum {
         kWhatEOS                 = 'eos ',
         kWhatFlushComplete       = 'fluC',
@@ -100,6 +107,8 @@ private:
         kWhatAudioSinkChanged    = 'auSC',
         kWhatPause               = 'paus',
         kWhatResume              = 'resm',
+        kWhatOpenAudioSink       = 'opnA',
+        kWhatCloseAudioSink      = 'clsA',
         kWhatStopAudioSink       = 'stpA',
         kWhatDisableOffloadAudio = 'noOA',
         kWhatSetVideoFrameRate   = 'sVFR',
@@ -158,6 +167,7 @@ private:
 
     int32_t mAudioOffloadPauseTimeoutGeneration;
     bool mAudioOffloadTornDown;
+    audio_offload_info_t mCurrentOffloadInfo;
 
     size_t fillAudioBuffer(void *buffer, size_t size);
 
@@ -183,6 +193,12 @@ private:
     void onResume();
     void onSetVideoFrameRate(float fps);
     void onAudioOffloadTearDown(AudioOffloadTearDownReason reason);
+    bool onOpenAudioSink(
+            const sp<AMessage> &format,
+            bool offloadOnly,
+            bool hasVideo,
+            uint32_t flags);
+    void onCloseAudioSink();
 
     void notifyEOS(bool audio, status_t finalResult, int64_t delayUs = 0);
     void notifyFlushComplete(bool audio);
