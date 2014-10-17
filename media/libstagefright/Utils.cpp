@@ -125,6 +125,16 @@ status_t convertMetaDataToMessage(
             msg->setInt32("color-format", colorFormat);
         }
 
+        int32_t stride;
+        if (meta->findInt32(kKeyStride, &stride)) {
+            msg->setInt32("stride", stride);
+        }
+
+        int32_t sliceHeight;
+        if (meta->findInt32(kKeySliceHeight, &sliceHeight)) {
+            msg->setInt32("slice-height", sliceHeight);
+        }
+
         int32_t cropLeft, cropTop, cropRight, cropBottom;
         if (meta->findRect(kKeyCropRect,
                            &cropLeft,
