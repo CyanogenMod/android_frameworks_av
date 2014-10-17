@@ -2699,6 +2699,11 @@ void MPEG4Writer::Track::writeTrackHeader(bool use32BitOffset) {
     ALOGV("%s track time scale: %d",
         mIsAudio? "Audio": "Video", mTimeScale);
 
+    if (mMdatSizeBytes == 0) {
+      ALOGV("Track data is not available.");
+      return;
+    }
+
     uint32_t now = getMpeg4Time();
     mOwner->beginBox("trak");
         writeTkhdBox(now);
