@@ -966,9 +966,11 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(sessionId);
             reply->writeInt64(notificationFrames);
             reply->writeInt32(status);
-            reply->writeStrongBinder(record->asBinder());
-            reply->writeStrongBinder(cblk->asBinder());
-            reply->writeStrongBinder(buffers->asBinder());
+            reply->writeStrongBinder(record != NULL ? record->asBinder()
+                                                    : NULL);
+            reply->writeStrongBinder(cblk != NULL ? cblk->asBinder() : NULL);
+            reply->writeStrongBinder(buffers != NULL ? buffers->asBinder()
+                                                     : NULL);
             return NO_ERROR;
         } break;
         case SAMPLE_RATE: {
