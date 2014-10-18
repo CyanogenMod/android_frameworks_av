@@ -327,7 +327,7 @@ status_t ExtendedCodec::setAudioFormat(
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID, bool isEncoder ) {
     ALOGV("setAudioFormat called");
-    status_t err = ERROR_UNSUPPORTED;
+    status_t err = OK;
 
     if ((!strcasecmp(MEDIA_MIMETYPE_AUDIO_AC3, mime)) ||
         (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EAC3, mime))){
@@ -337,19 +337,16 @@ status_t ExtendedCodec::setAudioFormat(
         //setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
-        err = OK;
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EVRC, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         setEVRCFormat(numChannels, sampleRate, OMXhandle, nodeID, isEncoder );
-        err = OK;
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_QCELP, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
         setQCELPFormat(numChannels, sampleRate, OMXhandle, nodeID, isEncoder);
-        err = OK;
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_WMA, mime))  {
         err = setWMAFormat(msg, OMXhandle, nodeID, isEncoder);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS, mime)) {
