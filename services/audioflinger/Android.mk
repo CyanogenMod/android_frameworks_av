@@ -93,10 +93,6 @@ ifeq ($(strip $(BOARD_USE_RESAMPLER_IN_PCM_OFFLOAD_PATH)),true)
 LOCAL_CFLAGS += -DENABLE_RESAMPLER_IN_PCM_OFFLOAD_PATH
 endif
 
-ifneq ($(AUDIO_FEATURE_ENABLED_ULTRA_LOW_LATENCY),true)
-LOCAL_CFLAGS += -DNATIVE_FAST_TRACKS_ONLY
-endif
-
 # Define ANDROID_SMP appropriately. Used to get inline tracing fast-path.
 ifeq ($(TARGET_CPU_SMP),true)
     LOCAL_CFLAGS += -DANDROID_SMP=1
