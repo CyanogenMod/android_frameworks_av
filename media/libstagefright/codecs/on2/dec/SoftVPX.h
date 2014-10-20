@@ -38,6 +38,8 @@ protected:
     virtual ~SoftVPX();
 
     virtual void onQueueFilled(OMX_U32 portIndex);
+    virtual void onPortFlushCompleted(OMX_U32 portIndex);
+    virtual void onReset();
 
 private:
     enum {
@@ -49,11 +51,21 @@ private:
         MODE_VP9
     } mMode;
 
-    void *mCtx;
+    enum {
+        INPUT_DATA_AVAILABLE,  // VPX component is ready to decode data.
+        INPUT_EOS_SEEN,        // VPX component saw EOS and is flushing On2 decoder.
+        OUTPUT_FRAMES_FLUSHED  // VPX component finished flushing On2 decoder.
+    } mEOSStatus;
 
+    void *mCtx;
+    bool mFrameParallelMode;  // Frame parallel is only supported by VP9 decoder.
+    OMX_TICKS mTimeStamps[kNumBuffers];
+    uint8_t mTimeStampIdx;
     vpx_image_t *mImg;
 
     status_t initDecoder();
+    status_t destroyDecoder();
+    bool outputBuffers(bool flushDecoder, bool display, bool eos, bool *portWillReset);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftVPX);
 };
