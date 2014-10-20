@@ -3671,11 +3671,13 @@ track_is_ready: ;
 
     if (getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX) != 0) {
         mEffectBufferValid = true;
+    }
+
+    if (mEffectBufferValid) {
         // as long as there are effects we should clear the effects buffer, to avoid
         // passing a non-clean buffer to the effect chain
         memset(mEffectBuffer, 0, mEffectBufferSize);
     }
-
     // sink or mix buffer must be cleared if all tracks are connected to an
     // effect chain as in this case the mixer will not write to the sink or mix buffer
     // and track effects will accumulate into it
