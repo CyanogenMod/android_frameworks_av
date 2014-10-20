@@ -3670,6 +3670,9 @@ track_is_ready: ;
 
     if (getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX) != 0) {
         mEffectBufferValid = true;
+        // as long as there are effects we should clear the effects buffer, to avoid
+        // passing a non-clean buffer to the effect chain
+        memset(mEffectBuffer, 0, mEffectBufferSize);
     }
 
     // sink or mix buffer must be cleared if all tracks are connected to an
@@ -3689,10 +3692,6 @@ track_is_ready: ;
             // (mixedTracks == 0 && fastTracks > 0))
             // must imply MIXER_TRACKS_READY.
             // Later, we may clear buffers regardless, and skip much of this logic.
-        }
-        // TODO - either mEffectBuffer or mSinkBuffer needs to be cleared.
-        if (mEffectBufferValid) {
-            memset(mEffectBuffer, 0, mEffectBufferSize);
         }
         // FIXME as a performance optimization, should remember previous zero status
         memset(mSinkBuffer, 0, mNormalFrameCount * mFrameSize);
