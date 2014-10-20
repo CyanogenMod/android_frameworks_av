@@ -222,12 +222,7 @@ status_t AudioRecord::set(
         return BAD_VALUE;
     }
     mChannelMask = channelMask;
-    uint32_t channelCount = popcount(channelMask
-#ifdef QCOM_HARDWARE
-        &(AUDIO_CHANNEL_IN_STEREO|AUDIO_CHANNEL_IN_MONO|AUDIO_CHANNEL_IN_5POINT1));
-#else
-    );
-#endif
+    uint32_t channelCount = popcount(channelMask);
     mChannelCount = channelCount;
 
 #ifdef QCOM_DIRECTTRACK
