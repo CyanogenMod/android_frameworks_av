@@ -878,6 +878,27 @@ void ExtendedUtils::setBFrames(
     return;
 }
 
+sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
+                sp<MediaSource> &audioSource, bool offloadAudio)
+{
+    sp<MetaData> tempMetadata = new MetaData;
+    sp<MetaData> format = audioSource->getFormat();
+    int bitWidth = 16;
+#ifdef PCM_OFFLOAD_ENABLED_24
+    format->findInt32(kKeySampleBits, &bitWidth);
+    tempMetadata->setInt32(kKeySampleBits, bitWidth);
+    tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_16_BIT);
+    char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.offload.pcm.enable", prop_pcmoffload, "0");
+    if ((offloadAudio) &&
+        (24 == bitWidth) &&
+        (!strcmp(prop_pcmoffload, "true") || atoi(prop_pcmoffload))) {
+        tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_8_24_BIT);
+    }
+#endif
+    return tempMetadata;
+}
+
 /*
 QCOM HW AAC encoder allowed bitrates
 ------------------------------------------------------------------------------------------------------------------
@@ -1629,6 +1650,13 @@ void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {
 #else //ENABLE_AV_ENHANCEMENTS
 
 namespace android {
+
+sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
+                sp<MediaSource> &audioSource, bool offloadAudio)
+{
+    sp<MetaData> tempMetadata = new MetaData;
+    return tempMetadata;
+}
 
 void ExtendedUtils::HFR::setHFRIfEnabled(
         const CameraParameters& params, sp<MetaData> &meta) {

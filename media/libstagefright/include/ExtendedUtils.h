@@ -229,6 +229,8 @@ struct ExtendedUtils {
     static bool isVideoMuxFormatSupported(const char *mime);
 
     static void printFileName(int fd);
+    static sp<MetaData> updatePCMFormatAndBitwidth(sp<MediaSource> &audioSource,
+                                            bool offloadAudio);
     static void applyPreRotation(
             const CameraParameters& params, sp<MetaData> &meta);
 
