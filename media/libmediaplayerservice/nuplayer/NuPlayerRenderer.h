@@ -65,7 +65,7 @@ struct NuPlayer::Renderer : public AHandler {
     void setHasMedia(bool audio);
     void setAudioFirstAnchorTime(int64_t mediaUs);
     void setAudioFirstAnchorTimeIfNeeded(int64_t mediaUs);
-    void setVideoAnchorTime(int64_t mediaUs, int64_t realUs);
+    void setAnchorTime(int64_t mediaUs, int64_t realUs, bool resume = false);
     void setVideoLateByUs(int64_t lateUs);
     int64_t getVideoLateByUs();
     void setPauseStartedTimeRealUs(int64_t realUs);
@@ -144,8 +144,8 @@ private:
     // |mTimeLock|.
     // TODO: move those members to a seperated media clock class.
     int64_t mAudioFirstAnchorTimeMediaUs;
-    int64_t mVideoAnchorTimeMediaUs;
-    int64_t mVideoAnchorTimeRealUs;
+    int64_t mAnchorTimeMediaUs;
+    int64_t mAnchorTimeRealUs;
     int64_t mVideoLateByUs;
     bool mHasAudio;
     bool mHasVideo;
@@ -176,6 +176,7 @@ private:
     int64_t getPlayedOutAudioDurationUs(int64_t nowUs);
     void postDrainAudioQueue_l(int64_t delayUs = 0);
 
+    void onNewAudioMediaTime(int64_t mediaTimeUs);
     int64_t getRealTimeUs(int64_t mediaTimeUs, int64_t nowUs);
 
     void onDrainVideoQueue();
