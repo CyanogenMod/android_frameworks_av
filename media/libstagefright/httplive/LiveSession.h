@@ -56,6 +56,13 @@ struct LiveSession : public AHandler {
         STREAMTYPE_VIDEO        = 1 << kVideoIndex,
         STREAMTYPE_SUBTITLES    = 1 << kSubtitleIndex,
     };
+
+    enum {
+        kNoSwitch    = 0,
+        kSwitchUp    = 1,
+        kSwitchDown  = 2,
+    };
+
     status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
@@ -202,6 +209,8 @@ private:
 
     bool mReconfigurationInProgress;
     bool mSwitchInProgress;
+    bool mFetchInProgress;
+    bool mSwitchUpRequested;
     uint32_t mDisconnectReplyID;
     uint32_t mSeekReplyID;
 
@@ -211,6 +220,7 @@ private:
     sp<AMessage> mSwitchDownMonitor;
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
+    AString mFetchUrl;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
@@ -256,6 +266,7 @@ private:
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
     void onSwapped(const sp<AMessage> &msg);
+    void onFetchComplete();
     void onCheckSwitchDown();
     void onSwitchDown();
     void tryToFinishBandwidthSwitch();
