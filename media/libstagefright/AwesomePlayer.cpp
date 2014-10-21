@@ -3341,45 +3341,51 @@ inline int64_t AwesomePlayer::getTimeOfDayUs() {
 // Releasing decoders eliminates draining power in suspended state.
 status_t AwesomePlayer::suspend() {
     ALOGV("suspend()");
-    Mutex::Autolock autoLock(mLock);
+    {
+        Mutex::Autolock autoLock(mLock);
 
-    // Set PAUSE to DrmManagerClient which will be set START in play_l()
-    if (mDecryptHandle != NULL) {
-        mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
-                    Playback::PAUSE, 0);
+        // Set PAUSE to DrmManagerClient which will be set START in play_l()
+        if (mDecryptHandle != NULL) {
+            mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
+                        Playback::PAUSE, 0);
+        }
+
+        cancelPlayerEvents();
     }
 
-    cancelPlayerEvents();
     if (mQueueStarted) {
         mQueue.stop();
         mQueueStarted = false;
     }
 
-    // Shutdown audio decoder first
-    if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
-            && mAudioSource != NULL) {
-        mAudioSource->stop();
-    }
-    mAudioSource.clear();
-    mOmxSource.clear();
-    delete mAudioPlayer;
-    mAudioPlayer = NULL;
-    modifyFlags(AUDIO_RUNNING | AUDIOPLAYER_STARTED, CLEAR);
+    {
+        Mutex::Autolock autoLock(mLock);
+        // Shutdown audio decoder first
+        if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+                && mAudioSource != NULL) {
+            mAudioSource->stop();
+        }
+        mAudioSource.clear();
+        mOmxSource.clear();
+        delete mAudioPlayer;
+        mAudioPlayer = NULL;
+        modifyFlags(AUDIO_RUNNING | AUDIOPLAYER_STARTED, CLEAR);
 
-    // Shutdown the video decoder
-    mVideoRenderer.clear();
-    printStats();
-    if (mVideoSource != NULL) {
-        shutdownVideoDecoder_l();
-    }
-    modifyFlags(PLAYING, CLEAR);
-    mVideoRenderingStarted = false;
+        // Shutdown the video decoder
+        mVideoRenderer.clear();
+        printStats();
+        if (mVideoSource != NULL) {
+            shutdownVideoDecoder_l();
+        }
+        modifyFlags(PLAYING, CLEAR);
+        mVideoRenderingStarted = false;
 
-    // Disconnect the source
-    if (mCachedSource != NULL) {
-        status_t err = mCachedSource->disconnectWhileSuspend();
-        if (err != OK) {
-            return err;
+        // Disconnect the source
+        if (mCachedSource != NULL) {
+            status_t err = mCachedSource->disconnectWhileSuspend();
+            if (err != OK) {
+                return err;
+            }
         }
     }
 
