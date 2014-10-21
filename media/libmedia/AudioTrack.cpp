@@ -196,16 +196,6 @@ AudioTrack::~AudioTrack()
         mAudioTrack.clear();
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
-        if (isOffloaded()) {
-            char propValue[PROPERTY_VALUE_MAX];
-            bool prop_enabled = false;
-
-            if (property_get("audio.offload.multiple.enabled", propValue, NULL))
-                prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
-
-            if (prop_enabled)
-                AudioSystem::releaseOutput(mOutput);
-        }
 #endif
     }
 }
@@ -1145,13 +1135,11 @@ status_t AudioTrack::createTrack_l(
     }
     ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
-#ifdef NATIVE_FAST_TRACKS_ONLY
     if ((flags & AUDIO_OUTPUT_FLAG_FAST) && sampleRate != afSampleRate) {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client due to mismatching sample rate (%d vs %d)",
               sampleRate, afSampleRate);
         flags = (audio_output_flags_t) (flags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
-#endif
 
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
     //  n = 1   fast track with single buffering; nBuffering is ignored
@@ -1892,16 +1880,6 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             return NS_NEVER;
         }
 
-        if (mRetryOnPartialBuffer && !isOffloaded()) {
-            mRetryOnPartialBuffer = false;
-            if (avail < mRemainingFrames) {
-                int64_t myns = ((mRemainingFrames - avail) * 1100000000LL) / sampleRate;
-                if (ns < 0 || myns < ns) {
-                    ns = myns;
-                }
-                return ns;
-            }
-        }
 
         // Divide buffer size by 2 to take into account the expansion
         // due to 8 to 16 bit conversion: the callback must fill only half
