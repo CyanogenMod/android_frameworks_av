@@ -61,11 +61,13 @@ struct NuPlayer::Renderer : public AHandler {
 
     // Following setters and getters are protected by mTimeLock.
     status_t getCurrentPosition(int64_t *mediaUs);
-    status_t getCurrentPosition(int64_t *mediaUs, int64_t nowUs);
+    status_t getCurrentPosition(
+            int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo = false);
     void setHasMedia(bool audio);
     void setAudioFirstAnchorTime(int64_t mediaUs);
     void setAudioFirstAnchorTimeIfNeeded(int64_t mediaUs);
-    void setAnchorTime(int64_t mediaUs, int64_t realUs, bool resume = false);
+    void setAnchorTime(
+            int64_t mediaUs, int64_t realUs, int64_t numFramesWritten = -1, bool resume = false);
     void setVideoLateByUs(int64_t lateUs);
     int64_t getVideoLateByUs();
     void setPauseStartedTimeRealUs(int64_t realUs);
@@ -148,6 +150,8 @@ private:
     int64_t mAudioFirstAnchorTimeMediaUs;
     int64_t mAnchorTimeMediaUs;
     int64_t mAnchorTimeRealUs;
+    int64_t mAnchorNumFramesWritten;
+    int64_t mAnchorMaxMediaUs;
     int64_t mVideoLateByUs;
     bool mHasAudio;
     bool mHasVideo;
@@ -173,6 +177,7 @@ private:
 
     int32_t mTotalBuffersQueued;
     int32_t mLastAudioBufferDrained;
+
 
     size_t fillAudioBuffer(void *buffer, size_t size);
 
