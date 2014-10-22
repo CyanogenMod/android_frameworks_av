@@ -748,6 +748,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             err, actionCode, mState);
                     if (err == DEAD_OBJECT) {
                         mFlags |= kFlagSawMediaServerDie;
+                        mFlags &= ~kFlagIsComponentAllocated;
                     }
 
                     bool sendErrorResponse = true;
@@ -873,6 +874,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     CHECK_EQ(mState, INITIALIZING);
                     setState(INITIALIZED);
+                    mFlags |= kFlagIsComponentAllocated;
 
                     CHECK(msg->findString("componentName", &mComponentName));
 
@@ -1146,6 +1148,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         setState(UNINITIALIZED);
                         mComponentName.clear();
                     }
+                    mFlags &= ~kFlagIsComponentAllocated;
 
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -1346,9 +1349,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (mState != INITIALIZED
+            if (!(mFlags & kFlagIsComponentAllocated) && mState != INITIALIZED
                     && mState != CONFIGURED && !isExecuting()) {
-                // We may be in "UNINITIALIZED" state already without the
+                // We may be in "UNINITIALIZED" state already and
+                // also shutdown the encoder/decoder without the
                 // client being aware of this if media server died while
                 // we were being stopped. The client would assume that
                 // after stop() returned, it would be safe to call release()
