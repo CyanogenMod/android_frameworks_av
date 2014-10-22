@@ -1,4 +1,4 @@
-/*Copyright (c) 2014, The Linux Foundation. All rights reserved.
+/*Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -29,6 +29,7 @@
 #define LOG_TAG "FLACDecoder"
 //#define LOG_NDEBUG 0
 //#define VERY_VERY_VERBOSE_LOGGING
+//#define DUMP_DECODER_DATA
 #ifdef VERY_VERY_VERBOSE_LOGGING
 #define ALOGVV ALOGV
 #else
@@ -69,6 +70,13 @@ FLACDecoder::FLACDecoder(const sp<MediaSource> &source)
         mProcessData = (DecoderLib_Process) dlsym (mLibHandle, "CFlacDecoderLib_Process");
         init();
     }
+#ifdef DUMP_DECODER_DATA
+    //touch /data/flacdump.pcm before opening the file
+    fp = fopen("/data/flacdump.pcm", "a+");
+    if (fp == NULL) {
+        ALOGV("unable to open dump file");
+    }
+#endif
 }
 
 FLACDecoder::~FLACDecoder() {
@@ -80,19 +88,23 @@ FLACDecoder::~FLACDecoder() {
         dlclose(mLibHandle);
     }
     mLibHandle = NULL;
+#ifdef DUMP_DECODER_DATA
+    if (fp) {
+        fclose(fp);
+    }
+#endif
 }
 
 void FLACDecoder::init() {
     ALOGV("qti_flac: FLACDecoder::init");
     int result, bitWidth = 16; //currently, only 16 bit is supported
-    memset(&pFlacDecState,0,sizeof(CFlacDecState));
+    memset(&pFlacDecState, 0, sizeof(CFlacDecState));
     (*mDecoderInit)(&pFlacDecState, &result, bitWidth);
 
     if (result != DEC_SUCCESS) {
         ALOGE("qti_flac: CSIM decoder init failed! Result %d", result);
         return;
-    }
-    else {
+    } else {
         mInitStatus = true;
     }
 
@@ -139,26 +151,106 @@ void FLACDecoder::init() {
     mMeta->setInt32(kKeySampleRate, mSampleRate);
     mMeta->setInt32(kKeyChannelCount, mNumChannels);
 
+    isBufferingRequired(&ob, parserInfoToPass.i32NumChannels, bitWidth);
     ALOGV("qti_flac: FLACDecoder::init done");
 }
 
 void FLACDecoder::setMetaData(CFlacDecState* pFlacDecState,
                               FLACDec_ParserInfo* parserInfoToPass) {
     ALOGV("qti_flac: FLACDecoder::setMetadata");
-    stFLACDec* pstFLACDec=(stFLACDec*)(pFlacDecState->m_pFlacDecoder);
-    memcpy(&pstFLACDec->MetaDataBlocks.MetaDataStrmInfo,parserInfoToPass,sizeof(FLACDec_ParserInfo));
-    pFlacDecState->m_bIsStreamInfoPresent=1;
+    stFLACDec* pstFLACDec = (stFLACDec*)(pFlacDecState->m_pFlacDecoder);
+    memcpy(&pstFLACDec->MetaDataBlocks.MetaDataStrmInfo, parserInfoToPass, sizeof(FLACDec_ParserInfo));
+    pFlacDecState->m_bIsStreamInfoPresent = 1;
 
-    pFlacDecState->ui32MaxBlockSize=pstFLACDec->MetaDataBlocks.MetaDataStrmInfo.i32MaxBlkSize;
+    pFlacDecState->ui32MaxBlockSize = pstFLACDec->MetaDataBlocks.MetaDataStrmInfo.i32MaxBlkSize;
 
-    memcpy(pFlacDecState->pFlacDecMetaDataStrmInfo,parserInfoToPass,sizeof(FLACDec_ParserInfo));
+    memcpy(pFlacDecState->pFlacDecMetaDataStrmInfo, parserInfoToPass, sizeof(FLACDec_ParserInfo));
     ALOGV("qti_flac: FLACDecoder::setMetadata done");
 
+}
+
+void FLACDecoder::isBufferingRequired(outBuffer *obuf, int32_t numChannels, int32_t bitWidth) {
+    obuf->i32MaxSize = THRESHOLD;
+    obuf->i32BufferInitialized = 1;
+    obuf->i32SumBlockSize = 0;
+    obuf->i32BufferSize = BUFFERING_SIZE;
+    obuf->ui8TempBuf = (uint8_t*)malloc(obuf->i32BufferSize);
+    obuf->i32ReadPtr = 0;
+    obuf->i32WritePtr = 0;
+    obuf->i32BitsPerSample = bitWidth;
+    obuf->i32NumChannels = numChannels;
+    obuf->eos = 0;
+    obuf->error = 0;
+}
+
+int32_t FLACDecoder::enoughDataAvailable(outBuffer *obuf) {
+    uint32_t i, bytesRemain;
+    /* Check if data from parser is needed or not */
+    bytesRemain = obuf->i32WritePtr - obuf->i32ReadPtr;
+    if (((bytesRemain >= THRESHOLD) || (obuf->eos)) && (!obuf->error)) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int32_t FLACDecoder::updateInputBitstream(outBuffer *obuf, void * bitstream, int32_t inSize) {
+    uint32_t i, bytesRemain;
+    uint8_t *bitsbuffer = (uint8_t*) bitstream;
+    /* First copy the un-decoded bitstream to start of buffer */
+    bytesRemain = obuf->i32WritePtr - obuf->i32ReadPtr;
+    ALOGVV("qti_flac: bytesRemain : %d , InData : %d, Threshold : %d", bytesRemain, inSize, THRESHOLD);
+    if (((bytesRemain >= THRESHOLD) || (obuf->eos) || (inSize == 0)) && (!obuf->error)) {
+        obuf->error = 0;
+        return 0;
+    }
+    obuf->error = 0;
+    if (bytesRemain) {
+        for (i = 0; i < bytesRemain; i++) {
+            obuf->ui8TempBuf[i] = obuf->ui8TempBuf[obuf->i32ReadPtr+i];
+        }
+        obuf->i32ReadPtr = 0;
+        obuf->i32WritePtr = bytesRemain;
+    }
+    memcpy(&obuf->ui8TempBuf[obuf->i32WritePtr], bitsbuffer, inSize);
+    obuf->i32WritePtr += inSize;
+    return 1;
+}
+
+int32_t FLACDecoder::flushDecoder(outBuffer *obuf) {
+    /* Write ptr = read ptr = 0, empty buffer */
+    obuf->i32WritePtr = 0;
+    obuf->i32ReadPtr = 0;
+    return 0;
+}
+
+int32_t FLACDecoder::updatePointers(outBuffer *obuf, uint32_t readBytes, int32_t result) {
+    if ((result == FLACDEC_SUCCESS) || (result == EOF)) {
+        ALOGVV("qti_flac: Successful decode!");
+        obuf->i32ReadPtr += readBytes;
+        return 1;
+    } else if ((result == FLACDEC_FAIL) || (result == FLACDEC_METADATA_NOT_FOUND)) {
+        ALOGV("qti_flac: Erroneous decode!");
+    } else if (result == FLACDEC_ERROR_CODE_NEEDS_MORE_DATA) {
+        ALOGV("qti_flac: Not enough data to decode!");
+    }
+
+    if ((obuf->i32WritePtr - (obuf->i32ReadPtr)) >= obuf->i32BufferSize) {
+    /* This can happen only if the entire data contains erroneous data
+       and no sync word has been found
+       Reset the internal buffering to indicate empty buffer and consume
+       all stored bytes and request more data from parser. */
+    obuf->i32WritePtr = 0;
+    obuf->i32ReadPtr = 0;
+    }
+    obuf->error = 1;
+    return 0;
 }
 
 status_t FLACDecoder::start(MetaData *params) {
     ALOGV("qti_flac: FLACDecoder::start");
 
+    (void) *params;
     CHECK(!mStarted);
     CHECK(mInitStatus);
 
@@ -215,11 +307,11 @@ sp<MetaData> FLACDecoder::getFormat() {
 }
 
 status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
-    int err = 0;
+    int err, status = 0;
     *out = NULL;
     uint32 blockSize, usedBitstream, availLength = 0;
     uint32 flacOutputBufSize = FLAC_OUTPUT_BUFFER_SIZE;
-    int *status = 0;
+    int32_t decode_successful = 0;
 
     bool seekSource = false, eos = false;
 
@@ -240,51 +332,92 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
             mInputBuffer->release();
             mInputBuffer = NULL;
         }
-    }
-    else {
+        flushDecoder(&ob);
+        mAnchorTimeUs = seekTimeUs;
+    } else {
         seekTimeUs = -1;
     }
 
-    if (mInputBuffer) {
-        mInputBuffer->release();
-        mInputBuffer = NULL;
-    }
-
-    if (!eos) {
-        err = mSource->read(&mInputBuffer, options);
-        if (err != OK) {
-            ALOGE("qti_flac: Parser returned %d", err);
-            eos = true;
-            return err;
-        }
-    }
-
-    int64_t timeUs;
-    if (mInputBuffer->meta_data()->findInt64(kKeyTime, &timeUs)) {
-        mAnchorTimeUs = timeUs;
-        mNumFramesOutput = 0;
-        ALOGVV("qti_flac: mAnchorTimeUs %lld", mAnchorTimeUs);
-    }
-    else {
-        CHECK(seekTimeUs < 0);
-    }
-
-    if (!eos) {
-        if (mInputBuffer) {
+    while (1) {
+        if (enoughDataAvailable(&ob) || eos) {
+            ALOGVV("Decoder has enough data. Need not read from parser");
+            availLength = 0;
+            // Reached EOS and also the internal buffer consumed
+            if (((ob.i32WritePtr - ob.i32ReadPtr) > 0) && eos) {
+            ALOGV("Parser reported EOS");
+                ob.eos = 1;
+                availLength = 0;
+            }
+            if (((ob.i32WritePtr - ob.i32ReadPtr) <= 0) && ob.eos) {
+            ALOGV("Report EOS as no more bitstream is left with the decoder");
+                return ERROR_END_OF_STREAM;
+            }
+        } else {
+        ALOGVV("Reading bitsream from parser");
+            //Read from parser
+            if (mInputBuffer) {
+                mInputBuffer->release();
+                mInputBuffer = NULL;
+            }
+            err = mSource->read(&mInputBuffer, options);
+            if (err != OK) {
+                ALOGE("qti_flac: Parser returned %d, setting eos", err);
+                eos = true;
+                continue;
+            }
             ALOGVV("qti_flac: Parser filled %d bytes", mInputBuffer->range_length());
             availLength = mInputBuffer->range_length();
+        }
+
+        //Check before decoding
+        if (ob.i32BufferInitialized) {
+            if (mInputBuffer) {
+                //availLength being passed is the size read from parser
+                updateInputBitstream(&ob, (uint8*)mInputBuffer->data(), availLength);
+        }
+
+        availLength = ob.i32WritePtr - ob.i32ReadPtr;
+        ALOGVV("qti_flac: Bytes left in internal buffer: %d", availLength);
+        } else {
+            ALOGE("qti_flac: No Buffering Required");
+        }
+        //End of check before decoding
+
+        if (availLength) {
             status = (*mProcessData)(&pFlacDecState,
-                                     (uint8*)mInputBuffer->data(),
+                                     &ob.ui8TempBuf[ob.i32ReadPtr],
                                      availLength,
                                      mOutBuffer,
                                      &flacOutputBufSize,
                                      &usedBitstream,
                                      &blockSize);
+        } else {
+            break;
         }
 
         ALOGVV("qti_flac: status %d, availLength %d, usedBitstream %d, blockSize %d",
-                (int)status, availLength, usedBitstream, blockSize);
+                status, availLength, usedBitstream, blockSize);
 
+        // Check after decoding
+        if (ob.i32BufferInitialized) {
+            if (!updatePointers(&ob, usedBitstream, status)) {
+                if (ob.eos) {
+                    break;
+                } else {
+                    continue;
+                }//Some error or insufficient data - read again from parser.
+            } else {
+                //Successful decode!
+                decode_successful = 1;
+                break;
+            }
+        } else {
+            ALOGE("Decoding as usual");
+        }
+        // End of check after decoding
+    }// End of while for decoding
+
+    if (decode_successful) {
         MediaBuffer *buffer;
         CHECK_EQ(mBufferGroup->acquire_buffer(&buffer), (status_t)OK);
 
@@ -292,7 +425,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
 
         uint16_t *ptr = (uint16_t *) mOutBuffer;
 
-        //Interleave the output from decoder for multichannel clips.
+        // Interleave the output from decoder for multichannel clips.
         if (mNumChannels > 1) {
             for (uint32_t k = 0; k < blockSize; k++) {
                 for (uint32_t i = k, j = mNumChannels*k; i < blockSize*mNumChannels; i += blockSize, j++) {
@@ -304,6 +437,11 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
         else {
             memcpy((uint16_t *)buffer->data(), mOutBuffer, blockSize*mNumChannels*2);
         }
+#ifdef DUMP_DECODER_DATA
+        if (fp != NULL) {
+            fwrite(buffer->data(), blockSize*mNumChannels*2, 1, fp);
+        }
+#endif
 
         int64_t time = 0;
         time = mAnchorTimeUs + (mNumFramesOutput*1000000)/mSampleRate;
@@ -313,7 +451,6 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
 
         *out = buffer;
     }
-
     return OK;
 }
 
