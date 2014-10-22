@@ -149,6 +149,11 @@ static status_t StatusFromOMXError(OMX_ERRORTYPE err) {
 status_t OMXNodeInstance::freeNode(OMXMaster *master) {
     static int32_t kMaxNumIterations = 10;
 
+    // exit if we have already freed the node
+    if (mHandle == NULL) {
+        return OK;
+    }
+
     // Transition the node from its current state all the way down
     // to "Loaded".
     // This ensures that all active buffers are properly freed even
