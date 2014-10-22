@@ -498,6 +498,10 @@ void ACodec::initiateShutdown(bool keepComponentAllocated) {
     sp<AMessage> msg = new AMessage(kWhatShutdown, id());
     msg->setInt32("keepComponentAllocated", keepComponentAllocated);
     msg->post();
+    if (!keepComponentAllocated) {
+        // ensure shutdown completes in 3 seconds
+        (new AMessage(kWhatReleaseCodecInstance, id()))->post(3000000);
+    }
 }
 
 void ACodec::signalRequestIDRFrame() {
@@ -3797,6 +3801,19 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case ACodec::kWhatReleaseCodecInstance:
+        {
+            ALOGI("[%s] forcing the release of codec",
+                    mCodec->mComponentName.c_str());
+            status_t err = mCodec->mOMX->freeNode(mCodec->mNode);
+            ALOGE_IF("[%s] failed to release codec instance: err=%d",
+                       mCodec->mComponentName.c_str(), err);
+            sp<AMessage> notify = mCodec->mNotify->dup();
+            notify->setInt32("what", CodecBase::kWhatShutdownCompleted);
+            notify->post();
+            break;
+        }
+
         default:
             return false;
     }
@@ -4452,6 +4469,13 @@ bool ACodec::UninitializedState::onMessageReceived(const sp<AMessage> &msg) {
             notify->setInt32("what", CodecBase::kWhatFlushCompleted);
             notify->post();
 
+            handled = true;
+            break;
+        }
+
+        case ACodec::kWhatReleaseCodecInstance:
+        {
+            // nothing to do, as we have already signaled shutdown
             handled = true;
             break;
         }
