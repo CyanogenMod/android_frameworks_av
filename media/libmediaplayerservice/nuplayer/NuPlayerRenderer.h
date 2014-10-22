@@ -101,6 +101,7 @@ private:
     enum {
         kWhatDrainAudioQueue     = 'draA',
         kWhatDrainVideoQueue     = 'draV',
+        kWhatPostDrainVideoQueue = 'pDVQ',
         kWhatQueueBuffer         = 'queB',
         kWhatQueueEOS            = 'qEOS',
         kWhatFlush               = 'flus',
@@ -119,6 +120,7 @@ private:
         sp<AMessage> mNotifyConsumed;
         size_t mOffset;
         status_t mFinalResult;
+        int32_t mBufferOrdinal;
     };
 
     static const int64_t kMinPositionUpdateDelayUs;
@@ -168,6 +170,9 @@ private:
     int32_t mAudioOffloadPauseTimeoutGeneration;
     bool mAudioOffloadTornDown;
     audio_offload_info_t mCurrentOffloadInfo;
+
+    int32_t mTotalBuffersQueued;
+    int32_t mLastAudioBufferDrained;
 
     size_t fillAudioBuffer(void *buffer, size_t size);
 
