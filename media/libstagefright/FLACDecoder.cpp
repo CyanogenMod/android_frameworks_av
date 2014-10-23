@@ -193,8 +193,14 @@ status_t FLACDecoder::stop() {
     mSource->stop();
     mStarted = false;
 
-    free(mOutBuffer);
-    free(mTmpBuf);
+    if (mOutBuffer) {
+        free(mOutBuffer);
+        mOutBuffer = NULL;
+    }
+    if (mTmpBuf) {
+        free(mTmpBuf);
+        mTmpBuf = NULL;
+    }
 
     ALOGV("qti_flac: FLACDecoder::stop done");
     return OK;
