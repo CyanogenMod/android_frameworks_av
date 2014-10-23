@@ -244,11 +244,16 @@ struct StreamInfo {
 status_t ATSParser::Program::parseProgramMap(ABitReader *br) {
     unsigned table_id = br->getBits(8);
     ALOGV("  table_id = %u", table_id);
-    CHECK_EQ(table_id, 0x02u);
-
+    if (table_id != 0x02u) {
+        ALOGE("PMT data error!");
+        return ERROR_MALFORMED;
+    }
     unsigned section_syntax_indicator = br->getBits(1);
     ALOGV("  section_syntax_indicator = %u", section_syntax_indicator);
-    CHECK_EQ(section_syntax_indicator, 1u);
+    if (section_syntax_indicator != 1u) {
+        ALOGE("PMT data error!");
+        return ERROR_MALFORMED;
+    }
 
     CHECK_EQ(br->getBits(1), 0u);
     MY_LOGV("  reserved = %u", br->getBits(2));
@@ -739,8 +744,10 @@ status_t ATSParser::Stream::parsePES(ABitReader *br) {
         if (PTS_DTS_flags == 2 || PTS_DTS_flags == 3) {
             CHECK_GE(optional_bytes_remaining, 5u);
 
-            CHECK_EQ(br->getBits(4), PTS_DTS_flags);
-
+            if (br->getBits(4) != PTS_DTS_flags) {
+                ALOGE("PES data Error!");
+                return ERROR_MALFORMED;
+            }
             PTS = ((uint64_t)br->getBits(3)) << 30;
             CHECK_EQ(br->getBits(1), 1u);
             PTS |= ((uint64_t)br->getBits(15)) << 15;
@@ -1003,8 +1010,10 @@ void ATSParser::signalEOS(status_t finalResult) {
 void ATSParser::parseProgramAssociationTable(ABitReader *br) {
     unsigned table_id = br->getBits(8);
     ALOGV("  table_id = %u", table_id);
-    CHECK_EQ(table_id, 0x00u);
-
+    if (table_id != 0x00u) {
+        ALOGE("PAT data error!");
+        return ;
+    }
     unsigned section_syntax_indictor = br->getBits(1);
     ALOGV("  section_syntax_indictor = %u", section_syntax_indictor);
     CHECK_EQ(section_syntax_indictor, 1u);
@@ -1074,7 +1083,9 @@ status_t ATSParser::parsePID(
         sp<PSISection> section = mPSISections.valueAt(sectionIndex);
 
         if (payload_unit_start_indicator) {
-            CHECK(section->isEmpty());
+            if (!section->isEmpty()) {
+                return ERROR_UNSUPPORTED;
+            }
 
             unsigned skip = br->getBits(8);
             br->skipBits(skip * 8);
@@ -1203,7 +1214,10 @@ status_t ATSParser::parseTS(ABitReader *br) {
     ALOGV("---");
 
     unsigned sync_byte = br->getBits(8);
-    CHECK_EQ(sync_byte, 0x47u);
+    if (sync_byte != 0x47u) {
+        ALOGE("[error] parseTS: return error as sync_byte=0x%x", sync_byte);
+        return BAD_VALUE;
+    }
 
     if (br->getBits(1)) {  // transport_error_indicator
         // silently ignore.
