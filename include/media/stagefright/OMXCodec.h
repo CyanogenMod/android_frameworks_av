@@ -320,6 +320,8 @@ private:
     status_t setDTSFormat(const sp<MetaData> &inputFormat);
     status_t setFFmpegAudioFormat(const sp<MetaData> &inputFormat);
 
+    status_t getPCMOutputFormat(const sp<MetaData> &meta);
+
     status_t allocateBuffers();
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
 #ifdef USE_SAMSUNG_COLORFORMAT
