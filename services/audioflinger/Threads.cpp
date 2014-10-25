@@ -3853,7 +3853,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+#if defined(QCOM_HARDWARE)
                     android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
 #endif
                 } else if (last) {
@@ -4692,7 +4692,7 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
     int sampleRate = thread->sampleRate();
     size_t frameCount = 0;
     if (sampleRate)
-        frameCount = (3 * mNormalFrameCount * mSampleRate) / sampleRate;
+        frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
     OutputTrack *outputTrack = new OutputTrack(thread,
                                             this,
                                             mSampleRate,
@@ -4954,15 +4954,13 @@ bool AudioFlinger::RecordThread::threadLoop()
 #ifdef QCOM_DIRECTTRACK
                             int InputBytes;
                             /*Fix me: How does framesOut become 0 in this condition */
-                            if (( framesOut != mFrameCount) &&
-                                ((mFormat != AUDIO_FORMAT_PCM_16_BIT)&&
-                                (!(mActiveTrack->mFlags & TRACK_VOICE_COMMUNICATION)))) {
+                            if ((framesOut != mFrameCount) &&
+                               (!(mActiveTrack->mFlags & TRACK_VOICE_COMMUNICATION))) {
                                      readInto = buffer.raw;
                                      InputBytes = buffer.frameCount * mFrameSize;
                              } else if (framesOut == mFrameCount &&
                                        (mChannelCount == mReqChannelCount ||
-                                       ((mFormat != AUDIO_FORMAT_PCM_16_BIT) &&
-                                       (!(mActiveTrack->mFlags & TRACK_VOICE_COMMUNICATION))))) {
+                                       (!(mActiveTrack->mFlags & TRACK_VOICE_COMMUNICATION)))) {
                                      readInto = buffer.raw;
                                      InputBytes = mBufferSize;
                                      framesOut = 0;
@@ -5680,7 +5678,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
     mChannelCount = (uint16_t)getInputChannelCount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT &&
             !audio_is_compress_voip_format(mFormat) &&
             !audio_is_compress_capture_format(mFormat)) {
