@@ -3853,7 +3853,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
+#ifdef QCOM_HARDWARE
                     android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
 #endif
                 } else if (last) {
@@ -5680,16 +5680,18 @@ void AudioFlinger::RecordThread::readInputParameters()
     mChannelMask = mInput->stream->common.get_channels(&mInput->stream->common);
     mChannelCount = (uint16_t)getInputChannelCount(mChannelMask);
     mFormat = mInput->stream->common.get_format(&mInput->stream->common);
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT &&
             !audio_is_compress_voip_format(mFormat) &&
             !audio_is_compress_capture_format(mFormat)) {
         ALOGE("HAL format %d not supported", mFormat);
     }
 #else
+#ifndef QCOM_DIRECTTRACK
     if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
         ALOGE("HAL format %d not supported; must be AUDIO_FORMAT_PCM_16_BIT", mFormat);
     }
+#endif
 #endif
     mFrameSize = audio_stream_frame_size(&mInput->stream->common);
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
