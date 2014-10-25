@@ -805,8 +805,12 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetPortParams(
         OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
         def->format.video.nFrameWidth = mWidth;
         def->format.video.nFrameHeight = mHeight;
+        def->format.video.nStride = def->format.video.nFrameWidth;
+        def->format.video.nSliceHeight = def->format.video.nFrameHeight;
         def->format.video.xFramerate = mFramerate;
         def->format.video.eColorFormat = mColorFormat;
+        def->nBufferSize =
+            (def->format.video.nStride * def->format.video.nSliceHeight * 3) / 2;
         def = &editPortInfo(kOutputPortIndex)->mDef;
         def->format.video.nFrameWidth = mWidth;
         def->format.video.nFrameHeight = mHeight;

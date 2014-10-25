@@ -575,9 +575,13 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
                     &editPortInfo(0)->mDef;
                 portDef->format.video.nFrameWidth = mVideoWidth;
                 portDef->format.video.nFrameHeight = mVideoHeight;
+                portDef->format.video.nStride = portDef->format.video.nFrameWidth;
+                portDef->format.video.nSliceHeight = portDef->format.video.nFrameHeight;
                 portDef->format.video.xFramerate = def->format.video.xFramerate;
                 portDef->format.video.eColorFormat =
                     (OMX_COLOR_FORMATTYPE) mVideoColorFormat;
+                portDef->nBufferSize =
+                    (portDef->format.video.nStride * portDef->format.video.nSliceHeight * 3) / 2;
                 portDef = &editPortInfo(1)->mDef;
                 portDef->format.video.nFrameWidth = mVideoWidth;
                 portDef->format.video.nFrameHeight = mVideoHeight;
