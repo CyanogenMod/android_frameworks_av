@@ -861,6 +861,10 @@ private:
         // Used for voip + voice concurrency usecase
         int mPrevPhoneState;
         int mvoice_call_state;
+#ifdef RECORD_PLAY_CONCURRENCY
+        // Used for record + playback concurrency
+        bool mIsInputRequestOnProgress;
+#endif
 
 };
 

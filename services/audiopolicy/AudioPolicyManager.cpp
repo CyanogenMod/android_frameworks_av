@@ -852,6 +852,42 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
        }
     }
 #endif
+#ifdef RECORD_PLAY_CONCURRENCY
+    char recConcPropValue[PROPERTY_VALUE_MAX];
+    bool prop_rec_play_enabled = false;
+
+    if (property_get("rec.playback.conc.disabled", recConcPropValue, NULL)) {
+        prop_rec_play_enabled = atoi(recConcPropValue) || !strncmp("true", recConcPropValue, 4);
+    }
+    if (prop_rec_play_enabled) {
+        if (AUDIO_MODE_IN_COMMUNICATION == mPhoneState) {
+            ALOGD("phone state changed to MODE_IN_COMM invlaidating music and voice streams");
+            // call invalidate for voice streams, so that it can use deepbuffer with VoIP out device from HAL
+            mpClientInterface->invalidateStream(AUDIO_STREAM_VOICE_CALL);
+            // call invalidate for music, so that compress will fallback to deep-buffer with VoIP out device
+            mpClientInterface->invalidateStream(AUDIO_STREAM_MUSIC);
+
+            // close compress output to make sure session will be closed before timeout(60sec)
+            for (size_t i = 0; i < mOutputs.size(); i++) {
+
+                sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
+                if ((outputDesc == NULL) || (outputDesc->mProfile == NULL)) {
+                   ALOGD("ouput desc / profile is NULL");
+                   continue;
+                }
+
+                if (outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+                    ALOGD("calling closeOutput on call mode for COMPRESS output");
+                    closeOutput(mOutputs.keyAt(i));
+                }
+            }
+        } else if ((oldState == AUDIO_MODE_IN_COMMUNICATION) &&
+                    (mPhoneState == AUDIO_MODE_NORMAL)) {
+            // call invalidate for music so that music can fallback to compress
+            mpClientInterface->invalidateStream(AUDIO_STREAM_MUSIC);
+        }
+    }
+#endif
 
     mPrevPhoneState = oldState;
 
@@ -1223,6 +1259,37 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
             flags = AUDIO_OUTPUT_FLAG_DIRECT;
         else //route every thing else to ULL path
             flags = AUDIO_OUTPUT_FLAG_FAST;
+    }
+#endif
+
+#ifdef RECORD_PLAY_CONCURRENCY
+    char recConcPropValue[PROPERTY_VALUE_MAX];
+    bool prop_rec_play_enabled = false;
+
+    if (property_get("rec.playback.conc.disabled", recConcPropValue, NULL)) {
+        prop_rec_play_enabled = atoi(recConcPropValue) || !strncmp("true", recConcPropValue, 4);
+    }
+    if ((prop_rec_play_enabled) &&
+            ((true == mIsInputRequestOnProgress) || (activeInputsCount() > 0))) {
+        if (AUDIO_MODE_IN_COMMUNICATION == mPhoneState) {
+            if (AUDIO_OUTPUT_FLAG_VOIP_RX & flags) {
+                // allow VoIP using voice path
+                // Do nothing
+            } else if((flags & AUDIO_OUTPUT_FLAG_FAST) != 0) {
+                ALOGD(" MODE_IN_COMM is setforcing deep buffer output for non ULL... flags: %x", flags);
+                // use deep buffer path for all non ULL outputs
+                flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+            }
+        } else if ((flags & AUDIO_OUTPUT_FLAG_FAST) != 0) {
+            ALOGD(" Record mode is on forcing deep buffer output for non ULL... flags: %x ", flags);
+            // use deep buffer path for all non ULL outputs
+            flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+        }
+    }
+    if (prop_rec_play_enabled &&
+            (stream == AUDIO_STREAM_ENFORCED_AUDIBLE)) {
+           ALOGD("Record conc is on forcing ULL output for ENFORCED_AUDIBLE");
+           flags = AUDIO_OUTPUT_FLAG_FAST;
     }
 #endif
     // open a direct output if required by specified parameters
@@ -1810,6 +1877,50 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
         }
     }
 
+#ifdef RECORD_PLAY_CONCURRENCY
+    mIsInputRequestOnProgress = true;
+
+    char getPropValue[PROPERTY_VALUE_MAX];
+    bool prop_rec_play_enabled = false;
+
+    if (property_get("rec.playback.conc.disabled", getPropValue, NULL)) {
+        prop_rec_play_enabled = atoi(getPropValue) || !strncmp("true", getPropValue, 4);
+    }
+
+    if ((prop_rec_play_enabled) &&(activeInputsCount() == 0)){
+        // send update to HAL on record playback concurrency
+        AudioParameter param = AudioParameter();
+        param.add(String8("rec_play_conc_on"), String8("true"));
+        ALOGD("startInput() setParameters rec_play_conc is setting to ON ");
+        mpClientInterface->setParameters(0, param.toString());
+
+        // Call invalidate to reset all opened non ULL audio tracks
+        // Move tracks associated to this strategy from previous output to new output
+        for (int i = AUDIO_STREAM_SYSTEM; i < (int)AUDIO_STREAM_CNT; i++) {
+            // Do not call invalidate for ENFORCED_AUDIBLE (otherwise pops are seen for camcorder)
+            if (i != AUDIO_STREAM_ENFORCED_AUDIBLE) {
+               ALOGD("Invalidate on releaseInput for stream :: %d ", i);
+               //FIXME see fixme on name change
+               mpClientInterface->invalidateStream((audio_stream_type_t)i);
+            }
+        }
+        // close compress tracks
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
+            if ((outputDesc == NULL) || (outputDesc->mProfile == NULL)) {
+               ALOGD("ouput desc / profile is NULL");
+               continue;
+            }
+            if (outputDesc->mProfile->mFlags
+                            & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+                // close compress  sessions
+                ALOGD("calling closeOutput on record conc for COMPRESS output");
+                closeOutput(mOutputs.keyAt(i));
+            }
+        }
+    }
+#endif
+
     if (inputDesc->mRefCount == 0) {
         if (activeInputsCount() == 0) {
             SoundTrigger::setCaptureState(true);
@@ -1827,6 +1938,9 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
     ALOGV("AudioPolicyManager::startInput() input source = %d", inputDesc->mInputSource);
 
     inputDesc->mRefCount++;
+#ifdef RECORD_PLAY_CONCURRENCY
+    mIsInputRequestOnProgress = false;
+#endif
     return NO_ERROR;
 }
 
@@ -1867,6 +1981,34 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
             SoundTrigger::setCaptureState(false);
         }
     }
+
+#ifdef RECORD_PLAY_CONCURRENCY
+    char propValue[PROPERTY_VALUE_MAX];
+    bool prop_rec_play_enabled = false;
+
+    if (property_get("rec.playback.conc.disabled", propValue, NULL)) {
+        prop_rec_play_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+    }
+
+    if ((prop_rec_play_enabled) && (activeInputsCount() == 0)) {
+
+        //send update to HAL on record playback concurrency
+        AudioParameter param = AudioParameter();
+        param.add(String8("rec_play_conc_on"), String8("false"));
+        ALOGD("stopInput() setParameters rec_play_conc is setting to OFF ");
+        mpClientInterface->setParameters(0, param.toString());
+
+        //call invalidate tracks so that any open streams can fall back to deep buffer/compress path from ULL
+        for (int i = AUDIO_STREAM_SYSTEM; i < (int)AUDIO_STREAM_CNT; i++) {
+            //Do not call invalidate for ENFORCED_AUDIBLE (otherwise pops are seen for camcorder stop tone)
+            if (i != AUDIO_STREAM_ENFORCED_AUDIBLE) {
+               ALOGD(" Invalidate on stopInput for stream :: %d ", i);
+               //FIXME see fixme on name change
+               mpClientInterface->invalidateStream((audio_stream_type_t)i);
+            }
+        }
+    }
+#endif
     return NO_ERROR;
 }
 
@@ -2327,7 +2469,7 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
     if (property_get("voice.playback.conc.disabled", concpropValue, NULL)) {
          bool propenabled = atoi(concpropValue) || !strncmp("true", concpropValue, 4);
          if (propenabled) {
-            if (mvoice_call_state)
+            if (isInCall())
             {
                 ALOGD("\n copl: blocking  compress offload on call mode\n");
                 return false;
@@ -2335,7 +2477,20 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
          }
     }
 #endif
+#ifdef RECORD_PLAY_CONCURRENCY
+    char recConcPropValue[PROPERTY_VALUE_MAX];
+    bool prop_rec_play_enabled = false;
 
+    if (property_get("rec.playback.conc.disabled", recConcPropValue, NULL)) {
+        prop_rec_play_enabled = atoi(recConcPropValue) || !strncmp("true", recConcPropValue, 4);
+    }
+
+    if ((prop_rec_play_enabled) &&
+         ((true == mIsInputRequestOnProgress) || (activeInputsCount() > 0))) {
+        ALOGD("copl: blocking  compress offload for record concurrency");
+        return false;
+    }
+#endif
     // Check if stream type is music, then only allow offload as of now.
     if (offloadInfo.stream_type != AUDIO_STREAM_MUSIC)
     {
@@ -3295,6 +3450,9 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     updateDevicesAndOutputs();
 
     mvoice_call_state = 0;
+#ifdef RECORD_PLAY_CONCURRENCY
+    mIsInputRequestOnProgress = false;
+#endif
 
 #ifdef AUDIO_POLICY_TEST
     if (mPrimaryOutput != 0) {
@@ -5229,7 +5387,7 @@ uint32_t AudioPolicyManager::activeInputsCount() const
     for (size_t i = 0; i < mInputs.size(); i++) {
         const sp<AudioInputDescriptor>  desc = mInputs.valueAt(i);
         if (desc->mRefCount > 0) {
-            return count++;
+            count++;
         }
     }
     return count;
