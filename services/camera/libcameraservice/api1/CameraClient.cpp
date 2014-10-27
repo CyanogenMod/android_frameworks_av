@@ -89,9 +89,7 @@ status_t CameraClient::initialize(camera_module_t *module) {
 
     // Enable zoom, error, focus, and metadata messages by default
     enableMsgType(CAMERA_MSG_ERROR | CAMERA_MSG_ZOOM | CAMERA_MSG_FOCUS
-#ifndef CAMERA_MSG_MGMT
                   | CAMERA_MSG_PREVIEW_METADATA 
-#endif
 #ifndef OMAP_ICS_CAMERA
                   | CAMERA_MSG_FOCUS_MOVE
 #endif
@@ -362,9 +360,6 @@ status_t CameraClient::setPreviewCallbackTarget(
 // start preview mode
 status_t CameraClient::startPreview() {
     Mutex::Autolock lock(mLock);
-#ifdef CAMERA_MSG_MGMT
-    enableMsgType(CAMERA_MSG_PREVIEW_METADATA);
-#endif
     LOG1("startPreview (pid %d)", getCallingPid());
     return startCameraMode(CAMERA_PREVIEW_MODE);
 }
@@ -457,9 +452,6 @@ status_t CameraClient::startRecordingMode() {
 void CameraClient::stopPreview() {
     LOG1("stopPreview (pid %d)", getCallingPid());
     Mutex::Autolock lock(mLock);
-#ifdef CAMERA_MSG_MGMT
-    disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
-#endif
     if (checkPidAndHardware() != NO_ERROR) return;
 
 #ifdef OMAP_ENHANCEMENT
@@ -596,9 +588,6 @@ status_t CameraClient::takePicture(int msgType) {
 
 #if defined(OMAP_ICS_CAMERA) || defined(OMAP_ENHANCEMENT_BURST_CAPTURE)
     picMsgType |= CAMERA_MSG_COMPRESSED_BURST_IMAGE;
-#endif
-#ifdef CAMERA_MSG_MGMT
-    disableMsgType(CAMERA_MSG_PREVIEW_METADATA);
 #endif
     enableMsgType(picMsgType);
 #ifdef QCOM_HARDWARE
