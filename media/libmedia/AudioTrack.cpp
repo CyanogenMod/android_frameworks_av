@@ -734,12 +734,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (AudioSystem::getOutputSamplingRateForAttr(&afSamplingRate, &mAttributes) != NO_ERROR) {
         return NO_INIT;
     }
-    // Resampler implementation limits input sampling rate to 2/4 x output sampling rate.
-#ifdef QTI_RESAMPLER
-    if (rate == 0 || rate > afSamplingRate * 4) {
-#else
     if (rate == 0 || rate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
-#endif
         return BAD_VALUE;
     }
 
