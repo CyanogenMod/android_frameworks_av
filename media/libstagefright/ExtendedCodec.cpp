@@ -1228,6 +1228,24 @@ bool ExtendedCodec::useHWAACDecoder(const char *mime, int channelCount) {
     return false;
 }
 
+ExtendedCodec::kHEVCCodecType ExtendedCodec::useHEVCDecoder(const char *mime) {
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int sw_codectype = 0, hw_codectype = 0;
+    if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
+        sw_codectype = property_get("media.swhevccodectype", value, NULL);
+        if (sw_codectype && !strncmp("1", value, 1)) {
+            ALOGI("Using SW HEVC Decoder");
+            return ExtendedCodec::kCodecType_SWHEVC;
+        }
+        hw_codectype = property_get("media.hwhevccodectype", value, NULL);
+        if (hw_codectype && !strncmp("1", value, 1)) {
+            ALOGI("Using HW HEVC Decoder");
+            return ExtendedCodec::kCodecType_HWHEVC;
+        }
+    }
+    return ExtendedCodec::kCodecType_None;
+}
+
 bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
     /* pause is required for hardware component to release adsp resources */
     if (!strncmp(componentName, "OMX.qcom.", 9)) {
@@ -1392,6 +1410,9 @@ bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
         return false;
     }
 
+    ExtendedCodec::kHEVCCodecType ExtendedCodec::useHEVCDecoder(const char *mime) {
+        return ExtendedCodec::kCodecType_None;
+    }
     void ExtendedCodec::enableSmoothStreaming(
             const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
             const char* componentName) {

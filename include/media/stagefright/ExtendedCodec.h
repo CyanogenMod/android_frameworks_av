@@ -56,6 +56,12 @@ struct ExtendedCodec {
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };
+
+    enum kHEVCCodecType{
+        kCodecType_None,
+        kCodecType_SWHEVC,
+        kCodecType_HWHEVC
+    };
     static status_t convertMetaDataToMessage(
             const sp<MetaData> &meta, sp<AMessage> *format);
 
@@ -144,6 +150,8 @@ struct ExtendedCodec {
             const char* componentName);
 
     static bool useHWAACDecoder(const char *mime, int channelCount);
+
+    static kHEVCCodecType useHEVCDecoder(const char *mime);
 
     static bool isSourcePauseRequired(const char *componentName);
 
