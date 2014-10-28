@@ -52,6 +52,13 @@ Visualizer::Visualizer (int32_t priority,
 
 Visualizer::~Visualizer()
 {
+    ALOGV("Visualizer::~Visualizer()");
+    if (mCaptureThread != NULL) {
+        mCaptureThread->requestExitAndWait();
+        mCaptureThread.clear();
+    }
+    mCaptureCallBack = NULL;
+    mCaptureFlags = 0;
 }
 
 status_t Visualizer::setEnabled(bool enabled)
@@ -102,19 +109,17 @@ status_t Visualizer::setCaptureCallBack(capture_cbk_t cbk, void* user, uint32_t 
         return INVALID_OPERATION;
     }
 
-    sp<CaptureThread> t = mCaptureThread;
-    if (t != 0) {
-        t->mLock.lock();
+    if (mCaptureThread != 0) {
+        mCaptureLock.unlock();
+        mCaptureThread->requestExitAndWait();
+        mCaptureLock.lock();
     }
+
     mCaptureThread.clear();
     mCaptureCallBack = cbk;
     mCaptureCbkUser = user;
     mCaptureFlags = flags;
     mCaptureRate = rate;
-
-    if (t != 0) {
-        t->mLock.unlock();
-    }
 
     if (cbk != NULL) {
         mCaptureThread = new CaptureThread(*this, rate, ((flags & CAPTURE_CALL_JAVA) != 0));
