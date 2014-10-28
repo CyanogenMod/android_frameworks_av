@@ -1119,7 +1119,7 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
     // Current code will just make that we select deep buffer
     // with video which should not be a problem as it should
     // not prevent from keeping A/V sync.
-    if (hasVideo &&
+    if (!hasVideo &&
             mSource->getDuration(&durationUs) == OK &&
             durationUs
                 > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
