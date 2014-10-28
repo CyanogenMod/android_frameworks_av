@@ -2159,7 +2159,6 @@ void MediaPlayerService::AudioCache::notify(
     {
     case MEDIA_ERROR:
         ALOGE("Error %d, %d occurred", ext1, ext2);
-        p->mError = ext1;
         break;
     case MEDIA_PREPARED:
         ALOGV("prepared");
@@ -2174,6 +2173,9 @@ void MediaPlayerService::AudioCache::notify(
 
     // wake up thread
     Mutex::Autolock lock(p->mLock);
+    if (msg == MEDIA_ERROR) {
+        p->mError = ext1;
+    }
     p->mCommandComplete = true;
     p->mSignal.signal();
 }
