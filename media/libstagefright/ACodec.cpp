@@ -2221,7 +2221,11 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
 
     video_def->xFramerate = (OMX_U32)(frameRate * 65536.0f);
     video_def->eCompressionFormat = OMX_VIDEO_CodingUnused;
-    video_def->eColorFormat = colorFormat;
+    // this is redundant as it was already set up in setVideoPortFormatType
+    // FIXME for now skip this only for flexible YUV formats
+    if (colorFormat != OMX_COLOR_FormatYUV420Flexible) {
+        video_def->eColorFormat = colorFormat;
+    }
 
     err = mOMX->setParameter(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
