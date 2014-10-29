@@ -65,7 +65,7 @@ struct NuPlayer : public AHandler {
     status_t setVideoScalingMode(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
     status_t getSelectedTrack(int32_t type, Parcel* reply) const;
-    status_t selectTrack(size_t trackIndex, bool select);
+    status_t selectTrack(size_t trackIndex, bool select, int64_t timeUs);
     status_t getCurrentPosition(int64_t *mediaUs);
     void getStats(int64_t *mNumFramesTotal, int64_t *mNumFramesDropped);
 
