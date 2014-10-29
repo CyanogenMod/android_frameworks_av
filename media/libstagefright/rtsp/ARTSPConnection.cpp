@@ -53,7 +53,9 @@ ARTSPConnection::ARTSPConnection(bool uidValid, uid_t uid)
       mSocket(-1),
       mConnectionID(0),
       mNextCSeq(0),
-      mReceiveResponseEventPending(false) {
+      mReceiveResponseEventPending(false),
+      mAddrHeader(NULL),
+      mConnectionTimes(0) {
 }
 
 ARTSPConnection::~ARTSPConnection() {
@@ -65,6 +67,10 @@ ARTSPConnection::~ARTSPConnection() {
         }
         close(mSocket);
         mSocket = -1;
+    }
+    if (mAddrHeader != NULL) {
+        freeaddrinfo((struct addrinfo *)mAddrHeader);
+        mAddrHeader = NULL;
     }
 }
 
@@ -103,6 +109,10 @@ void ARTSPConnection::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatDisconnect:
             onDisconnect(msg);
+            break;
+
+        case kWhatReconnect:
+            onReconnect(msg);
             break;
 
         case kWhatCompleteConnection:
@@ -224,8 +234,14 @@ static status_t MakeSocketBlocking(int s, bool blocking) {
 
 bool ARTSPConnection::createSocketAndConnect(void *res, unsigned port,const sp<AMessage> &reply) {
 
+    int32_t addrTried = mConnectionTimes;
 
     for (struct addrinfo *result = (struct addrinfo *)res; result; result = result->ai_next) {
+        if (addrTried != 0) {
+            // skip the address which has been tried
+            addrTried--;
+            continue;
+        }
         char ipstr[INET6_ADDRSTRLEN];
         int ipver;
         void *sptr;
@@ -244,6 +260,7 @@ bool ARTSPConnection::createSocketAndConnect(void *res, unsigned port,const sp<A
             break;
         default:
             ALOGW("Skipping unknown protocol family %d", result->ai_family);
+            mConnectionTimes++;
             continue;
         }
 
@@ -269,6 +286,7 @@ bool ARTSPConnection::createSocketAndConnect(void *res, unsigned port,const sp<A
             postReceiveReponseEvent();
             reply->post();
             freeaddrinfo((struct addrinfo *)res);
+            mAddrHeader = NULL;
             return true;
         }
 
@@ -279,8 +297,8 @@ bool ARTSPConnection::createSocketAndConnect(void *res, unsigned port,const sp<A
             ALOGV("setting ipversion:%d", ipver);
             msg->setInt32("ipversion", ipver);
             msg->setInt32("connection-id", mConnectionID);
+            msg->setInt32("port", port);
             msg->post();
-            freeaddrinfo((struct addrinfo *)res);
             return true;
         }
 
@@ -290,6 +308,7 @@ bool ARTSPConnection::createSocketAndConnect(void *res, unsigned port,const sp<A
         }
         close(mSocket);
         ALOGV("Connection err %d, (%s)", errno, strerror(errno));
+        mConnectionTimes++;
     }
     return false;
 }
@@ -337,32 +356,35 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
         ALOGV("user = '%s', pass = '%s'", mUser.c_str(), mPass.c_str());
     }
 
-    struct addrinfo hints, *res = NULL;
+    struct addrinfo hints;
     memset(&hints, 0, sizeof (hints));
     hints.ai_flags = AI_PASSIVE;
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    int err = getaddrinfo(host.c_str(), NULL, &hints, &res);
+    mConnectionTimes = 0;
+    int err = getaddrinfo(host.c_str(), NULL, &hints, (struct addrinfo **)(&mAddrHeader));
 
-    if (err != 0 || res == NULL) {
+    if (err != 0 || mAddrHeader == NULL) {
         ALOGE("Unknown host, err %d (%s)", err, gai_strerror(err));
         reply->setInt32("result", -ENOENT);
         reply->post();
         mState = DISCONNECTED;
 
-        if (res != NULL) {
-            freeaddrinfo(res);
+        if (mAddrHeader != NULL) {
+            freeaddrinfo((struct addrinfo *)mAddrHeader);
+            mAddrHeader = NULL;
         }
         return;
     }
-    if (!createSocketAndConnect(res, port, reply)) {
+    if (!createSocketAndConnect(mAddrHeader, port, reply)) {
         ALOGV("Failed to connect to %s", host.c_str());
         reply->setInt32("result", -errno);
         mState = DISCONNECTED;
         mSocket = -1;
         reply->post();
-        freeaddrinfo(res);
+        freeaddrinfo((struct addrinfo *)mAddrHeader);
+        mAddrHeader = NULL;
     }
 }
 
@@ -409,8 +431,15 @@ void ARTSPConnection::onCompleteConnection(const sp<AMessage> &msg) {
         // cancelled.
         reply->setInt32("result", -ECONNABORTED);
         reply->post();
+        if (mAddrHeader != NULL) {
+            freeaddrinfo((struct addrinfo *)mAddrHeader);
+            mAddrHeader = NULL;
+        }
         return;
     }
+
+    int32_t port;
+    CHECK(msg->findInt32("port", &port));
 
     struct timeval tv;
     tv.tv_sec = 0;
@@ -440,27 +469,61 @@ void ARTSPConnection::onCompleteConnection(const sp<AMessage> &msg) {
     if (err != 0) {
         ALOGE("err = %d (%s)", err, strerror(err));
 
-        reply->setInt32("result", -err);
-
-        mState = DISCONNECTED;
         if (mUIDValid) {
             HTTPBase::UnRegisterSocketUserTag(mSocket);
             HTTPBase::UnRegisterSocketUserMark(mSocket);
         }
         close(mSocket);
         mSocket = -1;
+        mConnectionTimes++;
+        sp<AMessage> msg = new AMessage(kWhatReconnect, id());
+        msg->setMessage("reply", reply);
+        msg->setInt32("connection-id", mConnectionID);
+        msg->setInt32("port", port);
+        msg->post();
     } else {
+        ALOGV("Connected in onCompleteConnection");
         CHECK(msg->findInt32("ipversion", &ipver));
         reply->setInt32("result", OK);
         ALOGV("setting ipversion:%d", ipver);
         reply->setInt32("ipversion", ipver);
         mState = CONNECTED;
         mNextCSeq = 1;
-
+        freeaddrinfo((struct addrinfo *)mAddrHeader);
+        mAddrHeader = NULL;
         postReceiveReponseEvent();
+        reply->post();
     }
+}
 
-    reply->post();
+void ARTSPConnection::onReconnect(const sp<AMessage> &msg) {
+    ALOGV("onReconnect");
+    sp<AMessage> reply;
+    CHECK(msg->findMessage("reply", &reply));
+    int32_t connectionID;
+    CHECK(msg->findInt32("connection-id", &connectionID));
+    if ((connectionID != mConnectionID) || mState != CONNECTING) {
+        // While we were attempting to connect, the attempt was
+        // cancelled.
+        reply->setInt32("result", -ECONNABORTED);
+        reply->post();
+        if (mAddrHeader != NULL) {
+            freeaddrinfo((struct addrinfo *)mAddrHeader);
+            mAddrHeader = NULL;
+        }
+        return;
+    }
+    int32_t port;
+    CHECK(msg->findInt32("port", &port));
+    if (!createSocketAndConnect(mAddrHeader, port, reply)) {
+        ALOGV("Failed to reconnect");
+        reply->setInt32("result", -errno);
+        mState = DISCONNECTED;
+        mSocket = -1;
+        reply->post();
+        freeaddrinfo((struct addrinfo *)mAddrHeader);
+        mAddrHeader = NULL;
+    }
 }
 
 void ARTSPConnection::onSendRequest(const sp<AMessage> &msg) {
