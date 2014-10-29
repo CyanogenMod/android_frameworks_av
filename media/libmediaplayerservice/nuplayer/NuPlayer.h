@@ -54,7 +54,6 @@ struct NuPlayer : public AHandler {
     void start();
 
     void pause();
-    void resume();
 
     // Will notify the driver through "notifyResetComplete" once finished.
     void resetAsync();
@@ -212,6 +211,9 @@ private:
 
     void handleFlushComplete(bool audio, bool isDecoder);
     void finishFlushIfPossible();
+
+    void onStart();
+    void onResume();
 
     bool audioDecoderStillNeeded();
 
