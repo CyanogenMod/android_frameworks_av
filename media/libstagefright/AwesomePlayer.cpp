@@ -75,7 +75,7 @@ static const size_t kHighWaterMarkBytes = 200000;
 
 // maximum time in paused state when offloading audio decompression. When elapsed, the AudioPlayer
 // is destroyed to allow the audio DSP to power down.
-static int64_t kOffloadPauseMaxUs = 60000000ll;
+static int64_t kOffloadPauseMaxUs = 10000000ll;
 
 
 struct AwesomeEvent : public TimedEventQueue::Event {
