@@ -216,6 +216,10 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                                                   const char *device_address)
 {
     String8 address = (device_address == NULL) ? String8("") : String8(device_address);
+    // handle legacy remote submix case where the address was not always specified
+    if (deviceDistinguishesOnAddress(device) && (address.length() == 0)) {
+        address = String8("0");
+    }
 
     ALOGV("setDeviceConnectionState() device: %x, state %d, address %s",
             device, state, address.string());
@@ -419,6 +423,10 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
     audio_policy_dev_state_t state = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
     devDesc->mAddress = (device_address == NULL) ? String8("") : String8(device_address);
+    // handle legacy remote submix case where the address was not always specified
+    if (deviceDistinguishesOnAddress(device) && (devDesc->mAddress.length() == 0)) {
+        devDesc->mAddress = String8("0");
+    }
     ssize_t index;
     DeviceVector *deviceVector;
 
@@ -854,7 +862,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t 
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_HW_AV_SYNC);
     }
 
-    ALOGV("getOutputForAttr() device %d, samplingRate %d, format %x, channelMask %x, flags %x",
+    ALOGV("getOutputForAttr() device 0x%x, samplingRate %d, format %x, channelMask %x, flags %x",
           device, samplingRate, format, channelMask, flags);
 
     audio_stream_type_t stream = streamTypefromAttributesInt(attr);
@@ -1356,11 +1364,14 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     config.channel_mask = channelMask;
     config.format = format;
 
+    // handle legacy remote submix case where the address was not always specified
+    String8 address = deviceDistinguishesOnAddress(device) ? String8("0") : String8("");
+
     status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
                                                    &input,
                                                    &config,
                                                    &device,
-                                                   String8(""),
+                                                   address,
                                                    halInputSource,
                                                    flags);
 
@@ -2792,6 +2803,14 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             inputDesc->mInputSource = AUDIO_SOURCE_MIC;
             inputDesc->mDevice = profileType;
 
+            // find the address
+            DeviceVector inputDevices = mAvailableInputDevices.getDevicesFromType(profileType);
+            //   the inputs vector must be of size 1, but we don't want to crash here
+            String8 address = inputDevices.size() > 0 ? inputDevices.itemAt(0)->mAddress
+                    : String8("");
+            ALOGV("  for input device 0x%x using address %s", profileType, address.string());
+            ALOGE_IF(inputDevices.size() == 0, "Input device list is empty!");
+
             audio_config_t config = AUDIO_CONFIG_INITIALIZER;
             config.sample_rate = inputDesc->mSamplingRate;
             config.channel_mask = inputDesc->mChannelMask;
@@ -2801,7 +2820,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                            &input,
                                                            &config,
                                                            &inputDesc->mDevice,
-                                                           String8(""),
+                                                           address,
                                                            AUDIO_SOURCE_MIC,
                                                            AUDIO_INPUT_FLAG_NONE);
 
@@ -6826,7 +6845,11 @@ void AudioPolicyManager::DeviceVector::loadDevicesFromName(char *name,
                                  ARRAY_SIZE(sDeviceNameToEnumTable),
                                  devName);
             if (type != AUDIO_DEVICE_NONE) {
-                add(new DeviceDescriptor(String8(""), type));
+                sp<DeviceDescriptor> dev = new DeviceDescriptor(String8(""), type);
+                if (type == AUDIO_DEVICE_IN_REMOTE_SUBMIX) {
+                    dev->mAddress = String8("0");
+                }
+                add(dev);
             } else {
                 sp<DeviceDescriptor> deviceDesc =
                         declaredDevices.getDeviceFromName(String8(devName));
