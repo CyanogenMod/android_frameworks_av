@@ -4371,9 +4371,13 @@ status_t OMXCodec::pause() {
 status_t OMXCodec::resumeLocked(bool drainInputBuf) {
    CODEC_LOGV("resume mState=%d", mState);
 
-   if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
+   if (!strncmp(mComponentName, "OMX.qcom.", 9) && mPaused) {
         while (isIntermediateState(mState)) {
             mAsyncCompletion.wait(mLock);
+        }
+        if (mState == (status_t)EXECUTING) {
+            CODEC_LOGI("in EXECUTING state, return OK");
+            return OK;
         }
         CHECK_EQ(mState, (status_t)PAUSED);
         status_t err = mOMX->sendCommand(mNode,
