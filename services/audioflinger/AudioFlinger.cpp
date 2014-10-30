@@ -1979,13 +1979,13 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
     status_t status = inHwHal->open_input_stream(inHwHal, *input, device, &halconfig,
                                         &inStream, flags, address.string(), source);
     ALOGV("openInput_l() openInputStream returned input %p, SamplingRate %d"
-           ", Format %#x, Channels %x, flags %#x, status %d",
+           ", Format %#x, Channels %x, flags %#x, status %d addr %s",
             inStream,
             halconfig.sample_rate,
             halconfig.format,
             halconfig.channel_mask,
             flags,
-            status);
+            status, address.string());
 
     // If the input could not be opened with the requested parameters and we can handle the
     // conversion internally, try to open again with the proposed parameters. The AudioFlinger can
