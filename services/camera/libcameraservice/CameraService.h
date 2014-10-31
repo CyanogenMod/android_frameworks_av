@@ -23,7 +23,7 @@
 #include <binder/BinderService.h>
 #include <binder/IAppOpsCallback.h>
 #include <camera/ICameraService.h>
-#include <hardware/camera.h>
+#include "hardware/camera.h"
 
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
