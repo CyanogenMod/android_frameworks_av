@@ -1127,6 +1127,20 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
         return BAD_VALUE;
     }
 
+    // cannot start playback of STREAM_TTS if any other output is being used
+    uint32_t beaconMuteLatency = 0;
+    if (stream == AUDIO_STREAM_TTS) {
+        ALOGV("\t found BEACON stream");
+        if (isAnyOutputActive(AUDIO_STREAM_TTS /*streamToIgnore*/)) {
+            return INVALID_OPERATION;
+        } else {
+            beaconMuteLatency = handleEventForBeacon(STARTING_BEACON);
+        }
+    } else {
+        // some playback other than beacon starts
+        beaconMuteLatency = handleEventForBeacon(STARTING_OUTPUT);
+    }
+
     sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(index);
 
     // increment usage count for this stream on the requested output:
@@ -1138,8 +1152,9 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
         audio_devices_t newDevice = getNewOutputDevice(output, false /*fromCache*/);
         routing_strategy strategy = getStrategy(stream);
         bool shouldWait = (strategy == STRATEGY_SONIFICATION) ||
-                            (strategy == STRATEGY_SONIFICATION_RESPECTFUL);
-        uint32_t waitMs = 0;
+                            (strategy == STRATEGY_SONIFICATION_RESPECTFUL) ||
+                            (beaconMuteLatency > 0);
+        uint32_t waitMs = beaconMuteLatency;
         bool force = false;
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
@@ -1153,7 +1168,8 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
                     force = true;
                 }
                 // wait for audio on other active outputs to be presented when starting
-                // a notification so that audio focus effect can propagate.
+                // a notification so that audio focus effect can propagate, or that a mute/unmute
+                // event occurred for beacon
                 uint32_t latency = desc->latency();
                 if (shouldWait && desc->isActive(latency * 2) && (waitMs < latency)) {
                     waitMs = latency;
@@ -1196,6 +1212,9 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
     }
 
     sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(index);
+
+    // always handle stream stop, check which stream type is stopping
+    handleEventForBeacon(stream == AUDIO_STREAM_TTS ? STOPPING_BEACON : STOPPING_OUTPUT);
 
     // handle special case for sonification while in call
     if (isInCall()) {
@@ -2669,7 +2688,10 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mTotalEffectsCpuLoad(0), mTotalEffectsMemory(0),
     mA2dpSuspended(false),
     mSpeakerDrcEnabled(false), mNextUniqueId(1),
-    mAudioPortGeneration(1)
+    mAudioPortGeneration(1),
+    mBeaconMuteRefCount(0),
+    mBeaconPlayingRefCount(0),
+    mBeaconMuted(false)
 {
     mUidCached = getuid();
     mpClientInterface = clientInterface;
@@ -3840,6 +3862,8 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
     //      use device for strategy media
     // 7: the strategy DTMF is active on the output:
     //      use device for strategy DTMF
+    // 8: the strategy for beacon, a.k.a. "transmitted through speaker" is active on the output:
+    //      use device for strategy t-t-s
     if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE) &&
         mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
@@ -3856,6 +3880,8 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
         device = getDeviceForStrategy(STRATEGY_MEDIA, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_DTMF)) {
         device = getDeviceForStrategy(STRATEGY_DTMF, fromCache);
+    } else if (outputDesc->isStrategyActive(STRATEGY_TRANSMITTED_THROUGH_SPEAKER)) {
+        device = getDeviceForStrategy(STRATEGY_TRANSMITTED_THROUGH_SPEAKER, fromCache);
     }
 
     ALOGV("getNewOutputDevice() selected device %x", device);
@@ -3934,16 +3960,20 @@ AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
     case AUDIO_STREAM_SYSTEM:
         // NOTE: SYSTEM stream uses MEDIA strategy because muting music and switching outputs
         // while key clicks are played produces a poor result
-    case AUDIO_STREAM_TTS:
     case AUDIO_STREAM_MUSIC:
         return STRATEGY_MEDIA;
     case AUDIO_STREAM_ENFORCED_AUDIBLE:
         return STRATEGY_ENFORCED_AUDIBLE;
+    case AUDIO_STREAM_TTS:
+        return STRATEGY_TRANSMITTED_THROUGH_SPEAKER;
     }
 }
 
 uint32_t AudioPolicyManager::getStrategyForAttr(const audio_attributes_t *attr) {
     // flags to strategy mapping
+    if ((attr->flags & AUDIO_FLAG_BEACON) == AUDIO_FLAG_BEACON) {
+        return (uint32_t) STRATEGY_TRANSMITTED_THROUGH_SPEAKER;
+    }
     if ((attr->flags & AUDIO_FLAG_AUDIBILITY_ENFORCED) == AUDIO_FLAG_AUDIBILITY_ENFORCED) {
         return (uint32_t) STRATEGY_ENFORCED_AUDIBLE;
     }
@@ -3991,6 +4021,74 @@ void AudioPolicyManager::handleNotificationRoutingForStream(audio_stream_type_t 
     }
 }
 
+bool AudioPolicyManager::isAnyOutputActive(audio_stream_type_t streamToIgnore) {
+    for (size_t s = 0 ; s < AUDIO_STREAM_CNT ; s++) {
+        if (s == (size_t) streamToIgnore) {
+            continue;
+        }
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            const sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
+            if (outputDesc->mRefCount[s] != 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+uint32_t AudioPolicyManager::handleEventForBeacon(int event) {
+    switch(event) {
+    case STARTING_OUTPUT:
+        mBeaconMuteRefCount++;
+        break;
+    case STOPPING_OUTPUT:
+        if (mBeaconMuteRefCount > 0) {
+            mBeaconMuteRefCount--;
+        }
+        break;
+    case STARTING_BEACON:
+        mBeaconPlayingRefCount++;
+        break;
+    case STOPPING_BEACON:
+        if (mBeaconPlayingRefCount > 0) {
+            mBeaconPlayingRefCount--;
+        }
+        break;
+    }
+
+    if (mBeaconMuteRefCount > 0) {
+        // any playback causes beacon to be muted
+        return setBeaconMute(true);
+    } else {
+        // no other playback: unmute when beacon starts playing, mute when it stops
+        return setBeaconMute(mBeaconPlayingRefCount == 0);
+    }
+}
+
+uint32_t AudioPolicyManager::setBeaconMute(bool mute) {
+    ALOGV("setBeaconMute(%d) mBeaconMuteRefCount=%d mBeaconPlayingRefCount=%d",
+            mute, mBeaconMuteRefCount, mBeaconPlayingRefCount);
+    // keep track of muted state to avoid repeating mute/unmute operations
+    if (mBeaconMuted != mute) {
+        // mute/unmute AUDIO_STREAM_TTS on all outputs
+        ALOGV("\t muting %d", mute);
+        uint32_t maxLatency = 0;
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
+            setStreamMute(AUDIO_STREAM_TTS, mute/*on*/,
+                    desc->mIoHandle,
+                    0 /*delay*/, AUDIO_DEVICE_NONE);
+            const uint32_t latency = desc->latency() * 2;
+            if (latency > maxLatency) {
+                maxLatency = latency;
+            }
+        }
+        mBeaconMuted = mute;
+        return maxLatency;
+    }
+    return 0;
+}
+
 audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strategy,
                                                              bool fromCache)
 {
@@ -4003,6 +4101,14 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
     }
     audio_devices_t availableOutputDeviceTypes = mAvailableOutputDevices.types();
     switch (strategy) {
+
+    case STRATEGY_TRANSMITTED_THROUGH_SPEAKER:
+        device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_SPEAKER;
+        if (!device) {
+            ALOGE("getDeviceForStrategy() no device found for "\
+                    "STRATEGY_TRANSMITTED_THROUGH_SPEAKER");
+        }
+        break;
 
     case STRATEGY_SONIFICATION_RESPECTFUL:
         if (isInCall()) {
@@ -4929,6 +5035,16 @@ const AudioPolicyManager::VolumeCurvePoint
 };
 
 const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sLinearVolumeCurve[AudioPolicyManager::VOLCNT] = {
+    {0, -96.0f}, {33, -68.0f}, {66, -34.0f}, {100, 0.0f}
+};
+
+const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sSilentVolumeCurve[AudioPolicyManager::VOLCNT] = {
+    {0, -96.0f}, {1, -96.0f}, {2, -96.0f}, {100, -96.0f}
+};
+
+const AudioPolicyManager::VolumeCurvePoint
             *AudioPolicyManager::sVolumeProfiles[AUDIO_STREAM_CNT]
                                                    [AudioPolicyManager::DEVICE_CATEGORY_CNT] = {
     { // AUDIO_STREAM_VOICE_CALL
@@ -4986,10 +5102,11 @@ const AudioPolicyManager::VolumeCurvePoint
         sExtMediaSystemVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_TTS
-        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET
-        sSpeakerMediaVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_EARPIECE
-        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
+      // "Transmitted Through Speaker": always silent except on DEVICE_CATEGORY_SPEAKER
+        sSilentVolumeCurve, // DEVICE_CATEGORY_HEADSET
+        sLinearVolumeCurve, // DEVICE_CATEGORY_SPEAKER
+        sSilentVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sSilentVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
 };
 
