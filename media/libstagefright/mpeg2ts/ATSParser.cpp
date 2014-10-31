@@ -63,6 +63,7 @@ struct ATSParser::Program : public RefBase {
     void signalEOS(status_t finalResult);
 
     sp<MediaSource> getSource(SourceType type);
+    bool hasSource(SourceType type) const;
 
     int64_t convertPTSToTimestamp(uint64_t PTS);
 
@@ -119,6 +120,9 @@ struct ATSParser::Stream : public RefBase {
 
     sp<MediaSource> getSource(SourceType type);
 
+    bool isAudio() const;
+    bool isVideo() const;
+
 protected:
     virtual ~Stream();
 
@@ -145,9 +149,6 @@ private:
             const uint8_t *data, size_t size);
 
     void extractAACFrames(const sp<ABuffer> &buffer);
-
-    bool isAudio() const;
-    bool isVideo() const;
 
     DISALLOW_EVIL_CONSTRUCTORS(Stream);
 };
@@ -438,6 +439,19 @@ sp<MediaSource> ATSParser::Program::getSource(SourceType type) {
     }
 
     return NULL;
+}
+
+bool ATSParser::Program::hasSource(SourceType type) const {
+    for (size_t i = 0; i < mStreams.size(); ++i) {
+        const sp<Stream> &stream = mStreams.valueAt(i);
+        if (type == AUDIO && stream->isAudio()) {
+            return true;
+        } else if (type == VIDEO && stream->isVideo()) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 int64_t ATSParser::Program::convertPTSToTimestamp(uint64_t PTS) {
@@ -1276,6 +1290,17 @@ sp<MediaSource> ATSParser::getSource(SourceType type) {
     }
 
     return NULL;
+}
+
+bool ATSParser::hasSource(SourceType type) const {
+    for (size_t i = 0; i < mPrograms.size(); ++i) {
+        const sp<Program> &program = mPrograms.itemAt(i);
+        if (program->hasSource(type)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool ATSParser::PTSTimeDeltaEstablished() {

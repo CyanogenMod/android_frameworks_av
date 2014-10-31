@@ -76,6 +76,7 @@ struct ATSParser : public RefBase {
         NUM_SOURCE_TYPES = 2
     };
     sp<MediaSource> getSource(SourceType type);
+    bool hasSource(SourceType type) const;
 
     bool PTSTimeDeltaEstablished();
 

@@ -963,8 +963,8 @@ void PlaylistFetcher::onDownloadNext() {
     } while (bytesRead != 0);
 
     if (bufferStartsWithTsSyncByte(buffer)) {
-        // If we still don't see a stream after fetching a full ts segment mark it as
-        // nonexistent.
+        // If we don't see a stream in the program table after fetching a full ts segment
+        // mark it as nonexistent.
         const size_t kNumTypes = ATSParser::NUM_SOURCE_TYPES;
         ATSParser::SourceType srcTypes[kNumTypes] =
                 { ATSParser::VIDEO, ATSParser::AUDIO };
@@ -979,7 +979,7 @@ void PlaylistFetcher::onDownloadNext() {
                 static_cast<AnotherPacketSource *>(
                     mTSParser->getSource(srcType).get());
 
-            if (source == NULL) {
+            if (!mTSParser->hasSource(srcType)) {
                 ALOGW("MPEG2 Transport stream does not contain %s data.",
                       srcType == ATSParser::VIDEO ? "video" : "audio");
 
