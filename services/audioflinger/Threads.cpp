@@ -2683,7 +2683,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 }
 
             } else {
+                ATRACE_BEGIN("sleep");
                 usleep(sleepTime);
+                ATRACE_END();
             }
         }
 
@@ -3447,6 +3449,23 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         }
 
         size_t framesReady = track->framesReady();
+        if (ATRACE_ENABLED()) {
+            // I wish we had formatted trace names
+            char traceName[16];
+            strcpy(traceName, "nRdy");
+            int name = track->name();
+            if (AudioMixer::TRACK0 <= name &&
+                    name < (int) (AudioMixer::TRACK0 + AudioMixer::MAX_NUM_TRACKS)) {
+                name -= AudioMixer::TRACK0;
+                traceName[4] = (name / 10) + '0';
+                traceName[5] = (name % 10) + '0';
+            } else {
+                traceName[4] = '?';
+                traceName[5] = '?';
+            }
+            traceName[6] = '\0';
+            ATRACE_INT(traceName, framesReady);
+        }
         if ((framesReady >= minFrames) && track->isReady() &&
                 !track->isPaused() && !track->isTerminated())
         {
@@ -5097,7 +5116,9 @@ reacquire_wakelock:
 
         // sleep with mutex unlocked
         if (sleepUs > 0) {
+            ATRACE_BEGIN("sleep");
             usleep(sleepUs);
+            ATRACE_END();
             sleepUs = 0;
         }
 
