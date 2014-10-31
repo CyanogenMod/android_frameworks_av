@@ -38,7 +38,7 @@ namespace android {
 
 // Maximum time in paused state when offloading audio decompression. When elapsed, the AudioSink
 // is closed to allow the audio DSP to power down.
-static const int64_t kOffloadPauseMaxUs = 60000000ll;
+static const int64_t kOffloadPauseMaxUs = 10000000ll;
 
 // static
 const int64_t NuPlayer::Renderer::kMinPositionUpdateDelayUs = 100000ll;
