@@ -348,7 +348,13 @@ size_t ClientProxy::getFramesFilled() {
 
 void AudioTrackClientProxy::flush()
 {
-    mCblk->u.mStreaming.mFlush++;
+    // This works for mFrameCountP2 <= 2^30
+    size_t increment = mFrameCountP2 << 1;
+    size_t mask = increment - 1;
+    audio_track_cblk_t* cblk = mCblk;
+    int32_t newFlush = (cblk->u.mStreaming.mRear & mask) |
+                        ((cblk->u.mStreaming.mFlush & ~mask) + increment);
+    android_atomic_release_store(newFlush, &cblk->u.mStreaming.mFlush);
 }
 
 bool AudioTrackClientProxy::clearStreamEndDone() {
@@ -536,17 +542,27 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
         rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
         front = cblk->u.mStreaming.mFront;
         if (flush != mFlush) {
-            mFlush = flush;
             // effectively obtain then release whatever is in the buffer
-            android_atomic_release_store(rear, &cblk->u.mStreaming.mFront);
-            if (front != rear) {
+            size_t mask = (mFrameCountP2 << 1) - 1;
+            int32_t newFront = (front & ~mask) | (flush & mask);
+            ssize_t filled = rear - newFront;
+            // Rather than shutting down on a corrupt flush, just treat it as a full flush
+            if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
+                ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, filled %d=%#x",
+                        mFlush, flush, front, rear, mask, newFront, filled, filled);
+                newFront = rear;
+            }
+            mFlush = flush;
+            android_atomic_release_store(newFront, &cblk->u.mStreaming.mFront);
+            // There is no danger from a false positive, so err on the side of caution
+            if (true /*front != newFront*/) {
                 int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
                 if (!(old & CBLK_FUTEX_WAKE)) {
                     (void) syscall(__NR_futex, &cblk->mFutex,
                             mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
                 }
             }
-            front = rear;
+            front = newFront;
         }
     } else {
         front = android_atomic_acquire_load(&cblk->u.mStreaming.mFront);
@@ -668,6 +684,7 @@ size_t AudioTrackServerProxy::framesReady()
 
     int32_t flush = cblk->u.mStreaming.mFlush;
     if (flush != mFlush) {
+        // FIXME should return an accurate value, but over-estimate is better than under-estimate
         return mFrameCount;
     }
     // the acquire might not be necessary since not doing a subsequent read
