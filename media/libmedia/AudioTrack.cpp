@@ -278,7 +278,9 @@ status_t AudioTrack::set(
     }
 
     // handle default values first.
-    if (streamType == AUDIO_STREAM_DEFAULT) {
+    // TODO once AudioPolicyManager fully supports audio_attributes_t,
+    //   remove stream "text-to-speech" redirect
+    if ((streamType == AUDIO_STREAM_DEFAULT) || (streamType == AUDIO_STREAM_TTS)) {
         streamType = AUDIO_STREAM_MUSIC;
     }
 
@@ -2124,6 +2126,12 @@ void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
         mStreamType = AUDIO_STREAM_BLUETOOTH_SCO;
         return;
     }
+    // TODO once AudioPolicyManager fully supports audio_attributes_t,
+    //   remove stream remap, the flag will be enough
+    if ((aa.flags & AUDIO_FLAG_BEACON) == AUDIO_FLAG_BEACON) {
+        mStreamType = AUDIO_STREAM_TTS;
+        return;
+    }
 
     // usage to stream type mapping
     switch (aa.usage) {
@@ -2174,7 +2182,7 @@ void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
 
 bool AudioTrack::isValidAttributes(const audio_attributes_t *paa) {
     // has flags that map to a strategy?
-    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_SCO)) != 0) {
+    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_SCO | AUDIO_FLAG_BEACON)) != 0) {
         return true;
     }
 
