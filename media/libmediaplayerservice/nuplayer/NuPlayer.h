@@ -94,7 +94,7 @@ private:
     struct Action;
     struct SeekAction;
     struct SetSurfaceAction;
-    struct ShutdownDecoderAction;
+    struct FlushDecoderAction;
     struct PostMessageAction;
     struct SimpleAction;
 
@@ -157,6 +157,12 @@ private:
         SHUTTING_DOWN_DECODER,
         FLUSHED,
         SHUT_DOWN,
+    };
+
+    enum FlushCommand {
+        FLUSH_CMD_NONE,
+        FLUSH_CMD_FLUSH,
+        FLUSH_CMD_SHUTDOWN,
     };
 
     // Once the current flush is complete this indicates whether the
@@ -229,8 +235,7 @@ private:
     void processDeferredActions();
 
     void performSeek(int64_t seekTimeUs, bool needNotify);
-    void performDecoderFlush();
-    void performDecoderShutdown(bool audio, bool video);
+    void performDecoderFlush(FlushCommand audio, FlushCommand video);
     void performReset();
     void performScanSources();
     void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
