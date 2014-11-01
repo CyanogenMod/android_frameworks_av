@@ -1458,7 +1458,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                     extra->setInt64("timeUs", timeUs);
                     discontinuityQueue = mDiscontinuities.valueFor(indexToType(j));
                     discontinuityQueue->queueDiscontinuity(
-                            ATSParser::DISCONTINUITY_SEEK, extra, true);
+                            ATSParser::DISCONTINUITY_TIME, extra, true);
                 } else {
                     int32_t type;
                     int64_t srcSegmentStartTimeUs;
