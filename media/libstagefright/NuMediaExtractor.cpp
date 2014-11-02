@@ -23,6 +23,9 @@
 #include "include/ESDS.h"
 #include "include/NuCachedSource2.h"
 #include "include/WVMExtractor.h"
+#ifdef QTI_FLAC_DECODER
+#include "include/FLACDecoder.h"
+#endif
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -275,23 +278,28 @@ status_t NuMediaExtractor::selectTrack(size_t index) {
             return OK;
         }
     }
-
     sp<MediaSource> source = mImpl->getTrack(index);
-
-    CHECK_EQ((status_t)OK, source->start());
-
     mSelectedTracks.push();
     TrackInfo *info = &mSelectedTracks.editItemAt(mSelectedTracks.size() - 1);
 
-    info->mSource = source;
+    const char *mime;
+    CHECK(source->getFormat()->findCString(kKeyMIMEType, &mime));
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
+#ifdef QTI_FLAC_DECODER
+        sp<MediaSource> mFlacSource = new FLACDecoder(source);
+        info->mSource = mFlacSource;
+        mFlacSource->start();
+#endif
+    } else {
+        CHECK_EQ((status_t)OK, source->start());
+        info->mSource = source;
+    }
+
     info->mTrackIndex = index;
     info->mFinalResult = OK;
     info->mSample = NULL;
     info->mSampleTimeUs = -1ll;
     info->mTrackFlags = 0;
-
-    const char *mime;
-    CHECK(source->getFormat()->findCString(kKeyMIMEType, &mime));
 
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_VORBIS)) {
         info->mTrackFlags |= kIsVorbis;

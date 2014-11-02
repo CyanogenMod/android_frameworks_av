@@ -52,6 +52,10 @@ const char *MEDIA_MIMETYPE_CONTAINER_QCMATROSKA = "video/qc-matroska";
 const char *MEDIA_MIMETYPE_CONTAINER_QCOGG = "video/qc-ogg";
 const char *MEDIA_MIMETYPE_CONTAINER_QCFLV = "video/qc-flv";
 const char *MEDIA_MIMETYPE_VIDEO_VPX = "video/x-vnd.on2.vp8"; //backward compatibility
+#ifdef QTI_FLAC_DECODER
 const char *MEDIA_MIMETYPE_CONTAINER_QTIFLAC = "audio/qti-flac";
+#else
+const char *MEDIA_MIMETYPE_CONTAINER_QTIFLAC = "audio/flac";
+#endif
 
 }  // namespace android

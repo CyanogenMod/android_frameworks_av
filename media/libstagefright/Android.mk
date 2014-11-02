@@ -149,6 +149,15 @@ LOCAL_SHARED_LIBRARIES := \
         libz \
         libpowermanager
 
+#QTI FLAC Decoder
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
+LOCAL_SRC_FILES += FLACDecoder.cpp
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-flac
+LOCAL_CFLAGS := -DQTI_FLAC_DECODER
+endif
+endif
+
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libstagefright_aacenc \

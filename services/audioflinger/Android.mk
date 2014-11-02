@@ -68,7 +68,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 #QTI Resampler
 ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(strip $(BOARD_USES_QCOM_RESAMPLER)),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)),true)
 LOCAL_SRC_FILES += AudioResamplerQTI.cpp.arm
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-src
 LOCAL_SHARED_LIBRARIES += libqct_resampler

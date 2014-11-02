@@ -663,6 +663,14 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
+#ifdef QCOM_HARDWARE
+    //add an extra buffer to display queue to get around dequeue+wait
+    //blocking too long (more than 1 Vsync) in case BufferQeuue is in
+    //sync-mode and advertizes only 1 buffer
+    (*minUndequeuedBuffers)++;
+    ALOGI("NOTE: Overriding minUndequeuedBuffers to %lu",*minUndequeuedBuffers);
+#endif
+
     // XXX: Is this the right logic to use?  It's not clear to me what the OMX
     // buffer counts refer to - how do they account for the renderer holding on
     // to buffers?
@@ -1023,8 +1031,13 @@ status_t ACodec::setComponentRole(
             "video_decoder.vp9", "video_encoder.vp9" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
             "audio_decoder.raw", "audio_encoder.raw" },
+#ifdef QTI_FLAC_DECODER
+        { MEDIA_MIMETYPE_AUDIO_FLAC,
+            "audio_decoder.raw", NULL },
+#else
         { MEDIA_MIMETYPE_AUDIO_FLAC,
             "audio_decoder.flac", "audio_encoder.flac" },
+#endif
         { MEDIA_MIMETYPE_AUDIO_MSGSM,
             "audio_decoder.gsm", "audio_encoder.gsm" },
     };
@@ -3729,7 +3742,11 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         // about any notifications in the afterlife.
         mDeathNotifier.clear();
     }
-
+    int32_t hardwarecodecOnly = 0;
+    if (msg->findInt32("hardwarecodecOnly", &hardwarecodecOnly)
+            && hardwarecodecOnly == 1) {
+        ALOGV("use hardware codec only");
+    }
     Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
     AString mime;
@@ -3764,7 +3781,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 mime.c_str(),
                 encoder, // createEncoder
                 NULL,  // matchComponentName
-                0,     // flags
+                hardwarecodecOnly ? OMXCodec::kHardwareCodecsOnly : 0,     // flags
                 &matchingCodecs);
     }
 
