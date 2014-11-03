@@ -2954,6 +2954,10 @@ status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
             staticInfo(ANDROID_SENSOR_INFO_PHYSICAL_SIZE, 2, 2);
     if (!sensorSize.count) return NO_INIT;
 
+    camera_metadata_ro_entry_t pixelArraySize =
+            staticInfo(ANDROID_SENSOR_INFO_PIXEL_ARRAY_SIZE, 2, 2);
+    if (!pixelArraySize.count) return NO_INIT;
+
     float arrayAspect = static_cast<float>(fastInfo.arrayWidth) /
             fastInfo.arrayHeight;
     float stillAspect = static_cast<float>(pictureWidth) / pictureHeight;
@@ -3003,6 +3007,16 @@ status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
         vertCropFactor = (arrayAspect < stillAspect) ?
                 (arrayAspect / stillAspect) : 1.f;
     }
+
+    /**
+     * Convert the crop factors w.r.t the active array size to the crop factors
+     * w.r.t the pixel array size.
+     */
+    horizCropFactor *= (static_cast<float>(fastInfo.arrayWidth) /
+                            pixelArraySize.data.i32[0]);
+    vertCropFactor *= (static_cast<float>(fastInfo.arrayHeight) /
+                            pixelArraySize.data.i32[1]);
+
     ALOGV("Horiz crop factor: %f, vert crop fact: %f",
             horizCropFactor, vertCropFactor);
     /**
