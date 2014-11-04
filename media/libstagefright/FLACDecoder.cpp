@@ -139,8 +139,6 @@ void FLACDecoder::init() {
     mMeta->setInt32(kKeySampleRate, mSampleRate);
     mMeta->setInt32(kKeyChannelCount, mNumChannels);
 
-    mOutBuffer = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
-    mTmpBuf = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
     ALOGV("qti_flac: FLACDecoder::init done");
 }
 
@@ -166,6 +164,9 @@ status_t FLACDecoder::start(MetaData *params) {
 
     mBufferGroup = new MediaBufferGroup;
     mBufferGroup->add_buffer(new MediaBuffer(FLAC_INSTANCE_SIZE));
+
+    mOutBuffer = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
+    mTmpBuf = (uint16_t *) malloc (FLAC_INSTANCE_SIZE);
 
     mSource->start();
     mAnchorTimeUs = 0;
@@ -222,6 +223,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
 
     bool seekSource = false, eos = false;
 
+    CHECK(mStarted);
     if (!mInitStatus) {
         return NO_INIT;
     }
