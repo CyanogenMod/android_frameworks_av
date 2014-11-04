@@ -2135,14 +2135,21 @@ void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
 
     // usage to stream type mapping
     switch (aa.usage) {
-    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY: {
         // TODO once AudioPolicyManager fully supports audio_attributes_t,
-        //   remove stream change based on phone state
-        if (AudioSystem::getPhoneState() == AUDIO_MODE_RINGTONE) {
+        //   remove stream change based on stream activity
+        bool active;
+        status_t status = AudioSystem::isStreamActive(AUDIO_STREAM_RING, &active, 0);
+        if (status == NO_ERROR && active == true) {
             mStreamType = AUDIO_STREAM_RING;
             break;
         }
-        /// FALL THROUGH
+        status = AudioSystem::isStreamActive(AUDIO_STREAM_ALARM, &active, 0);
+        if (status == NO_ERROR && active == true) {
+            mStreamType = AUDIO_STREAM_ALARM;
+            break;
+        }
+    }    /// FALL THROUGH
     case AUDIO_USAGE_MEDIA:
     case AUDIO_USAGE_GAME:
     case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
