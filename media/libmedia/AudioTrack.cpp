@@ -196,16 +196,6 @@ AudioTrack::~AudioTrack()
         mAudioTrack.clear();
         IPCThreadState::self()->flushCommands();
         AudioSystem::releaseAudioSessionId(mSessionId);
-        if (isOffloaded()) {
-            char propValue[PROPERTY_VALUE_MAX];
-            bool prop_enabled = false;
-
-            if (property_get("audio.offload.multiple.enabled", propValue, NULL))
-                prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
-
-            if (prop_enabled)
-                AudioSystem::releaseOutput(mOutput);
-        }
 #endif
     }
 }
@@ -420,6 +410,7 @@ status_t AudioTrack::set(
     }
 #endif
 
+#ifndef QCOM_DIRECTTRACK
     if (audio_is_linear_pcm(format)) {
         mFrameSize = channelCount * audio_bytes_per_sample(format);
         mFrameSizeAF = channelCount * sizeof(int16_t);
@@ -427,6 +418,7 @@ status_t AudioTrack::set(
         mFrameSize = sizeof(uint8_t);
         mFrameSizeAF = sizeof(uint8_t);
     }
+#endif
 
     audio_io_handle_t output = AudioSystem::getOutput(
                                     streamType,
@@ -831,8 +823,12 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (AudioSystem::getOutputSamplingRate(&afSamplingRate, mStreamType) != NO_ERROR) {
         return NO_INIT;
     }
-    // Resampler implementation limits input sampling rate to 2 x output sampling rate.
-    if (rate == 0 || rate > afSamplingRate*2 ) {
+    // Resampler implementation limits input sampling rate to 2/4 x output sampling rate.
+#ifdef QTI_RESAMPLER
+    if (rate == 0 || rate > afSamplingRate * 4) {
+#else
+    if (rate == 0 || rate > afSamplingRate * 2) {
+#endif
         return BAD_VALUE;
     }
 
@@ -1886,16 +1882,6 @@ nsecs_t AudioTrack::processAudioBuffer(const sp<AudioTrackThread>& thread)
             return NS_NEVER;
         }
 
-        if (mRetryOnPartialBuffer && !isOffloaded()) {
-            mRetryOnPartialBuffer = false;
-            if (avail < mRemainingFrames) {
-                int64_t myns = ((mRemainingFrames - avail) * 1100000000LL) / sampleRate;
-                if (ns < 0 || myns < ns) {
-                    ns = myns;
-                }
-                return ns;
-            }
-        }
 
         // Divide buffer size by 2 to take into account the expansion
         // due to 8 to 16 bit conversion: the callback must fill only half

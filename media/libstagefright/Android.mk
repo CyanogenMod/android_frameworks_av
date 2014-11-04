@@ -119,15 +119,10 @@ ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
     endif
 endif
 
-ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
 LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
+    $(call project-path-for,qcom-media)/mm-core/inc
 ifneq ($(TARGET_QCOM_MEDIA_VARIANT),caf-new)
     LOCAL_CFLAGS += -DLEGACY_MEDIA
-endif
-else
-LOCAL_C_INCLUDES += \
-        $(TOP)/hardware/qcom/media/mm-core/inc
 endif
 
 LOCAL_SHARED_LIBRARIES := \
@@ -154,6 +149,15 @@ LOCAL_SHARED_LIBRARIES := \
         libz \
         libpowermanager
 
+#QTI FLAC Decoder
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
+LOCAL_SRC_FILES += FLACDecoder.cpp
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-flac
+LOCAL_CFLAGS := -DQTI_FLAC_DECODER
+endif
+endif
+
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libstagefright_aacenc \
@@ -175,13 +179,8 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
     LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
-    ifneq ($(TARGET_QCOM_MEDIA_VARIANT),)
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media-$(TARGET_QCOM_MEDIA_VARIANT)/mm-core/inc
-    else
-        LOCAL_C_INCLUDES += \
-            $(TOP)/hardware/qcom/media/mm-core/inc
-    endif
+    LOCAL_C_INCLUDES += \
+        $(call project-path-for,qcom-media)/mm-core/inc
 
 else #TARGET_ENABLE_AV_ENHANCEMENTS
 ifeq ($(TARGET_ENABLE_OFFLOAD_ENHANCEMENTS),true)

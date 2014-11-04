@@ -555,15 +555,16 @@ bool AudioMixer::track_t::setResampler(uint32_t value, uint32_t devSampleRate)
                 // FIXME this is flawed for dynamic sample rates, as we choose the resampler
                 // quality level based on the initial ratio, but that could change later.
                 // Should have a way to distinguish tracks with static ratios vs. dynamic ratios.
+#ifdef QTI_RESAMPLER
+                if (value > devSampleRate * 2) {
+                    quality = AudioResampler::QTI_QUALITY;
+                } else
+#endif
                 if (!((value == 44100 && devSampleRate == 48000) ||
                       (value == 48000 && devSampleRate == 44100))) {
                     quality = AudioResampler::LOW_QUALITY;
                 } else {
-#ifdef QCOM_HARDWARE
-                    quality = AudioResampler::VERY_HIGH_QUALITY;
-#else
                     quality = AudioResampler::DEFAULT_QUALITY;
-#endif
                 }
                 resampler = AudioResampler::create(
                         format,

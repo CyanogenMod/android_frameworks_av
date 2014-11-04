@@ -509,6 +509,7 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     int32_t delaySamples = 0;
     int32_t paddingSamples = 0;
     int32_t isADTS = 0;
+    int32_t minBlkSize, maxBlkSize, minFrmSize, maxFrmSize; //FLAC params
 
     AudioParameter param = AudioParameter();
 
@@ -530,6 +531,20 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
     if (meta->findInt32(kKeyIsADTS, &isADTS)) {
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_FORMAT), 0x02 /*SND_AUDIOSTREAMFORMAT_MP4ADTS*/);
     }
+#ifdef ENABLE_AV_ENHANCEMENTS
+    if (meta->findInt32(kKeyMinBlkSize, &minBlkSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
+    }
+    if (meta->findInt32(kKeyMaxBlkSize, &maxBlkSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
+    }
+    if (meta->findInt32(kKeyMinFrmSize, &minFrmSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
+    }
+    if (meta->findInt32(kKeyMaxFrmSize, &maxFrmSize)) {
+        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
+    }
+#endif
 
     ALOGV("sendMetaDataToHal: bitRate %d, sampleRate %d, chanMask %d,"
           "delaySample %d, paddingSample %d", bitRate, sampleRate,
@@ -561,6 +576,9 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_QCELP,       AUDIO_FORMAT_QCELP },
     { MEDIA_MIMETYPE_AUDIO_WMA,         AUDIO_FORMAT_WMA },
     { MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II, AUDIO_FORMAT_MP2 },
+#ifdef QTI_FLAC_DECODER
+    { MEDIA_MIMETYPE_CONTAINER_QTIFLAC, AUDIO_FORMAT_FLAC },
+#endif
 #endif
     { 0, AUDIO_FORMAT_INVALID }
 };
@@ -603,20 +621,20 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     if (!meta->findInt32(kKeySampleBits, &bitWidth)) {
         ALOGV("bits per sample not set, using default %d", bitWidth);
     }
-    info.bit_width = bitWidth;
+    info.bit_width = bitWidth >= 24 ? 24 : bitWidth;
 #endif
 
     info.format = AUDIO_FORMAT_INVALID;
     if (mapMimeToAudioFormat(info.format, mime) != OK) {
         ALOGE(" Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format !", mime);
         return false;
-    } else {
+    } else if (audio_is_linear_pcm(info.format) || audio_is_offload_pcm(info.format)) {
 #if defined(QCOM_HARDWARE) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
         // Override audio format for PCM offload
-        if (bitWidth == 24) {
+        if (bitWidth >= 24) {
             ALOGD("24-bit PCM offload enabled");
             info.format = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
-        } else if (info.format == AUDIO_FORMAT_PCM_16_BIT) {
+        } else {
             info.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
         }
 #endif
@@ -628,7 +646,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
         return false;
     }
 
-    ALOGV("Mime type \"%s\" mapped to audio_format %d", mime, info.format);
+    ALOGV("Mime type \"%s\" mapped to audio_format 0x%x", mime, info.format);
 
     // check whether it is ELD/LD/main content -> no offloading
     // FIXME: this should depend on audio DSP capabilities. mapMimeToAudioFormat() should use the
@@ -682,7 +700,11 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     bool canOffload = AudioSystem::isOffloadSupported(info);
 
 #if defined(ENABLE_AV_ENHANCEMENTS) || defined(ENABLE_OFFLOAD_ENHANCEMENTS)
-    ExtendedUtils::updateOutputBitWidth(meta, canOffload);
+    // If we can't offload a 24-bit stream, we need to downgrade
+    // it to 16-bits. Codec will reconfigure for new bit width.
+    if (audio_is_offload_pcm(info.format)) {
+        ExtendedUtils::updateOutputBitWidth(meta, canOffload);
+    }
 #endif
 
     return canOffload;

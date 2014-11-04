@@ -805,16 +805,18 @@ void AwesomePlayer::onVideoLagUpdate() {
     }
     mVideoLagEventPending = false;
 
-    int64_t audioTimeUs = mAudioPlayer->getMediaTimeUs();
-    int64_t videoLateByUs = audioTimeUs - mVideoTimeUs;
+    if (!(mFlags & AUDIO_AT_EOS)) {
+        int64_t audioTimeUs = mAudioPlayer->getMediaTimeUs();
+        int64_t videoLateByUs = audioTimeUs - mVideoTimeUs;
 
-    if (!(mFlags & VIDEO_AT_EOS) && videoLateByUs > 300000ll) {
-        ALOGV("video late by %lld ms.", videoLateByUs / 1000ll);
+        if (!(mFlags & VIDEO_AT_EOS) && videoLateByUs > 300000ll) {
+            ALOGV("video late by %lld ms.", videoLateByUs / 1000ll);
 
-        notifyListener_l(
-                MEDIA_INFO,
-                MEDIA_INFO_VIDEO_TRACK_LAGGING,
-                videoLateByUs / 1000ll);
+            notifyListener_l(
+                    MEDIA_INFO,
+                    MEDIA_INFO_VIDEO_TRACK_LAGGING,
+                    videoLateByUs / 1000ll);
+        }
     }
 
     postVideoLagEvent_l();
@@ -1931,6 +1933,9 @@ status_t AwesomePlayer::initAudioDecoder() {
             mAudioSource = mAudioTrack;
 #ifndef QCOM_DIRECTTRACK
         } else {
+            if (mOmxSource != NULL) {
+                mOmxSource->getFormat()->setInt32(kKeySampleBits, 16);
+            }
             mAudioSource = mOmxSource;
 #endif
         }
@@ -1942,7 +1947,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     mAudioTrack->getFormat()->findInt32(kKeySampleBits, &bitsPerSample);
 
     if (!mOffloadAudio && mAudioSource != NULL) {
-        ALOGI("Could not offload audio decode, try pcm offload");
+        ALOGI("Could not offload audio decode, try pcm offload (%d-bit)", bitsPerSample);
         sp<MetaData> format = mAudioSource->getFormat();
         if (durationUs >= 0) {
             format->setInt64(kKeyDuration, durationUs);
@@ -2428,6 +2433,7 @@ void AwesomePlayer::onVideoEvent() {
         }
 
         if (latenessUs > 500000ll
+                && !(mFlags & AUDIO_AT_EOS)
                 && mAudioPlayer != NULL
                 && mAudioPlayer->getMediaTimeMapping(
                     &realTimeUs, &mediaTimeUs)) {
