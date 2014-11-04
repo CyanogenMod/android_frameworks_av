@@ -592,7 +592,7 @@ nsecs_t ZslProcessor3::getCandidateTimestampLocked(size_t* metadataIdx) const {
                     if (afState != ANDROID_CONTROL_AF_STATE_PASSIVE_FOCUSED &&
                             afState != ANDROID_CONTROL_AF_STATE_FOCUSED_LOCKED &&
                             afState != ANDROID_CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
-                        ALOGW("%s: ZSL queue frame AF state is %d is not good for capture, skip it",
+                        ALOGVV("%s: ZSL queue frame AF state is %d is not good for capture, skip it",
                                 __FUNCTION__, afState);
                         continue;
                     }
