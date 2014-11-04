@@ -610,7 +610,12 @@ void PlaylistFetcher::onMonitorQueue() {
     int32_t targetDurationSecs;
     int64_t targetDurationUs = kMinBufferedDurationUs;
     if (mPlaylist != NULL) {
-        CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
+        if (mPlaylist->meta() == NULL || !mPlaylist->meta()->findInt32(
+                "target-duration", &targetDurationSecs)) {
+            ALOGE("Playlist is missing required EXT-X-TARGETDURATION tag");
+            notifyError(ERROR_MALFORMED);
+            return;
+        }
         targetDurationUs = targetDurationSecs * 1000000ll;
     }
 
