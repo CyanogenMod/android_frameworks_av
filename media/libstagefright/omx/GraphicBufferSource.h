@@ -137,7 +137,7 @@ protected:
     // into the codec buffer, and call Empty[This]Buffer.  If we're not yet
     // executing or there's no codec buffer available, we just increment
     // mNumFramesAvailable and return.
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
 
     // BufferQueue::ConsumerListener interface, called when the client has
     // released one or more GraphicBuffers.  We clear out the appropriate

@@ -268,7 +268,7 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
     return OK;
 }
 
-void RingBufferConsumer::onFrameAvailable() {
+void RingBufferConsumer::onFrameAvailable(const android::BufferItem& item) {
     status_t err;
 
     {
@@ -321,7 +321,7 @@ void RingBufferConsumer::onFrameAvailable() {
         item.mGraphicBuffer = mSlots[item.mBuf].mGraphicBuffer;
     } // end of mMutex lock
 
-    ConsumerBase::onFrameAvailable();
+    ConsumerBase::onFrameAvailable(item);
 }
 
 void RingBufferConsumer::unpinBuffer(const BufferItem& item) {

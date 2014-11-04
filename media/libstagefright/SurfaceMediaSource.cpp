@@ -448,7 +448,7 @@ void SurfaceMediaSource::signalBufferReturned(MediaBuffer *buffer) {
 }
 
 // Part of the BufferQueue::ConsumerListener
-void SurfaceMediaSource::onFrameAvailable() {
+void SurfaceMediaSource::onFrameAvailable(const BufferItem& /* item */) {
     ALOGV("onFrameAvailable");
 
     sp<FrameAvailableListener> listener;
