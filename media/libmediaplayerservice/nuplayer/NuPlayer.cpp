@@ -183,7 +183,9 @@ NuPlayer::NuPlayer()
       mStarted(false),
       mBuffering(false),
       mPlaying(false),
-      mImageShowed(false) {
+      mImageShowed(false),
+      mSkipAudioFlushAfterSuspend(false),
+      mSkipVideoFlushAfterSuspend(false) {
 
     clearFlushComplete();
     mPlayerExtendedStats = (PlayerExtendedStats *)ExtendedStats::Create(
@@ -1094,6 +1096,35 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSuspend:
+        {
+            ALOGV("kWhatSuspend");
+
+            mDeferredActions.push_back(
+                    new ShutdownDecoderAction(
+                        true /* audio */, true /* video */));
+
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performSuspend));
+
+            processDeferredActions();
+            break;
+        }
+
+        case kWhatResumeFromSuspended:
+        {
+            ALOGV("kWhatResumeFromSuspended");
+
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performResumeFromSuspended));
+
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performScanSources));
+
+            processDeferredActions();
+            break;
+        }
+
         default:
             TRESPASS();
             break;
@@ -1379,6 +1410,23 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
 
                 ALOGI("%s discontinuity (formatChange=%d, time=%d)",
                      audio ? "audio" : "video", formatChange, timeChange);
+
+                if (!formatChange && timeChange) {
+                    if (audio && mSkipAudioFlushAfterSuspend) {
+                        ALOGV("Skip audio flush for seek after suspend");
+                        mSkipAudioFlushAfterSuspend = false;
+                        reply->setInt32("err", OK);
+                        reply->post();
+                        return OK;
+                    }
+                    if (!audio && mSkipVideoFlushAfterSuspend) {
+                        ALOGV("Skip video flush for seek after suspend");
+                        mSkipVideoFlushAfterSuspend = false;
+                        reply->setInt32("err", OK);
+                        reply->post();
+                        return OK;
+                    }
+                }
 
                 if (audio) {
                     mSkipRenderingAudioUntilMediaTimeUs = -1;
@@ -2001,6 +2049,79 @@ void NuPlayer::performSetSurface(const sp<NativeWindowWrapper> &wrapper) {
     }
 }
 
+void NuPlayer::performSuspend() {
+    ALOGV("performSuspsend");
+
+    CHECK(mAudioDecoder == NULL);
+    CHECK(mVideoDecoder == NULL);
+
+    cancelPollDuration();
+
+    ++mScanSourcesGeneration;
+    mScanSourcesPending = false;
+
+    if (mRenderer != NULL) {
+        mRenderer->pause();
+    }
+    if (mRendererLooper != NULL) {
+        if (mRenderer != NULL) {
+            mRendererLooper->unregisterHandler(mRenderer->id());
+        }
+        mRendererLooper->stop();
+        mRendererLooper.clear();
+    }
+
+    status_t err;
+    if (mSource == NULL) {
+        ALOGE("suspend called when source is gone or not set");
+        err = UNKNOWN_ERROR;
+    } else {
+        err = mSource->suspend();
+    }
+
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifySuspendCompleted(err);
+        }
+    }
+
+    mStarted = false;
+}
+
+void NuPlayer::performResumeFromSuspended() {
+    ALOGV("performResumeFromSuspended");
+
+    CHECK(mAudioDecoder == NULL);
+    CHECK(mVideoDecoder == NULL);
+    CHECK(mRendererLooper == NULL);
+
+    status_t err;
+    if (mSource == NULL) {
+        ALOGE("resumeFromSuspended called when source is gone or not set");
+        err = UNKNOWN_ERROR;
+    } else {
+        err = mSource->resumeFromSuspended();
+    }
+
+    if (err == OK) {
+        mRendererLooper = new ALooper;
+        mRendererLooper->setName("NuPlayerRenderer");
+        mRendererLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
+        mRendererLooper->registerHandler(mRenderer);
+        mRenderer->resume();
+        mSkipAudioFlushAfterSuspend = true;
+        mSkipVideoFlushAfterSuspend = true;
+    }
+
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifyResumeFromSuspendedCompleted(err);
+        }
+    }
+}
+
 void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
     int32_t what;
     CHECK(msg->findInt32("what", &what));
@@ -2309,6 +2430,14 @@ void NuPlayer::Source::notifyPrepared(status_t err) {
 
 void NuPlayer::Source::onMessageReceived(const sp<AMessage> & /* msg */) {
     TRESPASS();
+}
+
+void NuPlayer::suspendAsync() {
+    (new AMessage(kWhatSuspend, id()))->post();
+}
+
+void NuPlayer::resumeFromSuspendedAsync() {
+    (new AMessage(kWhatResumeFromSuspended, id()))->post();
 }
 
 }  // namespace android

@@ -435,6 +435,7 @@ void NuCachedSource2::onFetch() {
     }
 
     if (mSuspended) {
+        ALOGV("Disconnect for suspend");
         static_cast<HTTPBase *>(mSource.get())->disconnect();
         mFinalStatus = -EAGAIN;
         return;
@@ -457,7 +458,7 @@ void NuCachedSource2::onRead(const sp<AMessage> &msg) {
 
     ssize_t result = readInternal(offset, data, size);
 
-    if (result == -EAGAIN) {
+    if (result == -EAGAIN && !mDisconnecting && !mSuspended) {
         msg->post(50000);
         return;
     }
@@ -769,7 +770,6 @@ void NuCachedSource2::RemoveCacheSpecificHeaders(
 
 status_t NuCachedSource2::disconnectWhileSuspend() {
     if (mSource != NULL) {
-        static_cast<HTTPBase *>(mSource.get())->disconnect();
         mFinalStatus = -EAGAIN;
         mSuspended = true;
     } else {

@@ -72,6 +72,9 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
 
+    virtual status_t suspend();
+    virtual status_t resumeFromSuspended();
+
 protected:
     virtual ~GenericSource();
 
@@ -143,6 +146,8 @@ private:
     mutable Mutex mReadBufferLock;
 
     sp<ALooper> mLooper;
+
+    bool mStartAfterSuspended;
 
     void resetDataSource();
 

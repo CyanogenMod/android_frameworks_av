@@ -72,6 +72,11 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     void notifySeekComplete_l();
     void notifyListener(int msg, int ext1 = 0, int ext2 = 0, const Parcel *in = NULL);
     void notifyFlagsChanged(uint32_t flags);
+    void notifySuspendCompleted(status_t err);
+    void notifyResumeFromSuspendedCompleted(status_t err);
+
+    virtual status_t suspend();
+    virtual status_t resume();
 
 protected:
     virtual ~NuPlayerDriver();
@@ -85,6 +90,9 @@ private:
         STATE_PREPARED,
         STATE_RUNNING,
         STATE_PAUSED,
+        STATE_SUSPEND_IN_PROGRESS,
+        STATE_SUSPENDED,
+        STATE_RESUME_IN_PROGRESS,
         STATE_RESET_IN_PROGRESS,
         STATE_STOPPED,                  // equivalent to PAUSED
         STATE_STOPPED_AND_PREPARING,    // equivalent to PAUSED, but seeking

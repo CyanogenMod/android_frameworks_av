@@ -361,6 +361,7 @@ status_t NuPlayerDriver::seekTo(int msec) {
 
     switch (mState) {
         case STATE_PREPARED:
+        case STATE_SUSPENDED:
         {
             mStartupSeekTimeUs = seekTimeUs;
             // pretend that the seek completed. It will actually happen when starting playback.
@@ -727,6 +728,79 @@ void NuPlayerDriver::notifyFlagsChanged(uint32_t flags) {
     Mutex::Autolock autoLock(mLock);
 
     mPlayerFlags = flags;
+}
+
+void NuPlayerDriver::notifySuspendCompleted(status_t err) {
+    ALOGD("notifySuspendCompleted(%p, %d)", this, err);
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK_EQ(mState, STATE_SUSPEND_IN_PROGRESS);
+    mState = STATE_SUSPENDED;
+    mAsyncResult = err;
+    mCondition.broadcast();
+}
+
+void NuPlayerDriver::notifyResumeFromSuspendedCompleted(status_t err) {
+    ALOGD("notifyResumeFromSuspendedCompleted(%p, %d)", this, err);
+    Mutex::Autolock autoLock(mLock);
+
+    CHECK_EQ(mState, STATE_RESUME_IN_PROGRESS);
+    mState = STATE_PREPARED;
+    mAsyncResult = err;
+    mCondition.broadcast();
+}
+
+status_t NuPlayerDriver::suspend() {
+    ALOGV("suspend");
+    Mutex::Autolock autoLock(mLock);
+
+    switch (mState) {
+        case STATE_SUSPENDED:
+            return OK;
+
+        case STATE_PREPARED:
+        case STATE_PAUSED:
+        case STATE_RUNNING:
+        case STATE_STOPPED:
+        case STATE_STOPPED_AND_PREPARING:
+        case STATE_STOPPED_AND_PREPARED:
+            ALOGV("suspend from state %d", mState);
+            break;
+
+        default:
+            return INVALID_OPERATION;
+    }
+
+    mState = STATE_SUSPEND_IN_PROGRESS;
+    mPlayer->suspendAsync();
+
+    while (mState == STATE_SUSPEND_IN_PROGRESS) {
+        mCondition.wait(mLock);
+    }
+
+    return mAsyncResult;
+}
+
+status_t NuPlayerDriver::resume() {
+    ALOGV("resume");
+    Mutex::Autolock autoLock(mLock);
+
+    if (mState == STATE_PREPARED) {
+        return OK;
+    }
+
+    if (mState != STATE_SUSPENDED) {
+        return INVALID_OPERATION;
+    }
+
+    mState = STATE_RESUME_IN_PROGRESS;
+    mPlayer->resumeFromSuspendedAsync();
+
+    while (mState == STATE_RESUME_IN_PROGRESS) {
+        mCondition.wait(mLock);
+    }
+
+    return mAsyncResult;
 }
 
 }  // namespace android

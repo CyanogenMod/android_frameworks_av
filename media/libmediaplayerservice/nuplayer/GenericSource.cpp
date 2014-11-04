@@ -59,7 +59,8 @@ NuPlayer::GenericSource::GenericSource(
       mMetaDataSize(-1ll),
       mBitrate(-1ll),
       mPollBufferingGeneration(0),
-      mPendingReadBufferTypes(0) {
+      mPendingReadBufferTypes(0),
+      mStartAfterSuspended(false) {
     resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
@@ -273,6 +274,47 @@ status_t NuPlayer::GenericSource::setBuffers(
     return INVALID_OPERATION;
 }
 
+status_t NuPlayer::GenericSource::suspend() {
+    ALOGV("suspend");
+    if (mCachedSource == NULL) {
+        ALOGE("suspend when mCachedSource doesn't exist");
+        return INVALID_OPERATION;
+    }
+
+    setDrmPlaybackStatusIfNeeded(Playback::STOP, 0);
+    mStarted = false;
+    if (mIsWidevine) {
+        // For a widevine source we need to prevent any further reads.
+        sp<AMessage> msg = new AMessage(kWhatStopWidevine, id());
+        sp<AMessage> response;
+        (void) msg->postAndAwaitResponse(&response);
+    }
+
+    cancelPollBuffering();
+
+    return mCachedSource->disconnectWhileSuspend();
+}
+
+status_t NuPlayer::GenericSource::resumeFromSuspended() {
+    ALOGV("resumeFromSuspended");
+    status_t err = OK;
+    if (mCachedSource == NULL) {
+        ALOGE("resumeFromSuspended when mCachedSource doesn't exist");
+        return INVALID_OPERATION;
+    } else {
+        err = mCachedSource->connectWhileResume();
+    }
+
+    if (err != OK) {
+        return err;
+    }
+
+    setDrmPlaybackStatusIfNeeded(Playback::PAUSE, getLastReadPosition() / 1000);
+    mStartAfterSuspended = true;
+    schedulePollBuffering();
+    return OK;
+}
+
 NuPlayer::GenericSource::~GenericSource() {
     if (mLooper != NULL) {
         mLooper->unregisterHandler(id());
@@ -467,6 +509,13 @@ void NuPlayer::GenericSource::start() {
     ALOGI("start");
 
     mStopRead = false;
+
+    if (mStartAfterSuspended) {
+        setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
+        mStarted = true;
+        return;
+    }
+
     if (mAudioTrack.mSource != NULL) {
         CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
 
@@ -1154,6 +1203,7 @@ status_t NuPlayer::GenericSource::doSeek(int64_t seekTimeUs) {
     if (!mStarted) {
         setDrmPlaybackStatusIfNeeded(Playback::PAUSE, 0);
     }
+    mStartAfterSuspended = false;
     return OK;
 }
 
@@ -1294,7 +1344,11 @@ void NuPlayer::GenericSource::readBuffer(
     bool seeking = false;
 
     if (seekTimeUs >= 0) {
-        options.setSeekTo(seekTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
+        if (mStartAfterSuspended) {
+            options.setSeekTo(seekTimeUs, MediaSource::ReadOptions::SEEK_NEXT_SYNC);
+        } else {
+            options.setSeekTo(seekTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
+        }
         seeking = true;
     }
 

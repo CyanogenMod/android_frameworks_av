@@ -116,7 +116,7 @@ private:
     size_t mHighwaterThresholdBytes;
     size_t mLowwaterThresholdBytes;
 
-    bool mSuspended;
+    volatile bool mSuspended;
 
     // If the keep-alive interval is 0, keep-alives are disabled.
     int64_t mKeepAliveIntervalUs;
