@@ -25,6 +25,9 @@
 #include "AudioResampler.h"
 #include "AudioResamplerSinc.h"
 #include "AudioResamplerCubic.h"
+#ifdef MTK_HARDWARE
+#include "audioresampler/AudioResamplerMtkWrapper.h"
+#endif
 
 #ifdef QTI_RESAMPLER
 #include "AudioResamplerQTI.h"
@@ -93,6 +96,9 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
 #ifdef QTI_RESAMPLER
     case QTI_QUALITY:
 #endif
+#ifdef MTK_HARDWARE
+    case MTK_QUALITY:
+#endif
         return true;
     default:
         return false;
@@ -115,6 +121,8 @@ void AudioResampler::init_routine()
             ALOGD("forcing AudioResampler quality to %d", defaultQuality);
 #ifdef QTI_RESAMPLER
             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > QTI_QUALITY) {
+#elif defined(MTK_HARDWARE)
+            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > MTK_QUALITY) {
 #else
             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > VERY_HIGH_QUALITY) {
 #endif
@@ -135,6 +143,10 @@ uint32_t AudioResampler::qualityMHz(src_quality quality)
         return 6;
     case HIGH_QUALITY:
         return 20;
+#ifdef MTK_HARDWARE
+    case MTK_QUALITY:
+        return 28;
+#endif
     case VERY_HIGH_QUALITY:
 #ifdef QTI_RESAMPLER
     case QTI_QUALITY: //for QTI_QUALITY, currently assuming same as VHQ
@@ -179,6 +191,9 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         default:
         case DEFAULT_QUALITY:
         case LOW_QUALITY:
+#ifdef MTK_HARDWARE
+        case MTK_QUALITY:
+#endif
             atFinalQuality = true;
             break;
         case MED_QUALITY:
@@ -197,6 +212,7 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
 #endif
         }
     }
+
     pthread_mutex_unlock(&mutex);
 
     AudioResampler* resampler;
@@ -224,6 +240,11 @@ AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
     case QTI_QUALITY:
         ALOGV("Create QTI_QUALITY Resampler = %d",quality);
         resampler = new AudioResamplerQTI(bitDepth, inChannelCount, sampleRate);
+        break;
+#endif
+#ifdef MTK_HARDWARE
+    case MTK_QUALITY:
+        resampler = new AudioResamplerMtkWrapper(bitDepth, inChannelCount, (int32_t)sampleRate);
         break;
 #endif
     }
