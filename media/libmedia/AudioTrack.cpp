@@ -1828,7 +1828,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     status_t result;
 
     // refresh the audio configuration cache in this process to make sure we get new
-    // output parameters in createTrack_l()
+    // output parameters and new IAudioFlinger in createTrack_l()
     AudioSystem::clearAudioConfigCache();
 
     if (isOffloadedOrDirect_l()) {

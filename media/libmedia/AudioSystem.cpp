@@ -32,6 +32,8 @@ namespace android {
 
 // client singleton for AudioFlinger binder interface
 Mutex AudioSystem::gLock;
+Mutex AudioSystem::gLockAPS;
+Mutex AudioSystem::gLockAPC;
 sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
@@ -70,9 +72,9 @@ const sp<IAudioFlinger>& AudioSystem::get_audio_flinger()
         }
         binder->linkToDeath(gAudioFlingerClient);
         gAudioFlinger = interface_cast<IAudioFlinger>(binder);
+        LOG_ALWAYS_FATAL_IF(gAudioFlinger == 0);
         gAudioFlinger->registerClient(gAudioFlingerClient);
     }
-    ALOGE_IF(gAudioFlinger==0, "no AudioFlinger!?");
 
     return gAudioFlinger;
 }
@@ -559,6 +561,7 @@ bool AudioSystem::routedToA2dpOutput(audio_stream_type_t streamType)
 
 
 // client singleton for AudioPolicyService binder interface
+// protected by gLockAPS
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
 sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient;
 
@@ -566,7 +569,7 @@ sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient
 // establish binder interface to AudioPolicy service
 const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
 {
-    gLock.lock();
+    Mutex::Autolock _l(gLockAPS);
     if (gAudioPolicyService == 0) {
         sp<IServiceManager> sm = defaultServiceManager();
         sp<IBinder> binder;
@@ -582,15 +585,10 @@ const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
         }
         binder->linkToDeath(gAudioPolicyServiceClient);
         gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
-        gLock.unlock();
-        // Registering the client takes the AudioPolicyService lock.
-        // Don't hold the AudioSystem lock at the same time.
+        LOG_ALWAYS_FATAL_IF(gAudioPolicyService == 0);
         gAudioPolicyService->registerClient(gAudioPolicyServiceClient);
-    } else {
-        // There exists a benign race condition where gAudioPolicyService
-        // is set, but gAudioPolicyServiceClient is not yet registered.
-        gLock.unlock();
     }
+
     return gAudioPolicyService;
 }
 
@@ -856,9 +854,18 @@ status_t AudioSystem::setLowRamDevice(bool isLowRamDevice)
 
 void AudioSystem::clearAudioConfigCache()
 {
-    Mutex::Autolock _l(gLock);
+    // called by restoreTrack_l(), which needs new IAudioFlinger and IAudioPolicyService instances
     ALOGV("clearAudioConfigCache()");
-    gOutputs.clear();
+    {
+        Mutex::Autolock _l(gLock);
+        gOutputs.clear();
+        gAudioFlinger.clear();
+    }
+    {
+        Mutex::Autolock _l(gLockAPS);
+        gAudioPolicyService.clear();
+    }
+    // Do not clear gAudioPortCallback
 }
 
 bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
@@ -920,7 +927,7 @@ status_t AudioSystem::setAudioPortConfig(const struct audio_port_config *config)
 
 void AudioSystem::setAudioPortCallback(sp<AudioPortCallback> callBack)
 {
-    Mutex::Autolock _l(gLock);
+    Mutex::Autolock _l(gLockAPC);
     gAudioPortCallback = callBack;
 }
 
@@ -952,18 +959,23 @@ audio_mode_t AudioSystem::getPhoneState()
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
 {
-    Mutex::Autolock _l(gLock);
-    if (gAudioPortCallback != 0) {
-        gAudioPortCallback->onServiceDied();
+    {
+        Mutex::Autolock _l(gLockAPC);
+        if (gAudioPortCallback != 0) {
+            gAudioPortCallback->onServiceDied();
+        }
     }
-    AudioSystem::gAudioPolicyService.clear();
+    {
+        Mutex::Autolock _l(gLockAPS);
+        AudioSystem::gAudioPolicyService.clear();
+    }
 
     ALOGW("AudioPolicyService server died!");
 }
 
 void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
 {
-    Mutex::Autolock _l(gLock);
+    Mutex::Autolock _l(gLockAPC);
     if (gAudioPortCallback != 0) {
         gAudioPortCallback->onAudioPortListUpdate();
     }
@@ -971,7 +983,7 @@ void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
 
 void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
 {
-    Mutex::Autolock _l(gLock);
+    Mutex::Autolock _l(gLockAPC);
     if (gAudioPortCallback != 0) {
         gAudioPortCallback->onAudioPatchListUpdate();
     }
