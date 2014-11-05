@@ -133,10 +133,11 @@ public:
      *
      * Returned value
      *   *descriptor updated with descriptors of pre processings enabled by default
-     *   *count      number of descriptors returned if returned status is N_ERROR.
+     *   *count      number of descriptors returned if returned status is NO_ERROR.
      *               total number of pre processing enabled by default if returned status is
      *               NO_MEMORY. This happens if the count passed as input is less than the number
-     *               of descriptors to return
+     *               of descriptors to return.
+     *               *count is limited to kMaxPreProcessing on return.
      */
     static status_t queryDefaultPreProcessing(int audioSession,
                                               effect_descriptor_t *descriptors,
@@ -390,6 +391,10 @@ public:
       * string passed as second argument
       */
      static status_t guidToString(const effect_uuid_t *guid, char *str, size_t maxLen);
+
+     // kMaxPreProcessing is a reasonable value for the maximum number of preprocessing effects
+     // that can be applied simultaneously.
+     static const uint32_t kMaxPreProcessing = 10;
 
 protected:
      bool                    mEnabled;           // enable state
