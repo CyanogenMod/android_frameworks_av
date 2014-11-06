@@ -4663,8 +4663,15 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 "OMX.qcom.audio.encoder.aac",  // OMX.qcom.audio.encoder.aac
                 0,     // flags
                 &matchingCodecs);
-    }
-    else
+    } else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_FLAC) && !encoder) {
+        //use google's raw decoder
+        OMXCodec::findMatchingCodecs(
+                MEDIA_MIMETYPE_AUDIO_RAW,
+                encoder, //createEncoder
+                "OMX.google.raw.decoder",
+                0, //flags
+                &matchingCodecs);
+    } else
         OMXCodec::findMatchingCodecs(
                 mime.c_str(),
                 encoder, // createEncoder
