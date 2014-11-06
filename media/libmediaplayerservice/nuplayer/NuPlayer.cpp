@@ -33,6 +33,8 @@
 
 #include "ATSParser.h"
 
+#include <cutils/properties.h>
+
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -1201,6 +1203,17 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         notify->setInt32("generation", mVideoDecoderGeneration);
 
         *decoder = new Decoder(notify, mSource, mRenderer, mNativeWindow);
+
+        // enable FRC if high-quality AV sync is requested, even if not
+        // queuing to native window, as this will even improve textureview
+        // playback.
+        {
+            char value[PROPERTY_VALUE_MAX];
+            if (property_get("persist.sys.media.avsync", value, NULL) &&
+                    (!strcmp("1", value) || !strcasecmp("true", value))) {
+                format->setInt32("auto-frc", 1);
+            }
+        }
     }
     (*decoder)->init();
     (*decoder)->configure(format);
