@@ -940,16 +940,6 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int3
     return mIsQCHWAACEncoder;
 }
 
-bool ExtendedUtils::UseQCHWAACDecoder(const char *mime) {
-    if (!strncmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
-        char value[PROPERTY_VALUE_MAX] = {0};
-        if (property_get("media.aaccodectype", value, 0) && (atoi(value) == 1)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 
 //- returns NULL if we dont really need a new extractor (or cannot),
 //  valid extractor is returned otherwise
@@ -1754,11 +1744,6 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,
     ARG_TOUCH(Channel);
     ARG_TOUCH(BitRate);
     ARG_TOUCH(SampleRate);
-    return false;
-}
-
-bool ExtendedUtils::UseQCHWAACDecoder(const char *mime) {
-    ARG_TOUCH(mime);
     return false;
 }
 
