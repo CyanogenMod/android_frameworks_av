@@ -12,6 +12,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2014 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 #include <inttypes.h>
@@ -37,11 +56,17 @@
 #include <media/stagefright/ExtendedCodec.h>
 
 #include "include/AwesomePlayer.h"
-
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include "QCMetaData.h"
 #include "QCMediaDefs.h"
 #endif
+
+#ifdef DOLBY_UDC
+#include <media/IAudioFlinger.h>
+#include <utils/String8.h>
+#include <hardware/audio.h>
+#include "ds_config.h"
+#endif // DOLBY_END
 
 namespace android {
 
@@ -73,6 +98,9 @@ AudioPlayer::AudioPlayer(
       mPlaying(false),
       mStartPosUs(0),
       mCreateFlags(flags),
+#ifdef DOLBY_UDC
+      mDolbyProcessedAudio(false),
+#endif //DOLBY_END
       mPauseRequired(false) {
 }
 
@@ -294,6 +322,9 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     mStarted = true;
     mPlaying = true;
+#ifdef DOLBY_UDC
+    updateDolbyProcessedAudioState();
+#endif // DOLBY_END
     mPinnedTimeUs = -1ll;
     const char *componentName;
     if (!(format->findCString(kKeyDecoderComponent, &componentName))) {
@@ -302,6 +333,26 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     mPauseRequired = ExtendedCodec::isSourcePauseRequired(componentName);
     return OK;
 }
+#ifdef DOLBY_UDC
+void AudioPlayer::updateDolbyProcessedAudioState() {
+    ALOGD("%s(processed=%d, playing=%d)", __FUNCTION__, mDolbyProcessedAudio, mPlaying);
+    int value = mDolbyProcessedAudio && mPlaying;
+    String8 params = String8::format("%s=%d", DOLBY_PARAM_PROCESSED_AUDIO, value);
+    if (mAudioSink.get() != NULL) {
+        mAudioSink->setParameters(params);
+    } else {
+        mAudioTrack->setParameters(params);
+    }
+}
+
+void AudioPlayer::setDolbyProcessedAudioState(bool processed) {
+    ALOGD("%s(processed=%d)", __FUNCTION__, processed);
+    if(processed != mDolbyProcessedAudio) {
+        mDolbyProcessedAudio = processed;
+        updateDolbyProcessedAudioState();
+    }
+}
+#endif // DOLBY_END
 
 void AudioPlayer::pause(bool playPendingSamples) {
     CHECK(mStarted);
@@ -332,6 +383,9 @@ void AudioPlayer::pause(bool playPendingSamples) {
         }
     }
     ALOGD("Pause Playback at %lld",getMediaTimeUs());
+#ifdef DOLBY_UDC
+    updateDolbyProcessedAudioState();
+#endif // DOLBY_END
 }
 
 status_t AudioPlayer::resume() {
@@ -352,6 +406,9 @@ status_t AudioPlayer::resume() {
 
     if (err == OK) {
         mPlaying = true;
+#ifdef DOLBY_UDC
+        updateDolbyProcessedAudioState();
+#endif // DOLBY_END
     }
 
     return err;
@@ -362,6 +419,9 @@ void AudioPlayer::reset() {
 
     ALOGD("reset: mPlaying=%d mReachedEOS=%d useOffload=%d",
                                 mPlaying, mReachedEOS, useOffload() );
+#ifdef DOLBY_UDC
+    setDolbyProcessedAudioState(false);
+#endif // DOLBY_END
 
     if (mAudioSink.get() != NULL) {
         mAudioSink->stop();
@@ -606,6 +666,12 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                     return 0;
                 }
             }
+#ifdef DOLBY_UDC
+            if (err == INFO_DOLBY_PROCESSED_AUDIO_START || err == INFO_DOLBY_PROCESSED_AUDIO_STOP) {
+                setDolbyProcessedAudioState(err == INFO_DOLBY_PROCESSED_AUDIO_START);
+                err = OK;
+            }
+#endif // DOLBY_END
 
             CHECK((err == OK && mInputBuffer != NULL)
                    || (err != OK && mInputBuffer == NULL));
@@ -766,6 +832,10 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
 
         if (mReachedEOS) {
             mPinnedTimeUs = mNumFramesPlayedSysTimeUs;
+#ifdef DOLBY_UDC
+            // ReachedEOS, send processed audio == false to AF.
+            setDolbyProcessedAudioState(false);
+#endif // DOLBY_END
         } else {
             mPinnedTimeUs = -1ll;
         }
