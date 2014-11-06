@@ -80,7 +80,7 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
             mFinalResult = ERROR_END_OF_STREAM;
             break;
         } else if (n == INFO_DISCONTINUITY) {
-            int32_t type = ATSParser::DISCONTINUITY_SEEK;
+            int32_t type = ATSParser::DISCONTINUITY_TIME;
 
             int32_t mask;
             if (extra != NULL
@@ -118,7 +118,7 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
 
                 mTSParser->signalDiscontinuity(
                         ((type & 1) == 0)
-                            ? ATSParser::DISCONTINUITY_SEEK
+                            ? ATSParser::DISCONTINUITY_TIME
                             : ATSParser::DISCONTINUITY_FORMATCHANGE,
                         extra);
             } else {
