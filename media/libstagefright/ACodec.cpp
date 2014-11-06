@@ -1268,6 +1268,24 @@ status_t ACodec::configureCodec(
                 static_cast<NativeWindowWrapper *>(obj.get()));
         sp<ANativeWindow> nativeWindow = windowWrapper->getNativeWindow();
 
+        // START of temporary support for automatic FRC - THIS WILL BE REMOVED
+        int32_t autoFrc;
+        if (msg->findInt32("auto-frc", &autoFrc)) {
+            bool enabled = autoFrc;
+            OMX_CONFIG_BOOLEANTYPE config;
+            InitOMXParams(&config);
+            config.bEnabled = (OMX_BOOL)enabled;
+            status_t temp = mOMX->setConfig(
+                    mNode, (OMX_INDEXTYPE)OMX_IndexConfigAutoFramerateConversion,
+                    &config, sizeof(config));
+            if (temp == OK) {
+                outputFormat->setInt32("auto-frc", enabled);
+            } else if (enabled) {
+                ALOGI("codec does not support requested auto-frc (err %d)", temp);
+            }
+        }
+        // END of temporary support for automatic FRC
+
         int32_t tunneled;
         if (msg->findInt32("feature-tunneled-playback", &tunneled) &&
             tunneled != 0) {
