@@ -1011,6 +1011,16 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mFlags |= kFlagOutputFormatChanged;
                         postActivityNotificationIfPossible();
                     }
+
+                    // Notify mCrypto of video resolution changes
+                    if (mCrypto != NULL) {
+                      int32_t height, width;
+                      if (mOutputFormat->findInt32("height", &height) &&
+                          mOutputFormat->findInt32("width", &width)) {
+                        mCrypto->notifyResolution(width, height);
+                      }
+                    }
+
                     break;
                 }
 
