@@ -705,8 +705,8 @@ status_t BnAudioPolicyService::onTransact(
 
         case GET_OUTPUT_FOR_ATTR: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            audio_attributes_t *attr = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
-            data.read(attr, sizeof(audio_attributes_t));
+            audio_attributes_t attr;
+            data.read(&attr, sizeof(audio_attributes_t));
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
@@ -717,7 +717,7 @@ status_t BnAudioPolicyService::onTransact(
             if (hasOffloadInfo) {
                 data.read(&offloadInfo, sizeof(audio_offload_info_t));
             }
-            audio_io_handle_t output = getOutputForAttr(attr,
+            audio_io_handle_t output = getOutputForAttr(&attr,
                     samplingRate,
                     format,
                     channelMask,
