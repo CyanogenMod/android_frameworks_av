@@ -78,8 +78,10 @@ struct Drm : public BnDrm,
     virtual status_t unprovisionDevice();
 
     virtual status_t getSecureStops(List<Vector<uint8_t> > &secureStops);
+    virtual status_t getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop);
 
     virtual status_t releaseSecureStops(Vector<uint8_t> const &ssRelease);
+    virtual status_t releaseAllSecureStops();
 
     virtual status_t getPropertyString(String8 const &name, String8 &value ) const;
     virtual status_t getPropertyByteArray(String8 const &name,
