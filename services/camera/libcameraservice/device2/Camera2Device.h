@@ -47,38 +47,48 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t disconnect();
     virtual status_t dump(int fd, const Vector<String16>& args);
     virtual const CameraMetadata& info() const;
-    virtual status_t capture(CameraMetadata &request);
-    virtual status_t setStreamingRequest(const CameraMetadata &request);
-    virtual status_t clearStreamingRequest();
+    virtual status_t capture(CameraMetadata &request, int64_t *lastFrameNumber = NULL);
+    virtual status_t captureList(const List<const CameraMetadata> &requests,
+                                 int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequest(const CameraMetadata &request,
+                                         int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                             int64_t *lastFrameNumber = NULL);
+    virtual status_t clearStreamingRequest(int64_t *lastFrameNumber = NULL);
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
     virtual status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format, size_t size,
-            int *id);
+            uint32_t width, uint32_t height, int format, int *id);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
     virtual status_t getStreamInfo(int id,
             uint32_t *width, uint32_t *height, uint32_t *format);
     virtual status_t setStreamTransform(int id, int transform);
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);
+    // No-op on HAL2 devices
+    virtual status_t configureStreams();
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
     virtual status_t waitUntilDrained();
     virtual status_t setNotifyCallback(NotificationListener *listener);
     virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
-    virtual status_t getNextFrame(CameraMetadata *frame);
+    virtual status_t getNextResult(CaptureResult *frame);
     virtual status_t triggerAutofocus(uint32_t id);
     virtual status_t triggerCancelAutofocus(uint32_t id);
     virtual status_t triggerPrecaptureMetering(uint32_t id);
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
     // Flush implemented as just a wait
-    virtual status_t flush();
+    virtual status_t flush(int64_t *lastFrameNumber = NULL);
+    virtual uint32_t getDeviceVersion();
+    virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
+
   private:
     const int mId;
     camera2_device_t *mHal2Device;
 
     CameraMetadata mDeviceInfo;
-    vendor_tag_query_ops_t *mVendorTagOps;
+
+    uint32_t mDeviceVersion;
 
     /**
      * Queue class for both sending requests to a camera2 device, and for

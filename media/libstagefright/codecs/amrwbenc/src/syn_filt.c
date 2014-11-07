@@ -26,6 +26,8 @@
 #include "math_op.h"
 #include "cnst.h"
 
+#define UNUSED(x) (void)(x)
+
 void Syn_filt(
 		Word16 a[],                           /* (i) Q12 : a[m+1] prediction coefficients           */
 		Word16 x[],                           /* (i)     : input signal                             */
@@ -95,6 +97,8 @@ void Syn_filt_32(
 	Word32 i,a0;
 	Word32 L_tmp, L_tmp1;
 	Word16 *p1, *p2, *p3;
+        UNUSED(m);
+
 	a0 = a[0] >> (4 + Qnew);          /* input / 16 and >>Qnew */
 	/* Do the filtering. */
 	for (i = 0; i < lg; i++)

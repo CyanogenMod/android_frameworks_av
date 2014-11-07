@@ -26,6 +26,7 @@
 #include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryDealer.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -242,7 +243,8 @@ private:
 };
 
 static sp<MediaExtractor> CreateExtractorFromURI(const char *uri) {
-    sp<DataSource> source = DataSource::CreateFromURI(uri);
+    sp<DataSource> source =
+        DataSource::CreateFromURI(NULL /* httpService */, uri);
 
     if (source == NULL) {
         return NULL;
@@ -461,6 +463,7 @@ static const char *GetMimeFromComponentRole(const char *componentRole) {
         { "audio_decoder.aac", "audio/mp4a-latm" },
         { "audio_decoder.mp3", "audio/mpeg" },
         { "audio_decoder.vorbis", "audio/vorbis" },
+        { "audio_decoder.opus", "audio/opus" },
         { "audio_decoder.g711alaw", MEDIA_MIMETYPE_AUDIO_G711_ALAW },
         { "audio_decoder.g711mlaw", MEDIA_MIMETYPE_AUDIO_G711_MLAW },
     };
@@ -493,6 +496,7 @@ static const char *GetURLForMime(const char *mime) {
         { "audio/mpeg",
           "file:///sdcard/media_api/music/MP3_48KHz_128kbps_s_1_17_CBR.mp3" },
         { "audio/vorbis", NULL },
+        { "audio/opus", NULL },
         { "video/x-vnd.on2.vp8",
           "file:///sdcard/media_api/video/big-buck-bunny_trailer.webm" },
         { MEDIA_MIMETYPE_AUDIO_G711_ALAW, "file:///sdcard/M1F1-Alaw-AFsp.wav" },

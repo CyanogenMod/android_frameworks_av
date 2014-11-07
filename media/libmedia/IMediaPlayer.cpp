@@ -21,6 +21,7 @@
 
 #include <binder/Parcel.h>
 
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayer.h>
 #include <media/IStreamSource.h>
 
@@ -75,11 +76,17 @@ public:
         remote()->transact(DISCONNECT, data, &reply);
     }
 
-    status_t setDataSource(const char* url,
+    status_t setDataSource(
+            const sp<IMediaHTTPService> &httpService,
+            const char* url,
             const KeyedVector<String8, String8>* headers)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
+        data.writeInt32(httpService != NULL);
+        if (httpService != NULL) {
+            data.writeStrongBinder(httpService->asBinder());
+        }
         data.writeCString(url);
         if (headers == NULL) {
             data.writeInt32(0);
@@ -355,6 +362,13 @@ status_t BnMediaPlayer::onTransact(
         } break;
         case SET_DATA_SOURCE_URL: {
             CHECK_INTERFACE(IMediaPlayer, data, reply);
+
+            sp<IMediaHTTPService> httpService;
+            if (data.readInt32()) {
+                httpService =
+                    interface_cast<IMediaHTTPService>(data.readStrongBinder());
+            }
+
             const char* url = data.readCString();
             KeyedVector<String8, String8> headers;
             int32_t numHeaders = data.readInt32();
@@ -363,7 +377,8 @@ status_t BnMediaPlayer::onTransact(
                 String8 value = data.readString8();
                 headers.add(key, value);
             }
-            reply->writeInt32(setDataSource(url, numHeaders > 0 ? &headers : NULL));
+            reply->writeInt32(setDataSource(
+                        httpService, url, numHeaders > 0 ? &headers : NULL));
             return NO_ERROR;
         } break;
         case SET_DATA_SOURCE_FD: {

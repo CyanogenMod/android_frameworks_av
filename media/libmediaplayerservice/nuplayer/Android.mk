@@ -6,18 +6,20 @@ LOCAL_SRC_FILES:=                       \
         HTTPLiveSource.cpp              \
         NuPlayer.cpp                    \
         NuPlayerDecoder.cpp             \
+        NuPlayerDecoderPassThrough.cpp  \
         NuPlayerDriver.cpp              \
         NuPlayerRenderer.cpp            \
         NuPlayerStreamListener.cpp      \
         RTSPSource.cpp                  \
         StreamingSource.cpp             \
-        mp4/MP4Source.cpp               \
 
 LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libstagefright/httplive            \
 	$(TOP)/frameworks/av/media/libstagefright/include             \
 	$(TOP)/frameworks/av/media/libstagefright/mpeg2ts             \
 	$(TOP)/frameworks/av/media/libstagefright/rtsp                \
+	$(TOP)/frameworks/av/media/libstagefright/timedtext           \
+	$(TOP)/frameworks/av/media/libmediaplayerservice              \
 	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_MODULE:= libstagefright_nuplayer

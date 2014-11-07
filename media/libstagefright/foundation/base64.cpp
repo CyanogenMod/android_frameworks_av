@@ -33,6 +33,10 @@ sp<ABuffer> decodeBase64(const AString &s) {
 
         if (n >= 2 && s.c_str()[n - 2] == '=') {
             padding = 2;
+
+            if (n >= 3 && s.c_str()[n - 3] == '=') {
+                padding = 3;
+            }
         }
     }
 
@@ -71,7 +75,7 @@ sp<ABuffer> decodeBase64(const AString &s) {
         if (((i + 1) % 4) == 0) {
             out[j++] = (accum >> 16);
 
-            if (j < outLen) { out[j++] = (accum >> 8) & 0xff; } 
+            if (j < outLen) { out[j++] = (accum >> 8) & 0xff; }
             if (j < outLen) { out[j++] = accum & 0xff; }
 
             accum = 0;

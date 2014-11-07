@@ -48,6 +48,7 @@ ZslProcessor::ZslProcessor(
         mDevice(client->getCameraDevice()),
         mSequencer(sequencer),
         mId(client->getCameraId()),
+        mDeleted(false),
         mZslBufferAvailable(false),
         mZslStreamId(NO_STREAM),
         mZslReprocessStreamId(NO_STREAM),
@@ -62,7 +63,7 @@ ZslProcessor::ZslProcessor(
 
 ZslProcessor::~ZslProcessor() {
     ALOGV("%s: Exit", __FUNCTION__);
-    deleteStream();
+    disconnect();
 }
 
 void ZslProcessor::onFrameAvailable() {
@@ -73,18 +74,19 @@ void ZslProcessor::onFrameAvailable() {
     }
 }
 
-void ZslProcessor::onFrameAvailable(int32_t /*requestId*/,
-        const CameraMetadata &frame) {
+void ZslProcessor::onResultAvailable(const CaptureResult &result) {
+    ATRACE_CALL();
+    ALOGV("%s:", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
     camera_metadata_ro_entry_t entry;
-    entry = frame.find(ANDROID_SENSOR_TIMESTAMP);
+    entry = result.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
     nsecs_t timestamp = entry.data.i64[0];
     (void)timestamp;
     ALOGVV("Got preview frame for timestamp %" PRId64, timestamp);
 
     if (mState != RUNNING) return;
 
-    mFrameList.editItemAt(mFrameListHead) = frame;
+    mFrameList.editItemAt(mFrameListHead) = result.mMetadata;
     mFrameListHead = (mFrameListHead + 1) % kFrameListDepth;
 
     findMatchesLocked();
@@ -130,13 +132,15 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
 
     if (mZslConsumer == 0) {
         // Create CPU buffer queue endpoint
-        sp<BufferQueue> bq = new BufferQueue();
-        mZslConsumer = new BufferItemConsumer(bq,
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
+        mZslConsumer = new BufferItemConsumer(consumer,
             GRALLOC_USAGE_HW_CAMERA_ZSL,
             kZslBufferDepth);
         mZslConsumer->setFrameAvailableListener(this);
         mZslConsumer->setName(String8("Camera2Client::ZslConsumer"));
-        mZslWindow = new Surface(bq);
+        mZslWindow = new Surface(producer);
     }
 
     if (mZslStreamId != NO_STREAM) {
@@ -172,6 +176,8 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
         }
     }
 
+    mDeleted = false;
+
     if (mZslStreamId == NO_STREAM) {
         // Create stream for HAL production
         // TODO: Sort out better way to select resolution for ZSL
@@ -180,8 +186,7 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                 (int)HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
         res = device->createStream(mZslWindow,
                 params.fastInfo.arrayWidth, params.fastInfo.arrayHeight,
-                streamType, 0,
-                &mZslStreamId);
+                streamType, &mZslStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for ZSL: "
                     "%s (%d)", __FUNCTION__, mId,
@@ -199,12 +204,21 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
     }
     client->registerFrameListener(Camera2Client::kPreviewRequestIdStart,
             Camera2Client::kPreviewRequestIdEnd,
-            this);
+            this,
+            /*sendPartials*/false);
 
     return OK;
 }
 
 status_t ZslProcessor::deleteStream() {
+    ATRACE_CALL();
+    Mutex::Autolock l(mInputMutex);
+    // WAR(b/15408128): do not delete stream unless client is being disconnected.
+    mDeleted = true;
+    return OK;
+}
+
+status_t ZslProcessor::disconnect() {
     ATRACE_CALL();
     status_t res;
 

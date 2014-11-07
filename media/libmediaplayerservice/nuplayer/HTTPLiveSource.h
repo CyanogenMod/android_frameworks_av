@@ -28,10 +28,9 @@ struct LiveSession;
 struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
     HTTPLiveSource(
             const sp<AMessage> &notify,
+            const sp<IMediaHTTPService> &httpService,
             const char *url,
-            const KeyedVector<String8, String8> *headers,
-            bool uidValid = false,
-            uid_t uid = 0);
+            const KeyedVector<String8, String8> *headers);
 
     virtual void prepareAsync();
     virtual void start();
@@ -41,7 +40,8 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
 
     virtual status_t feedMoreTSData();
     virtual status_t getDuration(int64_t *durationUs);
-    virtual status_t getTrackInfo(Parcel *reply) const;
+    virtual size_t getTrackCount() const;
+    virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
     virtual status_t selectTrack(size_t trackIndex, bool select);
     virtual status_t seekTo(int64_t seekTimeUs);
 
@@ -61,10 +61,9 @@ private:
         kWhatFetchSubtitleData,
     };
 
+    sp<IMediaHTTPService> mHTTPService;
     AString mURL;
     KeyedVector<String8, String8> mExtraHeaders;
-    bool mUIDValid;
-    uid_t mUID;
     uint32_t mFlags;
     status_t mFinalResult;
     off64_t mOffset;

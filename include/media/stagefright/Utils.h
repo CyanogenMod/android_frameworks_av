@@ -53,12 +53,17 @@ AString MakeUserAgent();
 // Convert a MIME type to a AudioSystem::audio_format
 status_t mapMimeToAudioFormat(audio_format_t& format, const char* mime);
 
+// Convert a aac profile to a AudioSystem::audio_format
+void mapAACProfileToAudioFormat(audio_format_t& format, uint64_t eAacProfile);
+
 // Send information from MetaData to the HAL via AudioSink
 status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink, const sp<MetaData>& meta);
 
 // Check whether the stream defined by meta can be offloaded to hardware
 bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
                       bool isStreaming, audio_stream_type_t streamType);
+
+AString uriDebugString(const AString &uri, bool incognito = false);
 
 }  // namespace android
 

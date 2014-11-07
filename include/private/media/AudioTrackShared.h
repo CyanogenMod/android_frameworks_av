@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <audio_utils/minifloat.h>
 #include <utils/threads.h>
 #include <utils/Log.h>
 #include <utils/RefBase.h>
@@ -48,7 +49,7 @@ namespace android {
 #define CBLK_STREAM_END_DONE 0x400 // set by server on render completion, cleared by client
 
 //EL_FIXME 20 seconds may not be enough and must be reconciled with new obtainBuffer implementation
-#define MAX_RUN_OFFLOADED_TIMEOUT_MS 20000 //assuming upto a maximum of 20 seconds of offloaded
+#define MAX_RUN_OFFLOADED_TIMEOUT_MS 20000 // assuming up to a maximum of 20 seconds of offloaded
 
 struct AudioTrackSharedStreaming {
     // similar to NBAIO MonoPipe
@@ -98,11 +99,7 @@ struct audio_track_cblk_t
                                         // The value should be used "for entertainment purposes only",
                                         // which means don't make important decisions based on it.
 
-                size_t      frameCount_;    // used during creation to pass actual track buffer size
-                                            // from AudioFlinger to client, and not referenced again
-                                            // FIXME remove here and replace by createTrack() in/out
-                                            // parameter
-                                            // renamed to "_" to detect incorrect use
+                uint32_t    mPad1;      // unused
 
     volatile    int32_t     mFutex;     // event flag: down (P) by client,
                                         // up (V) by server or binderDied() or interrupt()
@@ -114,11 +111,8 @@ private:
                 // force to 32-bit.  The client and server may have different typedefs for size_t.
                 uint32_t    mMinimum;       // server wakes up client if available >= mMinimum
 
-                // Channel volumes are fixed point U4.12, so 0x1000 means 1.0.
-                // Left channel is in [0:15], right channel is in [16:31].
-                // Always read and write the combined pair atomically.
-                // For AudioTrack only, not used by AudioRecord.
-                uint32_t    mVolumeLR;
+                // Stereo gains for AudioTrack only, not used by AudioRecord.
+                gain_minifloat_packed_t mVolumeLR;
 
                 uint32_t    mSampleRate;    // AudioTrack only: client's requested sample rate in Hz
                                             // or 0 == default. Write-only client, read-only server.
@@ -181,12 +175,11 @@ protected:
 
 // Proxy seen by AudioTrack client and AudioRecord client
 class ClientProxy : public Proxy {
-protected:
+public:
     ClientProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t frameSize,
             bool isOut, bool clientInServer);
     virtual ~ClientProxy() { }
 
-public:
     static const struct timespec kForever;
     static const struct timespec kNonBlocking;
 
@@ -289,8 +282,8 @@ public:
         mCblk->mSendLevel = uint16_t(sendLevel * 0x1000);
     }
 
-    // caller must limit to 0 <= volumeLR <= 0x10001000
-    void        setVolumeLR(uint32_t volumeLR) {
+    // set stereo gains
+    void        setVolumeLR(gain_minifloat_packed_t volumeLR) {
         mCblk->mVolumeLR = volumeLR;
     }
 
@@ -400,8 +393,10 @@ protected:
 class AudioTrackServerProxy : public ServerProxy {
 public:
     AudioTrackServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
-            size_t frameSize, bool clientInServer = false)
-        : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer) { }
+            size_t frameSize, bool clientInServer = false, uint32_t sampleRate = 0)
+        : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer) {
+        mCblk->mSampleRate = sampleRate;
+    }
 protected:
     virtual ~AudioTrackServerProxy() { }
 
@@ -409,7 +404,7 @@ public:
     // return value of these methods must be validated by the caller
     uint32_t    getSampleRate() const { return mCblk->mSampleRate; }
     uint16_t    getSendLevel_U4_12() const { return mCblk->mSendLevel; }
-    uint32_t    getVolumeLR() const { return mCblk->mVolumeLR; }
+    gain_minifloat_packed_t getVolumeLR() const { return mCblk->mVolumeLR; }
 
     // estimated total number of filled frames available to server to read,
     // which may include non-contiguous frames
@@ -464,9 +459,8 @@ private:
 class AudioRecordServerProxy : public ServerProxy {
 public:
     AudioRecordServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
-            size_t frameSize)
-        : ServerProxy(cblk, buffers, frameCount, frameSize, false /*isOut*/,
-            false /*clientInServer*/) { }
+            size_t frameSize, bool clientInServer)
+        : ServerProxy(cblk, buffers, frameCount, frameSize, false /*isOut*/, clientInServer) { }
 protected:
     virtual ~AudioRecordServerProxy() { }
 };

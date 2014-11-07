@@ -22,14 +22,14 @@
 #include <utils/Vector.h>
 
 #include "avcenc_api.h"
-#include "SimpleSoftOMXComponent.h"
+#include "SoftVideoEncoderOMXComponent.h"
 
 namespace android {
 
 struct MediaBuffer;
 
 struct SoftAVCEncoder : public MediaBufferObserver,
-                        public SimpleSoftOMXComponent {
+                        public SoftVideoEncoderOMXComponent {
     SoftAVCEncoder(
             const char *name,
             const OMX_CALLBACKTYPE *callbacks,
@@ -44,11 +44,6 @@ struct SoftAVCEncoder : public MediaBufferObserver,
             OMX_INDEXTYPE index, const OMX_PTR params);
 
     virtual void onQueueFilled(OMX_U32 portIndex);
-
-    // Override SoftOMXComponent methods
-
-    virtual OMX_ERRORTYPE getExtensionIndex(
-            const char *name, OMX_INDEXTYPE *index);
 
     // Implement MediaBufferObserver
     virtual void signalBufferReturned(MediaBuffer *buffer);
@@ -65,10 +60,6 @@ protected:
 private:
     enum {
         kNumBuffers = 2,
-    };
-
-    enum {
-        kStoreMetaDataExtensionIndex = OMX_IndexVendorStartUnused + 1
     };
 
     // OMX input buffer's timestamp and flags
@@ -108,9 +99,6 @@ private:
     OMX_ERRORTYPE initEncoder();
     OMX_ERRORTYPE releaseEncoder();
     void releaseOutputBuffers();
-
-    uint8_t* extractGrallocData(void *data, buffer_handle_t *buffer);
-    void releaseGrallocData(buffer_handle_t buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftAVCEncoder);
 };

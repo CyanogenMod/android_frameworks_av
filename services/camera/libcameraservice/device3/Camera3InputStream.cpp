@@ -81,7 +81,7 @@ status_t Camera3InputStream::getInputBufferLocked(
      * in which case we reassign it to acquire_fence
      */
     handoutBufferLocked(*buffer, &(anb->handle), /*acquireFence*/fenceFd,
-                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK);
+                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK, /*output*/false);
     mBuffersInFlight.push_back(bufferItem);
 
     return OK;
@@ -199,14 +199,36 @@ status_t Camera3InputStream::configureQueueLocked() {
     assert(mMaxSize == 0);
     assert(camera3_stream::format != HAL_PIXEL_FORMAT_BLOB);
 
-    mTotalBufferCount = BufferQueue::MIN_UNDEQUEUED_BUFFERS +
-                        camera3_stream::max_buffers;
-    mDequeuedBufferCount = 0;
+    mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
 
     if (mConsumer.get() == 0) {
-        sp<BufferQueue> bq = new BufferQueue();
-        mConsumer = new BufferItemConsumer(bq, camera3_stream::usage,
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
+
+        int minUndequeuedBuffers = 0;
+        res = producer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers);
+        if (res != OK || minUndequeuedBuffers < 0) {
+            ALOGE("%s: Stream %d: Could not query min undequeued buffers (error %d, bufCount %d)",
+                  __FUNCTION__, mId, res, minUndequeuedBuffers);
+            return res;
+        }
+        size_t minBufs = static_cast<size_t>(minUndequeuedBuffers);
+        /*
+         * We promise never to 'acquire' more than camera3_stream::max_buffers
+         * at any one time.
+         *
+         * Boost the number up to meet the minimum required buffer count.
+         *
+         * (Note that this sets consumer-side buffer count only,
+         * and not the sum of producer+consumer side as in other camera streams).
+         */
+        mTotalBufferCount = camera3_stream::max_buffers > minBufs ?
+            camera3_stream::max_buffers : minBufs;
+        // TODO: somehow set the total buffer count when producer connects?
+
+        mConsumer = new BufferItemConsumer(consumer, camera3_stream::usage,
                                            mTotalBufferCount);
         mConsumer->setName(String8::format("Camera3-InputStream-%d", mId));
     }

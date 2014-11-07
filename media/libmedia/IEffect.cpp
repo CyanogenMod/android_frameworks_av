@@ -117,6 +117,9 @@ public:
         status_t status = remote()->transact(GET_CBLK, data, &reply);
         if (status == NO_ERROR) {
             cblk = interface_cast<IMemory>(reply.readStrongBinder());
+            if (cblk != 0 && cblk->pointer() == NULL) {
+                cblk.clear();
+            }
         }
         return cblk;
     }

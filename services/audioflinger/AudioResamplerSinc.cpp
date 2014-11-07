@@ -27,6 +27,7 @@
 #include <cutils/properties.h>
 
 #include <utils/Log.h>
+#include <audio_utils/primitives.h>
 
 #include "AudioResamplerSinc.h"
 
@@ -455,9 +456,9 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 
 // ----------------------------------------------------------------------------
 
-AudioResamplerSinc::AudioResamplerSinc(int bitDepth,
+AudioResamplerSinc::AudioResamplerSinc(
         int inChannelCount, int32_t sampleRate, src_quality quality)
-    : AudioResampler(bitDepth, inChannelCount, sampleRate, quality),
+    : AudioResampler(inChannelCount, sampleRate, quality),
     mState(0), mImpulse(0), mRingFull(0), mFirCoefs(0)
 {
     /*
@@ -503,10 +504,12 @@ void AudioResamplerSinc::init() {
     mRingFull = mImpulse + (numCoefs+1)*mChannelCount;
 }
 
-void AudioResamplerSinc::setVolume(int16_t left, int16_t right) {
+void AudioResamplerSinc::setVolume(float left, float right) {
     AudioResampler::setVolume(left, right);
-    mVolumeSIMD[0] = int32_t(left)<<16;
-    mVolumeSIMD[1] = int32_t(right)<<16;
+    // convert to U4_28 (rounding down).
+    // integer volume values are clamped to 0 to UNITY_GAIN.
+    mVolumeSIMD[0] = u4_28_from_float(clampFloatVol(left));
+    mVolumeSIMD[1] = u4_28_from_float(clampFloatVol(right));
 }
 
 void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
@@ -546,7 +549,7 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
     uint32_t phaseIncrement = mPhaseIncrement;
     size_t outputIndex = 0;
     size_t outputSampleCount = outFrameCount * 2;
-    size_t inFrameCount = (outFrameCount*mInSampleRate)/mSampleRate;
+    size_t inFrameCount = getInFrameCountRequired(outFrameCount);
 
     while (outputIndex < outputSampleCount) {
         // buffer is empty, fetch a new one

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioPlayer"
 #include <utils/Log.h>
@@ -21,6 +23,7 @@
 
 #include <binder/IPCThreadState.h>
 #include <media/AudioTrack.h>
+#include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/AudioPlayer.h>
@@ -139,6 +142,12 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         } else {
             ALOGV("Mime type \"%s\" mapped to audio_format 0x%x", mime, audioFormat);
         }
+
+        int32_t aacaot = -1;
+        if ((audioFormat == AUDIO_FORMAT_AAC) && format->findInt32(kKeyAACAOT, &aacaot)) {
+            // Redefine AAC format corrosponding to aac profile
+            mapAACProfileToAudioFormat(audioFormat,(OMX_AUDIO_AACPROFILETYPE) aacaot);
+        }
     }
 
     int avgBitRate = -1;
@@ -221,7 +230,8 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
         mAudioTrack = new AudioTrack(
                 AUDIO_STREAM_MUSIC, mSampleRate, AUDIO_FORMAT_PCM_16_BIT, audioMask,
-                0, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this, 0);
+                0 /*frameCount*/, AUDIO_OUTPUT_FLAG_NONE, &AudioCallback, this,
+                0 /*notificationFrames*/);
 
         if ((err = mAudioTrack->initCheck()) != OK) {
             mAudioTrack.clear();
@@ -565,12 +575,12 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                             int64_t timeToCompletionUs =
                                 (1000000ll * numFramesPendingPlayout) / mSampleRate;
 
-                            ALOGV("total number of frames played: %lld (%lld us)",
+                            ALOGV("total number of frames played: %" PRId64 " (%lld us)",
                                     (mNumFramesPlayed + numAdditionalFrames),
                                     1000000ll * (mNumFramesPlayed + numAdditionalFrames)
                                         / mSampleRate);
 
-                            ALOGV("%d frames left to play, %lld us (%.2f secs)",
+                            ALOGV("%d frames left to play, %" PRId64 " us (%.2f secs)",
                                  numFramesPendingPlayout,
                                  timeToCompletionUs, timeToCompletionUs / 1E6);
 
@@ -627,7 +637,7 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                 mPositionTimeRealUs =
                     ((mNumFramesPlayed + size_done / mFrameSize) * 1000000)
                         / mSampleRate;
-                ALOGV("buffer->size() = %d, "
+                ALOGV("buffer->size() = %zu, "
                      "mPositionTimeMediaUs=%.2f mPositionTimeRealUs=%.2f",
                      mInputBuffer->range_length(),
                      mPositionTimeMediaUs / 1E6, mPositionTimeRealUs / 1E6);
@@ -745,7 +755,7 @@ int64_t AudioPlayer::getOutputPlayPositionUs_l()
 
     // HAL position is relative to the first buffer we sent at mStartPosUs
     const int64_t renderedDuration = mStartPosUs + playedUs;
-    ALOGV("getOutputPlayPositionUs_l %lld", renderedDuration);
+    ALOGV("getOutputPlayPositionUs_l %" PRId64, renderedDuration);
     return renderedDuration;
 }
 
@@ -756,8 +766,13 @@ int64_t AudioPlayer::getMediaTimeUs() {
         if (mSeeking) {
             return mSeekTimeUs;
         }
+        if (mReachedEOS) {
+            int64_t durationUs;
+            mSource->getFormat()->findInt64(kKeyDuration, &durationUs);
+            return durationUs;
+        }
         mPositionTimeRealUs = getOutputPlayPositionUs_l();
-        ALOGV("getMediaTimeUs getOutputPlayPositionUs_l() mPositionTimeRealUs %lld",
+        ALOGV("getMediaTimeUs getOutputPlayPositionUs_l() mPositionTimeRealUs %" PRId64,
               mPositionTimeRealUs);
         return mPositionTimeRealUs;
     }
@@ -795,7 +810,7 @@ bool AudioPlayer::getMediaTimeMapping(
 status_t AudioPlayer::seekTo(int64_t time_us) {
     Mutex::Autolock autoLock(mLock);
 
-    ALOGV("seekTo( %lld )", time_us);
+    ALOGV("seekTo( %" PRId64 " )", time_us);
 
     mSeeking = true;
     mPositionTimeRealUs = mPositionTimeMediaUs = -1;

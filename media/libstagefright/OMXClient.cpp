@@ -16,6 +16,11 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "OMXClient"
+
+#ifdef __LP64__
+#define OMX_ANDROID_COMPILE_AS_32BIT_ON_64BIT_PLATFORMS
+#endif
+
 #include <utils/Log.h>
 
 #include <binder/IServiceManager.h>
@@ -72,6 +77,10 @@ struct MuxOMX : public IOMX {
     virtual status_t prepareForAdaptivePlayback(
             node_id node, OMX_U32 port_index, OMX_BOOL enable,
             OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight);
+
+    virtual status_t configureVideoTunnelMode(
+            node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
+            OMX_U32 audioHwSync, native_handle_t **sidebandHandle);
 
     virtual status_t enableGraphicBuffers(
             node_id node, OMX_U32 port_index, OMX_BOOL enable);
@@ -165,7 +174,14 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 
 // static
 bool MuxOMX::CanLiveLocally(const char *name) {
+#ifdef __LP64__
+    (void)name; // disable unused parameter warning
+    // 64 bit processes always run OMX remote on MediaServer
+    return false;
+#else
+    // 32 bit processes run only OMX.google.* components locally
     return !strncasecmp(name, "OMX.google.", 11);
+#endif
 }
 
 const sp<IOMX> &MuxOMX::getOMX(node_id node) const {
@@ -277,6 +293,13 @@ status_t MuxOMX::prepareForAdaptivePlayback(
         OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) {
     return getOMX(node)->prepareForAdaptivePlayback(
             node, port_index, enable, maxFrameWidth, maxFrameHeight);
+}
+
+status_t MuxOMX::configureVideoTunnelMode(
+        node_id node, OMX_U32 portIndex, OMX_BOOL enable,
+        OMX_U32 audioHwSync, native_handle_t **sidebandHandle) {
+    return getOMX(node)->configureVideoTunnelMode(
+            node, portIndex, enable, audioHwSync, sidebandHandle);
 }
 
 status_t MuxOMX::enableGraphicBuffers(

@@ -8,6 +8,8 @@ LOCAL_C_INCLUDES := \
         frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_SHARED_LIBRARIES := \
         libstagefright_omx libstagefright_foundation libutils liblog
 

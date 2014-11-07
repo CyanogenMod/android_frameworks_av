@@ -134,6 +134,12 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
         }
 
         uint8_t *bitstream = inHeader->pBuffer + inHeader->nOffset;
+        uint32_t *start_code = (uint32_t *)bitstream;
+        bool volHeader = *start_code == 0xB0010000;
+        if (volHeader) {
+            PVCleanUpVideoDecoder(mHandle);
+            mInitialized = false;
+        }
 
         if (!mInitialized) {
             uint8_t *vol_data[1];
@@ -141,7 +147,7 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
 
             vol_data[0] = NULL;
 
-            if (inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+            if ((inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) || volHeader) {
                 vol_data[0] = bitstream;
                 vol_size = inHeader->nFilledLen;
             }
@@ -150,7 +156,8 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
                 (mMode == MODE_MPEG4) ? MPEG4_MODE : H263_MODE;
 
             Bool success = PVInitVideoDecoder(
-                    mHandle, vol_data, &vol_size, 1, mWidth, mHeight, mode);
+                    mHandle, vol_data, &vol_size, 1,
+                    outputBufferWidth(), outputBufferHeight(), mode);
 
             if (!success) {
                 ALOGW("PVInitVideoDecoder failed. Unsupported content?");
@@ -169,21 +176,26 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
 
             PVSetPostProcType((VideoDecControls *) mHandle, 0);
 
+            bool hasFrameData = false;
             if (inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
                 inInfo->mOwnedByUs = false;
                 inQueue.erase(inQueue.begin());
                 inInfo = NULL;
                 notifyEmptyBufferDone(inHeader);
                 inHeader = NULL;
+            } else if (volHeader) {
+                hasFrameData = true;
             }
 
             mInitialized = true;
 
-            if (mode == MPEG4_MODE && portSettingsChanged()) {
+            if (mode == MPEG4_MODE && handlePortSettingsChange()) {
                 return;
             }
 
-            continue;
+            if (!hasFrameData) {
+                continue;
+            }
         }
 
         if (!mFramesConfigured) {
@@ -223,7 +235,9 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
             return;
         }
 
-        if (portSettingsChanged()) {
+        // H263 doesn't have VOL header, the frame size information is in short header, i.e. the
+        // decoder may detect size change after PVDecodeVideoFrame.
+        if (handlePortSettingsChange()) {
             return;
         }
 
@@ -269,7 +283,7 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
     }
 }
 
-bool SoftMPEG4::portSettingsChanged() {
+bool SoftMPEG4::handlePortSettingsChange() {
     uint32_t disp_width, disp_height;
     PVGetVideoDimensions(mHandle, (int32 *)&disp_width, (int32 *)&disp_height);
 
@@ -282,25 +296,24 @@ bool SoftMPEG4::portSettingsChanged() {
     ALOGV("disp_width = %d, disp_height = %d, buf_width = %d, buf_height = %d",
             disp_width, disp_height, buf_width, buf_height);
 
-    if (mCropWidth != disp_width
-            || mCropHeight != disp_height) {
-        mCropLeft = 0;
-        mCropTop = 0;
-        mCropWidth = disp_width;
-        mCropHeight = disp_height;
+    CropSettingsMode cropSettingsMode = kCropUnSet;
+    if (disp_width != buf_width || disp_height != buf_height) {
+        cropSettingsMode = kCropSet;
 
-        notify(OMX_EventPortSettingsChanged,
-               1,
-               OMX_IndexConfigCommonOutputCrop,
-               NULL);
+        if (mCropWidth != disp_width || mCropHeight != disp_height) {
+            mCropLeft = 0;
+            mCropTop = 0;
+            mCropWidth = disp_width;
+            mCropHeight = disp_height;
+            cropSettingsMode = kCropChanged;
+        }
     }
 
-    if (buf_width != mWidth || buf_height != mHeight) {
-        mWidth = buf_width;
-        mHeight = buf_height;
-
-        updatePortDefinitions();
-
+    bool portWillReset = false;
+    const bool fakeStride = true;
+    SoftVideoDecoderOMXComponent::handlePortSettingsChange(
+            &portWillReset, buf_width, buf_height, cropSettingsMode, fakeStride);
+    if (portWillReset) {
         if (mMode == MODE_H263) {
             PVCleanUpVideoDecoder(mHandle);
 
@@ -309,7 +322,7 @@ bool SoftMPEG4::portSettingsChanged() {
 
             vol_data[0] = NULL;
             if (!PVInitVideoDecoder(
-                    mHandle, vol_data, &vol_size, 1, mWidth, mHeight,
+                    mHandle, vol_data, &vol_size, 1, outputBufferWidth(), outputBufferHeight(),
                     H263_MODE)) {
                 notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
                 mSignalledError = true;
@@ -318,13 +331,9 @@ bool SoftMPEG4::portSettingsChanged() {
         }
 
         mFramesConfigured = false;
-
-        notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-        mOutputPortSettingsChange = AWAITING_DISABLED;
-        return true;
     }
 
-    return false;
+    return portWillReset;
 }
 
 void SoftMPEG4::onPortFlushCompleted(OMX_U32 portIndex) {

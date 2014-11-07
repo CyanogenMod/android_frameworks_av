@@ -20,6 +20,7 @@
 #include <utils/Log.h>
 
 #include <binder/ProcessState.h>
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -59,7 +60,7 @@ static int muxing(
         int trimEndTimeMs,
         int rotationDegrees) {
     sp<NuMediaExtractor> extractor = new NuMediaExtractor;
-    if (extractor->setDataSource(path) != OK) {
+    if (extractor->setDataSource(NULL /* httpService */, path) != OK) {
         fprintf(stderr, "unable to instantiate extractor. %s\n", path);
         return 1;
     }

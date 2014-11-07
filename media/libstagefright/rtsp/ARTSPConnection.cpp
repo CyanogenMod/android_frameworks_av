@@ -33,7 +33,7 @@
 #include <openssl/md5.h>
 #include <sys/socket.h>
 
-#include "HTTPBase.h"
+#include "include/HTTPBase.h"
 
 namespace android {
 
@@ -239,7 +239,7 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
         // right here, since we currently have no way of asking the user
         // for this information.
 
-        ALOGE("Malformed rtsp url <URL suppressed>");
+        ALOGE("Malformed rtsp url %s", uriDebugString(url).c_str());
 
         reply->setInt32("result", ERROR_MALFORMED);
         reply->post();

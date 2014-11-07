@@ -77,6 +77,32 @@ sp<Camera> Camera::connect(int cameraId, const String16& clientPackageName,
     return CameraBaseT::connect(cameraId, clientPackageName, clientUid);
 }
 
+status_t Camera::connectLegacy(int cameraId, int halVersion,
+        const String16& clientPackageName,
+        int clientUid,
+        sp<Camera>& camera)
+{
+    ALOGV("%s: connect legacy camera device", __FUNCTION__);
+    sp<Camera> c = new Camera(cameraId);
+    sp<ICameraClient> cl = c;
+    status_t status = NO_ERROR;
+    const sp<ICameraService>& cs = CameraBaseT::getCameraService();
+
+    if (cs != 0) {
+        status = cs.get()->connectLegacy(cl, cameraId, halVersion, clientPackageName,
+                                        clientUid, /*out*/c->mCamera);
+    }
+    if (status == OK && c->mCamera != 0) {
+        c->mCamera->asBinder()->linkToDeath(c);
+        c->mStatus = NO_ERROR;
+        camera = c;
+    } else {
+        ALOGW("An error occurred while connecting to camera: %d", cameraId);
+        c.clear();
+    }
+    return status;
+}
+
 status_t Camera::reconnect()
 {
     ALOGV("reconnect");

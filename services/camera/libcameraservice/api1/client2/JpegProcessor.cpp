@@ -73,30 +73,43 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
     }
 
     // Find out buffer size for JPEG
-    camera_metadata_ro_entry_t maxJpegSize =
-            params.staticInfo(ANDROID_JPEG_MAX_SIZE);
-    if (maxJpegSize.count == 0) {
-        ALOGE("%s: Camera %d: Can't find ANDROID_JPEG_MAX_SIZE!",
-                __FUNCTION__, mId);
+    ssize_t maxJpegSize = device->getJpegBufferSize(params.pictureWidth, params.pictureHeight);
+    if (maxJpegSize <= 0) {
+        ALOGE("%s: Camera %d: Jpeg buffer size (%zu) is invalid ",
+                __FUNCTION__, mId, maxJpegSize);
         return INVALID_OPERATION;
     }
 
     if (mCaptureConsumer == 0) {
         // Create CPU buffer queue endpoint
-        sp<BufferQueue> bq = new BufferQueue();
-        mCaptureConsumer = new CpuConsumer(bq, 1);
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
+        mCaptureConsumer = new CpuConsumer(consumer, 1);
         mCaptureConsumer->setFrameAvailableListener(this);
         mCaptureConsumer->setName(String8("Camera2Client::CaptureConsumer"));
-        mCaptureWindow = new Surface(bq);
+        mCaptureWindow = new Surface(producer);
+    }
+
+    // Since ashmem heaps are rounded up to page size, don't reallocate if
+    // the capture heap isn't exactly the same size as the required JPEG buffer
+    const size_t HEAP_SLACK_FACTOR = 2;
+    if (mCaptureHeap == 0 ||
+            (mCaptureHeap->getSize() < static_cast<size_t>(maxJpegSize)) ||
+            (mCaptureHeap->getSize() >
+                    static_cast<size_t>(maxJpegSize) * HEAP_SLACK_FACTOR) ) {
         // Create memory for API consumption
-        mCaptureHeap = new MemoryHeapBase(maxJpegSize.data.i32[0], 0,
-                                       "Camera2Client::CaptureHeap");
+        mCaptureHeap.clear();
+        mCaptureHeap =
+                new MemoryHeapBase(maxJpegSize, 0, "Camera2Client::CaptureHeap");
         if (mCaptureHeap->getSize() == 0) {
             ALOGE("%s: Camera %d: Unable to allocate memory for capture",
                     __FUNCTION__, mId);
             return NO_MEMORY;
         }
     }
+    ALOGV("%s: Camera %d: JPEG capture heap now %d bytes; requested %d bytes",
+            __FUNCTION__, mId, mCaptureHeap->getSize(), maxJpegSize);
 
     if (mCaptureStreamId != NO_STREAM) {
         // Check if stream parameters have to change
@@ -132,8 +145,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         // Create stream for HAL production
         res = device->createStream(mCaptureWindow,
                 params.pictureWidth, params.pictureHeight,
-                HAL_PIXEL_FORMAT_BLOB, maxJpegSize.data.i32[0],
-                &mCaptureStreamId);
+                HAL_PIXEL_FORMAT_BLOB, &mCaptureStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for capture: "
                     "%s (%d)", __FUNCTION__, mId,

@@ -92,8 +92,22 @@ public:
     status_t initialize(hw_module_t *module)
     {
         ALOGI("Opening camera %s", mName.string());
-        int rc = module->methods->open(module, mName.string(),
-                                       (hw_device_t **)&mDevice);
+        camera_module_t *cameraModule = reinterpret_cast<camera_module_t *>(module);
+        camera_info info;
+        status_t res = cameraModule->get_camera_info(atoi(mName.string()), &info);
+        if (res != OK) return res;
+
+        int rc = OK;
+        if (module->module_api_version >= CAMERA_MODULE_API_VERSION_2_3 &&
+            info.device_version > CAMERA_DEVICE_API_VERSION_1_0) {
+            // Open higher version camera device as HAL1.0 device.
+            rc = cameraModule->open_legacy(module, mName.string(),
+                                               CAMERA_DEVICE_API_VERSION_1_0,
+                                               (hw_device_t **)&mDevice);
+        } else {
+            rc = CameraService::filterOpenErrorCode(module->methods->open(
+                module, mName.string(), (hw_device_t **)&mDevice));
+        }
         if (rc != OK) {
             ALOGE("Could not open camera %s: %d", mName.string(), rc);
             return rc;
@@ -611,9 +625,14 @@ private:
     static int __set_buffers_geometry(struct preview_stream_ops* w,
                       int width, int height, int format)
     {
+        int rc;
         ANativeWindow *a = anw(w);
-        return native_window_set_buffers_geometry(a,
-                          width, height, format);
+
+        rc = native_window_set_buffers_dimensions(a, width, height);
+        if (!rc) {
+            rc = native_window_set_buffers_format(a, format);
+        }
+        return rc;
     }
 
     static int __set_crop(struct preview_stream_ops *w,

@@ -18,12 +18,19 @@
 #define LOG_TAG "MediaCodecList"
 #include <utils/Log.h>
 
-#include <media/stagefright/MediaCodecList.h>
+#include <binder/IServiceManager.h>
+
+#include <media/IMediaCodecList.h>
+#include <media/IMediaPlayerService.h>
+#include <media/MediaCodecInfo.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
+
 #include <utils/threads.h>
 
 #include <libexpat/expat.h>
@@ -32,38 +39,128 @@ namespace android {
 
 static Mutex sInitMutex;
 
-// static
-MediaCodecList *MediaCodecList::sCodecList;
+static MediaCodecList *gCodecList = NULL;
 
 // static
-const MediaCodecList *MediaCodecList::getInstance() {
+sp<IMediaCodecList> MediaCodecList::sCodecList;
+
+// static
+sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
     Mutex::Autolock autoLock(sInitMutex);
 
-    if (sCodecList == NULL) {
-        sCodecList = new MediaCodecList;
+    if (gCodecList == NULL) {
+        gCodecList = new MediaCodecList;
+        if (gCodecList->initCheck() == OK) {
+            sCodecList = gCodecList;
+        }
     }
 
-    return sCodecList->initCheck() == OK ? sCodecList : NULL;
+    return sCodecList;
+}
+
+static Mutex sRemoteInitMutex;
+
+sp<IMediaCodecList> MediaCodecList::sRemoteList;
+
+// static
+sp<IMediaCodecList> MediaCodecList::getInstance() {
+    Mutex::Autolock _l(sRemoteInitMutex);
+    if (sRemoteList == NULL) {
+        sp<IBinder> binder =
+            defaultServiceManager()->getService(String16("media.player"));
+        sp<IMediaPlayerService> service =
+            interface_cast<IMediaPlayerService>(binder);
+        if (service.get() != NULL) {
+            sRemoteList = service->getCodecList();
+        }
+
+        if (sRemoteList == NULL) {
+            // if failed to get remote list, create local list
+            sRemoteList = getLocalInstance();
+        }
+    }
+    return sRemoteList;
 }
 
 MediaCodecList::MediaCodecList()
     : mInitCheck(NO_INIT) {
-    FILE *file = fopen("/etc/media_codecs.xml", "r");
+    parseTopLevelXMLFile("/etc/media_codecs.xml");
+}
 
-    if (file == NULL) {
-        ALOGW("unable to open media codecs configuration xml file.");
+void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml) {
+    // get href_base
+    char *href_base_end = strrchr(codecs_xml, '/');
+    if (href_base_end != NULL) {
+        mHrefBase = AString(codecs_xml, href_base_end - codecs_xml + 1);
+    }
+
+    mInitCheck = OK; // keeping this here for safety
+    mCurrentSection = SECTION_TOPLEVEL;
+    mDepth = 0;
+
+    OMXClient client;
+    mInitCheck = client.connect();
+    if (mInitCheck != OK) {
+        return;
+    }
+    mOMX = client.interface();
+    parseXMLFile(codecs_xml);
+    mOMX.clear();
+
+    if (mInitCheck != OK) {
+        mCodecInfos.clear();
         return;
     }
 
-    parseXMLFile(file);
+    for (size_t i = mCodecInfos.size(); i-- > 0;) {
+        const MediaCodecInfo &info = *mCodecInfos.itemAt(i).get();
 
-    if (mInitCheck == OK) {
-        // These are currently still used by the video editing suite.
+        if (info.mCaps.size() == 0) {
+            // No types supported by this component???
+            ALOGW("Component %s does not support any type of media?",
+                  info.mName.c_str());
 
-        addMediaCodec(true /* encoder */, "AACEncoder", "audio/mp4a-latm");
+            mCodecInfos.removeAt(i);
+#if LOG_NDEBUG == 0
+        } else {
+            for (size_t type_ix = 0; type_ix < info.mCaps.size(); ++type_ix) {
+                AString mime = info.mCaps.keyAt(type_ix);
+                const sp<MediaCodecInfo::Capabilities> &caps = info.mCaps.valueAt(type_ix);
 
-        addMediaCodec(
-                false /* encoder */, "OMX.google.raw.decoder", "audio/raw");
+                ALOGV("%s codec info for %s: %s", info.mName.c_str(), mime.c_str(),
+                        caps->getDetails()->debugString().c_str());
+                ALOGV("    flags=%d", caps->getFlags());
+                {
+                    Vector<uint32_t> colorFormats;
+                    caps->getSupportedColorFormats(&colorFormats);
+                    AString nice;
+                    for (size_t ix = 0; ix < colorFormats.size(); ix++) {
+                        if (ix > 0) {
+                            nice.append(", ");
+                        }
+                        nice.append(colorFormats.itemAt(ix));
+                    }
+                    ALOGV("    colors=[%s]", nice.c_str());
+                }
+                {
+                    Vector<MediaCodecInfo::ProfileLevel> profileLevels;
+                    caps->getSupportedProfileLevels(&profileLevels);
+                    AString nice;
+                    for (size_t ix = 0; ix < profileLevels.size(); ix++) {
+                        if (ix > 0) {
+                            nice.append(", ");
+                        }
+                        const MediaCodecInfo::ProfileLevel &pl =
+                            profileLevels.itemAt(ix);
+                        nice.append(pl.mProfile);
+                        nice.append("/");
+                        nice.append(pl.mLevel);
+                    }
+                    ALOGV("    levels=[%s]", nice.c_str());
+                }
+            }
+#endif
+        }
     }
 
 #if 0
@@ -84,9 +181,6 @@ MediaCodecList::MediaCodecList()
         ALOGI("%s", line.c_str());
     }
 #endif
-
-    fclose(file);
-    file = NULL;
 }
 
 MediaCodecList::~MediaCodecList() {
@@ -96,10 +190,14 @@ status_t MediaCodecList::initCheck() const {
     return mInitCheck;
 }
 
-void MediaCodecList::parseXMLFile(FILE *file) {
-    mInitCheck = OK;
-    mCurrentSection = SECTION_TOPLEVEL;
-    mDepth = 0;
+void MediaCodecList::parseXMLFile(const char *path) {
+    FILE *file = fopen(path, "r");
+
+    if (file == NULL) {
+        ALOGW("unable to open media codecs configuration xml file: %s", path);
+        mInitCheck = NAME_NOT_FOUND;
+        return;
+    }
 
     XML_Parser parser = ::XML_ParserCreate(NULL);
     CHECK(parser != NULL);
@@ -112,7 +210,7 @@ void MediaCodecList::parseXMLFile(FILE *file) {
     while (mInitCheck == OK) {
         void *buff = ::XML_GetBuffer(parser, BUFF_SIZE);
         if (buff == NULL) {
-            ALOGE("failed to in call to XML_GetBuffer()");
+            ALOGE("failed in call to XML_GetBuffer()");
             mInitCheck = UNKNOWN_ERROR;
             break;
         }
@@ -124,8 +222,9 @@ void MediaCodecList::parseXMLFile(FILE *file) {
             break;
         }
 
-        if (::XML_ParseBuffer(parser, bytes_read, bytes_read == 0)
-                != XML_STATUS_OK) {
+        XML_Status status = ::XML_ParseBuffer(parser, bytes_read, bytes_read == 0);
+        if (status != XML_STATUS_OK) {
+            ALOGE("malformed (%s)", ::XML_ErrorString(::XML_GetErrorCode(parser)));
             mInitCheck = ERROR_MALFORMED;
             break;
         }
@@ -137,25 +236,8 @@ void MediaCodecList::parseXMLFile(FILE *file) {
 
     ::XML_ParserFree(parser);
 
-    if (mInitCheck == OK) {
-        for (size_t i = mCodecInfos.size(); i-- > 0;) {
-            CodecInfo *info = &mCodecInfos.editItemAt(i);
-
-            if (info->mTypes == 0) {
-                // No types supported by this component???
-
-                ALOGW("Component %s does not support any type of media?",
-                      info->mName.c_str());
-
-                mCodecInfos.removeAt(i);
-            }
-        }
-    }
-
-    if (mInitCheck != OK) {
-        mCodecInfos.clear();
-        mCodecQuirks.clear();
-    }
+    fclose(file);
+    file = NULL;
 }
 
 // static
@@ -169,9 +251,62 @@ void MediaCodecList::EndElementHandlerWrapper(void *me, const char *name) {
     static_cast<MediaCodecList *>(me)->endElementHandler(name);
 }
 
+status_t MediaCodecList::includeXMLFile(const char **attrs) {
+    const char *href = NULL;
+    size_t i = 0;
+    while (attrs[i] != NULL) {
+        if (!strcmp(attrs[i], "href")) {
+            if (attrs[i + 1] == NULL) {
+                return -EINVAL;
+            }
+            href = attrs[i + 1];
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+        ++i;
+    }
+
+    // For security reasons and for simplicity, file names can only contain
+    // [a-zA-Z0-9_.] and must start with  media_codecs_ and end with .xml
+    for (i = 0; href[i] != '\0'; i++) {
+        if (href[i] == '.' || href[i] == '_' ||
+                (href[i] >= '0' && href[i] <= '9') ||
+                (href[i] >= 'A' && href[i] <= 'Z') ||
+                (href[i] >= 'a' && href[i] <= 'z')) {
+            continue;
+        }
+        ALOGE("invalid include file name: %s", href);
+        return -EINVAL;
+    }
+
+    AString filename = href;
+    if (!filename.startsWith("media_codecs_") ||
+        !filename.endsWith(".xml")) {
+        ALOGE("invalid include file name: %s", href);
+        return -EINVAL;
+    }
+    filename.insert(mHrefBase, 0);
+
+    parseXMLFile(filename.c_str());
+    return mInitCheck;
+}
+
 void MediaCodecList::startElementHandler(
         const char *name, const char **attrs) {
     if (mInitCheck != OK) {
+        return;
+    }
+
+    bool inType = true;
+
+    if (!strcmp(name, "Include")) {
+        mInitCheck = includeXMLFile(attrs);
+        if (mInitCheck == OK) {
+            mPastSections.push(mCurrentSection);
+            mCurrentSection = SECTION_INCLUDE;
+        }
+        ++mDepth;
         return;
     }
 
@@ -215,6 +350,25 @@ void MediaCodecList::startElementHandler(
                 mInitCheck = addQuirk(attrs);
             } else if (!strcmp(name, "Type")) {
                 mInitCheck = addTypeFromAttributes(attrs);
+                mCurrentSection =
+                    (mCurrentSection == SECTION_DECODER
+                            ? SECTION_DECODER_TYPE : SECTION_ENCODER_TYPE);
+            }
+        }
+        inType = false;
+        // fall through
+
+        case SECTION_DECODER_TYPE:
+        case SECTION_ENCODER_TYPE:
+        {
+            // ignore limits and features specified outside of type
+            bool outside = !inType && !mCurrentInfo->mHasSoleMime;
+            if (outside && (!strcmp(name, "Limit") || !strcmp(name, "Feature"))) {
+                ALOGW("ignoring %s specified outside of a Type", name);
+            } else if (!strcmp(name, "Limit")) {
+                mInitCheck = addLimit(attrs);
+            } else if (!strcmp(name, "Feature")) {
+                mInitCheck = addFeature(attrs);
             }
             break;
         }
@@ -248,10 +402,25 @@ void MediaCodecList::endElementHandler(const char *name) {
             break;
         }
 
+        case SECTION_DECODER_TYPE:
+        case SECTION_ENCODER_TYPE:
+        {
+            if (!strcmp(name, "Type")) {
+                mCurrentSection =
+                    (mCurrentSection == SECTION_DECODER_TYPE
+                            ? SECTION_DECODER : SECTION_ENCODER);
+
+                mCurrentInfo->complete();
+            }
+            break;
+        }
+
         case SECTION_DECODER:
         {
             if (!strcmp(name, "MediaCodec")) {
                 mCurrentSection = SECTION_DECODERS;
+                mCurrentInfo->complete();
+                mCurrentInfo = NULL;
             }
             break;
         }
@@ -260,6 +429,17 @@ void MediaCodecList::endElementHandler(const char *name) {
         {
             if (!strcmp(name, "MediaCodec")) {
                 mCurrentSection = SECTION_ENCODERS;
+                mCurrentInfo->complete();;
+                mCurrentInfo = NULL;
+            }
+            break;
+        }
+
+        case SECTION_INCLUDE:
+        {
+            if (!strcmp(name, "Include") && mPastSections.size() > 0) {
+                mCurrentSection = mPastSections.top();
+                mPastSections.pop();
             }
             break;
         }
@@ -301,23 +481,37 @@ status_t MediaCodecList::addMediaCodecFromAttributes(
         return -EINVAL;
     }
 
-    addMediaCodec(encoder, name, type);
-
+    mCurrentInfo = new MediaCodecInfo(name, encoder, type);
+    // The next step involves trying to load the codec, which may
+    // fail.  Only list the codec if this succeeds.
+    // However, keep mCurrentInfo object around until parsing
+    // of full codec info is completed.
+    if (initializeCapabilities(type) == OK) {
+        mCodecInfos.push_back(mCurrentInfo);
+    }
     return OK;
 }
 
-void MediaCodecList::addMediaCodec(
-        bool encoder, const char *name, const char *type) {
-    mCodecInfos.push();
-    CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
-    info->mName = name;
-    info->mIsEncoder = encoder;
-    info->mTypes = 0;
-    info->mQuirks = 0;
-
-    if (type != NULL) {
-        addType(type);
+status_t MediaCodecList::initializeCapabilities(const char *type) {
+    if (type == NULL) {
+        return OK;
     }
+
+    ALOGV("initializeCapabilities %s:%s",
+            mCurrentInfo->mName.c_str(), type);
+
+    CodecCapabilities caps;
+    status_t err = QueryCodec(
+            mOMX,
+            mCurrentInfo->mName.c_str(),
+            type,
+            mCurrentInfo->mIsEncoder,
+            &caps);
+    if (err != OK) {
+        return err;
+    }
+
+    return mCurrentInfo->initializeCapabilities(caps);
 }
 
 status_t MediaCodecList::addQuirk(const char **attrs) {
@@ -342,24 +536,7 @@ status_t MediaCodecList::addQuirk(const char **attrs) {
         return -EINVAL;
     }
 
-    uint32_t bit;
-    ssize_t index = mCodecQuirks.indexOfKey(name);
-    if (index < 0) {
-        bit = mCodecQuirks.size();
-
-        if (bit == 32) {
-            ALOGW("Too many distinct quirk names in configuration.");
-            return OK;
-        }
-
-        mCodecQuirks.add(name, bit);
-    } else {
-        bit = mCodecQuirks.valueAt(index);
-    }
-
-    CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
-    info->mQuirks |= 1ul << bit;
-
+    mCurrentInfo->addQuirk(name);
     return OK;
 }
 
@@ -385,57 +562,280 @@ status_t MediaCodecList::addTypeFromAttributes(const char **attrs) {
         return -EINVAL;
     }
 
-    addType(name);
+    status_t ret = mCurrentInfo->addMime(name);
+    if (ret != OK) {
+        return ret;
+    }
 
+    // The next step involves trying to load the codec, which may
+    // fail.  Handle this gracefully (by not reporting such mime).
+    if (initializeCapabilities(name) != OK) {
+        mCurrentInfo->removeMime(name);
+    }
     return OK;
 }
 
-void MediaCodecList::addType(const char *name) {
-    uint32_t bit;
-    ssize_t index = mTypes.indexOfKey(name);
-    if (index < 0) {
-        bit = mTypes.size();
-
-        if (bit == 32) {
-            ALOGW("Too many distinct type names in configuration.");
-            return;
-        }
-
-        mTypes.add(name, bit);
-    } else {
-        bit = mTypes.valueAt(index);
-    }
-
-    CodecInfo *info = &mCodecInfos.editItemAt(mCodecInfos.size() - 1);
-    info->mTypes |= 1ul << bit;
-}
-
+// legacy method for non-advanced codecs
 ssize_t MediaCodecList::findCodecByType(
         const char *type, bool encoder, size_t startIndex) const {
-    ssize_t typeIndex = mTypes.indexOfKey(type);
+    static const char *advancedFeatures[] = {
+        "feature-secure-playback",
+        "feature-tunneled-playback",
+    };
 
-    if (typeIndex < 0) {
-        return -ENOENT;
-    }
+    size_t numCodecs = mCodecInfos.size();
+    for (; startIndex < numCodecs; ++startIndex) {
+        const MediaCodecInfo &info = *mCodecInfos.itemAt(startIndex).get();
 
-    uint32_t typeMask = 1ul << mTypes.valueAt(typeIndex);
+        if (info.isEncoder() != encoder) {
+            continue;
+        }
+        sp<MediaCodecInfo::Capabilities> capabilities = info.getCapabilitiesFor(type);
+        if (capabilities == NULL) {
+            continue;
+        }
+        const sp<AMessage> &details = capabilities->getDetails();
 
-    while (startIndex < mCodecInfos.size()) {
-        const CodecInfo &info = mCodecInfos.itemAt(startIndex);
-
-        if (info.mIsEncoder == encoder && (info.mTypes & typeMask)) {
-            return startIndex;
+        int32_t required;
+        bool isAdvanced = false;
+        for (size_t ix = 0; ix < ARRAY_SIZE(advancedFeatures); ix++) {
+            if (details->findInt32(advancedFeatures[ix], &required) &&
+                    required != 0) {
+                isAdvanced = true;
+                break;
+            }
         }
 
-        ++startIndex;
+        if (!isAdvanced) {
+            return startIndex;
+        }
     }
 
     return -ENOENT;
 }
 
+static status_t limitFoundMissingAttr(AString name, const char *attr, bool found = true) {
+    ALOGE("limit '%s' with %s'%s' attribute", name.c_str(),
+            (found ? "" : "no "), attr);
+    return -EINVAL;
+}
+
+static status_t limitError(AString name, const char *msg) {
+    ALOGE("limit '%s' %s", name.c_str(), msg);
+    return -EINVAL;
+}
+
+static status_t limitInvalidAttr(AString name, const char *attr, AString value) {
+    ALOGE("limit '%s' with invalid '%s' attribute (%s)", name.c_str(),
+            attr, value.c_str());
+    return -EINVAL;
+}
+
+status_t MediaCodecList::addLimit(const char **attrs) {
+    sp<AMessage> msg = new AMessage();
+
+    size_t i = 0;
+    while (attrs[i] != NULL) {
+        if (attrs[i + 1] == NULL) {
+            return -EINVAL;
+        }
+
+        // attributes with values
+        if (!strcmp(attrs[i], "name")
+                || !strcmp(attrs[i], "default")
+                || !strcmp(attrs[i], "in")
+                || !strcmp(attrs[i], "max")
+                || !strcmp(attrs[i], "min")
+                || !strcmp(attrs[i], "range")
+                || !strcmp(attrs[i], "ranges")
+                || !strcmp(attrs[i], "scale")
+                || !strcmp(attrs[i], "value")) {
+            msg->setString(attrs[i], attrs[i + 1]);
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+        ++i;
+    }
+
+    AString name;
+    if (!msg->findString("name", &name)) {
+        ALOGE("limit with no 'name' attribute");
+        return -EINVAL;
+    }
+
+    // size, blocks, bitrate, frame-rate, blocks-per-second, aspect-ratio: range
+    // quality: range + default + [scale]
+    // complexity: range + default
+    bool found;
+
+    if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
+            || name == "blocks-per-second" || name == "complexity"
+            || name == "frame-rate" || name == "quality" || name == "size") {
+        AString min, max;
+        if (msg->findString("min", &min) && msg->findString("max", &max)) {
+            min.append("-");
+            min.append(max);
+            if (msg->contains("range") || msg->contains("value")) {
+                return limitError(name, "has 'min' and 'max' as well as 'range' or "
+                        "'value' attributes");
+            }
+            msg->setString("range", min);
+        } else if (msg->contains("min") || msg->contains("max")) {
+            return limitError(name, "has only 'min' or 'max' attribute");
+        } else if (msg->findString("value", &max)) {
+            min = max;
+            min.append("-");
+            min.append(max);
+            if (msg->contains("range")) {
+                return limitError(name, "has both 'range' and 'value' attributes");
+            }
+            msg->setString("range", min);
+        }
+
+        AString range, scale = "linear", def, in_;
+        if (!msg->findString("range", &range)) {
+            return limitError(name, "with no 'range', 'value' or 'min'/'max' attributes");
+        }
+
+        if ((name == "quality" || name == "complexity") ^
+                (found = msg->findString("default", &def))) {
+            return limitFoundMissingAttr(name, "default", found);
+        }
+        if (name != "quality" && msg->findString("scale", &scale)) {
+            return limitFoundMissingAttr(name, "scale");
+        }
+        if ((name == "aspect-ratio") ^ (found = msg->findString("in", &in_))) {
+            return limitFoundMissingAttr(name, "in", found);
+        }
+
+        if (name == "aspect-ratio") {
+            if (!(in_ == "pixels") && !(in_ == "blocks")) {
+                return limitInvalidAttr(name, "in", in_);
+            }
+            in_.erase(5, 1); // (pixel|block)-aspect-ratio
+            in_.append("-");
+            in_.append(name);
+            name = in_;
+        }
+        if (name == "quality") {
+            mCurrentInfo->addDetail("quality-scale", scale);
+        }
+        if (name == "quality" || name == "complexity") {
+            AString tag = name;
+            tag.append("-default");
+            mCurrentInfo->addDetail(tag, def);
+        }
+        AString tag = name;
+        tag.append("-range");
+        mCurrentInfo->addDetail(tag, range);
+    } else {
+        AString max, value, ranges;
+        if (msg->contains("default")) {
+            return limitFoundMissingAttr(name, "default");
+        } else if (msg->contains("in")) {
+            return limitFoundMissingAttr(name, "in");
+        } else if ((name == "channel-count") ^
+                (found = msg->findString("max", &max))) {
+            return limitFoundMissingAttr(name, "max", found);
+        } else if (msg->contains("min")) {
+            return limitFoundMissingAttr(name, "min");
+        } else if (msg->contains("range")) {
+            return limitFoundMissingAttr(name, "range");
+        } else if ((name == "sample-rate") ^
+                (found = msg->findString("ranges", &ranges))) {
+            return limitFoundMissingAttr(name, "ranges", found);
+        } else if (msg->contains("scale")) {
+            return limitFoundMissingAttr(name, "scale");
+        } else if ((name == "alignment" || name == "block-size") ^
+                (found = msg->findString("value", &value))) {
+            return limitFoundMissingAttr(name, "value", found);
+        }
+
+        if (max.size()) {
+            AString tag = "max-";
+            tag.append(name);
+            mCurrentInfo->addDetail(tag, max);
+        } else if (value.size()) {
+            mCurrentInfo->addDetail(name, value);
+        } else if (ranges.size()) {
+            AString tag = name;
+            tag.append("-ranges");
+            mCurrentInfo->addDetail(tag, ranges);
+        } else {
+            ALOGW("Ignoring unrecognized limit '%s'", name.c_str());
+        }
+    }
+    return OK;
+}
+
+static bool parseBoolean(const char *s) {
+    if (!strcasecmp(s, "true") || !strcasecmp(s, "yes") || !strcasecmp(s, "y")) {
+        return true;
+    }
+    char *end;
+    unsigned long res = strtoul(s, &end, 10);
+    return *s != '\0' && *end == '\0' && res > 0;
+}
+
+status_t MediaCodecList::addFeature(const char **attrs) {
+    size_t i = 0;
+    const char *name = NULL;
+    int32_t optional = -1;
+    int32_t required = -1;
+    const char *value = NULL;
+
+    while (attrs[i] != NULL) {
+        if (attrs[i + 1] == NULL) {
+            return -EINVAL;
+        }
+
+        // attributes with values
+        if (!strcmp(attrs[i], "name")) {
+            name = attrs[i + 1];
+            ++i;
+        } else if (!strcmp(attrs[i], "optional") || !strcmp(attrs[i], "required")) {
+            int value = (int)parseBoolean(attrs[i + 1]);
+            if (!strcmp(attrs[i], "optional")) {
+                optional = value;
+            } else {
+                required = value;
+            }
+            ++i;
+        } else if (!strcmp(attrs[i], "value")) {
+            value = attrs[i + 1];
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+        ++i;
+    }
+    if (name == NULL) {
+        ALOGE("feature with no 'name' attribute");
+        return -EINVAL;
+    }
+
+    if (optional == required && optional != -1) {
+        ALOGE("feature '%s' is both/neither optional and required", name);
+        return -EINVAL;
+    }
+
+    if ((optional != -1 || required != -1) && (value != NULL)) {
+        ALOGE("feature '%s' has both a value and optional/required attribute", name);
+        return -EINVAL;
+    }
+
+    if (value != NULL) {
+        mCurrentInfo->addFeature(name, value);
+    } else {
+        mCurrentInfo->addFeature(name, (required == 1) || (optional == 0));
+    }
+    return OK;
+}
+
 ssize_t MediaCodecList::findCodecByName(const char *name) const {
     for (size_t i = 0; i < mCodecInfos.size(); ++i) {
-        const CodecInfo &info = mCodecInfos.itemAt(i);
+        const MediaCodecInfo &info = *mCodecInfos.itemAt(i).get();
 
         if (info.mName == name) {
             return i;
@@ -447,110 +847,6 @@ ssize_t MediaCodecList::findCodecByName(const char *name) const {
 
 size_t MediaCodecList::countCodecs() const {
     return mCodecInfos.size();
-}
-
-const char *MediaCodecList::getCodecName(size_t index) const {
-    if (index >= mCodecInfos.size()) {
-        return NULL;
-    }
-
-    const CodecInfo &info = mCodecInfos.itemAt(index);
-    return info.mName.c_str();
-}
-
-bool MediaCodecList::isEncoder(size_t index) const {
-    if (index >= mCodecInfos.size()) {
-        return NULL;
-    }
-
-    const CodecInfo &info = mCodecInfos.itemAt(index);
-    return info.mIsEncoder;
-}
-
-bool MediaCodecList::codecHasQuirk(
-        size_t index, const char *quirkName) const {
-    if (index >= mCodecInfos.size()) {
-        return NULL;
-    }
-
-    const CodecInfo &info = mCodecInfos.itemAt(index);
-
-    if (info.mQuirks != 0) {
-        ssize_t index = mCodecQuirks.indexOfKey(quirkName);
-        if (index >= 0 && info.mQuirks & (1ul << mCodecQuirks.valueAt(index))) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-status_t MediaCodecList::getSupportedTypes(
-        size_t index, Vector<AString> *types) const {
-    types->clear();
-
-    if (index >= mCodecInfos.size()) {
-        return -ERANGE;
-    }
-
-    const CodecInfo &info = mCodecInfos.itemAt(index);
-
-    for (size_t i = 0; i < mTypes.size(); ++i) {
-        uint32_t typeMask = 1ul << mTypes.valueAt(i);
-
-        if (info.mTypes & typeMask) {
-            types->push(mTypes.keyAt(i));
-        }
-    }
-
-    return OK;
-}
-
-status_t MediaCodecList::getCodecCapabilities(
-        size_t index, const char *type,
-        Vector<ProfileLevel> *profileLevels,
-        Vector<uint32_t> *colorFormats,
-        uint32_t *flags) const {
-    profileLevels->clear();
-    colorFormats->clear();
-
-    if (index >= mCodecInfos.size()) {
-        return -ERANGE;
-    }
-
-    const CodecInfo &info = mCodecInfos.itemAt(index);
-
-    OMXClient client;
-    status_t err = client.connect();
-    if (err != OK) {
-        return err;
-    }
-
-    CodecCapabilities caps;
-    err = QueryCodec(
-            client.interface(),
-            info.mName.c_str(), type, info.mIsEncoder, &caps);
-
-    if (err != OK) {
-        return err;
-    }
-
-    for (size_t i = 0; i < caps.mProfileLevels.size(); ++i) {
-        const CodecProfileLevel &src = caps.mProfileLevels.itemAt(i);
-
-        ProfileLevel profileLevel;
-        profileLevel.mProfile = src.mProfile;
-        profileLevel.mLevel = src.mLevel;
-        profileLevels->push(profileLevel);
-    }
-
-    for (size_t i = 0; i < caps.mColorFormats.size(); ++i) {
-        colorFormats->push(caps.mColorFormats.itemAt(i));
-    }
-
-    *flags = caps.mFlags;
-
-    return OK;
 }
 
 }  // namespace android

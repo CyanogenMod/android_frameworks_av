@@ -25,6 +25,9 @@ LOCAL_SRC_FILES:= \
     AudioRecord.cpp \
     AudioSystem.cpp \
     mediaplayer.cpp \
+    IMediaCodecList.cpp \
+    IMediaHTTPConnection.cpp \
+    IMediaHTTPService.cpp \
     IMediaLogService.cpp \
     IMediaPlayerService.cpp \
     IMediaPlayerClient.cpp \
@@ -34,6 +37,7 @@ LOCAL_SRC_FILES:= \
     IRemoteDisplay.cpp \
     IRemoteDisplayClient.cpp \
     IStreamSource.cpp \
+    MediaCodecInfo.cpp \
     Metadata.cpp \
     mediarecorder.cpp \
     IMediaMetadataRetriever.cpp \
@@ -42,9 +46,10 @@ LOCAL_SRC_FILES:= \
     JetPlayer.cpp \
     IOMX.cpp \
     IAudioPolicyService.cpp \
+    IAudioPolicyServiceClient.cpp \
     MediaScanner.cpp \
     MediaScannerClient.cpp \
-    autodetect.cpp \
+    CharacterEncodingDetector.cpp \
     IMediaDeathNotifier.cpp \
     MediaProfiles.cpp \
     IEffect.cpp \
@@ -58,39 +63,38 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_SRC_FILES += ../libnbaio/roundup.c
 
-# for <cutils/atomic-inline.h>
-ifeq ($(TARGET_CPU_SMP),true)
-  LOCAL_CFLAGS += -DANDROID_SMP=1
-else
-  ifeq ($(TARGET_CPU_SMP),false)
-    LOCAL_CFLAGS += -DANDROID_SMP=0
-  else
-    $(warning TARGET_CPU_SMP should be (true|false), found $(TARGET_CPU_SMP))
-    # Make sure we emit barriers for the worst case.
-    LOCAL_CFLAGS += -DANDROID_SMP=1
-  endif
-endif
-
-LOCAL_SRC_FILES += SingleStateQueue.cpp
-LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
-# Consider a separate a library for SingleStateQueueInstantiations.
-
 LOCAL_SHARED_LIBRARIES := \
-	libui liblog libcutils libutils libbinder libsonivox libicuuc libexpat \
+	libui liblog libcutils libutils libbinder libsonivox libicuuc libicui18n libexpat \
         libcamera_client libstagefright_foundation \
-        libgui libdl libaudioutils
+        libgui libdl libaudioutils libnbaio
 
-LOCAL_WHOLE_STATIC_LIBRARY := libmedia_helper
+LOCAL_STATIC_LIBRARIES += libinstantssq
+
+LOCAL_WHOLE_STATIC_LIBRARIES := libmedia_helper
 
 LOCAL_MODULE:= libmedia
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
 LOCAL_C_INCLUDES := \
-    $(call include-path-for, graphics corecg) \
     $(TOP)/frameworks/native/include/media/openmax \
-    external/icu/icu4c/source/common \
+    $(TOP)/frameworks/av/include/media/ \
+    $(TOP)/frameworks/av/media/libstagefright \
+    $(TOP)/external/icu/icu4c/source/common \
+    $(TOP)/external/icu/icu4c/source/i18n \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
 include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+# for <cutils/atomic-inline.h>
+LOCAL_CFLAGS += -DANDROID_SMP=$(if $(findstring true,$(TARGET_CPU_SMP)),1,0)
+LOCAL_SRC_FILES += SingleStateQueue.cpp
+LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
+
+LOCAL_MODULE := libinstantssq
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_STATIC_LIBRARY)

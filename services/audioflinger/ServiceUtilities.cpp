@@ -59,6 +59,13 @@ bool settingsAllowed() {
     return ok;
 }
 
+bool modifyAudioRoutingAllowed() {
+    static const String16 sModifyAudioRoutingAllowed("android.permission.MODIFY_AUDIO_ROUTING");
+    bool ok = checkCallingPermission(sModifyAudioRoutingAllowed);
+    if (!ok) ALOGE("android.permission.MODIFY_AUDIO_ROUTING");
+    return ok;
+}
+
 bool dumpAllowed() {
     // don't optimize for same pid, since mediaserver never dumps itself
     static const String16 sDump("android.permission.DUMP");

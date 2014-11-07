@@ -34,30 +34,30 @@ class DrmInfoEvent;
  *
  */
 class DrmManagerClientImpl : public BnDrmServiceListener {
-private:
+protected:
     DrmManagerClientImpl() { }
 
 public:
     static DrmManagerClientImpl* create(int* pUniqueId, bool isNative);
 
-    static void remove(int uniqueId);
-
     virtual ~DrmManagerClientImpl() { }
 
 public:
+    virtual void remove(int uniqueId);
+
     /**
      * Adds the client respective to given unique id.
      *
      * @param[in] uniqueId Unique identifier for a session
      */
-    void addClient(int uniqueId);
+    virtual void addClient(int uniqueId);
 
     /**
      * Removes the client respective to given unique id.
      *
      * @param[in] uniqueId Unique identifier for a session
      */
-    void removeClient(int uniqueId);
+    virtual void removeClient(int uniqueId);
 
     /**
      * Register a callback to be invoked when the caller required to
@@ -68,7 +68,7 @@ public:
      * @return status_t
      *            Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t setOnInfoListener(
+    virtual status_t setOnInfoListener(
             int uniqueId, const sp<DrmManagerClient::OnInfoListener>& infoListener);
 
     /**
@@ -83,7 +83,7 @@ public:
      * @note
      *     In case of error, return NULL
      */
-    DrmConstraints* getConstraints(int uniqueId, const String8* path, const int action);
+    virtual DrmConstraints* getConstraints(int uniqueId, const String8* path, const int action);
 
     /**
      * Get metadata information associated with input content.
@@ -95,7 +95,7 @@ public:
      * @note
      *    In case of error, return NULL
      */
-    DrmMetadata* getMetadata(int uniqueId, const String8* path);
+    virtual DrmMetadata* getMetadata(int uniqueId, const String8* path);
 
     /**
      * Check whether the given mimetype or path can be handled
@@ -106,7 +106,7 @@ public:
      * @return
      *     True if DrmManager can handle given path or mime type.
      */
-    bool canHandle(int uniqueId, const String8& path, const String8& mimeType);
+    virtual bool canHandle(int uniqueId, const String8& path, const String8& mimeType);
 
     /**
      * Executes given drm information based on its type
@@ -116,7 +116,7 @@ public:
      * @return DrmInfoStatus
      *     instance as a result of processing given input
      */
-    DrmInfoStatus* processDrmInfo(int uniqueId, const DrmInfo* drmInfo);
+    virtual DrmInfoStatus* processDrmInfo(int uniqueId, const DrmInfo* drmInfo);
 
     /**
      * Retrieves necessary information for registration, unregistration or rights
@@ -127,7 +127,7 @@ public:
      * @return DrmInfo
      *     instance as a result of processing given input
      */
-    DrmInfo* acquireDrmInfo(int uniqueId, const DrmInfoRequest* drmInfoRequest);
+    virtual DrmInfo* acquireDrmInfo(int uniqueId, const DrmInfoRequest* drmInfoRequest);
 
     /**
      * Save DRM rights to specified rights path
@@ -140,7 +140,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t saveRights(int uniqueId, const DrmRights& drmRights,
+    virtual status_t saveRights(int uniqueId, const DrmRights& drmRights,
             const String8& rightsPath, const String8& contentPath);
 
     /**
@@ -152,7 +152,7 @@ public:
      * @return String8
      *     Returns mime-type of the original content, such as "video/mpeg"
      */
-    String8 getOriginalMimeType(int uniqueId, const String8& path, int fd);
+    virtual String8 getOriginalMimeType(int uniqueId, const String8& path, int fd);
 
     /**
      * Retrieves the type of the protected object (content, rights, etc..)
@@ -165,7 +165,7 @@ public:
      * @return type of the DRM content,
      *     such as DrmObjectType::CONTENT, DrmObjectType::RIGHTS_OBJECT
      */
-    int getDrmObjectType(int uniqueId, const String8& path, const String8& mimeType);
+    virtual int getDrmObjectType(int uniqueId, const String8& path, const String8& mimeType);
 
     /**
      * Check whether the given content has valid rights or not
@@ -176,7 +176,7 @@ public:
      * @return the status of the rights for the protected content,
      *     such as RightsStatus::RIGHTS_VALID, RightsStatus::RIGHTS_EXPIRED, etc.
      */
-    int checkRightsStatus(int uniqueId, const String8& path, int action);
+    virtual int checkRightsStatus(int uniqueId, const String8& path, int action);
 
     /**
      * Consumes the rights for a content.
@@ -190,7 +190,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t consumeRights(int uniqueId, sp<DecryptHandle> &decryptHandle, int action, bool reserve);
+    virtual status_t consumeRights(int uniqueId, sp<DecryptHandle> &decryptHandle, int action, bool reserve);
 
     /**
      * Informs the DRM engine about the playback actions performed on the DRM files.
@@ -203,7 +203,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t setPlaybackStatus(
+    virtual status_t setPlaybackStatus(
             int uniqueId, sp<DecryptHandle> &decryptHandle, int playbackStatus, int64_t position);
 
     /**
@@ -215,7 +215,7 @@ public:
      * @param[in] description Detailed description of the action
      * @return true if the action is allowed.
      */
-    bool validateAction(
+    virtual bool validateAction(
         int uniqueId, const String8& path, int action, const ActionDescription& description);
 
     /**
@@ -226,7 +226,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t removeRights(int uniqueId, const String8& path);
+    virtual status_t removeRights(int uniqueId, const String8& path);
 
     /**
      * Removes all the rights information of each plug-in associated with
@@ -236,7 +236,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t removeAllRights(int uniqueId);
+    virtual status_t removeAllRights(int uniqueId);
 
     /**
      * This API is for Forward Lock based DRM scheme.
@@ -248,7 +248,7 @@ public:
      * @param[in] mimeType Description/MIME type of the input data packet
      * @return Return handle for the convert session
      */
-    int openConvertSession(int uniqueId, const String8& mimeType);
+    virtual int openConvertSession(int uniqueId, const String8& mimeType);
 
     /**
      * Accepts and converts the input data which is part of DRM file.
@@ -263,7 +263,7 @@ public:
      *     the output converted data and offset. In this case the
      *     application will ignore the offset information.
      */
-    DrmConvertedStatus* convertData(int uniqueId, int convertId, const DrmBuffer* inputData);
+    virtual DrmConvertedStatus* convertData(int uniqueId, int convertId, const DrmBuffer* inputData);
 
     /**
      * Informs the Drm Agent when there is no more data which need to be converted
@@ -279,7 +279,7 @@ public:
      *     the application on which offset these signature data
      *     should be appended.
      */
-    DrmConvertedStatus* closeConvertSession(int uniqueId, int convertId);
+    virtual DrmConvertedStatus* closeConvertSession(int uniqueId, int convertId);
 
     /**
      * Retrieves all DrmSupportInfo instance that native DRM framework can handle.
@@ -292,7 +292,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t getAllSupportInfo(int uniqueId, int* length, DrmSupportInfo** drmSupportInfoArray);
+    virtual status_t getAllSupportInfo(int uniqueId, int* length, DrmSupportInfo** drmSupportInfoArray);
 
     /**
      * Open the decrypt session to decrypt the given protected content
@@ -305,7 +305,7 @@ public:
      * @return
      *     Handle for the decryption session
      */
-    sp<DecryptHandle> openDecryptSession(
+    virtual sp<DecryptHandle> openDecryptSession(
             int uniqueId, int fd, off64_t offset, off64_t length, const char* mime);
 
     /**
@@ -317,7 +317,7 @@ public:
      * @return
      *     Handle for the decryption session
      */
-    sp<DecryptHandle> openDecryptSession(
+    virtual sp<DecryptHandle> openDecryptSession(
             int uniqueId, const char* uri, const char* mime);
 
     /**
@@ -329,7 +329,7 @@ public:
      * @return
      *     Handle for the decryption session
      */
-    sp<DecryptHandle> openDecryptSession(int uniqueId, const DrmBuffer& buf,
+    virtual sp<DecryptHandle> openDecryptSession(int uniqueId, const DrmBuffer& buf,
             const String8& mimeType);
 
     /**
@@ -340,7 +340,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t closeDecryptSession(int uniqueId, sp<DecryptHandle> &decryptHandle);
+    virtual status_t closeDecryptSession(int uniqueId, sp<DecryptHandle> &decryptHandle);
 
     /**
      * Initialize decryption for the given unit of the protected content
@@ -352,7 +352,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t initializeDecryptUnit(int uniqueId, sp<DecryptHandle> &decryptHandle,
+    virtual status_t initializeDecryptUnit(int uniqueId, sp<DecryptHandle> &decryptHandle,
             int decryptUnitId, const DrmBuffer* headerInfo);
 
     /**
@@ -372,7 +372,7 @@ public:
      *     DRM_ERROR_SESSION_NOT_OPENED, DRM_ERROR_DECRYPT_UNIT_NOT_INITIALIZED,
      *     DRM_ERROR_DECRYPT for failure.
      */
-    status_t decrypt(int uniqueId, sp<DecryptHandle> &decryptHandle, int decryptUnitId,
+    virtual status_t decrypt(int uniqueId, sp<DecryptHandle> &decryptHandle, int decryptUnitId,
             const DrmBuffer* encBuffer, DrmBuffer** decBuffer, DrmBuffer* IV);
 
     /**
@@ -384,7 +384,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t finalizeDecryptUnit(int uniqueId, sp<DecryptHandle> &decryptHandle, int decryptUnitId);
+    virtual status_t finalizeDecryptUnit(int uniqueId, sp<DecryptHandle> &decryptHandle, int decryptUnitId);
 
     /**
      * Reads the specified number of bytes from an open DRM file.
@@ -397,7 +397,7 @@ public:
      *
      * @return Number of bytes read. Returns -1 for Failure.
      */
-    ssize_t pread(int uniqueId, sp<DecryptHandle> &decryptHandle,
+    virtual ssize_t pread(int uniqueId, sp<DecryptHandle> &decryptHandle,
             void* buffer, ssize_t numBytes, off64_t offset);
 
     /**
@@ -407,7 +407,7 @@ public:
      * @return status_t
      *     Returns DRM_NO_ERROR for success, DRM_ERROR_UNKNOWN for failure
      */
-    status_t notify(const DrmInfoEvent& event);
+    virtual status_t notify(const DrmInfoEvent& event);
 
 private:
     Mutex mLock;

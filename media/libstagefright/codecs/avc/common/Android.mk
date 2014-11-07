@@ -16,4 +16,6 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/src \
  	$(LOCAL_PATH)/include
 
+LOCAL_CFLAGS += -Werror
+
 include $(BUILD_SHARED_LIBRARY)

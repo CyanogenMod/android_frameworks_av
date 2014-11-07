@@ -24,7 +24,7 @@ namespace android {
 
 SourceAudioBufferProvider::SourceAudioBufferProvider(const sp<NBAIO_Source>& source) :
     mSource(source),
-    // mFrameBitShiftFormat below
+    // mFrameSize below
     mAllocated(NULL), mSize(0), mOffset(0), mRemaining(0), mGetCount(0), mFramesReleased(0)
 {
     ALOG_ASSERT(source != 0);
@@ -37,7 +37,7 @@ SourceAudioBufferProvider::SourceAudioBufferProvider(const sp<NBAIO_Source>& sou
     numCounterOffers = 0;
     index = source->negotiate(counterOffers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
-    mFrameBitShift = Format_frameBitShift(source->format());
+    mFrameSize = Format_frameSize(source->format());
 }
 
 SourceAudioBufferProvider::~SourceAudioBufferProvider()
@@ -54,14 +54,14 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
         if (mRemaining < buffer->frameCount) {
             buffer->frameCount = mRemaining;
         }
-        buffer->raw = (char *) mAllocated + (mOffset << mFrameBitShift);
+        buffer->raw = (char *) mAllocated + (mOffset * mFrameSize);
         mGetCount = buffer->frameCount;
         return OK;
     }
     // do we need to reallocate?
     if (buffer->frameCount > mSize) {
         free(mAllocated);
-        mAllocated = malloc(buffer->frameCount << mFrameBitShift);
+        mAllocated = malloc(buffer->frameCount * mFrameSize);
         mSize = buffer->frameCount;
     }
     // read from source
@@ -84,7 +84,7 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
 void SourceAudioBufferProvider::releaseBuffer(Buffer *buffer)
 {
     ALOG_ASSERT((buffer != NULL) &&
-            (buffer->raw == (char *) mAllocated + (mOffset << mFrameBitShift)) &&
+            (buffer->raw == (char *) mAllocated + (mOffset * mFrameSize)) &&
             (buffer->frameCount <= mGetCount) &&
             (mGetCount <= mRemaining) &&
             (mOffset + mRemaining <= mSize));

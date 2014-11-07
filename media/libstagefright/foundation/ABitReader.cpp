@@ -27,6 +27,9 @@ ABitReader::ABitReader(const uint8_t *data, size_t size)
       mNumBitsLeft(0) {
 }
 
+ABitReader::~ABitReader() {
+}
+
 void ABitReader::fillReservoir() {
     CHECK_GT(mSize, 0u);
 
@@ -97,6 +100,71 @@ size_t ABitReader::numBitsLeft() const {
 
 const uint8_t *ABitReader::data() const {
     return mData - (mNumBitsLeft + 7) / 8;
+}
+
+NALBitReader::NALBitReader(const uint8_t *data, size_t size)
+    : ABitReader(data, size),
+      mNumZeros(0) {
+}
+
+bool NALBitReader::atLeastNumBitsLeft(size_t n) const {
+    // check against raw size and reservoir bits first
+    size_t numBits = numBitsLeft();
+    if (n > numBits) {
+        return false;
+    }
+
+    ssize_t numBitsRemaining = n - mNumBitsLeft;
+
+    size_t size = mSize;
+    const uint8_t *data = mData;
+    int32_t numZeros = mNumZeros;
+    while (size > 0 && numBitsRemaining > 0) {
+        bool isEmulationPreventionByte = (numZeros >= 2 && *data == 3);
+
+        if (*data == 0) {
+            ++numZeros;
+        } else {
+            numZeros = 0;
+        }
+
+        if (!isEmulationPreventionByte) {
+            numBitsRemaining -= 8;
+        }
+
+        ++data;
+        --size;
+    }
+
+    return (numBitsRemaining <= 0);
+}
+
+void NALBitReader::fillReservoir() {
+    CHECK_GT(mSize, 0u);
+
+    mReservoir = 0;
+    size_t i = 0;
+    while (mSize > 0 && i < 4) {
+        bool isEmulationPreventionByte = (mNumZeros >= 2 && *mData == 3);
+
+        if (*mData == 0) {
+            ++mNumZeros;
+        } else {
+            mNumZeros = 0;
+        }
+
+        // skip emulation_prevention_three_byte
+        if (!isEmulationPreventionByte) {
+            mReservoir = (mReservoir << 8) | *mData;
+            ++i;
+        }
+
+        ++mData;
+        --mSize;
+    }
+
+    mNumBitsLeft = 8 * i;
+    mReservoir <<= 32 - mNumBitsLeft;
 }
 
 }  // namespace android

@@ -13,18 +13,28 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
+LOCAL_SRC_FILES := \
+    ServiceUtilities.cpp
+
+# FIXME Move this library to frameworks/native
+LOCAL_MODULE := libserviceutility
+
+include $(BUILD_STATIC_LIBRARY)
+
+include $(CLEAR_VARS)
+
 LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
     Threads.cpp                 \
     Tracks.cpp                  \
     Effects.cpp                 \
     AudioMixer.cpp.arm          \
-    AudioPolicyService.cpp      \
-    ServiceUtilities.cpp        \
+    PatchPanel.cpp
 
 LOCAL_SRC_FILES += StateQueue.cpp
 
 LOCAL_C_INCLUDES := \
+    $(TOPDIR)frameworks/av/services/audiopolicy \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
@@ -46,12 +56,15 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
     libscheduling_policy \
     libcpustats \
-    libmedia_helper
+    libmedia_helper \
+    libserviceutility
 
 LOCAL_MODULE:= libaudioflinger
 LOCAL_32_BIT_ONLY := true
 
 LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp
+LOCAL_SRC_FILES += FastThread.cpp FastThreadState.cpp
+LOCAL_SRC_FILES += FastCapture.cpp FastCaptureState.cpp
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
@@ -72,10 +85,21 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
-	test-resample.cpp 			\
+    test-resample.cpp           \
+
+LOCAL_C_INCLUDES := \
+    $(call include-path-for, audio-utils)
+
+LOCAL_STATIC_LIBRARIES := \
+    libsndfile
 
 LOCAL_SHARED_LIBRARIES := \
     libaudioresampler \
+    libaudioutils \
+    libdl \
+    libcutils \
+    libutils \
+    liblog
 
 LOCAL_MODULE:= test-resample
 
@@ -88,7 +112,11 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     AudioResampler.cpp.arm \
     AudioResamplerCubic.cpp.arm \
-    AudioResamplerSinc.cpp.arm
+    AudioResamplerSinc.cpp.arm \
+    AudioResamplerDyn.cpp.arm
+
+LOCAL_C_INCLUDES := \
+    $(call include-path-for, audio-utils)
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \

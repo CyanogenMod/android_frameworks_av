@@ -28,6 +28,7 @@ struct ABuffer;
 struct AnotherPacketSource;
 struct DataSource;
 struct HTTPBase;
+struct IMediaHTTPService;
 struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
@@ -40,7 +41,8 @@ struct LiveSession : public AHandler {
     };
     LiveSession(
             const sp<AMessage> &notify,
-            uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
+            uint32_t flags,
+            const sp<IMediaHTTPService> &httpService);
 
     enum StreamIndex {
         kAudioIndex    = 0,
@@ -68,7 +70,8 @@ struct LiveSession : public AHandler {
     status_t seekTo(int64_t timeUs);
 
     status_t getDuration(int64_t *durationUs) const;
-    status_t getTrackInfo(Parcel *reply) const;
+    size_t getTrackCount() const;
+    sp<AMessage> getTrackInfo(size_t trackIndex) const;
     status_t selectTrack(size_t index, bool select);
 
     bool isSeekable() const;
@@ -105,6 +108,8 @@ private:
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
         kWhatSwapped                    = 'swap',
+        kWhatCheckSwitchDown            = 'ckSD',
+        kWhatSwitchDown                 = 'sDwn',
     };
 
     struct BandwidthItem {
@@ -121,9 +126,20 @@ private:
 
     struct StreamItem {
         const char *mType;
-        AString mUri;
-        StreamItem() : mType("") {}
-        StreamItem(const char *type) : mType(type) {}
+        AString mUri, mNewUri;
+        size_t mCurDiscontinuitySeq;
+        int64_t mLastDequeuedTimeUs;
+        int64_t mLastSampleDurationUs;
+        StreamItem()
+            : mType(""),
+              mCurDiscontinuitySeq(0),
+              mLastDequeuedTimeUs(0),
+              mLastSampleDurationUs(0) {}
+        StreamItem(const char *type)
+            : mType(type),
+              mCurDiscontinuitySeq(0),
+              mLastDequeuedTimeUs(0),
+              mLastSampleDurationUs(0) {}
         AString uriKey() {
             AString key(mType);
             key.append("URI");
@@ -134,10 +150,10 @@ private:
 
     sp<AMessage> mNotify;
     uint32_t mFlags;
-    bool mUIDValid;
-    uid_t mUID;
+    sp<IMediaHTTPService> mHTTPService;
 
     bool mInPreparationPhase;
+    bool mBuffering[kMaxStreams];
 
     sp<HTTPBase> mHTTPDataSource;
     KeyedVector<String8, String8> mExtraHeaders;
@@ -145,7 +161,7 @@ private:
     AString mMasterURL;
 
     Vector<BandwidthItem> mBandwidthItems;
-    ssize_t mPrevBandwidthIndex;
+    ssize_t mCurBandwidthIndex;
 
     sp<M3UParser> mPlaylist;
 
@@ -161,6 +177,7 @@ private:
     // we use this to track reconfiguration progress.
     uint32_t mSwapMask;
 
+    KeyedVector<StreamType, sp<AnotherPacketSource> > mDiscontinuities;
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources;
     // A second set of packet sources that buffer content for the variant we're switching to.
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources2;
@@ -172,6 +189,7 @@ private:
 
     int32_t mCheckBandwidthGeneration;
     int32_t mSwitchGeneration;
+    int32_t mSubtitleGeneration;
 
     size_t mContinuationCounter;
     sp<AMessage> mContinuation;
@@ -184,6 +202,13 @@ private:
     bool mSwitchInProgress;
     uint32_t mDisconnectReplyID;
     uint32_t mSeekReplyID;
+
+    bool mFirstTimeUsValid;
+    int64_t mFirstTimeUs;
+    int64_t mLastSeekTimeUs;
+    sp<AMessage> mSwitchDownMonitor;
+    KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
+    KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
@@ -216,9 +241,11 @@ private:
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
 
     size_t getBandwidthIndex();
+    int64_t latestMediaSegmentStartTimeUs();
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
     static StreamType indexToType(int idx);
+    static ssize_t typeToIndex(int32_t type);
 
     void changeConfiguration(
             int64_t timeUs, size_t bandwidthIndex, bool pickTrack = false);
@@ -226,6 +253,8 @@ private:
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
     void onSwapped(const sp<AMessage> &msg);
+    void onCheckSwitchDown();
+    void onSwitchDown();
     void tryToFinishBandwidthSwitch();
 
     void scheduleCheckBandwidthEvent();
@@ -237,7 +266,7 @@ private:
     void cancelBandwidthSwitch();
 
     bool canSwitchBandwidthTo(size_t bandwidthIndex);
-    void onCheckBandwidth();
+    void onCheckBandwidth(const sp<AMessage> &msg);
 
     void finishDisconnect();
 

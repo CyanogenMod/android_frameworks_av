@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "CameraSourceTimeLapse"
 
@@ -79,13 +81,14 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
       mSkipCurrentFrame(false) {
 
     mTimeBetweenFrameCaptureUs = timeBetweenFrameCaptureUs;
-    ALOGD("starting time lapse mode: %lld us",
+    ALOGD("starting time lapse mode: %" PRId64 " us",
         mTimeBetweenFrameCaptureUs);
 
     mVideoWidth = videoSize.width;
     mVideoHeight = videoSize.height;
 
-    if (!trySettingVideoSize(videoSize.width, videoSize.height)) {
+    if (OK == mInitCheck && !trySettingVideoSize(videoSize.width, videoSize.height)) {
+        releaseCamera();
         mInitCheck = NO_INIT;
     }
 
@@ -265,7 +268,7 @@ bool CameraSourceTimeLapse::skipFrameAndModifyTimeStamp(int64_t *timestampUs) {
 
             // Really make sure that this video recording frame will not be dropped.
             if (*timestampUs < mStartTimeUs) {
-                ALOGI("set timestampUs to start time stamp %lld us", mStartTimeUs);
+                ALOGI("set timestampUs to start time stamp %" PRId64 " us", mStartTimeUs);
                 *timestampUs = mStartTimeUs;
             }
             return false;

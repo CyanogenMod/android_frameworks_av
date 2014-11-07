@@ -40,7 +40,12 @@ FrameProcessor::FrameProcessor(wp<CameraDeviceBase> device,
 
     {
         SharedParameters::Lock l(client->getParameters());
-        mUsePartialQuirk = l.mParameters.quirks.partialResults;
+
+        if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+            mUsePartialResult = (mNumPartialResults > 1);
+        } else {
+            mUsePartialResult = l.mParameters.quirks.partialResults;
+        }
 
         // Initialize starting 3A state
         m3aState.afTriggerId = l.mParameters.afTriggerCounter;
@@ -55,7 +60,7 @@ FrameProcessor::FrameProcessor(wp<CameraDeviceBase> device,
 FrameProcessor::~FrameProcessor() {
 }
 
-bool FrameProcessor::processSingleFrame(CameraMetadata &frame,
+bool FrameProcessor::processSingleFrame(CaptureResult &frame,
                                         const sp<CameraDeviceBase> &device) {
 
     sp<Camera2Client> client = mClient.promote();
@@ -63,17 +68,21 @@ bool FrameProcessor::processSingleFrame(CameraMetadata &frame,
         return false;
     }
 
-    bool partialResult = false;
-    if (mUsePartialQuirk) {
-        camera_metadata_entry_t entry;
-        entry = frame.find(ANDROID_QUIRKS_PARTIAL_RESULT);
-        if (entry.count > 0 &&
-                entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
-            partialResult = true;
+    bool isPartialResult = false;
+    if (mUsePartialResult) {
+        if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+            isPartialResult = frame.mResultExtras.partialResultCount < mNumPartialResults;
+        } else {
+            camera_metadata_entry_t entry;
+            entry = frame.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+            if (entry.count > 0 &&
+                    entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+                isPartialResult = true;
+            }
         }
     }
 
-    if (!partialResult && processFaceDetect(frame, client) != OK) {
+    if (!isPartialResult && processFaceDetect(frame.mMetadata, client) != OK) {
         return false;
     }
 
@@ -212,14 +221,15 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
     return OK;
 }
 
-status_t FrameProcessor::process3aState(const CameraMetadata &frame,
+status_t FrameProcessor::process3aState(const CaptureResult &frame,
         const sp<Camera2Client> &client) {
 
     ATRACE_CALL();
+    const CameraMetadata &metadata = frame.mMetadata;
     camera_metadata_ro_entry_t entry;
     int cameraId = client->getCameraId();
 
-    entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
+    entry = metadata.find(ANDROID_REQUEST_FRAME_COUNT);
     int32_t frameNumber = entry.data.i32[0];
 
     // Don't send 3A notifications for the same frame number twice
@@ -238,26 +248,31 @@ status_t FrameProcessor::process3aState(const CameraMetadata &frame,
 
     // TODO: Also use AE mode, AE trigger ID
 
-    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AF_MODE,
+    gotAllStates &= get3aResult<uint8_t>(metadata, ANDROID_CONTROL_AF_MODE,
             &new3aState.afMode, frameNumber, cameraId);
 
-    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AWB_MODE,
+    gotAllStates &= get3aResult<uint8_t>(metadata, ANDROID_CONTROL_AWB_MODE,
             &new3aState.awbMode, frameNumber, cameraId);
 
-    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AE_STATE,
+    gotAllStates &= get3aResult<uint8_t>(metadata, ANDROID_CONTROL_AE_STATE,
             &new3aState.aeState, frameNumber, cameraId);
 
-    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AF_STATE,
+    gotAllStates &= get3aResult<uint8_t>(metadata, ANDROID_CONTROL_AF_STATE,
             &new3aState.afState, frameNumber, cameraId);
 
-    gotAllStates &= get3aResult<uint8_t>(frame, ANDROID_CONTROL_AWB_STATE,
+    gotAllStates &= get3aResult<uint8_t>(metadata, ANDROID_CONTROL_AWB_STATE,
             &new3aState.awbState, frameNumber, cameraId);
 
-    gotAllStates &= get3aResult<int32_t>(frame, ANDROID_CONTROL_AF_TRIGGER_ID,
-            &new3aState.afTriggerId, frameNumber, cameraId);
+    if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+        new3aState.afTriggerId = frame.mResultExtras.afTriggerId;
+        new3aState.aeTriggerId = frame.mResultExtras.precaptureTriggerId;
+    } else {
+        gotAllStates &= get3aResult<int32_t>(metadata, ANDROID_CONTROL_AF_TRIGGER_ID,
+                 &new3aState.afTriggerId, frameNumber, cameraId);
 
-    gotAllStates &= get3aResult<int32_t>(frame, ANDROID_CONTROL_AE_PRECAPTURE_ID,
-            &new3aState.aeTriggerId, frameNumber, cameraId);
+        gotAllStates &= get3aResult<int32_t>(metadata, ANDROID_CONTROL_AE_PRECAPTURE_ID,
+                 &new3aState.aeTriggerId, frameNumber, cameraId);
+    }
 
     if (!gotAllStates) return BAD_VALUE;
 

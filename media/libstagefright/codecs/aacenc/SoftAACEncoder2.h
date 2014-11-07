@@ -53,6 +53,8 @@ private:
     OMX_U32 mNumChannels;
     OMX_U32 mSampleRate;
     OMX_U32 mBitRate;
+    OMX_S32 mSBRMode;
+    OMX_S32 mSBRRatio;
     OMX_U32 mAACProfile;
 
     bool mSentCodecSpecificData;

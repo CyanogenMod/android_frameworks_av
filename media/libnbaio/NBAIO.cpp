@@ -22,119 +22,42 @@
 
 namespace android {
 
-size_t Format_frameSize(NBAIO_Format format)
+size_t Format_frameSize(const NBAIO_Format& format)
 {
-    return Format_channelCount(format) * sizeof(short);
+    return format.mFrameSize;
 }
 
-size_t Format_frameBitShift(NBAIO_Format format)
+const NBAIO_Format Format_Invalid = { 0, 0, AUDIO_FORMAT_INVALID, 0 };
+
+unsigned Format_sampleRate(const NBAIO_Format& format)
 {
-    // sizeof(short) == 2, so frame size == 1 << channels
-    return Format_channelCount(format);
+    if (!Format_isValid(format)) {
+        return 0;
+    }
+    return format.mSampleRate;
 }
 
-enum {
-    Format_SR_8000,
-    Format_SR_11025,
-    Format_SR_16000,
-    Format_SR_22050,
-    Format_SR_24000,
-    Format_SR_32000,
-    Format_SR_44100,
-    Format_SR_48000,
-    Format_SR_Mask = 7
-};
-
-enum {
-    Format_C_1 = 0x08,
-    Format_C_2 = 0x10,
-    Format_C_Mask = 0x18
-};
-
-unsigned Format_sampleRate(NBAIO_Format format)
+unsigned Format_channelCount(const NBAIO_Format& format)
 {
-    if (format == Format_Invalid) {
+    if (!Format_isValid(format)) {
         return 0;
     }
-    switch (format & Format_SR_Mask) {
-    case Format_SR_8000:
-        return 8000;
-    case Format_SR_11025:
-        return 11025;
-    case Format_SR_16000:
-        return 16000;
-    case Format_SR_22050:
-        return 22050;
-    case Format_SR_24000:
-        return 24000;
-    case Format_SR_32000:
-        return 32000;
-    case Format_SR_44100:
-        return 44100;
-    case Format_SR_48000:
-        return 48000;
-    default:
-        return 0;
-    }
+    return format.mChannelCount;
 }
 
-unsigned Format_channelCount(NBAIO_Format format)
+NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount,
+        audio_format_t format)
 {
-    if (format == Format_Invalid) {
-        return 0;
-    }
-    switch (format & Format_C_Mask) {
-    case Format_C_1:
-        return 1;
-    case Format_C_2:
-        return 2;
-    default:
-        return 0;
-    }
-}
-
-NBAIO_Format Format_from_SR_C(unsigned sampleRate, unsigned channelCount)
-{
-    NBAIO_Format format;
-    switch (sampleRate) {
-    case 8000:
-        format = Format_SR_8000;
-        break;
-    case 11025:
-        format = Format_SR_11025;
-        break;
-    case 16000:
-        format = Format_SR_16000;
-        break;
-    case 22050:
-        format = Format_SR_22050;
-        break;
-    case 24000:
-        format = Format_SR_24000;
-        break;
-    case 32000:
-        format = Format_SR_32000;
-        break;
-    case 44100:
-        format = Format_SR_44100;
-        break;
-    case 48000:
-        format = Format_SR_48000;
-        break;
-    default:
+    if (sampleRate == 0 || channelCount == 0 || !audio_is_valid_format(format)) {
         return Format_Invalid;
     }
-    switch (channelCount) {
-    case 1:
-        format |= Format_C_1;
-        break;
-    case 2:
-        format |= Format_C_2;
-        break;
-    default:
-        return Format_Invalid;
-    }
-    return format;
+    NBAIO_Format ret;
+    ret.mSampleRate = sampleRate;
+    ret.mChannelCount = channelCount;
+    ret.mFormat = format;
+    ret.mFrameSize = audio_is_linear_pcm(format) ?
+            channelCount * audio_bytes_per_sample(format) : sizeof(uint8_t);
+    return ret;
 }
 
 // This is a default implementation; it is expected that subclasses will optimize this.
@@ -214,11 +137,11 @@ ssize_t NBAIO_Source::readVia(readVia_t via, size_t total, void *user,
 ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
                                   NBAIO_Format counterOffers[], size_t& numCounterOffers)
 {
-    ALOGV("negotiate offers=%p numOffers=%u countersOffers=%p numCounterOffers=%u",
+    ALOGV("negotiate offers=%p numOffers=%zu countersOffers=%p numCounterOffers=%zu",
             offers, numOffers, counterOffers, numCounterOffers);
-    if (mFormat != Format_Invalid) {
+    if (Format_isValid(mFormat)) {
         for (size_t i = 0; i < numOffers; ++i) {
-            if (offers[i] == mFormat) {
+            if (Format_isEqual(offers[i], mFormat)) {
                 mNegotiated = true;
                 return i;
             }
@@ -231,6 +154,19 @@ ssize_t NBAIO_Port::negotiate(const NBAIO_Format offers[], size_t numOffers,
         numCounterOffers = 0;
     }
     return (ssize_t) NEGOTIATE;
+}
+
+bool Format_isValid(const NBAIO_Format& format)
+{
+    return format.mSampleRate != 0 && format.mChannelCount != 0 &&
+            format.mFormat != AUDIO_FORMAT_INVALID && format.mFrameSize != 0;
+}
+
+bool Format_isEqual(const NBAIO_Format& format1, const NBAIO_Format& format2)
+{
+    return format1.mSampleRate == format2.mSampleRate &&
+            format1.mChannelCount == format2.mChannelCount && format1.mFormat == format2.mFormat &&
+            format1.mFrameSize == format2.mFrameSize;
 }
 
 }   // namespace android

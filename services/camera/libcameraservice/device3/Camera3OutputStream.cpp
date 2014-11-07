@@ -37,7 +37,8 @@ Camera3OutputStream::Camera3OutputStream(int id,
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
                             /*maxSize*/0, format),
         mConsumer(consumer),
-        mTransform(0) {
+        mTransform(0),
+        mTraceFirstBuffer(true) {
 
     if (mConsumer == NULL) {
         ALOGE("%s: Consumer is NULL!", __FUNCTION__);
@@ -51,7 +52,8 @@ Camera3OutputStream::Camera3OutputStream(int id,
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
                             format),
         mConsumer(consumer),
-        mTransform(0) {
+        mTransform(0),
+        mTraceFirstBuffer(true) {
 
     if (format != HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
@@ -119,7 +121,7 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
      * in which case we reassign it to acquire_fence
      */
     handoutBufferLocked(*buffer, &(anb->handle), /*acquireFence*/fenceFd,
-                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK);
+                        /*releaseFence*/-1, CAMERA3_BUFFER_STATUS_OK, /*output*/true);
 
     return OK;
 }
@@ -202,6 +204,15 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
                   " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
     } else {
+        if (mTraceFirstBuffer && (stream_type == CAMERA3_STREAM_OUTPUT)) {
+            {
+                char traceLog[48];
+                snprintf(traceLog, sizeof(traceLog), "Stream %d: first full buffer\n", mId);
+                ATRACE_NAME(traceLog);
+            }
+            mTraceFirstBuffer = false;
+        }
+
         res = currentConsumer->queueBuffer(currentConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
@@ -257,6 +268,7 @@ status_t Camera3OutputStream::setTransformLocked(int transform) {
 status_t Camera3OutputStream::configureQueueLocked() {
     status_t res;
 
+    mTraceFirstBuffer = true;
     if ((res = Camera3IOStreamBase::configureQueueLocked()) != OK) {
         return res;
     }
@@ -289,20 +301,25 @@ status_t Camera3OutputStream::configureQueueLocked() {
 
     if (mMaxSize == 0) {
         // For buffers of known size
-        res = native_window_set_buffers_geometry(mConsumer.get(),
-                camera3_stream::width, camera3_stream::height,
-                camera3_stream::format);
+        res = native_window_set_buffers_dimensions(mConsumer.get(),
+                camera3_stream::width, camera3_stream::height);
     } else {
         // For buffers with bounded size
-        res = native_window_set_buffers_geometry(mConsumer.get(),
-                mMaxSize, 1,
-                camera3_stream::format);
+        res = native_window_set_buffers_dimensions(mConsumer.get(),
+                mMaxSize, 1);
     }
     if (res != OK) {
-        ALOGE("%s: Unable to configure stream buffer geometry"
-                " %d x %d, format %x for stream %d",
+        ALOGE("%s: Unable to configure stream buffer dimensions"
+                " %d x %d (maxSize %zu) for stream %d",
                 __FUNCTION__, camera3_stream::width, camera3_stream::height,
-                camera3_stream::format, mId);
+                mMaxSize, mId);
+        return res;
+    }
+    res = native_window_set_buffers_format(mConsumer.get(),
+            camera3_stream::format);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream buffer format %#x for stream %d",
+                __FUNCTION__, camera3_stream::format, mId);
         return res;
     }
 
@@ -324,7 +341,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
     }
 
     mTotalBufferCount = maxConsumerBuffers + camera3_stream::max_buffers;
-    mDequeuedBufferCount = 0;
+    mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
     mLastTimestamp = 0;
 

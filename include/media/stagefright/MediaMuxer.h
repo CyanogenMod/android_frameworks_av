@@ -32,7 +32,7 @@ struct MediaAdapter;
 struct MediaBuffer;
 struct MediaSource;
 struct MetaData;
-struct MPEG4Writer;
+struct MediaWriter;
 
 // MediaMuxer is used to mux multiple tracks into a video. Currently, we only
 // support a mp4 file as the output.
@@ -46,6 +46,7 @@ public:
     // OutputFormat is updated.
     enum OutputFormat {
         OUTPUT_FORMAT_MPEG_4 = 0,
+        OUTPUT_FORMAT_WEBM   = 1,
         OUTPUT_FORMAT_LIST_END // must be last - used to validate format type
     };
 
@@ -117,7 +118,8 @@ public:
                              int64_t timeUs, uint32_t flags) ;
 
 private:
-    sp<MPEG4Writer> mWriter;
+    const OutputFormat mFormat;
+    sp<MediaWriter> mWriter;
     Vector< sp<MediaAdapter> > mTrackList;  // Each track has its MediaAdapter.
     sp<MetaData> mFileMeta;  // Metadata for the whole file.
 

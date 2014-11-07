@@ -18,9 +18,12 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaMetadataRetriever"
 
+#include <inttypes.h>
+
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
 #include <media/mediametadataretriever.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <utils/Log.h>
 #include <dlfcn.h>
@@ -93,7 +96,9 @@ void MediaMetadataRetriever::disconnect()
 }
 
 status_t MediaMetadataRetriever::setDataSource(
-        const char *srcUrl, const KeyedVector<String8, String8> *headers)
+        const sp<IMediaHTTPService> &httpService,
+        const char *srcUrl,
+        const KeyedVector<String8, String8> *headers)
 {
     ALOGV("setDataSource");
     Mutex::Autolock _l(mLock);
@@ -106,12 +111,12 @@ status_t MediaMetadataRetriever::setDataSource(
         return UNKNOWN_ERROR;
     }
     ALOGV("data source (%s)", srcUrl);
-    return mRetriever->setDataSource(srcUrl, headers);
+    return mRetriever->setDataSource(httpService, srcUrl, headers);
 }
 
 status_t MediaMetadataRetriever::setDataSource(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     Mutex::Autolock _l(mLock);
     if (mRetriever == 0) {
         ALOGE("retriever is not initialized");
@@ -126,7 +131,7 @@ status_t MediaMetadataRetriever::setDataSource(int fd, int64_t offset, int64_t l
 
 sp<IMemory> MediaMetadataRetriever::getFrameAtTime(int64_t timeUs, int option)
 {
-    ALOGV("getFrameAtTime: time(%lld us) option(%d)", timeUs, option);
+    ALOGV("getFrameAtTime: time(%" PRId64 " us) option(%d)", timeUs, option);
     Mutex::Autolock _l(mLock);
     if (mRetriever == 0) {
         ALOGE("retriever is not initialized");
@@ -157,7 +162,7 @@ sp<IMemory> MediaMetadataRetriever::extractAlbumArt()
     return mRetriever->extractAlbumArt();
 }
 
-void MediaMetadataRetriever::DeathNotifier::binderDied(const wp<IBinder>& who) {
+void MediaMetadataRetriever::DeathNotifier::binderDied(const wp<IBinder>& who __unused) {
     Mutex::Autolock lock(MediaMetadataRetriever::sServiceLock);
     MediaMetadataRetriever::sService.clear();
     ALOGW("MediaMetadataRetriever server died!");

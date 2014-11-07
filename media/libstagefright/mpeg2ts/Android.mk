@@ -13,6 +13,8 @@ LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_MODULE:= libstagefright_mpeg2ts
 
 ifeq ($(TARGET_ARCH),arm)

@@ -30,6 +30,7 @@
 
 namespace android {
 
+struct IMediaHTTPService;
 class IMediaPlayerService;
 class MemoryDealer;
 
@@ -43,7 +44,9 @@ public:
     virtual void                    disconnect();
 
     virtual status_t                setDataSource(
-            const char *url, const KeyedVector<String8, String8> *headers);
+            const sp<IMediaHTTPService> &httpService,
+            const char *url,
+            const KeyedVector<String8, String8> *headers);
 
     virtual status_t                setDataSource(int fd, int64_t offset, int64_t length);
     virtual sp<IMemory>             getFrameAtTime(int64_t timeUs, int option);

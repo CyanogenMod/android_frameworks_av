@@ -25,6 +25,8 @@
 #include "typedef.h"
 #include "basic_op.h"
 
+#define UNUSED(x) (void)(x)
+
 void Convolve (
 		Word16 x[],        /* (i)     : input vector                           */
 		Word16 h[],        /* (i)     : impulse response                       */
@@ -35,6 +37,8 @@ void Convolve (
 	Word32  i, n;
 	Word16 *tmpH,*tmpX;
 	Word32 s;
+        UNUSED(L);
+
 	for (n = 0; n < 64;)
 	{
 		tmpH = h+n;

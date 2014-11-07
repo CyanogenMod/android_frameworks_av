@@ -17,12 +17,14 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaPlayer"
-#include <utils/Log.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <fcntl.h>
+#include <inttypes.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <utils/Log.h>
 
 #include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
@@ -48,6 +50,7 @@ MediaPlayer::MediaPlayer()
     mListener = NULL;
     mCookie = NULL;
     mStreamType = AUDIO_STREAM_MUSIC;
+    mAudioAttributesParcel = NULL;
     mCurrentPosition = -1;
     mSeekPosition = -1;
     mCurrentState = MEDIA_PLAYER_IDLE;
@@ -57,8 +60,8 @@ MediaPlayer::MediaPlayer()
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
     mLockThreadId = 0;
-    mAudioSessionId = AudioSystem::newAudioSessionId();
-    AudioSystem::acquireAudioSessionId(mAudioSessionId);
+    mAudioSessionId = AudioSystem::newAudioUniqueId();
+    AudioSystem::acquireAudioSessionId(mAudioSessionId, -1);
     mSendLevel = 0;
     mRetransmitEndpointValid = false;
 }
@@ -66,7 +69,11 @@ MediaPlayer::MediaPlayer()
 MediaPlayer::~MediaPlayer()
 {
     ALOGV("destructor");
-    AudioSystem::releaseAudioSessionId(mAudioSessionId);
+    if (mAudioAttributesParcel != NULL) {
+        delete mAudioAttributesParcel;
+        mAudioAttributesParcel = NULL;
+    }
+    AudioSystem::releaseAudioSessionId(mAudioSessionId, -1);
     disconnect();
     IPCThreadState::self()->flushCommands();
 }
@@ -136,6 +143,7 @@ status_t MediaPlayer::attachNewPlayer(const sp<IMediaPlayer>& player)
 }
 
 status_t MediaPlayer::setDataSource(
+        const sp<IMediaHTTPService> &httpService,
         const char *url, const KeyedVector<String8, String8> *headers)
 {
     ALOGV("setDataSource(%s)", url);
@@ -145,7 +153,7 @@ status_t MediaPlayer::setDataSource(
         if (service != 0) {
             sp<IMediaPlayer> player(service->create(this, mAudioSessionId));
             if ((NO_ERROR != doSetRetransmitEndpoint(player)) ||
-                (NO_ERROR != player->setDataSource(url, headers))) {
+                (NO_ERROR != player->setDataSource(httpService, url, headers))) {
                 player.clear();
             }
             err = attachNewPlayer(player);
@@ -156,7 +164,7 @@ status_t MediaPlayer::setDataSource(
 
 status_t MediaPlayer::setDataSource(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     status_t err = UNKNOWN_ERROR;
     const sp<IMediaPlayerService>& service(getMediaPlayerService());
     if (service != 0) {
@@ -193,7 +201,7 @@ status_t MediaPlayer::invoke(const Parcel& request, Parcel *reply)
             (mCurrentState != MEDIA_PLAYER_STATE_ERROR) &&
             ((mCurrentState & MEDIA_PLAYER_IDLE) != MEDIA_PLAYER_IDLE);
     if ((mPlayer != NULL) && hasBeenInitialized) {
-        ALOGV("invoke %d", request.dataSize());
+        ALOGV("invoke %zu", request.dataSize());
         return  mPlayer->invoke(request, reply);
     }
     ALOGE("invoke failed: wrong state %X", mCurrentState);
@@ -234,6 +242,9 @@ status_t MediaPlayer::prepareAsync_l()
 {
     if ( (mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_INITIALIZED | MEDIA_PLAYER_STOPPED) ) ) {
         mPlayer->setAudioStreamType(mStreamType);
+        if (mAudioAttributesParcel != NULL) {
+            mPlayer->setParameter(KEY_PARAMETER_AUDIO_ATTRIBUTES, *mAudioAttributesParcel);
+        }
         mCurrentState = MEDIA_PLAYER_PREPARING;
         return mPlayer->prepareAsync();
     }
@@ -280,16 +291,21 @@ status_t MediaPlayer::prepareAsync()
 status_t MediaPlayer::start()
 {
     ALOGV("start");
+
+    status_t ret = NO_ERROR;
     Mutex::Autolock _l(mLock);
-    if (mCurrentState & MEDIA_PLAYER_STARTED)
-        return NO_ERROR;
-    if ( (mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_PREPARED |
+
+    mLockThreadId = getThreadId();
+
+    if (mCurrentState & MEDIA_PLAYER_STARTED) {
+        ret = NO_ERROR;
+    } else if ( (mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_PREPARED |
                     MEDIA_PLAYER_PLAYBACK_COMPLETE | MEDIA_PLAYER_PAUSED ) ) ) {
         mPlayer->setLooping(mLoop);
         mPlayer->setVolume(mLeftVolume, mRightVolume);
         mPlayer->setAuxEffectSendLevel(mSendLevel);
         mCurrentState = MEDIA_PLAYER_STARTED;
-        status_t ret = mPlayer->start();
+        ret = mPlayer->start();
         if (ret != NO_ERROR) {
             mCurrentState = MEDIA_PLAYER_STATE_ERROR;
         } else {
@@ -297,10 +313,14 @@ status_t MediaPlayer::start()
                 ALOGV("playback completed immediately following start()");
             }
         }
-        return ret;
+    } else {
+        ALOGE("start called in state %d", mCurrentState);
+        ret = INVALID_OPERATION;
     }
-    ALOGE("start called in state %d", mCurrentState);
-    return INVALID_OPERATION;
+
+    mLockThreadId = 0;
+
+    return ret;
 }
 
 status_t MediaPlayer::stop()
@@ -530,6 +550,14 @@ status_t MediaPlayer::setAudioStreamType(audio_stream_type_t type)
     return OK;
 }
 
+status_t MediaPlayer::getAudioStreamType(audio_stream_type_t *type)
+{
+    ALOGV("getAudioStreamType");
+    Mutex::Autolock _l(mLock);
+    *type = mStreamType;
+    return OK;
+}
+
 status_t MediaPlayer::setLooping(int loop)
 {
     ALOGV("MediaPlayer::setLooping");
@@ -575,8 +603,8 @@ status_t MediaPlayer::setAudioSessionId(int sessionId)
         return BAD_VALUE;
     }
     if (sessionId != mAudioSessionId) {
-        AudioSystem::acquireAudioSessionId(sessionId);
-        AudioSystem::releaseAudioSessionId(mAudioSessionId);
+        AudioSystem::acquireAudioSessionId(sessionId, -1);
+        AudioSystem::releaseAudioSessionId(mAudioSessionId, -1);
         mAudioSessionId = sessionId;
     }
     return NO_ERROR;
@@ -613,15 +641,46 @@ status_t MediaPlayer::attachAuxEffect(int effectId)
     return mPlayer->attachAuxEffect(effectId);
 }
 
+// always call with lock held
+status_t MediaPlayer::checkStateForKeySet_l(int key)
+{
+    switch(key) {
+    case KEY_PARAMETER_AUDIO_ATTRIBUTES:
+        if (mCurrentState & ( MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_STARTED |
+                MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_PLAYBACK_COMPLETE) ) {
+            // Can't change the audio attributes after prepare
+            ALOGE("trying to set audio attributes called in state %d", mCurrentState);
+            return INVALID_OPERATION;
+        }
+        break;
+    default:
+        // parameter doesn't require player state check
+        break;
+    }
+    return OK;
+}
+
 status_t MediaPlayer::setParameter(int key, const Parcel& request)
 {
     ALOGV("MediaPlayer::setParameter(%d)", key);
     Mutex::Autolock _l(mLock);
+    if (checkStateForKeySet_l(key) != OK) {
+        return INVALID_OPERATION;
+    }
     if (mPlayer != NULL) {
         return  mPlayer->setParameter(key, request);
     }
-    ALOGV("setParameter: no active player");
-    return INVALID_OPERATION;
+    switch (key) {
+    case KEY_PARAMETER_AUDIO_ATTRIBUTES:
+        // no player, save the marshalled audio attributes
+        if (mAudioAttributesParcel != NULL) { delete mAudioAttributesParcel; };
+        mAudioAttributesParcel = new Parcel();
+        mAudioAttributesParcel->appendFrom(&request, 0, request.dataSize());
+        return OK;
+    default:
+        ALOGV("setParameter: no active player");
+        return INVALID_OPERATION;
+    }
 }
 
 status_t MediaPlayer::getParameter(int key, Parcel *reply)
@@ -673,8 +732,8 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     // running in the same process as the media server. In that case,
     // this will deadlock.
     //
-    // The threadId hack below works around this for the care of prepare
-    // and seekTo within the same process.
+    // The threadId hack below works around this for the care of prepare,
+    // seekTo and start within the same process.
     // FIXME: Remember, this is a hack, it's not even a hack that is applied
     // consistently for all use-cases, this needs to be revisited.
     if (mLockThreadId != getThreadId()) {
@@ -776,15 +835,20 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     }
 }
 
-/*static*/ status_t MediaPlayer::decode(const char* url, uint32_t *pSampleRate,
-                                           int* pNumChannels, audio_format_t* pFormat,
-                                           const sp<IMemoryHeap>& heap, size_t *pSize)
+/*static*/ status_t MediaPlayer::decode(
+        const sp<IMediaHTTPService> &httpService,
+        const char* url,
+        uint32_t *pSampleRate,
+        int* pNumChannels,
+        audio_format_t* pFormat,
+        const sp<IMemoryHeap>& heap,
+        size_t *pSize)
 {
     ALOGV("decode(%s)", url);
     status_t status;
     const sp<IMediaPlayerService>& service = getMediaPlayerService();
     if (service != 0) {
-        status = service->decode(url, pSampleRate, pNumChannels, pFormat, heap, pSize);
+        status = service->decode(httpService, url, pSampleRate, pNumChannels, pFormat, heap, pSize);
     } else {
         ALOGE("Unable to locate media service");
         status = DEAD_OBJECT;
@@ -804,7 +868,7 @@ void MediaPlayer::died()
                                         audio_format_t* pFormat,
                                         const sp<IMemoryHeap>& heap, size_t *pSize)
 {
-    ALOGV("decode(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("decode(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     status_t status;
     const sp<IMediaPlayerService>& service = getMediaPlayerService();
     if (service != 0) {
@@ -830,17 +894,6 @@ status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
     }
 
     return mPlayer->setNextPlayer(next == NULL ? NULL : next->mPlayer);
-}
-
-status_t MediaPlayer::updateProxyConfig(
-        const char *host, int32_t port, const char *exclusionList) {
-    const sp<IMediaPlayerService>& service = getMediaPlayerService();
-
-    if (service != NULL) {
-        return service->updateProxyConfig(host, port, exclusionList);
-    }
-
-    return INVALID_OPERATION;
 }
 
 }; // namespace android

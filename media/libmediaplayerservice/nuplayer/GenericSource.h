@@ -23,58 +23,175 @@
 
 #include "ATSParser.h"
 
+#include <media/mediaplayer.h>
+
 namespace android {
 
+class DecryptHandle;
+class DrmManagerClient;
 struct AnotherPacketSource;
 struct ARTSPController;
 struct DataSource;
+struct IMediaHTTPService;
 struct MediaSource;
+class MediaBuffer;
+struct NuCachedSource2;
+struct WVMExtractor;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
-    GenericSource(
-            const sp<AMessage> &notify,
-            const char *url,
-            const KeyedVector<String8, String8> *headers,
-            bool uidValid = false,
-            uid_t uid = 0);
+    GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
 
-    GenericSource(
-            const sp<AMessage> &notify,
-            int fd, int64_t offset, int64_t length);
+    status_t setDataSource(
+            const sp<IMediaHTTPService> &httpService,
+            const char *url,
+            const KeyedVector<String8, String8> *headers);
+
+    status_t setDataSource(int fd, int64_t offset, int64_t length);
 
     virtual void prepareAsync();
 
     virtual void start();
+    virtual void stop();
+    virtual void pause();
+    virtual void resume();
+
+    virtual void disconnect();
 
     virtual status_t feedMoreTSData();
+
+    virtual sp<MetaData> getFileFormatMeta() const;
 
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
 
     virtual status_t getDuration(int64_t *durationUs);
+    virtual size_t getTrackCount() const;
+    virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
+    virtual ssize_t getSelectedTrack(media_track_type type) const;
+    virtual status_t selectTrack(size_t trackIndex, bool select);
     virtual status_t seekTo(int64_t seekTimeUs);
+
+    virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
 
 protected:
     virtual ~GenericSource();
 
+    virtual void onMessageReceived(const sp<AMessage> &msg);
+
     virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
+    enum {
+        kWhatPrepareAsync,
+        kWhatFetchSubtitleData,
+        kWhatFetchTimedTextData,
+        kWhatSendSubtitleData,
+        kWhatSendTimedTextData,
+        kWhatChangeAVSource,
+        kWhatPollBuffering,
+        kWhatGetFormat,
+        kWhatGetSelectedTrack,
+        kWhatSelectTrack,
+        kWhatSeek,
+        kWhatReadBuffer,
+        kWhatStopWidevine,
+    };
+
+    Vector<sp<MediaSource> > mSources;
+
     struct Track {
+        size_t mIndex;
         sp<MediaSource> mSource;
         sp<AnotherPacketSource> mPackets;
     };
 
     Track mAudioTrack;
+    int64_t mAudioTimeUs;
     Track mVideoTrack;
+    int64_t mVideoTimeUs;
+    Track mSubtitleTrack;
+    Track mTimedTextTrack;
 
+    int32_t mFetchSubtitleDataGeneration;
+    int32_t mFetchTimedTextDataGeneration;
     int64_t mDurationUs;
     bool mAudioIsVorbis;
+    bool mIsWidevine;
+    bool mUIDValid;
+    uid_t mUID;
+    sp<IMediaHTTPService> mHTTPService;
+    AString mUri;
+    KeyedVector<String8, String8> mUriHeaders;
+    int mFd;
+    int64_t mOffset;
+    int64_t mLength;
 
-    void initFromDataSource(const sp<DataSource> &dataSource);
+    sp<DataSource> mDataSource;
+    sp<NuCachedSource2> mCachedSource;
+    sp<DataSource> mHttpSource;
+    sp<WVMExtractor> mWVMExtractor;
+    sp<MetaData> mFileMeta;
+    DrmManagerClient *mDrmManagerClient;
+    sp<DecryptHandle> mDecryptHandle;
+    bool mStarted;
+    bool mStopRead;
+    String8 mContentType;
+    AString mSniffedMIME;
+    off64_t mMetaDataSize;
+    int64_t mBitrate;
+    int32_t mPollBufferingGeneration;
+    uint32_t mPendingReadBufferTypes;
+    mutable Mutex mReadBufferLock;
 
+    sp<ALooper> mLooper;
+
+    void resetDataSource();
+
+    status_t initFromDataSource();
+    void checkDrmStatus(const sp<DataSource>& dataSource);
+    int64_t getLastReadPosition();
+    void setDrmPlaybackStatusIfNeeded(int playbackStatus, int64_t position);
+
+    status_t prefillCacheIfNecessary();
+
+    void notifyPreparedAndCleanup(status_t err);
+
+    void onGetFormatMeta(sp<AMessage> msg) const;
+    sp<MetaData> doGetFormatMeta(bool audio) const;
+
+    void onGetSelectedTrack(sp<AMessage> msg) const;
+    ssize_t doGetSelectedTrack(media_track_type type) const;
+
+    void onSelectTrack(sp<AMessage> msg);
+    status_t doSelectTrack(size_t trackIndex, bool select);
+
+    void onSeek(sp<AMessage> msg);
+    status_t doSeek(int64_t seekTimeUs);
+
+    void onPrepareAsync();
+
+    void fetchTextData(
+            uint32_t what, media_track_type type,
+            int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
+
+    void sendTextData(
+            uint32_t what, media_track_type type,
+            int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
+
+    sp<ABuffer> mediaBufferToABuffer(
+            MediaBuffer *mbuf,
+            media_track_type trackType,
+            int64_t *actualTimeUs = NULL);
+
+    void postReadBuffer(media_track_type trackType);
+    void onReadBuffer(sp<AMessage> msg);
     void readBuffer(
-            bool audio,
-            int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL);
+            media_track_type trackType,
+            int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL, bool formatChange = false);
+
+    void schedulePollBuffering();
+    void cancelPollBuffering();
+    void onPollBuffering();
+    void notifyBufferingUpdate(int percentage);
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };

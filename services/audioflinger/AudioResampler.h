@@ -22,6 +22,7 @@
 #include <cutils/compiler.h>
 
 #include <media/AudioBufferProvider.h>
+#include <system/audio.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -41,16 +42,21 @@ public:
         MED_QUALITY=2,
         HIGH_QUALITY=3,
         VERY_HIGH_QUALITY=4,
+        DYN_LOW_QUALITY=5,
+        DYN_MED_QUALITY=6,
+        DYN_HIGH_QUALITY=7,
     };
 
-    static AudioResampler* create(int bitDepth, int inChannelCount,
+    static const float UNITY_GAIN_FLOAT = 1.0f;
+
+    static AudioResampler* create(audio_format_t format, int inChannelCount,
             int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);
 
     virtual ~AudioResampler();
 
     virtual void init() = 0;
     virtual void setSampleRate(int32_t inSampleRate);
-    virtual void setVolume(int16_t left, int16_t right);
+    virtual void setVolume(float left, float right);
     virtual void setLocalTimeFreq(uint64_t freq);
 
     // set the PTS of the next buffer output by the resampler
@@ -60,7 +66,7 @@ public:
     // A mono provider delivers a sequence of samples.
     // A stereo provider delivers a sequence of interleaved pairs of samples.
     // Multi-channel providers are not supported.
-    // In either case, 'out' holds interleaved pairs of fixed-point signed Q19.12.
+    // In either case, 'out' holds interleaved pairs of fixed-point Q4.27.
     // That is, for a mono provider, there is an implicit up-channeling.
     // Since this method accumulates, the caller is responsible for clearing 'out' initially.
     // FIXME assumes provider is always successful; it should return the actual frame count.
@@ -81,9 +87,9 @@ protected:
     static const uint32_t kPhaseMask = (1LU<<kNumPhaseBits)-1;
 
     // multiplier to calculate fixed point phase increment
-    static const double kPhaseMultiplier = 1L << kNumPhaseBits;
+    static const double kPhaseMultiplier;
 
-    AudioResampler(int bitDepth, int inChannelCount, int32_t sampleRate, src_quality quality);
+    AudioResampler(int inChannelCount, int32_t sampleRate, src_quality quality);
 
     // prevent copying
     AudioResampler(const AudioResampler&);
@@ -91,7 +97,6 @@ protected:
 
     int64_t calculateOutputPTS(int outputFrameIndex);
 
-    const int32_t mBitDepth;
     const int32_t mChannelCount;
     const int32_t mSampleRate;
     int32_t mInSampleRate;
@@ -106,6 +111,47 @@ protected:
     uint32_t mPhaseFraction;
     uint64_t mLocalTimeFreq;
     int64_t mPTS;
+
+    // returns the inFrameCount required to generate outFrameCount frames.
+    //
+    // Placed here to be a consistent for all resamplers.
+    //
+    // Right now, we use the upper bound without regards to the current state of the
+    // input buffer using integer arithmetic, as follows:
+    //
+    // (static_cast<uint64_t>(outFrameCount)*mInSampleRate + (mSampleRate - 1))/mSampleRate;
+    //
+    // The double precision equivalent (float may not be precise enough):
+    // ceil(static_cast<double>(outFrameCount) * mInSampleRate / mSampleRate);
+    //
+    // this relies on the fact that the mPhaseIncrement is rounded down from
+    // #phases * mInSampleRate/mSampleRate and the fact that Sum(Floor(x)) <= Floor(Sum(x)).
+    // http://www.proofwiki.org/wiki/Sum_of_Floors_Not_Greater_Than_Floor_of_Sums
+    //
+    // (so long as double precision is computed accurately enough to be considered
+    // greater than or equal to the Floor(x) value in int32_t arithmetic; thus this
+    // will not necessarily hold for floats).
+    //
+    // TODO:
+    // Greater accuracy and a tight bound is obtained by:
+    // 1) subtract and adjust for the current state of the AudioBufferProvider buffer.
+    // 2) using the exact integer formula where (ignoring 64b casting)
+    //  inFrameCount = (mPhaseIncrement * (outFrameCount - 1) + mPhaseFraction) / phaseWrapLimit;
+    //  phaseWrapLimit is the wraparound (1 << kNumPhaseBits), if not specified explicitly.
+    //
+    inline size_t getInFrameCountRequired(size_t outFrameCount) {
+        return (static_cast<uint64_t>(outFrameCount)*mInSampleRate
+                + (mSampleRate - 1))/mSampleRate;
+    }
+
+    inline float clampFloatVol(float volume) {
+        if (volume > UNITY_GAIN_FLOAT) {
+            return UNITY_GAIN_FLOAT;
+        } else if (volume >= 0.) {
+            return volume;
+        }
+        return 0.;  // NaN or negative volume maps to 0.
+    }
 
 private:
     const src_quality mQuality;

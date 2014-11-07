@@ -51,14 +51,14 @@ class FrameProcessor : public FrameProcessorBase {
 
     void processNewFrames(const sp<Camera2Client> &client);
 
-    virtual bool processSingleFrame(CameraMetadata &frame,
+    virtual bool processSingleFrame(CaptureResult &frame,
                                     const sp<CameraDeviceBase> &device);
 
     status_t processFaceDetect(const CameraMetadata &frame,
             const sp<Camera2Client> &client);
 
     // Send 3A state change notifications to client based on frame metadata
-    status_t process3aState(const CameraMetadata &frame,
+    status_t process3aState(const CaptureResult &frame,
             const sp<Camera2Client> &client);
 
     // Helper for process3aState
@@ -91,8 +91,8 @@ class FrameProcessor : public FrameProcessorBase {
         }
     } m3aState;
 
-    // Whether the partial result quirk is enabled for this device
-    bool mUsePartialQuirk;
+    // Whether the partial result is enabled for this device
+    bool mUsePartialResult;
 
     // Track most recent frame number for which 3A notifications were sent for.
     // Used to filter against sending 3A notifications for the same frame

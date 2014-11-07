@@ -25,7 +25,6 @@
 namespace android {
 
 struct ABuffer;
-struct BufferQueue;
 struct IHDCP;
 struct IGraphicBufferProducer;
 struct MediaPuller;
@@ -111,7 +110,7 @@ private:
 
     int64_t mLastLifesignUs;
 
-    sp<BufferQueue> mBufferQueue;
+    sp<IGraphicBufferProducer> mProducer;
 
     KeyedVector<size_t, sp<Track> > mTracks;
     ssize_t mVideoTrackIndex;

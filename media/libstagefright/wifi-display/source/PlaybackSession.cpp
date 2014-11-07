@@ -29,6 +29,7 @@
 #include <binder/IServiceManager.h>
 #include <cutils/properties.h>
 #include <media/IHDCP.h>
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -749,7 +750,8 @@ status_t WifiDisplaySource::PlaybackSession::setupMediaPacketizer(
 
     mExtractor = new NuMediaExtractor;
 
-    status_t err = mExtractor->setDataSource(mMediaPath.c_str());
+    status_t err = mExtractor->setDataSource(
+            NULL /* httpService */, mMediaPath.c_str());
 
     if (err != OK) {
         return err;
@@ -1053,7 +1055,7 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource(
     err = source->setMaxAcquiredBufferCount(numInputBuffers);
     CHECK_EQ(err, (status_t)OK);
 
-    mBufferQueue = source->getBufferQueue();
+    mProducer = source->getProducer();
 
     return OK;
 }
@@ -1077,7 +1079,7 @@ status_t WifiDisplaySource::PlaybackSession::addAudioSource(bool usePCMAudio) {
 }
 
 sp<IGraphicBufferProducer> WifiDisplaySource::PlaybackSession::getSurfaceTexture() {
-    return mBufferQueue;
+    return mProducer;
 }
 
 void WifiDisplaySource::PlaybackSession::requestIDRFrame() {

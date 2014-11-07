@@ -18,6 +18,7 @@
 #define ANDROID_SERVERS_CAMERA_CAMERA2CLIENT_BASE_H
 
 #include "common/CameraDeviceBase.h"
+#include "camera/CaptureResult.h"
 
 namespace android {
 
@@ -61,9 +62,11 @@ public:
      * CameraDeviceBase::NotificationListener implementation
      */
 
-    virtual void          notifyError(int errorCode, int arg1, int arg2);
+    virtual void          notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                      const CaptureResultExtras& resultExtras);
     virtual void          notifyIdle();
-    virtual void          notifyShutter(int requestId, nsecs_t timestamp);
+    virtual void          notifyShutter(const CaptureResultExtras& resultExtras,
+                                        nsecs_t timestamp);
     virtual void          notifyAutoFocus(uint8_t newState, int triggerId);
     virtual void          notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void          notifyAutoWhitebalance(uint8_t newState,
@@ -73,6 +76,7 @@ public:
     int                   getCameraId() const;
     const sp<CameraDeviceBase>&
                           getCameraDevice();
+    int                   getCameraDeviceVersion() const;
     const sp<CameraService>&
                           getCameraService();
 
@@ -103,6 +107,9 @@ public:
 
 protected:
 
+    // The PID provided in the constructor call
+    pid_t mInitialClientPid;
+
     virtual sp<IBinder> asBinderWrapper() {
         return IInterface::asBinder();
     }
@@ -119,6 +126,7 @@ protected:
 
     /** CameraDeviceBase instance wrapping HAL2+ entry */
 
+    const int mDeviceVersion;
     sp<CameraDeviceBase>  mDevice;
 
     /** Utility members */

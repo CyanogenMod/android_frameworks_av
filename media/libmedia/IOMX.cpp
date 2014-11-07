@@ -54,6 +54,7 @@ enum {
     GET_GRAPHIC_BUFFER_USAGE,
     SET_INTERNAL_OPTION,
     UPDATE_GRAPHIC_BUFFER_IN_META,
+    CONFIGURE_VIDEO_TUNNEL_MODE,
 };
 
 class BpOMX : public BpInterface<IOMX> {
@@ -367,6 +368,25 @@ public:
         status_t err = reply.readInt32();
         return err;
     }
+
+    virtual status_t configureVideoTunnelMode(
+            node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
+            OMX_U32 audioHwSync, native_handle_t **sidebandHandle ) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        data.writeInt32((int32_t)node);
+        data.writeInt32(portIndex);
+        data.writeInt32((int32_t)tunneled);
+        data.writeInt32(audioHwSync);
+        remote()->transact(CONFIGURE_VIDEO_TUNNEL_MODE, data, &reply);
+
+        status_t err = reply.readInt32();
+        if (sidebandHandle) {
+            *sidebandHandle = (native_handle_t *)reply.readNativeHandle();
+        }
+        return err;
+    }
+
 
     virtual status_t allocateBuffer(
             node_id node, OMX_U32 port_index, size_t size,
@@ -800,6 +820,24 @@ status_t BnOMX::onTransact(
             status_t err = prepareForAdaptivePlayback(
                     node, port_index, enable, max_width, max_height);
             reply->writeInt32(err);
+
+            return NO_ERROR;
+        }
+
+        case CONFIGURE_VIDEO_TUNNEL_MODE:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (node_id)data.readInt32();
+            OMX_U32 port_index = data.readInt32();
+            OMX_BOOL tunneled = (OMX_BOOL)data.readInt32();
+            OMX_U32 audio_hw_sync = data.readInt32();
+
+            native_handle_t *sideband_handle;
+            status_t err = configureVideoTunnelMode(
+                    node, port_index, tunneled, audio_hw_sync, &sideband_handle);
+            reply->writeInt32(err);
+            reply->writeNativeHandle(sideband_handle);
 
             return NO_ERROR;
         }

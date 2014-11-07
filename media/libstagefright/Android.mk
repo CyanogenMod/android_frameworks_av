@@ -15,7 +15,9 @@ LOCAL_SRC_FILES:=                         \
         CameraSource.cpp                  \
         CameraSourceTimeLapse.cpp         \
         ClockEstimator.cpp                \
+        CodecBase.cpp                     \
         DataSource.cpp                    \
+        DataURISource.cpp                 \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
         FileSource.cpp                    \
@@ -31,8 +33,10 @@ LOCAL_SRC_FILES:=                         \
         MediaBufferGroup.cpp              \
         MediaCodec.cpp                    \
         MediaCodecList.cpp                \
+        MediaCodecSource.cpp              \
         MediaDefs.cpp                     \
         MediaExtractor.cpp                \
+        http/MediaHTTP.cpp                \
         MediaMuxer.cpp                    \
         MediaSource.cpp                   \
         MetaData.cpp                      \
@@ -56,22 +60,23 @@ LOCAL_SRC_FILES:=                         \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
         avc_utils.cpp                     \
-        mp4/FragmentedMP4Parser.cpp       \
-        mp4/TrackFragment.cpp             \
 
 LOCAL_C_INCLUDES:= \
+        $(TOP)/frameworks/av/include/media/ \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
-        $(TOP)/frameworks/native/services/connectivitymanager \
         $(TOP)/external/flac/include \
         $(TOP)/external/tremolo \
         $(TOP)/external/openssl/include \
+        $(TOP)/external/libvpx/libwebm \
+        $(TOP)/system/netd/include \
+        $(TOP)/external/icu/icu4c/source/common \
+        $(TOP)/external/icu/icu4c/source/i18n \
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
         libcamera_client \
-        libconnectivitymanager \
         libcutils \
         libdl \
         libdrmframework \
@@ -81,6 +86,8 @@ LOCAL_SHARED_LIBRARIES := \
         libicuuc \
         liblog \
         libmedia \
+        libnetd_client \
+        libopus \
         libsonivox \
         libssl \
         libstagefright_omx \
@@ -96,6 +103,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
         libstagefright_aacenc \
         libstagefright_matroska \
+        libstagefright_webm \
         libstagefright_timedtext \
         libvpx \
         libwebm \
@@ -103,12 +111,6 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_id3 \
         libFLAC \
         libmedia_helper
-
-LOCAL_SRC_FILES += \
-        chromium_http_stub.cpp
-LOCAL_CPPFLAGS += -DCHROMIUM_AVAILABLE=1
-
-include external/stlport/libstlport.mk
 
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \

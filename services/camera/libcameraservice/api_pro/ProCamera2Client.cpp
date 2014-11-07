@@ -280,7 +280,7 @@ status_t ProCamera2Client::createStream(int width, int height, int format,
         window = new Surface(bufferProducer);
     }
 
-    return mDevice->createStream(window, width, height, format, /*size*/1,
+    return mDevice->createStream(window, width, height, format,
                                  streamId);
 }
 
@@ -336,11 +336,11 @@ status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
             mCameraId,
             getRemoteCallback()->asBinder().get(),
             mClientPid);
-    result.append("  State: ");
+    result.append("  State:\n");
+    write(fd, result.string(), result.size());
 
     // TODO: print dynamic/request section from most recent requests
     mFrameProcessor->dump(fd, args);
-
     return dumpDevice(fd, args);
 }
 
@@ -373,9 +373,7 @@ void ProCamera2Client::detachDevice() {
     Camera2ClientBase::detachDevice();
 }
 
-/** Device-related methods */
-void ProCamera2Client::onFrameAvailable(int32_t requestId,
-                                        const CameraMetadata& frame) {
+void ProCamera2Client::onResultAvailable(const CaptureResult& result) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
 
@@ -383,13 +381,12 @@ void ProCamera2Client::onFrameAvailable(int32_t requestId,
     SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
 
     if (mRemoteCallback != NULL) {
-        CameraMetadata tmp(frame);
+        CameraMetadata tmp(result.mMetadata);
         camera_metadata_t* meta = tmp.release();
         ALOGV("%s: meta = %p ", __FUNCTION__, meta);
-        mRemoteCallback->onResultReceived(requestId, meta);
+        mRemoteCallback->onResultReceived(result.mResultExtras.requestId, meta);
         tmp.acquire(meta);
     }
-
 }
 
 bool ProCamera2Client::enforceRequestPermissions(CameraMetadata& metadata) {

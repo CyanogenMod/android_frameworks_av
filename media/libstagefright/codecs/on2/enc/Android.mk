@@ -12,10 +12,6 @@ LOCAL_C_INCLUDES := \
         frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
 
-ifeq ($(TARGET_DEVICE), manta)
-    LOCAL_CFLAGS += -DSURFACE_IS_BGR32
-endif
-
 LOCAL_STATIC_LIBRARIES := \
         libvpx
 

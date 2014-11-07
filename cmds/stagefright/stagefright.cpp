@@ -29,6 +29,7 @@
 
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
+#include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include "include/NuCachedSource2.h"
@@ -938,9 +939,13 @@ int main(int argc, char **argv) {
         } else {
             CHECK(useSurfaceTexAlloc);
 
-            sp<BufferQueue> bq = new BufferQueue();
-            sp<GLConsumer> texture = new GLConsumer(bq, 0 /* tex */);
-            gSurface = new Surface(bq);
+            sp<IGraphicBufferProducer> producer;
+            sp<IGraphicBufferConsumer> consumer;
+            BufferQueue::createBufferQueue(&producer, &consumer);
+            sp<GLConsumer> texture = new GLConsumer(consumer, 0 /* tex */,
+                    GLConsumer::TEXTURE_EXTERNAL, true /* useFenceSync */,
+                    false /* isControlledByApp */);
+            gSurface = new Surface(producer);
         }
 
         CHECK_EQ((status_t)OK,
@@ -958,7 +963,8 @@ int main(int argc, char **argv) {
 
         const char *filename = argv[k];
 
-        sp<DataSource> dataSource = DataSource::CreateFromURI(filename);
+        sp<DataSource> dataSource =
+            DataSource::CreateFromURI(NULL /* httpService */, filename);
 
         if (strncasecmp(filename, "sine:", 5) && dataSource == NULL) {
             fprintf(stderr, "Unable to create data source.\n");

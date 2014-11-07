@@ -34,10 +34,11 @@
 #include "MediaLogService.h"
 #include "MediaPlayerService.h"
 #include "AudioPolicyService.h"
+#include "SoundTriggerHwService.h"
 
 using namespace android;
 
-int main(int argc, char** argv)
+int main(int argc __unused, char** argv)
 {
     signal(SIGPIPE, SIG_IGN);
     char value[PROPERTY_VALUE_MAX];
@@ -128,6 +129,7 @@ int main(int argc, char** argv)
         MediaPlayerService::instantiate();
         CameraService::instantiate();
         AudioPolicyService::instantiate();
+        SoundTriggerHwService::instantiate();
         registerExtensions();
         ProcessState::self()->startThreadPool();
         IPCThreadState::self()->joinThreadPool();

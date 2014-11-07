@@ -47,6 +47,7 @@ class SkipCutBuffer: public RefBase {
  private:
     void write(const char *src, size_t num);
     size_t read(char *dst, size_t num);
+    int32_t mSkip;
     int32_t mFrontPadding;
     int32_t mBackPadding;
     int32_t mWriteHead;

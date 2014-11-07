@@ -11,6 +11,8 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_MODULE := omx_tests
 
 LOCAL_MODULE_TAGS := tests

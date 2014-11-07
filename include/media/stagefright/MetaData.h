@@ -53,9 +53,13 @@ enum {
     kKeyESDS              = 'esds',  // raw data
     kKeyAACProfile        = 'aacp',  // int32_t
     kKeyAVCC              = 'avcc',  // raw data
+    kKeyHVCC              = 'hvcc',  // raw data
     kKeyD263              = 'd263',  // raw data
     kKeyVorbisInfo        = 'vinf',  // raw data
     kKeyVorbisBooks       = 'vboo',  // raw data
+    kKeyOpusHeader        = 'ohdr',  // raw data
+    kKeyOpusCodecDelay    = 'ocod',  // uint64_t (codec delay in ns)
+    kKeyOpusSeekPreRoll   = 'ospr',  // uint64_t (seek preroll in ns)
     kKeyWantsNALFragments = 'NALf',
     kKeyIsSyncFrame       = 'sync',  // int32_t (bool)
     kKeyIsCodecConfig     = 'conf',  // int32_t (bool)
@@ -162,11 +166,19 @@ enum {
     kKeyCryptoDefaultIVSize = 'cryS',  // int32_t
 
     kKeyPssh              = 'pssh',  // raw data
+
+    // Please see MediaFormat.KEY_IS_AUTOSELECT.
+    kKeyTrackIsAutoselect = 'auto', // bool (int32_t)
+    // Please see MediaFormat.KEY_IS_DEFAULT.
+    kKeyTrackIsDefault    = 'dflt', // bool (int32_t)
+    // Similar to MediaFormat.KEY_IS_FORCED_SUBTITLE but pertains to av tracks as well.
+    kKeyTrackIsForced     = 'frcd', // bool (int32_t)
 };
 
 enum {
     kTypeESDS        = 'esds',
     kTypeAVCC        = 'avcc',
+    kTypeHVCC        = 'hvcc',
     kTypeD263        = 'd263',
 };
 

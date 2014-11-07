@@ -23,6 +23,7 @@
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
 #include <media/mediaplayer.h>
@@ -58,8 +59,8 @@ struct M3UParser::MediaGroup : public RefBase {
 
     void pickRandomMediaItems();
     status_t selectTrack(size_t index, bool select);
-    void getTrackInfo(Parcel* reply) const;
     size_t countTracks() const;
+    sp<AMessage> getTrackInfo(size_t index) const;
 
 protected:
     virtual ~MediaGroup();
@@ -156,8 +157,8 @@ void M3UParser::MediaGroup::pickRandomMediaItems() {
 }
 
 status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
-    if (mType != TYPE_SUBS) {
-        ALOGE("only select subtitile tracks for now!");
+    if (mType != TYPE_SUBS && mType != TYPE_AUDIO) {
+        ALOGE("only select subtitile/audio tracks for now!");
         return INVALID_OPERATION;
     }
 
@@ -170,49 +171,56 @@ status_t M3UParser::MediaGroup::selectTrack(size_t index, bool select) {
             ALOGE("track %zu already selected", index);
             return BAD_VALUE;
         }
-        ALOGV("selected track %d", index);
+        ALOGV("selected track %zu", index);
         mSelectedIndex = index;
     } else {
         if (mSelectedIndex != (ssize_t)index) {
             ALOGE("track %zu is not selected", index);
             return BAD_VALUE;
         }
-        ALOGV("unselected track %d", index);
+        ALOGV("unselected track %zu", index);
         mSelectedIndex = -1;
     }
 
     return OK;
 }
 
-void M3UParser::MediaGroup::getTrackInfo(Parcel* reply) const {
-    for (size_t i = 0; i < mMediaItems.size(); ++i) {
-        reply->writeInt32(2); // 2 fields
-
-        if (mType == TYPE_AUDIO) {
-            reply->writeInt32(MEDIA_TRACK_TYPE_AUDIO);
-        } else if (mType == TYPE_VIDEO) {
-            reply->writeInt32(MEDIA_TRACK_TYPE_VIDEO);
-        } else if (mType == TYPE_SUBS) {
-            reply->writeInt32(MEDIA_TRACK_TYPE_SUBTITLE);
-        } else {
-            reply->writeInt32(MEDIA_TRACK_TYPE_UNKNOWN);
-        }
-
-        const Media &item = mMediaItems.itemAt(i);
-        const char *lang = item.mLanguage.empty() ? "und" : item.mLanguage.c_str();
-        reply->writeString16(String16(lang));
-
-        if (mType == TYPE_SUBS) {
-            // TO-DO: pass in a MediaFormat instead
-            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_AUTOSELECT));
-            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_DEFAULT));
-            reply->writeInt32(!!(item.mFlags & MediaGroup::FLAG_FORCED));
-        }
-    }
-}
-
 size_t M3UParser::MediaGroup::countTracks() const {
     return mMediaItems.size();
+}
+
+sp<AMessage> M3UParser::MediaGroup::getTrackInfo(size_t index) const {
+    if (index >= mMediaItems.size()) {
+        return NULL;
+    }
+
+    sp<AMessage> format = new AMessage();
+
+    int32_t trackType;
+    if (mType == TYPE_AUDIO) {
+        trackType = MEDIA_TRACK_TYPE_AUDIO;
+    } else if (mType == TYPE_VIDEO) {
+        trackType = MEDIA_TRACK_TYPE_VIDEO;
+    } else if (mType == TYPE_SUBS) {
+        trackType = MEDIA_TRACK_TYPE_SUBTITLE;
+    } else {
+        trackType = MEDIA_TRACK_TYPE_UNKNOWN;
+    }
+    format->setInt32("type", trackType);
+
+    const Media &item = mMediaItems.itemAt(index);
+    const char *lang = item.mLanguage.empty() ? "und" : item.mLanguage.c_str();
+    format->setString("language", lang);
+
+    if (mType == TYPE_SUBS) {
+        // TO-DO: pass in a MediaFormat instead
+        format->setString("mime", MEDIA_MIMETYPE_TEXT_VTT);
+        format->setInt32("auto", !!(item.mFlags & MediaGroup::FLAG_AUTOSELECT));
+        format->setInt32("default", !!(item.mFlags & MediaGroup::FLAG_DEFAULT));
+        format->setInt32("forced", !!(item.mFlags & MediaGroup::FLAG_FORCED));
+    }
+
+    return format;
 }
 
 bool M3UParser::MediaGroup::getActiveURI(AString *uri) const {
@@ -238,6 +246,7 @@ M3UParser::M3UParser(
       mIsVariantPlaylist(false),
       mIsComplete(false),
       mIsEvent(false),
+      mDiscontinuitySeq(0),
       mSelectedIndex(-1) {
     mInitCheck = parse(data, size);
 }
@@ -263,6 +272,10 @@ bool M3UParser::isComplete() const {
 
 bool M3UParser::isEvent() const {
     return mIsEvent;
+}
+
+size_t M3UParser::getDiscontinuitySeq() const {
+    return mDiscontinuitySeq;
 }
 
 sp<AMessage> M3UParser::meta() {
@@ -319,17 +332,24 @@ status_t M3UParser::selectTrack(size_t index, bool select) {
     return INVALID_OPERATION;
 }
 
-status_t M3UParser::getTrackInfo(Parcel* reply) const {
+size_t M3UParser::getTrackCount() const {
     size_t trackCount = 0;
     for (size_t i = 0; i < mMediaGroups.size(); ++i) {
         trackCount += mMediaGroups.valueAt(i)->countTracks();
     }
-    reply->writeInt32(trackCount);
+    return trackCount;
+}
 
-    for (size_t i = 0; i < mMediaGroups.size(); ++i) {
-        mMediaGroups.valueAt(i)->getTrackInfo(reply);
+sp<AMessage> M3UParser::getTrackInfo(size_t index) const {
+    for (size_t i = 0, ii = index; i < mMediaGroups.size(); ++i) {
+        sp<MediaGroup> group = mMediaGroups.valueAt(i);
+        size_t tracks = group->countTracks();
+        if (ii < tracks) {
+            return group->getTrackInfo(ii);
+        }
+        ii -= tracks;
     }
-    return OK;
+    return NULL;
 }
 
 ssize_t M3UParser::getSelectedIndex() const {
@@ -552,6 +572,12 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                 }
             } else if (line.startsWith("#EXT-X-MEDIA")) {
                 err = parseMedia(line);
+            } else if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) {
+                size_t seq;
+                err = parseDiscontinuitySequence(line, &seq);
+                if (err == OK) {
+                    mDiscontinuitySeq = seq;
+                }
             }
 
             if (err != OK) {
@@ -806,7 +832,8 @@ status_t M3UParser::parseCipherInfo(
                 if (MakeURL(baseURI.c_str(), val.c_str(), &absURI)) {
                     val = absURI;
                 } else {
-                    ALOGE("failed to make absolute url for <URL suppressed>.");
+                    ALOGE("failed to make absolute url for %s.",
+                            uriDebugString(baseURI).c_str());
                 }
             }
 
@@ -1091,6 +1118,30 @@ status_t M3UParser::parseMedia(const AString &line) {
             haveGroupURI ? groupURI.c_str() : NULL,
             haveGroupLanguage ? groupLanguage.c_str() : NULL,
             flags);
+}
+
+// static
+status_t M3UParser::parseDiscontinuitySequence(const AString &line, size_t *seq) {
+    ssize_t colonPos = line.find(":");
+
+    if (colonPos < 0) {
+        return ERROR_MALFORMED;
+    }
+
+    int32_t x;
+    status_t err = ParseInt32(line.c_str() + colonPos + 1, &x);
+    if (err != OK) {
+        return err;
+    }
+
+    if (x < 0) {
+        return ERROR_MALFORMED;
+    }
+
+    if (seq) {
+        *seq = x;
+    }
+    return OK;
 }
 
 // static

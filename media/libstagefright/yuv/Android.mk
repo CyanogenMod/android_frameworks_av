@@ -12,5 +12,7 @@ LOCAL_SHARED_LIBRARIES :=       \
 LOCAL_MODULE:= libstagefright_yuv
 
 
+LOCAL_CFLAGS += -Werror
+
 
 include $(BUILD_SHARED_LIBRARY)

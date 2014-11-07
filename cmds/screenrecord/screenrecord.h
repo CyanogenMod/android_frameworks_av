@@ -18,6 +18,6 @@
 #define SCREENRECORD_SCREENRECORD_H
 
 #define kVersionMajor 1
-#define kVersionMinor 1
+#define kVersionMinor 2
 
 #endif /*SCREENRECORD_SCREENRECORD_H*/

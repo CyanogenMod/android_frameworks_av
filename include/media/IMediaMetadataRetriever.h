@@ -26,6 +26,8 @@
 
 namespace android {
 
+struct IMediaHTTPService;
+
 class IMediaMetadataRetriever: public IInterface
 {
 public:
@@ -33,6 +35,7 @@ public:
     virtual void            disconnect() = 0;
 
     virtual status_t        setDataSource(
+            const sp<IMediaHTTPService> &httpService,
             const char *srcUrl,
             const KeyedVector<String8, String8> *headers = NULL) = 0;
 

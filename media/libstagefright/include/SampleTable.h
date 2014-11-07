@@ -66,7 +66,8 @@ public:
             off64_t *offset,
             size_t *size,
             uint32_t *compositionTime,
-            bool *isSyncSample = NULL);
+            bool *isSyncSample = NULL,
+            uint32_t *sampleDuration = NULL);
 
     enum {
         kFlagBefore,

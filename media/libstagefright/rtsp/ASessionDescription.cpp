@@ -319,6 +319,11 @@ bool ASessionDescription::parseNTPRange(
 
     s = end + 1;  // skip the dash.
 
+    if (*s == '\0') {
+        *npt2 = FLT_MAX;  // open ended.
+        return true;
+    }
+
     if (!strncmp("now", s, 3)) {
         return false;  // no absolute end time available
     }

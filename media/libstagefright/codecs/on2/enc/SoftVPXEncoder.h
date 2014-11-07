@@ -18,7 +18,7 @@
 
 #define SOFT_VPX_ENCODER_H_
 
-#include "SimpleSoftOMXComponent.h"
+#include "SoftVideoEncoderOMXComponent.h"
 
 #include <OMX_VideoExt.h>
 #include <OMX_IndexExt.h>
@@ -59,7 +59,7 @@ namespace android {
 //    - OMX timestamps are in microseconds, therefore
 // encoder timebase is fixed to 1/1000000
 
-struct SoftVPXEncoder : public SimpleSoftOMXComponent {
+struct SoftVPXEncoder : public SoftVideoEncoderOMXComponent {
     SoftVPXEncoder(const char *name,
                    const OMX_CALLBACKTYPE *callbacks,
                    OMX_PTR appData,
@@ -87,10 +87,44 @@ protected:
     // encoding of the frame
     virtual void onQueueFilled(OMX_U32 portIndex);
 
-    virtual OMX_ERRORTYPE getExtensionIndex(
-            const char *name, OMX_INDEXTYPE *index);
-
 private:
+    enum TemporalReferences {
+        // For 1 layer case: reference all (last, golden, and alt ref), but only
+        // update last.
+        kTemporalUpdateLastRefAll = 12,
+        // First base layer frame for 3 temporal layers, which updates last and
+        // golden with alt ref dependency.
+        kTemporalUpdateLastAndGoldenRefAltRef = 11,
+        // First enhancement layer with alt ref dependency.
+        kTemporalUpdateGoldenRefAltRef = 10,
+        // First enhancement layer with alt ref dependency.
+        kTemporalUpdateGoldenWithoutDependencyRefAltRef = 9,
+        // Base layer with alt ref dependency.
+        kTemporalUpdateLastRefAltRef = 8,
+        // Highest enhacement layer without dependency on golden with alt ref
+        // dependency.
+        kTemporalUpdateNoneNoRefGoldenRefAltRef = 7,
+        // Second layer and last frame in cycle, for 2 layers.
+        kTemporalUpdateNoneNoRefAltref = 6,
+        // Highest enhancement layer.
+        kTemporalUpdateNone = 5,
+        // Second enhancement layer.
+        kTemporalUpdateAltref = 4,
+        // Second enhancement layer without dependency on previous frames in
+        // the second enhancement layer.
+        kTemporalUpdateAltrefWithoutDependency = 3,
+        // First enhancement layer.
+        kTemporalUpdateGolden = 2,
+        // First enhancement layer without dependency on previous frames in
+        // the first enhancement layer.
+        kTemporalUpdateGoldenWithoutDependency = 1,
+        // Base layer.
+        kTemporalUpdateLast = 0,
+    };
+    enum {
+        kMaxTemporalPattern = 8
+    };
+
     // number of buffers allocated per port
     static const uint32_t kNumBuffers = 4;
 
@@ -130,15 +164,14 @@ private:
     // Target bitrate set for the encoder, in bits per second.
     uint32_t mBitrate;
 
+    // Target framerate set for the encoder.
+    uint32_t mFramerate;
+
     // If a request for a change it bitrate has been received.
     bool mBitrateUpdated;
 
     // Bitrate control mode, either constant or variable
     vpx_rc_mode mBitrateControlMode;
-
-    // Frame duration is the reciprocal of framerate, denoted
-    // in microseconds
-    uint64_t mFrameDurationUs;
 
     // vp8 specific configuration parameter
     // that enables token partitioning of
@@ -160,6 +193,36 @@ private:
     // something else.
     OMX_VIDEO_VP8LEVELTYPE mLevel;
 
+    // Key frame interval in frames
+    uint32_t mKeyFrameInterval;
+
+    // Minimum (best quality) quantizer
+    uint32_t mMinQuantizer;
+
+    // Maximum (worst quality) quantizer
+    uint32_t mMaxQuantizer;
+
+    // Number of coding temporal layers to be used.
+    size_t mTemporalLayers;
+
+    // Temporal layer bitrare ratio in percentage
+    uint32_t mTemporalLayerBitrateRatio[OMX_VIDEO_ANDROID_MAXVP8TEMPORALLAYERS];
+
+    // Temporal pattern type
+    OMX_VIDEO_ANDROID_VPXTEMPORALLAYERPATTERNTYPE mTemporalPatternType;
+
+    // Temporal pattern length
+    size_t mTemporalPatternLength;
+
+    // Temporal pattern current index
+    size_t mTemporalPatternIdx;
+
+    // Frame type temporal pattern
+    TemporalReferences mTemporalPattern[kMaxTemporalPattern];
+
+    // Last input buffer timestamp
+    OMX_TICKS mLastTimestamp;
+
     // Conversion buffer is needed to convert semi
     // planar yuv420 to planar format
     // It is only allocated if input format is
@@ -167,7 +230,6 @@ private:
     uint8_t* mConversionBuffer;
 
     bool mInputDataIsMeta;
-    const hw_module_t *mGrallocModule;
 
     bool mKeyFrameRequested;
 
@@ -184,6 +246,9 @@ private:
     // Unless called earlier, this is handled by the
     // dtor.
     status_t releaseEncoder();
+
+    // Get current encode flags
+    vpx_enc_frame_flags_t getEncodeFlags();
 
     // Handles port changes with respect to color formats
     OMX_ERRORTYPE internalSetFormatParams(
@@ -205,6 +270,10 @@ private:
     // Handles vp8 specific parameters.
     OMX_ERRORTYPE internalSetVp8Params(
         const OMX_VIDEO_PARAM_VP8TYPE* vp8Params);
+
+    // Handles Android vp8 specific parameters.
+    OMX_ERRORTYPE internalSetAndroidVp8Params(
+        const OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE* vp8AndroidParams);
 
     // Updates encoder profile
     OMX_ERRORTYPE internalSetProfileLevel(

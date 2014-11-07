@@ -25,7 +25,7 @@
 namespace android {
 
 SkipCutBuffer::SkipCutBuffer(int32_t skip, int32_t cut) {
-    mFrontPadding = skip;
+    mFrontPadding = mSkip = skip;
     mBackPadding = cut;
     mWriteHead = 0;
     mReadHead = 0;
@@ -94,6 +94,7 @@ void SkipCutBuffer::submit(const sp<ABuffer>& buffer) {
 
 void SkipCutBuffer::clear() {
     mWriteHead = mReadHead = 0;
+    mFrontPadding = mSkip;
 }
 
 void SkipCutBuffer::write(const char *src, size_t num) {

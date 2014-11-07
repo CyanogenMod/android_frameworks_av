@@ -28,6 +28,8 @@
 #include "acelp.h"
 #include "ham_wind.tab"
 
+#define UNUSED(x) (void)(x)
+
 void Autocorr(
 		Word16 x[],                           /* (i)    : Input signal                      */
 		Word16 m,                             /* (i)    : LPC order                         */
@@ -40,6 +42,8 @@ void Autocorr(
 	Word32 L_sum, L_sum1, L_tmp, F_LEN;
 	Word16 *p1,*p2,*p3;
 	const Word16 *p4;
+        UNUSED(m);
+
 	/* Windowing of signal */
 	p1 = x;
 	p4 = vo_window;

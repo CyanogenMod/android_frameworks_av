@@ -18,34 +18,30 @@
 #define LOG_TAG "SDPLoader"
 #include <utils/Log.h>
 
-#include "SDPLoader.h"
+#include "include/SDPLoader.h"
 
 #include "ASessionDescription.h"
-#include "HTTPBase.h"
 
+#include <media/IMediaHTTPConnection.h>
+#include <media/IMediaHTTPService.h>
+#include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/Utils.h>
 
 #define DEFAULT_SDP_SIZE 100000
 
 namespace android {
 
-SDPLoader::SDPLoader(const sp<AMessage> &notify, uint32_t flags, bool uidValid, uid_t uid)
+SDPLoader::SDPLoader(
+        const sp<AMessage> &notify,
+        uint32_t flags,
+        const sp<IMediaHTTPService> &httpService)
     : mNotify(notify),
       mFlags(flags),
-      mUIDValid(uidValid),
-      mUID(uid),
       mNetLooper(new ALooper),
       mCancelled(false),
-      mHTTPDataSource(
-              HTTPBase::Create(
-                  (mFlags & kFlagIncognito)
-                    ? HTTPBase::kFlagIncognito
-                    : 0)) {
-    if (mUIDValid) {
-        mHTTPDataSource->setUID(mUID);
-    }
-
+      mHTTPDataSource(new MediaHTTP(httpService->makeHTTPConnection())) {
     mNetLooper->setName("sdp net");
     mNetLooper->start(false /* runOnCallingThread */,
                       false /* canCallJava */,
@@ -94,11 +90,7 @@ void SDPLoader::onLoad(const sp<AMessage> &msg) {
     KeyedVector<String8, String8> *headers = NULL;
     msg->findPointer("headers", (void **)&headers);
 
-    if (!(mFlags & kFlagIncognito)) {
-        ALOGV("onLoad '%s'", url.c_str());
-    } else {
-        ALOGI("onLoad <URL suppressed>");
-    }
+    ALOGV("onLoad %s", uriDebugString(url, mFlags & kFlagIncognito).c_str());
 
     if (!mCancelled) {
         err = mHTTPDataSource->connect(url.c_str(), headers);

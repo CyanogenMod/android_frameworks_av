@@ -25,6 +25,7 @@
 
 namespace android {
 
+struct IMediaHTTPService;
 class IMediaPlayerService;
 class IMediaMetadataRetriever;
 
@@ -68,6 +69,7 @@ public:
     void disconnect();
 
     status_t setDataSource(
+            const sp<IMediaHTTPService> &httpService,
             const char *dataSourceUrl,
             const KeyedVector<String8, String8> *headers = NULL);
 

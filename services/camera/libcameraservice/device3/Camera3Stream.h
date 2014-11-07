@@ -82,6 +82,23 @@ namespace camera3 {
  *    STATE_CONFIGURED     => STATE_CONSTRUCTED:
  *        When disconnect() is called after making sure stream is idle with
  *        waitUntilIdle().
+ *
+ * Status Tracking:
+ *    Each stream is tracked by StatusTracker as a separate component,
+ *    depending on the handed out buffer count. The state must be STATE_CONFIGURED
+ *    in order for the component to be marked.
+ *
+ *    It's marked in one of two ways:
+ *
+ *    - ACTIVE: One or more buffers have been handed out (with #getBuffer).
+ *    - IDLE: All buffers have been returned (with #returnBuffer), and their
+ *          respective release_fence(s) have been signaled.
+ *
+ *    A typical use case is output streams. When the HAL has any buffers
+ *    dequeued, the stream is marked ACTIVE. When the HAL returns all buffers
+ *    (e.g. if no capture requests are active), the stream is marked IDLE.
+ *    In this use case, the app consumer does not affect the component status.
+ *
  */
 class Camera3Stream :
         protected camera3_stream,
@@ -140,6 +157,13 @@ class Camera3Stream :
      *   INVALID_OPERATION in case connecting to the consumer failed
      */
     status_t         finishConfiguration(camera3_device *hal3Device);
+
+    /**
+     * Cancels the stream configuration process. This returns the stream to the
+     * initial state, allowing it to be configured again later.
+     * This is done if the HAL rejects the proposed combined stream configuration
+     */
+    status_t         cancelConfiguration();
 
     /**
      * Fill in the camera3_stream_buffer with the next valid buffer for this
@@ -209,8 +233,17 @@ class Camera3Stream :
      */
     virtual void     dump(int fd, const Vector<String16> &args) const = 0;
 
+    /**
+     * Add a camera3 buffer listener. Adding the same listener twice has
+     * no effect.
+     */
     void             addBufferListener(
             wp<Camera3StreamBufferListener> listener);
+
+    /**
+     * Remove a camera3 buffer listener. Removing the same listener twice
+     * or the listener that was never added has no effect.
+     */
     void             removeBufferListener(
             const sp<Camera3StreamBufferListener>& listener);
 
@@ -262,6 +295,12 @@ class Camera3Stream :
     // Get the total number of buffers in the queue
     virtual size_t   getBufferCountLocked() = 0;
 
+    // Get handout output buffer count.
+    virtual size_t   getHandoutOutputBufferCountLocked() = 0;
+
+    // Get handout input buffer count.
+    virtual size_t   getHandoutInputBufferCountLocked() = 0;
+
     // Get the usage flags for the other endpoint, or return
     // INVALID_OPERATION if they cannot be obtained.
     virtual status_t getEndpointUsage(uint32_t *usage) = 0;
@@ -274,6 +313,9 @@ class Camera3Stream :
   private:
     uint32_t oldUsage;
     uint32_t oldMaxBuffers;
+    Condition mOutputBufferReturnedSignal;
+    Condition mInputBufferReturnedSignal;
+    static const nsecs_t kWaitForBufferDuration = 3000000000LL; // 3000 ms
 
     // Gets all buffers from endpoint and registers them with the HAL.
     status_t registerBuffersLocked(camera3_device *hal3Device);

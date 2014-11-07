@@ -31,7 +31,9 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     virtual status_t setUID(uid_t uid);
 
     virtual status_t setDataSource(
-            const char *url, const KeyedVector<String8, String8> *headers);
+            const sp<IMediaHTTPService> &httpService,
+            const char *url,
+            const KeyedVector<String8, String8> *headers);
 
     virtual status_t setDataSource(int fd, int64_t offset, int64_t length);
 
@@ -66,9 +68,8 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     void notifyResetComplete();
     void notifySetSurfaceComplete();
     void notifyDuration(int64_t durationUs);
-    void notifyPosition(int64_t positionUs);
     void notifySeekComplete();
-    void notifyFrameStats(int64_t numFramesTotal, int64_t numFramesDropped);
+    void notifySeekComplete_l();
     void notifyListener(int msg, int ext1 = 0, int ext2 = 0, const Parcel *in = NULL);
     void notifyFlagsChanged(uint32_t flags);
 
@@ -85,6 +86,9 @@ private:
         STATE_RUNNING,
         STATE_PAUSED,
         STATE_RESET_IN_PROGRESS,
+        STATE_STOPPED,                  // equivalent to PAUSED
+        STATE_STOPPED_AND_PREPARING,    // equivalent to PAUSED, but seeking
+        STATE_STOPPED_AND_PREPARED,     // equivalent to PAUSED, but seek complete
     };
 
     mutable Mutex mLock;
@@ -100,19 +104,22 @@ private:
     bool mSetSurfaceInProgress;
     int64_t mDurationUs;
     int64_t mPositionUs;
-    int64_t mNumFramesTotal;
-    int64_t mNumFramesDropped;
+    bool mSeekInProgress;
     // <<<
 
     sp<ALooper> mLooper;
     sp<NuPlayer> mPlayer;
+    sp<AudioSink> mAudioSink;
     uint32_t mPlayerFlags;
 
     bool mAtEOS;
+    bool mLooping;
+    bool mAutoLoop;
 
     int64_t mStartupSeekTimeUs;
 
     status_t prepare_l();
+    void notifyListener_l(int msg, int ext1 = 0, int ext2 = 0, const Parcel *in = NULL);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayerDriver);
 };

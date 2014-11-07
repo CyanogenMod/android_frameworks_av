@@ -16,6 +16,9 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "VBRISeeker"
+
+#include <inttypes.h>
+
 #include <utils/Log.h>
 
 #include "include/VBRISeeker.h"
@@ -75,7 +78,7 @@ sp<VBRISeeker> VBRISeeker::CreateFromSource(
     size_t entrySize = U16_AT(&vbriHeader[22]);
     size_t scale = U16_AT(&vbriHeader[20]);
 
-    ALOGV("%d entries, scale=%d, size_per_entry=%d",
+    ALOGV("%zu entries, scale=%zu, size_per_entry=%zu",
          numEntries,
          scale,
          entrySize);
@@ -119,7 +122,7 @@ sp<VBRISeeker> VBRISeeker::CreateFromSource(
 
         seeker->mSegments.push(numBytes);
 
-        ALOGV("entry #%d: %u offset 0x%016llx", i, numBytes, offset);
+        ALOGV("entry #%zu: %u offset 0x%016llx", i, numBytes, offset);
         offset += numBytes;
     }
 
@@ -160,7 +163,7 @@ bool VBRISeeker::getOffsetForTime(int64_t *timeUs, off64_t *pos) {
         *pos += mSegments.itemAt(segmentIndex++);
     }
 
-    ALOGV("getOffsetForTime %lld us => 0x%016llx", *timeUs, *pos);
+    ALOGV("getOffsetForTime %" PRId64 " us => 0x%016llx", *timeUs, *pos);
 
     *timeUs = nowUs;
 

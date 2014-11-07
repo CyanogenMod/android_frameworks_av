@@ -21,11 +21,15 @@
 #include "NuPlayer.h"
 
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MetaData.h>
+#include <media/mediaplayer.h>
+#include <utils/Vector.h>
 
 namespace android {
 
 struct ABuffer;
 struct MetaData;
+struct MediaBuffer;
 
 struct NuPlayer::Source : public AHandler {
     enum Flags {
@@ -34,16 +38,20 @@ struct NuPlayer::Source : public AHandler {
         FLAG_CAN_SEEK_FORWARD   = 4,  // the "10 sec forward button"
         FLAG_CAN_SEEK           = 8,  // the "seek bar"
         FLAG_DYNAMIC_DURATION   = 16,
+        FLAG_SECURE             = 32,
     };
 
     enum {
         kWhatPrepared,
         kWhatFlagsChanged,
         kWhatVideoSizeChanged,
+        kWhatBufferingUpdate,
         kWhatBufferingStart,
         kWhatBufferingEnd,
         kWhatSubtitleData,
+        kWhatTimedTextData,
         kWhatQueueDecoderShutdown,
+        kWhatDrmNoLicense,
     };
 
     // The provides message is used to notify the player about various
@@ -59,11 +67,16 @@ struct NuPlayer::Source : public AHandler {
     virtual void pause() {}
     virtual void resume() {}
 
+    // Explicitly disconnect the underling data source
+    virtual void disconnect() {}
+
     // Returns OK iff more data was available,
     // an error or ERROR_END_OF_STREAM if not.
     virtual status_t feedMoreTSData() = 0;
 
     virtual sp<AMessage> getFormat(bool audio);
+    virtual sp<MetaData> getFormatMeta(bool /* audio */) { return NULL; }
+    virtual sp<MetaData> getFileFormatMeta() const { return NULL; }
 
     virtual status_t dequeueAccessUnit(
             bool audio, sp<ABuffer> *accessUnit) = 0;
@@ -72,7 +85,15 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
-    virtual status_t getTrackInfo(Parcel* /* reply */) const {
+    virtual size_t getTrackCount() const {
+        return 0;
+    }
+
+    virtual sp<AMessage> getTrackInfo(size_t /* trackIndex */) const {
+        return NULL;
+    }
+
+    virtual ssize_t getSelectedTrack(media_track_type /* type */) const {
         return INVALID_OPERATION;
     }
 
@@ -81,6 +102,10 @@ struct NuPlayer::Source : public AHandler {
     }
 
     virtual status_t seekTo(int64_t /* seekTimeUs */) {
+        return INVALID_OPERATION;
+    }
+
+    virtual status_t setBuffers(bool /* audio */, Vector<MediaBuffer *> &/* buffers */) {
         return INVALID_OPERATION;
     }
 
@@ -93,12 +118,10 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
-    virtual sp<MetaData> getFormatMeta(bool /* audio */) { return NULL; }
-
     sp<AMessage> dupNotify() const { return mNotify->dup(); }
 
     void notifyFlagsChanged(uint32_t flags);
-    void notifyVideoSizeChanged(int32_t width, int32_t height);
+    void notifyVideoSizeChanged(const sp<AMessage> &format = NULL);
     void notifyPrepared(status_t err = OK);
 
 private:

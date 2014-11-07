@@ -24,6 +24,7 @@
 #include <utils/Condition.h>
 #include <gui/BufferItemConsumer.h>
 #include <camera/CameraMetadata.h>
+#include <camera/CaptureResult.h>
 
 #include "common/CameraDeviceBase.h"
 #include "api1/client2/ZslProcessorInterface.h"
@@ -54,7 +55,7 @@ class ZslProcessor:
     // From mZslConsumer
     virtual void onFrameAvailable();
     // From FrameProcessor
-    virtual void onFrameAvailable(int32_t requestId, const CameraMetadata &frame);
+    virtual void onResultAvailable(const CaptureResult &result);
 
     virtual void onBufferReleased(buffer_handle_t *handle);
 
@@ -66,6 +67,7 @@ class ZslProcessor:
 
     status_t updateStream(const Parameters &params);
     status_t deleteStream();
+    status_t disconnect();
     int getStreamId() const;
 
     status_t pushToReprocess(int32_t requestId);
@@ -84,6 +86,8 @@ class ZslProcessor:
     wp<CameraDeviceBase> mDevice;
     wp<CaptureSequencer> mSequencer;
     int mId;
+
+    bool mDeleted;
 
     mutable Mutex mInputMutex;
     bool mZslBufferAvailable;

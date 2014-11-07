@@ -27,6 +27,12 @@
 #define FLAC_COMPRESSION_LEVEL_DEFAULT 5
 #define FLAC_COMPRESSION_LEVEL_MAX     8
 
+#if LOG_NDEBUG
+#define UNUSED_UNLESS_VERBOSE(x) (void)(x)
+#else
+#define UNUSED_UNLESS_VERBOSE(x)
+#endif
+
 namespace android {
 
 template<class T>
@@ -257,7 +263,7 @@ OMX_ERRORTYPE SoftFlacEncoder::internalSetParameter(
 }
 
 void SoftFlacEncoder::onQueueFilled(OMX_U32 portIndex) {
-    //UNUSED_UNLESS_VERBOSE(portIndex);
+    UNUSED_UNLESS_VERBOSE(portIndex);
     ALOGV("SoftFlacEncoder::onQueueFilled(portIndex=%d)", portIndex);
 
     if (mSignalledError) {
@@ -343,16 +349,17 @@ void SoftFlacEncoder::onQueueFilled(OMX_U32 portIndex) {
     }
 }
 
-
 FLAC__StreamEncoderWriteStatus SoftFlacEncoder::onEncodedFlacAvailable(
             const FLAC__byte buffer[],
-            size_t bytes, unsigned samples, unsigned current_frame) {
-    ALOGV("SoftFlacEncoder::onEncodedFlacAvailable(bytes=%d, samples=%d, curr_frame=%d)",
+            size_t bytes, unsigned samples,
+            unsigned current_frame) {
+    UNUSED_UNLESS_VERBOSE(current_frame);
+    ALOGV("SoftFlacEncoder::onEncodedFlacAvailable(bytes=%zu, samples=%u, curr_frame=%u)",
             bytes, samples, current_frame);
 
 #ifdef WRITE_FLAC_HEADER_IN_FIRST_BUFFER
     if (samples == 0) {
-        ALOGI(" saving %d bytes of header", bytes);
+        ALOGI(" saving %zu bytes of header", bytes);
         memcpy(mHeader + mHeaderOffset, buffer, bytes);
         mHeaderOffset += bytes;// will contain header size when finished receiving header
         return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
@@ -444,8 +451,12 @@ return_result:
 
 // static
 FLAC__StreamEncoderWriteStatus SoftFlacEncoder::flacEncoderWriteCallback(
-            const FLAC__StreamEncoder *encoder, const FLAC__byte buffer[],
-            size_t bytes, unsigned samples, unsigned current_frame, void *client_data) {
+            const FLAC__StreamEncoder * /* encoder */,
+            const FLAC__byte buffer[],
+            size_t bytes,
+            unsigned samples,
+            unsigned current_frame,
+            void *client_data) {
     return ((SoftFlacEncoder*) client_data)->onEncodedFlacAvailable(
             buffer, bytes, samples, current_frame);
 }

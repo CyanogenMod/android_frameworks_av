@@ -29,7 +29,7 @@ DrmManagerClient::DrmManagerClient():
 }
 
 DrmManagerClient::~DrmManagerClient() {
-    DrmManagerClientImpl::remove(mUniqueId);
+    mDrmManagerClientImpl->remove(mUniqueId);
     mDrmManagerClientImpl->removeClient(mUniqueId);
     mDrmManagerClientImpl->setOnInfoListener(mUniqueId, NULL);
 }

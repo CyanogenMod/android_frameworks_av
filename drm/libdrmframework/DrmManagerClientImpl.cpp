@@ -21,8 +21,10 @@
 #include <utils/String8.h>
 #include <utils/Vector.h>
 #include <binder/IServiceManager.h>
+#include <cutils/properties.h>
 
 #include "DrmManagerClientImpl.h"
+#include "NoOpDrmManagerClientImpl.h"
 
 using namespace android;
 
@@ -35,9 +37,12 @@ const String8 DrmManagerClientImpl::EMPTY_STRING("");
 
 DrmManagerClientImpl* DrmManagerClientImpl::create(
         int* pUniqueId, bool isNative) {
-    *pUniqueId = getDrmManagerService()->addUniqueId(isNative);
-
-    return new DrmManagerClientImpl();
+    sp<IDrmManagerService> service = getDrmManagerService();
+    if (service != NULL) {
+        *pUniqueId = getDrmManagerService()->addUniqueId(isNative);
+        return new DrmManagerClientImpl();
+    }
+    return new NoOpDrmManagerClientImpl();
 }
 
 void DrmManagerClientImpl::remove(int uniqueId) {
@@ -47,6 +52,12 @@ void DrmManagerClientImpl::remove(int uniqueId) {
 const sp<IDrmManagerService>& DrmManagerClientImpl::getDrmManagerService() {
     Mutex::Autolock lock(sMutex);
     if (NULL == sDrmManagerService.get()) {
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("drm.service.enabled", value, NULL) == 0) {
+            // Drm is undefined for this device
+            return sDrmManagerService;
+        }
+
         sp<IServiceManager> sm = defaultServiceManager();
         sp<IBinder> binder;
         do {

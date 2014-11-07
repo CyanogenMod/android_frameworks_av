@@ -49,7 +49,8 @@ struct PlaylistFetcher : public AHandler {
     PlaylistFetcher(
             const sp<AMessage> &notify,
             const sp<LiveSession> &session,
-            const char *uri);
+            const char *uri,
+            int32_t subtitleGeneration);
 
     sp<DataSource> getDataSource();
 
@@ -57,15 +58,21 @@ struct PlaylistFetcher : public AHandler {
             const sp<AnotherPacketSource> &audioSource,
             const sp<AnotherPacketSource> &videoSource,
             const sp<AnotherPacketSource> &subtitleSource,
-            int64_t startTimeUs = -1ll,
-            int64_t minStartTimeUs = 0ll /* start after this timestamp */,
-            int32_t startSeqNumberHint = -1 /* try starting at this sequence number */);
+            int64_t startTimeUs = -1ll,         // starting timestamps
+            int64_t segmentStartTimeUs = -1ll, // starting position within playlist
+            // startTimeUs!=segmentStartTimeUs only when playlist is live
+            int32_t startDiscontinuitySeq = 0,
+            bool adaptive = false);
 
     void pauseAsync();
 
-    void stopAsync(bool selfTriggered = false);
+    void stopAsync(bool clear = true);
 
     void resumeUntilAsync(const sp<AMessage> &params);
+
+    uint32_t getStreamTypeMask() const {
+        return mStreamTypeMask;
+    }
 
 protected:
     virtual ~PlaylistFetcher();
@@ -91,6 +98,7 @@ private:
     static const int32_t kNumSkipFrames;
 
     static bool bufferStartsWithTsSyncByte(const sp<ABuffer>& buffer);
+    static bool bufferStartsWithWebVTTMagicSequence(const sp<ABuffer>& buffer);
 
     // notifications to mSession
     sp<AMessage> mNotify;
@@ -101,7 +109,14 @@ private:
 
     uint32_t mStreamTypeMask;
     int64_t mStartTimeUs;
-    int64_t mMinStartTimeUs; // start fetching no earlier than this value
+
+    // Start time relative to the beginning of the first segment in the initial
+    // playlist. It's value is initialized to a non-negative value only when we are
+    // adapting or switching tracks.
+    int64_t mSegmentStartTimeUs;
+
+    ssize_t mDiscontinuitySeq;
+    bool mStartTimeUsRelative;
     sp<AMessage> mStopParams; // message containing the latest timestamps we should fetch.
 
     KeyedVector<LiveSession::StreamType, sp<AnotherPacketSource> >
@@ -114,10 +129,12 @@ private:
     int32_t mSeqNumber;
     int32_t mNumRetries;
     bool mStartup;
+    bool mAdaptive;
     bool mPrepared;
     int64_t mNextPTSTimeUs;
 
     int32_t mMonitorQueueGeneration;
+    const int32_t mSubtitleGeneration;
 
     enum RefreshState {
         INITIAL_MINIMUM_RELOAD_DELAY,
@@ -133,7 +150,9 @@ private:
 
     bool mFirstPTSValid;
     uint64_t mFirstPTS;
+    int64_t mFirstTimeUs;
     int64_t mAbsoluteTimeAnchorUs;
+    sp<AnotherPacketSource> mVideoBuffer;
 
     // Stores the initialization vector to decrypt the next block of cipher text, which can
     // either be derived from the sequence number, read from the manifest, or copied from
@@ -172,6 +191,10 @@ private:
     // Resume a fetcher to continue until the stopping point stored in msg.
     status_t onResumeUntil(const sp<AMessage> &msg);
 
+    const sp<ABuffer> &setAccessUnitProperties(
+            const sp<ABuffer> &accessUnit,
+            const sp<AnotherPacketSource> &source,
+            bool discard = false);
     status_t extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &buffer);
 
     status_t extractAndQueueAccessUnits(
@@ -182,6 +205,8 @@ private:
     void queueDiscontinuity(
             ATSParser::DiscontinuityType type, const sp<AMessage> &extra);
 
+    int32_t getSeqNumberWithAnchorTime(int64_t anchorTimeUs) const;
+    int32_t getSeqNumberForDiscontinuity(size_t discontinuitySeq) const;
     int32_t getSeqNumberForTime(int64_t timeUs) const;
 
     void updateDuration();

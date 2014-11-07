@@ -18,6 +18,7 @@
 #ifndef ANDROID_AUDIO_FLINGER_H
 #define ANDROID_AUDIO_FLINGER_H
 
+#include "Configuration.h"
 #include <stdint.h>
 #include <sys/types.h>
 #include <limits.h>
@@ -49,9 +50,12 @@
 
 #include <media/AudioBufferProvider.h>
 #include <media/ExtendedAudioBufferProvider.h>
+
+#include "FastCapture.h"
 #include "FastMixer.h"
 #include <media/nbaio/NBAIO.h>
 #include "AudioWatchdog.h"
+#include "AudioMixer.h"
 
 #include <powermanager/IPowerManager.h>
 
@@ -60,8 +64,8 @@
 
 namespace android {
 
-class audio_track_cblk_t;
-class effect_param_cblk_t;
+struct audio_track_cblk_t;
+struct effect_param_cblk_t;
 class AudioMixer;
 class AudioBuffer;
 class AudioResampler;
@@ -81,9 +85,6 @@ class ServerProxy;
 
 static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 
-#define MAX_GAIN 4096.0f
-#define MAX_GAIN_INT 0x1000
-
 #define INCLUDING_FROM_AUDIOFLINGER_H
 
 class AudioFlinger :
@@ -102,29 +103,30 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 IAudioFlinger::track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
                                 pid_t tid,
                                 int *sessionId,
-                                String8& name,
                                 int clientUid,
-                                status_t *status);
+                                status_t *status /*non-NULL*/);
 
     virtual sp<IAudioRecord> openRecord(
                                 audio_io_handle_t input,
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int *sessionId,
-                                status_t *status);
+                                size_t *notificationFrames,
+                                sp<IMemory>& cblk,
+                                sp<IMemory>& buffers,
+                                status_t *status /*non-NULL*/);
 
     virtual     uint32_t    sampleRate(audio_io_handle_t output) const;
-    virtual     int         channelCount(audio_io_handle_t output) const;
     virtual     audio_format_t format(audio_io_handle_t output) const;
     virtual     size_t      frameCount(audio_io_handle_t output) const;
     virtual     uint32_t    latency(audio_io_handle_t output) const;
@@ -156,14 +158,13 @@ public:
     virtual     size_t      getInputBufferSize(uint32_t sampleRate, audio_format_t format,
                                                audio_channel_mask_t channelMask) const;
 
-    virtual audio_io_handle_t openOutput(audio_module_handle_t module,
-                                         audio_devices_t *pDevices,
-                                         uint32_t *pSamplingRate,
-                                         audio_format_t *pFormat,
-                                         audio_channel_mask_t *pChannelMask,
-                                         uint32_t *pLatencyMs,
-                                         audio_output_flags_t flags,
-                                         const audio_offload_info_t *offloadInfo);
+    virtual status_t openOutput(audio_module_handle_t module,
+                                audio_io_handle_t *output,
+                                audio_config_t *config,
+                                audio_devices_t *devices,
+                                const String8& address,
+                                uint32_t *latencyMs,
+                                audio_output_flags_t flags);
 
     virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                                   audio_io_handle_t output2);
@@ -174,15 +175,17 @@ public:
 
     virtual status_t restoreOutput(audio_io_handle_t output);
 
-    virtual audio_io_handle_t openInput(audio_module_handle_t module,
-                                        audio_devices_t *pDevices,
-                                        uint32_t *pSamplingRate,
-                                        audio_format_t *pFormat,
-                                        audio_channel_mask_t *pChannelMask);
+    virtual status_t openInput(audio_module_handle_t module,
+                               audio_io_handle_t *input,
+                               audio_config_t *config,
+                               audio_devices_t *device,
+                               const String8& address,
+                               audio_source_t source,
+                               audio_input_flags_t flags);
 
     virtual status_t closeInput(audio_io_handle_t input);
 
-    virtual status_t setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output);
+    virtual status_t invalidateStream(audio_stream_type_t stream);
 
     virtual status_t setVoiceVolume(float volume);
 
@@ -191,11 +194,11 @@ public:
 
     virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const;
 
-    virtual int newAudioSessionId();
+    virtual audio_unique_id_t newAudioUniqueId();
 
-    virtual void acquireAudioSessionId(int audioSession);
+    virtual void acquireAudioSessionId(int audioSession, pid_t pid);
 
-    virtual void releaseAudioSessionId(int audioSession);
+    virtual void releaseAudioSessionId(int audioSession, pid_t pid);
 
     virtual status_t queryNumberEffects(uint32_t *numEffects) const;
 
@@ -210,7 +213,7 @@ public:
                         int32_t priority,
                         audio_io_handle_t io,
                         int sessionId,
-                        status_t *status,
+                        status_t *status /*non-NULL*/,
                         int *id,
                         int *enabled);
 
@@ -224,6 +227,30 @@ public:
 
     virtual status_t setLowRamDevice(bool isLowRamDevice);
 
+    /* List available audio ports and their attributes */
+    virtual status_t listAudioPorts(unsigned int *num_ports,
+                                    struct audio_port *ports);
+
+    /* Get attributes for a given audio port */
+    virtual status_t getAudioPort(struct audio_port *port);
+
+    /* Create an audio patch between several source and sink ports */
+    virtual status_t createAudioPatch(const struct audio_patch *patch,
+                                       audio_patch_handle_t *handle);
+
+    /* Release an audio patch */
+    virtual status_t releaseAudioPatch(audio_patch_handle_t handle);
+
+    /* List existing audio patches */
+    virtual status_t listAudioPatches(unsigned int *num_patches,
+                                      struct audio_patch *patches);
+
+    /* Set audio port configuration */
+    virtual status_t setAudioPortConfig(const struct audio_port_config *config);
+
+    /* Get the HW synchronization source used for an audio session */
+    virtual audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId);
+
     virtual     status_t    onTransact(
                                 uint32_t code,
                                 const Parcel& data,
@@ -235,8 +262,12 @@ public:
     sp<NBLog::Writer>   newWriter_l(size_t size, const char *name);
     void                unregisterWriter(const sp<NBLog::Writer>& writer);
 private:
-    static const size_t kLogMemorySize = 10 * 1024;
+    static const size_t kLogMemorySize = 40 * 1024;
     sp<MemoryDealer>    mLogMemoryDealer;   // == 0 when NBLog is disabled
+    // When a log writer is unregistered, it is done lazily so that media.log can continue to see it
+    // for as long as possible.  The memory is only freed when it is needed for another log writer.
+    Vector< sp<NBLog::Writer> > mUnregisteredWriters;
+    Mutex               mUnregisteredWritersLock;
 public:
 
     class SyncEvent;
@@ -249,7 +280,7 @@ public:
                   int triggerSession,
                   int listenerSession,
                   sync_event_callback_t callBack,
-                  void *cookie)
+                  wp<RefBase> cookie)
         : mType(type), mTriggerSession(triggerSession), mListenerSession(listenerSession),
           mCallback(callBack), mCookie(cookie)
         {}
@@ -262,14 +293,14 @@ public:
         AudioSystem::sync_event_t type() const { return mType; }
         int triggerSession() const { return mTriggerSession; }
         int listenerSession() const { return mListenerSession; }
-        void *cookie() const { return mCookie; }
+        wp<RefBase> cookie() const { return mCookie; }
 
     private:
           const AudioSystem::sync_event_t mType;
           const int mTriggerSession;
           const int mListenerSession;
           sync_event_callback_t mCallback;
-          void * const mCookie;
+          const wp<RefBase> mCookie;
           mutable Mutex mLock;
     };
 
@@ -277,7 +308,7 @@ public:
                                         int triggerSession,
                                         int listenerSession,
                                         sync_event_callback_t callBack,
-                                        void *cookie);
+                                        wp<RefBase> cookie);
 
 private:
     class AudioHwDevice;    // fwd declaration for findSuitableHwDev_l
@@ -299,6 +330,49 @@ private:
     AudioHwDevice*          findSuitableHwDev_l(audio_module_handle_t module,
                                                 audio_devices_t devices);
     void                    purgeStaleEffects_l();
+
+    // Set kEnableExtendedChannels to true to enable greater than stereo output
+    // for the MixerThread and device sink.  Number of channels allowed is
+    // FCC_2 <= channels <= AudioMixer::MAX_NUM_CHANNELS.
+    static const bool kEnableExtendedChannels = true;
+
+    // Returns true if channel mask is permitted for the PCM sink in the MixerThread
+    static inline bool isValidPcmSinkChannelMask(audio_channel_mask_t channelMask) {
+        switch (audio_channel_mask_get_representation(channelMask)) {
+        case AUDIO_CHANNEL_REPRESENTATION_POSITION: {
+            uint32_t channelCount = FCC_2; // stereo is default
+            if (kEnableExtendedChannels) {
+                channelCount = audio_channel_count_from_out_mask(channelMask);
+                if (channelCount < FCC_2 // mono is not supported at this time
+                        || channelCount > AudioMixer::MAX_NUM_CHANNELS) {
+                    return false;
+                }
+            }
+            // check that channelMask is the "canonical" one we expect for the channelCount.
+            return channelMask == audio_channel_out_mask_from_count(channelCount);
+            }
+        default:
+            return false;
+        }
+    }
+
+    // Set kEnableExtendedPrecision to true to use extended precision in MixerThread
+    static const bool kEnableExtendedPrecision = true;
+
+    // Returns true if format is permitted for the PCM sink in the MixerThread
+    static inline bool isValidPcmSinkFormat(audio_format_t format) {
+        switch (format) {
+        case AUDIO_FORMAT_PCM_16_BIT:
+            return true;
+        case AUDIO_FORMAT_PCM_FLOAT:
+        case AUDIO_FORMAT_PCM_24_BIT_PACKED:
+        case AUDIO_FORMAT_PCM_32_BIT:
+        case AUDIO_FORMAT_PCM_8_24_BIT:
+            return kEnableExtendedPrecision;
+        default:
+            return false;
+        }
+    }
 
     // standby delay for MIXER and DUPLICATING playback threads is read from property
     // ro.audio.flinger_standbytime_ms or defaults to kDefaultStandbyTimeInNsecs
@@ -394,6 +468,8 @@ private:
 
 #include "Effects.h"
 
+#include "PatchPanel.h"
+
     // server side of the client's IAudioTrack
     class TrackHandle : public android::BnAudioTrack {
     public:
@@ -427,7 +503,6 @@ private:
     public:
         RecordHandle(const sp<RecordThread::RecordTrack>& recordTrack);
         virtual             ~RecordHandle();
-        virtual sp<IMemory> getCblk() const;
         virtual status_t    start(int /*AudioSystem::sync_event_t*/ event, int triggerSession);
         virtual void        stop();
         virtual status_t onTransact(
@@ -443,15 +518,39 @@ private:
               PlaybackThread *checkPlaybackThread_l(audio_io_handle_t output) const;
               MixerThread *checkMixerThread_l(audio_io_handle_t output) const;
               RecordThread *checkRecordThread_l(audio_io_handle_t input) const;
+              sp<RecordThread> openInput_l(audio_module_handle_t module,
+                                           audio_io_handle_t *input,
+                                           audio_config_t *config,
+                                           audio_devices_t device,
+                                           const String8& address,
+                                           audio_source_t source,
+                                           audio_input_flags_t flags);
+              sp<PlaybackThread> openOutput_l(audio_module_handle_t module,
+                                              audio_io_handle_t *output,
+                                              audio_config_t *config,
+                                              audio_devices_t devices,
+                                              const String8& address,
+                                              audio_output_flags_t flags);
+
+              void closeOutputFinish(sp<PlaybackThread> thread);
+              void closeInputFinish(sp<RecordThread> thread);
+
               // no range check, AudioFlinger::mLock held
               bool streamMute_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].mute; }
               // no range check, doesn't check per-thread stream volume, AudioFlinger::mLock held
               float streamVolume_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].volume; }
-              void audioConfigChanged_l(int event, audio_io_handle_t ioHandle, const void *param2);
+              void audioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
 
-              // allocate an audio_io_handle_t, session ID, or effect ID
+              // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
+              // They all share the same ID space, but the namespaces are actually independent
+              // because there are separate KeyedVectors for each kind of ID.
+              // The return value is uint32_t, but is cast to signed for some IDs.
+              // FIXME This API does not handle rollover to zero (for unsigned IDs),
+              //       or from positive to negative (for signed IDs).
+              //       Thus it may fail by returning an ID of the wrong sign,
+              //       or by returning a non-unique ID.
               uint32_t nextUniqueId();
 
               status_t moveEffectChain_l(int sessionId,
@@ -467,9 +566,25 @@ private:
 
                 void        removeClient_l(pid_t pid);
                 void        removeNotificationClient(pid_t pid);
-
                 bool isNonOffloadableGlobalEffectEnabled_l();
                 void onNonOffloadableGlobalEffectEnable();
+
+                // Store an effect chain to mOrphanEffectChains keyed vector.
+                // Called when a thread exits and effects are still attached to it.
+                // If effects are later created on the same session, they will reuse the same
+                // effect chain and same instances in the effect library.
+                // return ALREADY_EXISTS if a chain with the same session already exists in
+                // mOrphanEffectChains. Note that this should never happen as there is only one
+                // chain for a given session and it is attached to only one thread at a time.
+                status_t        putOrphanEffectChain_l(const sp<EffectChain>& chain);
+                // Get an effect chain for the specified session in mOrphanEffectChains and remove
+                // it if found. Returns 0 if not found (this is the most common case).
+                sp<EffectChain> getOrphanEffectChain_l(audio_session_t session);
+                // Called when the last effect handle on an effect instance is removed. If this
+                // effect belongs to an effect chain in mOrphanEffectChains, the chain is updated
+                // and removed from mOrphanEffectChains if it does not contain any effect.
+                // Return true if the effect was found in mOrphanEffectChains, false otherwise.
+                bool            updateOrphanEffectChains(const sp<EffectModule>& effect);
 
     class AudioHwDevice {
     public:
@@ -478,10 +593,11 @@ private:
             AHWD_CAN_SET_MASTER_MUTE    = 0x2,
         };
 
-        AudioHwDevice(const char *moduleName,
+        AudioHwDevice(audio_module_handle_t handle,
+                      const char *moduleName,
                       audio_hw_device_t *hwDevice,
                       Flags flags)
-            : mModuleName(strdup(moduleName))
+            : mHandle(handle), mModuleName(strdup(moduleName))
             , mHwDevice(hwDevice)
             , mFlags(flags) { }
         /*virtual*/ ~AudioHwDevice() { free((void *)mModuleName); }
@@ -494,12 +610,16 @@ private:
             return (0 != (mFlags & AHWD_CAN_SET_MASTER_MUTE));
         }
 
+        audio_module_handle_t handle() const { return mHandle; }
         const char *moduleName() const { return mModuleName; }
         audio_hw_device_t *hwDevice() const { return mHwDevice; }
+        uint32_t version() const { return mHwDevice->common.version; }
+
     private:
+        const audio_module_handle_t mHandle;
         const char * const mModuleName;
         audio_hw_device_t * const mHwDevice;
-        Flags mFlags;
+        const Flags mFlags;
     };
 
     // AudioStreamOut and AudioStreamIn are immutable, so their fields are const.
@@ -509,7 +629,7 @@ private:
     struct AudioStreamOut {
         AudioHwDevice* const audioHwDev;
         audio_stream_out_t* const stream;
-        audio_output_flags_t flags;
+        const audio_output_flags_t flags;
 
         audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
 
@@ -537,7 +657,11 @@ private:
     };
 
     mutable     Mutex                               mLock;
-
+                // protects mClients and mNotificationClients.
+                // must be locked after mLock and ThreadBase::mLock if both must be locked
+                // avoids acquiring AudioFlinger::mLock from inside thread loop.
+    mutable     Mutex                               mClientLock;
+                // protected by mClientLock
                 DefaultKeyedVector< pid_t, wp<Client> >     mClients;   // see ~Client()
 
                 mutable     Mutex                   mHardwareLock;
@@ -586,8 +710,13 @@ private:
 
                 DefaultKeyedVector< audio_io_handle_t, sp<RecordThread> >    mRecordThreads;
 
+                // protected by mClientLock
                 DefaultKeyedVector< pid_t, sp<NotificationClient> >    mNotificationClients;
+
                 volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
+                // nextUniqueId() returns uint32_t, but this is declared int32_t
+                // because the atomic operations require an int32_t
+
                 audio_mode_t                        mMode;
                 bool                                mBtNrecIsOff;
 
@@ -601,12 +730,17 @@ private:
                 Vector < sp<SyncEvent> > mPendingSyncEvents; // sync events awaiting for a session
                                                              // to be created
 
+                // Effect chains without a valid thread
+                DefaultKeyedVector< audio_session_t , sp<EffectChain> > mOrphanEffectChains;
+
 private:
-    sp<Client>  registerPid_l(pid_t pid);    // always returns non-0
+    sp<Client>  registerPid(pid_t pid);    // always returns non-0
 
     // for use from destructor
     status_t    closeOutput_nonvirtual(audio_io_handle_t output);
+    void        closeOutputInternal_l(sp<PlaybackThread> thread);
     status_t    closeInput_nonvirtual(audio_io_handle_t input);
+    void        closeInputInternal_l(sp<RecordThread> thread);
 
 #ifdef TEE_SINK
     // all record threads serially share a common tee sink, which is re-created on format change
@@ -634,7 +768,7 @@ public:
     // 0x200000 stereo 16-bit PCM frames = 47.5 seconds at 44.1 kHz, 8 megabytes
     static const size_t kTeeSinkInputFramesDefault = 0x200000;
     static const size_t kTeeSinkOutputFramesDefault = 0x200000;
-    static const size_t kTeeSinkTrackFramesDefault = 0x1000;
+    static const size_t kTeeSinkTrackFramesDefault = 0x200000;
 #endif
 
     // This method reads from a variable without mLock, but the variable is updated under mLock.  So
@@ -647,9 +781,16 @@ private:
     bool    mIsLowRamDevice;
     bool    mIsDeviceTypeKnown;
     nsecs_t mGlobalEffectEnableTime;  // when a global effect was last enabled
+
+    sp<PatchPanel> mPatchPanel;
+
+    uint32_t    mPrimaryOutputSampleRate;   // sample rate of the primary output, or zero if none
+                                            // protected by mHardwareLock
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
+
+const char *formatToString(audio_format_t format);
 
 // ----------------------------------------------------------------------------
 

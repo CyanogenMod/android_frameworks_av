@@ -21,6 +21,7 @@
 #include <utils/threads.h>
 #include <utils/List.h>
 #include <utils/Errors.h>
+#include <utils/String8.h>
 #include <pthread.h>
 
 struct dirent;
@@ -29,6 +30,7 @@ namespace android {
 
 class MediaScannerClient;
 class StringArray;
+class CharacterEncodingDetector;
 
 enum MediaScanResult {
     // This file or directory was scanned successfully.
@@ -118,15 +120,8 @@ public:
     virtual status_t setMimeType(const char* mimeType) = 0;
 
 protected:
-    void convertValues(uint32_t encoding);
-
-protected:
-    // cached name and value strings, for native encoding support.
-    StringArray*    mNames;
-    StringArray*    mValues;
-
-    // default encoding based on MediaScanner::mLocale string
-    uint32_t        mLocaleEncoding;
+    // default encoding from MediaScanner::mLocale
+    String8 mLocale;
 };
 
 }; // namespace android

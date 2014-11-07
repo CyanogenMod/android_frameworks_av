@@ -1426,7 +1426,7 @@ PV_STATUS DecodeShortHeader(VideoDecData *video, Vop *currVop)
         video->nBitsForMBID = CalcNumBits((uint)video->nTotalMB - 1); /* otherwise calculate above */
     }
     size = (int32)video->width * video->height;
-    if (video->currVop->predictionType == P_VOP && size > video->videoDecControls->size)
+    if (currVop->predictionType == P_VOP && size > video->videoDecControls->size)
     {
         status = PV_FAIL;
         goto return_point;

@@ -24,6 +24,7 @@ bool recordingAllowed();
 bool captureAudioOutputAllowed();
 bool captureHotwordAllowed();
 bool settingsAllowed();
+bool modifyAudioRoutingAllowed();
 bool dumpAllowed();
 
 }

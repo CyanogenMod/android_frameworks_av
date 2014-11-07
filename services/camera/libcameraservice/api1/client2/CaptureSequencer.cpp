@@ -106,13 +106,12 @@ void CaptureSequencer::notifyAutoExposure(uint8_t newState, int triggerId) {
     }
 }
 
-void CaptureSequencer::onFrameAvailable(int32_t requestId,
-        const CameraMetadata &frame) {
-    ALOGV("%s: Listener found new frame", __FUNCTION__);
+void CaptureSequencer::onResultAvailable(const CaptureResult &result) {
     ATRACE_CALL();
+    ALOGV("%s: New result available.", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
-    mNewFrameId = requestId;
-    mNewFrame = frame;
+    mNewFrameId = result.mResultExtras.requestId;
+    mNewFrame = result.mMetadata;
     if (!mNewFrameReceived) {
         mNewFrameReceived = true;
         mNewFrameSignal.signal();
@@ -351,8 +350,10 @@ CaptureSequencer::CaptureState CaptureSequencer::manageZslStart(
         return DONE;
     }
 
+    // We don't want to get partial results for ZSL capture.
     client->registerFrameListener(mCaptureId, mCaptureId + 1,
-            this);
+            this,
+            /*sendPartials*/false);
 
     // TODO: Actually select the right thing here.
     res = processor->pushToReprocess(mCaptureId);
@@ -394,8 +395,14 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardStart(
 
     bool isAeConverged = false;
     // Get the onFrameAvailable callback when the requestID == mCaptureId
+    // We don't want to get partial results for normal capture, as we need
+    // Get ANDROID_SENSOR_TIMESTAMP from the capture result, but partial
+    // result doesn't have to have this metadata available.
+    // TODO: Update to use the HALv3 shutter notification for remove the
+    // need for this listener and make it faster. see bug 12530628.
     client->registerFrameListener(mCaptureId, mCaptureId + 1,
-            this);
+            this,
+            /*sendPartials*/false);
 
     {
         Mutex::Autolock l(mInputMutex);
@@ -438,11 +445,18 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardPrecaptureWait(
     if (mNewAEState) {
         if (!mAeInPrecapture) {
             // Waiting to see PRECAPTURE state
-            if (mAETriggerId == mTriggerId &&
-                    mAEState == ANDROID_CONTROL_AE_STATE_PRECAPTURE) {
-                ALOGV("%s: Got precapture start", __FUNCTION__);
-                mAeInPrecapture = true;
-                mTimeoutCount = kMaxTimeoutsForPrecaptureEnd;
+            if (mAETriggerId == mTriggerId) {
+                if (mAEState == ANDROID_CONTROL_AE_STATE_PRECAPTURE) {
+                    ALOGV("%s: Got precapture start", __FUNCTION__);
+                    mAeInPrecapture = true;
+                    mTimeoutCount = kMaxTimeoutsForPrecaptureEnd;
+                } else if (mAEState == ANDROID_CONTROL_AE_STATE_CONVERGED ||
+                        mAEState == ANDROID_CONTROL_AE_STATE_FLASH_REQUIRED) {
+                    // It is legal to transit to CONVERGED or FLASH_REQUIRED
+                    // directly after a trigger.
+                    ALOGV("%s: AE is already in good state, start capture", __FUNCTION__);
+                    return STANDARD_CAPTURE;
+                }
             }
         } else {
             // Waiting to see PRECAPTURE state end
@@ -585,12 +599,15 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
         entry = mNewFrame.find(ANDROID_SENSOR_TIMESTAMP);
         if (entry.count == 0) {
             ALOGE("No timestamp field in capture frame!");
-        }
-        if (entry.data.i64[0] != mCaptureTimestamp) {
-            ALOGW("Mismatched capture timestamps: Metadata frame %" PRId64 ","
-                    " captured buffer %" PRId64,
-                    entry.data.i64[0],
-                    mCaptureTimestamp);
+        } else if (entry.count == 1) {
+            if (entry.data.i64[0] != mCaptureTimestamp) {
+                ALOGW("Mismatched capture timestamps: Metadata frame %" PRId64 ","
+                        " captured buffer %" PRId64,
+                        entry.data.i64[0],
+                        mCaptureTimestamp);
+            }
+        } else {
+            ALOGE("Timestamp metadata is malformed!");
         }
         client->removeFrameListener(mCaptureId, mCaptureId + 1, this);
 

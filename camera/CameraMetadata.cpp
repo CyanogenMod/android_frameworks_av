@@ -25,6 +25,9 @@
 
 namespace android {
 
+#define ALIGN_TO(val, alignment) \
+    (((uintptr_t)(val) + ((alignment) - 1)) & ~((alignment) - 1))
+
 typedef Parcel::WritableBlob WritableBlob;
 typedef Parcel::ReadableBlob ReadableBlob;
 
@@ -270,7 +273,8 @@ status_t CameraMetadata::update(uint32_t tag,
     if ( (res = checkType(tag, TYPE_BYTE)) != OK) {
         return res;
     }
-    return updateImpl(tag, (const void*)string.string(), string.size());
+    // string.size() doesn't count the null termination character.
+    return updateImpl(tag, (const void*)string.string(), string.size() + 1);
 }
 
 status_t CameraMetadata::updateImpl(uint32_t tag, const void *data,
@@ -431,40 +435,70 @@ status_t CameraMetadata::readFromParcel(const Parcel& data,
         *out = NULL;
     }
 
-    // arg0 = metadataSize (int32)
-    int32_t metadataSizeTmp = -1;
-    if ((err = data.readInt32(&metadataSizeTmp)) != OK) {
+    // See CameraMetadata::writeToParcel for parcel data layout diagram and explanation.
+    // arg0 = blobSize (int32)
+    int32_t blobSizeTmp = -1;
+    if ((err = data.readInt32(&blobSizeTmp)) != OK) {
         ALOGE("%s: Failed to read metadata size (error %d %s)",
               __FUNCTION__, err, strerror(-err));
         return err;
     }
-    const size_t metadataSize = static_cast<size_t>(metadataSizeTmp);
+    const size_t blobSize = static_cast<size_t>(blobSizeTmp);
+    const size_t alignment = get_camera_metadata_alignment();
 
-    if (metadataSize == 0) {
+    // Special case: zero blob size means zero sized (NULL) metadata.
+    if (blobSize == 0) {
         ALOGV("%s: Read 0-sized metadata", __FUNCTION__);
         return OK;
     }
 
-    // NOTE: this doesn't make sense to me. shouldnt the blob
+    if (blobSize <= alignment) {
+        ALOGE("%s: metadata blob is malformed, blobSize(%zu) should be larger than alignment(%zu)",
+                __FUNCTION__, blobSize, alignment);
+        return BAD_VALUE;
+    }
+
+    const size_t metadataSize = blobSize - alignment;
+
+    // NOTE: this doesn't make sense to me. shouldn't the blob
     // know how big it is? why do we have to specify the size
     // to Parcel::readBlob ?
-
     ReadableBlob blob;
     // arg1 = metadata (blob)
     do {
-        if ((err = data.readBlob(metadataSize, &blob)) != OK) {
-            ALOGE("%s: Failed to read metadata blob (sized %d). Possible "
+        if ((err = data.readBlob(blobSize, &blob)) != OK) {
+            ALOGE("%s: Failed to read metadata blob (sized %zu). Possible "
                   " serialization bug. Error %d %s",
-                  __FUNCTION__, metadataSize, err, strerror(-err));
+                  __FUNCTION__, blobSize, err, strerror(-err));
             break;
         }
-        const camera_metadata_t* tmp =
-                       reinterpret_cast<const camera_metadata_t*>(blob.data());
 
+        // arg2 = offset (blob)
+        // Must be after blob since we don't know offset until after writeBlob.
+        int32_t offsetTmp;
+        if ((err = data.readInt32(&offsetTmp)) != OK) {
+            ALOGE("%s: Failed to read metadata offsetTmp (error %d %s)",
+                  __FUNCTION__, err, strerror(-err));
+            break;
+        }
+        const size_t offset = static_cast<size_t>(offsetTmp);
+        if (offset >= alignment) {
+            ALOGE("%s: metadata offset(%zu) should be less than alignment(%zu)",
+                    __FUNCTION__, blobSize, alignment);
+            err = BAD_VALUE;
+            break;
+        }
+
+        const uintptr_t metadataStart = reinterpret_cast<uintptr_t>(blob.data()) + offset;
+        const camera_metadata_t* tmp =
+                       reinterpret_cast<const camera_metadata_t*>(metadataStart);
+        ALOGV("%s: alignment is: %zu, metadata start: %p, offset: %zu",
+                __FUNCTION__, alignment, tmp, offset);
         metadata = allocate_copy_camera_metadata_checked(tmp, metadataSize);
         if (metadata == NULL) {
             // We consider that allocation only fails if the validation
             // also failed, therefore the readFromParcel was a failure.
+            ALOGE("%s: metadata allocation and copy failed", __FUNCTION__);
             err = BAD_VALUE;
         }
     } while(0);
@@ -485,38 +519,80 @@ status_t CameraMetadata::writeToParcel(Parcel& data,
                                        const camera_metadata_t* metadata) {
     status_t res = OK;
 
-    // arg0 = metadataSize (int32)
+    /**
+     * Below is the camera metadata parcel layout:
+     *
+     * |--------------------------------------------|
+     * |             arg0: blobSize                 |
+     * |              (length = 4)                  |
+     * |--------------------------------------------|<--Skip the rest if blobSize == 0.
+     * |                                            |
+     * |                                            |
+     * |              arg1: blob                    |
+     * | (length = variable, see arg1 layout below) |
+     * |                                            |
+     * |                                            |
+     * |--------------------------------------------|
+     * |              arg2: offset                  |
+     * |              (length = 4)                  |
+     * |--------------------------------------------|
+     */
 
+    // arg0 = blobSize (int32)
     if (metadata == NULL) {
+        // Write zero blobSize for null metadata.
         return data.writeInt32(0);
     }
 
+    /**
+     * Always make the blob size sufficiently larger, as we need put alignment
+     * padding and metadata into the blob. Since we don't know the alignment
+     * offset before writeBlob. Then write the metadata to aligned offset.
+     */
     const size_t metadataSize = get_camera_metadata_compact_size(metadata);
-    res = data.writeInt32(static_cast<int32_t>(metadataSize));
+    const size_t alignment = get_camera_metadata_alignment();
+    const size_t blobSize = metadataSize + alignment;
+    res = data.writeInt32(static_cast<int32_t>(blobSize));
     if (res != OK) {
         return res;
     }
 
-    // arg1 = metadata (blob)
+    size_t offset = 0;
+    /**
+     * arg1 = metadata (blob).
+     *
+     * The blob size is the sum of front padding size, metadata size and back padding
+     * size, which is equal to metadataSize + alignment.
+     *
+     * The blob layout is:
+     * |------------------------------------|<----Start address of the blob (unaligned).
+     * |           front padding            |
+     * |          (size = offset)           |
+     * |------------------------------------|<----Aligned start address of metadata.
+     * |                                    |
+     * |                                    |
+     * |            metadata                |
+     * |       (size = metadataSize)        |
+     * |                                    |
+     * |                                    |
+     * |------------------------------------|
+     * |           back padding             |
+     * |     (size = alignment - offset)    |
+     * |------------------------------------|<----End address of blob.
+     *                                            (Blob start address + blob size).
+     */
     WritableBlob blob;
     do {
-        res = data.writeBlob(metadataSize, &blob);
+        res = data.writeBlob(blobSize, &blob);
         if (res != OK) {
             break;
         }
-        copy_camera_metadata(blob.data(), metadataSize, metadata);
-
-        IF_ALOGV() {
-            if (validate_camera_metadata_structure(
-                        (const camera_metadata_t*)blob.data(),
-                        &metadataSize) != OK) {
-                ALOGV("%s: Failed to validate metadata %p after writing blob",
-                       __FUNCTION__, blob.data());
-            } else {
-                ALOGV("%s: Metadata written to blob. Validation success",
-                        __FUNCTION__);
-            }
-        }
+        const uintptr_t metadataStart = ALIGN_TO(blob.data(), alignment);
+        offset = metadataStart - reinterpret_cast<uintptr_t>(blob.data());
+        ALOGV("%s: alignment is: %zu, metadata start: %p, offset: %zu",
+                __FUNCTION__, alignment,
+                reinterpret_cast<const void *>(metadataStart), offset);
+        copy_camera_metadata(reinterpret_cast<void*>(metadataStart), metadataSize, metadata);
 
         // Not too big of a problem since receiving side does hard validation
         // Don't check the size since the compact size could be larger
@@ -527,6 +603,9 @@ status_t CameraMetadata::writeToParcel(Parcel& data,
 
     } while(false);
     blob.release();
+
+    // arg2 = offset (int32)
+    res = data.writeInt32(static_cast<int32_t>(offset));
 
     return res;
 }

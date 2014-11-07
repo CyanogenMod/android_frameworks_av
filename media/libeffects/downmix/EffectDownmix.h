@@ -97,7 +97,6 @@ int Downmix_setParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t s
 int Downmix_getParameter(downmix_object_t *pDownmixer, int32_t param, uint32_t *pSize, void *pValue);
 
 void Downmix_foldFromQuad(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
-void Downmix_foldFromSurround(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 void Downmix_foldFrom5Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate);
 bool Downmix_foldGeneric(

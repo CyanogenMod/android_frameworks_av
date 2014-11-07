@@ -32,6 +32,19 @@ void MediaSource::ReadOptions::reset() {
     mOptions = 0;
     mSeekTimeUs = 0;
     mLatenessUs = 0;
+    mNonBlocking = false;
+}
+
+void MediaSource::ReadOptions::setNonBlocking() {
+    mNonBlocking = true;
+}
+
+void MediaSource::ReadOptions::clearNonBlocking() {
+    mNonBlocking = false;
+}
+
+bool MediaSource::ReadOptions::getNonBlocking() const {
+    return mNonBlocking;
 }
 
 void MediaSource::ReadOptions::setSeekTo(int64_t time_us, SeekMode mode) {

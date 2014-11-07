@@ -34,7 +34,7 @@ typedef int32_t (*readResampleFirLerpIntBitsFn)();
 
 class AudioResamplerSinc : public AudioResampler {
 public:
-    AudioResamplerSinc(int bitDepth, int inChannelCount, int32_t sampleRate,
+    AudioResamplerSinc(int inChannelCount, int32_t sampleRate,
             src_quality quality = HIGH_QUALITY);
 
     virtual ~AudioResamplerSinc();
@@ -44,7 +44,7 @@ public:
 private:
     void init();
 
-    virtual void setVolume(int16_t left, int16_t right);
+    virtual void setVolume(float left, float right);
 
     template<int CHANNELS>
     void resample(int32_t* out, size_t outFrameCount,

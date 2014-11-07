@@ -23,6 +23,7 @@
 #include <gui/Surface.h>
 #include <media/AudioTrack.h>
 #include <media/ICrypto.h>
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -275,7 +276,8 @@ status_t SimplePlayer::onPrepare() {
 
     mExtractor = new NuMediaExtractor;
 
-    status_t err = mExtractor->setDataSource(mPath.c_str());
+    status_t err = mExtractor->setDataSource(
+            NULL /* httpService */, mPath.c_str());
 
     if (err != OK) {
         mExtractor.clear();

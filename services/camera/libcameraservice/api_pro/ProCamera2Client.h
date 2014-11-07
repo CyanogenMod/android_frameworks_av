@@ -21,6 +21,7 @@
 #include "common/FrameProcessorBase.h"
 #include "common/Camera2ClientBase.h"
 #include "device2/Camera2Device.h"
+#include "camera/CaptureResult.h"
 
 namespace android {
 
@@ -97,8 +98,8 @@ public:
 
 protected:
     /** FilteredListener implementation **/
-    virtual void          onFrameAvailable(int32_t requestId,
-                                           const CameraMetadata& frame);
+    virtual void onResultAvailable(const CaptureResult& result);
+
     virtual void          detachDevice();
 
 private:

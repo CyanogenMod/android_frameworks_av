@@ -38,7 +38,7 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
         const String16& clientPackageName,
         int cameraId, int cameraFacing,
         int clientPid, int clientUid,
-        int servicePid):
+        int servicePid, bool legacyMode):
         Client(cameraService, cameraClient, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid)
 {
@@ -54,6 +54,7 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
     // Callback is disabled by default
     mPreviewCallbackFlag = CAMERA_FRAME_CALLBACK_FLAG_NOOP;
     mOrientation = getOrientation(0, mCameraFacing == CAMERA_FACING_FRONT);
+    mLegacyMode = legacyMode;
     mPlayShutterSound = true;
     LOG1("CameraClient::CameraClient X (pid %d, id %d)", callingPid, cameraId);
 }
@@ -79,7 +80,7 @@ status_t CameraClient::initialize(camera_module_t *module) {
         ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);
         mHardware.clear();
-        return NO_INIT;
+        return res;
     }
 
     mHardware->setCallbacks(notifyCallback,
@@ -121,6 +122,16 @@ status_t CameraClient::dump(int fd, const Vector<String16>& args) {
             mClientPid);
     len = (len > SIZE - 1) ? SIZE - 1 : len;
     write(fd, buffer, len);
+
+    len = snprintf(buffer, SIZE, "Latest set parameters:\n");
+    len = (len > SIZE - 1) ? SIZE - 1 : len;
+    write(fd, buffer, len);
+
+    mLatestSetParameters.dump(fd, args);
+
+    const char *enddump = "\n\n";
+    write(fd, enddump, strlen(enddump));
+
     return mHardware->dump(fd, args);
 }
 
@@ -549,6 +560,7 @@ status_t CameraClient::setParameters(const String8& params) {
     status_t result = checkPidAndHardware();
     if (result != NO_ERROR) return result;
 
+    mLatestSetParameters = CameraParameters(params);
     CameraParameters p(params);
     return mHardware->setParameters(p);
 }
@@ -556,7 +568,8 @@ status_t CameraClient::setParameters(const String8& params) {
 // get preview/capture parameters - key/value pairs
 String8 CameraClient::getParameters() const {
     Mutex::Autolock lock(mLock);
-    if (checkPidAndHardware() != NO_ERROR) return String8();
+    // The camera service can unconditionally get the parameters at all times
+    if (getCallingPid() != mServicePid && checkPidAndHardware() != NO_ERROR) return String8();
 
     String8 params(mHardware->getParameters().flatten());
     LOG1("getParameters (pid %d) (%s)", getCallingPid(), params.string());
@@ -572,6 +585,13 @@ status_t CameraClient::enableShutterSound(bool enable) {
 
     if (enable) {
         mPlayShutterSound = true;
+        return OK;
+    }
+
+    // the camera2 api legacy mode can unconditionally disable the shutter sound
+    if (mLegacyMode) {
+        ALOGV("%s: Disable shutter sound in legacy mode", __FUNCTION__);
+        mPlayShutterSound = false;
         return OK;
     }
 
@@ -929,7 +949,20 @@ void CameraClient::copyFrameAndPostCopiedFrame(
     }
     previewBuffer = mPreviewBuffer;
 
-    memcpy(previewBuffer->base(), (uint8_t *)heap->base() + offset, size);
+    void* previewBufferBase = previewBuffer->base();
+    void* heapBase = heap->base();
+
+    if (heapBase == MAP_FAILED) {
+        ALOGE("%s: Failed to mmap heap for preview frame.", __FUNCTION__);
+        mLock.unlock();
+        return;
+    } else if (previewBufferBase == MAP_FAILED) {
+        ALOGE("%s: Failed to mmap preview buffer for preview frame.", __FUNCTION__);
+        mLock.unlock();
+        return;
+    }
+
+    memcpy(previewBufferBase, (uint8_t *) heapBase + offset, size);
 
     sp<MemoryBase> frame = new MemoryBase(previewBuffer, 0, size);
     if (frame == 0) {

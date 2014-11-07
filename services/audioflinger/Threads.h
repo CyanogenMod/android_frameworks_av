@@ -36,6 +36,8 @@ public:
                 audio_devices_t outDevice, audio_devices_t inDevice, type_t type);
     virtual             ~ThreadBase();
 
+    virtual status_t    readyToRun();
+
     void dumpBase(int fd, const Vector<String16>& args);
     void dumpEffectChains(int fd, const Vector<String16>& args);
 
@@ -44,60 +46,169 @@ public:
     // base for record and playback
     enum {
         CFG_EVENT_IO,
-        CFG_EVENT_PRIO
+        CFG_EVENT_PRIO,
+        CFG_EVENT_SET_PARAMETER,
+        CFG_EVENT_CREATE_AUDIO_PATCH,
+        CFG_EVENT_RELEASE_AUDIO_PATCH,
     };
 
-    class ConfigEvent {
+    class ConfigEventData: public RefBase {
     public:
-        ConfigEvent(int type) : mType(type) {}
-        virtual ~ConfigEvent() {}
-
-                 int type() const { return mType; }
+        virtual ~ConfigEventData() {}
 
         virtual  void dump(char *buffer, size_t size) = 0;
-
-    private:
-        const int mType;
+    protected:
+        ConfigEventData() {}
     };
 
-    class IoConfigEvent : public ConfigEvent {
-    public:
-        IoConfigEvent(int event, int param) :
-            ConfigEvent(CFG_EVENT_IO), mEvent(event), mParam(event) {}
-        virtual ~IoConfigEvent() {}
+    // Config event sequence by client if status needed (e.g binder thread calling setParameters()):
+    //  1. create SetParameterConfigEvent. This sets mWaitStatus in config event
+    //  2. Lock mLock
+    //  3. Call sendConfigEvent_l(): Append to mConfigEvents and mWaitWorkCV.signal
+    //  4. sendConfigEvent_l() reads status from event->mStatus;
+    //  5. sendConfigEvent_l() returns status
+    //  6. Unlock
+    //
+    // Parameter sequence by server: threadLoop calling processConfigEvents_l():
+    // 1. Lock mLock
+    // 2. If there is an entry in mConfigEvents proceed ...
+    // 3. Read first entry in mConfigEvents
+    // 4. Remove first entry from mConfigEvents
+    // 5. Process
+    // 6. Set event->mStatus
+    // 7. event->mCond.signal
+    // 8. Unlock
 
-                int event() const { return mEvent; }
-                int param() const { return mParam; }
+    class ConfigEvent: public RefBase {
+    public:
+        virtual ~ConfigEvent() {}
+
+        void dump(char *buffer, size_t size) { mData->dump(buffer, size); }
+
+        const int mType; // event type e.g. CFG_EVENT_IO
+        Mutex mLock;     // mutex associated with mCond
+        Condition mCond; // condition for status return
+        status_t mStatus; // status communicated to sender
+        bool mWaitStatus; // true if sender is waiting for status
+        sp<ConfigEventData> mData;     // event specific parameter data
+
+    protected:
+        ConfigEvent(int type) : mType(type), mStatus(NO_ERROR), mWaitStatus(false), mData(NULL) {}
+    };
+
+    class IoConfigEventData : public ConfigEventData {
+    public:
+        IoConfigEventData(int event, int param) :
+            mEvent(event), mParam(param) {}
 
         virtual  void dump(char *buffer, size_t size) {
             snprintf(buffer, size, "IO event: event %d, param %d\n", mEvent, mParam);
         }
 
-    private:
         const int mEvent;
         const int mParam;
     };
 
-    class PrioConfigEvent : public ConfigEvent {
+    class IoConfigEvent : public ConfigEvent {
     public:
-        PrioConfigEvent(pid_t pid, pid_t tid, int32_t prio) :
-            ConfigEvent(CFG_EVENT_PRIO), mPid(pid), mTid(tid), mPrio(prio) {}
-        virtual ~PrioConfigEvent() {}
+        IoConfigEvent(int event, int param) :
+            ConfigEvent(CFG_EVENT_IO) {
+            mData = new IoConfigEventData(event, param);
+        }
+        virtual ~IoConfigEvent() {}
+    };
 
-                pid_t pid() const { return mPid; }
-                pid_t tid() const { return mTid; }
-                int32_t prio() const { return mPrio; }
+    class PrioConfigEventData : public ConfigEventData {
+    public:
+        PrioConfigEventData(pid_t pid, pid_t tid, int32_t prio) :
+            mPid(pid), mTid(tid), mPrio(prio) {}
 
         virtual  void dump(char *buffer, size_t size) {
             snprintf(buffer, size, "Prio event: pid %d, tid %d, prio %d\n", mPid, mTid, mPrio);
         }
 
-    private:
         const pid_t mPid;
         const pid_t mTid;
         const int32_t mPrio;
     };
 
+    class PrioConfigEvent : public ConfigEvent {
+    public:
+        PrioConfigEvent(pid_t pid, pid_t tid, int32_t prio) :
+            ConfigEvent(CFG_EVENT_PRIO) {
+            mData = new PrioConfigEventData(pid, tid, prio);
+        }
+        virtual ~PrioConfigEvent() {}
+    };
+
+    class SetParameterConfigEventData : public ConfigEventData {
+    public:
+        SetParameterConfigEventData(String8 keyValuePairs) :
+            mKeyValuePairs(keyValuePairs) {}
+
+        virtual  void dump(char *buffer, size_t size) {
+            snprintf(buffer, size, "KeyValue: %s\n", mKeyValuePairs.string());
+        }
+
+        const String8 mKeyValuePairs;
+    };
+
+    class SetParameterConfigEvent : public ConfigEvent {
+    public:
+        SetParameterConfigEvent(String8 keyValuePairs) :
+            ConfigEvent(CFG_EVENT_SET_PARAMETER) {
+            mData = new SetParameterConfigEventData(keyValuePairs);
+            mWaitStatus = true;
+        }
+        virtual ~SetParameterConfigEvent() {}
+    };
+
+    class CreateAudioPatchConfigEventData : public ConfigEventData {
+    public:
+        CreateAudioPatchConfigEventData(const struct audio_patch patch,
+                                        audio_patch_handle_t handle) :
+            mPatch(patch), mHandle(handle) {}
+
+        virtual  void dump(char *buffer, size_t size) {
+            snprintf(buffer, size, "Patch handle: %u\n", mHandle);
+        }
+
+        const struct audio_patch mPatch;
+        audio_patch_handle_t mHandle;
+    };
+
+    class CreateAudioPatchConfigEvent : public ConfigEvent {
+    public:
+        CreateAudioPatchConfigEvent(const struct audio_patch patch,
+                                    audio_patch_handle_t handle) :
+            ConfigEvent(CFG_EVENT_CREATE_AUDIO_PATCH) {
+            mData = new CreateAudioPatchConfigEventData(patch, handle);
+            mWaitStatus = true;
+        }
+        virtual ~CreateAudioPatchConfigEvent() {}
+    };
+
+    class ReleaseAudioPatchConfigEventData : public ConfigEventData {
+    public:
+        ReleaseAudioPatchConfigEventData(const audio_patch_handle_t handle) :
+            mHandle(handle) {}
+
+        virtual  void dump(char *buffer, size_t size) {
+            snprintf(buffer, size, "Patch handle: %u\n", mHandle);
+        }
+
+        audio_patch_handle_t mHandle;
+    };
+
+    class ReleaseAudioPatchConfigEvent : public ConfigEvent {
+    public:
+        ReleaseAudioPatchConfigEvent(const audio_patch_handle_t handle) :
+            ConfigEvent(CFG_EVENT_RELEASE_AUDIO_PATCH) {
+            mData = new ReleaseAudioPatchConfigEventData(handle);
+            mWaitStatus = true;
+        }
+        virtual ~ReleaseAudioPatchConfigEvent() {}
+    };
 
     class PMDeathRecipient : public IBinder::DeathRecipient {
     public:
@@ -122,9 +233,9 @@ public:
 
                 // dynamic externally-visible
                 uint32_t    sampleRate() const { return mSampleRate; }
-                uint32_t    channelCount() const { return mChannelCount; }
                 audio_channel_mask_t channelMask() const { return mChannelMask; }
-                audio_format_t format() const { return mFormat; }
+                audio_format_t format() const { return mHALFormat; }
+                uint32_t channelCount() const { return mChannelCount; }
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
                 // and returns the [normal mix] buffer's frame count.
     virtual     size_t      frameCount() const = 0;
@@ -133,14 +244,29 @@ public:
     // Should be "virtual status_t requestExitAndWait()" and override same
     // method in Thread, but Thread::requestExitAndWait() is not yet virtual.
                 void        exit();
-    virtual     bool        checkForNewParameters_l() = 0;
+    virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
+                                                    status_t& status) = 0;
     virtual     status_t    setParameters(const String8& keyValuePairs);
     virtual     String8     getParameters(const String8& keys) = 0;
-    virtual     void        audioConfigChanged_l(int event, int param = 0) = 0;
+    virtual     void        audioConfigChanged(int event, int param = 0) = 0;
+                // sendConfigEvent_l() must be called with ThreadBase::mLock held
+                // Can temporarily release the lock if waiting for a reply from
+                // processConfigEvents_l().
+                status_t    sendConfigEvent_l(sp<ConfigEvent>& event);
                 void        sendIoConfigEvent(int event, int param = 0);
                 void        sendIoConfigEvent_l(int event, int param = 0);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
-                void        processConfigEvents();
+                status_t    sendSetParameterConfigEvent_l(const String8& keyValuePair);
+                status_t    sendCreateAudioPatchConfigEvent(const struct audio_patch *patch,
+                                                            audio_patch_handle_t *handle);
+                status_t    sendReleaseAudioPatchConfigEvent(audio_patch_handle_t handle);
+                void        processConfigEvents_l();
+    virtual     void        cacheParameters_l() = 0;
+    virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                               audio_patch_handle_t *handle) = 0;
+    virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle) = 0;
+    virtual     void        getAudioPortConfig(struct audio_port_config *config) = 0;
+
 
                 // see note at declaration of mStandby, mOutDevice and mInDevice
                 bool        standby() const { return mStandby; }
@@ -156,10 +282,7 @@ public:
                                     int sessionId,
                                     effect_descriptor_t *desc,
                                     int *enabled,
-                                    status_t *status);
-                void disconnectEffect(const sp< EffectModule>& effect,
-                                      EffectHandle *handle,
-                                      bool unpinIfLast);
+                                    status_t *status /*non-NULL*/);
 
                 // return values for hasAudioSession (bit field)
                 enum effect_state {
@@ -198,13 +321,13 @@ public:
                 // effect
                 void removeEffect_l(const sp< EffectModule>& effect);
                 // detach all tracks connected to an auxiliary effect
-    virtual     void detachAuxEffect_l(int effectId) {}
+    virtual     void detachAuxEffect_l(int effectId __unused) {}
                 // returns either EFFECT_SESSION if effects on this audio session exist in one
                 // chain, or TRACK_SESSION if tracks on this audio session exist, or both
                 virtual uint32_t hasAudioSession(int sessionId) const = 0;
                 // the value returned by default implementation is not important as the
                 // strategy is only meaningful for PlaybackThread which implements this method
-                virtual uint32_t getStrategyForSession_l(int sessionId) { return 0; }
+                virtual uint32_t getStrategyForSession_l(int sessionId __unused) { return 0; }
 
                 // suspend or restore effect according to the type of effect passed. a NULL
                 // type pointer means suspend all effects in the session
@@ -223,6 +346,15 @@ public:
                 virtual status_t    setSyncEvent(const sp<SyncEvent>& event) = 0;
                 virtual bool        isValidSyncEvent(const sp<SyncEvent>& event) const = 0;
 
+                // Return a reference to a per-thread heap which can be used to allocate IMemory
+                // objects that will be read-only to client processes, read/write to mediaserver,
+                // and shared by all client processes of the thread.
+                // The heap is per-thread rather than common across all threads, because
+                // clients can't be trusted not to modify the offset of the IMemory they receive.
+                // If a thread does not have such a heap, this method returns 0.
+                virtual sp<MemoryDealer>    readOnlyHeap() const { return 0; }
+
+                virtual sp<IMemory> pipeMemory() const { return 0; }
 
     mutable     Mutex                   mLock;
 
@@ -267,48 +399,29 @@ protected:
 
                 const sp<AudioFlinger>  mAudioFlinger;
 
-                // updated by PlaybackThread::readOutputParameters() or
-                // RecordThread::readInputParameters()
+                // updated by PlaybackThread::readOutputParameters_l() or
+                // RecordThread::readInputParameters_l()
                 uint32_t                mSampleRate;
                 size_t                  mFrameCount;       // output HAL, direct output, record
                 audio_channel_mask_t    mChannelMask;
                 uint32_t                mChannelCount;
                 size_t                  mFrameSize;
-                audio_format_t          mFormat;
+                audio_format_t          mFormat;           // Source format for Recording and
+                                                           // Sink format for Playback.
+                                                           // Sink format may be different than
+                                                           // HAL format if Fastmixer is used.
+                audio_format_t          mHALFormat;
+                size_t                  mBufferSize;       // HAL buffer size for read() or write()
 
-                // Parameter sequence by client: binder thread calling setParameters():
-                //  1. Lock mLock
-                //  2. Append to mNewParameters
-                //  3. mWaitWorkCV.signal
-                //  4. mParamCond.waitRelative with timeout
-                //  5. read mParamStatus
-                //  6. mWaitWorkCV.signal
-                //  7. Unlock
-                //
-                // Parameter sequence by server: threadLoop calling checkForNewParameters_l():
-                // 1. Lock mLock
-                // 2. If there is an entry in mNewParameters proceed ...
-                // 2. Read first entry in mNewParameters
-                // 3. Process
-                // 4. Remove first entry from mNewParameters
-                // 5. Set mParamStatus
-                // 6. mParamCond.signal
-                // 7. mWaitWorkCV.wait with timeout (this is to avoid overwriting mParamStatus)
-                // 8. Unlock
-                Condition               mParamCond;
-                Vector<String8>         mNewParameters;
-                status_t                mParamStatus;
-
-                // vector owns each ConfigEvent *, so must delete after removing
-                Vector<ConfigEvent *>     mConfigEvents;
+                Vector< sp<ConfigEvent> >     mConfigEvents;
 
                 // These fields are written and read by thread itself without lock or barrier,
-                // and read by other threads without lock or barrier via standby() , outDevice()
+                // and read by other threads without lock or barrier via standby(), outDevice()
                 // and inDevice().
                 // Because of the absence of a lock or barrier, any other thread that reads
                 // these fields must use the information in isolation, or be prepared to deal
                 // with possibility that it might be inconsistent with other information.
-                bool                    mStandby;   // Whether thread is currently in standby.
+                bool                    mStandby;     // Whether thread is currently in standby.
                 audio_devices_t         mOutDevice;   // output device
                 audio_devices_t         mInDevice;    // input device
                 audio_source_t          mAudioSource; // (see audio.h, audio_source_t)
@@ -358,7 +471,6 @@ public:
                 void        dump(int fd, const Vector<String16>& args);
 
     // Thread virtuals
-    virtual     status_t    readyToRun();
     virtual     bool        threadLoop();
 
     // RefBase
@@ -391,7 +503,7 @@ protected:
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
-
+    virtual     void        onAddNewTrack_l();
 
     // ThreadBase virtuals
     virtual     void        preExit();
@@ -419,13 +531,13 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                size_t frameCount,
+                                size_t *pFrameCount,
                                 const sp<IMemory>& sharedBuffer,
                                 int sessionId,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int uid,
-                                status_t *status);
+                                status_t *status /*non-NULL*/);
 
                 AudioStreamOut* getOutput() const;
                 AudioStreamOut* clearOutput();
@@ -445,9 +557,13 @@ public:
                                 { return android_atomic_acquire_load(&mSuspended) > 0; }
 
     virtual     String8     getParameters(const String8& keys);
-    virtual     void        audioConfigChanged_l(int event, int param = 0);
+    virtual     void        audioConfigChanged(int event, int param = 0);
                 status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
-                int16_t     *mixBuffer() const { return mMixBuffer; };
+                // FIXME rename mixBuffer() to sinkBuffer() and remove int16_t* dependency.
+                // Consider also removing and passing an explicit mMainBuffer initialization
+                // parameter to AF::PlaybackThread::Track::Track().
+                int16_t     *mixBuffer() const {
+                    return reinterpret_cast<int16_t *>(mSinkBuffer); };
 
     virtual     void detachAuxEffect_l(int effectId);
                 status_t attachAuxEffect(const sp<AudioFlinger::PlaybackThread::Track> track,
@@ -472,14 +588,76 @@ public:
                 // Return's the HAL's frame count i.e. fast mixer buffer size.
                 size_t      frameCountHAL() const { return mFrameCount; }
 
-                status_t         getTimestamp_l(AudioTimestamp& timestamp);
+                status_t    getTimestamp_l(AudioTimestamp& timestamp);
+
+                void        addPatchTrack(const sp<PatchTrack>& track);
+                void        deletePatchTrack(const sp<PatchTrack>& track);
+
+    virtual     void        getAudioPortConfig(struct audio_port_config *config);
 
 protected:
-    // updated by readOutputParameters()
+    // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
-    int16_t*                        mMixBuffer;         // frame size aligned mix buffer
-    int8_t*                         mAllocMixBuffer;    // mixer buffer allocation address
+    void*                           mSinkBuffer;         // frame size aligned sink buffer
+
+    // TODO:
+    // Rearrange the buffer info into a struct/class with
+    // clear, copy, construction, destruction methods.
+    //
+    // mSinkBuffer also has associated with it:
+    //
+    // mSinkBufferSize: Sink Buffer Size
+    // mFormat: Sink Buffer Format
+
+    // Mixer Buffer (mMixerBuffer*)
+    //
+    // In the case of floating point or multichannel data, which is not in the
+    // sink format, it is required to accumulate in a higher precision or greater channel count
+    // buffer before downmixing or data conversion to the sink buffer.
+
+    // Set to "true" to enable the Mixer Buffer otherwise mixer output goes to sink buffer.
+    bool                            mMixerBufferEnabled;
+
+    // Storage, 32 byte aligned (may make this alignment a requirement later).
+    // Due to constraints on mNormalFrameCount, the buffer size is a multiple of 16 frames.
+    void*                           mMixerBuffer;
+
+    // Size of mMixerBuffer in bytes: mNormalFrameCount * #channels * sampsize.
+    size_t                          mMixerBufferSize;
+
+    // The audio format of mMixerBuffer. Set to AUDIO_FORMAT_PCM_(FLOAT|16_BIT) only.
+    audio_format_t                  mMixerBufferFormat;
+
+    // An internal flag set to true by MixerThread::prepareTracks_l()
+    // when mMixerBuffer contains valid data after mixing.
+    bool                            mMixerBufferValid;
+
+    // Effects Buffer (mEffectsBuffer*)
+    //
+    // In the case of effects data, which is not in the sink format,
+    // it is required to accumulate in a different buffer before data conversion
+    // to the sink buffer.
+
+    // Set to "true" to enable the Effects Buffer otherwise effects output goes to sink buffer.
+    bool                            mEffectBufferEnabled;
+
+    // Storage, 32 byte aligned (may make this alignment a requirement later).
+    // Due to constraints on mNormalFrameCount, the buffer size is a multiple of 16 frames.
+    void*                           mEffectBuffer;
+
+    // Size of mEffectsBuffer in bytes: mNormalFrameCount * #channels * sampsize.
+    size_t                          mEffectBufferSize;
+
+    // The audio format of mEffectsBuffer. Set to AUDIO_FORMAT_PCM_16_BIT only.
+    audio_format_t                  mEffectBufferFormat;
+
+    // An internal flag set to true by MixerThread::prepareTracks_l()
+    // when mEffectsBuffer contains valid data after mixing.
+    //
+    // When this is set, all mixer data is routed into the effects buffer
+    // for any processing (including output processing).
+    bool                            mEffectBufferValid;
 
     // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
     // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
@@ -505,7 +683,8 @@ protected:
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
-    virtual int             getTrackName_l(audio_channel_mask_t channelMask, int sessionId) = 0;
+    virtual int             getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId) = 0;
     virtual void            deleteTrackName_l(int name) = 0;
 
     // Time to sleep between cycles when:
@@ -527,11 +706,14 @@ protected:
 
     virtual     uint32_t    correctLatency_l(uint32_t latency) const;
 
+    virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                   audio_patch_handle_t *handle);
+    virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
+
 private:
 
     friend class AudioFlinger;      // for numerous
 
-    PlaybackThread(const Client&);
     PlaybackThread& operator = (const PlaybackThread&);
 
     status_t    addTrack_l(const sp<Track>& track);
@@ -539,7 +721,7 @@ private:
     void        removeTrack_l(const sp<Track>& track);
     void        broadcast_l();
 
-    void        readOutputParameters();
+    void        readOutputParameters_l();
 
     virtual void dumpInternals(int fd, const Vector<String16>& args);
     void        dumpTracks(int fd, const Vector<String16>& args);
@@ -558,7 +740,7 @@ private:
 
     // FIXME rename these former local variables of threadLoop to standard "m" names
     nsecs_t                         standbyTime;
-    size_t                          mixBufferSize;
+    size_t                          mSinkBufferSize;
 
     // cached copies of activeSleepTimeUs() and idleSleepTimeUs() made by cacheParameters_l()
     uint32_t                        activeSleepTime;
@@ -623,13 +805,12 @@ private:
     sp<NBLog::Writer>       mFastMixerNBLogWriter;
 public:
     virtual     bool        hasFastMixer() const = 0;
-    virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const
+    virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex __unused) const
                                 { FastTrackUnderruns dummy; return dummy; }
 
 protected:
                 // accessed by both binder threads and within threadLoop(), lock on mutex needed
                 unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
-    virtual     void        flushOutput_l();
 
 private:
     // timestamp latch:
@@ -638,8 +819,11 @@ private:
     struct {
         AudioTimestamp  mTimestamp;
         uint32_t        mUnpresentedFrames;
+        KeyedVector<Track *, uint32_t> mFramesReleased;
     } mLatchD, mLatchQ;
-    bool mLatchDValid;  // true means mLatchD is valid, and clock it into latch at next opportunity
+    bool mLatchDValid;  // true means mLatchD is valid
+                        //     (except for mFramesReleased which is filled in later),
+                        //     and clock it into latch at next opportunity
     bool mLatchQValid;  // true means mLatchQ is valid
 };
 
@@ -654,12 +838,14 @@ public:
 
     // Thread virtuals
 
-    virtual     bool        checkForNewParameters_l();
+    virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
+                                                   status_t& status);
     virtual     void        dumpInternals(int fd, const Vector<String16>& args);
 
 protected:
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    idleSleepTimeUs() const;
     virtual     uint32_t    suspendSleepTimeUs() const;
@@ -676,7 +862,7 @@ protected:
                 AudioMixer* mAudioMixer;    // normal mixer
 private:
                 // one-time initialization, no locks required
-                FastMixer*  mFastMixer;         // non-NULL if there is also a fast mixer
+                sp<FastMixer>     mFastMixer;     // non-0 if there is also a fast mixer
                 sp<AudioWatchdog> mAudioWatchdog; // non-0 if there is an audio watchdog thread
 
                 // contents are not guaranteed to be consistent, no locks required
@@ -692,11 +878,12 @@ private:
                 int32_t     mFastMixerFutex;    // for cold idle
 
 public:
-    virtual     bool        hasFastMixer() const { return mFastMixer != NULL; }
+    virtual     bool        hasFastMixer() const { return mFastMixer != 0; }
     virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const {
                               ALOG_ASSERT(fastIndex < FastMixerState::kMaxFastTracks);
                               return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
                             }
+
 };
 
 class DirectOutputThread : public PlaybackThread {
@@ -708,10 +895,13 @@ public:
 
     // Thread virtuals
 
-    virtual     bool        checkForNewParameters_l();
+    virtual     bool        checkForNewParameter_l(const String8& keyValuePair,
+                                                   status_t& status);
+    virtual     void        flushHw_l();
 
 protected:
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, int sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
+                                           audio_format_t format, int sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    activeSleepTimeUs() const;
     virtual     uint32_t    idleSleepTimeUs() const;
@@ -743,19 +933,17 @@ public:
     OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                         audio_io_handle_t id, uint32_t device);
     virtual                 ~OffloadThread() {};
+    virtual     void        flushHw_l();
 
 protected:
     // threadLoop snippets
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
     virtual     void        threadLoop_exit();
-    virtual     void        flushOutput_l();
 
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
-
-private:
-                void        flushHw_l();
+    virtual     void        onAddNewTrack_l();
 
 private:
     bool        mHwPaused;
@@ -838,17 +1026,28 @@ public:
 
 
 // record thread
-class RecordThread : public ThreadBase, public AudioBufferProvider
-                        // derives from AudioBufferProvider interface for use by resampler
+class RecordThread : public ThreadBase
 {
 public:
+
+    class RecordTrack;
+    class ResamplerBufferProvider : public AudioBufferProvider
+                        // derives from AudioBufferProvider interface for use by resampler
+    {
+    public:
+        ResamplerBufferProvider(RecordTrack* recordTrack) : mRecordTrack(recordTrack) { }
+        virtual ~ResamplerBufferProvider() { }
+        // AudioBufferProvider interface
+        virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
+        virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
+    private:
+        RecordTrack * const mRecordTrack;
+    };
 
 #include "RecordTracks.h"
 
             RecordThread(const sp<AudioFlinger>& audioFlinger,
                     AudioStreamIn *input,
-                    uint32_t sampleRate,
-                    audio_channel_mask_t channelMask,
                     audio_io_handle_t id,
                     audio_devices_t outDevice,
                     audio_devices_t inDevice
@@ -867,23 +1066,28 @@ public:
 
     // Thread virtuals
     virtual bool        threadLoop();
-    virtual status_t    readyToRun();
 
     // RefBase
     virtual void        onFirstRef();
 
     virtual status_t    initCheck() const { return (mInput == NULL) ? NO_INIT : NO_ERROR; }
+
+    virtual sp<MemoryDealer>    readOnlyHeap() const { return mReadOnlyHeap; }
+
+    virtual sp<IMemory> pipeMemory() const { return mPipeMemory; }
+
             sp<AudioFlinger::RecordThread::RecordTrack>  createRecordTrack_l(
                     const sp<AudioFlinger::Client>& client,
                     uint32_t sampleRate,
                     audio_format_t format,
                     audio_channel_mask_t channelMask,
-                    size_t frameCount,
+                    size_t *pFrameCount,
                     int sessionId,
+                    size_t *notificationFrames,
                     int uid,
                     IAudioFlinger::track_flags_t *flags,
                     pid_t tid,
-                    status_t *status);
+                    status_t *status /*non-NULL*/);
 
             status_t    start(RecordTrack* recordTrack,
                               AudioSystem::sync_event_t event,
@@ -897,15 +1101,21 @@ public:
             AudioStreamIn* clearInput();
             virtual audio_stream_t* stream() const;
 
-    // AudioBufferProvider interface
-    virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
-    virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
 
-    virtual bool        checkForNewParameters_l();
+    virtual bool        checkForNewParameter_l(const String8& keyValuePair,
+                                               status_t& status);
+    virtual void        cacheParameters_l() {}
     virtual String8     getParameters(const String8& keys);
-    virtual void        audioConfigChanged_l(int event, int param = 0);
-            void        readInputParameters();
-    virtual unsigned int  getInputFramesLost();
+    virtual void        audioConfigChanged(int event, int param = 0);
+    virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                           audio_patch_handle_t *handle);
+    virtual status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
+
+            void        addPatchRecord(const sp<PatchRecord>& record);
+            void        deletePatchRecord(const sp<PatchRecord>& record);
+
+            void        readInputParameters_l();
+    virtual uint32_t    getInputFramesLost();
 
     virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
     virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);
@@ -920,45 +1130,73 @@ public:
     virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
 
     static void syncStartEventCallback(const wp<SyncEvent>& event);
-           void handleSyncStartEvent(const sp<SyncEvent>& event);
 
     virtual size_t      frameCount() const { return mFrameCount; }
-            bool        hasFastRecorder() const { return false; }
+            bool        hasFastCapture() const { return mFastCapture != 0; }
+    virtual void        getAudioPortConfig(struct audio_port_config *config);
 
 private:
-            void clearSyncStartEvent();
-
             // Enter standby if not already in standby, and set mStandby flag
-            void standby();
+            void    standbyIfNotAlreadyInStandby();
 
             // Call the HAL standby method unconditionally, and don't change mStandby flag
-            void inputStandBy();
+            void    inputStandBy();
 
             AudioStreamIn                       *mInput;
             SortedVector < sp<RecordTrack> >    mTracks;
-            // mActiveTrack has dual roles:  it indicates the current active track, and
+            // mActiveTracks has dual roles:  it indicates the current active track(s), and
             // is used together with mStartStopCond to indicate start()/stop() progress
-            sp<RecordTrack>                     mActiveTrack;
+            SortedVector< sp<RecordTrack> >     mActiveTracks;
+            // generation counter for mActiveTracks
+            int                                 mActiveTracksGen;
             Condition                           mStartStopCond;
 
-            // updated by RecordThread::readInputParameters()
-            AudioResampler                      *mResampler;
-            // interleaved stereo pairs of fixed-point signed Q19.12
-            int32_t                             *mRsmpOutBuffer;
-            int16_t                             *mRsmpInBuffer; // [mFrameCount * mChannelCount]
-            size_t                              mRsmpInIndex;
-            size_t                              mBufferSize;    // stream buffer size for read()
-            const uint32_t                      mReqChannelCount;
-            const uint32_t                      mReqSampleRate;
-            ssize_t                             mBytesRead;
-            // sync event triggering actual audio capture. Frames read before this event will
-            // be dropped and therefore not read by the application.
-            sp<SyncEvent>                       mSyncStartEvent;
-            // number of captured frames to drop after the start sync event has been received.
-            // when < 0, maximum frames to drop before starting capture even if sync event is
-            // not received
-            ssize_t                             mFramestoDrop;
+            // resampler converts input at HAL Hz to output at AudioRecord client Hz
+            int16_t                             *mRsmpInBuffer; // see new[] for details on the size
+            size_t                              mRsmpInFrames;  // size of resampler input in frames
+            size_t                              mRsmpInFramesP2;// size rounded up to a power-of-2
+
+            // rolling index that is never cleared
+            int32_t                             mRsmpInRear;    // last filled frame + 1
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
+
+            const sp<MemoryDealer>              mReadOnlyHeap;
+
+            // one-time initialization, no locks required
+            sp<FastCapture>                     mFastCapture;   // non-0 if there is also a fast capture
+            // FIXME audio watchdog thread
+
+            // contents are not guaranteed to be consistent, no locks required
+            FastCaptureDumpState                mFastCaptureDumpState;
+#ifdef STATE_QUEUE_DUMP
+            // FIXME StateQueue observer and mutator dump fields
+#endif
+            // FIXME audio watchdog dump
+
+            // accessible only within the threadLoop(), no locks required
+            //          mFastCapture->sq()      // for mutating and pushing state
+            int32_t     mFastCaptureFutex;      // for cold idle
+
+            // The HAL input source is treated as non-blocking,
+            // but current implementation is blocking
+            sp<NBAIO_Source>                    mInputSource;
+            // The source for the normal capture thread to read from: mInputSource or mPipeSource
+            sp<NBAIO_Source>                    mNormalSource;
+            // If a fast capture is present, the non-blocking pipe sink written to by fast capture,
+            // otherwise clear
+            sp<NBAIO_Sink>                      mPipeSink;
+            // If a fast capture is present, the non-blocking pipe source read by normal thread,
+            // otherwise clear
+            sp<NBAIO_Source>                    mPipeSource;
+            // Depth of pipe from fast capture to normal thread and fast clients, always power of 2
+            size_t                              mPipeFramesP2;
+            // If a fast capture is present, the Pipe as IMemory, otherwise clear
+            sp<IMemory>                         mPipeMemory;
+
+            static const size_t                 kFastCaptureLogSize = 4 * 1024;
+            sp<NBLog::Writer>                   mFastCaptureNBLogWriter;
+
+            bool                                mFastTrackAvail;    // true if fast track available
 };

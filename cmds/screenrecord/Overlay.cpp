@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include <assert.h>
+#include <inttypes.h>
+#include <stdlib.h>
+
 #define LOG_TAG "ScreenRecord"
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
@@ -26,9 +30,6 @@
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-
-#include <stdlib.h>
-#include <assert.h>
 
 #include "screenrecord.h"
 #include "Overlay.h"
@@ -84,7 +85,7 @@ status_t Overlay::start(const sp<IGraphicBufferProducer>& outputSurface,
     assert(mState == RUNNING);
 
     ALOGV("Overlay::start successful");
-    *pBufferProducer = mBufferQueue;
+    *pBufferProducer = mProducer;
     return NO_ERROR;
 }
 
@@ -169,9 +170,10 @@ status_t Overlay::setup_l() {
         return UNKNOWN_ERROR;
     }
 
-    mBufferQueue = new BufferQueue(/*new GraphicBufferAlloc()*/);
-    mGlConsumer = new GLConsumer(mBufferQueue, mExtTextureName,
-                GL_TEXTURE_EXTERNAL_OES);
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&mProducer, &consumer);
+    mGlConsumer = new GLConsumer(consumer, mExtTextureName,
+                GL_TEXTURE_EXTERNAL_OES, true, false);
     mGlConsumer->setName(String8("virtual display"));
     mGlConsumer->setDefaultBufferSize(width, height);
     mGlConsumer->setDefaultMaxBufferCount(5);
@@ -187,7 +189,7 @@ void Overlay::release_l() {
     ALOGV("Overlay::release_l");
     mOutputSurface.clear();
     mGlConsumer.clear();
-    mBufferQueue.clear();
+    mProducer.clear();
 
     mTexProgram.release();
     mExtTexProgram.release();
@@ -234,7 +236,7 @@ void Overlay::processFrame_l() {
 
     char textBuf[64];
     getTimeString_l(monotonicNsec, textBuf, sizeof(textBuf));
-    String8 timeStr(String8::format("%s f=%lld (%zd)",
+    String8 timeStr(String8::format("%s f=%" PRId64 " (%zd)",
             textBuf, frameNumber, mTotalDroppedFrames));
     mTextRenderer.drawString(mTexProgram, Program::kIdentity, 0, 0, timeStr);
 

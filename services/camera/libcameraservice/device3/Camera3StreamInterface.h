@@ -82,6 +82,13 @@ class Camera3StreamInterface : public virtual RefBase {
     virtual status_t finishConfiguration(camera3_device *hal3Device) = 0;
 
     /**
+     * Cancels the stream configuration process. This returns the stream to the
+     * initial state, allowing it to be configured again later.
+     * This is done if the HAL rejects the proposed combined stream configuration
+     */
+    virtual status_t cancelConfiguration() = 0;
+
+    /**
      * Fill in the camera3_stream_buffer with the next valid buffer for this
      * stream, to hand over to the HAL.
      *

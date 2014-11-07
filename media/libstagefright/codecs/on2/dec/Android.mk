@@ -20,4 +20,6 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_MODULE := libstagefright_soft_vpxdec
 LOCAL_MODULE_TAGS := optional
 
+LOCAL_CFLAGS += -Werror
+
 include $(BUILD_SHARED_LIBRARY)

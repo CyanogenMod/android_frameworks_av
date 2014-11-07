@@ -503,9 +503,10 @@ ATSParser::Stream::Stream(
                     ElementaryStreamQueue::MPEG4_VIDEO);
             break;
 
-        case STREAMTYPE_PCM_AUDIO:
+        case STREAMTYPE_LPCM_AC3:
+        case STREAMTYPE_AC3:
             mQueue = new ElementaryStreamQueue(
-                    ElementaryStreamQueue::PCM_AUDIO);
+                    ElementaryStreamQueue::AC3);
             break;
 
         default:
@@ -550,7 +551,9 @@ status_t ATSParser::Stream::parse(
         }
 #endif
 
-        return OK;
+        if (!payload_unit_start_indicator) {
+            return OK;
+        }
     }
 
     mExpectedContinuityCounter = (continuity_counter + 1) & 0x0f;
@@ -615,7 +618,8 @@ bool ATSParser::Stream::isAudio() const {
         case STREAMTYPE_MPEG1_AUDIO:
         case STREAMTYPE_MPEG2_AUDIO:
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
-        case STREAMTYPE_PCM_AUDIO:
+        case STREAMTYPE_LPCM_AC3:
+        case STREAMTYPE_AC3:
             return true;
 
         default:
@@ -661,7 +665,7 @@ void ATSParser::Stream::signalDiscontinuity(
     }
 
     if (mSource != NULL) {
-        mSource->queueDiscontinuity(type, extra);
+        mSource->queueDiscontinuity(type, extra, true);
     }
 }
 
@@ -890,6 +894,12 @@ void ATSParser::Stream::onPayloadData(
                 ALOGV("Stream PID 0x%08x of type 0x%02x now has data.",
                      mElementaryPID, mStreamType);
 
+                const char *mime;
+                if (meta->findCString(kKeyMIMEType, &mime)
+                        && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                        && !IsIDR(accessUnit)) {
+                    continue;
+                }
                 mSource = new AnotherPacketSource(meta);
                 mSource->queueAccessUnit(accessUnit);
             }

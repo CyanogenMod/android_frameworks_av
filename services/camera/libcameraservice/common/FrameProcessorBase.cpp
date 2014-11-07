@@ -29,7 +29,17 @@ namespace camera2 {
 
 FrameProcessorBase::FrameProcessorBase(wp<CameraDeviceBase> device) :
     Thread(/*canCallJava*/false),
-    mDevice(device) {
+    mDevice(device),
+    mNumPartialResults(1) {
+    sp<CameraDeviceBase> cameraDevice = device.promote();
+    if (cameraDevice != 0 &&
+            cameraDevice->getDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+        CameraMetadata staticInfo = cameraDevice->info();
+        camera_metadata_entry_t entry = staticInfo.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
+        if (entry.count > 0) {
+            mNumPartialResults = entry.data.i32[0];
+        }
+    }
 }
 
 FrameProcessorBase::~FrameProcessorBase() {
@@ -37,11 +47,23 @@ FrameProcessorBase::~FrameProcessorBase() {
 }
 
 status_t FrameProcessorBase::registerListener(int32_t minId,
-        int32_t maxId, wp<FilteredListener> listener, bool quirkSendPartials) {
+        int32_t maxId, wp<FilteredListener> listener, bool sendPartials) {
     Mutex::Autolock l(mInputMutex);
+    List<RangeListener>::iterator item = mRangeListeners.begin();
+    while (item != mRangeListeners.end()) {
+        if (item->minId == minId &&
+                item->maxId == maxId &&
+                item->listener == listener) {
+            // already registered, just return
+            ALOGV("%s: Attempt to register the same client twice, ignoring",
+                    __FUNCTION__);
+            return OK;
+        }
+        item++;
+    }
     ALOGV("%s: Registering listener for frame id range %d - %d",
             __FUNCTION__, minId, maxId);
-    RangeListener rListener = { minId, maxId, listener, quirkSendPartials };
+    RangeListener rListener = { minId, maxId, listener, sendPartials };
     mRangeListeners.push_back(rListener);
     return OK;
 }
@@ -99,15 +121,17 @@ bool FrameProcessorBase::threadLoop() {
 void FrameProcessorBase::processNewFrames(const sp<CameraDeviceBase> &device) {
     status_t res;
     ATRACE_CALL();
-    CameraMetadata frame;
+    CaptureResult result;
 
     ALOGV("%s: Camera %d: Process new frames", __FUNCTION__, device->getId());
 
-    while ( (res = device->getNextFrame(&frame)) == OK) {
+    while ( (res = device->getNextResult(&result)) == OK) {
 
+        // TODO: instead of getting frame number from metadata, we should read
+        // this from result.mResultExtras when CameraDeviceBase interface is fixed.
         camera_metadata_entry_t entry;
 
-        entry = frame.find(ANDROID_REQUEST_FRAME_COUNT);
+        entry = result.mMetadata.find(ANDROID_REQUEST_FRAME_COUNT);
         if (entry.count == 0) {
             ALOGE("%s: Camera %d: Error reading frame number",
                     __FUNCTION__, device->getId());
@@ -115,13 +139,13 @@ void FrameProcessorBase::processNewFrames(const sp<CameraDeviceBase> &device) {
         }
         ATRACE_INT("cam2_frame", entry.data.i32[0]);
 
-        if (!processSingleFrame(frame, device)) {
+        if (!processSingleFrame(result, device)) {
             break;
         }
 
-        if (!frame.isEmpty()) {
+        if (!result.mMetadata.isEmpty()) {
             Mutex::Autolock al(mLastFrameMutex);
-            mLastFrame.acquire(frame);
+            mLastFrame.acquire(result.mMetadata);
         }
     }
     if (res != NOT_ENOUGH_DATA) {
@@ -133,32 +157,40 @@ void FrameProcessorBase::processNewFrames(const sp<CameraDeviceBase> &device) {
     return;
 }
 
-bool FrameProcessorBase::processSingleFrame(CameraMetadata &frame,
-                                           const sp<CameraDeviceBase> &device) {
+bool FrameProcessorBase::processSingleFrame(CaptureResult &result,
+                                            const sp<CameraDeviceBase> &device) {
     ALOGV("%s: Camera %d: Process single frame (is empty? %d)",
-          __FUNCTION__, device->getId(), frame.isEmpty());
-    return processListeners(frame, device) == OK;
+          __FUNCTION__, device->getId(), result.mMetadata.isEmpty());
+    return processListeners(result, device) == OK;
 }
 
-status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
+status_t FrameProcessorBase::processListeners(const CaptureResult &result,
         const sp<CameraDeviceBase> &device) {
     ATRACE_CALL();
+
     camera_metadata_ro_entry_t entry;
 
-    // Quirks: Don't deliver partial results to listeners that don't want them
-    bool quirkIsPartial = false;
-    entry = frame.find(ANDROID_QUIRKS_PARTIAL_RESULT);
-    if (entry.count != 0 &&
-            entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
-        ALOGV("%s: Camera %d: Not forwarding partial result to listeners",
-                __FUNCTION__, device->getId());
-        quirkIsPartial = true;
+    // Check if this result is partial.
+    bool isPartialResult = false;
+    if (device->getDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_2) {
+        isPartialResult = result.mResultExtras.partialResultCount < mNumPartialResults;
+    } else {
+        entry = result.mMetadata.find(ANDROID_QUIRKS_PARTIAL_RESULT);
+        if (entry.count != 0 &&
+                entry.data.u8[0] == ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL) {
+            ALOGV("%s: Camera %d: This is a partial result",
+                    __FUNCTION__, device->getId());
+            isPartialResult = true;
+        }
     }
 
-    entry = frame.find(ANDROID_REQUEST_ID);
+    // TODO: instead of getting requestID from CameraMetadata, we should get it
+    // from CaptureResultExtras. This will require changing Camera2Device.
+    // Currently Camera2Device uses MetadataQueue to store results, which does not
+    // include CaptureResultExtras.
+    entry = result.mMetadata.find(ANDROID_REQUEST_ID);
     if (entry.count == 0) {
-        ALOGE("%s: Camera %d: Error reading frame id",
-                __FUNCTION__, device->getId());
+        ALOGE("%s: Camera %d: Error reading frame id", __FUNCTION__, device->getId());
         return BAD_VALUE;
     }
     int32_t requestId = entry.data.i32[0];
@@ -168,10 +200,10 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
         Mutex::Autolock l(mInputMutex);
 
         List<RangeListener>::iterator item = mRangeListeners.begin();
+        // Don't deliver partial results to listeners that don't want them
         while (item != mRangeListeners.end()) {
-            if (requestId >= item->minId &&
-                    requestId < item->maxId &&
-                    (!quirkIsPartial || item->quirkSendPartials) ) {
+            if (requestId >= item->minId && requestId < item->maxId &&
+                    (!isPartialResult || item->sendPartials)) {
                 sp<FilteredListener> listener = item->listener.promote();
                 if (listener == 0) {
                     item = mRangeListeners.erase(item);
@@ -183,10 +215,12 @@ status_t FrameProcessorBase::processListeners(const CameraMetadata &frame,
             item++;
         }
     }
-    ALOGV("Got %zu range listeners out of %zu", listeners.size(), mRangeListeners.size());
+    ALOGV("%s: Camera %d: Got %zu range listeners out of %zu", __FUNCTION__,
+          device->getId(), listeners.size(), mRangeListeners.size());
+
     List<sp<FilteredListener> >::iterator item = listeners.begin();
     for (; item != listeners.end(); item++) {
-        (*item)->onFrameAvailable(requestId, frame);
+        (*item)->onResultAvailable(result);
     }
     return OK;
 }

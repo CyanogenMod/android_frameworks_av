@@ -17,7 +17,6 @@ LOCAL_MODULE_RELATIVE_PATH := soundfx
 LOCAL_MODULE:= libvisualizer
 
 LOCAL_C_INCLUDES := \
-	$(call include-path-for, graphics corecg) \
 	$(call include-path-for, audio-effects)
 
 

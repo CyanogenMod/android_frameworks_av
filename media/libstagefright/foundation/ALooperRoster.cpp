@@ -72,50 +72,40 @@ void ALooperRoster::unregisterHandler(ALooper::handler_id handlerID) {
 }
 
 void ALooperRoster::unregisterStaleHandlers() {
-    Mutex::Autolock autoLock(mLock);
 
-    for (size_t i = mHandlers.size(); i-- > 0;) {
-        const HandlerInfo &info = mHandlers.valueAt(i);
+    Vector<sp<ALooper> > activeLoopers;
+    {
+        Mutex::Autolock autoLock(mLock);
 
-        sp<ALooper> looper = info.mLooper.promote();
-        if (looper == NULL) {
-            ALOGV("Unregistering stale handler %d", mHandlers.keyAt(i));
-            mHandlers.removeItemsAt(i);
+        for (size_t i = mHandlers.size(); i-- > 0;) {
+            const HandlerInfo &info = mHandlers.valueAt(i);
+
+            sp<ALooper> looper = info.mLooper.promote();
+            if (looper == NULL) {
+                ALOGV("Unregistering stale handler %d", mHandlers.keyAt(i));
+                mHandlers.removeItemsAt(i);
+            } else {
+                // At this point 'looper' might be the only sp<> keeping
+                // the object alive. To prevent it from going out of scope
+                // and having ~ALooper call this method again recursively
+                // and then deadlocking because of the Autolock above, add
+                // it to a Vector which will go out of scope after the lock
+                // has been released.
+                activeLoopers.add(looper);
+            }
         }
     }
 }
 
 status_t ALooperRoster::postMessage(
         const sp<AMessage> &msg, int64_t delayUs) {
-    Mutex::Autolock autoLock(mLock);
-    return postMessage_l(msg, delayUs);
-}
 
-status_t ALooperRoster::postMessage_l(
-        const sp<AMessage> &msg, int64_t delayUs) {
-    ssize_t index = mHandlers.indexOfKey(msg->target());
-
-    if (index < 0) {
-        ALOGW("failed to post message '%s'. Target handler not registered.",
-              msg->debugString().c_str());
-        return -ENOENT;
-    }
-
-    const HandlerInfo &info = mHandlers.valueAt(index);
-
-    sp<ALooper> looper = info.mLooper.promote();
+    sp<ALooper> looper = findLooper(msg->target());
 
     if (looper == NULL) {
-        ALOGW("failed to post message. "
-             "Target handler %d still registered, but object gone.",
-             msg->target());
-
-        mHandlers.removeItemsAt(index);
         return -ENOENT;
     }
-
     looper->post(msg, delayUs);
-
     return OK;
 }
 
@@ -169,18 +159,23 @@ sp<ALooper> ALooperRoster::findLooper(ALooper::handler_id handlerID) {
 
 status_t ALooperRoster::postAndAwaitResponse(
         const sp<AMessage> &msg, sp<AMessage> *response) {
+    sp<ALooper> looper = findLooper(msg->target());
+
+    if (looper == NULL) {
+        ALOGW("failed to post message. "
+                "Target handler %d still registered, but object gone.",
+                msg->target());
+        response->clear();
+        return -ENOENT;
+    }
+
     Mutex::Autolock autoLock(mLock);
 
     uint32_t replyID = mNextReplyID++;
 
     msg->setInt32("replyID", replyID);
 
-    status_t err = postMessage_l(msg, 0 /* delayUs */);
-
-    if (err != OK) {
-        response->clear();
-        return err;
-    }
+    looper->post(msg, 0 /* delayUs */);
 
     ssize_t index;
     while ((index = mReplies.indexOfKey(replyID)) < 0) {

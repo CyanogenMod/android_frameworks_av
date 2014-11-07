@@ -25,6 +25,8 @@
 
 namespace android {
 
+struct IMediaHTTPService;
+
 // Abstract base class
 class MediaMetadataRetrieverBase : public RefBase
 {
@@ -33,6 +35,7 @@ public:
     virtual             ~MediaMetadataRetrieverBase() {}
 
     virtual status_t    setDataSource(
+            const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers = NULL) = 0;
 

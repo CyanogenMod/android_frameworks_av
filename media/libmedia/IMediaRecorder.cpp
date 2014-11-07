@@ -17,6 +17,10 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "IMediaRecorder"
+
+#include <inttypes.h>
+#include <unistd.h>
+
 #include <utils/Log.h>
 #include <binder/Parcel.h>
 #include <camera/ICamera.h>
@@ -24,8 +28,6 @@
 #include <media/IMediaRecorder.h>
 #include <gui/Surface.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <unistd.h>
-
 
 namespace android {
 
@@ -167,7 +169,7 @@ public:
     }
 
     status_t setOutputFile(int fd, int64_t offset, int64_t length) {
-        ALOGV("setOutputFile(%d, %lld, %lld)", fd, offset, length);
+        ALOGV("setOutputFile(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
         Parcel data, reply;
         data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
         data.writeFileDescriptor(fd);

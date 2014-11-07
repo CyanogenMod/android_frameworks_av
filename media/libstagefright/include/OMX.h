@@ -75,6 +75,10 @@ public:
             node_id node, OMX_U32 portIndex, OMX_BOOL enable,
             OMX_U32 max_frame_width, OMX_U32 max_frame_height);
 
+    virtual status_t configureVideoTunnelMode(
+            node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
+            OMX_U32 audioHwSync, native_handle_t **sidebandHandle);
+
     virtual status_t useBuffer(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
             buffer_id *buffer);

@@ -17,11 +17,13 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "Utils"
 #include <utils/Log.h>
+#include <ctype.h>
 
 #include "include/ESDS.h"
 
 #include <arpa/inet.h>
 #include <cutils/properties.h>
+#include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -83,6 +85,11 @@ status_t convertMetaDataToMessage(
         msg->setInt64("durationUs", durationUs);
     }
 
+    int avgBitRate;
+    if (meta->findInt32(kKeyBitRate, &avgBitRate)) {
+        msg->setInt32("bit-rate", avgBitRate);
+    }
+
     int32_t isSync;
     if (meta->findInt32(kKeyIsSyncFrame, &isSync) && isSync != 0) {
         msg->setInt32("is-sync-frame", 1);
@@ -101,6 +108,25 @@ status_t convertMetaDataToMessage(
                 && meta->findInt32(kKeySARHeight, &sarHeight)) {
             msg->setInt32("sar-width", sarWidth);
             msg->setInt32("sar-height", sarHeight);
+        }
+
+        int32_t colorFormat;
+        if (meta->findInt32(kKeyColorFormat, &colorFormat)) {
+            msg->setInt32("color-format", colorFormat);
+        }
+
+        int32_t cropLeft, cropTop, cropRight, cropBottom;
+        if (meta->findRect(kKeyCropRect,
+                           &cropLeft,
+                           &cropTop,
+                           &cropRight,
+                           &cropBottom)) {
+            msg->setRect("crop", cropLeft, cropTop, cropRight, cropBottom);
+        }
+
+        int32_t rotationDegrees;
+        if (meta->findInt32(kKeyRotation, &rotationDegrees)) {
+            msg->setInt32("rotation-degrees", rotationDegrees);
         }
     } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
@@ -128,11 +154,21 @@ status_t convertMetaDataToMessage(
         if (meta->findInt32(kKeyIsADTS, &isADTS)) {
             msg->setInt32("is-adts", true);
         }
+
+        int32_t aacProfile = -1;
+        if (meta->findInt32(kKeyAACAOT, &aacProfile)) {
+            msg->setInt32("aac-profile", aacProfile);
+        }
     }
 
     int32_t maxInputSize;
     if (meta->findInt32(kKeyMaxInputSize, &maxInputSize)) {
         msg->setInt32("max-input-size", maxInputSize);
+    }
+
+    int32_t rotationDegrees;
+    if (meta->findInt32(kKeyRotation, &rotationDegrees)) {
+        msg->setInt32("rotation-degrees", rotationDegrees);
     }
 
     uint32_t type;
@@ -216,6 +252,56 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt32("csd", true);
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-1", buffer);
+    } else if (meta->findData(kKeyHVCC, &type, &data, &size)) {
+        const uint8_t *ptr = (const uint8_t *)data;
+
+        CHECK(size >= 7);
+        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
+        uint8_t profile = ptr[1] & 31;
+        uint8_t level = ptr[12];
+        ptr += 22;
+        size -= 22;
+
+
+        size_t numofArrays = (char)ptr[0];
+        ptr += 1;
+        size -= 1;
+        size_t j = 0, i = 0;
+
+        sp<ABuffer> buffer = new ABuffer(1024);
+        buffer->setRange(0, 0);
+
+        for (i = 0; i < numofArrays; i++) {
+            ptr += 1;
+            size -= 1;
+
+            //Num of nals
+            size_t numofNals = U16_AT(ptr);
+
+            ptr += 2;
+            size -= 2;
+
+            for (j = 0; j < numofNals; j++) {
+                CHECK(size >= 2);
+                size_t length = U16_AT(ptr);
+
+                ptr += 2;
+                size -= 2;
+
+                CHECK(size >= length);
+
+                memcpy(buffer->data() + buffer->size(), "\x00\x00\x00\x01", 4);
+                memcpy(buffer->data() + buffer->size() + 4, ptr, length);
+                buffer->setRange(0, buffer->size() + 4 + length);
+
+                ptr += length;
+                size -= length;
+            }
+        }
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+        msg->setBuffer("csd-0", buffer);
+
     } else if (meta->findData(kKeyESDS, &type, &data, &size)) {
         ESDS esds((const char *)data, size);
         CHECK_EQ(esds.InitCheck(), (status_t)OK);
@@ -251,6 +337,13 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt32("csd", true);
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-1", buffer);
+    } else if (meta->findData(kKeyOpusHeader, &type, &data, &size)) {
+        sp<ABuffer> buffer = new ABuffer(size);
+        memcpy(buffer->data(), data, size);
+
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+        msg->setBuffer("csd-0", buffer);
     }
 
     *format = msg;
@@ -277,7 +370,7 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
                 // there can't be another param here, so use all the rest
                 i = csd0->size();
             }
-            ALOGV("block at %d, last was %d", i, lastparamoffset);
+            ALOGV("block at %zu, last was %d", i, lastparamoffset);
             if (lastparamoffset > 0) {
                 int size = i - lastparamoffset;
                 avcc[avccidx++] = size >> 8;
@@ -308,7 +401,7 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
                 // there can't be another param here, so use all the rest
                 i = csd1->size();
             }
-            ALOGV("block at %d, last was %d", i, lastparamoffset);
+            ALOGV("block at %zu, last was %d", i, lastparamoffset);
             if (lastparamoffset > 0) {
                 int size = i - lastparamoffset;
                 avcc[avccidx++] = size >> 8;
@@ -401,6 +494,25 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             meta->setInt32(kKeySARWidth, sarWidth);
             meta->setInt32(kKeySARHeight, sarHeight);
         }
+
+        int32_t colorFormat;
+        if (msg->findInt32("color-format", &colorFormat)) {
+            meta->setInt32(kKeyColorFormat, colorFormat);
+        }
+
+        int32_t cropLeft, cropTop, cropRight, cropBottom;
+        if (msg->findRect("crop",
+                          &cropLeft,
+                          &cropTop,
+                          &cropRight,
+                          &cropBottom)) {
+            meta->setRect(kKeyCropRect, cropLeft, cropTop, cropRight, cropBottom);
+        }
+
+        int32_t rotationDegrees;
+        if (msg->findInt32("rotation-degrees", &rotationDegrees)) {
+            meta->setInt32(kKeyRotation, rotationDegrees);
+        }
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;
         if (msg->findInt32("channel-count", &numChannels)) {
@@ -450,6 +562,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             reassembleESDS(csd0, esds);
             meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
         }
+    }
+
+    int32_t timeScale;
+    if (msg->findInt32("time-scale", &timeScale)) {
+        meta->setInt32(kKeyTimeScale, timeScale);
     }
 
     // XXX TODO add whatever other keys there are
@@ -523,6 +640,7 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_AMR_WB,      AUDIO_FORMAT_AMR_WB },
     { MEDIA_MIMETYPE_AUDIO_AAC,         AUDIO_FORMAT_AAC },
     { MEDIA_MIMETYPE_AUDIO_VORBIS,      AUDIO_FORMAT_VORBIS },
+    { MEDIA_MIMETYPE_AUDIO_OPUS,        AUDIO_FORMAT_OPUS},
     { 0, AUDIO_FORMAT_INVALID }
 };
 
@@ -540,10 +658,46 @@ const struct mime_conv_t* p = &mimeLookup[0];
     return BAD_VALUE;
 }
 
+struct aac_format_conv_t {
+    OMX_AUDIO_AACPROFILETYPE eAacProfileType;
+    audio_format_t format;
+};
+
+static const struct aac_format_conv_t profileLookup[] = {
+    { OMX_AUDIO_AACObjectMain,        AUDIO_FORMAT_AAC_MAIN},
+    { OMX_AUDIO_AACObjectLC,          AUDIO_FORMAT_AAC_LC},
+    { OMX_AUDIO_AACObjectSSR,         AUDIO_FORMAT_AAC_SSR},
+    { OMX_AUDIO_AACObjectLTP,         AUDIO_FORMAT_AAC_LTP},
+    { OMX_AUDIO_AACObjectHE,          AUDIO_FORMAT_AAC_HE_V1},
+    { OMX_AUDIO_AACObjectScalable,    AUDIO_FORMAT_AAC_SCALABLE},
+    { OMX_AUDIO_AACObjectERLC,        AUDIO_FORMAT_AAC_ERLC},
+    { OMX_AUDIO_AACObjectLD,          AUDIO_FORMAT_AAC_LD},
+    { OMX_AUDIO_AACObjectHE_PS,       AUDIO_FORMAT_AAC_HE_V2},
+    { OMX_AUDIO_AACObjectELD,         AUDIO_FORMAT_AAC_ELD},
+    { OMX_AUDIO_AACObjectNull,        AUDIO_FORMAT_AAC},
+};
+
+void mapAACProfileToAudioFormat( audio_format_t& format, uint64_t eAacProfile)
+{
+const struct aac_format_conv_t* p = &profileLookup[0];
+    while (p->eAacProfileType != OMX_AUDIO_AACObjectNull) {
+        if (eAacProfile == p->eAacProfileType) {
+            format = p->format;
+            return;
+        }
+        ++p;
+    }
+    format = AUDIO_FORMAT_AAC;
+    return;
+}
+
 bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
                       bool isStreaming, audio_stream_type_t streamType)
 {
     const char *mime;
+    if (meta == NULL) {
+        return false;
+    }
     CHECK(meta->findCString(kKeyMIMEType, &mime));
 
     audio_offload_info_t info = AUDIO_INFO_INITIALIZER;
@@ -562,15 +716,11 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
         return false;
     }
 
-    // check whether it is ELD/LD content -> no offloading
-    // FIXME: this should depend on audio DSP capabilities. mapMimeToAudioFormat() should use the
-    // metadata to refine the AAC format and the audio HAL should only list supported profiles.
+    // Redefine aac format according to its profile
+    // Offloading depends on audio DSP capabilities.
     int32_t aacaot = -1;
     if (meta->findInt32(kKeyAACAOT, &aacaot)) {
-        if (aacaot == 23 || aacaot == 39 ) {
-            ALOGV("track of type '%s' is ELD/LD content", mime);
-            return false;
-        }
+        mapAACProfileToAudioFormat(info.format,(OMX_AUDIO_AACPROFILETYPE) aacaot);
     }
 
     int32_t srate = -1;
@@ -613,6 +763,41 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     // Check if offload is possible for given format, stream type, sample rate,
     // bit rate, duration, video and streaming
     return AudioSystem::isOffloadSupported(info);
+}
+
+AString uriDebugString(const AString &uri, bool incognito) {
+    if (incognito) {
+        return AString("<URI suppressed>");
+    }
+
+    char prop[PROPERTY_VALUE_MAX];
+    if (property_get("media.stagefright.log-uri", prop, "false") &&
+        (!strcmp(prop, "1") || !strcmp(prop, "true"))) {
+        return uri;
+    }
+
+    // find scheme
+    AString scheme;
+    const char *chars = uri.c_str();
+    for (size_t i = 0; i < uri.size(); i++) {
+        const char c = chars[i];
+        if (!isascii(c)) {
+            break;
+        } else if (isalpha(c)) {
+            continue;
+        } else if (i == 0) {
+            // first character must be a letter
+            break;
+        } else if (isdigit(c) || c == '+' || c == '.' || c =='-') {
+            continue;
+        } else if (c != ':') {
+            break;
+        }
+        scheme = AString(uri, 0, i);
+        scheme.append("://<suppressed>");
+        return scheme;
+    }
+    return AString("<no-scheme URI suppressed>");
 }
 
 }  // namespace android

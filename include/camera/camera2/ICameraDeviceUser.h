@@ -19,6 +19,7 @@
 
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
+#include <utils/List.h>
 
 struct camera_metadata;
 
@@ -29,6 +30,10 @@ class IGraphicBufferProducer;
 class Surface;
 class CaptureRequest;
 class CameraMetadata;
+
+enum {
+    NO_IN_FLIGHT_REPEATING_FRAMES = -1,
+};
 
 class ICameraDeviceUser : public IInterface
 {
@@ -44,9 +49,55 @@ public:
      * Request Handling
      **/
 
+    /**
+     * For streaming requests, output lastFrameNumber is the last frame number
+     * of the previous repeating request.
+     * For non-streaming requests, output lastFrameNumber is the expected last
+     * frame number of the current request.
+     */
     virtual int             submitRequest(sp<CaptureRequest> request,
-                                          bool streaming = false) = 0;
-    virtual status_t        cancelRequest(int requestId) = 0;
+                                          bool streaming = false,
+                                          /*out*/
+                                          int64_t* lastFrameNumber = NULL) = 0;
+
+    /**
+     * For streaming requests, output lastFrameNumber is the last frame number
+     * of the previous repeating request.
+     * For non-streaming requests, output lastFrameNumber is the expected last
+     * frame number of the current request.
+     */
+    virtual int             submitRequestList(List<sp<CaptureRequest> > requestList,
+                                              bool streaming = false,
+                                              /*out*/
+                                              int64_t* lastFrameNumber = NULL) = 0;
+
+    /**
+     * Output lastFrameNumber is the last frame number of the previous repeating request.
+     */
+    virtual status_t        cancelRequest(int requestId,
+                                          /*out*/
+                                          int64_t* lastFrameNumber = NULL) = 0;
+
+    /**
+     * Begin the device configuration.
+     *
+     * <p>
+     * beginConfigure must be called before any call to deleteStream, createStream,
+     * or endConfigure.  It is not valid to call this when the device is not idle.
+     * <p>
+     */
+    virtual status_t        beginConfigure() = 0;
+
+    /**
+     * End the device configuration.
+     *
+     * <p>
+     * endConfigure must be called after stream configuration is complete (i.e. after
+     * a call to beginConfigure and subsequent createStream/deleteStream calls).  This
+     * must be called before any requests can be submitted.
+     * <p>
+     */
+    virtual status_t        endConfigure() = 0;
 
     virtual status_t        deleteStream(int streamId) = 0;
     virtual status_t        createStream(
@@ -64,8 +115,12 @@ public:
     // Wait until all the submitted requests have finished processing
     virtual status_t        waitUntilIdle() =  0;
 
-    // Flush all pending and in-progress work as quickly as possible.
-    virtual status_t        flush() = 0;
+    /**
+     * Flush all pending and in-progress work as quickly as possible.
+     * Output lastFrameNumber is the last frame number of the previous repeating request.
+     */
+    virtual status_t        flush(/*out*/
+                                  int64_t* lastFrameNumber = NULL) = 0;
 };
 
 // ----------------------------------------------------------------------------

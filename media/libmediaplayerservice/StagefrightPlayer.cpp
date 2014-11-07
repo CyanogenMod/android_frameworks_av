@@ -54,8 +54,10 @@ status_t StagefrightPlayer::setUID(uid_t uid) {
 }
 
 status_t StagefrightPlayer::setDataSource(
-        const char *url, const KeyedVector<String8, String8> *headers) {
-    return mPlayer->setDataSource(url, headers);
+        const sp<IMediaHTTPService> &httpService,
+        const char *url,
+        const KeyedVector<String8, String8> *headers) {
+    return mPlayer->setDataSource(httpService, url, headers);
 }
 
 // Warning: The filedescriptor passed into this method will only be valid until

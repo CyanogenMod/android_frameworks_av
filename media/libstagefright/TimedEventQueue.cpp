@@ -17,7 +17,11 @@
 #undef __STRICT_ANSI__
 #define __STDINT_LIMITS
 #define __STDC_LIMIT_MACROS
+
+#include <inttypes.h>
 #include <stdint.h>
+#include <sys/prctl.h>
+#include <sys/time.h>
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "TimedEventQueue"
@@ -25,9 +29,6 @@
 #include <utils/threads.h>
 
 #include "include/TimedEventQueue.h"
-
-#include <sys/prctl.h>
-#include <sys/time.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -258,7 +259,7 @@ void TimedEventQueue::threadEntry() {
                 static int64_t kMaxTimeoutUs = 10000000ll;  // 10 secs
                 bool timeoutCapped = false;
                 if (delay_us > kMaxTimeoutUs) {
-                    ALOGW("delay_us exceeds max timeout: %lld us", delay_us);
+                    ALOGW("delay_us exceeds max timeout: %" PRId64 " us", delay_us);
 
                     // We'll never block for more than 10 secs, instead
                     // we will split up the full timeout into chunks of
@@ -337,7 +338,7 @@ void TimedEventQueue::acquireWakeLock_l()
             status_t status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                                                              binder,
                                                              String16("TimedEventQueue"),
-                                                             String16("media"));
+                                                             String16("media"));    // not oneway
             IPCThreadState::self()->restoreCallingIdentity(token);
             if (status == NO_ERROR) {
                 mWakeLockToken = binder;
@@ -362,7 +363,7 @@ void TimedEventQueue::releaseWakeLock_l(bool force)
         CHECK(mWakeLockToken != 0);
         if (mPowerManager != 0) {
             int64_t token = IPCThreadState::self()->clearCallingIdentity();
-            mPowerManager->releaseWakeLock(mWakeLockToken, 0);
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0);  // not oneway
             IPCThreadState::self()->restoreCallingIdentity(token);
         }
         mWakeLockToken.clear();

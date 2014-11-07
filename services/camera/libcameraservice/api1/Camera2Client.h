@@ -90,7 +90,7 @@ public:
             int clientPid,
             uid_t clientUid,
             int servicePid,
-            int deviceVersion);
+            bool legacyMode);
 
     virtual ~Camera2Client();
 
@@ -118,7 +118,8 @@ public:
     int getZslStreamId() const;
 
     status_t registerFrameListener(int32_t minId, int32_t maxId,
-            wp<camera2::FrameProcessor::FilteredListener> listener);
+            wp<camera2::FrameProcessor::FilteredListener> listener,
+            bool sendPartials = true);
     status_t removeFrameListener(int32_t minId, int32_t maxId,
             wp<camera2::FrameProcessor::FilteredListener> listener);
 
@@ -170,7 +171,6 @@ private:
 
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(Parameters &params);
-    int mDeviceVersion;
 
     // Used with stream IDs
     static const int NO_STREAM = -1;
@@ -204,9 +204,13 @@ private:
     bool mAfInMotion;
 
     /** Utility members */
+    bool mLegacyMode;
 
     // Wait until the camera device has received the latest control settings
     status_t syncWithDevice();
+
+    // Video snapshot jpeg size overriding helper function
+    status_t overrideVideoSnapshotSize(Parameters &params);
 };
 
 }; // namespace android

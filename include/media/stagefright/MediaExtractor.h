@@ -65,6 +65,8 @@ public:
     virtual char* getDrmTrackInfo(size_t trackID, int *len) {
         return NULL;
     }
+    virtual void setUID(uid_t uid) {
+    }
 
 protected:
     MediaExtractor() : mIsDrm(false) {}

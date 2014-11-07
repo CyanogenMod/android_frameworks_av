@@ -59,7 +59,7 @@ ssize_t PipeReader::availableToRead()
     return avail;
 }
 
-ssize_t PipeReader::read(void *buffer, size_t count, int64_t readPTS)
+ssize_t PipeReader::read(void *buffer, size_t count, int64_t readPTS __unused)
 {
     ssize_t avail = availableToRead();
     if (CC_UNLIKELY(avail <= 0)) {
@@ -76,14 +76,14 @@ ssize_t PipeReader::read(void *buffer, size_t count, int64_t readPTS)
         red = count;
     }
     // In particular, an overrun during the memcpy will result in reading corrupt data
-    memcpy(buffer, (char *) mPipe.mBuffer + (front << mBitShift), red << mBitShift);
+    memcpy(buffer, (char *) mPipe.mBuffer + (front * mFrameSize), red * mFrameSize);
     // We could re-read the rear pointer here to detect the corruption, but why bother?
     if (CC_UNLIKELY(front + red == mPipe.mMaxFrames)) {
         if (CC_UNLIKELY((count -= red) > front)) {
             count = front;
         }
         if (CC_LIKELY(count > 0)) {
-            memcpy((char *) buffer + (red << mBitShift), mPipe.mBuffer, count << mBitShift);
+            memcpy((char *) buffer + (red * mFrameSize), mPipe.mBuffer, count * mFrameSize);
             red += count;
         }
     }

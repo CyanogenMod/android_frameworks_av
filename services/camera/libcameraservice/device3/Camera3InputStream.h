@@ -44,6 +44,8 @@ class Camera3InputStream : public Camera3IOStreamBase {
 
     virtual void     dump(int fd, const Vector<String16> &args) const;
 
+    // TODO: expose an interface to get the IGraphicBufferProducer
+
   private:
 
     typedef BufferItemConsumer::BufferItem BufferItem;

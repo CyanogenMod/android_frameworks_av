@@ -20,7 +20,7 @@ LOCAL_SRC_FILES:=       \
         SDPLoader.cpp               \
 
 LOCAL_C_INCLUDES:= \
-	$(TOP)/frameworks/av/media/libstagefright/include \
+	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax \
 	$(TOP)/external/openssl/include
 
@@ -29,6 +29,8 @@ LOCAL_MODULE:= libstagefright_rtsp
 ifeq ($(TARGET_ARCH),arm)
     LOCAL_CFLAGS += -Wno-psabi
 endif
+
+LOCAL_CFLAGS += -Werror
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 

@@ -34,6 +34,7 @@ struct M3UParser : public RefBase {
     bool isVariantPlaylist() const;
     bool isComplete() const;
     bool isEvent() const;
+    size_t getDiscontinuitySeq() const;
 
     sp<AMessage> meta();
 
@@ -42,7 +43,8 @@ struct M3UParser : public RefBase {
 
     void pickRandomMediaItems();
     status_t selectTrack(size_t index, bool select);
-    status_t getTrackInfo(Parcel* reply) const;
+    size_t getTrackCount() const;
+    sp<AMessage> getTrackInfo(size_t index) const;
     ssize_t getSelectedIndex() const;
 
     bool getTypeURI(size_t index, const char *key, AString *uri) const;
@@ -65,6 +67,7 @@ private:
     bool mIsVariantPlaylist;
     bool mIsComplete;
     bool mIsEvent;
+    size_t mDiscontinuitySeq;
 
     sp<AMessage> mMeta;
     Vector<Item> mItems;
@@ -92,6 +95,8 @@ private:
             uint64_t *length, uint64_t *offset);
 
     status_t parseMedia(const AString &line);
+
+    static status_t parseDiscontinuitySequence(const AString &line, size_t *seq);
 
     static status_t ParseInt32(const char *s, int32_t *x);
     static status_t ParseDouble(const char *s, double *x);

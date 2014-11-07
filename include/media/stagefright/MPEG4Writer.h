@@ -63,8 +63,8 @@ public:
     int32_t getTimeScale() const { return mTimeScale; }
 
     status_t setGeoData(int latitudex10000, int longitudex10000);
-    void setStartTimeOffsetMs(int ms) { mStartTimeOffsetMs = ms; }
-    int32_t getStartTimeOffsetMs() const { return mStartTimeOffsetMs; }
+    virtual void setStartTimeOffsetMs(int ms) { mStartTimeOffsetMs = ms; }
+    virtual int32_t getStartTimeOffsetMs() const { return mStartTimeOffsetMs; }
 
 protected:
     virtual ~MPEG4Writer();

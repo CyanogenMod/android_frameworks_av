@@ -39,6 +39,14 @@ struct SidxEntry {
     uint32_t mDurationUs;
 };
 
+struct Trex {
+    uint32_t track_ID;
+    uint32_t default_sample_description_index;
+    uint32_t default_sample_duration;
+    uint32_t default_sample_size;
+    uint32_t default_sample_flags;
+};
+
 class MPEG4Extractor : public MediaExtractor {
 public:
     // Extractor assumes ownership of "source".
@@ -74,10 +82,11 @@ private:
     };
 
     Vector<SidxEntry> mSidxEntries;
-    uint64_t mSidxDuration;
     off64_t mMoofOffset;
 
     Vector<PsshInfo> mPssh;
+
+    Vector<Trex> mTrex;
 
     sp<DataSource> mDataSource;
     status_t mInitCheck;

@@ -60,14 +60,20 @@ status_t MediaPlayerFactory::registerFactory_l(IFactory* factory,
     return OK;
 }
 
-player_type MediaPlayerFactory::getDefaultPlayerType() {
+static player_type getDefaultPlayerType() {
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.use-nuplayer", value, NULL)
+    if (property_get("media.stagefright.use-awesome", value, NULL)
             && (!strcmp("1", value) || !strcasecmp("true", value))) {
-        return NU_PLAYER;
+        return STAGEFRIGHT_PLAYER;
     }
 
-    return STAGEFRIGHT_PLAYER;
+    // TODO: remove this EXPERIMENTAL developer settings property
+    if (property_get("persist.sys.media.use-awesome", value, NULL)
+            && !strcasecmp("true", value)) {
+        return STAGEFRIGHT_PLAYER;
+    }
+
+    return NU_PLAYER;
 }
 
 status_t MediaPlayerFactory::registerFactory(IFactory* factory,
@@ -175,16 +181,19 @@ class StagefrightPlayerFactory :
                                int64_t offset,
                                int64_t /*length*/,
                                float /*curScore*/) {
-        char buf[20];
-        lseek(fd, offset, SEEK_SET);
-        read(fd, buf, sizeof(buf));
-        lseek(fd, offset, SEEK_SET);
+        if (getDefaultPlayerType()
+                == STAGEFRIGHT_PLAYER) {
+            char buf[20];
+            lseek(fd, offset, SEEK_SET);
+            read(fd, buf, sizeof(buf));
+            lseek(fd, offset, SEEK_SET);
 
-        long ident = *((long*)buf);
+            uint32_t ident = *((uint32_t*)buf);
 
-        // Ogg vorbis?
-        if (ident == 0x5367674f) // 'OggS'
-            return 1.0;
+            // Ogg vorbis?
+            if (ident == 0x5367674f) // 'OggS'
+                return 1.0;
+        }
 
         return 0.0;
     }

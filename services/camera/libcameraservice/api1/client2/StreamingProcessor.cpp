@@ -89,8 +89,26 @@ status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
 
     Mutex::Autolock m(mMutex);
     if (mPreviewRequest.entryCount() == 0) {
-        res = device->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
-                &mPreviewRequest);
+        sp<Camera2Client> client = mClient.promote();
+        if (client == 0) {
+            ALOGE("%s: Camera %d: Client does not exist", __FUNCTION__, mId);
+            return INVALID_OPERATION;
+        }
+
+        // Use CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG for ZSL streaming case.
+        if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_0) {
+            if (params.zslMode && !params.recordingHint) {
+                res = device->createDefaultRequest(CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG,
+                        &mPreviewRequest);
+            } else {
+                res = device->createDefaultRequest(CAMERA3_TEMPLATE_PREVIEW,
+                        &mPreviewRequest);
+            }
+        } else {
+            res = device->createDefaultRequest(CAMERA2_TEMPLATE_PREVIEW,
+                    &mPreviewRequest);
+        }
+
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create default preview request: "
                     "%s (%d)", __FUNCTION__, mId, strerror(-res), res);
@@ -163,8 +181,7 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
     if (mPreviewStreamId == NO_STREAM) {
         res = device->createStream(mPreviewWindow,
                 params.previewWidth, params.previewHeight,
-                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0,
-                &mPreviewStreamId);
+                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, &mPreviewStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create preview stream: %s (%d)",
                     __FUNCTION__, mId, strerror(-res), res);
@@ -301,6 +318,44 @@ status_t StreamingProcessor::updateRecordingRequest(const Parameters &params) {
     return OK;
 }
 
+status_t StreamingProcessor::recordingStreamNeedsUpdate(
+        const Parameters &params, bool *needsUpdate) {
+    status_t res;
+
+    if (needsUpdate == 0) {
+        ALOGE("%s: Camera %d: invalid argument", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    if (mRecordingStreamId == NO_STREAM) {
+        *needsUpdate = true;
+        return OK;
+    }
+
+    sp<CameraDeviceBase> device = mDevice.promote();
+    if (device == 0) {
+        ALOGE("%s: Camera %d: Device does not exist", __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    uint32_t currentWidth, currentHeight;
+    res = device->getStreamInfo(mRecordingStreamId,
+            &currentWidth, &currentHeight, 0);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Error querying recording output stream info: "
+                "%s (%d)", __FUNCTION__, mId,
+                strerror(-res), res);
+        return res;
+    }
+
+    if (mRecordingConsumer == 0 || currentWidth != (uint32_t)params.videoWidth ||
+            currentHeight != (uint32_t)params.videoHeight) {
+        *needsUpdate = true;
+    }
+    *needsUpdate = false;
+    return res;
+}
+
 status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
     ATRACE_CALL();
     status_t res;
@@ -319,13 +374,15 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         // Create CPU buffer queue endpoint. We need one more buffer here so that we can
         // always acquire and free a buffer when the heap is full; otherwise the consumer
         // will have buffers in flight we'll never clear out.
-        sp<BufferQueue> bq = new BufferQueue();
-        mRecordingConsumer = new BufferItemConsumer(bq,
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer);
+        mRecordingConsumer = new BufferItemConsumer(consumer,
                 GRALLOC_USAGE_HW_VIDEO_ENCODER,
                 mRecordingHeapCount + 1);
         mRecordingConsumer->setFrameAvailableListener(this);
         mRecordingConsumer->setName(String8("Camera2-RecordingConsumer"));
-        mRecordingWindow = new Surface(bq);
+        mRecordingWindow = new Surface(producer);
         newConsumer = true;
         // Allocate memory later, since we don't know buffer size until receipt
     }
@@ -365,7 +422,7 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         mRecordingFrameCount = 0;
         res = device->createStream(mRecordingWindow,
                 params.videoWidth, params.videoHeight,
-                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, 0, &mRecordingStreamId);
+                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, &mRecordingStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for recording: "
                     "%s (%d)", __FUNCTION__, mId,
@@ -428,10 +485,13 @@ status_t StreamingProcessor::startStream(StreamType type,
 
     Mutex::Autolock m(mMutex);
 
-    // If a recording stream is being started up, free up any
-    // outstanding buffers left from the previous recording session.
-    // There should never be any, so if there are, warn about it.
-    if (isStreamActive(outputStreams, mRecordingStreamId)) {
+    // If a recording stream is being started up and no recording
+    // stream is active yet, free up any outstanding buffers left
+    // from the previous recording session. There should never be
+    // any, so if there are, warn about it.
+    bool isRecordingStreamIdle = !isStreamActive(mActiveStreamIds, mRecordingStreamId);
+    bool startRecordingStream = isStreamActive(outputStreams, mRecordingStreamId);
+    if (startRecordingStream && isRecordingStreamIdle) {
         releaseAllRecordingFramesLocked();
     }
 

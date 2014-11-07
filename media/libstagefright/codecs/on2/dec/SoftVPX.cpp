@@ -23,9 +23,6 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaDefs.h>
 
-#include "vpx/vpx_decoder.h"
-#include "vpx/vpx_codec.h"
-#include "vpx/vp8dx.h"
 
 namespace android {
 
@@ -41,7 +38,8 @@ SoftVPX::SoftVPX(
             NULL /* profileLevels */, 0 /* numProfileLevels */,
             320 /* width */, 240 /* height */, callbacks, appData, component),
       mMode(codingType == OMX_VIDEO_CodingVP8 ? MODE_VP8 : MODE_VP9),
-      mCtx(NULL) {
+      mCtx(NULL),
+      mImg(NULL) {
     initPorts(kNumBuffers, 768 * 1024 /* inputBufferSize */,
             kNumBuffers,
             codingType == OMX_VIDEO_CodingVP8 ? MEDIA_MIMETYPE_VIDEO_VP8 : MEDIA_MIMETYPE_VIDEO_VP9);
@@ -118,35 +116,30 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
             }
         }
 
-        if (vpx_codec_decode(
-                    (vpx_codec_ctx_t *)mCtx,
-                    inHeader->pBuffer + inHeader->nOffset,
-                    inHeader->nFilledLen,
-                    NULL,
-                    0)) {
-            ALOGE("on2 decoder failed to decode frame.");
+        if (mImg == NULL) {
+            if (vpx_codec_decode(
+                        (vpx_codec_ctx_t *)mCtx,
+                        inHeader->pBuffer + inHeader->nOffset,
+                        inHeader->nFilledLen,
+                        NULL,
+                        0)) {
+                ALOGE("on2 decoder failed to decode frame.");
 
-            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
-            return;
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                return;
+            }
+            vpx_codec_iter_t iter = NULL;
+            mImg = vpx_codec_get_frame((vpx_codec_ctx_t *)mCtx, &iter);
         }
 
-        vpx_codec_iter_t iter = NULL;
-        vpx_image_t *img = vpx_codec_get_frame((vpx_codec_ctx_t *)mCtx, &iter);
+        if (mImg != NULL) {
+            CHECK_EQ(mImg->fmt, IMG_FMT_I420);
 
-        if (img != NULL) {
-            CHECK_EQ(img->fmt, IMG_FMT_I420);
-
-            uint32_t width = img->d_w;
-            uint32_t height = img->d_h;
-
-            if (width != mWidth || height != mHeight) {
-                mWidth = width;
-                mHeight = height;
-
-                updatePortDefinitions();
-
-                notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-                mOutputPortSettingsChange = AWAITING_DISABLED;
+            uint32_t width = mImg->d_w;
+            uint32_t height = mImg->d_h;
+            bool portWillReset = false;
+            handlePortSettingsChange(&portWillReset, width, height);
+            if (portWillReset) {
                 return;
             }
 
@@ -155,31 +148,16 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
             outHeader->nFlags = EOSseen ? OMX_BUFFERFLAG_EOS : 0;
             outHeader->nTimeStamp = inHeader->nTimeStamp;
 
-            const uint8_t *srcLine = (const uint8_t *)img->planes[PLANE_Y];
             uint8_t *dst = outHeader->pBuffer;
-            for (size_t i = 0; i < img->d_h; ++i) {
-                memcpy(dst, srcLine, img->d_w);
+            const uint8_t *srcY = (const uint8_t *)mImg->planes[PLANE_Y];
+            const uint8_t *srcU = (const uint8_t *)mImg->planes[PLANE_U];
+            const uint8_t *srcV = (const uint8_t *)mImg->planes[PLANE_V];
+            size_t srcYStride = mImg->stride[PLANE_Y];
+            size_t srcUStride = mImg->stride[PLANE_U];
+            size_t srcVStride = mImg->stride[PLANE_V];
+            copyYV12FrameToOutputBuffer(dst, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride);
 
-                srcLine += img->stride[PLANE_Y];
-                dst += img->d_w;
-            }
-
-            srcLine = (const uint8_t *)img->planes[PLANE_U];
-            for (size_t i = 0; i < img->d_h / 2; ++i) {
-                memcpy(dst, srcLine, img->d_w / 2);
-
-                srcLine += img->stride[PLANE_U];
-                dst += img->d_w / 2;
-            }
-
-            srcLine = (const uint8_t *)img->planes[PLANE_V];
-            for (size_t i = 0; i < img->d_h / 2; ++i) {
-                memcpy(dst, srcLine, img->d_w / 2);
-
-                srcLine += img->stride[PLANE_V];
-                dst += img->d_w / 2;
-            }
-
+            mImg = NULL;
             outInfo->mOwnedByUs = false;
             outQueue.erase(outQueue.begin());
             outInfo = NULL;

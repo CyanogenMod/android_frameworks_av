@@ -24,6 +24,8 @@
 #include <utils/Thread.h>
 #include <utils/KeyedVector.h>
 #include <hardware/camera3.h>
+#include <camera/CaptureResult.h>
+#include <camera/camera2/ICameraDeviceUser.h>
 
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
@@ -54,7 +56,7 @@ class Camera3StreamInterface;
 }
 
 /**
- * CameraDevice for HAL devices with version CAMERA_DEVICE_API_VERSION_3_0
+ * CameraDevice for HAL devices with version CAMERA_DEVICE_API_VERSION_3_0 or higher.
  */
 class Camera3Device :
             public CameraDeviceBase,
@@ -78,9 +80,14 @@ class Camera3Device :
 
     // Capture and setStreamingRequest will configure streams if currently in
     // idle state
-    virtual status_t capture(CameraMetadata &request);
-    virtual status_t setStreamingRequest(const CameraMetadata &request);
-    virtual status_t clearStreamingRequest();
+    virtual status_t capture(CameraMetadata &request, int64_t *lastFrameNumber = NULL);
+    virtual status_t captureList(const List<const CameraMetadata> &requests,
+                                 int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequest(const CameraMetadata &request,
+                                         int64_t *lastFrameNumber = NULL);
+    virtual status_t setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                             int64_t *lastFrameNumber = NULL);
+    virtual status_t clearStreamingRequest(int64_t *lastFrameNumber = NULL);
 
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
 
@@ -88,8 +95,7 @@ class Camera3Device :
     // If adding streams while actively capturing, will pause device before adding
     // stream, reconfiguring device, and unpausing.
     virtual status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format, size_t size,
-            int *id);
+            uint32_t width, uint32_t height, int format, int *id);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);
@@ -108,6 +114,8 @@ class Camera3Device :
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);
 
+    virtual status_t configureStreams();
+
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
 
     // Transitions to the idle state on success
@@ -116,7 +124,7 @@ class Camera3Device :
     virtual status_t setNotifyCallback(NotificationListener *listener);
     virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
-    virtual status_t getNextFrame(CameraMetadata *frame);
+    virtual status_t getNextResult(CaptureResult *frame);
 
     virtual status_t triggerAutofocus(uint32_t id);
     virtual status_t triggerCancelAutofocus(uint32_t id);
@@ -125,7 +133,11 @@ class Camera3Device :
     virtual status_t pushReprocessBuffer(int reprocessStreamId,
             buffer_handle_t *buffer, wp<BufferReleasedListener> listener);
 
-    virtual status_t flush();
+    virtual status_t flush(int64_t *lastFrameNumber = NULL);
+
+    virtual uint32_t getDeviceVersion();
+
+    virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
 
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker
@@ -137,6 +149,10 @@ class Camera3Device :
     static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
     static const nsecs_t       kActiveTimeout     = 500000000;  // 500 ms
     struct                     RequestTrigger;
+    // minimal jpeg buffer size: 256KB + blob header
+    static const ssize_t       kMinJpegBufferSize = 256 * 1024 + sizeof(camera3_jpeg_blob);
+    // Constant to use for stream ID when one doesn't exist
+    static const int           NO_STREAM = -1;
 
     // A lock to enforce serialization on the input/configure side
     // of the public interface.
@@ -157,7 +173,10 @@ class Camera3Device :
     camera3_device_t          *mHal3Device;
 
     CameraMetadata             mDeviceInfo;
-    vendor_tag_query_ops_t     mVendorTagOps;
+
+    CameraMetadata             mRequestTemplateCache[CAMERA3_TEMPLATE_COUNT];
+
+    uint32_t                   mDeviceVersion;
 
     enum Status {
         STATUS_ERROR,
@@ -181,6 +200,8 @@ class Camera3Device :
     int                        mNextStreamId;
     bool                       mNeedConfig;
 
+    int                        mDummyStreamId;
+
     // Whether to send state updates upstream
     // Pause when doing transparent reconfiguration
     bool                       mPauseStateNotify;
@@ -188,8 +209,11 @@ class Camera3Device :
     // Need to hold on to stream references until configure completes.
     Vector<sp<camera3::Camera3StreamInterface> > mDeletedStreams;
 
-    // Whether quirk ANDROID_QUIRKS_USE_PARTIAL_RESULT is enabled
-    bool                       mUsePartialResultQuirk;
+    // Whether the HAL will send partial result
+    bool                       mUsePartialResult;
+
+    // Number of partial results that will be delivered by the HAL.
+    uint32_t                   mNumPartialResults;
 
     /**** End scope for mLock ****/
 
@@ -199,8 +223,19 @@ class Camera3Device :
         sp<camera3::Camera3Stream>          mInputStream;
         Vector<sp<camera3::Camera3OutputStreamInterface> >
                                             mOutputStreams;
+        CaptureResultExtras                 mResultExtras;
     };
     typedef List<sp<CaptureRequest> > RequestList;
+
+    status_t checkStatusOkToCaptureLocked();
+
+    status_t convertMetadataListToRequestListLocked(
+            const List<const CameraMetadata> &metadataList,
+            /*out*/
+            RequestList *requestList);
+
+    status_t submitRequestsHelper(const List<const CameraMetadata> &requests, bool repeating,
+                                  int64_t *lastFrameNumber = NULL);
 
     /**
      * Get the last request submitted to the hal by the request thread.
@@ -237,6 +272,13 @@ class Camera3Device :
     status_t waitUntilStateThenRelock(bool active, nsecs_t timeout);
 
     /**
+     * Implementation of waitUntilDrained. On success, will transition to IDLE state.
+     *
+     * Need to be called with mLock and mInterfaceLock held.
+     */
+    status_t waitUntilDrainedLocked();
+
+    /**
      * Do common work for setting up a streaming or single capture request.
      * On success, will transition to ACTIVE if in IDLE.
      */
@@ -255,6 +297,17 @@ class Camera3Device :
     status_t           configureStreamsLocked();
 
     /**
+     * Add a dummy stream to the current stream set as a workaround for
+     * not allowing 0 streams in the camera HAL spec.
+     */
+    status_t           addDummyStreamLocked();
+
+    /**
+     * Remove a dummy stream if the current config includes real streams.
+     */
+    status_t           tryRemoveDummyStreamLocked();
+
+    /**
      * Set device into an error state due to some fatal failure, and set an
      * error message to indicate why. Only the first call's message will be
      * used. The message is also sent to the log.
@@ -269,6 +322,18 @@ class Camera3Device :
      * Try to acquire a lock a few times with sleeps between before giving up.
      */
     bool               tryLockSpinRightRound(Mutex& lock);
+
+    struct Size {
+        int width;
+        int height;
+        Size(int w, int h) : width(w), height(h){}
+    };
+
+    /**
+     * Helper function to get the largest Jpeg resolution (in area)
+     * Return Size(0, 0) if static metatdata is invalid
+     */
+    Size getMaxJpegResolution() const;
 
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger
@@ -298,6 +363,8 @@ class Camera3Device :
                 sp<camera3::StatusTracker> statusTracker,
                 camera3_device_t *hal3Device);
 
+        void     setNotifyCallback(NotificationListener *listener);
+
         /**
          * Call after stream (re)-configuration is completed.
          */
@@ -308,15 +375,22 @@ class Camera3Device :
          * on either. Use waitUntilPaused to wait until request queue
          * has emptied out.
          */
-        status_t setRepeatingRequests(const RequestList& requests);
-        status_t clearRepeatingRequests();
+        status_t setRepeatingRequests(const RequestList& requests,
+                                      /*out*/
+                                      int64_t *lastFrameNumber = NULL);
+        status_t clearRepeatingRequests(/*out*/
+                                        int64_t *lastFrameNumber = NULL);
 
-        status_t queueRequest(sp<CaptureRequest> request);
+        status_t queueRequestList(List<sp<CaptureRequest> > &requests,
+                                  /*out*/
+                                  int64_t *lastFrameNumber = NULL);
 
         /**
          * Remove all queued and repeating requests, and pending triggers
          */
-        status_t clear();
+        status_t clear(NotificationListener *listener,
+                       /*out*/
+                       int64_t *lastFrameNumber = NULL);
 
         /**
          * Queue a trigger to be dispatched with the next outgoing
@@ -391,9 +465,14 @@ class Camera3Device :
         // Relay error to parent device object setErrorState
         void               setErrorState(const char *fmt, ...);
 
+        // If the input request is in mRepeatingRequests. Must be called with mRequestLock hold
+        bool isRepeatingRequestLocked(const sp<CaptureRequest>);
+
         wp<Camera3Device>  mParent;
         wp<camera3::StatusTracker>  mStatusTracker;
         camera3_device_t  *mHal3Device;
+
+        NotificationListener *mListener;
 
         const int          mId;       // The camera ID
         int                mStatusId; // The RequestThread's component ID for
@@ -429,6 +508,10 @@ class Camera3Device :
         TriggerMap         mTriggerMap;
         TriggerMap         mTriggerRemovedMap;
         TriggerMap         mTriggerReplacedMap;
+        uint32_t           mCurrentAfTriggerId;
+        uint32_t           mCurrentPreCaptureTriggerId;
+
+        int64_t            mRepeatingLastFrameNumber;
     };
     sp<RequestThread> mRequestThread;
 
@@ -437,71 +520,90 @@ class Camera3Device :
      */
 
     struct InFlightRequest {
-        // android.request.id for the request
-        int     requestId;
         // Set by notify() SHUTTER call.
         nsecs_t captureTimestamp;
         int     requestStatus;
         // Set by process_capture_result call with valid metadata
         bool    haveResultMetadata;
         // Decremented by calls to process_capture_result with valid output
-        // buffers
+        // and input buffers
         int     numBuffersLeft;
+        CaptureResultExtras resultExtras;
+        // If this request has any input buffer
+        bool hasInputBuffer;
 
-        // Fields used by the partial result quirk only
-        struct PartialResultQuirkInFlight {
+        // Fields used by the partial result only
+        struct PartialResultInFlight {
             // Set by process_capture_result once 3A has been sent to clients
             bool    haveSent3A;
             // Result metadata collected so far, when partial results are in use
             CameraMetadata collectedResult;
 
-            PartialResultQuirkInFlight():
+            PartialResultInFlight():
                     haveSent3A(false) {
             }
-        } partialResultQuirk;
+        } partialResult;
 
         // Default constructor needed by KeyedVector
         InFlightRequest() :
-                requestId(0),
                 captureTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
-                numBuffersLeft(0) {
+                numBuffersLeft(0),
+                hasInputBuffer(false){
         }
 
-        InFlightRequest(int id, int numBuffers) :
-                requestId(id),
+        InFlightRequest(int numBuffers) :
                 captureTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
-                numBuffersLeft(numBuffers) {
+                numBuffersLeft(numBuffers),
+                hasInputBuffer(false){
         }
-    };
+
+        InFlightRequest(int numBuffers, CaptureResultExtras extras) :
+                captureTimestamp(0),
+                requestStatus(OK),
+                haveResultMetadata(false),
+                numBuffersLeft(numBuffers),
+                resultExtras(extras),
+                hasInputBuffer(false){
+        }
+
+        InFlightRequest(int numBuffers, CaptureResultExtras extras, bool hasInput) :
+                captureTimestamp(0),
+                requestStatus(OK),
+                haveResultMetadata(false),
+                numBuffersLeft(numBuffers),
+                resultExtras(extras),
+                hasInputBuffer(hasInput){
+        }
+};
     // Map from frame number to the in-flight request state
     typedef KeyedVector<uint32_t, InFlightRequest> InFlightMap;
 
     Mutex                  mInFlightLock; // Protects mInFlightMap
     InFlightMap            mInFlightMap;
 
-    status_t registerInFlight(int32_t frameNumber, int32_t requestId,
-            int32_t numBuffers);
+    status_t registerInFlight(uint32_t frameNumber,
+            int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput);
 
     /**
-     * For the partial result quirk, check if all 3A state fields are available
+     * For the partial result, check if all 3A state fields are available
      * and if so, queue up 3A-only result to the client. Returns true if 3A
      * is sent.
      */
-    bool processPartial3AQuirk(int32_t frameNumber, int32_t requestId,
-            const CameraMetadata& partial);
+    bool processPartial3AResult(uint32_t frameNumber,
+            const CameraMetadata& partial, const CaptureResultExtras& resultExtras);
 
     // Helpers for reading and writing 3A metadata into to/from partial results
     template<typename T>
     bool get3AResult(const CameraMetadata& result, int32_t tag,
-            T* value, int32_t frameNumber);
+            T* value, uint32_t frameNumber);
 
     template<typename T>
     bool insert3AResult(CameraMetadata &result, int32_t tag, const T* value,
-            int32_t frameNumber);
+            uint32_t frameNumber);
     /**
      * Tracking for idle detection
      */
@@ -518,7 +620,7 @@ class Camera3Device :
 
     uint32_t               mNextResultFrameNumber;
     uint32_t               mNextShutterFrameNumber;
-    List<CameraMetadata>   mResultQueue;
+    List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
     NotificationListener  *mListener;
 
@@ -530,6 +632,12 @@ class Camera3Device :
     void processCaptureResult(const camera3_capture_result *result);
 
     void notify(const camera3_notify_msg *msg);
+
+    // Specific notify handlers
+    void notifyError(const camera3_error_msg_t &msg,
+            NotificationListener *listener);
+    void notifyShutter(const camera3_shutter_msg_t &msg,
+            NotificationListener *listener);
 
     /**
      * Static callback forwarding methods from HAL to instance

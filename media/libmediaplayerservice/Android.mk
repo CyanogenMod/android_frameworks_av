@@ -22,12 +22,14 @@ LOCAL_SRC_FILES:=               \
     StagefrightPlayer.cpp       \
     StagefrightRecorder.cpp     \
     TestPlayerStub.cpp          \
+    VideoFrameScheduler.cpp     \
 
 LOCAL_SHARED_LIBRARIES :=       \
     libbinder                   \
     libcamera_client            \
     libcrypto                   \
     libcutils                   \
+    libdrmframework             \
     liblog                      \
     libdl                       \
     libgui                      \
@@ -46,10 +48,10 @@ LOCAL_STATIC_LIBRARIES :=       \
     libstagefright_rtsp         \
 
 LOCAL_C_INCLUDES :=                                                 \
-    $(call include-path-for, graphics corecg)                       \
     $(TOP)/frameworks/av/media/libstagefright/include               \
     $(TOP)/frameworks/av/media/libstagefright/rtsp                  \
     $(TOP)/frameworks/av/media/libstagefright/wifi-display          \
+    $(TOP)/frameworks/av/media/libstagefright/webm                  \
     $(TOP)/frameworks/native/include/media/openmax                  \
     $(TOP)/external/tremolo/Tremolo                                 \
 

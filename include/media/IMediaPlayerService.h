@@ -34,6 +34,8 @@ namespace android {
 struct ICrypto;
 struct IDrm;
 struct IHDCP;
+struct IMediaCodecList;
+struct IMediaHTTPService;
 class IMediaRecorder;
 class IOMX;
 class IRemoteDisplay;
@@ -49,9 +51,14 @@ public:
     virtual sp<IMediaMetadataRetriever> createMetadataRetriever() = 0;
     virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0) = 0;
 
-    virtual status_t         decode(const char* url, uint32_t *pSampleRate, int* pNumChannels,
-                                    audio_format_t* pFormat,
-                                    const sp<IMemoryHeap>& heap, size_t *pSize) = 0;
+    virtual status_t         decode(
+            const sp<IMediaHTTPService> &httpService,
+            const char* url,
+            uint32_t *pSampleRate,
+            int* pNumChannels,
+            audio_format_t* pFormat,
+            const sp<IMemoryHeap>& heap, size_t *pSize) = 0;
+
     virtual status_t         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate,
                                     int* pNumChannels, audio_format_t* pFormat,
                                     const sp<IMemoryHeap>& heap, size_t *pSize) = 0;
@@ -59,6 +66,7 @@ public:
     virtual sp<ICrypto>         makeCrypto() = 0;
     virtual sp<IDrm>            makeDrm() = 0;
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule) = 0;
+    virtual sp<IMediaCodecList> getCodecList() const = 0;
 
     // Connects to a remote display.
     // 'iface' specifies the address of the local interface on which to listen for
@@ -93,9 +101,6 @@ public:
 
     virtual void addBatteryData(uint32_t params) = 0;
     virtual status_t pullBatteryData(Parcel* reply) = 0;
-
-    virtual status_t updateProxyConfig(
-            const char *host, int32_t port, const char *exclusionList) = 0;
 };
 
 // ----------------------------------------------------------------------------

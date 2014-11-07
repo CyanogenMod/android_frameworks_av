@@ -22,8 +22,6 @@
 
 #include "ATSParser.h"
 
-#include <media/stagefright/foundation/AHandlerReflector.h>
-
 namespace android {
 
 struct ALooper;
@@ -34,6 +32,7 @@ struct SDPLoader;
 struct NuPlayer::RTSPSource : public NuPlayer::Source {
     RTSPSource(
             const sp<AMessage> &notify,
+            const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers,
             bool uidValid = false,
@@ -88,6 +87,7 @@ private:
         bool mNPTMappingValid;
     };
 
+    sp<IMediaHTTPService> mHTTPService;
     AString mURL;
     KeyedVector<String8, String8> mExtraHeaders;
     bool mUIDValid;
@@ -100,7 +100,6 @@ private:
     bool mBuffering;
 
     sp<ALooper> mLooper;
-    sp<AHandlerReflector<RTSPSource> > mReflector;
     sp<MyHandler> mHandler;
     sp<SDPLoader> mSDPLoader;
 

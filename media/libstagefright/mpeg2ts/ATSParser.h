@@ -89,7 +89,13 @@ struct ATSParser : public RefBase {
         STREAMTYPE_MPEG2_AUDIO_ADTS     = 0x0f,
         STREAMTYPE_MPEG4_VIDEO          = 0x10,
         STREAMTYPE_H264                 = 0x1b,
-        STREAMTYPE_PCM_AUDIO            = 0x83,
+
+        // From ATSC A/53 Part 3:2009, 6.7.1
+        STREAMTYPE_AC3                  = 0x81,
+
+        // Stream type 0x83 is non-standard,
+        // it could be LPCM or TrueHD AC3
+        STREAMTYPE_LPCM_AC3             = 0x83,
     };
 
 protected:

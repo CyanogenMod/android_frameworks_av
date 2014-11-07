@@ -18,14 +18,19 @@
 
 #define A_STRING_H_
 
+#include <utils/Errors.h>
 #include <sys/types.h>
 
 namespace android {
+
+struct String8;
+struct Parcel;
 
 struct AString {
     AString();
     AString(const char *s);
     AString(const char *s, size_t size);
+    AString(const String8 &from);
     AString(const AString &from);
     AString(const AString &from, size_t offset, size_t n);
     ~AString();
@@ -67,15 +72,25 @@ struct AString {
     size_t hash() const;
 
     bool operator==(const AString &other) const;
+    bool operator!=(const AString &other) const {
+        return !operator==(other);
+    }
     bool operator<(const AString &other) const;
     bool operator>(const AString &other) const;
 
     int compare(const AString &other) const;
+    int compareIgnoreCase(const AString &other) const;
 
+    bool equalsIgnoreCase(const AString &other) const;
     bool startsWith(const char *prefix) const;
     bool endsWith(const char *suffix) const;
+    bool startsWithIgnoreCase(const char *prefix) const;
+    bool endsWithIgnoreCase(const char *suffix) const;
 
     void tolower();
+
+    static AString FromParcel(const Parcel &parcel);
+    status_t writeToParcel(Parcel *parcel) const;
 
 private:
     static const char *kEmptyString;

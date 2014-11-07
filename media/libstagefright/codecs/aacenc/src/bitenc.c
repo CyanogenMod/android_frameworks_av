@@ -26,6 +26,7 @@
 #include "qc_data.h"
 #include "interface.h"
 
+#define UNUSED(x) (void)(x)
 
 static const  Word16 globalGainOffset = 100;
 static const  Word16 icsReservedBit   = 0;
@@ -584,6 +585,8 @@ Word16 WriteBitstream (HANDLE_BIT_BUF hBitStream,
   Word16 bitMarkUp;
   Word16 elementUsedBits;
   Word16 frameBits=0;
+
+  UNUSED(ancBytes);
 
   /*   struct bitbuffer bsWriteCopy; */
   bitMarkUp = GetBitsAvail(hBitStream);

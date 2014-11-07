@@ -30,6 +30,7 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 #include "Camera2Device.h"
+#include "CameraService.h"
 
 namespace android {
 
@@ -67,8 +68,8 @@ status_t Camera2Device::initialize(camera_module_t *module)
 
     camera2_device_t *device;
 
-    res = module->common.methods->open(&module->common, name,
-            reinterpret_cast<hw_device_t**>(&device));
+    res = CameraService::filterOpenErrorCode(module->common.methods->open(
+        &module->common, name, reinterpret_cast<hw_device_t**>(&device)));
 
     if (res != OK) {
         ALOGE("%s: Could not open camera %d: %s (%d)", __FUNCTION__,
@@ -112,20 +113,6 @@ status_t Camera2Device::initialize(camera_module_t *module)
         return res;
     }
 
-    res = device->ops->get_metadata_vendor_tag_ops(device, &mVendorTagOps);
-    if (res != OK ) {
-        ALOGE("%s: Camera %d: Unable to retrieve tag ops from device: %s (%d)",
-                __FUNCTION__, mId, strerror(-res), res);
-        device->common.close(&device->common);
-        return res;
-    }
-    res = set_camera_metadata_vendor_tag_ops(mVendorTagOps);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Unable to set tag ops: %s (%d)",
-            __FUNCTION__, mId, strerror(-res), res);
-        device->common.close(&device->common);
-        return res;
-    }
     res = device->ops->set_notify_callback(device, notificationCallback,
             NULL);
     if (res != OK) {
@@ -137,6 +124,7 @@ status_t Camera2Device::initialize(camera_module_t *module)
 
     mDeviceInfo = info.static_camera_characteristics;
     mHal2Device = device;
+    mDeviceVersion = device->common.version;
 
     return OK;
 }
@@ -213,7 +201,7 @@ const CameraMetadata& Camera2Device::info() const {
     return mDeviceInfo;
 }
 
-status_t Camera2Device::capture(CameraMetadata &request) {
+status_t Camera2Device::capture(CameraMetadata &request, int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
 
@@ -221,15 +209,29 @@ status_t Camera2Device::capture(CameraMetadata &request) {
     return OK;
 }
 
+status_t Camera2Device::captureList(const List<const CameraMetadata> &requests,
+                                    int64_t* /*lastFrameNumber*/) {
+    ATRACE_CALL();
+    ALOGE("%s: Camera2Device burst capture not implemented", __FUNCTION__);
+    return INVALID_OPERATION;
+}
 
-status_t Camera2Device::setStreamingRequest(const CameraMetadata &request) {
+status_t Camera2Device::setStreamingRequest(const CameraMetadata &request,
+                                            int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     CameraMetadata streamRequest(request);
     return mRequestQueue.setStreamSlot(streamRequest.release());
 }
 
-status_t Camera2Device::clearStreamingRequest() {
+status_t Camera2Device::setStreamingRequestList(const List<const CameraMetadata> &requests,
+                                                int64_t* /*lastFrameNumber*/) {
+    ATRACE_CALL();
+    ALOGE("%s, Camera2Device streaming burst not implemented", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
+status_t Camera2Device::clearStreamingRequest(int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
     return mRequestQueue.setStreamSlot(NULL);
 }
@@ -240,13 +242,16 @@ status_t Camera2Device::waitUntilRequestReceived(int32_t requestId, nsecs_t time
 }
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, int format, size_t size, int *id) {
+        uint32_t width, uint32_t height, int format, int *id) {
     ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);
 
     sp<StreamAdapter> stream = new StreamAdapter(mHal2Device);
-
+    size_t size = 0;
+    if (format == HAL_PIXEL_FORMAT_BLOB) {
+        size = getJpegBufferSize(width, height);
+    }
     res = stream->connectToDevice(consumer, width, height, format, size);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to create stream (%d x %d, format %x):"
@@ -259,6 +264,17 @@ status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
 
     mStreams.push_back(stream);
     return OK;
+}
+
+ssize_t Camera2Device::getJpegBufferSize(uint32_t width, uint32_t height) const {
+    // Always give the max jpeg buffer size regardless of the actual jpeg resolution.
+    camera_metadata_ro_entry jpegBufMaxSize = mDeviceInfo.find(ANDROID_JPEG_MAX_SIZE);
+    if (jpegBufMaxSize.count == 0) {
+        ALOGE("%s: Camera %d: Can't find maximum JPEG size in static metadata!", __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
+
+    return jpegBufMaxSize.data.i32[0];
 }
 
 status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
@@ -399,6 +415,19 @@ status_t Camera2Device::deleteReprocessStream(int id) {
     return OK;
 }
 
+status_t Camera2Device::configureStreams() {
+    ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
+
+    /**
+     * HAL2 devices do not need to configure streams;
+     * streams are created on the fly.
+     */
+    ALOGW("%s: No-op for HAL2 devices", __FUNCTION__);
+
+    return OK;
+}
+
 
 status_t Camera2Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
@@ -462,7 +491,13 @@ void Camera2Device::notificationCallback(int32_t msg_type,
     if (listener != NULL) {
         switch (msg_type) {
             case CAMERA2_MSG_ERROR:
-                listener->notifyError(ext1, ext2, ext3);
+                // TODO: This needs to be fixed. ext2 and ext3 need to be considered.
+                listener->notifyError(
+                        ((ext1 == CAMERA2_MSG_ERROR_DEVICE)
+                        || (ext1 == CAMERA2_MSG_ERROR_HARDWARE)) ?
+                                ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE :
+                                ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE,
+                        CaptureResultExtras());
                 break;
             case CAMERA2_MSG_SHUTTER: {
                 // TODO: Only needed for camera2 API, which is unsupported
@@ -491,16 +526,22 @@ status_t Camera2Device::waitForNextFrame(nsecs_t timeout) {
     return mFrameQueue.waitForBuffer(timeout);
 }
 
-status_t Camera2Device::getNextFrame(CameraMetadata *frame) {
+status_t Camera2Device::getNextResult(CaptureResult *result) {
     ATRACE_CALL();
+    ALOGV("%s: get CaptureResult", __FUNCTION__);
+    if (result == NULL) {
+        ALOGE("%s: result pointer is NULL", __FUNCTION__);
+        return BAD_VALUE;
+    }
     status_t res;
     camera_metadata_t *rawFrame;
     res = mFrameQueue.dequeue(&rawFrame);
-    if (rawFrame  == NULL) {
+    if (rawFrame == NULL) {
         return NOT_ENOUGH_DATA;
     } else if (res == OK) {
-        frame->acquire(rawFrame);
+        result->mMetadata.acquire(rawFrame);
     }
+
     return res;
 }
 
@@ -570,11 +611,16 @@ status_t Camera2Device::pushReprocessBuffer(int reprocessStreamId,
     return res;
 }
 
-status_t Camera2Device::flush() {
+status_t Camera2Device::flush(int64_t* /*lastFrameNumber*/) {
     ATRACE_CALL();
 
     mRequestQueue.clear();
     return waitUntilDrained();
+}
+
+uint32_t Camera2Device::getDeviceVersion() {
+    ATRACE_CALL();
+    return mDeviceVersion;
 }
 
 /**
@@ -1069,23 +1115,31 @@ status_t Camera2Device::StreamAdapter::connectToDevice(
     }
 
     if (mFormat == HAL_PIXEL_FORMAT_BLOB) {
-        res = native_window_set_buffers_geometry(mConsumerInterface.get(),
-                mSize, 1, mFormat);
+        res = native_window_set_buffers_dimensions(mConsumerInterface.get(),
+                mSize, 1);
         if (res != OK) {
-            ALOGE("%s: Unable to configure compressed stream buffer geometry"
+            ALOGE("%s: Unable to configure compressed stream buffer dimensions"
                     " %d x %d, size %zu for stream %d",
                     __FUNCTION__, mWidth, mHeight, mSize, mId);
             return res;
         }
     } else {
-        res = native_window_set_buffers_geometry(mConsumerInterface.get(),
-                mWidth, mHeight, mFormat);
+        res = native_window_set_buffers_dimensions(mConsumerInterface.get(),
+                mWidth, mHeight);
         if (res != OK) {
-            ALOGE("%s: Unable to configure stream buffer geometry"
-                    " %d x %d, format 0x%x for stream %d",
-                    __FUNCTION__, mWidth, mHeight, mFormat, mId);
+            ALOGE("%s: Unable to configure stream buffer dimensions"
+                    " %d x %d for stream %d",
+                    __FUNCTION__, mWidth, mHeight, mId);
             return res;
         }
+    }
+
+    res = native_window_set_buffers_format(mConsumerInterface.get(), mFormat);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream buffer format"
+                " %#x for stream %d",
+                __FUNCTION__, mFormat, mId);
+        return res;
     }
 
     int maxConsumerBuffers;

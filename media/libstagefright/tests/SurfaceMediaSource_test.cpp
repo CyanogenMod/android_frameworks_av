@@ -35,7 +35,6 @@
 #include <gui/SurfaceComposerClient.h>
 
 #include <binder/ProcessState.h>
-#include <ui/FramebufferNativeWindow.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaBufferGroup.h>
@@ -110,7 +109,7 @@ protected:
         } else {
             ALOGV("No actual display. Choosing EGLSurface based on SurfaceMediaSource");
             sp<IGraphicBufferProducer> sms = (new SurfaceMediaSource(
-                    getSurfaceWidth(), getSurfaceHeight()))->getBufferQueue();
+                    getSurfaceWidth(), getSurfaceHeight()))->getProducer();
             sp<Surface> stc = new Surface(sms);
             sp<ANativeWindow> window = stc;
 
@@ -361,9 +360,7 @@ protected:
     virtual void SetUp() {
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-
-        // Manual cast is required to avoid constructor ambiguity
-        mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+        mSTC = new Surface(mSMS->getProducer());
         mANW = mSTC;
     }
 
@@ -398,7 +395,7 @@ protected:
         ALOGV("SMS-GLTest::SetUp()");
         android::ProcessState::self()->startThreadPool();
         mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-        mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+        mSTC = new Surface(mSMS->getProducer());
         mANW = mSTC;
 
         // Doing the setup related to the GL Side
@@ -527,7 +524,8 @@ void SurfaceMediaSourceTest::oneBufferPass(int width, int height ) {
 }
 
 // Dequeuing and queuing the buffer without really filling it in.
-void SurfaceMediaSourceTest::oneBufferPassNoFill(int width, int height ) {
+void SurfaceMediaSourceTest::oneBufferPassNoFill(
+        int /* width */, int /* height  */) {
     ANativeWindowBuffer* anb;
     ASSERT_EQ(NO_ERROR, native_window_dequeue_buffer_and_wait(mANW.get(), &anb));
     ASSERT_TRUE(anb != NULL);
@@ -746,9 +744,8 @@ TEST_F(SurfaceMediaSourceTest, DISABLED_EncodingFromCpuYV12BufferNpotWriteMediaS
     CHECK(fd >= 0);
 
     sp<MediaRecorder> mr = SurfaceMediaSourceGLTest::setUpMediaRecorder(fd,
-            VIDEO_SOURCE_GRALLOC_BUFFER,
-            OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264, mYuvTexWidth,
-            mYuvTexHeight, 30);
+            VIDEO_SOURCE_SURFACE, OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264,
+            mYuvTexWidth, mYuvTexHeight, 30);
     // get the reference to the surfacemediasource living in
     // mediaserver that is created by stagefrightrecorder
     sp<IGraphicBufferProducer> iST = mr->querySurfaceMediaSourceFromMediaServer();
@@ -783,7 +780,7 @@ TEST_F(SurfaceMediaSourceGLTest, ChooseAndroidRecordableEGLConfigDummyWriter) {
     ALOGV("Verify creating a surface w/ right config + dummy writer*********");
 
     mSMS = new SurfaceMediaSource(mYuvTexWidth, mYuvTexHeight);
-    mSTC = new Surface(static_cast<sp<IGraphicBufferProducer> >( mSMS->getBufferQueue()));
+    mSTC = new Surface(mSMS->getProducer());
     mANW = mSTC;
 
     DummyRecorder writer(mSMS);
@@ -880,7 +877,7 @@ TEST_F(SurfaceMediaSourceGLTest, EncodingFromGLRgbaSameImageEachBufNpotWrite) {
     }
     CHECK(fd >= 0);
 
-    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_GRALLOC_BUFFER,
+    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_SURFACE,
             OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264, mYuvTexWidth, mYuvTexHeight, 30);
 
     // get the reference to the surfacemediasource living in
@@ -923,7 +920,7 @@ TEST_F(SurfaceMediaSourceGLTest, EncodingFromGLRgbaDiffImageEachBufNpotWrite) {
     }
     CHECK(fd >= 0);
 
-    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_GRALLOC_BUFFER,
+    sp<MediaRecorder> mr = setUpMediaRecorder(fd, VIDEO_SOURCE_SURFACE,
             OUTPUT_FORMAT_MPEG_4, VIDEO_ENCODER_H264, mYuvTexWidth, mYuvTexHeight, 30);
 
     // get the reference to the surfacemediasource living in

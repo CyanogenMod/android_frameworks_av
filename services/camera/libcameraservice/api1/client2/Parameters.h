@@ -52,6 +52,9 @@ struct Parameters {
     int previewTransform; // set by CAMERA_CMD_SET_DISPLAY_ORIENTATION
 
     int pictureWidth, pictureHeight;
+    // Store the picture size before they are overriden by video snapshot
+    int pictureWidthLastSet, pictureHeightLastSet;
+    bool pictureSizeOverriden;
 
     int32_t jpegThumbSize[2];
     uint8_t jpegQuality, jpegThumbQuality;
@@ -114,6 +117,14 @@ struct Parameters {
     bool autoExposureLock;
     bool autoWhiteBalanceLock;
 
+    // 3A region types, for use with ANDROID_CONTROL_MAX_REGIONS
+    enum region_t {
+        REGION_AE = 0,
+        REGION_AWB,
+        REGION_AF,
+        NUM_REGION // Number of region types
+    } region;
+
     Vector<Area> meteringAreas;
 
     int zoom;
@@ -168,8 +179,13 @@ struct Parameters {
     // Number of zoom steps to simulate
     static const unsigned int NUM_ZOOM_STEPS = 100;
     // Max preview size allowed
+    // This is set to a 1:1 value to allow for any aspect ratio that has
+    // a max long side of 1920 pixels
     static const unsigned int MAX_PREVIEW_WIDTH = 1920;
-    static const unsigned int MAX_PREVIEW_HEIGHT = 1080;
+    static const unsigned int MAX_PREVIEW_HEIGHT = 1920;
+    // Initial max preview/recording size bound
+    static const int MAX_INITIAL_PREVIEW_WIDTH = 1920;
+    static const int MAX_INITIAL_PREVIEW_HEIGHT = 1080;
     // Aspect ratio tolerance
     static const float ASPECT_RATIO_TOLERANCE = 0.001;
 
@@ -219,7 +235,7 @@ struct Parameters {
     ~Parameters();
 
     // Sets up default parameters
-    status_t initialize(const CameraMetadata *info);
+    status_t initialize(const CameraMetadata *info, int deviceVersion);
 
     // Build fast-access device static info from static info
     status_t buildFastInfo();
@@ -244,6 +260,12 @@ struct Parameters {
 
     // Add/update JPEG entries in metadata
     status_t updateRequestJpeg(CameraMetadata *request) const;
+
+    /* Helper functions to override jpeg size for video snapshot */
+    // Override jpeg size by video size. Called during startRecording.
+    status_t overrideJpegSizeByVideoSize();
+    // Recover overridden jpeg size.  Called during stopRecording.
+    status_t recoverOverriddenJpegSize();
 
     // Calculate the crop region rectangle based on current stream sizes
     struct CropRegion {
@@ -334,10 +356,35 @@ private:
     int normalizedYToCrop(int y) const;
 
     Vector<Size> availablePreviewSizes;
+    Vector<Size> availableVideoSizes;
     // Get size list (that are no larger than limit) from static metadata.
-    status_t getFilteredPreviewSizes(Size limit, Vector<Size> *sizes);
+    status_t getFilteredSizes(Size limit, Vector<Size> *sizes);
     // Get max size (from the size array) that matches the given aspect ratio.
     Size getMaxSizeForRatio(float ratio, const int32_t* sizeArray, size_t count);
+
+    // Helper function for overriding jpeg size for video snapshot
+    // Check if overridden jpeg size needs to be updated after Parameters::set.
+    // The behavior of this function is tailored to the implementation of Parameters::set.
+    // Do not use this function for other purpose.
+    status_t updateOverriddenJpegSize();
+
+    struct StreamConfiguration {
+        int32_t format;
+        int32_t width;
+        int32_t height;
+        int32_t isInput;
+    };
+    // Helper function extract available stream configuration
+    // Only valid since device HAL version 3.2
+    // returns an empty Vector if device HAL version does support it
+    Vector<StreamConfiguration> getStreamConfigurations();
+
+    // Helper function to get non-duplicated available output formats
+    SortedVector<int32_t> getAvailableOutputFormats();
+    // Helper function to get available output jpeg sizes
+    Vector<Size> getAvailableJpegSizes();
+
+    int mDeviceVersion;
 };
 
 // This class encapsulates the Parameters class so that it can only be accessed

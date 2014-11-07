@@ -46,6 +46,8 @@ sp<CameraDeviceBase> CameraDeviceFactory::createDevice(int cameraId) {
             device = new Camera2Device(cameraId);
             break;
         case CAMERA_DEVICE_API_VERSION_3_0:
+        case CAMERA_DEVICE_API_VERSION_3_1:
+        case CAMERA_DEVICE_API_VERSION_3_2:
             device = new Camera3Device(cameraId);
             break;
         default:

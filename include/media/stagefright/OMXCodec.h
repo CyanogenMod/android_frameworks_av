@@ -28,7 +28,7 @@
 
 namespace android {
 
-struct MediaCodecList;
+struct MediaCodecInfo;
 class MemoryDealer;
 struct OMXCodecObserver;
 struct CodecProfileLevel;
@@ -115,7 +115,7 @@ struct OMXCodec : public MediaSource,
             Vector<CodecNameAndQuirks> *matchingCodecNamesAndQuirks);
 
     static uint32_t getComponentQuirks(
-            const MediaCodecList *list, size_t index);
+            const sp<MediaCodecInfo> &list);
 
     static bool findCodecQuirks(const char *componentName, uint32_t *quirks);
 
@@ -248,6 +248,8 @@ private:
             int32_t numChannels, int32_t sampleRate, int32_t bitRate,
             int32_t aacProfile, bool isADTS);
 
+    status_t setAC3Format(int32_t numChannels, int32_t sampleRate);
+
     void setG711Format(int32_t numChannels);
 
     status_t setVideoPortFormatType(
@@ -350,6 +352,9 @@ private:
 
     int64_t getDecodingTimeUs();
 
+    status_t parseHEVCCodecSpecificData(
+            const void *data, size_t size,
+            unsigned *profile, unsigned *level);
     status_t parseAVCCodecSpecificData(
             const void *data, size_t size,
             unsigned *profile, unsigned *level);

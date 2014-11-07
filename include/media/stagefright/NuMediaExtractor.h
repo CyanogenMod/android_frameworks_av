@@ -31,6 +31,7 @@ namespace android {
 struct ABuffer;
 struct AMessage;
 struct DataSource;
+struct IMediaHTTPService;
 struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
@@ -45,6 +46,7 @@ struct NuMediaExtractor : public RefBase {
     NuMediaExtractor();
 
     status_t setDataSource(
+            const sp<IMediaHTTPService> &httpService,
             const char *path,
             const KeyedVector<String8, String8> *headers = NULL);
 

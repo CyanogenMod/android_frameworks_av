@@ -60,6 +60,9 @@ public:
         status_t status = remote()->transact(GET_CBLK, data, &reply);
         if (status == NO_ERROR) {
             cblk = interface_cast<IMemory>(reply.readStrongBinder());
+            if (cblk != 0 && cblk->pointer() == NULL) {
+                cblk.clear();
+            }
         }
         return cblk;
     }
@@ -122,6 +125,9 @@ public:
             status = reply.readInt32();
             if (status == NO_ERROR) {
                 *buffer = interface_cast<IMemory>(reply.readStrongBinder());
+                if (*buffer != 0 && (*buffer)->pointer() == NULL) {
+                    (*buffer).clear();
+                }
             }
         }
         return status;

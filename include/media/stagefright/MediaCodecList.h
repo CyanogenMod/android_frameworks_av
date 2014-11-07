@@ -20,70 +20,68 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/foundation/AString.h>
+#include <media/IMediaCodecList.h>
+#include <media/IOMX.h>
+#include <media/MediaCodecInfo.h>
 
 #include <sys/types.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
+#include <utils/StrongPointer.h>
 
 namespace android {
 
-struct MediaCodecList {
-    static const MediaCodecList *getInstance();
+struct AMessage;
 
-    ssize_t findCodecByType(
+struct MediaCodecList : public BnMediaCodecList {
+    static sp<IMediaCodecList> getInstance();
+
+    virtual ssize_t findCodecByType(
             const char *type, bool encoder, size_t startIndex = 0) const;
 
-    ssize_t findCodecByName(const char *name) const;
+    virtual ssize_t findCodecByName(const char *name) const;
 
-    size_t countCodecs() const;
-    const char *getCodecName(size_t index) const;
-    bool isEncoder(size_t index) const;
-    bool codecHasQuirk(size_t index, const char *quirkName) const;
+    virtual size_t countCodecs() const;
 
-    status_t getSupportedTypes(size_t index, Vector<AString> *types) const;
+    virtual sp<MediaCodecInfo> getCodecInfo(size_t index) const {
+        return mCodecInfos.itemAt(index);
+    }
 
-    struct ProfileLevel {
-        uint32_t mProfile;
-        uint32_t mLevel;
-    };
-    status_t getCodecCapabilities(
-            size_t index, const char *type,
-            Vector<ProfileLevel> *profileLevels,
-            Vector<uint32_t> *colorFormats,
-            uint32_t *flags) const;
+    // to be used by MediaPlayerService alone
+    static sp<IMediaCodecList> getLocalInstance();
 
 private:
     enum Section {
         SECTION_TOPLEVEL,
         SECTION_DECODERS,
         SECTION_DECODER,
+        SECTION_DECODER_TYPE,
         SECTION_ENCODERS,
         SECTION_ENCODER,
+        SECTION_ENCODER_TYPE,
+        SECTION_INCLUDE,
     };
 
-    struct CodecInfo {
-        AString mName;
-        bool mIsEncoder;
-        uint32_t mTypes;
-        uint32_t mQuirks;
-    };
-
-    static MediaCodecList *sCodecList;
+    static sp<IMediaCodecList> sCodecList;
+    static sp<IMediaCodecList> sRemoteList;
 
     status_t mInitCheck;
     Section mCurrentSection;
+    Vector<Section> mPastSections;
     int32_t mDepth;
+    AString mHrefBase;
 
-    Vector<CodecInfo> mCodecInfos;
-    KeyedVector<AString, size_t> mCodecQuirks;
-    KeyedVector<AString, size_t> mTypes;
+    Vector<sp<MediaCodecInfo> > mCodecInfos;
+    sp<MediaCodecInfo> mCurrentInfo;
+    sp<IOMX> mOMX;
 
     MediaCodecList();
     ~MediaCodecList();
 
     status_t initCheck() const;
-    void parseXMLFile(FILE *file);
+    void parseXMLFile(const char *path);
+    void parseTopLevelXMLFile(const char *path);
 
     static void StartElementHandlerWrapper(
             void *me, const char *name, const char **attrs);
@@ -93,12 +91,17 @@ private:
     void startElementHandler(const char *name, const char **attrs);
     void endElementHandler(const char *name);
 
+    status_t includeXMLFile(const char **attrs);
     status_t addMediaCodecFromAttributes(bool encoder, const char **attrs);
     void addMediaCodec(bool encoder, const char *name, const char *type = NULL);
 
     status_t addQuirk(const char **attrs);
     status_t addTypeFromAttributes(const char **attrs);
+    status_t addLimit(const char **attrs);
+    status_t addFeature(const char **attrs);
     void addType(const char *name);
+
+    status_t initializeCapabilities(const char *type);
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecList);
 };

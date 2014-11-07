@@ -88,7 +88,7 @@ public:
     /* Send parameters to the audio hardware */
     virtual status_t    setParameters(const String8& keyValuePairs) = 0;
 
-    /* Return NO_ERROR if timestamp is valid */
+    /* Return NO_ERROR if timestamp is valid.  timestamp is undefined otherwise. */
     virtual status_t    getTimestamp(AudioTimestamp& timestamp) = 0;
 
     /* Signal the playback thread for a change in control block */

@@ -23,6 +23,8 @@
 #include "device3/Camera3Stream.h"
 #include "device3/StatusTracker.h"
 
+#include <cutils/properties.h>
+
 namespace android {
 
 namespace camera3 {
@@ -137,6 +139,7 @@ camera3_stream* Camera3Stream::startConfiguration() {
     if (mState == STATE_CONSTRUCTED) {
         mState = STATE_IN_CONFIG;
     } else { // mState == STATE_CONFIGURED
+        LOG_ALWAYS_FATAL_IF(mState != STATE_CONFIGURED, "Invalid state: 0x%x", mState);
         mState = STATE_IN_RECONFIG;
     }
 
@@ -206,11 +209,61 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
     return res;
 }
 
+status_t Camera3Stream::cancelConfiguration() {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+    switch (mState) {
+        case STATE_ERROR:
+            ALOGE("%s: In error state", __FUNCTION__);
+            return INVALID_OPERATION;
+        case STATE_IN_CONFIG:
+        case STATE_IN_RECONFIG:
+            // OK
+            break;
+        case STATE_CONSTRUCTED:
+        case STATE_CONFIGURED:
+            ALOGE("%s: Cannot cancel configuration that hasn't been started",
+                    __FUNCTION__);
+            return INVALID_OPERATION;
+        default:
+            ALOGE("%s: Unknown state", __FUNCTION__);
+            return INVALID_OPERATION;
+    }
+
+    camera3_stream::usage = oldUsage;
+    camera3_stream::max_buffers = oldMaxBuffers;
+
+    mState = (mState == STATE_IN_RECONFIG) ? STATE_CONFIGURED : STATE_CONSTRUCTED;
+    return OK;
+}
+
 status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
+    status_t res = OK;
 
-    status_t res = getBufferLocked(buffer);
+    // This function should be only called when the stream is configured already.
+    if (mState != STATE_CONFIGURED) {
+        ALOGE("%s: Stream %d: Can't get buffers if stream is not in CONFIGURED state %d",
+                __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // Wait for new buffer returned back if we are running into the limit.
+    if (getHandoutOutputBufferCountLocked() == camera3_stream::max_buffers) {
+        ALOGV("%s: Already dequeued max output buffers (%d), wait for next returned one.",
+                __FUNCTION__, camera3_stream::max_buffers);
+        res = mOutputBufferReturnedSignal.waitRelative(mLock, kWaitForBufferDuration);
+        if (res != OK) {
+            if (res == TIMED_OUT) {
+                ALOGE("%s: wait for output buffer return timed out after %lldms", __FUNCTION__,
+                        kWaitForBufferDuration / 1000000LL);
+            }
+            return res;
+        }
+    }
+
+    res = getBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/true);
     }
@@ -223,9 +276,18 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
 
+    /**
+     * TODO: Check that the state is valid first.
+     *
+     * <HAL3.2 IN_CONFIG and IN_RECONFIG in addition to CONFIGURED.
+     * >= HAL3.2 CONFIGURED only
+     *
+     * Do this for getBuffer as well.
+     */
     status_t res = returnBufferLocked(buffer, timestamp);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/true);
+        mOutputBufferReturnedSignal.signal();
     }
 
     return res;
@@ -234,8 +296,30 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
 status_t Camera3Stream::getInputBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
+    status_t res = OK;
 
-    status_t res = getInputBufferLocked(buffer);
+    // This function should be only called when the stream is configured already.
+    if (mState != STATE_CONFIGURED) {
+        ALOGE("%s: Stream %d: Can't get input buffers if stream is not in CONFIGURED state %d",
+                __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // Wait for new buffer returned back if we are running into the limit.
+    if (getHandoutInputBufferCountLocked() == camera3_stream::max_buffers) {
+        ALOGV("%s: Already dequeued max input buffers (%d), wait for next returned one.",
+                __FUNCTION__, camera3_stream::max_buffers);
+        res = mInputBufferReturnedSignal.waitRelative(mLock, kWaitForBufferDuration);
+        if (res != OK) {
+            if (res == TIMED_OUT) {
+                ALOGE("%s: wait for input buffer return timed out after %lldms", __FUNCTION__,
+                        kWaitForBufferDuration / 1000000LL);
+            }
+            return res;
+        }
+    }
+
+    res = getInputBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/false);
     }
@@ -250,6 +334,7 @@ status_t Camera3Stream::returnInputBuffer(const camera3_stream_buffer &buffer) {
     status_t res = returnInputBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/false);
+        mInputBufferReturnedSignal.signal();
     }
     return res;
 }
@@ -314,12 +399,35 @@ status_t Camera3Stream::disconnect() {
 
 status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     ATRACE_CALL();
+
+    /**
+     * >= CAMERA_DEVICE_API_VERSION_3_2:
+     *
+     * camera3_device_t->ops->register_stream_buffers() is not called and must
+     * be NULL.
+     */
+    if (hal3Device->common.version >= CAMERA_DEVICE_API_VERSION_3_2) {
+        ALOGV("%s: register_stream_buffers unused as of HAL3.2", __FUNCTION__);
+
+        if (hal3Device->ops->register_stream_buffers != NULL) {
+            ALOGE("%s: register_stream_buffers is deprecated in HAL3.2; "
+                    "must be set to NULL in camera3_device::ops", __FUNCTION__);
+            return INVALID_OPERATION;
+        } else {
+            ALOGD("%s: Skipping NULL check for deprecated register_stream_buffers", __FUNCTION__);
+        }
+
+        return OK;
+    } else {
+        ALOGV("%s: register_stream_buffers using deprecated code path", __FUNCTION__);
+    }
+
     status_t res;
 
     size_t bufferCount = getBufferCountLocked();
 
     Vector<buffer_handle_t*> buffers;
-    buffers.insertAt(NULL, 0, bufferCount);
+    buffers.insertAt(/*prototype_item*/NULL, /*index*/0, bufferCount);
 
     camera3_stream_buffer_set bufferSet = camera3_stream_buffer_set();
     bufferSet.stream = this;
@@ -327,7 +435,7 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
     bufferSet.buffers = buffers.editArray();
 
     Vector<camera3_stream_buffer_t> streamBuffers;
-    streamBuffers.insertAt(camera3_stream_buffer_t(), 0, bufferCount);
+    streamBuffers.insertAt(camera3_stream_buffer_t(), /*index*/0, bufferCount);
 
     // Register all buffers with the HAL. This means getting all the buffers
     // from the stream, providing them to the HAL with the
@@ -394,6 +502,18 @@ status_t Camera3Stream::returnInputBufferLocked(
 void Camera3Stream::addBufferListener(
         wp<Camera3StreamBufferListener> listener) {
     Mutex::Autolock l(mLock);
+
+    List<wp<Camera3StreamBufferListener> >::iterator it, end;
+    for (it = mBufferListenerList.begin(), end = mBufferListenerList.end();
+         it != end;
+         ) {
+        if (*it == listener) {
+            ALOGE("%s: Try to add the same listener twice, ignoring...", __FUNCTION__);
+            return;
+        }
+        it++;
+    }
+
     mBufferListenerList.push_back(listener);
 }
 

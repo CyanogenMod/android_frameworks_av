@@ -39,6 +39,8 @@
 #include "mem_align.h"
 #include "cmnMemory.h"
 
+#define UNUSED(x) (void)(x)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1602,6 +1604,8 @@ VO_U32 VO_API voAMRWB_Init(VO_HANDLE * phCodec,                   /* o: the audi
 	VO_MEM_OPERATOR voMemoprator;
 #endif
 	VO_MEM_OPERATOR *pMemOP;
+        UNUSED(vType);
+
 	int interMem = 0;
 
 	if(pUserData == NULL || pUserData->memflag != VO_IMF_USERMEMOPERATOR || pUserData->memData == NULL )

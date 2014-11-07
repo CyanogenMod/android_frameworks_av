@@ -39,7 +39,7 @@ typedef void (*media_completion_f)(status_t status, void *cookie);
 enum video_source {
     VIDEO_SOURCE_DEFAULT = 0,
     VIDEO_SOURCE_CAMERA = 1,
-    VIDEO_SOURCE_GRALLOC_BUFFER = 2,
+    VIDEO_SOURCE_SURFACE = 2,
 
     VIDEO_SOURCE_LIST_END  // must be last - used to validate audio source type
 };
@@ -61,11 +61,17 @@ enum output_format {
     OUTPUT_FORMAT_AAC_ADIF = 5,
     OUTPUT_FORMAT_AAC_ADTS = 6,
 
+    OUTPUT_FORMAT_AUDIO_ONLY_END = 7, // Used in validating the output format.  Should be the
+                                      //  at the end of the audio only output formats.
+
     /* Stream over a socket, limited to a single stream */
     OUTPUT_FORMAT_RTP_AVP = 7,
 
     /* H.264/AAC data encapsulated in MPEG2/TS */
     OUTPUT_FORMAT_MPEG2TS = 8,
+
+    /* VP8/VORBIS data in a WEBM container */
+    OUTPUT_FORMAT_WEBM = 9,
 
     OUTPUT_FORMAT_LIST_END // must be last - used to validate format type
 };
@@ -77,6 +83,7 @@ enum audio_encoder {
     AUDIO_ENCODER_AAC = 3,
     AUDIO_ENCODER_HE_AAC = 4,
     AUDIO_ENCODER_AAC_ELD = 5,
+    AUDIO_ENCODER_VORBIS = 6,
 
     AUDIO_ENCODER_LIST_END // must be the last - used to validate the audio encoder type
 };
@@ -86,6 +93,7 @@ enum video_encoder {
     VIDEO_ENCODER_H263 = 1,
     VIDEO_ENCODER_H264 = 2,
     VIDEO_ENCODER_MPEG_4_SP = 3,
+    VIDEO_ENCODER_VP8 = 4,
 
     VIDEO_ENCODER_LIST_END // must be the last - used to validate the video encoder type
 };

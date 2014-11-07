@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
+#include <stdlib.h>
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "AudioSource"
 #include <utils/Log.h>
@@ -26,7 +29,6 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <cutils/properties.h>
-#include <stdlib.h>
 
 namespace android {
 
@@ -65,7 +67,7 @@ AudioSource::AudioSource(
     if (status == OK) {
         // make sure that the AudioRecord callback never returns more than the maximum
         // buffer size
-        int frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
+        uint32_t frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
 
         // make sure that the AudioRecord total buffer size is large enough
         size_t bufCount = 2;
@@ -76,10 +78,10 @@ AudioSource::AudioSource(
         mRecord = new AudioRecord(
                     inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
                     audio_channel_in_mask_from_count(channelCount),
-                    bufCount * frameCount,
+                    (size_t) (bufCount * frameCount),
                     AudioRecordCallbackFunction,
                     this,
-                    frameCount);
+                    frameCount /*notificationFrames*/);
         mInitCheck = mRecord->initCheck();
     } else {
         mInitCheck = status;
@@ -136,7 +138,7 @@ void AudioSource::releaseQueuedFrames_l() {
 }
 
 void AudioSource::waitOutstandingEncodingFrames_l() {
-    ALOGV("waitOutstandingEncodingFrames_l: %lld", mNumClientOwnedBuffers);
+    ALOGV("waitOutstandingEncodingFrames_l: %" PRId64, mNumClientOwnedBuffers);
     while (mNumClientOwnedBuffers > 0) {
         mFrameEncodingCompletionCondition.wait(mLock);
     }
@@ -153,6 +155,8 @@ status_t AudioSource::reset() {
     }
 
     mStarted = false;
+    mFrameAvailableCondition.signal();
+
     mRecord->stop();
     waitOutstandingEncodingFrames_l();
     releaseQueuedFrames_l();
@@ -269,7 +273,7 @@ void AudioSource::signalBufferReturned(MediaBuffer *buffer) {
 status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
     int64_t timeUs = systemTime() / 1000ll;
 
-    ALOGV("dataCallbackTimestamp: %lld us", timeUs);
+    ALOGV("dataCallbackTimestamp: %" PRId64 " us", timeUs);
     Mutex::Autolock autoLock(mLock);
     if (!mStarted) {
         ALOGW("Spurious callback from AudioRecord. Drop the audio data.");
@@ -278,8 +282,8 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
 
     // Drop retrieved and previously lost audio data.
     if (mNumFramesReceived == 0 && timeUs < mStartTimeUs) {
-        mRecord->getInputFramesLost();
-        ALOGV("Drop audio data at %lld/%lld us", timeUs, mStartTimeUs);
+        (void) mRecord->getInputFramesLost();
+        ALOGV("Drop audio data at %" PRId64 "/%" PRId64 " us", timeUs, mStartTimeUs);
         return OK;
     }
 

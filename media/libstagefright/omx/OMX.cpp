@@ -233,7 +233,7 @@ status_t OMX::allocateNode(
             instance, &handle);
 
     if (err != OMX_ErrorNone) {
-        ALOGV("FAILED to allocate omx component '%s'", name);
+        ALOGE("FAILED to allocate omx component '%s'", name);
 
         instance->onGetHandleFailed();
 
@@ -340,6 +340,13 @@ status_t OMX::prepareForAdaptivePlayback(
         OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) {
     return findInstance(node)->prepareForAdaptivePlayback(
             portIndex, enable, maxFrameWidth, maxFrameHeight);
+}
+
+status_t OMX::configureVideoTunnelMode(
+        node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
+        OMX_U32 audioHwSync, native_handle_t **sidebandHandle) {
+    return findInstance(node)->configureVideoTunnelMode(
+            portIndex, tunneled, audioHwSync, sidebandHandle);
 }
 
 status_t OMX::useBuffer(
@@ -472,8 +479,6 @@ OMX_ERRORTYPE OMX::OnFillBufferDone(
     msg.u.extended_buffer_data.range_length = pBuffer->nFilledLen;
     msg.u.extended_buffer_data.flags = pBuffer->nFlags;
     msg.u.extended_buffer_data.timestamp = pBuffer->nTimeStamp;
-    msg.u.extended_buffer_data.platform_private = pBuffer->pPlatformPrivate;
-    msg.u.extended_buffer_data.data_ptr = pBuffer->pBuffer;
 
     findDispatcher(node)->post(msg);
 

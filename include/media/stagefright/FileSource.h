@@ -30,6 +30,7 @@ namespace android {
 class FileSource : public DataSource {
 public:
     FileSource(const char *filename);
+    // FileSource takes ownership and will close the fd
     FileSource(int fd, int64_t offset, int64_t length);
 
     virtual status_t initCheck() const;
