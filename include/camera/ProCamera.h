@@ -265,7 +265,7 @@ private:
         }
 
     protected:
-        virtual void onFrameAvailable() {
+        virtual void onFrameAvailable(const BufferItem& /* item */) {
             sp<ProCamera> c = mCamera.promote();
             if (c.get() != NULL) {
                 c->onFrameAvailable(mStreamId);

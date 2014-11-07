@@ -51,7 +51,7 @@ JpegProcessor::~JpegProcessor() {
     deleteStream();
 }
 
-void JpegProcessor::onFrameAvailable() {
+void JpegProcessor::onFrameAvailable(const BufferItem& /*item*/) {
     Mutex::Autolock l(mInputMutex);
     if (!mCaptureAvailable) {
         mCaptureAvailable = true;
