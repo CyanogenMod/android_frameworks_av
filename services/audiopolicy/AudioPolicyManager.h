@@ -52,7 +52,7 @@ namespace android {
 // Can be overridden by the audio.offload.min.duration.secs property
 #define OFFLOAD_DEFAULT_MIN_DURATION_SECS 60
 
-#define MAX_MIXER_SAMPLING_RATE 48000
+#define MAX_MIXER_SAMPLING_RATE 192000
 #define MAX_MIXER_CHANNEL_COUNT 8
 
 // ----------------------------------------------------------------------------
