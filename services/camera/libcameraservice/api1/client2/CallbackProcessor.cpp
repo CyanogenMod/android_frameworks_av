@@ -46,7 +46,7 @@ CallbackProcessor::~CallbackProcessor() {
     deleteStream();
 }
 
-void CallbackProcessor::onFrameAvailable() {
+void CallbackProcessor::onFrameAvailable(const BufferItem& /*item*/) {
     Mutex::Autolock l(mInputMutex);
     if (!mCallbackAvailable) {
         mCallbackAvailable = true;
