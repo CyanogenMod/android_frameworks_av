@@ -78,7 +78,7 @@ private:
             const Program& texRender, TextRenderer& textRenderer);
 
     // (overrides GLConsumer::FrameAvailableListener method)
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
 
     // (overrides Thread method)
     virtual bool threadLoop();
