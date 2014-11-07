@@ -31,7 +31,7 @@ public:
             const sp<AMessage> &notify,
             size_t bufferWidth, size_t bufferHeight, size_t bufferCount);
 
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
     virtual void onBuffersReleased();
     virtual void onSidebandStreamChanged();
 

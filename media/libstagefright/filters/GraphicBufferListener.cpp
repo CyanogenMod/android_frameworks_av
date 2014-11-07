@@ -60,7 +60,7 @@ status_t GraphicBufferListener::init(
     return OK;
 }
 
-void GraphicBufferListener::onFrameAvailable() {
+void GraphicBufferListener::onFrameAvailable(const BufferItem& /* item */) {
     ALOGV("onFrameAvailable() called");
 
     {
