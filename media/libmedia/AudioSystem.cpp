@@ -543,21 +543,6 @@ void AudioSystem::setErrorCallback(audio_error_callback cb)
     gAudioErrorCallback = cb;
 }
 
-
-bool AudioSystem::routedToA2dpOutput(audio_stream_type_t streamType)
-{
-    switch (streamType) {
-    case AUDIO_STREAM_MUSIC:
-    case AUDIO_STREAM_VOICE_CALL:
-    case AUDIO_STREAM_BLUETOOTH_SCO:
-    case AUDIO_STREAM_SYSTEM:
-        return true;
-    default:
-        return false;
-    }
-}
-
-
 // client singleton for AudioPolicyService binder interface
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
 sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient;
