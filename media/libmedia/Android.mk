@@ -74,6 +74,8 @@ LOCAL_WHOLE_STATIC_LIBRARIES := libmedia_helper
 
 LOCAL_MODULE:= libmedia
 
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+
 LOCAL_C_INCLUDES := \
     $(TOP)/frameworks/native/include/media/openmax \
     $(TOP)/frameworks/av/include/media/ \
@@ -88,7 +90,17 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 
 # for <cutils/atomic-inline.h>
-LOCAL_CFLAGS += -DANDROID_SMP=$(if $(findstring true,$(TARGET_CPU_SMP)),1,0)
+ifeq ($(TARGET_CPU_SMP),true)
+  LOCAL_CFLAGS += -DANDROID_SMP=1
+else
+  ifeq ($(TARGET_CPU_SMP),false)
+    LOCAL_CFLAGS += -DANDROID_SMP=0
+  else
+    $(warning TARGET_CPU_SMP should be (true|false), found $(TARGET_CPU_SMP))
+    # Make sure we emit barriers for the worst case.
+    LOCAL_CFLAGS += -DANDROID_SMP=1
+  endif
+endif
 LOCAL_SRC_FILES += SingleStateQueue.cpp
 LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
 
