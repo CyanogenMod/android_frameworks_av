@@ -262,6 +262,10 @@ void AnotherPacketSource::queueDiscontinuity(
         }
     }
 
+    if (type == ATSParser::DISCONTINUITY_NONE) {
+        return;
+    }
+
     mEOSResult = OK;
     mLastQueuedTimeUs = 0;
     mLatestEnqueuedMeta = NULL;
