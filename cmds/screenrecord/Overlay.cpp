@@ -274,7 +274,7 @@ void Overlay::getTimeString_l(nsecs_t monotonicNsec, char* buf, size_t bufLen) {
 }
 
 // Callback; executes on arbitrary thread.
-void Overlay::onFrameAvailable() {
+void Overlay::onFrameAvailable(const BufferItem& /* item */) {
     ALOGV("Overlay::onFrameAvailable");
     Mutex::Autolock _l(mMutex);
     mFrameAvailable = true;
