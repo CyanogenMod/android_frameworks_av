@@ -314,6 +314,64 @@ void CpuStats::sample(const String8 &title
 //      ThreadBase
 // ----------------------------------------------------------------------------
 
+// static
+const char *AudioFlinger::ThreadBase::threadTypeToString(AudioFlinger::ThreadBase::type_t type)
+{
+    switch (type) {
+    case MIXER:
+        return "MIXER";
+    case DIRECT:
+        return "DIRECT";
+    case DUPLICATING:
+        return "DUPLICATING";
+    case RECORD:
+        return "RECORD";
+    case OFFLOAD:
+        return "OFFLOAD";
+    default:
+        return "unknown";
+    }
+}
+
+static String8 outputFlagsToString(audio_output_flags_t flags)
+{
+    static const struct mapping {
+        audio_output_flags_t    mFlag;
+        const char *            mString;
+    } mappings[] = {
+        AUDIO_OUTPUT_FLAG_DIRECT,           "DIRECT",
+        AUDIO_OUTPUT_FLAG_PRIMARY,          "PRIMARY",
+        AUDIO_OUTPUT_FLAG_FAST,             "FAST",
+        AUDIO_OUTPUT_FLAG_DEEP_BUFFER,      "DEEP_BUFFER",
+        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD, "COMPRESS_OFFLOAAD",
+        AUDIO_OUTPUT_FLAG_NON_BLOCKING,     "NON_BLOCKING",
+        AUDIO_OUTPUT_FLAG_HW_AV_SYNC,       "HW_AV_SYNC",
+        AUDIO_OUTPUT_FLAG_NONE,             "NONE",         // must be last
+    };
+    String8 result;
+    audio_output_flags_t allFlags = AUDIO_OUTPUT_FLAG_NONE;
+    const mapping *entry;
+    for (entry = mappings; entry->mFlag != AUDIO_OUTPUT_FLAG_NONE; entry++) {
+        allFlags = (audio_output_flags_t) (allFlags | entry->mFlag);
+        if (flags & entry->mFlag) {
+            if (!result.isEmpty()) {
+                result.append("|");
+            }
+            result.append(entry->mString);
+        }
+    }
+    if (flags & ~allFlags) {
+        if (!result.isEmpty()) {
+            result.append("|");
+        }
+        result.appendFormat("0x%X", flags & ~allFlags);
+    }
+    if (result.isEmpty()) {
+        result.append(entry->mString);
+    }
+    return result;
+}
+
 AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
         audio_devices_t outDevice, audio_devices_t inDevice, type_t type)
     :   Thread(false /*canCallJava*/),
@@ -577,20 +635,21 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
 
     bool locked = AudioFlinger::dumpTryLock(mLock);
     if (!locked) {
-        dprintf(fd, "thread %p maybe dead locked\n", this);
+        dprintf(fd, "thread %p may be deadlocked\n", this);
     }
 
     dprintf(fd, "  I/O handle: %d\n", mId);
     dprintf(fd, "  TID: %d\n", getTid());
     dprintf(fd, "  Standby: %s\n", mStandby ? "yes" : "no");
-    dprintf(fd, "  Sample rate: %u\n", mSampleRate);
+    dprintf(fd, "  Sample rate: %u Hz\n", mSampleRate);
     dprintf(fd, "  HAL frame count: %zu\n", mFrameCount);
+    dprintf(fd, "  HAL format: 0x%x (%s)\n", mHALFormat, formatToString(mHALFormat));
     dprintf(fd, "  HAL buffer size: %u bytes\n", mBufferSize);
-    dprintf(fd, "  Channel Count: %u\n", mChannelCount);
-    dprintf(fd, "  Channel Mask: 0x%08x (%s)\n", mChannelMask,
+    dprintf(fd, "  Channel count: %u\n", mChannelCount);
+    dprintf(fd, "  Channel mask: 0x%08x (%s)\n", mChannelMask,
             channelMaskToString(mChannelMask, mType != RECORD).string());
-    dprintf(fd, "  Format: 0x%x (%s)\n", mHALFormat, formatToString(mHALFormat));
-    dprintf(fd, "  Frame size: %zu\n", mFrameSize);
+    dprintf(fd, "  Format: 0x%x (%s)\n", mFormat, formatToString(mFormat));
+    dprintf(fd, "  Frame size: %zu bytes\n", mFrameSize);
     dprintf(fd, "  Pending config events:");
     size_t numConfig = mConfigEvents.size();
     if (numConfig) {
@@ -1317,7 +1376,7 @@ void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& ar
 
 void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>& args)
 {
-    dprintf(fd, "\nOutput thread %p:\n", this);
+    dprintf(fd, "\nOutput thread %p type %d (%s):\n", this, type(), threadTypeToString(type()));
     dprintf(fd, "  Normal frame count: %zu\n", mNormalFrameCount);
     dprintf(fd, "  Last write occurred (msecs): %llu\n", ns2ms(systemTime() - mLastWriteTime));
     dprintf(fd, "  Total writes: %d\n", mNumWrites);
@@ -1328,6 +1387,10 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     dprintf(fd, "  Mixer buffer: %p\n", mMixerBuffer);
     dprintf(fd, "  Effect buffer: %p\n", mEffectBuffer);
     dprintf(fd, "  Fast track availMask=%#x\n", mFastTrackAvailMask);
+    AudioStreamOut *output = mOutput;
+    audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
+    String8 flagsAsString = outputFlagsToString(flags);
+    dprintf(fd, "  AudioStreamOut: %p flags %#x (%s)\n", output, flags, flagsAsString.string());
 
     dumpBase(fd, args);
 }
@@ -2820,6 +2883,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         NBAIO_Format format = mOutputSink->format();
         NBAIO_Format origformat = format;
         // adjust format to match that of the Fast Mixer
+        ALOGV("format changed from %d to %d", format.mFormat, fastMixerFormat);
         format.mFormat = fastMixerFormat;
         format.mFrameSize = audio_bytes_per_sample(format.mFormat) * format.mChannelCount;
 
