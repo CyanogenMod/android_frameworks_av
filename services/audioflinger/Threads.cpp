@@ -4722,7 +4722,11 @@ void AudioFlinger::DuplicatingThread::threadLoop_mix()
     if (outputsReady(outputTracks)) {
         mAudioMixer->process(AudioBufferProvider::kInvalidPTS);
     } else {
-        memset(mSinkBuffer, 0, mSinkBufferSize);
+        if (mMixerBufferValid) {
+            memset(mMixerBuffer, 0, mMixerBufferSize);
+        } else {
+            memset(mSinkBuffer, 0, mSinkBufferSize);
+        }
     }
     sleepTime = 0;
     writeFrames = mNormalFrameCount;
