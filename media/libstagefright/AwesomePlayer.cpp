@@ -252,6 +252,8 @@ AwesomePlayer::AwesomePlayer()
     mVideoFrameDeltaUs = 0;
 
     reset();
+
+    mPlayerExtendedStats = new PlayerExtendedStats("AwesomePlayer", gettid());
 }
 
 AwesomePlayer::~AwesomePlayer() {
@@ -392,6 +394,9 @@ status_t AwesomePlayer::setDataSource_l(
 status_t AwesomePlayer::setDataSource(
         int fd, int64_t offset, int64_t length) {
     Mutex::Autolock autoLock(mLock);
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SET_DATA_SOURCE,
+                                            mPlayerExtendedStats->getProfileTimes());
+    PLAYER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
 
     reset_l();
     if (fd) {
@@ -517,6 +522,7 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
             if (success) {
                 mDisplayWidth = displayWidth;
                 mDisplayHeight = displayHeight;
+                PLAYER_STATS(logDimensions, displayWidth, displayHeight);
             }
 
             {
@@ -658,7 +664,9 @@ void AwesomePlayer::reset_l() {
 
     mVideoRenderer.clear();
 
+    PLAYER_STATS(notifyEOS);
     modifyFlags(PLAYING, CLEAR);
+    PLAYER_STATS(dump);
     printStats();
     if (mVideoSource != NULL) {
         shutdownVideoDecoder_l();
@@ -711,6 +719,7 @@ void AwesomePlayer::reset_l() {
         mStats.mResumeDelayStartUs = -1;
         mStats.mSeekDelayStartUs = -1;
     }
+    PLAYER_STATS(reset);
 
     mWatchForAudioSeekComplete = false;
     mWatchForAudioEOS = false;
@@ -720,6 +729,10 @@ void AwesomePlayer::reset_l() {
 }
 
 void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
+    if (msg == MEDIA_SEEK_COMPLETE) {
+        PLAYER_STATS(notifySeekDone);
+    }
+
     if ((mListener != NULL) && !mAudioTearDown) {
         sp<MediaPlayerBase> listener = mListener.promote();
 
@@ -974,6 +987,8 @@ void AwesomePlayer::onStreamDone() {
         }
     } else {
         ALOGV("MEDIA_PLAYBACK_COMPLETE");
+        PLAYER_STATS(notifyEOS);
+
         notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
 
         pause_l(true /* at eos */);
@@ -991,6 +1006,7 @@ void AwesomePlayer::onStreamDone() {
 
 status_t AwesomePlayer::play() {
     ATRACE_CALL();
+    PLAYER_STATS(notifyPlaying, true);
 
     Mutex::Autolock autoLock(mLock);
 
@@ -1350,6 +1366,8 @@ void AwesomePlayer::initRenderer_l() {
 
 status_t AwesomePlayer::pause() {
     ATRACE_CALL();
+    PLAYER_STATS(notifyPause, mVideoTimeUs/1000);
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_PAUSE, mPlayerExtendedStats->getProfileTimes());
 
     Mutex::Autolock autoLock(mLock);
 
@@ -1549,6 +1567,9 @@ status_t AwesomePlayer::getPosition(int64_t *positionUs) {
 status_t AwesomePlayer::seekTo(int64_t timeUs) {
     ATRACE_CALL();
 
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SEEK, mPlayerExtendedStats->getProfileTimes());
+    PLAYER_STATS(notifySeek, timeUs);
+
     if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
         Mutex::Autolock autoLock(mLock);
         return seekTo_l(timeUs);
@@ -1679,6 +1700,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     } else {
         // If offloading we still create a OMX decoder as a fall-back
         // but we don't start it
+        mAudioTrack->getFormat()->setPointer(ExtendedStats::MEDIA_STATS_FLAG, mPlayerExtendedStats.get());
         mOmxSource = OMXCodec::Create(
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
@@ -1815,6 +1837,8 @@ status_t AwesomePlayer::initVideoDecoder(uint32_t flags) {
     }
 #endif
     ALOGV("initVideoDecoder flags=0x%x", flags);
+
+    mVideoTrack->getFormat()->setPointer(ExtendedStats::MEDIA_STATS_FLAG, mPlayerExtendedStats.get());
     mVideoSource = OMXCodec::Create(
             mClient.interface(), mVideoTrack->getFormat(),
             false, // createEncoder
@@ -1991,6 +2015,7 @@ void AwesomePlayer::onVideoEvent() {
                     seekmode);
         }
         for (;;) {
+            PLAYER_STATS(profileStartOnce, STATS_PROFILE_FIRST_BUFFER(true) /* video */);
             status_t err = mVideoSource->read(&mVideoBuffer, &options);
             options.clearSeekTo();
 
@@ -2107,6 +2132,9 @@ void AwesomePlayer::onVideoEvent() {
     int64_t looperTimeUs = ALooper::GetNowUs();
 
     if (mFlags & FIRST_FRAME) {
+        PLAYER_STATS(profileStop, STATS_PROFILE_START_LATENCY);
+        PLAYER_STATS(profileStop, STATS_PROFILE_FIRST_BUFFER(true) /* video */);
+
         modifyFlags(FIRST_FRAME, CLEAR);
         mSinceLastDropped = 0;
         mTimeSourceDeltaUs = ts->getRealTimeUs() - timeUs;
@@ -2196,6 +2224,7 @@ void AwesomePlayer::onVideoEvent() {
 
                 {
                     Mutex::Autolock autoLock(mStatsLock);
+                    PLAYER_STATS(logFrameDropped);
                     ++mStats.mNumVideoFramesDropped;
                     mStats.mConsecutiveFramesDropped++;
                     if (mStats.mConsecutiveFramesDropped == 1){
@@ -2255,6 +2284,7 @@ void AwesomePlayer::onVideoEvent() {
             Mutex::Autolock autoLock(mStatsLock);
             logOnTime(timeUs,nowUs,latenessUs);
             mStats.mTotalFrames++;
+            PLAYER_STATS(logFrameRendered);
             mStats.mConsecutiveFramesDropped = 0;
             char value[PROPERTY_VALUE_MAX];
             property_get("persist.debug.sf.statistics", value, "0");
@@ -2721,6 +2751,7 @@ void AwesomePlayer::onPrepareAsyncEvent() {
 }
 
 void AwesomePlayer::beginPrepareAsync_l() {
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_PREPARE, mPlayerExtendedStats->getProfileTimes());
     if (mFlags & PREPARE_CANCELLED) {
         ALOGI("prepare was cancelled before doing anything");
         abortPrepare(UNKNOWN_ERROR);
@@ -3393,6 +3424,7 @@ status_t AwesomePlayer::suspend() {
 
         // Shutdown the video decoder
         mVideoRenderer.clear();
+        PLAYER_STATS(notifyEOS);
         printStats();
         if (mVideoSource != NULL) {
             shutdownVideoDecoder_l();
@@ -3414,6 +3446,9 @@ status_t AwesomePlayer::suspend() {
 
 status_t AwesomePlayer::resume() {
     ALOGV("resume()");
+    PLAYER_STATS(notifyPlaying, true);
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_RESUME, mPlayerExtendedStats->getProfileTimes());
+
     Mutex::Autolock autoLock(mLock);
 
     // Reconnect the source
