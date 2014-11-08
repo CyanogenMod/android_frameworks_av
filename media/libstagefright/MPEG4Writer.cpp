@@ -1792,6 +1792,12 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
 
     meta->setInt64(kKeyTime, startTimeUs);
 
+    if (params) {
+        RecorderExtendedStats* rStats = NULL;
+        params->findPointer(ExtendedStats::MEDIA_STATS_FLAG, (void**)&rStats);
+        meta->setPointer(ExtendedStats::MEDIA_STATS_FLAG, rStats);
+    }
+
     status_t err = mSource->start(meta.get());
     if (err != OK) {
         mDone = mReachedEOS = true;

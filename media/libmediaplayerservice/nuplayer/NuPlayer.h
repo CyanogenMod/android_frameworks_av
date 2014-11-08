@@ -19,8 +19,16 @@
 #define NU_PLAYER_H_
 
 #include <media/MediaPlayerInterface.h>
+#include <media/stagefright/ExtendedStats.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/NativeWindowWrapper.h>
+
+#define PLAYER_STATS(func, ...) \
+    do { \
+        if(mPlayerExtendedStats != NULL) { \
+            mPlayerExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
 
 namespace android {
 
@@ -121,6 +129,7 @@ private:
         kWhatGetSelectedTrack           = 'gSel',
         kWhatSelectTrack                = 'selT',
     };
+    sp<PlayerExtendedStats> mPlayerExtendedStats;
 
     wp<NuPlayerDriver> mDriver;
     bool mUIDValid;

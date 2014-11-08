@@ -23,6 +23,7 @@
 #include <media/stagefright/MediaWriter.h>
 #include <utils/List.h>
 #include <utils/threads.h>
+#include <media/stagefright/ExtendedStats.h>
 
 namespace android {
 

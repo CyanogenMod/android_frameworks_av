@@ -25,6 +25,15 @@
 #include <system/audio.h>
 #include <binder/AppOpsManager.h>
 
+#include <media/stagefright/ExtendedStats.h>
+
+#define RECORDER_STATS(func, ...) \
+    do { \
+        if(mRecorderExtendedStats != NULL) { \
+            mRecorderExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
+
 namespace android {
 
 class Camera;
@@ -133,6 +142,8 @@ private:
     // frame buffers will be queued and dequeued
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
     sp<ALooper> mLooper;
+
+    sp<RecorderExtendedStats> mRecorderExtendedStats;
 
     status_t prepareInternal();
     status_t setupMPEG4orWEBMRecording();

@@ -314,6 +314,10 @@ status_t MediaCodecSource::read(
         MediaBuffer** buffer, const ReadOptions* /* options */) {
     Mutex::Autolock autolock(mOutputBufferLock);
 
+    AString outputMIME;
+    CHECK(mOutputFormat->findString("mime", &outputMIME));
+    RECORDER_STATS(profileStartOnce, STATS_PROFILE_FIRST_BUFFER(mIsVideo));
+
     *buffer = NULL;
     while (mOutputBufferQueue.size() == 0 && !mEncoderReachedEOS) {
         mOutputBufferCond.wait(mOutputBufferLock);
@@ -321,8 +325,11 @@ status_t MediaCodecSource::read(
     if (!mEncoderReachedEOS) {
         *buffer = *mOutputBufferQueue.begin();
         mOutputBufferQueue.erase(mOutputBufferQueue.begin());
+
+        RECORDER_STATS(profileStop, STATS_PROFILE_FIRST_BUFFER(mIsVideo));
         return OK;
     }
+    RECORDER_STATS(profileStop, STATS_PROFILE_FIRST_BUFFER(mIsVideo));
     return mErrorCode;
 }
 
@@ -390,6 +397,10 @@ MediaCodecSource::MediaCodecSource(
                                           bitRate, sampleRate);
     }
 #endif
+
+    if (mRecorderExtendedStats == NULL) {
+        outputFormat->findObject(MEDIA_EXTENDED_STATS, (sp<RefBase>*)&mRecorderExtendedStats);
+    }
 }
 
 MediaCodecSource::~MediaCodecSource() {
@@ -428,8 +439,21 @@ status_t MediaCodecSource::initEncoder() {
     AString outputMIME;
     CHECK(mOutputFormat->findString("mime", &outputMIME));
 
-    mEncoder = MediaCodec::CreateByType(
-            mCodecLooper, outputMIME.c_str(), true /* encoder */);
+    int width, height;
+    mOutputFormat->findInt32("width", &width);
+    mOutputFormat->findInt32("height", &height);
+
+    if (mIsVideo)
+        RECORDER_STATS(logDimensions, width, height);
+
+    //profile allocate node
+    {
+        ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_ALLOCATE_NODE(mIsVideo),
+                                               mRecorderExtendedStats == NULL ? NULL :
+                                               mRecorderExtendedStats->getProfileTimes());
+        mEncoder = MediaCodec::CreateByType(
+                mCodecLooper, outputMIME.c_str(), true /* encoder */);
+    }
 
     if (mEncoder == NULL) {
         return NO_INIT;
@@ -437,6 +461,7 @@ status_t MediaCodecSource::initEncoder() {
 
     ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
 
+    mOutputFormat->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
     status_t err = mEncoder->configure(
                 mOutputFormat,
                 NULL /* nativeWindow */,
@@ -724,6 +749,8 @@ status_t MediaCodecSource::doMoreWork(int32_t numInput, int32_t numOutput) {
                         mDecodingTimeQueue.erase(mDecodingTimeQueue.begin());
                     }
                     mbuf->meta_data()->setInt64(kKeyDecodingTime, decodingTimeUs);
+
+                    RECORDER_STATS(logBitRate, outbuf->size(), decodingTimeUs);
 
                     ALOGV("[video] time %" PRId64 " us (%.2f secs), dts/pts diff %" PRId64,
                             timeUs, timeUs / 1E6, decodingTimeUs - timeUs);

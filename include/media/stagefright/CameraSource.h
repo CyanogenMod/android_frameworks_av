@@ -27,6 +27,14 @@
 #include <utils/RefBase.h>
 #include <utils/String16.h>
 
+#include <media/stagefright/ExtendedStats.h>
+#define RECORDER_STATS(func, ...) \
+    do { \
+        if(mRecorderExtendedStats != NULL) { \
+            mRecorderExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
+
 namespace android {
 
 class IMemory;
@@ -202,6 +210,7 @@ private:
     List<sp<IMemory> > mFramesReceived;
     List<sp<IMemory> > mFramesBeingEncoded;
     List<int64_t> mFrameTimes;
+    sp<RecorderExtendedStats> mRecorderExtendedStats;
 
     int64_t mFirstFrameTimeUs;
     int32_t mNumFramesDropped;

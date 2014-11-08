@@ -127,6 +127,7 @@ private:
 
     static const int64_t kMinPositionUpdateDelayUs;
 
+    sp<PlayerExtendedStats> mPlayerExtendedStats;
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<AMessage> mNotify;
     Mutex mLock;
