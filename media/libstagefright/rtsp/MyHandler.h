@@ -1436,6 +1436,10 @@ struct MyHandler : public AHandler {
         }
     }
 
+    int64_t getServerTimeoutUs() {
+        return mKeepAliveTimeoutUs;
+    }
+
     void postKeepAlive() {
         sp<AMessage> msg = new AMessage('aliv', id());
         msg->setInt32("generation", mKeepAliveGeneration);
