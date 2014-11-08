@@ -1363,7 +1363,8 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
         int cameraId, int cameraFacing,
         int clientPid, uid_t clientUid,
         int servicePid) :
-        CameraService::BasicClient(cameraService, cameraClient->asBinder(),
+        CameraService::BasicClient(cameraService,
+                cameraClient != NULL ? cameraClient->asBinder() : NULL,
                 clientPackageName,
                 cameraId, cameraFacing,
                 clientPid, clientUid,
@@ -1476,7 +1477,9 @@ status_t CameraService::BasicClient::finishCameraOps() {
 
     }
     // Always stop watching, even if no camera op is active
-    mAppOpsManager.stopWatchingMode(mOpsCallback);
+    if (mOpsCallback != NULL) {
+        mAppOpsManager.stopWatchingMode(mOpsCallback);
+    }
     mOpsCallback.clear();
 
     return OK;
