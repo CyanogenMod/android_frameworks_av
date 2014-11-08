@@ -864,7 +864,7 @@ void PlaylistFetcher::onDownloadNext() {
     ALOGV("fetching segment %d from (%d .. %d)",
           mSeqNumber, firstSeqNumberInPlaylist, lastSeqNumberInPlaylist);
 
-    ALOGV("fetching '%s'", uri.c_str());
+    ALOGI("fetching '%s'", uri.c_str());
 
     sp<DataSource> source;
     sp<ABuffer> buffer, tsBuffer;

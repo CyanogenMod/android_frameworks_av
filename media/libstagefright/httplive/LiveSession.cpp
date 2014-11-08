@@ -806,7 +806,6 @@ ssize_t LiveSession::fetchFile(
         sp<DataSource> *source, /* to return and reuse source */
         String8 *actualUrl) {
     off64_t size;
-    ALOGI("fetchFile: %s", url);
     sp<DataSource> temp_source;
     if (source == NULL) {
         source = &temp_source;
