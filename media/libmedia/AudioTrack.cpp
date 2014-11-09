@@ -359,6 +359,7 @@ status_t AudioTrack::set(
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
+#ifdef QCOM_HARDWARE
     if ((mStreamType == AUDIO_STREAM_VOICE_CALL) &&
         (mChannelCount == 1) &&
         (mSampleRate == 8000 || mSampleRate == 16000)) {
@@ -406,6 +407,7 @@ status_t AudioTrack::set(
             }
         }
     }
+#endif
 
     if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
         if (audio_is_linear_pcm(format)) {
@@ -2178,10 +2180,12 @@ void AudioTrack::setAttributesFromStreamType(audio_stream_type_t streamType) {
     switch(streamType) {
     case AUDIO_STREAM_DEFAULT:
     case AUDIO_STREAM_MUSIC:
+#ifdef QCOM_HARDWARE
     case AUDIO_STREAM_INCALL_MUSIC:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_MUSIC;
         mAttributes.usage = AUDIO_USAGE_MEDIA;
         break;
+#endif
     case AUDIO_STREAM_VOICE_CALL:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
         mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
