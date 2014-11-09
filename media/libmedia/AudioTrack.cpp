@@ -419,6 +419,7 @@ status_t AudioTrack::set(
                                            audio_attributes_to_stream_type(&mAttributes):
                                            mStreamType;
 
+#ifdef QCOM_HARDWARE
     if ((attr_streamType == AUDIO_STREAM_VOICE_CALL) &&
         (mChannelCount == 1) &&
         (sampleRate == 8000 || sampleRate == 16000)) {
@@ -466,6 +467,7 @@ status_t AudioTrack::set(
             }
         }
     }
+#endif
 
 
     // force direct flag if HW A/V sync requested
