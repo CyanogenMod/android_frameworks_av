@@ -2602,12 +2602,13 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
         return INVALID_OPERATION;
     }
 
-    // Check whether the destination thread has a channel count of FCC_2, which is
-    // currently required for (most) effects. Prevent moving the effect chain here rather
-    // than disabling the addEffect_l() call in dstThread below.
-    if (dstThread->mChannelCount != FCC_2) {
+    // Check whether the destination thread has a channel count more than FCC_2, which is
+    // currently required for (most) effects in deep buffer path. Prevent moving the effect
+    // chain here rather than disabling the addEffect_l() call in dstThread below.
+    if ((dstThread->mType == ThreadBase::MIXER || dstThread->mType == ThreadBase::DUPLICATING)
+            && (dstThread->mChannelCount > FCC_2)) {
         ALOGW("moveEffectChain_l() effect chain failed because"
-                " destination thread %p channel count(%u) != %u",
+                " destination thread %p channel count(%u) > %u",
                 dstThread, dstThread->mChannelCount, FCC_2);
         return INVALID_OPERATION;
     }
