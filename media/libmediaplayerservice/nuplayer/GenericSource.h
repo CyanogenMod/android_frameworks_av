@@ -106,8 +106,10 @@ private:
 
     Track mAudioTrack;
     int64_t mAudioTimeUs;
+    int64_t mAudioLastDequeueTimeUs;
     Track mVideoTrack;
     int64_t mVideoTimeUs;
+    int64_t mVideoLastDequeueTimeUs;
     Track mSubtitleTrack;
     Track mTimedTextTrack;
 
