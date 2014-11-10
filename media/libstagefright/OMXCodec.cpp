@@ -1617,7 +1617,9 @@ OMXCodec::OMXCodec(
       mNativeWindow(
               (!strncmp(componentName, "OMX.google.", 11))
                         ? NULL : nativeWindow),
+#ifdef QCOM_HARDWARE
       mNumBFrames(0),
+#endif
       mInSmoothStreamingMode(false),
       mOutputCropChanged(false) {
     mPortStatus[kPortIndexInput] = ENABLING;
