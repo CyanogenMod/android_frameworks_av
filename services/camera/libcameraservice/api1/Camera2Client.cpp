@@ -165,7 +165,8 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("Client2[%d] (%p) Client: %s PID: %d, dump:\n",
             mCameraId,
-            getRemoteCallback()->asBinder().get(),
+            (getRemoteCallback() != NULL ?
+                    getRemoteCallback()->asBinder().get() : NULL),
             String8(mClientPackageName).string(),
             mClientPid);
     result.append("  State: ");
