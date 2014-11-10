@@ -98,6 +98,10 @@ void NuPlayer::HTTPLiveSource::start() {
 }
 
 sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
+    if (mLiveSession == NULL) {
+        return NULL;
+    }
+
     sp<AMessage> format;
     status_t err = mLiveSession->getStreamFormat(
             audio ? LiveSession::STREAMTYPE_AUDIO
