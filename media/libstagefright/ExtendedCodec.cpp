@@ -252,7 +252,8 @@ void ExtendedCodec::overrideComponentName(
        }
     }
 
-    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_HEVC, strlen(MEDIA_MIMETYPE_VIDEO_HEVC))) {
+    if (!isEncoder && (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_HEVC, strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) ||
+            !strncmp(componentName->c_str(), "OMX.qcom.video.decoder.hevc", strlen("OMX.qcom.video.decoder.hevc")))) {
         sw_codectype = property_get("media.swhevccodectype", value, NULL);
         enableSwHevc = atoi(value);
         if (sw_codectype && enableSwHevc) {
