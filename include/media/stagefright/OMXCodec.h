@@ -101,7 +101,9 @@ struct OMXCodec : public MediaSource,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
+#ifdef QCOM_HARDWARE
         kRequiresWMAProComponent              = 0x40000000, //2^30
+#endif
     };
 
     struct CodecNameAndQuirks {
@@ -372,7 +374,9 @@ private:
     OMXCodec(const OMXCodec &);
     OMXCodec &operator=(const OMXCodec &);
 
+#ifdef QCOM_HARDWARE
     int32_t mNumBFrames;
+#endif
     bool mInSmoothStreamingMode;
     bool mOutputCropChanged;
 };
