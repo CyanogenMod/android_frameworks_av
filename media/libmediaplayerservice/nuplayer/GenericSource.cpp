@@ -45,6 +45,10 @@ NuPlayer::GenericSource::GenericSource(
         bool uidValid,
         uid_t uid)
     : Source(notify),
+      mAudioTimeUs(0),
+      mAudioLastDequeueTimeUs(0),
+      mVideoTimeUs(0),
+      mVideoLastDequeueTimeUs(0),
       mFetchSubtitleDataGeneration(0),
       mFetchTimedTextDataGeneration(0),
       mDurationUs(0ll),
@@ -62,8 +66,6 @@ NuPlayer::GenericSource::GenericSource(
 }
 
 void NuPlayer::GenericSource::resetDataSource() {
-    mAudioTimeUs = 0;
-    mVideoTimeUs = 0;
     mHTTPService.clear();
     mHttpSource.clear();
     mUri.clear();
@@ -644,17 +646,13 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           track->mSource->start();
           track->mIndex = trackIndex;
 
-          status_t avail;
-          if (!track->mPackets->hasBufferAvailable(&avail)) {
-              // sync from other source
-              TRESPASS();
-              break;
-          }
-
           int64_t timeUs, actualTimeUs;
           const bool formatChange = true;
-          sp<AMessage> latestMeta = track->mPackets->getLatestEnqueuedMeta();
-          CHECK(latestMeta != NULL && latestMeta->findInt64("timeUs", &timeUs));
+          if (trackType == MEDIA_TRACK_TYPE_AUDIO) {
+              timeUs = mAudioLastDequeueTimeUs;
+          } else {
+              timeUs = mVideoLastDequeueTimeUs;
+          }
           readBuffer(trackType, timeUs, &actualTimeUs, formatChange);
           readBuffer(counterpartType, -1, NULL, formatChange);
           ALOGV("timeUs %lld actualTimeUs %lld", timeUs, actualTimeUs);
@@ -866,6 +864,11 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
     int64_t timeUs;
     status_t eosResult; // ignored
     CHECK((*accessUnit)->meta()->findInt64("timeUs", &timeUs));
+    if (audio) {
+        mAudioLastDequeueTimeUs = timeUs;
+    } else {
+        mVideoLastDequeueTimeUs = timeUs;
+    }
 
     if (mSubtitleTrack.mSource != NULL
             && !mSubtitleTrack.mPackets->hasBufferAvailable(&eosResult)) {
@@ -1132,10 +1135,12 @@ status_t NuPlayer::GenericSource::doSeek(int64_t seekTimeUs) {
         readBuffer(MEDIA_TRACK_TYPE_VIDEO, seekTimeUs, &actualTimeUs);
 
         seekTimeUs = actualTimeUs;
+        mVideoLastDequeueTimeUs = seekTimeUs;
     }
 
     if (mAudioTrack.mSource != NULL) {
         readBuffer(MEDIA_TRACK_TYPE_AUDIO, seekTimeUs);
+        mAudioLastDequeueTimeUs = seekTimeUs;
     }
 
     setDrmPlaybackStatusIfNeeded(Playback::START, seekTimeUs / 1000);
