@@ -629,6 +629,10 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
 
             mAudioQueue.erase(mAudioQueue.begin());
             entry = NULL;
+            // Need to stop the track here, because that will play out the last
+            // little bit at the end of the file. Otherwise short files won't play.
+            mAudioSink->stop();
+            mNumFramesWritten = 0;
             return false;
         }
 
