@@ -28,25 +28,17 @@ LOCAL_SRC_FILES := \
     JsonWebKeyUnittest.cpp \
 
 LOCAL_C_INCLUDES := \
-    bionic \
-    external/gtest/include \
     external/jsmn \
     external/openssl/include \
-    external/stlport/stlport \
     frameworks/av/drm/mediadrm/plugins/clearkey \
     frameworks/av/include \
     frameworks/native/include \
-
-LOCAL_STATIC_LIBRARIES := \
-    libgtest \
-    libgtest_main \
 
 LOCAL_SHARED_LIBRARIES := \
     libcrypto \
     libdrmclearkeyplugin \
     liblog \
     libstagefright_foundation \
-    libstlport \
     libutils \
 
 include $(BUILD_NATIVE_TEST)
