@@ -47,7 +47,6 @@
 
 #include "ESDS.h"
 #include <media/stagefright/Utils.h>
-#include "ExtendedUtils.h"
 
 namespace android {
 
@@ -240,21 +239,6 @@ void NuPlayer::setDataSourceAsync(
         source = new RTSPSource(
                 notify, httpService, url, headers, mUIDValid, mUID, true);
     } else {
-        // Set Proxy for progressive download usecase
-        if (headers) {
-            KeyedVector<String8, String8> mUriHeaders = *headers;
-            int32_t port;
-            if (ExtendedUtils::ShellProp::getSTAProxyConfig(port)) {
-                String8 portString = String8("127.0.0.1");
-                portString.appendFormat(":%d",port);
-                ALOGV("getSTAProxyConfig Proxy IPportString %s", portString.string());
-                mUriHeaders.add(String8("use-proxy"), portString);
-            } else {
-                ALOGE("getSTAProxyConfig failed or disabled");
-            }
-        } else {
-            ALOGE("Not try to set proxy as headers are NULL");
-        }
         sp<GenericSource> genericSource =
                 new GenericSource(notify, mUIDValid, mUID);
         // Don't set FLAG_SECURE on mSourceFlags here for widevine.
