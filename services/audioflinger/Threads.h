@@ -727,9 +727,7 @@ private:
     void        dumpTracks(int fd, const Vector<String16>& args);
 
     SortedVector< sp<Track> >       mTracks;
-    // mStreamTypes[] uses 1 additional stream type internally for the OutputTrack used by
-    // DuplicatingThread
-    stream_type_t                   mStreamTypes[AUDIO_STREAM_CNT + 1];
+    stream_type_t                   mStreamTypes[AUDIO_STREAM_CNT];
     AudioStreamOut                  *mOutput;
 
     float                           mMasterVolume;
