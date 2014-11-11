@@ -4615,9 +4615,6 @@ static const char *audioCodingTypeString(OMX_AUDIO_CODINGTYPE type) {
         "OMX_AUDIO_CodingWMA",
         "OMX_AUDIO_CodingRA",
         "OMX_AUDIO_CodingMIDI",
-#ifdef DOLBY_UDC
-        "OMX_AUDIO_CodingDDP",
-#endif // DOLBY_END
     };
 
     size_t numNames = sizeof(kNames) / sizeof(kNames[0]);
