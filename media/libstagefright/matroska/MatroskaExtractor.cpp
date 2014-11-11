@@ -413,16 +413,16 @@ void BlockIterator::seek(
 
     const mkvparser::CuePoint* pCP;
     mkvparser::Tracks const *pTracks = pSegment->GetTracks();
-    unsigned long int trackCount = pTracks->GetTracksCount();
     while (!pCues->DoneParsing()) {
         pCues->LoadCuePoint();
         pCP = pCues->GetLast();
         CHECK(pCP);
 
+        size_t trackCount = mExtractor->mTracks.size();
         for (size_t index = 0; index < trackCount; ++index) {
-            const mkvparser::Track *pTrack = pTracks->GetTrackByIndex(index);
+            MatroskaExtractor::TrackInfo& track = mExtractor->mTracks.editItemAt(index);
+            const mkvparser::Track *pTrack = pTracks->GetTrackByNumber(track.mTrackNum);
             if (pTrack && pTrack->GetType() == 1 && pCP->Find(pTrack)) { // VIDEO_TRACK
-                MatroskaExtractor::TrackInfo& track = mExtractor->mTracks.editItemAt(index);
                 track.mCuePoints.push_back(pCP);
             }
         }
@@ -434,12 +434,13 @@ void BlockIterator::seek(
     }
 
     const mkvparser::CuePoint::TrackPosition *pTP = NULL;
-    const mkvparser::Track *thisTrack = pTracks->GetTrackByIndex(mIndex);
+    const mkvparser::Track *thisTrack = pTracks->GetTrackByNumber(mTrackNum);
     if (thisTrack->GetType() == 1) { // video
         MatroskaExtractor::TrackInfo& track = mExtractor->mTracks.editItemAt(mIndex);
         pTP = track.find(seekTimeNs);
     } else {
         // The Cue index is built around video keyframes
+        unsigned long int trackCount = pTracks->GetTracksCount();
         for (size_t index = 0; index < trackCount; ++index) {
             const mkvparser::Track *pTrack = pTracks->GetTrackByIndex(index);
             if (pTrack && pTrack->GetType() == 1 && pCues->Find(seekTimeNs, pTrack, pCP, pTP)) {
