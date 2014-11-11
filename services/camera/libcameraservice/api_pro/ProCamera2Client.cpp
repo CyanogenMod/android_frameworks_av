@@ -334,7 +334,8 @@ status_t ProCamera2Client::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("ProCamera2Client[%d] (%p) PID: %d, dump:\n",
             mCameraId,
-            getRemoteCallback()->asBinder().get(),
+            (getRemoteCallback() != NULL ?
+                    getRemoteCallback()->asBinder().get() : NULL),
             mClientPid);
     result.append("  State:\n");
     write(fd, result.string(), result.size());
