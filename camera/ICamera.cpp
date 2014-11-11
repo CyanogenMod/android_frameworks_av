@@ -75,7 +75,7 @@ public:
         ALOGV("setPreviewTarget");
         Parcel data, reply;
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
-        sp<IBinder> b(bufferProducer->asBinder());
+        sp<IBinder> b(bufferProducer != NULL ? bufferProducer->asBinder() : NULL);
         data.writeStrongBinder(b);
         remote()->transact(SET_PREVIEW_TARGET, data, &reply);
         return reply.readInt32();
