@@ -1587,6 +1587,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
                 mStartTimeUsNotify->setInt32("streamMask", LiveSession::STREAMTYPE_AUDIO);
                 mStartTimeUsNotify->post();
                 mStartTimeUsNotify.clear();
+                mStartup = false;
             }
         }
 
