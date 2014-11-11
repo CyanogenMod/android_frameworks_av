@@ -42,8 +42,14 @@ CameraDeviceClientBase::CameraDeviceClientBase(
         int clientPid,
         uid_t clientUid,
         int servicePid) :
-    BasicClient(cameraService, remoteCallback->asBinder(), clientPackageName,
-                cameraId, cameraFacing, clientPid, clientUid, servicePid),
+    BasicClient(cameraService,
+            remoteCallback != NULL ? remoteCallback->asBinder() : NULL,
+            clientPackageName,
+            cameraId,
+            cameraFacing,
+            clientPid,
+            clientUid,
+            servicePid),
     mRemoteCallback(remoteCallback) {
 }
 
@@ -353,12 +359,8 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
         useAsync = true;
     }
 
-    sp<IBinder> binder;
-    sp<ANativeWindow> anw;
-    if (bufferProducer != 0) {
-        binder = bufferProducer->asBinder();
-        anw = new Surface(bufferProducer, useAsync);
-    }
+    sp<IBinder> binder = bufferProducer->asBinder();
+    sp<ANativeWindow> anw = new Surface(bufferProducer, useAsync);
 
     // TODO: remove w,h,f since we are ignoring them
 
@@ -395,7 +397,7 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
     res = mDevice->createStream(anw, width, height, format, &streamId);
 
     if (res == OK) {
-        mStreamMap.add(bufferProducer->asBinder(), streamId);
+        mStreamMap.add(binder, streamId);
 
         ALOGV("%s: Camera %d: Successfully created a new stream ID %d",
               __FUNCTION__, mCameraId, streamId);
@@ -514,7 +516,8 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("CameraDeviceClient[%d] (%p) dump:\n",
             mCameraId,
-            getRemoteCallback()->asBinder().get());
+            (getRemoteCallback() != NULL ?
+                    getRemoteCallback()->asBinder().get() : NULL) );
     result.appendFormat("  Current client: %s (PID %d, UID %u)\n",
             String8(mClientPackageName).string(),
             mClientPid, mClientUid);
