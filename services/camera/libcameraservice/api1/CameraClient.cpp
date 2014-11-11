@@ -708,6 +708,9 @@ void CameraClient::disableMsgType(int32_t msgType) {
 
 #define CHECK_MESSAGE_INTERVAL 10 // 10ms
 bool CameraClient::lockIfMessageWanted(int32_t msgType) {
+#ifdef MTK_HARDWARE
+    return true;
+#endif
     int sleepCount = 0;
     while (mMsgEnabled & msgType) {
         if ((msgType == CAMERA_MSG_PREVIEW_FRAME) &&
@@ -759,6 +762,18 @@ void CameraClient::notifyCallback(int32_t msgType, int32_t ext1,
         int32_t ext2, void* user) {
     LOG2("notifyCallback(%d)", msgType);
 
+#ifdef MTK_HARDWARE
+    if (msgType == 0x40000000) { //MTK_CAMERA_MSG_EXT_NOTIFY
+        if (ext1 == 0x11) { //MTK_CAMERA_MSG_EXT_NOTIFY_SHUTTER
+            msgType = CAMERA_MSG_SHUTTER;
+        }
+        if (ext1 == 0x10) { //MTK_CAMERA_MSG_EXT_CAPTURE_DONE
+            return;
+        }
+        LOG2("MtknotifyCallback(0x%x, 0x%x)", ext1, ext2);
+    }
+#endif
+
     Mutex* lock = getClientLockFromCookie(user);
     if (lock == NULL) return;
     Mutex::Autolock alock(*lock);
@@ -798,6 +813,34 @@ void CameraClient::dataCallback(int32_t msgType,
         client->handleGenericNotify(CAMERA_MSG_ERROR, UNKNOWN_ERROR, 0);
         return;
     }
+
+#ifdef MTK_HARDWARE
+    if (msgType == 0x80000000) { //MTK_CAMERA_MSG_EXT_DATA
+        struct DataHeader {
+            uint32_t        extMsgType;
+        } dataHeader;
+        sp<IMemoryHeap> heap = 0;
+        ssize_t         offset = 0;
+        size_t          size = 0;
+
+        if (dataPtr.get()) {
+
+            heap = dataPtr->getMemory(&offset, &size);
+            if  ( NULL != heap.get() && NULL != heap->base() )
+                ::memcpy(&dataHeader, ((uint8_t*)heap->base()) + offset, sizeof(DataHeader));
+
+            if (dataHeader.extMsgType == 0x10) { //MTK_CAMERA_MSG_EXT_DATA_COMPRESSED_IMAGE
+                msgType = CAMERA_MSG_COMPRESSED_IMAGE;
+                sp<MemoryBase> image = new MemoryBase(heap,
+                        (offset + sizeof(DataHeader) + sizeof(uint_t) * 1),
+                        (size - sizeof(DataHeader) - sizeof(uint_t) * 1));
+                client->handleCompressedPicture(image);
+                return;
+            }
+        }
+        LOG2("MtkDataCallback(0x%x)", dataHeader.extMsgType);
+    }
+#endif
 
     switch (msgType & ~CAMERA_MSG_PREVIEW_METADATA) {
         case CAMERA_MSG_PREVIEW_FRAME:
