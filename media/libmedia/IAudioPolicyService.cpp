@@ -23,6 +23,7 @@
 
 #include <binder/Parcel.h>
 
+#include <media/AudioEffect.h>
 #include <media/IAudioPolicyService.h>
 
 #include <system/audio.h>
@@ -656,16 +657,18 @@ status_t BnAudioPolicyService::onTransact(
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             int audioSession = data.readInt32();
             uint32_t count = data.readInt32();
+            if (count > AudioEffect::kMaxPreProcessing) {
+                count = AudioEffect::kMaxPreProcessing;
+            }
             uint32_t retCount = count;
-            effect_descriptor_t *descriptors =
-                    (effect_descriptor_t *)new char[count * sizeof(effect_descriptor_t)];
+            effect_descriptor_t *descriptors = new effect_descriptor_t[count];
             status_t status = queryDefaultPreProcessing(audioSession, descriptors, &retCount);
             reply->writeInt32(status);
             if (status != NO_ERROR && status != NO_MEMORY) {
                 retCount = 0;
             }
             reply->writeInt32(retCount);
-            if (retCount) {
+            if (retCount != 0) {
                 if (retCount < count) {
                     count = retCount;
                 }
