@@ -1359,9 +1359,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (!(mFlags & kFlagIsComponentAllocated) && mState != INITIALIZED
+            if (!((mFlags & kFlagIsComponentAllocated) && targetState == UNINITIALIZED) // See 1
+                    && mState != INITIALIZED
                     && mState != CONFIGURED && !isExecuting()) {
-                // We may be in "UNINITIALIZED" state already and
+                // 1) Permit release to shut down the component if allocated.
+                //
+                // 2) We may be in "UNINITIALIZED" state already and
                 // also shutdown the encoder/decoder without the
                 // client being aware of this if media server died while
                 // we were being stopped. The client would assume that
