@@ -175,7 +175,8 @@ NuPlayer::NuPlayer()
       mStarted(false) {
 
     clearFlushComplete();
-    mPlayerExtendedStats = new PlayerExtendedStats("NuPlayer", gettid());
+    mPlayerExtendedStats = (PlayerExtendedStats *)ExtendedStats::Create(
+            ExtendedStats::PLAYER, "NuPlayer", gettid());
 }
 
 NuPlayer::~NuPlayer() {
