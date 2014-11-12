@@ -679,7 +679,7 @@ void ATSParser::Stream::signalDiscontinuity(
             int64_t resumeAtMediaTimeUs =
                 mProgram->convertPTSToTimestamp(resumeAtPTS);
 
-            extra->setInt64("resume-at-mediatimeUs", resumeAtMediaTimeUs);
+            extra->setInt64("resume-at-mediaTimeUs", resumeAtMediaTimeUs);
         }
     }
 

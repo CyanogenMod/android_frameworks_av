@@ -25,7 +25,9 @@
 namespace android {
 
 struct NuPlayer::DecoderPassThrough : public Decoder {
-    DecoderPassThrough(const sp<AMessage> &notify);
+    DecoderPassThrough(const sp<AMessage> &notify,
+                       const sp<Source> &source,
+                       const sp<Renderer> &renderer);
 
     virtual void configure(const sp<AMessage> &format);
     virtual void init();
@@ -45,15 +47,14 @@ protected:
 private:
     enum {
         kWhatRequestABuffer     = 'reqB',
-        kWhatConfigure          = 'conf',
-        kWhatInputBufferFilled  = 'inpF',
         kWhatBufferConsumed     = 'bufC',
-        kWhatFlush              = 'flus',
-        kWhatShutdown           = 'shuD',
     };
 
     sp<AMessage> mNotify;
     sp<ALooper> mDecoderLooper;
+
+    sp<Source> mSource;
+    sp<Renderer> mRenderer;
 
     /** Returns true if a buffer was requested.
      * Returns false if at EOS or cache already full.
@@ -67,6 +68,8 @@ private:
     void onBufferConsumed(int32_t size);
     void requestMaxBuffers();
     void onShutdown();
+
+    int64_t mSkipRenderingUntilMediaTimeUs;
 
     int32_t mBufferGeneration;
     bool    mReachedEOS;
