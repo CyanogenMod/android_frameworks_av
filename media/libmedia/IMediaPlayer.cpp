@@ -115,7 +115,7 @@ public:
     status_t setDataSource(const sp<IStreamSource> &source) {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
-        data.writeStrongBinder(source->asBinder());
+        data.writeStrongBinder(source == NULL ? NULL : source->asBinder());
         remote()->transact(SET_DATA_SOURCE_STREAM, data, &reply);
         return reply.readInt32();
     }
@@ -125,7 +125,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
-        sp<IBinder> b(bufferProducer->asBinder());
+        sp<IBinder> b(bufferProducer == NULL ? NULL : bufferProducer->asBinder());
         data.writeStrongBinder(b);
         remote()->transact(SET_VIDEO_SURFACETEXTURE, data, &reply);
         return reply.readInt32();
@@ -323,7 +323,7 @@ public:
     status_t setNextPlayer(const sp<IMediaPlayer>& player) {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
-        sp<IBinder> b(player->asBinder());
+        sp<IBinder> b(player == NULL ? NULL : player->asBinder());
         data.writeStrongBinder(b);
         remote()->transact(SET_NEXT_PLAYER, data, &reply);
         return reply.readInt32();
