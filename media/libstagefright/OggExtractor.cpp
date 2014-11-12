@@ -38,6 +38,7 @@ extern "C" {
     int _vorbis_unpack_books(vorbis_info *vi,oggpack_buffer *opb);
     int _vorbis_unpack_info(vorbis_info *vi,oggpack_buffer *opb);
     int _vorbis_unpack_comment(vorbis_comment *vc,oggpack_buffer *opb);
+    long vorbis_packet_blocksize(vorbis_info *vi,ogg_packet *op);
 }
 
 namespace android {
@@ -84,6 +85,8 @@ struct MyVorbisExtractor {
 private:
     struct Page {
         uint64_t mGranulePosition;
+        int32_t mPrevPacketSize;
+        uint64_t mPrevPacketPos;
         uint32_t mSerialNo;
         uint32_t mPageNo;
         uint8_t mFlags;
@@ -120,6 +123,8 @@ private:
 
     status_t verifyHeader(
             MediaBuffer *buffer, uint8_t type);
+
+    int32_t packetBlockSize(MediaBuffer *buffer);
 
     void parseFileMetaData();
 
@@ -373,6 +378,7 @@ status_t MyVorbisExtractor::seekToOffset(off64_t offset) {
     mFirstPacketInPage = true;
     mCurrentPageSamples = 0;
     mCurrentPage.mNumSegments = 0;
+    mCurrentPage.mPrevPacketSize = -1;
     mNextLaceIndex = 0;
 
     // XXX what if new page continues packet from last???
@@ -489,16 +495,6 @@ status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out) {
                 tmp->set_range(0, buffer->range_length());
                 buffer->release();
             } else {
-                // XXX Not only is this not technically the correct time for
-                // this packet, we also stamp every packet in this page
-                // with the same time. This needs fixing later.
-
-                if (mVi.rate) {
-                    // Rate may not have been initialized yet if we're currently
-                    // reading the configuration packets...
-                    // Fortunately, the timestamp doesn't matter for those.
-                    timeUs = mCurrentPage.mGranulePosition * 1000000ll / mVi.rate;
-                }
                 tmp->set_range(0, 0);
             }
             buffer = tmp;
@@ -521,16 +517,34 @@ status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out) {
             if (gotFullPacket) {
                 // We've just read the entire packet.
 
-                if (timeUs >= 0) {
-                    buffer->meta_data()->setInt64(kKeyTime, timeUs);
-                }
-
                 if (mFirstPacketInPage) {
                     buffer->meta_data()->setInt32(
                             kKeyValidSamples, mCurrentPageSamples);
                     mFirstPacketInPage = false;
                 }
 
+                if (mVi.rate) {
+                    // Rate may not have been initialized yet if we're currently
+                    // reading the configuration packets...
+                    // Fortunately, the timestamp doesn't matter for those.
+                    int32_t curBlockSize = packetBlockSize(buffer);
+                    if (mCurrentPage.mPrevPacketSize < 0) {
+                        mCurrentPage.mPrevPacketSize = curBlockSize;
+                        mCurrentPage.mPrevPacketPos =
+                                mCurrentPage.mGranulePosition - mCurrentPageSamples;
+                        timeUs = mCurrentPage.mPrevPacketPos * 1000000ll / mVi.rate;
+                    } else {
+                        // The effective block size is the average of the two overlapped blocks
+                        int32_t actualBlockSize =
+                                (curBlockSize + mCurrentPage.mPrevPacketSize) / 2;
+                        timeUs = mCurrentPage.mPrevPacketPos * 1000000ll / mVi.rate;
+                        // The actual size output by the decoder will be half the effective
+                        // size, due to the overlap
+                        mCurrentPage.mPrevPacketPos += actualBlockSize / 2;
+                        mCurrentPage.mPrevPacketSize = curBlockSize;
+                    }
+                    buffer->meta_data()->setInt64(kKeyTime, timeUs);
+                }
                 *out = buffer;
 
                 return OK;
@@ -686,6 +700,35 @@ void MyVorbisExtractor::buildTableOfContents() {
     }
 }
 
+int32_t MyVorbisExtractor::packetBlockSize(MediaBuffer *buffer) {
+    const uint8_t *data =
+        (const uint8_t *)buffer->data() + buffer->range_offset();
+
+    size_t size = buffer->range_length();
+
+    ogg_buffer buf;
+    buf.data = (uint8_t *)data;
+    buf.size = size;
+    buf.refcount = 1;
+    buf.ptr.owner = NULL;
+
+    ogg_reference ref;
+    ref.buffer = &buf;
+    ref.begin = 0;
+    ref.length = size;
+    ref.next = NULL;
+
+    ogg_packet pack;
+    pack.packet = &ref;
+    pack.bytes = ref.length;
+    pack.b_o_s = 0;
+    pack.e_o_s = 0;
+    pack.granulepos = 0;
+    pack.packetno = 0;
+
+    return vorbis_packet_blocksize(&mVi, &pack);
+}
+
 status_t MyVorbisExtractor::verifyHeader(
         MediaBuffer *buffer, uint8_t type) {
     const uint8_t *data =
@@ -730,6 +773,10 @@ status_t MyVorbisExtractor::verifyHeader(
             ALOGV("upper-bitrate = %ld", mVi.bitrate_upper);
             ALOGV("nominal-bitrate = %ld", mVi.bitrate_nominal);
             ALOGV("window-bitrate = %ld", mVi.bitrate_window);
+            ALOGV("blocksizes: %d/%d",
+                    vorbis_info_blocksize(&mVi, 0),
+                    vorbis_info_blocksize(&mVi, 1)
+                    );
 
             off64_t size;
             if (mSource->getSize(&size) == OK) {
