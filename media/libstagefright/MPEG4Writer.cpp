@@ -42,7 +42,7 @@
 #include "include/ESDS.h"
 
 #define WARN_UNLESS(condition, message, ...) \
-( (CONDITION(condition)) ? false : ({ \
+( (__predict_false(condition)) ? false : ({ \
     ALOGW("Condition %s failed "  message, #condition, ##__VA_ARGS__); \
     true; \
 }))
