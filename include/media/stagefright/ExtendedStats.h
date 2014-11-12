@@ -183,6 +183,7 @@ public:
         private:
             SortedVector<StatsFrameInfoWrapper> mList;
             StatsFrameInfoPool& mFrameInfoPool;
+            Mutex mLock;
     };
 
     struct AutoProfile {
