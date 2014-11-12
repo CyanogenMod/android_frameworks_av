@@ -39,7 +39,7 @@ public:
                         MtpStorageInfo(MtpStorageID id);
     virtual             ~MtpStorageInfo();
 
-    void                read(MtpDataPacket& packet);
+    bool                read(MtpDataPacket& packet);
 
     void                print();
 };
