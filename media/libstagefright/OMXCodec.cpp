@@ -3539,6 +3539,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
         info = findEmptyInputBuffer();
     }
 
+    PLAYER_STATS(profileStartOnce, STATS_PROFILE_FIRST_BUFFER(mIsVideo));
     CODEC_LOGV("Calling emptyBuffer on buffer %p (length %d), "
                "timestamp %lld us (%.2f secs)",
                info->mBuffer, offset,
