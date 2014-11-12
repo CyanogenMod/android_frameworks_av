@@ -61,6 +61,7 @@ namespace android {
  * and to report dropped frames etc.
  */
 typedef int64_t statsDataType;
+class MediaExtendedStats;
 
 class ExtendedStats : public RefBase {
 
@@ -81,6 +82,12 @@ public:
         inline statsDataType data() const { return mData; }
     protected:
         statsDataType mData;
+    };
+
+    // Supported type of MediaExtendedStats
+    enum StatsType {
+        PLAYER,
+        RECORDER,
     };
 
     // Supported evaluations (and hence possible variants of 'LogEntry's)
@@ -187,7 +194,7 @@ public:
     };
 
     struct AutoProfile {
-        AutoProfile(const char* eventName, sp<ExtendedStats> stats = NULL,
+        AutoProfile(const char* eventName, sp<MediaExtendedStats> mediaExtendedStats = NULL,
                 bool condition = true, bool profileOnce = false);
         ~AutoProfile();
 
@@ -225,6 +232,8 @@ public:
     inline void profileStop(const char* name) {
         log(PROFILE, name, PROFILE_STOP);
     }
+
+    static MediaExtendedStats* Create(enum StatsType statsType, const char* name, pid_t tid);
 
 
 protected:

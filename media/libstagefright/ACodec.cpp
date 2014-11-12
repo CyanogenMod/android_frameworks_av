@@ -543,8 +543,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     const char* portType = portIndex == kPortIndexInput ?
                                         STATS_PROFILE_ALLOCATE_INPUT(isVideo) :
                                         STATS_PROFILE_ALLOCATE_OUTPUT(isVideo);
-    ExtendedStats::AutoProfile autoProfile(portType,
-            mMediaExtendedStats == NULL ? NULL : mMediaExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(portType, mMediaExtendedStats);
 
     CHECK(portIndex == kPortIndexInput || portIndex == kPortIndexOutput);
 
@@ -1252,8 +1251,8 @@ status_t ACodec::configureCodec(
     }
 
     bool isVideo = mComponentName.find("video") != -1;
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_CONFIGURE_CODEC(isVideo),
-                mMediaExtendedStats == NULL ? NULL : mMediaExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(
+            STATS_PROFILE_CONFIGURE_CODEC(isVideo), mMediaExtendedStats);
 
     sp<AMessage> inputFormat = new AMessage();
     sp<AMessage> outputFormat = new AMessage();
