@@ -68,8 +68,6 @@
 #include "QCMetaData.h"
 #endif
 
-#include "include/ExtendedUtils.h"
-
 #define USE_SURFACE_ALLOC 1
 #define FRAME_DROP_FREQ 0
 
@@ -2545,17 +2543,6 @@ status_t AwesomePlayer::finishSetDataSource_l() {
                 &mUriHeaders, &cacheConfig, &disconnectAtHighwatermark);
 
         mLock.unlock();
-
-        int32_t port = 0;
-        if (ExtendedUtils::ShellProp::getSTAProxyConfig(port)) {
-            String8 portString = String8("127.0.0.1");
-            portString.appendFormat(":%d", port);
-            ALOGI("getSTAProxyConfig Proxy IPportString %s", portString.string());
-            mUriHeaders.add(String8("use-proxy"), portString);
-        } else {
-            ALOGV("getSTAProxyConfig failed or disabled");
-        }
-
         status_t err = mConnectingDataSource->connect(mUri, &mUriHeaders);
         // force connection at this point, to avoid a race condition between getMIMEType and the
         // caching datasource constructed below, which could result in multiple requests to the

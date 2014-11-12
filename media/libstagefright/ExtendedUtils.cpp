@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <dlfcn.h>
 
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/foundation/ABitReader.h>
@@ -826,48 +825,6 @@ void ExtendedUtils::ShellProp::getRtpPortRange(unsigned *start, unsigned *end) {
     }
 
     ALOGV("rtp port_start = %u, port_end = %u", *start, *end);
-}
-
-bool ExtendedUtils::ShellProp::getSTAProxyConfig(int32_t &port) {
-    void* staLibHandle = NULL;
-
-    char value[PROPERTY_VALUE_MAX];
-    property_get("persist.mm.sta.disable", value, "0");
-    // Return false if persist.disable.staproxy is set to 1
-    if (atoi(value)) {
-        ALOGW("Proxy is disabled using persist.disable.staproxy");
-        return false;
-    }
-
-    staLibHandle = dlopen("libstaapi.so", RTLD_NOW);
-    if (staLibHandle == NULL) {
-        ALOGW("libstaapi.so open dll error :%s", dlerror());
-        return false;
-    }
-    typedef bool (*fnIsProxySupported)();
-    typedef int (*fnGetPort)();
-
-    fnIsProxySupported isProxySupported = (fnIsProxySupported) dlsym(staLibHandle, "isSTAProxySupported");
-    if (isProxySupported == NULL) {
-        ALOGW("Not able to load the symbol");
-        return false;
-    }
-    if (isProxySupported()) {
-        fnGetPort getPort = (fnGetPort)dlsym(staLibHandle, "getSTAProxyAlwaysAccelerateServicePort");
-        if (getPort == NULL) {
-            ALOGW("Not able to load the symbol to get the STA proxy port");
-            return false;
-        }
-        port = getPort();
-        ALOGI("The STA proxy is running at port:%d", port );
-    } else {
-        ALOGW("STA Proxy is not supported");
-        return false;
-    }
-    if (staLibHandle != NULL) {
-        dlclose(staLibHandle);
-    }
-    return true;
 }
 
 void ExtendedUtils::setBFrames(
@@ -1733,10 +1690,6 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
 void ExtendedUtils::ShellProp::getRtpPortRange(unsigned *start, unsigned *end) {
     *start = kDefaultRtpPortRangeStart;
     *end = kDefaultRtpPortRangeEnd;
-}
-
-bool ExtendedUtils::ShellProp::getSTAProxyConfig(int32_t &port) {
-    return false;
 }
 
 void ExtendedUtils::setBFrames(
