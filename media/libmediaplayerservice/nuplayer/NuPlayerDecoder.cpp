@@ -115,8 +115,8 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
             format->findObject(MEDIA_EXTENDED_STATS, (sp<RefBase>*)&mPlayerExtendedStats);
         }
         int32_t isVideo = !strncasecmp(mime.c_str(), "video/", 6);
-        ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_ALLOCATE_NODE(isVideo),
-                mPlayerExtendedStats == NULL ? NULL : mPlayerExtendedStats->getProfileTimes());
+        ExtendedStats::AutoProfile autoProfile(
+                STATS_PROFILE_ALLOCATE_NODE(isVideo), mPlayerExtendedStats);
 
         mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
     }

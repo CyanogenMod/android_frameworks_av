@@ -484,8 +484,8 @@ sp<MediaSource> OMXCodec::Create(
             observer->setCodec(codec);
 
             { //profile configure codec
-                ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_CONFIGURE_CODEC(isVideo),
-                             tempPtr == NULL ? NULL : tempPtr->getProfileTimes());
+                ExtendedStats::AutoProfile autoProfile(
+                        STATS_PROFILE_CONFIGURE_CODEC(isVideo), tempPtr);
                 err = codec->configureCodec(meta);
             }
 
@@ -1822,8 +1822,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     const char* type = portIndex == kPortIndexInput ?
                                     STATS_PROFILE_ALLOCATE_INPUT(mIsVideo) :
                                     STATS_PROFILE_ALLOCATE_OUTPUT(mIsVideo);
-    ExtendedStats::AutoProfile autoProfile(type, mPlayerExtendedStats == NULL ? NULL :
-                                           mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(type, mPlayerExtendedStats);
 
     if (mNativeWindow != NULL && portIndex == kPortIndexOutput) {
         return allocateOutputBuffersFromNativeWindow();

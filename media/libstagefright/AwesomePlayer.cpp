@@ -251,7 +251,8 @@ AwesomePlayer::AwesomePlayer()
 
     reset();
 
-    mPlayerExtendedStats = new PlayerExtendedStats("AwesomePlayer", gettid());
+    mPlayerExtendedStats = (PlayerExtendedStats *)ExtendedStats::Create(
+            ExtendedStats::PLAYER, "AwesomePlayer", gettid());
 }
 
 AwesomePlayer::~AwesomePlayer() {
@@ -353,8 +354,8 @@ status_t AwesomePlayer::setDataSource_l(
         const KeyedVector<String8, String8> *headers) {
     reset_l();
 
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SET_DATA_SOURCE,
-                                            mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(
+            STATS_PROFILE_SET_DATA_SOURCE, mPlayerExtendedStats);
     PLAYER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
 
     mHTTPService = httpService;
@@ -399,8 +400,8 @@ status_t AwesomePlayer::setDataSource(
 
     reset_l();
 
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SET_DATA_SOURCE,
-                                            mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(
+            STATS_PROFILE_SET_DATA_SOURCE, mPlayerExtendedStats);
     PLAYER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
 
     if (fd) {
@@ -1371,7 +1372,7 @@ void AwesomePlayer::initRenderer_l() {
 status_t AwesomePlayer::pause() {
     ATRACE_CALL();
     PLAYER_STATS(notifyPause, mVideoTimeUs/1000);
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_PAUSE, mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_PAUSE, mPlayerExtendedStats);
 
     Mutex::Autolock autoLock(mLock);
 
@@ -1571,7 +1572,7 @@ status_t AwesomePlayer::getPosition(int64_t *positionUs) {
 status_t AwesomePlayer::seekTo(int64_t timeUs) {
     ATRACE_CALL();
 
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SEEK, mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SEEK, mPlayerExtendedStats);
     PLAYER_STATS(notifySeek, timeUs);
 
     if (mExtractorFlags & MediaExtractor::CAN_SEEK) {
@@ -2743,7 +2744,7 @@ void AwesomePlayer::onPrepareAsyncEvent() {
 }
 
 void AwesomePlayer::beginPrepareAsync_l() {
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_PREPARE, mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_PREPARE, mPlayerExtendedStats);
     if (mFlags & PREPARE_CANCELLED) {
         ALOGI("prepare was cancelled before doing anything");
         abortPrepare(UNKNOWN_ERROR);
@@ -3439,7 +3440,7 @@ status_t AwesomePlayer::suspend() {
 status_t AwesomePlayer::resume() {
     ALOGV("resume()");
     PLAYER_STATS(notifyPlaying, true);
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_RESUME, mPlayerExtendedStats->getProfileTimes());
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_RESUME, mPlayerExtendedStats);
 
     Mutex::Autolock autoLock(mLock);
 
