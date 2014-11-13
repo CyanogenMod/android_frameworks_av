@@ -46,7 +46,7 @@ struct NuPlayer::Renderer : public AHandler {
 
     void queueEOS(bool audio, status_t finalResult);
 
-    void flush(bool audio);
+    void flush(bool audio, bool notifyComplete);
 
     void signalTimeDiscontinuity();
 
@@ -162,6 +162,8 @@ private:
     Mutex mFlushLock;  // protects the following 2 member vars.
     bool mFlushingAudio;
     bool mFlushingVideo;
+    bool mNotifyCompleteAudio;
+    bool mNotifyCompleteVideo;
 
     bool mSyncQueues;
 

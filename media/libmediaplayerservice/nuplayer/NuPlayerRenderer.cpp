@@ -64,6 +64,8 @@ NuPlayer::Renderer::Renderer(
       mPauseStartedTimeRealUs(-1),
       mFlushingAudio(false),
       mFlushingVideo(false),
+      mNotifyCompleteAudio(false),
+      mNotifyCompleteVideo(false),
       mSyncQueues(false),
       mPaused(false),
       mVideoSampleReceived(false),
@@ -105,15 +107,17 @@ void NuPlayer::Renderer::queueEOS(bool audio, status_t finalResult) {
     msg->post();
 }
 
-void NuPlayer::Renderer::flush(bool audio) {
+void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
     {
         Mutex::Autolock autoLock(mFlushLock);
         if (audio) {
+            mNotifyCompleteAudio |= notifyComplete;
             if (mFlushingAudio) {
                 return;
             }
             mFlushingAudio = true;
         } else {
+            mNotifyCompleteVideo |= notifyComplete;
             if (mFlushingVideo) {
                 return;
             }
@@ -1015,15 +1019,19 @@ void NuPlayer::Renderer::onQueueEOS(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
-    int32_t audio;
+    int32_t audio, notifyComplete;
     CHECK(msg->findInt32("audio", &audio));
 
     {
         Mutex::Autolock autoLock(mFlushLock);
         if (audio) {
             mFlushingAudio = false;
+            notifyComplete = mNotifyCompleteAudio;
+            mNotifyCompleteAudio = false;
         } else {
             mFlushingVideo = false;
+            notifyComplete = mNotifyCompleteVideo;
+            mNotifyCompleteVideo = false;
         }
     }
 
@@ -1076,7 +1084,10 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
     }
 
     mVideoSampleReceived = false;
-    notifyFlushComplete(audio);
+
+    if (notifyComplete) {
+        notifyFlushComplete(audio);
+    }
 }
 
 void NuPlayer::Renderer::flushQueue(List<QueueEntry> *queue) {
