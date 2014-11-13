@@ -105,10 +105,10 @@ LOCAL_SHARED_LIBRARIES := \
 
 #QTI FLAC Decoder
 ifeq ($(call is-vendor-board-platform,QCOM),true)
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
 LOCAL_SRC_FILES += FLACDecoder.cpp
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-flac
-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
 LOCAL_CFLAGS := -DQTI_FLAC_DECODER
 endif
 endif
