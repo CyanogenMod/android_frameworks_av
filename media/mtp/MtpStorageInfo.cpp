@@ -45,21 +45,23 @@ MtpStorageInfo::~MtpStorageInfo() {
         free(mVolumeIdentifier);
 }
 
-void MtpStorageInfo::read(MtpDataPacket& packet) {
+bool MtpStorageInfo::read(MtpDataPacket& packet) {
     MtpStringBuffer string;
 
     // read the device info
-    mStorageType = packet.getUInt16();
-    mFileSystemType = packet.getUInt16();
-    mAccessCapability = packet.getUInt16();
-    mMaxCapacity = packet.getUInt64();
-    mFreeSpaceBytes = packet.getUInt64();
-    mFreeSpaceObjects = packet.getUInt32();
+    if (!packet.getUInt16(mStorageType)) return false;
+    if (!packet.getUInt16(mFileSystemType)) return false;
+    if (!packet.getUInt16(mAccessCapability)) return false;
+    if (!packet.getUInt64(mMaxCapacity)) return false;
+    if (!packet.getUInt64(mFreeSpaceBytes)) return false;
+    if (!packet.getUInt32(mFreeSpaceObjects)) return false;
 
-    packet.getString(string);
+    if (!packet.getString(string)) return false;
     mStorageDescription = strdup((const char *)string);
-    packet.getString(string);
+    if (!packet.getString(string)) return false;
     mVolumeIdentifier = strdup((const char *)string);
+
+    return true;
 }
 
 void MtpStorageInfo::print() {
