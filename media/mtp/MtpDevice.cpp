@@ -322,8 +322,10 @@ MtpDeviceInfo* MtpDevice::getDeviceInfo() {
     MtpResponseCode ret = readResponse();
     if (ret == MTP_RESPONSE_OK) {
         MtpDeviceInfo* info = new MtpDeviceInfo;
-        info->read(mData);
-        return info;
+        if (info->read(mData))
+            return info;
+        else
+            delete info;
     }
     return NULL;
 }
@@ -355,8 +357,10 @@ MtpStorageInfo* MtpDevice::getStorageInfo(MtpStorageID storageID) {
     MtpResponseCode ret = readResponse();
     if (ret == MTP_RESPONSE_OK) {
         MtpStorageInfo* info = new MtpStorageInfo(storageID);
-        info->read(mData);
-        return info;
+        if (info->read(mData))
+            return info;
+        else
+            delete info;
     }
     return NULL;
 }
@@ -394,8 +398,10 @@ MtpObjectInfo* MtpDevice::getObjectInfo(MtpObjectHandle handle) {
     MtpResponseCode ret = readResponse();
     if (ret == MTP_RESPONSE_OK) {
         MtpObjectInfo* info = new MtpObjectInfo(handle);
-        info->read(mData);
-        return info;
+        if (info->read(mData))
+            return info;
+        else
+            delete info;
     }
     return NULL;
 }
@@ -556,8 +562,10 @@ MtpProperty* MtpDevice::getDevicePropDesc(MtpDeviceProperty code) {
     MtpResponseCode ret = readResponse();
     if (ret == MTP_RESPONSE_OK) {
         MtpProperty* property = new MtpProperty;
-        property->read(mData);
-        return property;
+        if (property->read(mData))
+            return property;
+        else
+            delete property;
     }
     return NULL;
 }
@@ -575,15 +583,17 @@ MtpProperty* MtpDevice::getObjectPropDesc(MtpObjectProperty code, MtpObjectForma
     MtpResponseCode ret = readResponse();
     if (ret == MTP_RESPONSE_OK) {
         MtpProperty* property = new MtpProperty;
-        property->read(mData);
-        return property;
+        if (property->read(mData))
+            return property;
+        else
+            delete property;
     }
     return NULL;
 }
 
 bool MtpDevice::readObject(MtpObjectHandle handle,
         bool (* callback)(void* data, int offset, int length, void* clientData),
-        int objectSize, void* clientData) {
+        size_t objectSize, void* clientData) {
     Mutex::Autolock autoLock(mMutex);
     bool result = false;
 

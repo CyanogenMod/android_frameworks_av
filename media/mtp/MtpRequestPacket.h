@@ -43,6 +43,10 @@ public:
     inline MtpOperationCode    getOperationCode() const { return getContainerCode(); }
     inline void                setOperationCode(MtpOperationCode code)
                                                     { return setContainerCode(code); }
+    inline int                  getParameterCount() const { return mParameterCount; }
+
+private:
+    int     mParameterCount;
 };
 
 }; // namespace android
