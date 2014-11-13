@@ -1,4 +1,4 @@
-// Overload this file in your own device-specific config if you need
+// Overload this file in your device specific config if you need
 // to add extra camera parameters.
 // A typical file would look like this:
 /*
@@ -16,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 /*
 #define CAMERA_PARAMETERS_EXTRA_C \
 const char CameraParameters::KEY_SUPPORTED_BURST_NUM[] = "supported-burst-num"; \

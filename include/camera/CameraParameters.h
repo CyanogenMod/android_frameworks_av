@@ -1099,10 +1099,6 @@ public:
     static const char SCENE_MODE_TEXT[];
 #endif
 
-#ifdef CAMERA_PARAMETERS_EXTRA_H
-CAMERA_PARAMETERS_EXTRA_H
-#endif
-
    // Values for Redeye Reduction settings.
    // static const char REDEYE_REDUCTION_ENABLE[];
    // static const char REDEYE_REDUCTION_DISABLE[];
@@ -1122,6 +1118,10 @@ CAMERA_PARAMETERS_EXTRA_H
     void setPostviewSize(int x, int y);
 #endif
     void getSupportedHfrSizes(Vector<Size> &sizes) const;
+#endif
+
+#ifdef CAMERA_PARAMETERS_EXTRA_H
+CAMERA_PARAMETERS_EXTRA_H
 #endif
 
 private:

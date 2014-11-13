@@ -567,13 +567,13 @@ void CameraParameters::setOrientation(int orientation)
 }
 #endif
 
-#ifdef CAMERA_PARAMETERS_EXTRA_C
-CAMERA_PARAMETERS_EXTRA_C
-#endif
-
 // Values for light fx settings
 const char CameraParameters::LIGHTFX_LOWLIGHT[] = "low-light";
 const char CameraParameters::LIGHTFX_HDR[] = "high-dynamic-range";
+
+#ifdef CAMERA_PARAMETERS_EXTRA_C
+CAMERA_PARAMETERS_EXTRA_C
+#endif
 
 CameraParameters::CameraParameters()
                 : mMap()
