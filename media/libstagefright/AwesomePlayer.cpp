@@ -353,6 +353,10 @@ status_t AwesomePlayer::setDataSource_l(
         const KeyedVector<String8, String8> *headers) {
     reset_l();
 
+    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SET_DATA_SOURCE,
+                                            mPlayerExtendedStats->getProfileTimes());
+    PLAYER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
+
     mHTTPService = httpService;
     mUri = uri;
 
@@ -392,11 +396,13 @@ status_t AwesomePlayer::setDataSource_l(
 status_t AwesomePlayer::setDataSource(
         int fd, int64_t offset, int64_t length) {
     Mutex::Autolock autoLock(mLock);
+
+    reset_l();
+
     ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_SET_DATA_SOURCE,
                                             mPlayerExtendedStats->getProfileTimes());
     PLAYER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
 
-    reset_l();
     if (fd) {
        printFileName(fd);
     }
@@ -2013,7 +2019,6 @@ void AwesomePlayer::onVideoEvent() {
                     seekmode);
         }
         for (;;) {
-            PLAYER_STATS(profileStartOnce, STATS_PROFILE_FIRST_BUFFER(true) /* video */);
             status_t err = mVideoSource->read(&mVideoBuffer, &options);
             options.clearSeekTo();
 
