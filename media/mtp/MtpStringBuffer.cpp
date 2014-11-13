@@ -123,11 +123,17 @@ void MtpStringBuffer::set(const uint16_t* src) {
     mByteCount = dest - mBuffer;
 }
 
-void MtpStringBuffer::readFromPacket(MtpDataPacket* packet) {
-    int count = packet->getUInt8();
+bool MtpStringBuffer::readFromPacket(MtpDataPacket* packet) {
+    uint8_t count;
+    if (!packet->getUInt8(count))
+        return false;
+
     uint8_t* dest = mBuffer;
     for (int i = 0; i < count; i++) {
-        uint16_t ch = packet->getUInt16();
+        uint16_t ch;
+
+        if (!packet->getUInt16(ch))
+            return false;
         if (ch >= 0x0800) {
             *dest++ = (uint8_t)(0xE0 | (ch >> 12));
             *dest++ = (uint8_t)(0x80 | ((ch >> 6) & 0x3F));
@@ -142,6 +148,7 @@ void MtpStringBuffer::readFromPacket(MtpDataPacket* packet) {
     *dest++ = 0;
     mCharCount = count;
     mByteCount = dest - mBuffer;
+    return true;
 }
 
 void MtpStringBuffer::writeToPacket(MtpDataPacket* packet) const {

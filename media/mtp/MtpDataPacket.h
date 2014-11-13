@@ -30,7 +30,7 @@ class MtpStringBuffer;
 class MtpDataPacket : public MtpPacket {
 private:
     // current offset for get/put methods
-    int                 mOffset;
+    size_t              mOffset;
 
 public:
                         MtpDataPacket();
@@ -42,17 +42,18 @@ public:
     void                setTransactionID(MtpTransactionID id);
 
     inline const uint8_t*     getData() const { return mBuffer + MTP_CONTAINER_HEADER_SIZE; }
-    inline uint8_t      getUInt8() { return (uint8_t)mBuffer[mOffset++]; }
-    inline int8_t       getInt8() { return (int8_t)mBuffer[mOffset++]; }
-    uint16_t            getUInt16();
-    inline int16_t      getInt16() { return (int16_t)getUInt16(); }
-    uint32_t            getUInt32();
-    inline int32_t      getInt32() { return (int32_t)getUInt32(); }
-    uint64_t            getUInt64();
-    inline int64_t      getInt64() { return (int64_t)getUInt64(); }
-    void                getUInt128(uint128_t& value);
-    inline void         getInt128(int128_t& value) { getUInt128((uint128_t&)value); }
-    void                getString(MtpStringBuffer& string);
+
+    bool                getUInt8(uint8_t& value);
+    inline bool         getInt8(int8_t& value) { return getUInt8((uint8_t&)value); }
+    bool                getUInt16(uint16_t& value);
+    inline bool         getInt16(int16_t& value) { return getUInt16((uint16_t&)value); }
+    bool                getUInt32(uint32_t& value);
+    inline bool         getInt32(int32_t& value) { return getUInt32((uint32_t&)value); }
+    bool                getUInt64(uint64_t& value);
+    inline bool         getInt64(int64_t& value) { return getUInt64((uint64_t&)value); }
+    bool                getUInt128(uint128_t& value);
+    inline bool         getInt128(int128_t& value) { return getUInt128((uint128_t&)value); }
+    bool                getString(MtpStringBuffer& string);
 
     Int8List*           getAInt8();
     UInt8List*          getAUInt8();
