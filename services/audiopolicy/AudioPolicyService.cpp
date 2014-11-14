@@ -160,7 +160,7 @@ void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& cli
 
         mNotificationClients.add(uid, notificationClient);
 
-        sp<IBinder> binder = client->asBinder();
+        sp<IBinder> binder = IInterface::asBinder(client);
         binder->linkToDeath(notificationClient);
     }
 }

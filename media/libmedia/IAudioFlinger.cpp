@@ -119,7 +119,7 @@ public:
         // haveSharedBuffer
         if (sharedBuffer != 0) {
             data.writeInt32(true);
-            data.writeStrongBinder(sharedBuffer->asBinder());
+            data.writeStrongBinder(IInterface::asBinder(sharedBuffer));
         } else {
             data.writeInt32(false);
         }
@@ -419,7 +419,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeStrongBinder(client->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(client));
         remote()->transact(REGISTER_CLIENT, data, &reply);
     }
 
@@ -716,7 +716,7 @@ public:
 
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         data.write(pDesc, sizeof(effect_descriptor_t));
-        data.writeStrongBinder(client->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(client));
         data.writeInt32(priority);
         data.writeInt32((int32_t) output);
         data.writeInt32(sessionId);
@@ -939,7 +939,7 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(flags);
             reply->writeInt32(sessionId);
             reply->writeInt32(status);
-            reply->writeStrongBinder(track->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(track));
             return NO_ERROR;
         } break;
         case OPEN_RECORD: {
@@ -966,11 +966,9 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(sessionId);
             reply->writeInt64(notificationFrames);
             reply->writeInt32(status);
-            reply->writeStrongBinder(record != NULL ? record->asBinder()
-                                                    : NULL);
-            reply->writeStrongBinder(cblk != NULL ? cblk->asBinder() : NULL);
-            reply->writeStrongBinder(buffers != NULL ? buffers->asBinder()
-                                                     : NULL);
+            reply->writeStrongBinder(IInterface::asBinder(record));
+            reply->writeStrongBinder(IInterface::asBinder(cblk));
+            reply->writeStrongBinder(IInterface::asBinder(buffers));
             return NO_ERROR;
         } break;
         case SAMPLE_RATE: {
@@ -1256,7 +1254,7 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(status);
             reply->writeInt32(id);
             reply->writeInt32(enabled);
-            reply->writeStrongBinder(effect->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(effect));
             reply->write(&desc, sizeof(effect_descriptor_t));
             return NO_ERROR;
         } break;

@@ -450,7 +450,7 @@ struct BpDrm : public BpInterface<IDrm> {
     virtual status_t setListener(const sp<IDrmClient>& listener) {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
-        data.writeStrongBinder(listener->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(listener));
         remote()->transact(SET_LISTENER, data, &reply);
         return reply.readInt32();
     }

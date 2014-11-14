@@ -219,7 +219,7 @@ status_t CameraSource::isCameraAvailable(
         mCameraFlags |= FLAGS_HOT_CAMERA;
         mDeathNotifier = new DeathNotifier();
         // isBinderAlive needs linkToDeath to work.
-        mCameraRecordingProxy->asBinder()->linkToDeath(mDeathNotifier);
+        IInterface::asBinder(mCameraRecordingProxy)->linkToDeath(mDeathNotifier);
     }
 
     mCamera->lock();
@@ -702,7 +702,7 @@ void CameraSource::releaseCamera() {
     {
         Mutex::Autolock autoLock(mLock);
         if (mCameraRecordingProxy != 0) {
-            mCameraRecordingProxy->asBinder()->unlinkToDeath(mDeathNotifier);
+            IInterface::asBinder(mCameraRecordingProxy)->unlinkToDeath(mDeathNotifier);
             mCameraRecordingProxy.clear();
         }
         mCameraFlags = 0;
@@ -825,7 +825,7 @@ status_t CameraSource::read(
                 mFrameAvailableCondition.waitRelative(mLock,
                     mTimeBetweenFrameCaptureUs * 1000LL + CAMERA_SOURCE_TIMEOUT_NS)) {
                 if (mCameraRecordingProxy != 0 &&
-                    !mCameraRecordingProxy->asBinder()->isBinderAlive()) {
+                    !IInterface::asBinder(mCameraRecordingProxy)->isBinderAlive()) {
                     ALOGW("camera recording proxy is gone");
                     return ERROR_END_OF_STREAM;
                 }
