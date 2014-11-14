@@ -247,19 +247,6 @@ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream
     return getSamplingRate(output, samplingRate);
 }
 
-status_t AudioSystem::getOutputSamplingRateForAttr(uint32_t* samplingRate,
-        const audio_attributes_t *attr)
-{
-    if (attr == NULL) {
-        return BAD_VALUE;
-    }
-    audio_io_handle_t output = getOutputForAttr(attr);
-    if (output == 0) {
-        return PERMISSION_DENIED;
-    }
-    return getSamplingRate(output, samplingRate);
-}
-
 status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
                                       uint32_t* samplingRate)
 {
