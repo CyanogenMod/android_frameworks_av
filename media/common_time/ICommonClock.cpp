@@ -206,7 +206,7 @@ class BpCommonClock : public BpInterface<ICommonClock>
             const sp<ICommonClockListener>& listener) {
         Parcel data, reply;
         data.writeInterfaceToken(ICommonClock::getInterfaceDescriptor());
-        data.writeStrongBinder(listener->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(listener));
 
         status_t status = remote()->transact(REGISTER_LISTENER, data, &reply);
 
@@ -221,7 +221,7 @@ class BpCommonClock : public BpInterface<ICommonClock>
             const sp<ICommonClockListener>& listener) {
         Parcel data, reply;
         data.writeInterfaceToken(ICommonClock::getInterfaceDescriptor());
-        data.writeStrongBinder(listener->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(listener));
         status_t status = remote()->transact(UNREGISTER_LISTENER, data, &reply);
 
         if (status == OK) {

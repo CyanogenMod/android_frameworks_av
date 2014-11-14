@@ -104,7 +104,7 @@ sp<SoundTrigger> SoundTrigger::attach(const sound_trigger_module_handle_t module
     status_t status = service->attach(module, soundTrigger, soundTrigger->mISoundTrigger);
 
     if (status == NO_ERROR && soundTrigger->mISoundTrigger != 0) {
-        soundTrigger->mISoundTrigger->asBinder()->linkToDeath(soundTrigger);
+        IInterface::asBinder(soundTrigger->mISoundTrigger)->linkToDeath(soundTrigger);
     } else {
         ALOGW("Error %d connecting to sound trigger service", status);
         soundTrigger.clear();
@@ -144,7 +144,7 @@ void SoundTrigger::detach() {
     mCallback.clear();
     if (mISoundTrigger != 0) {
         mISoundTrigger->detach();
-        mISoundTrigger->asBinder()->unlinkToDeath(this);
+        IInterface::asBinder(mISoundTrigger)->unlinkToDeath(this);
         mISoundTrigger = 0;
     }
 }

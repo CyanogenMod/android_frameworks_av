@@ -148,8 +148,7 @@ status_t BpDrmManagerService::setDrmServiceListener(
 
     data.writeInterfaceToken(IDrmManagerService::getInterfaceDescriptor());
     data.writeInt32(uniqueId);
-    data.writeStrongBinder(
-        drmServiceListener != NULL ? drmServiceListener->asBinder() : NULL);
+    data.writeStrongBinder(IInterface::asBinder(drmServiceListener));
     remote()->transact(SET_DRM_SERVICE_LISTENER, data, &reply);
     return reply.readInt32();
 }

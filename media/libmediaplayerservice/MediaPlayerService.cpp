@@ -817,8 +817,7 @@ status_t MediaPlayerService::Client::setVideoSurfaceTexture(
     sp<MediaPlayerBase> p = getPlayer();
     if (p == 0) return UNKNOWN_ERROR;
 
-    sp<IBinder> binder(bufferProducer == NULL ? NULL :
-            bufferProducer->asBinder());
+    sp<IBinder> binder(IInterface::asBinder(bufferProducer));
     if (mConnectedWindowBinder == binder) {
         return OK;
     }

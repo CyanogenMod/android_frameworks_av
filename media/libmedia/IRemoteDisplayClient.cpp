@@ -42,7 +42,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(IRemoteDisplayClient::getInterfaceDescriptor());
-        data.writeStrongBinder(bufferProducer->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(bufferProducer));
         data.writeInt32(width);
         data.writeInt32(height);
         data.writeInt32(flags);
