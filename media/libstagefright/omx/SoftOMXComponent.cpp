@@ -283,7 +283,7 @@ OMX_ERRORTYPE SoftOMXComponent::setConfig(
 
 OMX_ERRORTYPE SoftOMXComponent::getExtensionIndex(
         const char * /* name */, OMX_INDEXTYPE * /* index */) {
-    return OMX_ErrorUndefined;
+    return OMX_ErrorUnsupportedIndex;
 }
 
 OMX_ERRORTYPE SoftOMXComponent::useBuffer(
