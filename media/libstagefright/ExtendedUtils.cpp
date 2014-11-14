@@ -1909,6 +1909,18 @@ void ExtendedUtils::showImageInNativeWindow(const sp<AMessage> &msg,
     format->setInt32("height", (int32_t)bufheight);
 }
 
+int32_t ExtendedUtils::getEncoderTypeFlags() {
+    int32_t flags = 0;
+
+    char mDeviceName[PROPERTY_VALUE_MAX];
+    property_get("ro.board.platform", mDeviceName, "0");
+    if (!strncmp(mDeviceName, "msm8909", 7)) {
+        flags |= OMXCodec::kHardwareCodecsOnly;
+    }
+
+    return flags;
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -2098,7 +2110,6 @@ bool ExtendedUtils::checkDPFromVOLHeader(const uint8_t *data, size_t size) {
     return false;
 }
 
-
 void ExtendedUtils::detectAndPostImage(const sp<ABuffer> accessUnit,
         const sp<AMessage> &notify) {
     ARG_TOUCH(accessUnit);
@@ -2109,6 +2120,10 @@ void ExtendedUtils::showImageInNativeWindow(const sp<AMessage> &msg,
         const sp<AMessage> &format) {
     ARG_TOUCH(msg);
     ARG_TOUCH(format);
+}
+
+int32_t ExtendedUtils::getEncoderTypeFlags() {
+    return false;
 }
 
 bool ExtendedUtils::RTSPStream::ParseURL_V6(

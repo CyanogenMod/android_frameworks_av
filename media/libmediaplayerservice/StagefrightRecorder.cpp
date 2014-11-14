@@ -1729,6 +1729,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
     if (mRecorderExtendedStats != NULL) {
         format->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
     }
+
+    flags |= ExtendedUtils::getEncoderTypeFlags();
+
     sp<MediaCodecSource> encoder =
             MediaCodecSource::Create(mLooper, format, cameraSource, flags);
     if (encoder == NULL) {
