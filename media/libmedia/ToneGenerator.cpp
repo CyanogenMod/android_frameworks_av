@@ -804,6 +804,12 @@ ToneGenerator::ToneGenerator(audio_stream_type_t streamType, float volume, bool 
         ALOGE("Unable to marshal AudioFlinger");
         return;
     }
+
+    if (mSamplingRate > 48000) {
+        ALOGW("mSamplingRate %d . limit to 48k", mSamplingRate);
+        mSamplingRate = 48000;
+    }
+
     mThreadCanCallJava = threadCanCallJava;
     mStreamType = streamType;
     mVolume = volume;
@@ -1046,7 +1052,7 @@ bool ToneGenerator::initAudioTrack() {
     ALOGV("Create Track: %p", mpAudioTrack.get());
 
     mpAudioTrack->set(mStreamType,
-                      0,    // sampleRate
+                      mSamplingRate,
                       AUDIO_FORMAT_PCM_16_BIT,
                       AUDIO_CHANNEL_OUT_MONO,
                       0,    // frameCount
