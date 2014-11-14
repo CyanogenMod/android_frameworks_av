@@ -99,8 +99,6 @@ public:
     // to be non-zero if status == NO_ERROR
     static status_t getOutputSamplingRate(uint32_t* samplingRate,
             audio_stream_type_t stream);
-    static status_t getOutputSamplingRateForAttr(uint32_t* samplingRate,
-                const audio_attributes_t *attr);
     static status_t getOutputFrameCount(size_t* frameCount,
             audio_stream_type_t stream);
     static status_t getOutputLatency(uint32_t* latency,
