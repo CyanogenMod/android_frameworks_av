@@ -457,7 +457,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                         break;
                     }
                     mLock.unlock();
-                    svc->doReleaseOutput(data->mIO);
+                    svc->doReleaseOutput(data->mIO, data->mStream, data->mSession);
                     mLock.lock();
                     }break;
                 case CREATE_AUDIO_PATCH: {
@@ -654,7 +654,7 @@ status_t AudioPolicyService::AudioCommandThread::voiceVolumeCommand(float volume
 
 void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t output,
                                                                audio_stream_type_t stream,
-                                                               int session)
+                                                               audio_session_t session)
 {
     sp<AudioCommand> command = new AudioCommand();
     command->mCommand = STOP_OUTPUT;
@@ -667,12 +667,16 @@ void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t
     sendCommand(command);
 }
 
-void AudioPolicyService::AudioCommandThread::releaseOutputCommand(audio_io_handle_t output)
+void AudioPolicyService::AudioCommandThread::releaseOutputCommand(audio_io_handle_t output,
+                                                                  audio_stream_type_t stream,
+                                                                  audio_session_t session)
 {
     sp<AudioCommand> command = new AudioCommand();
     command->mCommand = RELEASE_OUTPUT;
     sp<ReleaseOutputData> data = new ReleaseOutputData();
     data->mIO = output;
+    data->mStream = stream;
+    data->mSession = session;
     command->mParam = data;
     ALOGV("AudioCommandThread() adding release output %d", output);
     sendCommand(command);
