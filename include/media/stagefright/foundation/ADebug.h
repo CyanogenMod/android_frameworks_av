@@ -80,6 +80,36 @@ MAKE_COMPARATOR(GT,>)
             __FILE__ ":" LITERAL_TO_STRING(__LINE__)            \
                 " Should not be here.");
 
+struct ADebug {
+    enum Level {
+        kDebugNone,             // no debug
+        kDebugLifeCycle,        // lifecycle events: creation/deletion
+        kDebugState,            // commands and events
+        kDebugConfig,           // configuration
+        kDebugInternalState,    // internal state changes
+        kDebugAll,              // all
+        kDebugMax = kDebugAll,
+
+    };
+
+    // parse the property or string to get the debug level for a component name
+    // string format is:
+    // <level>[:<glob>][,<level>[:<glob>]...]
+    // - <level> is 0-5 corresponding to ADebug::Level
+    // - <glob> is used to match component name case insensitively, if omitted, it
+    //   matches all components
+    // - string is read left-to-right, and the last matching level is returned, or
+    //   the def if no terms matched
+    static Level GetDebugLevelFromProperty(
+            const char *name, const char *propertyName, Level def = kDebugNone);
+    static Level GetDebugLevelFromString(
+            const char *name, const char *value, Level def = kDebugNone);
+
+    // remove redundant segments of a codec name, and return a newly allocated
+    // string suitable for debugging
+    static char *GetDebugName(const char *name);
+};
+
 }  // namespace android
 
 #endif  // A_DEBUG_H_
