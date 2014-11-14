@@ -304,17 +304,6 @@ status_t AudioTrack::set(
                 mAttributes.usage, mAttributes.content_type, mAttributes.flags, mAttributes.tags);
     }
 
-    status_t status;
-    if (sampleRate == 0) {
-        status = AudioSystem::getOutputSamplingRateForAttr(&sampleRate, &mAttributes);
-        if (status != NO_ERROR) {
-            ALOGE("Could not get output sample rate for stream type %d; status %d",
-                    mStreamType, status);
-            return status;
-        }
-    }
-    mSampleRate = sampleRate;
-
     // these below should probably come from the audioFlinger too...
     if (format == AUDIO_FORMAT_DEFAULT) {
         format = AUDIO_FORMAT_PCM_16_BIT;
@@ -373,6 +362,12 @@ status_t AudioTrack::set(
         // so no need to check for specific PCM formats here
     }
 
+    // sampling rate must be specified for direct outputs
+    if (sampleRate == 0 && (flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
+        return BAD_VALUE;
+    }
+    mSampleRate = sampleRate;
+
     // Make copy of input parameter offloadInfo so that in the future:
     //  (a) createTrack_l doesn't need it as an input parameter
     //  (b) we can support re-creation of offloaded tracks
@@ -413,7 +408,7 @@ status_t AudioTrack::set(
     }
 
     // create the IAudioTrack
-    status = createTrack_l();
+    status_t status = createTrack_l();
 
     if (status != NO_ERROR) {
         if (mAudioTrackThread != 0) {
@@ -680,15 +675,18 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
         return INVALID_OPERATION;
     }
 
+    AutoMutex lock(mLock);
+    if (mOutput == AUDIO_IO_HANDLE_NONE) {
+        return NO_INIT;
+    }
     uint32_t afSamplingRate;
-    if (AudioSystem::getOutputSamplingRateForAttr(&afSamplingRate, &mAttributes) != NO_ERROR) {
+    if (AudioSystem::getSamplingRate(mOutput, &afSamplingRate) != NO_ERROR) {
         return NO_INIT;
     }
     if (rate == 0 || rate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
         return BAD_VALUE;
     }
 
-    AutoMutex lock(mLock);
     mSampleRate = rate;
     mProxy->setSampleRate(rate);
 
@@ -963,7 +961,9 @@ status_t AudioTrack::createTrack_l()
         ALOGE("getSamplingRate(output=%d) status %d", output, status);
         goto release;
     }
-
+    if (mSampleRate == 0) {
+        mSampleRate = afSampleRate;
+    }
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.
     if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) && !((
