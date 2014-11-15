@@ -45,6 +45,7 @@ ExtendedStats::ExtendedStats(const char *id, pid_t tid) {
     mLogEntry.clear();
     mName.setTo(id);
     mTid = tid;
+    mWindowSize = kMaxWindowSize;
 }
 
 ExtendedStats::~ExtendedStats() {
@@ -55,71 +56,75 @@ ExtendedStats::LogEntry::LogEntry()
     : mData(0) {
 }
 
-ExtendedStats::StatsFrameInfoWrapper::StatsFrameInfoWrapper(const StatsFrameInfoWrapper& copy) {
-    infoPtr = copy.infoPtr;
-}
-
-ExtendedStats::StatsFrameInfoWrapper::StatsFrameInfoWrapper(StatsFrameInfo* oInfoPtr) : infoPtr(oInfoPtr) { }
-
-ExtendedStats::StatsFrameInfo::StatsFrameInfo() {
-    size = 0;
-    timestamp = 0;
-}
-
-ExtendedStats::TimeBoundVector::TimeBoundVector(StatsFrameInfoPool& infoPool) : mFrameInfoPool(infoPool) {
-    mCurrBoundedSum = 0;
-    mMaxBoundedAvg = 0;
-    mTotalNumBuffers = 0;
-    mTotalSizeSum = 0;
-}
-
-
 void ExtendedStats::LogEntry::dump(const char* label) const {
     ALOGI("%s : %" PRId64 "", label, mData);
 }
 
-struct Min : public ExtendedStats::LogEntry {
-    Min() {
-        mData = INT64_MAX;
-    }
-    void insert(statsDataType value) {
-        if (value < mData)
-            mData = value;
-    }
-};
-
-struct Max : public ExtendedStats::LogEntry {
-    void insert(statsDataType value) {
-        if (value > mData)
-            mData = value;
-    }
-};
-
-// Accumulates inserted values
-struct Total : public ExtendedStats::LogEntry {
-    Total() {}
-    ~Total() {}
-    void insert(statsDataType value) {
-        mData += value;
-    }
-};
-
-// Accumulates running-average of inserted values
+// Running-average of inserted values
 struct Average : public ExtendedStats::LogEntry {
     void insert(statsDataType value) {
         mN++;
         mSum += value;
         mData = mSum / mN;
-        mRem = mSum % mN;
     }
     Average() {
         mN = 0;
         mSum = 0;
-        mRem = 0;
     }
     int32_t mN;
-    int32_t mSum;
-    int32_t mRem;
+    int64_t mSum;
+};
+
+// Moving-average of inserted values
+struct MovingAverage : public ExtendedStats::LogEntry {
+    static const int32_t kMaxWindowSize = ExtendedStats::kMaxWindowSize;
+    void insert(statsDataType value) {
+        Mutex::Autolock lock(mLock);
+        // pipeline is full, drop the tail and pick the head.
+        if (mHead == mTail) {
+            mSum -= mDataPoints[mTail];
+            mTail = advance(mTail);
+        }
+        mSum += value;
+        mDataPoints[mHead] = value;
+        mCount++;
+        mHead = advance(mHead);
+        mData = mSum / ((mCount > mNWindow) ? mNWindow : mCount);
+        mPeak = (mData > mPeak) ? mData : mPeak;
+    }
+    MovingAverage(int32_t window) {
+        mNWindow = (window < 1) ? 1 :
+                (window > kMaxWindowSize) ? kMaxWindowSize : window;
+        ALOGI("Creating MovingAverage of window size : %d\n", mNWindow);
+        reset();
+    }
+    void reset() {
+        Mutex::Autolock lock(mLock);
+        mData = 0;
+        mHead = 0;
+        mTail = mNWindow - 1;
+        mSum = 0;
+        mCount = 0;
+        mPeak = 0;
+        memset(mDataPoints, 0x0, sizeof(mDataPoints));
+    }
+    void dump(const char* label) const {
+        ALOGI("Avg %s : %" PRId64 "", label, mData);
+        ALOGI("Peak %s : %" PRId64 "", label, mPeak);
+    }
+
+    private:
+    int32_t mNWindow;
+    int32_t mHead;
+    int32_t mTail;
+    int64_t mSum;
+    int64_t mDataPoints[kMaxWindowSize];
+    int32_t mCount;
+    int32_t mPeak;
+    int32_t advance(int32_t index) {
+         return ++index % mNWindow;
+    }
+    Mutex mLock;
 };
 
 // Saves inserted values in a bound array
@@ -196,18 +201,14 @@ private:
 
 //static
 // LogEntry factory
-sp<ExtendedStats::LogEntry> ExtendedStats::createLogEntry(LogType type) {
+sp<ExtendedStats::LogEntry> ExtendedStats::createLogEntry(LogType type, int32_t windowSize) {
     switch(type) {
-        case TOTAL:
-            return new Total();
         case AVERAGE:
             return new Average();
         case PROFILE:
             return new TimeProfile();
-        case MAX:
-            return new Max();
-        case MIN:
-            return new Min();
+        case MOVING_AVERAGE:
+            return new MovingAverage(windowSize);
         default:
            return new LogEntry();
     }
@@ -224,7 +225,7 @@ sp<ExtendedStats::LogEntry> ExtendedStats::getLogEntry(const char *key,
     if (idx < 0) {
         /* keep write access to the KeyedVector thread-safe */
         Mutex::Autolock autoLock(mLock);
-        sp<LogEntry> logEntry = createLogEntry(type);
+        sp<LogEntry> logEntry = createLogEntry(type, mWindowSize);
         mLogEntry.add(key, logEntry);
         return logEntry;
     } else {
@@ -257,78 +258,13 @@ void ExtendedStats::dump(const char* key) const {
     }
 }
 
-
-/* FrameInfoPool methods */
-ExtendedStats::StatsFrameInfo* ExtendedStats::StatsFrameInfoPool::get() {
-    if (pool.empty()) {
-        return new StatsFrameInfo();
-    } else {
-        StatsFrameInfo* info = pool.editTop();
-        pool.pop();
-        return info;
-    }
-}
-
-void ExtendedStats::StatsFrameInfoPool::add(StatsFrameInfo* info) {
-    pool.add(info);
-}
-
-void ExtendedStats::StatsFrameInfoPool::clear() {
-    for (uint32_t i = 0; i < pool.size(); i++)
-    {
-        delete pool.editItemAt(i);
-        pool.editItemAt(i) = 0;
-    }
-    pool.clear();
-}
-
-ExtendedStats::StatsFrameInfoPool::~StatsFrameInfoPool() {
-    clear();
-}
-
-/* TimeBoundVector methods */
-void ExtendedStats::TimeBoundVector::add(StatsFrameInfoWrapper item) {
-    Mutex::Autolock lock(mLock);
-    mList.add(item);
-    mCurrBoundedSum += (item.infoPtr)->size;
-    mTotalSizeSum += (item.infoPtr)->size;
-    mTotalNumBuffers++;
-
-    StatsFrameInfo* first = mList.itemAt(0).infoPtr;
-    StatsFrameInfo* last = mList.top().infoPtr;
-
-    // remove as many as needed to get within range
-    while (last->timestamp - first->timestamp > MAX_TIME_US) {
-        mCurrBoundedSum -= first->size;
-
-        // reclaim it in the pool
-        mFrameInfoPool.add(mList.editItemAt(0).infoPtr);
-        mList.removeAt(0);
-        first = mList.itemAt(0).infoPtr;
-    }
-
-    // calculate average if we are within the window range
-    if (last->timestamp - first->timestamp > MIN_TIME_US) {
-        int64_t avg = mCurrBoundedSum / mList.size();
-
-        if (mMaxBoundedAvg < avg) {
-            mMaxBoundedAvg = avg;
+void ExtendedStats::reset(const char* key) const {
+     if (key) {
+        ssize_t idx = mLogEntry.indexOfKey(key);
+        if (idx >= 0) {
+            mLogEntry.valueAt(idx)->reset();
         }
     }
-}
-
-void ExtendedStats::TimeBoundVector::clear() {
-    Mutex::Autolock lock(mLock);
-    for (uint32_t i = 0; i < mList.size(); i++) {
-        delete mList.editItemAt(i).infoPtr;
-        mList.editItemAt(i).infoPtr = 0;
-    }
-    mList.clear();
-    mCurrBoundedSum = 0;
-}
-
-ExtendedStats::TimeBoundVector::~TimeBoundVector() {
-    clear();
 }
 
 ExtendedStats::AutoProfile::AutoProfile(
@@ -375,8 +311,7 @@ MediaExtendedStats* ExtendedStats::Create(
 
 /***************************** MediaExtendedStats ************************/
 
-MediaExtendedStats::MediaExtendedStats(const char* name, pid_t tid) :
-    mBitRateVector(mFrameInfoPool) {
+MediaExtendedStats::MediaExtendedStats(const char* name, pid_t tid) {
 
     mName = name;
     mTid = tid;
@@ -404,9 +339,7 @@ void MediaExtendedStats::reset() {
     mWidthDimensions.clear();
     mHeightDimensions.clear();
 
-    mFrameInfoPool.clear();
-    mBitRateVector.clear();
-
+    mFrameRate = 30;
     mProfileTimes = new ExtendedStats(mName.c_str(), mTid);
 }
 
@@ -424,16 +357,11 @@ void MediaExtendedStats::logDimensions(int32_t width, int32_t height) {
     }
 }
 
-void MediaExtendedStats::logBitRate(int64_t size, int64_t timestamp) {
-    ExtendedStats::StatsFrameInfo* sfInfo = mFrameInfoPool.get();
-    sfInfo->size = size;
-    sfInfo->timestamp = timestamp;
-    mBitRateVector.add(ExtendedStats::StatsFrameInfoWrapper(sfInfo));
+void MediaExtendedStats::logBitRate(int64_t frameSize, int64_t timestamp) {
+    mProfileTimes->log(ExtendedStats::MOVING_AVERAGE, STATS_BITRATE, frameSize, true);
 }
 
 MediaExtendedStats::~MediaExtendedStats() {
-    mBitRateVector.clear();
-    mFrameInfoPool.clear();
 }
 
 /***************************** PlayerExtendedStats ************************/
@@ -513,7 +441,6 @@ void PlayerExtendedStats::notifyPause(int64_t pauseTimeUs) {
 }
 
 void PlayerExtendedStats::notifySeek(int64_t seekTimeUs) {
-    mBitRateVector.clear();
     notifyPlaying(false);
     mLastSeekTime = seekTimeUs;
 }
@@ -564,9 +491,8 @@ void PlayerExtendedStats::dump() {
     ALOGI("Last pause time: %"PRId64" ms", mLastPauseTime/1000);
 
     ALOGI("Average FPS: %0.2f", mTotalPlayingTime == 0 ? 0 : mFramesRendered /(mTotalPlayingTime / 1E6));
-    ALOGI("Peak bitrate: %"PRId64"", mBitRateVector.mMaxBoundedAvg);
-    ALOGI("Average bitrate: %"PRId64"", mBitRateVector.mTotalNumBuffers == 0 ? 0 :
-                                        mBitRateVector.mTotalSizeSum / mBitRateVector.mTotalNumBuffers);
+
+    mProfileTimes->dump(STATS_BITRATE);
 
     ALOGI("EOS(%d)", mEOS ? 1 : 0);
     ALOGI("PLAYING(%d)", mPlaying ? 1 : 0);
@@ -656,9 +582,6 @@ void RecorderExtendedStats::dump() {
     ALOGI("Total recording duration: %"PRId64" ms", mTotalRecordingTime/1000);
     ALOGI("Last pause time: %"PRId64" ms", mLastPauseTime/1000);
     ALOGI("Input frame rate: %0.2f", mTotalRecordingTime == 0 ? 0 : mFramesEncoded/(mTotalRecordingTime/1E6));
-    ALOGI("Peak bitrate: %"PRId64"", mBitRateVector.mMaxBoundedAvg);
-    ALOGI("Average bitrate: %"PRId64"", mBitRateVector.mTotalNumBuffers == 0 ? 0 :
-                                        mBitRateVector.mTotalSizeSum/mBitRateVector.mTotalNumBuffers);
 
     ALOGI("------- Profile Latencies --------");
 
