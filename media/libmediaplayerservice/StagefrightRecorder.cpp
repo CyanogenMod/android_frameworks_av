@@ -1067,7 +1067,9 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         format->setInt32("time-scale", mAudioTimeScale);
     }
 
-    format->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
+    if (mRecorderExtendedStats != NULL) {
+        format->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
+    }
     sp<MediaSource> audioEncoder =
             MediaCodecSource::Create(mLooper, format, audioSource);
     // If encoder could not be created (as in LPCM), then
@@ -1719,7 +1721,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
         flags |= MediaCodecSource::FLAG_USE_SURFACE_INPUT;
     }
 
-    format->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
+    if (mRecorderExtendedStats != NULL) {
+        format->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
+    }
     sp<MediaCodecSource> encoder =
             MediaCodecSource::Create(mLooper, format, cameraSource, flags);
     if (encoder == NULL) {

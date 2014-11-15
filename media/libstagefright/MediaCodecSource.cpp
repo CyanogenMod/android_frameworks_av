@@ -460,7 +460,9 @@ status_t MediaCodecSource::initEncoder() {
 
     ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
 
-    mOutputFormat->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
+    if (mRecorderExtendedStats != NULL) {
+        mOutputFormat->setObject(MEDIA_EXTENDED_STATS, mRecorderExtendedStats);
+    }
     status_t err = mEncoder->configure(
                 mOutputFormat,
                 NULL /* nativeWindow */,
