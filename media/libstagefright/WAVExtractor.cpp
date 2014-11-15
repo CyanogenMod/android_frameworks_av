@@ -448,7 +448,7 @@ status_t WAVSource::read(
     }
 
     MediaBuffer *buffer;
-    status_t err = mGroup->acquire_buffer(&buffer);
+    status_t err = mGroup->acquire_buffer(&buffer, false);
     if (err != OK) {
         return err;
     }
@@ -506,7 +506,7 @@ status_t WAVSource::read(
             // Convert 8-bit unsigned samples to 16-bit signed.
 
             MediaBuffer *tmp;
-            CHECK_EQ(mGroup->acquire_buffer(&tmp), (status_t)OK);
+            CHECK_EQ(mGroup->acquire_buffer(&tmp, false), (status_t)OK);
 
             // The new buffer holds the sample number of samples, but each
             // one is 2 bytes wide.
@@ -544,7 +544,7 @@ status_t WAVSource::read(
             } else if (AUDIO_FORMAT_PCM_8_24_BIT == mOutputFormat) {
                 // Padding done here to convert to 32-bit samples
                 MediaBuffer *tmp;
-                CHECK_EQ(mGroup->acquire_buffer(&tmp), (status_t)OK);
+                CHECK_EQ(mGroup->acquire_buffer(&tmp, false), (status_t)OK);
                 ssize_t numBytes = buffer->range_length() / 3;
                 tmp->set_range(0, 4 * numBytes);
                 int8_t *dst = (int8_t *)tmp->data();

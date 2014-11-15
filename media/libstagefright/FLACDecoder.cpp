@@ -284,7 +284,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
                 (int)status, availLength, usedBitstream, blockSize);
 
         MediaBuffer *buffer;
-        CHECK_EQ(mBufferGroup->acquire_buffer(&buffer), (status_t)OK);
+        CHECK_EQ(mBufferGroup->acquire_buffer(&buffer, false), (status_t)OK);
 
         buffer->set_range(0, blockSize*mNumChannels*2);
 

@@ -92,7 +92,7 @@ public:
             return ERROR_END_OF_STREAM;
         }
 
-        status_t err = mGroup.acquire_buffer(buffer);
+        status_t err = mGroup.acquire_buffer(buffer, false);
         if (err != OK) {
             return err;
         }

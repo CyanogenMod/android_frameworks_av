@@ -62,7 +62,7 @@ status_t SineSource::read(
     *out = NULL;
 
     MediaBuffer *buffer;
-    status_t err = mGroup->acquire_buffer(&buffer);
+    status_t err = mGroup->acquire_buffer(&buffer, false);
 
     if (err != OK) {
         return err;

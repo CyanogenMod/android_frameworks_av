@@ -62,7 +62,7 @@ public:
         }
 
         // printf("VideoSource::read\n");
-        status_t err = mGroup.acquire_buffer(buffer);
+        status_t err = mGroup.acquire_buffer(buffer, false);
         if (err != OK) {
             return err;
         }

@@ -183,7 +183,7 @@ status_t AVIExtractor::AVISource::read(
         }
 
         MediaBuffer *out;
-        CHECK_EQ(mBufferGroup->acquire_buffer(&out), (status_t)OK);
+        CHECK_EQ(mBufferGroup->acquire_buffer(&out, false), (status_t)OK);
 
         ssize_t n = mExtractor->mDataSource->readAt(offset, out->data(), size);
 

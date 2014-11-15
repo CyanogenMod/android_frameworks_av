@@ -679,7 +679,7 @@ MediaBuffer *FLACParser::readBuffer(bool doSeek, FLAC__uint64 sample)
     // acquire a media buffer
     CHECK(mGroup != NULL);
     MediaBuffer *buffer;
-    status_t err = mGroup->acquire_buffer(&buffer);
+    status_t err = mGroup->acquire_buffer(&buffer, false);
     if (err != OK) {
         return NULL;
     }

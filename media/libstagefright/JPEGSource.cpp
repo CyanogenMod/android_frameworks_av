@@ -118,7 +118,7 @@ status_t JPEGSource::read(
     }
 
     MediaBuffer *buffer;
-    mGroup->acquire_buffer(&buffer);
+    mGroup->acquire_buffer(&buffer, false);
 
     ssize_t n = mSource->readAt(mOffset, buffer->data(), mSize - mOffset);
 

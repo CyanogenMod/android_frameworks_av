@@ -3846,7 +3846,7 @@ status_t MPEG4Source::read(
             return err;
         }
 
-        err = mGroup->acquire_buffer(&mBuffer);
+        err = mGroup->acquire_buffer(&mBuffer, false);
 
         if (err != OK) {
             CHECK(mBuffer == NULL);
@@ -4105,7 +4105,7 @@ status_t MPEG4Source::fragmentedRead(
         mCurrentTime += smpl->duration;
         isSyncSample = (mCurrentSampleIndex == 0); // XXX
 
-        status_t err = mGroup->acquire_buffer(&mBuffer);
+        status_t err = mGroup->acquire_buffer(&mBuffer, false);
 
         if (err != OK) {
             CHECK(mBuffer == NULL);

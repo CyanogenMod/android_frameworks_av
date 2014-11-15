@@ -223,7 +223,7 @@ status_t AACEncoder::read(
     CHECK(options == NULL || !options->getSeekTo(&seekTimeUs, &mode));
 
     MediaBuffer *buffer;
-    CHECK_EQ(mBufferGroup->acquire_buffer(&buffer), (status_t)OK);
+    CHECK_EQ(mBufferGroup->acquire_buffer(&buffer, false), (status_t)OK);
     uint8_t *outPtr = (uint8_t *)buffer->data();
     bool readFromSource = false;
     int64_t wallClockTimeUs = -1;
