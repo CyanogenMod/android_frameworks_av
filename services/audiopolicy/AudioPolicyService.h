@@ -30,7 +30,9 @@
 #include <media/IAudioPolicyService.h>
 #include <media/ToneGenerator.h>
 #include <media/AudioEffect.h>
+#ifdef USE_LEGACY_AUDIO_POLICY
 #include <hardware_legacy/AudioPolicyInterface.h>
+#endif
 #include "AudioPolicyEffects.h"
 #include "AudioPolicyManager.h"
 
