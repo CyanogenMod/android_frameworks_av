@@ -265,6 +265,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                                                   const char *device_address)
 {
     String8 address = (device_address == NULL) ? String8("") : String8(device_address);
+    AudioParameter param;
 
     ALOGV("setDeviceConnectionState() device: %x, state %d, address %s",
             device, state, address.string());
@@ -340,6 +341,13 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                     "checkOutputsForDevice() returned no outputs but status OK");
             ALOGV("setDeviceConnectionState() checkOutputsForDevice() returned %zu outputs",
                   outputs.size());
+
+
+            // Set connect to HALs
+            param = AudioParameter(address);
+            param.addInt(String8(AUDIO_PARAMETER_DEVICE_CONNECT), device);
+            mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
+
             break;
         // handle output device disconnection
         case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE: {
@@ -360,7 +368,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             ALOGV("setDeviceConnectionState() disconnecting output device %x", device);
 
             // Set Disconnect to HALs
-            AudioParameter param = AudioParameter(address);
+            param = AudioParameter(address);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
@@ -477,6 +485,12 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             } else {
                 return NO_MEMORY;
             }
+
+            // Set connect to HALs
+            param = AudioParameter(address);
+            param.addInt(String8(AUDIO_PARAMETER_DEVICE_CONNECT), device);
+            mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
+
         } break;
 
         // handle input device disconnection
@@ -489,7 +503,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             ALOGV("setDeviceConnectionState() disconnecting input device %x", device);
 
             // Set Disconnect to HALs
-            AudioParameter param = AudioParameter(address);
+            param = AudioParameter(address);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
