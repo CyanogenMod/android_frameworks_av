@@ -1791,6 +1791,17 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
     return false;
 }
 
+void ExtendedUtils::setArbitraryModeIfInterlaced(const uint8_t *ptr,
+        const sp<MetaData> &meta) {
+    ARG_TOUCH(ptr);
+    ARG_TOUCH(meta);
+}
+
+int32_t ExtendedUtils::checkIsInterlace(sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return 0;
+}
+
 void ExtendedUtils::HEVCMuxer::writeHEVCFtypBox(MPEG4Writer *writer) {
     ARG_TOUCH(writer);
 }
