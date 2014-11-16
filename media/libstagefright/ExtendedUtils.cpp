@@ -1113,6 +1113,7 @@ bool ExtendedUtils::checkIsThumbNailMode(const uint32_t flags, char* componentNa
     return isInThumbnailMode;
 }
 
+#ifdef QCOM_BSP
 void ExtendedUtils::setArbitraryModeIfInterlaced(
 	const uint8_t *ptr, const sp<MetaData> &meta) {
 
@@ -1143,6 +1144,7 @@ int32_t ExtendedUtils::checkIsInterlace(sp<MetaData> &meta) {
     }
     return isInterlaceFormat;
 }
+#endif
 
 void ExtendedUtils::applyPreRotation(
         const CameraParameters& params, sp<MetaData> &meta) {

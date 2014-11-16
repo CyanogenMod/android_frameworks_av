@@ -40,7 +40,11 @@ enum {
 void FindAVCDimensions(
         const sp<ABuffer> &seqParamSet,
         int32_t *width, int32_t *height,
+#ifdef QCOM_BSP
         int32_t *sarWidth = NULL, int32_t *sarHeight = NULL, int32_t *isInterlaced = NULL);
+#else
+        int32_t *sarWidth = NULL, int32_t *sarHeight = NULL);
+#endif
 
 unsigned parseUE(ABitReader *br);
 
