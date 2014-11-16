@@ -70,8 +70,12 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
       // mMaxDisableWaitCnt is set by configure() and not used before then
       // mDisableWaitCnt is set by process() and updateState() and not used before then
       mSuspended(false),
+#ifdef QCOM_DIRECTTRACK
       mAudioFlinger(thread->mAudioFlinger),
       mIsForLPA(false)
+#else
+      mAudioFlinger(thread->mAudioFlinger)
+#endif
 {
     ALOGV("Constructor %p", this);
     int lStatus;
@@ -317,14 +321,20 @@ void AudioFlinger::EffectModule::reset_l()
     (*mEffectInterface)->command(mEffectInterface, EFFECT_CMD_RESET, 0, NULL, 0, NULL);
 }
 
+#ifdef QCOM_DIRECTTRACK
 status_t AudioFlinger::EffectModule::configure(bool isForLPA, int sampleRate, int channelCount, int frameCount)
+#else
+status_t AudioFlinger::EffectModule::configure()
+#endif
 {
     status_t status;
     status_t cmdStatus = 0;
     sp<ThreadBase> thread;
     uint32_t size;
     audio_channel_mask_t channelMask;
+#ifdef QCOM_DIRECTTRACK
     uint32_t channels;
+#endif
 
     if (mEffectInterface == NULL) {
         status = NO_INIT;
@@ -339,12 +349,14 @@ status_t AudioFlinger::EffectModule::configure(bool isForLPA, int sampleRate, in
 
     // TODO: handle configuration of effects replacing track process
     channelMask = thread->channelMask();
+#ifdef QCOM_DIRECTTRACK
     mIsForLPA = isForLPA;
 
     if(popcount(channelMask) > 2) {
         ALOGE("Error: Trying to apply effect on  %d channel content",popcount(channelMask));
         return INVALID_OPERATION;
     }
+#endif
 
     if ((mDescriptor.flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_AUXILIARY) {
         mConfig.inputCfg.channels = AUDIO_CHANNEL_OUT_MONO;
@@ -354,11 +366,15 @@ status_t AudioFlinger::EffectModule::configure(bool isForLPA, int sampleRate, in
     mConfig.outputCfg.channels = channelMask;
     mConfig.inputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
     mConfig.outputCfg.format = AUDIO_FORMAT_PCM_16_BIT;
+#ifdef QCOM_DIRECTTRACK
     if(isForLPA){
         mConfig.inputCfg.samplingRate = sampleRate;
     } else {
+#endif
         mConfig.inputCfg.samplingRate = thread->sampleRate();
+#ifdef QCOM_DIRECTTRACK
     }
+#endif
     mConfig.outputCfg.samplingRate = mConfig.inputCfg.samplingRate;
     mConfig.inputCfg.bufferProvider.cookie = NULL;
     mConfig.inputCfg.bufferProvider.getBuffer = NULL;
@@ -383,11 +399,15 @@ status_t AudioFlinger::EffectModule::configure(bool isForLPA, int sampleRate, in
     }
     mConfig.inputCfg.mask = EFFECT_CONFIG_ALL;
     mConfig.outputCfg.mask = EFFECT_CONFIG_ALL;
+#ifdef QCOM_DIRECTTRACK
     if(isForLPA) {
         mConfig.inputCfg.buffer.frameCount = frameCount;
     } else {
+#endif
         mConfig.inputCfg.buffer.frameCount = thread->frameCount();
+#ifdef QCOM_DIRECTTRACK
     }
+#endif
     mConfig.outputCfg.buffer.frameCount = mConfig.inputCfg.buffer.frameCount;
 
     ALOGV("configure() %p thread %p buffer %p framecount %d",
@@ -594,11 +614,15 @@ status_t AudioFlinger::EffectModule::setEnabled(bool enabled)
 // must be called with EffectModule::mLock held
 status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
 {
+#ifdef QCOM_DIRECTTRACK
     bool effectStateChanged = false;
+#endif
     ALOGV("setEnabled %p enabled %d", this, enabled);
 
     if (enabled != isEnabled()) {
+#ifdef QCOM_DIRECTTRACK
         effectStateChanged = true;
+#endif
         status_t status = AudioSystem::setEffectEnabled(mId, enabled);
         if (enabled && status != NO_ERROR) {
             return status;
@@ -636,6 +660,7 @@ status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
             }
         }
     }
+#ifdef QCOM_DIRECTTRACK
     /*
        Send notification event to LPA Player when an effect for
        LPA output is enabled or disabled.
@@ -651,6 +676,7 @@ status_t AudioFlinger::EffectModule::setEnabled_l(bool enabled)
     } else {
         ALOGW("setEnabled_l() cannot promote chain");
     }
+#endif
     return NO_ERROR;
 }
 
@@ -1302,6 +1328,7 @@ status_t AudioFlinger::EffectHandle::command(uint32_t cmdCode,
         return disable();
     }
 
+#ifdef QCOM_DIRECTTRACK
     if(mEffect->isOnLPA() &&
        ((cmdCode == EFFECT_CMD_SET_PARAM) || (cmdCode == EFFECT_CMD_SET_PARAM_DEFERRED) ||
         (cmdCode == EFFECT_CMD_SET_PARAM_COMMIT) || (cmdCode == EFFECT_CMD_SET_DEVICE) ||
@@ -1311,6 +1338,7 @@ status_t AudioFlinger::EffectHandle::command(uint32_t cmdCode,
         ALOGV("Notifying Direct Track for the change in effect config %d", cmdCode);
         mClient->audioFlinger()->audioConfigChanged(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
     }
+#endif
     return mEffect->command(cmdCode, cmdSize, pCmdData, replySize, pReplyData);
 }
 
@@ -1378,7 +1406,11 @@ AudioFlinger::EffectChain::EffectChain(ThreadBase *thread,
                                         int sessionId)
     : mThread(thread), mSessionId(sessionId), mActiveTrackCnt(0), mTrackCnt(0), mTailBufferCount(0),
       mOwnInBuffer(false), mVolumeCtrlIdx(-1), mLeftVolume(UINT_MAX), mRightVolume(UINT_MAX),
+#ifdef QCOM_DIRECTTRACK
       mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX), mForceVolume(false), mIsForLPATrack(false)
+#else
+      mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX), mForceVolume(false)
+#endif
 {
     mStrategy = AudioSystem::getStrategyForStream(AUDIO_STREAM_MUSIC);
     if (thread == NULL) {
@@ -1424,6 +1456,7 @@ sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromId_l(int 
     return 0;
 }
 
+#ifdef QCOM_DIRECTTRACK
 sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromIndex_l(int idx)
 {
     sp<EffectModule> effect = NULL;
@@ -1435,6 +1468,7 @@ sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromIndex_l(i
     }
     return effect;
 }
+#endif
 
 // getEffectFromType_l() must be called with ThreadBase::mLock held
 sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromType_l(
@@ -1507,7 +1541,11 @@ void AudioFlinger::EffectChain::process_l()
     }
 
     size_t size = mEffects.size();
+#ifdef QCOM_DIRECTTRACK
     if (doProcess || isForLPATrack()) {
+#else
+    if (doProcess) {
+#endif
         for (size_t i = 0; i < size; i++) {
             mEffects[i]->process();
         }
@@ -2007,6 +2045,8 @@ void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
         mEffects[i]->setThread(thread);
     }
 }
+
+#ifdef QCOM_DIRECTTRACK
 #define DEAFULT_FRAME_COUNT 1200
 bool AudioFlinger::applyEffectsOn(void *token, int16_t *inBuffer,
                             int16_t *outBuffer, int size, bool force)
@@ -2184,5 +2224,6 @@ void AudioFlinger::DirectAudioTrack::createEffectThread() {
     ALOGV("Creating Effects Thread");
     pthread_create(&mEffectsThread, &attr, EffectsThreadWrapper, this);
 }
+#endif
 
 }; // namespace android

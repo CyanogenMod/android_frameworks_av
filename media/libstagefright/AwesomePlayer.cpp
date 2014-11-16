@@ -46,9 +46,11 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/timedtext/TimedTextDriver.h>
 #include <media/stagefright/AudioPlayer.h>
+#ifdef QCOM_DIRECTTRACK
 #include <media/stagefright/LPAPlayer.h>
 #ifdef USE_TUNNEL_MODE
 #include <media/stagefright/TunnelPlayer.h>
+#endif
 #endif
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
@@ -85,7 +87,9 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 static const size_t kLowWaterMarkBytes = 40000;
 static const size_t kHighWaterMarkBytes = 200000;
+#ifdef QCOM_DIRECTTRACK
 int AwesomePlayer::mTunnelAliveAP = 0;
+#endif
 
 // maximum time in paused state when offloading audio decompression. When elapsed, the AudioPlayer
 // is destroyed to allow the audio DSP to power down.
@@ -257,7 +261,9 @@ AwesomePlayer::AwesomePlayer()
     mDurationUs = -1;
     mAudioTearDownPosition = 0;
     mVideoFrameDeltaUs = 0;
+#ifdef QCOM_DIRECTTRACK
     mIsTunnelAudio = false;
+#endif
 
     reset();
 }
@@ -269,6 +275,7 @@ AwesomePlayer::~AwesomePlayer() {
 
     reset();
 
+#ifdef QCOM_DIRECTTRACK
     // Disable Tunnel Mode Audio
     if (mIsTunnelAudio) {
         if(mTunnelAliveAP > 0) {
@@ -277,6 +284,7 @@ AwesomePlayer::~AwesomePlayer() {
         }
     }
     mIsTunnelAudio = false;
+#endif
     mClient.disconnect();
 }
 
@@ -1178,11 +1186,13 @@ void AwesomePlayer::createAudioPlayer_l()
     uint32_t flags = 0;
     int64_t cachedDurationUs;
     bool eos;
+#ifdef QCOM_DIRECTTRACK
     sp<MetaData> format = mAudioTrack->getFormat();
     const char *mime;
     bool success = format->findCString(kKeyMIMEType, &mime);
     int tunnelObjectsAlive = 0;
     CHECK(success);
+#endif
     if (mOffloadAudio) {
         flags |= AudioPlayer::USE_OFFLOAD;
     } else if (mVideoSource == NULL
@@ -1197,6 +1207,7 @@ void AwesomePlayer::createAudioPlayer_l()
     if (mVideoSource != NULL) {
         flags |= AudioPlayer::HAS_VIDEO;
     }
+#ifdef QCOM_DIRECTTRACK
 #ifdef USE_TUNNEL_MODE
     // Create tunnel player if tunnel mode is enabled
     ALOGW("Trying to create tunnel player mIsTunnelAudio %d, \
@@ -1276,6 +1287,9 @@ void AwesomePlayer::createAudioPlayer_l()
         ALOGV("AudioPlayer created, Non-LPA mode mime %s duration %lld\n", mime, mDurationUs);
         mAudioPlayer = new AudioPlayer(mAudioSink, flags, this);
     }
+#else
+    mAudioPlayer = new AudioPlayer(mAudioSink, flags, this);
+#endif
     mAudioPlayer->setSource(mAudioSource);
 
     mTimeSource = mAudioPlayer;
@@ -1778,6 +1792,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     mOffloadAudio = canOffloadStream(meta, (mVideoSource != NULL), vMeta,
                                      (isStreamingHTTP() || isWidevineContent()),
                                     streamType);
+#ifdef QCOM_DIRECTTRACK
     int32_t nchannels = 0;
     int32_t isADTS = 0;
     meta->findInt32( kKeyChannelCount, &nchannels );
@@ -1895,10 +1910,30 @@ status_t AwesomePlayer::initAudioDecoder() {
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
                 mAudioTrack, matchComponentName, flags,NULL);
+#else
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+        ALOGV("createAudioPlayer: bypass OMX (raw)");
+        mAudioSource = mAudioTrack;
+        // For PCM offload fallback
+        if (mOffloadAudio) {
+            mOmxSource = mAudioSource;
+        }
+    } else {
+        // If offloading we still create a OMX decoder as a fall-back
+        // but we don't start it
+        mOmxSource = OMXCodec::Create(
+                mClient.interface(), mAudioTrack->getFormat(),
+                false, // createEncoder
+                mAudioTrack);
+#endif
 
         if (mOffloadAudio) {
             ALOGV("createAudioPlayer: bypass OMX (offload)");
             mAudioSource = mAudioTrack;
+#ifndef QCOM_DIRECTTRACK
+        } else {
+            mAudioSource = mOmxSource;
+#endif
         }
     }
 
@@ -3641,6 +3676,8 @@ status_t AwesomePlayer::resume() {
 
     return OK;
 }
+
+#ifdef QCOM_DIRECTTRACK
 bool AwesomePlayer::inSupportedTunnelFormats(const char * mime) {
     const char * tunnelFormats [ ] = {
         MEDIA_MIMETYPE_AUDIO_MPEG,
@@ -3732,5 +3769,6 @@ void AwesomePlayer::checkTunnelExceptions()
 
     return;
 }
+#endif
 
 }  // namespace android

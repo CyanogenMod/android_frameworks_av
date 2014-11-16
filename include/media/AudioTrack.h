@@ -24,8 +24,10 @@
 #include <media/AudioTimestamp.h>
 #include <media/IAudioTrack.h>
 #include <utils/threads.h>
+#ifdef QCOM_DIRECTTRACK
 #include <media/IDirectTrack.h>
 #include <media/IDirectTrackClient.h>
+#endif
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -64,7 +66,9 @@ public:
         EVENT_NEW_TIMESTAMP = 8,    // Delivered periodically and when there's a significant change
                                     // in the mapping from frame position to presentation time.
                                     // See AudioTimestamp for the information included with event.
+#ifdef QCOM_DIRECTTRACK
         EVENT_HW_FAIL = 9,          // ADSP failure.
+#endif
     };
 
     /* Client should declare Buffer on the stack and pass address to obtainBuffer()
@@ -594,8 +598,10 @@ public:
      * The timestamp parameter is undefined on return, if status is not NO_ERROR.
      */
       virtual status_t    getTimestamp(AudioTimestamp& timestamp);
+#ifdef QCOM_DIRECTTRACK
       virtual void notify(int msg);
       virtual status_t    getTimeStamp(uint64_t *tstamp);
+#endif
 
 protected:
     /* copying audio tracks is not allowed */
@@ -676,14 +682,18 @@ protected:
             uint32_t updateAndGetPosition_l();
 
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
+#ifdef QCOM_DIRECTTRACK
     sp<IDirectTrack>        mDirectTrack;
+#endif
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
     audio_track_cblk_t*     mCblk;                  // re-load after mLock.unlock()
     audio_io_handle_t       mOutput;                // returned by AudioSystem::getOutput()
 
     sp<AudioTrackThread>    mAudioTrackThread;
+#ifdef QCOM_DIRECTTRACK
     sp<IAudioFlinger>       mAudioFlinger;
+#endif
 
     float                   mVolume[2];
     float                   mSendLevel;
@@ -765,8 +775,10 @@ protected:
                                                     // only used for offloaded and direct tracks.
 
     audio_output_flags_t    mFlags;
+#ifdef QCOM_DIRECTTRACK
     audio_io_handle_t       mAudioDirectOutput;
     void*                   mObserver;
+#endif
 
         // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
         // mLock must be held to read or write those bits reliably.
@@ -807,6 +819,7 @@ private:
     int                     mClientUid;
     pid_t                   mClientPid;
 
+#ifdef QCOM_DIRECTTRACK
     class DirectClient : public BnDirectTrackClient {
     public:
         DirectClient(AudioTrack * audioTrack) : mAudioTrack(audioTrack) { }
@@ -815,6 +828,7 @@ private:
         const wp<AudioTrack> mAudioTrack;
     };
     sp<DirectClient>       mDirectClient;
+#endif
 };
 
 class TimedAudioTrack : public AudioTrack
