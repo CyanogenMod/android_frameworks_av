@@ -140,8 +140,10 @@ const StringToEnum sOutputFlagNameToEnumTable[] = {
 #ifdef AUDIO_EXTN_COMPRESS_VOIP_ENABLED
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_VOIP_RX),
 #endif
+#ifdef QCOM_DIRECTTRACK
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_LPA),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_TUNNEL),
+#endif
 };
 
 const StringToEnum sInputFlagNameToEnumTable[] = {
@@ -1096,10 +1098,12 @@ sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getProfileForDirectOutput(
                                                                audio_channel_mask_t channelMask,
                                                                audio_output_flags_t flags)
 {
+#ifdef QCOM_DIRECTTRACK
     if( !((flags & AUDIO_OUTPUT_FLAG_LPA)   ||
           (flags & AUDIO_OUTPUT_FLAG_TUNNEL)||
           (flags & AUDIO_OUTPUT_FLAG_VOIP_RX)) )
         flags = AUDIO_OUTPUT_FLAG_DIRECT;
+#endif
 
     for (size_t i = 0; i < mHwModules.size(); i++) {
         if (mHwModules[i]->mHandle == 0) {
@@ -1658,18 +1662,24 @@ void AudioPolicyManager::releaseOutput(audio_io_handle_t output)
 
     sp<AudioOutputDescriptor> desc = mOutputs.valueAt(index);
     if (desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+#ifdef QCOM_DIRECTTRACK
         if (desc->mDirectOpenCount <= 0 &&!(desc -> mFlags &AUDIO_OUTPUT_FLAG_LPA || desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL ||
                 desc->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)) {
+#else
+        if (desc->mDirectOpenCount <= 0) {
+#endif
             ALOGW("releaseOutput() invalid open count %d for output %d",
                                                               desc->mDirectOpenCount, output);
             return;
         }
+#ifdef QCOM_DIRECTTRACK
          if ((--desc->mDirectOpenCount == 0) && ((desc->mFlags & AUDIO_OUTPUT_FLAG_LPA || desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL ||
                 desc->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX))) {
             ALOGV("releaseOutput() closing output");
             closeOutput(output);
-        }
-        else if (--desc->mDirectOpenCount == 0) {
+        } else
+#endif
+        if (--desc->mDirectOpenCount == 0) {
             closeOutput(output);
             // If effects where present on the output, audioflinger moved them to the primary
             // output by default: move them back to the appropriate output.
@@ -2497,7 +2507,9 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
      offloadInfo.stream_type, offloadInfo.bit_rate, offloadInfo.duration_us,
      offloadInfo.has_video);
 
+#ifdef QCOM_DIRECTTRACK
 return false;
+#endif
 #ifdef VOICE_CONCURRENCY
     char concpropValue[PROPERTY_VALUE_MAX];
     if (property_get("voice.playback.conc.disabled", concpropValue, NULL)) {
@@ -3817,10 +3829,10 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             config.offload_info.channel_mask = desc->mChannelMask;
             config.offload_info.format = desc->mFormat;
             audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
-//#ifdef QCOM_OUTPUT_FLAGS_ENABLED
+#ifdef QCOM_DIRECTTRACK
             if (!(desc->mFlags & AUDIO_OUTPUT_FLAG_LPA || desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL ||
                 desc->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)) {
-//#endif
+#endif
 
             status_t status = mpClientInterface->openOutput(profile->mModule->mHandle,
                                                             &output,
@@ -3829,9 +3841,6 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                                                             address,
                                                             &desc->mLatency,
                                                             desc->mFlags);
-#ifdef QCOM_OUTPUT_FLAGS_ENABLED
-            }
-#endif
             if (status == NO_ERROR) {
                 desc->mSamplingRate = config.sample_rate;
                 desc->mChannelMask = config.channel_mask;
@@ -3949,8 +3958,9 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             } else {
                 output = AUDIO_IO_HANDLE_NONE;
             }
+#ifdef QCOM_DIRECTTRACK
             }
-//#endif
+#endif
             if (output == AUDIO_IO_HANDLE_NONE) {
                 ALOGW("checkOutputsForDevice() could not open output for device %x", device);
                 profiles.removeAt(profile_index);
@@ -5004,11 +5014,13 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
             if (outputDesc->isStrategyActive((routing_strategy)i)) {
                 setStrategyMute((routing_strategy)i, true, outputDesc->mIoHandle);
                 // do tempMute unmute after twice the mute wait time
+#ifdef QCOM_DIRECTTRACK
                 if((outputDesc->mFlags & AUDIO_OUTPUT_FLAG_LPA) || (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL))
                     {
                      setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,muteWaitMs*4 ,device);
                 }
                 else
+#endif
                 setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,
                                 muteWaitMs *2, device);
             }

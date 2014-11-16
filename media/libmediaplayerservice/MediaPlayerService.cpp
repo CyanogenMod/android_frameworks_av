@@ -1512,10 +1512,12 @@ uint32_t MediaPlayerService::AudioOutput::latency () const
     return mTrack->latency();
 }
 
+#ifdef QCOM_DIRECTTRACK
 audio_stream_type_t MediaPlayerService::AudioOutput::streamType () const
 {
     return mStreamType;
 }
+#endif
 
 float MediaPlayerService::AudioOutput::msecsPerFrame() const
 {
@@ -1533,6 +1535,8 @@ status_t MediaPlayerService::AudioOutput::getTimestamp(AudioTimestamp &ts) const
     if (mTrack == 0) return NO_INIT;
     return mTrack->getTimestamp(ts);
 }
+
+#ifdef QCOM_DIRECTTRACK
 ssize_t MediaPlayerService::AudioOutput::sampleRate() const
 {
     if (mTrack == 0) return NO_INIT;
@@ -1551,6 +1555,7 @@ ssize_t MediaPlayerService::AudioCache::sampleRate() const
 {
     return mSampleRate;
 }
+#endif
 
 status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritten) const
 {
@@ -1612,6 +1617,7 @@ status_t MediaPlayerService::AudioOutput::open(
     mCallback = cb;
     mCallbackCookie = cookie;
 
+#ifdef QCOM_DIRECTTRACK
     if (flags & AUDIO_OUTPUT_FLAG_LPA || flags & AUDIO_OUTPUT_FLAG_TUNNEL) {
         ALOGV("AudioOutput open: with flags %x",flags);
         channelMask = audio_channel_out_mask_from_count(channelCount);
@@ -1654,6 +1660,7 @@ status_t MediaPlayerService::AudioOutput::open(
         mTrack = audioTrack;
         return NO_ERROR;
     }
+#endif
     // Check argument "bufferCount" against the mininum buffer count
     if (bufferCount < mMinBufferCount) {
         ALOGD("bufferCount (%d) is too small and increased to %d", bufferCount, mMinBufferCount);
@@ -2023,6 +2030,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
                 me->mCallbackCookie, CB_EVENT_TEAR_DOWN);
         break;
 
+#ifdef QCOM_DIRECTTRACK
     case AudioTrack::EVENT_UNDERRUN :
         {
         ALOGW("Event underrun");
@@ -2041,6 +2049,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         //data->unlock();
         break;
        }
+
     case AudioTrack::EVENT_HW_FAIL :
        {
         ALOGW("Event hardware failure");
@@ -2062,7 +2071,9 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
             //data->unlock();
         // }
          break;
-       } 
+       }
+#endif
+
     default:
         ALOGE("received unknown event type: %d inside CallbackWrapper !", event);
     }
