@@ -63,7 +63,11 @@ static void skipScalingList(ABitReader *br, size_t sizeOfScalingList) {
 void FindAVCDimensions(
         const sp<ABuffer> &seqParamSet,
         int32_t *width, int32_t *height,
+#ifdef QCOM_BSP
         int32_t *sarWidth, int32_t *sarHeight, int32_t *isInterlaced) {
+#else
+        int32_t *sarWidth, int32_t *sarHeight) {
+#endif
     ABitReader br(seqParamSet->data() + 1, seqParamSet->size() - 1);
 
     unsigned profile_idc = br.getBits(8);
@@ -169,9 +173,11 @@ void FindAVCDimensions(
             (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
     }
 
+#ifdef QCOM_BSP
     if (isInterlaced != NULL) {
 	*isInterlaced = !frame_mbs_only_flag;
     }
+#endif
 
     if (sarWidth != NULL) {
         *sarWidth = 0;
