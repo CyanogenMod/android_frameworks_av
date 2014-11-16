@@ -674,10 +674,14 @@ status_t Drm::signRSA(Vector<uint8_t> const &sessionId,
 
 void Drm::binderDied(const wp<IBinder> &the_late_who)
 {
+    mEventLock.lock();
+    mListener.clear();
+    mEventLock.unlock();
+
+    Mutex::Autolock autoLock(mLock);
     delete mPlugin;
     mPlugin = NULL;
     closeFactory();
-    mListener.clear();
 }
 
 }  // namespace android
