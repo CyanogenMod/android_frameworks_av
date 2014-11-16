@@ -356,6 +356,7 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
             sp<ThreadBase> thread =
                             audioflinger->checkPlaybackThread_l(patch->sources[0].ext.mix.handle);
             if (thread == 0) {
+#ifdef QCOM_DIRECTTRACK
                 AudioSessionDescriptor *desc = NULL;
                if (! audioflinger->mDirectAudioTracks.isEmpty()) {
                     desc = audioflinger->mDirectAudioTracks.valueFor((patch->sources[0].ext.mix.handle));
@@ -371,11 +372,14 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                     status = desc->stream->common.set_parameters(&desc->stream->common, param.toString());
                    }
              } else {
+#endif
 
                 ALOGW("createAudioPatch() bad playback I/O handle %d",
                           patch->sources[0].ext.mix.handle);
                 status = BAD_VALUE;
+#ifdef QCOM_DIRECTTRACK
                }
+#endif
                 goto exit;
             }
             if (audioHwDevice->version() >= AUDIO_DEVICE_API_VERSION_3_0) {

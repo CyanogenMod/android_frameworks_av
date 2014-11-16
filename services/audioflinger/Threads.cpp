@@ -86,9 +86,11 @@
 #endif
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
+#ifdef QCOM_DIRECTTRACK
 #define DIRECT_TRACK_EOS 1
 #define DIRECT_TRACK_HW_FAIL 6
 static const char lockName[] = "DirectTrack";
+#endif
 
 namespace android {
 
@@ -416,10 +418,12 @@ status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
     return status;
 }
 
+#ifdef QCOM_DIRECTTRACK
 void AudioFlinger::ThreadBase::effectConfigChanged() {
     ALOGV("New effect is being added to LPA chain, Notifying LPA Direct Track");
     mAudioFlinger->audioConfigChanged(AudioSystem::EFFECT_CONFIG_CHANGED, 0, NULL);
 }
+#endif
 
 void AudioFlinger::ThreadBase::sendIoConfigEvent(int event, int param)
 {
@@ -973,6 +977,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             addEffectChain_l(chain);
             chain->setStrategy(getStrategyForSession_l(sessionId));
             chainCreated = true;
+#ifdef QCOM_DIRECTTRACK
             if(sessionId == mAudioFlinger->mLPASessionId) {
                 // Clear reference to previous effect chain if any
                 if(mAudioFlinger->mLPAEffectChain.get()) {
@@ -986,6 +991,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
                 uint32_t volume = 0x1000000; // Equals to 1.0 in 8.24 format
                 chain->setVolume_l(&volume,&volume);
             }
+#endif
         } else {
             effect = chain->getEffectFromDesc_l(desc);
         }
@@ -1014,7 +1020,11 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             }
             effectCreated = true;
 
+#ifdef QCOM_DIRECTTRACK
             effect->setDevice(mAudioFlinger->mLPASessionId == sessionId ? mAudioFlinger->mDirectDevice:mOutDevice);
+#else
+            effect->setDevice(mOutDevice);
+#endif
             effect->setDevice(mInDevice);
             effect->setMode(mAudioFlinger->getMode());
             effect->setAudioSource(mAudioSource);
@@ -2595,9 +2605,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // only process effects if we're going to write
             if (sleepTime == 0 && mType != OFFLOAD) {
                 for (size_t i = 0; i < effectChains.size(); i ++) {
+#ifdef QCOM_DIRECTTRACK
                     if (effectChains[i] != mAudioFlinger->mLPAEffectChain) {
+#endif
                         effectChains[i]->process_l();
+#ifdef QCOM_DIRECTTRACK
                   }
+#endif
                }
             }
         }
@@ -6372,6 +6386,7 @@ void AudioFlinger::RecordThread::getAudioPortConfig(struct audio_port_config *co
 }
 // ----------------------------------------------------------------------------
 
+#ifdef QCOM_DIRECTTRACK
 AudioFlinger::DirectAudioTrack::DirectAudioTrack(const sp<AudioFlinger>& audioFlinger,
                                                  int output, AudioSessionDescriptor *outputDesc,
                                                  IDirectTrackClient* client, audio_output_flags_t outflag)
@@ -6663,5 +6678,6 @@ void AudioFlinger::DirectAudioTrack::PMDeathRecipient::binderDied(const wp<IBind
     parentClass->clearPowerManager();
     ALOGW("power manager service died !!!");
 }
+#endif
 // ----------------------------------------------------------------------------
 }; // namespace android
