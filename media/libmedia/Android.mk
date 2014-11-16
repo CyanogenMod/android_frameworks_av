@@ -25,8 +25,6 @@ LOCAL_SRC_FILES:= \
     AudioTrackShared.cpp \
     IAudioFlinger.cpp \
     IAudioFlingerClient.cpp \
-    IDirectTrack.cpp \
-    IDirectTrackClient.cpp \
     IAudioTrack.cpp \
     IAudioRecord.cpp \
     ICrypto.cpp \
@@ -74,6 +72,11 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_SRC_FILES += ../libnbaio/roundup.c
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+    ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+        LOCAL_SRC_FILES += IDirectTrack.cpp IDirectTrackClient.cpp
+    endif
+endif
 
 #QTI Resampler
 ifeq ($(call is-vendor-board-platform,QCOM),true)

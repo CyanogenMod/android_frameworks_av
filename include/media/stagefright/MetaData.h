@@ -177,7 +177,9 @@ enum {
     // Similar to MediaFormat.KEY_IS_FORCED_SUBTITLE but pertains to av tracks as well.
     kKeyTrackIsForced     = 'frcd', // bool (int32_t)
 
+#ifdef QCOM_DIRECTTRACK
     kKeyTunnelException   = 'Ntnl', // not tunnel
+#endif
     // Indicate if it is OK to hold on to the MediaBuffer and not
     // release it immediately
     kKeyCanDeferRelease   = 'drel', // bool (int32_t)

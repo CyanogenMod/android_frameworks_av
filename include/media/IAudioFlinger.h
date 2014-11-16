@@ -26,8 +26,10 @@
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
+#ifdef QCOM_DIRECTTRACK
 #include <media/IDirectTrack.h>
 #include <media/IDirectTrackClient.h>
+#endif
 #include <media/IAudioTrack.h>
 #include <media/IAudioRecord.h>
 #include <media/IAudioFlingerClient.h>
@@ -80,6 +82,8 @@ public:
                                 int *sessionId,
                                 int clientUid,
                                 status_t *status) = 0;
+
+#ifdef QCOM_DIRECTTRACK
     /* create a direct audio track and registers it with AudioFlinger.
      * return null if the track cannot be created.
      */
@@ -92,6 +96,7 @@ public:
                                 IDirectTrackClient* client,
                                 audio_stream_type_t streamType,
                                 status_t *status) = 0;
+#endif
 
     virtual sp<IAudioRecord> openRecord(
                                 // On successful return, AudioFlinger takes over the handle
