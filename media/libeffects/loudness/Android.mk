@@ -19,5 +19,4 @@ LOCAL_MODULE:= libldnhncr
 LOCAL_C_INCLUDES := \
 	$(call include-path-for, audio-effects) \
 
-include external/stlport/libstlport.mk
 include $(BUILD_SHARED_LIBRARY)
