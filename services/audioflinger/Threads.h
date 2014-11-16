@@ -250,7 +250,9 @@ public:
     virtual     status_t    setParameters(const String8& keyValuePairs);
     virtual     String8     getParameters(const String8& keys) = 0;
     virtual     void        audioConfigChanged(int event, int param = 0) = 0;
+#ifdef QCOM_DIRECTTRACK
                 void        effectConfigChanged();
+#endif
                 // sendConfigEvent_l() must be called with ThreadBase::mLock held
                 // Can temporarily release the lock if waiting for a reply from
                 // processConfigEvents_l().

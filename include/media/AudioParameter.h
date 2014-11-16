@@ -51,6 +51,7 @@ public:
     static const char * const keyFrameCount;
     static const char * const keyInputSource;
     static const char * const keyScreenState;
+#ifdef QCOM_DIRECTTRACK
     static const char * const keySSR;
     static const char * const keyADSPStatus;
     static const char * const keyHandleFm;
@@ -59,6 +60,7 @@ public:
     static const char * const keyHandleA2dpDevice;
     static const char * const keyCanOpenProxy;
     static const char * const keyFmVolume;
+#endif
 
     String8 toString();
 
