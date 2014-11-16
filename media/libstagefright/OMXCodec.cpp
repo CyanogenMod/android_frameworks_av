@@ -665,7 +665,9 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 return err;
             }
 
+#ifdef QCOM_BSP
 	    ExtendedUtils::setArbitraryModeIfInterlaced((const uint8_t *)data, meta);
+#endif
 
             CODEC_LOGI(
                     "AVC profile = %u (%s), level = %u",
@@ -2131,6 +2133,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
+#ifdef QCOM_BSP
     err = mNativeWindow.get()->perform(mNativeWindow.get(),
 			     NATIVE_WINDOW_SET_BUFFERS_SIZE, def.nBufferSize);
     if (err != 0) {
@@ -2138,6 +2141,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 		-err);
 	return err; 
     }	 
+#endif
 
     CODEC_LOGV("allocating %u buffers from a native window of size %u on "
             "output port", def.nBufferCountActual, def.nBufferSize);
@@ -2997,6 +3001,7 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                 mPortStatus[kPortIndexInput] = ENABLED;
                 mPortStatus[kPortIndexOutput] = ENABLED;
 
+#ifdef QCOM_BSP
                 if (mNativeWindow != NULL) {
 		    /*
 		     * reset buffer size field with SurfaceTexture
@@ -3020,6 +3025,16 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                         pushBlankBuffersToNativeWindow();
 		    }
                 }
+#else
+                if ((mFlags & kEnableGrallocUsageProtected) &&
+                        mNativeWindow != NULL) {
+                    // We push enough 1x1 blank buffers to ensure that one of
+                    // them has made it to the display.  This allows the OMX
+                    // component teardown to zero out any protected buffers
+                    // without the risk of scanning out one of those buffers.
+                    pushBlankBuffersToNativeWindow();
+                }
+#endif
 
                 setState(IDLE_TO_LOADED);
             }
@@ -3387,9 +3402,10 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
     size_t offset = 0;
     int32_t n = 0;
 
+#ifdef QCOM_BSP
     int32_t interlaceFormatDetected = false;
     int32_t interlaceFrameCount = 0;
-
+#endif
 
     for (;;) {
         MediaBuffer *srcBuffer;
@@ -3436,9 +3452,10 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
             break;
         }
 
+#ifdef QCOM_BSP
 	sp<MetaData> metaData = mSource->getFormat();
 	interlaceFormatDetected = ExtendedUtils::checkIsInterlace(metaData);
-
+#endif
         if (mFlags & kUseSecureInputBuffers) {
             info = findInputBufferByDataPointer(srcBuffer->data());
             CHECK(info != NULL);
@@ -3540,12 +3557,15 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
     OMX_U32 flags = OMX_BUFFERFLAG_ENDOFFRAME;
 
+#ifdef QCOM_BSP
     if(interlaceFormatDetected) {
 	interlaceFrameCount++;
     }
+#endif
 
     if (signalEOS) {
         flags |= OMX_BUFFERFLAG_EOS;
+#ifdef QCOM_BSP
     } else if (ExtendedUtils::checkIsThumbNailMode(mFlags, mComponentName)
 			&& (!interlaceFormatDetected || interlaceFrameCount >= 2)) {
 	// Because we don't get EOS after getting the first frame, we 
@@ -3559,6 +3579,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 	mNoMoreOutputData = false;
 	mSignalledEOS = true;
 	mFinalStatus = ERROR_END_OF_STREAM;
+#endif
     } else {
         mNoMoreOutputData = false;
     }
