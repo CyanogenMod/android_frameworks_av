@@ -198,9 +198,6 @@ uint32_t ExtendedCodec::getComponentQuirks(
 
 const char* ExtendedCodec::overrideComponentName(
         uint32_t quirks, const sp<MetaData> &meta, const char *mime, bool isEncoder) {
-    char value[PROPERTY_VALUE_MAX] = {0};
-    int sw_codectype = 0;
-    int enableSwHevc = 0;
 
     const char* componentName = FFMPEGSoftCodec::overrideComponentName(quirks, meta, mime, isEncoder);
 
@@ -218,23 +215,11 @@ const char* ExtendedCodec::overrideComponentName(
        }
     }
 
-    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC, strlen(MEDIA_MIMETYPE_VIDEO_HEVC))) {
-        sw_codectype = property_get("media.swhevccodectype", value, NULL);
-        enableSwHevc = atoi(value);
-        if (sw_codectype && enableSwHevc) {
-           componentName = "OMX.qcom.video.decoder.hevcswvdec";
-        }
-    }
-
-    
     return componentName;
 }
 
 void ExtendedCodec::overrideComponentName(
         uint32_t quirks, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
-    char value[PROPERTY_VALUE_MAX] = {0};
-    int sw_codectype = 0;
-    int enableSwHevc = 0;
 
     FFMPEGSoftCodec::overrideComponentName(quirks, msg, componentName, mime, isEncoder);
 
@@ -250,15 +235,6 @@ void ExtendedCodec::overrideComponentName(
              componentName->setTo("OMX.qcom.audio.decoder.wmaLossLess");
           }
        }
-    }
-
-    if (!isEncoder && (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_HEVC, strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) ||
-            !strncmp(componentName->c_str(), "OMX.qcom.video.decoder.hevc", strlen("OMX.qcom.video.decoder.hevc")))) {
-        sw_codectype = property_get("media.swhevccodectype", value, NULL);
-        enableSwHevc = atoi(value);
-        if (sw_codectype && enableSwHevc) {
-           componentName->setTo("OMX.qcom.video.decoder.hevcswvdec");
-        }
     }
 }
 
