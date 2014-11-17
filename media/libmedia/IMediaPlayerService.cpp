@@ -73,7 +73,7 @@ public:
             const sp<IMediaPlayerClient>& client, int audioSessionId) {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeStrongBinder(client->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(client));
         data.writeInt32(audioSessionId);
 
         remote()->transact(CREATE, data, &reply);
@@ -101,10 +101,10 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         data.writeInt32(httpService != NULL);
         if (httpService != NULL) {
-            data.writeStrongBinder(httpService->asBinder());
+            data.writeStrongBinder(IInterface::asBinder(httpService));
         }
         data.writeCString(url);
-        data.writeStrongBinder(heap->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(heap));
         status_t status = remote()->transact(DECODE_URL, data, &reply);
         if (status == NO_ERROR) {
             status = (status_t)reply.readInt32();
@@ -127,7 +127,7 @@ public:
         data.writeFileDescriptor(fd);
         data.writeInt64(offset);
         data.writeInt64(length);
-        data.writeStrongBinder(heap->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(heap));
         status_t status = remote()->transact(DECODE_FD, data, &reply);
         if (status == NO_ERROR) {
             status = (status_t)reply.readInt32();
@@ -188,7 +188,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeStrongBinder(client->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(client));
         data.writeString8(iface);
         remote()->transact(LISTEN_FOR_REMOTE_DISPLAY, data, &reply);
         return interface_cast<IRemoteDisplay>(reply.readStrongBinder());
@@ -216,7 +216,7 @@ status_t BnMediaPlayerService::onTransact(
                 interface_cast<IMediaPlayerClient>(data.readStrongBinder());
             int audioSessionId = data.readInt32();
             sp<IMediaPlayer> player = create(client, audioSessionId);
-            reply->writeStrongBinder(player->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(player));
             return NO_ERROR;
         } break;
         case DECODE_URL: {
@@ -273,38 +273,38 @@ status_t BnMediaPlayerService::onTransact(
         case CREATE_MEDIA_RECORDER: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IMediaRecorder> recorder = createMediaRecorder();
-            reply->writeStrongBinder(recorder->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(recorder));
             return NO_ERROR;
         } break;
         case CREATE_METADATA_RETRIEVER: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IMediaMetadataRetriever> retriever = createMetadataRetriever();
-            reply->writeStrongBinder(retriever->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(retriever));
             return NO_ERROR;
         } break;
         case GET_OMX: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IOMX> omx = getOMX();
-            reply->writeStrongBinder(omx->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(omx));
             return NO_ERROR;
         } break;
         case MAKE_CRYPTO: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<ICrypto> crypto = makeCrypto();
-            reply->writeStrongBinder(crypto->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(crypto));
             return NO_ERROR;
         } break;
         case MAKE_DRM: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IDrm> drm = makeDrm();
-            reply->writeStrongBinder(drm->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(drm));
             return NO_ERROR;
         } break;
         case MAKE_HDCP: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             bool createEncryptionModule = data.readInt32();
             sp<IHDCP> hdcp = makeHDCP(createEncryptionModule);
-            reply->writeStrongBinder(hdcp->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(hdcp));
             return NO_ERROR;
         } break;
         case ADD_BATTERY_DATA: {
@@ -324,13 +324,13 @@ status_t BnMediaPlayerService::onTransact(
                     interface_cast<IRemoteDisplayClient>(data.readStrongBinder()));
             String8 iface(data.readString8());
             sp<IRemoteDisplay> display(listenForRemoteDisplay(client, iface));
-            reply->writeStrongBinder(display->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(display));
             return NO_ERROR;
         } break;
         case GET_CODEC_LIST: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IMediaCodecList> mcl = getCodecList();
-            reply->writeStrongBinder(mcl->asBinder());
+            reply->writeStrongBinder(IInterface::asBinder(mcl));
             return NO_ERROR;
         } break;
         default:

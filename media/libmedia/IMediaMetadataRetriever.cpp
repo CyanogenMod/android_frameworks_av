@@ -95,7 +95,7 @@ public:
         data.writeInterfaceToken(IMediaMetadataRetriever::getInterfaceDescriptor());
         data.writeInt32(httpService != NULL);
         if (httpService != NULL) {
-            data.writeStrongBinder(httpService->asBinder());
+            data.writeStrongBinder(IInterface::asBinder(httpService));
         }
         data.writeCString(srcUrl);
 
@@ -246,7 +246,7 @@ status_t BnMediaMetadataRetriever::onTransact(
             sp<IMemory> bitmap = getFrameAtTime(timeUs, option);
             if (bitmap != 0) {  // Don't send NULL across the binder interface
                 reply->writeInt32(NO_ERROR);
-                reply->writeStrongBinder(bitmap->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(bitmap));
             } else {
                 reply->writeInt32(UNKNOWN_ERROR);
             }
@@ -263,7 +263,7 @@ status_t BnMediaMetadataRetriever::onTransact(
             sp<IMemory> albumArt = extractAlbumArt();
             if (albumArt != 0) {  // Don't send NULL across the binder interface
                 reply->writeInt32(NO_ERROR);
-                reply->writeStrongBinder(albumArt->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(albumArt));
             } else {
                 reply->writeInt32(UNKNOWN_ERROR);
             }
