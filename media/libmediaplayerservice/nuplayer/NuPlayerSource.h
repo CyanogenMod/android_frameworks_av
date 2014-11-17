@@ -28,7 +28,6 @@
 namespace android {
 
 struct ABuffer;
-struct MetaData;
 struct MediaBuffer;
 
 struct NuPlayer::Source : public AHandler {
