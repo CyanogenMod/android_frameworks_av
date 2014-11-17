@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaCodecList"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include <binder/IServiceManager.h>
 
@@ -479,6 +480,18 @@ status_t MediaCodecList::addMediaCodecFromAttributes(
 
     if (name == NULL) {
         return -EINVAL;
+    }
+
+    if (!encoder && !strncmp(name, "OMX.qcom.video.decoder.hevc", strlen("OMX.qcom.video.decoder.hevc"))) {
+        char value[PROPERTY_VALUE_MAX] = {0};
+        int sw_codectype = 0;
+        int enableSwHevc = 0;
+
+        sw_codectype = property_get("media.swhevccodectype", value, NULL);
+        enableSwHevc = atoi(value);
+        if (sw_codectype && enableSwHevc) {
+           name = "OMX.qcom.video.decoder.hevcswvdec";
+        }
     }
 
     mCurrentInfo = new MediaCodecInfo(name, encoder, type);
