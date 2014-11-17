@@ -66,6 +66,9 @@ protected:
     virtual ~MediaGroup();
 
 private:
+
+    friend struct M3UParser;
+
     struct Media {
         AString mName;
         AString mURI;
@@ -354,6 +357,38 @@ sp<AMessage> M3UParser::getTrackInfo(size_t index) const {
 
 ssize_t M3UParser::getSelectedIndex() const {
     return mSelectedIndex;
+}
+
+ssize_t M3UParser::getSelectedTrack(media_track_type type) const {
+    MediaGroup::Type groupType;
+    switch (type) {
+        case MEDIA_TRACK_TYPE_VIDEO:
+            groupType = MediaGroup::TYPE_VIDEO;
+            break;
+
+        case MEDIA_TRACK_TYPE_AUDIO:
+            groupType = MediaGroup::TYPE_AUDIO;
+            break;
+
+        case MEDIA_TRACK_TYPE_SUBTITLE:
+            groupType = MediaGroup::TYPE_SUBS;
+            break;
+
+        default:
+            return -1;
+    }
+
+    for (size_t i = 0, ii = 0; i < mMediaGroups.size(); ++i) {
+        sp<MediaGroup> group = mMediaGroups.valueAt(i);
+        size_t tracks = group->countTracks();
+        if (groupType != group->mType) {
+            ii += tracks;
+        } else if (group->mSelectedIndex >= 0) {
+            return ii + group->mSelectedIndex;
+        }
+    }
+
+    return -1;
 }
 
 bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
