@@ -197,7 +197,7 @@ static sp<ABuffer> MakeAVCCodecSpecificData(
         out += nal->size();
 
         if (i == 0) {
-            FindAVCDimensions(nal, width, height);
+            FindAVCDimensions(nal, width, height, NULL);
             ALOGI("dimensions %dx%d", *width, *height);
         }
     }
