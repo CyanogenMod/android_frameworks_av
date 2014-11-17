@@ -82,7 +82,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ISoundTriggerHwService::getInterfaceDescriptor());
         data.write(&handle, sizeof(sound_trigger_module_handle_t));
-        data.writeStrongBinder(client->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(client));
         remote()->transact(ATTACH, data, &reply);
         status_t status = reply.readInt32();
         if (reply.readInt32() != 0) {
@@ -147,7 +147,7 @@ status_t BnSoundTriggerHwService::onTransact(
             reply->writeInt32(status);
             if (module != 0) {
                 reply->writeInt32(1);
-                reply->writeStrongBinder(module->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(module));
             } else {
                 reply->writeInt32(0);
             }

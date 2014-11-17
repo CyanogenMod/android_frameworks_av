@@ -111,7 +111,7 @@ protected:
     pid_t mInitialClientPid;
 
     virtual sp<IBinder> asBinderWrapper() {
-        return IInterface::asBinder();
+        return IInterface::asBinder(this);
     }
 
     virtual status_t      dumpDevice(int fd, const Vector<String16>& args);

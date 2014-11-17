@@ -245,8 +245,8 @@ status_t OMX::allocateNode(
 
     instance->setHandle(*node, handle);
 
-    mLiveNodes.add(observer->asBinder(), instance);
-    observer->asBinder()->linkToDeath(this);
+    mLiveNodes.add(IInterface::asBinder(observer), instance);
+    IInterface::asBinder(observer)->linkToDeath(this);
 
     return OK;
 }
@@ -256,7 +256,7 @@ status_t OMX::freeNode(node_id node) {
 
     {
         Mutex::Autolock autoLock(mLock);
-        ssize_t index = mLiveNodes.indexOfKey(instance->observer()->asBinder());
+        ssize_t index = mLiveNodes.indexOfKey(IInterface::asBinder(instance->observer()));
         if (index < 0) {
             // This could conceivably happen if the observer dies at roughly the
             // same time that a client attempts to free the node explicitly.
@@ -265,7 +265,7 @@ status_t OMX::freeNode(node_id node) {
         mLiveNodes.removeItemsAt(index);
     }
 
-    instance->observer()->asBinder()->unlinkToDeath(this);
+    IInterface::asBinder(instance->observer())->unlinkToDeath(this);
 
     status_t err = instance->freeNode(mMaster);
 

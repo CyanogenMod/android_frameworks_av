@@ -150,7 +150,7 @@ status_t AudioEffect::set(const effect_uuid_t *type,
     int bufOffset = ((sizeof(effect_param_cblk_t) - 1) / sizeof(int) + 1) * sizeof(int);
     mCblk->buffer = (uint8_t *)mCblk + bufOffset;
 
-    iEffect->asBinder()->linkToDeath(mIEffectClient);
+    IInterface::asBinder(iEffect)->linkToDeath(mIEffectClient);
     mClientPid = IPCThreadState::self()->getCallingPid();
     ALOGV("set() %p OK effect: %s id: %d status %d enabled %d pid %d", this, mDescriptor.name, mId,
             mStatus, mEnabled, mClientPid);
@@ -173,7 +173,7 @@ AudioEffect::~AudioEffect()
         }
         if (mIEffect != NULL) {
             mIEffect->disconnect();
-            mIEffect->asBinder()->unlinkToDeath(mIEffectClient);
+            IInterface::asBinder(mIEffect)->unlinkToDeath(mIEffectClient);
         }
         IPCThreadState::self()->flushCommands();
     }

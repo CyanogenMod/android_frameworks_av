@@ -43,7 +43,7 @@ CameraDeviceClientBase::CameraDeviceClientBase(
         uid_t clientUid,
         int servicePid) :
     BasicClient(cameraService,
-            remoteCallback != NULL ? remoteCallback->asBinder() : NULL,
+            IInterface::asBinder(remoteCallback),
             clientPackageName,
             cameraId,
             cameraFacing,
@@ -163,7 +163,7 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
             if (surface == 0) continue;
 
             sp<IGraphicBufferProducer> gbp = surface->getIGraphicBufferProducer();
-            int idx = mStreamMap.indexOfKey(gbp->asBinder());
+            int idx = mStreamMap.indexOfKey(IInterface::asBinder(gbp));
 
             // Trying to submit request with surface that wasn't created
             if (idx == NAME_NOT_FOUND) {
@@ -333,7 +333,7 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
 
     // Don't create multiple streams for the same target surface
     {
-        ssize_t index = mStreamMap.indexOfKey(bufferProducer->asBinder());
+        ssize_t index = mStreamMap.indexOfKey(IInterface::asBinder(bufferProducer));
         if (index != NAME_NOT_FOUND) {
             ALOGW("%s: Camera %d: Buffer producer already has a stream for it "
                   "(ID %zd)",
@@ -359,7 +359,7 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
         useAsync = true;
     }
 
-    sp<IBinder> binder = bufferProducer->asBinder();
+    sp<IBinder> binder = IInterface::asBinder(bufferProducer);
     sp<ANativeWindow> anw = new Surface(bufferProducer, useAsync);
 
     // TODO: remove w,h,f since we are ignoring them
@@ -517,7 +517,7 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     result.appendFormat("CameraDeviceClient[%d] (%p) dump:\n",
             mCameraId,
             (getRemoteCallback() != NULL ?
-                    getRemoteCallback()->asBinder().get() : NULL) );
+                    IInterface::asBinder(getRemoteCallback()).get() : NULL) );
     result.appendFormat("  Current client: %s (PID %d, UID %u)\n",
             String8(mClientPackageName).string(),
             mClientPid, mClientUid);
