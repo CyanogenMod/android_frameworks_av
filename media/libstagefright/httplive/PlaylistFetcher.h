@@ -31,7 +31,7 @@ struct DataSource;
 struct HTTPBase;
 struct LiveDataSource;
 struct M3UParser;
-struct String8;
+class String8;
 
 struct PlaylistFetcher : public AHandler {
     enum {

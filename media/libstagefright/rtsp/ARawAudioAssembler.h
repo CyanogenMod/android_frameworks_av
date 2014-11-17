@@ -24,7 +24,7 @@ namespace android {
 
 struct AMessage;
 struct AString;
-struct MetaData;
+class MetaData;
 
 struct ARawAudioAssembler : public ARTPAssembler {
     ARawAudioAssembler(

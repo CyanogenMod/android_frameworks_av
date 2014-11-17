@@ -25,7 +25,7 @@ struct VO_MEM_OPERATOR;
 
 namespace android {
 
-struct MediaBufferGroup;
+class MediaBufferGroup;
 
 class AACEncoder: public MediaSource {
     public:

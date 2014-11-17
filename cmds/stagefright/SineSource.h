@@ -6,7 +6,7 @@
 
 namespace android {
 
-struct MediaBufferGroup;
+class MediaBufferGroup;
 
 struct SineSource : public MediaSource {
     SineSource(int32_t sampleRate, int32_t numChannels);
