@@ -68,13 +68,6 @@ LOCAL_SRC_FILES += FastCapture.cpp FastCaptureState.cpp
 
 LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
-# Define ANDROID_SMP appropriately. Used to get inline tracing fast-path.
-ifeq ($(TARGET_CPU_SMP),true)
-    LOCAL_CFLAGS += -DANDROID_SMP=1
-else
-    LOCAL_CFLAGS += -DANDROID_SMP=0
-endif
-
 LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
