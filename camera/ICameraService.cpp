@@ -172,7 +172,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(cameraClient->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(cameraClient));
         data.writeInt32(cameraId);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
@@ -194,7 +194,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(cameraClient->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(cameraClient));
         data.writeInt32(cameraId);
         data.writeInt32(halVersion);
         data.writeString16(clientPackageName);
@@ -217,7 +217,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(cameraCb->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(cameraCb));
         data.writeInt32(cameraId);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
@@ -242,7 +242,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(cameraCb->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(cameraCb));
         data.writeInt32(cameraId);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
@@ -260,7 +260,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(listener->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(listener));
         remote()->transact(BnCameraService::ADD_LISTENER, data, &reply);
 
         if (readExceptionCode(reply)) return -EPROTO;
@@ -271,7 +271,7 @@ public:
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(listener->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(listener));
         remote()->transact(BnCameraService::REMOVE_LISTENER, data, &reply);
 
         if (readExceptionCode(reply)) return -EPROTO;
@@ -384,7 +384,7 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(status);
             if (camera != NULL) {
                 reply->writeInt32(1);
-                reply->writeStrongBinder(camera->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(camera));
             } else {
                 reply->writeInt32(0);
             }
@@ -404,7 +404,7 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(status);
             if (camera != NULL) {
                 reply->writeInt32(1);
-                reply->writeStrongBinder(camera->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(camera));
             } else {
                 reply->writeInt32(0);
             }
@@ -424,7 +424,7 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(status);
             if (camera != NULL) {
                 reply->writeInt32(1);
-                reply->writeStrongBinder(camera->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(camera));
             } else {
                 reply->writeInt32(0);
             }
@@ -484,7 +484,7 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(status);
             if (camera != NULL) {
                 reply->writeInt32(1);
-                reply->writeStrongBinder(camera->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(camera));
             } else {
                 reply->writeInt32(0);
             }

@@ -84,10 +84,10 @@ status_t Drm::setListener(const sp<IDrmClient>& listener)
 {
     Mutex::Autolock lock(mEventLock);
     if (mListener != NULL){
-        mListener->asBinder()->unlinkToDeath(this);
+        IInterface::asBinder(mListener)->unlinkToDeath(this);
     }
     if (listener != NULL) {
-        listener->asBinder()->linkToDeath(this);
+        IInterface::asBinder(listener)->linkToDeath(this);
     }
     mListener = listener;
     return NO_ERROR;

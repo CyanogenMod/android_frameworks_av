@@ -338,7 +338,7 @@ AudioFlinger::ThreadBase::~ThreadBase()
     // do not lock the mutex in destructor
     releaseWakeLock_l();
     if (mPowerManager != 0) {
-        sp<IBinder> binder = mPowerManager->asBinder();
+        sp<IBinder> binder = IInterface::asBinder(mPowerManager);
         binder->unlinkToDeath(mDeathRecipient);
     }
 }

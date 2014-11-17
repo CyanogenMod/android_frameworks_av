@@ -42,7 +42,7 @@ public:
         data.writeInterfaceToken(ICameraRecordingProxyListener::getInterfaceDescriptor());
         data.writeInt64(timestamp);
         data.writeInt32(msgType);
-        data.writeStrongBinder(imageData->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(imageData));
         remote()->transact(DATA_CALLBACK_TIMESTAMP, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };

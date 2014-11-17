@@ -104,7 +104,7 @@ IMediaDeathNotifier::DeathNotifier::~DeathNotifier()
     Mutex::Autolock _l(sServiceLock);
     sObitRecipients.clear();
     if (sMediaPlayerService != 0) {
-        sMediaPlayerService->asBinder()->unlinkToDeath(this);
+        IInterface::asBinder(sMediaPlayerService)->unlinkToDeath(this);
     }
 }
 

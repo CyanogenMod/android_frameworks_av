@@ -45,7 +45,7 @@ public:
         ALOGV("startRecording");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraRecordingProxy::getInterfaceDescriptor());
-        data.writeStrongBinder(listener->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(listener));
         remote()->transact(START_RECORDING, data, &reply);
         return reply.readInt32();
     }
@@ -63,7 +63,7 @@ public:
         ALOGV("releaseRecordingFrame");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraRecordingProxy::getInterfaceDescriptor());
-        data.writeStrongBinder(mem->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(mem));
         remote()->transact(RELEASE_RECORDING_FRAME, data, &reply);
     }
 };

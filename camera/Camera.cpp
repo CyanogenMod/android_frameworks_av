@@ -55,7 +55,7 @@ sp<Camera> Camera::create(const sp<ICamera>& camera)
     if (camera->connect(c) == NO_ERROR) {
         c->mStatus = NO_ERROR;
         c->mCamera = camera;
-        camera->asBinder()->linkToDeath(c);
+        IInterface::asBinder(camera)->linkToDeath(c);
         return c;
     }
     return 0;
@@ -93,7 +93,7 @@ status_t Camera::connectLegacy(int cameraId, int halVersion,
                                         clientUid, /*out*/c->mCamera);
     }
     if (status == OK && c->mCamera != 0) {
-        c->mCamera->asBinder()->linkToDeath(c);
+        IInterface::asBinder(c->mCamera)->linkToDeath(c);
         c->mStatus = NO_ERROR;
         camera = c;
     } else {

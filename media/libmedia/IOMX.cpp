@@ -100,7 +100,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeCString(name);
-        data.writeStrongBinder(observer->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(observer));
         remote()->transact(ALLOCATE_NODE, data, &reply);
 
         status_t err = reply.readInt32();
@@ -248,7 +248,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
-        data.writeStrongBinder(params->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(params));
         remote()->transact(USE_BUFFER, data, &reply);
 
         status_t err = reply.readInt32();
@@ -418,7 +418,7 @@ public:
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
-        data.writeStrongBinder(params->asBinder());
+        data.writeStrongBinder(IInterface::asBinder(params));
         remote()->transact(ALLOC_BUFFER_WITH_BACKUP, data, &reply);
 
         status_t err = reply.readInt32();
@@ -775,7 +775,7 @@ status_t BnOMX::onTransact(
             reply->writeInt32(err);
 
             if (err == OK) {
-                reply->writeStrongBinder(bufferProducer->asBinder());
+                reply->writeStrongBinder(IInterface::asBinder(bufferProducer));
             }
 
             return NO_ERROR;
