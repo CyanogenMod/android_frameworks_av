@@ -89,18 +89,6 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 
-# for <cutils/atomic-inline.h>
-ifeq ($(TARGET_CPU_SMP),true)
-  LOCAL_CFLAGS += -DANDROID_SMP=1
-else
-  ifeq ($(TARGET_CPU_SMP),false)
-    LOCAL_CFLAGS += -DANDROID_SMP=0
-  else
-    $(warning TARGET_CPU_SMP should be (true|false), found $(TARGET_CPU_SMP))
-    # Make sure we emit barriers for the worst case.
-    LOCAL_CFLAGS += -DANDROID_SMP=1
-  endif
-endif
 LOCAL_SRC_FILES += SingleStateQueue.cpp
 LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
 
