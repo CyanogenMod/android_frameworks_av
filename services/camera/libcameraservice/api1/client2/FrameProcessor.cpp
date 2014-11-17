@@ -168,6 +168,19 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
             faceIds = entry.data.i32;
         }
 
+        entry = frame.find(ANDROID_SCALER_CROP_REGION);
+        if (entry.count < 4) {
+            ALOGE("%s: Camera %d: Unable to read crop region (count = %d)",
+                    __FUNCTION__, client->getCameraId(), entry.count);
+            return res;
+        }
+
+        Parameters::CropRegion scalerCrop = {
+            static_cast<float>(entry.data.i32[0]),
+            static_cast<float>(entry.data.i32[1]),
+            static_cast<float>(entry.data.i32[2]),
+            static_cast<float>(entry.data.i32[3])};
+
         faces.setCapacity(metadata.number_of_faces);
 
         size_t maxFaces = metadata.number_of_faces;
@@ -183,26 +196,30 @@ status_t FrameProcessor::processFaceDetect(const CameraMetadata &frame,
 
             camera_face_t face;
 
-            face.rect[0] = l.mParameters.arrayXToNormalized(faceRects[i*4 + 0]);
-            face.rect[1] = l.mParameters.arrayYToNormalized(faceRects[i*4 + 1]);
-            face.rect[2] = l.mParameters.arrayXToNormalized(faceRects[i*4 + 2]);
-            face.rect[3] = l.mParameters.arrayYToNormalized(faceRects[i*4 + 3]);
+            face.rect[0] = l.mParameters.arrayXToNormalizedWithCrop(
+                                faceRects[i*4 + 0], scalerCrop);
+            face.rect[1] = l.mParameters.arrayYToNormalizedWithCrop(
+                                faceRects[i*4 + 1], scalerCrop);
+            face.rect[2] = l.mParameters.arrayXToNormalizedWithCrop(
+                                faceRects[i*4 + 2], scalerCrop);
+            face.rect[3] = l.mParameters.arrayYToNormalizedWithCrop(
+                                faceRects[i*4 + 3], scalerCrop);
 
             face.score = faceScores[i];
             if (faceDetectMode == ANDROID_STATISTICS_FACE_DETECT_MODE_FULL) {
                 face.id = faceIds[i];
-                face.left_eye[0] =
-                    l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 0]);
-                face.left_eye[1] =
-                    l.mParameters.arrayYToNormalized(faceLandmarks[i*6 + 1]);
-                face.right_eye[0] =
-                    l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 2]);
-                face.right_eye[1] =
-                    l.mParameters.arrayYToNormalized(faceLandmarks[i*6 + 3]);
-                face.mouth[0] =
-                    l.mParameters.arrayXToNormalized(faceLandmarks[i*6 + 4]);
-                face.mouth[1] =
-                    l.mParameters.arrayYToNormalized(faceLandmarks[i*6 + 5]);
+                face.left_eye[0] = l.mParameters.arrayXToNormalizedWithCrop(
+                        faceLandmarks[i*6 + 0], scalerCrop);
+                face.left_eye[1] = l.mParameters.arrayYToNormalizedWithCrop(
+                        faceLandmarks[i*6 + 1], scalerCrop);
+                face.right_eye[0] = l.mParameters.arrayXToNormalizedWithCrop(
+                        faceLandmarks[i*6 + 2], scalerCrop);
+                face.right_eye[1] = l.mParameters.arrayYToNormalizedWithCrop(
+                        faceLandmarks[i*6 + 3], scalerCrop);
+                face.mouth[0] = l.mParameters.arrayXToNormalizedWithCrop(
+                        faceLandmarks[i*6 + 4], scalerCrop);
+                face.mouth[1] = l.mParameters.arrayYToNormalizedWithCrop(
+                        faceLandmarks[i*6 + 5], scalerCrop);
             } else {
                 face.id = 0;
                 face.left_eye[0] = face.left_eye[1] = -2000;
