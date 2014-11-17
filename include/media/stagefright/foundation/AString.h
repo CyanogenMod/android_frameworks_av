@@ -23,7 +23,7 @@
 
 namespace android {
 
-struct String8;
+class String8;
 struct Parcel;
 
 struct AString {

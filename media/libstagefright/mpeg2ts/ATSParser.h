@@ -28,7 +28,7 @@
 
 namespace android {
 
-struct ABitReader;
+class ABitReader;
 struct ABuffer;
 struct MediaSource;
 
