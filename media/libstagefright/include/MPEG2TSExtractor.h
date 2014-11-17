@@ -28,7 +28,7 @@ namespace android {
 struct AMessage;
 struct AnotherPacketSource;
 struct ATSParser;
-struct DataSource;
+class DataSource;
 struct MPEG2TSSource;
 struct String8;
 

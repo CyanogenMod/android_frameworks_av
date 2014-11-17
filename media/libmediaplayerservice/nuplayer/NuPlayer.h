@@ -26,7 +26,7 @@ namespace android {
 
 struct ABuffer;
 struct AMessage;
-struct MetaData;
+class MetaData;
 struct NuPlayerDriver;
 
 struct NuPlayer : public AHandler {

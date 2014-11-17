@@ -23,7 +23,7 @@
 
 namespace android {
 
-struct ABitReader;
+class ABitReader;
 
 enum {
     kAVCProfileBaseline      = 0x42,
@@ -49,7 +49,7 @@ status_t getNextNALUnit(
         const uint8_t **nalStart, size_t *nalSize,
         bool startCodeFollows = false);
 
-struct MetaData;
+class MetaData;
 sp<MetaData> MakeAVCCodecSpecificData(const sp<ABuffer> &accessUnit);
 
 bool IsIDR(const sp<ABuffer> &accessUnit);
