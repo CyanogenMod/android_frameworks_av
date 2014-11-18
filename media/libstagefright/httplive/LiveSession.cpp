@@ -943,14 +943,19 @@ ssize_t LiveSession::fetchFile(
 }
 
 sp<M3UParser> LiveSession::fetchPlaylist(
-        const char *url, uint8_t *curPlaylistHash, bool *unchanged) {
+        const char *url, uint8_t *curPlaylistHash,
+        bool *unchanged, ssize_t *bytesRead) {
     ALOGV("fetchPlaylist '%s'", url);
 
     *unchanged = false;
 
     sp<ABuffer> buffer;
     String8 actualUrl;
-    ssize_t  err = fetchFile(url, &buffer, 0, -1, 0, NULL, &actualUrl);
+    ssize_t err = fetchFile(url, &buffer, 0, -1, 0, NULL, &actualUrl);
+
+    if (bytesRead) {
+        *bytesRead = err;
+    }
 
     if (err <= 0) {
         return NULL;

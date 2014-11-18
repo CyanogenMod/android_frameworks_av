@@ -240,7 +240,8 @@ private:
             String8 *actualUrl = NULL);
 
     sp<M3UParser> fetchPlaylist(
-            const char *url, uint8_t *curPlaylistHash, bool *unchanged);
+            const char *url, uint8_t *curPlaylistHash,
+            bool *unchanged, ssize_t *bytesRead = NULL);
 
     size_t getBandwidthIndex();
     int64_t latestMediaSegmentStartTimeUs();
