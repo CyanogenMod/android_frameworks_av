@@ -222,6 +222,9 @@ private:
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
     AString mFetchUrl;
 
+    FILE *mBackupFile;
+    uint32_t mSegmentCounter;
+
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
