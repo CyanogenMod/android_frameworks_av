@@ -404,7 +404,7 @@ static void noise_estimate_update(
 		alpha_down = ALPHA_DOWN1;
 	} else
 	{
-		if ((st->stat_count == 0))
+		if (st->stat_count == 0)
 		{
 			alpha_up = ALPHA_UP2;
 			alpha_down = ALPHA_DOWN2;
