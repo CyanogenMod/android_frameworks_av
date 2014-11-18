@@ -1841,13 +1841,14 @@ status_t MPEG4Writer::Track::stop() {
     }
     mDone = true;
 
+    ALOGD("%s track source stopping", mIsAudio? "Audio": "Video");
+    mSource->stop();
+    ALOGD("%s track source stopped", mIsAudio? "Audio": "Video");
+
     void *dummy;
     pthread_join(mThread, &dummy);
     status_t err = static_cast<status_t>(reinterpret_cast<uintptr_t>(dummy));
 
-    ALOGD("%s track source stopping", mIsAudio? "Audio": "Video");
-    err = mSource->stop();
-    ALOGD("%s track stopped status:%d", mIsAudio? "Audio": "Video", err);
     if (mOwner->exceedsFileSizeLimit() && mStszTableEntries->count() == 0) {
         ALOGE(" Filesize limit exceeded and zero samples written ");
         return ERROR_END_OF_STREAM;
