@@ -2149,6 +2149,11 @@ void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
             mStreamType = AUDIO_STREAM_ALARM;
             break;
         }
+        audio_mode_t phoneState = AudioSystem::getPhoneState();
+        if (phoneState == AUDIO_MODE_IN_CALL || phoneState == AUDIO_MODE_IN_COMMUNICATION) {
+            mStreamType = AUDIO_STREAM_VOICE_CALL;
+            break;
+        }
     }    /// FALL THROUGH
     case AUDIO_USAGE_MEDIA:
     case AUDIO_USAGE_GAME:
