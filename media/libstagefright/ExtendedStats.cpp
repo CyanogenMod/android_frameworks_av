@@ -519,6 +519,7 @@ void PlayerExtendedStats::dump() {
         mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(video));
         mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(audio));
         mProfileTimes->dump(STATS_PROFILE_START_LATENCY);
+        mProfileTimes->dump(STATS_PROFILE_RECONFIGURE);
     }
 
     ALOGI("-------------------End PlayerExtendedStats----------------------");
@@ -604,6 +605,8 @@ void RecorderExtendedStats::dump() {
     mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(video));
     mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(audio));
     mProfileTimes->dump(STATS_PROFILE_START_LATENCY);
+    mProfileTimes->dump(STATS_PROFILE_SF_RECORDER_START_LATENCY);
+    mProfileTimes->dump(STATS_PROFILE_CAMERA_SOURCE_START_LATENCY);
     mProfileTimes->dump(STATS_PROFILE_STOP);
 
     ALOGI("-------------------End RecorderExtendedStats----------------------");

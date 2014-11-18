@@ -31,6 +31,13 @@
 
 #define TRACK_BUFFER_TIMING     0
 
+#define CODEC_PLAYER_STATS(func, ...) \
+    do { \
+        if(mCodec != NULL && mCodec->mMediaExtendedStats != NULL) { \
+            mCodec->mMediaExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
+
 namespace android {
 
 struct ABuffer;
