@@ -1619,6 +1619,7 @@ status_t AudioFlinger::EffectChain::addEffect_l(const sp<EffectModule>& effect)
 #else // DOLBY_END
     effect->configure();
     return NO_ERROR;
+#endif
 }
 
 // removeEffect_l() must be called with PlaybackThread::mLock held

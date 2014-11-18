@@ -809,6 +809,20 @@ private:
     uint32_t    mPrimaryOutputSampleRate;   // sample rate of the primary output, or zero if none
                                             // protected by mHardwareLock
 #ifdef DOLBY_DAP
+#ifdef DOLBY_DAP_FAST_API
+     enum ds_profile {
+         PROFILE_MOVIE = 0x0,
+         PROFILE_MUSIC,
+         PROFILE_GAME,
+         PROFILE_VOICE,
+         PROFILE_CUSTOM_1,
+         PROFILE_CUSTOM_2
+     };
+     status_t    setDsProfile(ds_profile profileId);
+     status_t    setDsEnabled(bool enabled);
+     status_t    setDsProfile_l(ds_profile profileId);
+    status_t    setDsEnabled_l(bool enabled);
+#endif
 #include "EffectDapController.h"
 #endif // DOLBY_END
 };
