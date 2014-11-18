@@ -1239,6 +1239,13 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     }
 #endif //AUDIO_POLICY_TEST
 
+    if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) &&
+            (stream != AUDIO_STREAM_MUSIC)) {
+        // compress should not be used for non-music streams
+        ALOGE("Offloading only allowed with music stream");
+        return 0;
+    }
+
 #ifdef VOICE_CONCURRENCY
     char propValue[PROPERTY_VALUE_MAX];
     bool prop_play_enabled=false, prop_voip_enabled = false;
