@@ -139,6 +139,14 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getTrackInfo(size_t trackIndex) const {
     return mLiveSession->getTrackInfo(trackIndex);
 }
 
+ssize_t NuPlayer::HTTPLiveSource::getSelectedTrack(media_track_type type) const {
+    if (mLiveSession == NULL) {
+        return -1;
+    } else {
+        return mLiveSession->getSelectedTrack(type);
+    }
+}
+
 status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
     status_t err = mLiveSession->selectTrack(trackIndex, select);
 
