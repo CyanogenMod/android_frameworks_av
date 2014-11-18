@@ -611,15 +611,16 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
 
 // ExtendedAudioBufferProvider interface
 
-// Note that framesReady() takes a mutex on the control block using tryLock().
-// This could result in priority inversion if framesReady() is called by the normal mixer,
-// as the normal mixer thread runs at lower
-// priority than the client's callback thread:  there is a short window within framesReady()
-// during which the normal mixer could be preempted, and the client callback would block.
-// Another problem can occur if framesReady() is called by the fast mixer:
-// the tryLock() could block for up to 1 ms, and a sequence of these could delay fast mixer.
-// FIXME Replace AudioTrackShared control block implementation by a non-blocking FIFO queue.
+// framesReady() may return an approximation of the number of frames if called
+// from a different thread than the one calling Proxy->obtainBuffer() and
+// Proxy->releaseBuffer(). Also note there is no mutual exclusion in the
+// AudioTrackServerProxy so be especially careful calling with FastTracks.
 size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
+    if (mSharedBuffer != 0 && (isStopped() || isStopping())) {
+        // Static tracks return zero frames immediately upon stopping (for FastTracks).
+        // The remainder of the buffer is not drained.
+        return 0;
+    }
     return mAudioTrackServerProxy->framesReady();
 }
 
