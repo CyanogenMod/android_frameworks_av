@@ -62,7 +62,7 @@ LOCAL_32_BIT_ONLY := true
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
     LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include/media
-    LOCAL_C_INCLUDES += $(TOP)/$(call project-path-for,qcom-media)/$(TARGET_BOARD_PLATFORM)/mm-core/inc
+    LOCAL_C_INCLUDES += $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
 endif
 
 include $(BUILD_SHARED_LIBRARY)
