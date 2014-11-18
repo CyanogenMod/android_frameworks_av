@@ -547,7 +547,7 @@ static void writeFillElement( const UWord8 *ancBytes,
     totFillBits = totFillBits - (3+4);
 
 
-    if ((cnt == (1<<4)-1)) {
+    if (cnt == (1<<4)-1) {
 
       esc_count = min( ((totFillBits >> 3) - ((1<<4)-1)), (1<<8)-1);
       WriteBits(hBitStream,esc_count,8);
