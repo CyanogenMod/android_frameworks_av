@@ -1142,6 +1142,11 @@ const sp<ABuffer> &PlaylistFetcher::setAccessUnitProperties(
         accessUnit->meta()->setInt32("discard", discard);
     }
 
+    int32_t targetDurationSecs;
+    if (mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs)) {
+        accessUnit->meta()->setInt32("targetDuration", targetDurationSecs);
+    }
+
     accessUnit->meta()->setInt32("discontinuitySeq", mDiscontinuitySeq);
     accessUnit->meta()->setInt64("segmentStartTimeUs", getSegmentStartTimeUs(mSeqNumber));
     return accessUnit;
