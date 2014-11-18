@@ -2124,6 +2124,7 @@ ssize_t MediaPlayerService::AudioCache::write(const void* buffer, size_t size)
         // immutable with respect to future writes.
         //
         // It is thus safe for another thread to read the AudioCache.
+        Mutex::Autolock lock(mLock);
         mCommandComplete = true;
         mSignal.signal();
     }
