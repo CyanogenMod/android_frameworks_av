@@ -867,7 +867,9 @@ status_t StagefrightRecorder::prepare() {
 
 status_t StagefrightRecorder::start() {
     ALOGV("start");
-    ExtendedStats::AutoProfile autoProfile(STATS_PROFILE_START_LATENCY, mRecorderExtendedStats);
+    ExtendedStats::AutoProfile autoProfile(
+            STATS_PROFILE_SF_RECORDER_START_LATENCY, mRecorderExtendedStats);
+    RECORDER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
 
     if (mOutputFd < 0) {
         ALOGE("Output file descriptor is invalid");
