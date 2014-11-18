@@ -1197,6 +1197,9 @@ status_t AwesomePlayer::fallbackToSWDecoder() {
             }
             createAudioPlayer_l();
             err = startAudioPlayer_l(false);
+        } else {
+            mAudioSource.clear();
+            mOmxSource.clear();
         }
     }
 
