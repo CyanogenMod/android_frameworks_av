@@ -105,7 +105,7 @@ void SDPLoader::onLoad(const sp<AMessage> &msg) {
         headers = NULL;
     }
 
-    off64_t sdpSize;
+    off64_t sdpSize = 0;
     if (err == OK && !mCancelled) {
         err = mHTTPDataSource->getSize(&sdpSize);
 
