@@ -205,17 +205,34 @@ private:
         int32_t*           auxBuffer;
 
         // 16-byte boundary
+
+        /* Buffer providers are constructed to translate the track input data as needed.
+         *
+         * 1) mInputBufferProvider: The AudioTrack buffer provider.
+         * 2) mReformatBufferProvider: If not NULL, performs the audio reformat to
+         *    match either mMixerInFormat or mDownmixRequiresFormat, if the downmixer
+         *    requires reformat. For example, it may convert floating point input to
+         *    PCM_16_bit if that's required by the downmixer.
+         * 3) downmixerBufferProvider: If not NULL, performs the channel remixing to match
+         *    the number of channels required by the mixer sink.
+         * 4) mPostDownmixReformatBufferProvider: If not NULL, performs reformatting from
+         *    the downmixer requirements to the mixer engine input requirements.
+         */
         AudioBufferProvider*     mInputBufferProvider;    // externally provided buffer provider.
         CopyBufferProvider*      mReformatBufferProvider; // provider wrapper for reformatting.
         CopyBufferProvider*      downmixerBufferProvider; // wrapper for channel conversion.
-
-        int32_t     sessionId;
+        CopyBufferProvider*      mPostDownmixReformatBufferProvider;
 
         // 16-byte boundary
+        int32_t     sessionId;
+
         audio_format_t mMixerFormat;     // output mix format: AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
         audio_format_t mFormat;          // input track format
         audio_format_t mMixerInFormat;   // mix internal format AUDIO_FORMAT_PCM_(FLOAT|16_BIT)
                                          // each track must be converted to this format.
+        audio_format_t mDownmixRequiresFormat;  // required downmixer format
+                                                // AUDIO_FORMAT_PCM_16_BIT if 16 bit necessary
+                                                // AUDIO_FORMAT_INVALID if no required format
 
         float          mVolume[MAX_NUM_VOLUMES];     // floating point set volume
         float          mPrevVolume[MAX_NUM_VOLUMES]; // floating point previous volume
@@ -225,7 +242,6 @@ private:
         float          mPrevAuxLevel;                 // floating point prev aux level
         float          mAuxInc;                       // floating point aux increment
 
-        // 16-byte boundary
         audio_channel_mask_t mMixerChannelMask;
         uint32_t             mMixerChannelCount;
 
