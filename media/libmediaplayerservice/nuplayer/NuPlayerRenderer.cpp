@@ -1073,6 +1073,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
          if (!(offloadingAudio()) && !(mPaused)) {
              setPauseStartedTimeRealUs(-1);
          }
+         setAnchorTime(-1, -1);
     }
 
     ALOGV("flushing %s", audio ? "audio" : "video");
