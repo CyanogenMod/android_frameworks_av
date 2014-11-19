@@ -32,6 +32,7 @@ namespace android {
 
 // client singleton for AudioFlinger binder interface
 Mutex AudioSystem::gLock;
+Mutex AudioSystem::gLockCache;
 Mutex AudioSystem::gLockAPS;
 Mutex AudioSystem::gLockAPC;
 sp<IAudioFlinger> AudioSystem::gAudioFlinger;
@@ -250,20 +251,20 @@ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream
 status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
                                       uint32_t* samplingRate)
 {
-    OutputDescriptor *outputDesc;
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
 
-    gLock.lock();
-    outputDesc = AudioSystem::gOutputs.valueFor(output);
+    Mutex::Autolock _l(gLockCache);
+
+    OutputDescriptor *outputDesc = AudioSystem::gOutputs.valueFor(output);
     if (outputDesc == NULL) {
         ALOGV("getOutputSamplingRate() no output descriptor for output %d in gOutputs", output);
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) return PERMISSION_DENIED;
+        gLockCache.unlock();
         *samplingRate = af->sampleRate(output);
+        gLockCache.lock();
     } else {
         ALOGV("getOutputSamplingRate() reading from output desc");
         *samplingRate = outputDesc->samplingRate;
-        gLock.unlock();
     }
     if (*samplingRate == 0) {
         ALOGE("AudioSystem::getSamplingRate failed for output %d", output);
@@ -294,18 +295,18 @@ status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_
 status_t AudioSystem::getFrameCount(audio_io_handle_t output,
                                     size_t* frameCount)
 {
-    OutputDescriptor *outputDesc;
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
 
-    gLock.lock();
-    outputDesc = AudioSystem::gOutputs.valueFor(output);
+    Mutex::Autolock _l(gLockCache);
+
+    OutputDescriptor *outputDesc = AudioSystem::gOutputs.valueFor(output);
     if (outputDesc == NULL) {
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) return PERMISSION_DENIED;
+        gLockCache.unlock();
         *frameCount = af->frameCount(output);
+        gLockCache.lock();
     } else {
         *frameCount = outputDesc->frameCount;
-        gLock.unlock();
     }
     if (*frameCount == 0) {
         ALOGE("AudioSystem::getFrameCount failed for output %d", output);
@@ -336,18 +337,18 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
 status_t AudioSystem::getLatency(audio_io_handle_t output,
                                  uint32_t* latency)
 {
-    OutputDescriptor *outputDesc;
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
 
-    gLock.lock();
-    outputDesc = AudioSystem::gOutputs.valueFor(output);
+    Mutex::Autolock _l(gLockCache);
+
+    OutputDescriptor *outputDesc = AudioSystem::gOutputs.valueFor(output);
     if (outputDesc == NULL) {
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) return PERMISSION_DENIED;
+        gLockCache.unlock();
         *latency = af->latency(output);
+        gLockCache.lock();
     } else {
         *latency = outputDesc->latency;
-        gLock.unlock();
     }
 
     ALOGV("getLatency() output %d, latency %d", output, *latency);
@@ -358,24 +359,24 @@ status_t AudioSystem::getLatency(audio_io_handle_t output,
 status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t format,
         audio_channel_mask_t channelMask, size_t* buffSize)
 {
-    gLock.lock();
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) {
+        return PERMISSION_DENIED;
+    }
+    Mutex::Autolock _l(gLockCache);
     // Do we have a stale gInBufferSize or are we requesting the input buffer size for new values
     size_t inBuffSize = gInBuffSize;
     if ((inBuffSize == 0) || (sampleRate != gPrevInSamplingRate) || (format != gPrevInFormat)
         || (channelMask != gPrevInChannelMask)) {
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) {
-            return PERMISSION_DENIED;
-        }
+        gLockCache.unlock();
         inBuffSize = af->getInputBufferSize(sampleRate, format, channelMask);
+        gLockCache.lock();
         if (inBuffSize == 0) {
             ALOGE("AudioSystem::getInputBufferSize failed sampleRate %d format %#x channelMask %x",
                     sampleRate, format, channelMask);
             return BAD_VALUE;
         }
         // A benign race is possible here: we could overwrite a fresher cache entry
-        gLock.lock();
         // save the request params
         gPrevInSamplingRate = sampleRate;
         gPrevInFormat = format;
@@ -383,7 +384,6 @@ status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t for
 
         gInBuffSize = inBuffSize;
     }
-    gLock.unlock();
     *buffSize = inBuffSize;
 
     return NO_ERROR;
@@ -450,14 +450,21 @@ audio_hw_sync_t AudioSystem::getAudioHwSyncForSession(audio_session_t sessionId)
 
 void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who __unused)
 {
-    Mutex::Autolock _l(AudioSystem::gLock);
+    audio_error_callback cb = NULL;
+    {
+        Mutex::Autolock _l(AudioSystem::gLock);
+        AudioSystem::gAudioFlinger.clear();
+        cb = gAudioErrorCallback;
+    }
 
-    AudioSystem::gAudioFlinger.clear();
-    // clear output handles and stream to output map caches
-    AudioSystem::gOutputs.clear();
+    {
+        // clear output handles and stream to output map caches
+        Mutex::Autolock _l(gLockCache);
+        AudioSystem::gOutputs.clear();
+    }
 
-    if (gAudioErrorCallback) {
-        gAudioErrorCallback(DEAD_OBJECT);
+    if (cb) {
+        cb(DEAD_OBJECT);
     }
     ALOGW("AudioFlinger server died!");
 }
@@ -470,7 +477,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
 
     if (ioHandle == AUDIO_IO_HANDLE_NONE) return;
 
-    Mutex::Autolock _l(AudioSystem::gLock);
+    Mutex::Autolock _l(AudioSystem::gLockCache);
 
     switch (event) {
     case STREAM_CONFIG_CHANGED:
@@ -829,8 +836,11 @@ void AudioSystem::clearAudioConfigCache()
     // called by restoreTrack_l(), which needs new IAudioFlinger and IAudioPolicyService instances
     ALOGV("clearAudioConfigCache()");
     {
-        Mutex::Autolock _l(gLock);
+        Mutex::Autolock _l(gLockCache);
         gOutputs.clear();
+    }
+    {
+        Mutex::Autolock _l(gLock);
         gAudioFlinger.clear();
     }
     {
