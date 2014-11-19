@@ -147,7 +147,7 @@ ssize_t NuPlayer::HTTPLiveSource::getSelectedTrack(media_track_type type) const 
     }
 }
 
-status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
+status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select, int64_t /*timeUs*/) {
     status_t err = mLiveSession->selectTrack(trackIndex, select);
 
     if (err == OK) {

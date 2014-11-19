@@ -96,7 +96,7 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
-    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */) {
+    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */, int64_t /* timeUs*/) {
         return INVALID_OPERATION;
     }
 

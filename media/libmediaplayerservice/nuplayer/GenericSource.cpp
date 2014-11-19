@@ -999,11 +999,12 @@ ssize_t NuPlayer::GenericSource::doGetSelectedTrack(media_track_type type) const
     return -1;
 }
 
-status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
+status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select, int64_t timeUs) {
     ALOGV("%s track: %zu", select ? "select" : "deselect", trackIndex);
     sp<AMessage> msg = new AMessage(kWhatSelectTrack, id());
     msg->setInt32("trackIndex", trackIndex);
     msg->setInt32("select", select);
+    msg->setInt64("timeUs", timeUs);
 
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
@@ -1016,11 +1017,13 @@ status_t NuPlayer::GenericSource::selectTrack(size_t trackIndex, bool select) {
 
 void NuPlayer::GenericSource::onSelectTrack(sp<AMessage> msg) {
     int32_t trackIndex, select;
+    int64_t timeUs;
     CHECK(msg->findInt32("trackIndex", &trackIndex));
     CHECK(msg->findInt32("select", &select));
+    CHECK(msg->findInt64("timeUs", &timeUs));
 
     sp<AMessage> response = new AMessage;
-    status_t err = doSelectTrack(trackIndex, select);
+    status_t err = doSelectTrack(trackIndex, select, timeUs);
     response->setInt32("err", err);
 
     uint32_t replyID;
@@ -1028,7 +1031,7 @@ void NuPlayer::GenericSource::onSelectTrack(sp<AMessage> msg) {
     response->postReply(replyID);
 }
 
-status_t NuPlayer::GenericSource::doSelectTrack(size_t trackIndex, bool select) {
+status_t NuPlayer::GenericSource::doSelectTrack(size_t trackIndex, bool select, int64_t timeUs) {
     if (trackIndex >= mSources.size()) {
         return BAD_INDEX;
     }
@@ -1079,6 +1082,23 @@ status_t NuPlayer::GenericSource::doSelectTrack(size_t trackIndex, bool select) 
             mFetchSubtitleDataGeneration++;
         } else {
             mFetchTimedTextDataGeneration++;
+        }
+
+        status_t eosResult; // ignored
+        if (mSubtitleTrack.mSource != NULL
+                && !mSubtitleTrack.mPackets->hasBufferAvailable(&eosResult)) {
+            sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, id());
+            msg->setInt64("timeUs", timeUs);
+            msg->setInt32("generation", mFetchSubtitleDataGeneration);
+            msg->post();
+        }
+
+        if (mTimedTextTrack.mSource != NULL
+                && !mTimedTextTrack.mPackets->hasBufferAvailable(&eosResult)) {
+            sp<AMessage> msg = new AMessage(kWhatFetchTimedTextData, id());
+            msg->setInt64("timeUs", timeUs);
+            msg->setInt32("generation", mFetchTimedTextDataGeneration);
+            msg->post();
         }
 
         return OK;
