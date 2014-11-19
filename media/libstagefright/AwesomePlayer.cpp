@@ -878,6 +878,16 @@ void AwesomePlayer::onStreamDone() {
         return;
     }
 
+    if (mFlags & AUTO_LOOPING) {
+        audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
+        if (mAudioSink != NULL) {
+            streamType = mAudioSink->getAudioStreamType();
+        }
+        if (streamType == AUDIO_STREAM_NOTIFICATION) {
+            ALOGW("disabling auto-loop for notification");
+            modifyFlags(AUTO_LOOPING, CLEAR);
+        }
+    }
     if ((mFlags & LOOPING)
             || ((mFlags & AUTO_LOOPING)
                 && (mAudioSink == NULL || mAudioSink->realtime()))) {
