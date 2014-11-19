@@ -1347,6 +1347,13 @@ status_t AwesomePlayer::startAudioPlayer_l(bool sendErrorNotification) {
         } else {
             notifyIfMediaStarted_l();
         }
+
+        // Kick off the text driver in audio in case we are playing an audio only file
+        if ((mFlags & TEXTPLAYER_INITIALIZED)
+                && !(mFlags & (TEXT_RUNNING | SEEK_PREVIEW))) {
+            mTextDriver->start();
+            modifyFlags(TEXT_RUNNING, SET);
+        }
     } else {
         err = mAudioPlayer->resume();
     }
