@@ -366,6 +366,23 @@ void MediaPlayerFactory::registerBuiltinFactories() {
         }
       }
     }
+
+#ifdef MTK_HARDWARE
+     void *fmPlayerLib = ::dlopen("libfmplayer.so", RTLD_LAZY);
+     if (fmPlayerLib == NULL) {
+         ALOGE("MTK FM Player lib not found, FM radio will not work");
+     } else {
+         typedef MediaPlayerFactory::IFactory* (*CreateFMPlayer)();
+         CreateFMPlayer createFMPlayerFunc = (CreateFMPlayer) ::dlsym(fmPlayerLib, "CreateFMPlayer");
+         if (createFMPlayerFunc == NULL) {
+             ALOGE("Factory method not found within the FM Player library");
+         } else {
+             ALOGI("Registering FM Player factory");
+             registerFactory_l(createFMPlayerFunc(), FM_AUDIO_PLAYER);
+         }
+     }
+#endif
+
     sInitComplete = true;
 }
 

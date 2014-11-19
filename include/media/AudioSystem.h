@@ -41,6 +41,10 @@ public:
     /* These are static methods to control the system-wide AudioFlinger
      * only privileged processes can have access to them
      */
+#ifdef MTK_HARDWARE
+    static status_t SetAudioData(int par1, size_t len, void *ptr);
+    static status_t GetAudioData(int par1, size_t len, void *ptr);
+#endif
 
     // mute/unmute microphone
     static status_t muteMicrophone(bool state);

@@ -78,6 +78,10 @@ enum {
 #ifdef QCOM_DIRECTTRACK
     CREATE_DIRECT_TRACK,
 #endif
+#ifdef MTK_HARDWARE
+	SET_AUDIO_DATA,
+	GET_AUDIO_DATA,
+#endif
 };
 
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
@@ -785,6 +789,31 @@ public:
         return reply.readInt32();
     }
 
+#ifdef MTK_HARDWARE
+    virtual status_t SetAudioData(int par1, size_t len,void *ptr)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(par1);
+        data.writeInt32(len);
+        data.write(ptr,len);
+        remote()->transact(SET_AUDIO_DATA, data, &reply);
+        reply.read(ptr, len);
+        return OK;
+    }
+    virtual status_t GetAudioData(int par1, size_t len,void *ptr)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32(par1);
+        data.writeInt32(len);
+        data.write(ptr,len);
+        remote()->transact(GET_AUDIO_DATA, data, &reply);
+        reply.read(ptr, len);
+        return OK;
+    }
+#endif
+
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -1195,6 +1224,32 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(setLowRamDevice(isLowRamDevice));
             return NO_ERROR;
         } break;
+#ifdef MTK_HARDWARE
+        case SET_AUDIO_DATA:
+        {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            size_t command = data.readInt32();
+            size_t buf_size = data.readInt32();
+            void *params = malloc(buf_size);
+            data.read(params, buf_size);
+            status_t err = SetAudioData(command,buf_size,params);
+            reply->write(params,buf_size);
+            free(params);
+            return NO_ERROR;
+        }break;
+        case GET_AUDIO_DATA:
+        {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            size_t command = data.readInt32();
+            size_t buf_size = data.readInt32();
+            void *params = malloc(buf_size);
+            data.read(params, buf_size);
+            status_t err = GetAudioData(command,buf_size,params);
+            reply->write(params,buf_size);
+            free(params);
+            return NO_ERROR;
+        }break;
+#endif
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }
