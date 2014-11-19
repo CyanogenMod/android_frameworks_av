@@ -488,13 +488,16 @@ status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
         case INVOKE_ID_SELECT_TRACK:
         {
             int trackIndex = request.readInt32();
-            return mPlayer->selectTrack(trackIndex, true /* select */);
+            int msec = 0;
+            // getCurrentPosition should always return OK
+            getCurrentPosition(&msec);
+            return mPlayer->selectTrack(trackIndex, true /* select */, msec * 1000ll);
         }
 
         case INVOKE_ID_UNSELECT_TRACK:
         {
             int trackIndex = request.readInt32();
-            return mPlayer->selectTrack(trackIndex, false /* select */);
+            return mPlayer->selectTrack(trackIndex, false /* select */, 0xdeadbeef /* not used */);
         }
 
         case INVOKE_ID_GET_SELECTED_TRACK:
