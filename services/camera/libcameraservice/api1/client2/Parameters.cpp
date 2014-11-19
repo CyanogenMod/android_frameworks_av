@@ -2203,6 +2203,10 @@ status_t Parameters::recoverOverriddenJpegSize() {
     return OK;
 }
 
+bool Parameters::isJpegSizeOverridden() {
+    return pictureSizeOverriden;
+}
+
 const char* Parameters::getStateName(State state) {
 #define CASE_ENUM_TO_CHAR(x) case x: return(#x); break;
     switch(state) {

@@ -266,6 +266,8 @@ struct Parameters {
     status_t overrideJpegSizeByVideoSize();
     // Recover overridden jpeg size.  Called during stopRecording.
     status_t recoverOverriddenJpegSize();
+    // if video snapshot size is currently overridden
+    bool isJpegSizeOverridden();
 
     // Calculate the crop region rectangle based on current stream sizes
     struct CropRegion {
