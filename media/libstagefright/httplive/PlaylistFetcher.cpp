@@ -826,6 +826,18 @@ void PlaylistFetcher::onDownloadNext() {
                   "  mStartup=%d, was  looking for %d in %d-%d",
                     mStartup, mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
+            if (mStopParams != NULL) {
+                // we should have kept on fetching until we hit the boundaries in mStopParams,
+                // but since the segments we are supposed to fetch have already rolled off
+                // the playlist, i.e. we have already missed the boat, we inevitably have to
+                // skip.
+                for (size_t i = 0; i < mPacketSources.size(); i++) {
+                    sp<ABuffer> formatChange = mSession->createFormatChangeBuffer();
+                    mPacketSources.valueAt(i)->queueAccessUnit(formatChange);
+                }
+                stopAsync(/* clear = */ false);
+                return;
+            }
             mSeqNumber = lastSeqNumberInPlaylist - 3;
             if (mSeqNumber < firstSeqNumberInPlaylist) {
                 mSeqNumber = firstSeqNumberInPlaylist;
@@ -1266,6 +1278,11 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 
             CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
             if (mStartTimeUsNotify != NULL && timeUs > mStartTimeUs) {
+                int32_t firstSeqNumberInPlaylist;
+                if (mPlaylist->meta() == NULL || !mPlaylist->meta()->findInt32(
+                            "media-sequence", &firstSeqNumberInPlaylist)) {
+                    firstSeqNumberInPlaylist = 0;
+                }
 
                 int32_t targetDurationSecs;
                 CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
@@ -1276,6 +1293,8 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                 //   mStartTimeUs.
                 // mSegmentStartTimeUs >= 0
                 //   mSegmentStartTimeUs is non-negative when adapting or switching tracks
+                // mSeqNumber > firstSeqNumberInPlaylist
+                //   don't decrement mSeqNumber if it already points to the 1st segment
                 // timeUs - mStartTimeUs > targetDurationUs:
                 //   This and the 2 above conditions should only happen when adapting in a live
                 //   stream; the old fetcher has already fetched to mStartTimeUs; the new fetcher
@@ -1285,6 +1304,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                 //   stop as early as possible. The definition of being "too far ahead" is
                 //   arbitrary; here we use targetDurationUs as threshold.
                 if (mStartup && mSegmentStartTimeUs >= 0
+                        && mSeqNumber > firstSeqNumberInPlaylist
                         && timeUs - mStartTimeUs > targetDurationUs) {
                     // we just guessed a starting timestamp that is too high when adapting in a
                     // live stream; re-adjust based on the actual timestamp extracted from the
