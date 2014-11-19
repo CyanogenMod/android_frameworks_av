@@ -453,8 +453,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             size_t trackIndex;
             int32_t select;
+            int64_t timeUs;
             CHECK(msg->findSize("trackIndex", &trackIndex));
             CHECK(msg->findInt32("select", &select));
+            CHECK(msg->findInt64("timeUs", &timeUs));
 
             status_t err = INVALID_OPERATION;
 
@@ -468,7 +470,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             if (trackIndex < inbandTracks) {
-                err = mSource->selectTrack(trackIndex, select);
+                err = mSource->selectTrack(trackIndex, select, timeUs);
 
                 if (!select && err == OK) {
                     int32_t type;
@@ -1624,10 +1626,11 @@ status_t NuPlayer::getSelectedTrack(int32_t type, Parcel* reply) const {
     return err;
 }
 
-status_t NuPlayer::selectTrack(size_t trackIndex, bool select) {
+status_t NuPlayer::selectTrack(size_t trackIndex, bool select, int64_t timeUs) {
     sp<AMessage> msg = new AMessage(kWhatSelectTrack, id());
     msg->setSize("trackIndex", trackIndex);
     msg->setInt32("select", select);
+    msg->setInt64("timeUs", timeUs);
 
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
