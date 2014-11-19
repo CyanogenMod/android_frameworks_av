@@ -373,10 +373,11 @@ private:
     friend class AudioFlingerClient;
     friend class AudioPolicyServiceClient;
 
-    static Mutex gLock;     // protects all members except gAudioPolicyService,
-                            // gAudioPolicyServiceClient, and gAudioPortCallback
-    static Mutex gLockAPS;  // protects gAudioPolicyService and gAudioPolicyServiceClient
-    static Mutex gLockAPC;  // protects gAudioPortCallback
+    static Mutex gLock;      // protects gAudioFlinger and gAudioErrorCallback,
+    static Mutex gLockCache; // protects gOutputs, gPrevInSamplingRate, gPrevInFormat,
+                             // gPrevInChannelMask and gInBuffSize
+    static Mutex gLockAPS;   // protects gAudioPolicyService and gAudioPolicyServiceClient
+    static Mutex gLockAPC;   // protects gAudioPortCallback
     static sp<IAudioFlinger> gAudioFlinger;
     static audio_error_callback gAudioErrorCallback;
 
