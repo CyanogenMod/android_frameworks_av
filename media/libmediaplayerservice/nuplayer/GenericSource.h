@@ -67,7 +67,7 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual size_t getTrackCount() const;
     virtual sp<AMessage> getTrackInfo(size_t trackIndex) const;
     virtual ssize_t getSelectedTrack(media_track_type type) const;
-    virtual status_t selectTrack(size_t trackIndex, bool select);
+    virtual status_t selectTrack(size_t trackIndex, bool select, int64_t timeUs);
     virtual status_t seekTo(int64_t seekTimeUs);
 
     virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
@@ -164,7 +164,7 @@ private:
     ssize_t doGetSelectedTrack(media_track_type type) const;
 
     void onSelectTrack(sp<AMessage> msg);
-    status_t doSelectTrack(size_t trackIndex, bool select);
+    status_t doSelectTrack(size_t trackIndex, bool select, int64_t timeUs);
 
     void onSeek(sp<AMessage> msg);
     status_t doSeek(int64_t seekTimeUs);
