@@ -151,7 +151,9 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
         // any error signaling will occur.
         ALOGW_IF(err != OK, "failed to disconnect from surface: %d", err);
     }
-    format->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+    if (mPlayerExtendedStats != NULL) {
+        format->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+    }
     err = mCodec->configure(
             format, surface, NULL /* crypto */, 0 /* flags */);
     if (err != OK) {

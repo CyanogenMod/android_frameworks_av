@@ -645,7 +645,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> notify = new AMessage(kWhatRendererNotify, id());
             ++mRendererGeneration;
             notify->setInt32("generation", mRendererGeneration);
-            notify->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+            if (mPlayerExtendedStats != NULL) {
+                notify->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+            }
             mRenderer = new Renderer(mAudioSink, notify, flags);
 
             mRendererLooper = new ALooper;
@@ -1216,7 +1218,9 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         *decoder = new Decoder(notify, mNativeWindow);
     }
 
-    format->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+    if (mPlayerExtendedStats != NULL) {
+        format->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+    }
 
     (*decoder)->init();
     (*decoder)->configure(format);
