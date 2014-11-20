@@ -21,17 +21,19 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <hardware/audio_effect.h>
+#include <media/AudioBufferProvider.h>
+#include <media/nbaio/NBLog.h>
+#include <system/audio.h>
+#include <utils/Compat.h>
 #include <utils/threads.h>
 
 #include <media/AudioBufferProvider.h>
 #include "AudioResampler.h"
 
-#include <hardware/audio_effect.h>
 #ifdef HW_ACC_EFFECTS
 #include "EffectsHwAcc.h"
 #endif
-#include <system/audio.h>
-#include <media/nbaio/NBLog.h>
 
 // FIXME This is actually unity gain, which might not be max in future, expressed in U.12
 #define MAX_GAIN_INT AudioMixer::UNITY_GAIN_INT
@@ -61,7 +63,7 @@ public:
     static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = AUDIO_CHANNEL_COUNT_MAX;
 
     static const uint16_t UNITY_GAIN_INT = 0x1000;
-    static const float    UNITY_GAIN_FLOAT = 1.0f;
+    static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;
 
     enum { // names
 

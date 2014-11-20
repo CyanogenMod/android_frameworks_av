@@ -73,7 +73,7 @@ LOCAL_C_INCLUDES += \
     external/jpeg
 
 
-LOCAL_CFLAGS += -Wall -Wextra
+LOCAL_CFLAGS += -Wall -Wextra -std=gnu++11
 
 ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
     LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION

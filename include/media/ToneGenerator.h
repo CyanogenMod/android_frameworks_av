@@ -17,11 +17,12 @@
 #ifndef ANDROID_TONEGENERATOR_H_
 #define ANDROID_TONEGENERATOR_H_
 
-#include <utils/RefBase.h>
-#include <utils/KeyedVector.h>
-#include <utils/threads.h>
 #include <media/AudioSystem.h>
 #include <media/AudioTrack.h>
+#include <utils/Compat.h>
+#include <utils/KeyedVector.h>
+#include <utils/RefBase.h>
+#include <utils/threads.h>
 
 namespace android {
 

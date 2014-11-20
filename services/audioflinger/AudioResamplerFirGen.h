@@ -17,6 +17,8 @@
 #ifndef ANDROID_AUDIO_RESAMPLER_FIR_GEN_H
 #define ANDROID_AUDIO_RESAMPLER_FIR_GEN_H
 
+#include "utils/Compat.h"
+
 namespace android {
 
 /*
@@ -178,7 +180,7 @@ static inline int64_t toint(double x, int64_t maxval) {
  * I0ATerm<> to the precision of the compiler.  The series can be expanded
  * to any precision needed, but currently set around 24b precision.
  *
- * We use a bit of template math here, constexpr would probably be
+ * We use a bit of template math here, CONSTEXPR would probably be
  * more appropriate for a C++11 compiler.
  *
  * For the intermediate range 3.75 < x < 15, we use minimax polynomial fit.
@@ -187,22 +189,22 @@ static inline int64_t toint(double x, int64_t maxval) {
 
 template <int N>
 struct I0Term {
-    static const double value = I0Term<N-1>::value / (4. * N * N);
+    static const CONSTEXPR double value = I0Term<N-1>::value / (4. * N * N);
 };
 
 template <>
 struct I0Term<0> {
-    static const double value = 1.;
+    static const CONSTEXPR double value = 1.;
 };
 
 template <int N>
 struct I0ATerm {
-    static const double value = I0ATerm<N-1>::value * (2.*N-1.) * (2.*N-1.) / (8. * N);
+    static const CONSTEXPR double value = I0ATerm<N-1>::value * (2.*N-1.) * (2.*N-1.) / (8. * N);
 };
 
 template <>
 struct I0ATerm<0> { // 1/sqrt(2*PI);
-    static const double value = 0.398942280401432677939946059934381868475858631164934657665925;
+    static const CONSTEXPR double value = 0.398942280401432677939946059934381868475858631164934657665925;
 };
 
 #if USE_HORNERS_METHOD

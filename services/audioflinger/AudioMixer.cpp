@@ -1907,7 +1907,7 @@ int64_t AudioMixer::calculateOutputPTS(const track_t& t, int64_t basePTS,
  * Perhaps just stick with a single for loop.
  */
 
-// Needs to derive a compile time constant (constexpr).  Could be targeted to go
+// Needs to derive a compile time constant (CONSTEXPR).  Could be targeted to go
 // to a MONOVOL mixtype based on MAX_NUM_VOLUMES, but that's an unnecessary complication.
 #define MIXTYPE_MONOVOL(mixtype) (mixtype == MIXTYPE_MULTI ? MIXTYPE_MULTI_MONOVOL : \
         mixtype == MIXTYPE_MULTI_SAVEONLY ? MIXTYPE_MULTI_SAVEONLY_MONOVOL : mixtype)
