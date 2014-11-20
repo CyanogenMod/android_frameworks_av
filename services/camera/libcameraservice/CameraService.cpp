@@ -850,6 +850,7 @@ status_t CameraService::connectFinishUnsafe(const sp<BasicClient>& client,
                                             const sp<IBinder>& remoteCallback) {
     status_t status = client->initialize(mModule);
     if (status != OK) {
+        ALOGE("%s: Could not initialize client from HAL module.", __FUNCTION__);
         return status;
     }
     if (remoteCallback != NULL) {
