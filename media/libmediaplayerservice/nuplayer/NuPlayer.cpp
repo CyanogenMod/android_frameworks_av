@@ -1345,6 +1345,12 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                     // This stream is unaffected by the discontinuity
                     return -EWOULDBLOCK;
                 }
+            } else if (err == ERROR_END_OF_STREAM
+                    && doBufferAggregation && (mAggregateBuffer != NULL)) {
+                // send out the last bit of aggregated data
+                reply->setBuffer("buffer", mAggregateBuffer);
+                mAggregateBuffer.clear();
+                err = OK;
             }
 
             reply->setInt32("err", err);
