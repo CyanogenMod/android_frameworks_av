@@ -271,7 +271,7 @@ PutCBPY(Int cbpy, Char intra, BitstreamEncVideo *bitstream)
     Int ind;
     Int length;
 
-    if ((intra == 0))
+    if (intra == 0)
         cbpy = 15 - cbpy;
 
     ind = cbpy;
