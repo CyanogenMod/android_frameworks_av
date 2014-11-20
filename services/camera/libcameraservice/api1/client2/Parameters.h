@@ -19,11 +19,13 @@
 
 #include <system/graphics.h>
 
+#include <utils/Compat.h>
 #include <utils/Errors.h>
+#include <utils/KeyedVector.h>
 #include <utils/Mutex.h>
 #include <utils/String8.h>
 #include <utils/Vector.h>
-#include <utils/KeyedVector.h>
+
 #include <camera/CameraParameters.h>
 #include <camera/CameraParameters2.h>
 #include <camera/CameraMetadata.h>
@@ -187,7 +189,7 @@ struct Parameters {
     static const int MAX_INITIAL_PREVIEW_WIDTH = 1920;
     static const int MAX_INITIAL_PREVIEW_HEIGHT = 1080;
     // Aspect ratio tolerance
-    static const float ASPECT_RATIO_TOLERANCE = 0.001;
+    static const CONSTEXPR float ASPECT_RATIO_TOLERANCE = 0.001;
 
     // Full static camera info, object owned by someone else, such as
     // Camera2Device.

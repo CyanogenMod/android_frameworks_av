@@ -19,7 +19,9 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+
 #include <cutils/compiler.h>
+#include <utils/Compat.h>
 
 #include <media/AudioBufferProvider.h>
 #include <system/audio.h>
@@ -47,7 +49,7 @@ public:
         DYN_HIGH_QUALITY=7,
     };
 
-    static const float UNITY_GAIN_FLOAT = 1.0f;
+    static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;
 
     static AudioResampler* create(audio_format_t format, int inChannelCount,
             int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);
