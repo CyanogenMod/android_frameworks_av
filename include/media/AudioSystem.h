@@ -90,7 +90,7 @@ public:
     static void setErrorCallback(audio_error_callback cb);
 
     // helper function to obtain AudioFlinger service handle
-    static const sp<IAudioFlinger>& get_audio_flinger();
+    static const sp<IAudioFlinger> get_audio_flinger();
 
     static float linearToLog(int volume);
     static int logToLinear(float volume);
@@ -270,7 +270,7 @@ public:
     // and output configuration cache (gOutputs)
     static void clearAudioConfigCache();
 
-    static const sp<IAudioPolicyService>& get_audio_policy_service();
+    static const sp<IAudioPolicyService> get_audio_policy_service();
 
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     static uint32_t getPrimaryOutputSamplingRate();
