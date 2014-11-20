@@ -4753,15 +4753,15 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
 
 ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
 {
+    // We convert the duplicating thread format to AUDIO_FORMAT_PCM_16_BIT
+    // for delivery downstream as needed. This in-place conversion is safe as
+    // AUDIO_FORMAT_PCM_16_BIT is smaller than any other supported format
+    // (AUDIO_FORMAT_PCM_8_BIT is not allowed here).
+    if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
+        memcpy_by_audio_format(mSinkBuffer, AUDIO_FORMAT_PCM_16_BIT,
+                               mSinkBuffer, mFormat, writeFrames * mChannelCount);
+    }
     for (size_t i = 0; i < outputTracks.size(); i++) {
-        // We convert the duplicating thread format to AUDIO_FORMAT_PCM_16_BIT
-        // for delivery downstream as needed. This in-place conversion is safe as
-        // AUDIO_FORMAT_PCM_16_BIT is smaller than any other supported format
-        // (AUDIO_FORMAT_PCM_8_BIT is not allowed here).
-        if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-            memcpy_by_audio_format(mSinkBuffer, AUDIO_FORMAT_PCM_16_BIT,
-                    mSinkBuffer, mFormat, writeFrames * mChannelCount);
-        }
         outputTracks[i]->write(reinterpret_cast<int16_t*>(mSinkBuffer), writeFrames);
     }
     mStandby = false;
