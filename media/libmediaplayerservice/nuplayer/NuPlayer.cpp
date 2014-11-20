@@ -266,7 +266,23 @@ void NuPlayer::setDataSourceAsync(
         // The correct flags will be updated in Source::kWhatFlagsChanged
         // handler when  GenericSource is prepared.
 
-        status_t err = genericSource->setDataSource(httpService, url, headers);
+        KeyedVector<String8, String8> mUriHeaders;
+        if(headers) {
+           mUriHeaders = *headers;
+        }
+
+        // Set Proxy for http progressive playback
+        int32_t port = 0;
+        if (ExtendedUtils::ShellProp::getSTAProxyConfig(port)) {
+            String8 portString = String8("127.0.0.1");
+            portString.appendFormat(":%d", port);
+            ALOGV("getSTAProxyConfig Proxy IPportString %s", portString.string());
+            mUriHeaders.add(String8("use-proxy"), portString);
+        } else {
+           ALOGE("getSTAProxyConfig failed or disabled");
+        }
+
+        status_t err = genericSource->setDataSource(httpService, url, &mUriHeaders);
 
         if (err == OK) {
             source = genericSource;
