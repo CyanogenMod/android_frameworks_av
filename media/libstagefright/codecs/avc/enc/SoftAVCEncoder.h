@@ -26,8 +26,6 @@
 
 namespace android {
 
-struct MediaBuffer;
-
 struct SoftAVCEncoder : public MediaBufferObserver,
                         public SoftVideoEncoderOMXComponent {
     SoftAVCEncoder(
