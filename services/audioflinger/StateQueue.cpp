@@ -48,7 +48,7 @@ template<typename T> StateQueue<T>::StateQueue() :
     , mObserverDump(&mObserverDummyDump), mMutatorDump(&mMutatorDummyDump)
 #endif
 {
-    atomic_init(&mNext, 0);
+    atomic_init(&mNext, static_cast<uintptr_t>(0));
 }
 
 template<typename T> StateQueue<T>::~StateQueue()
