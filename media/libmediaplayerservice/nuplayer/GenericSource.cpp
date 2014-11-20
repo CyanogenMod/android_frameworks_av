@@ -56,6 +56,7 @@ NuPlayer::GenericSource::GenericSource(
       mIsWidevine(false),
       mUIDValid(uidValid),
       mUID(uid),
+      mFd(-1),
       mDrmManagerClient(NULL),
       mMetaDataSize(-1ll),
       mBitrate(-1ll),
@@ -70,7 +71,10 @@ void NuPlayer::GenericSource::resetDataSource() {
     mHttpSource.clear();
     mUri.clear();
     mUriHeaders.clear();
-    mFd = -1;
+    if (mFd >= 0) {
+        close(mFd);
+        mFd = -1;
+    }
     mOffset = 0;
     mLength = 0;
     setDrmPlaybackStatusIfNeeded(Playback::STOP, 0);
@@ -270,6 +274,7 @@ NuPlayer::GenericSource::~GenericSource() {
         mLooper->unregisterHandler(id());
         mLooper->stop();
     }
+    resetDataSource();
 }
 
 void NuPlayer::GenericSource::prepareAsync() {
@@ -312,6 +317,7 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             mIsWidevine = false;
 
             mDataSource = new FileSource(mFd, mOffset, mLength);
+            mFd = -1;
         }
 
         if (mDataSource == NULL) {
