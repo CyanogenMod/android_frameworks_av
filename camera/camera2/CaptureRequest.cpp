@@ -63,9 +63,9 @@ status_t CaptureRequest::readFromParcel(Parcel* parcel) {
         }
 
         // Surface.writeToParcel
-        String16 name = parcel->readString16();
-        ALOGV("%s: Read surface name = %s",
-              __FUNCTION__, String8(name).string());
+        const char16_t* name = parcel->readString16Inplace(&len);
+        ALOGV("%s: Read surface name = %s", __FUNCTION__,
+            name != NULL ? String8(name).string() : "<null>");
         sp<IBinder> binder(parcel->readStrongBinder());
         ALOGV("%s: Read surface binder = %p",
               __FUNCTION__, binder.get());
