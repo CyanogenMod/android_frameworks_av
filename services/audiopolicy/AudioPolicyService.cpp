@@ -150,7 +150,7 @@ AudioPolicyService::~AudioPolicyService()
 void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& client)
 {
 
-    Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mNotificationClientsLock);
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
     if (mNotificationClients.indexOfKey(uid) < 0) {
@@ -169,14 +169,17 @@ void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& cli
 // removeNotificationClient() is called when the client process dies.
 void AudioPolicyService::removeNotificationClient(uid_t uid)
 {
-    Mutex::Autolock _l(mLock);
-
-    mNotificationClients.removeItem(uid);
-
+    {
+        Mutex::Autolock _l(mNotificationClientsLock);
+        mNotificationClients.removeItem(uid);
+    }
 #ifndef USE_LEGACY_AUDIO_POLICY
+    {
+        Mutex::Autolock _l(mLock);
         if (mAudioPolicyManager) {
             mAudioPolicyManager->clearAudioPatches(uid);
         }
+    }
 #endif
 }
 
@@ -187,7 +190,7 @@ void AudioPolicyService::onAudioPortListUpdate()
 
 void AudioPolicyService::doOnAudioPortListUpdate()
 {
-    Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mNotificationClientsLock);
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
         mNotificationClients.valueAt(i)->onAudioPortListUpdate();
     }
@@ -213,7 +216,7 @@ status_t AudioPolicyService::clientReleaseAudioPatch(audio_patch_handle_t handle
 
 void AudioPolicyService::doOnAudioPatchListUpdate()
 {
-    Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mNotificationClientsLock);
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
         mNotificationClients.valueAt(i)->onAudioPatchListUpdate();
     }

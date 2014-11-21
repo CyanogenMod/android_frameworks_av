@@ -497,7 +497,7 @@ private:
     AudioPolicyClient *mAudioPolicyClient;
 
     DefaultKeyedVector< uid_t, sp<NotificationClient> >    mNotificationClients;
-
+    Mutex mNotificationClientsLock;  // protects mNotificationClients
     // Manage all effects configured in audio_effects.conf
     sp<AudioPolicyEffects> mAudioPolicyEffects;
     audio_mode_t mPhoneState;

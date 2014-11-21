@@ -51,33 +51,40 @@ size_t AudioSystem::gInBuffSize = 0;    // zero indicates cache is invalid
 sp<AudioSystem::AudioPortCallback> AudioSystem::gAudioPortCallback;
 
 // establish binder interface to AudioFlinger service
-const sp<IAudioFlinger>& AudioSystem::get_audio_flinger()
+const sp<IAudioFlinger> AudioSystem::get_audio_flinger()
 {
-    Mutex::Autolock _l(gLock);
-    if (gAudioFlinger == 0) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder;
-        do {
-            binder = sm->getService(String16("media.audio_flinger"));
-            if (binder != 0)
-                break;
-            ALOGW("AudioFlinger not published, waiting...");
-            usleep(500000); // 0.5 s
-        } while (true);
-        if (gAudioFlingerClient == NULL) {
-            gAudioFlingerClient = new AudioFlingerClient();
-        } else {
-            if (gAudioErrorCallback) {
-                gAudioErrorCallback(NO_ERROR);
+    sp<IAudioFlinger> af;
+    sp<AudioFlingerClient> afc;
+    {
+        Mutex::Autolock _l(gLock);
+        if (gAudioFlinger == 0) {
+            sp<IServiceManager> sm = defaultServiceManager();
+            sp<IBinder> binder;
+            do {
+                binder = sm->getService(String16("media.audio_flinger"));
+                if (binder != 0)
+                    break;
+                ALOGW("AudioFlinger not published, waiting...");
+                usleep(500000); // 0.5 s
+            } while (true);
+            if (gAudioFlingerClient == NULL) {
+                gAudioFlingerClient = new AudioFlingerClient();
+            } else {
+                if (gAudioErrorCallback) {
+                    gAudioErrorCallback(NO_ERROR);
+                }
             }
+            binder->linkToDeath(gAudioFlingerClient);
+            gAudioFlinger = interface_cast<IAudioFlinger>(binder);
+            LOG_ALWAYS_FATAL_IF(gAudioFlinger == 0);
+            afc = gAudioFlingerClient;
         }
-        binder->linkToDeath(gAudioFlingerClient);
-        gAudioFlinger = interface_cast<IAudioFlinger>(binder);
-        LOG_ALWAYS_FATAL_IF(gAudioFlinger == 0);
-        gAudioFlinger->registerClient(gAudioFlingerClient);
+        af = gAudioFlinger;
     }
-
-    return gAudioFlinger;
+    if (afc != 0) {
+        af->registerClient(afc);
+    }
+    return af;
 }
 
 /* static */ status_t AudioSystem::checkAudioFlinger()
@@ -546,29 +553,37 @@ sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient
 
 
 // establish binder interface to AudioPolicy service
-const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
+const sp<IAudioPolicyService> AudioSystem::get_audio_policy_service()
 {
-    Mutex::Autolock _l(gLockAPS);
-    if (gAudioPolicyService == 0) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder;
-        do {
-            binder = sm->getService(String16("media.audio_policy"));
-            if (binder != 0)
-                break;
-            ALOGW("AudioPolicyService not published, waiting...");
-            usleep(500000); // 0.5 s
-        } while (true);
-        if (gAudioPolicyServiceClient == NULL) {
-            gAudioPolicyServiceClient = new AudioPolicyServiceClient();
+    sp<IAudioPolicyService> ap;
+    sp<AudioPolicyServiceClient> apc;
+    {
+        Mutex::Autolock _l(gLockAPS);
+        if (gAudioPolicyService == 0) {
+            sp<IServiceManager> sm = defaultServiceManager();
+            sp<IBinder> binder;
+            do {
+                binder = sm->getService(String16("media.audio_policy"));
+                if (binder != 0)
+                    break;
+                ALOGW("AudioPolicyService not published, waiting...");
+                usleep(500000); // 0.5 s
+            } while (true);
+            if (gAudioPolicyServiceClient == NULL) {
+                gAudioPolicyServiceClient = new AudioPolicyServiceClient();
+            }
+            binder->linkToDeath(gAudioPolicyServiceClient);
+            gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
+            LOG_ALWAYS_FATAL_IF(gAudioPolicyService == 0);
+            apc = gAudioPolicyServiceClient;
         }
-        binder->linkToDeath(gAudioPolicyServiceClient);
-        gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
-        LOG_ALWAYS_FATAL_IF(gAudioPolicyService == 0);
-        gAudioPolicyService->registerClient(gAudioPolicyServiceClient);
+        ap = gAudioPolicyService;
+    }
+    if (apc != 0) {
+        ap->registerClient(apc);
     }
 
-    return gAudioPolicyService;
+    return ap;
 }
 
 // ---------------------------------------------------------------------------
