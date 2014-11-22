@@ -661,7 +661,9 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                 return err;
             }
 
-	    ExtendedUtils::setArbitraryModeIfInterlaced((const uint8_t *)data, meta);
+#ifdef QCOM_BSP_LEGACY
+	        ExtendedUtils::setArbitraryModeIfInterlaced((const uint8_t *)data, meta);
+#endif
 
             CODEC_LOGI(
                     "AVC profile = %u (%s), level = %u",
@@ -2223,7 +2225,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-#ifdef QCOM_BSP
+#ifdef QCOM_BSP_LEGACY
     err = mNativeWindow.get()->perform(mNativeWindow.get(),
 			     NATIVE_WINDOW_SET_BUFFERS_SIZE, def.nBufferSize);
     if (err != 0) {
@@ -3092,7 +3094,7 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                 mPortStatus[kPortIndexOutput] = ENABLED;
 
                 if (mNativeWindow != NULL) {
-#ifdef QCOM_BSP
+#ifdef QCOM_BSP_LEGACY
 		    /*
 		     * reset buffer size field with SurfaceTexture
 		     * back to 0. This wil ensure proper size
