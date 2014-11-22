@@ -1390,7 +1390,11 @@ status_t AudioTrack::createTrack_l()
         mStaticProxy = new StaticAudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
         mProxy = mStaticProxy;
     }
-    mProxy->setVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY);
+
+    mProxy->setVolumeLR(gain_minifloat_pack(
+            gain_from_float(mVolume[AUDIO_INTERLEAVE_LEFT]),
+            gain_from_float(mVolume[AUDIO_INTERLEAVE_RIGHT])));
+
     mProxy->setSendLevel(mSendLevel);
     mProxy->setSampleRate(mSampleRate);
     mProxy->setMinimum(mNotificationFramesAct);
