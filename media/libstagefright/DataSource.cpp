@@ -30,8 +30,9 @@
 #include "include/OggExtractor.h"
 #include "include/WAVExtractor.h"
 #include "include/WVMExtractor.h"
+#ifdef QCOM_HARDWARE
 #include "include/ExtendedExtractor.h"
-
+#endif
 #include "matroska/MatroskaExtractor.h"
 
 #include <media/IMediaHTTPConnection.h>
@@ -182,7 +183,9 @@ void Sniffer::registerDefaultSniffers() {
     registerSniffer_l(SniffAAC);
     registerSniffer_l(SniffMPEG2PS);
     registerSniffer_l(SniffWVM);
+#ifdef QCOM_HARDWARE
     registerSniffer_l(ExtendedExtractor::Sniff);
+#endif
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)
