@@ -2089,6 +2089,13 @@ status_t AudioTrack::restoreTrack_l(const char *from)
         if (mState == STATE_ACTIVE) {
             result = mAudioTrack->start();
         }
+
+        if (mVolume[AUDIO_INTERLEAVE_LEFT] != 1.0 || mVolume[AUDIO_INTERLEAVE_RIGHT] != 1.0) {
+            ALOGV("restore setVolume proxy left:%f right:%f",mVolume[AUDIO_INTERLEAVE_LEFT]
+                , mVolume[AUDIO_INTERLEAVE_RIGHT]);
+            mProxy->setVolumeLR(gain_minifloat_pack(gain_from_float(mVolume[AUDIO_INTERLEAVE_LEFT])
+                , gain_from_float(mVolume[AUDIO_INTERLEAVE_RIGHT])));
+        }
     }
     if (result != NO_ERROR) {
         ALOGW("restoreTrack_l() failed status %d", result);
