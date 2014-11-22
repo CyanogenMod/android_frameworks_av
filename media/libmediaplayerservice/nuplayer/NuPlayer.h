@@ -210,6 +210,8 @@ private:
     bool mSkipAudioFlushAfterSuspend;
     bool mSkipVideoFlushAfterSuspend;
 
+    bool mImageDisplayed;
+
     inline const sp<Decoder> &getDecoder(bool audio) {
         return audio ? mAudioDecoder : mVideoDecoder;
     }

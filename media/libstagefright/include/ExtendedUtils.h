@@ -259,6 +259,9 @@ struct ExtendedUtils {
     static int32_t getEncoderTypeFlags();
 
     static void cacheCaptureBuffers(sp<ICamera> camera, video_encoder encoder);
+
+    static void detectAndPostImage(const sp<ABuffer> accessunit, const sp<AMessage> &notify);
+    static void showImageInNativeWindow(const sp<AMessage> &msg, const sp<AMessage> &format);
 };
 
 }

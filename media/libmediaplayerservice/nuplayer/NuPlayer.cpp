@@ -44,6 +44,7 @@
 #include <gui/IGraphicBufferProducer.h>
 
 #include "avc_utils.h"
+#include "ExtendedUtils.h"
 
 #include "ESDS.h"
 #include <media/stagefright/Utils.h>
@@ -179,7 +180,8 @@ NuPlayer::NuPlayer()
       mBuffering(false),
       mSkipAudioFlushAfterSuspend(false),
       mSkipVideoFlushAfterSuspend(false),
-      mSeeking(false) {
+      mSeeking(false),
+      mImageDisplayed(false) {
 
     clearFlushComplete();
     mPlayerExtendedStats = (PlayerExtendedStats *)ExtendedStats::Create(
@@ -1460,6 +1462,13 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                         getDecoder(audio)->supportsSeamlessFormatChange(newFormat);
                     // treat seamless format change separately
                     formatChange = !seamlessFormatChange;
+                    if (mImageDisplayed && !audio) {
+                        // If the image was showed in native window, video
+                        // decoder needs to be changed to reconfigure
+                        // native window
+                        mImageDisplayed = false;
+                        formatChange = true;
+                    }
                 }
                 bool shutdownOrFlush = formatChange || timeChange;
 
@@ -2279,6 +2288,25 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         case Source::kWhatDrmNoLicense:
         {
             notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, ERROR_DRM_NO_LICENSE);
+            break;
+        }
+
+        case Source::kWhatShowImage:
+        {
+            if (mNativeWindow == NULL) {
+                ALOGW("native window is null");
+                return;
+            }
+            msg->setObject("native-window", mNativeWindow);
+            sp<AMessage> format = new AMessage;
+            int32_t width, height;
+            ExtendedUtils::showImageInNativeWindow(msg, format);
+            if (format->findInt32("width", &width)
+                    && format->findInt32("height", &height)) {
+                ALOGV("show the image with width = %ld,  height = %ld", width, height);
+                notifyListener(MEDIA_SET_VIDEO_SIZE, width, height);
+                mImageDisplayed = true;
+            }
             break;
         }
 
