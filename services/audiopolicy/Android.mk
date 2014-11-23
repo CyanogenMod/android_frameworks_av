@@ -93,6 +93,10 @@ LOCAL_SHARED_LIBRARIES += \
     libaudiopolicymanager
 endif
 
+ifeq ($(BOARD_HAVE_PRE_KITKAT_AUDIO_BLOB),true)
+    LOCAL_CFLAGS += -DHAVE_PRE_KITKAT_AUDIO_BLOB
+endif
+
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libserviceutility
