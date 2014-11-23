@@ -365,6 +365,9 @@ const char CameraParameters::SCENE_DETECT_ON[] = "on";
 // Formats for setPreviewFormat and setPictureFormat.
 const char CameraParameters::PIXEL_FORMAT_YUV422SP[] = "yuv422sp";
 const char CameraParameters::PIXEL_FORMAT_YUV420SP[] = "yuv420sp";
+#ifdef SAMSUNG_CAMERA_HARDWARE
+const char CameraParameters::PIXEL_FORMAT_YUV420SP_NV21[] = "yuv420sp";
+#endif
 #ifdef QCOM_HARDWARE
 const char CameraParameters::PIXEL_FORMAT_YUV420SP_ADRENO[] = "yuv420sp-adreno";
 #endif

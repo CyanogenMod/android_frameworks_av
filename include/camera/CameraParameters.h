@@ -878,6 +878,9 @@ public:
 #endif
     static const char PIXEL_FORMAT_YUV422SP[];
     static const char PIXEL_FORMAT_YUV420SP[]; // NV21
+#ifdef SAMSUNG_CAMERA_HARDWARE
+    static const char PIXEL_FORMAT_YUV420SP_NV21[]; // NV21
+#endif
 #ifdef QCOM_HARDWARE
     static const char PIXEL_FORMAT_YUV420SP_ADRENO[]; // ADRENO
 #endif
