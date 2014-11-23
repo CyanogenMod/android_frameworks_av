@@ -33,6 +33,10 @@ LOCAL_SHARED_LIBRARIES :=               \
         libstagefright_foundation       \
         libdl
 
+ifeq ($(DTS_CODEC_M_), true)
+  LOCAL_CFLAGS += -DDTS_CODEC_M_
+endif
+
 LOCAL_MODULE:= libstagefright_omx
 
 include $(BUILD_SHARED_LIBRARY)
