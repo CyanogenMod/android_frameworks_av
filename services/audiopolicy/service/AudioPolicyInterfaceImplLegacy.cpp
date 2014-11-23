@@ -510,6 +510,9 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
 
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
 {
+#if HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
+    return false;
+#endif
     if (mpAudioPolicy == NULL) {
         ALOGV("mpAudioPolicy == NULL");
         return false;
