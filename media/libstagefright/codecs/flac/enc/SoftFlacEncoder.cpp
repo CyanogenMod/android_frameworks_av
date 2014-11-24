@@ -421,7 +421,6 @@ OMX_ERRORTYPE SoftFlacEncoder::configureEncoder() {
     }
 
     FLAC__bool ok = true;
-    FLAC__StreamEncoderInitStatus initStatus = FLAC__STREAM_ENCODER_INIT_STATUS_OK;
     ok = ok && FLAC__stream_encoder_set_channels(mFlacStreamEncoder, mNumChannels);
     ok = ok && FLAC__stream_encoder_set_sample_rate(mFlacStreamEncoder, mSampleRate);
     ok = ok && FLAC__stream_encoder_set_bits_per_sample(mFlacStreamEncoder, 16);

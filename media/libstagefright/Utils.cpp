@@ -207,14 +207,14 @@ status_t convertMetaDataToMessage(
 
         CHECK(size >= 7);
         CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
-        uint8_t profile = ptr[1];
-        uint8_t level = ptr[3];
+        uint8_t profile __unused = ptr[1];
+        uint8_t level __unused = ptr[3];
 
         // There is decodable content out there that fails the following
         // assertion, let's be lenient for now...
         // CHECK((ptr[4] >> 2) == 0x3f);  // reserved
 
-        size_t lengthSize = 1 + (ptr[4] & 3);
+        size_t lengthSize __unused = 1 + (ptr[4] & 3);
 
         // commented out check below as H264_QVGA_500_NO_AUDIO.3gp
         // violates it...
@@ -283,8 +283,8 @@ status_t convertMetaDataToMessage(
 
         CHECK(size >= 7);
         //CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
-        uint8_t profile = ptr[1] & 31;
-        uint8_t level = ptr[12];
+        uint8_t profile __unused = ptr[1] & 31;
+        uint8_t level __unused = ptr[12];
         ptr += 22;
         size -= 22;
 

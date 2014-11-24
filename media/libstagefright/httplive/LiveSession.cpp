@@ -709,7 +709,6 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
             AString uri;
             mPlaylist->itemAt(i, &uri, &meta);
 
-            unsigned long bandwidth;
             CHECK(meta->findInt32("bandwidth", (int32_t *)&item.mBandwidth));
 
             if (initialBandwidth == 0) {
@@ -990,9 +989,11 @@ sp<M3UParser> LiveSession::fetchPlaylist(
     return playlist;
 }
 
+#if 0
 static double uniformRand() {
     return (double)rand() / RAND_MAX;
 }
+#endif
 
 size_t LiveSession::getBandwidthIndex() {
     if (mBandwidthItems.size() == 0) {
@@ -1469,7 +1470,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         sp<PlaylistFetcher> fetcher = addFetcher(uri.c_str());
         CHECK(fetcher != NULL);
 
-        int32_t latestSeq = -1;
         int64_t startTimeUs = -1;
         int64_t segmentStartTimeUs = -1ll;
         int32_t discontinuitySeq = -1;
@@ -1497,7 +1497,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                             ATSParser::DISCONTINUITY_TIME, extra, true);
                 } else {
                     int32_t type;
-                    int64_t srcSegmentStartTimeUs;
                     sp<AMessage> meta;
                     if (pickTrack) {
                         // selecting
