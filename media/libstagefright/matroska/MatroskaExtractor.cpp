@@ -34,6 +34,7 @@
 #include <inttypes.h>
 
 #include <ExtendedUtils.h>
+#include <QCMediaDefs.h>
 
 namespace android {
 
