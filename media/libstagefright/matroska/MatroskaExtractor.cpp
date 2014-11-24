@@ -34,7 +34,9 @@
 #include <inttypes.h>
 
 #include <ExtendedUtils.h>
+#ifdef ENABLE_AV_ENHANCEMENTS
 #include <QCMediaDefs.h>
+#endif
 
 namespace android {
 
@@ -265,8 +267,10 @@ MatroskaSource::MatroskaSource(
         mType = MP3;
     } else if (!strcasecmp (mime, MEDIA_MIMETYPE_VIDEO_MPEG4)) {
         mType = MPEG4;
+#ifdef ENABLE_AV_ENHANCEMENTS
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_DTS)) {
         mType = DTS;
+#endif
     }
 }
 
@@ -1107,8 +1111,10 @@ void MatroskaExtractor::addTracks() {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AC3);
                 } else if (!strcmp("A_EAC3", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_EAC3);
+#ifdef ENABLE_AV_ENHANCEMENTS
                 } else if (!strcmp("A_DTS", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_DTS);
+#endif
                 } else {
                     ALOGW("%s is not supported.", codecID);
                     continue;
