@@ -58,7 +58,6 @@ Word16  AacEncOpen(  AAC_ENCODER*      hAacEnc,        /* pointer to an encoder 
                      const  AACENC_CONFIG     config   /* pre-initialized config struct */
                      )
 {
-  Word32 i;
   Word32 error = 0;
   Word16 profile = 1;
 

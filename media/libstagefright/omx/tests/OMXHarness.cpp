@@ -253,29 +253,6 @@ static sp<MediaExtractor> CreateExtractorFromURI(const char *uri) {
     return MediaExtractor::Create(source);
 }
 
-static sp<MediaSource> MakeSource(
-        const char *uri,
-        const char *mimeType) {
-    sp<MediaExtractor> extractor = CreateExtractorFromURI(uri);
-
-    if (extractor == NULL) {
-        return NULL;
-    }
-
-    for (size_t i = 0; i < extractor->countTracks(); ++i) {
-        sp<MetaData> meta = extractor->getTrackMetaData(i);
-
-        const char *trackMIME;
-        CHECK(meta->findCString(kKeyMIMEType, &trackMIME));
-
-        if (!strcasecmp(trackMIME, mimeType)) {
-            return extractor->getTrack(i);
-        }
-    }
-
-    return NULL;
-}
-
 status_t Harness::testStateTransitions(
         const char *componentName, const char *componentRole) {
     if (strncmp(componentName, "OMX.", 4)) {

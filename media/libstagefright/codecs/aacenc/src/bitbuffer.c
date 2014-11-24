@@ -24,29 +24,6 @@
 
 /*****************************************************************************
 *
-* function name: updateBitBufWordPtr
-* description:  update Bit Buffer pointer
-*
-*****************************************************************************/
-static void updateBitBufWordPtr(HANDLE_BIT_BUF hBitBuf,
-                                UWord8 **pBitBufWord,
-                                Word16   cnt)
-{
-  *pBitBufWord += cnt;
-
-
-  if(*pBitBufWord > hBitBuf->pBitBufEnd) {
-    *pBitBufWord -= (hBitBuf->pBitBufEnd - hBitBuf->pBitBufBase + 1);
-  }
-
-  if(*pBitBufWord < hBitBuf->pBitBufBase) {
-    *pBitBufWord += (hBitBuf->pBitBufEnd - hBitBuf->pBitBufBase + 1);
-  }
-}
-
-
-/*****************************************************************************
-*
 * function name: CreateBitBuffer
 * description:  create and init Bit Buffer Management
 *

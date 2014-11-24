@@ -45,7 +45,7 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/../common/include
 
 LOCAL_CFLAGS := \
-        -DOSCL_UNUSED_ARG= -DOSCL_IMPORT_REF=
+        -D"OSCL_UNUSED_ARG(x)=(void)(x)" -DOSCL_IMPORT_REF=
 
 LOCAL_CFLAGS += -Werror
 
