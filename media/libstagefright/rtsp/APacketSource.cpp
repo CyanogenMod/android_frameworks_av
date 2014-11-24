@@ -24,6 +24,7 @@
 #include "ASessionDescription.h"
 
 #include "include/avc_utils.h"
+#include "include/ExtendedUtils.h"
 
 #include <ctype.h>
 
@@ -536,6 +537,8 @@ APacketSource::APacketSource(
             mInitCheck = ERROR_UNSUPPORTED;
             return;
         }
+
+        ExtendedUtils::updateVideoTrackInfoFromESDS_MPEG4Video(mFormat);
 
         mFormat->setInt32(kKeyWidth, width);
         mFormat->setInt32(kKeyHeight, height);
