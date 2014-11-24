@@ -50,7 +50,6 @@ void MsStereoProcessing(Word32       *sfbEnergyLeft,
                         const Word16  sfbPerGroup,
                         const Word16  maxSfbPerGroup,
                         const Word16 *sfbOffset) {
-  Word32 temp;
   Word32 sfb,sfboffs, j;
   Word32 msMaskTrueSomewhere = 0;
   Word32 msMaskFalseSomewhere = 0;

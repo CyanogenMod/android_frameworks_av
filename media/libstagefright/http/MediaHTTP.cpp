@@ -129,7 +129,7 @@ status_t MediaHTTP::getSize(off64_t *size) {
 
     *size = mCachedSize;
 
-    return *size < 0 ? *size : OK;
+    return *size < 0 ? *size : static_cast<status_t>(OK);
 }
 
 uint32_t MediaHTTP::flags() {

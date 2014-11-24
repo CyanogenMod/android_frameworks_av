@@ -512,8 +512,8 @@ bool ExtractDimensionsFromVOLHeader(
     CHECK_NE(video_object_type_indication,
              0x21u /* Fine Granularity Scalable */);
 
-    unsigned video_object_layer_verid;
-    unsigned video_object_layer_priority;
+    unsigned video_object_layer_verid __unused;
+    unsigned video_object_layer_priority __unused;
     if (br.getBits(1)) {
         video_object_layer_verid = br.getBits(4);
         video_object_layer_priority = br.getBits(3);
@@ -575,7 +575,7 @@ bool ExtractDimensionsFromVOLHeader(
     unsigned video_object_layer_height = br.getBits(13);
     CHECK(br.getBits(1));  // marker_bit
 
-    unsigned interlaced = br.getBits(1);
+    unsigned interlaced __unused = br.getBits(1);
 
     *width = video_object_layer_width;
     *height = video_object_layer_height;
@@ -621,7 +621,7 @@ bool GetMPEGAudioFrameSize(
         return false;
     }
 
-    unsigned protection = (header >> 16) & 1;
+    unsigned protection __unused = (header >> 16) & 1;
 
     unsigned bitrate_index = (header >> 12) & 0x0f;
 

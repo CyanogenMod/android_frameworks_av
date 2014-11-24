@@ -80,10 +80,6 @@ status_t AACWriter::initCheck() const {
     return mInitCheck;
 }
 
-static int writeInt8(int fd, uint8_t x) {
-    return ::write(fd, &x, 1);
-}
-
 
 status_t AACWriter::addSource(const sp<MediaSource> &source) {
     if (mInitCheck != OK) {

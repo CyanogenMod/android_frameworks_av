@@ -549,17 +549,6 @@ static unsigned U24_AT(const uint8_t *ptr) {
     return ptr[0] << 16 | ptr[1] << 8 | ptr[2];
 }
 
-static size_t clz(uint8_t x) {
-    size_t numLeadingZeroes = 0;
-
-    while (!(x & 0x80)) {
-        ++numLeadingZeroes;
-        x = x << 1;
-    }
-
-    return numLeadingZeroes;
-}
-
 void MatroskaSource::clearPendingFrames() {
     while (!mPendingFrames.empty()) {
         MediaBuffer *frame = *mPendingFrames.begin();

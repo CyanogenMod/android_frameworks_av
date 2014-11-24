@@ -952,9 +952,6 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         return;
                     }
 
-                    INT_PCM *outBuffer = reinterpret_cast<INT_PCM *>(outHeader->pBuffer
-                            + outHeader->nOffset);
-                    int32_t ns = 0;
                     outHeader->nFilledLen = 0;
                     outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
@@ -1004,8 +1001,6 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
 }
 
 void SoftAAC2::drainDecoder() {
-    int32_t outputDelay = mStreamInfo->outputDelay * mStreamInfo->numChannels;
-
     // flush decoder until outputDelay is compensated
     while (mOutputDelayCompensated > 0) {
         // a buffer big enough for MAX_CHANNEL_COUNT channels of decoded HE-AAC
