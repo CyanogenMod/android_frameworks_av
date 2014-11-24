@@ -2569,6 +2569,7 @@ return false;
 
     char propValue[PROPERTY_VALUE_MAX];
     bool pcmOffload = false;
+
 #ifdef PCM_OFFLOAD_ENABLED
     if (audio_is_offload_pcm(offloadInfo.format)) {
         if(property_get("audio.offload.pcm.enable", propValue, NULL)) {
@@ -4609,20 +4610,21 @@ AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
         return STRATEGY_SONIFICATION_RESPECTFUL;
     case AUDIO_STREAM_DTMF:
         return STRATEGY_DTMF;
-    default:
-        ALOGE("unknown stream type");
     case AUDIO_STREAM_SYSTEM:
         // NOTE: SYSTEM stream uses MEDIA strategy because muting music and switching outputs
         // while key clicks are played produces a poor result
     case AUDIO_STREAM_TTS:
     case AUDIO_STREAM_MUSIC:
-#ifdef AUDIO_EXTN_INCALL_MUSIC_ENABLED
+#ifdef QCOM_HARDWARE
     case AUDIO_STREAM_INCALL_MUSIC:
 #endif
         return STRATEGY_MEDIA;
     case AUDIO_STREAM_ENFORCED_AUDIBLE:
         return STRATEGY_ENFORCED_AUDIBLE;
+    default:
+        ALOGE("unknown stream type %d", stream);
     }
+    return STRATEGY_MEDIA;
 }
 
 uint32_t AudioPolicyManager::getStrategyForAttr(const audio_attributes_t *attr) {

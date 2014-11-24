@@ -184,14 +184,12 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             ALOGE("%s Couldn't map mime type \"%s\" to a valid AudioSystem::audio_format",
                   __func__, mime);
             audioFormat = AUDIO_FORMAT_INVALID;
-        } else {
+        } else if (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat)) {
             // Override audio format for PCM offload
-            if (audioFormat == AUDIO_FORMAT_PCM_16_BIT) {
-                if (16 == bitWidth)
-                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
-                else if (24 == bitWidth)
-                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
-            }
+            if (bitWidth >= 24)
+                audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+            else
+                audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
 
             ALOGV("%s Mime type \"%s\" mapped to audio_format 0x%x",
                   __func__, mime, audioFormat);
