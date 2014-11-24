@@ -8,7 +8,11 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/libvpx/libwebm \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/frameworks/av/media/libstagefright/include \
-        $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc \
+
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+        LOCAL_CFLAGS     += -DENABLE_AV_ENHANCEMENTS
+        LOCAL_C_INCLUDES+= $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
+endif
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 
