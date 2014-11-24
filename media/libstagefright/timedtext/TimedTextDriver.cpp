@@ -133,7 +133,7 @@ status_t TimedTextDriver::selectTrack(size_t index) {
             }
             mPlayer->start();
             break;
-        defaut:
+        default:
             TRESPASS();
     }
     return ret;
@@ -181,7 +181,7 @@ status_t TimedTextDriver::seekToAsync(int64_t timeUs) {
         case PLAYING:
             mPlayer->seekToAsync(timeUs);
             return OK;
-        defaut:
+        default:
             TRESPASS();
     }
     return UNKNOWN_ERROR;
