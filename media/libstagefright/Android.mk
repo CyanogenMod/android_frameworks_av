@@ -119,6 +119,10 @@ endif
 endif
 endif
 
+ifeq ($(BOARD_CANT_REALLOCATE_OMX_BUFFERS),true)
+LOCAL_CFLAGS := -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
+endif
+
 #QTI FLAC Decoder
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio

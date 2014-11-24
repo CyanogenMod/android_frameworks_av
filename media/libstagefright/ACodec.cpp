@@ -759,25 +759,34 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
     // 2. try to allocate two (2) additional buffers to reduce starvation from
     //    the consumer
     //    plus an extra buffer to account for incorrect minUndequeuedBufs
-    for (OMX_U32 extraBuffers = 2 + 1; /* condition inside loop */; extraBuffers--) {
-        OMX_U32 newBufferCount =
-            def.nBufferCountMin + *minUndequeuedBuffers + extraBuffers;
-        def.nBufferCountActual = newBufferCount;
-        err = mOMX->setParameter(
-                mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+#ifdef BOARD_CANT_REALLOCATE_OMX_BUFFERS
+    // Some devices don't like to set OMX_IndexParamPortDefinition at this
+    // point (even with an unmodified def), so skip it if possible.
+    // This check was present in KitKat.
+    if (def.nBufferCountActual < def.nBufferCountMin + *minUndequeuedBuffers) {
+#endif
+        for (OMX_U32 extraBuffers = 2 + 1; /* condition inside loop */; extraBuffers--) {
+            OMX_U32 newBufferCount =
+                def.nBufferCountMin + *minUndequeuedBuffers + extraBuffers;
+            def.nBufferCountActual = newBufferCount;
+            err = mOMX->setParameter(
+                    mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
-        if (err == OK) {
-            *minUndequeuedBuffers += extraBuffers;
-            break;
-        }
+            if (err == OK) {
+                *minUndequeuedBuffers += extraBuffers;
+                break;
+            }
 
-        ALOGW("[%s] setting nBufferCountActual to %u failed: %d",
-                mComponentName.c_str(), newBufferCount, err);
-        /* exit condition */
-        if (extraBuffers == 0) {
-            return err;
+            ALOGW("[%s] setting nBufferCountActual to %u failed: %d",
+                    mComponentName.c_str(), newBufferCount, err);
+            /* exit condition */
+            if (extraBuffers == 0) {
+                return err;
+            }
         }
+#ifdef BOARD_CANT_REALLOCATE_OMX_BUFFERS
     }
+#endif
 
     err = native_window_set_buffer_count(
             mNativeWindow.get(), def.nBufferCountActual);
