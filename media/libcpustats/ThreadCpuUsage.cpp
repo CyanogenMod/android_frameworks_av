@@ -74,7 +74,6 @@ bool ThreadCpuUsage::setEnabled(bool isEnabled)
 
 bool ThreadCpuUsage::sampleAndEnable(double& ns)
 {
-    bool ret;
     bool wasEverEnabled = mWasEverEnabled;
     if (enable()) {
         // already enabled, so add a new sample relative to previous
