@@ -25,8 +25,6 @@
 
 namespace android {
 
-struct MediaBuffer;
-
 struct SoftMPEG4Encoder : public SoftVideoEncoderOMXComponent {
     SoftMPEG4Encoder(
             const char *name,
