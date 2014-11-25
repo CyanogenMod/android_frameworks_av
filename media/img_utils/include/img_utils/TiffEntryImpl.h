@@ -147,7 +147,7 @@ status_t TiffEntryImpl<T>::writeTagInfo(uint32_t offset, /*out*/EndianOutput* ou
 }
 
 template<typename T>
-status_t TiffEntryImpl<T>::writeData(uint32_t offset, EndianOutput* out) const {
+status_t TiffEntryImpl<T>::writeData(uint32_t /*offset*/, EndianOutput* out) const {
     status_t ret = OK;
 
     // Some tags have fixed-endian value output
