@@ -1,8 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_NDK_STL_VARIANT := stlport_static
-
 LOCAL_SRC_FILES := \
         ColorConvert.cpp          \
         GraphicBufferListener.cpp \
@@ -15,9 +13,6 @@ LOCAL_SRC_FILES := \
         ZeroFilter.cpp
 
 LOCAL_C_INCLUDES := \
-        $(TOP)/bionic \
-        $(TOP)/bionic/libstdc++/include \
-        $(TOP)/external/stlport/stlport \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/frameworks/rs/cpp \
         $(TOP)/frameworks/rs \
