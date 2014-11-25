@@ -1279,7 +1279,7 @@ void EdgeLoop_Luma_vertical(uint8* SrcPtr, uint8 *Strength, int Alpha, int Beta,
     int  C0, c0, dif, AbsDelta, Strng, tmp, tmp1;
     int  L2 = 0, L1, L0, R0, R1, R2 = 0;
     uint8 *ptr, *ptr1;
-    register uint R_in, L_in;
+    uint R_in, L_in;
     uint R_out, L_out;
 
 
