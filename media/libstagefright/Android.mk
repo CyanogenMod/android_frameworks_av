@@ -112,13 +112,13 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_id3 \
         libFLAC \
         libmedia_helper \
-        libRScpp_static
 
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \
         libstagefright_avc_common \
         libstagefright_foundation \
-        libdl
+        libdl \
+        libRScpp \
 
 LOCAL_CFLAGS += -Wno-multichar
 
