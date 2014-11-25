@@ -5381,6 +5381,9 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
     case AUDIO_SOURCE_MIC:
     if (availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_A2DP) {
         device = AUDIO_DEVICE_IN_BLUETOOTH_A2DP;
+    } else if ((mForceUse[AUDIO_POLICY_FORCE_FOR_RECORD] == AUDIO_POLICY_FORCE_BT_SCO) &&
+        (availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
+        device = AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
     } else if (availableDeviceTypes & AUDIO_DEVICE_IN_WIRED_HEADSET) {
         device = AUDIO_DEVICE_IN_WIRED_HEADSET;
     } else if (availableDeviceTypes & AUDIO_DEVICE_IN_USB_DEVICE) {
