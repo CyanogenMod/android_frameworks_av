@@ -72,7 +72,7 @@ status_t FileOutput::close() {
         ret = BAD_VALUE;
     }
     mOpen = false;
-    return OK;
+    return ret;
 }
 
 } /*namespace img_utils*/
