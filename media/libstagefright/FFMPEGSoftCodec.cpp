@@ -324,8 +324,6 @@ status_t FFMPEGSoftCodec::setAudioFormat(
         if (err != OK) {
             ALOGE("setFFmpegAudioFormat() failed (err = %d)", err);
         }
-    } else {
-        err = BAD_VALUE;
     }
 
     return err;

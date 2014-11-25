@@ -1595,7 +1595,6 @@ status_t ACodec::configureCodec(
                 setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
             }
         }
-        err = ERROR_UNSUPPORTED;
 #ifdef ENABLE_AV_ENHANCEMENTS
         if (!strncmp(mComponentName.c_str(), "OMX.qcom.", 9)) {
             err = ExtendedCodec::setAudioFormat(

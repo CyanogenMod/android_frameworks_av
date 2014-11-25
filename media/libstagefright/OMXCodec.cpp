@@ -788,7 +788,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
             setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
         }
-        status_t err = ERROR_UNSUPPORTED;
+        status_t err = OK;
 
 #ifdef ENABLE_AV_ENHANCEMENTS
         if (!strncmp(mComponentName, "OMX.qcom.", 9)) {
@@ -796,7 +796,7 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
                     meta, mMIME, mOMX, mNode, mIsEncoder);
         }
 #endif
-        if (OK != err && !strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
+        if (!strncmp(mComponentName, "OMX.ffmpeg.", 11)) {
             err = FFMPEGSoftCodec::setAudioFormat(
                     meta, mMIME, mOMX, mNode, mIsEncoder);
         }
