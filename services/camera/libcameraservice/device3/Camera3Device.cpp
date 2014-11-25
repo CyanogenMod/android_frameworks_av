@@ -2028,8 +2028,12 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
         // Check if everything has arrived for this result (buffers and metadata), remove it from
         // InFlightMap if both arrived or HAL reports error for this request (i.e. during flush).
-        if ((request.requestStatus != OK) ||
-                (request.haveResultMetadata && request.numBuffersLeft == 0)) {
+        // For per-frame error notifications, camera3.h requirements state that all the
+        // buffer handles for a failed frame capture must be returned via process_capture_result()
+        // call(s). Hence, Camera3Device needs to ensure that the frame entry is not deleted from
+        // mInFlightMap until all buffers for that frame have been returned by HAL.
+        if ((request.numBuffersLeft == 0) &&
+            ((request.requestStatus != OK) || (request.haveResultMetadata))) {
             ATRACE_ASYNC_END("frame capture", frameNumber);
             mInFlightMap.removeItemsAt(idx, 1);
         }
