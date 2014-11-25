@@ -544,22 +544,31 @@ void AudioFlinger::PatchPanel::clearPatchConnections(Patch *patch)
     if (patch->mRecordThread != 0) {
         if (patch->mPatchRecord != 0) {
             patch->mRecordThread->deletePatchRecord(patch->mPatchRecord);
-            patch->mPatchRecord.clear();
         }
         audioflinger->closeInputInternal_l(patch->mRecordThread);
-        patch->mRecordThread.clear();
     }
     if (patch->mPlaybackThread != 0) {
         if (patch->mPatchTrack != 0) {
             patch->mPlaybackThread->deletePatchTrack(patch->mPatchTrack);
-            patch->mPatchTrack.clear();
         }
         // if num sources == 2 we are reusing an existing playback thread so we do not close it
         if (patch->mAudioPatch.num_sources != 2) {
             audioflinger->closeOutputInternal_l(patch->mPlaybackThread);
         }
+    }
+    if (patch->mRecordThread != 0) {
+        if (patch->mPatchRecord != 0) {
+            patch->mPatchRecord.clear();
+        }
+        patch->mRecordThread.clear();
+    }
+    if (patch->mPlaybackThread != 0) {
+        if (patch->mPatchTrack != 0) {
+            patch->mPatchTrack.clear();
+        }
         patch->mPlaybackThread.clear();
     }
+
 }
 
 /* Disconnect a patch */
