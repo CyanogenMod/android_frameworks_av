@@ -1254,7 +1254,7 @@ namespace android {
     }
 
     status_t ExtendedCodec::setVideoFormat(
-            const char *mime,
+            const sp<AMessage> &msg, const char* mime,
             OMX_VIDEO_CODINGTYPE *compressionFormat) {
         ARG_TOUCH(mime);
         ARG_TOUCH(compressionFormat);
