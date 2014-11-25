@@ -66,7 +66,7 @@ private:
 
     status_t initDecoder();
 
-    virtual void updatePortDefinitions();
+    virtual void updatePortDefinitions(bool updateCrop = true);
     bool handlePortSettingsChange();
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftMPEG4);
