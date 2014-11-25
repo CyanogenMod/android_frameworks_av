@@ -503,7 +503,11 @@ void StaticAudioTrackClientProxy::setLoop(size_t loopStart, size_t loopEnd, int 
     newState.mLoopStart = (uint32_t) loopStart;
     newState.mLoopEnd = (uint32_t) loopEnd;
     newState.mLoopCount = loopCount;
-    mBufferPosition = loopStart;
+    size_t bufferPosition;
+    if (loopCount == 0 || (bufferPosition = getBufferPosition()) >= loopEnd) {
+        bufferPosition = loopStart;
+    }
+    mBufferPosition = bufferPosition; // snapshot buffer position until loop is acknowledged.
     (void) mMutator.push(newState);
 }
 
@@ -776,7 +780,9 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
         } else if (state.mLoopCount >= -1) {
             if (loopStart < loopEnd && loopEnd <= mFrameCount &&
                     loopEnd - loopStart >= MIN_LOOP) {
-                if (!(loopStart <= position && position < loopEnd)) {
+                // If the current position is greater than the end of the loop
+                // we "wrap" to the loop start. This might cause an audible pop.
+                if (position >= loopEnd) {
                     mPosition = position = loopStart;
                 }
                 if (state.mLoopCount == -1) {
