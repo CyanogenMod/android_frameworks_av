@@ -742,8 +742,7 @@ status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount
 
 void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    // FIXME If setting a loop also sets position to start of loop, then
-    //       this is correct.  Otherwise it should be removed.
+    // Setting the loop will reset next notification update period (like setPosition).
     mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
     mLoopPeriod = loopCount != 0 ? loopEnd - loopStart : 0;
     mStaticProxy->setLoop(loopStart, loopEnd, loopCount);
