@@ -290,7 +290,6 @@ status_t PlaylistFetcher::decryptBuffer(
 }
 
 status_t PlaylistFetcher::checkDecryptPadding(const sp<ABuffer> &buffer) {
-    status_t err;
     AString method;
     CHECK(buffer->meta()->findString("cipher-method", &method));
     if (method == "NONE") {
@@ -1495,7 +1494,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
 
         CHECK_EQ(bits.getBits(12), 0xfffu);
         bits.skipBits(3);  // ID, layer
-        bool protection_absent = bits.getBits(1) != 0;
+        bool protection_absent __unused = bits.getBits(1) != 0;
 
         unsigned profile = bits.getBits(2);
         CHECK_NE(profile, 3u);
@@ -1636,7 +1635,7 @@ void PlaylistFetcher::updateDuration() {
 }
 
 int64_t PlaylistFetcher::resumeThreshold(const sp<AMessage> &msg) {
-    int64_t durationUs, threshold;
+    int64_t durationUs;
     if (msg->findInt64("durationUs", &durationUs)) {
         return kNumSkipFrames * durationUs;
     }

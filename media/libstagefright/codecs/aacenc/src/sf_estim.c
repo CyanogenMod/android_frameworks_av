@@ -99,7 +99,7 @@ CalcFormFactorChannel(Word16 *logSfbFormFactor,
 {
 	Word32 sfbw, sfbw1;
 	Word32 i, j;
-	Word32 sfbOffs, sfb, shift;
+	Word32 sfbOffs, sfb;
 
 	sfbw = sfbw1 = 0;
 	for (sfbOffs=0; sfbOffs<psyOutChan->sfbCnt; sfbOffs+=psyOutChan->sfbPerGroup){

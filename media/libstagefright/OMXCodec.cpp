@@ -450,7 +450,7 @@ status_t OMXCodec::parseAVCCodecSpecificData(
     // assertion, let's be lenient for now...
     // CHECK((ptr[4] >> 2) == 0x3f);  // reserved
 
-    size_t lengthSize = 1 + (ptr[4] & 3);
+    size_t lengthSize __unused = 1 + (ptr[4] & 3);
 
     // commented out check below as H264_QVGA_500_NO_AUDIO.3gp
     // violates it...
@@ -2004,7 +2004,6 @@ status_t OMXCodec::cancelBufferToNativeWindow(BufferInfo *info) {
 OMXCodec::BufferInfo* OMXCodec::dequeueBufferFromNativeWindow() {
     // Dequeue the next buffer from the native window.
     ANativeWindowBuffer* buf;
-    int fenceFd = -1;
     int err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
     if (err != 0) {
       CODEC_LOGE("dequeueBuffer failed w/ error 0x%08x", err);
@@ -2109,7 +2108,6 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
     // on the screen and then been replaced, so an previous video frames are
     // guaranteed NOT to be currently displayed.
     for (int i = 0; i < numBufs + 1; i++) {
-        int fenceFd = -1;
         err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &anb);
         if (err != NO_ERROR) {
             ALOGE("error pushing blank frames: dequeueBuffer failed: %s (%d)",

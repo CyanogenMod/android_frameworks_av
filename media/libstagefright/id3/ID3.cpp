@@ -793,8 +793,8 @@ ID3::getAlbumArt(size_t *length, String8 *mime) const {
             mime->setTo((const char *)&data[1]);
             size_t mimeLen = strlen((const char *)&data[1]) + 1;
 
-            uint8_t picType = data[1 + mimeLen];
 #if 0
+            uint8_t picType = data[1 + mimeLen];
             if (picType != 0x03) {
                 // Front Cover Art
                 it.next();

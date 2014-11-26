@@ -639,7 +639,6 @@ status_t MediaCodecSource::doMoreWork(int32_t numInput, int32_t numOutput) {
         size_t size;
         int64_t timeUs;
         uint32_t flags;
-        native_handle_t* handle = NULL;
         err = mEncoder->dequeueOutputBuffer(
                 &bufferIndex, &offset, &size, &timeUs, &flags);
 
