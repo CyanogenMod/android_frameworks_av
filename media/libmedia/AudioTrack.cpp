@@ -374,7 +374,11 @@ status_t AudioTrack::set(
     mReqFrameCount = frameCount;
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
-    mSessionId = sessionId;
+    if (sessionId == AUDIO_SESSION_ALLOCATE) {
+        mSessionId = AudioSystem::newAudioUniqueId();
+    } else {
+        mSessionId = sessionId;
+    }
     int callingpid = IPCThreadState::self()->getCallingPid();
     int mypid = getpid();
     if (uid == -1 || (callingpid != mypid)) {
