@@ -693,16 +693,17 @@ void AudioSystem::releaseOutput(audio_io_handle_t output,
     aps->releaseOutput(output, stream, session);
 }
 
-audio_io_handle_t AudioSystem::getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_session_t sessionId,
-                                    audio_input_flags_t flags)
+status_t AudioSystem::getInputForAttr(const audio_attributes_t *attr,
+                                audio_io_handle_t *input,
+                                audio_session_t session,
+                                uint32_t samplingRate,
+                                audio_format_t format,
+                                audio_channel_mask_t channelMask,
+                                audio_input_flags_t flags)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-    if (aps == 0) return 0;
-    return aps->getInput(inputSource, samplingRate, format, channelMask, sessionId, flags);
+    if (aps == 0) return NO_INIT;
+    return aps->getInputForAttr(attr, input, session, samplingRate, format, channelMask, flags);
 }
 
 status_t AudioSystem::startInput(audio_io_handle_t input,
