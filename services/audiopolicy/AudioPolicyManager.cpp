@@ -4355,6 +4355,21 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
 
     // FIXME: STRATEGY_ACCESSIBILITY and STRATEGY_REROUTING follow STRATEGY_MEDIA for now
     case STRATEGY_ACCESSIBILITY:
+        if (strategy == STRATEGY_ACCESSIBILITY) {
+            // do not route accessibility prompts to a digital output currently configured with a
+            // compressed format as they would likely not be mixed and dropped.
+            for (size_t i = 0; i < mOutputs.size(); i++) {
+                sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
+                audio_devices_t devices = desc->device() &
+                    (AUDIO_DEVICE_OUT_HDMI | AUDIO_DEVICE_OUT_SPDIF | AUDIO_DEVICE_OUT_HDMI_ARC);
+                if (desc->isActive() && !audio_is_linear_pcm(desc->mFormat) &&
+                        devices != AUDIO_DEVICE_NONE) {
+                    availableOutputDeviceTypes = availableOutputDeviceTypes & ~devices;
+                }
+            }
+        }
+        // FALL THROUGH
+
     case STRATEGY_REROUTING:
     case STRATEGY_MEDIA: {
         uint32_t device2 = AUDIO_DEVICE_NONE;
