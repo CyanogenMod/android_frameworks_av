@@ -1336,8 +1336,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState == FLUSHED) {
+                setState(STARTED);
                 mCodec->signalResume();
                 PostReplyWithError(replyID, OK);
+                break;
             } else if (mState != CONFIGURED) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
