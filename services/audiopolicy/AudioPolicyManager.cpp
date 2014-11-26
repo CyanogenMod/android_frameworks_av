@@ -4031,7 +4031,7 @@ uint32_t AudioPolicyManager::getStrategyForAttr(const audio_attributes_t *attr) 
         if (isInCall()) {
             return (uint32_t) STRATEGY_PHONE;
         }
-        // FALL THROUGH
+        return (uint32_t) STRATEGY_ACCESSIBILITY;
 
     case AUDIO_USAGE_MEDIA:
     case AUDIO_USAGE_GAME:
@@ -4055,13 +4055,6 @@ uint32_t AudioPolicyManager::getStrategyForAttr(const audio_attributes_t *attr) 
     case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
     case AUDIO_USAGE_NOTIFICATION_EVENT:
         return (uint32_t) STRATEGY_SONIFICATION_RESPECTFUL;
-
-    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
-        if (isStreamActive(AUDIO_STREAM_RING, 0) ||
-                isStreamActive(AUDIO_STREAM_ALARM, 0)) {
-            return (uint32_t) STRATEGY_SONIFICATION;
-        }
-        return (uint32_t) STRATEGY_ACCESSIBILITY;
 
     case AUDIO_USAGE_UNKNOWN:
     default:
