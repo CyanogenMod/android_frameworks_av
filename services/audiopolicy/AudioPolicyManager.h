@@ -87,19 +87,24 @@ public:
                                             audio_channel_mask_t channelMask,
                                             audio_output_flags_t flags,
                                             const audio_offload_info_t *offloadInfo);
-        virtual audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
-                                            uint32_t samplingRate,
-                                            audio_format_t format,
-                                            audio_channel_mask_t channelMask,
-                                            audio_output_flags_t flags,
-                                            const audio_offload_info_t *offloadInfo);
+        virtual status_t getOutputForAttr(const audio_attributes_t *attr,
+                                          audio_io_handle_t *output,
+                                          audio_session_t session,
+                                          audio_stream_type_t *stream,
+                                          uint32_t samplingRate,
+                                          audio_format_t format,
+                                          audio_channel_mask_t channelMask,
+                                          audio_output_flags_t flags,
+                                          const audio_offload_info_t *offloadInfo);
         virtual status_t startOutput(audio_io_handle_t output,
                                      audio_stream_type_t stream,
-                                     int session = 0);
+                                     audio_session_t session);
         virtual status_t stopOutput(audio_io_handle_t output,
                                     audio_stream_type_t stream,
-                                    int session = 0);
-        virtual void releaseOutput(audio_io_handle_t output);
+                                    audio_session_t session);
+        virtual void releaseOutput(audio_io_handle_t output,
+                                   audio_stream_type_t stream,
+                                   audio_session_t session);
         virtual audio_io_handle_t getInput(audio_source_t inputSource,
                                             uint32_t samplingRate,
                                             audio_format_t format,
@@ -862,6 +867,7 @@ private:
         // internal method to return the output handle for the given device and format
         audio_io_handle_t getOutputForDevice(
                 audio_devices_t device,
+                audio_session_t session,
                 audio_stream_type_t stream,
                 uint32_t samplingRate,
                 audio_format_t format,
@@ -877,6 +883,7 @@ private:
         //   the mute/unmute happened
         uint32_t handleEventForBeacon(int event);
         uint32_t setBeaconMute(bool mute);
+        bool     isValidAttributes(const audio_attributes_t *paa);
 };
 
 };

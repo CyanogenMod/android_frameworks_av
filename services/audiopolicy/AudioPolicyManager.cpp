@@ -43,6 +43,7 @@
 #include <hardware/audio.h>
 #include <hardware/audio_effect.h>
 #include <media/AudioParameter.h>
+#include <media/AudioPolicyHelper.h>
 #include <soundtrigger/SoundTrigger.h>
 #include "AudioPolicyManager.h"
 #include "audio_policy_conf.h"
@@ -841,42 +842,65 @@ audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream,
     ALOGV("getOutput() device %d, stream %d, samplingRate %d, format %x, channelMask %x, flags %x",
           device, stream, samplingRate, format, channelMask, flags);
 
-    return getOutputForDevice(device, stream, samplingRate,format, channelMask, flags,
-            offloadInfo);
+    return getOutputForDevice(device, AUDIO_SESSION_ALLOCATE,
+                              stream, samplingRate,format, channelMask,
+                              flags, offloadInfo);
 }
 
-audio_io_handle_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_output_flags_t flags,
-                                    const audio_offload_info_t *offloadInfo)
+status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
+                                              audio_io_handle_t *output,
+                                              audio_session_t session,
+                                              audio_stream_type_t *stream,
+                                              uint32_t samplingRate,
+                                              audio_format_t format,
+                                              audio_channel_mask_t channelMask,
+                                              audio_output_flags_t flags,
+                                              const audio_offload_info_t *offloadInfo)
 {
-    if (attr == NULL) {
-        ALOGE("getOutputForAttr() called with NULL audio attributes");
-        return 0;
+    audio_attributes_t attributes;
+    if (attr != NULL) {
+        if (!isValidAttributes(attr)) {
+            ALOGE("getOutputForAttr() invalid attributes: usage=%d content=%d flags=0x%x tags=[%s]",
+                  attr->usage, attr->content_type, attr->flags,
+                  attr->tags);
+            return BAD_VALUE;
+        }
+        attributes = *attr;
+    } else {
+        if (*stream < AUDIO_STREAM_MIN || *stream >= AUDIO_STREAM_PUBLIC_CNT) {
+            ALOGE("getOutputForAttr():  invalid stream type");
+            return BAD_VALUE;
+        }
+        stream_type_to_audio_attributes(*stream, &attributes);
     }
+
     ALOGV("getOutputForAttr() usage=%d, content=%d, tag=%s flags=%08x",
-            attr->usage, attr->content_type, attr->tags, attr->flags);
+            attributes.usage, attributes.content_type, attributes.tags, attributes.flags);
 
     // TODO this is where filtering for custom policies (rerouting, dynamic sources) will go
-    routing_strategy strategy = (routing_strategy) getStrategyForAttr(attr);
+    routing_strategy strategy = (routing_strategy) getStrategyForAttr(&attributes);
     audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
 
-    if ((attr->flags & AUDIO_FLAG_HW_AV_SYNC) != 0) {
+    if ((attributes.flags & AUDIO_FLAG_HW_AV_SYNC) != 0) {
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_HW_AV_SYNC);
     }
 
     ALOGV("getOutputForAttr() device 0x%x, samplingRate %d, format %x, channelMask %x, flags %x",
           device, samplingRate, format, channelMask, flags);
 
-    audio_stream_type_t stream = streamTypefromAttributesInt(attr);
-    return getOutputForDevice(device, stream, samplingRate, format, channelMask, flags,
-                offloadInfo);
+    *stream = streamTypefromAttributesInt(&attributes);
+    *output = getOutputForDevice(device, session, *stream,
+                                 samplingRate, format, channelMask,
+                                 flags, offloadInfo);
+    if (*output == AUDIO_IO_HANDLE_NONE) {
+        return INVALID_OPERATION;
+    }
+    return NO_ERROR;
 }
 
 audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         audio_devices_t device,
+        audio_session_t session,
         audio_stream_type_t stream,
         uint32_t samplingRate,
         audio_format_t format,
@@ -938,6 +962,10 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     }
     if ((flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
+    }
+    // only allow deep buffering for music stream type
+    if (stream != AUDIO_STREAM_MUSIC) {
+        flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     }
 
     sp<IOProfile> profile;
@@ -1123,7 +1151,7 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
 
 status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
                                              audio_stream_type_t stream,
-                                             int session)
+                                             audio_session_t session)
 {
     ALOGV("startOutput() output %d, stream %d, session %d", output, stream, session);
     ssize_t index = mOutputs.indexOfKey(output);
@@ -1207,7 +1235,7 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
 
 status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
                                             audio_stream_type_t stream,
-                                            int session)
+                                            audio_session_t session)
 {
     ALOGV("stopOutput() output %d, stream %d, session %d", output, stream, session);
     ssize_t index = mOutputs.indexOfKey(output);
@@ -1265,7 +1293,9 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
     }
 }
 
-void AudioPolicyManager::releaseOutput(audio_io_handle_t output)
+void AudioPolicyManager::releaseOutput(audio_io_handle_t output,
+                                       audio_stream_type_t stream,
+                                       audio_session_t session)
 {
     ALOGV("releaseOutput() %d", output);
     ssize_t index = mOutputs.indexOfKey(output);
@@ -7494,6 +7524,15 @@ audio_stream_type_t AudioPolicyManager::streamTypefromAttributesInt(const audio_
     case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
         return AUDIO_STREAM_MUSIC;
     case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+        if (isStreamActive(AUDIO_STREAM_ALARM)) {
+            return AUDIO_STREAM_ALARM;
+        }
+        if (isStreamActive(AUDIO_STREAM_RING)) {
+            return AUDIO_STREAM_RING;
+        }
+        if (isInCall()) {
+            return AUDIO_STREAM_VOICE_CALL;
+        }
         return AUDIO_STREAM_ACCESSIBILITY;
     case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
         return AUDIO_STREAM_SYSTEM;
@@ -7520,4 +7559,35 @@ audio_stream_type_t AudioPolicyManager::streamTypefromAttributesInt(const audio_
         return AUDIO_STREAM_MUSIC;
     }
 }
+
+bool AudioPolicyManager::isValidAttributes(const audio_attributes_t *paa) {
+    // has flags that map to a strategy?
+    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_SCO | AUDIO_FLAG_BEACON)) != 0) {
+        return true;
+    }
+
+    // has known usage?
+    switch (paa->usage) {
+    case AUDIO_USAGE_UNKNOWN:
+    case AUDIO_USAGE_MEDIA:
+    case AUDIO_USAGE_VOICE_COMMUNICATION:
+    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
+    case AUDIO_USAGE_ALARM:
+    case AUDIO_USAGE_NOTIFICATION:
+    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
+    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
+    case AUDIO_USAGE_NOTIFICATION_EVENT:
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
+    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
+    case AUDIO_USAGE_GAME:
+        break;
+    default:
+        return false;
+    }
+    return true;
+}
+
 }; // namespace android
