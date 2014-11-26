@@ -244,6 +244,23 @@ void ExtendedCodec::overrideComponentName(
        }
     }
 
+    int32_t wmvVersion = 0;
+    if (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
+            msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
+        ALOGD("Found WMV version key %d", wmvVersion);
+        if (wmvVersion == 1) {
+            ALOGD("Use FFMPEG for unsupported WMV track");
+            componentName->setTo("OMX.ffmpeg.wmv.decoder");
+        }
+    }
+
+    int32_t encodeOptions = 0;
+    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
+            !msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions)) {
+        ALOGD("Use FFMPEG for unsupported WMA track");
+        componentName->setTo("OMX.ffmpeg.wma.decoder");
+    }
+
     if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_HEVC, strlen(MEDIA_MIMETYPE_VIDEO_HEVC))) {
         sw_codectype = property_get("media.swhevccodectype", value, NULL);
         enableSwHevc = atoi(value);
@@ -422,13 +439,6 @@ status_t ExtendedCodec::setVideoFormat(
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
         *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
-        int32_t wmvVersion = 0;
-        if (msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
-            if (wmvVersion == 1) {
-                ALOGE("Unsupported WMV version %d", wmvVersion);
-                return ERROR_UNSUPPORTED;
-            }
-        }
         *compressionFormat = OMX_VIDEO_CodingWMV;
     } else if (!strcasecmp(MEDIA_MIMETYPE_CONTAINER_MPEG2, mime)) {
         *compressionFormat = OMX_VIDEO_CodingMPEG2;
