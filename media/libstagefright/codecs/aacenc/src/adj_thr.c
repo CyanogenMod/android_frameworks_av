@@ -96,7 +96,7 @@ static void adaptMinSnr(PSY_OUT_CHANNEL     psyOutChannel[MAX_CHANNELS],
                         MINSNR_ADAPT_PARAM *msaParam,
                         const Word16        nChannels)
 {
-  Word16 ch, sfb, sfbOffs, shift;
+  Word16 ch, sfb, sfbOffs;
   Word32 nSfb, avgEn;
   Word16 log_avgEn = 0;
   Word32 startRatio_x_avgEn = 0;

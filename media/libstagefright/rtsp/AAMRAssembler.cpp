@@ -143,8 +143,8 @@ ARTPAssembler::AssemblyStatus AAMRAssembler::addPacket(
         return MALFORMED_PACKET;
     }
 
-    unsigned payloadHeader = buffer->data()[0];
-    unsigned CMR = payloadHeader >> 4;
+    unsigned payloadHeader __unused = buffer->data()[0];
+    unsigned CMR __unused = payloadHeader >> 4;
 
     Vector<uint8_t> tableOfContents;
 
