@@ -745,6 +745,8 @@ private:
     void        closeInputInternal_l(sp<RecordThread> thread);
     void        setAudioHwSyncForSession_l(PlaybackThread *thread, audio_session_t sessionId);
 
+    status_t    checkStreamType(audio_stream_type_t stream) const;
+
 #ifdef TEE_SINK
     // all record threads serially share a common tee sink, which is re-created on format change
     sp<NBAIO_Sink>   mRecordTeeSink;

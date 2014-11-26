@@ -1658,8 +1658,9 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             audio_channel_mask_t channelMask,
             size_t frameCount,
             int uid)
-    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
-                NULL, 0, 0, uid, IAudioFlinger::TRACK_DEFAULT, TYPE_OUTPUT),
+    :   Track(playbackThread, NULL, AUDIO_STREAM_PATCH,
+              sampleRate, format, channelMask, frameCount,
+              NULL, 0, 0, uid, IAudioFlinger::TRACK_DEFAULT, TYPE_OUTPUT),
     mActive(false), mSourceThread(sourceThread), mClientProxy(NULL)
 {
 
@@ -1874,7 +1875,8 @@ AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThr
                                                      size_t frameCount,
                                                      void *buffer,
                                                      IAudioFlinger::track_flags_t flags)
-    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
+    :   Track(playbackThread, NULL, AUDIO_STREAM_PATCH,
+              sampleRate, format, channelMask, frameCount,
               buffer, 0, 0, getuid(), flags, TYPE_PATCH),
               mProxy(new ClientProxy(mCblk, mBuffer, frameCount, mFrameSize, true, true))
 {

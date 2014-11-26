@@ -1283,15 +1283,12 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
 
     readOutputParameters_l();
 
-    // mStreamTypes[AUDIO_STREAM_CNT] is initialized by stream_type_t default constructor
-    // There is no AUDIO_STREAM_MIN, and ++ operator does not compile
+    // ++ operator does not compile
     for (audio_stream_type_t stream = AUDIO_STREAM_MIN; stream < AUDIO_STREAM_CNT;
             stream = (audio_stream_type_t) (stream + 1)) {
         mStreamTypes[stream].volume = mAudioFlinger->streamVolume_l(stream);
         mStreamTypes[stream].mute = mAudioFlinger->streamMute_l(stream);
     }
-    // mStreamTypes[AUDIO_STREAM_CNT] exists but isn't explicitly initialized here,
-    // because mAudioFlinger doesn't have one to copy from
 }
 
 AudioFlinger::PlaybackThread::~PlaybackThread()
@@ -4830,7 +4827,7 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
                                             frameCount,
                                             IPCThreadState::self()->getCallingUid());
     if (outputTrack->cblk() != NULL) {
-        thread->setStreamVolume(AUDIO_STREAM_CNT, 1.0f);
+        thread->setStreamVolume(AUDIO_STREAM_PATCH, 1.0f);
         mOutputTracks.add(outputTrack);
         ALOGV("addOutputTrack() track %p, on thread %p", outputTrack, thread);
         updateWaitTime_l();

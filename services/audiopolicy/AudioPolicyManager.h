@@ -188,6 +188,8 @@ protected:
             STRATEGY_DTMF,
             STRATEGY_ENFORCED_AUDIBLE,
             STRATEGY_TRANSMITTED_THROUGH_SPEAKER,
+            STRATEGY_ACCESSIBILITY,
+            STRATEGY_REROUTING,
             NUM_STRATEGIES
         };
 
@@ -437,6 +439,7 @@ protected:
         static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sLinearVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sSilentVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sFullScaleVolumeCurve[AudioPolicyManager::VOLCNT];
         // default volume curves per stream and device category. See initializeVolumeCurves()
         static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][DEVICE_CATEGORY_CNT];
 
