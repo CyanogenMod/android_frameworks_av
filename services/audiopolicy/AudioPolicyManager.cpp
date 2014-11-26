@@ -584,6 +584,9 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     if (isInCall()) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
         for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
+            if (stream == AUDIO_STREAM_PATCH) {
+                continue;
+            }
             handleIncallSonification((audio_stream_type_t)stream, false, true);
         }
     }
@@ -681,6 +684,9 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     if (isStateInCall(state)) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
         for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
+            if (stream == AUDIO_STREAM_PATCH) {
+                continue;
+            }
             handleIncallSonification((audio_stream_type_t)stream, true, true);
         }
     }
@@ -830,7 +836,6 @@ audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream,
                                     audio_output_flags_t flags,
                                     const audio_offload_info_t *offloadInfo)
 {
-
     routing_strategy strategy = getStrategy(stream);
     audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
     ALOGV("getOutput() device %d, stream %d, samplingRate %d, format %x, channelMask %x, flags %x",
@@ -1587,6 +1592,11 @@ void AudioPolicyManager::initStreamVolume(audio_stream_type_t stream,
     }
     mStreams[stream].mIndexMin = indexMin;
     mStreams[stream].mIndexMax = indexMax;
+    //FIXME: AUDIO_STREAM_ACCESSIBILITY volume follows AUDIO_STREAM_MUSIC for now
+    if (stream == AUDIO_STREAM_MUSIC) {
+        mStreams[AUDIO_STREAM_ACCESSIBILITY].mIndexMin = indexMin;
+        mStreams[AUDIO_STREAM_ACCESSIBILITY].mIndexMax = indexMax;
+    }
 }
 
 status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
@@ -1617,7 +1627,16 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
     // update volume on all outputs whose current device is also selected by the same
     // strategy as the device specified by the caller
     audio_devices_t strategyDevice = getDeviceForStrategy(getStrategy(stream), true /*fromCache*/);
-    if ((device != AUDIO_DEVICE_OUT_DEFAULT) && (device & strategyDevice) == 0) {
+
+
+    //FIXME: AUDIO_STREAM_ACCESSIBILITY volume follows AUDIO_STREAM_MUSIC for now
+    audio_devices_t accessibilityDevice = AUDIO_DEVICE_NONE;
+    if (stream == AUDIO_STREAM_MUSIC) {
+        mStreams[AUDIO_STREAM_ACCESSIBILITY].mIndexCur.add(device, index);
+        accessibilityDevice = getDeviceForStrategy(STRATEGY_ACCESSIBILITY, true /*fromCache*/);
+    }
+    if ((device != AUDIO_DEVICE_OUT_DEFAULT) &&
+            (device & (strategyDevice | accessibilityDevice)) == 0) {
         return NO_ERROR;
     }
     status_t status = NO_ERROR;
@@ -1629,6 +1648,10 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
             if (volStatus != NO_ERROR) {
                 status = volStatus;
             }
+        }
+        if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & accessibilityDevice) != 0)) {
+            status_t volStatus = checkAndSetVolume(AUDIO_STREAM_ACCESSIBILITY,
+                                                   index, mOutputs.keyAt(i), curDevice);
         }
     }
     return status;
@@ -3755,6 +3778,9 @@ void AudioPolicyManager::checkOutputForStrategy(routing_strategy strategy)
         }
         // Move tracks associated to this strategy from previous output to new output
         for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
+            if (i == AUDIO_STREAM_PATCH) {
+                continue;
+            }
             if (getStrategy((audio_stream_type_t)i) == strategy) {
                 mpClientInterface->invalidateStream((audio_stream_type_t)i);
             }
@@ -3771,8 +3797,10 @@ void AudioPolicyManager::checkOutputForAllStrategies()
         checkOutputForStrategy(STRATEGY_ENFORCED_AUDIBLE);
     checkOutputForStrategy(STRATEGY_SONIFICATION);
     checkOutputForStrategy(STRATEGY_SONIFICATION_RESPECTFUL);
+    checkOutputForStrategy(STRATEGY_ACCESSIBILITY);
     checkOutputForStrategy(STRATEGY_MEDIA);
     checkOutputForStrategy(STRATEGY_DTMF);
+    checkOutputForStrategy(STRATEGY_REROUTING);
 }
 
 audio_io_handle_t AudioPolicyManager::getA2dpOutput()
@@ -3861,11 +3889,13 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
     //      use device for strategy sonification
     // 5: the strategy "respectful" sonification is active on the output:
     //      use device for strategy "respectful" sonification
-    // 6: the strategy media is active on the output:
+    // 6: the strategy accessibility is active on the output:
+    //      use device for strategy accessibility
+    // 7: the strategy media is active on the output:
     //      use device for strategy media
-    // 7: the strategy DTMF is active on the output:
+    // 8: the strategy DTMF is active on the output:
     //      use device for strategy DTMF
-    // 8: the strategy for beacon, a.k.a. "transmitted through speaker" is active on the output:
+    // 9: the strategy for beacon, a.k.a. "transmitted through speaker" is active on the output:
     //      use device for strategy t-t-s
     if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE) &&
         mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED) {
@@ -3879,12 +3909,16 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
         device = getDeviceForStrategy(STRATEGY_SONIFICATION, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_SONIFICATION_RESPECTFUL)) {
         device = getDeviceForStrategy(STRATEGY_SONIFICATION_RESPECTFUL, fromCache);
+    } else if (outputDesc->isStrategyActive(STRATEGY_ACCESSIBILITY)) {
+        device = getDeviceForStrategy(STRATEGY_ACCESSIBILITY, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_MEDIA)) {
         device = getDeviceForStrategy(STRATEGY_MEDIA, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_DTMF)) {
         device = getDeviceForStrategy(STRATEGY_DTMF, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_TRANSMITTED_THROUGH_SPEAKER)) {
         device = getDeviceForStrategy(STRATEGY_TRANSMITTED_THROUGH_SPEAKER, fromCache);
+    } else if (outputDesc->isStrategyActive(STRATEGY_REROUTING)) {
+        device = getDeviceForStrategy(STRATEGY_REROUTING, fromCache);
     }
 
     ALOGV("getNewOutputDevice() selected device %x", device);
@@ -3919,7 +3953,7 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
     // By checking the range of stream before calling getStrategy, we avoid
     // getStrategy's behavior for invalid streams.  getStrategy would do a ALOGE
     // and then return STRATEGY_MEDIA, but we want to return the empty set.
-    if (stream < (audio_stream_type_t) 0 || stream >= AUDIO_STREAM_CNT) {
+    if (stream < (audio_stream_type_t) 0 || stream >= AUDIO_STREAM_PUBLIC_CNT) {
         return AUDIO_DEVICE_NONE;
     }
     audio_devices_t devices;
@@ -3946,6 +3980,9 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
 
 AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
         audio_stream_type_t stream) {
+
+    ALOG_ASSERT(stream != AUDIO_STREAM_PATCH,"getStrategy() called for AUDIO_STREAM_PATCH");
+
     // stream to strategy mapping
     switch (stream) {
     case AUDIO_STREAM_VOICE_CALL:
@@ -3959,7 +3996,7 @@ AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
     case AUDIO_STREAM_DTMF:
         return STRATEGY_DTMF;
     default:
-        ALOGE("unknown stream type");
+        ALOGE("unknown stream type %d", stream);
     case AUDIO_STREAM_SYSTEM:
         // NOTE: SYSTEM stream uses MEDIA strategy because muting music and switching outputs
         // while key clicks are played produces a poor result
@@ -3969,6 +4006,10 @@ AudioPolicyManager::routing_strategy AudioPolicyManager::getStrategy(
         return STRATEGY_ENFORCED_AUDIBLE;
     case AUDIO_STREAM_TTS:
         return STRATEGY_TRANSMITTED_THROUGH_SPEAKER;
+    case AUDIO_STREAM_ACCESSIBILITY:
+        return STRATEGY_ACCESSIBILITY;
+    case AUDIO_STREAM_REROUTING:
+        return STRATEGY_REROUTING;
     }
 }
 
@@ -4014,6 +4055,13 @@ uint32_t AudioPolicyManager::getStrategyForAttr(const audio_attributes_t *attr) 
     case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
     case AUDIO_USAGE_NOTIFICATION_EVENT:
         return (uint32_t) STRATEGY_SONIFICATION_RESPECTFUL;
+
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+        if (isStreamActive(AUDIO_STREAM_RING, 0) ||
+                isStreamActive(AUDIO_STREAM_ALARM, 0)) {
+            return (uint32_t) STRATEGY_SONIFICATION;
+        }
+        return (uint32_t) STRATEGY_ACCESSIBILITY;
 
     case AUDIO_USAGE_UNKNOWN:
     default:
@@ -4282,6 +4330,9 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         // The second device used for sonification is the same as the device used by media strategy
         // FALL THROUGH
 
+    // FIXME: STRATEGY_ACCESSIBILITY and STRATEGY_REROUTING follow STRATEGY_MEDIA for now
+    case STRATEGY_ACCESSIBILITY:
+    case STRATEGY_REROUTING:
     case STRATEGY_MEDIA: {
         uint32_t device2 = AUDIO_DEVICE_NONE;
         if (strategy != STRATEGY_SONIFICATION) {
@@ -4933,6 +4984,7 @@ AudioPolicyManager::device_category AudioPolicyManager::getDeviceCategory(audio_
     }
 }
 
+/* static */
 float AudioPolicyManager::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
         int indexInUi)
 {
@@ -5056,6 +5108,11 @@ const AudioPolicyManager::VolumeCurvePoint
 };
 
 const AudioPolicyManager::VolumeCurvePoint
+    AudioPolicyManager::sFullScaleVolumeCurve[AudioPolicyManager::VOLCNT] = {
+    {0, 0.0f}, {1, 0.0f}, {2, 0.0f}, {100, 0.0f}
+};
+
+const AudioPolicyManager::VolumeCurvePoint
             *AudioPolicyManager::sVolumeProfiles[AUDIO_STREAM_CNT]
                                                    [AudioPolicyManager::DEVICE_CATEGORY_CNT] = {
     { // AUDIO_STREAM_VOICE_CALL
@@ -5119,6 +5176,24 @@ const AudioPolicyManager::VolumeCurvePoint
         sSilentVolumeCurve, // DEVICE_CATEGORY_EARPIECE
         sSilentVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
+    { // AUDIO_STREAM_ACCESSIBILITY
+        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET
+        sSpeakerMediaVolumeCurve, // DEVICE_CATEGORY_SPEAKER
+        sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
+    },
+    { // AUDIO_STREAM_REROUTING
+        sFullScaleVolumeCurve, // DEVICE_CATEGORY_HEADSET
+        sFullScaleVolumeCurve, // DEVICE_CATEGORY_SPEAKER
+        sFullScaleVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sFullScaleVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
+    },
+    { // AUDIO_STREAM_PATCH
+        sFullScaleVolumeCurve, // DEVICE_CATEGORY_HEADSET
+        sFullScaleVolumeCurve, // DEVICE_CATEGORY_SPEAKER
+        sFullScaleVolumeCurve, // DEVICE_CATEGORY_EARPIECE
+        sFullScaleVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
+    },
 };
 
 void AudioPolicyManager::initializeVolumeCurves()
@@ -5141,6 +5216,8 @@ void AudioPolicyManager::initializeVolumeCurves()
         mStreams[AUDIO_STREAM_NOTIFICATION].mVolumeCurve[DEVICE_CATEGORY_SPEAKER] =
                 sSpeakerSonificationVolumeCurveDrc;
         mStreams[AUDIO_STREAM_MUSIC].mVolumeCurve[DEVICE_CATEGORY_SPEAKER] =
+                sSpeakerMediaVolumeCurveDrc;
+        mStreams[AUDIO_STREAM_ACCESSIBILITY].mVolumeCurve[DEVICE_CATEGORY_SPEAKER] =
                 sSpeakerMediaVolumeCurveDrc;
     }
 }
@@ -5267,6 +5344,9 @@ void AudioPolicyManager::applyStreamVolumes(audio_io_handle_t output,
     ALOGVV("applyStreamVolumes() for output %d and device %x", output, device);
 
     for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
+        if (stream == AUDIO_STREAM_PATCH) {
+            continue;
+        }
         checkAndSetVolume((audio_stream_type_t)stream,
                           mStreams[stream].getVolumeIndex(device),
                           output,
@@ -5284,6 +5364,9 @@ void AudioPolicyManager::setStrategyMute(routing_strategy strategy,
 {
     ALOGVV("setStrategyMute() strategy %d, mute %d, output %d", strategy, on, output);
     for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
+        if (stream == AUDIO_STREAM_PATCH) {
+            continue;
+        }
         if (getStrategy((audio_stream_type_t)stream) == strategy) {
             setStreamMute((audio_stream_type_t)stream, on, output, delayMs, device);
         }
@@ -5495,6 +5578,9 @@ bool AudioPolicyManager::AudioOutputDescriptor::isStrategyActive(routing_strateg
         sysTime = systemTime();
     }
     for (int i = 0; i < (int)AUDIO_STREAM_CNT; i++) {
+        if (i == AUDIO_STREAM_PATCH) {
+            continue;
+        }
         if (((getStrategy((audio_stream_type_t)i) == strategy) ||
                 (NUM_STRATEGIES == strategy)) &&
                 isStreamActive((audio_stream_type_t)i, inPastMs, sysTime)) {
@@ -7412,9 +7498,10 @@ audio_stream_type_t AudioPolicyManager::streamTypefromAttributesInt(const audio_
     switch (attr->usage) {
     case AUDIO_USAGE_MEDIA:
     case AUDIO_USAGE_GAME:
-    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
     case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
         return AUDIO_STREAM_MUSIC;
+    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
+        return AUDIO_STREAM_ACCESSIBILITY;
     case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
         return AUDIO_STREAM_SYSTEM;
     case AUDIO_USAGE_VOICE_COMMUNICATION:

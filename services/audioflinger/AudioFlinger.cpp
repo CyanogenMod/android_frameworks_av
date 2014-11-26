@@ -891,6 +891,21 @@ bool AudioFlinger::masterMute_l() const
     return mMasterMute;
 }
 
+status_t AudioFlinger::checkStreamType(audio_stream_type_t stream) const
+{
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        ALOGW("setStreamVolume() invalid stream %d", stream);
+        return BAD_VALUE;
+    }
+    pid_t caller = IPCThreadState::self()->getCallingPid();
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT && caller != getpid_cached) {
+        ALOGW("setStreamVolume() pid %d cannot use internal stream type %d", caller, stream);
+        return PERMISSION_DENIED;
+    }
+
+    return NO_ERROR;
+}
+
 status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
         audio_io_handle_t output)
 {
@@ -899,10 +914,11 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
         return PERMISSION_DENIED;
     }
 
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        ALOGE("setStreamVolume() invalid stream %d", stream);
-        return BAD_VALUE;
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
+        return status;
     }
+    ALOG_ASSERT(stream != AUDIO_STREAM_PATCH, "attempt to change AUDIO_STREAM_PATCH volume");
 
     AutoMutex lock(mLock);
     PlaybackThread *thread = NULL;
@@ -933,8 +949,13 @@ status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
         return PERMISSION_DENIED;
     }
 
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT ||
-        uint32_t(stream) == AUDIO_STREAM_ENFORCED_AUDIBLE) {
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
+        return status;
+    }
+    ALOG_ASSERT(stream != AUDIO_STREAM_PATCH, "attempt to mute AUDIO_STREAM_PATCH");
+
+    if (uint32_t(stream) == AUDIO_STREAM_ENFORCED_AUDIBLE) {
         ALOGE("setStreamMute() invalid stream %d", stream);
         return BAD_VALUE;
     }
@@ -949,7 +970,8 @@ status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
 
 float AudioFlinger::streamVolume(audio_stream_type_t stream, audio_io_handle_t output) const
 {
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
         return 0.0f;
     }
 
@@ -970,7 +992,8 @@ float AudioFlinger::streamVolume(audio_stream_type_t stream, audio_io_handle_t o
 
 bool AudioFlinger::streamMute(audio_stream_type_t stream) const
 {
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
         return true;
     }
 

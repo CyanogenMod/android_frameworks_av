@@ -285,7 +285,7 @@ status_t AudioTrack::set(
     }
 
     if (pAttributes == NULL) {
-        if (uint32_t(streamType) >= AUDIO_STREAM_CNT) {
+        if (uint32_t(streamType) >= AUDIO_STREAM_PUBLIC_CNT) {
             ALOGE("Invalid stream type %d", streamType);
             return BAD_VALUE;
         }
