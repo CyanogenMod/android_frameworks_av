@@ -215,7 +215,10 @@ public:
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL);
-    static audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
+    static status_t getOutputForAttr(const audio_attributes_t *attr,
+                                        audio_io_handle_t *output,
+                                        audio_session_t session,
+                                        audio_stream_type_t *stream,
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
@@ -223,11 +226,13 @@ public:
                                         const audio_offload_info_t *offloadInfo = NULL);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
-                                int session);
+                                audio_session_t session);
     static status_t stopOutput(audio_io_handle_t output,
                                audio_stream_type_t stream,
-                               int session);
-    static void releaseOutput(audio_io_handle_t output);
+                               audio_session_t session);
+    static void releaseOutput(audio_io_handle_t output,
+                              audio_stream_type_t stream,
+                              audio_session_t session);
 
     // Client must successfully hand off the handle reference to AudioFlinger via openRecord(),
     // or release it with releaseInput().
@@ -235,7 +240,7 @@ public:
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int sessionId,
+                                    audio_session_t sessionId,
                                     audio_input_flags_t);
 
     static status_t startInput(audio_io_handle_t input,

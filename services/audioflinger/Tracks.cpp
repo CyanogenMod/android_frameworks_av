@@ -491,7 +491,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
             wasActive = playbackThread->destroyTrack_l(this);
         }
         if (isExternalTrack() && !wasActive) {
-            AudioSystem::releaseOutput(mThreadIoHandle);
+            AudioSystem::releaseOutput(mThreadIoHandle, mStreamType, (audio_session_t)mSessionId);
         }
     }
 }

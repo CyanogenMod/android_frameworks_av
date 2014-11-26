@@ -1685,13 +1685,15 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
         if (track->isExternalTrack()) {
             TrackBase::track_state state = track->mState;
             mLock.unlock();
-            status = AudioSystem::startOutput(mId, track->streamType(), track->sessionId());
+            status = AudioSystem::startOutput(mId, track->streamType(),
+                                              (audio_session_t)track->sessionId());
             mLock.lock();
             // abort track was stopped/paused while we released the lock
             if (state != track->mState) {
                 if (status == NO_ERROR) {
                     mLock.unlock();
-                    AudioSystem::stopOutput(mId, track->streamType(), track->sessionId());
+                    AudioSystem::stopOutput(mId, track->streamType(),
+                                            (audio_session_t)track->sessionId());
                     mLock.lock();
                 }
                 return INVALID_OPERATION;
@@ -2120,13 +2122,15 @@ void AudioFlinger::PlaybackThread::threadLoop_removeTracks(
         for (size_t i = 0 ; i < count ; i++) {
             const sp<Track>& track = tracksToRemove.itemAt(i);
             if (track->isExternalTrack()) {
-                AudioSystem::stopOutput(mId, track->streamType(), track->sessionId());
+                AudioSystem::stopOutput(mId, track->streamType(),
+                                        (audio_session_t)track->sessionId());
 #ifdef ADD_BATTERY_DATA
                 // to track the speaker usage
                 addBatteryData(IMediaPlayerService::kBatteryDataAudioFlingerStop);
 #endif
                 if (track->isTerminated()) {
-                    AudioSystem::releaseOutput(mId);
+                    AudioSystem::releaseOutput(mId, track->streamType(),
+                                               (audio_session_t)track->sessionId());
                 }
             }
         }
