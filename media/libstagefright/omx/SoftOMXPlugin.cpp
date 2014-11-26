@@ -34,7 +34,7 @@ static const struct {
     const char *mRole;
 
 } kComponents[] = {
-    { "OMX.ffmpeg.mpeg2v.decoder", "ffmpegvdec", "video_decoder.mpeg2v" },
+    { "OMX.ffmpeg.mpeg2.decoder", "ffmpegvdec", "video_decoder.mpeg2" },
     { "OMX.ffmpeg.h263.decoder", "ffmpegvdec", "video_decoder.h263" },
     { "OMX.ffmpeg.mpeg4.decoder", "ffmpegvdec", "video_decoder.mpeg4" },
     { "OMX.ffmpeg.wmv.decoder", "ffmpegvdec", "video_decoder.wmv" },
