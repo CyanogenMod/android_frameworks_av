@@ -660,6 +660,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             if (meta != NULL
                     && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
                 mRenderer->setVideoFrameRate(rate);
+                PLAYER_STATS(setFrameRate, rate);
             }
 
             postScanSources();
