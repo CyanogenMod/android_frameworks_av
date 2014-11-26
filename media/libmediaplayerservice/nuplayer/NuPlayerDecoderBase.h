@@ -38,7 +38,7 @@ struct NuPlayer::DecoderBase : public AHandler {
 
     status_t getInputBuffers(Vector<sp<ABuffer> > *dstBuffers) const;
     void signalFlush();
-    void signalResume();
+    void signalResume(bool notifyComplete);
     void initiateShutdown();
 
     virtual void getStats(
@@ -50,6 +50,7 @@ struct NuPlayer::DecoderBase : public AHandler {
         kWhatVideoSizeChanged    = 'viSC',
         kWhatFlushCompleted      = 'flsC',
         kWhatShutdownCompleted   = 'shDC',
+        kWhatResumeCompleted     = 'resC',
         kWhatEOS                 = 'eos ',
         kWhatError               = 'err ',
     };
@@ -63,7 +64,7 @@ protected:
     virtual void onConfigure(const sp<AMessage> &format) = 0;
     virtual void onSetRenderer(const sp<Renderer> &renderer) = 0;
     virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers) = 0;
-    virtual void onResume() = 0;
+    virtual void onResume(bool notifyComplete) = 0;
     virtual void onFlush(bool notifyComplete) = 0;
     virtual void onShutdown(bool notifyComplete) = 0;
 

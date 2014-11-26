@@ -42,7 +42,7 @@ protected:
     virtual void onConfigure(const sp<AMessage> &format);
     virtual void onSetRenderer(const sp<Renderer> &renderer);
     virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers);
-    virtual void onResume();
+    virtual void onResume(bool notifyComplete);
     virtual void onFlush(bool notifyComplete);
     virtual void onShutdown(bool notifyComplete);
     virtual void doRequestBuffers();
@@ -85,6 +85,7 @@ private:
 
     int32_t mBufferGeneration;
     bool mPaused;
+    bool mResumePending;
     AString mComponentName;
 
     void handleError(int32_t err);
@@ -102,6 +103,8 @@ private:
     bool supportsSeamlessFormatChange(const sp<AMessage> &to) const;
     bool supportsSeamlessAudioFormatChange(const sp<AMessage> &targetFormat) const;
     void rememberCodecSpecificData(const sp<AMessage> &format);
+
+    void notifyResumeCompleteIfNecessary();
 
     DISALLOW_EVIL_CONSTRUCTORS(Decoder);
 };
