@@ -971,21 +971,27 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
 
             String8 mime = String8(_mime);
 
+            const char * dolbyFormats[ ] = {
+                MEDIA_MIMETYPE_AUDIO_AC3,
+                MEDIA_MIMETYPE_AUDIO_EAC3,
+#ifdef DOLBY_UDC
+                MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
+#endif
+            };
+
             if (!strncasecmp(mime.string(), "audio/", 6)) {
                 audioTrackFound = true;
 
                 amrwbAudio = !strncasecmp(mime.string(),
                                           MEDIA_MIMETYPE_AUDIO_AMR_WB,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
-                dolbyAudio = (!strncasecmp(mime.string(),
-                                          MEDIA_MIMETYPE_AUDIO_AC3,
-                                          strlen(MEDIA_MIMETYPE_AUDIO_AC3)) ||
-                              !strncasecmp(mime.string(),
-                                          MEDIA_MIMETYPE_AUDIO_EAC3,
-                                          strlen(MEDIA_MIMETYPE_AUDIO_EAC3)) ||
-                              !strncasecmp(mime.string(),
-                                          MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
-                                          strlen(MEDIA_MIMETYPE_AUDIO_EAC3_JOC)));
+
+                for (size_t i = 0; i < ARRAY_SIZE(dolbyFormats); i++) {
+                    if (!strncasecmp(mime.string(), dolbyFormats[i], strlen(dolbyFormats[i]))) {
+                        dolbyAudio = true;
+                    }
+                }
+
                 if (amrwbAudio || dolbyAudio) {
                     break;
                 }
@@ -1047,22 +1053,29 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     //to delete the new one
     bool bUseDefaultExtractor = true;
 
+    const char * extFormats[ ] = {
+        MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
+        MEDIA_MIMETYPE_VIDEO_HEVC,
+        MEDIA_MIMETYPE_AUDIO_AC3,
+        MEDIA_MIMETYPE_AUDIO_EAC3,
+#ifdef DOLBY_UDC
+        MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
+#endif
+    };
+
     for (size_t trackItt = 0; (trackItt < retExtExtractor->countTracks()); ++trackItt) {
         sp<MetaData> meta = retExtExtractor->getTrackMetaData(trackItt);
         const char *mime;
         bool success = meta->findCString(kKeyMIMEType, &mime);
-        if ((success == true) &&
-            (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
-                                strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) ||
-            !strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
-                                strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) ||
-            !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3,
-                                strlen(MEDIA_MIMETYPE_AUDIO_AC3)) ||
-            !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_EAC3,
-                                strlen(MEDIA_MIMETYPE_AUDIO_EAC3)) ||
-            !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
-                                strlen(MEDIA_MIMETYPE_AUDIO_EAC3_JOC)))) {
+        bool isExtFormat = false;
+        for (size_t i = 0; i < ARRAY_SIZE(extFormats); i++) {
+            if (!strncasecmp(mime, extFormats[i], strlen(extFormats[i]))) {
+                isExtFormat = true;
+                break;
+            }
+        }
 
+        if ((success == true) && isExtFormat) {
             ALOGD("Discarding default extractor and using the extended one");
             bUseDefaultExtractor = false;
             break;
