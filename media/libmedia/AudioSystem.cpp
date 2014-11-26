@@ -649,22 +649,26 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
     return aps->getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
 }
 
-audio_io_handle_t AudioSystem::getOutputForAttr(const audio_attributes_t *attr,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_output_flags_t flags,
-                                    const audio_offload_info_t *offloadInfo)
+status_t AudioSystem::getOutputForAttr(const audio_attributes_t *attr,
+                                        audio_io_handle_t *output,
+                                        audio_session_t session,
+                                        audio_stream_type_t *stream,
+                                        uint32_t samplingRate,
+                                        audio_format_t format,
+                                        audio_channel_mask_t channelMask,
+                                        audio_output_flags_t flags,
+                                        const audio_offload_info_t *offloadInfo)
 {
-    if (attr == NULL) return 0;
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-    if (aps == 0) return 0;
-    return aps->getOutputForAttr(attr, samplingRate, format, channelMask, flags, offloadInfo);
+    if (aps == 0) return NO_INIT;
+    return aps->getOutputForAttr(attr, output, session, stream,
+                                 samplingRate, format, channelMask,
+                                 flags, offloadInfo);
 }
 
 status_t AudioSystem::startOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
-                                  int session)
+                                  audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
@@ -673,25 +677,27 @@ status_t AudioSystem::startOutput(audio_io_handle_t output,
 
 status_t AudioSystem::stopOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
-                                 int session)
+                                 audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
     return aps->stopOutput(output, stream, session);
 }
 
-void AudioSystem::releaseOutput(audio_io_handle_t output)
+void AudioSystem::releaseOutput(audio_io_handle_t output,
+                                audio_stream_type_t stream,
+                                audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return;
-    aps->releaseOutput(output);
+    aps->releaseOutput(output, stream, session);
 }
 
 audio_io_handle_t AudioSystem::getInput(audio_source_t inputSource,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int sessionId,
+                                    audio_session_t sessionId,
                                     audio_input_flags_t flags)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();

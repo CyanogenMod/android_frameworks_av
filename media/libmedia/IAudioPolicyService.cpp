@@ -160,21 +160,45 @@ public:
         return static_cast <audio_io_handle_t> (reply.readInt32());
     }
 
-    virtual audio_io_handle_t getOutputForAttr(
-                                            const audio_attributes_t *attr,
-                                            uint32_t samplingRate,
-                                            audio_format_t format,
-                                            audio_channel_mask_t channelMask,
-                                            audio_output_flags_t flags,
-                                            const audio_offload_info_t *offloadInfo)
+    virtual status_t getOutputForAttr(const audio_attributes_t *attr,
+                                        audio_io_handle_t *output,
+                                        audio_session_t session,
+                                        audio_stream_type_t *stream,
+                                        uint32_t samplingRate,
+                                        audio_format_t format,
+                                        audio_channel_mask_t channelMask,
+                                        audio_output_flags_t flags,
+                                        const audio_offload_info_t *offloadInfo)
         {
             Parcel data, reply;
             data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
             if (attr == NULL) {
-                ALOGE("Writing NULL audio attributes - shouldn't happen");
-                return (audio_io_handle_t) 0;
+                if (stream == NULL) {
+                    ALOGE("getOutputForAttr(): NULL audio attributes and stream type");
+                    return BAD_VALUE;
+                }
+                if (*stream == AUDIO_STREAM_DEFAULT) {
+                    ALOGE("getOutputForAttr unspecified stream type");
+                    return BAD_VALUE;
+                }
             }
-            data.write(attr, sizeof(audio_attributes_t));
+            if (output == NULL) {
+                ALOGE("getOutputForAttr NULL output - shouldn't happen");
+                return BAD_VALUE;
+            }
+            if (attr == NULL) {
+                data.writeInt32(0);
+            } else {
+                data.writeInt32(1);
+                data.write(attr, sizeof(audio_attributes_t));
+            }
+            data.writeInt32(session);
+            if (stream == NULL) {
+                data.writeInt32(0);
+            } else {
+                data.writeInt32(1);
+                data.writeInt32(*stream);
+            }
             data.writeInt32(samplingRate);
             data.writeInt32(static_cast <uint32_t>(format));
             data.writeInt32(channelMask);
@@ -186,41 +210,56 @@ public:
                 data.writeInt32(1);
                 data.write(offloadInfo, sizeof(audio_offload_info_t));
             }
-            remote()->transact(GET_OUTPUT_FOR_ATTR, data, &reply);
-            return static_cast <audio_io_handle_t> (reply.readInt32());
+            status_t status = remote()->transact(GET_OUTPUT_FOR_ATTR, data, &reply);
+            if (status != NO_ERROR) {
+                return status;
+            }
+            status = (status_t)reply.readInt32();
+            if (status != NO_ERROR) {
+                return status;
+            }
+            *output = (audio_io_handle_t)reply.readInt32();
+            if (stream != NULL) {
+                *stream = (audio_stream_type_t)reply.readInt32();
+            }
+            return status;
         }
 
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
-                                 int session)
+                                 audio_session_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(output);
         data.writeInt32((int32_t) stream);
-        data.writeInt32(session);
+        data.writeInt32((int32_t)session);
         remote()->transact(START_OUTPUT, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
 
     virtual status_t stopOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
-                                int session)
+                                audio_session_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(output);
         data.writeInt32((int32_t) stream);
-        data.writeInt32(session);
+        data.writeInt32((int32_t)session);
         remote()->transact(STOP_OUTPUT, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
 
-    virtual void releaseOutput(audio_io_handle_t output)
+    virtual void releaseOutput(audio_io_handle_t output,
+                               audio_stream_type_t stream,
+                               audio_session_t session)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(output);
+        data.writeInt32((int32_t)stream);
+        data.writeInt32((int32_t)session);
         remote()->transact(RELEASE_OUTPUT, data, &reply);
     }
 
@@ -229,7 +268,7 @@ public:
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int audioSession,
+                                    audio_session_t audioSession,
                                     audio_input_flags_t flags)
     {
         Parcel data, reply;
@@ -238,7 +277,7 @@ public:
         data.writeInt32(samplingRate);
         data.writeInt32(static_cast <uint32_t>(format));
         data.writeInt32(channelMask);
-        data.writeInt32(audioSession);
+        data.writeInt32((int32_t)audioSession);
         data.writeInt32(flags);
         remote()->transact(GET_INPUT, data, &reply);
         return static_cast <audio_io_handle_t> (reply.readInt32());
@@ -706,7 +745,16 @@ status_t BnAudioPolicyService::onTransact(
         case GET_OUTPUT_FOR_ATTR: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_attributes_t attr;
-            data.read(&attr, sizeof(audio_attributes_t));
+            bool hasAttributes = data.readInt32() != 0;
+            if (hasAttributes) {
+                data.read(&attr, sizeof(audio_attributes_t));
+            }
+            audio_session_t session = (audio_session_t)data.readInt32();
+            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT;
+            bool hasStream = data.readInt32() != 0;
+            if (hasStream) {
+                stream = (audio_stream_type_t)data.readInt32();
+            }
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
@@ -717,13 +765,14 @@ status_t BnAudioPolicyService::onTransact(
             if (hasOffloadInfo) {
                 data.read(&offloadInfo, sizeof(audio_offload_info_t));
             }
-            audio_io_handle_t output = getOutputForAttr(&attr,
-                    samplingRate,
-                    format,
-                    channelMask,
-                    flags,
-                    hasOffloadInfo ? &offloadInfo : NULL);
-            reply->writeInt32(static_cast <int>(output));
+            audio_io_handle_t output;
+            status_t status = getOutputForAttr(hasAttributes ? &attr : NULL,
+                    &output, session, &stream,
+                    samplingRate, format, channelMask,
+                    flags, hasOffloadInfo ? &offloadInfo : NULL);
+            reply->writeInt32(status);
+            reply->writeInt32(output);
+            reply->writeInt32(stream);
             return NO_ERROR;
         } break;
 
@@ -732,7 +781,7 @@ status_t BnAudioPolicyService::onTransact(
             audio_io_handle_t output = static_cast <audio_io_handle_t>(data.readInt32());
             audio_stream_type_t stream =
                                 static_cast <audio_stream_type_t>(data.readInt32());
-            int session = data.readInt32();
+            audio_session_t session = (audio_session_t)data.readInt32();
             reply->writeInt32(static_cast <uint32_t>(startOutput(output,
                                                                  stream,
                                                                  session)));
@@ -744,7 +793,7 @@ status_t BnAudioPolicyService::onTransact(
             audio_io_handle_t output = static_cast <audio_io_handle_t>(data.readInt32());
             audio_stream_type_t stream =
                                 static_cast <audio_stream_type_t>(data.readInt32());
-            int session = data.readInt32();
+            audio_session_t session = (audio_session_t)data.readInt32();
             reply->writeInt32(static_cast <uint32_t>(stopOutput(output,
                                                                 stream,
                                                                 session)));
@@ -754,7 +803,9 @@ status_t BnAudioPolicyService::onTransact(
         case RELEASE_OUTPUT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             audio_io_handle_t output = static_cast <audio_io_handle_t>(data.readInt32());
-            releaseOutput(output);
+            audio_stream_type_t stream = (audio_stream_type_t)data.readInt32();
+            audio_session_t session = (audio_session_t)data.readInt32();
+            releaseOutput(output, stream, session);
             return NO_ERROR;
         } break;
 
@@ -764,7 +815,7 @@ status_t BnAudioPolicyService::onTransact(
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            int audioSession = data.readInt32();
+            audio_session_t audioSession = (audio_session_t)data.readInt32();
             audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
             audio_io_handle_t input = getInput(inputSource,
                                                samplingRate,
