@@ -243,47 +243,48 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
     mAudioPolicyManager->releaseOutput(output, stream, session);
 }
 
-audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_session_t audioSession,
-                                    audio_input_flags_t flags)
+status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
+                                             audio_io_handle_t *input,
+                                             audio_session_t session,
+                                             uint32_t samplingRate,
+                                             audio_format_t format,
+                                             audio_channel_mask_t channelMask,
+                                             audio_input_flags_t flags)
 {
     if (mAudioPolicyManager == NULL) {
-        return 0;
+        return NO_INIT;
     }
     // already checked by client, but double-check in case the client wrapper is bypassed
-    if (inputSource >= AUDIO_SOURCE_CNT && inputSource != AUDIO_SOURCE_HOTWORD &&
-        inputSource != AUDIO_SOURCE_FM_TUNER) {
-        return 0;
+    if (attr->source >= AUDIO_SOURCE_CNT && attr->source != AUDIO_SOURCE_HOTWORD &&
+        attr->source != AUDIO_SOURCE_FM_TUNER) {
+        return BAD_VALUE;
     }
 
-    if (((inputSource == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) ||
-        ((inputSource == AUDIO_SOURCE_FM_TUNER) && !captureFmTunerAllowed())) {
-        return 0;
+    if (((attr->source == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) ||
+        ((attr->source == AUDIO_SOURCE_FM_TUNER) && !captureFmTunerAllowed())) {
+        return BAD_VALUE;
     }
-    audio_io_handle_t input;
     sp<AudioPolicyEffects>audioPolicyEffects;
+    status_t status;
     {
         Mutex::Autolock _l(mLock);
         // the audio_in_acoustics_t parameter is ignored by get_input()
-        input = mAudioPolicyManager->getInput(inputSource, samplingRate,
-                                                       format, channelMask,
-                                                       audioSession, flags);
+        status = mAudioPolicyManager->getInputForAttr(attr, input, session,
+                                                     samplingRate, format, channelMask,
+                                                     flags);
         audioPolicyEffects = mAudioPolicyEffects;
     }
-    if (input == 0) {
-        return input;
+    if (status != NO_ERROR) {
+        return status;
     }
     if (audioPolicyEffects != 0) {
         // create audio pre processors according to input source
-        status_t status = audioPolicyEffects->addInputEffects(input, inputSource, audioSession);
+        status_t status = audioPolicyEffects->addInputEffects(*input, attr->source, session);
         if (status != NO_ERROR && status != ALREADY_EXISTS) {
-            ALOGW("Failed to add effects on input %d", input);
+            ALOGW("Failed to add effects on input %d", *input);
         }
     }
-    return input;
+    return NO_ERROR;
 }
 
 status_t AudioPolicyService::startInput(audio_io_handle_t input,

@@ -152,6 +152,7 @@ public:
      * transferType:       How data is transferred from AudioRecord.
      * flags:              See comments on audio_input_flags_t in <system/audio.h>
      * threadCanCallJava:  Not present in parameter list, and so is fixed at false.
+     * pAttributes:        if not NULL, supersedes inputSource for use case selection
      */
 
                         AudioRecord(audio_source_t inputSource,
@@ -164,7 +165,8 @@ public:
                                     uint32_t notificationFrames = 0,
                                     int sessionId = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
-                                    audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE);
+                                    audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE,
+                                    const audio_attributes_t* pAttributes = NULL);
 
     /* Terminates the AudioRecord and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioRecord.
@@ -198,7 +200,8 @@ public:
                             bool threadCanCallJava = false,
                             int sessionId = AUDIO_SESSION_ALLOCATE,
                             transfer_type transferType = TRANSFER_DEFAULT,
-                            audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE);
+                            audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE,
+                            const audio_attributes_t* pAttributes = NULL);
 
     /* Result of constructing the AudioRecord. This must be checked for successful initialization
      * before using any AudioRecord API (except for set()), because using
@@ -219,7 +222,7 @@ public:
             uint32_t    channelCount() const    { return mChannelCount; }
             size_t      frameCount() const  { return mFrameCount; }
             size_t      frameSize() const   { return mFrameSize; }
-            audio_source_t inputSource() const  { return mInputSource; }
+            audio_source_t inputSource() const  { return mAttributes.source; }
 
     /* After it's created the track is not active. Call start() to
      * make it active. If set, the callback will start being called.
@@ -489,7 +492,6 @@ private:
     audio_format_t          mFormat;
     uint32_t                mChannelCount;
     size_t                  mFrameSize;         // app-level frame size == AudioFlinger frame size
-    audio_source_t          mInputSource;
     uint32_t                mLatency;           // in ms
     audio_channel_mask_t    mChannelMask;
     audio_input_flags_t     mFlags;
@@ -529,6 +531,7 @@ private:
 
     sp<DeathNotifier>       mDeathNotifier;
     uint32_t                mSequence;              // incremented for each new IAudioRecord attempt
+    audio_attributes_t      mAttributes;
 };
 
 }; // namespace android
