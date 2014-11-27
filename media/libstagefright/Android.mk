@@ -107,7 +107,7 @@ LOCAL_SHARED_LIBRARIES := \
         libpowermanager
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
-ifneq ($(filter msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm7x27a msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
 ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
    ifeq ($(USE_TUNNEL_MODE),true)
         LOCAL_CFLAGS += -DUSE_TUNNEL_MODE

@@ -75,7 +75,7 @@ LOCAL_SRC_FILES:= \
 LOCAL_SRC_FILES += ../libnbaio/roundup.c
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
-ifneq ($(filter msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm7x27a msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
 ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
 LOCAL_SRC_FILES += \
     IDirectTrack.cpp \
