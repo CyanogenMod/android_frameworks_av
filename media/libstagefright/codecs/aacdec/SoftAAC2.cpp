@@ -993,8 +993,6 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
 }
 
 void SoftAAC2::drainDecoder() {
-    int32_t outputDelay = mStreamInfo->outputDelay * mStreamInfo->numChannels;
-
     // flush decoder until outputDelay is compensated
     while (mOutputDelayCompensated > 0) {
         // a buffer big enough for MAX_CHANNEL_COUNT channels of decoded HE-AAC

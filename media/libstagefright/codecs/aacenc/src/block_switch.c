@@ -30,9 +30,6 @@
 #define ENERGY_SHIFT (8 - 1)
 
 /**************** internal function prototypes ***********/
-static Word16
-IIRFilter(const Word16 in, const Word32 coeff[], Word32 states[]);
-
 static Word32
 SrchMaxWithIndex(const Word32 *in, Word16 *index, Word16 n);
 
@@ -328,30 +325,6 @@ Word32 CalcWindowEnergy(BLOCK_SWITCHING_CONTROL *blockSwitchingControl,
   return(TRUE);
 }
 #endif
-
-/*****************************************************************************
-*
-* function name: IIRFilter
-* description:  calculate the iir-filter for an array
-* returns:      the result after iir-filter
-*
-**********************************************************************************/
-static Word16 IIRFilter(const Word16 in, const Word32 coeff[], Word32 states[])
-{
-  Word32 accu1, accu2, accu3;
-  Word32 out;
-
-  accu1 = L_mpy_ls(coeff[1], in);
-  accu3 = accu1 - states[0];
-  accu2 = fixmul( coeff[0], states[1] );
-  out = accu3 - accu2;
-
-  states[0] = accu1;
-  states[1] = out;
-
-  return round16(out);
-}
-
 
 static Word16 synchronizedBlockTypeTable[4][4] = {
   /*                 LONG_WINDOW   START_WINDOW  SHORT_WINDOW  STOP_WINDOW */

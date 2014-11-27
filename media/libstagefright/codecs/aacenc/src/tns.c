@@ -140,7 +140,7 @@ Word16 InitTnsConfigurationLong(Word32 bitRate,          /*!< bitrate */
                                 Word16 active)              /*!< tns active flag */
 {
 
-  Word32 bitratePerChannel;
+  Word32 bitratePerChannel __unused;
   tC->maxOrder     = TNS_MAX_ORDER;
   tC->tnsStartFreq = 1275;
   tC->coefRes      = 4;
@@ -206,7 +206,7 @@ Word16 InitTnsConfigurationShort(Word32 bitRate,              /*!< bitrate */
                                  PSY_CONFIGURATION_SHORT *pC, /*!< psy config struct */
                                  Word16 active)               /*!< tns active flag */
 {
-  Word32 bitratePerChannel;
+  Word32 bitratePerChannel __unused;
   tC->maxOrder     = TNS_MAX_ORDER_SHORT;
   tC->tnsStartFreq = 2750;
   tC->coefRes      = 3;
@@ -492,36 +492,6 @@ Word16 TnsEncode(TNS_INFO* tnsInfo,     /*!< tns info structure (modified) */
   }
 
   return(0);
-}
-
-
-/*****************************************************************************
-*
-* function name: m_pow2_cordic
-* description: Iterative power function
-*
-*	Calculates pow(2.0,x-1.0*(scale+1)) with INT_BITS bit precision
-*	using modified cordic algorithm
-* returns:     the result of pow2
-*
-*****************************************************************************/
-static Word32 m_pow2_cordic(Word32 x, Word16 scale)
-{
-  Word32 k;
-
-  Word32 accu_y = 0x40000000;
-  accu_y = L_shr(accu_y,scale);
-
-  for(k=1; k<INT_BITS; k++) {
-    const Word32 z = m_log2_table[k];
-
-    while(L_sub(x,z) >= 0) {
-
-      x = L_sub(x, z);
-      accu_y = L_add(accu_y, (accu_y >> k));
-    }
-  }
-  return(accu_y);
 }
 
 

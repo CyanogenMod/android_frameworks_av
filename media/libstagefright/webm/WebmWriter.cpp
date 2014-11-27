@@ -333,7 +333,6 @@ status_t WebmWriter::reset() {
     serializeCodedUnsigned(segmentSizeCoded, bary);
     ::write(mFd, bary, sizeOf(kMkvUnknownLength));
 
-    uint64_t size;
     uint64_t durationOffset = mInfoOffset + sizeOf(kMkvInfo) + sizeOf(mInfoSize)
         + sizeOf(kMkvSegmentDuration) + sizeOf(sizeof(double));
     sp<WebmElement> duration = new WebmFloat(
