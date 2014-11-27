@@ -45,7 +45,7 @@ bool isTestBuild()
 {
     char prop[PROPERTY_VALUE_MAX] = { '\0', };
 
-    property_get(kBuildTypePropName, prop, '\0');
+    property_get(kBuildTypePropName, prop, "\0");
     return strcmp(prop, kEngBuild) == 0 || strcmp(prop, kTestBuild) == 0;
 }
 
