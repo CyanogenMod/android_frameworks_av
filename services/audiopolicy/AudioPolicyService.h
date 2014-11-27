@@ -92,12 +92,13 @@ public:
     virtual void releaseOutput(audio_io_handle_t output,
                                audio_stream_type_t stream,
                                audio_session_t session);
-    virtual audio_io_handle_t getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_session_t audioSession,
-                                    audio_input_flags_t flags);
+    virtual status_t getInputForAttr(const audio_attributes_t *attr,
+                                     audio_io_handle_t *input,
+                                     audio_session_t session,
+                                     uint32_t samplingRate,
+                                     audio_format_t format,
+                                     audio_channel_mask_t channelMask,
+                                     audio_input_flags_t flags);
     virtual status_t startInput(audio_io_handle_t input,
                                 audio_session_t session);
     virtual status_t stopInput(audio_io_handle_t input,

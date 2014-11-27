@@ -900,7 +900,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
 
 audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         audio_devices_t device,
-        audio_session_t session,
+        audio_session_t session __unused,
         audio_stream_type_t stream,
         uint32_t samplingRate,
         audio_format_t format,
@@ -1294,8 +1294,8 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
 }
 
 void AudioPolicyManager::releaseOutput(audio_io_handle_t output,
-                                       audio_stream_type_t stream,
-                                       audio_session_t session)
+                                       audio_stream_type_t stream __unused,
+                                       audio_session_t session __unused)
 {
     ALOGV("releaseOutput() %d", output);
     ssize_t index = mOutputs.indexOfKey(output);
@@ -1338,26 +1338,27 @@ void AudioPolicyManager::releaseOutput(audio_io_handle_t output,
 }
 
 
-audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_session_t session,
-                                    audio_input_flags_t flags)
+status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
+                                             audio_io_handle_t *input,
+                                             audio_session_t session,
+                                             uint32_t samplingRate,
+                                             audio_format_t format,
+                                             audio_channel_mask_t channelMask,
+                                             audio_input_flags_t flags)
 {
-    ALOGV("getInput() inputSource %d, samplingRate %d, format %d, channelMask %x, session %d, "
-          "flags %#x",
-          inputSource, samplingRate, format, channelMask, session, flags);
+    ALOGV("getInputForAttr() source %d, samplingRate %d, format %d, channelMask %x,"
+            "session %d, flags %#x",
+          attr->source, samplingRate, format, channelMask, session, flags);
 
-    audio_devices_t device = getDeviceForInputSource(inputSource);
+    audio_devices_t device = getDeviceForInputSource(attr->source);
 
     if (device == AUDIO_DEVICE_NONE) {
-        ALOGW("getInput() could not find device for inputSource %d", inputSource);
-        return AUDIO_IO_HANDLE_NONE;
+        ALOGW("getInputForAttr() could not find device for source %d", attr->source);
+        return BAD_VALUE;
     }
 
     // adapt channel selection to input source
-    switch (inputSource) {
+    switch (attr->source) {
     case AUDIO_SOURCE_VOICE_UPLINK:
         channelMask = AUDIO_CHANNEL_IN_VOICE_UPLINK;
         break;
@@ -1371,16 +1372,16 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
         break;
     }
 
-    audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+    *input = AUDIO_IO_HANDLE_NONE;
     bool isSoundTrigger = false;
-    audio_source_t halInputSource = inputSource;
-    if (inputSource == AUDIO_SOURCE_HOTWORD) {
+    audio_source_t halInputSource = attr->source;
+    if (attr->source == AUDIO_SOURCE_HOTWORD) {
         ssize_t index = mSoundTriggerSessions.indexOfKey(session);
         if (index >= 0) {
-            input = mSoundTriggerSessions.valueFor(session);
+            *input = mSoundTriggerSessions.valueFor(session);
             isSoundTrigger = true;
             flags = (audio_input_flags_t)(flags | AUDIO_INPUT_FLAG_HW_HOTWORD);
-            ALOGV("SoundTrigger capture on session %d input %d", session, input);
+            ALOGV("SoundTrigger capture on session %d input %d", session, *input);
         } else {
             halInputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
         }
@@ -1401,16 +1402,16 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
                                  channelMask,
                                  flags);
         if (profile == 0) {
-            ALOGW("getInput() could not find profile for device 0x%X, samplingRate %u, format %#x, "
-                    "channelMask 0x%X, flags %#x",
+            ALOGW("getInputForAttr() could not find profile for device 0x%X, samplingRate %u,"
+                    "format %#x, channelMask 0x%X, flags %#x",
                     device, samplingRate, format, channelMask, log_flags);
-            return AUDIO_IO_HANDLE_NONE;
+            return BAD_VALUE;
         }
     }
 
     if (profile->mModule->mHandle == 0) {
-        ALOGE("getInput(): HW module %s not opened", profile->mModule->mName);
-        return AUDIO_IO_HANDLE_NONE;
+        ALOGE("getInputForAttr(): HW module %s not opened", profile->mModule->mName);
+        return NO_INIT;
     }
 
     audio_config_t config = AUDIO_CONFIG_INITIALIZER;
@@ -1422,7 +1423,7 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     String8 address = deviceDistinguishesOnAddress(device) ? String8("0") : String8("");
 
     status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
-                                                   &input,
+                                                   input,
                                                    &config,
                                                    &device,
                                                    address,
@@ -1430,20 +1431,20 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
                                                    flags);
 
     // only accept input with the exact requested set of parameters
-    if (status != NO_ERROR ||
+    if (status != NO_ERROR || *input == AUDIO_IO_HANDLE_NONE ||
         (samplingRate != config.sample_rate) ||
         (format != config.format) ||
         (channelMask != config.channel_mask)) {
-        ALOGW("getInput() failed opening input: samplingRate %d, format %d, channelMask %x",
+        ALOGW("getInputForAttr() failed opening input: samplingRate %d, format %d, channelMask %x",
                 samplingRate, format, channelMask);
-        if (input != AUDIO_IO_HANDLE_NONE) {
-            mpClientInterface->closeInput(input);
+        if (*input != AUDIO_IO_HANDLE_NONE) {
+            mpClientInterface->closeInput(*input);
         }
-        return AUDIO_IO_HANDLE_NONE;
+        return BAD_VALUE;
     }
 
     sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(profile);
-    inputDesc->mInputSource = inputSource;
+    inputDesc->mInputSource = attr->source;
     inputDesc->mRefCount = 0;
     inputDesc->mOpenRefCount = 1;
     inputDesc->mSamplingRate = samplingRate;
@@ -1453,9 +1454,9 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
     inputDesc->mSessions.add(session);
     inputDesc->mIsSoundTrigger = isSoundTrigger;
 
-    addInput(input, inputDesc);
+    addInput(*input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
-    return input;
+    return NO_ERROR;
 }
 
 status_t AudioPolicyManager::startInput(audio_io_handle_t input,

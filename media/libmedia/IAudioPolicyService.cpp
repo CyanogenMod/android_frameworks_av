@@ -41,7 +41,7 @@ enum {
     START_OUTPUT,
     STOP_OUTPUT,
     RELEASE_OUTPUT,
-    GET_INPUT,
+    GET_INPUT_FOR_ATTR,
     START_INPUT,
     STOP_INPUT,
     RELEASE_INPUT,
@@ -263,24 +263,40 @@ public:
         remote()->transact(RELEASE_OUTPUT, data, &reply);
     }
 
-    virtual audio_io_handle_t getInput(
-                                    audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_session_t audioSession,
-                                    audio_input_flags_t flags)
+    virtual status_t getInputForAttr(const audio_attributes_t *attr,
+                                     audio_io_handle_t *input,
+                                     audio_session_t session,
+                                     uint32_t samplingRate,
+                                     audio_format_t format,
+                                     audio_channel_mask_t channelMask,
+                                     audio_input_flags_t flags)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
-        data.writeInt32((int32_t) inputSource);
+        if (attr == NULL) {
+            ALOGE("getInputForAttr NULL attr - shouldn't happen");
+            return BAD_VALUE;
+        }
+        if (input == NULL) {
+            ALOGE("getInputForAttr NULL input - shouldn't happen");
+            return BAD_VALUE;
+        }
+        data.write(attr, sizeof(audio_attributes_t));
+        data.writeInt32(session);
         data.writeInt32(samplingRate);
         data.writeInt32(static_cast <uint32_t>(format));
         data.writeInt32(channelMask);
-        data.writeInt32((int32_t)audioSession);
         data.writeInt32(flags);
-        remote()->transact(GET_INPUT, data, &reply);
-        return static_cast <audio_io_handle_t> (reply.readInt32());
+        status_t status = remote()->transact(GET_INPUT_FOR_ATTR, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        status = reply.readInt32();
+        if (status != NO_ERROR) {
+            return status;
+        }
+        *input = (audio_io_handle_t)reply.readInt32();
+        return NO_ERROR;
     }
 
     virtual status_t startInput(audio_io_handle_t input,
@@ -809,21 +825,23 @@ status_t BnAudioPolicyService::onTransact(
             return NO_ERROR;
         } break;
 
-        case GET_INPUT: {
+        case GET_INPUT_FOR_ATTR: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            audio_source_t inputSource = (audio_source_t) data.readInt32();
+            audio_attributes_t attr;
+            data.read(&attr, sizeof(audio_attributes_t));
+            audio_session_t session = (audio_session_t)data.readInt32();
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
-            audio_session_t audioSession = (audio_session_t)data.readInt32();
             audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
-            audio_io_handle_t input = getInput(inputSource,
-                                               samplingRate,
-                                               format,
-                                               channelMask,
-                                               audioSession,
-                                               flags);
-            reply->writeInt32(static_cast <int>(input));
+            audio_io_handle_t input;
+            status_t status = getInputForAttr(&attr, &input, session,
+                                              samplingRate, format, channelMask,
+                                              flags);
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->writeInt32(input);
+            }
             return NO_ERROR;
         } break;
 

@@ -236,12 +236,13 @@ public:
 
     // Client must successfully hand off the handle reference to AudioFlinger via openRecord(),
     // or release it with releaseInput().
-    static audio_io_handle_t getInput(audio_source_t inputSource,
+    static status_t getInputForAttr(const audio_attributes_t *attr,
+                                    audio_io_handle_t *input,
+                                    audio_session_t session,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_session_t sessionId,
-                                    audio_input_flags_t);
+                                    audio_input_flags_t flags);
 
     static status_t startInput(audio_io_handle_t input,
                                audio_session_t session);
