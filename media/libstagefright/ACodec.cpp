@@ -470,7 +470,8 @@ ACodec::ACodec()
       mTimePerFrameUs(-1ll),
       mTimePerCaptureUs(-1ll),
       mCreateInputBuffersSuspended(false),
-      mTunneled(false) {
+      mTunneled(false),
+      mIsVideoRenderingDisabled(false) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -4531,7 +4532,8 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     int32_t render;
     if (mCodec->mNativeWindow != NULL
             && msg->findInt32("render", &render) && render != 0
-            && info->mData != NULL && info->mData->size() != 0) {
+            && info->mData != NULL && info->mData->size() != 0
+            && !mCodec->mIsVideoRenderingDisabled) {
         ATRACE_NAME("render");
         // The client wants this buffer to be rendered.
 
@@ -4570,8 +4572,9 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
             info->mStatus = BufferInfo::OWNED_BY_US;
         }
     } else {
-        if (mCodec->mNativeWindow != NULL &&
-            (info->mData == NULL || info->mData->size() != 0)) {
+        if (mCodec->mNativeWindow != NULL
+            && msg->findInt32("render", &render) && render == 0
+            && (info->mData == NULL || info->mData->size() != 0)) {
             ATRACE_NAME("frame-drop");
         }
         info->mStatus = BufferInfo::OWNED_BY_US;
@@ -4998,6 +5001,7 @@ bool ACodec::LoadedState::onConfigureComponent(
         native_window_set_scaling_mode(
                 mCodec->mNativeWindow.get(),
                 NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        mCodec->mIsVideoRenderingDisabled = ExtendedUtils::ShellProp::isVideoRenderingDisabled();
     }
     CHECK_EQ((status_t)OK, mCodec->initNativeWindow());
 

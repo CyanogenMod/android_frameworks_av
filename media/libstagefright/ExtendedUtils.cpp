@@ -719,10 +719,16 @@ bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
     property_get("persist.debug.sf.noaudio", disableAudio, "0");
     if (isEncoder && (atoi(disableAudio) & 0x02)) {
         retVal = true;
-    } else if (atoi(disableAudio) & 0x01) {
+    } else if (!isEncoder && atoi(disableAudio) & 0x01) {
         retVal = true;
     }
     return retVal;
+}
+
+bool ExtendedUtils::ShellProp::isVideoRenderingDisabled() {
+    char disableVideoRendering[PROPERTY_VALUE_MAX];
+    property_get("persist.debug.sf.nodisplay", disableVideoRendering, "0");
+    return atoi(disableVideoRendering) > 0 ? true : false;
 }
 
 void ExtendedUtils::ShellProp::setEncoderProfile(
@@ -1932,6 +1938,11 @@ int32_t ExtendedUtils::HFR::getHFRCapabilities(
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
+    ARG_TOUCH(isEncoder);
+    return false;
+}
+
+bool ExtendedUtils::ShellProp::isVideoRenderingDisabled() {
     return false;
 }
 

@@ -1251,6 +1251,10 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
         return OK;
     }
 
+    if (audio && ExtendedUtils::ShellProp::isAudioDisabled(false)) {
+        return OK;
+    }
+
     sp<AMessage> format = mSource->getFormat(audio);
 
     if (format == NULL) {
