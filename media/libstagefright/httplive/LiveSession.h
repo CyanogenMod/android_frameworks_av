@@ -83,6 +83,7 @@ struct LiveSession : public AHandler {
 
     bool isSeekable() const;
     bool hasDynamicDuration() const;
+    bool switchToRealBandwidth();
 
     enum {
         kWhatStreamsChanged,
@@ -117,6 +118,7 @@ private:
         kWhatSwapped                    = 'swap',
         kWhatCheckSwitchDown            = 'ckSD',
         kWhatSwitchDown                 = 'sDwn',
+        kWhatSwitchConfiguration        = 'swco',
     };
 
     static const size_t kBandwidthHistoryBytes;
@@ -206,6 +208,7 @@ private:
 
     int64_t mLastDequeuedTimeUs;
     int64_t mRealTimeBaseUs;
+    bool mDownloadFirstTS;
 
     bool mReconfigurationInProgress;
     bool mSwitchInProgress;
@@ -276,6 +279,7 @@ private:
 
     void scheduleCheckBandwidthEvent();
     void cancelCheckBandwidthEvent();
+    void onSwitchConfiguration(const sp<AMessage> &msg);
 
     // cancelBandwidthSwitch is atomic wrt swapPacketSource; call it to prevent packet sources
     // from being swapped out on stale discontinuities while manipulating

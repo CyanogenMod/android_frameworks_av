@@ -53,7 +53,8 @@ struct PlaylistFetcher : public AHandler {
             const sp<AMessage> &notify,
             const sp<LiveSession> &session,
             const char *uri,
-            int32_t subtitleGeneration);
+            int32_t subtitleGeneration,
+            bool downloadFirstTs = false);
 
     sp<DataSource> getDataSource();
 
@@ -163,6 +164,7 @@ private:
 
     bool mFirstPTSValid;
     uint64_t mFirstPTS;
+    bool mIsFirstTSDownload;
     int64_t mFirstTimeUs;
     int64_t mAbsoluteTimeAnchorUs;
     sp<AnotherPacketSource> mVideoBuffer;
@@ -170,6 +172,7 @@ private:
     int64_t mRangeOffset;
     int64_t mRangeLength;
     int64_t mDownloadOffset;
+    int32_t mQueueFCBuffer;
     sp<DataSource> mSource;
     sp<ABuffer> mDownloadBuffer;
     sp<ABuffer> mTsBuffer;

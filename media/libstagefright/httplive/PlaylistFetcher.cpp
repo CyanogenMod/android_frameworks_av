@@ -56,7 +56,8 @@ PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
         const sp<LiveSession> &session,
         const char *uri,
-        int32_t subtitleGeneration)
+        int32_t subtitleGeneration,
+        bool downloadFirstTs)
     : mNotify(notify),
       mStartTimeUsNotify(notify->dup()),
       mSession(session),
@@ -79,11 +80,13 @@ PlaylistFetcher::PlaylistFetcher(
       mSubtitleGeneration(subtitleGeneration),
       mRefreshState(INITIAL_MINIMUM_RELOAD_DELAY),
       mFirstPTSValid(false),
+      mIsFirstTSDownload(downloadFirstTs),
       mAbsoluteTimeAnchorUs(0ll),
       mVideoBuffer(new AnotherPacketSource(NULL)),
       mRangeOffset(0),
       mRangeLength(0),
-      mDownloadOffset(0) {
+      mDownloadOffset(0),
+      mQueueFCBuffer(0) {
     memset(mPlaylistHash, 0, sizeof(mPlaylistHash));
     mStartTimeUsNotify->setInt32("what", kWhatStartedAt);
     mStartTimeUsNotify->setInt32("streamMask", 0);
@@ -605,6 +608,10 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
         }
     }
 
+    if (mQueueFCBuffer) {
+        mQueueFCBuffer = false;
+        stop = true;
+    }
     if (stop) {
         for (size_t i = 0; i < mPacketSources.size(); i++) {
             mPacketSources.valueAt(i)->queueAccessUnit(mSession->createFormatChangeBuffer());
@@ -1171,6 +1178,17 @@ void PlaylistFetcher::onSegmentComplete() {
         return;
     }
 
+    if (mIsFirstTSDownload) {
+        mIsFirstTSDownload = false;
+        if (mSession->switchToRealBandwidth()) {
+            for (size_t i = 0; i < mPacketSources.size(); i++) {
+                mPacketSources.valueAt(i)->eraseBuffer();
+            }
+            mQueueFCBuffer = true;
+            ALOGV("change the bandwidth at the start of first playback, don't download ts anymore");
+            return;
+        }
+    }
     ++mSeqNumber;
     mSource = NULL;
     mDownloadBuffer = NULL;
