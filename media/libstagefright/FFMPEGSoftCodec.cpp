@@ -31,6 +31,8 @@
 #include <media/stagefright/OMXCodec.h>
 
 #include <OMX_Component.h>
+#include <OMX_AudioExt.h>
+#include <OMX_IndexExt.h>
 
 namespace android {
 
@@ -59,6 +61,7 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeySampleFormat         , "sample-format"          , INT32},
    {kKeySampleRate           , "sample-rate"            , INT32},
    {kKeyChannelCount         , "channel-count"          , INT32},
+   {kKeyAACAOT               , "aac-profile"            , INT32},
 };
 
 const char* FFMPEGSoftCodec::getMsgKey(int key) {
@@ -151,6 +154,71 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
+const char* FFMPEGSoftCodec::overrideComponentName(
+        uint32_t /*quirks*/, const sp<MetaData> &meta, const char *mime, bool isEncoder) {
+    const char* componentName = NULL;
+
+    int32_t wmvVersion = 0;
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
+            meta->findInt32(kKeyWMVVersion, &wmvVersion)) {
+        ALOGD("Found WMV version key %d", wmvVersion);
+        if (wmvVersion == 1) {
+            ALOGD("Use FFMPEG for unsupported WMV track");
+            componentName = "OMX.ffmpeg.wmv.decoder";
+        }
+    }
+
+    int32_t encodeOptions = 0;
+    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
+            !meta->findInt32(kKeyWMAEncodeOpt, &encodeOptions)) {
+        ALOGD("Use FFMPEG for unsupported WMA track");
+        componentName = "OMX.ffmpeg.wma.decoder";
+    }
+
+    // Google's decoder doesn't support MAIN profile
+    int32_t aacProfile = 0;
+    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
+            meta->findInt32(kKeyAACAOT, &aacProfile)) {
+        if (aacProfile == OMX_AUDIO_AACObjectMain) {
+            ALOGD("Use FFMPEG for AAC MAIN profile");
+            componentName = "OMX.ffmpeg.aac.decoder";
+        }
+    }
+    
+    return componentName;
+}
+
+void FFMPEGSoftCodec::overrideComponentName(
+        uint32_t /*quirks*/, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
+
+    int32_t wmvVersion = 0;
+    if (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
+            msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
+        ALOGD("Found WMV version key %d", wmvVersion);
+        if (wmvVersion == 1) {
+            ALOGD("Use FFMPEG for unsupported WMV track");
+            componentName->setTo("OMX.ffmpeg.wmv.decoder");
+        }
+    }
+
+    int32_t encodeOptions = 0;
+    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
+            !msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions)) {
+        ALOGD("Use FFMPEG for unsupported WMA track");
+        componentName->setTo("OMX.ffmpeg.wma.decoder");
+    }
+
+    // Google's decoder doesn't support MAIN profile
+    int32_t aacProfile = 0;
+    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
+            msg->findInt32(getMsgKey(kKeyAACAOT), &aacProfile)) {
+        if (aacProfile == OMX_AUDIO_AACObjectMain) {
+            ALOGD("Use FFMPEG for AAC MAIN profile");
+            componentName->setTo("OMX.ffmpeg.aac.decoder");
+        }
+    }
+}
+
 status_t FFMPEGSoftCodec::handleSupportedAudioFormats(int format, AString* mime) {
     ALOGV("handleSupportedAudioFormats called for format:%x",format);
     status_t retVal = OK;
@@ -164,7 +232,7 @@ status_t FFMPEGSoftCodec::handleSupportedAudioFormats(int format, AString* mime)
         *mime = MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II;
     } else if (format == OMX_AUDIO_CodingWMA ) {
         *mime = MEDIA_MIMETYPE_AUDIO_WMA;
-    } else if (format == OMX_AUDIO_CodingAC3 ) {
+    } else if (format == OMX_AUDIO_CodingAC3 || format == OMX_AUDIO_CodingAndroidAC3) {
         *mime = MEDIA_MIMETYPE_AUDIO_AC3;
     } else if (format == OMX_AUDIO_CodingAPE) {
         *mime = MEDIA_MIMETYPE_AUDIO_APE;
@@ -696,7 +764,7 @@ status_t FFMPEGSoftCodec::setAC3Format(
     int32_t numChannels = 0;
     int32_t sampleRate = 0;
     int32_t bitsPerSample = 0;
-    OMX_AUDIO_PARAM_AC3TYPE param;
+    OMX_AUDIO_PARAM_ANDROID_AC3TYPE param;
 
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
@@ -708,15 +776,15 @@ status_t FFMPEGSoftCodec::setAC3Format(
     param.nPortIndex = kPortIndexInput;
 
     status_t err = OMXhandle->getParameter(
-            nodeID, OMX_IndexParamAudioAc3, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3, &param, sizeof(param));
     if (err != OK)
         return err;
 
     param.nChannels = numChannels;
-    param.nSamplingRate = sampleRate;
+    param.nSampleRate = sampleRate;
 
     err = OMXhandle->setParameter(
-            nodeID, OMX_IndexParamAudioAc3, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3, &param, sizeof(param));
     return err;
 }
 

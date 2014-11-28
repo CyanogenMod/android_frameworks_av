@@ -41,6 +41,15 @@ struct FFMPEGSoftCodec {
     static status_t convertMetaDataToMessage(
             const sp<MetaData> &meta, sp<AMessage> *format);
 
+    static const char* overrideComponentName(
+            uint32_t quirks, const sp<MetaData> &meta,
+            const char *mime, bool isEncoder);
+
+    static void overrideComponentName(
+            uint32_t quirks, const sp<AMessage> &msg,
+            AString* componentName, AString* mime,
+            int32_t isEncoder);
+
     static status_t setSupportedRole(
             const sp<IOMX> &omx, IOMX::node_id node,
             bool isEncoder, const char *mime);
