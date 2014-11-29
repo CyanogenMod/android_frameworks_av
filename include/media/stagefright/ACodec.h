@@ -27,6 +27,8 @@
 #include <media/stagefright/SkipCutBuffer.h>
 #include <OMX_Audio.h>
 
+#include <system/audio.h>
+
 #define TRACK_BUFFER_TIMING     0
 
 namespace android {
@@ -298,7 +300,8 @@ private:
             bool encoder, int32_t numChannels, int32_t sampleRate, int32_t compressionLevel);
 
     status_t setupRawAudioFormat(
-            OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels);
+            OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels,
+            int32_t bitsPerSample = 16);
 
     status_t setMinBufferSize(OMX_U32 portIndex, size_t size);
 
