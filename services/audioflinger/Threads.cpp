@@ -4648,6 +4648,16 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
 
     // remove all the tracks that need to be...
     removeTracks_l(*tracksToRemove);
+#ifdef HDMI_PASSTHROUGH_ENABLED
+    bool bypass = false;
+    if ((mOutput->flags & AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH) != 0) {
+        if (mActiveTracks.size() != 0)
+             bypass = true;
+#ifdef DOLBY_DAP_HW_QDSP_HAL_API
+        EffectDapController::instance()->setPassthroughBypass(bypass);
+#endif // DOLBY_END
+    }
+#endif // HDMI_PASSTHROUGH_END
 
     return mixerStatus;
 }
