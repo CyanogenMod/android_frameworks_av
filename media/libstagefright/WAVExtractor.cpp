@@ -30,6 +30,7 @@
 #include <media/stagefright/Utils.h>
 #include <utils/String8.h>
 #include <cutils/bitops.h>
+#include <system/audio.h>
 
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include "QCMediaDefs.h"
@@ -89,7 +90,7 @@ private:
     off64_t mOffset;
     size_t mSize;
     bool mStarted;
-    int32_t mOutputFormat;
+    audio_format_t mOutputFormat;
     MediaBufferGroup *mGroup;
     off64_t mCurrentPos;
 
@@ -362,6 +363,12 @@ WAVSource::WAVSource(
     CHECK(mMeta->findInt32(kKeySampleRate, &mSampleRate));
     CHECK(mMeta->findInt32(kKeyChannelCount, &mNumChannels));
 
+#ifdef PCM_OFFLOAD_ENABLED_24
+    mOutputFormat = mBitsPerSample == 24 ?
+            AUDIO_FORMAT_PCM_8_24_BIT : AUDIO_FORMAT_PCM_16_BIT;
+    mMeta->setInt32(kKeyPcmFormat, mOutputFormat);
+#endif
+
     mMeta->setInt32(kKeyMaxInputSize, kMaxFrameSize);
 }
 
@@ -372,23 +379,22 @@ WAVSource::~WAVSource() {
 }
 
 status_t WAVSource::start(MetaData *params) {
-    ALOGV("WAVSource::start");
 
     CHECK(!mStarted);
 
-#ifdef ENABLE_AV_ENHANCEMENTS
+    audio_format_t outputFormat = AUDIO_FORMAT_PCM_16_BIT;
+
 #ifdef PCM_OFFLOAD_ENABLED_24
-    if (params != NULL) {
-        if (params->findInt32(kKeyPcmFormat, &mOutputFormat)) {
-            ALOGV("%s mOutputFormat: %x", __func__, mOutputFormat);
-        } else {
-            mOutputFormat = AUDIO_FORMAT_PCM_16_BIT;
-            ALOGV("%s Couldn't find format. Setting output format to default: %x",
-               __func__, mOutputFormat);
+    if (mBitsPerSample == 24) {
+        outputFormat = AUDIO_FORMAT_PCM_8_24_BIT;
+        if (params != NULL && params->findInt32(kKeyPcmFormat, (int32_t*)&outputFormat)) {
+            CHECK(audio_is_linear_pcm(outputFormat));
         }
     }
 #endif
-#endif
+
+    mOutputFormat = outputFormat;
+    ALOGV("WAVSource::start (format=%X)", outputFormat);
 
     mGroup = new MediaBufferGroup;
     mGroup->add_buffer(new MediaBuffer(kMaxFrameSize));
