@@ -191,6 +191,11 @@ status_t convertMetaDataToMessage(
         msg->setInt32("rotation-degrees", rotationDegrees);
     }
 
+    int32_t bitsPerSample;
+    if (meta->findInt32(kKeyBitsPerSample, &bitsPerSample)) {
+        msg->setInt32("bits-per-sample", bitsPerSample);
+    }
+
     uint32_t type;
     const void *data;
     size_t size;
