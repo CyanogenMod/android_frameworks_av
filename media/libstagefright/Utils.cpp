@@ -191,6 +191,11 @@ status_t convertMetaDataToMessage(
         msg->setInt32("rotation-degrees", rotationDegrees);
     }
 
+    int32_t bitsPerSample;
+    if (meta->findInt32(kKeyBitsPerSample, &bitsPerSample)) {
+        msg->setInt32("bits-per-sample", bitsPerSample);
+    }
+
     uint32_t type;
     const void *data;
     size_t size;
@@ -562,6 +567,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         int32_t isADTS;
         if (msg->findInt32("is-adts", &isADTS)) {
             meta->setInt32(kKeyIsADTS, isADTS);
+        }
+
+        int32_t bitsPerSample;
+        if (msg->findInt32("bits-per-sample", &bitsPerSample)) {
+            meta->setInt32(kKeyBitsPerSample, bitsPerSample);
         }
     }
 
