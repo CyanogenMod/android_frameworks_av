@@ -291,11 +291,7 @@ status_t WAVExtractor::init() {
                     case WAVE_FORMAT_PCM:
                         mTrackMeta->setCString(
                                 kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
-#ifdef ENABLE_AV_ENHANCEMENTS
-#ifdef PCM_OFFLOAD_ENABLED_24
-                        mTrackMeta->setInt32(kKeySampleBits, mBitsPerSample);
-#endif
-#endif
+                        mTrackMeta->setInt32(kKeyBitsPerSample, mBitsPerSample);
                         break;
                     case WAVE_FORMAT_ALAW:
                         mTrackMeta->setCString(

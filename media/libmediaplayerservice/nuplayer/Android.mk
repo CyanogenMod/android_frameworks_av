@@ -24,6 +24,13 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libmediaplayerservice              \
 	$(TOP)/frameworks/native/include/media/openmax
 
+#LOCAL_CFLAGS += -DLOG_NDEBUG=0
+
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
+endif
+
 LOCAL_MODULE:= libstagefright_nuplayer
 
 LOCAL_MODULE_TAGS := eng
