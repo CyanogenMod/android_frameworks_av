@@ -1352,11 +1352,17 @@ bool NuPlayer::Renderer::onOpenAudioSink(
         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
     }
 
+    int32_t bitsPerSample = 16;
+    format->findInt32("bits-per-sample", &bitsPerSample);
+
+    audio_format_t audioFormat = bitsPerSample == 24 ? AUDIO_FORMAT_PCM_8_24_BIT : AUDIO_FORMAT_PCM_16_BIT;
+
     int32_t sampleRate;
     CHECK(format->findInt32("sample-rate", &sampleRate));
 
+    ALOGV("format: %s", format->debugString(0).c_str());
+
     if (offloadingAudio()) {
-        audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
         AString mime;
         CHECK(format->findString("mime", &mime));
         status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
@@ -1367,8 +1373,16 @@ bool NuPlayer::Renderer::onOpenAudioSink(
             onDisableOffloadAudio();
         } else {
 #ifdef PCM_OFFLOAD_ENABLED
-            if (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat)) {
-                audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+            char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
+            property_get("audio.offload.pcm.enable", prop_pcmoffload, "0");
+
+            if ((atoi(prop_pcmoffload) || !strcmp(prop_pcmoffload, "true")) &&
+                        (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat))) {
+                if (bitsPerSample == 24) {
+                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+                } else {
+                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+                }
             }
 #endif
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
@@ -1397,6 +1411,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.bit_rate = avgBitRate;
             offloadInfo.has_video = hasVideo;
             offloadInfo.is_streaming = true;
+            offloadInfo.bit_width = bitsPerSample;
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
                 ALOGV("openAudioSink: no change in offload mode");
@@ -1450,7 +1465,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
                     sampleRate,
                     numChannels,
                     (audio_channel_mask_t)channelMask,
-                    AUDIO_FORMAT_PCM_16_BIT,
+                    audioFormat,
                     8 /* bufferCount */,
                     NULL,
                     NULL,
