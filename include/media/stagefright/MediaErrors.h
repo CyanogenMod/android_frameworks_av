@@ -12,6 +12,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2014 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 #ifndef MEDIA_ERRORS_H_
@@ -53,6 +72,10 @@ enum {
     INFO_FORMAT_CHANGED    = MEDIA_ERROR_BASE - 12,
     INFO_DISCONTINUITY     = MEDIA_ERROR_BASE - 13,
     INFO_OUTPUT_BUFFERS_CHANGED = MEDIA_ERROR_BASE - 14,
+#ifdef DOLBY_UDC
+    INFO_DOLBY_PROCESSED_AUDIO_START = MEDIA_ERROR_BASE - 15,
+    INFO_DOLBY_PROCESSED_AUDIO_STOP = MEDIA_ERROR_BASE - 16,
+#endif // DOLBY_END
 
     // The following constant values should be in sync with
     // drm/drm_framework_common.h
