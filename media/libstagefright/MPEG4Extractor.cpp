@@ -1787,7 +1787,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('d', 'd', 't', 's'):
         case FOURCC('d', 'a', 'c', '3'):
+#ifndef DOLBY_UDC
         case FOURCC('d', 'e', 'c', '3'):
+#endif
         {
             //no information need to be passed here, just log and end
             ALOGV("ddts/dac3/dec3 pass from mpeg4 extractor");
