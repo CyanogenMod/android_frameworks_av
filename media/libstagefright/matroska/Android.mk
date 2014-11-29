@@ -13,4 +13,8 @@ LOCAL_CFLAGS += -Wno-multichar -Werror
 
 LOCAL_MODULE:= libstagefright_matroska
 
+ifeq ($(AUDIO_FEATURE_OFFLOAD_PCM_ENABLED_24),true)
+LOCAL_CFLAGS += -DPCM_OFFLOAD_ENABLED_24;
+endif
+
 include $(BUILD_STATIC_LIBRARY)
