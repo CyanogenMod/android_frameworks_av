@@ -1990,26 +1990,7 @@ status_t AwesomePlayer::initAudioDecoder() {
             }
         }
 
-#if defined(ENABLE_AV_ENHANCEMENTS) && defined(PCM_OFFLOAD_ENABLED_24)
-        sp<MetaData> tempMetadata;
-        if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
-            ALOGV("%s MEDIA_MIMETYPE_AUDIO_RAW", __func__);
-            tempMetadata = new MetaData;
-            sp<MetaData> format = mAudioSource->getFormat();
-            int bitWidth = 16;
-            format->findInt32(kKeySampleBits, &bitWidth);
-            char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
-            property_get("audio.offload.pcm.enable", prop_pcmoffload, "0");
-            if ((mOffloadAudio) &&
-                (24 == bitWidth) &&
-                (!strcmp(prop_pcmoffload, "true") || atoi(prop_pcmoffload)))
-                tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_8_24_BIT);
-        }
-        err = mAudioSource->start(tempMetadata.get());
-        tempMetadata.clear();
-#else
         err = mAudioSource->start();
-#endif
 
         if (err != OK) {
             mAudioSource.clear();

@@ -56,7 +56,7 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyWidth                , "width"                  , INT32},
    {kKeyHeight               , "height"                 , INT32},
    {kKeyCodecId              , "codec-id"               , INT32},
-   {kKeyBitspersample        , "sample-bits"            , INT32},
+   {kKeyBitsPerSample        , "bits-per-sample"        , INT32},
    {kKeyBlockAlign           , "block-align"            , INT32},
    {kKeySampleFormat         , "sample-format"          , INT32},
    {kKeySampleRate           , "sample-rate"            , INT32},
@@ -577,6 +577,65 @@ status_t FFMPEGSoftCodec::setFFmpegVideoFormat(
 }
 
 //audio
+status_t FFMPEGSoftCodec::setRawAudioFormat(
+        const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
+{
+    int32_t numChannels = 0;
+    int32_t sampleRate = 0;
+    int32_t bitsPerSample = 16;
+
+    CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
+    CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
+    if (!msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample)) {
+        ALOGD("No PCM format specified, using 16 bit");
+    }
+
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+    InitOMXParams(&def);
+    def.nPortIndex = kPortIndexOutput;
+
+    status_t err = OMXhandle->getParameter(
+            nodeID, OMX_IndexParamPortDefinition, &def, sizeof(def));
+
+    if (err != OK) {
+        return err;
+    }
+
+    def.format.audio.eEncoding = OMX_AUDIO_CodingPCM;
+
+    err = OMXhandle->setParameter(
+            nodeID, OMX_IndexParamPortDefinition, &def, sizeof(def));
+
+    if (err != OK) {
+        return err;
+    }
+
+    OMX_AUDIO_PARAM_PCMMODETYPE pcmParams;
+    InitOMXParams(&pcmParams);
+    pcmParams.nPortIndex = kPortIndexOutput;
+
+    err = OMXhandle->getParameter(
+            nodeID, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+
+    if (err != OK) {
+        return err;
+    }
+
+    pcmParams.nChannels = numChannels;
+    pcmParams.eNumData = OMX_NumericalDataSigned;
+    pcmParams.bInterleaved = OMX_TRUE;
+    pcmParams.nBitPerSample = bitsPerSample;
+    pcmParams.nSamplingRate = sampleRate;
+    pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
+
+    if (getOMXChannelMapping(numChannels, pcmParams.eChannelMapping) != OK) {
+        return OMX_ErrorNone;
+    }
+
+    return OMXhandle->setParameter(
+            nodeID, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+}
+
 status_t FFMPEGSoftCodec::setWMAFormat(
         const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
 {
@@ -604,10 +663,14 @@ status_t FFMPEGSoftCodec::setWMAFormat(
 
     CHECK(msg->findInt32(getMsgKey(kKeyWMAVersion), &version));
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&paramWMA);
     paramWMA.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioWma, &paramWMA, sizeof(paramWMA));
     if (err != OK)
         return err;
@@ -626,9 +689,8 @@ status_t FFMPEGSoftCodec::setWMAFormat(
         paramWMA.eFormat = OMX_AUDIO_WMAFormat9;
     }
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioWma, &paramWMA, sizeof(paramWMA));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setVORBISFormat(
@@ -644,10 +706,14 @@ status_t FFMPEGSoftCodec::setVORBISFormat(
     ALOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioVorbis, &param, sizeof(param));
     if (err != OK)
         return err;
@@ -655,9 +721,8 @@ status_t FFMPEGSoftCodec::setVORBISFormat(
     param.nChannels = numChannels;
     param.nSampleRate = sampleRate;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioVorbis, &param, sizeof(param));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setRAFormat(
@@ -677,10 +742,14 @@ status_t FFMPEGSoftCodec::setRAFormat(
     ALOGV("Channels: %d, SampleRate: %d, BitRate: %d, blockAlign: %d",
             numChannels, sampleRate, bitRate, blockAlign);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&paramRA);
     paramRA.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioRa, &paramRA, sizeof(paramRA));
     if (err != OK)
         return err;
@@ -692,9 +761,8 @@ status_t FFMPEGSoftCodec::setRAFormat(
     // the cook audio codec need blockAlign!
     paramRA.nNumRegions = blockAlign;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioRa, &paramRA, sizeof(paramRA));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setFLACFormat(
@@ -707,26 +775,28 @@ status_t FFMPEGSoftCodec::setFLACFormat(
 
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
-    //CHECK(meta->findInt32(kKeyBitspersample, &bitsPerSample));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
 
     ALOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioFlac, &param, sizeof(param));
     if (err != OK)
         return err;
 
     param.nChannels = numChannels;
     param.nSampleRate = sampleRate;
-    //param.nBitsPerSample = bitsPerSample;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioFlac, &param, sizeof(param));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setMP2Format(
@@ -742,10 +812,14 @@ status_t FFMPEGSoftCodec::setMP2Format(
     ALOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioMp2, &param, sizeof(param));
     if (err != OK)
         return err;
@@ -753,9 +827,8 @@ status_t FFMPEGSoftCodec::setMP2Format(
     param.nChannels = numChannels;
     param.nSampleRate = sampleRate;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioMp2, &param, sizeof(param));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setAC3Format(
@@ -772,10 +845,14 @@ status_t FFMPEGSoftCodec::setAC3Format(
     ALOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3, &param, sizeof(param));
     if (err != OK)
         return err;
@@ -783,9 +860,8 @@ status_t FFMPEGSoftCodec::setAC3Format(
     param.nChannels = numChannels;
     param.nSampleRate = sampleRate;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3, &param, sizeof(param));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setAPEFormat(
@@ -798,15 +874,19 @@ status_t FFMPEGSoftCodec::setAPEFormat(
 
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
-    CHECK(msg->findInt32(getMsgKey(kKeyBitspersample), &bitsPerSample));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
 
     ALOGV("Channels:%d, SampleRate:%d, bitsPerSample:%d",
             numChannels, sampleRate, bitsPerSample);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioApe, &param, sizeof(param));
     if (err != OK)
         return err;
@@ -815,9 +895,8 @@ status_t FFMPEGSoftCodec::setAPEFormat(
     param.nSamplingRate = sampleRate;
     param.nBitsPerSample = bitsPerSample;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioApe, &param, sizeof(param));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setDTSFormat(
@@ -834,10 +913,14 @@ status_t FFMPEGSoftCodec::setDTSFormat(
     ALOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioDts, &param, sizeof(param));
     if (err != OK)
         return err;
@@ -845,9 +928,8 @@ status_t FFMPEGSoftCodec::setDTSFormat(
     param.nChannels = numChannels;
     param.nSamplingRate = sampleRate;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioDts, &param, sizeof(param));
-    return err;
 }
 
 status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
@@ -867,7 +949,7 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     CHECK(msg->findInt32(getMsgKey(kKeyCodecId), &codec_id));
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeyBitRate), &bitRate));
-    CHECK(msg->findInt32(getMsgKey(kKeyBitspersample), &bitsPerSample));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
     CHECK(msg->findInt32(getMsgKey(kKeyBlockAlign), &blockAlign));
     CHECK(msg->findInt32(getMsgKey(kKeySampleFormat), &sampleFormat));
@@ -888,9 +970,8 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     param.nBlockAlign    = blockAlign;
     param.eSampleFormat  = sampleFormat;
 
-    err = OMXhandle->setParameter(
+    return OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
-    return err;
 }
 
 }

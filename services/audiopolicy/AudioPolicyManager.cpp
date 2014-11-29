@@ -2590,7 +2590,7 @@ return false;
     char propValue[PROPERTY_VALUE_MAX];
     bool pcmOffload = false;
 
-#ifdef PCM_OFFLOAD_ENABLED
+#ifdef ENABLE_AV_ENHANCEMENTS
     if (audio_is_offload_pcm(offloadInfo.format)) {
         if(property_get("audio.offload.pcm.enable", propValue, NULL)) {
             bool prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
