@@ -120,6 +120,10 @@ ifeq ($(strip $(DOLBY_DAP)),true)
     endif
 endif #DOLBY_END
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH)),true)
+    LOCAL_CFLAGS += -DHDMI_PASSTHROUGH_ENABLED
+endif
+
 LOCAL_MODULE:= libaudiopolicymanagerdefault
 
 include $(BUILD_SHARED_LIBRARY)
