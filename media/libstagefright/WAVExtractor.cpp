@@ -29,6 +29,7 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 #include <cutils/bitops.h>
+#include <system/audio.h>
 
 #define CHANNEL_MASK_USE_CHANNEL_ORDER 0
 
@@ -359,7 +360,6 @@ WAVSource::~WAVSource() {
 }
 
 status_t WAVSource::start(MetaData * /* params */) {
-    ALOGV("WAVSource::start");
 
     CHECK(!mStarted);
 
@@ -427,9 +427,15 @@ status_t WAVSource::read(
     }
 
     // make sure that maxBytesToRead is multiple of 3, in 24-bit case
-    size_t maxBytesToRead =
-        mBitsPerSample == 8 ? kMaxFrameSize / 2 : 
-        (mBitsPerSample == 24 ? 3*(kMaxFrameSize/3): kMaxFrameSize);
+    size_t maxBytesToRead;
+    if(8 == mBitsPerSample)
+        maxBytesToRead = kMaxFrameSize / 2;
+    else if (24 == mBitsPerSample) {
+        maxBytesToRead = 3*(kMaxFrameSize/4);
+    } else
+        maxBytesToRead = kMaxFrameSize;
+    ALOGV("%s mBitsPerSample %d, kMaxFrameSize %d, ",
+          __func__, mBitsPerSample, kMaxFrameSize);
 
     size_t maxBytesAvailable =
         (mCurrentPos - mOffset >= (off64_t)mSize)
@@ -488,23 +494,24 @@ status_t WAVSource::read(
             buffer->release();
             buffer = tmp;
         } else if (mBitsPerSample == 24) {
-            // Convert 24-bit signed samples to 16-bit signed.
-
-            const uint8_t *src =
-                (const uint8_t *)buffer->data() + buffer->range_offset();
-            int16_t *dst = (int16_t *)src;
-
-            size_t numSamples = buffer->range_length() / 3;
-            for (size_t i = 0; i < numSamples; ++i) {
-                int32_t x = (int32_t)(src[0] | src[1] << 8 | src[2] << 16);
-                x = (x << 8) >> 8;  // sign extension
-
-                x = x >> 8;
-                *dst++ = (int16_t)x;
-                src += 3;
+            // Padding done here to convert to 32-bit samples
+            MediaBuffer *tmp;
+            CHECK_EQ(mGroup->acquire_buffer(&tmp), (status_t)OK);
+            ssize_t numBytes = buffer->range_length() / 3;
+            tmp->set_range(0, 4 * numBytes);
+            int8_t *dst = (int8_t *)tmp->data();
+            const uint8_t *src = (const uint8_t *)buffer->data();
+            ALOGV("numBytes = %d", numBytes);
+            while(numBytes-- > 0) {
+               *dst++ = 0x0;
+               *dst++ = src[0];
+               *dst++ = src[1];
+               *dst++ = src[2];
+               src += 3;
             }
-
-            buffer->set_range(buffer->range_offset(), 2 * numSamples);
+            buffer->release();
+            buffer = tmp;
+            ALOGV("length = %d", buffer->range_length());
         }
     }
 
