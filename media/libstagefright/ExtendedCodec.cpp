@@ -103,6 +103,8 @@ static const MetaKeyEntry MetaKeyTable[] {
 
    {kKeySampleRate           , "sample-rate"            , INT32},
    {kKeyChannelCount         , "channel-count"          , INT32},
+
+   {kKeySampleBits           , "bits-per-sample"        , INT32},
 };
 
 const char* ExtendedCodec::getMsgKey(int key) {
