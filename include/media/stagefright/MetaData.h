@@ -54,7 +54,7 @@ enum {
     kKeyFrameRate         = 'frmR',  // int32_t (video frame rate fps)
     kKeyBitRate           = 'brte',  // int32_t (bps)
     kKeyCodecId           = 'cdid',  // int32_t
-    kKeyBitspersample     = '#bps',  // int32_t
+    kKeyBitsPerSample     = 'sbit',  // int32_t (DUPE of kKeySampleBits)
     kKeySampleFormat      = 'sfmt',  // int32_t
     kKeyESDS              = 'esds',  // raw data
     kKeyAACProfile        = 'aacp',  // int32_t

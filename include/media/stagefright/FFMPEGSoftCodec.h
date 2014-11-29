@@ -95,6 +95,10 @@ private:
             const sp<AMessage> &msg, sp<IOMX> OMXhandle,
             IOMX::node_id nodeID);
 
+    static status_t setRawAudioFormat(
+            const sp<AMessage> &msg, sp<IOMX> OMXhandle,
+            IOMX::node_id nodeID);
+
     static status_t setWMAFormat(
             const sp<AMessage> &msg, sp<IOMX> OMXhandle,
             IOMX::node_id nodeID);
