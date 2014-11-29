@@ -2590,7 +2590,7 @@ return false;
     char propValue[PROPERTY_VALUE_MAX];
     bool pcmOffload = false;
 
-#ifdef PCM_OFFLOAD_ENABLED
+#ifdef QCOM_HARDWARE
     if (audio_is_offload_pcm(offloadInfo.format)) {
         if(property_get("audio.offload.pcm.enable", propValue, NULL)) {
             bool prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
@@ -2662,10 +2662,11 @@ return false;
         ALOGV("Offload denied by duration < default min(=%u)", OFFLOAD_DEFAULT_MIN_DURATION_SECS);
         //duration checks only valid for MP3/AAC formats,
         //do not check duration for other audio formats, e.g. dolby AAC/AC3 and amrwb+ formats
+        //also skip this check for 24-bit pcm offload
         if ((offloadInfo.format == AUDIO_FORMAT_MP3) ||
             ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC) ||
             ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_FLAC) ||
-            pcmOffload)
+            (pcmOffload && offloadInfo.format != AUDIO_FORMAT_PCM_24_BIT_OFFLOAD))
             return false;
     }
 

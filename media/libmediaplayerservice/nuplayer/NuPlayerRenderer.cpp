@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/AUtils.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
@@ -1352,13 +1353,34 @@ bool NuPlayer::Renderer::onOpenAudioSink(
         channelMask = CHANNEL_MASK_USE_CHANNEL_ORDER;
     }
 
+    int32_t bitsPerSample = 16;
+    format->findInt32("bits-per-sample", &bitsPerSample);
+
     int32_t sampleRate;
     CHECK(format->findInt32("sample-rate", &sampleRate));
 
-    if (offloadingAudio()) {
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+
+    char prop[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.offload.pcm.enable", prop, "0");
+    bool pcmOffload = (atoi(prop) || !strcmp(prop, "true")) &&
+            !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW);
+
+    // At this point we can check if PCM should be offloaded
+    if (!offloadingAudio() && (!offloadOnly && pcmOffload)) {
+        sp<MetaData> aMeta = new MetaData;
+        convertMessageToMetaData(format, aMeta);
+        if  (canOffloadStream(aMeta, false, new MetaData,
+                    true, AUDIO_STREAM_MUSIC)) {
+            mFlags |= FLAG_OFFLOAD_AUDIO;
+        }
+    }
+
+    ALOGV("format: %s", format->debugString(0).c_str());
+
+    if (offloadingAudio() || pcmOffload) {
         audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
-        AString mime;
-        CHECK(format->findString("mime", &mime));
         status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
 
         if (err != OK) {
@@ -1366,9 +1388,13 @@ bool NuPlayer::Renderer::onOpenAudioSink(
                     "audio_format", mime.c_str());
             onDisableOffloadAudio();
         } else {
-#ifdef PCM_OFFLOAD_ENABLED
-            if (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat)) {
-                audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+#ifdef QCOM_HARDWARE
+            if (pcmOffload) {
+                if (bitsPerSample > 16) {
+                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+                } else {
+                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+                }
             }
 #endif
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
@@ -1397,6 +1423,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.bit_rate = avgBitRate;
             offloadInfo.has_video = hasVideo;
             offloadInfo.is_streaming = true;
+            offloadInfo.bit_width = bitsPerSample;
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
                 ALOGV("openAudioSink: no change in offload mode");
@@ -1450,7 +1477,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
                     sampleRate,
                     numChannels,
                     (audio_channel_mask_t)channelMask,
-                    AUDIO_FORMAT_PCM_16_BIT,
+                    bitsPerSample > 16 ? AUDIO_FORMAT_PCM_FLOAT : AUDIO_FORMAT_PCM_16_BIT,
                     8 /* bufferCount */,
                     NULL,
                     NULL,

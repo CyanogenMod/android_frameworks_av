@@ -191,6 +191,11 @@ status_t convertMetaDataToMessage(
         msg->setInt32("rotation-degrees", rotationDegrees);
     }
 
+    int32_t bitsPerSample;
+    if (meta->findInt32(kKeyBitsPerSample, &bitsPerSample)) {
+        msg->setInt32("bits-per-sample", bitsPerSample);
+    }
+
     uint32_t type;
     const void *data;
     size_t size;
@@ -563,6 +568,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         if (msg->findInt32("is-adts", &isADTS)) {
             meta->setInt32(kKeyIsADTS, isADTS);
         }
+
+        int32_t bitsPerSample;
+        if (msg->findInt32("bits-per-sample", &bitsPerSample)) {
+            meta->setInt32(kKeyBitsPerSample, bitsPerSample);
+        }
     }
 
     int32_t maxInputSize;
@@ -799,7 +809,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
         return false;
     } else {
         // Override audio format for PCM offload
-        if (info.format == AUDIO_FORMAT_PCM_16_BIT) {
+        if (audio_is_linear_pcm(info.format)) {
             if (16 == bitWidth)
                 info.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
             else if (24 == bitWidth)
