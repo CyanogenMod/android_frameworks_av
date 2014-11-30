@@ -2592,15 +2592,13 @@ return false;
 
 #ifdef ENABLE_AV_ENHANCEMENTS
     if (audio_is_offload_pcm(offloadInfo.format)) {
-        if(property_get("audio.offload.pcm.enable", propValue, NULL)) {
-            bool prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
-            if (prop_enabled) {
-                ALOGW("PCM offload property is enabled");
-                pcmOffload = true;
-            }
-        }
-        if (!pcmOffload) {
-            ALOGD("PCM offload disabled by property audio.offload.pcm.enable");
+        if(property_get("audio.offload.pcm.16bit.enable", propValue, NULL))
+            pcmOffload = atoi(propValue) || !strncmp("true", propValue, 4);
+        if(property_get("audio.offload.pcm.24bit.enable", propValue, NULL))
+            pcmOffload = pcmOffload || atoi(propValue) || !strncmp("true", propValue, 4);
+        if (pcmOffload) {
+            ALOGI("PCM offload property is enabled");
+        } else {
             return false;
         }
     }
