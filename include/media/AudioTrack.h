@@ -792,6 +792,8 @@ protected:
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
     bool                    mAwaitBoost;    // thread should wait for priority boost before running
+    bool                    mUseSmallBuf;   // to indicate that hal has to use small buffers for
+                                            // offload in pcm offload use case
 
     // The proxy should only be referenced while a lock is held because the proxy isn't
     // multi-thread safe, especially the SingleStateQueue part of the proxy.

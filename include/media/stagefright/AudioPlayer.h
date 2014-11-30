@@ -119,6 +119,7 @@ private:
     const uint32_t mCreateFlags;
     bool mPauseRequired;
 
+    bool mUseSmallBufs;
     static void AudioCallback(int event, void *user, void *info);
     void AudioCallback(int event, void *info);
 

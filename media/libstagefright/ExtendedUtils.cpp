@@ -1656,6 +1656,39 @@ void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {
     buffer->setRange(buffer->offset(), buffer->size() + offset);
 }
 
+//return true if mime type is not support for pcm offload
+//return true if PCM offload is not enabled
+bool ExtendedUtils::pcmOffloadException(const char* const mime) {
+    bool decision = false;
+    bool prop_enabled = false;
+    char propValue[PROPERTY_VALUE_MAX];
+    if(property_get("audio.offload.pcm.16bit.enable", propValue, "false"))
+        prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+    if(property_get("audio.offload.pcm.24bit.enable", propValue, "false"))
+        prop_enabled = prop_enabled || atoi(propValue) || !strncmp("true", propValue, 4);
+
+    if (!prop_enabled)
+        return false;
+
+    const char * const ExceptionTable[] = {
+        MEDIA_MIMETYPE_AUDIO_AMR_NB,
+        MEDIA_MIMETYPE_AUDIO_AMR_WB,
+        MEDIA_MIMETYPE_AUDIO_QCELP,
+        MEDIA_MIMETYPE_AUDIO_G711_ALAW,
+        MEDIA_MIMETYPE_AUDIO_G711_MLAW,
+        MEDIA_MIMETYPE_AUDIO_EVRC
+    };
+    int countException = (sizeof(ExceptionTable) / sizeof(ExceptionTable[0]));
+
+    for(int i = 0; i < countException; i++) {
+        if (!strcasecmp(mime, ExceptionTable[i])) {
+            decision = true;
+            break;
+        }
+    }
+    ALOGI("decision %d mime %s", decision, mime);
+    return decision;
+}
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -1868,6 +1901,11 @@ void ExtendedUtils::RTSPStream::addRR(const sp<ABuffer> &buf) {}
 
 void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {}
 
+//return true to make sure pcm offload is not exercised
+bool ExtendedUtils::pcmOffloadException(const char* const mime) {
+    ARG_TOUCH(mime);
+    return true;
+}
 
 } // namespace android
 #endif //ENABLE_AV_ENHANCEMENTS
