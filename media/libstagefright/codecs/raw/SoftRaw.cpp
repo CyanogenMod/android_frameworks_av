@@ -42,7 +42,8 @@ SoftRaw::SoftRaw(
     : SimpleSoftOMXComponent(name, callbacks, appData, component),
       mSignalledError(false),
       mChannelCount(2),
-      mSampleRate(44100) {
+      mSampleRate(44100),
+      mBitsPerSample(16) {
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
@@ -110,7 +111,7 @@ OMX_ERRORTYPE SoftRaw::internalGetParameter(
             pcmParams->eNumData = OMX_NumericalDataSigned;
             pcmParams->eEndian = OMX_EndianBig;
             pcmParams->bInterleaved = OMX_TRUE;
-            pcmParams->nBitPerSample = 16;
+            pcmParams->nBitPerSample = mBitsPerSample;
             pcmParams->ePCMMode = OMX_AUDIO_PCMModeLinear;
             pcmParams->eChannelMapping[0] = OMX_AUDIO_ChannelLF;
             pcmParams->eChannelMapping[1] = OMX_AUDIO_ChannelRF;
@@ -154,6 +155,7 @@ OMX_ERRORTYPE SoftRaw::internalSetParameter(
 
             mChannelCount = pcmParams->nChannels;
             mSampleRate = pcmParams->nSamplingRate;
+            mBitsPerSample = pcmParams->nBitPerSample;
 
             return OMX_ErrorNone;
         }
