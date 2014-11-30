@@ -851,6 +851,10 @@ status_t AudioTrack::getPosition(uint32_t *position)
         // due to hardware latency. We leave this behavior for now.
         *position = dspFrames;
     } else {
+        if (mCblk->mFlags & CBLK_INVALID) {
+            restoreTrack_l("getPosition");
+        }
+
         // IAudioTrack::stop() isn't synchronous; we don't know when presentation completes
         *position = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ?
                 0 : updateAndGetPosition_l();
@@ -1944,6 +1948,10 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     default:
         LOG_ALWAYS_FATAL("Invalid mState in getTimestamp(): %d", mState);
         break;
+    }
+
+    if (mCblk->mFlags & CBLK_INVALID) {
+        restoreTrack_l("getTimestamp");
     }
 
     // The presented frame count must always lag behind the consumed frame count.
