@@ -129,6 +129,7 @@ public:
     static inline bool isValidPcmTrackFormat(audio_format_t format) {
         return format == AUDIO_FORMAT_PCM_16_BIT ||
                 format == AUDIO_FORMAT_PCM_24_BIT_PACKED ||
+                format == AUDIO_FORMAT_PCM_8_24_BIT ||
                 format == AUDIO_FORMAT_PCM_32_BIT ||
                 format == AUDIO_FORMAT_PCM_FLOAT;
     }
