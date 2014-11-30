@@ -131,9 +131,6 @@ private:
     sp<MetaData> mTrackMetadata;
     bool mInitCheck;
 
-    // for supporting 24-bit PCM output
-    audio_format_t mOutputFormat;
-
     // media buffers
     size_t mMaxBufferSize;
     MediaBufferGroup *mGroup;
@@ -411,19 +408,10 @@ void FLACParser::copyBuffer(short *dst, const int *const *src, unsigned nSamples
             }
             break;
         case 24:
-            if (mOutputFormat == AUDIO_FORMAT_PCM_8_24_BIT) {
-                for (unsigned i = 0; i < nSamples; ++i) {
-                    for (unsigned c = 0; c < nChannels; ++c) {
-                        *dst++ = (short)(src[c][i] & 255);
-                        *dst++ = (short)(src[c][i] >> 8);
-                    }
-                }
-            } else {
-                // truncate to 16 bit
-                for (unsigned i = 0; i < nSamples; ++i) {
-                    for (unsigned c = 0; c < nChannels; ++c) {
-                        *dst++ = src[c][i] >> 8;
-                    }
+            for (unsigned i = 0; i < nSamples; ++i) {
+                for (unsigned c = 0; c < nChannels; ++c) {
+                    *dst++ = (short)(src[c][i] & 255);
+                    *dst++ = (short)(src[c][i] >> 8);
                 }
             }
             break;
@@ -442,7 +430,6 @@ FLACParser::FLACParser(
       mFileMetadata(fileMetadata),
       mTrackMetadata(trackMetadata),
       mInitCheck(false),
-      mOutputFormat(AUDIO_FORMAT_PCM_16_BIT),
       mMaxBufferSize(0),
       mGroup(NULL),
       mDecoder(NULL),
@@ -552,15 +539,7 @@ status_t FLACParser::init()
             // sample rate is non-zero, so division by zero not possible
             mTrackMetadata->setInt64(kKeyDuration,
                     (getTotalSamples() * 1000000LL) / getSampleRate());
-#ifdef ENABLE_AV_ENHANCEMENTS
-#ifdef PCM_OFFLOAD_ENABLED_24
-            mOutputFormat = (getBitsPerSample() == 24 ?
-                    AUDIO_FORMAT_PCM_8_24_BIT : AUDIO_FORMAT_PCM_16_BIT);
-            mTrackMetadata->setInt32(kKeyPcmFormat, mOutputFormat);
-            mTrackMetadata->setInt32(kKeySampleBits, getBitsPerSample());
-
-#endif
-#endif
+            mTrackMetadata->setInt32(kKeyBitsPerSample, getBitsPerSample());
         }
     } else {
         ALOGE("missing STREAMINFO");
@@ -627,8 +606,7 @@ MediaBuffer *FLACParser::readBuffer(bool doSeek, FLAC__uint64 sample)
     if (err != OK) {
         return NULL;
     }
-    size_t bufferSize = blocksize * getChannels() *
-        (((getBitsPerSample() == 24) && (mOutputFormat == AUDIO_FORMAT_PCM_8_24_BIT)) ? 4 : 2);
+    size_t bufferSize = blocksize * getChannels() * (getBitsPerSample() == 24 ? 4 : 2);
     CHECK(bufferSize <= mMaxBufferSize);
     short *data = (short *) buffer->data();
     buffer->set_range(0, bufferSize);
@@ -670,20 +648,7 @@ status_t FLACSource::start(MetaData * params)
 {
     CHECK(!mStarted);
 
-    audio_format_t outputFormat = AUDIO_FORMAT_PCM_16_BIT;
-
-#ifdef PCM_OFFLOAD_ENABLED_24
-    if (mParser->getBitsPerSample() == 24) {
-        outputFormat = AUDIO_FORMAT_PCM_8_24_BIT;
-        if (params != NULL && params->findInt32(kKeyPcmFormat, (int32_t*)&outputFormat)) {
-            ALOGV("FLACSource got format %X", outputFormat);
-            CHECK(audio_is_linear_pcm(outputFormat));
-        }
-    }
-#endif
-
-    mParser->mOutputFormat = outputFormat;
-    ALOGV("FLACSource::start (format=%X)", outputFormat);
+    ALOGV("FLACSource::start");
 
     mParser->allocateBuffers();
     mStarted = true;
