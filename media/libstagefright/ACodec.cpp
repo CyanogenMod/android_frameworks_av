@@ -1617,11 +1617,9 @@ status_t ACodec::configureCodec(
                 || !msg->findInt32("sample-rate", &sampleRate)) {
             err = INVALID_OPERATION;
         } else {
-            int32_t bitWidth = AUDIO_FORMAT_PCM_16_BIT;
-#if defined(ENABLE_AV_ENHANCEMENTS) && defined(PCM_OFFLOAD_ENABLED_24)
-            msg->findInt32("bits-per-sample", &bitWidth);
-#endif
-            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels, bitWidth);
+            int32_t bitsPerSample = 16;
+            msg->findInt32("bits-per-sample", &bitsPerSample);
+            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels, bitsPerSample);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3)) {
         int32_t numChannels;
@@ -2045,7 +2043,7 @@ status_t ACodec::setupFlacCodec(
 }
 
 status_t ACodec::setupRawAudioFormat(
-        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels, int32_t bitWidth) {
+        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels, int32_t bitsPerSample) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = portIndex;
@@ -2080,7 +2078,7 @@ status_t ACodec::setupRawAudioFormat(
     pcmParams.nChannels = numChannels;
     pcmParams.eNumData = OMX_NumericalDataSigned;
     pcmParams.bInterleaved = OMX_TRUE;
-    pcmParams.nBitPerSample = bitWidth;
+    pcmParams.nBitPerSample = bitsPerSample;
     pcmParams.nSamplingRate = sampleRate;
     pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
 
@@ -3520,13 +3518,8 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSamplingRate);
 
-#if defined(ENABLE_AV_ENHANCEMENTS) && defined(PCM_OFFLOAD_ENABLED_24)
                     CHECK(params.nBitPerSample == 16u || params.nBitPerSample == 24u);
-                    notify->setInt32("bits-per-sample", (params.nBitPerSample == 24u ?
-                                AUDIO_FORMAT_PCM_8_24_BIT : AUDIO_FORMAT_PCM_16_BIT));
-#else
-                    CHECK_EQ(params.nBitPerSample, 16u);
-#endif
+                    notify->setInt32("bits-per-sample", params.nBitPerSample);
 
                     if (mChannelMaskPresent) {
                         notify->setInt32("channel-mask", mChannelMask);

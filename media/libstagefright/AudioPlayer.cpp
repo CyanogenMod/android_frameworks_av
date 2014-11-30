@@ -171,13 +171,10 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
         ALOGV("channel mask is zero,update from channel count %d", channelMask);
     }
 
-    audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
     int32_t bitWidth = 16;
-#ifdef ENABLE_AV_ENHANCEMENTS
-#if defined(FLAC_OFFLOAD_ENABLED) || defined(PCM_OFFLOAD_ENABLED_24)
-    format->findInt32(kKeySampleBits, &bitWidth);
-#endif
-#endif
+    format->findInt32(kKeyBitsPerSample, &bitWidth);
+
+    audio_format_t audioFormat = bitWidth == 24 ? AUDIO_FORMAT_PCM_8_24_BIT : AUDIO_FORMAT_PCM_16_BIT;
 
     if (useOffload()) {
         if (mapMimeToAudioFormat(audioFormat, mime) != OK) {
@@ -189,7 +186,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             if (bitWidth >= 24)
                 audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
             else
-                audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+                audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
 
             ALOGV("%s Mime type \"%s\" mapped to audio_format 0x%x",
                   __func__, mime, audioFormat);

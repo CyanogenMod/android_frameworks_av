@@ -1997,7 +1997,7 @@ status_t AwesomePlayer::initAudioDecoder() {
             tempMetadata = new MetaData;
             sp<MetaData> format = mAudioSource->getFormat();
             int bitWidth = 16;
-            format->findInt32(kKeySampleBits, &bitWidth);
+            format->findInt32(kKeyBitsPerSample, &bitWidth);
             char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
             property_get("audio.offload.pcm.enable", prop_pcmoffload, "0");
             if ((mOffloadAudio) &&

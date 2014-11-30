@@ -56,7 +56,7 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyWidth                , "width"                  , INT32},
    {kKeyHeight               , "height"                 , INT32},
    {kKeyCodecId              , "codec-id"               , INT32},
-   {kKeyBitspersample        , "sample-bits"            , INT32},
+   {kKeyBitsPerSample        , "bits-per-sample"        , INT32},
    {kKeyBlockAlign           , "block-align"            , INT32},
    {kKeySampleFormat         , "sample-format"          , INT32},
    {kKeySampleRate           , "sample-rate"            , INT32},
@@ -707,7 +707,7 @@ status_t FFMPEGSoftCodec::setFLACFormat(
 
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
-    //CHECK(meta->findInt32(kKeyBitspersample, &bitsPerSample));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
 
     ALOGV("Channels: %d, SampleRate: %d",
             numChannels, sampleRate);
@@ -798,7 +798,7 @@ status_t FFMPEGSoftCodec::setAPEFormat(
 
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
-    CHECK(msg->findInt32(getMsgKey(kKeyBitspersample), &bitsPerSample));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
 
     ALOGV("Channels:%d, SampleRate:%d, bitsPerSample:%d",
             numChannels, sampleRate, bitsPerSample);
@@ -867,7 +867,7 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     CHECK(msg->findInt32(getMsgKey(kKeyCodecId), &codec_id));
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeyBitRate), &bitRate));
-    CHECK(msg->findInt32(getMsgKey(kKeyBitspersample), &bitsPerSample));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
     CHECK(msg->findInt32(getMsgKey(kKeyBlockAlign), &blockAlign));
     CHECK(msg->findInt32(getMsgKey(kKeySampleFormat), &sampleFormat));
