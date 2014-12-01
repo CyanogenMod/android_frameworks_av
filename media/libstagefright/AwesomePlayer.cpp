@@ -907,6 +907,8 @@ void AwesomePlayer::onBufferingUpdate() {
                              kHighWaterMarkBytes);
                         finishAsyncPrepare_l();
                     }
+                } else if (mFlags & CACHE_UNDERRUN) {
+                    ensureCacheIsFetching_l();
                 }
             }
         }
@@ -962,6 +964,8 @@ void AwesomePlayer::onBufferingUpdate() {
                      cachedDurationUs / 1E6);
                 finishAsyncPrepare_l();
             }
+        } else if (mFlags & CACHE_UNDERRUN) {
+            ensureCacheIsFetching_l();
         }
     }
 
