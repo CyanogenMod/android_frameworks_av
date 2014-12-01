@@ -19,6 +19,11 @@
 ** licensed separately, as follows:
 **
 **  (C) 2011-2014 Dolby Laboratories, Inc.
+** This file was modified by DTS, Inc. The portions of the
+** code that are surrounded by "DTS..." are copyrighted and
+** licensed separately, as follows:
+**
+**  (C) 2013 DTS, Inc.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -30,8 +35,7 @@
 ** distributed under the License is distributed on an "AS IS" BASIS,
 ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ** See the License for the specific language governing permissions and
-** limitations under the License.
-**
+** limitations under the License
 */
 
 
@@ -87,6 +91,7 @@
 #include <cpustats/CentralTendencyStatistics.h>
 #include <cpustats/ThreadCpuUsage.h>
 #endif
+#include "postpro_patch.h"
 
 // ----------------------------------------------------------------------------
 
@@ -2267,6 +2272,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
     mInWrite = true;
     ssize_t bytesWritten;
     const size_t offset = mCurrentWriteLength - mBytesRemaining;
+    POSTPRO_PATCH_OUTPROC_PLAY_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
 
     // If an NBAIO sink is present, use it to write the normal mixer's submix
     if (mNormalSink != 0) {
@@ -2580,6 +2586,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     const String8 myName(String8::format("thread %p type %d TID %d", this, mType, gettid()));
 
     acquireWakeLock();
+    POSTPRO_PATCH_OUTPROC_PLAY_INIT(this, myName);
 
     // mNBLogWriter->log can only be called while thread mutex mLock is held.
     // So if you need to log when mutex is unlocked, set logString to a non-NULL string,
@@ -2841,6 +2848,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         threadLoop_standby();
         mStandby = true;
     }
+    POSTPRO_PATCH_OUTPROC_PLAY_EXIT(this, myName);
 
     releaseWakeLock();
     mWakeLockUids.clear();
@@ -3970,6 +3978,8 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
             status = BAD_VALUE;
         } else {
             // no need to save value, since it's constant
+        POSTPRO_PATCH_OUTPROC_PLAY_ROUTE(this, param, value);
+
             reconfig = true;
         }
     }
@@ -4930,6 +4940,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
 
 ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
 {
+    POSTPRO_PATCH_OUTPROC_DUPE_SAMPLES(this, mFormat, mMixBuffer, mixBufferSize, mSampleRate, mChannelCount);
     for (size_t i = 0; i < outputTracks.size(); i++) {
         // We convert the duplicating thread format to AUDIO_FORMAT_PCM_16_BIT
         // for delivery downstream as needed. This in-place conversion is safe as
@@ -5258,6 +5269,7 @@ reacquire_wakelock:
             acquireWakeLock_l(-1);
         }
     }
+    POSTPRO_PATCH_INPROC_INIT(this, gettid(), mFormat);
 
     // used to request a deferred sleep, to be executed later while mutex is unlocked
     uint32_t sleepUs = 0;
@@ -5466,6 +5478,8 @@ reacquire_wakelock:
         } else {
             ssize_t bytesRead = mInput->stream->read(mInput->stream,
                     &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
+                    POSTPRO_PATCH_INPROC_SAMPLES(this, mFormat, readInto, mBytesRead, mSampleRate,mChannelCount);
+
             if (bytesRead < 0) {
                 framesRead = bytesRead;
             } else {
@@ -5727,6 +5741,7 @@ unlock:
         mActiveTracksGen++;
         mStartStopCond.broadcast();
     }
+    POSTPRO_PATCH_INPROC_EXIT(this, gettid(), mFormat);
 
     releaseWakeLock();
 
@@ -6159,6 +6174,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
     // 'filled' may be non-contiguous, so return only the first contiguous chunk
     front &= recordThread->mRsmpInFramesP2 - 1;
     size_t part1 = recordThread->mRsmpInFramesP2 - front;
+    POSTPRO_PATCH_INPROC_SAMPLES(this, mFormat, mRsmpInBuffer, mBytesRead, mSampleRate, mChannelCount);
     if (part1 > (size_t) filled) {
         part1 = filled;
     }
@@ -6209,6 +6225,7 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
     uint32_t samplingRate = mSampleRate;
     audio_channel_mask_t channelMask = audio_channel_in_mask_from_count(mChannelCount);
 
+    POSTPRO_PATCH_INPROC_ROUTE(this, param, value);
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
     // TODO Investigate when this code runs. Check with audio policy when a sample rate and

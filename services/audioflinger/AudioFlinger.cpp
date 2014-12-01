@@ -19,6 +19,11 @@
 ** licensed separately, as follows:
 **
 **  (C) 2011-2014 Dolby Laboratories, Inc.
+** This file was modified by DTS, Inc. The portions of the
+** code that are surrounded by "DTS..." are copyrighted and
+** licensed separately, as follows:
+**
+**  (C) 2013 DTS, Inc.
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -30,8 +35,7 @@
 ** distributed under the License is distributed on an "AS IS" BASIS,
 ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ** See the License for the specific language governing permissions and
-** limitations under the License.
-**
+** limitations under the License
 */
 
 
@@ -81,6 +85,7 @@
 #include <media/nbaio/PipeReader.h>
 #include <media/AudioParameter.h>
 #include <private/android_filesystem_config.h>
+#include "postpro_patch.h"
 
 // ----------------------------------------------------------------------------
 
@@ -1019,6 +1024,9 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
     if (ioHandle == AUDIO_IO_HANDLE_NONE) {
         Mutex::Autolock _l(mLock);
         status_t final_result = NO_ERROR;
+
+        POSTPRO_PATCH_PARAMS_SET(keyValuePairs);
+
         {
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_PARAMETER;
@@ -1119,6 +1127,8 @@ String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& k
 
     if (ioHandle == AUDIO_IO_HANDLE_NONE) {
         String8 out_s8;
+
+        POSTPRO_PATCH_PARAMS_GET(keys, out_s8);
 
         for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
             char *s;
