@@ -804,6 +804,7 @@ void parseVorbisComment(
         { "TRACKNUMBER", kKeyCDTrackNumber },
         { "DISCNUMBER", kKeyDiscNumber },
         { "DATE", kKeyDate },
+        { "YEAR", kKeyYear },
         { "LYRICIST", kKeyWriter },
         { "METADATA_BLOCK_PICTURE", kKeyAlbumArt },
         { "ANDROID_LOOP", kKeyAutoLoop },
