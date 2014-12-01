@@ -56,6 +56,7 @@ private:
     sp<Source> mSource;
     sp<Renderer> mRenderer;
     int64_t mSkipRenderingUntilMediaTimeUs;
+    bool mPaused;
 
     int32_t mBufferGeneration;
     bool    mReachedEOS;
@@ -73,7 +74,7 @@ private:
     AString mComponentName;
 
     bool isStaleReply(const sp<AMessage> &msg);
-    bool isCacheFullOrEOS() const;
+    bool isDoneFetching() const;
 
     status_t dequeueAccessUnit(sp<ABuffer> *accessUnit);
     sp<ABuffer> aggregateBuffer(const sp<ABuffer> &accessUnit);
