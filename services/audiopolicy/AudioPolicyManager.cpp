@@ -4833,7 +4833,7 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER;
                 if (device) break;
             }
-            if (mPhoneState != AUDIO_MODE_IN_CALL) {
+            if (mPhoneState != AUDIO_MODE_IN_CALL && mPhoneState != AUDIO_MODE_IN_COMMUNICATION) {
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_ACCESSORY;
                 if (device) break;
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
