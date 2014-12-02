@@ -1515,6 +1515,14 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                         if (discontinuitySeq < 0 || seq < discontinuitySeq) {
                             discontinuitySeq = seq;
                         }
+
+                        // sequenceNumber is never set for subtitle tracks
+                        if (i != kSubtitleIndex && j != kSubtitleIndex) {
+                            CHECK(meta->findInt32("sequenceNumber", &seq));
+                            if (latestSeq < 0 || seq > latestSeq) {
+                                latestSeq = seq;
+                            }
+                        }
                     }
 
                     if (pickTrack) {
@@ -1549,7 +1557,8 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 startTimeUs < 0 ? mLastSeekTimeUs : startTimeUs,
                 segmentStartTimeUs,
                 discontinuitySeq,
-                switching);
+                switching,
+                latestSeq);
     }
 
     // All fetchers have now been started, the configuration change

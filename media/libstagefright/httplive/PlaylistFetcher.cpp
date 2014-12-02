@@ -68,6 +68,7 @@ PlaylistFetcher::PlaylistFetcher(
       mStartTimeUsRelative(false),
       mLastPlaylistFetchTimeUs(-1ll),
       mSeqNumber(-1),
+      mLastSeqNumber(-1),
       mNumRetries(0),
       mStartup(true),
       mAdaptive(false),
@@ -340,7 +341,8 @@ void PlaylistFetcher::startAsync(
         int64_t startTimeUs,
         int64_t segmentStartTimeUs,
         int32_t startDiscontinuitySeq,
-        bool adaptive) {
+        bool adaptive,
+        int32_t lastSeq) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
 
     uint32_t streamTypeMask = 0ul;
@@ -365,6 +367,7 @@ void PlaylistFetcher::startAsync(
     msg->setInt64("segmentStartTimeUs", segmentStartTimeUs);
     msg->setInt32("startDiscontinuitySeq", startDiscontinuitySeq);
     msg->setInt32("adaptive", adaptive);
+    msg->setInt32("sequenceNumber", lastSeq);
     msg->post();
 }
 
@@ -457,10 +460,12 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
     int64_t segmentStartTimeUs;
     int32_t startDiscontinuitySeq;
     int32_t adaptive;
+    int32_t lastSeq;
     CHECK(msg->findInt64("startTimeUs", &startTimeUs));
     CHECK(msg->findInt64("segmentStartTimeUs", &segmentStartTimeUs));
     CHECK(msg->findInt32("startDiscontinuitySeq", &startDiscontinuitySeq));
     CHECK(msg->findInt32("adaptive", &adaptive));
+    CHECK(msg->findInt32("sequenceNumber", &lastSeq));
 
     if (streamTypeMask & LiveSession::STREAMTYPE_AUDIO) {
         void *ptr;
@@ -493,6 +498,7 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
 
     mSegmentStartTimeUs = segmentStartTimeUs;
     mDiscontinuitySeq = startDiscontinuitySeq;
+    mLastSeqNumber = lastSeq;
 
     if (startTimeUs >= 0) {
         mStartTimeUs = startTimeUs;
@@ -766,7 +772,11 @@ void PlaylistFetcher::onDownloadNext() {
                     mStartTimeUs, mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
         } else {
-            mSeqNumber = getSeqNumberForTime(mSegmentStartTimeUs);
+            if (mLastSeqNumber > 0) {
+                mSeqNumber = mLastSeqNumber;
+            } else {
+                mSeqNumber = getSeqNumberForTime(mSegmentStartTimeUs);
+            }
             if (mAdaptive) {
                 // avoid double fetch/decode
                 mSeqNumber += 1;
@@ -825,6 +835,10 @@ void PlaylistFetcher::onDownloadNext() {
                 mSeqNumber = firstSeqNumberInPlaylist;
             }
             discontinuity = true;
+
+            // Since we are starting from a new sequence number
+            // treat this as seek
+            mSegmentStartTimeUs = -1;
 
             // fall through
         } else {
@@ -1148,6 +1162,7 @@ const sp<ABuffer> &PlaylistFetcher::setAccessUnitProperties(
 
     accessUnit->meta()->setInt32("discontinuitySeq", mDiscontinuitySeq);
     accessUnit->meta()->setInt64("segmentStartTimeUs", getSegmentStartTimeUs(mSeqNumber));
+    accessUnit->meta()->setInt32("sequenceNumber", mSeqNumber);
     return accessUnit;
 }
 
