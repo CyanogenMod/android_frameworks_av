@@ -47,6 +47,7 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
       mSource(source),
       mRenderer(renderer),
       mSkipRenderingUntilMediaTimeUs(-1ll),
+      mPaused(false),
       mBufferGeneration(0),
       mReachedEOS(true),
       mPendingAudioErr(OK),
@@ -105,16 +106,16 @@ bool NuPlayer::DecoderPassThrough::isStaleReply(const sp<AMessage> &msg) {
     return generation != mBufferGeneration;
 }
 
-bool NuPlayer::DecoderPassThrough::isCacheFullOrEOS() const {
-    ALOGV("[%s] mCachedBytes = %zu, mReachedEOS = %d",
-            mComponentName.c_str(), mCachedBytes, mReachedEOS);
+bool NuPlayer::DecoderPassThrough::isDoneFetching() const {
+    ALOGV("[%s] mCachedBytes = %zu, mReachedEOS = %d mPaused = %d",
+            mComponentName.c_str(), mCachedBytes, mReachedEOS, mPaused);
 
-    return mCachedBytes >= kMaxCachedBytes || mReachedEOS;
+    return mCachedBytes >= kMaxCachedBytes || mReachedEOS || mPaused;
 }
 
 void NuPlayer::DecoderPassThrough::doRequestBuffers() {
     status_t err = OK;
-    while (!isCacheFullOrEOS()) {
+    while (!isDoneFetching()) {
         sp<AMessage> msg = new AMessage();
 
         err = fetchInputData(msg);
@@ -355,6 +356,8 @@ void NuPlayer::DecoderPassThrough::onBufferConsumed(int32_t size) {
 }
 
 void NuPlayer::DecoderPassThrough::onResume(bool notifyComplete) {
+    mPaused = false;
+
     onRequestInputBuffers();
 
     if (notifyComplete) {
@@ -367,6 +370,9 @@ void NuPlayer::DecoderPassThrough::onResume(bool notifyComplete) {
 void NuPlayer::DecoderPassThrough::onFlush(bool notifyComplete) {
     ++mBufferGeneration;
     mSkipRenderingUntilMediaTimeUs = -1;
+    mPendingAudioAccessUnit.clear();
+    mPendingAudioErr = OK;
+    mAggregateBuffer.clear();
 
     if (mRenderer != NULL) {
         mRenderer->flush(true /* audio */, notifyComplete);
@@ -374,6 +380,7 @@ void NuPlayer::DecoderPassThrough::onFlush(bool notifyComplete) {
     }
 
     if (notifyComplete) {
+        mPaused = true;
         sp<AMessage> notify = mNotify->dup();
         notify->setInt32("what", kWhatFlushCompleted);
         notify->post();
