@@ -21,7 +21,6 @@
 #include "HTTPLiveSource.h"
 
 #include "AnotherPacketSource.h"
-#include "LiveDataSource.h"
 #include "LiveSession.h"
 
 #include <media/IMediaHTTPService.h>
