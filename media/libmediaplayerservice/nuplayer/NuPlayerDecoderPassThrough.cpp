@@ -354,8 +354,14 @@ void NuPlayer::DecoderPassThrough::onBufferConsumed(int32_t size) {
     onRequestInputBuffers();
 }
 
-void NuPlayer::DecoderPassThrough::onResume() {
+void NuPlayer::DecoderPassThrough::onResume(bool notifyComplete) {
     onRequestInputBuffers();
+
+    if (notifyComplete) {
+        sp<AMessage> notify = mNotify->dup();
+        notify->setInt32("what", kWhatResumeCompleted);
+        notify->post();
+    }
 }
 
 void NuPlayer::DecoderPassThrough::onFlush(bool notifyComplete) {
