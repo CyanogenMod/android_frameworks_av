@@ -86,8 +86,10 @@ void NuPlayer::DecoderBase::signalFlush() {
     (new AMessage(kWhatFlush, id()))->post();
 }
 
-void NuPlayer::DecoderBase::signalResume() {
-    (new AMessage(kWhatResume, id()))->post();
+void NuPlayer::DecoderBase::signalResume(bool notifyComplete) {
+    sp<AMessage> msg = new AMessage(kWhatResume, id());
+    msg->setInt32("notifyComplete", notifyComplete);
+    msg->post();
 }
 
 void NuPlayer::DecoderBase::initiateShutdown() {
@@ -159,7 +161,10 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatResume:
         {
-            onResume();
+            int32_t notifyComplete;
+            CHECK(msg->findInt32("notifyComplete", &notifyComplete));
+
+            onResume(notifyComplete);
             break;
         }
 

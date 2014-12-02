@@ -58,6 +58,7 @@ NuPlayer::Decoder::Decoder(
       mFormatChangePending(false),
       mBufferGeneration(0),
       mPaused(true),
+      mResumePending(false),
       mComponentName("decoder") {
     mCodecLooper = new ALooper;
     mCodecLooper->setName("NPDecoder-CL");
@@ -208,6 +209,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
         requestCodecNotification();
     }
     mPaused = false;
+    mResumePending = false;
 }
 
 void NuPlayer::Decoder::onSetRenderer(const sp<Renderer> &renderer) {
@@ -226,8 +228,12 @@ void NuPlayer::Decoder::onGetInputBuffers(
     }
 }
 
-void NuPlayer::Decoder::onResume() {
+void NuPlayer::Decoder::onResume(bool notifyComplete) {
     mPaused = false;
+
+    if (notifyComplete) {
+        mResumePending = true;
+    }
 }
 
 void NuPlayer::Decoder::onFlush(bool notifyComplete) {
@@ -265,6 +271,10 @@ void NuPlayer::Decoder::onFlush(bool notifyComplete) {
 
 void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
     status_t err = OK;
+
+    // if there is a pending resume request, notify complete now
+    notifyResumeCompleteIfNecessary();
+
     if (mCodec != NULL) {
         err = mCodec->release();
         mCodec = NULL;
@@ -493,6 +503,9 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
 
         mSkipRenderingUntilMediaTimeUs = -1;
     }
+
+    // wait until 1st frame comes out to signal resume complete
+    notifyResumeCompleteIfNecessary();
 
     if (mRenderer != NULL) {
         // send the buffer to renderer.
@@ -881,6 +894,16 @@ void NuPlayer::Decoder::rememberCodecSpecificData(const sp<AMessage> &format) {
             break;
         }
         mCSDsForCurrentFormat.push(buffer);
+    }
+}
+
+void NuPlayer::Decoder::notifyResumeCompleteIfNecessary() {
+    if (mResumePending) {
+        mResumePending = false;
+
+        sp<AMessage> notify = mNotify->dup();
+        notify->setInt32("what", kWhatResumeCompleted);
+        notify->post();
     }
 }
 
