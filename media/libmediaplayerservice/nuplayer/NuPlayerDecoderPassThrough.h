@@ -42,7 +42,7 @@ protected:
     virtual void onConfigure(const sp<AMessage> &format);
     virtual void onSetRenderer(const sp<Renderer> &renderer);
     virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers);
-    virtual void onResume();
+    virtual void onResume(bool notifyComplete);
     virtual void onFlush(bool notifyComplete);
     virtual void onShutdown(bool notifyComplete);
     virtual void doRequestBuffers();

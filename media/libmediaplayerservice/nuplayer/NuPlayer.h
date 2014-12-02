@@ -93,6 +93,7 @@ private:
     struct Action;
     struct SeekAction;
     struct SetSurfaceAction;
+    struct ResumeDecoderAction;
     struct FlushDecoderAction;
     struct PostMessageAction;
     struct SimpleAction;
@@ -169,6 +170,9 @@ private:
     FlushStatus mFlushingAudio;
     FlushStatus mFlushingVideo;
 
+    // Status of flush responses from the decoder and renderer.
+    bool mResumePending;
+
     int32_t mVideoScalingMode;
 
     bool mStarted;
@@ -205,6 +209,8 @@ private:
 
     void flushDecoder(bool audio, bool needShutdown);
 
+    void finishResume();
+
     void postScanSources();
 
     void schedulePollDuration();
@@ -217,7 +223,7 @@ private:
     void performReset();
     void performScanSources();
     void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
-    void performResumeDecoders();
+    void performResumeDecoders(bool needNotify);
 
     void onSourceNotify(const sp<AMessage> &msg);
     void onClosedCaptionNotify(const sp<AMessage> &msg);
