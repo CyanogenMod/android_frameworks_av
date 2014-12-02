@@ -958,6 +958,12 @@ audio_mode_t AudioSystem::getPhoneState()
     return aps->getPhoneState();
 }
 
+status_t AudioSystem::registerPolicyMixes(Vector<AudioMix> mixes, bool registration)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->registerPolicyMixes(mixes, registration);
+}
 
 // ---------------------------------------------------------------------------
 

@@ -614,4 +614,20 @@ status_t AudioPolicyService::releaseSoundTriggerSession(audio_session_t session)
     return mAudioPolicyManager->releaseSoundTriggerSession(session);
 }
 
+status_t AudioPolicyService::registerPolicyMixes(Vector<AudioMix> mixes, bool registration)
+{
+    Mutex::Autolock _l(mLock);
+    if(!modifyAudioRoutingAllowed()) {
+        return PERMISSION_DENIED;
+    }
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+    if (registration) {
+        return mAudioPolicyManager->registerPolicyMixes(mixes);
+    } else {
+        return mAudioPolicyManager->unregisterPolicyMixes(mixes);
+    }
+}
+
 }; // namespace android
