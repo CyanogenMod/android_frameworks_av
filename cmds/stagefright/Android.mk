@@ -169,8 +169,6 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 
-LOCAL_NDK_STL_VARIANT := stlport_static
-
 LOCAL_SRC_FILES:= \
 	filters/argbtorgba.rs \
 	filters/nightvision.rs \
@@ -178,12 +176,18 @@ LOCAL_SRC_FILES:= \
 	mediafilter.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
-	libstagefright liblog libutils libbinder libstagefright_foundation \
-	libmedia libgui libcutils libui
+	libstagefright \
+	liblog \
+	libutils \
+	libbinder \
+	libstagefright_foundation \
+	libmedia \
+	libgui \
+	libcutils \
+	libui \
+	libRScpp \
 
 LOCAL_C_INCLUDES:= \
-	$(TOP)/bionic \
-	$(TOP)/external/stlport/stlport \
 	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax \
 	$(TOP)/frameworks/rs/cpp \
