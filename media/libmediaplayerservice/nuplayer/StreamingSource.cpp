@@ -139,6 +139,10 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
 }
 
 sp<MetaData> NuPlayer::StreamingSource::getFormatMeta(bool audio) {
+    if (mTSParser == NULL) {
+        return NULL;
+    }
+
     ATSParser::SourceType type =
         audio ? ATSParser::AUDIO : ATSParser::VIDEO;
 
