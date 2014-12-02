@@ -57,6 +57,13 @@ struct LiveSession : public AHandler {
         STREAMTYPE_VIDEO        = 1 << kVideoIndex,
         STREAMTYPE_SUBTITLES    = 1 << kSubtitleIndex,
     };
+
+    enum {
+        kNoSwitch    = 0,
+        kSwitchUp    = 1,
+        kSwitchDown  = 2,
+    };
+
     status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
@@ -78,6 +85,7 @@ struct LiveSession : public AHandler {
 
     bool isSeekable() const;
     bool hasDynamicDuration() const;
+    bool switchToRealBandwidth();
 
     enum {
         kWhatStreamsChanged,
@@ -112,6 +120,7 @@ private:
         kWhatSwapped                    = 'swap',
         kWhatCheckSwitchDown            = 'ckSD',
         kWhatSwitchDown                 = 'sDwn',
+        kWhatSwitchConfiguration        = 'swco',
     };
 
     static const size_t kBandwidthHistoryBytes;
@@ -201,9 +210,12 @@ private:
 
     int64_t mLastDequeuedTimeUs;
     int64_t mRealTimeBaseUs;
+    bool mDownloadFirstTS;
 
     bool mReconfigurationInProgress;
     bool mSwitchInProgress;
+    bool mFetchInProgress;
+    bool mSwitchUpRequested;
     uint32_t mDisconnectReplyID;
     uint32_t mSeekReplyID;
 
@@ -213,6 +225,13 @@ private:
     sp<AMessage> mSwitchDownMonitor;
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
+    AString mFetchUrl;
+
+    FILE *mBackupFile;
+    bool mEraseFirstTs;
+    uint32_t mSegmentCounter;
+
+    bool mIsFirstSwitch;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
@@ -242,7 +261,8 @@ private:
             String8 *actualUrl = NULL);
 
     sp<M3UParser> fetchPlaylist(
-            const char *url, uint8_t *curPlaylistHash, bool *unchanged);
+            const char *url, uint8_t *curPlaylistHash,
+            bool *unchanged, ssize_t *bytesRead = NULL);
 
     size_t getBandwidthIndex();
     int64_t latestMediaSegmentStartTimeUs();
@@ -257,12 +277,14 @@ private:
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
     void onSwapped(const sp<AMessage> &msg);
+    void onFetchComplete();
     void onCheckSwitchDown();
     void onSwitchDown();
     void tryToFinishBandwidthSwitch();
 
     void scheduleCheckBandwidthEvent();
     void cancelCheckBandwidthEvent();
+    void onSwitchConfiguration(const sp<AMessage> &msg);
 
     // cancelBandwidthSwitch is atomic wrt swapPacketSource; call it to prevent packet sources
     // from being swapped out on stale discontinuities while manipulating
