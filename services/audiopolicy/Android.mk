@@ -55,6 +55,12 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     AudioPolicyManager.cpp
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DTS_EAGLE)),true)
+  LOCAL_CFLAGS += -DDTS_EAGLE
+  LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+  LOCAL_SRC_FILES += AudioUtil.c
+endif
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
