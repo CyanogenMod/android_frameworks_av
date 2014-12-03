@@ -97,6 +97,7 @@ private:
     State mState;
     status_t mFinalResult;
     uint32_t mDisconnectReplyID;
+    Mutex mBufferingLock;
     bool mBuffering;
 
     sp<ALooper> mLooper;
@@ -126,6 +127,9 @@ private:
     bool haveSufficientDataOnAllTracks();
 
     void setEOSTimeout(bool audio, int64_t timeout);
+    void setError(status_t err);
+    void startBufferingIfNecessary();
+    bool stopBufferingIfNecessary();
 
     DISALLOW_EVIL_CONSTRUCTORS(RTSPSource);
 };
