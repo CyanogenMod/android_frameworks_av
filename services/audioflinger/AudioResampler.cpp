@@ -29,14 +29,11 @@
 #include "AudioResamplerDyn.h"
 
 #ifdef __arm__
-#include <machine/cpu-features.h>
+    #define ASM_ARM_RESAMP1 // enable asm optimisation for ResamplerOrder1
 #endif
 
 namespace android {
 
-#ifdef __ARM_HAVE_HALFWORD_MULTIPLY // optimized asm option
-    #define ASM_ARM_RESAMP1 // enable asm optimisation for ResamplerOrder1
-#endif // __ARM_HAVE_HALFWORD_MULTIPLY
 // ----------------------------------------------------------------------------
 
 class AudioResamplerOrder1 : public AudioResampler {
