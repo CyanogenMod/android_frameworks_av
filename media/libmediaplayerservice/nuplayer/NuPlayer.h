@@ -196,6 +196,8 @@ private:
     int32_t mVideoScalingMode;
 
     bool mStarted;
+    bool mBuffering;
+    bool mPlaying;
 
     inline const sp<Decoder> &getDecoder(bool audio) {
         return audio ? mAudioDecoder : mVideoDecoder;
