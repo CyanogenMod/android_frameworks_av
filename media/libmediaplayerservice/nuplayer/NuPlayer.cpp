@@ -51,6 +51,9 @@
 
 namespace android {
 
+static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
+static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
+
 // TODO optimize buffer size for power consumption
 // The offload read buffer size is 32 KB but 24 KB uses less power.
 const size_t NuPlayer::kAggregateBufferSizeBytes = 24 * 1024;
@@ -172,7 +175,9 @@ NuPlayer::NuPlayer()
       mNumFramesTotal(0ll),
       mNumFramesDropped(0ll),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
-      mStarted(false) {
+      mStarted(false),
+      mBuffering(false),
+      mPlaying(false) {
 
     clearFlushComplete();
     mPlayerExtendedStats = (PlayerExtendedStats *)ExtendedStats::Create(
@@ -675,6 +680,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             postScanSources();
+            mPlaying = true;
             break;
         }
 
@@ -1027,6 +1033,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGW("pause called when renderer is gone or not set");
             }
             PLAYER_STATS(profileStop, STATS_PROFILE_PAUSE);
+            mPlaying = false;
             break;
         }
 
@@ -1047,6 +1054,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else {
                 ALOGW("resume called when renderer is gone or not set");
             }
+            mPlaying = true;
             break;
         }
 
@@ -1930,6 +1938,8 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mBuffering = false;
+    mPlaying = false;
     PLAYER_STATS(notifyEOS);
     PLAYER_STATS(dump);
     PLAYER_STATS(reset);
@@ -2031,6 +2041,26 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         {
             int32_t percentage;
             CHECK(msg->findInt32("percentage", &percentage));
+
+            int64_t durationUs = 0;
+            msg->findInt64("duration", &durationUs);
+
+            bool eos = mVideoEOS || mAudioEOS
+                    || percentage == 100; // sources return 100% after EOS
+            if (durationUs < kLowWaterMarkUs && mPlaying && !eos) {
+                mBuffering = true;
+                pause();
+                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);
+                ALOGI("cache running low (< %g secs)..pausing",
+                        (double)durationUs / 1000000.0);
+            } else if (eos || durationUs > kHighWaterMarkUs) {
+                if (mBuffering && !mPlaying) {
+                    resume();
+                    ALOGI("cache has filled up..resuming");
+                }
+                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
+                mBuffering = false;
+            }
 
             notifyListener(MEDIA_BUFFERING_UPDATE, percentage, 0);
             break;

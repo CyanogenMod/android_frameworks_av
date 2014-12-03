@@ -546,10 +546,12 @@ void NuPlayer::GenericSource::cancelPollBuffering() {
     ++mPollBufferingGeneration;
 }
 
-void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage) {
+void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage,
+        int64_t durationUs) {
     sp<AMessage> msg = dupNotify();
     msg->setInt32("what", kWhatBufferingUpdate);
     msg->setInt32("percentage", percentage);
+    msg->setInt64("duration", durationUs);
     msg->post();
 }
 
@@ -579,7 +581,7 @@ void NuPlayer::GenericSource::onPollBuffering() {
     }
 
     if (finalStatus == ERROR_END_OF_STREAM) {
-        notifyBufferingUpdate(100);
+        notifyBufferingUpdate(100, 0);
         cancelPollBuffering();
         return;
     } else if (cachedDurationUs > 0ll && mDurationUs > 0ll) {
@@ -588,7 +590,7 @@ void NuPlayer::GenericSource::onPollBuffering() {
             percentage = 100;
         }
 
-        notifyBufferingUpdate(percentage);
+        notifyBufferingUpdate(percentage, cachedDurationUs);
     }
 
     schedulePollBuffering();
