@@ -89,6 +89,9 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
       // mDisableWaitCnt is set by process() and updateState() and not used before then
       mSuspended(false),
       mAudioFlinger(thread->mAudioFlinger)
+#ifdef HW_ACC_EFFECTS
+      , mHwAccModeEnabled(false)
+#endif
 {
     ALOGV("Constructor %p", this);
     int lStatus;
@@ -295,11 +298,26 @@ void AudioFlinger::EffectModule::process()
                                         mConfig.inputCfg.buffer.frameCount/2);
         }
 
+#ifdef HW_ACC_EFFECTS
+       int ret = 0;
+       if (mHwAccModeEnabled) {
+            int frameBytes = audio_channel_count_from_out_mask(mConfig.outputCfg.channels) *
+                            ((mConfig.outputCfg.format==AUDIO_FORMAT_PCM_24_BIT_PACKED) ?
+                             3 : ((mConfig.outputCfg.format==AUDIO_FORMAT_PCM_16_BIT) ?
+                             sizeof(uint16_t) : sizeof(uint8_t)));
+            memcpy(mConfig.outputCfg.buffer.raw, mConfig.inputCfg.buffer.raw,
+                   mConfig.outputCfg.buffer.frameCount*frameBytes);
+       } else {
+            ret = (*mEffectInterface)->process(mEffectInterface,
+                                               &mConfig.inputCfg.buffer,
+                                               &mConfig.outputCfg.buffer);
+       }
+#else
         // do the actual processing in the effect engine
         int ret = (*mEffectInterface)->process(mEffectInterface,
                                                &mConfig.inputCfg.buffer,
                                                &mConfig.outputCfg.buffer);
-
+#endif
         // force transition to IDLE state when engine is ready
         if (mState == STOPPED && ret == -ENODATA) {
             mDisableWaitCnt = 1;
@@ -333,6 +351,22 @@ void AudioFlinger::EffectModule::reset_l()
     }
     (*mEffectInterface)->command(mEffectInterface, EFFECT_CMD_RESET, 0, NULL, 0, NULL);
 }
+
+#ifdef HW_ACC_EFFECTS
+void AudioFlinger::EffectModule::setHwAccEffect(int id)
+{
+    int cmdStatus;
+    uint32_t replySize = sizeof(int);
+    ALOGV("setHwAccEffect");
+    Mutex::Autolock _l(mLock);
+    if (mStatus != NO_ERROR || mEffectInterface == NULL) {
+        return;
+    }
+    mHwAccModeEnabled = id ? true : false;
+    (*mEffectInterface)->command(mEffectInterface, EFFECT_CMD_HW_ACC,
+                                 sizeof(id), &id, &replySize, &cmdStatus);
+}
+#endif
 
 status_t AudioFlinger::EffectModule::configure()
 {
@@ -1434,6 +1468,19 @@ sp<AudioFlinger::EffectModule> AudioFlinger::EffectChain::getEffectFromType_l(
     }
     return 0;
 }
+
+#ifdef HW_ACC_EFFECTS
+void AudioFlinger::EffectChain::setHwAccForSessionId_l(int sessionId, int id)
+{
+    size_t size = mEffects.size();
+    ALOGV("setHwAccForSessionId_l");
+    for (size_t i = 0; i < size; i++)
+        if (mEffects[i]->sessionId() == sessionId)
+            mEffects[i]->setHwAccEffect(id);
+
+    return;
+}
+#endif
 
 void AudioFlinger::EffectChain::clearInputBuffer()
 {
