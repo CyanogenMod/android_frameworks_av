@@ -48,7 +48,7 @@
         </MediaCodec>
         <MediaCodec name="OMX.google.vorbis.decoder" type="audio/vorbis">
             <Limit name="channel-count" max="8" />
-            <Limit name="sample-rate" ranges="8000,11025,12000,16000,22050,24000,32000,44100,48000,96000" />
+            <Limit name="sample-rate" ranges="8000-96000" />
             <Limit name="bitrate" range="32000-500000" />
         </MediaCodec>
         <MediaCodec name="OMX.google.opus.decoder" type="audio/opus">
