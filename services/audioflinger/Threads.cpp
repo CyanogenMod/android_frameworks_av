@@ -4200,6 +4200,14 @@ void AudioFlinger::MixerThread::checkForHwAccModeChange_l(const sp<Track>& track
     else
         HwAccEffectsNeeded = false;
     updateHwAccMode_l(track, HwAccEffectsNeeded);
+#ifdef HW_ACC_HPX
+    {
+        static bool isHpxOn = false;
+        if (isHpxOn != AudioFlinger::mIsHPXOn)
+            updateHPXState_l(track, AudioFlinger::mIsHPXOn);
+        isHpxOn = AudioFlinger::mIsHPXOn;
+    }
+#endif
 }
 
 void AudioFlinger::MixerThread::updateHwAccMode_l(const sp<Track>& track,
@@ -4232,6 +4240,18 @@ void AudioFlinger::MixerThread::updateHwAccMode_l(const sp<Track>& track,
         }
     }
 }
+
+#ifdef HW_ACC_HPX
+void AudioFlinger::MixerThread::updateHPXState_l(const sp<Track>& track,
+                                                 int state)
+{
+    if (track->sessionId() == HwAccEffectsSessionId) {
+        mAudioMixer->setParameter(track->name(), AudioMixer::TRACK,
+                                  AudioMixer::HW_ACC_HPX_STATE, (void *)&state);
+        ALOGD("updateHPXState_l: HPX state in HW ACC mode is now %d", state);
+    }
+}
+#endif
 #endif
 
 // ----------------------------------------------------------------------------

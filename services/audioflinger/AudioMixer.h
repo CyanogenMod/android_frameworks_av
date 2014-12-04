@@ -105,6 +105,9 @@ public:
 #ifdef HW_ACC_EFFECTS
         ENABLE_HW_ACC_EFFECTS   = 0X5000,
         DISABLE_HW_ACC_EFFECTS  = 0X5001,
+#ifdef HW_ACC_HPX
+        HW_ACC_HPX_STATE        = 0X5003,
+#endif
 #endif
     };
 

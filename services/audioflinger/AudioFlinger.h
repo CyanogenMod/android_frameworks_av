@@ -403,6 +403,10 @@ private:
     // incremented by 2 when screen state changes, bit 0 == 1 means "off"
     // AudioFlinger::setParameters() updates, other threads read w/o lock
     static uint32_t         mScreenState;
+#ifdef HW_ACC_HPX
+    // HPX On/Off state
+    static bool         mIsHPXOn;
+#endif
 
     // Internal dump utilities.
     static const int kDumpLockRetries = 50;
