@@ -722,7 +722,7 @@ protected:
         // if muting, wait for the audio in pcm buffer to be drained before proceeding
         // if unmuting, unmute only after the specified delay
         // Returns the number of ms waited
-        uint32_t  checkDeviceMuteStrategies(sp<AudioOutputDescriptor> outputDesc,
+        virtual uint32_t  checkDeviceMuteStrategies(sp<AudioOutputDescriptor> outputDesc,
                                             audio_devices_t prevDevice,
                                             uint32_t delayMs);
 
