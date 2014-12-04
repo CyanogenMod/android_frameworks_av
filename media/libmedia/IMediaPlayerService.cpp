@@ -39,8 +39,6 @@ namespace android {
 
 enum {
     CREATE = IBinder::FIRST_CALL_TRANSACTION,
-    DECODE_URL,
-    DECODE_FD,
     CREATE_MEDIA_RECORDER,
     CREATE_METADATA_RETRIEVER,
     GET_OMX,
@@ -86,59 +84,6 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         remote()->transact(CREATE_MEDIA_RECORDER, data, &reply);
         return interface_cast<IMediaRecorder>(reply.readStrongBinder());
-    }
-
-    virtual status_t decode(
-            const sp<IMediaHTTPService> &httpService,
-            const char* url,
-            uint32_t *pSampleRate,
-            int* pNumChannels,
-            audio_format_t* pFormat,
-            const sp<IMemoryHeap>& heap,
-            size_t *pSize)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeInt32(httpService != NULL);
-        if (httpService != NULL) {
-            data.writeStrongBinder(IInterface::asBinder(httpService));
-        }
-        data.writeCString(url);
-        data.writeStrongBinder(IInterface::asBinder(heap));
-        status_t status = remote()->transact(DECODE_URL, data, &reply);
-        if (status == NO_ERROR) {
-            status = (status_t)reply.readInt32();
-            if (status == NO_ERROR) {
-                *pSampleRate = uint32_t(reply.readInt32());
-                *pNumChannels = reply.readInt32();
-                *pFormat = (audio_format_t)reply.readInt32();
-                *pSize = (size_t)reply.readInt32();
-            }
-        }
-        return status;
-    }
-
-    virtual status_t decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate,
-                               int* pNumChannels, audio_format_t* pFormat,
-                               const sp<IMemoryHeap>& heap, size_t *pSize)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        data.writeFileDescriptor(fd);
-        data.writeInt64(offset);
-        data.writeInt64(length);
-        data.writeStrongBinder(IInterface::asBinder(heap));
-        status_t status = remote()->transact(DECODE_FD, data, &reply);
-        if (status == NO_ERROR) {
-            status = (status_t)reply.readInt32();
-            if (status == NO_ERROR) {
-                *pSampleRate = uint32_t(reply.readInt32());
-                *pNumChannels = reply.readInt32();
-                *pFormat = (audio_format_t)reply.readInt32();
-                *pSize = (size_t)reply.readInt32();
-            }
-        }
-        return status;
     }
 
     virtual sp<IOMX> getOMX() {
@@ -217,58 +162,6 @@ status_t BnMediaPlayerService::onTransact(
             int audioSessionId = data.readInt32();
             sp<IMediaPlayer> player = create(client, audioSessionId);
             reply->writeStrongBinder(IInterface::asBinder(player));
-            return NO_ERROR;
-        } break;
-        case DECODE_URL: {
-            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            sp<IMediaHTTPService> httpService;
-            if (data.readInt32()) {
-                httpService =
-                    interface_cast<IMediaHTTPService>(data.readStrongBinder());
-            }
-            const char* url = data.readCString();
-            sp<IMemoryHeap> heap = interface_cast<IMemoryHeap>(data.readStrongBinder());
-            uint32_t sampleRate;
-            int numChannels;
-            audio_format_t format;
-            size_t size;
-            status_t status =
-                decode(httpService,
-                       url,
-                       &sampleRate,
-                       &numChannels,
-                       &format,
-                       heap,
-                       &size);
-            reply->writeInt32(status);
-            if (status == NO_ERROR) {
-                reply->writeInt32(sampleRate);
-                reply->writeInt32(numChannels);
-                reply->writeInt32((int32_t)format);
-                reply->writeInt32((int32_t)size);
-            }
-            return NO_ERROR;
-        } break;
-        case DECODE_FD: {
-            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            int fd = dup(data.readFileDescriptor());
-            int64_t offset = data.readInt64();
-            int64_t length = data.readInt64();
-            sp<IMemoryHeap> heap = interface_cast<IMemoryHeap>(data.readStrongBinder());
-            uint32_t sampleRate;
-            int numChannels;
-            audio_format_t format;
-            size_t size;
-            status_t status = decode(fd, offset, length, &sampleRate, &numChannels, &format,
-                                     heap, &size);
-            ::close(fd);
-            reply->writeInt32(status);
-            if (status == NO_ERROR) {
-                reply->writeInt32(sampleRate);
-                reply->writeInt32(numChannels);
-                reply->writeInt32((int32_t)format);
-                reply->writeInt32((int32_t)size);
-            }
             return NO_ERROR;
         } break;
         case CREATE_MEDIA_RECORDER: {
