@@ -5325,6 +5325,7 @@ bool ACodec::OutputPortSettingsChangedState::onMessageReceived(
         case kWhatFlush:
         case kWhatShutdown:
         case kWhatResume:
+        case kWhatSetParameters:
         {
             if (msg->what() == kWhatResume) {
                 ALOGV("[%s] Deferring resume", mCodec->mComponentName.c_str());
