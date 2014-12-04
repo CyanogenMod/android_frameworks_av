@@ -2273,8 +2273,8 @@ void AudioTrack::setAttributesFromStreamType(audio_stream_type_t streamType) {
     case AUDIO_STREAM_INCALL_MUSIC:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_MUSIC;
         mAttributes.usage = AUDIO_USAGE_MEDIA;
-        break;
 #endif
+        break;
     case AUDIO_STREAM_VOICE_CALL:
         mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
         mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
