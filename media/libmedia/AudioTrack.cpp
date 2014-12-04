@@ -792,7 +792,7 @@ status_t AudioTrack::setVolume(float left, float right)
 #endif
         mProxy->setVolumeLR(gain_minifloat_pack(gain_from_float(left), gain_from_float(right)));
 
-    if (isOffloaded_l()) {
+    if (isOffloaded_l() && mAudioTrack != NULL) {
         mAudioTrack->signal();
     }
     return NO_ERROR;
