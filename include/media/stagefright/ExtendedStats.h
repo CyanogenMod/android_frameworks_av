@@ -125,9 +125,9 @@ public:
 
     ~ExtendedStats();
     void log(LogType type, const char* key, statsDataType value, bool condition = true);
-    sp<LogEntry> getLogEntry(const char *key, LogType type);
-    virtual void dump(const char* key = NULL) const;
-    virtual void reset(const char* key) const;
+    virtual void dump(const char* key = NULL);
+    virtual void reset(const char* key);
+    virtual void clear();
 
     static int64_t getSystemTime() {
         struct timeval tv;
@@ -159,14 +159,17 @@ public:
         mWindowSize = windowSize;
     }
 
+private:
+    sp<LogEntry> getLogEntry(const char *key, LogType type);
+
 protected:
     KeyedVector<AString, sp<LogEntry> > mLogEntry;
+    Mutex mLock;
 
     ExtendedStats(const ExtendedStats&) {}
     AString mName;
     pid_t mTid;
 
-    Mutex mLock;
     int32_t mWindowSize;
 };
 
@@ -228,6 +231,7 @@ protected:
 
     sp<ExtendedStats> mProfileTimes;
     int32_t mFrameRate;
+    Mutex mLock;
 
     /* helper functions */
     void resetConsecutiveFramesDropped();
