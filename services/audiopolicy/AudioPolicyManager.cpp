@@ -2561,13 +2561,10 @@ status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *
 
 void AudioPolicyManager::clearAudioPatches(uid_t uid)
 {
-    for (ssize_t i = 0; i < (ssize_t)mAudioPatches.size(); i++)  {
+    for (ssize_t i = (ssize_t)mAudioPatches.size() - 1; i >= 0; i--)  {
         sp<AudioPatch> patchDesc = mAudioPatches.valueAt(i);
         if (patchDesc->mUid == uid) {
-            // releaseAudioPatch() removes the patch from mAudioPatches
-            if (releaseAudioPatch(mAudioPatches.keyAt(i), uid) == NO_ERROR) {
-                i--;
-            }
+            releaseAudioPatch(mAudioPatches.keyAt(i), uid);
         }
     }
 }
