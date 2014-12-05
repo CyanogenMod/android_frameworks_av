@@ -629,15 +629,16 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
                 sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
                 audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
-                bool canOffload = canOffloadStream(audioMeta, (videoFormat != NULL),
-                         true /* is_streaming */, streamType);
+                const bool hasVideo = (videoFormat != NULL);
+                const bool canOffload = canOffloadStream(
+                        audioMeta, hasVideo, true /* is_streaming */, streamType);
                 if (canOffload) {
                     if (!mOffloadAudio) {
                         mRenderer->signalEnableOffloadAudio();
                     }
                     // open audio sink early under offload mode.
                     sp<AMessage> format = mSource->getFormat(true /*audio*/);
-                    openAudioSink(format, true /*offloadOnly*/);
+                    tryOpenAudioSinkForOffload(format, hasVideo);
                 }
                 instantiateDecoder(true, &mAudioDecoder);
             }
@@ -774,6 +775,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 // Decoder errors can be due to Source (e.g. from streaming),
                 // or from decoding corrupted bitstreams, or from other decoder
                 // MediaCodec operations (e.g. from an ongoing reset or seek).
+                // They may also be due to openAudioSink failure at
+                // decoder start or after a format change.
                 //
                 // We try to gracefully shut down the affected decoder if possible,
                 // rather than trying to force the shutdown with something
@@ -1146,28 +1149,16 @@ void NuPlayer::postScanSources() {
     mScanSourcesPending = true;
 }
 
-void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
-    uint32_t flags;
-    int64_t durationUs;
-    bool hasVideo = (mVideoDecoder != NULL);
-    // FIXME: we should handle the case where the video decoder
-    // is created after we receive the format change indication.
-    // Current code will just make that we select deep buffer
-    // with video which should not be a problem as it should
-    // not prevent from keeping A/V sync.
-    if (!hasVideo &&
-            mSource->getDuration(&durationUs) == OK &&
-            durationUs
-                > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
-        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
-    } else {
-        flags = AUDIO_OUTPUT_FLAG_NONE;
-    }
+void NuPlayer::tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo) {
+    // Note: This is called early in NuPlayer to determine whether offloading
+    // is possible; otherwise the decoders call the renderer openAudioSink directly.
 
-    mOffloadAudio = mRenderer->openAudioSink(
-            format, offloadOnly, hasVideo, flags);
-
-    if (mOffloadAudio) {
+    status_t err = mRenderer->openAudioSink(
+            format, true /* offloadOnly */, hasVideo, AUDIO_OUTPUT_FLAG_NONE, &mOffloadAudio);
+    if (err != OK) {
+        // Any failure we turn off mOffloadAudio.
+        mOffloadAudio = false;
+    } else if (mOffloadAudio) {
         sp<MetaData> audioMeta =
                 mSource->getFormatMeta(true /* audio */);
         sendMetaDataToHal(mAudioSink, audioMeta);
