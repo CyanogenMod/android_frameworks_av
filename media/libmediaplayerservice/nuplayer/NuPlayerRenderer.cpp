@@ -33,6 +33,7 @@
 #include <VideoFrameScheduler.h>
 
 #include <inttypes.h>
+#include <ExtendedUtils.h>
 
 namespace android {
 
@@ -1351,6 +1352,17 @@ bool NuPlayer::Renderer::onOpenAudioSink(
                     "audio_format", mime.c_str());
             onDisableOffloadAudio();
         } else {
+            int32_t bitWidth = 16;
+            if (AUDIO_FORMAT_PCM_16_BIT == audioFormat) {
+                if ((ExtendedUtils::getPcmSampleBits(format) == 24) &&
+                    ExtendedUtils::is24bitPCMOffloadEnabled()) {
+                    bitWidth = 24;
+                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+                } else if (ExtendedUtils::is16bitPCMOffloadEnabled()) {
+                    bitWidth = 16;
+                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+                }
+            }
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
                     mime.c_str(), audioFormat);
 
@@ -1377,6 +1389,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.bit_rate = avgBitRate;
             offloadInfo.has_video = hasVideo;
             offloadInfo.is_streaming = true;
+            offloadInfo.bit_width = bitWidth;
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
                 ALOGV("openAudioSink: no change in offload mode");

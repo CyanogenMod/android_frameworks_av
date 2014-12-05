@@ -38,6 +38,7 @@
 #include "../../libstagefright/include/WVMExtractor.h"
 #include "../../libstagefright/include/HTTPBase.h"
 
+#include <ExtendedUtils.h>
 namespace android {
 
 NuPlayer::GenericSource::GenericSource(
@@ -458,7 +459,22 @@ void NuPlayer::GenericSource::start() {
 
     mStopRead = false;
     if (mAudioTrack.mSource != NULL) {
-        CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
+        sp<MetaData> audioMeta = mAudioTrack.mSource->getFormat();
+        if (ExtendedUtils::isRAWFormat(audioMeta) &&
+            ExtendedUtils::is24bitPCMOffloadEnabled() &&
+            (ExtendedUtils::getPCMFormat(audioMeta) == AUDIO_FORMAT_PCM_8_24_BIT)) {
+            /*call start with kKeyPCMFormat set to 24bit when:
+            * 1. is raw pcm format
+            * 2. 24bit pcm offload feature is enabled
+            * 3. kKeyPCMFormat is set to 24bit
+            * default format (16bit) will be used in WAVExtractor if:
+            * 1. kKeyPCMFormat is not set
+            * 2. kKeyPCMFormat is not set to 24bit
+            */
+            CHECK_EQ(mAudioTrack.mSource->start(audioMeta.get()), (status_t)OK);
+        } else {
+            CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
+        }
 
         postReadBuffer(MEDIA_TRACK_TYPE_AUDIO);
     }
