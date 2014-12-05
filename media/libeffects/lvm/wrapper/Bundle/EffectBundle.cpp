@@ -1236,10 +1236,12 @@ int VirtualizerForceVirtualizationMode(EffectContext *pContext, audio_devices_t 
     bool useVirtualizer = false;
 
     if (VirtualizerIsDeviceSupported(forcedDevice) != 0) {
-        // forced device is not supported, make it behave as a reset of forced mode
-        forcedDevice = AUDIO_DEVICE_NONE;
-        // but return an error
-        status = -EINVAL;
+        if (forcedDevice != AUDIO_DEVICE_NONE) {
+            //forced device is not supported, make it behave as a reset of forced mode
+            forcedDevice = AUDIO_DEVICE_NONE;
+            // but return an error
+            status = -EINVAL;
+        }
     }
 
     if (forcedDevice == AUDIO_DEVICE_NONE) {
