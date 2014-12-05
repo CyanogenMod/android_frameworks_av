@@ -713,7 +713,14 @@ void PlaylistFetcher::onMonitorQueue() {
         // onDownloadNext();
         sp<AMessage> msg = new AMessage(kWhatDownloadNext, id());
         msg->setInt32("generation", mMonitorQueueGeneration);
-        msg->post(1000l);
+
+        if (mStopParams != NULL) {
+            // If resuming start download without any delay
+            msg->post();
+        } else {
+            msg->post(1000l);
+        }
+
     } else {
         // Nothing to do yet, try again in a second.
 
