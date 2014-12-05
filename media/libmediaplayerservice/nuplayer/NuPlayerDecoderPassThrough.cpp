@@ -43,12 +43,11 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
         const sp<AMessage> &notify,
         const sp<Source> &source,
         const sp<Renderer> &renderer)
-    : mNotify(notify),
+    : DecoderBase(notify),
       mSource(source),
       mRenderer(renderer),
       mSkipRenderingUntilMediaTimeUs(-1ll),
       mPaused(false),
-      mBufferGeneration(0),
       mReachedEOS(true),
       mPendingAudioErr(OK),
       mPendingBuffersToDrain(0),
@@ -75,17 +74,15 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
 
     onRequestInputBuffers();
 
-    uint32_t flags;
-    int64_t durationUs;
-    if (mSource->getDuration(&durationUs) == OK &&
-            durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
-        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
-    } else {
-        flags = AUDIO_OUTPUT_FLAG_NONE;
+    // The audio sink is already opened before the PassThrough decoder is created.
+    // Opening again might be relevant if decoder is instantiated after shutdown and
+    // format is different.
+    status_t err = mRenderer->openAudioSink(
+            format, true /* offloadOnly */, false /* hasVideo */,
+            AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */);
+    if (err != OK) {
+        handleError(err);
     }
-
-    mRenderer->openAudioSink(
-            format, true /* offloadOnly */, false /* hasVideo */, flags);
 }
 
 void NuPlayer::DecoderPassThrough::onSetRenderer(
