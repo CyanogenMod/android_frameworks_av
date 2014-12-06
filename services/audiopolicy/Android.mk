@@ -56,6 +56,10 @@ ifeq ($(strip $(DOLBY_DAP)),true)
     endif
 endif #DOLBY_END
 
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+common_cflags += -DENABLE_AV_ENHANCEMENTS
+endif
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
