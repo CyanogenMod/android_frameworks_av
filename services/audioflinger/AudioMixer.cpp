@@ -31,6 +31,7 @@
 #include <cutils/bitops.h>
 #include <cutils/compiler.h>
 #include <utils/Debug.h>
+#include <cutils/properties.h> // for property_get
 
 #include <system/audio.h>
 
@@ -70,8 +71,10 @@
 #endif
 
 // Set kUseNewMixer to true to use the new mixer engine. Otherwise the
-// original code will be used.  This is false for now.
-static const bool kUseNewMixer = true;
+// original code will be used.  This is true unless a resampler quality
+// property is set
+static char resamplerVal[PROPERTY_VALUE_MAX];
+static const bool kUseNewMixer = (property_get("af.resampler.quality", resamplerVal, "") <= 0);
 
 // Set kUseFloat to true to allow floating input into the mixer engine.
 // If kUseNewMixer is false, this is ignored or may be overridden internally
