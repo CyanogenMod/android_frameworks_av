@@ -183,6 +183,7 @@ private:
     sp<ABuffer> mediaBufferToABuffer(
             MediaBuffer *mbuf,
             media_track_type trackType,
+            int64_t seekTimeUs,
             int64_t *actualTimeUs = NULL);
 
     void postReadBuffer(media_track_type trackType);
