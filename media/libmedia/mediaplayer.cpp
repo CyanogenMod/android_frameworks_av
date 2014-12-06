@@ -33,6 +33,7 @@
 
 #include <media/mediaplayer.h>
 #include <media/AudioSystem.h>
+#include <media/IMediaHTTPService.h>
 
 #include <binder/MemoryBase.h>
 
@@ -141,6 +142,15 @@ status_t MediaPlayer::attachNewPlayer(const sp<IMediaPlayer>& player)
 
     return err;
 }
+
+#ifdef SAMSUNG_CAMERA_LEGACY
+status_t MediaPlayer::setDataSource(
+        const char *url, const KeyedVector<String8, String8> *headers)
+{
+    sp<IMediaHTTPService> httpService;
+    return setDataSource(httpService, url, headers);
+}
+#endif
 
 status_t MediaPlayer::setDataSource(
         const sp<IMediaHTTPService> &httpService,
@@ -840,6 +850,20 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
         ALOGV("back from callback");
     }
 }
+
+#ifdef SAMSUNG_CAMERA_LEGACY
+/*static*/ status_t MediaPlayer::decode(
+        const char* url,
+        uint32_t *pSampleRate,
+        int* pNumChannels,
+        audio_format_t* pFormat,
+        const sp<IMemoryHeap>& heap,
+        size_t *pSize)
+{
+    sp<IMediaHTTPService> httpService;
+    return decode(httpService, url, pSampleRate, pNumChannels, pFormat, heap, pSize);
+}
+#endif
 
 /*static*/ status_t MediaPlayer::decode(
         const sp<IMediaHTTPService> &httpService,
