@@ -214,6 +214,15 @@ struct ExtendedUtils {
     static bool UseQCHWAACEncoder(audio_encoder Encoder = AUDIO_ENCODER_DEFAULT, int32_t Channel = 0,
             int32_t BitRate = 0, int32_t SampleRate = 0);
 
+    static bool is24bitPCMOffloadEnabled();
+    static bool is16bitPCMOffloadEnabled();
+    static bool isRAWFormat(const sp<MetaData> &meta);
+    static bool isRAWFormat(const sp<AMessage> &format);
+    static int32_t getPcmSampleBits(const sp<MetaData> &meta);
+    static int32_t getPcmSampleBits(const sp<AMessage> &format);
+    static int32_t getPCMFormat(const sp<MetaData> &meta);
+    static void setKeyPCMFormat(const sp<MetaData> &meta, int32_t pcmFormat);
+
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(
             sp<MediaExtractor> defaultExt, const sp<DataSource> &source,
             const char *mime);

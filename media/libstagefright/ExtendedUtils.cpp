@@ -961,6 +961,63 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int3
     return mIsQCHWAACEncoder;
 }
 
+bool ExtendedUtils::is24bitPCMOffloadEnabled() {
+    char propPCMOfload[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.offload.pcm.24bit.enable", propPCMOfload, "0");
+    if (!strncmp(propPCMOfload, "true", 4) || atoi(propPCMOfload))
+        return true;
+    else
+        return false;
+}
+
+bool ExtendedUtils::is16bitPCMOffloadEnabled() {
+    char propPCMOfload[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.offload.pcm.16bit.enable", propPCMOfload, "0");
+    if (!strncmp(propPCMOfload, "true", 4) || atoi(propPCMOfload))
+        return true;
+    else
+        return false;
+}
+
+bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
+    const char *mime = {0};
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW, 9))
+        return true;
+    else
+        return false;
+}
+
+bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+    if (!strncasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW, 9))
+        return true;
+    else
+        return false;
+}
+
+int32_t ExtendedUtils::getPcmSampleBits(const sp<MetaData> &meta) {
+    int32_t bitWidth = 16;
+    meta->findInt32(kKeySampleBits, &bitWidth);
+    return bitWidth;
+}
+
+int32_t ExtendedUtils::getPcmSampleBits(const sp<AMessage> &format) {
+    int32_t bitWidth = 16;
+    format->findInt32("sbit", &bitWidth);
+    return bitWidth;
+}
+
+int32_t ExtendedUtils::getPCMFormat(const sp<MetaData> &meta) {
+    int32_t pcmFormat = AUDIO_FORMAT_PCM_16_BIT;
+    meta->findInt32(kKeyPcmFormat, &pcmFormat);
+    return pcmFormat;
+}
+
+void ExtendedUtils::setKeyPCMFormat(const sp<MetaData> &meta, int32_t pcmFormat) {
+    meta->setInt32(kKeyPcmFormat, pcmFormat);
+}
 
 //- returns NULL if we dont really need a new extractor (or cannot),
 //  valid extractor is returned otherwise
@@ -1802,6 +1859,44 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,
     ARG_TOUCH(BitRate);
     ARG_TOUCH(SampleRate);
     return false;
+}
+
+bool ExtendedUtils::is24bitPCMOffloadEnabled() {
+    return false;
+}
+
+bool ExtendedUtils::is16bitPCMOffloadEnabled() {
+    return false;
+}
+
+bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return false;
+}
+
+bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
+    ARG_TOUCH(format);
+    return false;
+}
+
+int32_t ExtendedUtils::getPcmSampleBits(const sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return 16;
+}
+
+int32_t ExtendedUtils::getPcmSampleBits(const sp<AMessage> &format) {
+    ARG_TOUCH(format);
+    return 16;
+}
+
+int32_t ExtendedUtils::getPCMFormat(const sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return false;
+}
+
+void ExtendedUtils::setKeyPCMFormat(const sp<MetaData> &meta, int32_t pcmFormat) {
+    ARG_TOUCH(meta);
+    ARG_TOUCH(pcmFormat);
 }
 
 sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(
