@@ -114,6 +114,13 @@ LOCAL_SHARED_LIBRARIES += libsrsprocessing
 LOCAL_CFLAGS += -DSRS_PROCESSING
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-effects
 endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS)), true)
+LOCAL_CFLAGS += -DHW_ACC_EFFECTS
+LOCAL_WHOLE_STATIC_LIBRARIES := libhwacceffectswrapper
+LOCAL_C_INCLUDES += hardware/qcom/audio/post_proc
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 #

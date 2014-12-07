@@ -357,6 +357,15 @@ static void sFastTrackMultiplierInit()
     }
 }
 
+#ifdef HW_ACC_EFFECTS
+bool HwAccEffectsNeeded = false;
+int32_t HwAccEffectsSessionId = -1;
+int32_t HwAccEffectsId = -1;
+// This restricts the number of instances to one.
+// Multiple instance of h/w accelerated effects would replace the variables
+// to an array of session id and effect id's.
+#endif
+
 // ----------------------------------------------------------------------------
 
 #ifdef ADD_BATTERY_DATA
@@ -1168,6 +1177,10 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
 #ifdef DOLBY_DAP
             EffectDapController::instance()->effectCreated(effect, this);
 #endif // DOLBY_END
+#ifdef HW_ACC_EFFECTS
+            if (HwAccEffectsSessionId == sessionId)
+                effect->setHwAccEffect(HwAccEffectsId);
+#endif
         }
         // create effect handle and connect it to effect module
         handle = new EffectHandle(effect, client, effectClient, priority);
@@ -3803,6 +3816,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 name,
                 AudioMixer::TRACK,
                 AudioMixer::AUX_BUFFER, (void *)track->auxBuffer());
+#ifdef HW_ACC_EFFECTS
+            checkForHwAccModeChange_l(track, mOutDevice);
+#endif
 
             // reset retry count
             track->mRetryCount = kMaxTrackRetries;
@@ -3839,6 +3855,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                         track->reset();
                     }
                     tracksToRemove->add(track);
+#ifdef HW_ACC_EFFECTS
+                    updateHwAccMode_l(track, false);
+#endif
                 }
             } else {
                 // No buffers for this track. Give it a few chances to
@@ -3846,6 +3865,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 if (--(track->mRetryCount) <= 0) {
                     ALOGI("BUFFER TIMEOUT: remove(%d) from active list on thread %p", name, this);
                     tracksToRemove->add(track);
+#ifdef HW_ACC_EFFECTS
+                    updateHwAccMode_l(track, false);
+#endif
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
                     android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
@@ -4165,6 +4187,52 @@ void AudioFlinger::MixerThread::cacheParameters_l()
     // threshold is calculated and its usefulness should be reconsidered anyway.
     maxPeriod = seconds(mNormalFrameCount) / mSampleRate * 15;
 }
+
+#ifdef HW_ACC_EFFECTS
+void AudioFlinger::MixerThread::checkForHwAccModeChange_l(const sp<Track>& track, int device)
+{
+    char value[PROPERTY_VALUE_MAX] = {0};
+
+    property_get("audio.hwacceffects.needed", value, NULL);
+    if ((atoi(value) || !strncmp("true", value, 4)) &&
+        (device & AUDIO_DEVICE_OUT_ALL_A2DP))
+        HwAccEffectsNeeded = true;
+    else
+        HwAccEffectsNeeded = false;
+    updateHwAccMode_l(track, HwAccEffectsNeeded);
+}
+
+void AudioFlinger::MixerThread::updateHwAccMode_l(const sp<Track>& track,
+                                                  bool enable)
+{
+    if (enable) {
+        if ((HwAccEffectsSessionId == -1) &&
+           (track->streamType() == AUDIO_STREAM_MUSIC)) {
+            int id = track->sessionId();
+            HwAccEffectsSessionId = id;
+            mAudioMixer->setParameter(track->name(), AudioMixer::TRACK,
+                                      AudioMixer::ENABLE_HW_ACC_EFFECTS,
+                                      (void *)&id);
+           HwAccEffectsId = id;
+           ALOGD("HwAccEffectsId: %d", HwAccEffectsId);
+            sp<EffectChain> chain = getEffectChain_l(track->sessionId());
+            if (chain != 0)
+               chain->setHwAccForSessionId_l(track->sessionId(), HwAccEffectsId);
+        }
+    } else {
+        if (track->sessionId() == HwAccEffectsSessionId) {
+            HwAccEffectsSessionId = -1;
+            HwAccEffectsId = -1;
+            sp<EffectChain> chain = getEffectChain_l(track->sessionId());
+            if (chain != 0)
+               chain->setHwAccForSessionId_l(track->sessionId(), 0);
+            mAudioMixer->setParameter(track->name(), AudioMixer::TRACK,
+                                      AudioMixer::DISABLE_HW_ACC_EFFECTS,
+                                      (void *)track->sessionId());
+        }
+    }
+}
+#endif
 
 // ----------------------------------------------------------------------------
 

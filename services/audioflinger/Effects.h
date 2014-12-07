@@ -68,6 +68,9 @@ public:
                      void *pReplyData);
 
     void reset_l();
+#ifdef HW_ACC_EFFECTS
+    void setHwAccEffect(int id);
+#endif
     status_t configure();
     status_t init();
     effect_state state() const {
@@ -155,6 +158,9 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     bool     mSuspended;            // effect is suspended: temporarily disabled by framework
     bool     mOffloaded;            // effect is currently offloaded to the audio DSP
     wp<AudioFlinger>    mAudioFlinger;
+#ifdef HW_ACC_EFFECTS
+    bool     mHwAccModeEnabled;
+#endif
 };
 
 // The EffectHandle class implements the IEffect interface. It provides resources
@@ -272,6 +278,9 @@ public:
     sp<EffectModule> getEffectFromDesc_l(effect_descriptor_t *descriptor);
     sp<EffectModule> getEffectFromId_l(int id);
     sp<EffectModule> getEffectFromType_l(const effect_uuid_t *type);
+#ifdef HW_ACC_EFFECTS
+    void setHwAccForSessionId_l(int sessionId, int id);
+#endif
     // FIXME use float to improve the dynamic range
     bool setVolume_l(uint32_t *left, uint32_t *right);
     void setDevice_l(audio_devices_t device);
