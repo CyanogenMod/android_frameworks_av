@@ -864,6 +864,9 @@ protected:
 #ifdef HW_ACC_EFFECTS
     void checkForHwAccModeChange_l(const sp<Track>& track, int device);
     void updateHwAccMode_l(const sp<Track>& track, bool enable);
+#ifdef HW_ACC_HPX
+    void updateHPXState_l(const sp<Track>& track, int state);
+#endif
 #endif
                 AudioMixer* mAudioMixer;    // normal mixer
 private:

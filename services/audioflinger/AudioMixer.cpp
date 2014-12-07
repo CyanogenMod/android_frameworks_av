@@ -879,6 +879,12 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             }
             break;
         }
+#ifdef HW_ACC_HPX
+        case HW_ACC_HPX_STATE: {
+            track.hwAcc->updateHPXState(*valueBuf);
+            break;
+        }
+#endif
 #endif
         default:
             LOG_ALWAYS_FATAL("setParameter track: bad param %d", param);

@@ -117,6 +117,9 @@ static const char kClientLockedString[] = "Client lock is taken\n";
 nsecs_t AudioFlinger::mStandbyTimeInNsecs = kDefaultStandbyTimeInNsecs;
 
 uint32_t AudioFlinger::mScreenState;
+#ifdef HW_ACC_HPX
+bool AudioFlinger::mIsHPXOn = false;
+#endif
 
 #ifdef TEE_SINK
 bool AudioFlinger::mTeeSinkInputEnabled = false;
@@ -1096,6 +1099,10 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
                 AudioFlinger::mScreenState = ((AudioFlinger::mScreenState & ~1) + 2) | isOff;
             }
         }
+#ifdef HW_ACC_HPX
+        if (param.get(String8("HPX"), value) == NO_ERROR)
+            AudioFlinger::mIsHPXOn = !(value == "OFF");
+#endif
         return final_result;
     }
 
