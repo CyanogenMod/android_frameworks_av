@@ -1495,7 +1495,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
     }
 #endif
 
-    if (offloadingAudio() || pcmOffload) {
+    if (offloadingAudio()) {
         audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
         status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
 
