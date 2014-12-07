@@ -53,6 +53,9 @@
 #define STATS_PROFILE_SET_ENCODER(isVideo) (isVideo != 0 ? "Set video encoder" : "Set audio encoder")
 #define STATS_PROFILE_STOP "Stop"
 #define STATS_BITRATE "Video Bitrate"
+#define STATS_PROFILE_SF_RECORDER_START_LATENCY "\tStagefrightRecorder start latency"
+#define STATS_PROFILE_CAMERA_SOURCE_START_LATENCY "\tCamera source start latency"
+#define STATS_PROFILE_RECONFIGURE "\tReconfigure latency"
 
 namespace android {
 
