@@ -101,7 +101,8 @@ AudioPlayer::AudioPlayer(
 #ifdef DOLBY_UDC
       mDolbyProcessedAudio(false),
 #endif //DOLBY_END
-      mPauseRequired(false) {
+      mPauseRequired(false),
+      mUseSmallBufs(false) {
 }
 
 AudioPlayer::~AudioPlayer() {
@@ -128,7 +129,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             return err;
         }
     }
-    ALOGD("start of Playback, useOffload %d",useOffload());
+    ALOGI("start of Playback, useOffload %d",useOffload());
 
     // We allow an optional INFO_FORMAT_CHANGED at the very beginning
     // of playback, if there is one, getFormat below will retrieve the
@@ -244,6 +245,10 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             offloadInfo.bit_rate = avgBitRate;
             offloadInfo.has_video = ((mCreateFlags & HAS_VIDEO) != 0);
             offloadInfo.is_streaming = ((mCreateFlags & IS_STREAMING) != 0);
+            mUseSmallBufs = ((audioFormat & AUDIO_FORMAT_PCM_16_BIT_OFFLOAD) != 0);
+            offloadInfo.use_small_bufs = mUseSmallBufs;
+        } else {
+            mUseSmallBufs = false;
         }
 
         status_t err = mAudioSink->open(
@@ -382,16 +387,16 @@ void AudioPlayer::pause(bool playPendingSamples) {
             mSourcePaused = true;
         }
     }
-    ALOGD("Pause Playback at %lld",getMediaTimeUs());
 #ifdef DOLBY_UDC
     updateDolbyProcessedAudioState();
 #endif // DOLBY_END
+    ALOGI("Pause Playback at %lld",getMediaTimeUs());
 }
 
 status_t AudioPlayer::resume() {
     CHECK(mStarted);
     CHECK(mSource != NULL);
-    ALOGD("Resume Playback at %lld",getMediaTimeUs());
+    ALOGI("Resume Playback at %lld",getMediaTimeUs());
     if (mSourcePaused == true) {
         mSourcePaused = false;
         mSource->start();
@@ -417,7 +422,7 @@ status_t AudioPlayer::resume() {
 void AudioPlayer::reset() {
     CHECK(mStarted);
 
-    ALOGD("reset: mPlaying=%d mReachedEOS=%d useOffload=%d",
+    ALOGI("reset: mPlaying=%d mReachedEOS=%d useOffload=%d",
                                 mPlaying, mReachedEOS, useOffload() );
 #ifdef DOLBY_UDC
     setDolbyProcessedAudioState(false);
@@ -770,8 +775,11 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
                         mObserver->postAudioSeekComplete();
                         postSeekComplete = false;
                     }
-
-                    mStartPosUs = mPositionTimeMediaUs;
+                    if(mPositionTimeMediaUs >= 0 ) {
+                        mStartPosUs = mPositionTimeMediaUs;
+                    } else {
+                        ALOGI("Ignore mStartPos update when timestamp returned is negative");
+                    }
                     ALOGV("adjust seek time to: %.2f", mStartPosUs/ 1E6);
                 }
                 // clear seek time with mLock locked and once we have valid mPositionTimeMediaUs
@@ -882,6 +890,7 @@ int64_t AudioPlayer::getRealTimeUsLocked() const {
 
     diffUs -= mNumFramesPlayedSysTimeUs;
 
+    ALOGV("getRealTimeUsLocked %" PRId64, result + diffUs);
     return result + diffUs;
 }
 
@@ -975,7 +984,7 @@ status_t AudioPlayer::seekTo(int64_t time_us) {
 
     ALOGV("seekTo( %" PRId64 " )", time_us);
 
-    if(useOffload())
+    if(useOffload() && !mUseSmallBufs)
     {
         int64_t playPosition = 0;
         playPosition = getOutputPlayPositionUs_l();

@@ -148,6 +148,7 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
+      mUseSmallBuf(false),
       mPausedPosition(0)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
@@ -176,6 +177,7 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
+      mUseSmallBuf(false),
       mPausedPosition(0)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
@@ -435,6 +437,12 @@ status_t AudioTrack::set(
         mOffloadInfo = &mOffloadInfoCopy;
     } else {
         mOffloadInfo = NULL;
+    }
+
+    if ((mFormat & AUDIO_FORMAT_PCM_OFFLOAD) &&
+         offloadInfo && offloadInfo->use_small_bufs) {
+        mUseSmallBuf = true;
+        ALOGI("Using small buffers for PCM offload");
     }
 
     mVolume[AUDIO_INTERLEAVE_LEFT] = 1.0f;
@@ -905,6 +913,13 @@ status_t AudioTrack::getPosition(uint32_t *position)
         if (isOffloaded_l() && ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING))) {
             ALOGV("getPosition called in paused state, return cached position %u", mPausedPosition);
             *position = mPausedPosition;
+            return NO_ERROR;
+        }
+        if (mUseSmallBuf) {
+            uint32_t tempPos = 0;
+            tempPos = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ?
+                0 : updateAndGetPosition_l();
+            *position = (tempPos / (mChannelCount * audio_bytes_per_sample(mFormat)));
             return NO_ERROR;
         }
 

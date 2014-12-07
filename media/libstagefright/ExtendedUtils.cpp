@@ -884,12 +884,12 @@ sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
     sp<MetaData> tempMetadata = new MetaData;
     sp<MetaData> format = audioSource->getFormat();
     int bitWidth = 16;
-#ifdef PCM_OFFLOAD_ENABLED_24
+#if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
     format->findInt32(kKeySampleBits, &bitWidth);
     tempMetadata->setInt32(kKeySampleBits, bitWidth);
     tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_16_BIT);
     char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.offload.pcm.enable", prop_pcmoffload, "0");
+    property_get("audio.offload.pcm.24bit.enable", prop_pcmoffload, "0");
     if ((offloadAudio) &&
         (24 == bitWidth) &&
         (!strcmp(prop_pcmoffload, "true") || atoi(prop_pcmoffload))) {
@@ -1675,6 +1675,37 @@ void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {
     buffer->setRange(buffer->offset(), buffer->size() + offset);
 }
 
+//return true if mime type is not support for pcm offload
+//return true if PCM offload is not enabled
+bool ExtendedUtils::pcmOffloadException(const char* const mime) {
+    bool decision = false;
+#if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
+    const char * const ExceptionTable[] = {
+        MEDIA_MIMETYPE_AUDIO_AMR_NB,
+        MEDIA_MIMETYPE_AUDIO_AMR_WB,
+        MEDIA_MIMETYPE_AUDIO_QCELP,
+        MEDIA_MIMETYPE_AUDIO_G711_ALAW,
+        MEDIA_MIMETYPE_AUDIO_G711_MLAW,
+        MEDIA_MIMETYPE_AUDIO_EVRC
+    };
+    int countException = (sizeof(ExceptionTable) / sizeof(ExceptionTable[0]));
+
+    for(int i = 0; i < countException; i++) {
+        if (!strcasecmp(mime, ExceptionTable[i])) {
+            decision = true;
+            break;
+        }
+    }
+    ALOGI("decision %d mime %s", decision, mime);
+    return decision;
+#else
+    //if PCM offload flag is disabled, do not offload any sessions
+    //using pcm offload
+    decision = true;
+    ALOGI("decision %d mime %s", decision, mime);
+    return decision;
+#endif
+}
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -1883,6 +1914,11 @@ void ExtendedUtils::RTSPStream::addRR(const sp<ABuffer> &buf) {}
 
 void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {}
 
+//return true to make sure pcm offload is not exercised
+bool ExtendedUtils::pcmOffloadException(const char* const mime) {
+    ARG_TOUCH(mime);
+    return true;
+}
 
 } // namespace android
 #endif //ENABLE_AV_ENHANCEMENTS

@@ -1185,7 +1185,6 @@ void AwesomePlayer::createAudioPlayer_l()
     uint32_t flags = 0;
     int64_t cachedDurationUs;
     bool eos;
-
     if (mOffloadAudio) {
         flags |= AudioPlayer::USE_OFFLOAD;
     } else if (mVideoSource == NULL
@@ -1737,7 +1736,9 @@ status_t AwesomePlayer::initAudioDecoder() {
     int64_t durationUs = -1;
     mAudioTrack->getFormat()->findInt64(kKeyDuration, &durationUs);
 
-    if (!mOffloadAudio && mAudioSource != NULL) {
+    if (!mOffloadAudio && mAudioSource != NULL
+            && !ExtendedUtils::pcmOffloadException(mime)) {
+        //do not offload evrc, qcelp, amr
         ALOGI("Could not offload audio decode, try pcm offload");
         sp<MetaData> format = mAudioSource->getFormat();
         if (durationUs >= 0) {
