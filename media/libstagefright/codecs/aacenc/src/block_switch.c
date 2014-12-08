@@ -277,7 +277,7 @@ Word32 CalcWindowEnergy(BLOCK_SWITCHING_CONTROL *blockSwitchingControl,
                         Word16 chIncrement,
                         Word16 windowLen)
 {
-  Word32 w, i, wOffset, tidx, ch;
+  Word32 w, i, tidx;
   Word32 accuUE, accuFE;
   Word32 tempUnfiltered;
   Word32 tempFiltered;
