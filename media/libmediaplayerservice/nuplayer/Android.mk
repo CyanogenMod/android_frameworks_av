@@ -30,6 +30,7 @@ ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
 endif
+endif
 
 LOCAL_MODULE:= libstagefright_nuplayer
 

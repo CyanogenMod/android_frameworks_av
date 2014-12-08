@@ -166,6 +166,8 @@ LOCAL_STATIC_LIBRARIES := \
         libFLAC \
         libmedia_helper
 
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+
 ifeq ($(TARGET_USES_QCOM_BSP), true)
     LOCAL_C_INCLUDES += $(call project-path-for,qcom-display)/libgralloc
     LOCAL_CFLAGS += -DQCOM_BSP
@@ -179,17 +181,6 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_SRC_FILES  += ExtendedWriter.cpp
        LOCAL_SRC_FILES  += FMA2DPWriter.cpp
 endif #TARGET_ENABLE_AV_ENHANCEMENTS
-
-ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD_24)),true)
-       LOCAL_CFLAGS     += -DPCM_OFFLOAD_ENABLED_24
-       LOCAL_C_INCLUDES += $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
-endif
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD)),true)
-       LOCAL_CFLAGS     += -DPCM_OFFLOAD_ENABLED
-       LOCAL_C_INCLUDES += $(TOP)/hardware/qcom/media/mm-core/inc
-endif
-endif
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
