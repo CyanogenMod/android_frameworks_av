@@ -1198,6 +1198,7 @@ status_t NuPlayer::GenericSource::doSeek(int64_t seekTimeUs) {
 sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
         MediaBuffer* mb,
         media_track_type trackType,
+        int64_t /* seekTimeUs */,
         int64_t *actualTimeUs) {
     bool audio = trackType == MEDIA_TRACK_TYPE_AUDIO;
     size_t outLength = mb->range_length();
@@ -1234,6 +1235,16 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
     int64_t timeUs;
     CHECK(mb->meta_data()->findInt64(kKeyTime, &timeUs));
     meta->setInt64("timeUs", timeUs);
+
+#if 0
+    // Temporarily disable pre-roll till we have a full solution to handle
+    // both single seek and continous seek gracefully.
+    if (seekTimeUs > timeUs) {
+        sp<AMessage> extra = new AMessage;
+        extra->setInt64("resume-at-mediaTimeUs", seekTimeUs);
+        meta->setMessage("extra", extra);
+    }
+#endif
 
     if (trackType == MEDIA_TRACK_TYPE_TIMEDTEXT) {
         const char *mime;
@@ -1366,7 +1377,8 @@ void NuPlayer::GenericSource::readBuffer(
                 track->mPackets->queueDiscontinuity( type, NULL, true /* discard */);
             }
 
-            sp<ABuffer> buffer = mediaBufferToABuffer(mbuf, trackType, actualTimeUs);
+            sp<ABuffer> buffer = mediaBufferToABuffer(
+                    mbuf, trackType, seekTimeUs, actualTimeUs);
             track->mPackets->queueAccessUnit(buffer);
             formatChange = false;
             seeking = false;

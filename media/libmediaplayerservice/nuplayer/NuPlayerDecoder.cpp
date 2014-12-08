@@ -476,6 +476,7 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
     buffer->meta()->setInt64("timeUs", timeUs);
     if (flags & MediaCodec::BUFFER_FLAG_EOS) {
         buffer->meta()->setInt32("eos", true);
+        notifyResumeCompleteIfNecessary();
     }
     // we do not expect CODECCONFIG or SYNCFRAME for decoder
 
