@@ -518,8 +518,6 @@ __inline Word32 L_shl(Word32 L_var1, Word16 var2)
         return  ASM_L_shr( L_var1, -var2);
     }
 #else
-    Word32 L_var_out = 0L;
-
     if (var2 <= 0)
     {
         L_var1 = L_shr(L_var1, (Word16)-var2);
@@ -540,7 +538,6 @@ __inline Word32 L_shl(Word32 L_var1, Word16 var2)
                 }
             }
             L_var1 <<= 1;
-            L_var_out = L_var1;
         }
     }
     return (L_var1);
