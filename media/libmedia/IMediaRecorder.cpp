@@ -46,7 +46,6 @@ enum {
     SET_OUTPUT_FORMAT,
     SET_VIDEO_ENCODER,
     SET_AUDIO_ENCODER,
-    SET_OUTPUT_FILE_PATH,
     SET_OUTPUT_FILE_FD,
     SET_VIDEO_SIZE,
     SET_VIDEO_FRAMERATE,
@@ -155,16 +154,6 @@ public:
         data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
         data.writeInt32(ae);
         remote()->transact(SET_AUDIO_ENCODER, data, &reply);
-        return reply.readInt32();
-    }
-
-    status_t setOutputFile(const char* path)
-    {
-        ALOGV("setOutputFile(%s)", path);
-        Parcel data, reply;
-        data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
-        data.writeCString(path);
-        remote()->transact(SET_OUTPUT_FILE_PATH, data, &reply);
         return reply.readInt32();
     }
 
@@ -389,13 +378,6 @@ status_t BnMediaRecorder::onTransact(
             reply->writeInt32(setAudioEncoder(ae));
             return NO_ERROR;
 
-        } break;
-        case SET_OUTPUT_FILE_PATH: {
-            ALOGV("SET_OUTPUT_FILE_PATH");
-            CHECK_INTERFACE(IMediaRecorder, data, reply);
-            const char* path = data.readCString();
-            reply->writeInt32(setOutputFile(path));
-            return NO_ERROR;
         } break;
         case SET_OUTPUT_FILE_FD: {
             ALOGV("SET_OUTPUT_FILE_FD");

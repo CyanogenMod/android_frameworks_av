@@ -37,7 +37,6 @@ namespace android {
 class WebmWriter : public MediaWriter {
 public:
     WebmWriter(int fd);
-    WebmWriter(const char *filename);
     ~WebmWriter() { reset(); }
 
 

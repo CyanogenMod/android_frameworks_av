@@ -17,6 +17,9 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "muxer"
 #include <inttypes.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <utils/Log.h>
 
 #include <binder/ProcessState.h>
@@ -72,8 +75,15 @@ static int muxing(
     ALOGV("input file %s, output file %s", path, outputFileName);
     ALOGV("useAudio %d, useVideo %d", useAudio, useVideo);
 
-    sp<MediaMuxer> muxer = new MediaMuxer(outputFileName,
+    int fd = open(outputFileName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+
+    if (fd < 0) {
+        ALOGE("couldn't open file");
+        return fd;
+    }
+    sp<MediaMuxer> muxer = new MediaMuxer(fd,
                                           MediaMuxer::OUTPUT_FORMAT_MPEG_4);
+    close(fd);
 
     size_t trackCount = extractor->countTracks();
     // Map the extractor's track index to the muxer's track index.

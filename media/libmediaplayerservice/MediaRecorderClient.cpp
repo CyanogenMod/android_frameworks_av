@@ -154,17 +154,6 @@ status_t MediaRecorderClient::setAudioEncoder(int ae)
     return mRecorder->setAudioEncoder((audio_encoder)ae);
 }
 
-status_t MediaRecorderClient::setOutputFile(const char* path)
-{
-    ALOGV("setOutputFile(%s)", path);
-    Mutex::Autolock lock(mLock);
-    if (mRecorder == NULL) {
-        ALOGE("recorder is not initialized");
-        return NO_INIT;
-    }
-    return mRecorder->setOutputFile(path);
-}
-
 status_t MediaRecorderClient::setOutputFile(int fd, int64_t offset, int64_t length)
 {
     ALOGV("setOutputFile(%d, %lld, %lld)", fd, offset, length);

@@ -38,21 +38,6 @@
 
 namespace android {
 
-MediaMuxer::MediaMuxer(const char *path, OutputFormat format)
-    : mFormat(format),
-      mState(UNINITIALIZED) {
-    if (format == OUTPUT_FORMAT_MPEG_4) {
-        mWriter = new MPEG4Writer(path);
-    } else if (format == OUTPUT_FORMAT_WEBM) {
-        mWriter = new WebmWriter(path);
-    }
-
-    if (mWriter != NULL) {
-        mFileMeta = new MetaData;
-        mState = INITIALIZED;
-    }
-}
-
 MediaMuxer::MediaMuxer(int fd, OutputFormat format)
     : mFormat(format),
       mState(UNINITIALIZED) {

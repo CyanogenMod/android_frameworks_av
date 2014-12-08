@@ -23,7 +23,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+
 #include <termios.h>
 #include <unistd.h>
 
@@ -637,7 +640,13 @@ static status_t recordScreen(const char* fileName) {
         case FORMAT_MP4: {
             // Configure muxer.  We have to wait for the CSD blob from the encoder
             // before we can start it.
-            muxer = new MediaMuxer(fileName, MediaMuxer::OUTPUT_FORMAT_MPEG_4);
+            int fd = open(fileName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+            if (fd < 0) {
+                fprintf(stderr, "ERROR: couldn't open file\n");
+                abort();
+            }
+            muxer = new MediaMuxer(fd, MediaMuxer::OUTPUT_FORMAT_MPEG_4);
+            close(fd);
             if (gRotate) {
                 muxer->setOrientationHint(90);  // TODO: does this do anything?
             }

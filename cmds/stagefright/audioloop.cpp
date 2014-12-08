@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <binder/ProcessState.h>
 #include <media/mediarecorder.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -109,7 +113,12 @@ int main(int argc, char* argv[])
 
     if (fileOut != NULL) {
         // target file specified, write encoded AMR output
-        sp<AMRWriter> writer = new AMRWriter(fileOut);
+        int fd = open(fileOut, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+        if (fd < 0) {
+            return 1;
+        }
+        sp<AMRWriter> writer = new AMRWriter(fd);
+        close(fd);
         writer->addSource(encoder);
         writer->start();
         sleep(duration);

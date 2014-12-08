@@ -80,38 +80,6 @@ WebmWriter::WebmWriter(int fd)
             mCuePoints);
 }
 
-WebmWriter::WebmWriter(const char *filename)
-    : mInitCheck(NO_INIT),
-      mTimeCodeScale(1000000),
-      mStartTimestampUs(0),
-      mStartTimeOffsetMs(0),
-      mSegmentOffset(0),
-      mSegmentDataStart(0),
-      mInfoOffset(0),
-      mInfoSize(0),
-      mTracksOffset(0),
-      mCuesOffset(0),
-      mPaused(false),
-      mStarted(false),
-      mIsFileSizeLimitExplicitlyRequested(false),
-      mIsRealTimeRecording(false),
-      mStreamableFile(true),
-      mEstimatedCuesSize(0) {
-    mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
-    if (mFd >= 0) {
-        ALOGV("fd %d; flags: %o", mFd, fcntl(mFd, F_GETFL, 0));
-        mInitCheck = OK;
-    }
-    mStreams[kAudioIndex] = WebmStream(kAudioType, "Audio", &WebmWriter::audioTrack);
-    mStreams[kVideoIndex] = WebmStream(kVideoType, "Video", &WebmWriter::videoTrack);
-    mSinkThread = new WebmFrameSinkThread(
-            mFd,
-            mSegmentDataStart,
-            mStreams[kVideoIndex].mSink,
-            mStreams[kAudioIndex].mSink,
-            mCuePoints);
-}
-
 // static
 sp<WebmElement> WebmWriter::videoTrack(const sp<MetaData>& md) {
     int32_t width, height;

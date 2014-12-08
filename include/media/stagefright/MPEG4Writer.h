@@ -32,7 +32,6 @@ class MetaData;
 
 class MPEG4Writer : public MediaWriter {
 public:
-    MPEG4Writer(const char *filename);
     MPEG4Writer(int fd);
 
     // Limitations

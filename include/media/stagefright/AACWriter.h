@@ -27,7 +27,6 @@ struct MediaSource;
 struct MetaData;
 
 struct AACWriter : public MediaWriter {
-    AACWriter(const char *filename);
     AACWriter(int fd);
 
     status_t initCheck() const;

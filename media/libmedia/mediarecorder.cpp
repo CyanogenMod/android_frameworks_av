@@ -264,32 +264,6 @@ status_t MediaRecorder::setAudioEncoder(int ae)
     return ret;
 }
 
-status_t MediaRecorder::setOutputFile(const char* path)
-{
-    ALOGV("setOutputFile(%s)", path);
-    if (mMediaRecorder == NULL) {
-        ALOGE("media recorder is not initialized yet");
-        return INVALID_OPERATION;
-    }
-    if (mIsOutputFileSet) {
-        ALOGE("output file has already been set");
-        return INVALID_OPERATION;
-    }
-    if (!(mCurrentState & MEDIA_RECORDER_DATASOURCE_CONFIGURED)) {
-        ALOGE("setOutputFile called in an invalid state(%d)", mCurrentState);
-        return INVALID_OPERATION;
-    }
-
-    status_t ret = mMediaRecorder->setOutputFile(path);
-    if (OK != ret) {
-        ALOGV("setOutputFile failed: %d", ret);
-        mCurrentState = MEDIA_RECORDER_ERROR;
-        return ret;
-    }
-    mIsOutputFileSet = true;
-    return ret;
-}
-
 status_t MediaRecorder::setOutputFile(int fd, int64_t offset, int64_t length)
 {
     ALOGV("setOutputFile(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);

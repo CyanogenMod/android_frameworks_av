@@ -50,9 +50,6 @@ public:
         OUTPUT_FORMAT_LIST_END // must be last - used to validate format type
     };
 
-    // Construct the muxer with the output file path.
-    MediaMuxer(const char *path, OutputFormat format);
-
     // Construct the muxer with the file descriptor. Note that the MediaMuxer
     // will close this file at stop().
     MediaMuxer(int fd, OutputFormat format);

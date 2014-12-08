@@ -345,31 +345,6 @@ private:
     Track &operator=(const Track &);
 };
 
-MPEG4Writer::MPEG4Writer(const char *filename)
-    : mFd(-1),
-      mInitCheck(NO_INIT),
-      mIsRealTimeRecording(true),
-      mUse4ByteNalLength(true),
-      mUse32BitOffset(true),
-      mIsFileSizeLimitExplicitlyRequested(false),
-      mPaused(false),
-      mStarted(false),
-      mWriterThreadStarted(false),
-      mOffset(0),
-      mMdatOffset(0),
-      mEstimatedMoovBoxSize(0),
-      mInterleaveDurationUs(1000000),
-      mLatitudex10000(0),
-      mLongitudex10000(0),
-      mAreGeoTagsAvailable(false),
-      mStartTimeOffsetMs(-1) {
-
-    mFd = open(filename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
-    if (mFd >= 0) {
-        mInitCheck = OK;
-    }
-}
-
 MPEG4Writer::MPEG4Writer(int fd)
     : mFd(dup(fd)),
       mInitCheck(mFd < 0? NO_INIT: OK),

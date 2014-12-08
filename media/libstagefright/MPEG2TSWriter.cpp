@@ -480,19 +480,6 @@ MPEG2TSWriter::MPEG2TSWriter(int fd)
     init();
 }
 
-MPEG2TSWriter::MPEG2TSWriter(const char *filename)
-    : mFile(fopen(filename, "wb")),
-      mWriteCookie(NULL),
-      mWriteFunc(NULL),
-      mStarted(false),
-      mNumSourcesDone(0),
-      mNumTSPacketsWritten(0),
-      mNumTSPacketsBeforeMeta(0),
-      mPATContinuityCounter(0),
-      mPMTContinuityCounter(0) {
-    init();
-}
-
 MPEG2TSWriter::MPEG2TSWriter(
         void *cookie,
         ssize_t (*write)(void *cookie, const void *data, size_t size))

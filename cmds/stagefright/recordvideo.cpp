@@ -17,6 +17,10 @@
 #include "SineSource.h"
 
 #include <inttypes.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <binder/ProcessState.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/AudioPlayer.h>
@@ -300,7 +304,13 @@ int main(int argc, char **argv) {
                 client.interface(), enc_meta, true /* createEncoder */, source,
                 0, preferSoftwareCodec ? OMXCodec::kPreferSoftwareCodecs : 0);
 
-    sp<MPEG4Writer> writer = new MPEG4Writer(fileName);
+    int fd = open(fileName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+    if (fd < 0) {
+        fprintf(stderr, "couldn't open file");
+        return 1;
+    }
+    sp<MPEG4Writer> writer = new MPEG4Writer(fd);
+    close(fd);
     writer->addSource(encoder);
     int64_t start = systemTime();
     CHECK_EQ((status_t)OK, writer->start());

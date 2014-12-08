@@ -29,7 +29,6 @@ struct ABuffer;
 
 struct MPEG2TSWriter : public MediaWriter {
     MPEG2TSWriter(int fd);
-    MPEG2TSWriter(const char *filename);
 
     MPEG2TSWriter(
             void *cookie,

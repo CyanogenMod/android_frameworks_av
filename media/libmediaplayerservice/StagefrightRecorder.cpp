@@ -241,14 +241,6 @@ status_t StagefrightRecorder::setPreviewSurface(const sp<IGraphicBufferProducer>
     return OK;
 }
 
-status_t StagefrightRecorder::setOutputFile(const char * /* path */) {
-    ALOGE("setOutputFile(const char*) must not be called");
-    // We don't actually support this at all, as the media_server process
-    // no longer has permissions to create files.
-
-    return -EPERM;
-}
-
 status_t StagefrightRecorder::setOutputFile(int fd, int64_t offset, int64_t length) {
     ALOGV("setOutputFile: %d, %lld, %lld", fd, offset, length);
     // These don't make any sense, do they?
