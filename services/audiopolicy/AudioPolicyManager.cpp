@@ -6325,6 +6325,10 @@ void AudioPolicyManager::AudioPort::loadGains(cnode *root)
 
 status_t AudioPolicyManager::AudioPort::checkExactSamplingRate(uint32_t samplingRate) const
 {
+    if (mSamplingRates.isEmpty()) {
+        return NO_ERROR;
+    }
+
     for (size_t i = 0; i < mSamplingRates.size(); i ++) {
         if (mSamplingRates[i] == samplingRate) {
             return NO_ERROR;
@@ -6336,6 +6340,10 @@ status_t AudioPolicyManager::AudioPort::checkExactSamplingRate(uint32_t sampling
 status_t AudioPolicyManager::AudioPort::checkCompatibleSamplingRate(uint32_t samplingRate,
         uint32_t *updatedSamplingRate) const
 {
+    if (mSamplingRates.isEmpty()) {
+        return NO_ERROR;
+    }
+
     // Search for the closest supported sampling rate that is above (preferred)
     // or below (acceptable) the desired sampling rate, within a permitted ratio.
     // The sampling rates do not need to be sorted in ascending order.
@@ -6394,6 +6402,10 @@ status_t AudioPolicyManager::AudioPort::checkCompatibleSamplingRate(uint32_t sam
 
 status_t AudioPolicyManager::AudioPort::checkExactChannelMask(audio_channel_mask_t channelMask) const
 {
+    if (mChannelMasks.isEmpty()) {
+        return NO_ERROR;
+    }
+
     for (size_t i = 0; i < mChannelMasks.size(); i++) {
         if (mChannelMasks[i] == channelMask) {
             return NO_ERROR;
@@ -6405,6 +6417,10 @@ status_t AudioPolicyManager::AudioPort::checkExactChannelMask(audio_channel_mask
 status_t AudioPolicyManager::AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask)
         const
 {
+    if (mChannelMasks.isEmpty()) {
+        return NO_ERROR;
+    }
+
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
     for (size_t i = 0; i < mChannelMasks.size(); i ++) {
         // FIXME Does not handle multi-channel automatic conversions yet
@@ -6428,6 +6444,10 @@ status_t AudioPolicyManager::AudioPort::checkCompatibleChannelMask(audio_channel
 
 status_t AudioPolicyManager::AudioPort::checkFormat(audio_format_t format) const
 {
+    if (mFormats.isEmpty()) {
+        return NO_ERROR;
+    }
+
     for (size_t i = 0; i < mFormats.size(); i ++) {
         if (mFormats[i] == format) {
             return NO_ERROR;
