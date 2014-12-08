@@ -1,10 +1,12 @@
 LOCAL_PATH:= $(call my-dir)
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_COMPRESS_VOIP)),true)
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_COMPRESS_VOIP)),false)
 common_cflags += -DAUDIO_EXTN_COMPRESS_VOIP_ENABLED
 endif
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FORMATS)),true)
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FORMATS)),false)
 common_cflags += -DAUDIO_EXTN_FORMATS_ENABLED
 endif
 
@@ -16,7 +18,7 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_SPK)),true)
 common_cflags += -DAUDIO_EXTN_HDMI_SPK_ENABLED
 endif
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_INCALL_MUSIC)),true)
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_INCALL_MUSIC)),false)
 common_cflags += -DAUDIO_EXTN_INCALL_MUSIC_ENABLED
 endif
 
@@ -24,11 +26,7 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MULTIPLE_TUNNEL)), true)
 common_cflags += -DMULTIPLE_OFFLOAD_ENABLED
 endif
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD)),true)
-common_cflags += -DPCM_OFFLOAD_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),true)
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),false)
 common_cflags += -DAUDIO_EXTN_AFE_PROXY_ENABLED
 endif
 
@@ -58,6 +56,8 @@ endif #DOLBY_END
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 common_cflags += -DENABLE_AV_ENHANCEMENTS
+endif
+
 endif
 
 include $(CLEAR_VARS)

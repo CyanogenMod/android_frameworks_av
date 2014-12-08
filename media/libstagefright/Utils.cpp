@@ -40,9 +40,7 @@
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include "QCMediaDefs.h"
 #include "QCMetaData.h"
-#if defined(FLAC_OFFLOAD_ENABLED) || defined(PCM_OFFLOAD_ENABLED_24)
 #include "audio_defs.h"
-#endif
 #endif
 
 namespace android {

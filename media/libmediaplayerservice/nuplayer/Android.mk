@@ -36,10 +36,6 @@ LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
 LOCAL_CFLAGS += -DQTI_FLAC_DECODER
 endif
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD)),true)
-LOCAL_CFLAGS += -DPCM_OFFLOAD_ENABLED
-endif
-
 endif
 
 LOCAL_MODULE:= libstagefright_nuplayer
