@@ -1328,12 +1328,12 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
             if (AUDIO_OUTPUT_FLAG_VOIP_RX & flags) {
                 // allow VoIP using voice path
                 // Do nothing
-            } else if((flags & AUDIO_OUTPUT_FLAG_FAST) != 0) {
+            } else if((flags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
                 ALOGD(" MODE_IN_COMM is setforcing deep buffer output for non ULL... flags: %x", flags);
                 // use deep buffer path for all non ULL outputs
                 flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
             }
-        } else if ((flags & AUDIO_OUTPUT_FLAG_FAST) != 0) {
+        } else if ((flags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
             ALOGD(" Record mode is on forcing deep buffer output for non ULL... flags: %x ", flags);
             // use deep buffer path for all non ULL outputs
             flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
