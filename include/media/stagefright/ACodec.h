@@ -182,6 +182,7 @@ private:
     sp<ANativeWindow> mNativeWindow;
     sp<AMessage> mInputFormat;
     sp<AMessage> mOutputFormat;
+    sp<AMessage> mBaseOutputFormat;
 
     Vector<BufferInfo> mBuffers[2];
     bool mPortEOS[2];

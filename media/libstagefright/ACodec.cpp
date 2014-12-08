@@ -1157,7 +1157,7 @@ status_t ACodec::configureCodec(
     }
 
     sp<AMessage> inputFormat = new AMessage();
-    sp<AMessage> outputFormat = new AMessage();
+    sp<AMessage> outputFormat = mNotify->dup(); // will use this for kWhatOutputFormatChanged
 
     mIsEncoder = encoder;
 
@@ -1541,6 +1541,8 @@ status_t ACodec::configureCodec(
     } else if (!strcmp("OMX.Nvidia.aac.decoder", mComponentName.c_str())) {
         err = setMinBufferSize(kPortIndexInput, 8192);  // XXX
     }
+
+    mBaseOutputFormat = outputFormat;
 
     CHECK_EQ(getPortFormat(kPortIndexInput, inputFormat), (status_t)OK);
     CHECK_EQ(getPortFormat(kPortIndexOutput, outputFormat), (status_t)OK);
@@ -3531,7 +3533,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 }
 
 void ACodec::sendFormatChange(const sp<AMessage> &reply) {
-    sp<AMessage> notify = mNotify->dup();
+    sp<AMessage> notify = mBaseOutputFormat->dup();
     notify->setInt32("what", kWhatOutputFormatChanged);
 
     CHECK_EQ(getPortFormat(kPortIndexOutput, notify), (status_t)OK);
@@ -4645,6 +4647,7 @@ void ACodec::LoadedState::stateEntered() {
     mCodec->mRepeatFrameDelayUs = -1ll;
     mCodec->mInputFormat.clear();
     mCodec->mOutputFormat.clear();
+    mCodec->mBaseOutputFormat.clear();
 
     if (mCodec->mShutdownInProgress) {
         bool keepComponentAllocated = mCodec->mKeepComponentAllocated;
