@@ -106,7 +106,6 @@ status_t TiffWriter::write(Output* out, StripSource** sources, size_t sourcesCou
 
     for (size_t i = 0; i < offVecSize; ++i) {
         uint32_t ifdKey = offsetVector.keyAt(i);
-        uint32_t nextOffset = offsetVector[i];
         uint32_t sizeToWrite = mNamedIfds[ifdKey]->getStripSize();
         bool found = false;
         for (size_t j = 0; j < sourcesCount; ++j) {
@@ -124,7 +123,7 @@ status_t TiffWriter::write(Output* out, StripSource** sources, size_t sourcesCou
             ALOGE("%s: No stream for byte strips for IFD %u", __FUNCTION__, ifdKey);
             return BAD_VALUE;
         }
-        assert(nextOffset == endOut.getCurrentOffset());
+        assert(offsetVector[i] == endOut.getCurrentOffset());
     }
 
     return ret;
