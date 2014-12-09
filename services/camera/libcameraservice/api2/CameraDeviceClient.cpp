@@ -353,6 +353,14 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
         useAsync = true;
     }
 
+    int32_t disallowedFlags = GraphicBuffer::USAGE_HW_VIDEO_ENCODER |
+                              GRALLOC_USAGE_RENDERSCRIPT;
+    int32_t allowedFlags = GraphicBuffer::USAGE_SW_READ_MASK |
+                           GraphicBuffer::USAGE_HW_TEXTURE |
+                           GraphicBuffer::USAGE_HW_COMPOSER;
+    bool flexibleConsumer = (consumerUsage & disallowedFlags) == 0 &&
+            (consumerUsage & allowedFlags) != 0;
+
     sp<IBinder> binder;
     sp<ANativeWindow> anw;
     if (bufferProducer != 0) {
@@ -382,14 +390,18 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
     //       IMPLEMENTATION_DEFINED. b/9487482
     if (format >= HAL_PIXEL_FORMAT_RGBA_8888 &&
         format <= HAL_PIXEL_FORMAT_BGRA_8888) {
-        ALOGW("%s: Camera %d: Overriding format 0x%x to IMPLEMENTATION_DEFINED",
+        ALOGW("%s: Camera %d: Overriding format %#x to IMPLEMENTATION_DEFINED",
               __FUNCTION__, mCameraId, format);
         format = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     }
 
-    // TODO: add startConfigure/stopConfigure call to CameraDeviceBase
-    // this will make it so Camera3Device doesn't call configure_streams
-    // after each call, but only once we are done with all.
+    // Round dimensions to the nearest dimensions available for this format
+    if (flexibleConsumer && !CameraDeviceClient::roundBufferDimensionNearest(width, height,
+            format, mDevice->info(), /*out*/&width, /*out*/&height)) {
+        ALOGE("%s: No stream configurations with the format %#x defined, failed to create stream.",
+                __FUNCTION__, format);
+        return BAD_VALUE;
+    }
 
     int streamId = -1;
     res = mDevice->createStream(anw, width, height, format, &streamId);
@@ -423,6 +435,62 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
     }
 
     return res;
+}
+
+
+bool CameraDeviceClient::roundBufferDimensionNearest(int32_t width, int32_t height,
+        int32_t format, const CameraMetadata& info,
+        /*out*/int32_t* outWidth, /*out*/int32_t* outHeight) {
+
+    camera_metadata_ro_entry streamConfigs =
+            info.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+
+    int32_t bestWidth = -1;
+    int32_t bestHeight = -1;
+
+    // Iterate through listed stream configurations and find the one with the smallest euclidean
+    // distance from the given dimensions for the given format.
+    for (size_t i = 0; i < streamConfigs.count; i += 4) {
+        int32_t fmt = streamConfigs.data.i32[i];
+        int32_t w = streamConfigs.data.i32[i + 1];
+        int32_t h = streamConfigs.data.i32[i + 2];
+
+        // Ignore input/output type for now
+        if (fmt == format) {
+            if (w == width && h == height) {
+                bestWidth = width;
+                bestHeight = height;
+                break;
+            } else if (w <= ROUNDING_WIDTH_CAP && (bestWidth == -1 ||
+                    CameraDeviceClient::euclidDistSquare(w, h, width, height) <
+                    CameraDeviceClient::euclidDistSquare(bestWidth, bestHeight, width, height))) {
+                bestWidth = w;
+                bestHeight = h;
+            }
+        }
+    }
+
+    if (bestWidth == -1) {
+        // Return false if no configurations for this format were listed
+        return false;
+    }
+
+    // Set the outputs to the closet width/height
+    if (outWidth != NULL) {
+        *outWidth = bestWidth;
+    }
+    if (outHeight != NULL) {
+        *outHeight = bestHeight;
+    }
+
+    // Return true if at least one configuration for this format was listed
+    return true;
+}
+
+int64_t CameraDeviceClient::euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
+    int64_t d0 = x0 - x1;
+    int64_t d1 = y0 - y1;
+    return d0 * d0 + d1 * d1;
 }
 
 // Create a request object from a template.
