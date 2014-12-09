@@ -205,7 +205,7 @@ int16 div_16by16(int16 var1, int16 var2)
 {
 
     int16 var_out = 0;
-    register int16 iteration;
+    int16 iteration;
     int32 L_num;
     int32 L_denom;
     int32 L_denom_by_2;

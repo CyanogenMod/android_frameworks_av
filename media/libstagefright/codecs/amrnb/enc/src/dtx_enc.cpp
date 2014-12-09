@@ -130,7 +130,7 @@ terms listed above has been obtained from the copyright holder.
 ; MACROS
 ; Define module specific macros here
 ----------------------------------------------------------------------------*/
-extern Word32 L_add(register Word32 L_var1, register Word32 L_var2, Flag *pOverflow);
+extern Word32 L_add(Word32 L_var1, Word32 L_var2, Flag *pOverflow);
 
 /*----------------------------------------------------------------------------
 ; DEFINES
@@ -671,7 +671,7 @@ void dtx_enc(dtx_encState *st,        /* i/o : State struct                  */
              Flag   *pOverflow        /* i/o : overflow indicator            */
             )
 {
-    register Word16 i, j;
+    Word16 i, j;
     Word16 temp;
     Word16 log_en;
     Word16 lsf[M];
@@ -943,7 +943,7 @@ void dtx_buffer(dtx_encState *st,   /* i/o : State struct                    */
                )
 {
 
-    register Word16 i;
+    Word16 i;
     Word32 L_frame_en;
     Word32 L_temp;
     Word16 log_en_e;

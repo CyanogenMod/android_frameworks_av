@@ -445,13 +445,13 @@ void Post_Filter(
 )
 {
     Word16 Ap3[MP1];
-    Word16 Ap4[MP1];            /* bandwidth expanded LP parameters */
-    Word16 *Az;                 /* pointer to Az_4:                 */
+    Word16 Ap4[MP1];      /* bandwidth expanded LP parameters */
+    Word16 *Az;           /* pointer to Az_4:                 */
     /*  LPC parameters in each subframe */
-    register Word16 i_subfr;    /* index for beginning of subframe  */
+    Word16 i_subfr;       /* index for beginning of subframe  */
     Word16 h[L_H];
 
-    register Word16 i;
+    Word16 i;
     Word16 temp1;
     Word16 temp2;
     Word32 L_tmp;

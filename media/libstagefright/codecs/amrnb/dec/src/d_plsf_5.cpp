@@ -308,7 +308,7 @@ void D_plsf_5(
     Flag  *pOverflow    /* o : Flag set when overflow occurs                */
 )
 {
-    register Word16 i;
+    Word16 i;
     Word16 temp;
     Word16 sign;
 

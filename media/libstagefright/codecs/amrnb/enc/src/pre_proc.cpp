@@ -542,7 +542,7 @@ void Pre_Process(
     Word16 signal[], /* input/output signal */
     Word16 lg)       /* length of signal    */
 {
-    register Word16 i;
+    Word16 i;
     Word16 x_n_2;
     Word16 x_n_1;
     Word32 L_tmp;

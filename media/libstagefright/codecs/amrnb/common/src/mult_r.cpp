@@ -190,7 +190,7 @@ Word16 mult_r (Word16 var1, Word16 var2)
 Word16 mult_r(Word16 var1, Word16 var2, Flag *pOverflow)
 {
 
-    register Word32 L_product_arr;
+    Word32 L_product_arr;
 
     L_product_arr = ((Word32) var1) * var2;              /* product */
     L_product_arr += (Word32) 0x00004000L;               /* round */
