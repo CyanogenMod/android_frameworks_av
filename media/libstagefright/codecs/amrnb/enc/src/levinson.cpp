@@ -638,8 +638,8 @@ Word16 Levinson(
     Flag   *pOverflow
 )
 {
-    register Word16 i;
-    register Word16 j;
+    Word16 i;
+    Word16 j;
     Word16 hi;
     Word16 lo;
     Word16 Kh;                    /* reflexion coefficient; hi and lo   */
@@ -651,9 +651,9 @@ Word16 Levinson(
     Word16 Al[M + 1];
     Word16 Anh[M + 1];            /* LPC coef.for next iteration in     */
     Word16 Anl[M + 1];            /* double prec.                       */
-    register Word32 t0;           /* temporary variable                 */
-    register Word32 t1;           /* temporary variable                 */
-    register Word32 t2;           /* temporary variable                 */
+    Word32 t0;                    /* temporary variable                 */
+    Word32 t1;                    /* temporary variable                 */
+    Word32 t2;                    /* temporary variable                 */
 
     Word16 *p_Rh;
     Word16 *p_Rl;

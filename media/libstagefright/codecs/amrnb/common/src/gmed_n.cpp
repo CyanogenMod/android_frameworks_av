@@ -185,9 +185,9 @@ Word16 gmed_n(            /* o : the median value    */
     Word16 n        /* i : number of inputs    */
 )
 {
-    register Word16 i, j, ix = 0;
-    register Word16 max;
-    register Word16 medianIndex;
+    Word16 i, j, ix = 0;
+    Word16 max;
+    Word16 medianIndex;
     Word16  tmp[NMAX];
     Word16  tmp2[NMAX];
 

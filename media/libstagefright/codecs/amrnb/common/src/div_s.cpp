@@ -207,13 +207,13 @@ Word16 div_s (Word16 var1, Word16 var2)
 /*----------------------------------------------------------------------------
 ; FUNCTION CODE
 ----------------------------------------------------------------------------*/
-Word16 div_s(register Word16 var1, register Word16 var2)
+Word16 div_s(Word16 var1, Word16 var2)
 {
     /*----------------------------------------------------------------------------
     ; Define all local variables
     ----------------------------------------------------------------------------*/
     Word16 var_out = 0;
-    register Word16 iteration;
+    Word16 iteration;
     Word32 L_num;
     Word32 L_denom;
     Word32 L_denom_by_2;

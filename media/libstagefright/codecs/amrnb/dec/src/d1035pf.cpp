@@ -209,7 +209,7 @@ void dec_10i40_35bits(
     Word16 cod[]       /* (o)     : algebraic (fixed) codebook excitation    */
 )
 {
-    register Word16 i, j, pos1, pos2;
+    Word16 i, j, pos1, pos2;
     Word16 sign, tmp;
 
     for (i = 0; i < L_CODE; i++)

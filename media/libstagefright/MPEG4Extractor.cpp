@@ -766,7 +766,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         return ERROR_IO;
     }
     uint64_t chunk_size = ntohl(hdr[0]);
-    uint32_t chunk_type = ntohl(hdr[1]);
+    int32_t chunk_type = ntohl(hdr[1]);
     off64_t data_offset = *offset + 8;
 
     if (chunk_size == 1) {
@@ -2227,7 +2227,7 @@ status_t MPEG4Extractor::parseITunesMetaData(off64_t offset, size_t size) {
     char chunk[5];
     MakeFourCCString(mPath[4], chunk);
     ALOGV("meta: %s @ %lld", chunk, offset);
-    switch (mPath[4]) {
+    switch ((int32_t)mPath[4]) {
         case FOURCC(0xa9, 'a', 'l', 'b'):
         {
             metadataKey = kKeyAlbum;
