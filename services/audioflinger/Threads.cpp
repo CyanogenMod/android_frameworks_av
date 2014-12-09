@@ -2754,7 +2754,8 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
     if (mNormalSink != 0) {
         return mNormalSink->getTimestamp(timestamp);
     }
-    if ((mType == OFFLOAD || mType == DIRECT) && mOutput->stream->get_presentation_position) {
+    if ((mType == OFFLOAD || mType == DIRECT)
+            && mOutput != NULL && mOutput->stream->get_presentation_position) {
         uint64_t position64;
         int ret = mOutput->stream->get_presentation_position(
                                                 mOutput->stream, &position64, &timestamp.mTime);
