@@ -596,6 +596,10 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
                     supportedSceneModes +=
                         CameraParameters::SCENE_MODE_BARCODE;
                     break;
+                case ANDROID_CONTROL_SCENE_MODE_HDR:
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_HDR;
+                    break;
                 default:
                     ALOGW("%s: Camera %d: Unknown scene mode value: %d",
                         __FUNCTION__, cameraId,
@@ -2386,6 +2390,8 @@ int Parameters::sceneModeStringToEnum(const char *sceneMode) {
             ANDROID_CONTROL_SCENE_MODE_CANDLELIGHT :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_BARCODE) ?
             ANDROID_CONTROL_SCENE_MODE_BARCODE:
+        !strcmp(sceneMode, CameraParameters::SCENE_MODE_HDR) ?
+            ANDROID_CONTROL_SCENE_MODE_HDR:
         -1;
 }
 
