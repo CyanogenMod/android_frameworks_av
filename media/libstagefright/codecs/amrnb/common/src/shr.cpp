@@ -202,10 +202,10 @@ Word16 shr_std (Word16 var1, Word16 var2)
 /*----------------------------------------------------------------------------
 ; FUNCTION CODE
 ----------------------------------------------------------------------------*/
-Word16 shr(register Word16 var1, register Word16 var2, Flag *pOverflow)
+Word16 shr(Word16 var1, Word16 var2, Flag *pOverflow)
 {
-    register Word16 result;
-    register Word32 temp_res;
+    Word16 result;
+    Word32 temp_res;
 
     if (var2 != 0)
     {

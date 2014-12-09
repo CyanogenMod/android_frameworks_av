@@ -320,7 +320,7 @@ static Word16 Lag_max(  /* o   : lag found                               */
 )
 #endif
 {
-    register Word16 i;
+    Word16 i;
     Word16 *p;
     Word32 max;
     Word32 t0;

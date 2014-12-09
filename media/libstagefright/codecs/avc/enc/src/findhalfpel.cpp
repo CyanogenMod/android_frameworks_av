@@ -151,7 +151,7 @@ void GenerateHalfPelPred(uint8* subpel_pred, uint8 *ncand, int lx)
     uint8 tmp8;
     int32 tmp32;
     int16 tmp_horz[18*22], *dst_16, *src_16;
-    register int a = 0, b = 0, c = 0, d = 0, e = 0, f = 0; // temp register
+    int a = 0, b = 0, c = 0, d = 0, e = 0, f = 0; // temp
     int i, j;
 
     /* first copy full-pel to the first array */

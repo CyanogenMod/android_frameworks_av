@@ -272,8 +272,8 @@ void cor_h(
     Flag  *pOverflow
 )
 {
-    register Word16 i;
-    register Word16 dec;
+    Word16 i;
+    Word16 dec;
 
     Word16 h2[L_CODE];
     Word32 s;

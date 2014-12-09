@@ -267,7 +267,7 @@ extern "C"
     Void Block4x4DCT_AANwSub(Short *out, UChar *cur, UChar *pred, Int width)
     {
         Short *dst;
-        register Int k0, k1, k2, k3, k4, k5, k6, k7;
+        Int k0, k1, k2, k3, k4, k5, k6, k7;
         Int round;
         Int k12 = 0x022A02D4;
         Int k14 = 0x0188053A;
@@ -473,7 +473,7 @@ extern "C"
     Void Block2x2DCT_AANwSub(Short *out, UChar *cur, UChar *pred, Int width)
     {
         Short *dst;
-        register Int k0, k1, k2, k3, k4, k5, k6, k7;
+        Int k0, k1, k2, k3, k4, k5, k6, k7;
         Int round;
         Int k12 = 0x022A02D4;
         Int k14 = 0x018803B2;
@@ -863,7 +863,7 @@ extern "C"
     Void Block4x4DCT_AANIntra(Short *out, UChar *cur, UChar *dummy2, Int width)
     {
         Short *dst;
-        register Int k0, k1, k2, k3, k4, k5, k6, k7;
+        Int k0, k1, k2, k3, k4, k5, k6, k7;
         Int round;
         Int k12 = 0x022A02D4;
         Int k14 = 0x0188053A;
@@ -1050,7 +1050,7 @@ extern "C"
     Void Block2x2DCT_AANIntra(Short *out, UChar *cur, UChar *dummy2, Int width)
     {
         Short *dst;
-        register Int k0, k1, k2, k3, k4, k5, k6, k7;
+        Int k0, k1, k2, k3, k4, k5, k6, k7;
         Int round;
         Int k12 = 0x022A02D4;
         Int k14 = 0x018803B2;

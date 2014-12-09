@@ -178,7 +178,7 @@ void Weight_Ai(
     Word16 a_exp[]      /* (o)   : Spectral expanded LPC coefficients   */
 )
 {
-    register Word16 i;
+    Word16 i;
 
     *(a_exp) = *(a);
 

@@ -260,9 +260,9 @@ void Pred_lt_3or6(
     Flag  *pOverflow  /* output: if set, overflow occurred in this function */
 )
 {
-    register Word16 i;
-    register Word16 j;
-    register Word16 k;
+    Word16 i;
+    Word16 j;
+    Word16 k;
 
     Word16 *pX0;
     Word16 *pX2;

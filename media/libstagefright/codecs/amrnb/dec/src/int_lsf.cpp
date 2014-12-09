@@ -218,9 +218,9 @@ void Int_lsf(
     Flag  *pOverflow  /* o : flag set if overflow occurs                    */
 )
 {
-    register Word16 i;
-    register Word16 temp1;
-    register Word16 temp2;
+    Word16 i;
+    Word16 temp1;
+    Word16 temp2;
 
     if (i_subfr == 0)
     {

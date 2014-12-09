@@ -248,7 +248,7 @@ void set_sign(Word16 dn[],   /* i/o : correlation between target and h[]    */
               Word16 n       /* i   : # of maximum correlations in dn2[]    */
              )
 {
-    register Word16 i, j, k;
+    Word16 i, j, k;
     Word16 val, min;
     Word16 pos = 0; /* initialization only needed to keep gcc silent */
 
