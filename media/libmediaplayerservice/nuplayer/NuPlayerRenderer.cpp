@@ -1321,8 +1321,13 @@ void NuPlayer::Renderer::onResume() {
     }
 
     if (mHasAudio) {
+        status_t status = NO_ERROR;
         cancelAudioOffloadPauseTimeout();
-        mAudioSink->start();
+        status = mAudioSink->start();
+        if (offloadingAudio() && status != NO_ERROR) {
+            ALOGD("received error :%d on resume for offload track posting TEAR_DOWN event",status);
+            notifyAudioOffloadTearDown();
+        }
     }
 
     Mutex::Autolock autoLock(mLock);
