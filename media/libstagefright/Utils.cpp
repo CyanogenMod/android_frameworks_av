@@ -40,7 +40,9 @@
 #ifdef ENABLE_AV_ENHANCEMENTS
 #include "QCMediaDefs.h"
 #include "QCMetaData.h"
+#ifndef LEGACY_ALSA_AUDIO
 #include "audio_defs.h"
+#endif
 #endif
 
 namespace android {
