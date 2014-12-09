@@ -281,7 +281,7 @@ static Word16 Vq_subvec4( /* o: quantization index,            Q0  */
     Flag  *pOverflow      /* o : Flag set when overflow occurs     */
 )
 {
-    register Word16 i;
+    Word16 i;
     Word16 temp;
     const Word16 *p_dico;
     Word16 index = 0;
@@ -607,7 +607,7 @@ static Word16 Vq_subvec3( /* o: quantization index,            Q0  */
     Flag use_half,        /* i: use every second entry in codebook */
     Flag  *pOverflow)     /* o : Flag set when overflow occurs     */
 {
-    register Word16 i;
+    Word16 i;
     Word16 temp;
 
     const Word16 *p_dico;
@@ -1013,7 +1013,7 @@ void Q_plsf_3(
     Flag  *pOverflow    /* o : Flag set when overflow occurs             */
 )
 {
-    register Word16 i, j;
+    Word16 i, j;
     Word16 lsf1[M];
     Word16 wf1[M];
     Word16 lsf_p[M];

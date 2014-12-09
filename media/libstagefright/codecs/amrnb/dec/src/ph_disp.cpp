@@ -207,7 +207,7 @@ int ph_disp_reset (ph_dispState *state)
 
 Word16 ph_disp_reset(ph_dispState *state)
 {
-    register Word16 i;
+    Word16 i;
 
     if (state == (ph_dispState *) NULL)
     {
@@ -667,15 +667,15 @@ void ph_disp(
     Flag   *pOverflow       /* i/o     : oveflow indicator                  */
 )
 {
-    register Word16 i, i1;
-    register Word16 tmp1;
+    Word16 i, i1;
+    Word16 tmp1;
     Word32 L_temp;
     Word32 L_temp2;
     Word16 impNr;           /* indicator for amount of disp./filter used */
 
     Word16 inno_sav[L_SUBFR];
     Word16 ps_poss[L_SUBFR];
-    register Word16 nze, nPulse;
+    Word16 nze, nPulse;
     Word16 ppos;
     const Word16 *ph_imp;   /* Pointer to phase dispersion filter */
 

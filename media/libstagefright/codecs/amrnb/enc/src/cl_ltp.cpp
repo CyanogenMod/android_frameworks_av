@@ -638,7 +638,7 @@ void cl_ltp(
     Flag   *pOverflow    /* o   : overflow indicator                        */
 )
 {
-    register Word16 i;
+    Word16 i;
     Word16 index;
     Word32 L_temp;     /* temporarily variable */
     Word16 resu3;      /* flag for upsample resolution */

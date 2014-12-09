@@ -306,9 +306,9 @@ Word16 Autocorr(
     Flag  *pOverflow       /* (o)    : indicates overflow                 */
 )
 {
-    register Word16 i;
-    register Word16 j;
-    register Word16 norm;
+    Word16 i;
+    Word16 j;
+    Word16 norm;
 
     Word16 y[L_WINDOW];
     Word32 sum;

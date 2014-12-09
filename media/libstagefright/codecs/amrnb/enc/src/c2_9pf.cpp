@@ -318,7 +318,7 @@ extern "C"
         Word16 dn_sign[L_CODE];
         Word16 rr[L_CODE][L_CODE];
 
-        register Word16 i;
+        Word16 i;
 
         Word16 index;
         Word16 sharp;
@@ -592,10 +592,10 @@ extern "C"
         Flag   * pOverflow   /* o : Flag set when overflow occurs      */
     )
     {
-        register Word16 i0;
-        register Word16 i1;
+        Word16 i0;
+        Word16 i1;
         Word16 ix = 0; /* initialization only needed to keep gcc silent */
-        register Word16  track1;
+        Word16 track1;
         Word16 ipos[NB_PULSE];
         Word16 psk;
         Word16 ps0;
@@ -608,7 +608,7 @@ extern "C"
         Word32 s;
         Word32 alp0;
         Word32 alp1;
-        register Word16 i;
+        Word16 i;
         Word32 L_temp;
         Word16 *p_codvec = &codvec[0];
 
@@ -993,13 +993,13 @@ extern "C"
         Flag  *pOverflow  /* o : Flag set when overflow occurs              */
     )
     {
-        register Word16 i;
-        register Word16 j;
-        register Word16 k;
-        register Word16 track;
-        register Word16 first;
-        register Word16 index;
-        register Word16 rsign;
+        Word16 i;
+        Word16 j;
+        Word16 k;
+        Word16 track;
+        Word16 first;
+        Word16 index;
+        Word16 rsign;
         Word16 indx;
         Word16 _sign[NB_PULSE];
         Word16 *p0;

@@ -212,7 +212,7 @@ void Convolve(
     Word16 L           /* (i)     : vector size                            */
 )
 {
-    register Word16 i, n;
+    Word16 i, n;
     Word32 s1, s2;
 
 
