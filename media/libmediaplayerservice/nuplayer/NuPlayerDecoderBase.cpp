@@ -28,8 +28,10 @@
 
 namespace android {
 
-NuPlayer::DecoderBase::DecoderBase()
-    : mRequestInputBuffersPending(false) {
+NuPlayer::DecoderBase::DecoderBase(const sp<AMessage> &notify)
+    :  mNotify(notify),
+       mBufferGeneration(0),
+       mRequestInputBuffersPending(false) {
     // Every decoder has its own looper because MediaCodec operations
     // are blocking, but NuPlayer needs asynchronous operations.
     mDecoderLooper = new ALooper;
@@ -178,6 +180,20 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
             TRESPASS();
             break;
     }
+}
+
+void NuPlayer::DecoderBase::handleError(int32_t err)
+{
+    // We cannot immediately release the codec due to buffers still outstanding
+    // in the renderer.  We signal to the player the error so it can shutdown/release the
+    // decoder after flushing and increment the generation to discard unnecessary messages.
+
+    ++mBufferGeneration;
+
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatError);
+    notify->setInt32("err", err);
+    notify->post();
 }
 
 }  // namespace android

@@ -29,7 +29,7 @@ struct MediaCodec;
 struct MediaBuffer;
 
 struct NuPlayer::DecoderBase : public AHandler {
-    DecoderBase();
+    DecoderBase(const sp<AMessage> &notify);
 
     void configure(const sp<AMessage> &format);
     void init();
@@ -71,6 +71,10 @@ protected:
     void onRequestInputBuffers();
     void scheduleRequestBuffers();
     virtual void doRequestBuffers() = 0;
+    virtual void handleError(int32_t err);
+
+    sp<AMessage> mNotify;
+    int32_t mBufferGeneration;
 
 private:
     enum {
