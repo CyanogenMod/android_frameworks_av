@@ -116,6 +116,7 @@ ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
         LOCAL_CFLAGS += -DNO_TUNNEL_MODE_FOR_MULTICHANNEL
    endif
    LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
+   LOCAL_CFLAGS += -DLEGACY_ALSA_AUDIO
 endif
 endif
 endif
