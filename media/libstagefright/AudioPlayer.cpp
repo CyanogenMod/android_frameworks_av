@@ -245,7 +245,7 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
             offloadInfo.bit_rate = avgBitRate;
             offloadInfo.has_video = ((mCreateFlags & HAS_VIDEO) != 0);
             offloadInfo.is_streaming = ((mCreateFlags & IS_STREAMING) != 0);
-            mUseSmallBufs = ((audioFormat & AUDIO_FORMAT_PCM_16_BIT_OFFLOAD) != 0);
+            mUseSmallBufs = (audioFormat == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD);
             offloadInfo.use_small_bufs = mUseSmallBufs;
         } else {
             mUseSmallBufs = false;
