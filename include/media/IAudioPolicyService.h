@@ -25,6 +25,7 @@
 #include <utils/Errors.h>
 #include <binder/IInterface.h>
 #include <media/AudioSystem.h>
+#include <media/AudioPolicy.h>
 #include <media/IAudioPolicyServiceClient.h>
 
 #include <system/audio_policy.h>
@@ -150,6 +151,8 @@ public:
     virtual status_t releaseSoundTriggerSession(audio_session_t session) = 0;
 
     virtual audio_mode_t getPhoneState() = 0;
+
+    virtual status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration) = 0;
 };
 
 

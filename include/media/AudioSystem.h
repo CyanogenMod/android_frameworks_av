@@ -18,6 +18,7 @@
 #define ANDROID_AUDIOSYSTEM_H_
 
 #include <hardware/audio_effect.h>
+#include <media/AudioPolicy.h>
 #include <media/IAudioFlingerClient.h>
 #include <media/IAudioPolicyServiceClient.h>
 #include <system/audio.h>
@@ -323,6 +324,8 @@ public:
     static status_t releaseSoundTriggerSession(audio_session_t session);
 
     static audio_mode_t getPhoneState();
+
+    static status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration);
 
     // ----------------------------------------------------------------------------
 

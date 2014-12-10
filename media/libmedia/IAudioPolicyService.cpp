@@ -69,7 +69,8 @@ enum {
     GET_OUTPUT_FOR_ATTR,
     ACQUIRE_SOUNDTRIGGER_SESSION,
     RELEASE_SOUNDTRIGGER_SESSION,
-    GET_PHONE_STATE
+    GET_PHONE_STATE,
+    REGISTER_POLICY_MIXES,
 };
 
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
@@ -675,6 +676,38 @@ public:
         }
         return (audio_mode_t)reply.readInt32();
     }
+
+    virtual status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32(registration ? 1 : 0);
+        size_t size = mixes.size();
+        if (size > MAX_MIXES_PER_POLICY) {
+            size = MAX_MIXES_PER_POLICY;
+        }
+        size_t sizePosition = data.dataPosition();
+        data.writeInt32(size);
+        size_t finalSize = size;
+        for (size_t i = 0; i < size; i++) {
+            size_t position = data.dataPosition();
+            if (mixes[i].writeToParcel(&data) != NO_ERROR) {
+                data.setDataPosition(position);
+                finalSize--;
+            }
+        }
+        if (size != finalSize) {
+            size_t position = data.dataPosition();
+            data.setDataPosition(sizePosition);
+            data.writeInt32(finalSize);
+            data.setDataPosition(position);
+        }
+        status_t status = remote()->transact(REGISTER_POLICY_MIXES, data, &reply);
+        if (status == NO_ERROR) {
+            status = (status_t)reply.readInt32();
+        }
+        return status;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -1144,6 +1177,25 @@ status_t BnAudioPolicyService::onTransact(
         case GET_PHONE_STATE: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             reply->writeInt32((int32_t)getPhoneState());
+            return NO_ERROR;
+        } break;
+
+        case REGISTER_POLICY_MIXES: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            bool registration = data.readInt32() == 1;
+            Vector<AudioMix> mixes;
+            size_t size = (size_t)data.readInt32();
+            if (size > MAX_MIXES_PER_POLICY) {
+                size = MAX_MIXES_PER_POLICY;
+            }
+            for (size_t i = 0; i < size; i++) {
+                AudioMix mix;
+                if (mix.readFromParcel((Parcel*)&data) == NO_ERROR) {
+                    mixes.add(mix);
+                }
+            }
+            status_t status = registerPolicyMixes(mixes, registration);
+            reply->writeInt32(status);
             return NO_ERROR;
         } break;
 

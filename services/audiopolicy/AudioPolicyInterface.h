@@ -18,6 +18,7 @@
 #define ANDROID_AUDIOPOLICY_INTERFACE_H
 
 #include <media/AudioSystem.h>
+#include <media/AudioPolicy.h>
 #include <utils/String8.h>
 
 #include <hardware/audio_policy.h>
@@ -201,6 +202,9 @@ public:
                                            audio_devices_t *device) = 0;
 
     virtual status_t releaseSoundTriggerSession(audio_session_t session) = 0;
+
+    virtual status_t registerPolicyMixes(Vector<AudioMix> mixes) = 0;
+    virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes) = 0;
 };
 
 
