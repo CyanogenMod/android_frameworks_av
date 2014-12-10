@@ -23,6 +23,7 @@
 #include <gui/Surface.h>
 
 #include "include/StagefrightMetadataRetriever.h"
+#include "include/HTTPBase.h"
 
 #include <media/ICrypto.h>
 #include <media/IMediaHTTPService.h>
@@ -62,6 +63,12 @@ StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
     ALOGV("~StagefrightMetadataRetriever()");
     clearMetadata();
     mClient.disconnect();
+
+    if (mSource != NULL &&
+        (mSource->flags() & DataSource::kIsHTTPBasedSource)) {
+        mExtractor.clear();
+        static_cast<HTTPBase *>(mSource.get())->disconnect();
+    }
 }
 
 status_t StagefrightMetadataRetriever::setDataSource(
