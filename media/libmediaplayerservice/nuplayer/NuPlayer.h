@@ -99,6 +99,7 @@ private:
     struct CCDecoder;
     struct GenericSource;
     struct HTTPLiveSource;
+    struct HTTPLiveSourceCustom;
     struct Renderer;
     struct RTSPSource;
     struct StreamingSource;

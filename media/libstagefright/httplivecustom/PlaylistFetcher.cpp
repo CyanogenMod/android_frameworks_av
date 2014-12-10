@@ -21,7 +21,7 @@
 #include "PlaylistFetcher.h"
 
 #include "LiveDataSource.h"
-#include "LiveSession.h"
+#include "LiveSessionCustom.h"
 #include "M3UParser.h"
 
 #include "include/avc_utils.h"
@@ -53,7 +53,7 @@ const int32_t PlaylistFetcher::kNumSkipFrames = 10;
 
 PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
-        const sp<LiveSession> &session,
+        const sp<LiveSessionCustom> &session,
         const char *uri)
     : mNotify(notify),
       mStartTimeUsNotify(notify->dup()),
@@ -341,17 +341,17 @@ void PlaylistFetcher::startAsync(
 
     if (audioSource != NULL) {
         msg->setPointer("audioSource", audioSource.get());
-        streamTypeMask |= LiveSession::STREAMTYPE_AUDIO;
+        streamTypeMask |= LiveSessionCustom::STREAMTYPE_AUDIO;
     }
 
     if (videoSource != NULL) {
         msg->setPointer("videoSource", videoSource.get());
-        streamTypeMask |= LiveSession::STREAMTYPE_VIDEO;
+        streamTypeMask |= LiveSessionCustom::STREAMTYPE_VIDEO;
     }
 
     if (subtitleSource != NULL) {
         msg->setPointer("subtitleSource", subtitleSource.get());
-        streamTypeMask |= LiveSession::STREAMTYPE_SUBTITLES;
+        streamTypeMask |= LiveSessionCustom::STREAMTYPE_SUBTITLES;
     }
 
     msg->setInt32("streamTypeMask", streamTypeMask);
@@ -452,30 +452,30 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
     CHECK(msg->findInt64("minStartTimeUs", (int64_t *) &mMinStartTimeUs));
     CHECK(msg->findInt32("startSeqNumberHint", &startSeqNumberHint));
 
-    if (streamTypeMask & LiveSession::STREAMTYPE_AUDIO) {
+    if (streamTypeMask & LiveSessionCustom::STREAMTYPE_AUDIO) {
         void *ptr;
         CHECK(msg->findPointer("audioSource", &ptr));
 
         mPacketSources.add(
-                LiveSession::STREAMTYPE_AUDIO,
+                LiveSessionCustom::STREAMTYPE_AUDIO,
                 static_cast<AnotherPacketSource *>(ptr));
     }
 
-    if (streamTypeMask & LiveSession::STREAMTYPE_VIDEO) {
+    if (streamTypeMask & LiveSessionCustom::STREAMTYPE_VIDEO) {
         void *ptr;
         CHECK(msg->findPointer("videoSource", &ptr));
 
         mPacketSources.add(
-                LiveSession::STREAMTYPE_VIDEO,
+                LiveSessionCustom::STREAMTYPE_VIDEO,
                 static_cast<AnotherPacketSource *>(ptr));
     }
 
-    if (streamTypeMask & LiveSession::STREAMTYPE_SUBTITLES) {
+    if (streamTypeMask & LiveSessionCustom::STREAMTYPE_SUBTITLES) {
         void *ptr;
         CHECK(msg->findPointer("subtitleSource", &ptr));
 
         mPacketSources.add(
-                LiveSession::STREAMTYPE_SUBTITLES,
+                LiveSessionCustom::STREAMTYPE_SUBTITLES,
                 static_cast<AnotherPacketSource *>(ptr));
     }
 
@@ -533,15 +533,15 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
         const char *stopKey;
         int streamType = mPacketSources.keyAt(i);
         switch (streamType) {
-        case LiveSession::STREAMTYPE_VIDEO:
+        case LiveSessionCustom::STREAMTYPE_VIDEO:
             stopKey = "timeUsVideo";
             break;
 
-        case LiveSession::STREAMTYPE_AUDIO:
+        case LiveSessionCustom::STREAMTYPE_AUDIO:
             stopKey = "timeUsAudio";
             break;
 
-        case LiveSession::STREAMTYPE_SUBTITLES:
+        case LiveSessionCustom::STREAMTYPE_SUBTITLES:
             stopKey = "timeUsSubtitle";
             break;
 
@@ -551,7 +551,7 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
 
         // Don't resume if we would stop within a resume threshold.
         int64_t latestTimeUs = 0, stopTimeUs = 0;
-        sp<AMessage> latestMeta = packetSource->getLatestMeta();
+        sp<AMessage> latestMeta = packetSource->getLatestEnqueuedMeta();
         if (latestMeta != NULL
                 && (latestMeta->findInt64("timeUs", &latestTimeUs)
                 && params->findInt64(stopKey, &stopTimeUs))) {
@@ -586,7 +586,7 @@ void PlaylistFetcher::notifyError(status_t err) {
 void PlaylistFetcher::queueDiscontinuity(
         ATSParser::DiscontinuityType type, const sp<AMessage> &extra) {
     for (size_t i = 0; i < mPacketSources.size(); ++i) {
-        mPacketSources.valueAt(i)->queueDiscontinuity(type, extra);
+        mPacketSources.valueAt(i)->queueDiscontinuity(type, extra, true);
     }
 }
 
@@ -609,9 +609,9 @@ void PlaylistFetcher::onMonitorQueue() {
 
     int64_t bufferedDurationUs = 0ll;
     status_t finalResult = NOT_ENOUGH_DATA;
-    if (mStreamTypeMask == LiveSession::STREAMTYPE_SUBTITLES) {
+    if (mStreamTypeMask == LiveSessionCustom::STREAMTYPE_SUBTITLES) {
         sp<AnotherPacketSource> packetSource =
-            mPacketSources.valueFor(LiveSession::STREAMTYPE_SUBTITLES);
+            mPacketSources.valueFor(LiveSessionCustom::STREAMTYPE_SUBTITLES);
 
         bufferedDurationUs =
                 packetSource->getBufferedDurationUs(&finalResult);
@@ -938,12 +938,12 @@ void PlaylistFetcher::onDownloadNext() {
         const size_t kNumTypes = ATSParser::NUM_SOURCE_TYPES;
         ATSParser::SourceType srcTypes[kNumTypes] =
                 { ATSParser::VIDEO, ATSParser::AUDIO };
-        LiveSession::StreamType streamTypes[kNumTypes] =
-                { LiveSession::STREAMTYPE_VIDEO, LiveSession::STREAMTYPE_AUDIO };
+        LiveSessionCustom::StreamType streamTypes[kNumTypes] =
+                { LiveSessionCustom::STREAMTYPE_VIDEO, LiveSessionCustom::STREAMTYPE_AUDIO };
 
         for (size_t i = 0; i < kNumTypes; i++) {
             ATSParser::SourceType srcType = srcTypes[i];
-            LiveSession::StreamType streamType = streamTypes[i];
+            LiveSessionCustom::StreamType streamType = streamTypes[i];
 
             sp<AnotherPacketSource> source =
                 static_cast<AnotherPacketSource *>(
@@ -1063,19 +1063,19 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 
         const char *key;
         ATSParser::SourceType type;
-        const LiveSession::StreamType stream = mPacketSources.keyAt(i);
+        const LiveSessionCustom::StreamType stream = mPacketSources.keyAt(i);
         switch (stream) {
-            case LiveSession::STREAMTYPE_VIDEO:
+            case LiveSessionCustom::STREAMTYPE_VIDEO:
                 type = ATSParser::VIDEO;
                 key = "timeUsVideo";
                 break;
 
-            case LiveSession::STREAMTYPE_AUDIO:
+            case LiveSessionCustom::STREAMTYPE_AUDIO:
                 type = ATSParser::AUDIO;
                 key = "timeUsAudio";
                 break;
 
-            case LiveSession::STREAMTYPE_SUBTITLES:
+            case LiveSessionCustom::STREAMTYPE_SUBTITLES:
             {
                 ALOGE("MPEG2 Transport streams do not contain subtitles.");
                 return ERROR_MALFORMED;
@@ -1183,13 +1183,13 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 status_t PlaylistFetcher::extractAndQueueAccessUnits(
         const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta) {
     if (buffer->size() >= 7 && !memcmp("WEBVTT\n", buffer->data(), 7)) {
-        if (mStreamTypeMask != LiveSession::STREAMTYPE_SUBTITLES) {
+        if (mStreamTypeMask != LiveSessionCustom::STREAMTYPE_SUBTITLES) {
             ALOGE("This stream only contains subtitles.");
             return ERROR_MALFORMED;
         }
 
         const sp<AnotherPacketSource> packetSource =
-            mPacketSources.valueFor(LiveSession::STREAMTYPE_SUBTITLES);
+            mPacketSources.valueFor(LiveSessionCustom::STREAMTYPE_SUBTITLES);
 
         int64_t durationUs;
         CHECK(itemMeta->findInt64("durationUs", &durationUs));
@@ -1269,10 +1269,10 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
 
     int64_t timeUs = (PTS * 100ll) / 9ll + mAbsoluteTimeAnchorUs;
 
-    if (mStreamTypeMask != LiveSession::STREAMTYPE_AUDIO) {
+    if (mStreamTypeMask != LiveSessionCustom::STREAMTYPE_AUDIO) {
         ALOGW("This stream only contains audio data!");
 
-        mStreamTypeMask &= LiveSession::STREAMTYPE_AUDIO;
+        mStreamTypeMask &= LiveSessionCustom::STREAMTYPE_AUDIO;
 
         if (mStreamTypeMask == 0) {
             return OK;
@@ -1280,7 +1280,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
     }
 
     sp<AnotherPacketSource> packetSource =
-        mPacketSources.valueFor(LiveSession::STREAMTYPE_AUDIO);
+        mPacketSources.valueFor(LiveSessionCustom::STREAMTYPE_AUDIO);
 
     if (packetSource->getFormat() == NULL && buffer->size() >= 7) {
         ABitReader bits(buffer->data(), buffer->size());

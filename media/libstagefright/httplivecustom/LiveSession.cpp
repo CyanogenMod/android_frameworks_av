@@ -15,10 +15,10 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "LiveSession"
+#define LOG_TAG "LiveSessionCustom"
 #include <utils/Log.h>
 
-#include "LiveSession.h"
+#include "LiveSessionCustom.h"
 
 #include "M3UParser.h"
 #include "PlaylistFetcher.h"
@@ -27,6 +27,8 @@
 #include "mpeg2ts/AnotherPacketSource.h"
 
 #include <cutils/properties.h>
+#include <media/IMediaHTTPConnection.h>
+#include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -34,29 +36,27 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
 #include <utils/Mutex.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <openssl/aes.h>
 #include <openssl/md5.h>
 
 namespace android {
 
-LiveSession::LiveSession(
-        const sp<AMessage> &notify, uint32_t flags, bool uidValid, uid_t uid)
+LiveSessionCustom::LiveSessionCustom(
+        const sp<AMessage> &notify, uint32_t flags,
+        const sp<IMediaHTTPService> &httpService)
     : mNotify(notify),
       mFlags(flags),
-      mUIDValid(uidValid),
-      mUID(uid),
+      mHTTPService(httpService),
       mInPreparationPhase(true),
-      mHTTPDataSource(
-              HTTPBase::Create(
-                  (mFlags & kFlagIncognito)
-                    ? HTTPBase::kFlagIncognito
-                    : 0)),
+      mHTTPDataSource(new MediaHTTP(mHTTPService->makeHTTPConnection())),
       mPrevBandwidthIndex(-1),
       mStreamMask(0),
       mNewStreamMask(0),
@@ -68,10 +68,8 @@ LiveSession::LiveSession(
       mReconfigurationInProgress(false),
       mSwitchInProgress(false),
       mDisconnectReplyID(0),
-      mSeekReplyID(0) {
-    if (mUIDValid) {
-        mHTTPDataSource->setUID(mUID);
-    }
+      mSeekReplyID(0),
+      mSeekPosition(-1ll) {
 
     mStreams[kAudioIndex] = StreamItem("audio");
     mStreams[kVideoIndex] = StreamItem("video");
@@ -83,10 +81,10 @@ LiveSession::LiveSession(
     }
 }
 
-LiveSession::~LiveSession() {
+LiveSessionCustom::~LiveSessionCustom() {
 }
 
-sp<ABuffer> LiveSession::createFormatChangeBuffer(bool swap) {
+sp<ABuffer> LiveSessionCustom::createFormatChangeBuffer(bool swap) {
     ABuffer *discontinuity = new ABuffer(0);
     discontinuity->meta()->setInt32("discontinuity", ATSParser::DISCONTINUITY_FORMATCHANGE);
     discontinuity->meta()->setInt32("swapPacketSource", swap);
@@ -95,7 +93,7 @@ sp<ABuffer> LiveSession::createFormatChangeBuffer(bool swap) {
     return discontinuity;
 }
 
-void LiveSession::swapPacketSource(StreamType stream) {
+void LiveSessionCustom::swapPacketSource(StreamType stream) {
     sp<AnotherPacketSource> &aps = mPacketSources.editValueFor(stream);
     sp<AnotherPacketSource> &aps2 = mPacketSources2.editValueFor(stream);
     sp<AnotherPacketSource> tmp = aps;
@@ -104,7 +102,7 @@ void LiveSession::swapPacketSource(StreamType stream) {
     aps2->clear();
 }
 
-status_t LiveSession::dequeueAccessUnit(
+status_t LiveSessionCustom::dequeueAccessUnit(
         StreamType stream, sp<ABuffer> *accessUnit) {
     if (!(mStreamMask & stream)) {
         // return -EWOULDBLOCK to avoid halting the decoder
@@ -188,7 +186,7 @@ status_t LiveSession::dequeueAccessUnit(
     return err;
 }
 
-status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
+status_t LiveSessionCustom::getStreamFormat(StreamType stream, sp<AMessage> *format) {
     // No swapPacketSource race condition; called from the same thread as dequeueAccessUnit.
     if (!(mStreamMask & stream)) {
         return UNKNOWN_ERROR;
@@ -205,7 +203,7 @@ status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
     return convertMetaDataToMessage(meta, format);
 }
 
-void LiveSession::connectAsync(
+void LiveSessionCustom::connectAsync(
         const char *url, const KeyedVector<String8, String8> *headers) {
     sp<AMessage> msg = new AMessage(kWhatConnect, id());
     msg->setString("url", url);
@@ -219,7 +217,7 @@ void LiveSession::connectAsync(
     msg->post();
 }
 
-status_t LiveSession::disconnect() {
+status_t LiveSessionCustom::disconnect() {
     sp<AMessage> msg = new AMessage(kWhatDisconnect, id());
 
     sp<AMessage> response;
@@ -228,7 +226,7 @@ status_t LiveSession::disconnect() {
     return err;
 }
 
-status_t LiveSession::seekTo(int64_t timeUs) {
+status_t LiveSessionCustom::seekTo(int64_t timeUs) {
     sp<AMessage> msg = new AMessage(kWhatSeek, id());
     msg->setInt64("timeUs", timeUs);
 
@@ -242,7 +240,7 @@ status_t LiveSession::seekTo(int64_t timeUs) {
     return err;
 }
 
-void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
+void LiveSessionCustom::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatConnect:
         {
@@ -432,6 +430,12 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatResetConfiguration:
+        {
+            onResetConfiguration(msg);
+            break;
+        }
+
         case kWhatFinishDisconnect2:
         {
             onFinishDisconnect2();
@@ -450,7 +454,7 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 // static
-int LiveSession::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b) {
+int LiveSessionCustom::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b) {
     if (a->mBandwidth < b->mBandwidth) {
         return -1;
     } else if (a->mBandwidth == b->mBandwidth) {
@@ -461,12 +465,12 @@ int LiveSession::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b)
 }
 
 // static
-LiveSession::StreamType LiveSession::indexToType(int idx) {
+LiveSessionCustom::StreamType LiveSessionCustom::indexToType(int idx) {
     CHECK(idx >= 0 && idx < kMaxStreams);
     return (StreamType)(1 << idx);
 }
 
-void LiveSession::onConnect(const sp<AMessage> &msg) {
+void LiveSessionCustom::onConnect(const sp<AMessage> &msg) {
     AString url;
     CHECK(msg->findString("url", &url));
 
@@ -548,7 +552,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
             0ll /* timeUs */, initialBandwidthIndex, true /* pickTrack */);
 }
 
-void LiveSession::finishDisconnect() {
+void LiveSessionCustom::finishDisconnect() {
     // No reconfiguration is currently pending, make sure none will trigger
     // during disconnection either.
     cancelCheckBandwidthEvent();
@@ -571,7 +575,7 @@ void LiveSession::finishDisconnect() {
     }
 }
 
-void LiveSession::onFinishDisconnect2() {
+void LiveSessionCustom::onFinishDisconnect2() {
     mContinuation.clear();
 
     mPacketSources.valueFor(STREAMTYPE_AUDIO)->signalEOS(ERROR_END_OF_STREAM);
@@ -587,7 +591,7 @@ void LiveSession::onFinishDisconnect2() {
     mDisconnectReplyID = 0;
 }
 
-sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
+sp<PlaylistFetcher> LiveSessionCustom::addFetcher(const char *uri) {
     ssize_t index = mFetcherInfos.indexOfKey(uri);
 
     if (index >= 0) {
@@ -626,7 +630,7 @@ sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
  * - block_size == 0 means entire range
  *
  */
-ssize_t LiveSession::fetchFile(
+ssize_t LiveSessionCustom::fetchFile(
         const char *url, sp<ABuffer> *out,
         int64_t range_offset, int64_t range_length,
         uint32_t block_size, /* download block size */
@@ -739,7 +743,7 @@ ssize_t LiveSession::fetchFile(
     return bytesRead;
 }
 
-sp<M3UParser> LiveSession::fetchPlaylist(
+sp<M3UParser> LiveSessionCustom::fetchPlaylist(
         const char *url, uint8_t *curPlaylistHash, bool *unchanged) {
     ALOGV("fetchPlaylist '%s'", url);
 
@@ -769,8 +773,7 @@ sp<M3UParser> LiveSession::fetchPlaylist(
         // playlist unchanged
         *unchanged = true;
 
-        ALOGV("Playlist unchanged, refresh state is now %d",
-             (int)mRefreshState);
+        ALOGV("Playlist unchanged");
 
         return NULL;
     }
@@ -796,7 +799,7 @@ static double uniformRand() {
     return (double)rand() / RAND_MAX;
 }
 
-size_t LiveSession::getBandwidthIndex() {
+size_t LiveSessionCustom::getBandwidthIndex() {
     if (mBandwidthItems.size() == 0) {
         return 0;
     }
@@ -830,7 +833,7 @@ size_t LiveSession::getBandwidthIndex() {
             long maxBw = strtoul(value, &end, 10);
             if (end > value && *end == '\0') {
                 if (maxBw > 0 && bandwidthBps > maxBw) {
-                    ALOGV("bandwidth capped to %ld bps", maxBw);
+                    ALOGI("bandwidth capped to %ld bps", maxBw);
                     bandwidthBps = maxBw;
                 }
             }
@@ -900,18 +903,23 @@ size_t LiveSession::getBandwidthIndex() {
     return index;
 }
 
-status_t LiveSession::onSeek(const sp<AMessage> &msg) {
+status_t LiveSessionCustom::onSeek(const sp<AMessage> &msg) {
     int64_t timeUs;
     CHECK(msg->findInt64("timeUs", &timeUs));
 
     if (!mReconfigurationInProgress) {
+        mSeekPosition = -1ll;
         changeConfiguration(timeUs, getBandwidthIndex());
+    } else {
+        //During changing configuration, the seek position needs to cache,
+        //otherwise,this seek operation would be ignored.
+        mSeekPosition = timeUs;
     }
 
     return OK;
 }
 
-status_t LiveSession::getDuration(int64_t *durationUs) const {
+status_t LiveSessionCustom::getDuration(int64_t *durationUs) const {
     int64_t maxDurationUs = 0ll;
     for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
         int64_t fetcherDurationUs = mFetcherInfos.valueAt(i).mDurationUs;
@@ -926,20 +934,32 @@ status_t LiveSession::getDuration(int64_t *durationUs) const {
     return OK;
 }
 
-bool LiveSession::isSeekable() const {
+bool LiveSessionCustom::isSeekable() const {
     int64_t durationUs;
     return getDuration(&durationUs) == OK && durationUs >= 0;
 }
 
-bool LiveSession::hasDynamicDuration() const {
+bool LiveSessionCustom::hasDynamicDuration() const {
     return false;
 }
 
-status_t LiveSession::getTrackInfo(Parcel *reply) const {
-    return mPlaylist->getTrackInfo(reply);
+size_t LiveSessionCustom::getTrackCount() const {
+    if (mPlaylist == NULL) {
+        return 0;
+    } else {
+        return mPlaylist->getTrackCount();
+    }
 }
 
-status_t LiveSession::selectTrack(size_t index, bool select) {
+sp<AMessage> LiveSessionCustom::getTrackInfo(size_t trackIndex) const {
+    if (mPlaylist == NULL) {
+        return NULL;
+    } else {
+        return mPlaylist->getTrackInfo(trackIndex);
+    }
+}
+
+status_t LiveSessionCustom::selectTrack(size_t index, bool select) {
     status_t err = mPlaylist->selectTrack(index, select);
     if (err == OK) {
         (new AMessage(kWhatChangeConfiguration, id()))->post();
@@ -947,7 +967,7 @@ status_t LiveSession::selectTrack(size_t index, bool select) {
     return err;
 }
 
-bool LiveSession::canSwitchUp() {
+bool LiveSessionCustom::canSwitchUp() {
     // Allow upwards bandwidth switch when a stream has buffered at least 10 seconds.
     status_t err = OK;
     for (size_t i = 0; i < mPacketSources.size(); ++i) {
@@ -960,7 +980,7 @@ bool LiveSession::canSwitchUp() {
     return false;
 }
 
-void LiveSession::changeConfiguration(
+void LiveSessionCustom::changeConfiguration(
         int64_t timeUs, size_t bandwidthIndex, bool pickTrack) {
     // Protect mPacketSources from a swapPacketSource race condition through reconfiguration.
     // (changeConfiguration, onChangeConfiguration2, onChangeConfiguration3).
@@ -1052,7 +1072,7 @@ void LiveSession::changeConfiguration(
     }
 }
 
-void LiveSession::onChangeConfiguration(const sp<AMessage> &msg) {
+void LiveSessionCustom::onChangeConfiguration(const sp<AMessage> &msg) {
     if (!mReconfigurationInProgress) {
         changeConfiguration(-1ll /* timeUs */, getBandwidthIndex());
     } else {
@@ -1060,7 +1080,7 @@ void LiveSession::onChangeConfiguration(const sp<AMessage> &msg) {
     }
 }
 
-void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
+void LiveSessionCustom::onChangeConfiguration2(const sp<AMessage> &msg) {
     mContinuation.clear();
 
     // All fetchers are either suspended or have been removed now.
@@ -1114,7 +1134,18 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
     notify->post();
 }
 
-void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
+void LiveSessionCustom::onChangeConfiguration3(const sp<AMessage> &msg) {
+    //Before starting all fetchers, check whether new seek operation comes.
+    //If yes,stop this progress and restart to change configuration based on
+    //the last cached seek position again. It can avoid ignoring the new
+    //seek operation.
+    if(mSeekPosition > -1ll){
+        sp<AMessage> msg = new AMessage(kWhatResetConfiguration,id());
+        msg->setInt64("timeUs",mSeekPosition);
+        mReconfigurationInProgress = false;
+        msg->post();
+        return;
+    }
     mContinuation.clear();
     // All remaining fetchers are still suspended, the player has shutdown
     // any decoders that needed it.
@@ -1198,7 +1229,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 } else {
                     int32_t type, seq;
                     int64_t srcTimeUs;
-                    sp<AMessage> meta = sources[j]->getLatestMeta();
+                    sp<AMessage> meta = sources[j]->getLatestEnqueuedMeta();
 
                     if (meta != NULL && !meta->findInt32("discontinuity", &type)) {
                         CHECK(meta->findInt32("seq", &seq));
@@ -1250,7 +1281,16 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     }
 }
 
-void LiveSession::onSwapped(const sp<AMessage> &msg) {
+void LiveSessionCustom::onResetConfiguration(const sp<AMessage> &msg){
+    //Change the configuration based on the last cached seek position
+    int64_t timeUs;
+    CHECK(msg->findInt64("timeUs", &timeUs));
+    if(!mReconfigurationInProgress && mSeekPosition > -1ll){
+        mSeekPosition = -1ll;
+        changeConfiguration(timeUs, getBandwidthIndex());
+   }
+}
+void LiveSessionCustom::onSwapped(const sp<AMessage> &msg) {
     int32_t switchGeneration;
     CHECK(msg->findInt32("switchGeneration", &switchGeneration));
     if (switchGeneration != mSwitchGeneration) {
@@ -1278,7 +1318,7 @@ void LiveSession::onSwapped(const sp<AMessage> &msg) {
 // Mark switch done when:
 //   1. all old buffers are swapped out, AND
 //   2. all old fetchers are removed.
-void LiveSession::tryToFinishBandwidthSwitch() {
+void LiveSessionCustom::tryToFinishBandwidthSwitch() {
     bool needToRemoveFetchers = false;
     for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
         if (mFetcherInfos.valueAt(i).mToBeRemoved) {
@@ -1293,24 +1333,24 @@ void LiveSession::tryToFinishBandwidthSwitch() {
     }
 }
 
-void LiveSession::scheduleCheckBandwidthEvent() {
+void LiveSessionCustom::scheduleCheckBandwidthEvent() {
     sp<AMessage> msg = new AMessage(kWhatCheckBandwidth, id());
     msg->setInt32("generation", mCheckBandwidthGeneration);
     msg->post(10000000ll);
 }
 
-void LiveSession::cancelCheckBandwidthEvent() {
+void LiveSessionCustom::cancelCheckBandwidthEvent() {
     ++mCheckBandwidthGeneration;
 }
 
-void LiveSession::cancelBandwidthSwitch() {
+void LiveSessionCustom::cancelBandwidthSwitch() {
     Mutex::Autolock lock(mSwapMutex);
     mSwitchGeneration++;
     mSwitchInProgress = false;
     mSwapMask = 0;
 }
 
-bool LiveSession::canSwitchBandwidthTo(size_t bandwidthIndex) {
+bool LiveSessionCustom::canSwitchBandwidthTo(size_t bandwidthIndex) {
     if (mReconfigurationInProgress || mSwitchInProgress) {
         return false;
     }
@@ -1328,7 +1368,7 @@ bool LiveSession::canSwitchBandwidthTo(size_t bandwidthIndex) {
     }
 }
 
-void LiveSession::onCheckBandwidth() {
+void LiveSessionCustom::onCheckBandwidth() {
     size_t bandwidthIndex = getBandwidthIndex();
     if (canSwitchBandwidthTo(bandwidthIndex)) {
         changeConfiguration(-1ll /* timeUs */, bandwidthIndex);
@@ -1344,7 +1384,7 @@ void LiveSession::onCheckBandwidth() {
     // event.
 }
 
-void LiveSession::postPrepared(status_t err) {
+void LiveSessionCustom::postPrepared(status_t err) {
     CHECK(mInPreparationPhase);
 
     sp<AMessage> notify = mNotify->dup();

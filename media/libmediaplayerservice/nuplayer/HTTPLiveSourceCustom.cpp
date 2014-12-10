@@ -15,14 +15,14 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "HTTPLiveSource"
+#define LOG_TAG "HTTPLiveSourceCustom"
 #include <utils/Log.h>
 
-#include "HTTPLiveSource.h"
+#include "HTTPLiveSourceCustom.h"
 
 #include "AnotherPacketSource.h"
 #include "LiveDataSource.h"
-#include "LiveSession.h"
+#include "LiveSessionCustom.h"
 
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -33,7 +33,7 @@
 
 namespace android {
 
-NuPlayer::HTTPLiveSource::HTTPLiveSource(
+NuPlayer::HTTPLiveSourceCustom::HTTPLiveSourceCustom(
         const sp<AMessage> &notify,
         const sp<IMediaHTTPService> &httpService,
         const char *url,
@@ -59,7 +59,7 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
     }
 }
 
-NuPlayer::HTTPLiveSource::~HTTPLiveSource() {
+NuPlayer::HTTPLiveSourceCustom::~HTTPLiveSourceCustom() {
     if (mLiveSession != NULL) {
         mLiveSession->disconnect();
 
@@ -72,7 +72,7 @@ NuPlayer::HTTPLiveSource::~HTTPLiveSource() {
     }
 }
 
-void NuPlayer::HTTPLiveSource::prepareAsync() {
+void NuPlayer::HTTPLiveSourceCustom::prepareAsync() {
     if (mLiveLooper == NULL) {
         mLiveLooper = new ALooper;
         mLiveLooper->setName("http live");
@@ -83,9 +83,9 @@ void NuPlayer::HTTPLiveSource::prepareAsync() {
 
     sp<AMessage> notify = new AMessage(kWhatSessionNotify, id());
 
-    mLiveSession = new LiveSession(
+    mLiveSession = new LiveSessionCustom(
             notify,
-            (mFlags & kFlagIncognito) ? LiveSession::kFlagIncognito : 0,
+            (mFlags & kFlagIncognito) ? LiveSessionCustom::kFlagIncognito : 0,
             mHTTPService);
 
     mLiveLooper->registerHandler(mLiveSession);
@@ -94,14 +94,14 @@ void NuPlayer::HTTPLiveSource::prepareAsync() {
             mURL.c_str(), mExtraHeaders.isEmpty() ? NULL : &mExtraHeaders);
 }
 
-void NuPlayer::HTTPLiveSource::start() {
+void NuPlayer::HTTPLiveSourceCustom::start() {
 }
 
-sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
+sp<AMessage> NuPlayer::HTTPLiveSourceCustom::getFormat(bool audio) {
     sp<AMessage> format;
     status_t err = mLiveSession->getStreamFormat(
-            audio ? LiveSession::STREAMTYPE_AUDIO
-                  : LiveSession::STREAMTYPE_VIDEO,
+            audio ? LiveSessionCustom::STREAMTYPE_AUDIO
+                  : LiveSessionCustom::STREAMTYPE_VIDEO,
             &format);
 
     if (err != OK) {
@@ -111,31 +111,31 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
     return format;
 }
 
-status_t NuPlayer::HTTPLiveSource::feedMoreTSData() {
+status_t NuPlayer::HTTPLiveSourceCustom::feedMoreTSData() {
     return OK;
 }
 
-status_t NuPlayer::HTTPLiveSource::dequeueAccessUnit(
+status_t NuPlayer::HTTPLiveSourceCustom::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
     return mLiveSession->dequeueAccessUnit(
-            audio ? LiveSession::STREAMTYPE_AUDIO
-                  : LiveSession::STREAMTYPE_VIDEO,
+            audio ? LiveSessionCustom::STREAMTYPE_AUDIO
+                  : LiveSessionCustom::STREAMTYPE_VIDEO,
             accessUnit);
 }
 
-status_t NuPlayer::HTTPLiveSource::getDuration(int64_t *durationUs) {
+status_t NuPlayer::HTTPLiveSourceCustom::getDuration(int64_t *durationUs) {
     return mLiveSession->getDuration(durationUs);
 }
 
-size_t NuPlayer::HTTPLiveSource::getTrackCount() const {
+size_t NuPlayer::HTTPLiveSourceCustom::getTrackCount() const {
     return mLiveSession->getTrackCount();
 }
 
-sp<AMessage> NuPlayer::HTTPLiveSource::getTrackInfo(size_t trackIndex) const {
+sp<AMessage> NuPlayer::HTTPLiveSourceCustom::getTrackInfo(size_t trackIndex) const {
     return mLiveSession->getTrackInfo(trackIndex);
 }
 
-status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
+status_t NuPlayer::HTTPLiveSourceCustom::selectTrack(size_t trackIndex, bool select) {
     status_t err = mLiveSession->selectTrack(trackIndex, select);
 
     if (err == OK) {
@@ -147,17 +147,17 @@ status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
         }
     }
 
-    // LiveSession::selectTrack returns BAD_VALUE when selecting the currently
+    // LiveSessionCustom::selectTrack returns BAD_VALUE when selecting the currently
     // selected track, or unselecting a non-selected track. In this case it's an
     // no-op so we return OK.
     return (err == OK || err == BAD_VALUE) ? (status_t)OK : err;
 }
 
-status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
+status_t NuPlayer::HTTPLiveSourceCustom::seekTo(int64_t seekTimeUs) {
     return mLiveSession->seekTo(seekTimeUs);
 }
 
-void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
+void NuPlayer::HTTPLiveSourceCustom::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatSessionNotify:
         {
@@ -177,7 +177,7 @@ void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
 
             sp<ABuffer> buffer;
             if (mLiveSession->dequeueAccessUnit(
-                    LiveSession::STREAMTYPE_SUBTITLES, &buffer) == OK) {
+                    LiveSessionCustom::STREAMTYPE_SUBTITLES, &buffer) == OK) {
                 sp<AMessage> notify = dupNotify();
                 notify->setInt32("what", kWhatSubtitleData);
                 notify->setBuffer("buffer", buffer);
@@ -204,12 +204,12 @@ void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
+void NuPlayer::HTTPLiveSourceCustom::onSessionNotify(const sp<AMessage> &msg) {
     int32_t what;
     CHECK(msg->findInt32("what", &what));
 
     switch (what) {
-        case LiveSession::kWhatPrepared:
+        case LiveSessionCustom::kWhatPrepared:
         {
             // notify the current size here if we have it, otherwise report an initial size of (0,0)
             sp<AMessage> format = getFormat(false /* audio */);
@@ -239,7 +239,7 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             break;
         }
 
-        case LiveSession::kWhatPreparationFailed:
+        case LiveSessionCustom::kWhatPreparationFailed:
         {
             status_t err;
             CHECK(msg->findInt32("err", &err));
@@ -248,14 +248,14 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             break;
         }
 
-        case LiveSession::kWhatStreamsChanged:
+        case LiveSessionCustom::kWhatStreamsChanged:
         {
             uint32_t changedMask;
             CHECK(msg->findInt32(
                         "changedMask", (int32_t *)&changedMask));
 
-            bool audio = changedMask & LiveSession::STREAMTYPE_AUDIO;
-            bool video = changedMask & LiveSession::STREAMTYPE_VIDEO;
+            bool audio = changedMask & LiveSessionCustom::STREAMTYPE_AUDIO;
+            bool video = changedMask & LiveSessionCustom::STREAMTYPE_VIDEO;
 
             sp<AMessage> reply;
             CHECK(msg->findMessage("reply", &reply));
@@ -269,7 +269,7 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             break;
         }
 
-        case LiveSession::kWhatError:
+        case LiveSessionCustom::kWhatError:
         {
             break;
         }

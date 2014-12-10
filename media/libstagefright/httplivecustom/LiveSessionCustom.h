@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef LIVE_SESSION_H_
+#ifndef LIVE_SESSION_CUSTOM_H_
 
-#define LIVE_SESSION_H_
+#define LIVE_SESSION_CUSTOM_H_
 
 #include <media/stagefright/foundation/AHandler.h>
 
@@ -28,19 +28,21 @@ struct ABuffer;
 struct AnotherPacketSource;
 struct DataSource;
 struct HTTPBase;
+struct IMediaHTTPService;
 struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
 struct Parcel;
 
-struct LiveSession : public AHandler {
+struct LiveSessionCustom : public AHandler {
     enum Flags {
         // Don't log any URLs.
         kFlagIncognito = 1,
     };
-    LiveSession(
+    LiveSessionCustom(
             const sp<AMessage> &notify,
-            uint32_t flags = 0, bool uidValid = false, uid_t uid = 0);
+            uint32_t flags,
+            const sp<IMediaHTTPService> &httpService);
 
     enum StreamIndex {
         kAudioIndex    = 0,
@@ -68,7 +70,8 @@ struct LiveSession : public AHandler {
     status_t seekTo(int64_t timeUs);
 
     status_t getDuration(int64_t *durationUs) const;
-    status_t getTrackInfo(Parcel *reply) const;
+    size_t getTrackCount() const;
+    sp<AMessage> getTrackInfo(size_t trackIndex) const;
     status_t selectTrack(size_t index, bool select);
 
     bool isSeekable() const;
@@ -87,7 +90,7 @@ struct LiveSession : public AHandler {
     //   whether is format-change discontinuity should trigger a buffer swap
     sp<ABuffer> createFormatChangeBuffer(bool swap = true);
 protected:
-    virtual ~LiveSession();
+    virtual ~LiveSessionCustom();
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
@@ -104,6 +107,7 @@ private:
         kWhatChangeConfiguration2       = 'chC2',
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
+        kWhatResetConfiguration         = 'reco',
         kWhatSwapped                    = 'swap',
     };
 
@@ -134,8 +138,7 @@ private:
 
     sp<AMessage> mNotify;
     uint32_t mFlags;
-    bool mUIDValid;
-    uid_t mUID;
+    sp<IMediaHTTPService> mHTTPService;
 
     bool mInPreparationPhase;
 
@@ -185,6 +188,8 @@ private:
     uint32_t mDisconnectReplyID;
     uint32_t mSeekReplyID;
 
+    int64_t mSeekPosition; //cache the new seek position during changing configuration
+
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
@@ -228,6 +233,8 @@ private:
     void onSwapped(const sp<AMessage> &msg);
     void tryToFinishBandwidthSwitch();
 
+    void onResetConfiguration(const sp<AMessage> &msg);
+
     void scheduleCheckBandwidthEvent();
     void cancelCheckBandwidthEvent();
 
@@ -246,9 +253,9 @@ private:
     void swapPacketSource(StreamType stream);
     bool canSwitchUp();
 
-    DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
+    DISALLOW_EVIL_CONSTRUCTORS(LiveSessionCustom);
 };
 
 }  // namespace android
 
-#endif  // LIVE_SESSION_H_
+#endif  // LIVE_SESSION_CUSTOM_H_

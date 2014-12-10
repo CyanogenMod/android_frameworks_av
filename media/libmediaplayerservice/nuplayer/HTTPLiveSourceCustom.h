@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef HTTP_LIVE_SOURCE_H_
+#ifndef HTTP_LIVE_SOURCE_CUSTOM_H_
 
-#define HTTP_LIVE_SOURCE_H_
+#define HTTP_LIVE_SOURCE_CUSTOM_H_
 
 #include "NuPlayer.h"
 #include "NuPlayerSource.h"
 
 namespace android {
 
-struct LiveSession;
+struct LiveSessionCustom;
 
-struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
-    HTTPLiveSource(
+struct NuPlayer::HTTPLiveSourceCustom : public NuPlayer::Source {
+    HTTPLiveSourceCustom(
             const sp<AMessage> &notify,
             const sp<IMediaHTTPService> &httpService,
             const char *url,
@@ -46,7 +46,7 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
     virtual status_t seekTo(int64_t seekTimeUs);
 
 protected:
-    virtual ~HTTPLiveSource();
+    virtual ~HTTPLiveSourceCustom();
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
@@ -68,14 +68,14 @@ private:
     status_t mFinalResult;
     off64_t mOffset;
     sp<ALooper> mLiveLooper;
-    sp<LiveSession> mLiveSession;
+    sp<LiveSessionCustom> mLiveSession;
     int32_t mFetchSubtitleDataGeneration;
 
     void onSessionNotify(const sp<AMessage> &msg);
 
-    DISALLOW_EVIL_CONSTRUCTORS(HTTPLiveSource);
+    DISALLOW_EVIL_CONSTRUCTORS(HTTPLiveSourceCustom);
 };
 
 }  // namespace android
 
-#endif  // HTTP_LIVE_SOURCE_H_
+#endif  // HTTP_LIVE_SOURCE_CUSTOM_H_

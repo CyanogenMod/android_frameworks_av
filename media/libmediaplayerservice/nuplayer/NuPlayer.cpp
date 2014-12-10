@@ -21,6 +21,7 @@
 #include "NuPlayer.h"
 
 #include "HTTPLiveSource.h"
+#include "HTTPLiveSourceCustom.h"
 #include "NuPlayerDecoder.h"
 #include "NuPlayerDecoderPassThrough.h"
 #include "NuPlayerDriver.h"
@@ -42,6 +43,8 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <gui/IGraphicBufferProducer.h>
+
+#include <cutils/properties.h>
 
 #include "avc_utils.h"
 
@@ -234,7 +237,13 @@ void NuPlayer::setDataSourceAsync(
 
     sp<Source> source;
     if (IsHTTPLiveURL(url)) {
-        source = new HTTPLiveSource(notify, httpService, url, headers);
+        char value[PROPERTY_VALUE_MAX];
+        property_get("persist.media.hls.enhancements", value, NULL);
+        if (atoi(value)) {
+            source = new HTTPLiveSourceCustom(notify, httpService, url, headers);
+        } else {
+            source = new HTTPLiveSource(notify, httpService, url, headers);
+        }
     } else if (!strncasecmp(url, "rtsp://", 7)) {
         source = new RTSPSource(
                 notify, httpService, url, headers, mUIDValid, mUID);

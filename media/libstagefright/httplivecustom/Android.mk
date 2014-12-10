@@ -22,7 +22,7 @@ LOCAL_SHARED_LIBRARIES := \
         libstagefright_foundation \
         libutils \
 
-LOCAL_MODULE:= libstagefright_httplive
+LOCAL_MODULE:= libstagefright_httplivecustom
 
 ifeq ($(TARGET_ARCH),arm)
     LOCAL_CFLAGS += -Wno-psabi
