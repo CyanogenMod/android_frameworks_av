@@ -48,13 +48,15 @@ namespace android {
 // static
 const int64_t PlaylistFetcher::kMinBufferedDurationUs = 10000000ll;
 const int64_t PlaylistFetcher::kMaxMonitorDelayUs = 3000000ll;
-const int32_t PlaylistFetcher::kDownloadBlockSize = 192;
+const int32_t PlaylistFetcher::kDownloadBlockSize = 32768;
 const int32_t PlaylistFetcher::kNumSkipFrames = 10;
 
 PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
         const sp<LiveSessionCustom> &session,
-        const char *uri)
+        const char *uri,
+        const bool first,
+        const int32_t index)
     : mNotify(notify),
       mStartTimeUsNotify(notify->dup()),
       mSession(session),
@@ -72,7 +74,12 @@ PlaylistFetcher::PlaylistFetcher(
       mMonitorQueueGeneration(0),
       mRefreshState(INITIAL_MINIMUM_RELOAD_DELAY),
       mFirstPTSValid(false),
-      mAbsoluteTimeAnchorUs(0ll) {
+      mAbsoluteTimeAnchorUs(0ll),
+      mStopFetching(false),
+      mTargetDurationUs(10000000ll),
+      mNumRetryKey(0),
+      mBandwidthIndex(index),
+      mIsFirstDownloading(first) {
     memset(mPlaylistHash, 0, sizeof(mPlaylistHash));
     mStartTimeUsNotify->setInt32("what", kWhatStartedAt);
     mStartTimeUsNotify->setInt32("streamMask", 0);
@@ -361,7 +368,8 @@ void PlaylistFetcher::startAsync(
     msg->post();
 }
 
-void PlaylistFetcher::pauseAsync() {
+void PlaylistFetcher::pauseAsync(bool changeToLower) {
+    mStopFetching = changeToLower;
     (new AMessage(kWhatPause, id()))->post();
 }
 
@@ -375,6 +383,13 @@ void PlaylistFetcher::resumeUntilAsync(const sp<AMessage> &params) {
     AMessage* msg = new AMessage(kWhatResumeUntil, id());
     msg->setMessage("params", params);
     msg->post();
+}
+
+void PlaylistFetcher::onQueueEndAu() {
+    ALOGV("onQueueEndAu");
+    for (size_t i = 0; i < mPacketSources.size(); i++) {
+        mPacketSources.valueAt(i)->queueAccessUnit(mSession->createFormatChangeBuffer(true));
+    }
 }
 
 void PlaylistFetcher::onMessageReceived(const sp<AMessage> &msg) {
@@ -523,6 +538,11 @@ void PlaylistFetcher::onStop(const sp<AMessage> &msg) {
 // the remaining time is too short (within a resume threshold) stop immediately
 // instead.
 status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
+    if (mStopFetching) {
+        ALOGV("onResumeUntil met stopping fetching");
+        stopAsync(true);
+        return OK;
+    }
     sp<AMessage> params;
     CHECK(msg->findMessage("params", &params));
 
@@ -601,11 +621,7 @@ void PlaylistFetcher::onMonitorQueue() {
         targetDurationUs = targetDurationSecs * 1000000ll;
     }
 
-    // buffer at least 3 times the target duration, or up to 10 seconds
-    int64_t durationToBufferUs = targetDurationUs * 3;
-    if (durationToBufferUs > kMinBufferedDurationUs)  {
-        durationToBufferUs = kMinBufferedDurationUs;
-    }
+    int64_t durationToBufferUs = mTargetDurationUs;
 
     int64_t bufferedDurationUs = 0ll;
     status_t finalResult = NOT_ENOUGH_DATA;
@@ -657,13 +673,16 @@ void PlaylistFetcher::onMonitorQueue() {
         msg->setInt32("generation", mMonitorQueueGeneration);
         msg->post(1000l);
     } else {
+        if (mTargetDurationUs == 10000000ll)
+            mTargetDurationUs = mBandwidthIndex < 3 ? 25000000ll : 30000000ll;
         // Nothing to do yet, try again in a second.
 
         sp<AMessage> msg = mNotify->dup();
         msg->setInt32("what", kWhatTemporarilyDoneFetching);
         msg->post();
 
-        int64_t delayUs = mPrepared ? kMaxMonitorDelayUs : targetDurationUs / 2;
+        //int64_t delayUs = mPrepared ? kMaxMonitorDelayUs : targetDurationUs / 2;
+        int64_t delayUs = 2500000ll;
         ALOGV("pausing for %lld, buffered=%lld > %lld",
                 delayUs, bufferedDurationUs, durationToBufferUs);
         // :TRICKY: need to enforce minimum delay because the delay to
@@ -730,7 +749,8 @@ void PlaylistFetcher::onDownloadNext() {
     if (mStartup && mSeqNumber >= 0
             && (mSeqNumber < firstSeqNumberInPlaylist || mSeqNumber > lastSeqNumberInPlaylist)) {
         // in case we guessed wrong during reconfiguration, try fetching the latest content.
-        mSeqNumber = lastSeqNumberInPlaylist;
+        if (mPlaylist->isComplete())
+            mSeqNumber = lastSeqNumberInPlaylist;
     }
 
     if (mSeqNumber < 0) {
@@ -743,7 +763,7 @@ void PlaylistFetcher::onDownloadNext() {
                     lastSeqNumberInPlaylist);
         } else {
             // If this is a live session, start 3 segments from the end.
-            mSeqNumber = lastSeqNumberInPlaylist - 3;
+            mSeqNumber = getSeqNumberInLiveStreaming(lastSeqNumberInPlaylist, firstSeqNumberInPlaylist);
             if (mSeqNumber < firstSeqNumberInPlaylist) {
                 mSeqNumber = firstSeqNumberInPlaylist;
             }
@@ -839,16 +859,32 @@ void PlaylistFetcher::onDownloadNext() {
         status_t err = decryptBuffer(mSeqNumber - firstSeqNumberInPlaylist, junk,
                 true /* first */);
         if (err != OK) {
-            notifyError(err);
+            if (mNumRetryKey == 3) {
+                ALOGE("fail to retry key for 3 times");
+                notifyError(err);
+            } else {
+                mNumRetryKey++;
+                ALOGV("retry key for %d times", mNumRetryKey);
+                postMonitorQueue(1000000ll);
+            }
             return;
         }
     }
-
+    mNumRetryKey = 0;
+    bool eos = false;
     // block-wise download
     ssize_t bytesRead;
     do {
+        if (mStopFetching) {
+            ALOGE("stop to fetch file");
+            cancelMonitorQueue();
+            mSession->disconnectUrl();
+            return;
+        }
         bytesRead = mSession->fetchFile(
-                uri.c_str(), &buffer, range_offset, range_length, kDownloadBlockSize, &source);
+                uri.c_str(), &buffer, range_offset, range_length, kDownloadBlockSize, &source, NULL, &eos);
+        if (eos)
+            ALOGV("fetch EOS in the latest fetching file");
 
         if (bytesRead < 0) {
             status_t err = bytesRead;
@@ -930,7 +966,9 @@ void PlaylistFetcher::onDownloadNext() {
         }
 
         mStartup = false;
-    } while (bytesRead != 0);
+    } while (bytesRead != 0 && !eos);
+
+    mSession->disconnectUrl();
 
     if (bufferStartsWithTsSyncByte(buffer)) {
         // If we still don't see a stream after fetching a full ts segment mark it as
@@ -989,6 +1027,16 @@ void PlaylistFetcher::onDownloadNext() {
         return;
     }
 
+    if (mIsFirstDownloading) {
+        mIsFirstDownloading = false;
+        if (mSession->switchFirstBandwidth()) {
+            for (size_t i = 0; i< mPacketSources.size(); i++) {
+                mPacketSources.valueAt(i)->eraseBuffer();
+            }
+            ALOGV("choose the real bandwidth index");
+            return;
+        }
+    }
     ++mSeqNumber;
 
     postMonitorQueue();
@@ -1105,6 +1153,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                 if (timeUs < mMinStartTimeUs) {
                     // TODO untested path
                     // try a later ts
+                    /*
                     int32_t targetDuration;
                     mPlaylist->meta()->findInt32("target-duration", &targetDuration);
                     int32_t incr = (mMinStartTimeUs - timeUs) / 1000000 / targetDuration;
@@ -1114,7 +1163,8 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                     }
                     mSeqNumber += incr;
                     err = -EAGAIN;
-                    break;
+                    break;*/
+                    continue;
                 } else {
                     int64_t startTimeUs;
                     if (mStartTimeUsNotify != NULL
@@ -1401,4 +1451,24 @@ int64_t PlaylistFetcher::resumeThreshold(const sp<AMessage> &msg) {
     return 500000ll;
 }
 
+int32_t PlaylistFetcher::getSeqNumberInLiveStreaming(int32_t lastseqnum, int32_t firstseqnum) {
+    int32_t targetDurationSecs;
+    int64_t durationUsSecs;
+    sp<AMessage> itemMeta;
+    int32_t mIndex=0;
+    int32_t totalDuration = 0;
+    CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
+
+    for(int32_t i = lastseqnum - firstseqnum; i >0; i--){
+        CHECK(mPlaylist->itemAt(i,NULL,&itemMeta));
+        CHECK(itemMeta->findInt64("durationUs",&durationUsSecs));
+        durationUsSecs = durationUsSecs/1000000ll;
+        totalDuration  += durationUsSecs;
+        mIndex++;
+        if(totalDuration>3*targetDurationSecs){
+            break;
+        }
+    }
+    return lastseqnum-mIndex+1;
+}
 }  // namespace android

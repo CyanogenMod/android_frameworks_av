@@ -48,6 +48,8 @@ struct HTTPBase : public DataSource {
 
     virtual status_t setBandwidthStatCollectFreq(int32_t freqMs);
 
+    virtual void setCustomBwEstimate(bool flag = false);
+
     static void RegisterSocketUserTag(int sockfd, uid_t uid, uint32_t kTag);
     static void UnRegisterSocketUserTag(int sockfd);
 
@@ -78,6 +80,7 @@ private:
     int64_t mPrevBandwidthMeasureTimeUs;
     int32_t mPrevEstimatedBandWidthKbps;
     int32_t mBandWidthCollectFreqMs;
+    bool mCustomBwEstimate;
 
     DISALLOW_EVIL_CONSTRUCTORS(HTTPBase);
 };
