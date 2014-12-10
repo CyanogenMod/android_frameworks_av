@@ -921,7 +921,6 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     ALOGV("getOutputForAttr() usage=%d, content=%d, tag=%s flags=%08x",
             attributes.usage, attributes.content_type, attributes.tags, attributes.flags);
 
-    // TODO this is where filtering for custom policies (rerouting, dynamic sources) will go
     routing_strategy strategy = (routing_strategy) getStrategyForAttr(&attributes);
     audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
 
@@ -1962,7 +1961,12 @@ bool AudioPolicyManager::isStreamActiveRemotely(audio_stream_type_t stream,
         const sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
         if (((outputDesc->device() & APM_AUDIO_OUT_DEVICE_REMOTE_ALL) != 0) &&
                 outputDesc->isStreamActive(stream, inPastMs, sysTime)) {
-            return true;
+            // only consider empty or "0" address to only qualify the screen mirroring case
+            // as "remote playback" (vs rerouting when the output is going to a dynamic policy)
+            if (outputDesc->mPolicyMixAddress == String8("")
+                    || outputDesc->mPolicyMixAddress == String8("0")) {
+                return true;
+            }
         }
     }
     return false;
