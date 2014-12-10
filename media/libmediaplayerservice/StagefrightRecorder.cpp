@@ -260,6 +260,9 @@ status_t StagefrightRecorder::setOutputFile(int fd, int64_t offset, int64_t leng
         return -EBADF;
     }
 
+    // start with a clean, empty file
+    ftruncate(fd, 0);
+
     if (mOutputFd >= 0) {
         ::close(mOutputFd);
     }
