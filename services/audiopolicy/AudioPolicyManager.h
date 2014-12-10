@@ -155,6 +155,8 @@ public:
         // return whether a stream is playing remotely, override to change the definition of
         //   local/remote playback, used for instance by notification manager to not make
         //   media players lose audio focus when not playing locally
+        //   For the base implementation, "remotely" means playing during screen mirroring which
+        //   uses an output for playback with a non-empty, non "0" address.
         virtual bool isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs = 0) const;
         virtual bool isSourceActive(audio_source_t source) const;
 
