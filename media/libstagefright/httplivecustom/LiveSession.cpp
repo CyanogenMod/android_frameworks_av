@@ -69,7 +69,12 @@ LiveSessionCustom::LiveSessionCustom(
       mSwitchInProgress(false),
       mDisconnectReplyID(0),
       mSeekReplyID(0),
-      mSeekPosition(-1ll) {
+      mSeekPosition(-1ll),
+      mPerformCheckBw(0),
+      mMode(SWITCHING_NONE),
+      mIsFirstDownloading(true),
+      mIsSwitchingToReal(true),
+      mEraseFirstTs(false) {
 
     mStreams[kAudioIndex] = StreamItem("audio");
     mStreams[kVideoIndex] = StreamItem("video");
@@ -79,9 +84,16 @@ LiveSessionCustom::LiveSessionCustom(
         mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
     }
+
+    mHTTPDataSource->setCustomBwEstimate(true);
+    mLooper = new ALooper;
+    mLooper->setName("PlaylistFetcher");
+    mLooper->start();
 }
 
 LiveSessionCustom::~LiveSessionCustom() {
+    mLooper->stop();
+    mLooper.clear();
 }
 
 sp<ABuffer> LiveSessionCustom::createFormatChangeBuffer(bool swap) {
@@ -224,6 +236,18 @@ status_t LiveSessionCustom::disconnect() {
     status_t err = msg->postAndAwaitResponse(&response);
 
     return err;
+}
+
+bool LiveSessionCustom::switchFirstBandwidth() {
+    ssize_t curband = getBandwidthIndex();
+    if (mPrevBandwidthIndex != curband){
+        changeConfiguration(-1ll /* timeUs */, curband, false /*pick track*/);
+        ALOGV("switchFirstBandwidth  we need change bandwidth to index %d on the first time",curband);
+        mEraseFirstTs = true;
+        return true;
+    }
+    mIsSwitchingToReal = false;
+    return false;
 }
 
 status_t LiveSessionCustom::seekTo(int64_t timeUs) {
@@ -603,11 +627,11 @@ sp<PlaylistFetcher> LiveSessionCustom::addFetcher(const char *uri) {
     notify->setInt32("switchGeneration", mSwitchGeneration);
 
     FetcherInfo info;
-    info.mFetcher = new PlaylistFetcher(notify, this, uri);
+    info.mFetcher = new PlaylistFetcher(notify, this, uri, mIsFirstDownloading, mPrevBandwidthIndex);
     info.mDurationUs = -1ll;
     info.mIsPrepared = false;
     info.mToBeRemoved = false;
-    looper()->registerHandler(info.mFetcher);
+    mLooper->registerHandler(info.mFetcher);
 
     mFetcherInfos.add(uri, info);
 
@@ -635,12 +659,16 @@ ssize_t LiveSessionCustom::fetchFile(
         int64_t range_offset, int64_t range_length,
         uint32_t block_size, /* download block size */
         sp<DataSource> *source, /* to return and reuse source */
-        String8 *actualUrl) {
+        String8 *actualUrl,
+        bool *eos) {
     off64_t size;
     sp<DataSource> temp_source;
     if (source == NULL) {
         source = &temp_source;
     }
+
+    if (eos != NULL)
+        *eos = false;
 
     if (*source == NULL) {
         if (!strncasecmp(url, "file://", 7)) {
@@ -661,7 +689,9 @@ ssize_t LiveSessionCustom::fetchFile(
                                     ? "" : StringPrintf("%lld",
                                             range_offset + range_length - 1).c_str()).c_str()));
             }
+            ALOGV("HTTPDataSource connect");
             status_t err = mHTTPDataSource->connect(url, &headers);
+            ALOGV("HTTPDataSource connect end");
 
             if (err != OK) {
                 return err;
@@ -714,6 +744,12 @@ ssize_t LiveSessionCustom::fetchFile(
             }
         }
 
+        if (maxBytesToRead == 0) {
+            ALOGV("maxBytesToRead = 0");
+            if (eos != NULL)
+                *eos = true;
+            break;
+        }
         // The DataSource is responsible for informing us of error (n < 0) or eof (n == 0)
         // to help us break out of the loop.
         ssize_t n = (*source)->readAt(
@@ -725,6 +761,10 @@ ssize_t LiveSessionCustom::fetchFile(
         }
 
         if (n == 0) {
+            if (eos != NULL) {
+                ALOGV("HTTP read n = 0");
+                *eos = true;
+            }
             break;
         }
 
@@ -741,6 +781,14 @@ ssize_t LiveSessionCustom::fetchFile(
     }
 
     return bytesRead;
+}
+
+void LiveSessionCustom::disconnectUrl() {
+    ALOGV("LiveSessionCustom::disconnectUrl");
+    if (mHTTPDataSource != NULL) {
+        mHTTPDataSource->disconnect();
+        ALOGV("LiveSessionCustom::disconnectUrl end");
+    }
 }
 
 sp<M3UParser> LiveSessionCustom::fetchPlaylist(
@@ -839,8 +887,12 @@ size_t LiveSessionCustom::getBandwidthIndex() {
             }
         }
 
+        int32_t realBps = bandwidthBps;
         // Consider only 80% of the available bandwidth usable.
-        bandwidthBps = (bandwidthBps * 8) / 10;
+        if (mIsFirstDownloading || mIsSwitchingToReal)
+            bandwidthBps = (bandwidthBps * 8) / 10;
+        else
+            bandwidthBps = (bandwidthBps * 9) / 10;
 
         // Pick the highest bandwidth stream below or equal to estimated bandwidth.
 
@@ -848,6 +900,32 @@ size_t LiveSessionCustom::getBandwidthIndex() {
         while (index > 0 && mBandwidthItems.itemAt(index).mBandwidth
                                 > (size_t)bandwidthBps) {
             --index;
+        }
+
+        if (mIsFirstDownloading) {
+            mIsFirstDownloading = false;
+            ALOGV("First downloading: return index: %d", index);
+            return index;
+        }
+
+        if (mIsSwitchingToReal) {
+            mIsSwitchingToReal = false;
+            ALOGV("Switch to real bw: return index: %d", index);
+            return index;
+        }
+
+        // In up switch case, only when the real estimated bandwidth is 30%
+        // above the target duration, the index can be changed
+        if ((mPrevBandwidthIndex >= 0) && mPrevBandwidthIndex < index) {
+            if(!(realBps > mBandwidthItems.itemAt(index).mBandwidth*13/10)) {
+                // real bps is not above 30% of the target bandwidth
+                if(index > (mPrevBandwidthIndex + 1))
+                    //eg: index:4, mPreBandwidthIndex:2, we should choose 3
+                    index--;
+                else
+                    //eg: index:3  mPreBandwidthIndex:2, we should choose 2
+                    index = mPrevBandwidthIndex;
+            }
         }
     }
 #elif 0
@@ -973,7 +1051,8 @@ bool LiveSessionCustom::canSwitchUp() {
     for (size_t i = 0; i < mPacketSources.size(); ++i) {
         sp<AnotherPacketSource> source = mPacketSources.valueAt(i);
         int64_t dur = source->getBufferedDurationUs(&err);
-        if (err == OK && dur > 10000000) {
+        int64_t highWaterMark = mPrevBandwidthIndex < 3 ? 10000000ll : 15000000ll; // 10s for 0,1,2 index;  15s for the other ones.
+        if (err == OK && dur > highWaterMark) {
             return true;
         }
     }
@@ -989,6 +1068,7 @@ void LiveSessionCustom::changeConfiguration(
     CHECK(!mReconfigurationInProgress);
     mReconfigurationInProgress = true;
 
+    bool changeToLower = (bandwidthIndex < mPrevBandwidthIndex);
     mPrevBandwidthIndex = bandwidthIndex;
 
     ALOGV("changeConfiguration => timeUs:%lld us, bwIndex:%d, pickTrack:%d",
@@ -1035,7 +1115,7 @@ void LiveSessionCustom::changeConfiguration(
         if (discardFetcher) {
             mFetcherInfos.valueAt(i).mFetcher->stopAsync();
         } else {
-            mFetcherInfos.valueAt(i).mFetcher->pauseAsync();
+            mFetcherInfos.valueAt(i).mFetcher->pauseAsync(changeToLower);
         }
     }
 
@@ -1049,6 +1129,7 @@ void LiveSessionCustom::changeConfiguration(
     msg->setInt32("streamMask", streamMask);
     msg->setInt32("resumeMask", resumeMask);
     msg->setInt64("timeUs", timeUs);
+    msg->setInt32("changeToLower", changeToLower);
     for (size_t i = 0; i < kMaxStreams; ++i) {
         if (streamMask & indexToType(i)) {
             msg->setString(mStreams[i].uriKey().c_str(), URIs[i].c_str());
@@ -1172,6 +1253,9 @@ void LiveSessionCustom::onChangeConfiguration3(const sp<AMessage> &msg) {
 
     mNewStreamMask = streamMask;
 
+    int32_t changeToLower = 0;
+    msg->findInt32("changeToLower", &changeToLower);
+
     // Of all existing fetchers:
     // * Resume fetchers that are still needed and assign them original packet sources.
     // * Mark otherwise unneeded fetchers for removal.
@@ -1253,16 +1337,33 @@ void LiveSessionCustom::onChangeConfiguration3(const sp<AMessage> &msg) {
                 streamMask &= ~indexToType(j);
             }
         }
-
+        int32_t seqNumber = -1;
+        if (!mEraseFirstTs) {
+            if (latestSeq >= 0)
+                seqNumber = changeToLower == 1 ? latestSeq : (latestSeq + 1);
+        } else {
+            ALOGV("the first TS has been erased, restart the playlistfetcher");
+            if (seqNumber == 0)  /* for VOD the playback should start from index 0 */
+                seqNumber = -1;
+            latestTimeUs = 1ll;
+            mEraseFirstTs = false;
+        }
         fetcher->startAsync(
                 sources[kAudioIndex],
                 sources[kVideoIndex],
                 sources[kSubtitleIndex],
                 timeUs,
                 latestTimeUs /* min start time(us) */,
-                latestSeq >= 0 ? latestSeq + 1 : -1 /* starting sequence number hint */ );
+                seqNumber/* starting sequence number hint */ );
     }
 
+    if (changeToLower == 1) {
+        for (size_t i = 0; i < mFetcherInfos.size(); i++) {
+            const FetcherInfo info = mFetcherInfos.valueAt(i);
+            if (info.mToBeRemoved)
+                info.mFetcher->onQueueEndAu();
+        }
+    }
     // All fetchers have now been started, the configuration change
     // has completed.
 
@@ -1336,7 +1437,7 @@ void LiveSessionCustom::tryToFinishBandwidthSwitch() {
 void LiveSessionCustom::scheduleCheckBandwidthEvent() {
     sp<AMessage> msg = new AMessage(kWhatCheckBandwidth, id());
     msg->setInt32("generation", mCheckBandwidthGeneration);
-    msg->post(10000000ll);
+    msg->post((mPerformCheckBw == 1 && mMode == SWITCHING_LOW)? 3000000ll:7000000ll);
 }
 
 void LiveSessionCustom::cancelCheckBandwidthEvent() {
@@ -1360,11 +1461,52 @@ bool LiveSessionCustom::canSwitchBandwidthTo(size_t bandwidthIndex) {
     }
 
     if (bandwidthIndex == (size_t)mPrevBandwidthIndex) {
+        ALOGV("canSwitch--the same bandwidth");
+        mPerformCheckBw = 0;
+        mMode = SWITCHING_NONE;
         return false;
     } else if (bandwidthIndex > (size_t)mPrevBandwidthIndex) {
-        return canSwitchUp();
+        ALOGV("canSwitch--high than the previous bw");
+        if (canSwitchUp()) {
+            if (mPerformCheckBw == 0) {
+                mMode = SWITCHING_HIGH;
+                mPerformCheckBw = 1;
+                ALOGV("canSwitch--check the high mode in the first time");
+                return false;
+            } else {
+                bool ret = (mMode == SWITCHING_HIGH);
+                mMode = SWITCHING_NONE;
+                mPerformCheckBw = 0;
+                if (ret)
+                    ALOGV("canSwitch--check the high mode in the second time, switch it");
+                else
+                    ALOGV("canSwitch--check the other mode in the second time(high), do't switch it");
+                return ret;
+            }
+        } else {
+            return false;
+        }
     } else {
-        return true;
+        if (bandwidthIndex < 1) {
+            mMode = SWITCHING_NONE;
+            mPerformCheckBw = 0;
+            return true;
+        }
+        if (mPerformCheckBw == 0) {
+            mMode = SWITCHING_LOW;
+            mPerformCheckBw = 1;
+            ALOGV("canSwitch--check the low mode in the first time");
+            return false;
+        } else {
+            bool ret = (mMode == SWITCHING_LOW);
+            mMode = SWITCHING_NONE;
+            mPerformCheckBw = 0;
+            if (ret)
+                ALOGV("canSwitch--check the low mode in the second time, switch it");
+            else
+                ALOGV("canSwitch--check the other mode in the second time(low), do't switch it");
+            return ret;
+        }
     }
 }
 

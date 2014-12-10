@@ -111,6 +111,12 @@ private:
         kWhatSwapped                    = 'swap',
     };
 
+    enum BandwidthSwitchingMode{
+        SWITCHING_NONE            = 0,
+        SWITCHING_HIGH            = 1,
+        SWITCHING_LOW             = 2,
+    };
+
     struct BandwidthItem {
         size_t mPlaylistIndex;
         unsigned long mBandwidth;
@@ -190,6 +196,18 @@ private:
 
     int64_t mSeekPosition; //cache the new seek position during changing configuration
 
+    sp<ALooper> mLooper;
+
+    int32_t mPerformCheckBw;
+
+    BandwidthSwitchingMode mMode;
+
+    bool mIsFirstDownloading;
+
+    bool mIsSwitchingToReal;
+
+    volatile bool mEraseFirstTs;
+
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
@@ -215,10 +233,15 @@ private:
             uint32_t block_size = 0,
             /* reuse DataSource if doing partial fetch */
             sp<DataSource> *source = NULL,
-            String8 *actualUrl = NULL);
+            String8 *actualUrl = NULL,
+            bool *eos = NULL);
 
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
+
+    void disconnectUrl();
+
+    bool switchFirstBandwidth();
 
     size_t getBandwidthIndex();
 

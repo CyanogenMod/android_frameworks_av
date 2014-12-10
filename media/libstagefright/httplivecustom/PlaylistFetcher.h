@@ -49,7 +49,9 @@ struct PlaylistFetcher : public AHandler {
     PlaylistFetcher(
             const sp<AMessage> &notify,
             const sp<LiveSessionCustom> &session,
-            const char *uri);
+            const char *uri,
+            const bool first,
+            const int32_t index);
 
     sp<DataSource> getDataSource();
 
@@ -61,11 +63,13 @@ struct PlaylistFetcher : public AHandler {
             int64_t minStartTimeUs = 0ll /* start after this timestamp */,
             int32_t startSeqNumberHint = -1 /* try starting at this sequence number */);
 
-    void pauseAsync();
+    void pauseAsync(bool changeToLower);
 
     void stopAsync(bool selfTriggered = false);
 
     void resumeUntilAsync(const sp<AMessage> &params);
+
+    void onQueueEndAu();
 
 protected:
     virtual ~PlaylistFetcher();
@@ -140,6 +144,18 @@ private:
     // the last block of cipher text (cipher-block chaining).
     unsigned char mAESInitVec[16];
 
+    // this flag is written and read in the different threads, use volatile for
+    // this variable member
+    volatile bool mStopFetching;
+
+    int64_t mTargetDurationUs;
+
+    int32_t mNumRetryKey;
+
+    int32_t mBandwidthIndex;
+
+    bool mIsFirstDownloading;
+
     // Set first to true if decrypting the first segment of a playlist segment. When
     // first is true, reset the initialization vector based on the available
     // information in the manifest; otherwise, use the initialization vector as
@@ -189,6 +205,8 @@ private:
     // Before resuming a fetcher in onResume, check the remaining duration is longer than that
     // returned by resumeThreshold.
     int64_t resumeThreshold(const sp<AMessage> &msg);
+
+    int32_t getSeqNumberInLiveStreaming(int32_t lastseqnum, int32_t firstseqnum);
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaylistFetcher);
 };
