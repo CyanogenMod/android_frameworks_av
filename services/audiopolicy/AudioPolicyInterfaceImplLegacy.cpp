@@ -555,7 +555,7 @@ status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *
 
 status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_io_handle_t *output,
-                                              audio_session_t session,
+                                              audio_session_t session __unused,
                                               audio_stream_type_t *stream,
                                               uint32_t samplingRate,
                                               audio_format_t format,
@@ -586,6 +586,12 @@ status_t AudioPolicyService::acquireSoundTriggerSession(audio_session_t *session
 }
 
 status_t AudioPolicyService::releaseSoundTriggerSession(audio_session_t session __unused)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::registerPolicyMixes(Vector<AudioMix> mixes __unused,
+                                                 bool registration __unused)
 {
     return INVALID_OPERATION;
 }
