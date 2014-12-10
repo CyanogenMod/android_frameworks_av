@@ -22,6 +22,7 @@
 #include <utils/Log.h>
 
 #include "include/StagefrightMetadataRetriever.h"
+#include "include/HTTPBase.h"
 
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -54,6 +55,12 @@ StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
     mAlbumArt = NULL;
 
     mClient.disconnect();
+
+    if (mSource != NULL &&
+        (mSource->flags() & DataSource::kIsHTTPBasedSource)) {
+        mExtractor.clear();
+        static_cast<HTTPBase *>(mSource.get())->disconnect();
+    }
 }
 
 status_t StagefrightMetadataRetriever::setDataSource(
