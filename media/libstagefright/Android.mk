@@ -80,6 +80,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/system/netd/include \
         $(TOP)/external/icu/icu4c/source/common \
         $(TOP)/external/icu/icu4c/source/i18n \
+        $(TOP)/external/jpeg \
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
@@ -104,7 +105,8 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libvorbisidec \
         libz \
-        libpowermanager
+        libpowermanager \
+        libjpeg
 
 ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 ifneq ($(filter msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)

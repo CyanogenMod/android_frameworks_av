@@ -39,6 +39,7 @@
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/OMXCodec.h>
 #include <cutils/properties.h>
 #include <media/stagefright/MediaExtractor.h>
@@ -51,6 +52,14 @@
 #include <netdb.h>
 
 #include "include/ExtendedUtils.h"
+
+#include <system/window.h>
+#include <ui/GraphicBufferMapper.h>
+
+extern "C" {
+    #include "jpeglib.h"
+    #include "jerror.h"
+}
 
 static const int64_t kDefaultAVSyncLateMargin =  40000;
 static const int64_t kMaxAVSyncLateMargin     = 250000;
@@ -1734,6 +1743,172 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     ALOGI("decision %d mime %s", decision, mime);
     return decision;
 }
+
+void ExtendedUtils::detectAndPostImage(const sp<ABuffer> accessUnit,
+        const sp<AMessage> &notify) {
+    if (accessUnit == NULL || notify == NULL)
+        return;
+    sp<RefBase> obj;
+    if (accessUnit->meta()->findObject("format", &obj) && obj != NULL) {
+        sp<MetaData> format = static_cast<MetaData*>(obj.get());
+        const void* data;
+        uint32_t type;
+        size_t size;
+        if (format->findData(kKeyAlbumArt, &type, &data, &size)) {
+            ALOGV("found album image");
+            sp<ABuffer> imagebuffer = ABuffer::CreateAsCopy(data, size);
+            notify->setBuffer("image-buffer", imagebuffer);
+            notify->post();
+            format->remove(kKeyAlbumArt);
+        }
+    }
+}
+
+void ExtendedUtils::showImageInNativeWindow(const sp<AMessage> &msg,
+        const sp<AMessage> &format) {
+    if (msg == NULL || format == NULL)
+        return;
+
+    sp<ABuffer> buffer;
+    if (!msg->findBuffer("image-buffer", &buffer) || buffer == NULL)
+        return;
+
+    sp<RefBase> obj;
+    if (!msg->findObject("native-window", &obj) || obj == NULL)
+        return;
+
+    sp<ANativeWindow> nativeWindow = (static_cast<NativeWindowWrapper *>(obj.get()))->getNativeWindow();
+
+    ALOGV("decode jpeg to rgb565");
+    jpeg_decompress_struct cinfo;
+    jpeg_error_mgr jerr;
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_decompress(&cinfo);
+    jpeg_mem_src(&cinfo, buffer->data(), buffer->size());
+
+    if (JPEG_HEADER_OK != jpeg_read_header(&cinfo, true)) {
+        ALOGE("failed to decode jpeg header");
+        jpeg_destroy_decompress(&cinfo);
+        return;
+    }
+
+    cinfo.out_color_space = JCS_RGB_565;
+    if (!jpeg_start_decompress(&cinfo)) {
+        ALOGE("failed to decompress jpeg picture");
+        jpeg_destroy_decompress(&cinfo);
+        return;
+    }
+
+    ALOGV("Picture width = %d, height = %d", cinfo.output_width, cinfo.output_height);
+    size_t stride = cinfo.output_width * 2;
+    size_t dataSize = stride * cinfo.output_height;
+    sp<ABuffer> outBuffer = new ABuffer(dataSize);
+    size_t i = 0;
+    while (cinfo.output_scanline < cinfo.output_height) {
+        JSAMPLE* rowptr = (JSAMPLE*)(outBuffer->data() + stride * i);
+        int32_t row_count = jpeg_read_scanlines(&cinfo, &rowptr, 1);
+        if (0 == row_count) {
+           ALOGV("row_count = 0");
+           cinfo.output_scanline = cinfo.output_height;
+           break;
+        }
+        i++;
+    }
+    size_t bufwidth = cinfo.output_width;
+    size_t bufheight = cinfo.output_height;
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    ALOGV("finish decoding jpeg");
+
+    int32_t err = 0;
+
+    err = native_window_set_usage(
+            nativeWindow.get(),
+            GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
+            | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
+    if (err != 0) {
+        ALOGE("native_window_set_usage failed: %d", err);
+        return;
+    }
+    err = native_window_set_scaling_mode(
+            nativeWindow.get(),
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    if (err != 0) {
+        ALOGE("native_window_set_scaling_mode failed: %d", err);
+        return;
+    }
+    err = native_window_set_buffers_dimensions(
+            nativeWindow.get(),
+            bufwidth,
+            bufheight);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_dimensions failed: %d", err);
+        return;
+    }
+    err = native_window_set_buffers_format(
+            nativeWindow.get(),
+            HAL_PIXEL_FORMAT_RGB_565);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_format failed: %d", err);
+        return;
+    }
+
+    android_native_rect_t crop;
+    crop.left = 0;
+    crop.top = 0;
+    crop.right = bufwidth - 1;
+    crop.bottom = bufheight - 1;
+
+    err = native_window_set_crop(nativeWindow.get(), &crop);
+    if (err != 0) {
+        ALOGE("native_window_set_crop failed: %ld", err);
+        return;
+    }
+
+    err = native_window_set_buffers_transform(
+            nativeWindow.get(), 0);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_transform failed: %ld", err);
+        return;
+    }
+
+    ANativeWindowBuffer *buf;
+    if ((err = native_window_dequeue_buffer_and_wait(nativeWindow.get(),
+            &buf)) != 0) {
+        ALOGE("native_window_dequeue_buffer_and_wait returned error %d", err);
+        buf = NULL;
+        return;
+    }
+    GraphicBufferMapper &mapper = GraphicBufferMapper::get();
+    Rect bounds(bufwidth, bufheight);
+
+    void *dst;
+    if ((err = mapper.lock(buf->handle, GRALLOC_USAGE_SW_WRITE_OFTEN,
+            bounds, &dst)) != 0) {
+        ALOGE("mapper.lock failed %d", err);
+        buf = NULL;
+        return;
+    }
+
+    memcpy((uint8_t*)dst, outBuffer->data(), dataSize);
+
+    if ((err = mapper.unlock(buf->handle)) != 0) {
+        ALOGE("mapper.unlock failed %d", err);
+        buf = NULL;
+        return;
+    }
+    if ((err = nativeWindow->queueBuffer(nativeWindow.get(), buf,
+            -1)) != 0) {
+        ALOGE("native window queueBuffer returned error %d", err);
+        buf = NULL;
+        return;
+    }
+    buf = NULL;
+    ALOGV("show the image in native window");
+    format->setInt32("width", (int32_t)bufwidth);
+    format->setInt32("height", (int32_t)bufheight);
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -1921,6 +2096,19 @@ bool ExtendedUtils::checkDPFromVOLHeader(const uint8_t *data, size_t size) {
     ARG_TOUCH(data);
     ARG_TOUCH(size);
     return false;
+}
+
+
+void ExtendedUtils::detectAndPostImage(const sp<ABuffer> accessUnit,
+        const sp<AMessage> &notify) {
+    ARG_TOUCH(accessUnit);
+    ARG_TOUCH(notify);
+}
+
+void ExtendedUtils::showImageInNativeWindow(const sp<AMessage> &msg,
+        const sp<AMessage> &format) {
+    ARG_TOUCH(msg);
+    ARG_TOUCH(format);
 }
 
 bool ExtendedUtils::RTSPStream::ParseURL_V6(
