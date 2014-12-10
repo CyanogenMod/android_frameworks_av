@@ -63,7 +63,7 @@ static audio_stream_type_t audio_attributes_to_stream_type(const audio_attribute
 
 static void stream_type_to_audio_attributes(audio_stream_type_t streamType,
                                      audio_attributes_t *attr) {
-    attr->flags = 0x0;
+    memset(attr, 0, sizeof(audio_attributes_t));
 
     switch (streamType) {
     case AUDIO_STREAM_DEFAULT:

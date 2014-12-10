@@ -2244,7 +2244,13 @@ void AudioFlinger::PlaybackThread::threadLoop_drain()
 
 void AudioFlinger::PlaybackThread::threadLoop_exit()
 {
-    // Default implementation has nothing to do
+    {
+        Mutex::Autolock _l(mLock);
+        for (size_t i = 0; i < mTracks.size(); i++) {
+            sp<Track> track = mTracks[i];
+            track->invalidate();
+        }
+    }
 }
 
 /*
