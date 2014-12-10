@@ -245,6 +245,9 @@ struct ExtendedUtils {
     static bool isPcmOffloadEnabled();
 
     static bool pcmOffloadException(const char* const mime);
+
+    static void detectAndPostImage(const sp<ABuffer> accessunit, const sp<AMessage> &notify);
+    static void showImageInNativeWindow(const sp<AMessage> &msg, const sp<AMessage> &format);
 };
 
 }

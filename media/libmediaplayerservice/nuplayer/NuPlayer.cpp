@@ -51,6 +51,8 @@
 #include "ESDS.h"
 #include <media/stagefright/Utils.h>
 
+#include "ExtendedUtils.h"
+
 namespace android {
 
 static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
@@ -179,7 +181,8 @@ NuPlayer::NuPlayer()
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
       mStarted(false),
       mBuffering(false),
-      mPlaying(false) {
+      mPlaying(false),
+      mImageShowed(false) {
 
     clearFlushComplete();
     mPlayerExtendedStats = (PlayerExtendedStats *)ExtendedStats::Create(
@@ -1392,6 +1395,14 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                         getDecoder(audio)->supportsSeamlessFormatChange(newFormat);
                     // treat seamless format change separately
                     formatChange = !seamlessFormatChange;
+
+                    if (mImageShowed && !audio) {
+                        // If the image was showed in native window, video
+                        // decoder needs to be changed to reconfigure
+                        // native window
+                        mImageShowed = false;
+                        formatChange = true;
+                    }
                 }
                 bool shutdownOrFlush = formatChange || timeChange;
 
@@ -2131,6 +2142,25 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         case Source::kWhatDrmNoLicense:
         {
             notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, ERROR_DRM_NO_LICENSE);
+            break;
+        }
+
+        case Source::kWhatShowImage:
+        {
+            if (mNativeWindow == NULL) {
+                ALOGW("native window is null");
+                return;
+            }
+            msg->setObject("native-window", mNativeWindow);
+            sp<AMessage> format = new AMessage;
+            int32_t width, height;
+            ExtendedUtils::showImageInNativeWindow(msg, format);
+            if (format->findInt32("width", &width)
+                    && format->findInt32("height", &height)) {
+                ALOGV("show the image with width = %ld,  height = %ld", width, height);
+                notifyListener(MEDIA_SET_VIDEO_SIZE, width, height);
+                mImageShowed = true;
+            }
             break;
         }
 

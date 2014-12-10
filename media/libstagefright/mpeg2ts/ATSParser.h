@@ -88,6 +88,7 @@ struct ATSParser : public RefBase {
         STREAMTYPE_MPEG2_AUDIO          = 0x04,
         STREAMTYPE_MPEG2_AUDIO_ADTS     = 0x0f,
         STREAMTYPE_MPEG4_VIDEO          = 0x10,
+        STREAMTYPE_METADATA_PES         = 0x15,// Metadata carried in PES packets
         STREAMTYPE_H264                 = 0x1b,
 
         // From ATSC A/53 Part 3:2009, 6.7.1
