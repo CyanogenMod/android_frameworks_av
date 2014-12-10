@@ -42,7 +42,8 @@ struct M3UParser : public RefBase {
 
     void pickRandomMediaItems();
     status_t selectTrack(size_t index, bool select);
-    status_t getTrackInfo(Parcel* reply) const;
+    size_t getTrackCount() const;
+    sp<AMessage> getTrackInfo(size_t index) const;
     ssize_t getSelectedIndex() const;
 
     bool getTypeURI(size_t index, const char *key, AString *uri) const;

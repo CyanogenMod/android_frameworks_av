@@ -21,7 +21,7 @@
 #include <media/stagefright/foundation/AHandler.h>
 
 #include "mpeg2ts/ATSParser.h"
-#include "LiveSession.h"
+#include "LiveSessionCustom.h"
 
 namespace android {
 
@@ -48,7 +48,7 @@ struct PlaylistFetcher : public AHandler {
 
     PlaylistFetcher(
             const sp<AMessage> &notify,
-            const sp<LiveSession> &session,
+            const sp<LiveSessionCustom> &session,
             const char *uri);
 
     sp<DataSource> getDataSource();
@@ -96,7 +96,7 @@ private:
     sp<AMessage> mNotify;
     sp<AMessage> mStartTimeUsNotify;
 
-    sp<LiveSession> mSession;
+    sp<LiveSessionCustom> mSession;
     AString mURI;
 
     uint32_t mStreamTypeMask;
@@ -104,7 +104,7 @@ private:
     int64_t mMinStartTimeUs; // start fetching no earlier than this value
     sp<AMessage> mStopParams; // message containing the latest timestamps we should fetch.
 
-    KeyedVector<LiveSession::StreamType, sp<AnotherPacketSource> >
+    KeyedVector<LiveSessionCustom::StreamType, sp<AnotherPacketSource> >
         mPacketSources;
 
     KeyedVector<AString, sp<ABuffer> > mAESKeyForURI;
