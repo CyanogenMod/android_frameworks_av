@@ -30,6 +30,7 @@
 #include <media/IAudioPolicyService.h>
 #include <media/ToneGenerator.h>
 #include <media/AudioEffect.h>
+#include <media/AudioPolicy.h>
 #include <hardware_legacy/AudioPolicyInterface.h>
 #include "AudioPolicyEffects.h"
 #include "AudioPolicyManager.h"
@@ -184,6 +185,8 @@ public:
     virtual status_t releaseSoundTriggerSession(audio_session_t session);
 
     virtual audio_mode_t getPhoneState();
+
+    virtual status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration);
 
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
