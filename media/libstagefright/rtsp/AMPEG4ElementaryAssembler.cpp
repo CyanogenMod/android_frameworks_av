@@ -360,7 +360,7 @@ ARTPAssembler::AssemblyStatus AMPEG4ElementaryAssembler::addPacket(
         }
 
         if (offset != buffer->size()) {
-            ALOGW("potentially malformed packet (offset %d, size %d)",
+            ALOGW("potentially malformed packet (offset %zu, size %zu)",
                     offset, buffer->size());
         }
     }
