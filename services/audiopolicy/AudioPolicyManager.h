@@ -23,6 +23,7 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/SortedVector.h>
+#include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
 
@@ -183,6 +184,9 @@ public:
                                                audio_devices_t *device);
 
         virtual status_t releaseSoundTriggerSession(audio_session_t session);
+
+        virtual status_t registerPolicyMixes(Vector<AudioMix> mixes);
+        virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes);
 
 protected:
 
@@ -392,6 +396,7 @@ protected:
             // For input, flags is interpreted as audio_input_flags_t.
             // TODO: merge audio_output_flags_t and audio_input_flags_t.
             bool isCompatibleProfile(audio_devices_t device,
+                                     String8 address,
                                      uint32_t samplingRate,
                                      uint32_t *updatedSamplingRate,
                                      audio_format_t format,
@@ -414,6 +419,13 @@ protected:
             status_t loadOutput(cnode *root);
             status_t loadInput(cnode *root);
             status_t loadDevice(cnode *root);
+
+            status_t addOutputProfile(String8 name, const audio_config_t *config,
+                                      audio_devices_t device, String8 address);
+            status_t removeOutputProfile(String8 name);
+            status_t addInputProfile(String8 name, const audio_config_t *config,
+                                      audio_devices_t device, String8 address);
+            status_t removeInputProfile(String8 name);
 
             void dump(int fd);
 
@@ -483,6 +495,7 @@ protected:
             uint32_t mLatency;                  //
             audio_output_flags_t mFlags;   //
             audio_devices_t mDevice;                   // current device this output is routed to
+            String8 mPolicyMixAddress;            // non empty or "0" when used by a dynamic policy
             audio_patch_handle_t mPatchHandle;
             uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
             nsecs_t mStopTime[AUDIO_STREAM_CNT];
@@ -515,7 +528,9 @@ protected:
             audio_source_t                mInputSource;    // input source selected by application
                                                            //(mediarecorder.h)
             const sp<IOProfile>           mProfile;        // I/O profile this output derives from
-            SortedVector<audio_session_t> mSessions;       // audio sessions attached to this input
+                                          // audio sessions attached to this input and the
+                                          // corresponding device address
+            DefaultKeyedVector<audio_session_t, String8> mSessions;
             bool                          mIsSoundTrigger; // used by a soundtrigger capture
 
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
@@ -594,7 +609,8 @@ protected:
                                   audio_patch_handle_t *patchHandle = NULL);
 
         // select input device corresponding to requested audio source
-        virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource);
+        virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource,
+                                                        String8 *address = NULL);
 
         // return io handle of active input or 0 if no input is active
         //    Only considers inputs from physical devices (e.g. main mic, headset mic) when
@@ -731,10 +747,11 @@ protected:
                                        audio_format_t format);
         // samplingRate parameter is an in/out and so may be modified
         sp<IOProfile> getInputProfile(audio_devices_t device,
-                                   uint32_t& samplingRate,
-                                   audio_format_t format,
-                                   audio_channel_mask_t channelMask,
-                                   audio_input_flags_t flags);
+                                      String8 address,
+                                      uint32_t& samplingRate,
+                                      audio_format_t format,
+                                      audio_channel_mask_t channelMask,
+                                      audio_input_flags_t flags);
         sp<IOProfile> getProfileForDirectOutput(audio_devices_t device,
                                                        uint32_t samplingRate,
                                                        audio_format_t format,
@@ -831,6 +848,17 @@ protected:
         uint32_t mBeaconMuteRefCount;   // ref count for stream that would mute beacon
         uint32_t mBeaconPlayingRefCount;// ref count for the playing beacon streams
         bool mBeaconMuted;              // has STREAM_TTS been muted
+
+        // custom mix entry in mPolicyMixes
+        class AudioPolicyMix : public RefBase {
+        public:
+            AudioPolicyMix() {}
+
+            AudioMix    mMix;                   // Audio policy mix descriptor
+            sp<AudioOutputDescriptor> mOutput;  // Corresponding output stream
+        };
+        DefaultKeyedVector<String8, sp<AudioPolicyMix> > mPolicyMixes; // list of registered mixes
+
 
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
