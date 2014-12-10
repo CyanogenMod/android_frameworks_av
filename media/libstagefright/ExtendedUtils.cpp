@@ -960,7 +960,13 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     bool amrwbAudio              = false;
     bool hevcVideo               = false;
     bool dolbyAudio              = false;
+    bool mpeg4Container          = false;
+    bool aacAudioTrack           = false;
     int  numOfTrack              = 0;
+
+    mpeg4Container = !strncasecmp(mime,
+                                MEDIA_MIMETYPE_CONTAINER_MPEG4,
+                                strlen(MEDIA_MIMETYPE_CONTAINER_MPEG4));
 
     if (defaultExt != NULL) {
         for (size_t trackItt = 0; trackItt < defaultExt->countTracks(); ++trackItt) {
@@ -986,6 +992,10 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
                                           MEDIA_MIMETYPE_AUDIO_AMR_WB,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
 
+                aacAudioTrack = !strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_AAC,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_AAC));
+
                 for (size_t i = 0; i < ARRAY_SIZE(dolbyFormats); i++) {
                     if (!strncasecmp(mime.string(), dolbyFormats[i], strlen(dolbyFormats[i]))) {
                         dolbyAudio = true;
@@ -1009,7 +1019,8 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             bCheckExtendedExtractor = true;
         } else if (numOfTrack == 1) {
             if ((videoTrackFound) ||
-                (!videoTrackFound && !audioTrackFound)) {
+                (!videoTrackFound && !audioTrackFound) ||
+                (audioTrackFound && mpeg4Container && aacAudioTrack)) {
                 bCheckExtendedExtractor = true;
             }
         } else if (numOfTrack >= 2) {
@@ -1061,6 +1072,7 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
 #ifdef DOLBY_UDC
         MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
 #endif
+        MEDIA_MIMETYPE_AUDIO_AAC,
     };
 
     for (size_t trackItt = 0; (trackItt < retExtExtractor->countTracks()); ++trackItt) {
