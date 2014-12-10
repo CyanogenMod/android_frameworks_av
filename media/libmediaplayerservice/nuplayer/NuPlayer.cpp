@@ -641,9 +641,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             sp<MetaData> vMeta = new MetaData;
             convertMessageToMetaData(videoFormat, vMeta);
 
-            const char *mime;
-            CHECK(audioMeta->findCString(kKeyMIMEType, &mime));
-            if(!ExtendedUtils::pcmOffloadException(mime)) {
+            const char *mime = NULL;
+            if (audioMeta != NULL) {
+                audioMeta->findCString(kKeyMIMEType, &mime);
+            }
+            if(mime && !ExtendedUtils::pcmOffloadException(mime)) {
                 mOffloadAudio =
                     canOffloadStream(audioMeta, (videoFormat != NULL), vMeta,
                                      mIsStreaming /* is_streaming */, streamType);
