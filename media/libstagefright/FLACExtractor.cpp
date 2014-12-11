@@ -559,7 +559,8 @@ void FLACParser::allocateBuffers()
     CHECK(mGroup == NULL);
     mGroup = new MediaBufferGroup;
     // allocate enough to hold 24-bits (packed in 32 bits)
-    mMaxBufferSize = getMaxBlockSize() * getChannels() * 4;
+    unsigned int bytesPerSample = getBitsPerSample() > 16 ? 4 : 2;
+    mMaxBufferSize = getMaxBlockSize() * getChannels() * bytesPerSample;
     mGroup->add_buffer(new MediaBuffer(mMaxBufferSize));
 }
 
