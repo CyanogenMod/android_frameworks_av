@@ -25,9 +25,16 @@
 
 namespace android {
 
+struct CodecProfileLevel;
+
 struct SoftMPEG4Encoder : public SoftVideoEncoderOMXComponent {
     SoftMPEG4Encoder(
             const char *name,
+            const char *componentRole,
+            OMX_VIDEO_CODINGTYPE codingType,
+            const char *mime,
+            const CodecProfileLevel *profileLevels,
+            size_t numProfileLevels,
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component);
@@ -56,12 +63,6 @@ private:
     } InputBufferInfo;
 
     MP4EncodingMode mEncodeMode;
-    int32_t  mVideoWidth;
-    int32_t  mVideoHeight;
-    int32_t  mVideoFrameRate;
-    int32_t  mVideoBitRate;
-    int32_t  mVideoColorFormat;
-    bool     mStoreMetaDataInBuffers;
     int32_t  mIDRFrameRefreshIntervalInSec;
 
     int64_t  mNumInputFrames;
@@ -74,7 +75,6 @@ private:
     uint8_t               *mInputFrameData;
     Vector<InputBufferInfo> mInputBufferInfoVec;
 
-    void initPorts();
     OMX_ERRORTYPE initEncParams();
     OMX_ERRORTYPE initEncoder();
     OMX_ERRORTYPE releaseEncoder();
