@@ -446,6 +446,10 @@ status_t FFMPEGSoftCodec::setSupportedRole(
           "video_decoder.flv1", NULL },
         { MEDIA_MIMETYPE_VIDEO_HEVC,
           "video_decoder.hevc", NULL },
+        { MEDIA_MIMETYPE_AUDIO_FFMPEG,
+          "audio_decoder.trial", NULL },
+        { MEDIA_MIMETYPE_VIDEO_FFMPEG,
+          "video_decoder.trial", NULL },
         };
     static const size_t kNumMimeToRole =
                      sizeof(kFFMPEGMimeToRole) / sizeof(kFFMPEGMimeToRole[0]);
@@ -954,10 +958,14 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     CHECK(msg->findInt32(getMsgKey(kKeyBlockAlign), &blockAlign));
     CHECK(msg->findInt32(getMsgKey(kKeySampleFormat), &sampleFormat));
 
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
 
-    status_t err = OMXhandle->getParameter(
+    err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
     if (err != OK)
         return err;
