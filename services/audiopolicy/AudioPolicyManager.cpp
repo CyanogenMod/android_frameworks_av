@@ -3210,14 +3210,10 @@ return false;
 #ifdef ENABLE_AV_ENHANCEMENTS
     if (audio_is_offload_pcm(offloadInfo.format)) {
         bool prop_enabled = false;
-#ifdef PCM_OFFLOAD_ENABLED_16
         if ((AUDIO_FORMAT_PCM_16_BIT_OFFLOAD == offloadInfo.format) &&
                property_get("audio.offload.pcm.16bit.enable", propValue, NULL)) {
             prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
         }
-#endif
-
-#ifdef PCM_OFFLOAD_ENABLED_24
         if ((AUDIO_FORMAT_PCM_24_BIT_OFFLOAD == offloadInfo.format) &&
                property_get("audio.offload.pcm.24bit.enable", propValue, NULL)) {
             prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
@@ -3230,7 +3226,7 @@ return false;
         }
 
         if (!pcmOffload) {
-            ALOGD("system property not enabled for PCM offload format[%x]",offloadInfo.format);
+            ALOGV("system property not enabled for PCM offload format[%x]",offloadInfo.format);
             return false;
         }
     }
