@@ -4009,9 +4009,14 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         bool last = l.get() == track;
 
         // The first time a track is added we wait
-        // for all its buffers to be filled before processing it
+        // for all its buffers to be filled before processing it.
+        // Allow draining the buffer in case the client
+        // app does not call stop() and relies on underrun to stop:
+        // hence the test on (track->mRetryCount > 1).
+        // If retryCount<=1 then track is about to underrun and be removed.
         uint32_t minFrames;
-        if ((track->sharedBuffer() == 0) && !track->isStopping_1() && !track->isPausing()) {
+        if ((track->sharedBuffer() == 0) && !track->isStopping_1() && !track->isPausing()
+            && (track->mRetryCount > 1)) {
             minFrames = mNormalFrameCount;
         } else {
             minFrames = 1;
