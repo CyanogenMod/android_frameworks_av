@@ -1667,6 +1667,10 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
             sp<NuPlayerDriver> driver = mDriver.promote();
             if (driver != NULL) {
+                if ((flags & NuPlayer::Source::FLAG_CAN_SEEK) == 0) {
+                    driver->notifyListener(
+                            MEDIA_INFO, MEDIA_INFO_NOT_SEEKABLE, 0);
+                }
                 driver->notifyFlagsChanged(flags);
             }
 
