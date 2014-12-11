@@ -210,6 +210,71 @@ AudioTrack::~AudioTrack()
     }
 }
 
+bool AudioTrack::canOffloadTrack(
+        audio_stream_type_t streamType,
+        audio_format_t format,
+        audio_channel_mask_t channelMask,
+        audio_output_flags_t flags,
+        transfer_type transferType,
+        audio_attributes_t *attributes,
+        const audio_offload_info_t *offloadInfo)
+{
+        char propValue[PROPERTY_VALUE_MAX] = {0};
+        property_get("audio.offload.track.enabled", propValue, "0");
+        bool track_offload = atoi(propValue) || !strncmp("true", propValue, sizeof("true"));
+        bool decision = false;
+
+        if (track_offload == false) {
+             ALOGD("TrackOffload: AudioTrack Offload disabled by property, returning false");
+             return false;
+        }
+
+
+       // Track offload only if the following criterion
+       // 1. Track offload info structure should NOT have been provided
+       // 2. Format is 16 bit
+       // 3. Track is NOT fast track (to prevent tones, and low latency from
+       //     being offloaded
+       // 4. Client uses write interface to provide data
+
+
+       // Track offload does not base any decision on mAttributes, or channelMask for now
+
+        if (!offloadInfo &&
+             (format == AUDIO_FORMAT_PCM_16_BIT) &&
+             (streamType == AUDIO_STREAM_MUSIC) &&
+             (!(flags & AUDIO_OUTPUT_FLAG_FAST)) &&
+             (transferType != TRANSFER_CALLBACK))
+        {
+
+            //initialize format to 16_bit_ofload if content is 16 bit
+            mPcmTrackOffloadInfo.format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+            mPcmTrackOffloadInfo.sample_rate  = mSampleRate;
+            mPcmTrackOffloadInfo.channel_mask = channelMask;
+            mPcmTrackOffloadInfo.stream_type = streamType;
+            mPcmTrackOffloadInfo.duration_us = 0xFFFFFFFF;
+            //TODO: Use mAttributes and pass the value of content in this field
+            mPcmTrackOffloadInfo.has_video = false;
+            mPcmTrackOffloadInfo.is_streaming = false;
+            mPcmTrackOffloadInfo.use_small_bufs = true;
+
+            decision = AudioSystem::isOffloadSupported(mPcmTrackOffloadInfo);
+            ALOGI("TrackOffload: Pcm Track offloaded decided %s", decision?"true":"false");
+            ALOGV("TrackOffload: offloading audio output for stream type"
+              "%d, usage %d, sample rate %u, format %#x,"
+              " channel mask %#x, flags %#x, transferType %d, offloadInfo %p",
+              streamType, attributes->usage, mSampleRate, format, channelMask, flags,
+              transferType, offloadInfo);
+            return decision;
+        }
+
+        ALOGD("TrackOffload: Not track offloading offloading audio output for stream type"
+              "%d, usage %d, sample rate %u, format %#x,"
+              " channel mask %#x, flags %#x, transferType %d, offloadInfo %p",
+              streamType, attributes->usage, mSampleRate, format, channelMask, flags,
+              transferType, offloadInfo);
+        return false;
+}
 status_t AudioTrack::set(
         audio_stream_type_t streamType,
         uint32_t sampleRate,
@@ -1003,8 +1068,37 @@ status_t AudioTrack::createTrack_l()
         return NO_INIT;
     }
 
-    audio_io_handle_t output = AudioSystem::getOutputForAttr(&mAttributes, mSampleRate, mFormat,
+    mCanOffloadPcmTrack = false;
+    mIsPcmTrackOffloaded = false;
+    mPcmTrackOffloadInfo = AUDIO_INFO_INITIALIZER;
+
+    // Check if the track can be offloaded. Store the decision in mCanOffloadPcmTrack
+    mCanOffloadPcmTrack = canOffloadTrack(mStreamType, mFormat, mChannelMask, mFlags,
+                              mTransfer, &mAttributes, mOffloadInfo);
+
+    audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
+
+    if(mCanOffloadPcmTrack) {
+        ALOGV("TrackOffload: Tying to create PCM Offload track");
+        output = AudioSystem::getOutputForAttr(&mAttributes, mSampleRate, mPcmTrackOffloadInfo.format,
+            mChannelMask, (audio_output_flags_t) (mFlags | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
+            &mPcmTrackOffloadInfo);
+        if (output != AUDIO_IO_HANDLE_NONE) {
+            //got output
+            ALOGV("TrackOffload: Going through PCM Offload Track");
+            mIsPcmTrackOffloaded = true;
+            mFrameSize = sizeof(uint8_t);
+            mFrameSizeAF = sizeof(uint8_t);
+            mUseSmallBuf = true;
+        }
+    }
+
+    if (output == AUDIO_IO_HANDLE_NONE) {
+        //retry retrieving output
+        output = AudioSystem::getOutputForAttr(&mAttributes, mSampleRate, mFormat,
             mChannelMask, mFlags, mOffloadInfo);
+    }
+
     if (output == AUDIO_IO_HANDLE_NONE) {
         ALOGE("Could not get audio output for stream type %d, usage %d, sample rate %u, format %#x,"
               " channel mask %#x, flags %#x",
@@ -1066,6 +1160,9 @@ status_t AudioTrack::createTrack_l()
     mNotificationFramesAct = mNotificationFramesReq;
 
     size_t frameCount = mReqFrameCount;
+    if(mIsPcmTrackOffloaded)
+        frameCount = 0;
+
     if (!audio_is_linear_pcm(mFormat)) {
 
         if (mSharedBuffer != 0) {
@@ -1104,7 +1201,7 @@ status_t AudioTrack::createTrack_l()
         // there _is_ a frameCount parameter.  We silently ignore it.
         frameCount = mSharedBuffer->size() / mFrameSizeAF;
 
-    } else if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
+    } else if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST) || mIsPcmTrackOffloaded) {
 
         // FIXME move these calculations and associated checks to server
 
@@ -1152,21 +1249,32 @@ status_t AudioTrack::createTrack_l()
     }
 
     if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+        ALOGV("TrackOffload: mFlags has offload");
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
     if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        ALOGV("TrackOffload: mFlags has direct");
         trackFlags |= IAudioFlinger::TRACK_DIRECT;
     }
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
+    audio_format_t format = AUDIO_FORMAT_PCM_16_BIT;
+    if (mIsPcmTrackOffloaded) {
+        format = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+        ALOGV("Create offloaded PCM 0x%x Track", format);
+        trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
+    } else {
+        // AudioFlinger only sees 16-bit PCM
+        format = (mFormat == AUDIO_FORMAT_PCM_8_BIT &&
+                   !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) ?
+                    AUDIO_FORMAT_PCM_16_BIT : mFormat;
+        ALOGV("Create normal PCM 0x%x Track", format);
+    }
     sp<IAudioTrack> track = audioFlinger->createTrack(mStreamType,
                                                       mSampleRate,
-                                                      // AudioFlinger only sees 16-bit PCM
-                                                      mFormat == AUDIO_FORMAT_PCM_8_BIT &&
-                                                          !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT) ?
-                                                              AUDIO_FORMAT_PCM_16_BIT : mFormat,
+                                                      format,
                                                       mChannelMask,
                                                       &temp,
                                                       &trackFlags,
@@ -1217,6 +1325,7 @@ status_t AudioTrack::createTrack_l()
     frameCount = temp;
 
     mAwaitBoost = false;
+    ALOGV("Flags here  0x%x ", mFlags);
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %zu", frameCount);
@@ -1240,9 +1349,9 @@ status_t AudioTrack::createTrack_l()
             }
         }
     }
-    if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+    if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD || mIsPcmTrackOffloaded) {
         if (trackFlags & IAudioFlinger::TRACK_OFFLOAD) {
-            ALOGV("AUDIO_OUTPUT_FLAG_OFFLOAD successful");
+            ALOGV("TrackOffload: AUDIO_OUTPUT_FLAG_OFFLOAD successful");
         } else {
             ALOGW("AUDIO_OUTPUT_FLAG_OFFLOAD denied by server");
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
@@ -1432,6 +1541,11 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
         return;
     }
 
+    if (stepCount > audioBuffer->frameCount) {
+        ALOGI("TrackOffload: stepCount:framecount %d:%d", stepCount, audioBuffer->frameCount);
+        stepCount = audioBuffer->frameCount;
+    }
+
     Proxy::Buffer buffer;
     buffer.mFrameCount = stepCount;
     buffer.mRaw = audioBuffer->raw;
@@ -1499,6 +1613,10 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
             memcpy_to_i16_from_u8(audioBuffer.i16, (const uint8_t *) buffer, toWrite);
         } else {
             toWrite = audioBuffer.size;
+            if(toWrite > userSize) {
+                ALOGI("TrackOffload: temp toWrite>userSize %d:%d", toWrite, userSize);
+                toWrite = userSize;
+            }
             memcpy(audioBuffer.i8, buffer, toWrite);
         }
         buffer = ((const char *) buffer) + toWrite;
