@@ -497,7 +497,7 @@ protected:
             uint32_t mLatency;                  //
             audio_output_flags_t mFlags;   //
             audio_devices_t mDevice;                   // current device this output is routed to
-            String8 mPolicyMixAddress;            // non empty or "0" when used by a dynamic policy
+            AudioMix *mPolicyMix;             // non NULL when used by a dynamic policy
             audio_patch_handle_t mPatchHandle;
             uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
             nsecs_t mStopTime[AUDIO_STREAM_CNT];
@@ -523,6 +523,7 @@ protected:
             audio_port_handle_t           mId;
             audio_io_handle_t             mIoHandle;       // input handle
             audio_devices_t               mDevice;         // current device this input is routed to
+            AudioMix                      *mPolicyMix;     // non NULL when used by a dynamic policy
             audio_patch_handle_t          mPatchHandle;
             uint32_t                      mRefCount;       // number of AudioRecord clients using
                                                            // this input
@@ -530,9 +531,7 @@ protected:
             audio_source_t                mInputSource;    // input source selected by application
                                                            //(mediarecorder.h)
             const sp<IOProfile>           mProfile;        // I/O profile this output derives from
-                                          // audio sessions attached to this input and the
-                                          // corresponding device address
-            DefaultKeyedVector<audio_session_t, String8> mSessions;
+            SortedVector<audio_session_t> mSessions;       // audio sessions attached to this input
             bool                          mIsSoundTrigger; // used by a soundtrigger capture
 
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
@@ -612,7 +611,7 @@ protected:
 
         // select input device corresponding to requested audio source
         virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource,
-                                                        String8 *address = NULL);
+                                                        AudioMix **policyMix = NULL);
 
         // return io handle of active input or 0 if no input is active
         //    Only considers inputs from physical devices (e.g. main mic, headset mic) when
