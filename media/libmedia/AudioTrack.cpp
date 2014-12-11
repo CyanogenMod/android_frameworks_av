@@ -504,7 +504,7 @@ status_t AudioTrack::set(
         mOffloadInfo = NULL;
     }
 
-    if ((mFormat & AUDIO_FORMAT_PCM_OFFLOAD) &&
+    if (audio_is_offload_pcm(mFormat) &&
          offloadInfo && offloadInfo->use_small_bufs) {
         mUseSmallBuf = true;
         ALOGI("Using small buffers for PCM offload");
