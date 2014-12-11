@@ -2769,19 +2769,26 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
     if (audio_is_offload_pcm(offloadInfo.format)) {
         bool prop_enabled = false;
 #ifdef PCM_OFFLOAD_ENABLED_16
-        if(property_get("audio.offload.pcm.16bit.enable", propValue, NULL))
+        if ((AUDIO_FORMAT_PCM_16_BIT_OFFLOAD == offloadInfo.format) &&
+               property_get("audio.offload.pcm.16bit.enable", propValue, NULL)) {
             prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
-#elif PCM_OFFLOAD_ENABLED_24
-        if(property_get("audio.offload.pcm.24bit.enable", propValue, NULL))
-            prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+        }
 #endif
+
+#ifdef PCM_OFFLOAD_ENABLED_24
+        if ((AUDIO_FORMAT_PCM_24_BIT_OFFLOAD == offloadInfo.format) &&
+               property_get("audio.offload.pcm.24bit.enable", propValue, NULL)) {
+            prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+        }
+#endif
+
         if (prop_enabled) {
             ALOGI("PCM offload property is enabled");
             pcmOffload = true;
         }
 
         if (!pcmOffload) {
-            ALOGD("PCM offload disabled by property audio.offload.pcm.enable");
+            ALOGD("system property not enabled for PCM offload format[%x]",offloadInfo.format);
             return false;
         }
     }
@@ -7641,7 +7648,7 @@ bool AudioPolicyManager::IOProfile::isCompatibleProfile(audio_devices_t device,
 {
     const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
-    ALOGE("isPlaybackThread %d,isRecordThread %d", isPlaybackThread, isRecordThread);
+    ALOGV("isPlaybackThread %d,isRecordThread %d", isPlaybackThread, isRecordThread);
     ALOG_ASSERT(isPlaybackThread != isRecordThread);
 
     if ((mSupportedDevices.types() & device) != device) {
