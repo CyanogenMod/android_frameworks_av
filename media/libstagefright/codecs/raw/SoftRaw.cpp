@@ -59,7 +59,7 @@ void SoftRaw::initPorts() {
     def.eDir = OMX_DirInput;
     def.nBufferCountMin = kNumBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = 64 * 1024;
+    def.nBufferSize = 4096 * 6 * 4;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
@@ -77,7 +77,7 @@ void SoftRaw::initPorts() {
     def.eDir = OMX_DirOutput;
     def.nBufferCountMin = kNumBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = 64 * 1024;
+    def.nBufferSize = 4096 * 6 * 4;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
