@@ -19,6 +19,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SoftVideoEncoderOMXComponent"
 #include <utils/Log.h>
+#include <utils/misc.h>
 
 #include "include/SoftVideoEncoderOMXComponent.h"
 
@@ -27,6 +28,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaDefs.h>
 
 #include <ui/GraphicBuffer.h>
@@ -34,13 +36,316 @@
 
 namespace android {
 
+const static OMX_COLOR_FORMATTYPE kSupportedColorFormats[] = {
+    OMX_COLOR_FormatYUV420Planar,
+    OMX_COLOR_FormatYUV420SemiPlanar,
+    OMX_COLOR_FormatAndroidOpaque
+};
+
+template<class T>
+static void InitOMXParams(T *params) {
+    params->nSize = sizeof(T);
+    params->nVersion.s.nVersionMajor = 1;
+    params->nVersion.s.nVersionMinor = 0;
+    params->nVersion.s.nRevision = 0;
+    params->nVersion.s.nStep = 0;
+}
+
 SoftVideoEncoderOMXComponent::SoftVideoEncoderOMXComponent(
         const char *name,
+        const char *componentRole,
+        OMX_VIDEO_CODINGTYPE codingType,
+        const CodecProfileLevel *profileLevels,
+        size_t numProfileLevels,
+        int32_t width,
+        int32_t height,
         const OMX_CALLBACKTYPE *callbacks,
         OMX_PTR appData,
         OMX_COMPONENTTYPE **component)
     : SimpleSoftOMXComponent(name, callbacks, appData, component),
-      mGrallocModule(NULL) {
+      mInputDataIsMeta(false),
+      mWidth(width),
+      mHeight(height),
+      mBitrate(192000),
+      mFramerate(30 << 16), // Q16 format
+      mColorFormat(OMX_COLOR_FormatYUV420Planar),
+      mGrallocModule(NULL),
+      mMinOutputBufferSize(384), // arbitrary, using one uncompressed macroblock
+      mMinCompressionRatio(1),   // max output size is normally the input size
+      mComponentRole(componentRole),
+      mCodingType(codingType),
+      mProfileLevels(profileLevels),
+      mNumProfileLevels(numProfileLevels) {
+}
+
+void SoftVideoEncoderOMXComponent::initPorts(
+        OMX_U32 numInputBuffers, OMX_U32 numOutputBuffers, OMX_U32 outputBufferSize,
+        const char *mime, OMX_U32 minCompressionRatio) {
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+
+    mMinOutputBufferSize = outputBufferSize;
+    mMinCompressionRatio = minCompressionRatio;
+
+    InitOMXParams(&def);
+
+    def.nPortIndex = kInputPortIndex;
+    def.eDir = OMX_DirInput;
+    def.nBufferCountMin = numInputBuffers;
+    def.nBufferCountActual = def.nBufferCountMin;
+    def.bEnabled = OMX_TRUE;
+    def.bPopulated = OMX_FALSE;
+    def.eDomain = OMX_PortDomainVideo;
+    def.bBuffersContiguous = OMX_FALSE;
+    def.format.video.pNativeRender = NULL;
+    def.format.video.nFrameWidth = mWidth;
+    def.format.video.nFrameHeight = mHeight;
+    def.format.video.nStride = def.format.video.nFrameWidth;
+    def.format.video.nSliceHeight = def.format.video.nFrameHeight;
+    def.format.video.nBitrate = 0;
+    // frameRate is in Q16 format.
+    def.format.video.xFramerate = mFramerate;
+    def.format.video.bFlagErrorConcealment = OMX_FALSE;
+    def.nBufferAlignment = kInputBufferAlignment;
+    def.format.video.cMIMEType = const_cast<char *>("video/raw");
+    def.format.video.eCompressionFormat = OMX_VIDEO_CodingUnused;
+    def.format.video.eColorFormat = mColorFormat;
+    def.format.video.pNativeWindow = NULL;
+    // buffersize set in updatePortParams
+
+    addPort(def);
+
+    InitOMXParams(&def);
+
+    def.nPortIndex = kOutputPortIndex;
+    def.eDir = OMX_DirOutput;
+    def.nBufferCountMin = numOutputBuffers;
+    def.nBufferCountActual = def.nBufferCountMin;
+    def.bEnabled = OMX_TRUE;
+    def.bPopulated = OMX_FALSE;
+    def.eDomain = OMX_PortDomainVideo;
+    def.bBuffersContiguous = OMX_FALSE;
+    def.format.video.pNativeRender = NULL;
+    def.format.video.nFrameWidth = mWidth;
+    def.format.video.nFrameHeight = mHeight;
+    def.format.video.nStride = 0;
+    def.format.video.nSliceHeight = 0;
+    def.format.video.nBitrate = mBitrate;
+    def.format.video.xFramerate = 0 << 16;
+    def.format.video.bFlagErrorConcealment = OMX_FALSE;
+    def.nBufferAlignment = kOutputBufferAlignment;
+    def.format.video.cMIMEType = const_cast<char *>(mime);
+    def.format.video.eCompressionFormat = mCodingType;
+    def.format.video.eColorFormat = OMX_COLOR_FormatUnused;
+    def.format.video.pNativeWindow = NULL;
+    // buffersize set in updatePortParams
+
+    addPort(def);
+
+    updatePortParams();
+}
+
+void SoftVideoEncoderOMXComponent::updatePortParams() {
+    OMX_PARAM_PORTDEFINITIONTYPE *inDef = &editPortInfo(kInputPortIndex)->mDef;
+    inDef->format.video.nFrameWidth = mWidth;
+    inDef->format.video.nFrameHeight = mHeight;
+    inDef->format.video.nStride = inDef->format.video.nFrameWidth;
+    inDef->format.video.nSliceHeight = inDef->format.video.nFrameHeight;
+    inDef->format.video.xFramerate = mFramerate;
+    inDef->format.video.eColorFormat = mColorFormat;
+    uint32_t rawBufferSize =
+        inDef->format.video.nStride * inDef->format.video.nSliceHeight * 3 / 2;
+    if (inDef->format.video.eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
+        inDef->nBufferSize = 4 + max(sizeof(buffer_handle_t), sizeof(GraphicBuffer *));
+    } else {
+        inDef->nBufferSize = rawBufferSize;
+    }
+
+    OMX_PARAM_PORTDEFINITIONTYPE *outDef = &editPortInfo(kOutputPortIndex)->mDef;
+    outDef->format.video.nFrameWidth = mWidth;
+    outDef->format.video.nFrameHeight = mHeight;
+    outDef->format.video.nBitrate = mBitrate;
+
+    outDef->nBufferSize = max(mMinOutputBufferSize, rawBufferSize / mMinCompressionRatio);
+}
+
+OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetPortParams(
+        const OMX_PARAM_PORTDEFINITIONTYPE *port) {
+    if (port->nPortIndex == kInputPortIndex) {
+        mWidth = port->format.video.nFrameWidth;
+        mHeight = port->format.video.nFrameHeight;
+
+        // xFramerate comes in Q16 format, in frames per second unit
+        mFramerate = port->format.video.xFramerate;
+
+        if (port->format.video.eCompressionFormat != OMX_VIDEO_CodingUnused
+                || (port->format.video.eColorFormat != OMX_COLOR_FormatYUV420Planar
+                        && port->format.video.eColorFormat != OMX_COLOR_FormatYUV420SemiPlanar
+                        && port->format.video.eColorFormat != OMX_COLOR_FormatAndroidOpaque)) {
+            return OMX_ErrorUnsupportedSetting;
+        }
+
+        mColorFormat = port->format.video.eColorFormat;
+    } else if (port->nPortIndex == kOutputPortIndex) {
+        if (port->format.video.eCompressionFormat != mCodingType
+                || port->format.video.eColorFormat != OMX_COLOR_FormatUnused) {
+            return OMX_ErrorUnsupportedSetting;
+        }
+
+        mBitrate = port->format.video.nBitrate;
+    } else {
+        return OMX_ErrorBadPortIndex;
+    }
+
+    updatePortParams();
+    return OMX_ErrorNone;
+}
+
+OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetParameter(
+        OMX_INDEXTYPE index, const OMX_PTR param) {
+    // can include extension index OMX_INDEXEXTTYPE
+    const int32_t indexFull = index;
+
+    switch (indexFull) {
+        case OMX_IndexParamVideoErrorCorrection:
+        {
+            return OMX_ErrorNotImplemented;
+        }
+
+        case OMX_IndexParamStandardComponentRole:
+        {
+            const OMX_PARAM_COMPONENTROLETYPE *roleParams =
+                (const OMX_PARAM_COMPONENTROLETYPE *)param;
+
+            if (strncmp((const char *)roleParams->cRole,
+                        mComponentRole,
+                        OMX_MAX_STRINGNAME_SIZE - 1)) {
+                return OMX_ErrorUnsupportedSetting;
+            }
+
+            return OMX_ErrorNone;
+        }
+
+        case OMX_IndexParamPortDefinition:
+        {
+            OMX_ERRORTYPE err = internalSetPortParams((const OMX_PARAM_PORTDEFINITIONTYPE *)param);
+
+            if (err != OMX_ErrorNone) {
+                return err;
+            }
+
+            return SimpleSoftOMXComponent::internalSetParameter(index, param);
+        }
+
+        case OMX_IndexParamVideoPortFormat:
+        {
+            const OMX_VIDEO_PARAM_PORTFORMATTYPE* format =
+                (const OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
+
+            if (format->nPortIndex == kInputPortIndex) {
+                if (format->eColorFormat == OMX_COLOR_FormatYUV420Planar ||
+                    format->eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar ||
+                    format->eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
+                    mColorFormat = format->eColorFormat;
+
+                    updatePortParams();
+                    return OMX_ErrorNone;
+                } else {
+                    ALOGE("Unsupported color format %i", format->eColorFormat);
+                    return OMX_ErrorUnsupportedSetting;
+                }
+            } else if (format->nPortIndex == kOutputPortIndex) {
+                if (format->eCompressionFormat == mCodingType) {
+                    return OMX_ErrorNone;
+                } else {
+                    return OMX_ErrorUnsupportedSetting;
+                }
+            } else {
+                return OMX_ErrorBadPortIndex;
+            }
+        }
+
+        case kStoreMetaDataExtensionIndex:
+        {
+            // storeMetaDataInBuffers
+            const StoreMetaDataInBuffersParams *storeParam =
+                (const StoreMetaDataInBuffersParams *)param;
+
+            if (storeParam->nPortIndex == kOutputPortIndex) {
+                return storeParam->bStoreMetaData ? OMX_ErrorUnsupportedSetting : OMX_ErrorNone;
+            } else if (storeParam->nPortIndex != kInputPortIndex) {
+                return OMX_ErrorBadPortIndex;
+            }
+
+            mInputDataIsMeta = (storeParam->bStoreMetaData == OMX_TRUE);
+            if (mInputDataIsMeta) {
+                mColorFormat = OMX_COLOR_FormatAndroidOpaque;
+            } else if (mColorFormat == OMX_COLOR_FormatAndroidOpaque) {
+                mColorFormat = OMX_COLOR_FormatYUV420Planar;
+            }
+            updatePortParams();
+            return OMX_ErrorNone;
+        }
+
+        default:
+            return SimpleSoftOMXComponent::internalSetParameter(index, param);
+    }
+}
+
+OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
+        OMX_INDEXTYPE index, OMX_PTR param) {
+    switch (index) {
+        case OMX_IndexParamVideoErrorCorrection:
+        {
+            return OMX_ErrorNotImplemented;
+        }
+
+        case OMX_IndexParamVideoPortFormat:
+        {
+            OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
+                (OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
+
+            if (formatParams->nPortIndex == kInputPortIndex) {
+                if (formatParams->nIndex >= NELEM(kSupportedColorFormats)) {
+                    return OMX_ErrorNoMore;
+                }
+
+                // Color formats, in order of preference
+                formatParams->eColorFormat = kSupportedColorFormats[formatParams->nIndex];
+                formatParams->eCompressionFormat = OMX_VIDEO_CodingUnused;
+                formatParams->xFramerate = mFramerate;
+                return OMX_ErrorNone;
+            } else if (formatParams->nPortIndex == kOutputPortIndex) {
+                formatParams->eCompressionFormat = mCodingType;
+                formatParams->eColorFormat = OMX_COLOR_FormatUnused;
+                formatParams->xFramerate = 0;
+                return OMX_ErrorNone;
+            } else {
+                return OMX_ErrorBadPortIndex;
+            }
+        }
+
+        case OMX_IndexParamVideoProfileLevelQuerySupported:
+        {
+            OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
+                  (OMX_VIDEO_PARAM_PROFILELEVELTYPE *) param;
+
+            if (profileLevel->nPortIndex != kOutputPortIndex) {
+                ALOGE("Invalid port index: %u", profileLevel->nPortIndex);
+                return OMX_ErrorUnsupportedIndex;
+            }
+
+            if (profileLevel->nProfileIndex >= mNumProfileLevels) {
+                return OMX_ErrorNoMore;
+            }
+
+            profileLevel->eProfile = mProfileLevels[profileLevel->nProfileIndex].mProfile;
+            profileLevel->eLevel   = mProfileLevels[profileLevel->nProfileIndex].mLevel;
+            return OMX_ErrorNone;
+        }
+
+        default:
+            return SimpleSoftOMXComponent::internalGetParameter(index, param);
+    }
 }
 
 // static

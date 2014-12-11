@@ -68,12 +68,6 @@ private:
         int32_t mFlags;
     } InputBufferInfo;
 
-    int32_t  mVideoWidth;
-    int32_t  mVideoHeight;
-    int32_t  mVideoFrameRate;
-    int32_t  mVideoBitRate;
-    int32_t  mVideoColorFormat;
-    bool     mStoreMetaDataInBuffers;
     int32_t  mIDRFrameRefreshIntervalInSec;
     AVCProfile mAVCEncProfile;
     AVCLevel   mAVCEncLevel;
@@ -94,7 +88,6 @@ private:
     Vector<MediaBuffer *> mOutputBuffers;
     Vector<InputBufferInfo> mInputBufferInfoVec;
 
-    void initPorts();
     OMX_ERRORTYPE initEncParams();
     OMX_ERRORTYPE initEncoder();
     OMX_ERRORTYPE releaseEncoder();

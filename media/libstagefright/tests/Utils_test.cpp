@@ -172,6 +172,13 @@ TEST_F(UtilsTest, TestMathTemplates) {
     ASSERT_EQ(divUp(12, 4), 3);
     ASSERT_EQ(divUp(13, 4), 4);
 
+    ASSERT_EQ(align(11, 4), 12);
+    ASSERT_EQ(align(12, 4), 12);
+    ASSERT_EQ(align(13, 4), 16);
+    ASSERT_EQ(align(11, 8), 16);
+    ASSERT_EQ(align(11, 2), 12);
+    ASSERT_EQ(align(11, 1), 11);
+
     ASSERT_EQ(abs(5L), 5L);
     ASSERT_EQ(abs(-25), 25);
 

@@ -26,6 +26,7 @@
 #include "SoftHEVC.h"
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaDefs.h>
 #include <OMX_VideoExt.h>
 
@@ -75,8 +76,12 @@ SoftHEVC::SoftHEVC(
       mNewWidth(mWidth),
       mNewHeight(mHeight),
       mChangingResolution(false) {
-    initPorts(kNumBuffers, INPUT_BUF_SIZE, kNumBuffers,
-            CODEC_MIME_TYPE);
+    const size_t kMinCompressionRatio = 4 /* compressionRatio (for Level 4+) */;
+    const size_t kMaxOutputBufferSize = 2048 * 2048 * 3 / 2;
+    // INPUT_BUF_SIZE is given by HEVC codec as minimum input size
+    initPorts(
+            kNumBuffers, max(kMaxOutputBufferSize / kMinCompressionRatio, (size_t)INPUT_BUF_SIZE),
+            kNumBuffers, CODEC_MIME_TYPE, kMinCompressionRatio);
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
 
@@ -644,7 +649,7 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             // The decoder should be fixed so that |u4_error_code| instead of |status| returns
             // IHEVCD_UNSUPPORTED_DIMENSIONS.
             bool unsupportedDimensions =
-                ((IHEVCD_UNSUPPORTED_DIMENSIONS == status)
+                ((IHEVCD_UNSUPPORTED_DIMENSIONS == (IHEVCD_CXA_ERROR_CODES_T)status)
                     || (IHEVCD_UNSUPPORTED_DIMENSIONS == s_dec_op.u4_error_code));
             bool resChanged = (IVD_RES_CHANGED == (s_dec_op.u4_error_code & 0xFF));
 
