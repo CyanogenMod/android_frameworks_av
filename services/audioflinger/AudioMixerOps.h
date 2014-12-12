@@ -52,15 +52,12 @@ struct is_same<T, T>  // partial specialization
  *
  * For high precision audio, only the <TO, TI, TV> = <float, float, float>
  * needs to be accelerated. This is perhaps the easiest form to do quickly as well.
+ *
+ * A generic version is NOT defined to catch any mistake of using it.
  */
 
 template <typename TO, typename TI, typename TV>
-inline TO MixMul(TI value, TV volume) {
-    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(false);
-    // should not be here :-).
-    // To avoid mistakes, this template is always specialized.
-    return value * volume;
-}
+TO MixMul(TI value, TV volume);
 
 template <>
 inline int32_t MixMul<int32_t, int16_t, int16_t>(int16_t value, int16_t volume) {
