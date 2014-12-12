@@ -452,6 +452,7 @@ status_t MediaCodecSource::initEncoder() {
         ExtendedStats::AutoProfile autoProfile(
                 STATS_PROFILE_ALLOCATE_NODE(mIsVideo), mRecorderExtendedStats);
 
+#ifdef ENABLE_AV_ENHANCEMENTS
         if (mIsVideo && (mFlags & OMXCodec::kHardwareCodecsOnly)) {
             Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
@@ -469,6 +470,10 @@ status_t MediaCodecSource::initEncoder() {
             mEncoder = MediaCodec::CreateByType(
                     mCodecLooper, outputMIME.c_str(), true /* encoder */);
         }
+#else
+        mEncoder = MediaCodec::CreateByType(
+                mCodecLooper, outputMIME.c_str(), true /* encoder */);
+#endif
     }
 
     if (mEncoder == NULL) {
