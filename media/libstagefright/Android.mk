@@ -152,6 +152,9 @@ ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifeq ($(TARGET_USES_QCOM_BSP), true)
     LOCAL_C_INCLUDES += $(call project-path-for,qcom-display)/libgralloc
     LOCAL_CFLAGS += -DQCOM_BSP
+ifeq ($(TARGET_USES_QCOM_BSP_LEGACY),true)
+    LOCAL_CFLAGS += -DQCOM_BSP_LEGACY
+endif
 endif
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
