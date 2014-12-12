@@ -610,8 +610,7 @@ protected:
                                   audio_patch_handle_t *patchHandle = NULL);
 
         // select input device corresponding to requested audio source
-        virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource,
-                                                        AudioMix **policyMix = NULL);
+        virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource);
 
         // return io handle of active input or 0 if no input is active
         //    Only considers inputs from physical devices (e.g. main mic, headset mic) when
@@ -914,6 +913,16 @@ private:
         uint32_t handleEventForBeacon(int event);
         uint32_t setBeaconMute(bool mute);
         bool     isValidAttributes(const audio_attributes_t *paa);
+
+        // select input device corresponding to requested audio source and return associated policy
+        // mix if any. Calls getDeviceForInputSource().
+        audio_devices_t getDeviceAndMixForInputSource(audio_source_t inputSource,
+                                                        AudioMix **policyMix = NULL);
+
+        // Called by setDeviceConnectionState().
+        status_t setDeviceConnectionStateInt(audio_devices_t device,
+                                                          audio_policy_dev_state_t state,
+                                                          const char *device_address);
 };
 
 };
