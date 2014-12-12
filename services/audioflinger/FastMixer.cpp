@@ -334,6 +334,11 @@ void FastMixer::onWork()
 
     if ((command & FastMixerState::MIX) && (mMixer != NULL) && mIsWarm) {
         ALOG_ASSERT(mMixerBuffer != NULL);
+
+        // AudioMixer::mState.enabledTracks is undefined if mState.hook == process__validate,
+        // so we keep a side copy of enabledTracks
+        bool anyEnabledTracks = false;
+
         // for each track, update volume and check for underrun
         unsigned currentTrackMask = current->mTrackMask;
         while (currentTrackMask != 0) {
@@ -392,11 +397,13 @@ void FastMixer::onWork()
                     underruns.mBitFields.mPartial++;
                     underruns.mBitFields.mMostRecent = UNDERRUN_PARTIAL;
                     mMixer->enable(name);
+                    anyEnabledTracks = true;
                 }
             } else {
                 underruns.mBitFields.mFull++;
                 underruns.mBitFields.mMostRecent = UNDERRUN_FULL;
                 mMixer->enable(name);
+                anyEnabledTracks = true;
             }
             ftDump->mUnderruns = underruns;
             ftDump->mFramesReady = framesReady;
@@ -407,9 +414,14 @@ void FastMixer::onWork()
             pts = AudioBufferProvider::kInvalidPTS;
         }
 
-        // process() is CPU-bound
-        mMixer->process(pts);
-        mMixerBufferState = MIXED;
+        if (anyEnabledTracks) {
+            // process() is CPU-bound
+            mMixer->process(pts);
+            mMixerBufferState = MIXED;
+        } else if (mMixerBufferState != ZEROED) {
+            mMixerBufferState = UNDEFINED;
+        }
+
     } else if (mMixerBufferState == MIXED) {
         mMixerBufferState = UNDEFINED;
     }
