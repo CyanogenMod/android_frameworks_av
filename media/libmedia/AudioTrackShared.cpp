@@ -499,9 +499,11 @@ end:
 StaticAudioTrackClientProxy::StaticAudioTrackClientProxy(audio_track_cblk_t* cblk, void *buffers,
         size_t frameCount, size_t frameSize)
     : AudioTrackClientProxy(cblk, buffers, frameCount, frameSize),
-      mMutator(&cblk->u.mStatic.mSingleStateQueue), mBufferPosition(0)
+      mMutator(&cblk->u.mStatic.mSingleStateQueue),
+      mPosLoopObserver(&cblk->u.mStatic.mPosLoopQueue)
 {
     memset(&mState, 0, sizeof(mState));
+    memset(&mPosLoop, 0, sizeof(mPosLoop));
 }
 
 void StaticAudioTrackClientProxy::flush()
@@ -523,11 +525,12 @@ void StaticAudioTrackClientProxy::setLoop(size_t loopStart, size_t loopEnd, int 
     // set patch-up variables until the mState is acknowledged by the ServerProxy.
     // observed buffer position and loop count will freeze until then to give the
     // illusion of a synchronous change.
-    size_t bufferPosition = getBufferPosition();
+    getBufferPositionAndLoopCount(NULL, NULL);
     // preserve behavior to restart at mState.mLoopStart if position exceeds mState.mLoopEnd.
-    if (loopCount != 0 && bufferPosition >= mState.mLoopEnd) {
-        mBufferPosition = mState.mLoopStart;
+    if (mState.mLoopCount != 0 && mPosLoop.mBufferPosition >= mState.mLoopEnd) {
+        mPosLoop.mBufferPosition = mState.mLoopStart;
     }
+    mPosLoop.mLoopCount = mState.mLoopCount;
     (void) mMutator.push(mState);
 }
 
@@ -540,7 +543,17 @@ void StaticAudioTrackClientProxy::setBufferPosition(size_t position)
     }
     mState.mPosition = (uint32_t) position;
     mState.mPositionSequence = incrementSequence(mState.mPositionSequence, mState.mLoopSequence);
-    mBufferPosition = position;
+    // set patch-up variables until the mState is acknowledged by the ServerProxy.
+    // observed buffer position and loop count will freeze until then to give the
+    // illusion of a synchronous change.
+    if (mState.mLoopCount > 0) {  // only check if loop count is changing
+        getBufferPositionAndLoopCount(NULL, NULL); // get last position
+    }
+    mPosLoop.mBufferPosition = position;
+    if (position >= mState.mLoopEnd) {
+        // no ongoing loop is possible if position is greater than loopEnd.
+        mPosLoop.mLoopCount = 0;
+    }
     (void) mMutator.push(mState);
 }
 
@@ -553,18 +566,24 @@ void StaticAudioTrackClientProxy::setBufferPositionAndLoop(size_t position, size
 
 size_t StaticAudioTrackClientProxy::getBufferPosition()
 {
-    size_t bufferPosition;
-    if (mMutator.ack()) {
-        // There is a race condition here as ack may be signaled before
-        // the buffer position in mCblk is updated.  Will be fixed in a later CL.
-        bufferPosition = (size_t) mCblk->u.mStatic.mBufferPosition;
-        if (bufferPosition > mFrameCount) {
-            bufferPosition = mFrameCount;
-        }
-    } else {
-        bufferPosition = mBufferPosition;
+    getBufferPositionAndLoopCount(NULL, NULL);
+    return mPosLoop.mBufferPosition;
+}
+
+void StaticAudioTrackClientProxy::getBufferPositionAndLoopCount(
+        size_t *position, int *loopCount)
+{
+    if (mMutator.ack() == StaticAudioTrackSingleStateQueue::SSQ_DONE) {
+         if (mPosLoopObserver.poll(mPosLoop)) {
+             ; // a valid mPosLoop should be available if ackDone is true.
+         }
     }
-    return bufferPosition;
+    if (position != NULL) {
+        *position = mPosLoop.mBufferPosition;
+    }
+    if (loopCount != NULL) {
+        *loopCount = mPosLoop.mLoopCount;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -780,7 +799,8 @@ void AudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
 StaticAudioTrackServerProxy::StaticAudioTrackServerProxy(audio_track_cblk_t* cblk, void *buffers,
         size_t frameCount, size_t frameSize)
     : AudioTrackServerProxy(cblk, buffers, frameCount, frameSize),
-      mObserver(&cblk->u.mStatic.mSingleStateQueue), mPosition(0),
+      mObserver(&cblk->u.mStatic.mSingleStateQueue),
+      mPosLoopMutator(&cblk->u.mStatic.mPosLoopQueue),
       mFramesReadySafe(frameCount), mFramesReady(frameCount),
       mFramesReadyIsCalledByMultipleThreads(false)
 {
@@ -865,6 +885,7 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
                     updateStateWithLoop(&trystate, state) == OK;
         }
         if (!result) {
+            mObserver.done();
             // caution: no update occurs so server state will be inconsistent with client state.
             ALOGE("%s client pushed an invalid state, shutting down", __func__);
             mIsShutdown = true;
@@ -883,7 +904,12 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
         }
         mFramesReadySafe = clampToSize(mFramesReady);
         // This may overflow, but client is not supposed to rely on it
-        mCblk->u.mStatic.mBufferPosition = (uint32_t) mState.mPosition;
+        StaticAudioTrackPosLoop posLoop;
+
+        posLoop.mLoopCount = (int32_t) mState.mLoopCount;
+        posLoop.mBufferPosition = (uint32_t) mState.mPosition;
+        mPosLoopMutator.push(posLoop);
+        mObserver.done(); // safe to read mStatic variables.
     }
     return (ssize_t) mState.mPosition;
 }
@@ -969,7 +995,10 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
 
     cblk->mServer += stepCount;
     // This may overflow, but client is not supposed to rely on it
-    cblk->u.mStatic.mBufferPosition = (uint32_t) mState.mPosition;
+    StaticAudioTrackPosLoop posLoop;
+    posLoop.mBufferPosition = mState.mPosition;
+    posLoop.mLoopCount = mState.mLoopCount;
+    mPosLoopMutator.push(posLoop);
     if (setFlags != 0) {
         (void) android_atomic_or(setFlags, &cblk->mFlags);
         // this would be a good place to wake a futex
