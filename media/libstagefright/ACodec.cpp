@@ -1497,10 +1497,12 @@ status_t ACodec::configureCodec(
             err = setupVideoEncoder(mime, msg);
         } else {
             err = setupVideoDecoder(mime, msg);
+#ifdef ENABLE_AV_ENHANCEMENTS
             if (err == OK) {
                 const char* componentName = mComponentName.c_str();
                 ExtendedCodec::configureVideoDecoder(msg, mime, mOMX, 0, mNode, componentName);
             }
+#endif
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         int32_t numChannels, sampleRate;
@@ -3704,6 +3706,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     if (err == OK) {
                         int channelCount = 0;
                         int sampleRate = 0;
+#ifdef ENABLE_AV_ENHANCEMENTS
                         err = ExtendedCodec::getSupportedAudioFormatInfo(
                                       &mimeType,
                                       mOMX,
@@ -3711,6 +3714,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                                       portIndex,
                                       &channelCount,
                                       &sampleRate);
+#endif
                         notify->setString("mime", mimeType.c_str());
                         notify->setInt32("channel-count", channelCount);
                         notify->setInt32("sample-rate", sampleRate);
