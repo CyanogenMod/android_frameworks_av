@@ -1302,7 +1302,21 @@ status_t ACodec::configureCodec(
                 return err;
             }
 
-            inputFormat->setInt32("adaptive-playback", true);
+            int32_t maxWidth = 0, maxHeight = 0;
+            if (msg->findInt32("max-width", &maxWidth) &&
+                    msg->findInt32("max-height", &maxHeight)) {
+
+                err = mOMX->prepareForAdaptivePlayback(
+                        mNode, kPortIndexOutput, OMX_TRUE, maxWidth, maxHeight);
+                if (err != OK) {
+                    ALOGW("[%s] prepareForAdaptivePlayback failed w/ err %d",
+                            mComponentName.c_str(), err);
+                } else {
+                    inputFormat->setInt32("max-width", maxWidth);
+                    inputFormat->setInt32("max-height", maxHeight);
+                    inputFormat->setInt32("adaptive-playback", true);
+                }
+            }
         } else {
             ALOGV("Configuring CPU controlled video playback.");
             mTunneled = false;
