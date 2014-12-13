@@ -215,6 +215,13 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                                                           audio_policy_dev_state_t state,
                                                   const char *device_address)
 {
+    return setDeviceConnectionStateInt(device, state, device_address);
+}
+
+status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
+                                                          audio_policy_dev_state_t state,
+                                                  const char *device_address)
+{
     String8 address = (device_address == NULL) ? String8("") : String8(device_address);
     // handle legacy remote submix case where the address was not always specified
     if (deviceDistinguishesOnAddress(device) && (address.length() == 0)) {
@@ -457,7 +464,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
     audio_patch_handle_t afPatchHandle;
     DeviceVector deviceList;
 
-    audio_devices_t txDevice = getDeviceForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+    audio_devices_t txDevice = getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
     ALOGV("updateCallRouting device rxDevice %08x txDevice %08x", rxDevice, txDevice);
 
     // release existing RX patch if any
@@ -1278,7 +1285,7 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
         // of type MIX_TYPE_RECORDERS
         if (audio_is_remote_submix_device(newDevice) && outputDesc->mPolicyMix != NULL &&
                 outputDesc->mPolicyMix->mMixType == MIX_TYPE_RECORDERS) {
-                setDeviceConnectionState(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
+                setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                         AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                         outputDesc->mPolicyMix->mRegistrationId);
         }
@@ -1322,7 +1329,7 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
             if (audio_is_remote_submix_device(outputDesc->mDevice) &&
                     outputDesc->mPolicyMix != NULL &&
                     outputDesc->mPolicyMix->mMixType == MIX_TYPE_RECORDERS) {
-                setDeviceConnectionState(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
+                setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                         AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                         outputDesc->mPolicyMix->mRegistrationId);
             }
@@ -1441,7 +1448,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         }
         policyMix = &mPolicyMixes[index]->mMix;
     } else {
-        device = getDeviceForInputSource(attr->source, &policyMix);
+        device = getDeviceAndMixForInputSource(attr->source, &policyMix);
         if (device == AUDIO_DEVICE_NONE) {
             ALOGW("getInputForAttr() could not find device for source %d", attr->source);
             return BAD_VALUE;
@@ -1599,7 +1606,7 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
                 address = inputDesc->mPolicyMix->mRegistrationId;
             }
             if (address != "") {
-                setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+                setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
                         AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                         address);
             }
@@ -1647,7 +1654,7 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
                 address = inputDesc->mPolicyMix->mRegistrationId;
             }
             if (address != "") {
-                setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+                setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
                                          AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                          address);
             }
@@ -2093,11 +2100,11 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
         policyMix->mMix = mixes[i];
         mPolicyMixes.add(address, policyMix);
         if (mixes[i].mMixType == MIX_TYPE_PLAYERS) {
-            setDeviceConnectionState(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
+            setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                                      AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                                      address.string());
         } else {
-            setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+            setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
                                      AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                                      address.string());
         }
@@ -2135,7 +2142,7 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
         if (getDeviceConnectionState(AUDIO_DEVICE_IN_REMOTE_SUBMIX, address.string()) ==
                                              AUDIO_POLICY_DEVICE_STATE_AVAILABLE)
         {
-            setDeviceConnectionState(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
+            setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                                      AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                      address.string());
         }
@@ -2143,7 +2150,7 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
         if (getDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX, address.string()) ==
                                              AUDIO_POLICY_DEVICE_STATE_AVAILABLE)
         {
-            setDeviceConnectionState(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+            setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
                                      AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                      address.string());
         }
@@ -2896,7 +2903,7 @@ status_t AudioPolicyManager::acquireSoundTriggerSession(audio_session_t *session
 {
     *session = (audio_session_t)mpClientInterface->newAudioUniqueId();
     *ioHandle = (audio_io_handle_t)mpClientInterface->newAudioUniqueId();
-    *device = getDeviceForInputSource(AUDIO_SOURCE_HOTWORD);
+    *device = getDeviceAndMixForInputSource(AUDIO_SOURCE_HOTWORD);
 
     mSoundTriggerSessions.add(*session, *ioHandle);
 
@@ -4224,7 +4231,7 @@ audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
         }
     }
 
-    audio_devices_t device = getDeviceForInputSource(inputDesc->mInputSource);
+    audio_devices_t device = getDeviceAndMixForInputSource(inputDesc->mInputSource);
 
     ALOGV("getNewInputDevice() selected device %x", device);
     return device;
@@ -4490,7 +4497,8 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
         //   - cannot route from voice call RX OR
         //   - audio HAL version is < 3.0 and TX device is on the primary HW module
         if (mPhoneState == AUDIO_MODE_IN_CALL) {
-            audio_devices_t txDevice = getDeviceForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+            audio_devices_t txDevice =
+                    getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
             sp<AudioOutputDescriptor> hwOutputDesc = mOutputs.valueFor(mPrimaryOutput);
             if (((mAvailableInputDevices.types() &
                     AUDIO_DEVICE_IN_TELEPHONY_RX & ~AUDIO_DEVICE_BIT_IN) == 0) ||
@@ -5071,10 +5079,10 @@ sp<AudioPolicyManager::IOProfile> AudioPolicyManager::getInputProfile(audio_devi
     return NULL;
 }
 
-audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t inputSource,
+
+audio_devices_t AudioPolicyManager::getDeviceAndMixForInputSource(audio_source_t inputSource,
                                                             AudioMix **policyMix)
 {
-    uint32_t device = AUDIO_DEVICE_NONE;
     audio_devices_t availableDeviceTypes = mAvailableInputDevices.types() &
                                             ~AUDIO_DEVICE_BIT_IN;
 
@@ -5097,6 +5105,15 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
             }
         }
     }
+
+    return getDeviceForInputSource(inputSource);
+}
+
+audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t inputSource)
+{
+    uint32_t device = AUDIO_DEVICE_NONE;
+    audio_devices_t availableDeviceTypes = mAvailableInputDevices.types() &
+                                            ~AUDIO_DEVICE_BIT_IN;
 
     switch (inputSource) {
     case AUDIO_SOURCE_VOICE_UPLINK:
