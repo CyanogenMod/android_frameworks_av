@@ -981,6 +981,9 @@ bool ExtendedUtils::is16bitPCMOffloadEnabled() {
 
 bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
     const char *mime = {0};
+    if (meta == NULL) {
+        return false;
+    }
     CHECK(meta->findCString(kKeyMIMEType, &mime));
     if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW, 9))
         return true;
@@ -990,6 +993,9 @@ bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
 
 bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
     AString mime;
+    if (format == NULL) {
+        return false;
+    }
     CHECK(format->findString("mime", &mime));
     if (!strncasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW, 9))
         return true;
@@ -999,24 +1005,32 @@ bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
 
 int32_t ExtendedUtils::getPcmSampleBits(const sp<MetaData> &meta) {
     int32_t bitWidth = 16;
-    meta->findInt32(kKeySampleBits, &bitWidth);
+    if (meta != NULL) {
+        meta->findInt32(kKeySampleBits, &bitWidth);
+    }
     return bitWidth;
 }
 
 int32_t ExtendedUtils::getPcmSampleBits(const sp<AMessage> &format) {
     int32_t bitWidth = 16;
-    format->findInt32("sbit", &bitWidth);
+    if (format != NULL) {
+        format->findInt32("sbit", &bitWidth);
+    }
     return bitWidth;
 }
 
 int32_t ExtendedUtils::getPCMFormat(const sp<MetaData> &meta) {
     int32_t pcmFormat = AUDIO_FORMAT_PCM_16_BIT;
-    meta->findInt32(kKeyPcmFormat, &pcmFormat);
+    if (meta != NULL) {
+        meta->findInt32(kKeyPcmFormat, &pcmFormat);
+    }
     return pcmFormat;
 }
 
 void ExtendedUtils::setKeyPCMFormat(const sp<MetaData> &meta, int32_t pcmFormat) {
-    meta->setInt32(kKeyPcmFormat, pcmFormat);
+    if (meta != NULL) {
+        meta->setInt32(kKeyPcmFormat, pcmFormat);
+    }
 }
 
 //- returns NULL if we dont really need a new extractor (or cannot),
