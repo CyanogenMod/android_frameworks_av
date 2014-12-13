@@ -1470,6 +1470,5 @@ bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
     bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
         return false;
     }
-} //namespace android
-
 #endif //ENABLE_AV_ENHANCEMENTS
+} //namespace android
