@@ -57,6 +57,16 @@ class AudioPolicyInterface
 {
 
 public:
+    typedef enum {
+        API_INPUT_INVALID = -1,
+        API_INPUT_LEGACY  = 0,// e.g. audio recording from a microphone
+        API_INPUT_MIX_CAPTURE,// used for "remote submix", capture of the media to play it remotely
+        API_INPUT_MIX_EXT_POLICY_REROUTE,// used for platform audio rerouting, where mixes are
+                                         // handled by external and dynamically installed
+                                         // policies which reroute audio mixes
+    } input_type_t;
+
+public:
     virtual ~AudioPolicyInterface() {}
     //
     // configuration functions
@@ -120,7 +130,8 @@ public:
                                      uint32_t samplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
-                                     audio_input_flags_t flags) = 0;
+                                     audio_input_flags_t flags,
+                                     input_type_t *inputType) = 0;
     // indicates to the audio policy manager that the input starts being used.
     virtual status_t startInput(audio_io_handle_t input,
                                 audio_session_t session) = 0;

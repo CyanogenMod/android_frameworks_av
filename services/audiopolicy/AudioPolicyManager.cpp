@@ -1419,13 +1419,15 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
                                              uint32_t samplingRate,
                                              audio_format_t format,
                                              audio_channel_mask_t channelMask,
-                                             audio_input_flags_t flags)
+                                             audio_input_flags_t flags,
+                                             input_type_t *inputType)
 {
     ALOGV("getInputForAttr() source %d, samplingRate %d, format %d, channelMask %x,"
             "session %d, flags %#x",
           attr->source, samplingRate, format, channelMask, session, flags);
 
     *input = AUDIO_IO_HANDLE_NONE;
+    *inputType = API_INPUT_INVALID;
     audio_devices_t device;
     // handle legacy remote submix case where the address was not always specified
     String8 address = String8("");
@@ -1447,6 +1449,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
             return BAD_VALUE;
         }
         policyMix = &mPolicyMixes[index]->mMix;
+        *inputType = API_INPUT_MIX_EXT_POLICY_REROUTE;
     } else {
         device = getDeviceAndMixForInputSource(attr->source, &policyMix);
         if (device == AUDIO_DEVICE_NONE) {
@@ -1455,8 +1458,21 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         }
         if (policyMix != NULL) {
             address = policyMix->mRegistrationId;
+            if (policyMix->mMixType == MIX_TYPE_RECORDERS) {
+                // there is an external policy, but this input is attached to a mix of recorders,
+                // meaning it receives audio injected into the framework, so the recorder doesn't
+                // know about it and is therefore considered "legacy"
+                *inputType = API_INPUT_LEGACY;
+            } else {
+                // recording a mix of players defined by an external policy, we're rerouting for
+                // an external policy
+                *inputType = API_INPUT_MIX_EXT_POLICY_REROUTE;
+            }
         } else if (audio_is_remote_submix_device(device)) {
             address = String8("0");
+            *inputType = API_INPUT_MIX_CAPTURE;
+        } else {
+            *inputType = API_INPUT_LEGACY;
         }
         // adapt channel selection to input source
         switch (attr->source) {
@@ -1545,6 +1561,8 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     inputDesc->mSessions.add(session);
     inputDesc->mIsSoundTrigger = isSoundTrigger;
     inputDesc->mPolicyMix = policyMix;
+
+    ALOGV("getInputForAttr() returns input type = %d", inputType);
 
     addInput(*input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
