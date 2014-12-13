@@ -1399,8 +1399,6 @@ MPEG4Writer::Track::Track(
       mReachedEOS(false),
       mRotation(0),
       mHFRRatio(1) {
-    getCodecSpecificDataFromInputFormatIfPossible();
-
     const char *mime;
     mMeta->findCString(kKeyMIMEType, &mime);
 
