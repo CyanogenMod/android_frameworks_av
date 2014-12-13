@@ -160,8 +160,9 @@ struct ExtendedCodec {
 
     static bool isSourcePauseRequired(const char *componentName);
 
-private:
     static const char* getMsgKey(int key );
+
+private:
 
     static status_t setWMAFormat(
             const sp<MetaData> &meta, sp<IOMX> OMXhandle,

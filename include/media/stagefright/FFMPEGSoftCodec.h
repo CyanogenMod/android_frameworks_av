@@ -38,8 +38,8 @@ struct FFMPEGSoftCodec {
         kPortIndexInput  = 0,
         kPortIndexOutput = 1
     };
-    static status_t convertMetaDataToMessage(
-            const sp<MetaData> &meta, sp<AMessage> *format);
+    static void convertMessageToMetaData(
+            const sp<AMessage> &msg, sp<MetaData> &meta);
 
     static const char* overrideComponentName(
             uint32_t quirks, const sp<MetaData> &meta,

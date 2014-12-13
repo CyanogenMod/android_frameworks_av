@@ -47,7 +47,6 @@
 #define ARG_TOUCH(x) (void)x
 
 #ifdef ENABLE_AV_ENHANCEMENTS
-
 #include <QCMetaData.h>
 #include <QCMediaDefs.h>
 #include <OMX_QCOMExtns.h>
@@ -57,6 +56,7 @@
 #include <QOMX_AudioExtensions.h>
 #include <QOMX_AudioIndexExtensions.h>
 #include "include/ExtendedUtils.h"
+#endif
 
 namespace android {
 enum MetaKeyType{
@@ -70,28 +70,22 @@ struct MetaKeyEntry{
 };
 
 static const MetaKeyEntry MetaKeyTable[] {
-   {kKeyBitRate              , "bitrate"                , INT32},
+#if ENABLE_AV_ENHANCEMENTS
    {kKeyAacCodecSpecificData , "aac-codec-specific-data", CSD},
-   {kKeyRawCodecSpecificData , "raw-codec-specific-data", CSD},
    {kKeyDivXVersion          , "divx-version"           , INT32},  // int32_t
    {kKeyDivXDrm              , "divx-drm"               , DATA},  // void *
    {kKeyWMAEncodeOpt         , "wma-encode-opt"         , INT32},  // int32_t
    {kKeyWMABlockAlign        , "wma-block-align"        , INT32},  // int32_t
-   {kKeyWMAVersion           , "wma-version"            , INT32},  // int32_t
    {kKeyWMAAdvEncOpt1        , "wma-adv-enc-opt1"       , INT32},  // int16_t
    {kKeyWMAAdvEncOpt2        , "wma-adv-enc-opt2"       , INT32},  // int32_t
    {kKeyWMAFormatTag         , "wma-format-tag"         , INT32},  // int32_t
    {kKeyWMABitspersample     , "wma-bits-per-sample"    , INT32},  // int32_t
    {kKeyWMAVirPktSize        , "wma-vir-pkt-size"       , INT32},  // int32_t
    {kKeyWMAChannelMask       , "wma-channel-mask"       , INT32},  // int32_t
-   {kKeyWMVVersion           , "wmv-version"            , INT32},
    {kKeyFileFormat           , "file-format"            , STRING},  // cstring
-   {kKeyBlockAlign           , "block-align"            , INT32},
-   {kKeyRVVersion            , "rv-version"             , INT32},
 
    {kkeyAacFormatAdif        , "aac-format-adif"        , INT32},  // bool (int32_t)
    {kkeyAacFormatLtp         , "aac-format-ltp"         , INT32},
-   {kKeyAACAOT               , "aac-profile"            , INT32},
 
    //DTS subtype
    {kKeyDTSSubtype           , "dts-subtype"            , INT32},  //int32_t
@@ -100,13 +94,22 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyUseArbitraryMode     , "use-arbitrary-mode"     , INT32},  //bool (int32_t)
    {kKeySmoothStreaming      , "smooth-streaming"       , INT32},  //bool (int32_t)
    {kKeyHFR                  , "hfr"                    , INT32},  // int32_t
+#endif
 
+   {kKeyBitRate              , "bitrate"                , INT32},
    {kKeySampleRate           , "sample-rate"            , INT32},
    {kKeyChannelCount         , "channel-count"          , INT32},
+   {kKeyRawCodecSpecificData , "raw-codec-specific-data", CSD},
 
-   {kKeySampleBits           , "bits-per-sample"        , INT32},
+   {kKeyBitsPerSample        , "bits-per-sample"        , INT32},
    {kKeyCodecId              , "codec-id"               , INT32},
    {kKeySampleFormat         , "sample-format"          , INT32},
+   {kKeyBlockAlign           , "block-align"            , INT32},
+
+   {kKeyAACAOT               , "aac-profile"            , INT32},
+   {kKeyRVVersion            , "rv-version"             , INT32},
+   {kKeyWMAVersion           , "wma-version"            , INT32},  // int32_t
+   {kKeyWMVVersion           , "wmv-version"            , INT32},
 };
 
 const char* ExtendedCodec::getMsgKey(int key) {
@@ -189,6 +192,8 @@ status_t ExtendedCodec::convertMetaDataToMessage(
     }
     return OK;
 }
+
+#ifdef ENABLE_AV_ENHANCEMENTS
 
 uint32_t ExtendedCodec::getComponentQuirks(
         const sp<MediaCodecInfo> &info) {
@@ -1181,17 +1186,7 @@ bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
     return false;
 }
 
-} //namespace android
-
-#else //ENABLE_AV_ENHANCEMENTS
-
-namespace android {
-    status_t ExtendedCodec::convertMetaDataToMessage(
-            const sp<MetaData> &meta, sp<AMessage> *format) {
-        ARG_TOUCH(meta);
-        ARG_TOUCH(format);
-        return OK;
-    }
+#else
 
     uint32_t ExtendedCodec::getComponentQuirks (
             const sp<MediaCodecInfo> &info) {

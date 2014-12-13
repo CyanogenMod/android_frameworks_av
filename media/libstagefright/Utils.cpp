@@ -35,6 +35,7 @@
 #include <media/stagefright/Utils.h>
 #include <media/AudioParameter.h>
 #include <media/stagefright/ExtendedCodec.h>
+#include <media/stagefright/FFMPEGSoftCodec.h>
 
 #include "include/ExtendedUtils.h"
 #ifdef ENABLE_AV_ENHANCEMENTS
@@ -97,7 +98,7 @@ status_t convertMetaDataToMessage(
 
     int avgBitRate;
     if (meta->findInt32(kKeyBitRate, &avgBitRate)) {
-        msg->setInt32("bit-rate", avgBitRate);
+        msg->setInt32("bitrate", avgBitRate);
     }
 
     int32_t isSync;
@@ -372,7 +373,14 @@ status_t convertMetaDataToMessage(
     }
 
     ExtendedCodec::convertMetaDataToMessage(meta, &msg);
+
     *format = msg;
+
+#if 0
+    ALOGI("converted:");
+    meta->dumpToLog();
+    ALOGI("  to: %s", msg->debugString(0).c_str());
+#endif
 
     return OK;
 }
@@ -625,6 +633,8 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     }
 
     // XXX TODO add whatever other keys there are
+
+    FFMPEGSoftCodec::convertMessageToMetaData(msg, meta);
 
 #if 0
     ALOGI("converted %s to:", msg->debugString(0).c_str());
