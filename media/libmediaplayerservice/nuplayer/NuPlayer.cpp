@@ -1144,23 +1144,15 @@ void NuPlayer::postScanSources() {
 void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
     uint32_t flags;
     int64_t durationUs;
-    bool hasVideo = (mVideoDecoder != NULL);
-    // FIXME: we should handle the case where the video decoder
-    // is created after we receive the format change indication.
-    // Current code will just make that we select deep buffer
-    // with video which should not be a problem as it should
-    // not prevent from keeping A/V sync.
-    if (hasVideo &&
-            mSource->getDuration(&durationUs) == OK &&
-            durationUs
-                > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
+    if (mSource->getDuration(&durationUs) == OK &&
+            durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     } else {
         flags = AUDIO_OUTPUT_FLAG_NONE;
     }
 
     mOffloadAudio = mRenderer->openAudioSink(
-            format, offloadOnly, hasVideo, flags);
+            format, offloadOnly, (mVideoDecoder != NULL), flags);
 
     if (mOffloadAudio) {
         sp<MetaData> audioMeta =
