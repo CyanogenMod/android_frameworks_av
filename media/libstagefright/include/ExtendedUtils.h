@@ -242,6 +242,8 @@ struct ExtendedUtils {
     static bool checkDPFromVOLHeader(const uint8_t *ptr, size_t size);
     static bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
 
+    static bool isPcmOffloadEnabled();
+
     static bool pcmOffloadException(const char* const mime);
 };
 
