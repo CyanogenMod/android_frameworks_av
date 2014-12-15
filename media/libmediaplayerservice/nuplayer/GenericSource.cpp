@@ -173,6 +173,14 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             if (mFileMeta->findCString(kKeyMIMEType, &fileMime)
                     && !strncasecmp(fileMime, "video/wvm", 9)) {
                 mIsWidevine = true;
+                if (!mUri.empty()) {
+                  // streaming, but the app forgot to specify widevine:// url
+                  mWVMExtractor = static_cast<WVMExtractor *>(extractor.get());
+                  mWVMExtractor->setAdaptiveStreamingMode(true);
+                  if (mUIDValid) {
+                    mWVMExtractor->setUID(mUID);
+                  }
+                }
             }
         }
     }
