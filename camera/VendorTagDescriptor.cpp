@@ -206,7 +206,7 @@ status_t VendorTagDescriptor::createFromParcel(const Parcel* parcel,
         return res;
     }
 
-    size_t sectionCount = 0;
+    size_t sectionCount;
     if (tagCount > 0) {
         if ((res = parcel->readInt32(reinterpret_cast<int32_t*>(&sectionCount))) != OK) {
             ALOGE("%s: could not read section count for.", __FUNCTION__);

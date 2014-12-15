@@ -25,10 +25,7 @@
 #include <camera/Camera.h>
 #include <camera/CameraParameters.h>
 #include <system/window.h>
-#include "hardware/camera.h"
-#ifdef USE_MEMORY_HEAP_ION
-#include <binder/MemoryHeapIon.h>
-#endif
+#include <hardware/camera.h>
 
 namespace android {
 
@@ -92,20 +89,6 @@ public:
         }
     }
 
-    status_t filterOpenErrorCode(status_t err) {
-        switch(err) {
-            case NO_ERROR:
-            case -EBUSY:
-            case -EINVAL:
-            case -EUSERS:
-                return err;
-            default:
-                break;
-        }
-        return -ENODEV;
-    }
-
-
     status_t initialize(hw_module_t *module)
     {
         ALOGI("Opening camera %s", mName.string());
@@ -122,7 +105,7 @@ public:
                                                CAMERA_DEVICE_API_VERSION_1_0,
                                                (hw_device_t **)&mDevice);
         } else {
-            rc = filterOpenErrorCode(module->methods->open(
+            rc = CameraService::filterOpenErrorCode(module->methods->open(
                 module, mName.string(), (hw_device_t **)&mDevice));
         }
         if (rc != OK) {
@@ -520,11 +503,7 @@ private:
                          mBufSize(buf_size),
                          mNumBufs(num_buffers)
         {
-#ifdef USE_MEMORY_HEAP_ION
-            mHeap = new MemoryHeapIon(fd, buf_size * num_buffers);
-#else
             mHeap = new MemoryHeapBase(fd, buf_size * num_buffers);
-#endif
             commonInitialization();
         }
 
@@ -532,11 +511,7 @@ private:
                          mBufSize(buf_size),
                          mNumBufs(num_buffers)
         {
-#ifdef USE_MEMORY_HEAP_ION
-            mHeap = new MemoryHeapIon(buf_size * num_buffers);
-#else
             mHeap = new MemoryHeapBase(buf_size * num_buffers);
-#endif
             commonInitialization();
         }
 
@@ -568,24 +543,14 @@ private:
         camera_memory_t handle;
     };
 
-#ifdef USE_MEMORY_HEAP_ION
-    static camera_memory_t* __get_memory(int fd, size_t buf_size, uint_t num_bufs,
-                                         void *ion_fd)
-    {
-#else
     static camera_memory_t* __get_memory(int fd, size_t buf_size, uint_t num_bufs,
                                          void *user __attribute__((unused)))
     {
-#endif
         CameraHeapMemory *mem;
         if (fd < 0)
             mem = new CameraHeapMemory(buf_size, num_bufs);
         else
             mem = new CameraHeapMemory(fd, buf_size, num_bufs);
-#ifdef USE_MEMORY_HEAP_ION
-        if (ion_fd)
-            *((int *) ion_fd) = mem->mHeap->getHeapID();
-#endif
         mem->incStrong(mem);
         return &mem->handle;
     }
