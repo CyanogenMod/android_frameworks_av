@@ -23,7 +23,7 @@
 #include <binder/BinderService.h>
 #include <binder/IAppOpsCallback.h>
 #include <camera/ICameraService.h>
-#include "hardware/camera.h"
+#include <hardware/camera.h>
 
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
@@ -38,7 +38,7 @@
 #include <camera/ICameraServiceListener.h>
 
 /* This needs to be increased if we can have more cameras */
-#define MAX_CAMERAS 4
+#define MAX_CAMERAS 2
 
 namespace android {
 
@@ -193,7 +193,6 @@ public:
         pid_t                           mClientPid;
         uid_t                           mClientUid;      // immutable after constructor
         pid_t                           mServicePid;     // immutable after constructor
-        int                             mBurstCnt;
 
         // - The app-side Binder interface to receive callbacks from us
         sp<IBinder>                     mRemoteBinder;   // immutable after constructor
@@ -285,11 +284,11 @@ public:
         virtual void         notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
                                          const CaptureResultExtras& resultExtras);
 
+        // Initialized in constructor
 
         // - The app-side Binder interface to receive callbacks from us
         sp<ICameraClient>               mRemoteCallback;
 
-        bool                 mLongshotEnabled;
     }; // class Client
 
     class ProClient : public BnProCameraUser, public BasicClient {
