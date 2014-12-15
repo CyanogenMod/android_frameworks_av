@@ -62,6 +62,14 @@ static Mutex sRemoteInitMutex;
 
 sp<IMediaCodecList> MediaCodecList::sRemoteList;
 
+sp<MediaCodecList::BinderDeathObserver> MediaCodecList::sBinderDeathObserver;
+
+void MediaCodecList::BinderDeathObserver::binderDied(const wp<IBinder> &who __unused) {
+    Mutex::Autolock _l(sRemoteInitMutex);
+    sRemoteList.clear();
+    sBinderDeathObserver.clear();
+}
+
 // static
 sp<IMediaCodecList> MediaCodecList::getInstance() {
     Mutex::Autolock _l(sRemoteInitMutex);
@@ -72,8 +80,11 @@ sp<IMediaCodecList> MediaCodecList::getInstance() {
             interface_cast<IMediaPlayerService>(binder);
         if (service.get() != NULL) {
             sRemoteList = service->getCodecList();
+            if (sRemoteList != NULL) {
+                sBinderDeathObserver = new BinderDeathObserver();
+                binder->linkToDeath(sBinderDeathObserver.get());
+            }
         }
-
         if (sRemoteList == NULL) {
             // if failed to get remote list, create local list
             sRemoteList = getLocalInstance();
