@@ -32,6 +32,12 @@ public:
     class Mutator;
     class Observer;
 
+    enum SSQ_STATUS {
+        SSQ_PENDING, /* = 0 */
+        SSQ_READ,
+        SSQ_DONE,
+    };
+
     struct Shared {
         // needs to be part of a union so don't define constructor or destructor
 
@@ -71,10 +77,19 @@ private:
             return sequence;
         }
 
-        // return true if most recent push has been observed
-        bool ack() const
+        // returns the status of the last state push.  This may be a stale value.
+        //
+        // SSQ_PENDING, or 0, means it has not been observed
+        // SSQ_READ means it has been read
+        // SSQ_DONE means it has been acted upon, after Observer::done() is called
+        enum SSQ_STATUS ack() const
         {
-            return mShared->mAck - mSequence == 0;
+            // in the case of SSQ_DONE, prevent any subtle data-races of subsequent reads
+            // being performed (out-of-order) before the ack read, should the caller be
+            // depending on sequentiality of reads.
+            const int32_t ack = android_atomic_acquire_load(&mShared->mAck);
+            return ack - mSequence & ~1 ? SSQ_PENDING /* seq differ */ :
+                    ack & 1 ? SSQ_DONE : SSQ_READ;
         }
 
         // return true if a push with specified sequence number or later has been observed
@@ -120,7 +135,7 @@ private:
                     if (after == before) {
                         value = temp;
                         shared->mAck = before;
-                        mSequence = before;
+                        mSequence = before; // mSequence is even after poll success
                         return true;
                     }
                     if (++tries >= MAX_TRIES) {
@@ -129,6 +144,15 @@ private:
                     before = after;
                 }
             }
+        }
+
+        // (optional) used to indicate to the Mutator that the state that has been polled
+        // has also been acted upon.
+        void done()
+        {
+            const int32_t ack = mShared->mAck + 1;
+            // ensure all previous writes have been performed.
+            android_atomic_release_store(ack, &mShared->mAck); // mSequence is odd after "done"
         }
 
     private:
