@@ -1197,6 +1197,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mScreenState(AudioFlinger::mScreenState),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
+        mHwSupportsPause(false), mHwPaused(false), mFlushPending(false),
         // mLatchD, mLatchQ,
         mLatchDValid(false), mLatchQValid(false)
 {
@@ -1844,6 +1845,19 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
                                       AudioFlinger::PlaybackThread::asyncCallback, this) == 0) {
             mUseAsyncWrite = true;
             mCallbackThread = new AudioFlinger::AsyncCallbackThread(this);
+        }
+    }
+
+    mHwSupportsPause = false;
+    if (mOutput->flags & AUDIO_OUTPUT_FLAG_DIRECT) {
+        if (mOutput->stream->pause != NULL) {
+            if (mOutput->stream->resume != NULL) {
+                mHwSupportsPause = true;
+            } else {
+                ALOGW("direct output implements pause but not resume");
+            }
+        } else if (mOutput->stream->resume != NULL) {
+            ALOGW("direct output implements resume but not pause");
         }
     }
 
@@ -3078,6 +3092,7 @@ void AudioFlinger::PlaybackThread::threadLoop_standby()
         mCallbackThread->setWriteBlocked(mWriteAckSequence);
         mCallbackThread->setDraining(mDrainSequence);
     }
+    mHwPaused = false;
 }
 
 void AudioFlinger::PlaybackThread::onAddNewTrack_l()
@@ -3990,6 +4005,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 {
     size_t count = mActiveTracks.size();
     mixer_state mixerStatus = MIXER_IDLE;
+    bool doHwPause = false;
+    bool doHwResume = false;
+    bool flushPending = false;
 
     // find out which tracks need to be processed
     for (size_t i = 0; i < count; i++) {
@@ -4007,6 +4025,28 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         // direct output, it is not a problem to ignore the underrun case.
         sp<Track> l = mLatestActiveTrack.promote();
         bool last = l.get() == track;
+
+        if (mHwSupportsPause && track->isPausing()) {
+            track->setPaused();
+            if (last && !mHwPaused) {
+                doHwPause = true;
+                mHwPaused = true;
+            }
+            tracksToRemove->add(track);
+        } else if (track->isFlushPending()) {
+            track->flushAck();
+            if (last) {
+                flushPending = true;
+            }
+        } else if (mHwSupportsPause && track->isResumePending()){
+            track->resumeAck();
+            if (last) {
+                if (mHwPaused) {
+                    doHwResume = true;
+                    mHwPaused = false;
+                }
+            }
+        }
 
         // The first time a track is added we wait
         // for all its buffers to be filled before processing it.
@@ -4031,8 +4071,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 track->mFillingUpStatus = Track::FS_ACTIVE;
                 // make sure processVolume_l() will apply new volume even if 0
                 mLeftVolFloat = mRightVolFloat = -1.0;
-                if (track->mState == TrackBase::RESUMING) {
-                    track->mState = TrackBase::ACTIVE;
+                if (!mHwSupportsPause) {
+                    track->resumeAck();
                 }
             }
 
@@ -4095,6 +4135,30 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         }
     }
 
+    // if an active track did not command a flush, check for pending flush on stopped tracks
+    if (!flushPending) {
+        for (size_t i = 0; i < mTracks.size(); i++) {
+            if (mTracks[i]->isFlushPending()) {
+                mTracks[i]->flushAck();
+                flushPending = true;
+            }
+        }
+    }
+
+    // make sure the pause/flush/resume sequence is executed in the right order.
+    // If a flush is pending and a track is active but the HW is not paused, force a HW pause
+    // before flush and then resume HW. This can happen in case of pause/flush/resume
+    // if resume is received before pause is executed.
+    if (mHwSupportsPause && !mStandby &&
+            (doHwPause || (flushPending && !mHwPaused && (count != 0)))) {
+        mOutput->stream->pause(mOutput->stream);
+    }
+    if (flushPending) {
+        flushHw_l();
+    }
+    if (mHwSupportsPause && !mStandby && doHwResume) {
+        mOutput->stream->resume(mOutput->stream);
+    }
     // remove all the tracks that need to be...
     removeTracks_l(*tracksToRemove);
 
@@ -4127,6 +4191,11 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
 
 void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
 {
+    // do not write to HAL when paused
+    if (mHwPaused) {
+        sleepTime = idleSleepTime;
+        return;
+    }
     if (sleepTime == 0) {
         if (mMixerStatus == MIXER_TRACKS_ENABLED) {
             sleepTime = activeSleepTime;
@@ -4137,6 +4206,38 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
         memset(mSinkBuffer, 0, mFrameCount * mFrameSize);
         sleepTime = 0;
     }
+}
+
+void AudioFlinger::DirectOutputThread::threadLoop_exit()
+{
+    {
+        Mutex::Autolock _l(mLock);
+        bool flushPending = false;
+        for (size_t i = 0; i < mTracks.size(); i++) {
+            if (mTracks[i]->isFlushPending()) {
+                mTracks[i]->flushAck();
+                flushPending = true;
+            }
+        }
+        if (flushPending) {
+            flushHw_l();
+        }
+    }
+    PlaybackThread::threadLoop_exit();
+}
+
+// must be called with thread mutex locked
+bool AudioFlinger::DirectOutputThread::shouldStandby_l()
+{
+    bool trackPaused = false;
+
+    // do not put the HAL in standby when paused. AwesomePlayer clear the offloaded AudioTrack
+    // after a timeout and we will enter standby then.
+    if (mTracks.size() > 0) {
+        trackPaused = mTracks[mTracks.size() - 1]->isPaused();
+    }
+
+    return !mStandby && !trackPaused;
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
@@ -4248,8 +4349,10 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 
 void AudioFlinger::DirectOutputThread::flushHw_l()
 {
-    if (mOutput->stream->flush != NULL)
+    if (mOutput->stream->flush != NULL) {
         mOutput->stream->flush(mOutput->stream);
+    }
+    mHwPaused = false;
 }
 
 // ----------------------------------------------------------------------------
@@ -4358,8 +4461,6 @@ void AudioFlinger::AsyncCallbackThread::resetDraining()
 AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device)
     :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD),
-        mHwPaused(false),
-        mFlushPending(false),
         mPausedBytesRemaining(0)
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
@@ -4596,21 +4697,6 @@ bool AudioFlinger::OffloadThread::waitingAsyncCallback_l()
     return false;
 }
 
-// must be called with thread mutex locked
-bool AudioFlinger::OffloadThread::shouldStandby_l()
-{
-    bool trackPaused = false;
-
-    // do not put the HAL in standby when paused. AwesomePlayer clear the offloaded AudioTrack
-    // after a timeout and we will enter standby then.
-    if (mTracks.size() > 0) {
-        trackPaused = mTracks[mTracks.size() - 1]->isPaused();
-    }
-
-    return !mStandby && !trackPaused;
-}
-
-
 bool AudioFlinger::OffloadThread::waitingAsyncCallback()
 {
     Mutex::Autolock _l(mLock);
@@ -4625,7 +4711,6 @@ void AudioFlinger::OffloadThread::flushHw_l()
     mBytesRemaining = 0;
     mPausedWriteLength = 0;
     mPausedBytesRemaining = 0;
-    mHwPaused = false;
 
     if (mUseAsyncWrite) {
         // discard any pending drain or write ack by incrementing sequence
