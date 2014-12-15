@@ -52,6 +52,12 @@ struct MediaCodecList : public BnMediaCodecList {
     static sp<IMediaCodecList> getLocalInstance();
 
 private:
+    class BinderDeathObserver : public IBinder::DeathRecipient {
+        void binderDied(const wp<IBinder> &the_late_who __unused);
+    };
+
+    static sp<BinderDeathObserver> sBinderDeathObserver;
+
     enum Section {
         SECTION_TOPLEVEL,
         SECTION_DECODERS,
