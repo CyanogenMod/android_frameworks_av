@@ -250,6 +250,12 @@ struct ExtendedUtils {
     static bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
 
     static bool pcmOffloadException(const char* const mime);
+
+    static sp<MetaData> createPCMMetaFromSource(
+            const sp<MetaData> &sMeta);
+
+    static void overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src);
 };
 
 }

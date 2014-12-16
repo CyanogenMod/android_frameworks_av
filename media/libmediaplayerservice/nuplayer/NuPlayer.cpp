@@ -157,6 +157,7 @@ NuPlayer::NuPlayer()
       mSourceFlags(0),
       mVideoIsAVC(false),
       mOffloadAudio(false),
+      mOffloadDecodedPCM(false),
       mIsStreaming(true),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
@@ -604,6 +605,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             mVideoIsAVC = false;
             mOffloadAudio = false;
+            mOffloadDecodedPCM = false;
             mAudioEOS = false;
             mVideoEOS = false;
             mSkipRenderingAudioUntilMediaTimeUs = -1;
@@ -656,6 +658,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                                      mIsStreaming /* is_streaming */, streamType);
             }
 
+            if (!mOffloadAudio && !ExtendedUtils::pcmOffloadException(mime)) {
+                ALOGI("%s: Could not offload audio decode, try pcm offload", __func__);
+                sp<MetaData> audioSourceMeta = mSource->getFormatMeta(true/* audio */);
+                sp<MetaData> audioPCMMeta =
+                    ExtendedUtils::createPCMMetaFromSource(audioSourceMeta);
+
+                mOffloadAudio =
+                    canOffloadStream(audioPCMMeta, (videoFormat != NULL), vMeta,
+                                     mIsStreaming /* is_streaming */, streamType);
+                mOffloadDecodedPCM = mOffloadAudio;
+            }
             if (mOffloadAudio) {
                 flags |= Renderer::FLAG_OFFLOAD_AUDIO;
             }
@@ -698,7 +711,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mScanSourcesPending = false;
 
             ALOGV("scanning sources haveAudio=%d, haveVideo=%d",
-                 mAudioDecoder != NULL, mVideoDecoder != NULL);
+                mAudioDecoder != NULL, mVideoDecoder != NULL);
 
             bool mHadAnySourcesBefore =
                 (mAudioDecoder != NULL) || (mVideoDecoder != NULL);
@@ -964,7 +977,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
                 mRenderer->signalDisableOffloadAudio();
                 mOffloadAudio = false;
-
+                mOffloadDecodedPCM = false;
                 sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
                 if ((ExtendedUtils::isRAWFormat(audioMeta) &&
                     ExtendedUtils::is24bitPCMOffloadEnabled() &&
@@ -1197,13 +1210,25 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
         format->setInt32("sbit", 24);
     }
 
-    mOffloadAudio = mRenderer->openAudioSink(
+    if (mOffloadDecodedPCM) {
+        sp<MetaData> audioPCMMeta =
+                     ExtendedUtils::createPCMMetaFromSource(aMeta);
+        sp<AMessage> msg = new AMessage;
+        if (convertMetaDataToMessage(audioPCMMeta, &msg) == OK) {
+              //override msg with value in format if format has updated values
+              ExtendedUtils::overWriteAudioFormat(msg, format);
+              mOffloadAudio = mRenderer->openAudioSink(
+                             msg, offloadOnly, hasVideo, flags);
+        } else {
+            mOffloadAudio = mRenderer->openAudioSink(
+                format, offloadOnly, hasVideo, flags);
+        }
+    } else {
+        mOffloadAudio = mRenderer->openAudioSink(
             format, offloadOnly, hasVideo, flags);
-
+    }
     if (mOffloadAudio) {
-        sp<MetaData> audioMeta =
-                mSource->getFormatMeta(true /* audio */);
-        sendMetaDataToHal(mAudioSink, audioMeta);
+        sendMetaDataToHal(mAudioSink, aMeta);
     }
 }
 
@@ -1246,7 +1271,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
 
         sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
 
-        if (mOffloadAudio) {
+        if (mOffloadAudio && !mOffloadDecodedPCM) {
             if (ExtendedUtils::isRAWFormat(audioMeta) &&
                 ExtendedUtils::is24bitPCMOffloadEnabled() &&
                 (ExtendedUtils::getPcmSampleBits(audioMeta) == 24)) {
@@ -1320,7 +1345,7 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
     // Aggregate smaller buffers into a larger buffer.
     // The goal is to reduce power consumption.
     // Note this will not work if the decoder requires one frame per buffer.
-    bool doBufferAggregation = (audio && mOffloadAudio);
+    bool doBufferAggregation = ((audio && mOffloadAudio) && !mOffloadDecodedPCM);
     bool needMoreData = false;
 
     bool dropAccessUnit;
