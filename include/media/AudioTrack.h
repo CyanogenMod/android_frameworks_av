@@ -736,6 +736,10 @@ protected:
     int32_t                 mLoopCount;             // last setLoop loopCount; zero means disabled
     uint32_t                mLoopStart;             // last setLoop loopStart
     uint32_t                mLoopEnd;               // last setLoop loopEnd
+    int32_t                 mLoopCountNotified;     // the last loopCount notified by callback.
+                                                    // mLoopCountNotified counts down, matching
+                                                    // the remaining loop count for static track
+                                                    // playback.
 
     // These are private to processAudioBuffer(), and are not protected by a lock
     uint32_t                mRemainingFrames;       // number of frames to request in obtainBuffer()

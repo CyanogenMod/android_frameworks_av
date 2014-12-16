@@ -33,7 +33,7 @@
 
 #define WAIT_PERIOD_MS                  10
 #define WAIT_STREAM_END_TIMEOUT_SEC     120
-
+static const int kMaxLoopCountNotifications = 32;
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -428,6 +428,7 @@ status_t AudioTrack::set(
     mLoopCount = 0;
     mLoopStart = 0;
     mLoopEnd = 0;
+    mLoopCountNotified = 0;
     mMarkerPosition = 0;
     mMarkerReached = false;
     mNewPosition = 0;
@@ -750,6 +751,7 @@ void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
     mLoopCount = loopCount;
     mLoopEnd = loopEnd;
     mLoopStart = loopStart;
+    mLoopCountNotified = loopCount;
     mStaticProxy->setLoop(loopStart, loopEnd, loopCount);
 }
 
@@ -899,10 +901,15 @@ status_t AudioTrack::reload()
     mNewPosition = mUpdatePeriod;
     (void) updateAndGetPosition_l();
     mPosition = 0;
+#if 0
     // The documentation is not clear on the behavior of reload() and the restoration
-    // of loop count. Historically we have not restored loop count, start, end;
-    // rather we just reset the buffer position.  However, restoring the last setLoop
-    // information makes sense if one desires to repeat playing a particular sound.
+    // of loop count. Historically we have not restored loop count, start, end,
+    // but it makes sense if one desires to repeat playing a particular sound.
+    if (mLoopCount != 0) {
+        mLoopCountNotified = mLoopCount;
+        mStaticProxy->setLoop(mLoopStart, mLoopEnd, mLoopCount);
+    }
+#endif
     mStaticProxy->setBufferPosition(0);
     return NO_ERROR;
 }
@@ -1566,9 +1573,8 @@ nsecs_t AudioTrack::processAudioBuffer()
         // that the upper layers can recreate the track
         if (!isOffloadedOrDirect_l() || (mSequence == mObservedSequence)) {
             status_t status = restoreTrack_l("processAudioBuffer");
-            mLock.unlock();
-            // Run again immediately, but with a new IAudioTrack
-            return 0;
+            // after restoration, continue below to make sure that the loop and buffer events
+            // are notified because they have been cleared from mCblk->mFlags above.
         }
     }
 
@@ -1617,7 +1623,6 @@ nsecs_t AudioTrack::processAudioBuffer()
     }
 
     // Cache other fields that will be needed soon
-    uint32_t loopPeriod = mLoopCount != 0 ? mLoopEnd - mLoopStart : 0;
     uint32_t sampleRate = mSampleRate;
     uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
@@ -1628,6 +1633,28 @@ nsecs_t AudioTrack::processAudioBuffer()
     size_t misalignment = mProxy->getMisalignment();
     uint32_t sequence = mSequence;
     sp<AudioTrackClientProxy> proxy = mProxy;
+
+    // Determine the number of new loop callback(s) that will be needed, while locked.
+    int loopCountNotifications = 0;
+    uint32_t loopPeriod = 0; // time in frames for next EVENT_LOOP_END or EVENT_BUFFER_END
+
+    if (mLoopCount > 0) {
+        int loopCount;
+        size_t bufferPosition;
+        mStaticProxy->getBufferPositionAndLoopCount(&bufferPosition, &loopCount);
+        loopPeriod = ((loopCount > 0) ? mLoopEnd : mFrameCount) - bufferPosition;
+        loopCountNotifications = min(mLoopCountNotified - loopCount, kMaxLoopCountNotifications);
+        mLoopCountNotified = loopCount; // discard any excess notifications
+    } else if (mLoopCount < 0) {
+        // FIXME: We're not accurate with notification count and position with infinite looping
+        // since loopCount from server side will always return -1 (we could decrement it).
+        size_t bufferPosition = mStaticProxy->getBufferPosition();
+        loopCountNotifications = int((flags & (CBLK_LOOP_CYCLE | CBLK_LOOP_FINAL)) != 0);
+        loopPeriod = mLoopEnd - bufferPosition;
+    } else if (/* mLoopCount == 0 && */ mSharedBuffer != 0) {
+        size_t bufferPosition = mStaticProxy->getBufferPosition();
+        loopPeriod = mFrameCount - bufferPosition;
+    }
 
     // These fields don't need to be cached, because they are assigned only by set():
     //     mTransfer, mCbf, mUserData, mFormat, mFrameSize, mFrameSizeAF, mFlags
@@ -1669,10 +1696,9 @@ nsecs_t AudioTrack::processAudioBuffer()
     if (newUnderrun) {
         mCbf(EVENT_UNDERRUN, mUserData, NULL);
     }
-    // FIXME we will miss loops if loop cycle was signaled several times since last call
-    //       to processAudioBuffer()
-    if (flags & (CBLK_LOOP_CYCLE | CBLK_LOOP_FINAL)) {
+    while (loopCountNotifications > 0) {
         mCbf(EVENT_LOOP_END, mUserData, NULL);
+        --loopCountNotifications;
     }
     if (flags & CBLK_BUFFER_END) {
         mCbf(EVENT_BUFFER_END, mUserData, NULL);
@@ -1891,6 +1917,9 @@ status_t AudioTrack::restoreTrack_l(const char *from)
                         mLoopStart, mLoopEnd, loopCount);
             } else {
                 mStaticProxy->setBufferPosition(bufferPosition);
+                if (bufferPosition == mFrameCount) {
+                    ALOGD("restoring track at end of static buffer");
+                }
             }
         }
         if (mState == STATE_ACTIVE) {
