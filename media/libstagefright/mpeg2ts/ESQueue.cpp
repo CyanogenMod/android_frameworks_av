@@ -346,7 +346,7 @@ status_t ElementaryStreamQueue::appendData(
                 }
 
                 if (frameLength != size - startOffset) {
-                    ALOGW("First ADTS AAC frame length is %zd bytes, "
+                    ALOGV("First ADTS AAC frame length is %zd bytes, "
                           "while the buffer size is %zd bytes.",
                           frameLength, size - startOffset);
                 }
