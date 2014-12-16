@@ -15,11 +15,13 @@
 ** limitations under the License.
 */
 
+//#define LOG_NDEBUG 0
 #define LOG_TAG "MediaPlayerFactory"
 #include <utils/Log.h>
 
 #include <cutils/properties.h>
 #include <media/IMediaPlayer.h>
+#include <media/MidiIoWrapper.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -308,7 +310,6 @@ class SonivoxPlayerFactory : public MediaPlayerFactory::IFactory {
                 }
             }
         }
-
         return 0.0;
     }
 
@@ -324,14 +325,10 @@ class SonivoxPlayerFactory : public MediaPlayerFactory::IFactory {
 
         // Some kind of MIDI?
         EAS_DATA_HANDLE easdata;
+        sp<MidiIoWrapper> wrapper = new MidiIoWrapper(fd, offset, length);
         if (EAS_Init(&easdata) == EAS_SUCCESS) {
-            EAS_FILE locator;
-            locator.path = NULL;
-            locator.fd = fd;
-            locator.offset = offset;
-            locator.length = length;
             EAS_HANDLE  eashandle;
-            if (EAS_OpenFile(easdata, &locator, &eashandle) == EAS_SUCCESS) {
+            if (EAS_OpenFile(easdata, wrapper->getLocator(), &eashandle) == EAS_SUCCESS) {
                 EAS_CloseFile(easdata, eashandle);
                 EAS_Shutdown(easdata);
                 return kOurScore;
