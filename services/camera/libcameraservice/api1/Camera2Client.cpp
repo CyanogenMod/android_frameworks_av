@@ -918,6 +918,15 @@ void Camera2Client::stopPreviewL() {
                 ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
                         __FUNCTION__, mCameraId, strerror(-res), res);
             }
+
+            // Flush all in-process captures and buffer in order to stop
+            // preview faster.
+            res = mDevice->flush();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to flush pending requests: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+            }
+
             res = mDevice->waitUntilDrained();
             if (res != OK) {
                 ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
