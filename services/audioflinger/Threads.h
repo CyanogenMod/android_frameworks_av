@@ -440,6 +440,12 @@ protected:
                                         mSuspendedSessions;
                 static const size_t     kLogSize = 4 * 1024;
                 sp<NBLog::Writer>       mNBLogWriter;
+#ifdef HW_ACC_EFFECTS
+                // Hw accelerated effects in a deep-buffer playback session
+                bool mHwAccEffectsNeeded;
+                int32_t mHwAccEffectsSessionId;
+                int32_t mHwAccEffectsId;
+#endif
 };
 
 // --- PlaybackThread ---
