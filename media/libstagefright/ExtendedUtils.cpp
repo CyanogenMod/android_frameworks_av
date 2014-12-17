@@ -1789,6 +1789,87 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     return decision;
 #endif
 }
+
+sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
+                const sp<MetaData> &sMeta)
+{
+
+    sp<MetaData> tPCMMeta = new MetaData;
+    //hard code as RAW
+    tPCMMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+
+    //TODO: remove this hard coding and use the meta info, but the issue
+    //is that decoder does not provide this info for now
+    tPCMMeta->setInt32(kKeySampleBits, 16);
+
+    int32_t srate = -1;
+    if (!sMeta->findInt32(kKeySampleRate, &srate)) {
+        ALOGV("No sample rate");
+    }
+    tPCMMeta->setInt32(kKeySampleRate, srate);
+
+    int32_t cmask = 0;
+    if (!sMeta->findInt32(kKeyChannelMask, &cmask) || (cmask == 0)) {
+        ALOGI("No channel mask, try channel count");
+    }
+    int32_t channelCount = 0;
+    if (!sMeta->findInt32(kKeyChannelCount, &channelCount)) {
+        ALOGI("No channel count either");
+    } else {
+        //if channel mask is not set till now, use channel count
+        //to retrieve channel count
+        if (!cmask) {
+            cmask = audio_channel_out_mask_from_count(channelCount);
+        }
+    }
+    tPCMMeta->setInt32(kKeyChannelCount, channelCount);
+    tPCMMeta->setInt32(kKeyChannelMask, cmask);
+
+    int64_t duration = 0;
+    if (!sMeta->findInt64(kKeyDuration, &duration)) {
+        ALOGW("No duration in meta");
+    } else {
+        tPCMMeta->setInt64(kKeyDuration, duration);
+    }
+
+    int32_t bitRate = -1;
+    if (!sMeta->findInt32(kKeyBitRate, &bitRate)) {
+        ALOGW("No bitrate info");
+    } else {
+        tPCMMeta->setInt32(kKeyBitRate, bitRate);
+    }
+
+    return tPCMMeta;
+}
+
+void ExtendedUtils::overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src)
+{
+    int32_t dchannels = 0;
+    int32_t schannels = 0;
+    int32_t drate = 0;
+    int32_t srate = 0;
+
+    dst->findInt32("channel-count", &dchannels);
+    src->findInt32("channel-count", &schannels);
+
+    dst->findInt32("sample-rate", &drate);
+    src->findInt32("sample-rate", &srate);
+
+    ALOGI("channel count src: %d dst: %d", dchannels, schannels);
+    ALOGI("sample rate src: %d dst:%d ", drate, srate);
+
+    if (schannels && dchannels != schannels) {
+        dst->setInt32("channel-count", schannels);
+    }
+
+    if (srate && drate != srate) {
+        dst->setInt32("sample-rate", srate);
+    }
+
+    return;
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -1797,6 +1878,8 @@ namespace android {
 sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
                 sp<MediaSource> &audioSource, bool offloadAudio)
 {
+    ARG_TOUCH(audioSource);
+    ARG_TOUCH(offloadAudio);
     sp<MetaData> tempMetadata = new MetaData;
     return tempMetadata;
 }
@@ -2039,6 +2122,21 @@ void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {}
 bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     ARG_TOUCH(mime);
     return true;
+}
+
+sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
+                const sp<MetaData> &sMeta) {
+    ARG_TOUCH(sMeta);
+    sp<MetaData> tPCMMeta = new MetaData;
+    return tPCMMeta;
+}
+
+void ExtendedUtils::overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src)
+{
+    ARG_TOUCH(dst);
+    ARG_TOUCH(src);
+    return;
 }
 
 } // namespace android
