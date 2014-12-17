@@ -1372,8 +1372,6 @@ bool NuPlayer::Renderer::onOpenAudioSink(
     CHECK(format->findString("mime", &mime));
 
 #ifdef ENABLE_AV_ENHANCEMENTS
-    char prop[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.offload.pcm.enable", prop, "0");
     pcmOffload = ExtendedUtils::isPcmOffloadEnabled() &&
             !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW);
 

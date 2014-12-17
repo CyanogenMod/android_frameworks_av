@@ -149,8 +149,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0),
-      mUseSmallBuf(false)
+      mUseSmallBuf(false),
+      mPausedPosition(0)
 #ifdef QCOM_DIRECTTRACK
       ,mAudioFlinger(NULL),
       mObserver(NULL)
@@ -183,8 +183,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0),
-      mUseSmallBuf(false)
+      mUseSmallBuf(false),
+      mPausedPosition(0)
 #ifdef QCOM_DIRECTTRACK
       ,mAudioFlinger(NULL),
       mObserver(NULL)

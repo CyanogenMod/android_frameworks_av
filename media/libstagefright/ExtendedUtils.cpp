@@ -1713,7 +1713,7 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     bool decision = false;
 
     if (!isPcmOffloadEnabled())
-        return false;
+        return true;
 
     const char * const ExceptionTable[] = {
         MEDIA_MIMETYPE_AUDIO_AMR_NB,
