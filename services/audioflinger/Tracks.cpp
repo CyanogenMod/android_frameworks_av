@@ -823,12 +823,11 @@ void AudioFlinger::PlaybackThread::Track::flush()
             // this will be done by prepareTracks_l() when the track is stopped.
             // prepareTracks_l() will see mState == FLUSHED, then
             // remove from active track list, reset(), and trigger presentation complete
+            if (isDirect()) {
+                mFlushHwPending = true;
+            }
             if (playbackThread->mActiveTracks.indexOf(this) < 0) {
                 reset();
-                if (thread->type() == ThreadBase::DIRECT) {
-                    DirectOutputThread *t = (DirectOutputThread *)playbackThread;
-                    t->flushHw_l();
-                }
             }
         }
         // Prevent flush being lost if the track is flushed and then resumed
@@ -841,7 +840,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
 // must be called with thread lock held
 void AudioFlinger::PlaybackThread::Track::flushAck()
 {
-    if (!isOffloaded())
+    if (!isOffloaded() && !isDirect())
         return;
 
     mFlushHwPending = false;
