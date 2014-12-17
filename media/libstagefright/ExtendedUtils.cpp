@@ -1811,7 +1811,7 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     bool decision = false;
 
     if (!isPcmOffloadEnabled())
-        return false;
+        return true;
 
     if (!mime) {
         ALOGV("%s: no audio mime present, ignoring pcm offload", __func__);

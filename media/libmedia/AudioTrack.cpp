@@ -248,7 +248,7 @@ bool AudioTrack::canOffloadTrack(
         bool decision = false;
 
         if (track_offload == false) {
-             ALOGD("TrackOffload: AudioTrack Offload disabled by property, returning false");
+             ALOGV("TrackOffload: AudioTrack Offload disabled by property, returning false");
              return false;
         }
 
