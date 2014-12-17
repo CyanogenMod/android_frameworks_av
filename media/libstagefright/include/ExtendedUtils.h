@@ -241,6 +241,10 @@ struct ExtendedUtils {
     static void updateVideoTrackInfoFromESDS_MPEG4Video(sp<MetaData> meta);
     static bool checkDPFromVOLHeader(const uint8_t *ptr, size_t size);
     static bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
+
+    static bool isPcmOffloadEnabled();
+
+    static bool pcmOffloadException(const char* const mime);
 };
 
 }

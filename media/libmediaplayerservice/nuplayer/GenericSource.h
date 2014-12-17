@@ -191,7 +191,7 @@ private:
     void schedulePollBuffering();
     void cancelPollBuffering();
     void onPollBuffering();
-    void notifyBufferingUpdate(int percentage);
+    void notifyBufferingUpdate(int percentage, int64_t durationUs);
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };

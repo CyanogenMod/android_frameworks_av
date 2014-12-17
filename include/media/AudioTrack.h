@@ -539,6 +539,12 @@ private:
      */
             status_t    obtainBuffer(Buffer* audioBuffer, const struct timespec *requested,
                                      struct timespec *elapsed = NULL, size_t *nonContig = NULL);
+    // To decide whether or not to offload the pcm track thats being created
+            bool        canOffloadTrack(audio_stream_type_t streamType, audio_format_t format,
+                                     audio_channel_mask_t channelMask, audio_output_flags_t flags,
+                                     transfer_type transferType,
+                                     audio_attributes_t *attributes,
+                                     const audio_offload_info_t *offloadInfo);
 public:
 
     /* Release a filled buffer of "audioBuffer->frameCount" frames for AudioFlinger to process. */
@@ -792,6 +798,8 @@ protected:
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
     bool                    mAwaitBoost;    // thread should wait for priority boost before running
+    bool                    mUseSmallBuf;   // to indicate that hal has to use small buffers for
+                                            // offload in pcm offload use case
 
     // The proxy should only be referenced while a lock is held because the proxy isn't
     // multi-thread safe, especially the SingleStateQueue part of the proxy.
@@ -803,6 +811,11 @@ protected:
 
     bool                    mInUnderrun;            // whether track is currently in underrun state
     uint32_t                mPausedPosition;
+
+    //the following structures are used for tracks with PCM data that are offloaded
+    audio_offload_info_t    mPcmTrackOffloadInfo;   //offload info structure for pcm tracks
+    bool                    mIsPcmTrackOffloaded;   //whether the track is offloaded or not
+    bool                    mCanOffloadPcmTrack;    //whether or not an offload profile exists
 
 private:
     class DeathNotifier : public IBinder::DeathRecipient {

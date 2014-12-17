@@ -53,6 +53,9 @@
 #define STATS_PROFILE_SET_ENCODER(isVideo) (isVideo != 0 ? "Set video encoder" : "Set audio encoder")
 #define STATS_PROFILE_STOP "Stop"
 #define STATS_BITRATE "Video Bitrate"
+#define STATS_PROFILE_SF_RECORDER_START_LATENCY "\tStagefrightRecorder start latency"
+#define STATS_PROFILE_CAMERA_SOURCE_START_LATENCY "\tCamera source start latency"
+#define STATS_PROFILE_RECONFIGURE "\tReconfigure latency"
 
 namespace android {
 
@@ -122,9 +125,9 @@ public:
 
     ~ExtendedStats();
     void log(LogType type, const char* key, statsDataType value, bool condition = true);
-    sp<LogEntry> getLogEntry(const char *key, LogType type);
-    virtual void dump(const char* key = NULL) const;
-    virtual void reset(const char* key) const;
+    virtual void dump(const char* key = NULL);
+    virtual void reset(const char* key);
+    virtual void clear();
 
     static int64_t getSystemTime() {
         struct timeval tv;
@@ -156,14 +159,17 @@ public:
         mWindowSize = windowSize;
     }
 
+private:
+    sp<LogEntry> getLogEntry(const char *key, LogType type);
+
 protected:
     KeyedVector<AString, sp<LogEntry> > mLogEntry;
+    Mutex mLock;
 
     ExtendedStats(const ExtendedStats&) {}
     AString mName;
     pid_t mTid;
 
-    Mutex mLock;
     int32_t mWindowSize;
 };
 
@@ -225,6 +231,7 @@ protected:
 
     sp<ExtendedStats> mProfileTimes;
     int32_t mFrameRate;
+    Mutex mLock;
 
     /* helper functions */
     void resetConsecutiveFramesDropped();

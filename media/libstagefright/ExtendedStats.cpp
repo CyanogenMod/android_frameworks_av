@@ -42,14 +42,13 @@ namespace android {
 
 /* constructors and destructors */
 ExtendedStats::ExtendedStats(const char *id, pid_t tid) {
-    mLogEntry.clear();
+    clear();
     mName.setTo(id);
     mTid = tid;
-    mWindowSize = kMaxWindowSize;
 }
 
 ExtendedStats::~ExtendedStats() {
-    mLogEntry.clear();
+    clear();
 }
 
 ExtendedStats::LogEntry::LogEntry()
@@ -223,8 +222,6 @@ sp<ExtendedStats::LogEntry> ExtendedStats::getLogEntry(const char *key,
 
     /* if this entry doesn't exist, add it in the log and return it */
     if (idx < 0) {
-        /* keep write access to the KeyedVector thread-safe */
-        Mutex::Autolock autoLock(mLock);
         sp<LogEntry> logEntry = createLogEntry(type, mWindowSize);
         mLogEntry.add(key, logEntry);
         return logEntry;
@@ -234,15 +231,18 @@ sp<ExtendedStats::LogEntry> ExtendedStats::getLogEntry(const char *key,
 }
 
 void ExtendedStats::log(LogType type, const char* key, statsDataType value, bool condition) {
+
+    Mutex::Autolock lock(mLock);
     if ( !condition || !key)
         return;
 
     getLogEntry(key, type)->insert(value);
 }
 
-void ExtendedStats::dump(const char* key) const {
+void ExtendedStats::dump(const char* key) {
     // If no key is provided, print all
     // TBD: print label and sentinels
+    Mutex::Autolock lock(mLock);
     if (key) {
         ssize_t idx = mLogEntry.indexOfKey(key);
         if (idx >= 0) {
@@ -258,13 +258,22 @@ void ExtendedStats::dump(const char* key) const {
     }
 }
 
-void ExtendedStats::reset(const char* key) const {
-     if (key) {
+void ExtendedStats::reset(const char* key) {
+    Mutex::Autolock lock(mLock);
+    if (key) {
         ssize_t idx = mLogEntry.indexOfKey(key);
         if (idx >= 0) {
             mLogEntry.valueAt(idx)->reset();
         }
     }
+}
+
+void ExtendedStats::clear() {
+    Mutex::Autolock lock(mLock);
+    mLogEntry.clear();
+    mTid = -1;
+    mWindowSize = kMaxWindowSize;
+    mName = "";
 }
 
 ExtendedStats::AutoProfile::AutoProfile(
@@ -315,6 +324,7 @@ MediaExtendedStats::MediaExtendedStats(const char* name, pid_t tid) {
 
     mName = name;
     mTid = tid;
+    mProfileTimes = new ExtendedStats(mName.c_str(), mTid);
 
     reset();
 }
@@ -330,6 +340,8 @@ void MediaExtendedStats::resetConsecutiveFramesDropped() {
 /** MediaExtendedStats methods **/
 
 void MediaExtendedStats::reset() {
+    Mutex::Autolock lock(mLock);
+
     mCurrentConsecutiveFramesDropped = 0;
     mMaxConsecutiveFramesDropped = 0;
     mNumChainedDrops = 0;
@@ -340,7 +352,7 @@ void MediaExtendedStats::reset() {
     mHeightDimensions.clear();
 
     mFrameRate = 30;
-    mProfileTimes = new ExtendedStats(mName.c_str(), mTid);
+    mProfileTimes->clear();
 }
 
 
@@ -350,6 +362,7 @@ void MediaExtendedStats::logFrameDropped() {
 }
 
 void MediaExtendedStats::logDimensions(int32_t width, int32_t height) {
+    Mutex::Autolock lock(mLock);
     if (mWidthDimensions.empty() || mWidthDimensions.top() != width ||
         mHeightDimensions.empty() || mHeightDimensions.top() != height) {
         mWidthDimensions.push(width);
@@ -362,6 +375,7 @@ void MediaExtendedStats::logBitRate(int64_t frameSize, int64_t timestamp) {
 }
 
 MediaExtendedStats::~MediaExtendedStats() {
+    mProfileTimes = NULL;
 }
 
 /***************************** PlayerExtendedStats ************************/
@@ -519,6 +533,7 @@ void PlayerExtendedStats::dump() {
         mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(video));
         mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(audio));
         mProfileTimes->dump(STATS_PROFILE_START_LATENCY);
+        mProfileTimes->dump(STATS_PROFILE_RECONFIGURE);
     }
 
     ALOGI("-------------------End PlayerExtendedStats----------------------");
@@ -604,6 +619,8 @@ void RecorderExtendedStats::dump() {
     mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(video));
     mProfileTimes->dump(STATS_PROFILE_FIRST_BUFFER(audio));
     mProfileTimes->dump(STATS_PROFILE_START_LATENCY);
+    mProfileTimes->dump(STATS_PROFILE_SF_RECORDER_START_LATENCY);
+    mProfileTimes->dump(STATS_PROFILE_CAMERA_SOURCE_START_LATENCY);
     mProfileTimes->dump(STATS_PROFILE_STOP);
 
     ALOGI("-------------------End RecorderExtendedStats----------------------");

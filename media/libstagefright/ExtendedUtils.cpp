@@ -959,7 +959,14 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     bool audioTrackFound         = false;
     bool amrwbAudio              = false;
     bool hevcVideo               = false;
+    bool dolbyAudio              = false;
+    bool mpeg4Container          = false;
+    bool aacAudioTrack           = false;
     int  numOfTrack              = 0;
+
+    mpeg4Container = !strncasecmp(mime,
+                                MEDIA_MIMETYPE_CONTAINER_MPEG4,
+                                strlen(MEDIA_MIMETYPE_CONTAINER_MPEG4));
 
     if (defaultExt != NULL) {
         for (size_t trackItt = 0; trackItt < defaultExt->countTracks(); ++trackItt) {
@@ -970,13 +977,32 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
 
             String8 mime = String8(_mime);
 
+            const char * dolbyFormats[ ] = {
+                MEDIA_MIMETYPE_AUDIO_AC3,
+                MEDIA_MIMETYPE_AUDIO_EAC3,
+#ifdef DOLBY_UDC
+                MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
+#endif
+            };
+
             if (!strncasecmp(mime.string(), "audio/", 6)) {
                 audioTrackFound = true;
 
                 amrwbAudio = !strncasecmp(mime.string(),
                                           MEDIA_MIMETYPE_AUDIO_AMR_WB,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
-                if (amrwbAudio) {
+
+                aacAudioTrack = !strncasecmp(mime.string(),
+                                          MEDIA_MIMETYPE_AUDIO_AAC,
+                                          strlen(MEDIA_MIMETYPE_AUDIO_AAC));
+
+                for (size_t i = 0; i < ARRAY_SIZE(dolbyFormats); i++) {
+                    if (!strncasecmp(mime.string(), dolbyFormats[i], strlen(dolbyFormats[i]))) {
+                        dolbyAudio = true;
+                    }
+                }
+
+                if (amrwbAudio || dolbyAudio) {
                     break;
                 }
             } else if (!strncasecmp(mime.string(), "video/", 6)) {
@@ -987,13 +1013,14 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             }
         }
 
-        if (amrwbAudio) {
+        if (amrwbAudio || dolbyAudio) {
             bCheckExtendedExtractor = true;
         } else if (numOfTrack  == 0) {
             bCheckExtendedExtractor = true;
         } else if (numOfTrack == 1) {
             if ((videoTrackFound) ||
-                (!videoTrackFound && !audioTrackFound)) {
+                (!videoTrackFound && !audioTrackFound) ||
+                (audioTrackFound && mpeg4Container && aacAudioTrack)) {
                 bCheckExtendedExtractor = true;
             }
         } else if (numOfTrack >= 2) {
@@ -1037,16 +1064,30 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     //to delete the new one
     bool bUseDefaultExtractor = true;
 
+    const char * extFormats[ ] = {
+        MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
+        MEDIA_MIMETYPE_VIDEO_HEVC,
+        MEDIA_MIMETYPE_AUDIO_AC3,
+        MEDIA_MIMETYPE_AUDIO_EAC3,
+#ifdef DOLBY_UDC
+        MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
+#endif
+        MEDIA_MIMETYPE_AUDIO_AAC,
+    };
+
     for (size_t trackItt = 0; (trackItt < retExtExtractor->countTracks()); ++trackItt) {
         sp<MetaData> meta = retExtExtractor->getTrackMetaData(trackItt);
         const char *mime;
         bool success = meta->findCString(kKeyMIMEType, &mime);
-        if ((success == true) &&
-            (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
-                                strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS)) ||
-            !strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
-                                strlen(MEDIA_MIMETYPE_VIDEO_HEVC)) )) {
+        bool isExtFormat = false;
+        for (size_t i = 0; i < ARRAY_SIZE(extFormats); i++) {
+            if (!strncasecmp(mime, extFormats[i], strlen(extFormats[i]))) {
+                isExtFormat = true;
+                break;
+            }
+        }
 
+        if ((success == true) && isExtFormat) {
             ALOGD("Discarding default extractor and using the extended one");
             bUseDefaultExtractor = false;
             break;
@@ -1656,6 +1697,43 @@ void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {
     buffer->setRange(buffer->offset(), buffer->size() + offset);
 }
 
+bool ExtendedUtils::isPcmOffloadEnabled() {
+    bool prop_enabled = false;
+    char propValue[PROPERTY_VALUE_MAX];
+    if(property_get("audio.offload.pcm.16bit.enable", propValue, "false"))
+        prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+    if(property_get("audio.offload.pcm.24bit.enable", propValue, "false"))
+        prop_enabled = prop_enabled || atoi(propValue) || !strncmp("true", propValue, 4);
+    return prop_enabled;
+}
+
+//return true if mime type is not support for pcm offload
+//return true if PCM offload is not enabled
+bool ExtendedUtils::pcmOffloadException(const char* const mime) {
+    bool decision = false;
+
+    if (!isPcmOffloadEnabled())
+        return true;
+
+    const char * const ExceptionTable[] = {
+        MEDIA_MIMETYPE_AUDIO_AMR_NB,
+        MEDIA_MIMETYPE_AUDIO_AMR_WB,
+        MEDIA_MIMETYPE_AUDIO_QCELP,
+        MEDIA_MIMETYPE_AUDIO_G711_ALAW,
+        MEDIA_MIMETYPE_AUDIO_G711_MLAW,
+        MEDIA_MIMETYPE_AUDIO_EVRC
+    };
+    int countException = (sizeof(ExceptionTable) / sizeof(ExceptionTable[0]));
+
+    for(int i = 0; i < countException; i++) {
+        if (!strcasecmp(mime, ExceptionTable[i])) {
+            decision = true;
+            break;
+        }
+    }
+    ALOGI("decision %d mime %s", decision, mime);
+    return decision;
+}
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -1868,6 +1946,15 @@ void ExtendedUtils::RTSPStream::addRR(const sp<ABuffer> &buf) {}
 
 void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {}
 
+bool ExtendedUtils::isPcmOffloadEnabled() {
+    return false;
+}
+
+//return true to make sure pcm offload is not exercised
+bool ExtendedUtils::pcmOffloadException(const char* const mime) {
+    ARG_TOUCH(mime);
+    return true;
+}
 
 } // namespace android
 #endif //ENABLE_AV_ENHANCEMENTS
