@@ -762,9 +762,9 @@ protected:
 
         bool isNonOffloadableEffectEnabled();
 
-        status_t addAudioPatch(audio_patch_handle_t handle,
+        virtual status_t addAudioPatch(audio_patch_handle_t handle,
                                const sp<AudioPatch>& patch);
-        status_t removeAudioPatch(audio_patch_handle_t handle);
+        virtual status_t removeAudioPatch(audio_patch_handle_t handle);
 
         sp<AudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
         sp<AudioInputDescriptor> getInputFromId(audio_port_handle_t id) const;
