@@ -149,8 +149,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0),
-      mUseSmallBuf(false)
+      mUseSmallBuf(false),
+      mPausedPosition(0)
 #ifdef QCOM_DIRECTTRACK
       ,mAudioFlinger(NULL),
       mObserver(NULL)
@@ -183,8 +183,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0),
-      mUseSmallBuf(false)
+      mUseSmallBuf(false),
+      mPausedPosition(0)
 #ifdef QCOM_DIRECTTRACK
       ,mAudioFlinger(NULL),
       mObserver(NULL)
@@ -243,7 +243,7 @@ bool AudioTrack::canOffloadTrack(
         bool decision = false;
 
         if (track_offload == false) {
-             ALOGD("TrackOffload: AudioTrack Offload disabled by property, returning false");
+             ALOGV("TrackOffload: AudioTrack Offload disabled by property, returning false");
              return false;
         }
 
