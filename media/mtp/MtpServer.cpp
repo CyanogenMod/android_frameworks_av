@@ -819,18 +819,24 @@ MtpResponseCode MtpServer::doGetThumb() {
 MtpResponseCode MtpServer::doGetPartialObject(MtpOperationCode operation) {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
-    if (mRequest.getParameterCount() < 4)
-        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     uint64_t offset;
     uint32_t length;
     offset = mRequest.getParameter(2);
     if (operation == MTP_OPERATION_GET_PARTIAL_OBJECT_64) {
+        // MTP_OPERATION_GET_PARTIAL_OBJECT_64 takes 4 arguments
+        if (mRequest.getParameterCount() < 4)
+            return MTP_RESPONSE_INVALID_PARAMETER;
+
         // android extension with 64 bit offset
         uint64_t offset2 = mRequest.getParameter(3);
         offset = offset | (offset2 << 32);
         length = mRequest.getParameter(4);
     } else {
+        // MTP_OPERATION_GET_PARTIAL_OBJECT takes 3 arguments
+        if (mRequest.getParameterCount() < 3)
+            return MTP_RESPONSE_INVALID_PARAMETER;
+
         // standard GetPartialObject
         length = mRequest.getParameter(3);
     }
