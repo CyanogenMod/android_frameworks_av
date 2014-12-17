@@ -812,7 +812,9 @@ public:
 protected:
                 // accessed by both binder threads and within threadLoop(), lock on mutex needed
                 unsigned    mFastTrackAvailMask;    // bit i set if fast track [i] is available
-
+                bool        mHwSupportsPause;
+                bool        mHwPaused;
+                bool        mFlushPending;
 private:
     // timestamp latch:
     //  D input is written by threadLoop_write while mutex is unlocked, and read while locked
@@ -913,6 +915,8 @@ protected:
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
     virtual     void        threadLoop_mix();
     virtual     void        threadLoop_sleepTime();
+    virtual     void        threadLoop_exit();
+    virtual     bool        shouldStandby_l();
 
     // volumes last sent to audio HAL with stream->set_volume()
     float mLeftVolFloat;
@@ -943,12 +947,9 @@ protected:
 
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
-    virtual     bool        shouldStandby_l();
     virtual     void        onAddNewTrack_l();
 
 private:
-    bool        mHwPaused;
-    bool        mFlushPending;
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
     wp<Track>   mPreviousTrack;         // used to detect track switch
