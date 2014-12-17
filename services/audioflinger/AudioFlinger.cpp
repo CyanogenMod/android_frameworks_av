@@ -1433,13 +1433,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             goto Exit;
         }
 
-        if (deviceRequiresCaptureAudioOutputPermission(thread->inDevice())
-                && !captureAudioOutputAllowed()) {
-            ALOGE("openRecord() permission denied: capture not allowed");
-            lStatus = PERMISSION_DENIED;
-            goto Exit;
-        }
-
         pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid(pid);
 

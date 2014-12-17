@@ -266,17 +266,47 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
     }
     sp<AudioPolicyEffects>audioPolicyEffects;
     status_t status;
+    AudioPolicyInterface::input_type_t inputType;
     {
         Mutex::Autolock _l(mLock);
         // the audio_in_acoustics_t parameter is ignored by get_input()
         status = mAudioPolicyManager->getInputForAttr(attr, input, session,
                                                      samplingRate, format, channelMask,
-                                                     flags);
+                                                     flags, &inputType);
         audioPolicyEffects = mAudioPolicyEffects;
+
+        if (status == NO_ERROR) {
+            // enforce permission (if any) required for each type of input
+            switch (inputType) {
+            case AudioPolicyInterface::API_INPUT_LEGACY:
+                break;
+            case AudioPolicyInterface::API_INPUT_MIX_CAPTURE:
+                if (!captureAudioOutputAllowed()) {
+                    ALOGE("getInputForAttr() permission denied: capture not allowed");
+                    status = PERMISSION_DENIED;
+                }
+                break;
+            case AudioPolicyInterface::API_INPUT_MIX_EXT_POLICY_REROUTE:
+                if (!modifyAudioRoutingAllowed()) {
+                    ALOGE("getInputForAttr() permission denied: modify audio routing not allowed");
+                    status = PERMISSION_DENIED;
+                }
+                break;
+            case AudioPolicyInterface::API_INPUT_INVALID:
+            default:
+                LOG_ALWAYS_FATAL("getInputForAttr() encountered an invalid input type %d",
+                        (int)inputType);
+            }
+        }
+
+        if (status != NO_ERROR) {
+            if (status == PERMISSION_DENIED) {
+                mAudioPolicyManager->releaseInput(*input, session);
+            }
+            return status;
+        }
     }
-    if (status != NO_ERROR) {
-        return status;
-    }
+
     if (audioPolicyEffects != 0) {
         // create audio pre processors according to input source
         status_t status = audioPolicyEffects->addInputEffects(*input, attr->source, session);
