@@ -388,13 +388,22 @@ status_t NuPlayerDriver::seekTo(int msec) {
 
 status_t NuPlayerDriver::getCurrentPosition(int *msec) {
     int64_t tempUs = 0;
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (mSeekInProgress || mState == STATE_PAUSED) {
+            tempUs = (mPositionUs <= 0) ? 0 : mPositionUs;
+            *msec = (int)divRound(tempUs, (int64_t)(1000));
+            return OK;
+        }
+    }
+
     status_t ret = mPlayer->getCurrentPosition(&tempUs);
 
     Mutex::Autolock autoLock(mLock);
     // We need to check mSeekInProgress here because mPlayer->seekToAsync is an async call, which
     // means getCurrentPosition can be called before seek is completed. Iow, renderer may return a
     // position value that's different the seek to position.
-    if (ret != OK || mSeekInProgress) {
+    if (ret != OK) {
         tempUs = (mPositionUs <= 0) ? 0 : mPositionUs;
     } else {
         mPositionUs = tempUs;

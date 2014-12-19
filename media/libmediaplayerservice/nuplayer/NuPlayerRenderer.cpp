@@ -68,6 +68,7 @@ NuPlayer::Renderer::Renderer(
       mNotifyCompleteVideo(false),
       mSyncQueues(false),
       mPaused(false),
+      mPausePositionMediaTimeUs(0),
       mVideoSampleReceived(false),
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
@@ -166,11 +167,48 @@ void NuPlayer::Renderer::setVideoFrameRate(float fps) {
     msg->post();
 }
 
+// Called on any threads, except renderer's thread.
 status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs) {
-    return getCurrentPosition(mediaUs, ALooper::GetNowUs());
+    {
+        Mutex::Autolock autoLock(mLock);
+        int64_t currentPositionUs;
+        if (getCurrentPositionIfPaused_l(&currentPositionUs)) {
+            *mediaUs = currentPositionUs;
+            return OK;
+        }
+    }
+    return getCurrentPositionFromAnchor(mediaUs, ALooper::GetNowUs());
 }
 
-status_t NuPlayer::Renderer::getCurrentPosition(
+// Called on only renderer's thread.
+status_t NuPlayer::Renderer::getCurrentPositionOnLooper(int64_t *mediaUs) {
+    return getCurrentPositionOnLooper(mediaUs, ALooper::GetNowUs());
+}
+
+// Called on only renderer's thread.
+// Since mPaused and mPausePositionMediaTimeUs are changed only on renderer's
+// thread, no need to acquire mLock.
+status_t NuPlayer::Renderer::getCurrentPositionOnLooper(
+        int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo) {
+    int64_t currentPositionUs;
+    if (getCurrentPositionIfPaused_l(&currentPositionUs)) {
+        *mediaUs = currentPositionUs;
+        return OK;
+    }
+    return getCurrentPositionFromAnchor(mediaUs, nowUs, allowPastQueuedVideo);
+}
+
+// Called either with mLock acquired or on renderer's thread.
+bool NuPlayer::Renderer::getCurrentPositionIfPaused_l(int64_t *mediaUs) {
+    if (!mPaused) {
+        return false;
+    }
+    *mediaUs = mPausePositionMediaTimeUs;
+    return true;
+}
+
+// Called on any threads.
+status_t NuPlayer::Renderer::getCurrentPositionFromAnchor(
         int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo) {
     Mutex::Autolock autoLock(mTimeLock);
     if (!mHasAudio && !mHasVideo) {
@@ -718,7 +756,8 @@ int64_t NuPlayer::Renderer::getPendingAudioPlayoutDurationUs(int64_t nowUs) {
 
 int64_t NuPlayer::Renderer::getRealTimeUs(int64_t mediaTimeUs, int64_t nowUs) {
     int64_t currentPositionUs;
-    if (getCurrentPosition(&currentPositionUs, nowUs, true /* allowPastQueuedVideo */) != OK) {
+    if (getCurrentPositionOnLooper(
+            &currentPositionUs, nowUs, true /* allowPastQueuedVideo */) != OK) {
         // If failed to get current position, e.g. due to audio clock is not ready, then just
         // play out video immediately without delay.
         return nowUs;
@@ -1179,6 +1218,11 @@ void NuPlayer::Renderer::onPause() {
         ALOGW("Renderer::onPause() called while already paused!");
         return;
     }
+    int64_t currentPositionUs;
+    if (getCurrentPositionFromAnchor(
+            &currentPositionUs, ALooper::GetNowUs()) == OK) {
+        mPausePositionMediaTimeUs = currentPositionUs;
+    }
     {
         Mutex::Autolock autoLock(mLock);
         ++mAudioQueueGeneration;
@@ -1306,7 +1350,7 @@ void NuPlayer::Renderer::onAudioOffloadTearDown(AudioOffloadTearDownReason reaso
     mAudioOffloadTornDown = true;
 
     int64_t currentPositionUs;
-    if (getCurrentPosition(&currentPositionUs) != OK) {
+    if (getCurrentPositionOnLooper(&currentPositionUs) != OK) {
         currentPositionUs = 0;
     }
 
