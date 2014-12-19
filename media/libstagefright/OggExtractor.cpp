@@ -76,7 +76,7 @@ struct MyVorbisExtractor {
 
     status_t seekToTime(int64_t timeUs);
     status_t seekToOffset(off64_t offset);
-    status_t readNextPacket(MediaBuffer **buffer);
+    status_t readNextPacket(MediaBuffer **buffer, bool conf);
 
     status_t init();
 
@@ -185,7 +185,7 @@ status_t OggSource::read(
     }
 
     MediaBuffer *packet;
-    status_t err = mExtractor->mImpl->readNextPacket(&packet);
+    status_t err = mExtractor->mImpl->readNextPacket(&packet, /* conf = */ false);
 
     if (err != OK) {
         return err;
@@ -457,7 +457,7 @@ ssize_t MyVorbisExtractor::readPage(off64_t offset, Page *page) {
     return sizeof(header) + page->mNumSegments + totalSize;
 }
 
-status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out) {
+status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out, bool conf) {
     *out = NULL;
 
     MediaBuffer *buffer = NULL;
@@ -523,10 +523,8 @@ status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out) {
                     mFirstPacketInPage = false;
                 }
 
-                if (mVi.rate) {
-                    // Rate may not have been initialized yet if we're currently
-                    // reading the configuration packets...
-                    // Fortunately, the timestamp doesn't matter for those.
+                // ignore timestamp for configuration packets
+                if (!conf) {
                     int32_t curBlockSize = packetBlockSize(buffer);
                     if (mCurrentPage.mPrevPacketSize < 0) {
                         mCurrentPage.mPrevPacketSize = curBlockSize;
@@ -605,7 +603,7 @@ status_t MyVorbisExtractor::init() {
 
     MediaBuffer *packet;
     status_t err;
-    if ((err = readNextPacket(&packet)) != OK) {
+    if ((err = readNextPacket(&packet, /* conf = */ true)) != OK) {
         return err;
     }
     ALOGV("read packet of size %zu\n", packet->range_length());
@@ -616,7 +614,7 @@ status_t MyVorbisExtractor::init() {
         return err;
     }
 
-    if ((err = readNextPacket(&packet)) != OK) {
+    if ((err = readNextPacket(&packet, /* conf = */ true)) != OK) {
         return err;
     }
     ALOGV("read packet of size %zu\n", packet->range_length());
@@ -627,7 +625,7 @@ status_t MyVorbisExtractor::init() {
         return err;
     }
 
-    if ((err = readNextPacket(&packet)) != OK) {
+    if ((err = readNextPacket(&packet, /* conf = */ true)) != OK) {
         return err;
     }
     ALOGV("read packet of size %zu\n", packet->range_length());
