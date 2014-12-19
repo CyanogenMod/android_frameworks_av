@@ -5037,6 +5037,8 @@ void AudioFlinger::DuplicatingThread::threadLoop_mix()
     } else {
         if (mMixerBufferValid) {
             memset(mMixerBuffer, 0, mMixerBufferSize);
+        } else if (mEffectBufferValid) {
+            memset(mEffectBuffer, 0, mEffectBufferSize);
         } else {
             memset(mSinkBuffer, 0, mSinkBufferSize);
         }
@@ -5058,7 +5060,11 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
     } else if (mBytesWritten != 0) {
         if (mMixerStatus == MIXER_TRACKS_ENABLED) {
             writeFrames = mNormalFrameCount;
-            memset(mSinkBuffer, 0, mSinkBufferSize);
+            if (mMixerBufferValid) {
+                memset(mMixerBuffer, 0, mMixerBufferSize);
+            } else {
+                memset(mSinkBuffer, 0, mSinkBufferSize);
+            }
         } else {
             // flush remaining overflow buffers in output tracks
             writeFrames = 0;
