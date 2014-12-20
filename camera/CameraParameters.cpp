@@ -94,6 +94,32 @@ const char CameraParameters::KEY_VIDEO_STABILIZATION[] = "video-stabilization";
 const char CameraParameters::KEY_VIDEO_STABILIZATION_SUPPORTED[] = "video-stabilization-supported";
 const char CameraParameters::KEY_LIGHTFX[] = "light-fx";
 
+#ifdef HAVE_ISO
+const char CameraParameters::KEY_SUPPORTED_ISO_MODES[] = "iso-values";
+const char CameraParameters::KEY_ISO_MODE[] = "iso";
+#endif
+
+#ifdef SAMSUNG_CAMERA_HARDWARE
+const char CameraParameters::KEY_ANTI_SHAKE_MODE[] = "anti-shake";
+const char CameraParameters::KEY_METERING[] = "metering";
+const char CameraParameters::KEY_WDR[] = "wdr";
+const char CameraParameters::KEY_WEATHER[] = "weather";
+const char CameraParameters::KEY_CITYID[] = "contextualtag-cityid";
+
+const char CameraParameters::KEY_DYNAMIC_RANGE_CONTROL[] = "dynamic-range-control";
+const char CameraParameters::KEY_SUPPORTED_DYNAMIC_RANGE_CONTROL[] = "dynamic-range-control-values";
+const char CameraParameters::KEY_PHASE_AF[] = "phase-af";
+const char CameraParameters::KEY_SUPPORTED_PHASE_AF[] = "phase-af-values";
+const char CameraParameters::KEY_RT_HDR[] = "rt-hdr";
+const char CameraParameters::KEY_SUPPORTED_RT_HDR[] = "rt-hdr-values";
+const char CameraParameters::DRC_ON[] = "on";
+const char CameraParameters::DRC_OFF[] = "off";
+const char CameraParameters::PAF_ON[] = "on";
+const char CameraParameters::PAF_OFF[] = "off";
+const char CameraParameters::RTHDR_ON[] = "on";
+const char CameraParameters::RTHDR_OFF[] = "off";
+#endif
+
 const char CameraParameters::TRUE[] = "true";
 const char CameraParameters::FALSE[] = "false";
 const char CameraParameters::FOCUS_DISTANCE_INFINITY[] = "Infinity";
@@ -119,6 +145,15 @@ const char CameraParameters::EFFECT_POSTERIZE[] = "posterize";
 const char CameraParameters::EFFECT_WHITEBOARD[] = "whiteboard";
 const char CameraParameters::EFFECT_BLACKBOARD[] = "blackboard";
 const char CameraParameters::EFFECT_AQUA[] = "aqua";
+#ifdef SAMSUNG_CAMERA_HARDWARE
+const char CameraParameters::EFFECT_CARTOONIZE[] = "cartoonize";
+const char CameraParameters::EFFECT_POINT_RED_YELLOW[] = "point-red-yellow";
+const char CameraParameters::EFFECT_POINT_GREEN[] = "point-green";
+const char CameraParameters::EFFECT_POINT_BLUE[] = "point-blue";
+const char CameraParameters::EFFECT_VINTAGE_COLD[] = "vintage-cold";
+const char CameraParameters::EFFECT_VINTAGE_WARM[] = "vintage-warm";
+const char CameraParameters::EFFECT_WASHED[] = "washed";
+#endif
 
 // Values for antibanding settings.
 const char CameraParameters::ANTIBANDING_AUTO[] = "auto";
@@ -298,6 +333,13 @@ int CameraParameters::getInt(const char *key) const
         return -1;
     return strtol(v, 0, 0);
 }
+
+#ifdef SAMSUNG_CAMERA_HARDWARE
+int CameraParameters::getInt64(const char *key) const
+{
+    return -1;
+}
+#endif
 
 float CameraParameters::getFloat(const char *key) const
 {
