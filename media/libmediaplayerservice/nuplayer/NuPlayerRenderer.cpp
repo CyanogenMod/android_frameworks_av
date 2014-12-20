@@ -39,6 +39,15 @@ namespace android {
 static const int64_t kOffloadPauseMaxUs = 10000000ll;
 
 // static
+const NuPlayer::Renderer::PcmInfo NuPlayer::Renderer::AUDIO_PCMINFO_INITIALIZER = {
+        AUDIO_CHANNEL_NONE,
+        AUDIO_OUTPUT_FLAG_NONE,
+        AUDIO_FORMAT_INVALID,
+        0, // mNumChannels
+        0 // mSampleRate
+};
+
+// static
 const int64_t NuPlayer::Renderer::kMinPositionUpdateDelayUs = 100000ll;
 
 NuPlayer::Renderer::Renderer(
@@ -75,6 +84,7 @@ NuPlayer::Renderer::Renderer(
       mAudioOffloadPauseTimeoutGeneration(0),
       mAudioOffloadTornDown(false),
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
+      mCurrentPcmInfo(AUDIO_PCMINFO_INITIALIZER),
       mTotalBuffersQueued(0),
       mLastAudioBufferDrained(0) {
 }
@@ -1395,6 +1405,8 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 // no change from previous configuration, everything ok.
                 return OK;
             }
+            mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
+
             ALOGV("openAudioSink: try to open AudioSink in offload mode");
             uint32_t offloadFlags = flags;
             offloadFlags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
@@ -1436,6 +1448,20 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         ALOGV("openAudioSink: open AudioSink in NON-offload mode");
         uint32_t pcmFlags = flags;
         pcmFlags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+
+        const PcmInfo info = {
+                (audio_channel_mask_t)channelMask,
+                (audio_output_flags_t)pcmFlags,
+                AUDIO_FORMAT_PCM_16_BIT, // TODO: change to audioFormat
+                numChannels,
+                sampleRate
+        };
+        if (memcmp(&mCurrentPcmInfo, &info, sizeof(info)) == 0) {
+            ALOGV("openAudioSink: no change in pcm mode");
+            // no change from previous configuration, everything ok.
+            return OK;
+        }
+
         audioSinkChanged = true;
         mAudioSink->close();
         mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
@@ -1450,8 +1476,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     (audio_output_flags_t)pcmFlags);
         if (err != OK) {
             ALOGW("openAudioSink: non offloaded open failed status: %d", err);
+            mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
             return err;
         }
+        mCurrentPcmInfo = info;
         mAudioSink->start();
     }
     if (audioSinkChanged) {
@@ -1466,6 +1494,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
 void NuPlayer::Renderer::onCloseAudioSink() {
     mAudioSink->close();
     mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+    mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
 }
 
 }  // namespace android

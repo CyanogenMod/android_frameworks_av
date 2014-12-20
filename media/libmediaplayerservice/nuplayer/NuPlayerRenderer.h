@@ -180,6 +180,16 @@ private:
     bool mAudioOffloadTornDown;
     audio_offload_info_t mCurrentOffloadInfo;
 
+    struct PcmInfo {
+        audio_channel_mask_t mChannelMask;
+        audio_output_flags_t mFlags;
+        audio_format_t mFormat;
+        int32_t mNumChannels;
+        int32_t mSampleRate;
+    };
+    PcmInfo mCurrentPcmInfo;
+    static const PcmInfo AUDIO_PCMINFO_INITIALIZER;
+
     int32_t mTotalBuffersQueued;
     int32_t mLastAudioBufferDrained;
 
