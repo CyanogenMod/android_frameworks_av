@@ -596,6 +596,9 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
             }
             handleIncallSonification((audio_stream_type_t)stream, false, true);
         }
+
+        // force reevaluating accessibility routing when call starts
+        mpClientInterface->invalidateStream(AUDIO_STREAM_ACCESSIBILITY);
     }
 
     // store previous phone state for management of sonification strategy below
@@ -1288,6 +1291,11 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
                 setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                         AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                         outputDesc->mPolicyMix->mRegistrationId);
+        }
+
+        // force reevaluating accessibility routing when ringtone or alarm starts
+        if (strategy == STRATEGY_SONIFICATION) {
+            mpClientInterface->invalidateStream(AUDIO_STREAM_ACCESSIBILITY);
         }
 
         if (waitMs > muteWaitMs) {
