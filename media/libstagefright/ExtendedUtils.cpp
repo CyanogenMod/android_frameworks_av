@@ -1762,6 +1762,11 @@ void ExtendedUtils::RTSPStream::addSDES(int s, const sp<ABuffer> &buffer) {
 //return true if PCM offload is not enabled
 bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     bool decision = false;
+
+    if (!mime) {
+        ALOGI("%s: no audio mime present, ignoring pcm offload", __func__);
+        return true;
+    }
 #if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
     const char * const ExceptionTable[] = {
         MEDIA_MIMETYPE_AUDIO_AMR_NB,
