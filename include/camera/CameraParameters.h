@@ -53,6 +53,9 @@ public:
     void setFloat(const char *key, float value);
     const char *get(const char *key) const;
     int getInt(const char *key) const;
+#ifdef SAMSUNG_CAMERA_HARDWARE
+    int getInt64(const char *key) const;
+#endif
     float getFloat(const char *key) const;
 
     void remove(const char *key);
@@ -536,6 +539,32 @@ public:
     // Example values: "lowlight,hdr".
     static const char KEY_LIGHTFX[];
 
+#ifdef HAVE_ISO
+    static const char KEY_SUPPORTED_ISO_MODES[];
+    static const char KEY_ISO_MODE[];
+#endif
+
+#ifdef SAMSUNG_CAMERA_HARDWARE
+    static const char KEY_ANTI_SHAKE_MODE[];
+    static const char KEY_METERING[];
+    static const char KEY_WDR[];
+    static const char KEY_WEATHER[];
+    static const char KEY_CITYID[];
+
+    static const char KEY_DYNAMIC_RANGE_CONTROL[];
+    static const char KEY_SUPPORTED_DYNAMIC_RANGE_CONTROL[];
+    static const char KEY_PHASE_AF[];
+    static const char KEY_SUPPORTED_PHASE_AF[];
+    static const char KEY_RT_HDR[];
+    static const char KEY_SUPPORTED_RT_HDR[];
+    static const char DRC_ON[];
+    static const char DRC_OFF[];
+    static const char PAF_ON[];
+    static const char PAF_OFF[];
+    static const char RTHDR_ON[];
+    static const char RTHDR_OFF[];
+#endif
+
     // Value for KEY_ZOOM_SUPPORTED or KEY_SMOOTH_ZOOM_SUPPORTED.
     static const char TRUE[];
     static const char FALSE[];
@@ -564,6 +593,15 @@ public:
     static const char EFFECT_WHITEBOARD[];
     static const char EFFECT_BLACKBOARD[];
     static const char EFFECT_AQUA[];
+#ifdef SAMSUNG_CAMERA_HARDWARE
+    static const char EFFECT_CARTOONIZE[];
+    static const char EFFECT_POINT_RED_YELLOW[];
+    static const char EFFECT_POINT_GREEN[];
+    static const char EFFECT_POINT_BLUE[];
+    static const char EFFECT_VINTAGE_COLD[];
+    static const char EFFECT_VINTAGE_WARM[];
+    static const char EFFECT_WASHED[];
+#endif
 
     // Values for antibanding settings.
     static const char ANTIBANDING_AUTO[];
