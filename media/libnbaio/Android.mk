@@ -33,6 +33,4 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog
 
-LOCAL_STATIC_LIBRARIES += libinstantssq
-
 include $(BUILD_SHARED_LIBRARY)

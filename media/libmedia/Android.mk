@@ -70,8 +70,6 @@ LOCAL_SHARED_LIBRARIES := \
         libcamera_client libstagefright_foundation \
         libgui libdl libaudioutils libnbaio
 
-LOCAL_STATIC_LIBRARIES += libinstantssq
-
 LOCAL_WHOLE_STATIC_LIBRARIES := libmedia_helper
 
 LOCAL_MODULE:= libmedia
@@ -89,12 +87,3 @@ LOCAL_C_INCLUDES := \
 
 include $(BUILD_SHARED_LIBRARY)
 
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES += SingleStateQueue.cpp
-LOCAL_CFLAGS += -DSINGLE_STATE_QUEUE_INSTANTIATIONS='"SingleStateQueueInstantiations.cpp"'
-
-LOCAL_MODULE := libinstantssq
-LOCAL_MODULE_TAGS := optional
-
-include $(BUILD_STATIC_LIBRARY)
