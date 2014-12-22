@@ -261,6 +261,7 @@ status_t BnMediaPlayerService::onTransact(
             size_t size;
             status_t status = decode(fd, offset, length, &sampleRate, &numChannels, &format,
                                      heap, &size);
+            ::close(fd);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
                 reply->writeInt32(sampleRate);
