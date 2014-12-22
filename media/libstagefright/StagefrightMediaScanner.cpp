@@ -26,11 +26,7 @@
 
 #include <media/IMediaHTTPService.h>
 #include <media/mediametadataretriever.h>
-#include <media/MidiIoWrapper.h>
 #include <private/media/VideoFrame.h>
-
-// Sonivox includes
-#include <libsonivox/eas.h>
 
 namespace android {
 
@@ -58,50 +54,6 @@ static bool FileHasAcceptableExtension(const char *extension) {
     return false;
 }
 
-static MediaScanResult HandleMIDI(
-        const char *filename, MediaScannerClient *client) {
-    // get the library configuration and do sanity check
-    const S_EAS_LIB_CONFIG* pLibConfig = EAS_Config();
-    if ((pLibConfig == NULL) || (LIB_VERSION != pLibConfig->libVersion)) {
-        ALOGE("EAS library/header mismatch\n");
-        return MEDIA_SCAN_RESULT_ERROR;
-    }
-    EAS_I32 temp;
-
-    // spin up a new EAS engine
-    EAS_DATA_HANDLE easData = NULL;
-    EAS_HANDLE easHandle = NULL;
-    EAS_RESULT result = EAS_Init(&easData);
-    MidiIoWrapper wrapper(filename);
-    if (result == EAS_SUCCESS) {
-        result = EAS_OpenFile(easData, wrapper.getLocator(), &easHandle);
-    }
-    if (result == EAS_SUCCESS) {
-        result = EAS_Prepare(easData, easHandle);
-    }
-    if (result == EAS_SUCCESS) {
-        result = EAS_ParseMetaData(easData, easHandle, &temp);
-    }
-    if (easHandle) {
-        EAS_CloseFile(easData, easHandle);
-    }
-    if (easData) {
-        EAS_Shutdown(easData);
-    }
-
-    if (result != EAS_SUCCESS) {
-        return MEDIA_SCAN_RESULT_SKIPPED;
-    }
-
-    char buffer[20];
-    sprintf(buffer, "%ld", temp);
-    status_t status = client->addStringTag("duration", buffer);
-    if (status != OK) {
-        return MEDIA_SCAN_RESULT_ERROR;
-    }
-    return MEDIA_SCAN_RESULT_OK;
-}
-
 MediaScanResult StagefrightMediaScanner::processFile(
         const char *path, const char *mimeType,
         MediaScannerClient &client) {
@@ -125,18 +77,6 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
 
     if (!FileHasAcceptableExtension(extension)) {
         return MEDIA_SCAN_RESULT_SKIPPED;
-    }
-
-    if (!strcasecmp(extension, ".mid")
-            || !strcasecmp(extension, ".smf")
-            || !strcasecmp(extension, ".imy")
-            || !strcasecmp(extension, ".midi")
-            || !strcasecmp(extension, ".xmf")
-            || !strcasecmp(extension, ".rtttl")
-            || !strcasecmp(extension, ".rtx")
-            || !strcasecmp(extension, ".ota")
-            || !strcasecmp(extension, ".mxmf")) {
-        return HandleMIDI(path, &client);
     }
 
     sp<MediaMetadataRetriever> mRetriever(new MediaMetadataRetriever);
