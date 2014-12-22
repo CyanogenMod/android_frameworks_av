@@ -699,10 +699,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             // Don't try to re-open audio sink if there's an existing decoder.
             if (mAudioSink != NULL && mAudioDecoder == NULL) {
                 sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
-                sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
+                sp<MetaData> videoMeta = mSource->getFormatMeta(false /* audio */);
                 audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
-                bool canOffload = canOffloadStream(audioMeta, (videoFormat != NULL),
-                         true /* is_streaming */, streamType);
+                bool canOffload = canOffloadStream(audioMeta, (videoMeta != NULL),
+                         videoMeta, true /* is_streaming */, streamType);
                 if (canOffload) {
                     if (!mOffloadAudio) {
                         mRenderer->signalEnableOffloadAudio();
