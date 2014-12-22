@@ -56,7 +56,7 @@ private:
     sp<DecryptHandle> mDecryptHandle;
     DrmManagerClient *mDrmManagerClient;
     int64_t mDrmBufOffset;
-    size_t mDrmBufSize;
+    ssize_t mDrmBufSize;
     unsigned char *mDrmBuf;
 
     ssize_t readAtDRM(off64_t offset, void *data, size_t size);
