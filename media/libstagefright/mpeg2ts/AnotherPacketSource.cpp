@@ -218,12 +218,19 @@ void AnotherPacketSource::queueAccessUnit(const sp<ABuffer> &buffer) {
     }
 
     if (mLatestEnqueuedMeta == NULL) {
-        mLatestEnqueuedMeta = buffer->meta();
+        mLatestEnqueuedMeta = buffer->meta()->dup();
     } else {
         int64_t latestTimeUs = 0;
+        int64_t frameDeltaUs = 0;
         CHECK(mLatestEnqueuedMeta->findInt64("timeUs", &latestTimeUs));
         if (lastQueuedTimeUs > latestTimeUs) {
-            mLatestEnqueuedMeta = buffer->meta();
+            mLatestEnqueuedMeta = buffer->meta()->dup();
+            frameDeltaUs = lastQueuedTimeUs - latestTimeUs;
+            mLatestEnqueuedMeta->setInt64("durationUs", frameDeltaUs);
+        } else if (!mLatestEnqueuedMeta->findInt64("durationUs", &frameDeltaUs)) {
+            // For B frames
+            frameDeltaUs = latestTimeUs - lastQueuedTimeUs;
+            mLatestEnqueuedMeta->setInt64("durationUs", frameDeltaUs);
         }
     }
 }

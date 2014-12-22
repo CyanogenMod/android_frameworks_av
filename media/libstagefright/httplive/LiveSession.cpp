@@ -49,6 +49,9 @@
 
 namespace android {
 
+// Number of recently-read bytes to use for bandwidth estimation
+const size_t LiveSession::kBandwidthHistoryBytes = 200 * 1024;
+
 LiveSession::LiveSession(
         const sp<AMessage> &notify, uint32_t flags,
         const sp<IMediaHTTPService> &httpService)
@@ -84,6 +87,13 @@ LiveSession::LiveSession(
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mBuffering[i] = false;
     }
+
+    size_t numHistoryItems = kBandwidthHistoryBytes /
+            PlaylistFetcher::kDownloadBlockSize + 1;
+    if (numHistoryItems < 5) {
+        numHistoryItems = 5;
+    }
+    mHTTPDataSource->setBandwidthHistorySize(numHistoryItems);
 }
 
 LiveSession::~LiveSession() {
@@ -145,10 +155,24 @@ status_t LiveSession::dequeueAccessUnit(
         }
     }
 
+    int32_t targetDuration = 0;
+    sp<AMessage> meta = packetSource->getLatestEnqueuedMeta();
+    if (meta != NULL) {
+        meta->findInt32("targetDuration", &targetDuration);
+    }
+
+    int64_t targetDurationUs = targetDuration * 1000000ll;
+    if (targetDurationUs == 0 ||
+            targetDurationUs > PlaylistFetcher::kMinBufferedDurationUs) {
+        // Fetchers limit buffering to
+        // min(3 * targetDuration, kMinBufferedDurationUs)
+        targetDurationUs = PlaylistFetcher::kMinBufferedDurationUs;
+    }
+
     if (mBuffering[idx]) {
         if (mSwitchInProgress
                 || packetSource->isFinished(0)
-                || packetSource->getEstimatedDurationUs() > 10000000ll) {
+                || packetSource->getEstimatedDurationUs() > targetDurationUs) {
             mBuffering[idx] = false;
         }
     }
@@ -859,7 +883,11 @@ ssize_t LiveSession::fetchFile(
         // Only resize when we don't know the size.
         size_t bufferRemaining = buffer->capacity() - buffer->size();
         if (bufferRemaining == 0 && getSizeErr != OK) {
-            bufferRemaining = 32768;
+            size_t bufferIncrement = buffer->size() / 2;
+            if (bufferIncrement < 32768) {
+                bufferIncrement = 32768;
+            }
+            bufferRemaining = bufferIncrement;
 
             ALOGV("increasing download buffer to %zu bytes",
                  buffer->size() + bufferRemaining);

@@ -34,6 +34,9 @@ struct M3UParser;
 struct String8;
 
 struct PlaylistFetcher : public AHandler {
+    static const int64_t kMinBufferedDurationUs;
+    static const int32_t kDownloadBlockSize;
+
     enum {
         kWhatStarted,
         kWhatPaused,
@@ -92,9 +95,7 @@ private:
         kWhatDownloadNext   = 'dlnx',
     };
 
-    static const int64_t kMinBufferedDurationUs;
     static const int64_t kMaxMonitorDelayUs;
-    static const int32_t kDownloadBlockSize;
     static const int32_t kNumSkipFrames;
 
     static bool bufferStartsWithTsSyncByte(const sp<ABuffer>& buffer);
