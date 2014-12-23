@@ -28,7 +28,7 @@ namespace android {
 // used to clamp a value to size_t.  TODO: move to another file.
 template <typename T>
 size_t clampToSize(T x) {
-    return x > SIZE_MAX ? SIZE_MAX : x < 0 ? 0 : (size_t) x;
+    return sizeof(T) > sizeof(size_t) && x > (T) SIZE_MAX ? SIZE_MAX : x < 0 ? 0 : (size_t) x;
 }
 
 audio_track_cblk_t::audio_track_cblk_t()
@@ -849,7 +849,7 @@ status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush
     }
     // As mFramesReady is the total remaining frames in the static audio track,
     // it is always larger or equal to avail.
-    LOG_ALWAYS_FATAL_IF(mFramesReady < avail);
+    LOG_ALWAYS_FATAL_IF(mFramesReady < (int64_t) avail);
     buffer->mNonContig = mFramesReady == INT64_MAX ? SIZE_MAX : clampToSize(mFramesReady - avail);
     mUnreleased = avail;
     return NO_ERROR;
@@ -858,7 +858,7 @@ status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush
 void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
 {
     size_t stepCount = buffer->mFrameCount;
-    LOG_ALWAYS_FATAL_IF(!(stepCount <= mFramesReady));
+    LOG_ALWAYS_FATAL_IF(!((int64_t) stepCount <= mFramesReady));
     LOG_ALWAYS_FATAL_IF(!(stepCount <= mUnreleased));
     if (stepCount == 0) {
         // prevent accidental re-use of buffer
