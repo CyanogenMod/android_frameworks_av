@@ -740,11 +740,11 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             int32_t eos = 0;
             int32_t bufferSize = 0;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
-            entry->mBuffer->meta()->findInt32("eos", &eos);
-            bufferSize = entry->mBuffer->size();
-            // Do not update mediaTime if the buffer is empty and EOS buffer
-            if (!eos || bufferSize) {
-                ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
+            ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
+
+            int32_t audioEos = 0;
+            if (!(entry->mBuffer->meta()->findInt32("eos", &audioEos) &&
+                audioEos) || entry->mBuffer->size()) {
                 onNewAudioMediaTime(mediaTimeUs);
             }
         }
