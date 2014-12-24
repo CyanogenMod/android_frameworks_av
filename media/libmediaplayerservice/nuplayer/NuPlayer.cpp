@@ -1168,6 +1168,11 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
         flags = AUDIO_OUTPUT_FLAG_NONE;
     }
 
+
+    format->setInt64("durationUs", durationUs);
+
+    ALOGV("openAudioSink: format=%s", format->debugString().c_str());
+
     mOffloadAudio = mRenderer->openAudioSink(
             format, offloadOnly, (mVideoDecoder != NULL), flags);
 

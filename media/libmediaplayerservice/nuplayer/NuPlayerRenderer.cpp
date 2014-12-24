@@ -1399,7 +1399,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
         sp<MetaData> aMeta = new MetaData;
         convertMessageToMetaData(format, aMeta);
         if  (canOffloadStream(aMeta, false, new MetaData,
-                    true, AUDIO_STREAM_MUSIC)) {
+                    hasVideo, AUDIO_STREAM_MUSIC)) {
             mFlags |= FLAG_OFFLOAD_AUDIO;
         }
     }
