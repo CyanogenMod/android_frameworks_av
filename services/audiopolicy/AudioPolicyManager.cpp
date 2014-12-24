@@ -2055,11 +2055,22 @@ bool AudioPolicyManager::isSourceActive(audio_source_t source) const
 {
     for (size_t i = 0; i < mInputs.size(); i++) {
         const sp<AudioInputDescriptor>  inputDescriptor = mInputs.valueAt(i);
-        if ((inputDescriptor->mInputSource == (int)source ||
-                (source == AUDIO_SOURCE_VOICE_RECOGNITION &&
-                 inputDescriptor->mInputSource == AUDIO_SOURCE_HOTWORD))
-             && (inputDescriptor->mRefCount > 0)) {
+        if (inputDescriptor->mRefCount == 0) {
+            continue;
+        }
+        if (inputDescriptor->mInputSource == (int)source) {
             return true;
+        }
+        // AUDIO_SOURCE_HOTWORD is equivalent to AUDIO_SOURCE_VOICE_RECOGNITION only if it
+        // corresponds to an active capture triggered by a hardware hotword recognition
+        if ((source == AUDIO_SOURCE_VOICE_RECOGNITION) &&
+                 (inputDescriptor->mInputSource == AUDIO_SOURCE_HOTWORD)) {
+            // FIXME: we should not assume that the first session is the active one and keep
+            // activity count per session. Same in startInput().
+            ssize_t index = mSoundTriggerSessions.indexOfKey(inputDescriptor->mSessions.itemAt(0));
+            if (index >= 0) {
+                return true;
+            }
         }
     }
     return false;
@@ -5296,7 +5307,7 @@ uint32_t AudioPolicyManager::activeInputsCount() const
     for (size_t i = 0; i < mInputs.size(); i++) {
         const sp<AudioInputDescriptor>  desc = mInputs.valueAt(i);
         if (desc->mRefCount > 0) {
-            return count++;
+            count++;
         }
     }
     return count;
