@@ -600,7 +600,7 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     // reassemble the csd data into its original form
     sp<ABuffer> csd0;
     if (msg->findBuffer("csd-0", &csd0)) {
-        if (mime.startsWith("video/")) { // do we need to be stricter than this?
+        if (mime == MEDIA_MIMETYPE_VIDEO_AVC) {
             sp<ABuffer> csd1;
 
             if (mime.startsWith(MEDIA_MIMETYPE_VIDEO_HEVC)) {
@@ -628,9 +628,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 reassembleESDS(csd0, esds);
                 meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
             }
-        } else if (mime.startsWith("audio/")) {
+        } else if (mime == MEDIA_MIMETYPE_AUDIO_AAC || mime == MEDIA_MIMETYPE_VIDEO_MPEG4) {
             int csd0size = csd0->size();
             char esds[csd0size + 31];
+            // The written ESDS is actually for an audio stream, but it's enough
+            // for transporting the CSD to muxers.
             reassembleESDS(csd0, esds);
             meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
         }
