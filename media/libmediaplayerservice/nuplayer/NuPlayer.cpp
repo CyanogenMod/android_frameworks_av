@@ -1168,10 +1168,32 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
         flags = AUDIO_OUTPUT_FLAG_NONE;
     }
 
-
     format->setInt64("durationUs", durationUs);
 
-    ALOGV("openAudioSink: format=%s", format->debugString().c_str());
+    // avoid PCM offload when resampler is used
+    bool resampled = false;
+    sp<MetaData> audioMeta = mSource->getFormatMeta(true);
+
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
+        int32_t srcBitsPerSample, bitsPerSample = 16;
+        int32_t srcChannels, channels = 0;
+        int32_t srcSampleRate, sampleRate = 0;
+        audioMeta->findInt32(kKeyBitsPerSample, &srcBitsPerSample);
+        format->findInt32("bits-per-sample", &bitsPerSample);
+        audioMeta->findInt32(kKeyChannelCount, &srcChannels);
+        format->findInt32("channel-count", &channels);
+        audioMeta->findInt32(kKeySampleRate, &srcSampleRate);
+        format->findInt32("sample-rate", &sampleRate);
+
+        resampled = !((srcBitsPerSample == bitsPerSample) &&
+                      (srcChannels == channels) &&
+                      (srcSampleRate == sampleRate));
+        format->setInt32("resampled", resampled);
+    }
+
+    ALOGV("openAudioSink: resampled=%d format=%s", resampled, format->debugString().c_str());
 
     mOffloadAudio = mRenderer->openAudioSink(
             format, offloadOnly, (mVideoDecoder != NULL), flags);
