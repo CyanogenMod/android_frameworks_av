@@ -36,7 +36,8 @@ HTTPBase::HTTPBase()
       mTotalTransferBytes(0),
       mPrevBandwidthMeasureTimeUs(0),
       mPrevEstimatedBandWidthKbps(0),
-      mBandWidthCollectFreqMs(5000) {
+      mBandWidthCollectFreqMs(5000),
+      mMaxBandwidthHistoryItems(100) {
 }
 
 void HTTPBase::addBandwidthMeasurement(
@@ -50,7 +51,7 @@ void HTTPBase::addBandwidthMeasurement(
     mTotalTransferBytes += numBytes;
 
     mBandwidthHistory.push_back(entry);
-    if (++mNumBandwidthHistoryItems > 100) {
+    if (++mNumBandwidthHistoryItems > mMaxBandwidthHistoryItems) {
         BandwidthEntry *entry = &*mBandwidthHistory.begin();
         mTotalTransferTimeUs -= entry->mDelayUs;
         mTotalTransferBytes -= entry->mNumBytes;
@@ -102,6 +103,10 @@ status_t HTTPBase::setBandwidthStatCollectFreq(int32_t freqMs) {
     ALOGI("frequency set to %d ms", freqMs);
     mBandWidthCollectFreqMs = freqMs;
     return OK;
+}
+
+void HTTPBase::setBandwidthHistorySize(size_t numHistoryItems) {
+    mMaxBandwidthHistoryItems = numHistoryItems;
 }
 
 // static
