@@ -114,6 +114,8 @@ private:
         kWhatSwitchDown                 = 'sDwn',
     };
 
+    static const size_t kBandwidthHistoryBytes;
+
     struct BandwidthItem {
         size_t mPlaylistIndex;
         unsigned long mBandwidth;
