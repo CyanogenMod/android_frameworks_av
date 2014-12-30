@@ -231,7 +231,8 @@ public:
     virtual status_t getTimestamp(AudioTimestamp& timestamp) { return INVALID_OPERATION; }
 
 protected:
-    NBAIO_Sink(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0) { }
+    NBAIO_Sink(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0)
+            { }
     virtual ~NBAIO_Sink() { }
 
     // Implementations are free to ignore these if they don't need them
@@ -322,7 +323,8 @@ public:
     virtual void    onTimestamp(const AudioTimestamp& timestamp) { }
 
 protected:
-    NBAIO_Source(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0) { }
+    NBAIO_Source(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0)
+            { }
     virtual ~NBAIO_Source() { }
 
     // Implementations are free to ignore these if they don't need them

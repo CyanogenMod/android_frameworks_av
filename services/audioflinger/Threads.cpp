@@ -5360,7 +5360,8 @@ reacquire_wakelock:
                 state->mCommand = FastCaptureState::READ_WRITE;
 #if 0   // FIXME
                 mFastCaptureDumpState.increaseSamplingN(mAudioFlinger->isLowRamDevice() ?
-                        FastCaptureDumpState::kSamplingNforLowRamDevice : FastMixerDumpState::kSamplingN);
+                        FastCaptureDumpState::kSamplingNforLowRamDevice :
+                        FastMixerDumpState::kSamplingN);
 #endif
                 didModify = true;
             }
@@ -5508,8 +5509,8 @@ reacquire_wakelock:
                             upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (const int16_t *)src,
                                     part1);
                         } else {
-                            downmix_to_mono_i16_from_stereo_i16((int16_t *)dst, (const int16_t *)src,
-                                    part1);
+                            downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
+                                    (const int16_t *)src, part1);
                         }
                         dst += part1 * activeTrack->mFrameSize;
                         front += part1;

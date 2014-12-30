@@ -55,12 +55,14 @@ media_status_t AMediaExtractor_delete(AMediaExtractor*);
 /**
  *  Set the file descriptor from which the extractor will read.
  */
-media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor*, int fd, off64_t offset, off64_t length);
+media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor*, int fd, off64_t offset,
+        off64_t length);
 
 /**
  * Set the URI from which the extractor will read.
  */
-media_status_t AMediaExtractor_setDataSource(AMediaExtractor*, const char *location); // TODO support headers
+media_status_t AMediaExtractor_setDataSource(AMediaExtractor*, const char *location);
+        // TODO support headers
 
 /**
  * Return the number of tracks in the previously specified media file

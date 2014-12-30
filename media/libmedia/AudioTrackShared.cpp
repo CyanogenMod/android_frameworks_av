@@ -560,7 +560,8 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
             ssize_t filled = rear - newFront;
             // Rather than shutting down on a corrupt flush, just treat it as a full flush
             if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-                ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, filled %d=%#x",
+                ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, "
+                        "filled %d=%#x",
                         mFlush, flush, front, rear, mask, newFront, filled, filled);
                 newFront = rear;
             }
@@ -872,7 +873,8 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     size_t newPosition = position + stepCount;
     int32_t setFlags = 0;
     if (!(position <= newPosition && newPosition <= mFrameCount)) {
-        ALOGW("%s newPosition %zu outside [%zu, %zu]", __func__, newPosition, position, mFrameCount);
+        ALOGW("%s newPosition %zu outside [%zu, %zu]", __func__, newPosition, position,
+                mFrameCount);
         newPosition = mFrameCount;
     } else if (mState.mLoopCount != 0 && newPosition == mState.mLoopEnd) {
         newPosition = mState.mLoopStart;

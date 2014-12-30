@@ -174,7 +174,8 @@ struct InterpNull {
  * Process() calls ProcessBase() with TFUNC = InterpCompute, for interpolated phase.
  */
 
-template <int CHANNELS, int STRIDE, typename TFUNC, typename TC, typename TI, typename TO, typename TINTERP>
+template <int CHANNELS, int STRIDE, typename TFUNC, typename TC, typename TI, typename TO,
+        typename TINTERP>
 static inline
 void ProcessBase(TO* const out,
         size_t count,
@@ -268,7 +269,8 @@ void Process(TO* const out,
         TINTERP lerpP,
         const TO* const volumeLR)
 {
-    ProcessBase<CHANNELS, STRIDE, InterpCompute>(out, count, coefsP, coefsN, sP, sN, lerpP, volumeLR);
+    ProcessBase<CHANNELS, STRIDE, InterpCompute>(out, count, coefsP, coefsN, sP, sN, lerpP,
+            volumeLR);
 }
 
 /*

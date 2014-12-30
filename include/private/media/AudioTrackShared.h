@@ -96,7 +96,8 @@ struct audio_track_cblk_t
                 uint32_t    mServer;    // Number of filled frames consumed by server (mIsOut),
                                         // or filled frames provided by server (!mIsOut).
                                         // It is updated asynchronously by server without a barrier.
-                                        // The value should be used "for entertainment purposes only",
+                                        // The value should be used
+                                        // "for entertainment purposes only",
                                         // which means don't make important decisions based on it.
 
                 uint32_t    mPad1;      // unused

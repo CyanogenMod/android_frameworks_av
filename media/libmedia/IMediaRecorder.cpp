@@ -289,7 +289,8 @@ IMPLEMENT_META_INTERFACE(MediaRecorder, "android.media.IMediaRecorder");
 // ----------------------------------------------------------------------
 
 status_t BnMediaRecorder::onTransact(
-                                     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+                                     uint32_t code, const Parcel& data, Parcel* reply,
+                                     uint32_t flags)
 {
     switch (code) {
         case RELEASE: {
@@ -427,7 +428,8 @@ status_t BnMediaRecorder::onTransact(
         case SET_PREVIEW_SURFACE: {
             ALOGV("SET_PREVIEW_SURFACE");
             CHECK_INTERFACE(IMediaRecorder, data, reply);
-            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
+            sp<IGraphicBufferProducer> surface = interface_cast<IGraphicBufferProducer>(
+                    data.readStrongBinder());
             reply->writeInt32(setPreviewSurface(surface));
             return NO_ERROR;
         } break;

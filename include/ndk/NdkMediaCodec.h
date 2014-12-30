@@ -142,7 +142,8 @@ media_status_t AMediaCodec_queueSecureInputBuffer(AMediaCodec*,
 /**
  * Get the index of the next available buffer of processed data.
  */
-ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec*, AMediaCodecBufferInfo *info, int64_t timeoutUs);
+ssize_t AMediaCodec_dequeueOutputBuffer(AMediaCodec*, AMediaCodecBufferInfo *info,
+        int64_t timeoutUs);
 AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec*);
 
 /**

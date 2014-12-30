@@ -70,7 +70,8 @@ media_status_t AMediaExtractor_delete(AMediaExtractor *mData) {
 }
 
 EXPORT
-media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor *mData, int fd, off64_t offset, off64_t length) {
+media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor *mData, int fd, off64_t offset,
+        off64_t length) {
     ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
     return translate_error(mData->mImpl->setDataSource(fd, offset, length));
 }

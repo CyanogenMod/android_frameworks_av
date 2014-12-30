@@ -163,7 +163,8 @@ MediaProfiles::logVideoEditorCap(const MediaProfiles::VideoEditorCap& cap UNUSED
 }
 
 /*static*/ int
-MediaProfiles::findTagForName(const MediaProfiles::NameToTagMap *map, size_t nMappings, const char *name)
+MediaProfiles::findTagForName(const MediaProfiles::NameToTagMap *map, size_t nMappings,
+        const char *name)
 {
     int tag = -1;
     for (size_t i = 0; i < nMappings; ++i) {
@@ -295,9 +296,8 @@ MediaProfiles::createAudioEncoderCap(const char **atts)
     CHECK(codec != -1);
 
     MediaProfiles::AudioEncoderCap *cap =
-        new MediaProfiles::AudioEncoderCap(static_cast<audio_encoder>(codec), atoi(atts[5]), atoi(atts[7]),
-            atoi(atts[9]), atoi(atts[11]), atoi(atts[13]),
-            atoi(atts[15]));
+        new MediaProfiles::AudioEncoderCap(static_cast<audio_encoder>(codec), atoi(atts[5]),
+            atoi(atts[7]), atoi(atts[9]), atoi(atts[11]), atoi(atts[13]), atoi(atts[15]));
     logAudioEncoderCap(*cap);
     return cap;
 }
@@ -330,7 +330,8 @@ MediaProfiles::createCamcorderProfile(int cameraId, const char **atts, Vector<in
           !strcmp("fileFormat", atts[2]) &&
           !strcmp("duration",   atts[4]));
 
-    const size_t nProfileMappings = sizeof(sCamcorderQualityNameMap)/sizeof(sCamcorderQualityNameMap[0]);
+    const size_t nProfileMappings = sizeof(sCamcorderQualityNameMap)/
+            sizeof(sCamcorderQualityNameMap[0]);
     const int quality = findTagForName(sCamcorderQualityNameMap, nProfileMappings, atts[1]);
     CHECK(quality != -1);
 
@@ -722,16 +723,20 @@ MediaProfiles::createDefaultCamcorderTimeLapse480pProfile(camcorder_quality qual
 MediaProfiles::createDefaultCamcorderTimeLapseLowProfiles(
         MediaProfiles::CamcorderProfile **lowTimeLapseProfile,
         MediaProfiles::CamcorderProfile **lowSpecificTimeLapseProfile) {
-    *lowTimeLapseProfile = createDefaultCamcorderTimeLapseQcifProfile(CAMCORDER_QUALITY_TIME_LAPSE_LOW);
-    *lowSpecificTimeLapseProfile = createDefaultCamcorderTimeLapseQcifProfile(CAMCORDER_QUALITY_TIME_LAPSE_QCIF);
+    *lowTimeLapseProfile = createDefaultCamcorderTimeLapseQcifProfile(
+            CAMCORDER_QUALITY_TIME_LAPSE_LOW);
+    *lowSpecificTimeLapseProfile = createDefaultCamcorderTimeLapseQcifProfile(
+            CAMCORDER_QUALITY_TIME_LAPSE_QCIF);
 }
 
 /*static*/ void
 MediaProfiles::createDefaultCamcorderTimeLapseHighProfiles(
         MediaProfiles::CamcorderProfile **highTimeLapseProfile,
         MediaProfiles::CamcorderProfile **highSpecificTimeLapseProfile) {
-    *highTimeLapseProfile = createDefaultCamcorderTimeLapse480pProfile(CAMCORDER_QUALITY_TIME_LAPSE_HIGH);
-    *highSpecificTimeLapseProfile = createDefaultCamcorderTimeLapse480pProfile(CAMCORDER_QUALITY_TIME_LAPSE_480P);
+    *highTimeLapseProfile = createDefaultCamcorderTimeLapse480pProfile(
+            CAMCORDER_QUALITY_TIME_LAPSE_HIGH);
+    *highSpecificTimeLapseProfile = createDefaultCamcorderTimeLapse480pProfile(
+            CAMCORDER_QUALITY_TIME_LAPSE_480P);
 }
 
 /*static*/ MediaProfiles::CamcorderProfile*
@@ -809,7 +814,8 @@ MediaProfiles::createDefaultCamcorderProfiles(MediaProfiles *profiles)
 
     // high camcorder time lapse profiles.
     MediaProfiles::CamcorderProfile *highTimeLapseProfile, *highSpecificTimeLapseProfile;
-    createDefaultCamcorderTimeLapseHighProfiles(&highTimeLapseProfile, &highSpecificTimeLapseProfile);
+    createDefaultCamcorderTimeLapseHighProfiles(&highTimeLapseProfile,
+            &highSpecificTimeLapseProfile);
     profiles->mCamcorderProfiles.add(highTimeLapseProfile);
     profiles->mCamcorderProfiles.add(highSpecificTimeLapseProfile);
 

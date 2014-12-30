@@ -49,7 +49,8 @@ public:
 
     virtual sp<IMediaRecorder> createMediaRecorder() = 0;
     virtual sp<IMediaMetadataRetriever> createMetadataRetriever() = 0;
-    virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0) = 0;
+    virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0)
+            = 0;
 
     virtual status_t         decode(
             const sp<IMediaHTTPService> &httpService,

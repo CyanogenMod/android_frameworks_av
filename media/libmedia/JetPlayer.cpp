@@ -408,7 +408,8 @@ int JetPlayer::queueSegment(int segmentNum, int libNum, int repeatCount, int tra
     ALOGV("JetPlayer::queueSegment segmentNum=%d, libNum=%d, repeatCount=%d, transpose=%d",
         segmentNum, libNum, repeatCount, transpose);
     Mutex::Autolock lock(mMutex);
-    return JET_QueueSegment(mEasData, segmentNum, libNum, repeatCount, transpose, muteFlags, userID);
+    return JET_QueueSegment(mEasData, segmentNum, libNum, repeatCount, transpose, muteFlags,
+            userID);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -449,7 +450,8 @@ void JetPlayer::dump()
 void JetPlayer::dumpJetStatus(S_JET_STATUS* pJetStatus)
 {
     if (pJetStatus!=NULL)
-        ALOGV(">> current JET player status: userID=%d segmentRepeatCount=%d numQueuedSegments=%d paused=%d",
+        ALOGV(">> current JET player status: userID=%d segmentRepeatCount=%d numQueuedSegments=%d "
+                "paused=%d",
                 pJetStatus->currentUserID, pJetStatus->segmentRepeatCount,
                 pJetStatus->numQueuedSegments, pJetStatus->paused);
     else

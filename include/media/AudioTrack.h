@@ -680,7 +680,7 @@ protected:
 
     float                   mVolume[2];
     float                   mSendLevel;
-    mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it.
+    mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it
     size_t                  mFrameCount;            // corresponds to current IAudioTrack, value is
                                                     // reported back by AudioFlinger to the client
     size_t                  mReqFrameCount;         // frame count to request the first or next time

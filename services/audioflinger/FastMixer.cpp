@@ -629,7 +629,8 @@ void FastMixerDumpState::dump(int fd) const
             left.sample(tail[i]);
             right.sample(tail[n - (i + 1)]);
         }
-        dprintf(fd, "  Distribution of mix cycle times in ms for the tails (> ~3 stddev outliers):\n"
+        dprintf(fd, "  Distribution of mix cycle times in ms for the tails "
+                    "(> ~3 stddev outliers):\n"
                     "    left tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n"
                     "    right tail: mean=%.2f min=%.2f max=%.2f stddev=%.2f\n",
                     left.mean()*1e-6, left.minimum()*1e-6, left.maximum()*1e-6, left.stddev()*1e-6,

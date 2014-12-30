@@ -1167,7 +1167,8 @@ private:
             const sp<MemoryDealer>              mReadOnlyHeap;
 
             // one-time initialization, no locks required
-            sp<FastCapture>                     mFastCapture;   // non-0 if there is also a fast capture
+            sp<FastCapture>                     mFastCapture;   // non-0 if there is also
+                                                                // a fast capture
             // FIXME audio watchdog thread
 
             // contents are not guaranteed to be consistent, no locks required
