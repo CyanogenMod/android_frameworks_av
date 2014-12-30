@@ -64,7 +64,9 @@ void NuPlayer::DecoderBase::configure(const sp<AMessage> &format, bool isStreami
     sp<AMessage> msg = new AMessage(kWhatConfigure, id());
     msg->setMessage("format", format);
     msg->setInt32("isStreaming", isStreaming);
-    msg->post();
+
+    sp<AMessage> response;
+    PostAndAwaitResponse(msg, &response);
 }
 
 void NuPlayer::DecoderBase::init() {
@@ -121,11 +123,16 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatConfigure:
         {
+            uint32_t replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
             sp<AMessage> format;
             uint32_t isStreaming;
             CHECK(msg->findMessage("format", &format));
             CHECK(msg->findInt32("isStreaming", (int32_t *)&isStreaming));
             onConfigure(format, isStreaming);
+
+            (new AMessage)->postReply(replyID);
             break;
         }
 
