@@ -753,6 +753,8 @@ void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
     mLoopStart = loopStart;
     mLoopCountNotified = loopCount;
     mStaticProxy->setLoop(loopStart, loopEnd, loopCount);
+
+    // Waking the AudioTrackThread is not needed as this cannot be called when active.
 }
 
 status_t AudioTrack::setMarkerPosition(uint32_t marker)
@@ -766,6 +768,10 @@ status_t AudioTrack::setMarkerPosition(uint32_t marker)
     mMarkerPosition = marker;
     mMarkerReached = false;
 
+    sp<AudioTrackThread> t = mAudioTrackThread;
+    if (t != 0) {
+        t->wake();
+    }
     return NO_ERROR;
 }
 
@@ -795,6 +801,10 @@ status_t AudioTrack::setPositionUpdatePeriod(uint32_t updatePeriod)
     mNewPosition = updateAndGetPosition_l() + updatePeriod;
     mUpdatePeriod = updatePeriod;
 
+    sp<AudioTrackThread> t = mAudioTrackThread;
+    if (t != 0) {
+        t->wake();
+    }
     return NO_ERROR;
 }
 
@@ -835,6 +845,8 @@ status_t AudioTrack::setPosition(uint32_t position)
     // After setting the position, use full update period before notification.
     mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
     mStaticProxy->setBufferPosition(position);
+
+    // Waking the AudioTrackThread is not needed as this cannot be called when active.
     return NO_ERROR;
 }
 
@@ -2181,8 +2193,8 @@ bool AudioTrack::AudioTrackThread::threadLoop()
     case NS_NEVER:
         return false;
     case NS_WHENEVER:
-        // FIXME increase poll interval, or make event-driven
-        ns = 1000000000LL;
+        // Event driven: call wake() when callback notifications conditions change.
+        ns = INT64_MAX;
         // fall through
     default:
         LOG_ALWAYS_FATAL_IF(ns < 0, "processAudioBuffer() returned %" PRId64, ns);
@@ -2210,6 +2222,17 @@ void AudioTrack::AudioTrackThread::resume()
     mIgnoreNextPausedInt = true;
     if (mPaused || mPausedInt) {
         mPaused = false;
+        mPausedInt = false;
+        mMyCond.signal();
+    }
+}
+
+void AudioTrack::AudioTrackThread::wake()
+{
+    AutoMutex _l(mMyLock);
+    if (!mPaused && mPausedInt && mPausedNs > 0) {
+        // audio track is active and internally paused with timeout.
+        mIgnoreNextPausedInt = true;
         mPausedInt = false;
         mMyCond.signal();
     }

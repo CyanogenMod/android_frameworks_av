@@ -614,6 +614,7 @@ protected:
 
                 void        pause();    // suspend thread from execution at next loop boundary
                 void        resume();   // allow thread to execute, if not requested to exit
+                void        wake();     // wake to handle changed notification conditions.
 
     private:
                 void        pauseInternal(nsecs_t ns = 0LL);
@@ -628,7 +629,9 @@ protected:
         bool                mPaused;    // whether thread is requested to pause at next loop entry
         bool                mPausedInt; // whether thread internally requests pause
         nsecs_t             mPausedNs;  // if mPausedInt then associated timeout, otherwise ignored
-        bool                mIgnoreNextPausedInt;   // whether to ignore next mPausedInt request
+        bool                mIgnoreNextPausedInt;   // skip any internal pause and go immediately
+                                        // to processAudioBuffer() as state may have changed
+                                        // since pause time calculated.
     };
 
             // body of AudioTrackThread::threadLoop()
