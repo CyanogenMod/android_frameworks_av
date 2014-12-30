@@ -245,10 +245,9 @@ Word16 iLog4(Word32 value)
 Word32 rsqrt(Word32 value,     /*!< Operand to square root (0.0 ... 1) */
              Word32 accuracy)  /*!< Number of valid bits that will be calculated */
 {
-    UNUSED(accuracy);
-
     Word32 root = 0;
 	Word32 scale;
+    UNUSED(accuracy);
 
 	if(value < 0)
 		return 0;
