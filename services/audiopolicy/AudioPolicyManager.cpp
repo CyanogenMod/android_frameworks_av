@@ -3442,29 +3442,15 @@ void AudioPolicyManager::addInput(audio_io_handle_t input, sp<AudioInputDescript
 }
 
 void AudioPolicyManager::findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /*in*/,
+        const audio_devices_t device /*in*/,
         const String8 address /*in*/,
         SortedVector<audio_io_handle_t>& outputs /*out*/) {
-    // look for a match on the given address on the addresses of the outputs:
-    // find the address by finding the patch that maps to this output
-    ssize_t patchIdx = mAudioPatches.indexOfKey(desc->mPatchHandle);
-    //ALOGV("    inspecting output %d (patch %d) for supported device=0x%x",
-    //        outputIdx, patchIdx,  desc->mProfile->mSupportedDevices.types());
-    if (patchIdx >= 0) {
-        const sp<AudioPatch> patchDesc = mAudioPatches.valueAt(patchIdx);
-        const int numSinks = patchDesc->mPatch.num_sinks;
-        for (ssize_t j=0; j < numSinks; j++) {
-            if (patchDesc->mPatch.sinks[j].type == AUDIO_PORT_TYPE_DEVICE) {
-                const char* patchAddr =
-                        patchDesc->mPatch.sinks[j].ext.device.address;
-                if (strncmp(patchAddr,
-                        address.string(), AUDIO_DEVICE_MAX_ADDRESS_LEN) == 0) {
-                    ALOGV("findIoHandlesByAddress(): adding opened output %d on same address %s",
-                            desc->mIoHandle,  patchDesc->mPatch.sinks[j].ext.device.address);
-                    outputs.add(desc->mIoHandle);
-                    break;
-                }
-            }
-        }
+    sp<DeviceDescriptor> devDesc =
+        desc->mProfile->mSupportedDevices.getDevice(device, address);
+    if (devDesc != 0) {
+        ALOGV("findIoHandlesByAddress(): adding opened output %d on same address %s",
+              desc->mIoHandle, address.string());
+        outputs.add(desc->mIoHandle);
     }
 }
 
@@ -3488,7 +3474,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                     outputs.add(mOutputs.keyAt(i));
                 } else {
                     ALOGV("  checking address match due to device 0x%x", device);
-                    findIoHandlesByAddress(desc, address, outputs);
+                    findIoHandlesByAddress(desc, device, address, outputs);
                 }
             }
         }
@@ -3716,7 +3702,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                 // exact match on device
                 if (deviceDistinguishesOnAddress(device) &&
                         (desc->mProfile->mSupportedDevices.types() == device)) {
-                    findIoHandlesByAddress(desc, address, outputs);
+                    findIoHandlesByAddress(desc, device, address, outputs);
                 } else if (!(desc->mProfile->mSupportedDevices.types()
                         & mAvailableOutputDevices.types())) {
                     ALOGV("checkOutputsForDevice(): disconnecting adding output %d",
