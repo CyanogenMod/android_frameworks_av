@@ -16,7 +16,7 @@
 
 //
 // Sortable array of strings.  STL-ish, but STL-free.
-//  
+//
 #ifndef _LIBS_MEDIA_STRING_ARRAY_H
 #define _LIBS_MEDIA_STRING_ARRAY_H
 

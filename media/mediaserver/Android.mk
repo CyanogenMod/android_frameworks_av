@@ -11,7 +11,7 @@ endif
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-	main_mediaserver.cpp 
+	main_mediaserver.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
