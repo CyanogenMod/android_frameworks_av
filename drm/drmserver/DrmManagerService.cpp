@@ -37,6 +37,9 @@ static bool isProtectedCallAllowed() {
     // TODO
     // Following implementation is just for reference.
     // Each OEM manufacturer should implement/replace with their own solutions.
+
+    // Disabling the reference to allow all process to access DRM API.
+    /*
     IPCThreadState* ipcState = IPCThreadState::self();
     uid_t uid = ipcState->getCallingUid();
 
@@ -46,6 +49,10 @@ static bool isProtectedCallAllowed() {
         }
     }
     return false;
+    */
+
+    // All process can access DRM  Framework APIs.
+    return true;
 }
 
 void DrmManagerService::instantiate() {
