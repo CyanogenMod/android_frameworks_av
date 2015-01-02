@@ -781,7 +781,7 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
             ALOGD("SetPhoneState: Voice call state = %d", voice_call_state);
     }
 
-    if (mode_in_call && voice_call_state) {
+    if (mode_in_call && voice_call_state && !mvoice_call_state) {
         ALOGD("Entering to call mode oldState :: %d state::%d ",oldState, state);
         mvoice_call_state = voice_call_state;
         if (prop_playback_enabled) {
