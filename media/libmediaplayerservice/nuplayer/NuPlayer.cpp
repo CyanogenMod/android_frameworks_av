@@ -1176,7 +1176,7 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
 
     AString mime;
     CHECK(format->findString("mime", &mime));
-    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
+    if (audioMeta != NULL && !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
         int32_t srcBitsPerSample, bitsPerSample = 16;
         int32_t srcChannels, channels = 0;
         int32_t srcSampleRate, sampleRate = 0;
