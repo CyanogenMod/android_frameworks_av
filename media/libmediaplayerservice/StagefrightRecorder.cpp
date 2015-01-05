@@ -1589,6 +1589,7 @@ status_t StagefrightRecorder::setupCameraSource(
                 videoSize, mFrameRate,
                 mPreviewSurface, encoderSupportsCameraSourceMetaDataMode);
     }
+    ExtendedUtils::cacheCaptureBuffers(mCamera, mVideoEncoder);
     mCamera.clear();
     mCameraProxy.clear();
     if (*cameraSource == NULL) {

@@ -45,6 +45,8 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/MediaProfiles.h>
 #include <media/stagefright/Utils.h>
+#include <camera/ICamera.h>
+#include <binder/IPCThreadState.h>
 
 //RTSPStream
 #include <arpa/inet.h>
@@ -1921,6 +1923,30 @@ int32_t ExtendedUtils::getEncoderTypeFlags() {
     return flags;
 }
 
+void ExtendedUtils::cacheCaptureBuffers(sp<ICamera> camera, video_encoder encoder) {
+    if (camera != NULL) {
+        char mDeviceName[PROPERTY_VALUE_MAX];
+        property_get("ro.board.platform", mDeviceName, "0");
+        if (!strncmp(mDeviceName, "msm8909", 7)) {
+            int64_t token = IPCThreadState::self()->clearCallingIdentity();
+            String8 s = camera->getParameters();
+            CameraParameters params(s);
+            const char *enable;
+            if (encoder == VIDEO_ENCODER_H263 ||
+                encoder == VIDEO_ENCODER_MPEG_4_SP) {
+                enable = "1";
+            } else {
+                enable = "0";
+            }
+            params.set("cache-video-buffers", enable);
+            if (camera->setParameters(params.flatten()) != OK) {
+                ALOGE("Failed to enabled cached camera buffers");
+            }
+            IPCThreadState::self()->restoreCallingIdentity(token);
+        }
+    }
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -2125,6 +2151,8 @@ void ExtendedUtils::showImageInNativeWindow(const sp<AMessage> &msg,
 int32_t ExtendedUtils::getEncoderTypeFlags() {
     return false;
 }
+
+void ExtendedUtils::cacheCaptureBuffers(sp<ICamera> camera, video_encoder encoder) {}
 
 bool ExtendedUtils::RTSPStream::ParseURL_V6(
         AString *host, const char **colonPos) {
