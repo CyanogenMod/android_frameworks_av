@@ -48,6 +48,7 @@
 #include "OMX_QCOMExtns.h"
 #include "QCMediaDefs.h"
 #include "QCMetaData.h"
+#include "QComOMXMetadata.h"
 #ifdef EXTENDED_OFFLOAD_ENABLED
 #include <mm-audio/audio_defs.h>
 #endif
@@ -55,6 +56,7 @@
 
 #include <binder/IPCThreadState.h>
 #include <camera/CameraParameters.h>
+#include <inttypes.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "stagefright/AVExtensions.h"
@@ -510,6 +512,50 @@ bool AVUtils::useQCHWEncoder(const sp<AMessage> &format, Vector<AString> *matchi
 #endif
 
     return false;
+}
+
+void AVUtils::addDecodingTimesFromBatch(MediaBuffer *buf,
+        List<int64_t>& decodeTimeQueue) {
+#ifdef QCOM_HARDWARE
+    if (buf == NULL || (buf->size() != sizeof(encoder_media_buffer_type))) {
+        return;
+    }
+    encoder_media_buffer_type *metaBuf = (encoder_media_buffer_type*)(buf->data());
+    if (!metaBuf || metaBuf->buffer_type != kMetadataBufferTypeCameraSource) {
+        return;
+    }
+    native_handle_t *hnd = (native_handle_t *)metaBuf->meta_handle;
+    if (hnd) {
+        int numBufs = hnd->numFds;
+        // Only 1 fd => either the batch has single buffer or is not a batch
+        // do nothing in this case as first timestamp is already added to TS queue
+        if (numBufs < 2) {
+            return;
+        }
+        ALOGV("Found batch of %d bufs", numBufs);
+        // There must be at-least '3 x fd' ints in the handle
+        // Payload format for batch-of-2 -> |fd0|fd1|off0|off1|len0|len1|dTS0|dTS1|
+        if (hnd->numInts < hnd->numFds * 3) {
+            ALOGE("HFR: batch-of-%d has insufficient ints %d vs %d",
+                    hnd->numFds, hnd->numInts, hnd->numFds * 3);
+            return;
+        }
+        int64_t baseTimeUs = 0ll;
+        int64_t timeUs = 0ll;
+        int tsStartIndex = numBufs * 3;
+        buf->meta_data()->findInt64(kKeyTime, &baseTimeUs);
+        // starting from 2nd buffer (i = 1) since TS for first buffer is already added
+        for (int i = 1; i < numBufs; ++i) {
+            // timestamp differences from Camera are in nano-seconds
+            timeUs = baseTimeUs + hnd->data[tsStartIndex + i] / 1E3;
+            ALOGV("dTs=%f Ts=%" PRId64, hnd->data[tsStartIndex + i] / 1E3, timeUs);
+            decodeTimeQueue.push_back(timeUs);
+        }
+    }
+#else
+    (void)buf;
+    (void)decodeTimeQueue;
+#endif
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
