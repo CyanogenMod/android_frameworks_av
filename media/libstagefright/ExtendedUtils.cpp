@@ -76,6 +76,7 @@ static const uint8_t kHEVCNalUnitTypePicParamSet = 0x22;
 
 #include <QCMetaData.h>
 #include <QCMediaDefs.h>
+#include "QComOMXMetadata.h"
 
 #include "include/ExtendedExtractor.h"
 #include "include/avc_utils.h"
@@ -200,6 +201,45 @@ int32_t ExtendedUtils::HFR::getHFRRatio(
     int32_t hfrRatio = 0;
     meta->findInt32(kKeyHFR, &hfrRatio);
     return hfrRatio ? hfrRatio : 1;
+}
+
+void ExtendedUtils::HFR::addDecodingTimesFromBatch(MediaBuffer *buf,
+        List<int64_t>& decodeTimeQueue) {
+    if (buf == NULL || (buf->size() != sizeof(encoder_media_buffer_type))) {
+        return;
+    }
+    encoder_media_buffer_type *metaBuf = (encoder_media_buffer_type*)(buf->data());
+    if (!metaBuf || metaBuf->buffer_type != kMetadataBufferTypeCameraSource) {
+        return;
+    }
+    native_handle_t *hnd = (native_handle_t *)metaBuf->meta_handle;
+    if (hnd) {
+        int numBufs = hnd->numFds;
+        // Only 1 fd => either the batch has single buffer or is not a batch
+        // do nothing in this case as first timestamp is already added to TS queue
+        if (numBufs < 2) {
+            return;
+        }
+        ALOGV("Found batch of %d bufs", numBufs);
+        // There must be at-least '3 x fd' ints in the handle
+        // Payload format for batch-of-2 -> |fd0|fd1|off0|off1|len0|len1|dTS0|dTS1|
+        if (hnd->numInts < hnd->numFds * 3) {
+            ALOGE("HFR: batch-of-%d has insufficient ints %d vs %d",
+                    hnd->numFds, hnd->numInts, hnd->numFds * 3);
+            return;
+        }
+        int64_t baseTimeUs = 0ll;
+        int64_t timeUs = 0ll;
+        int tsStartIndex = numBufs * 3;
+        buf->meta_data()->findInt64(kKeyTime, &baseTimeUs);
+        // starting from 2nd buffer (i = 1) since TS for first buffer is already added
+        for (int i = 1; i < numBufs; ++i) {
+            // timestamp differences from Camera are in nano-seconds
+            timeUs = baseTimeUs + hnd->data[tsStartIndex + i] / 1E3;
+            ALOGV("dTs=%d Ts=%lld", hnd->data[tsStartIndex + i] / 1E3, timeUs);
+            decodeTimeQueue.push_back(timeUs);
+        }
+    }
 }
 
 int32_t ExtendedUtils::HFR::getHFRCapabilities(
@@ -2030,7 +2070,6 @@ void ExtendedUtils::overWriteAudioFormat(
     return;
 }
 
-
 bool ExtendedUtils::is24bitPCMOffloaded(const sp<MetaData> &sMeta) {
     bool decision = false;
 
@@ -2053,6 +2092,7 @@ bool ExtendedUtils::is24bitPCMOffloaded(const sp<MetaData> &sMeta) {
 }
 
 }
+
 #else //ENABLE_AV_ENHANCEMENTS
 
 namespace android {
@@ -2092,6 +2132,12 @@ int32_t ExtendedUtils::HFR::getHFRRatio(
         const sp<MetaData> &meta) {
     ARG_TOUCH(meta);
     return 1;
+}
+
+void ExtendedUtils::HFR::addDecodingTimesFromBatch(MediaBuffer *buf,
+        List<int64_t>& decodeTimeQueue) {
+    ARG_TOUCH(buf);
+    ARG_TOUCH(decodeTimeQueue);
 }
 
 int32_t ExtendedUtils::HFR::getHFRCapabilities(
