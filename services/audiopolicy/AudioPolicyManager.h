@@ -889,6 +889,7 @@ private:
         // see deviceDistinguishesOnAddress(audio_devices_t) for whether the device type is one
         //   where addresses are used to distinguish between one connected device and another.
         void findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /*in*/,
+                const audio_devices_t device /*in*/,
                 const String8 address /*in*/,
                 SortedVector<audio_io_handle_t>& outputs /*out*/);
         uint32_t nextUniqueId();
