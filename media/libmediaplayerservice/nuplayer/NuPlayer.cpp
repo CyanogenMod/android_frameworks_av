@@ -1185,10 +1185,10 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
     // avoid PCM offload when resampler is used
     bool resampled = false;
     sp<MetaData> audioMeta = mSource->getFormatMeta(true);
-
     AString mime;
     CHECK(format->findString("mime", &mime));
-    if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
+    if (audioMeta != 0 && !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW)) {
+        audioMeta->dumpToLog();
         int32_t srcBitsPerSample, bitsPerSample = 16;
         int32_t srcChannels, channels = 0;
         int32_t srcSampleRate, sampleRate = 0;
@@ -1203,6 +1203,8 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
                       (srcChannels == channels) &&
                       (srcSampleRate == sampleRate));
         format->setInt32("resampled", resampled);
+    } else {
+        ALOGV("openAudioSink: source meta was null");
     }
 
     ALOGV("openAudioSink: resampled=%d format=%s", resampled, format->debugString().c_str());
@@ -1211,8 +1213,6 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
             format, offloadOnly, (mVideoDecoder != NULL), flags);
 
     if (mOffloadAudio) {
-        sp<MetaData> audioMeta =
-                mSource->getFormatMeta(true /* audio */);
         sendMetaDataToHal(mAudioSink, audioMeta);
     }
 }
