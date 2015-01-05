@@ -99,6 +99,9 @@ const StringToEnum sDeviceTypeToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_DEVICE_IN_BLUETOOTH_A2DP),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_LOOPBACK),
     STRING_TO_ENUM(AUDIO_DEVICE_IN_IP),
+#ifdef LEGACY_ALSA_AUDIO
+    STRING_TO_ENUM(AUDIO_DEVICE_IN_COMMUNICATION),
+#endif
 };
 
 const StringToEnum sDeviceNameToEnumTable[] = {
