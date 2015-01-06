@@ -1218,14 +1218,14 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
               //override msg with value in format if format has updated values
               ExtendedUtils::overWriteAudioFormat(msg, format);
               mOffloadAudio = mRenderer->openAudioSink(
-                             msg, offloadOnly, hasVideo, flags);
+                             msg, offloadOnly, hasVideo, mIsStreaming, flags);
         } else {
             mOffloadAudio = mRenderer->openAudioSink(
-                format, offloadOnly, hasVideo, flags);
+                format, offloadOnly, hasVideo, mIsStreaming, flags);
         }
     } else {
         mOffloadAudio = mRenderer->openAudioSink(
-            format, offloadOnly, hasVideo, flags);
+            format, offloadOnly, hasVideo, mIsStreaming, flags);
     }
     if (mOffloadAudio) {
         sendMetaDataToHal(mAudioSink, aMeta);
