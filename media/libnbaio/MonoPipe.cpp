@@ -27,7 +27,7 @@
 #include <utils/Trace.h>
 #include <media/AudioBufferProvider.h>
 #include <media/nbaio/MonoPipe.h>
-#include <media/nbaio/roundup.h>
+#include <audio_utils/roundup.h>
 
 
 namespace android {

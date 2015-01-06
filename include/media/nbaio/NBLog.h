@@ -21,7 +21,7 @@
 
 #include <binder/IMemory.h>
 #include <utils/Mutex.h>
-#include <media/nbaio/roundup.h>
+#include <audio_utils/roundup.h>
 
 namespace android {
 

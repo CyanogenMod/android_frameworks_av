@@ -11,7 +11,6 @@ LOCAL_SRC_FILES := \
     MonoPipeReader.cpp              \
     Pipe.cpp                        \
     PipeReader.cpp                  \
-    roundup.c                       \
     SourceAudioBufferProvider.cpp
 
 LOCAL_SRC_FILES += NBLog.cpp
@@ -27,10 +26,13 @@ LOCAL_SRC_FILES += NBLog.cpp
 LOCAL_MODULE := libnbaio
 
 LOCAL_SHARED_LIBRARIES := \
+    libaudioutils \
     libbinder \
     libcommon_time_client \
     libcutils \
     libutils \
     liblog
+
+LOCAL_C_INCLUDES := $(call include-path-for, audio-utils)
 
 include $(BUILD_SHARED_LIBRARY)
