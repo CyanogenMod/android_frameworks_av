@@ -4599,6 +4599,13 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
         info->mStatus = BufferInfo::OWNED_BY_US;
     }
 
+    if (mCodec->mMediaExtendedStats != NULL) {
+        int32_t seeking;
+        if (info->mData->meta()->findInt32("seeking", &seeking)) {
+            mCodec->mMediaExtendedStats->profileStop(STATS_PROFILE_SEEK);
+        }
+    }
+
     PortMode mode = getPortMode(kPortIndexOutput);
 
     switch (mode) {

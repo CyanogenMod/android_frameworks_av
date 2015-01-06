@@ -207,6 +207,7 @@ private:
     bool mPlaying;
 
     bool mImageShowed;
+    bool mSeeking;
 
     bool mSkipAudioFlushAfterSuspend;
     bool mSkipVideoFlushAfterSuspend;
