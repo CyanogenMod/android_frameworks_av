@@ -31,6 +31,20 @@ size_t clampToSize(T x) {
     return sizeof(T) > sizeof(size_t) && x > (T) SIZE_MAX ? SIZE_MAX : x < 0 ? 0 : (size_t) x;
 }
 
+// incrementSequence is used to determine the next sequence value
+// for the loop and position sequence counters.  It should return
+// a value between "other" + 1 and "other" + INT32_MAX, the choice of
+// which needs to be the "least recently used" sequence value for "self".
+// In general, this means (new_self) returned is max(self, other) + 1.
+
+static uint32_t incrementSequence(uint32_t self, uint32_t other) {
+    int32_t diff = self - other;
+    if (diff >= 0 && diff < INT32_MAX) {
+        return self + 1; // we're already ahead of other.
+    }
+    return other + 1; // we're behind, so move just ahead of other.
+}
+
 audio_track_cblk_t::audio_track_cblk_t()
     : mServer(0), mFutex(0), mMinimum(0),
     mVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY), mSampleRate(0), mSendLevel(0), mFlags(0)
@@ -487,6 +501,7 @@ StaticAudioTrackClientProxy::StaticAudioTrackClientProxy(audio_track_cblk_t* cbl
     : AudioTrackClientProxy(cblk, buffers, frameCount, frameSize),
       mMutator(&cblk->u.mStatic.mSingleStateQueue), mBufferPosition(0)
 {
+    memset(&mState, 0, sizeof(mState));
 }
 
 void StaticAudioTrackClientProxy::flush()
@@ -501,22 +516,47 @@ void StaticAudioTrackClientProxy::setLoop(size_t loopStart, size_t loopEnd, int 
         // FIXME Should return an error status
         return;
     }
-    StaticAudioTrackState newState;
-    newState.mLoopStart = (uint32_t) loopStart;
-    newState.mLoopEnd = (uint32_t) loopEnd;
-    newState.mLoopCount = loopCount;
-    size_t bufferPosition;
-    if (loopCount == 0 || (bufferPosition = getBufferPosition()) >= loopEnd) {
-        bufferPosition = loopStart;
+    mState.mLoopStart = (uint32_t) loopStart;
+    mState.mLoopEnd = (uint32_t) loopEnd;
+    mState.mLoopCount = loopCount;
+    mState.mLoopSequence = incrementSequence(mState.mLoopSequence, mState.mPositionSequence);
+    // set patch-up variables until the mState is acknowledged by the ServerProxy.
+    // observed buffer position and loop count will freeze until then to give the
+    // illusion of a synchronous change.
+    size_t bufferPosition = getBufferPosition();
+    // preserve behavior to restart at mState.mLoopStart if position exceeds mState.mLoopEnd.
+    if (loopCount != 0 && bufferPosition >= mState.mLoopEnd) {
+        mBufferPosition = mState.mLoopStart;
     }
-    mBufferPosition = bufferPosition; // snapshot buffer position until loop is acknowledged.
-    (void) mMutator.push(newState);
+    (void) mMutator.push(mState);
+}
+
+void StaticAudioTrackClientProxy::setBufferPosition(size_t position)
+{
+    // This can only happen on a 64-bit client
+    if (position > UINT32_MAX) {
+        // FIXME Should return an error status
+        return;
+    }
+    mState.mPosition = (uint32_t) position;
+    mState.mPositionSequence = incrementSequence(mState.mPositionSequence, mState.mLoopSequence);
+    mBufferPosition = position;
+    (void) mMutator.push(mState);
+}
+
+void StaticAudioTrackClientProxy::setBufferPositionAndLoop(size_t position, size_t loopStart,
+        size_t loopEnd, int loopCount)
+{
+    setLoop(loopStart, loopEnd, loopCount);
+    setBufferPosition(position);
 }
 
 size_t StaticAudioTrackClientProxy::getBufferPosition()
 {
     size_t bufferPosition;
     if (mMutator.ack()) {
+        // There is a race condition here as ack may be signaled before
+        // the buffer position in mCblk is updated.  Will be fixed in a later CL.
         bufferPosition = (size_t) mCblk->u.mStatic.mBufferPosition;
         if (bufferPosition > mFrameCount) {
             bufferPosition = mFrameCount;
@@ -744,9 +784,7 @@ StaticAudioTrackServerProxy::StaticAudioTrackServerProxy(audio_track_cblk_t* cbl
       mFramesReadySafe(frameCount), mFramesReady(frameCount),
       mFramesReadyIsCalledByMultipleThreads(false)
 {
-    mState.mLoopStart = 0;
-    mState.mLoopEnd = 0;
-    mState.mLoopCount = 0;
+    memset(&mState, 0, sizeof(mState));
 }
 
 void StaticAudioTrackServerProxy::framesReadyIsCalledByMultipleThreads()
@@ -763,55 +801,91 @@ size_t StaticAudioTrackServerProxy::framesReady()
     return mFramesReadySafe;
 }
 
-ssize_t StaticAudioTrackServerProxy::pollPosition()
+status_t StaticAudioTrackServerProxy::updateStateWithLoop(
+        StaticAudioTrackState *localState, const StaticAudioTrackState &update) const
 {
-    size_t position = mPosition;
-    StaticAudioTrackState state;
-    if (mObserver.poll(state)) {
+    if (localState->mLoopSequence != update.mLoopSequence) {
         bool valid = false;
-        size_t loopStart = state.mLoopStart;
-        size_t loopEnd = state.mLoopEnd;
-        if (state.mLoopCount == 0) {
-            if (loopStart > mFrameCount) {
-                loopStart = mFrameCount;
-            }
-            // ignore loopEnd
-            mPosition = position = loopStart;
-            mFramesReady = mFrameCount - mPosition;
-            mState.mLoopCount = 0;
+        const size_t loopStart = update.mLoopStart;
+        const size_t loopEnd = update.mLoopEnd;
+        size_t position = localState->mPosition;
+        if (update.mLoopCount == 0) {
             valid = true;
-        } else if (state.mLoopCount >= -1) {
+        } else if (update.mLoopCount >= -1) {
             if (loopStart < loopEnd && loopEnd <= mFrameCount &&
                     loopEnd - loopStart >= MIN_LOOP) {
                 // If the current position is greater than the end of the loop
                 // we "wrap" to the loop start. This might cause an audible pop.
                 if (position >= loopEnd) {
-                    mPosition = position = loopStart;
+                    position = loopStart;
                 }
-                if (state.mLoopCount == -1) {
-                    mFramesReady = INT64_MAX;
-                } else {
-                    // mFramesReady is 64 bits to handle the effective number of frames
-                    // that the static audio track contains, including loops.
-                    // TODO: Later consider fixing overflow, but does not seem needed now
-                    // as will not overflow if loopStart and loopEnd are Java "ints".
-                    mFramesReady = int64_t(state.mLoopCount) * (loopEnd - loopStart)
-                            + mFrameCount - mPosition;
-                }
-                mState = state;
                 valid = true;
             }
         }
-        if (!valid || mPosition > mFrameCount) {
+        if (!valid || position > mFrameCount) {
+            return NO_INIT;
+        }
+        localState->mPosition = position;
+        localState->mLoopCount = update.mLoopCount;
+        localState->mLoopEnd = loopEnd;
+        localState->mLoopStart = loopStart;
+        localState->mLoopSequence = update.mLoopSequence;
+    }
+    return OK;
+}
+
+status_t StaticAudioTrackServerProxy::updateStateWithPosition(
+        StaticAudioTrackState *localState, const StaticAudioTrackState &update) const
+{
+    if (localState->mPositionSequence != update.mPositionSequence) {
+        if (update.mPosition > mFrameCount) {
+            return NO_INIT;
+        } else if (localState->mLoopCount != 0 && update.mPosition >= localState->mLoopEnd) {
+            localState->mLoopCount = 0; // disable loop count if position is beyond loop end.
+        }
+        localState->mPosition = update.mPosition;
+        localState->mPositionSequence = update.mPositionSequence;
+    }
+    return OK;
+}
+
+ssize_t StaticAudioTrackServerProxy::pollPosition()
+{
+    StaticAudioTrackState state;
+    if (mObserver.poll(state)) {
+        StaticAudioTrackState trystate = mState;
+        bool result;
+        const int32_t diffSeq = state.mLoopSequence - state.mPositionSequence;
+
+        if (diffSeq < 0) {
+            result = updateStateWithLoop(&trystate, state) == OK &&
+                    updateStateWithPosition(&trystate, state) == OK;
+        } else {
+            result = updateStateWithPosition(&trystate, state) == OK &&
+                    updateStateWithLoop(&trystate, state) == OK;
+        }
+        if (!result) {
+            // caution: no update occurs so server state will be inconsistent with client state.
             ALOGE("%s client pushed an invalid state, shutting down", __func__);
             mIsShutdown = true;
             return (ssize_t) NO_INIT;
         }
+        mState = trystate;
+        if (mState.mLoopCount == -1) {
+            mFramesReady = INT64_MAX;
+        } else if (mState.mLoopCount == 0) {
+            mFramesReady = mFrameCount - mState.mPosition;
+        } else if (mState.mLoopCount > 0) {
+            // TODO: Later consider fixing overflow, but does not seem needed now
+            // as will not overflow if loopStart and loopEnd are Java "ints".
+            mFramesReady = int64_t(mState.mLoopCount) * (mState.mLoopEnd - mState.mLoopStart)
+                    + mFrameCount - mState.mPosition;
+        }
         mFramesReadySafe = clampToSize(mFramesReady);
         // This may overflow, but client is not supposed to rely on it
-        mCblk->u.mStatic.mBufferPosition = (uint32_t) position;
+        mCblk->u.mStatic.mBufferPosition = (uint32_t) mState.mPosition;
     }
-    return (ssize_t) position;
+    return (ssize_t) mState.mPosition;
 }
 
 status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush __unused)
@@ -869,7 +943,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     }
     mUnreleased -= stepCount;
     audio_track_cblk_t* cblk = mCblk;
-    size_t position = mPosition;
+    size_t position = mState.mPosition;
     size_t newPosition = position + stepCount;
     int32_t setFlags = 0;
     if (!(position <= newPosition && newPosition <= mFrameCount)) {
@@ -887,7 +961,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     if (newPosition == mFrameCount) {
         setFlags |= CBLK_BUFFER_END;
     }
-    mPosition = newPosition;
+    mState.mPosition = newPosition;
     if (mFramesReady != INT64_MAX) {
         mFramesReady -= stepCount;
     }
@@ -895,7 +969,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
 
     cblk->mServer += stepCount;
     // This may overflow, but client is not supposed to rely on it
-    cblk->u.mStatic.mBufferPosition = (uint32_t) newPosition;
+    cblk->u.mStatic.mBufferPosition = (uint32_t) mState.mPosition;
     if (setFlags != 0) {
         (void) android_atomic_or(setFlags, &cblk->mFlags);
         // this would be a good place to wake a futex

@@ -531,14 +531,13 @@ void AudioTrack::stop()
     // the playback head position will reset to 0, so if a marker is set, we need
     // to activate it again
     mMarkerReached = false;
-#if 0
-    // Force flush if a shared buffer is used otherwise audioflinger
-    // will not stop before end of buffer is reached.
-    // It may be needed to make sure that we stop playback, likely in case looping is on.
+
     if (mSharedBuffer != 0) {
-        flush_l();
+        // clear buffer position and loop count.
+        mLoopPeriod = 0;
+        mStaticProxy->setBufferPositionAndLoop(0 /* position */,
+                0 /* loopStart */, 0 /* loopEnd */, 0 /* loopCount */);
     }
-#endif
 
     sp<AudioTrackThread> t = mAudioTrackThread;
     if (t != 0) {
@@ -823,12 +822,9 @@ status_t AudioTrack::setPosition(uint32_t position)
     if (mState == STATE_ACTIVE) {
         return INVALID_OPERATION;
     }
+    // After setting the position, use full update period before notification.
     mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
-    mLoopPeriod = 0;
-    // FIXME Check whether loops and setting position are incompatible in old code.
-    // If we use setLoop for both purposes we lose the capability to set the position while looping.
-    mStaticProxy->setLoop(position, mFrameCount, 0);
-
+    mStaticProxy->setBufferPosition(position);
     return NO_ERROR;
 }
 
@@ -894,9 +890,13 @@ status_t AudioTrack::reload()
     }
     mNewPosition = mUpdatePeriod;
     mLoopPeriod = 0;
-    // FIXME The new code cannot reload while keeping a loop specified.
-    // Need to check how the old code handled this, and whether it's a significant change.
-    mStaticProxy->setLoop(0, mFrameCount, 0);
+    (void) updateAndGetPosition_l();
+    mPosition = 0;
+    // The documentation is not clear on the behavior of reload() and the restoration
+    // of loop count. Historically we have not restored loop count, start, end;
+    // rather we just reset the buffer position.  However, restoring the last setLoop
+    // information makes sense if one desires to repeat playing a particular sound.
+    mStaticProxy->setBufferPosition(0);
     return NO_ERROR;
 }
 
@@ -1865,15 +1865,20 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     result = createTrack_l();
 
     // take the frames that will be lost by track recreation into account in saved position
+    // For streaming tracks, this is the amount we obtained from the user/client
+    // (not the number actually consumed at the server - those are already lost).
     (void) updateAndGetPosition_l();
-    mPosition = mReleased;
+    if (mStaticProxy != 0) {
+        mPosition = mReleased;
+    }
 
     if (result == NO_ERROR) {
         // continue playback from last known position, but
         // don't attempt to restore loop after invalidation; it's difficult and not worthwhile
         if (mStaticProxy != NULL) {
             mLoopPeriod = 0;
-            mStaticProxy->setLoop(bufferPosition, mFrameCount, 0);
+            mStaticProxy->setBufferPositionAndLoop(bufferPosition,
+                    0 /* loopStart */, 0 /* loopEnd */, 0 /* loopCount */);
         }
         // FIXME How do we simulate the fact that all frames present in the buffer at the time of
         //       track destruction have been played? This is critical for SoundPool implementation
