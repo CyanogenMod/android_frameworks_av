@@ -1024,11 +1024,13 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     // Notify mCrypto of video resolution changes
                     if (mCrypto != NULL) {
-                      int32_t height, width;
-                      if (mOutputFormat->findInt32("height", &height) &&
-                          mOutputFormat->findInt32("width", &width)) {
-                        mCrypto->notifyResolution(width, height);
-                      }
+                        int32_t left, top, right, bottom, width, height;
+                        if (mOutputFormat->findRect("crop", &left, &top, &right, &bottom)) {
+                            mCrypto->notifyResolution(right - left + 1, bottom - top + 1);
+                        } else if (mOutputFormat->findInt32("width", &width)
+                                && mOutputFormat->findInt32("height", &height)) {
+                            mCrypto->notifyResolution(width, height);
+                        }
                     }
 
                     break;
