@@ -32,9 +32,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libcutils \
     libhardware \
     libsoundtrigger \
-    libmedia
-
-LOCAL_STATIC_LIBRARIES := \
+    libmedia \
     libserviceutility
 
 LOCAL_C_INCLUDES += \
