@@ -4167,6 +4167,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 track->mRetryCount = kMaxTrackRetriesDirect;
                 mActiveTrack = t;
                 mixerStatus = MIXER_TRACKS_READY;
+                if (usesHwAvSync() && mHwPaused) {
+                    doHwResume = true;
+                    mHwPaused = false;
+                }
             }
         } else {
             // clear effect chain input buffer if the last active track started underruns
@@ -4195,9 +4199,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                         track->mState = TrackBase::STOPPED;
                     }
                     if (track->isStopped()) {
-                        if (track->mState == TrackBase::FLUSHED) {
-                            flushHw_l();
-                        }
                         track->reset();
                     }
                     tracksToRemove->add(track);
@@ -4214,6 +4215,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
                 } else if (last) {
                     mixerStatus = MIXER_TRACKS_ENABLED;
+                    if (usesHwAvSync() && !mHwPaused && !mStandby) {
+                        doHwPause = true;
+                        mHwPaused = true;
+                    }
                 }
             }
         }
@@ -4276,7 +4281,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
 void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
 {
     // do not write to HAL when paused
-    if (mHwPaused) {
+    if (mHwPaused || (usesHwAvSync() && mStandby)) {
         sleepTime = idleSleepTime;
         return;
     }
@@ -4321,7 +4326,7 @@ bool AudioFlinger::DirectOutputThread::shouldStandby_l()
         trackPaused = mTracks[mTracks.size() - 1]->isPaused();
     }
 
-    return !mStandby && !trackPaused;
+    return !mStandby && !(trackPaused || (usesHwAvSync() && mHwPaused));
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
