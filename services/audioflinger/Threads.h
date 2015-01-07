@@ -710,6 +710,9 @@ protected:
                                    audio_patch_handle_t *handle);
     virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
 
+                bool        usesHwAvSync() const { return (mType == DIRECT) && (mOutput != NULL) &&
+                                                (mOutput->flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC); }
+
 private:
 
     friend class AudioFlinger;      // for numerous
