@@ -1440,10 +1440,16 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     // handle legacy remote submix case where the address was not always specified
     String8 address = String8("");
     bool isSoundTrigger = false;
-    audio_source_t halInputSource = attr->source;
+    audio_source_t inputSource = attr->source;
+    audio_source_t halInputSource;
     AudioMix *policyMix = NULL;
 
-    if (attr->source == AUDIO_SOURCE_REMOTE_SUBMIX &&
+    if (inputSource == AUDIO_SOURCE_DEFAULT) {
+        inputSource = AUDIO_SOURCE_MIC;
+    }
+    halInputSource = inputSource;
+
+    if (inputSource == AUDIO_SOURCE_REMOTE_SUBMIX &&
             strncmp(attr->tags, "addr=", strlen("addr=")) == 0) {
         device = AUDIO_DEVICE_IN_REMOTE_SUBMIX;
         address = String8(attr->tags + strlen("addr="));
@@ -1459,9 +1465,9 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         policyMix = &mPolicyMixes[index]->mMix;
         *inputType = API_INPUT_MIX_EXT_POLICY_REROUTE;
     } else {
-        device = getDeviceAndMixForInputSource(attr->source, &policyMix);
+        device = getDeviceAndMixForInputSource(inputSource, &policyMix);
         if (device == AUDIO_DEVICE_NONE) {
-            ALOGW("getInputForAttr() could not find device for source %d", attr->source);
+            ALOGW("getInputForAttr() could not find device for source %d", inputSource);
             return BAD_VALUE;
         }
         if (policyMix != NULL) {
@@ -1483,7 +1489,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
             *inputType = API_INPUT_LEGACY;
         }
         // adapt channel selection to input source
-        switch (attr->source) {
+        switch (inputSource) {
         case AUDIO_SOURCE_VOICE_UPLINK:
             channelMask = AUDIO_CHANNEL_IN_VOICE_UPLINK;
             break;
@@ -1496,7 +1502,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         default:
             break;
         }
-        if (attr->source == AUDIO_SOURCE_HOTWORD) {
+        if (inputSource == AUDIO_SOURCE_HOTWORD) {
             ssize_t index = mSoundTriggerSessions.indexOfKey(session);
             if (index >= 0) {
                 *input = mSoundTriggerSessions.valueFor(session);
@@ -1559,7 +1565,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     }
 
     sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(profile);
-    inputDesc->mInputSource = attr->source;
+    inputDesc->mInputSource = inputSource;
     inputDesc->mRefCount = 0;
     inputDesc->mOpenRefCount = 1;
     inputDesc->mSamplingRate = samplingRate;
