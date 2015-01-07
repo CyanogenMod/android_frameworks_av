@@ -38,6 +38,11 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
+template <typename T>
+const T &min(const T &x, const T &y) {
+    return x < y ? x : y;
+}
+
 static int64_t convertTimespecToUs(const struct timespec &tv)
 {
     return tv.tv_sec * 1000000ll + tv.tv_nsec / 1000;
@@ -420,7 +425,9 @@ status_t AudioTrack::set(
     mStatus = NO_ERROR;
     mState = STATE_STOPPED;
     mUserData = user;
-    mLoopPeriod = 0;
+    mLoopCount = 0;
+    mLoopStart = 0;
+    mLoopEnd = 0;
     mMarkerPosition = 0;
     mMarkerReached = false;
     mNewPosition = 0;
@@ -534,7 +541,6 @@ void AudioTrack::stop()
 
     if (mSharedBuffer != 0) {
         // clear buffer position and loop count.
-        mLoopPeriod = 0;
         mStaticProxy->setBufferPositionAndLoop(0 /* position */,
                 0 /* loopStart */, 0 /* loopEnd */, 0 /* loopCount */);
     }
@@ -739,9 +745,11 @@ status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount
 
 void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    // Setting the loop will reset next notification update period (like setPosition).
-    mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
-    mLoopPeriod = loopCount != 0 ? loopEnd - loopStart : 0;
+    // We do not update the periodic notification point.
+    // mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
+    mLoopCount = loopCount;
+    mLoopEnd = loopEnd;
+    mLoopStart = loopStart;
     mStaticProxy->setLoop(loopStart, loopEnd, loopCount);
 }
 
@@ -889,7 +897,6 @@ status_t AudioTrack::reload()
         return INVALID_OPERATION;
     }
     mNewPosition = mUpdatePeriod;
-    mLoopPeriod = 0;
     (void) updateAndGetPosition_l();
     mPosition = 0;
     // The documentation is not clear on the behavior of reload() and the restoration
@@ -1610,7 +1617,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     }
 
     // Cache other fields that will be needed soon
-    uint32_t loopPeriod = mLoopPeriod;
+    uint32_t loopPeriod = mLoopCount != 0 ? mLoopEnd - mLoopStart : 0;
     uint32_t sampleRate = mSampleRate;
     uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
@@ -1856,7 +1863,11 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     }
 
     // save the old static buffer position
-    size_t bufferPosition = mStaticProxy != NULL ? mStaticProxy->getBufferPosition() : 0;
+    size_t bufferPosition = 0;
+    int loopCount = 0;
+    if (mStaticProxy != 0) {
+        mStaticProxy->getBufferPositionAndLoopCount(&bufferPosition, &loopCount);
+    }
 
     // If a new IAudioTrack is successfully created, createTrack_l() will modify the
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
@@ -1873,27 +1884,15 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     }
 
     if (result == NO_ERROR) {
-        // continue playback from last known position, but
-        // don't attempt to restore loop after invalidation; it's difficult and not worthwhile
-        if (mStaticProxy != NULL) {
-            mLoopPeriod = 0;
-            mStaticProxy->setBufferPositionAndLoop(bufferPosition,
-                    0 /* loopStart */, 0 /* loopEnd */, 0 /* loopCount */);
-        }
-        // FIXME How do we simulate the fact that all frames present in the buffer at the time of
-        //       track destruction have been played? This is critical for SoundPool implementation
-        //       This must be broken, and needs to be tested/debugged.
-#if 0
-        // restore write index and set other indexes to reflect empty buffer status
-        if (!strcmp(from, "start")) {
-            // Make sure that a client relying on callback events indicating underrun or
-            // the actual amount of audio frames played (e.g SoundPool) receives them.
-            if (mSharedBuffer == 0) {
-                // restart playback even if buffer is not completely filled.
-                android_atomic_or(CBLK_FORCEREADY, &mCblk->mFlags);
+        // Continue playback from last known position and restore loop.
+        if (mStaticProxy != 0) {
+            if (loopCount != 0) {
+                mStaticProxy->setBufferPositionAndLoop(bufferPosition,
+                        mLoopStart, mLoopEnd, loopCount);
+            } else {
+                mStaticProxy->setBufferPosition(bufferPosition);
             }
         }
-#endif
         if (mState == STATE_ACTIVE) {
             result = mAudioTrack->start();
         }

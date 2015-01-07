@@ -732,12 +732,15 @@ protected:
     bool                    mRefreshRemaining;      // processAudioBuffer() should refresh
                                                     // mRemainingFrames and mRetryOnPartialBuffer
 
+                                                    // used for static track cbf and restoration
+    int32_t                 mLoopCount;             // last setLoop loopCount; zero means disabled
+    uint32_t                mLoopStart;             // last setLoop loopStart
+    uint32_t                mLoopEnd;               // last setLoop loopEnd
+
     // These are private to processAudioBuffer(), and are not protected by a lock
     uint32_t                mRemainingFrames;       // number of frames to request in obtainBuffer()
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
     uint32_t                mObservedSequence;      // last observed value of mSequence
-
-    uint32_t                mLoopPeriod;            // in frames, zero means looping is disabled
 
     uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
     bool                    mMarkerReached;

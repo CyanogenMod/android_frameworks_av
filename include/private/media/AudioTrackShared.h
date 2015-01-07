@@ -85,13 +85,32 @@ struct StaticAudioTrackState {
 
 typedef SingleStateQueue<StaticAudioTrackState> StaticAudioTrackSingleStateQueue;
 
+struct StaticAudioTrackPosLoop {
+    // Do not define constructors, destructors, or virtual methods as this is part of a
+    // union in shared memory and will not get called properly.
+
+    // These fields should both be size_t, but since they are located in shared memory we
+    // force to 32-bit.  The client and server may have different typedefs for size_t.
+
+    // This struct information is stored in a single state queue to communicate the
+    // static AudioTrack server state to the client while data is consumed.
+    // It is smaller than StaticAudioTrackState to prevent unnecessary information from
+    // being sent.
+
+    uint32_t mBufferPosition;
+    int32_t  mLoopCount;
+};
+
+typedef SingleStateQueue<StaticAudioTrackPosLoop> StaticAudioTrackPosLoopQueue;
+
 struct AudioTrackSharedStatic {
+    // client requests to the server for loop or position changes.
     StaticAudioTrackSingleStateQueue::Shared
                     mSingleStateQueue;
-    // This field should be a size_t, but since it is located in shared memory we
-    // force to 32-bit.  The client and server may have different typedefs for size_t.
-    uint32_t        mBufferPosition;    // updated asynchronously by server,
-                                        // "for entertainment purposes only"
+    // position info updated asynchronously by server and read by client,
+    // "for entertainment purposes only"
+    StaticAudioTrackPosLoopQueue::Shared
+                    mPosLoopQueue;
 };
 
 // ----------------------------------------------------------------------------
@@ -355,6 +374,9 @@ public:
             void    setBufferPositionAndLoop(size_t position, size_t loopStart, size_t loopEnd,
                                              int loopCount);
             size_t  getBufferPosition();
+                    // getBufferPositionAndLoopCount() provides the proper snapshot of
+                    // position and loopCount together.
+            void    getBufferPositionAndLoopCount(size_t *position, int *loopCount);
 
     virtual size_t  getMisalignment() {
         return 0;
@@ -366,8 +388,9 @@ public:
 
 private:
     StaticAudioTrackSingleStateQueue::Mutator   mMutator;
+    StaticAudioTrackPosLoopQueue::Observer      mPosLoopObserver;
                         StaticAudioTrackState   mState;   // last communicated state to server
-    size_t          mBufferPosition;    // so that getBufferPosition() appears to be synchronous
+                        StaticAudioTrackPosLoop mPosLoop; // snapshot of position and loop.
 };
 
 // ----------------------------------------------------------------------------
@@ -494,8 +517,7 @@ private:
                                                 const StaticAudioTrackState &update) const;
     ssize_t             pollPosition(); // poll for state queue update, and return current position
     StaticAudioTrackSingleStateQueue::Observer  mObserver;
-    size_t              mPosition;  // server's current play position in frames, relative to 0
-
+    StaticAudioTrackPosLoopQueue::Mutator       mPosLoopMutator;
     size_t              mFramesReadySafe; // Assuming size_t read/writes are atomic on 32 / 64 bit
                                           // processors, this is a thread-safe version of
                                           // mFramesReady.
