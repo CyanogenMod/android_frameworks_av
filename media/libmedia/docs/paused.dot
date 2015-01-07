@@ -21,6 +21,12 @@ destructor [label="~AudioTrack()"];
 destructor -> requestExit;
 requestExit [label="AudioTrackThread::requestExit()"];
 requestExit -> resume;
+Application -> ATsetMarkerPosition
+ATsetMarkerPosition [label="AudioTrack::setMarkerPosition()\n[sets marker variables]"];
+ATsetMarkerPosition -> ATTwake
+Application -> ATsetPositionUpdatePeriod
+ATsetPositionUpdatePeriod [label="AudioTrack::setPositionUpdatePeriod()\n[sets update period variables]"];
+ATsetPositionUpdatePeriod -> ATTwake
 Application -> ATstart;
 
 resume [label="AudioTrackThread::resume()"];
@@ -28,6 +34,12 @@ resume -> resume_body;
 
 resume_body -> resume_paused [label="true"];
 resume_body -> resume_merged [label="false"];
+
+ATTwake [label="AudioTrackThread::wake()\nif (!mPaused && mPausedInt && mPausedNs > 0)"];
+ATTwake-> ATTWake_wakeable [label="true"];
+ATTWake_wakeable [label="mIgnoreNextPausedInt = true\nmPausedInt = false\nsignal()"];
+ATTwake-> ATTWake_cannotwake [label="false"]
+ATTWake_cannotwake [label="ignore"];
 
 pause [label="mPaused = true"];
 pause -> return;
@@ -63,7 +75,7 @@ threadLoop_6_default [label="if (ns < 0)"];
 threadLoop_6_default -> threadLoop_6_default_true [label="true"];
 threadLoop_6_default -> threadLoop_6_default_false [label="false"];
 threadLoop_6_default_true [label="FATAL"];
-threadLoop_6_default_false [label="pauseInternal(ns)\nmPausedInternal = true\nmPausedNs = ns\nreturn true"];
+threadLoop_6_default_false [label="pauseInternal(ns) [wake()-able]\nmPausedInternal = true\nmPausedNs = ns\nreturn true"];
 threadLoop_6_0 [label="return true"];
 threadLoop_6_NS_INACTIVE [label="pauseInternal()\nmPausedInternal = true\nmPausedNs = 0\nreturn true"];
 threadLoop_6_NS_NEVER [label="return false"];
