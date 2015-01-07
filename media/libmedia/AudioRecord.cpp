@@ -167,10 +167,6 @@ status_t AudioRecord::set(
         return INVALID_OPERATION;
     }
 
-    // handle default values first.
-    if (inputSource == AUDIO_SOURCE_DEFAULT) {
-        inputSource = AUDIO_SOURCE_MIC;
-    }
     if (pAttributes == NULL) {
         memset(&mAttributes, 0, sizeof(audio_attributes_t));
         mAttributes.source = inputSource;
