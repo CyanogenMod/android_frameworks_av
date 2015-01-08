@@ -68,12 +68,6 @@ static player_type getDefaultPlayerType() {
         return STAGEFRIGHT_PLAYER;
     }
 
-    // TODO: remove this EXPERIMENTAL developer settings property
-    if (property_get("persist.sys.media.use-awesome", value, NULL)
-            && !strcasecmp("true", value)) {
-        return STAGEFRIGHT_PLAYER;
-    }
-
     return NU_PLAYER;
 }
 
