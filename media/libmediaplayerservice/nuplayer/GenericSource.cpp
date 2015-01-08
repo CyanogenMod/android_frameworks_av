@@ -391,6 +391,7 @@ void NuPlayer::GenericSource::onPrepareAsync() {
 
     notifyFlagsChanged(
             (mIsSecure ? FLAG_SECURE : 0)
+            | (mDecryptHandle != NULL ? FLAG_PROTECTED : 0)
             | FLAG_CAN_PAUSE
             | FLAG_CAN_SEEK_BACKWARD
             | FLAG_CAN_SEEK_FORWARD
