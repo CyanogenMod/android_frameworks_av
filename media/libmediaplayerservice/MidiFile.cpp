@@ -60,11 +60,6 @@ MidiFile::MidiFile() :
 {
     ALOGV("constructor");
 
-    mFileLocator.path = NULL;
-    mFileLocator.fd = -1;
-    mFileLocator.offset = 0;
-    mFileLocator.length = 0;
-
     // get the library configuration and do sanity check
     if (pLibConfig == NULL)
         pLibConfig = EAS_Config();
@@ -126,11 +121,8 @@ status_t MidiFile::setDataSource(
     }
 
     // open file and set paused state
-    mFileLocator.path = strdup(path);
-    mFileLocator.fd = -1;
-    mFileLocator.offset = 0;
-    mFileLocator.length = 0;
-    EAS_RESULT result = EAS_OpenFile(mEasData, &mFileLocator, &mEasHandle);
+    mIoWrapper = new MidiIoWrapper(path);
+    EAS_RESULT result = EAS_OpenFile(mEasData, mIoWrapper->getLocator(), &mEasHandle);
     if (result == EAS_SUCCESS) {
         updateState();
     }
@@ -157,10 +149,8 @@ status_t MidiFile::setDataSource(int fd, int64_t offset, int64_t length)
     }
 
     // open file and set paused state
-    mFileLocator.fd = dup(fd);
-    mFileLocator.offset = offset;
-    mFileLocator.length = length;
-    EAS_RESULT result = EAS_OpenFile(mEasData, &mFileLocator, &mEasHandle);
+    mIoWrapper = new MidiIoWrapper(fd, offset, length);
+    EAS_RESULT result = EAS_OpenFile(mEasData, mIoWrapper->getLocator(), &mEasHandle);
     updateState();
 
     if (result != EAS_SUCCESS) {
@@ -329,7 +319,7 @@ status_t MidiFile::getDuration(int* duration)
         EAS_HANDLE easHandle = NULL;
         EAS_RESULT result = EAS_Init(&easData);
         if (result == EAS_SUCCESS) {
-            result = EAS_OpenFile(easData, &mFileLocator, &easHandle);
+            result = EAS_OpenFile(easData, mIoWrapper->getLocator(), &easHandle);
         }
         if (result == EAS_SUCCESS) {
             result = EAS_Prepare(easData, easHandle);
@@ -395,17 +385,8 @@ status_t MidiFile::reset_nosync()
         EAS_CloseFile(mEasData, mEasHandle);
         mEasHandle = NULL;
     }
-    if (mFileLocator.path) {
-        free((void*)mFileLocator.path);
-        mFileLocator.path = NULL;
-    }
-    if (mFileLocator.fd >= 0) {
-        close(mFileLocator.fd);
-    }
-    mFileLocator.fd = -1;
-    mFileLocator.offset = 0;
-    mFileLocator.length = 0;
 
+    mIoWrapper.clear();
     mPlayTime = -1;
     mDuration = -1;
     mLoop = false;
