@@ -26,6 +26,7 @@
 
 #include <media/IMediaHTTPService.h>
 #include <media/mediametadataretriever.h>
+#include <media/MidiIoWrapper.h>
 #include <private/media/VideoFrame.h>
 
 // Sonivox includes
@@ -71,13 +72,9 @@ static MediaScanResult HandleMIDI(
     EAS_DATA_HANDLE easData = NULL;
     EAS_HANDLE easHandle = NULL;
     EAS_RESULT result = EAS_Init(&easData);
+    MidiIoWrapper wrapper(filename);
     if (result == EAS_SUCCESS) {
-        EAS_FILE file;
-        file.path = filename;
-        file.fd = 0;
-        file.offset = 0;
-        file.length = 0;
-        result = EAS_OpenFile(easData, &file, &easHandle);
+        result = EAS_OpenFile(easData, wrapper.getLocator(), &easHandle);
     }
     if (result == EAS_SUCCESS) {
         result = EAS_Prepare(easData, easHandle);
