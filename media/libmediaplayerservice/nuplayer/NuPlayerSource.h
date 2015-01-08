@@ -38,6 +38,7 @@ struct NuPlayer::Source : public AHandler {
         FLAG_CAN_SEEK           = 8,  // the "seek bar"
         FLAG_DYNAMIC_DURATION   = 16,
         FLAG_SECURE             = 32,
+        FLAG_PROTECTED          = 64,
     };
 
     enum {

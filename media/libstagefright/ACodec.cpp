@@ -670,7 +670,7 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         usage = 0;
     }
 
-    if (mFlags & kFlagIsSecure) {
+    if (mFlags & kFlagIsGrallocUsageProtected) {
         usage |= GRALLOC_USAGE_PROTECTED;
     }
 
@@ -1261,6 +1261,16 @@ status_t ACodec::configureCodec(
     mStoreMetaDataInOutputBuffers = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
+
+        int32_t usageProtected;
+        if (msg->findInt32("protected", &usageProtected) && usageProtected) {
+            if (!haveNativeWindow) {
+                ALOGE("protected output buffers must be sent to an ANativeWindow");
+                return PERMISSION_DENIED;
+            }
+            mFlags |= kFlagIsGrallocUsageProtected;
+            mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
+        }
     }
     if (!encoder && video && haveNativeWindow) {
         sp<NativeWindowWrapper> windowWrapper(
@@ -4624,6 +4634,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     if (componentName.endsWith(".secure")) {
         mCodec->mFlags |= kFlagIsSecure;
+        mCodec->mFlags |= kFlagIsGrallocUsageProtected;
         mCodec->mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
     }
 
