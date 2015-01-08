@@ -1802,7 +1802,7 @@ status_t ACodec::configureCodec(
             err = setupG711Codec(encoder, numChannels);
         }
     } else if (encoder && !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
-        int32_t numChannels, sampleRate, compressionLevel = -1;
+        int32_t numChannels = 0, sampleRate = 0, compressionLevel = -1;
         if (!msg->findInt32("channel-count", &numChannels)
                     || !msg->findInt32("sample-rate", &sampleRate)) {
             ALOGE("missing channel count or sample rate for FLAC encoder");
