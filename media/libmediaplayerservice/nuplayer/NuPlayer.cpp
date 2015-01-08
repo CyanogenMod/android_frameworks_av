@@ -1190,6 +1190,10 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         if (mSourceFlags & Source::FLAG_SECURE) {
             format->setInt32("secure", true);
         }
+
+        if (mSourceFlags & Source::FLAG_PROTECTED) {
+            format->setInt32("protected", true);
+        }
     }
 
     if (audio) {
