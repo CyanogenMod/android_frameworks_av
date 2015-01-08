@@ -21,7 +21,6 @@
 
 #include <cutils/properties.h>
 #include <media/IMediaPlayer.h>
-#include <media/MidiIoWrapper.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -30,7 +29,6 @@
 
 #include "MediaPlayerFactory.h"
 
-#include "MidiFile.h"
 #include "TestPlayerStub.h"
 #include "StagefrightPlayer.h"
 #include "nuplayer/NuPlayerDriver.h"
@@ -254,70 +252,6 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
     }
 };
 
-class SonivoxPlayerFactory : public MediaPlayerFactory::IFactory {
-  public:
-    virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
-                               const char* url,
-                               float curScore) {
-        static const float kOurScore = 0.4;
-        static const char* const FILE_EXTS[] = { ".mid",
-                                                 ".midi",
-                                                 ".smf",
-                                                 ".xmf",
-                                                 ".mxmf",
-                                                 ".imy",
-                                                 ".rtttl",
-                                                 ".rtx",
-                                                 ".ota" };
-        if (kOurScore <= curScore)
-            return 0.0;
-
-        // use MidiFile for MIDI extensions
-        int lenURL = strlen(url);
-        for (int i = 0; i < NELEM(FILE_EXTS); ++i) {
-            int len = strlen(FILE_EXTS[i]);
-            int start = lenURL - len;
-            if (start > 0) {
-                if (!strncasecmp(url + start, FILE_EXTS[i], len)) {
-                    return kOurScore;
-                }
-            }
-        }
-        return 0.0;
-    }
-
-    virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
-                               int fd,
-                               int64_t offset,
-                               int64_t length,
-                               float curScore) {
-        static const float kOurScore = 0.8;
-
-        if (kOurScore <= curScore)
-            return 0.0;
-
-        // Some kind of MIDI?
-        EAS_DATA_HANDLE easdata;
-        sp<MidiIoWrapper> wrapper = new MidiIoWrapper(fd, offset, length);
-        if (EAS_Init(&easdata) == EAS_SUCCESS) {
-            EAS_HANDLE  eashandle;
-            if (EAS_OpenFile(easdata, wrapper->getLocator(), &eashandle) == EAS_SUCCESS) {
-                EAS_CloseFile(easdata, eashandle);
-                EAS_Shutdown(easdata);
-                return kOurScore;
-            }
-            EAS_Shutdown(easdata);
-        }
-
-        return 0.0;
-    }
-
-    virtual sp<MediaPlayerBase> createPlayer() {
-        ALOGV(" create MidiFile");
-        return new MidiFile();
-    }
-};
-
 class TestPlayerFactory : public MediaPlayerFactory::IFactory {
   public:
     virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
@@ -344,7 +278,6 @@ void MediaPlayerFactory::registerBuiltinFactories() {
 
     registerFactory_l(new StagefrightPlayerFactory(), STAGEFRIGHT_PLAYER);
     registerFactory_l(new NuPlayerFactory(), NU_PLAYER);
-    registerFactory_l(new SonivoxPlayerFactory(), SONIVOX_PLAYER);
     registerFactory_l(new TestPlayerFactory(), TEST_PLAYER);
 
     sInitComplete = true;
