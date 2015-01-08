@@ -44,6 +44,10 @@ void HTTPBase::addBandwidthMeasurement(
         size_t numBytes, int64_t delayUs) {
     Mutex::Autolock autoLock(mLock);
 
+    if (numBytes == 0 || delayUs <= 0) {
+        return;
+    }
+
     BandwidthEntry entry;
     entry.mDelayUs = delayUs;
     entry.mNumBytes = numBytes;
@@ -75,7 +79,7 @@ void HTTPBase::addBandwidthMeasurement(
 bool HTTPBase::estimateBandwidth(int32_t *bandwidth_bps) {
     Mutex::Autolock autoLock(mLock);
 
-    if (mNumBandwidthHistoryItems < 2) {
+    if (mNumBandwidthHistoryItems < 1) {
         return false;
     }
 
