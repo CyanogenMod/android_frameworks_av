@@ -5436,6 +5436,7 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
     break;
 
     case AUDIO_SOURCE_VOICE_COMMUNICATION:
+#ifndef QCOM_DIRECTTRACK
         // Allow only use of devices on primary input if in call and HAL does not support routing
         // to voice call path.
         if ((mPhoneState == AUDIO_MODE_IN_CALL) &&
@@ -5470,6 +5471,9 @@ audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t input
             }
             break;
         }
+#else
+        device = AUDIO_DEVICE_IN_COMMUNICATION;
+#endif
         break;
 
     case AUDIO_SOURCE_VOICE_RECOGNITION:
