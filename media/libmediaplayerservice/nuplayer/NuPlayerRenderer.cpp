@@ -359,7 +359,11 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
                 // kWhatDrainAudioQueue is used for non-offloading mode,
                 // and mLock is used only for offloading mode. Therefore,
                 // no need to acquire mLock here.
-                postDrainAudioQueue_l(delayUs / 2);
+                if(mAudioSink->frameCount() == numFramesPendingPlayout) {
+                    postDrainAudioQueue_l(delayUs / 8);
+                } else {
+                    postDrainAudioQueue_l(delayUs / 2);
+                }
             }
             break;
         }
