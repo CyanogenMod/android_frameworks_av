@@ -149,7 +149,9 @@ void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop, bool u
 
     // when output format changes, input buffer size does not actually change
     if (updateInputSize) {
-        inDef->nBufferSize = max(outDef->nBufferSize / mMinCompressionRatio, mMinInputBufferSize);
+        inDef->nBufferSize = max(
+                outDef->nBufferSize / mMinCompressionRatio,
+                max(mMinInputBufferSize, inDef->nBufferSize));
     }
 
     if (updateCrop) {
@@ -388,30 +390,21 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
             uint32_t newHeight = video_def->nFrameHeight;
             if (newWidth != oldWidth || newHeight != oldHeight) {
                 bool outputPort = (newParams->nPortIndex == kOutputPortIndex);
-                def->format.video.nFrameWidth =
-                    (mIsAdaptive && outputPort) ? mAdaptiveMaxWidth : newWidth;
-                def->format.video.nFrameHeight =
-                    (mIsAdaptive && outputPort) ? mAdaptiveMaxHeight : newHeight;
                 if (outputPort) {
-                    def->format.video.nStride = def->format.video.nFrameWidth;
-                    def->format.video.nSliceHeight = def->format.video.nFrameHeight;
-                    def->nBufferSize =
-                        def->format.video.nStride * def->format.video.nSliceHeight * 3 / 2;
-
-
-                    OMX_PARAM_PORTDEFINITIONTYPE *inDef = &editPortInfo(kInputPortIndex)->mDef;
-                    // increase input buffer size if required
-                    inDef->nBufferSize =
-                        max(def->nBufferSize / mMinCompressionRatio, inDef->nBufferSize);
-
+                    // only update (essentially crop) if size changes
                     mWidth = newWidth;
                     mHeight = newHeight;
-                    mCropLeft = 0;
-                    mCropTop = 0;
-                    mCropWidth = newWidth;
-                    mCropHeight = newHeight;
+
+                    updatePortDefinitions(true /* updateCrop */, true /* updateInputSize */);
+                    // reset buffer size based on frame size
+                    newParams->nBufferSize = def->nBufferSize;
+                } else {
+                    // For input port, we only set nFrameWidth and nFrameHeight. Buffer size
+                    // is updated when configuring the output port using the max-frame-size,
+                    // though client can still request a larger size.
+                    def->format.video.nFrameWidth = newWidth;
+                    def->format.video.nFrameHeight = newHeight;
                 }
-                newParams->nBufferSize = def->nBufferSize;
             }
             return SimpleSoftOMXComponent::internalSetParameter(index, params);
         }
