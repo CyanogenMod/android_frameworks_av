@@ -127,10 +127,16 @@ public:
     size_t      getUnreleasedFrames(int name) const;
 
     static inline bool isValidPcmTrackFormat(audio_format_t format) {
-        return format == AUDIO_FORMAT_PCM_16_BIT ||
-                format == AUDIO_FORMAT_PCM_24_BIT_PACKED ||
-                format == AUDIO_FORMAT_PCM_32_BIT ||
-                format == AUDIO_FORMAT_PCM_FLOAT;
+        switch (format) {
+        case AUDIO_FORMAT_PCM_8_BIT:
+        case AUDIO_FORMAT_PCM_16_BIT:
+        case AUDIO_FORMAT_PCM_24_BIT_PACKED:
+        case AUDIO_FORMAT_PCM_32_BIT:
+        case AUDIO_FORMAT_PCM_FLOAT:
+            return true;
+        default:
+            return false;
+        }
     }
 
 private:

@@ -79,9 +79,7 @@ public:
         size_t      size;         // input/output in bytes == frameCount * frameSize
                                   // on input it is unused
                                   // on output is the number of bytes actually filled
-                                  // FIXME this is redundant with respect to frameCount,
-                                  // and TRANSFER_OBTAIN mode is broken for 8-bit data
-                                  // since we don't define the frame format
+                                  // FIXME this is redundant with respect to frameCount.
 
         union {
             void*       raw;
@@ -154,9 +152,9 @@ public:
      * streamType:         Select the type of audio stream this track is attached to
      *                     (e.g. AUDIO_STREAM_MUSIC).
      * sampleRate:         Data source sampling rate in Hz.
-     * format:             Audio format.  For mixed tracks, any PCM format supported by server is OK
-     *                     or AUDIO_FORMAT_PCM_8_BIT which is handled on client side.  For direct
-     *                     and offloaded tracks, the possible format(s) depends on the output sink.
+     * format:             Audio format. For mixed tracks, any PCM format supported by server is OK.
+     *                     For direct and offloaded tracks, the possible format(s) depends on the
+     *                     output sink.
      * channelMask:        Channel mask, such that audio_is_output_channel(channelMask) is true.
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
      *                     application's contribution to the
@@ -193,7 +191,6 @@ public:
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
-     * The format must not be 8-bit linear PCM.
      * Data to be rendered is passed in a shared memory buffer
      * identified by the argument sharedBuffer, which must be non-0.
      * The memory should be initialized to the desired data before calling start().
@@ -701,10 +698,7 @@ protected:
     const audio_offload_info_t* mOffloadInfo;
     audio_attributes_t      mAttributes;
 
-    // mFrameSize is equal to mFrameSizeAF for non-PCM or 16-bit PCM data.  For 8-bit PCM data, it's
-    // twice as large as mFrameSize because data is expanded to 16-bit before it's stored in buffer.
-    size_t                  mFrameSize;             // app-level frame size
-    size_t                  mFrameSizeAF;           // AudioFlinger frame size
+    size_t                  mFrameSize;             // frame size in bytes
 
     status_t                mStatus;
 
