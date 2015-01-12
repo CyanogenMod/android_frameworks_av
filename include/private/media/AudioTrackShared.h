@@ -24,7 +24,7 @@
 #include <utils/threads.h>
 #include <utils/Log.h>
 #include <utils/RefBase.h>
-#include <media/nbaio/roundup.h>
+#include <audio_utils/roundup.h>
 #include <media/SingleStateQueue.h>
 
 namespace android {

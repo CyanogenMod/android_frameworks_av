@@ -21,7 +21,7 @@
 #include <cutils/compiler.h>
 #include <utils/Log.h>
 #include <media/nbaio/Pipe.h>
-#include <media/nbaio/roundup.h>
+#include <audio_utils/roundup.h>
 
 namespace android {
 
