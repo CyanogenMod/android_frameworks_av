@@ -329,6 +329,14 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                mpClientInterface->setParameters(0, param.toString());
             }
 
+#ifdef QCOM_DIRECTTRACK
+            if (audio_is_usb_device(device)) {
+               AudioParameter param;
+               param.add(String8("usb_connected"), String8("true"));
+               mpClientInterface->setParameters(0, param.toString());
+            }
+#endif
+
             if (index >= 0) {
                 sp<HwModule> module = getModuleForDevice(device);
                 if (module == 0) {
@@ -400,6 +408,15 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
                param.add(String8("a2dp_connected"), String8("false"));
                mpClientInterface->setParameters(0, param.toString());
             }
+
+#ifdef QCOM_DIRECTTRACK
+            if (audio_is_usb_device(device)) {
+                // handle USB device disconnection
+                AudioParameter param;
+                param.add(String8("usb_connected"), String8("false"));
+                mpClientInterface->setParameters(0, param.toString());
+            }
+#endif
 
             checkOutputsForDevice(devDesc, state, outputs, address);
             } break;
