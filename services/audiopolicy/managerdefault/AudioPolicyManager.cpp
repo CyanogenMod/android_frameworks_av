@@ -88,6 +88,14 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             }
             ALOGV("setDeviceConnectionState() connecting device %x", device);
 
+#ifdef LEGACY_ALSA_AUDIO
+            if (audio_is_usb_device(device)) {
+               AudioParameter param;
+               param.add(String8("usb_connected"), String8("true"));
+               mpClientInterface->setParameters(0, param.toString());
+            }
+#endif
+
             // register new device as available
             index = mAvailableOutputDevices.add(devDesc);
             if (index >= 0) {
@@ -138,6 +146,14 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
 
             // remove device from available output devices
             mAvailableOutputDevices.remove(devDesc);
+
+#ifdef LEGACY_ALSA_AUDIO
+            if (audio_is_usb_device(device)) {
+               AudioParameter param;
+               param.add(String8("usb_connected"), String8("true"));
+               mpClientInterface->setParameters(0, param.toString());
+            }
+#endif
 
             checkOutputsForDevice(devDesc, state, outputs, devDesc->mAddress);
 
