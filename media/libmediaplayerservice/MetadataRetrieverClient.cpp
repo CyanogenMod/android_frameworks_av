@@ -35,7 +35,6 @@
 #include <media/MediaMetadataRetrieverInterface.h>
 #include <media/MediaPlayerInterface.h>
 #include <private/media/VideoFrame.h>
-#include "MidiMetadataRetriever.h"
 #include "MetadataRetrieverClient.h"
 #include "StagefrightMetadataRetriever.h"
 #include "MediaPlayerFactory.h"
@@ -90,10 +89,6 @@ static sp<MediaMetadataRetrieverBase> createRetriever(player_type playerType)
             p = new StagefrightMetadataRetriever;
             break;
         }
-        case SONIVOX_PLAYER:
-            ALOGV("create midi metadata retriever");
-            p = new MidiMetadataRetriever();
-            break;
         default:
             // TODO:
             // support for TEST_PLAYER

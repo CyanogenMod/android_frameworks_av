@@ -70,7 +70,6 @@
 #include "MetadataRetrieverClient.h"
 #include "MediaPlayerFactory.h"
 
-#include "MidiFile.h"
 #include "TestPlayerStub.h"
 #include "StagefrightPlayer.h"
 #include "nuplayer/NuPlayerDriver.h"
