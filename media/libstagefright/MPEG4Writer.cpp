@@ -2452,7 +2452,9 @@ status_t MPEG4Writer::Track::threadEntry() {
             ALOGE("timestampUs %" PRId64 " < lastTimestampUs %" PRId64 " for %s track",
                 timestampUs, lastTimestampUs, trackName);
             copy->release();
-            return UNKNOWN_ERROR;
+            err = UNKNOWN_ERROR;
+            mSource->notifyError(err);
+            return err;
         }
 
         // if the duration is different for this sample, see if it is close enough to the previous

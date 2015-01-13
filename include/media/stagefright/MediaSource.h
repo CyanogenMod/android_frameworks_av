@@ -59,6 +59,7 @@ struct MediaSource : public virtual RefBase {
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
 
+    virtual void notifyError(status_t) {}
     // Options that modify read() behaviour. The default is to
     // a) not request a seek
     // b) not be late, i.e. lateness_us = 0
