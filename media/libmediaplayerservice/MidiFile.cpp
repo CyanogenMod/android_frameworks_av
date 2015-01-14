@@ -293,7 +293,7 @@ bool MidiFile::isPlaying()
 {
     ALOGV("MidiFile::isPlaying, mState=%d", int(mState));
     if (!mEasHandle || mPaused) return false;
-    return (mState == EAS_STATE_PLAY);
+    return (mState == EAS_STATE_PLAY || (mState == EAS_STATE_READY && mRender));
 }
 
 status_t MidiFile::getCurrentPosition(int* position)
