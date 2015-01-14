@@ -1603,6 +1603,10 @@ void NuPlayer::GenericSource::readBuffer(
             formatChange = false;
             seeking = false;
             ++numBuffers;
+
+            if (trackType == MEDIA_TRACK_TYPE_VIDEO) {
+                actualTimeUs = NULL;
+            }
         } else if (err == WOULD_BLOCK) {
             break;
         } else if (err == INFO_FORMAT_CHANGED) {
