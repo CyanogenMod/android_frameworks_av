@@ -1746,10 +1746,11 @@ nsecs_t AudioTrack::processAudioBuffer()
         minFrames = markerPosition - position;
     }
     if (loopPeriod > 0 && loopPeriod < minFrames) {
+        // loopPeriod is already adjusted for actual position.
         minFrames = loopPeriod;
     }
-    if (updatePeriod > 0 && updatePeriod < minFrames) {
-        minFrames = updatePeriod;
+    if (updatePeriod > 0) {
+        minFrames = min(minFrames, uint32_t(newPosition - position));
     }
 
     // If > 0, poll periodically to recover from a stuck server.  A good value is 2.
