@@ -43,7 +43,7 @@
 #include <sound/asound.h>
 #include "AudioUtil.h"
 
-#define ROUTE_PATH    "/data/data/dts/route"
+#define ROUTE_PATH    "/data/misc/dts/route"
 #define DEVICE_NODE   "/dev/snd/hwC0D3"
 
 static int32_t mDevices = 0;
