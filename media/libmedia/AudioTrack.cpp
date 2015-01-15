@@ -322,12 +322,6 @@ status_t AudioTrack::set(
     uint32_t channelCount = audio_channel_count_from_out_mask(channelMask);
     mChannelCount = channelCount;
 
-    // AudioFlinger does not currently support 8-bit data in shared memory
-    if (format == AUDIO_FORMAT_PCM_8_BIT && sharedBuffer != 0) {
-        ALOGE("8-bit data in shared memory is not supported");
-        return BAD_VALUE;
-    }
-
     // force direct flag if format is not linear PCM
     // or offload was requested
     if ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)
@@ -351,12 +345,9 @@ status_t AudioTrack::set(
         } else {
             mFrameSize = sizeof(uint8_t);
         }
-        mFrameSizeAF = mFrameSize;
     } else {
         ALOG_ASSERT(audio_is_linear_pcm(format));
         mFrameSize = channelCount * audio_bytes_per_sample(format);
-        mFrameSizeAF = channelCount * audio_bytes_per_sample(
-                format == AUDIO_FORMAT_PCM_8_BIT ? AUDIO_FORMAT_PCM_16_BIT : format);
         // createTrack will return an error if PCM format is not supported by server,
         // so no need to check for specific PCM formats here
     }
@@ -1045,12 +1036,12 @@ status_t AudioTrack::createTrack_l()
             mNotificationFramesAct = frameCount;
         }
     } else if (mSharedBuffer != 0) {
-
-        // Ensure that buffer alignment matches channel count
-        // 8-bit data in shared memory is not currently supported by AudioFlinger
-        size_t alignment = audio_bytes_per_sample(
-                mFormat == AUDIO_FORMAT_PCM_8_BIT ? AUDIO_FORMAT_PCM_16_BIT : mFormat);
+        // FIXME: Ensure client side memory buffers need
+        // not have additional alignment beyond sample
+        // (e.g. 16 bit stereo accessed as 32 bit frame).
+        size_t alignment = audio_bytes_per_sample(mFormat);
         if (alignment & 1) {
+            // for AUDIO_FORMAT_PCM_24_BIT_PACKED (not exposed through Java).
             alignment = 1;
         }
         if (mChannelCount > 1) {
@@ -1068,7 +1059,7 @@ status_t AudioTrack::createTrack_l()
         // there's no frameCount parameter.
         // But when initializing a shared buffer AudioTrack via set(),
         // there _is_ a frameCount parameter.  We silently ignore it.
-        frameCount = mSharedBuffer->size() / mFrameSizeAF;
+        frameCount = mSharedBuffer->size() / mFrameSize;
 
     } else if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
 
@@ -1129,10 +1120,7 @@ status_t AudioTrack::createTrack_l()
                                 // but we will still need the original value also
     sp<IAudioTrack> track = audioFlinger->createTrack(streamType,
                                                       mSampleRate,
-                                                      // AudioFlinger only sees 16-bit PCM
-                                                      mFormat == AUDIO_FORMAT_PCM_8_BIT &&
-                                                          !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT) ?
-                                                              AUDIO_FORMAT_PCM_16_BIT : mFormat,
+                                                      mFormat,
                                                       mChannelMask,
                                                       &temp,
                                                       &trackFlags,
@@ -1256,9 +1244,9 @@ status_t AudioTrack::createTrack_l()
     // update proxy
     if (mSharedBuffer == 0) {
         mStaticProxy.clear();
-        mProxy = new AudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
+        mProxy = new AudioTrackClientProxy(cblk, buffers, frameCount, mFrameSize);
     } else {
-        mStaticProxy = new StaticAudioTrackClientProxy(cblk, buffers, frameCount, mFrameSizeAF);
+        mStaticProxy = new StaticAudioTrackClientProxy(cblk, buffers, frameCount, mFrameSize);
         mProxy = mStaticProxy;
     }
 
@@ -1378,7 +1366,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *re
     } while ((status == DEAD_OBJECT) && (tryCounter-- > 0));
 
     audioBuffer->frameCount = buffer.mFrameCount;
-    audioBuffer->size = buffer.mFrameCount * mFrameSizeAF;
+    audioBuffer->size = buffer.mFrameCount * mFrameSize;
     audioBuffer->raw = buffer.mRaw;
     if (nonContig != NULL) {
         *nonContig = buffer.mNonContig;
@@ -1392,7 +1380,7 @@ void AudioTrack::releaseBuffer(Buffer* audioBuffer)
         return;
     }
 
-    size_t stepCount = audioBuffer->size / mFrameSizeAF;
+    size_t stepCount = audioBuffer->size / mFrameSize;
     if (stepCount == 0) {
         return;
     }
@@ -1458,14 +1446,8 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
         }
 
         size_t toWrite;
-        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
-            // Divide capacity by 2 to take expansion into account
-            toWrite = audioBuffer.size >> 1;
-            memcpy_to_i16_from_u8(audioBuffer.i16, (const uint8_t *) buffer, toWrite);
-        } else {
-            toWrite = audioBuffer.size;
-            memcpy(audioBuffer.i8, buffer, toWrite);
-        }
+        toWrite = audioBuffer.size;
+        memcpy(audioBuffer.i8, buffer, toWrite);
         buffer = ((const char *) buffer) + toWrite;
         userSize -= toWrite;
         written += toWrite;
@@ -1669,7 +1651,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     }
 
     // These fields don't need to be cached, because they are assigned only by set():
-    //     mTransfer, mCbf, mUserData, mFormat, mFrameSize, mFrameSizeAF, mFlags
+    //     mTransfer, mCbf, mUserData, mFormat, mFrameSize, mFlags
     // mFlags is also assigned by createTrack_l(), but not the bit we care about.
 
     mLock.unlock();
@@ -1813,13 +1795,6 @@ nsecs_t AudioTrack::processAudioBuffer()
             }
         }
 
-        // Divide buffer size by 2 to take into account the expansion
-        // due to 8 to 16 bit conversion: the callback must fill only half
-        // of the destination buffer
-        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
-            audioBuffer.size >>= 1;
-        }
-
         size_t reqSize = audioBuffer.size;
         mCbf(EVENT_MORE_DATA, mUserData, &audioBuffer);
         size_t writtenSize = audioBuffer.size;
@@ -1839,13 +1814,7 @@ nsecs_t AudioTrack::processAudioBuffer()
             return WAIT_PERIOD_MS * 1000000LL;
         }
 
-        if (mFormat == AUDIO_FORMAT_PCM_8_BIT && !(mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
-            // 8 to 16 bit conversion, note that source and destination are the same address
-            memcpy_to_i16_from_u8(audioBuffer.i16, (const uint8_t *) audioBuffer.i8, writtenSize);
-            audioBuffer.size <<= 1;
-        }
-
-        size_t releasedFrames = audioBuffer.size / mFrameSizeAF;
+        size_t releasedFrames = audioBuffer.size / mFrameSize;
         audioBuffer.frameCount = releasedFrames;
         mRemainingFrames -= releasedFrames;
         if (misalignment >= releasedFrames) {
