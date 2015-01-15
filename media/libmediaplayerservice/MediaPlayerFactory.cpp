@@ -231,6 +231,12 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
             return kOurScore;
         }
 
+        if (!strncasecmp("http://", url, 7)
+                || !strncasecmp("https://", url, 8)) {
+            ALOGI("Using NuPlayer for http://");
+            return 1.0;
+        }
+
         return 0.0;
     }
 
