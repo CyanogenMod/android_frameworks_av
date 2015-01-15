@@ -1936,6 +1936,22 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
         }
     }
 
+    if (mType == DUPLICATING && mMixerBufferEnabled && mEffectBufferEnabled) {
+        // For best precision, we use float instead of the associated output
+        // device format (typically PCM 16 bit).
+
+        mFormat = AUDIO_FORMAT_PCM_FLOAT;
+        mFrameSize = mChannelCount * audio_bytes_per_sample(mFormat);
+        mBufferSize = mFrameSize * mFrameCount;
+
+        // TODO: We currently use the associated output device channel mask and sample rate.
+        // (1) Perhaps use the ORed channel mask of all downstream MixerThreads
+        // (if a valid mask) to avoid premature downmix.
+        // (2) Perhaps use the maximum sample rate of all downstream MixerThreads
+        // instead of the output device sample rate to avoid loss of high frequency information.
+        // This may need to be updated as MixerThread/OutputTracks are added and not here.
+    }
+
     // Calculate size of normal sink buffer relative to the HAL output buffer size
     double multiplier = 1.0;
     if (mType == MIXER && (kUseFastMixer == FastMixer_Static ||
@@ -2878,6 +2894,12 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
             mNormalFrameCount);
     mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
 
+    if (type == DUPLICATING) {
+        // The Duplicating thread uses the AudioMixer and delivers data to OutputTracks
+        // (downstream MixerThreads) in DuplicatingThread::threadLoop_write().
+        // Do not create or use mFastMixer, mOutputSink, mPipeSink, or mNormalSink.
+        return;
+    }
     // create an NBAIO sink for the HAL output stream, and negotiate
     mOutputSink = new AudioStreamOutSink(output->stream);
     size_t numCounterOffers = 0;
