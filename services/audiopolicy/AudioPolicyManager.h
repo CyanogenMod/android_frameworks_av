@@ -594,7 +594,7 @@ protected:
 
         // change the route of the specified output. Returns the number of ms we have slept to
         // allow new routing to take effect in certain cases.
-        uint32_t setOutputDevice(audio_io_handle_t output,
+        virtual uint32_t setOutputDevice(audio_io_handle_t output,
                              audio_devices_t device,
                              bool force = false,
                              int delayMs = 0,
@@ -877,11 +877,13 @@ protected:
 #endif //AUDIO_POLICY_TEST
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
+        static bool isVirtualInputDevice(audio_devices_t device);
+        uint32_t nextUniqueId();
+        uint32_t nextAudioPortGeneration();
 private:
         // updates device caching and output for streams that can influence the
         //    routing of notifications
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
-        static bool isVirtualInputDevice(audio_devices_t device);
         static bool deviceDistinguishesOnAddress(audio_devices_t device);
         // find the outputs on a given output descriptor that have the given address.
         // to be called on an AudioOutputDescriptor whose supported devices (as defined
@@ -892,8 +894,6 @@ private:
                 const audio_devices_t device /*in*/,
                 const String8 address /*in*/,
                 SortedVector<audio_io_handle_t>& outputs /*out*/);
-        uint32_t nextUniqueId();
-        uint32_t nextAudioPortGeneration();
         uint32_t curAudioPortGeneration() const { return mAudioPortGeneration; }
         // internal method to return the output handle for the given device and format
         audio_io_handle_t getOutputForDevice(
