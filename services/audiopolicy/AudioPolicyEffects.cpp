@@ -658,6 +658,10 @@ status_t AudioPolicyEffects::loadAudioEffectConfig(const char *path)
     loadInputEffectConfigurations(root, effects);
     loadStreamEffectConfigurations(root, effects);
 
+    for (size_t i = 0; i < effects.size(); i++) {
+        delete effects[i];
+    }
+
     config_free(root);
     free(root);
     free(data);
