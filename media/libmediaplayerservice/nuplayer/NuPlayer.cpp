@@ -655,7 +655,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mOffloadAudio =
                         canOffloadStream(audioMeta, (videoFormat != NULL), vMeta,
                                 mIsStreaming /* is_streaming */, streamType);
-            if (!mOffloadAudio) {
+            if (!mOffloadAudio && (audioMeta != NULL)) {
                 sp<MetaData> audioSourceMeta = mSource->getFormatMeta(true/* audio */);
                 sp<MetaData> audioPCMMeta =
                         ExtendedUtils::createPCMMetaFromSource(audioSourceMeta);
@@ -1227,6 +1227,12 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
         mOffloadAudio = mRenderer->openAudioSink(
             format, offloadOnly, hasVideo, flags);
     }
+
+    //store updated value
+    if (mOffloadDecodedPCM) {
+        mOffloadDecodedPCM = mOffloadAudio;
+    }
+
     if (mOffloadAudio) {
         sendMetaDataToHal(mAudioSink, aMeta);
     }
