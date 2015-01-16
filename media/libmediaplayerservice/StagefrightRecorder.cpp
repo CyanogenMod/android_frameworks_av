@@ -44,6 +44,7 @@
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/WAVEWriter.h>
 #include <media/MediaProfiles.h>
 #include <camera/ICamera.h>
 #include <camera/CameraParameters.h>
@@ -61,7 +62,6 @@
 #include <ExtendedUtils.h>
 #include <media/stagefright/ExtendedWriter.h>
 #include <media/stagefright/FMA2DPWriter.h>
-#include <media/stagefright/WAVEWriter.h>
 #include <QCMediaDefs.h>
 #endif
 
@@ -846,11 +846,11 @@ status_t StagefrightRecorder::prepareInternal() {
         case OUTPUT_FORMAT_QCP:
             status = setupExtendedRecording();
             break;
+#endif
 
         case OUTPUT_FORMAT_WAVE:
             status = setupWAVERecording();
             break;
-#endif
 
         default:
             ALOGE("Unsupported output file format: %d", mOutputFormat);
@@ -944,8 +944,8 @@ status_t StagefrightRecorder::start() {
         case OUTPUT_FORMAT_MPEG2TS:
 #ifdef ENABLE_AV_ENHANCEMENTS
         case OUTPUT_FORMAT_QCP:
-        case OUTPUT_FORMAT_WAVE:
 #endif
+        case OUTPUT_FORMAT_WAVE:
         {
             status = mWriter->start();
             break;
@@ -1043,10 +1043,10 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
             format->setInt32("aac-profile", OMX_AUDIO_AACObjectELD);
             break;
-#ifdef ENABLE_AV_ENHANCEMENTS
         case AUDIO_ENCODER_LPCM:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
             break;
+#ifdef ENABLE_AV_ENHANCEMENTS
         case AUDIO_ENCODER_EVRC:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_EVRC);
             break;
@@ -2126,15 +2126,6 @@ status_t StagefrightRecorder::setupFMA2DPWriter() {
     return setupRawAudioRecording();
 }
 
-status_t StagefrightRecorder::setupWAVERecording() {
-    CHECK(mOutputFormat == OUTPUT_FORMAT_WAVE);
-    CHECK(mAudioEncoder == AUDIO_ENCODER_LPCM);
-    CHECK(mAudioSource != AUDIO_SOURCE_CNT);
-
-    mWriter = new WAVEWriter(mOutputFd);
-    return setupRawAudioRecording();
-}
-
 status_t StagefrightRecorder::setupExtendedRecording() {
     CHECK(mOutputFormat == OUTPUT_FORMAT_QCP);
 
@@ -2158,6 +2149,15 @@ status_t StagefrightRecorder::setupExtendedRecording() {
     return setupRawAudioRecording();
 }
 #endif
+
+status_t StagefrightRecorder::setupWAVERecording() {
+    CHECK(mOutputFormat == OUTPUT_FORMAT_WAVE);
+    CHECK(mAudioEncoder == AUDIO_ENCODER_LPCM);
+    CHECK(mAudioSource != AUDIO_SOURCE_CNT);
+
+    mWriter = new WAVEWriter(mOutputFd);
+    return setupRawAudioRecording();
+}
 
 status_t StagefrightRecorder::setSourcePause(bool pause) {
     status_t err = OK;

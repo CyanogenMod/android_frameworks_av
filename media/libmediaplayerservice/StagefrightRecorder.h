@@ -205,9 +205,9 @@ private:
     /* extension */
 #ifdef ENABLE_AV_ENHANCEMENTS
     status_t setupFMA2DPWriter();
-    status_t setupWAVERecording();
     status_t setupExtendedRecording();
 #endif
+    status_t setupWAVERecording();
 };
 
 }  // namespace android
