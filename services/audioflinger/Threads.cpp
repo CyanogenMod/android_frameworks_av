@@ -172,6 +172,18 @@ static int sFastTrackMultiplier = kFastTrackMultiplier;
 // and that all "fast" AudioRecord clients read from.  In either case, the size can be small.
 static const size_t kRecordThreadReadOnlyHeapSize = 0x2000;
 
+// Returns the source frames needed to resample to destination frames.  This is not a precise
+// value and depends on the resampler (and possibly how it handles rounding internally).
+// If srcSampleRate and dstSampleRate are equal, then it returns destination frames, which
+// may not be a true if the resampler is asynchronous.
+static inline size_t sourceFramesNeeded(
+        uint32_t srcSampleRate, size_t dstFramesRequired, uint32_t dstSampleRate) {
+    // +1 for rounding - always do this even if matched ratio
+    // +1 for additional sample needed for interpolation
+    return srcSampleRate == dstSampleRate ? dstFramesRequired :
+            size_t((uint64_t)dstFramesRequired * srcSampleRate / dstSampleRate + 1 + 1);
+}
+
 // ----------------------------------------------------------------------------
 
 static pthread_once_t sFastTrackMultiplierOnce = PTHREAD_ONCE_INIT;
@@ -3453,8 +3465,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         if (sr == mSampleRate) {
             desiredFrames = mNormalFrameCount;
         } else {
-            // +1 for rounding and +1 for additional sample needed for interpolation
-            desiredFrames = (mNormalFrameCount * sr) / mSampleRate + 1 + 1;
+            desiredFrames = sourceFramesNeeded(sr, mNormalFrameCount, mSampleRate);
             // add frames already consumed but not yet released by the resampler
             // because mAudioTrackServerProxy->framesReady() will include these frames
             desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
@@ -4881,16 +4892,8 @@ void AudioFlinger::DuplicatingThread::threadLoop_sleepTime()
 
 ssize_t AudioFlinger::DuplicatingThread::threadLoop_write()
 {
-    // We convert the duplicating thread format to AUDIO_FORMAT_PCM_16_BIT
-    // for delivery downstream as needed. This in-place conversion is safe as
-    // AUDIO_FORMAT_PCM_16_BIT is smaller than any other supported format
-    // (AUDIO_FORMAT_PCM_8_BIT is not allowed here).
-    if (mFormat != AUDIO_FORMAT_PCM_16_BIT) {
-        memcpy_by_audio_format(mSinkBuffer, AUDIO_FORMAT_PCM_16_BIT,
-                               mSinkBuffer, mFormat, writeFrames * mChannelCount);
-    }
     for (size_t i = 0; i < outputTracks.size(); i++) {
-        outputTracks[i]->write(reinterpret_cast<int16_t*>(mSinkBuffer), writeFrames);
+        outputTracks[i]->write(mSinkBuffer, writeFrames);
     }
     mStandby = false;
     return (ssize_t)mSinkBufferSize;
@@ -4917,25 +4920,26 @@ void AudioFlinger::DuplicatingThread::clearOutputTracks()
 void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
 {
     Mutex::Autolock _l(mLock);
-    // FIXME explain this formula
-    size_t frameCount = (3 * mNormalFrameCount * mSampleRate) / thread->sampleRate();
-    // OutputTrack is forced to AUDIO_FORMAT_PCM_16_BIT regardless of mFormat
-    // due to current usage case and restrictions on the AudioBufferProvider.
-    // Actual buffer conversion is done in threadLoop_write().
-    //
-    // TODO: This may change in the future, depending on multichannel
-    // (and non int16_t*) support on AF::PlaybackThread::OutputTrack
-    OutputTrack *outputTrack = new OutputTrack(thread,
+    // The downstream MixerThread consumes thread->frameCount() amount of frames per mix pass.
+    // Adjust for thread->sampleRate() to determine minimum buffer frame count.
+    // Then triple buffer because Threads do not run synchronously and may not be clock locked.
+    const size_t frameCount =
+            3 * sourceFramesNeeded(mSampleRate, thread->frameCount(), thread->sampleRate());
+    // TODO: Consider asynchronous sample rate conversion to handle clock disparity
+    // from different OutputTracks and their associated MixerThreads (e.g. one may
+    // nearly empty and the other may be dropping data).
+
+    sp<OutputTrack> outputTrack = new OutputTrack(thread,
                                             this,
                                             mSampleRate,
-                                            AUDIO_FORMAT_PCM_16_BIT,
+                                            mFormat,
                                             mChannelMask,
                                             frameCount,
                                             IPCThreadState::self()->getCallingUid());
     if (outputTrack->cblk() != NULL) {
         thread->setStreamVolume(AUDIO_STREAM_PATCH, 1.0f);
         mOutputTracks.add(outputTrack);
-        ALOGV("addOutputTrack() track %p, on thread %p", outputTrack, thread);
+        ALOGV("addOutputTrack() track %p, on thread %p", outputTrack.get(), thread);
         updateWaitTime_l();
     }
 }

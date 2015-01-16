@@ -1710,14 +1710,13 @@ void AudioFlinger::PlaybackThread::OutputTrack::stop()
     mActive = false;
 }
 
-bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t frames)
+bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frames)
 {
     Buffer *pInBuffer;
     Buffer inBuffer;
-    uint32_t channelCount = mChannelCount;
     bool outputBufferFull = false;
     inBuffer.frameCount = frames;
-    inBuffer.i16 = data;
+    inBuffer.raw = data;
 
     uint32_t waitTimeLeftMs = mSourceThread->waitTimeMs();
 
@@ -1727,13 +1726,17 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         if (thread != 0) {
             MixerThread *mixerThread = (MixerThread *)thread.get();
             if (mFrameCount > frames) {
+                // For the first write after being inactive, ensure that we have
+                // enough frames to fill mFrameCount (which should be multiples of
+                // the minimum buffer requirements of the downstream MixerThread).
+                // This provides enough frames for the downstream mixer to begin
+                // (see AudioFlinger::PlaybackThread::Track::isReady()).
                 if (mBufferQueue.size() < kMaxOverFlowBuffers) {
                     uint32_t startFrames = (mFrameCount - frames);
                     pInBuffer = new Buffer;
-                    pInBuffer->mBuffer = new int16_t[startFrames * channelCount];
+                    pInBuffer->mBuffer = calloc(1, startFrames * mFrameSize);
                     pInBuffer->frameCount = startFrames;
-                    pInBuffer->i16 = pInBuffer->mBuffer;
-                    memset(pInBuffer->raw, 0, startFrames * channelCount * sizeof(int16_t));
+                    pInBuffer->raw = pInBuffer->mBuffer;
                     mBufferQueue.add(pInBuffer);
                 } else {
                     ALOGW("OutputTrack::write() %p no more buffers in queue", this);
@@ -1774,20 +1777,20 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
 
         uint32_t outFrames = pInBuffer->frameCount > mOutBuffer.frameCount ? mOutBuffer.frameCount :
                 pInBuffer->frameCount;
-        memcpy(mOutBuffer.raw, pInBuffer->raw, outFrames * channelCount * sizeof(int16_t));
+        memcpy(mOutBuffer.raw, pInBuffer->raw, outFrames * mFrameSize);
         Proxy::Buffer buf;
         buf.mFrameCount = outFrames;
         buf.mRaw = NULL;
         mClientProxy->releaseBuffer(&buf);
         pInBuffer->frameCount -= outFrames;
-        pInBuffer->i16 += outFrames * channelCount;
+        pInBuffer->raw = (int8_t *)pInBuffer->raw + outFrames * mFrameSize;
         mOutBuffer.frameCount -= outFrames;
-        mOutBuffer.i16 += outFrames * channelCount;
+        mOutBuffer.raw = (int8_t *)mOutBuffer.raw + outFrames * mFrameSize;
 
         if (pInBuffer->frameCount == 0) {
             if (mBufferQueue.size()) {
                 mBufferQueue.removeAt(0);
-                delete [] pInBuffer->mBuffer;
+                free(pInBuffer->mBuffer);
                 delete pInBuffer;
                 ALOGV("OutputTrack::write() %p thread %p released overflow buffer %d", this,
                         mThread.unsafe_get(), mBufferQueue.size());
@@ -1803,11 +1806,10 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         if (thread != 0 && !thread->standby()) {
             if (mBufferQueue.size() < kMaxOverFlowBuffers) {
                 pInBuffer = new Buffer;
-                pInBuffer->mBuffer = new int16_t[inBuffer.frameCount * channelCount];
+                pInBuffer->mBuffer = malloc(inBuffer.frameCount * mFrameSize);
                 pInBuffer->frameCount = inBuffer.frameCount;
-                pInBuffer->i16 = pInBuffer->mBuffer;
-                memcpy(pInBuffer->raw, inBuffer.raw, inBuffer.frameCount * channelCount *
-                        sizeof(int16_t));
+                pInBuffer->raw = pInBuffer->mBuffer;
+                memcpy(pInBuffer->raw, inBuffer.raw, inBuffer.frameCount * mFrameSize);
                 mBufferQueue.add(pInBuffer);
                 ALOGV("OutputTrack::write() %p thread %p adding overflow buffer %d", this,
                         mThread.unsafe_get(), mBufferQueue.size());
@@ -1818,23 +1820,10 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(int16_t* data, uint32_t fr
         }
     }
 
-    // Calling write() with a 0 length buffer, means that no more data will be written:
-    // If no more buffers are pending, fill output track buffer to make sure it is started
-    // by output mixer.
-    if (frames == 0 && mBufferQueue.size() == 0) {
-        // FIXME borken, replace by getting framesReady() from proxy
-        size_t user = 0;    // was mCblk->user
-        if (user < mFrameCount) {
-            frames = mFrameCount - user;
-            pInBuffer = new Buffer;
-            pInBuffer->mBuffer = new int16_t[frames * channelCount];
-            pInBuffer->frameCount = frames;
-            pInBuffer->i16 = pInBuffer->mBuffer;
-            memset(pInBuffer->raw, 0, frames * channelCount * sizeof(int16_t));
-            mBufferQueue.add(pInBuffer);
-        } else if (mActive) {
-            stop();
-        }
+    // Calling write() with a 0 length buffer means that no more data will be written:
+    // We rely on stop() to set the appropriate flags to allow the remaining frames to play out.
+    if (frames == 0 && mBufferQueue.size() == 0 && mActive) {
+        stop();
     }
 
     return outputBufferFull;
@@ -1860,7 +1849,7 @@ void AudioFlinger::PlaybackThread::OutputTrack::clearBufferQueue()
 
     for (size_t i = 0; i < size; i++) {
         Buffer *pBuffer = mBufferQueue.itemAt(i);
-        delete [] pBuffer->mBuffer;
+        free(pBuffer->mBuffer);
         delete pBuffer;
     }
     mBufferQueue.clear();
