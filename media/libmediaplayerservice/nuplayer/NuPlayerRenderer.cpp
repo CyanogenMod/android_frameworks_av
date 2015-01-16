@@ -77,7 +77,7 @@ NuPlayer::Renderer::Renderer(
       mNotifyCompleteVideo(false),
       mSyncQueues(false),
       mPaused(false),
-      mPausePositionMediaTimeUs(0),
+      mPausePositionMediaTimeUs(-1),
       mVideoSampleReceived(false),
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
@@ -210,7 +210,7 @@ status_t NuPlayer::Renderer::getCurrentPositionOnLooper(
 
 // Called either with mLock acquired or on renderer's thread.
 bool NuPlayer::Renderer::getCurrentPositionIfPaused_l(int64_t *mediaUs) {
-    if (!mPaused) {
+    if (!mPaused || mPausePositionMediaTimeUs < 0ll) {
         return false;
     }
     *mediaUs = mPausePositionMediaTimeUs;
@@ -1232,6 +1232,12 @@ void NuPlayer::Renderer::onPause() {
     if (getCurrentPositionFromAnchor(
             &currentPositionUs, ALooper::GetNowUs()) == OK) {
         mPausePositionMediaTimeUs = currentPositionUs;
+    } else {
+        // Set paused position to -1 (unavailabe) if we don't have anchor time
+        // This could happen if client does a seekTo() immediately followed by
+        // pause(). Renderer will be flushed with anchor time cleared. We don't
+        // want to leave stale value in mPausePositionMediaTimeUs.
+        mPausePositionMediaTimeUs = -1;
     }
     {
         Mutex::Autolock autoLock(mLock);
