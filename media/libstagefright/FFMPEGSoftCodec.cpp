@@ -258,8 +258,6 @@ status_t FFMPEGSoftCodec::setAudioFormat(
     ALOGV("setAudioFormat called");
     status_t err = OK;
 
-    ALOGV("setAudioFormat: %s", msg->debugString(0).c_str());
-
     if (isEncoder) {
         ALOGE("Encoding not supported");
         err = BAD_VALUE;
@@ -310,6 +308,8 @@ status_t FFMPEGSoftCodec::setAudioFormat(
             ALOGE("setFFmpegAudioFormat() failed (err = %d)", err);
         }
     }
+
+    ALOGV("setAudioFormat: %s", msg->debugString(0).c_str());
 
     return err;
 }
@@ -503,12 +503,12 @@ status_t FFMPEGSoftCodec::setRawAudioFormat(
 {
     int32_t numChannels = 0;
     int32_t sampleRate = 0;
-    int32_t bitsPerSample = 16;
+    int32_t bitsPerSample = 0;
 
     CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeySampleRate), &sampleRate));
     if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyBitsPerSample), &bitsPerSample)) {
-        ALOGD("No PCM format specified, using 16 bit");
+        ALOGD("No PCM format specified, let decoder decide");
     }
 
     OMX_PARAM_PORTDEFINITIONTYPE def;
@@ -545,7 +545,9 @@ status_t FFMPEGSoftCodec::setRawAudioFormat(
     pcmParams.nChannels = numChannels;
     pcmParams.eNumData = OMX_NumericalDataSigned;
     pcmParams.bInterleaved = OMX_TRUE;
-    pcmParams.nBitPerSample = bitsPerSample;
+    if (bitsPerSample > 0) {
+        pcmParams.nBitPerSample = bitsPerSample;
+    }
     pcmParams.nSamplingRate = sampleRate;
     pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
 
@@ -553,8 +555,16 @@ status_t FFMPEGSoftCodec::setRawAudioFormat(
         return OMX_ErrorNone;
     }
 
-    return OMXhandle->setParameter(
+    err = OMXhandle->setParameter(
             nodeID, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+
+    if (err != OK) {
+        return err;
+    }
+
+    msg->setInt32("bits-per-sample", pcmParams.nBitPerSample);
+
+    return OK;
 }
 
 status_t FFMPEGSoftCodec::setWMAFormat(
