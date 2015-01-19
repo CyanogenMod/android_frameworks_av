@@ -546,7 +546,9 @@ status_t ATSParser::Stream::parse(
         mPayloadStarted = false;
         mBuffer->setRange(0, 0);
         mExpectedContinuityCounter = -1;
-        return OK;
+        if (!payload_unit_start_indicator) {
+            return OK;
+        }
     }
 
     mExpectedContinuityCounter = (continuity_counter + 1) & 0x0f;
