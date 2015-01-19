@@ -214,6 +214,9 @@ struct ExtendedUtils {
     static bool UseQCHWAACEncoder(audio_encoder Encoder = AUDIO_ENCODER_DEFAULT, int32_t Channel = 0,
             int32_t BitRate = 0, int32_t SampleRate = 0);
 
+    static bool isRAWFormat(const sp<MetaData> &meta);
+    static bool isRAWFormat(const sp<AMessage> &format);
+
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(
             sp<MediaExtractor> defaultExt, const sp<DataSource> &source,
             const char *mime);
@@ -245,6 +248,12 @@ struct ExtendedUtils {
     static bool isPcmOffloadEnabled();
 
     static bool pcmOffloadException(const char* const mime);
+
+    static sp<MetaData> createPCMMetaFromSource(
+            const sp<MetaData> &sMeta);
+
+    static void overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src);
 
     static void detectAndPostImage(const sp<ABuffer> accessunit, const sp<AMessage> &notify);
     static void showImageInNativeWindow(const sp<AMessage> &msg, const sp<AMessage> &format);

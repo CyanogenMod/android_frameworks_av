@@ -951,6 +951,29 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int3
     return mIsQCHWAACEncoder;
 }
 
+bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
+    const char *mime = {0};
+    if (meta == NULL) {
+        return false;
+    }
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW, 9))
+        return true;
+    else
+        return false;
+}
+
+bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
+    AString mime;
+    if (format == NULL) {
+        return false;
+    }
+    CHECK(format->findString("mime", &mime));
+    if (!strncasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW, 9))
+        return true;
+    else
+        return false;
+}
 
 //- returns NULL if we dont really need a new extractor (or cannot),
 //  valid extractor is returned otherwise
@@ -989,9 +1012,9 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             String8 mime = String8(_mime);
 
             const char * dolbyFormats[ ] = {
+#ifdef DOLBY_UDC
                 MEDIA_MIMETYPE_AUDIO_AC3,
                 MEDIA_MIMETYPE_AUDIO_EAC3,
-#ifdef DOLBY_UDC
                 MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
 #endif
             };
@@ -1746,6 +1769,98 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     return decision;
 }
 
+sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
+                const sp<MetaData> &sMeta)
+{
+
+    sp<MetaData> tPCMMeta = new MetaData;
+    //hard code as RAW
+    tPCMMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+
+    int32_t bitsPerSample = 16;
+    if (!sMeta->findInt32(kKeyBitsPerSample, &bitsPerSample)) {
+        ALOGI("Bits per sample not set, default to 16");
+    }
+    tPCMMeta->setInt32(kKeyBitsPerSample, bitsPerSample);
+
+    int32_t srate = -1;
+    if (!sMeta->findInt32(kKeySampleRate, &srate)) {
+        ALOGV("No sample rate");
+    }
+    tPCMMeta->setInt32(kKeySampleRate, srate);
+
+    int32_t cmask = 0;
+    if (!sMeta->findInt32(kKeyChannelMask, &cmask) || (cmask == 0)) {
+        ALOGI("No channel mask, try channel count");
+    }
+    int32_t channelCount = 0;
+    if (!sMeta->findInt32(kKeyChannelCount, &channelCount)) {
+        ALOGI("No channel count either");
+    } else {
+        //if channel mask is not set till now, use channel count
+        //to retrieve channel count
+        if (!cmask) {
+            cmask = audio_channel_out_mask_from_count(channelCount);
+        }
+    }
+    tPCMMeta->setInt32(kKeyChannelCount, channelCount);
+    tPCMMeta->setInt32(kKeyChannelMask, cmask);
+
+    int64_t duration = 0;
+    if (!sMeta->findInt64(kKeyDuration, &duration)) {
+        ALOGW("No duration in meta");
+    } else {
+        tPCMMeta->setInt64(kKeyDuration, duration);
+    }
+
+    int32_t bitRate = -1;
+    if (!sMeta->findInt32(kKeyBitRate, &bitRate)) {
+        ALOGW("No bitrate info");
+    } else {
+        tPCMMeta->setInt32(kKeyBitRate, bitRate);
+    }
+
+    return tPCMMeta;
+}
+
+void ExtendedUtils::overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src)
+{
+    int32_t dchannels = 0;
+    int32_t schannels = 0;
+    int32_t drate = 0;
+    int32_t srate = 0;
+    int32_t dbits = 16;
+    int32_t sbits = 16;
+
+    dst->findInt32("channel-count", &dchannels);
+    src->findInt32("channel-count", &schannels);
+
+    dst->findInt32("sample-rate", &drate);
+    src->findInt32("sample-rate", &srate);
+
+    dst->findInt32("bits-per-sample", &dbits);
+    src->findInt32("bits-per-sample", &sbits);
+
+    ALOGV("channel count src: %d dst: %d", dchannels, schannels);
+    ALOGV("sample rate src: %d dst:%d ", drate, srate);
+    ALOGV("bits per sample src: %d dst: %d", dbits, sbits);
+
+    if (schannels && dchannels != schannels) {
+        dst->setInt32("channel-count", schannels);
+    }
+
+    if (srate && drate != srate) {
+        dst->setInt32("sample-rate", srate);
+    }
+
+    if (sbits && dbits != sbits) {
+        dst->setInt32("bits-per-sample", sbits);
+    }
+
+    return;
+}
+
 void ExtendedUtils::detectAndPostImage(const sp<ABuffer> accessUnit,
         const sp<AMessage> &notify) {
     if (accessUnit == NULL || notify == NULL)
@@ -2038,6 +2153,16 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,
     return false;
 }
 
+bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
+    ARG_TOUCH(meta);
+    return false;
+}
+
+bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
+    ARG_TOUCH(format);
+    return false;
+}
+
 sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(
         sp<MediaExtractor> defaultExt,
         const sp<DataSource> &source,
@@ -2185,6 +2310,21 @@ bool ExtendedUtils::isPcmOffloadEnabled() {
 bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     ARG_TOUCH(mime);
     return true;
+}
+
+sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
+                const sp<MetaData> &sMeta) {
+    ARG_TOUCH(sMeta);
+    sp<MetaData> tPCMMeta = new MetaData;
+    return tPCMMeta;
+}
+
+void ExtendedUtils::overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src)
+{
+    ARG_TOUCH(dst);
+    ARG_TOUCH(src);
+    return;
 }
 
 } // namespace android

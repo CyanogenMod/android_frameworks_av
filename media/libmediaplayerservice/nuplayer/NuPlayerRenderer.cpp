@@ -1379,7 +1379,6 @@ bool NuPlayer::Renderer::onOpenAudioSink(
     ALOGV("openAudioSink: offloadOnly(%d) offloadingAudio(%d)",
             offloadOnly, offloadingAudio());
     bool audioSinkChanged = false;
-    bool pcmOffload = false;
 
     int32_t numChannels;
     CHECK(format->findInt32("channel-count", &numChannels));
@@ -1399,24 +1398,6 @@ bool NuPlayer::Renderer::onOpenAudioSink(
     AString mime;
     CHECK(format->findString("mime", &mime));
 
-#ifdef ENABLE_AV_ENHANCEMENTS
-    pcmOffload = ExtendedUtils::isPcmOffloadEnabled() &&
-            !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW);
-
-    int32_t resampled = 0;
-    format->findInt32("resampled", &resampled);
-
-    // At this point we can check if PCM should be offloaded
-    if (!offloadingAudio() && (!offloadOnly && pcmOffload && !resampled)) {
-        sp<MetaData> aMeta = new MetaData;
-        convertMessageToMetaData(format, aMeta);
-        if  (canOffloadStream(aMeta, false, new MetaData,
-                    hasVideo, AUDIO_STREAM_MUSIC)) {
-            mFlags |= FLAG_OFFLOAD_AUDIO;
-        }
-    }
-#endif
-
     if (offloadingAudio()) {
         audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
         status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
@@ -1426,8 +1407,10 @@ bool NuPlayer::Renderer::onOpenAudioSink(
                     "audio_format", mime.c_str());
             onDisableOffloadAudio();
         } else {
+
 #ifdef ENABLE_AV_ENHANCEMENTS
-            if (pcmOffload) {
+            if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW) &&
+                    ExtendedUtils::isPcmOffloadEnabled()) {
                 if (bitsPerSample > 16) {
                     audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
                 } else {
@@ -1462,6 +1445,9 @@ bool NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.has_video = hasVideo;
             offloadInfo.is_streaming = true;
             offloadInfo.bit_width = bitsPerSample;
+#ifdef ENABLE_AV_ENHANCEMENTS
+            //offloadInfo.use_small_bufs = (audioFormat == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD);
+#endif
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
                 ALOGV("openAudioSink: no change in offload mode");
