@@ -211,6 +211,12 @@ status_t TunnelPlayer::start(bool sourceAlreadyStarted) {
         flags,
         NULL);
 
+    if(mAudioSink->getAudioStreamType() != AUDIO_STREAM_MUSIC) {
+       ALOGV("Tunnel Player is not used for non-music stream");
+       mIsAudioRouted = true;
+       err = INVALID_OPERATION;
+    }
+
     if (err != OK) {
         if (mFirstBuffer != NULL) {
             mFirstBuffer->release();
@@ -220,6 +226,7 @@ status_t TunnelPlayer::start(bool sourceAlreadyStarted) {
         if (!sourceAlreadyStarted) {
             mSource->stop();
         }
+
 
         ALOGE("Opening a routing session failed");
         return err;
