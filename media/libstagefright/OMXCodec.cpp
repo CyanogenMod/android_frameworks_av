@@ -56,6 +56,11 @@
 
 #include "include/avc_utils.h"
 
+#ifdef USE_S3D_SUPPORT
+#include "Exynos_OMX_Def.h"
+#include "ExynosHWCService.h"
+#endif
+
 namespace android {
 
 // Treat time out as an error if we have not received any output
@@ -1821,6 +1826,10 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
 
     if (mFlags & kEnableGrallocUsageProtected) {
         usage |= GRALLOC_USAGE_PROTECTED;
+#ifdef GRALLOC_USAGE_PRIVATE_NONSECURE
+        if (!(mFlags & kUseSecureInputBuffers))
+            usage |= GRALLOC_USAGE_PRIVATE_NONSECURE;
+#endif
     }
 
     err = setNativeWindowSizeFormatAndUsage(
@@ -2373,7 +2382,40 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
             break;
         }
 #endif
+#ifdef USE_S3D_SUPPORT
+        case (OMX_EVENTTYPE)OMX_EventS3DInformation:
+        {
+            if (mFlags & kClientNeedsFramebuffer)
+                break;
 
+            sp<IServiceManager> sm = defaultServiceManager();
+            sp<android::IExynosHWCService> hwc = interface_cast<android::IExynosHWCService>(sm->getService(String16("Exynos.HWCService")));
+            if (hwc != NULL) {
+                if (data1 == OMX_TRUE) {
+                    int eS3DMode;
+                    switch (data2) {
+                    case OMX_SEC_FPARGMT_SIDE_BY_SIDE:
+                        eS3DMode = S3D_SBS;
+                        break;
+                    case OMX_SEC_FPARGMT_TOP_BOTTOM:
+                        eS3DMode = S3D_TB;
+                        break;
+                    case OMX_SEC_FPARGMT_CHECKERBRD_INTERL: // unsupport format at HDMI
+                    case OMX_SEC_FPARGMT_COLUMN_INTERL:
+                    case OMX_SEC_FPARGMT_ROW_INTERL:
+                    case OMX_SEC_FPARGMT_TEMPORAL_INTERL:
+                    default:
+                        eS3DMode = S3D_NONE;
+                    }
+
+                    hwc->setHdmiResolution(0, eS3DMode);
+                }
+            } else {
+                ALOGE("Exynos.HWCService is unavailable");
+            }
+            break;
+        }
+#endif
         default:
         {
             CODEC_LOGV("EVENT(%d, %u, %u)", event, data1, data2);
