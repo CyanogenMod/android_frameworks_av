@@ -701,6 +701,15 @@ void AwesomePlayer::reset_l() {
     delete mAudioPlayer;
     mAudioPlayer = NULL;
 
+#ifdef QCOM_DIRECTTRACK
+    if (mIsTunnelAudio) {
+        if(mTunnelAliveAP > 0) {
+            mTunnelAliveAP--;
+            ALOGV("mTunnelAliveAP from reset = %d", mTunnelAliveAP);
+        }
+    }
+    mIsTunnelAudio = false;
+#endif
     if (mTextDriver != NULL) {
         delete mTextDriver;
         mTextDriver = NULL;
@@ -1115,7 +1124,11 @@ status_t AwesomePlayer::play_l() {
             status_t err = startAudioPlayer_l(
                     false /* sendErrorNotification */);
 
+#ifndef QCOM_DIRECTTRACK
             if ((err != OK) && mOffloadAudio) {
+#else
+            if ((err != OK) && (mOffloadAudio || mIsTunnelAudio)) {
+#endif
                  err = fallbackToSWDecoder();
             }
 
@@ -1202,6 +1215,16 @@ status_t AwesomePlayer::fallbackToSWDecoder() {
     }
     mAudioSource.clear();
     modifyFlags((AUDIO_RUNNING | AUDIOPLAYER_STARTED), CLEAR);
+
+#ifdef QCOM_DIRECTTRACK
+    if (mIsTunnelAudio) {
+        if(mTunnelAliveAP > 0) {
+            mTunnelAliveAP--;
+            ALOGV("mTunnelAliveAP from fallbackToSWDecoder = %d", mTunnelAliveAP);
+        }
+        mIsTunnelAudio = false;
+    }
+#endif
     mOffloadAudio = false;
     const char * mime;
     sp<MetaData> tempMetadata;
@@ -1321,11 +1344,11 @@ void AwesomePlayer::createAudioPlayer_l()
        (nchannels && (nchannels <= 2)))
 
     {
-        ALOGE("LPAPlayer::getObjectsAlive() %d",LPAPlayer::mObjectsAlive);
+        ALOGI("LPAPlayer::getObjectsAlive() %d mDurationUs %lld minDurationForLPA %d",LPAPlayer::mObjectsAlive, mDurationUs, minDurationForLPA);
         if ( mDurationUs > minDurationForLPA
              && (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG) || !strcasecmp(mime,MEDIA_MIMETYPE_AUDIO_AAC))
              && LPAPlayer::mObjectsAlive == 0 && mVideoSource == NULL) {
-            ALOGE("LPAPlayer created, LPA MODE detected mime %s duration %lld", mime, mDurationUs);
+            ALOGI("LPAPlayer created, LPA MODE detected mime %s duration %lld", mime, mDurationUs);
             bool initCheck =  false;
             mAudioPlayer = new LPAPlayer(mAudioSink, initCheck, this);
             if(!initCheck) {
@@ -1903,19 +1926,8 @@ status_t AwesomePlayer::initAudioDecoder() {
 
     checkTunnelExceptions();
 
-    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW) ||
-             (mIsTunnelAudio
-#ifdef USE_TUNNEL_MODE
-             && (mTunnelAliveAP < TunnelPlayer::getTunnelObjectsAliveMax())
-#endif
-    )) {
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
         ALOGD("Set Audio Track as Audio Source");
-        if(mIsTunnelAudio) {
-            mTunnelAliveAP++;
-        }
-
-
-        ALOGV("createAudioPlayer: bypass OMX (raw)");
         mAudioSource = mAudioTrack;
         // For PCM offload fallback
         if (mOffloadAudio) {
@@ -1928,8 +1940,19 @@ status_t AwesomePlayer::initAudioDecoder() {
 
         // For LPA Playback use the decoder without OMX layer
         char *matchComponentName = NULL;
-        int64_t durationUs;
         uint32_t flags = 0;
+        if (mIsTunnelAudio
+#ifdef USE_TUNNEL_MODE
+             && (mTunnelAliveAP < TunnelPlayer::getTunnelObjectsAliveMax())
+#endif
+    )   {
+        ALOGD("Set Audio Track as Audio Source");
+        mTunnelAliveAP++;
+        ALOGV("createAudioPlayer: bypass OMX (raw)");
+        mAudioSource = mAudioTrack;
+        } else {
+        // For LPA Playback use the decoder without OMX layer
+        int64_t durationUs;
         char lpaDecode[128];
         uint32_t minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
         char minUserDefDuration[PROPERTY_VALUE_MAX];
@@ -1968,11 +1991,14 @@ status_t AwesomePlayer::initAudioDecoder() {
             }
             flags |= OMXCodec::kSoftwareCodecsOnly;
         }
-
         mOmxSource = OMXCodec::Create(
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
                 mAudioTrack, matchComponentName, flags,NULL);
+
+        if(!mIsTunnelAudio) {
+           mAudioSource = mOmxSource;
+        }
 #else
     if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
         ALOGV("createAudioPlayer: bypass OMX (raw)");
