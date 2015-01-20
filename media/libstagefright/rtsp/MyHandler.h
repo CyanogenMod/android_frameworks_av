@@ -791,7 +791,7 @@ struct MyHandler : public AHandler {
                 }
 
                 ++index;
-                if (result == OK && index < mSessionDesc->countTracks()) {
+                if (index < mSessionDesc->countTracks()) {
                     setupTrack(index);
                 } else if (mSetupTracksSuccessful) {
                     ++mKeepAliveGeneration;
