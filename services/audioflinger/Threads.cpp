@@ -4065,7 +4065,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         }
 
         if ((track->framesReady() >= minFrames) && track->isReady() && !track->isPaused() &&
-                !track->isStopping_2() && !track->isStopped())
+                !track->isStopping() && !track->isStopped())
         {
             ALOGVV("track %d s=%08x [OK]", track->name(), cblk->mServer);
 
