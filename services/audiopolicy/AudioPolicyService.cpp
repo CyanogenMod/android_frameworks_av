@@ -908,8 +908,10 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
     }
     removedCommands.clear();
 
-    // Disable wait for status if delay is not 0
-    if (delayMs != 0) {
+    // Disable wait for status if delay is not 0.
+    // Except for create audio patch command because the returned patch handle
+    // is needed by audio policy manager
+    if (delayMs != 0 && command->mCommand != CREATE_AUDIO_PATCH) {
         command->mWaitStatus = false;
     }
 
