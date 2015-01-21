@@ -89,7 +89,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             ALOGV("setDeviceConnectionState() connecting device %x", device);
 
 #ifdef LEGACY_ALSA_AUDIO
-            if (audio_is_usb_device(device)) {
+            if (device & AUDIO_DEVICE_OUT_USB_ACCESSORY) {
                AudioParameter param;
                param.add(String8("usb_connected"), String8("true"));
                mpClientInterface->setParameters(0, param.toString());
@@ -148,7 +148,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             mAvailableOutputDevices.remove(devDesc);
 
 #ifdef LEGACY_ALSA_AUDIO
-            if (audio_is_usb_device(device)) {
+            if (device & AUDIO_DEVICE_OUT_USB_ACCESSORY) {
                AudioParameter param;
                param.add(String8("usb_connected"), String8("true"));
                mpClientInterface->setParameters(0, param.toString());
