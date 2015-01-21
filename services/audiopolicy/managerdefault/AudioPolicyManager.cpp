@@ -321,7 +321,11 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
     if(!hasPrimaryOutput()) {
         return;
     }
+#ifdef LEGACY_ALSA_AUDIO
+    audio_devices_t txDevice = getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_CALL);
+#else
     audio_devices_t txDevice = getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+#endif
     ALOGV("updateCallRouting device rxDevice %08x txDevice %08x", rxDevice, txDevice);
 
     // release existing RX patch if any
