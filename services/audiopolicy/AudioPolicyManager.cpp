@@ -330,7 +330,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             }
 
 #ifdef QCOM_DIRECTTRACK
-            if (audio_is_usb_device(device)) {
+            if (device & AUDIO_DEVICE_OUT_USB_ACCESSORY) {
                AudioParameter param;
                param.add(String8("usb_connected"), String8("true"));
                mpClientInterface->setParameters(0, param.toString());
@@ -410,7 +410,7 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
             }
 
 #ifdef QCOM_DIRECTTRACK
-            if (audio_is_usb_device(device)) {
+            if (device & AUDIO_DEVICE_OUT_USB_ACCESSORY) {
                 // handle USB device disconnection
                 AudioParameter param;
                 param.add(String8("usb_connected"), String8("false"));
