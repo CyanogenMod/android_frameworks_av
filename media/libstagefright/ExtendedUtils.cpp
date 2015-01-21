@@ -1764,7 +1764,7 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
     bool decision = false;
 
     if (!mime) {
-        ALOGI("%s: no audio mime present, ignoring pcm offload", __func__);
+        ALOGV("%s: no audio mime present, ignoring pcm offload", __func__);
         return true;
     }
 #if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
@@ -1806,6 +1806,11 @@ sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
     //TODO: remove this hard coding and use the meta info, but the issue
     //is that decoder does not provide this info for now
     tPCMMeta->setInt32(kKeySampleBits, 16);
+
+    if (sMeta == NULL) {
+        ALOGV("%s: no meta returning dummy meta");
+        return tPCMMeta;
+    }
 
     int32_t srate = -1;
     if (!sMeta->findInt32(kKeySampleRate, &srate)) {
