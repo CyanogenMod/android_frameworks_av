@@ -4773,9 +4773,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 "OMX.qcom.audio.encoder.aac",  // OMX.qcom.audio.encoder.aac
                 0,     // flags
                 &matchingCodecs);
-    }
-#ifdef QTI_FLAC_DECODER
-    else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_FLAC) && !encoder) {
+    } else if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_FLAC) && !encoder) {
         //use google's raw decoder
         OMXCodec::findMatchingCodecs(
                 MEDIA_MIMETYPE_AUDIO_RAW,
@@ -4783,9 +4781,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
                 "OMX.google.raw.decoder",
                 0, //flags
                 &matchingCodecs);
-    }
-#endif
-     else
+    } else
         OMXCodec::findMatchingCodecs(
                 mime.c_str(),
                 encoder, // createEncoder
