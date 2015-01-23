@@ -1119,10 +1119,10 @@ static void deletePath(const char* path) {
 MtpResponseCode MtpServer::doDeleteObject() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
-    if (mRequest.getParameterCount() < 2)
+    if (mRequest.getParameterCount() < 1)
         return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
-    MtpObjectFormat format = mRequest.getParameter(2);
+    MtpObjectFormat format;
     // FIXME - support deleting all objects if handle is 0xFFFFFFFF
     // FIXME - implement deleting objects by format
 
