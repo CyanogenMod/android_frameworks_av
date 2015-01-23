@@ -58,8 +58,7 @@ LOCAL_C_INCLUDES += \
     $(base)/drm/libdrmframework/plugins/forward-lock/internal-format/common \
     $(base)/drm/libdrmframework/plugins/forward-lock/internal-format/converter \
     $(base)/drm/libdrmframework/plugins/forward-lock/internal-format/decoder \
-    $(LOCAL_PATH)/include \
-    external/openssl/include
+    $(LOCAL_PATH)/include
 
 LOCAL_MODULE_RELATIVE_PATH := drm
 

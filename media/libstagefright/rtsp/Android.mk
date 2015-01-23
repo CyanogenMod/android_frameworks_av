@@ -19,10 +19,11 @@ LOCAL_SRC_FILES:=       \
         ASessionDescription.cpp     \
         SDPLoader.cpp               \
 
+LOCAL_SHARED_LIBRARIES += libcrypto
+
 LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright \
-	$(TOP)/frameworks/native/include/media/openmax \
-	$(TOP)/external/openssl/include
+	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_MODULE:= libstagefright_rtsp
 

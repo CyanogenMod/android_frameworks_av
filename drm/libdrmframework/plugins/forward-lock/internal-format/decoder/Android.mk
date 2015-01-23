@@ -21,8 +21,7 @@ LOCAL_SRC_FILES := \
     FwdLockFile.c
 
 LOCAL_C_INCLUDES := \
-    frameworks/av/drm/libdrmframework/plugins/forward-lock/internal-format/common \
-    external/openssl/include
+    frameworks/av/drm/libdrmframework/plugins/forward-lock/internal-format/common
 
 LOCAL_SHARED_LIBRARIES := libcrypto
 
