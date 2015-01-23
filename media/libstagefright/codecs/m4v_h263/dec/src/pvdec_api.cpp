@@ -292,8 +292,10 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
 
     if (video->shortVideoHeader == PV_TRUE)
     {
-        video->displayWidth = video->width = width;
-        video->displayHeight = video->height = height;
+        video->displayWidth = width;
+        video->displayHeight = height;
+        video->width = (width + 15) & -16;
+        video->height = (height + 15) & -16;
 
         video->nMBPerRow =
             video->nMBinGOB  = video->width / MB_SIZE;
