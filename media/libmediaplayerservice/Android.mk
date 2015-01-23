@@ -68,7 +68,7 @@ endif
 #QTI FLAC Decoder
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
-    LOCAL_CFLAGS := -DQTI_FLAC_DECODER
+    LOCAL_CFLAGS += -DQTI_FLAC_DECODER
 endif
 endif
 
