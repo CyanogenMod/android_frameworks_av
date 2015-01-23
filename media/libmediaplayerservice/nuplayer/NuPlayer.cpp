@@ -159,6 +159,7 @@ NuPlayer::NuPlayer()
       mVideoIsAVC(false),
       mOffloadAudio(false),
       mOffloadDecodedPCM(false),
+      mSwitchingFromPcmOffload(false),
       mIsStreaming(true),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
@@ -610,6 +611,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             mVideoIsAVC = false;
             mOffloadAudio = false;
             mOffloadDecodedPCM = false;
+            mSwitchingFromPcmOffload = false;
             mAudioEOS = false;
             mVideoEOS = false;
             mSkipRenderingAudioUntilMediaTimeUs = -1;
@@ -833,6 +835,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 sp<AMessage> format;
                 CHECK(msg->findMessage("format", &format));
 
+                ALOGV("decoder %s output format changed", audio ? "audio" : "video");
                 if (audio) {
                     openAudioSink(format, false /*offloadOnly*/);
                 } else {
@@ -981,9 +984,18 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 closeAudioSink();
+                sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+                if (!mOffloadDecodedPCM) {
+                    mAudioDecoder.clear();
+                    ++mAudioDecoderGeneration;
+                } else {
+                    ALOGV("Decoded PCM offload flushing");
+                    if (mAudioDecoder != NULL) {
+                        mSwitchingFromPcmOffload = true;
+                        flushDecoder(true /* audio */, false/* needShutdown */);
+                    }
+                }
                 mRenderer->flush(true /* audio */);
-                mAudioDecoder.clear();
-                ++mAudioDecoderGeneration;
                 if (mVideoDecoder != NULL) {
                     mRenderer->flush(false /* audio */);
                 }
@@ -1438,6 +1450,11 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                 }
 
                 if (audio) {
+                    if (mSwitchingFromPcmOffload) {
+                        //force format change if the discontinuity was triggered from fallback
+                        formatChange = true;
+                        mSwitchingFromPcmOffload = false;
+                    }
                     mSkipRenderingAudioUntilMediaTimeUs = -1;
                 } else {
                     mSkipRenderingVideoUntilMediaTimeUs = -1;
