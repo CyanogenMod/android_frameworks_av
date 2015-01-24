@@ -35,7 +35,7 @@
 #include <hardware_legacy/AudioPolicyInterface.h>
 #endif
 #include "AudioPolicyEffects.h"
-#include "AudioPolicyManager.h"
+#include "managerdefault/AudioPolicyManager.h"
 
 
 namespace android {

@@ -33,7 +33,7 @@
 #include "CameraService.h"
 #include "MediaLogService.h"
 #include "MediaPlayerService.h"
-#include "AudioPolicyService.h"
+#include "service/AudioPolicyService.h"
 #include "SoundTriggerHwService.h"
 
 using namespace android;
