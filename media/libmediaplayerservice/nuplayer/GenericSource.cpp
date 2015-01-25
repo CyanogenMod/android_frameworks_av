@@ -598,9 +598,8 @@ void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage,
     msg->post();
 }
 
-void NuPlayer::GenericSource::onPollBuffering() {
+status_t NuPlayer::GenericSource::getCachedDuration(int64_t *cachedDurationUs) {
     status_t finalStatus = UNKNOWN_ERROR;
-    int64_t cachedDurationUs = 0ll;
 
     if (mCachedSource != NULL) {
         size_t cachedDataRemaining =
@@ -615,13 +614,27 @@ void NuPlayer::GenericSource::onPollBuffering() {
                 bitrate = mBitrate;
             }
             if (bitrate > 0) {
-                cachedDurationUs = cachedDataRemaining * 8000000ll / bitrate;
+                *cachedDurationUs = cachedDataRemaining * 8000000ll / bitrate;
             }
         }
     } else if (mWVMExtractor != NULL) {
-        cachedDurationUs
+        *cachedDurationUs
             = mWVMExtractor->getCachedDurationUs(&finalStatus);
     }
+
+    if (*cachedDurationUs > 0) {
+        mCachedDurationUs = *cachedDurationUs;
+    } else {
+        *cachedDurationUs = mCachedDurationUs;
+    }
+
+    ALOGV("getCachedDuration = %lld", *cachedDurationUs);
+    return finalStatus;
+}
+
+void NuPlayer::GenericSource::onPollBuffering() {
+    int64_t cachedDurationUs = 0ll;
+    status_t finalStatus = getCachedDuration(&cachedDurationUs);
 
     if (finalStatus == ERROR_END_OF_STREAM) {
         notifyBufferingUpdate(100, 0);

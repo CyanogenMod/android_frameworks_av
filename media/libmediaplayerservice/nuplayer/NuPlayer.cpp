@@ -638,7 +638,14 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
             }
 
+            int64_t duration = 0ll;
             sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+            if (audioMeta.get() && (
+                        !audioMeta->findInt64(kKeyDuration, &duration) || duration == 0)) {
+                mSource->getCachedDuration(&duration);
+                audioMeta->setInt64(kKeyDuration, duration);
+            }
+
             if (!(ExtendedUtils::isRAWFormat(audioMeta) &&
                         ExtendedUtils::isPcmOffloadEnabled())) {
                 mSource->start();
@@ -1229,7 +1236,7 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
     int64_t durationUs;
     bool hasVideo = (mVideoDecoder != NULL);
 
-    if (mSource->getDuration(&durationUs) == OK &&
+    if (mSource->getCachedDuration(&durationUs) == OK &&
             durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     } else {
@@ -1237,7 +1244,6 @@ void NuPlayer::openAudioSink(const sp<AMessage> &format, bool offloadOnly) {
     }
 
     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
-
 #ifdef ENABLE_AV_ENHANCEMENTS
     if (mOffloadDecodedPCM && audioMeta != NULL) {
         sp<MetaData> audioPCMMeta = ExtendedUtils::createPCMMetaFromSource(audioMeta);
