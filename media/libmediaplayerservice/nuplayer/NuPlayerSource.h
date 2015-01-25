@@ -124,6 +124,10 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
+    virtual status_t getCachedDuration(int64_t *durationUs) {
+        return getDuration(durationUs);
+    }
+
 protected:
     virtual ~Source() {}
 

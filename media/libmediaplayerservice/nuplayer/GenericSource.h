@@ -75,6 +75,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
     virtual status_t suspend();
     virtual status_t resumeFromSuspended();
 
+    virtual status_t getCachedDuration(int64_t *durationUs);
+
 protected:
     virtual ~GenericSource();
 
@@ -117,6 +119,7 @@ private:
     int32_t mFetchSubtitleDataGeneration;
     int32_t mFetchTimedTextDataGeneration;
     int64_t mDurationUs;
+    int64_t mCachedDurationUs;
     bool mAudioIsVorbis;
     bool mIsWidevine;
     bool mUIDValid;
