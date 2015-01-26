@@ -10,8 +10,7 @@ LOCAL_SRC_FILES:=               \
 
 LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright \
-	$(TOP)/frameworks/native/include/media/openmax \
-	$(TOP)/external/openssl/include
+	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS += -Werror
 
