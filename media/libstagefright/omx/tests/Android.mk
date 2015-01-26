@@ -20,3 +20,21 @@ LOCAL_MODULE_TAGS := tests
 LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := FrameDropper_test
+
+LOCAL_MODULE_TAGS := tests
+
+LOCAL_SRC_FILES := \
+	FrameDropper_test.cpp \
+
+LOCAL_SHARED_LIBRARIES := \
+	libstagefright_omx \
+	libutils \
+
+LOCAL_C_INCLUDES := \
+	frameworks/av/media/libstagefright/omx \
+
+include $(BUILD_NATIVE_TEST)

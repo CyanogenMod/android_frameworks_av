@@ -30,6 +30,8 @@
 
 namespace android {
 
+class FrameDropper;
+
 /*
  * This class is used to feed OMX codecs from a Surface via BufferQueue.
  *
@@ -119,6 +121,9 @@ public:
     // of suspension on input.
     status_t setMaxTimestampGapUs(int64_t maxGapUs);
 
+    // When set, the max frame rate fed to the encoder will be capped at maxFps.
+    status_t setMaxFps(float maxFps);
+
     // Sets the time lapse (or slow motion) parameters.
     // data[0] is the time (us) between two frames for playback
     // data[1] is the time (us) between two frames for capture
@@ -193,8 +198,8 @@ private:
     // doing anything if we don't have a codec buffer available.
     void submitEndOfInputStream_l();
 
-    void setLatestSubmittedBuffer_l(const BufferQueue::BufferItem &item);
-    bool repeatLatestSubmittedBuffer_l();
+    void setLatestBuffer_l(const BufferQueue::BufferItem &item, bool dropped);
+    bool repeatLatestBuffer_l();
     int64_t getTimestamp(const BufferQueue::BufferItem &item);
 
     // Lock, covers all member variables.
@@ -250,6 +255,8 @@ private:
     int64_t mPrevModifiedTimeUs;
     int64_t mSkipFramesBeforeNs;
 
+    sp<FrameDropper> mFrameDropper;
+
     sp<ALooper> mLooper;
     sp<AHandlerReflector<GraphicBufferSource> > mReflector;
 
@@ -258,11 +265,11 @@ private:
     int64_t mRepeatLastFrameTimestamp;
     int32_t mRepeatLastFrameCount;
 
-    int mLatestSubmittedBufferId;
-    uint64_t mLatestSubmittedBufferFrameNum;
-    int32_t mLatestSubmittedBufferUseCount;
+    int mLatestBufferId;
+    uint64_t mLatestBufferFrameNum;
+    int32_t mLatestBufferUseCount;
 
-    // The previously submitted buffer should've been repeated but
+    // The previous buffer should've been repeated but
     // no codec buffer was available at the time.
     bool mRepeatBufferDeferred;
 

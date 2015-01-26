@@ -419,6 +419,7 @@ ACodec::ACodec()
       mMetaDataBuffersToSubmit(0),
       mRepeatFrameDelayUs(-1ll),
       mMaxPtsGapUs(-1ll),
+      mMaxFps(-1),
       mTimePerFrameUs(-1ll),
       mTimePerCaptureUs(-1ll),
       mCreateInputBuffersSuspended(false),
@@ -1257,6 +1258,10 @@ status_t ACodec::configureCodec(
 
         if (!msg->findInt64("max-pts-gap-to-encoder", &mMaxPtsGapUs)) {
             mMaxPtsGapUs = -1ll;
+        }
+
+        if (!msg->findFloat("max-fps-to-encoder", &mMaxFps)) {
+            mMaxFps = -1;
         }
 
         if (!msg->findInt64("time-lapse", &mTimePerCaptureUs)) {
@@ -5105,6 +5110,21 @@ void ACodec::LoadedState::onCreateInputSurface(
 
         if (err != OK) {
             ALOGE("[%s] Unable to configure max timestamp gap (err %d)",
+                    mCodec->mComponentName.c_str(),
+                    err);
+        }
+    }
+
+    if (err == OK && mCodec->mMaxFps > 0) {
+        err = mCodec->mOMX->setInternalOption(
+                mCodec->mNode,
+                kPortIndexInput,
+                IOMX::INTERNAL_OPTION_MAX_FPS,
+                &mCodec->mMaxFps,
+                sizeof(mCodec->mMaxFps));
+
+        if (err != OK) {
+            ALOGE("[%s] Unable to configure max fps (err %d)",
                     mCodec->mComponentName.c_str(),
                     err);
         }

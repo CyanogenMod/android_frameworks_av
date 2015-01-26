@@ -1075,6 +1075,7 @@ inline static const char *asString(IOMX::InternalOptionType i, const char *def =
         case IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY:
             return "REPEAT_PREVIOUS_FRAME_DELAY";
         case IOMX::INTERNAL_OPTION_MAX_TIMESTAMP_GAP: return "MAX_TIMESTAMP_GAP";
+        case IOMX::INTERNAL_OPTION_MAX_FPS:           return "MAX_FPS";
         case IOMX::INTERNAL_OPTION_START_TIME:        return "START_TIME";
         case IOMX::INTERNAL_OPTION_TIME_LAPSE:        return "TIME_LAPSE";
         default:                                      return def;
@@ -1092,6 +1093,7 @@ status_t OMXNodeInstance::setInternalOption(
         case IOMX::INTERNAL_OPTION_SUSPEND:
         case IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY:
         case IOMX::INTERNAL_OPTION_MAX_TIMESTAMP_GAP:
+        case IOMX::INTERNAL_OPTION_MAX_FPS:
         case IOMX::INTERNAL_OPTION_START_TIME:
         case IOMX::INTERNAL_OPTION_TIME_LAPSE:
         {
@@ -1129,6 +1131,14 @@ status_t OMXNodeInstance::setInternalOption(
                 int64_t maxGapUs = *(int64_t *)data;
                 CLOG_CONFIG(setInternalOption, "gapUs=%lld", (long long)maxGapUs);
                 return bufferSource->setMaxTimestampGapUs(maxGapUs);
+            } else if (type == IOMX::INTERNAL_OPTION_MAX_FPS) {
+                if (size != sizeof(float)) {
+                    return INVALID_OPERATION;
+                }
+
+                float maxFps = *(float *)data;
+                CLOG_CONFIG(setInternalOption, "maxFps=%f", maxFps);
+                return bufferSource->setMaxFps(maxFps);
             } else if (type == IOMX::INTERNAL_OPTION_START_TIME) {
                 if (size != sizeof(int64_t)) {
                     return INVALID_OPERATION;

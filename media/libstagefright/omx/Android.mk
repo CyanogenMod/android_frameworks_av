@@ -6,6 +6,7 @@ ifeq ($(TARGET_DEVICE), manta)
 endif
 
 LOCAL_SRC_FILES:=                     \
+        FrameDropper.cpp              \
         GraphicBufferSource.cpp       \
         OMX.cpp                       \
         OMXMaster.cpp                 \

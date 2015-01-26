@@ -30,6 +30,7 @@
 #include <ui/GraphicBuffer.h>
 
 #include <inttypes.h>
+#include "FrameDropper.h"
 
 namespace android {
 
@@ -53,9 +54,9 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
     mRepeatAfterUs(-1ll),
     mRepeatLastFrameGeneration(0),
     mRepeatLastFrameTimestamp(-1ll),
-    mLatestSubmittedBufferId(-1),
-    mLatestSubmittedBufferFrameNum(0),
-    mLatestSubmittedBufferUseCount(0),
+    mLatestBufferId(-1),
+    mLatestBufferFrameNum(0),
+    mLatestBufferUseCount(0),
     mRepeatBufferDeferred(false),
     mTimePerCaptureUs(-1ll),
     mTimePerFrameUs(-1ll),
@@ -152,7 +153,7 @@ void GraphicBufferSource::omxExecuting() {
         mLooper->registerHandler(mReflector);
         mLooper->start();
 
-        if (mLatestSubmittedBufferId >= 0) {
+        if (mLatestBufferId >= 0) {
             sp<AMessage> msg =
                 new AMessage(kWhatRepeatLastFrame, mReflector->id());
 
@@ -287,8 +288,8 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         ALOGV("cbi %d matches bq slot %d, handle=%p",
                 cbi, id, mBufferSlot[id]->handle);
 
-        if (id == mLatestSubmittedBufferId) {
-            CHECK_GT(mLatestSubmittedBufferUseCount--, 0);
+        if (id == mLatestBufferId) {
+            CHECK_GT(mLatestBufferUseCount--, 0);
         } else {
             mConsumer->releaseBuffer(id, codecBuffer.mFrameNumber,
                     EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
@@ -313,11 +314,11 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         ALOGV("buffer freed, EOS pending");
         submitEndOfInputStream_l();
     } else if (mRepeatBufferDeferred) {
-        bool success = repeatLatestSubmittedBuffer_l();
+        bool success = repeatLatestBuffer_l();
         if (success) {
-            ALOGV("deferred repeatLatestSubmittedBuffer_l SUCCESS");
+            ALOGV("deferred repeatLatestBuffer_l SUCCESS");
         } else {
-            ALOGV("deferred repeatLatestSubmittedBuffer_l FAILURE");
+            ALOGV("deferred repeatLatestBuffer_l FAILURE");
         }
         mRepeatBufferDeferred = false;
     }
@@ -382,12 +383,12 @@ void GraphicBufferSource::suspend(bool suspend) {
     mSuspended = false;
 
     if (mExecuting && mNumFramesAvailable == 0 && mRepeatBufferDeferred) {
-        if (repeatLatestSubmittedBuffer_l()) {
-            ALOGV("suspend/deferred repeatLatestSubmittedBuffer_l SUCCESS");
+        if (repeatLatestBuffer_l()) {
+            ALOGV("suspend/deferred repeatLatestBuffer_l SUCCESS");
 
             mRepeatBufferDeferred = false;
         } else {
-            ALOGV("suspend/deferred repeatLatestSubmittedBuffer_l FAILURE");
+            ALOGV("suspend/deferred repeatLatestBuffer_l FAILURE");
         }
     }
 }
@@ -441,12 +442,22 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
 
     // only submit sample if start time is unspecified, or sample
     // is queued after the specified start time
+    bool dropped = false;
     if (mSkipFramesBeforeNs < 0ll || item.mTimestamp >= mSkipFramesBeforeNs) {
         // if start time is set, offset time stamp by start time
         if (mSkipFramesBeforeNs > 0) {
             item.mTimestamp -= mSkipFramesBeforeNs;
         }
-        err = submitBuffer_l(item, cbi);
+
+        int64_t timeUs = item.mTimestamp / 1000;
+        if (mFrameDropper != NULL && mFrameDropper->shouldDrop(timeUs)) {
+            ALOGV("skipping frame (%lld) to meet max framerate", static_cast<long long>(timeUs));
+            // set err to OK so that the skipped frame can still be saved as the lastest frame
+            err = OK;
+            dropped = true;
+        } else {
+            err = submitBuffer_l(item, cbi);
+        }
     }
 
     if (err != OK) {
@@ -455,46 +466,46 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
                 EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
     } else {
         ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
-        setLatestSubmittedBuffer_l(item);
+        setLatestBuffer_l(item, dropped);
     }
 
     return true;
 }
 
-bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
+bool GraphicBufferSource::repeatLatestBuffer_l() {
     CHECK(mExecuting && mNumFramesAvailable == 0);
 
-    if (mLatestSubmittedBufferId < 0 || mSuspended) {
+    if (mLatestBufferId < 0 || mSuspended) {
         return false;
     }
-    if (mBufferSlot[mLatestSubmittedBufferId] == NULL) {
+    if (mBufferSlot[mLatestBufferId] == NULL) {
         // This can happen if the remote side disconnects, causing
         // onBuffersReleased() to NULL out our copy of the slots.  The
         // buffer is gone, so we have nothing to show.
         //
         // To be on the safe side we try to release the buffer.
-        ALOGD("repeatLatestSubmittedBuffer_l: slot was NULL");
+        ALOGD("repeatLatestBuffer_l: slot was NULL");
         mConsumer->releaseBuffer(
-                mLatestSubmittedBufferId,
-                mLatestSubmittedBufferFrameNum,
+                mLatestBufferId,
+                mLatestBufferFrameNum,
                 EGL_NO_DISPLAY,
                 EGL_NO_SYNC_KHR,
                 Fence::NO_FENCE);
-        mLatestSubmittedBufferId = -1;
-        mLatestSubmittedBufferFrameNum = 0;
+        mLatestBufferId = -1;
+        mLatestBufferFrameNum = 0;
         return false;
     }
 
     int cbi = findAvailableCodecBuffer_l();
     if (cbi < 0) {
         // No buffers available, bail.
-        ALOGV("repeatLatestSubmittedBuffer_l: no codec buffers.");
+        ALOGV("repeatLatestBuffer_l: no codec buffers.");
         return false;
     }
 
     BufferQueue::BufferItem item;
-    item.mBuf = mLatestSubmittedBufferId;
-    item.mFrameNumber = mLatestSubmittedBufferFrameNum;
+    item.mBuf = mLatestBufferId;
+    item.mFrameNumber = mLatestBufferFrameNum;
     item.mTimestamp = mRepeatLastFrameTimestamp;
 
     status_t err = submitBuffer_l(item, cbi);
@@ -503,7 +514,7 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
         return false;
     }
 
-    ++mLatestSubmittedBufferUseCount;
+    ++mLatestBufferUseCount;
 
     /* repeat last frame up to kRepeatLastFrameCount times.
      * in case of static scene, a single repeat might not get rid of encoder
@@ -522,26 +533,26 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
     return true;
 }
 
-void GraphicBufferSource::setLatestSubmittedBuffer_l(
-        const BufferQueue::BufferItem &item) {
-    ALOGV("setLatestSubmittedBuffer_l");
+void GraphicBufferSource::setLatestBuffer_l(
+        const BufferQueue::BufferItem &item, bool dropped) {
+    ALOGV("setLatestBuffer_l");
 
-    if (mLatestSubmittedBufferId >= 0) {
-        if (mLatestSubmittedBufferUseCount == 0) {
+    if (mLatestBufferId >= 0) {
+        if (mLatestBufferUseCount == 0) {
             mConsumer->releaseBuffer(
-                    mLatestSubmittedBufferId,
-                    mLatestSubmittedBufferFrameNum,
+                    mLatestBufferId,
+                    mLatestBufferFrameNum,
                     EGL_NO_DISPLAY,
                     EGL_NO_SYNC_KHR,
                     Fence::NO_FENCE);
         }
     }
 
-    mLatestSubmittedBufferId = item.mBuf;
-    mLatestSubmittedBufferFrameNum = item.mFrameNumber;
+    mLatestBufferId = item.mBuf;
+    mLatestBufferFrameNum = item.mFrameNumber;
     mRepeatLastFrameTimestamp = item.mTimestamp + mRepeatAfterUs * 1000;
 
-    mLatestSubmittedBufferUseCount = 1;
+    mLatestBufferUseCount = dropped ? 0 : 1;
     mRepeatBufferDeferred = false;
     mRepeatLastFrameCount = kRepeatLastFrameCount;
 
@@ -841,6 +852,23 @@ status_t GraphicBufferSource::setMaxTimestampGapUs(int64_t maxGapUs) {
     return OK;
 }
 
+status_t GraphicBufferSource::setMaxFps(float maxFps) {
+    Mutex::Autolock autoLock(mMutex);
+
+    if (mExecuting) {
+        return INVALID_OPERATION;
+    }
+
+    mFrameDropper = new FrameDropper();
+    status_t err = mFrameDropper->setMaxFrameRate(maxFps);
+    if (err != OK) {
+        mFrameDropper.clear();
+        return err;
+    }
+
+    return OK;
+}
+
 void GraphicBufferSource::setSkipFramesBeforeUs(int64_t skipFramesBeforeUs) {
     Mutex::Autolock autoLock(mMutex);
 
@@ -879,12 +907,12 @@ void GraphicBufferSource::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
 
-            bool success = repeatLatestSubmittedBuffer_l();
+            bool success = repeatLatestBuffer_l();
 
             if (success) {
-                ALOGV("repeatLatestSubmittedBuffer_l SUCCESS");
+                ALOGV("repeatLatestBuffer_l SUCCESS");
             } else {
-                ALOGV("repeatLatestSubmittedBuffer_l FAILURE");
+                ALOGV("repeatLatestBuffer_l FAILURE");
                 mRepeatBufferDeferred = true;
             }
             break;
