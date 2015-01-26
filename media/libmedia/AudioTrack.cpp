@@ -66,12 +66,11 @@ status_t AudioTrack::getMinFrameCount(
         return BAD_VALUE;
     }
 
-    // FIXME merge with similar code in createTrack_l(), except we're missing
-    //       some information here that is available in createTrack_l():
+    // FIXME handle in server, like createTrack_l(), possible missing info:
     //          audio_io_handle_t output
     //          audio_format_t format
     //          audio_channel_mask_t channelMask
-    //          audio_output_flags_t flags
+    //          audio_output_flags_t flags (FAST)
     uint32_t afSampleRate;
     status_t status;
     status = AudioSystem::getOutputSamplingRate(&afSampleRate, streamType);
@@ -101,16 +100,16 @@ status_t AudioTrack::getMinFrameCount(
         minBufCount = 2;
     }
 
-    *frameCount = (sampleRate == 0) ? afFrameCount * minBufCount :
-            afFrameCount * minBufCount * uint64_t(sampleRate) / afSampleRate;
-    // The formula above should always produce a non-zero value, but return an error
-    // in the unlikely event that it does not, as that's part of the API contract.
+    *frameCount = minBufCount * sourceFramesNeeded(sampleRate, afFrameCount, afSampleRate);
+    // The formula above should always produce a non-zero value under normal circumstances:
+    // AudioTrack.SAMPLE_RATE_HZ_MIN <= sampleRate <= AudioTrack.SAMPLE_RATE_HZ_MAX.
+    // Return error in the unlikely event that it does not, as that's part of the API contract.
     if (*frameCount == 0) {
-        ALOGE("AudioTrack::getMinFrameCount failed for streamType %d, sampleRate %d",
+        ALOGE("AudioTrack::getMinFrameCount failed for streamType %d, sampleRate %u",
                 streamType, sampleRate);
         return BAD_VALUE;
     }
-    ALOGV("getMinFrameCount=%zu: afFrameCount=%zu, minBufCount=%d, afSampleRate=%d, afLatency=%d",
+    ALOGV("getMinFrameCount=%zu: afFrameCount=%zu, minBufCount=%u, afSampleRate=%u, afLatency=%u",
             *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
     return NO_ERROR;
 }
@@ -1015,11 +1014,9 @@ status_t AudioTrack::createTrack_l()
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
     //  n = 1   fast track with single buffering; nBuffering is ignored
     //  n = 2   fast track with double buffering
-    //  n = 2   normal track, no sample rate conversion
-    //  n = 3   normal track, with sample rate conversion
-    //          (pessimistic; some non-1:1 conversion ratios don't actually need triple-buffering)
-    //  n > 3   very high latency or very small notification interval; nBuffering is ignored
-    const uint32_t nBuffering = (mSampleRate == afSampleRate) ? 2 : 3;
+    //  n = 2   normal track, (including those with sample rate conversion)
+    //  n >= 3  very high latency or very small notification interval (unused).
+    const uint32_t nBuffering = 2;
 
     mNotificationFramesAct = mNotificationFramesReq;
 
@@ -1060,39 +1057,9 @@ status_t AudioTrack::createTrack_l()
         // But when initializing a shared buffer AudioTrack via set(),
         // there _is_ a frameCount parameter.  We silently ignore it.
         frameCount = mSharedBuffer->size() / mFrameSize;
-
-    } else if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
-
-        // FIXME move these calculations and associated checks to server
-
-        // Ensure that buffer depth covers at least audio hardware latency
-        uint32_t minBufCount = afLatency / ((1000 * afFrameCount)/afSampleRate);
-        ALOGV("afFrameCount=%zu, minBufCount=%d, afSampleRate=%u, afLatency=%d",
-                afFrameCount, minBufCount, afSampleRate, afLatency);
-        if (minBufCount <= nBuffering) {
-            minBufCount = nBuffering;
-        }
-
-        size_t minFrameCount = afFrameCount * minBufCount * uint64_t(mSampleRate) / afSampleRate;
-        ALOGV("minFrameCount: %zu, afFrameCount=%zu, minBufCount=%d, sampleRate=%u, afSampleRate=%u"
-                ", afLatency=%d",
-                minFrameCount, afFrameCount, minBufCount, mSampleRate, afSampleRate, afLatency);
-
-        if (frameCount == 0) {
-            frameCount = minFrameCount;
-        } else if (frameCount < minFrameCount) {
-            // not ALOGW because it happens all the time when playing key clicks over A2DP
-            ALOGV("Minimum buffer size corrected from %zu to %zu",
-                     frameCount, minFrameCount);
-            frameCount = minFrameCount;
-        }
-        // Make sure that application is notified with sufficient margin before underrun
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
-            mNotificationFramesAct = frameCount/nBuffering;
-        }
-
     } else {
-        // For fast tracks, the frame count calculations and checks are done by server
+        // For fast and normal streaming tracks,
+        // the frame count calculations and checks are done by server
     }
 
     IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
@@ -1175,23 +1142,10 @@ status_t AudioTrack::createTrack_l()
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %zu", frameCount);
             mAwaitBoost = true;
-            if (mSharedBuffer == 0) {
-                // Theoretically double-buffering is not required for fast tracks,
-                // due to tighter scheduling.  But in practice, to accommodate kernels with
-                // scheduling jitter, and apps with computation jitter, we use double-buffering.
-                if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
-                    mNotificationFramesAct = frameCount/nBuffering;
-                }
-            }
         } else {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
             // once denied, do not request again if IAudioTrack is re-created
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
-            if (mSharedBuffer == 0) {
-                if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount/nBuffering) {
-                    mNotificationFramesAct = frameCount/nBuffering;
-                }
-            }
         }
     }
     if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
@@ -1212,6 +1166,16 @@ status_t AudioTrack::createTrack_l()
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_DIRECT);
             // FIXME This is a warning, not an error, so don't return error status
             //return NO_INIT;
+        }
+    }
+    // Make sure that application is notified with sufficient margin before underrun
+    if (mSharedBuffer == 0 && audio_is_linear_pcm(mFormat)) {
+        // Theoretically double-buffering is not required for fast tracks,
+        // due to tighter scheduling.  But in practice, to accommodate kernels with
+        // scheduling jitter, and apps with computation jitter, we use double-buffering
+        // for fast tracks just like normal streaming tracks.
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount / nBuffering) {
+            mNotificationFramesAct = frameCount / nBuffering;
         }
     }
 

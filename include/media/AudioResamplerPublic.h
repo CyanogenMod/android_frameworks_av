@@ -26,4 +26,17 @@
 // TODO: replace with an API
 #define AUDIO_RESAMPLER_DOWN_RATIO_MAX 256
 
+// Returns the source frames needed to resample to destination frames.  This is not a precise
+// value and depends on the resampler (and possibly how it handles rounding internally).
+// Nevertheless, this should be an upper bound on the requirements of the resampler.
+// If srcSampleRate and dstSampleRate are equal, then it returns destination frames, which
+// may not be true if the resampler is asynchronous.
+static inline size_t sourceFramesNeeded(
+        uint32_t srcSampleRate, size_t dstFramesRequired, uint32_t dstSampleRate) {
+    // +1 for rounding - always do this even if matched ratio (resampler may use phases not ratio)
+    // +1 for additional sample needed for interpolation
+    return srcSampleRate == dstSampleRate ? dstFramesRequired :
+            size_t((uint64_t)dstFramesRequired * srcSampleRate / dstSampleRate + 1 + 1);
+}
+
 #endif // ANDROID_AUDIO_RESAMPLER_PUBLIC_H

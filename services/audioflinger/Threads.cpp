@@ -172,18 +172,6 @@ static int sFastTrackMultiplier = kFastTrackMultiplier;
 // and that all "fast" AudioRecord clients read from.  In either case, the size can be small.
 static const size_t kRecordThreadReadOnlyHeapSize = 0x2000;
 
-// Returns the source frames needed to resample to destination frames.  This is not a precise
-// value and depends on the resampler (and possibly how it handles rounding internally).
-// If srcSampleRate and dstSampleRate are equal, then it returns destination frames, which
-// may not be a true if the resampler is asynchronous.
-static inline size_t sourceFramesNeeded(
-        uint32_t srcSampleRate, size_t dstFramesRequired, uint32_t dstSampleRate) {
-    // +1 for rounding - always do this even if matched ratio
-    // +1 for additional sample needed for interpolation
-    return srcSampleRate == dstSampleRate ? dstFramesRequired :
-            size_t((uint64_t)dstFramesRequired * srcSampleRate / dstSampleRate + 1 + 1);
-}
-
 // ----------------------------------------------------------------------------
 
 static pthread_once_t sFastTrackMultiplierOnce = PTHREAD_ONCE_INIT;
@@ -1495,20 +1483,25 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 audio_is_linear_pcm(format),
                 channelMask, sampleRate, mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);
         *flags &= ~IAudioFlinger::TRACK_FAST;
-        // For compatibility with AudioTrack calculation, buffer depth is forced
-        // to be at least 2 x the normal mixer frame count and cover audio hardware latency.
-        // This is probably too conservative, but legacy application code may depend on it.
-        // If you change this calculation, also review the start threshold which is related.
+      }
+    }
+    // For normal PCM streaming tracks, update minimum frame count.
+    // For compatibility with AudioTrack calculation, buffer depth is forced
+    // to be at least 2 x the normal mixer frame count and cover audio hardware latency.
+    // This is probably too conservative, but legacy application code may depend on it.
+    // If you change this calculation, also review the start threshold which is related.
+    if (!(*flags & IAudioFlinger::TRACK_FAST)
+            && audio_is_linear_pcm(format) && sharedBuffer == 0) {
         uint32_t latencyMs = mOutput->stream->get_latency(mOutput->stream);
         uint32_t minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
         if (minBufCount < 2) {
             minBufCount = 2;
         }
-        size_t minFrameCount = mNormalFrameCount * minBufCount;
-        if (frameCount < minFrameCount) {
+        size_t minFrameCount =
+                minBufCount * sourceFramesNeeded(sampleRate, mNormalFrameCount, mSampleRate);
+        if (frameCount < minFrameCount) { // including frameCount == 0
             frameCount = minFrameCount;
         }
-      }
     }
     *pFrameCount = frameCount;
 
