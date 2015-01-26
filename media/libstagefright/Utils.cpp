@@ -344,6 +344,28 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt32("csd", true);
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-0", buffer);
+
+        if (!meta->findData(kKeyOpusCodecDelay, &type, &data, &size)) {
+            return -EINVAL;
+        }
+
+        buffer = new ABuffer(size);
+        memcpy(buffer->data(), data, size);
+
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+        msg->setBuffer("csd-1", buffer);
+
+        if (!meta->findData(kKeyOpusSeekPreRoll, &type, &data, &size)) {
+            return -EINVAL;
+        }
+
+        buffer = new ABuffer(size);
+        memcpy(buffer->data(), data, size);
+
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+        msg->setBuffer("csd-2", buffer);
     }
 
     *format = msg;
