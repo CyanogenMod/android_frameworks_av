@@ -20,9 +20,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
     FwdLockGlue.c
 
-LOCAL_C_INCLUDES := \
-    external/openssl/include
-
 LOCAL_SHARED_LIBRARIES := libcrypto
 
 LOCAL_MODULE := libfwdlock-common
