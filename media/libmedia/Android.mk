@@ -58,10 +58,7 @@ LOCAL_SRC_FILES:= \
     AudioEffect.cpp \
     Visualizer.cpp \
     MemoryLeakTrackUtil.cpp \
-    SoundPool.cpp \
-    SoundPoolThread.cpp \
-    StringArray.cpp \
-    AudioPolicy.cpp
+    StringArray.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libui liblog libcutils libutils libbinder libsonivox libicuuc libicui18n libexpat \

@@ -838,51 +838,10 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     }
 }
 
-/*static*/ status_t MediaPlayer::decode(
-        const sp<IMediaHTTPService> &httpService,
-        const char* url,
-        uint32_t *pSampleRate,
-        int* pNumChannels,
-        audio_format_t* pFormat,
-        const sp<IMemoryHeap>& heap,
-        size_t *pSize)
-{
-    ALOGV("decode(%s)", url);
-    status_t status;
-    const sp<IMediaPlayerService>& service = getMediaPlayerService();
-    if (service != 0) {
-        status = service->decode(httpService, url, pSampleRate, pNumChannels, pFormat, heap, pSize);
-    } else {
-        ALOGE("Unable to locate media service");
-        status = DEAD_OBJECT;
-    }
-    return status;
-
-}
-
 void MediaPlayer::died()
 {
     ALOGV("died");
     notify(MEDIA_ERROR, MEDIA_ERROR_SERVER_DIED, 0);
-}
-
-/*static*/ status_t MediaPlayer::decode(int fd, int64_t offset, int64_t length,
-                                        uint32_t *pSampleRate, int* pNumChannels,
-                                        audio_format_t* pFormat,
-                                        const sp<IMemoryHeap>& heap, size_t *pSize)
-{
-    ALOGV("decode(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
-    status_t status;
-    const sp<IMediaPlayerService>& service = getMediaPlayerService();
-    if (service != 0) {
-        status = service->decode(fd, offset, length, pSampleRate,
-                                 pNumChannels, pFormat, heap, pSize);
-    } else {
-        ALOGE("Unable to locate media service");
-        status = DEAD_OBJECT;
-    }
-    return status;
-
 }
 
 status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
