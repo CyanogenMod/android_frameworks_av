@@ -94,6 +94,8 @@ public:
                                 sp<IMemory>& buffers,   // return value 0 means it follows cblk
                                 status_t *status) = 0;
 
+    // FIXME Surprisingly, sampleRate/format/frameCount/latency don't work for input handles
+
     /* query the audio hardware state. This state never changes,
      * and therefore can be cached.
      */

@@ -427,7 +427,7 @@ protected:
                 bool                    mStandby;     // Whether thread is currently in standby.
                 audio_devices_t         mOutDevice;   // output device
                 audio_devices_t         mInDevice;    // input device
-                audio_source_t          mAudioSource; // (see audio.h, audio_source_t)
+                audio_source_t          mAudioSource;
 
                 const audio_io_handle_t mId;
                 Vector< sp<EffectChain> > mEffectChains;

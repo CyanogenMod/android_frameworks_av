@@ -423,7 +423,6 @@ status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *request
             goto end;
         }
         // check for obtainBuffer interrupted by client
-        // check for obtainBuffer interrupted by client
         if (flags & CBLK_INTERRUPT) {
             ALOGV("waitStreamEndDone() interrupted by client");
             status = -EINTR;

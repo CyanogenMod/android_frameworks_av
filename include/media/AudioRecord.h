@@ -88,8 +88,8 @@ public:
      * user:    Pointer to context for use by the callback receiver.
      * info:    Pointer to optional parameter according to event type:
      *          - EVENT_MORE_DATA: pointer to AudioRecord::Buffer struct. The callback must not read
-     *            more bytes than indicated by 'size' field and update 'size' if fewer bytes are
-     *            consumed.
+     *                             more bytes than indicated by 'size' field and update 'size' if
+     *                             fewer bytes are consumed.
      *          - EVENT_OVERRUN: unused.
      *          - EVENT_MARKER: pointer to const uint32_t containing the marker position in frames.
      *          - EVENT_NEW_POS: pointer to const uint32_t containing the new position in frames.
