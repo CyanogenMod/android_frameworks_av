@@ -384,28 +384,6 @@ sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
     return new RemoteDisplay(client, iface.string());
 }
 
-status_t MediaPlayerService::AudioCache::dump(int fd, const Vector<String16>& /*args*/) const
-{
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    result.append(" AudioCache\n");
-    if (mHeap != 0) {
-        snprintf(buffer, 255, "  heap base(%p), size(%zu), flags(%d)\n",
-                mHeap->getBase(), mHeap->getSize(), mHeap->getFlags());
-        result.append(buffer);
-    }
-    snprintf(buffer, 255, "  msec per frame(%f), channel count(%d), format(%d), frame count(%zd)\n",
-            mMsecsPerFrame, mChannelCount, mFormat, mFrameCount);
-    result.append(buffer);
-    snprintf(buffer, 255, "  sample rate(%d), size(%d), error(%d), command complete(%s)\n",
-            mSampleRate, mSize, mError, mCommandComplete?"true":"false");
-    result.append(buffer);
-    ::write(fd, result.string(), result.size());
-    return NO_ERROR;
-}
-
 status_t MediaPlayerService::AudioOutput::dump(int fd, const Vector<String16>& args) const
 {
     const size_t SIZE = 256;
@@ -1279,128 +1257,6 @@ int Antagonizer::callbackThread(void* user)
 }
 #endif
 
-status_t MediaPlayerService::decode(
-        const sp<IMediaHTTPService> &httpService,
-        const char* url,
-        uint32_t *pSampleRate,
-        int* pNumChannels,
-        audio_format_t* pFormat,
-        const sp<IMemoryHeap>& heap,
-        size_t *pSize)
-{
-    ALOGV("decode(%s)", url);
-    sp<MediaPlayerBase> player;
-    status_t status = BAD_VALUE;
-
-    // Protect our precious, precious DRMd ringtones by only allowing
-    // decoding of http, but not filesystem paths or content Uris.
-    // If the application wants to decode those, it should open a
-    // filedescriptor for them and use that.
-    if (url != NULL && strncmp(url, "http://", 7) != 0) {
-        ALOGD("Can't decode %s by path, use filedescriptor instead", url);
-        return BAD_VALUE;
-    }
-
-    player_type playerType =
-        MediaPlayerFactory::getPlayerType(NULL /* client */, url);
-    ALOGV("player type = %d", playerType);
-
-    // create the right type of player
-    sp<AudioCache> cache = new AudioCache(heap);
-    player = MediaPlayerFactory::createPlayer(playerType, cache.get(), cache->notify);
-    if (player == NULL) goto Exit;
-    if (player->hardwareOutput()) goto Exit;
-
-    static_cast<MediaPlayerInterface*>(player.get())->setAudioSink(cache);
-
-    // set data source
-    if (player->setDataSource(httpService, url) != NO_ERROR) goto Exit;
-
-    ALOGV("prepare");
-    player->prepareAsync();
-
-    ALOGV("wait for prepare");
-    if (cache->wait() != NO_ERROR) goto Exit;
-
-    ALOGV("start");
-    player->start();
-
-    ALOGV("wait for playback complete");
-    cache->wait();
-    // in case of error, return what was successfully decoded.
-    if (cache->size() == 0) {
-        goto Exit;
-    }
-
-    *pSize = cache->size();
-    *pSampleRate = cache->sampleRate();
-    *pNumChannels = cache->channelCount();
-    *pFormat = cache->format();
-    ALOGV("return size %d sampleRate=%u, channelCount = %d, format = %d",
-          *pSize, *pSampleRate, *pNumChannels, *pFormat);
-    status = NO_ERROR;
-
-Exit:
-    if (player != 0) player->reset();
-    return status;
-}
-
-status_t MediaPlayerService::decode(int fd, int64_t offset, int64_t length,
-                                       uint32_t *pSampleRate, int* pNumChannels,
-                                       audio_format_t* pFormat,
-                                       const sp<IMemoryHeap>& heap, size_t *pSize)
-{
-    ALOGV("decode(%d, %lld, %lld)", fd, offset, length);
-    sp<MediaPlayerBase> player;
-    status_t status = BAD_VALUE;
-
-    player_type playerType = MediaPlayerFactory::getPlayerType(NULL /* client */,
-                                                               fd,
-                                                               offset,
-                                                               length);
-    ALOGV("player type = %d", playerType);
-
-    // create the right type of player
-    sp<AudioCache> cache = new AudioCache(heap);
-    player = MediaPlayerFactory::createPlayer(playerType, cache.get(), cache->notify);
-    if (player == NULL) goto Exit;
-    if (player->hardwareOutput()) goto Exit;
-
-    static_cast<MediaPlayerInterface*>(player.get())->setAudioSink(cache);
-
-    // set data source
-    if (player->setDataSource(fd, offset, length) != NO_ERROR) goto Exit;
-
-    ALOGV("prepare");
-    player->prepareAsync();
-
-    ALOGV("wait for prepare");
-    if (cache->wait() != NO_ERROR) goto Exit;
-
-    ALOGV("start");
-    player->start();
-
-    ALOGV("wait for playback complete");
-    cache->wait();
-    // in case of error, return what was successfully decoded.
-    if (cache->size() == 0) {
-        goto Exit;
-    }
-
-    *pSize = cache->size();
-    *pSampleRate = cache->sampleRate();
-    *pNumChannels = cache->channelCount();
-    *pFormat = cache->format();
-    ALOGV("return size %d, sampleRate=%u, channelCount = %d, format = %d",
-          *pSize, *pSampleRate, *pNumChannels, *pFormat);
-    status = NO_ERROR;
-
-Exit:
-    if (player != 0) player->reset();
-    return status;
-}
-
-
 #undef LOG_TAG
 #define LOG_TAG "AudioSink"
 MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
@@ -1950,47 +1806,6 @@ uint32_t MediaPlayerService::AudioOutput::getSampleRate() const
     return mTrack->getSampleRate();
 }
 
-#undef LOG_TAG
-#define LOG_TAG "AudioCache"
-MediaPlayerService::AudioCache::AudioCache(const sp<IMemoryHeap>& heap) :
-    mHeap(heap), mChannelCount(0), mFrameCount(1024), mSampleRate(0), mSize(0),
-    mFrameSize(1), mError(NO_ERROR),  mCommandComplete(false)
-{
-}
-
-uint32_t MediaPlayerService::AudioCache::latency () const
-{
-    return 0;
-}
-
-float MediaPlayerService::AudioCache::msecsPerFrame() const
-{
-    return mMsecsPerFrame;
-}
-
-status_t MediaPlayerService::AudioCache::getPosition(uint32_t *position) const
-{
-    if (position == 0) return BAD_VALUE;
-    *position = mSize / mFrameSize;
-    return NO_ERROR;
-}
-
-status_t MediaPlayerService::AudioCache::getTimestamp(AudioTimestamp &ts) const
-{
-    ts.mPosition = mSize / mFrameSize;
-    nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
-    ts.mTime.tv_sec = now / 1000000000LL;
-    ts.mTime.tv_nsec = now - (1000000000LL * ts.mTime.tv_sec);
-    return NO_ERROR;
-}
-
-status_t MediaPlayerService::AudioCache::getFramesWritten(uint32_t *written) const
-{
-    if (written == 0) return BAD_VALUE;
-    *written = mSize / mFrameSize;
-    return NO_ERROR;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct CallbackThread : public Thread {
@@ -2058,139 +1873,6 @@ bool CallbackThread::threadLoop() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-status_t MediaPlayerService::AudioCache::open(
-        uint32_t sampleRate, int channelCount, audio_channel_mask_t channelMask,
-        audio_format_t format, int bufferCount,
-        AudioCallback cb, void *cookie, audio_output_flags_t /*flags*/,
-        const audio_offload_info_t* /*offloadInfo*/)
-{
-    ALOGV("open(%u, %d, 0x%x, %d, %d)", sampleRate, channelCount, channelMask, format, bufferCount);
-    if (mHeap->getHeapID() < 0) {
-        return NO_INIT;
-    }
-
-    mSampleRate = sampleRate;
-    mChannelCount = (uint16_t)channelCount;
-    mFormat = format;
-    mMsecsPerFrame = 1.e3 / (float) sampleRate;
-    mFrameSize =  audio_is_linear_pcm(mFormat)
-            ? mChannelCount * audio_bytes_per_sample(mFormat) : 1;
-    mFrameCount = mHeap->getSize() / mFrameSize;
-
-    if (cb != NULL) {
-        mCallbackThread = new CallbackThread(this, cb, cookie);
-    }
-    return NO_ERROR;
-}
-
-status_t MediaPlayerService::AudioCache::start() {
-    if (mCallbackThread != NULL) {
-        mCallbackThread->run("AudioCache callback");
-    }
-    return NO_ERROR;
-}
-
-void MediaPlayerService::AudioCache::stop() {
-    if (mCallbackThread != NULL) {
-        mCallbackThread->requestExitAndWait();
-    }
-}
-
-ssize_t MediaPlayerService::AudioCache::write(const void* buffer, size_t size)
-{
-    ALOGV("write(%p, %u)", buffer, size);
-    if ((buffer == 0) || (size == 0)) return size;
-
-    uint8_t* p = static_cast<uint8_t*>(mHeap->getBase());
-    if (p == NULL) return NO_INIT;
-    p += mSize;
-    ALOGV("memcpy(%p, %p, %u)", p, buffer, size);
-
-    bool overflow = mSize + size > mHeap->getSize();
-    if (overflow) {
-        ALOGE("Heap size overflow! req size: %d, max size: %d", (mSize + size), mHeap->getSize());
-        size = mHeap->getSize() - mSize;
-    }
-    size -= size % mFrameSize; // consume only integral amounts of frame size
-    memcpy(p, buffer, size);
-    mSize += size;
-
-    if (overflow) {
-        // Signal heap filled here (last frame may be truncated).
-        // After this point, no more data should be written as the
-        // heap is filled and the AudioCache should be effectively
-        // immutable with respect to future writes.
-        //
-        // It is thus safe for another thread to read the AudioCache.
-        Mutex::Autolock lock(mLock);
-        mCommandComplete = true;
-        mSignal.signal();
-    }
-    return size;
-}
-
-// call with lock held
-status_t MediaPlayerService::AudioCache::wait()
-{
-    Mutex::Autolock lock(mLock);
-    while (!mCommandComplete) {
-        mSignal.wait(mLock);
-    }
-    mCommandComplete = false;
-
-    if (mError == NO_ERROR) {
-        ALOGV("wait - success");
-    } else {
-        ALOGV("wait - error");
-    }
-    return mError;
-}
-
-void MediaPlayerService::AudioCache::notify(
-        void* cookie, int msg, int ext1, int ext2, const Parcel* /*obj*/)
-{
-    ALOGV("notify(%p, %d, %d, %d)", cookie, msg, ext1, ext2);
-    AudioCache* p = static_cast<AudioCache*>(cookie);
-
-    // ignore buffering messages
-    switch (msg)
-    {
-    case MEDIA_ERROR:
-        ALOGE("Error %d, %d occurred", ext1, ext2);
-        break;
-    case MEDIA_PREPARED:
-        ALOGV("prepared");
-        break;
-    case MEDIA_PLAYBACK_COMPLETE:
-        ALOGV("playback complete");
-        break;
-    default:
-        ALOGV("ignored");
-        return;
-    }
-
-    // wake up thread
-    Mutex::Autolock lock(p->mLock);
-    if (msg == MEDIA_ERROR) {
-        p->mError = ext1;
-    }
-    p->mCommandComplete = true;
-    p->mSignal.signal();
-}
-
-int MediaPlayerService::AudioCache::getSessionId() const
-{
-    return 0;
-}
-
-uint32_t MediaPlayerService::AudioCache::getSampleRate() const
-{
-    if (mMsecsPerFrame == 0) {
-        return 0;
-    }
-    return (uint32_t)(1.e3 / mMsecsPerFrame);
-}
-
 void MediaPlayerService::addBatteryData(uint32_t params)
 {
     Mutex::Autolock lock(mLock);
@@ -2234,7 +1916,7 @@ void MediaPlayerService::addBatteryData(uint32_t params)
         return;
     }
 
-    // an sudio stream is started
+    // an audio stream is started
     if (params & kBatteryDataAudioFlingerStart) {
         // record the start time only if currently no other audio
         // is being played
