@@ -51,17 +51,6 @@ public:
     virtual sp<IMediaMetadataRetriever> createMetadataRetriever() = 0;
     virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0) = 0;
 
-    virtual status_t         decode(
-            const sp<IMediaHTTPService> &httpService,
-            const char* url,
-            uint32_t *pSampleRate,
-            int* pNumChannels,
-            audio_format_t* pFormat,
-            const sp<IMemoryHeap>& heap, size_t *pSize) = 0;
-
-    virtual status_t         decode(int fd, int64_t offset, int64_t length, uint32_t *pSampleRate,
-                                    int* pNumChannels, audio_format_t* pFormat,
-                                    const sp<IMemoryHeap>& heap, size_t *pSize) = 0;
     virtual sp<IOMX>            getOMX() = 0;
     virtual sp<ICrypto>         makeCrypto() = 0;
     virtual sp<IDrm>            makeDrm() = 0;

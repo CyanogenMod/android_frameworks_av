@@ -88,7 +88,6 @@ public:
 
         virtual             ~AudioSink() {}
         virtual bool        ready() const = 0; // audio output is open and ready
-        virtual bool        realtime() const = 0; // audio output is real-time output
         virtual ssize_t     bufferSize() const = 0;
         virtual ssize_t     frameCount() const = 0;
         virtual ssize_t     channelCount() const = 0;
