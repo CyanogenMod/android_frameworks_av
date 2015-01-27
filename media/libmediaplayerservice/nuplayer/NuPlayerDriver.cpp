@@ -630,8 +630,17 @@ void NuPlayerDriver::notifyListener_l(
         case MEDIA_PLAYBACK_COMPLETE:
         {
             if (mState != STATE_RESET_IN_PROGRESS) {
-                if (mLooping || (mAutoLoop
-                        && (mAudioSink == NULL || mAudioSink->realtime()))) {
+                if (mAutoLoop) {
+                    audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
+                    if (mAudioSink != NULL) {
+                        streamType = mAudioSink->getAudioStreamType();
+                    }
+                    if (streamType == AUDIO_STREAM_NOTIFICATION) {
+                        ALOGW("disabling auto-loop for notification");
+                        mAutoLoop = false;
+                    }
+                }
+                if (mLooping || mAutoLoop) {
                     mPlayer->seekToAsync(0);
                     break;
                 }
