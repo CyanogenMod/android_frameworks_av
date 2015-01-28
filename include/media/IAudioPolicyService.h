@@ -44,7 +44,8 @@ public:
     //
     virtual status_t setDeviceConnectionState(audio_devices_t device,
                                               audio_policy_dev_state_t state,
-                                              const char *device_address) = 0;
+                                              const char *device_address,
+                                              const char *device_name) = 0;
     virtual audio_policy_dev_state_t getDeviceConnectionState(audio_devices_t device,
                                                                   const char *device_address) = 0;
     virtual status_t setPhoneState(audio_mode_t state) = 0;

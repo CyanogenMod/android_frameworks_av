@@ -33,7 +33,8 @@ namespace android {
 
 status_t AudioPolicyService::setDeviceConnectionState(audio_devices_t device,
                                                   audio_policy_dev_state_t state,
-                                                  const char *device_address)
+                                                  const char *device_address,
+                                                  const char *device_name __unused)
 {
     if (mpAudioPolicy == NULL) {
         return NO_INIT;

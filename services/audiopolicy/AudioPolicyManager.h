@@ -73,7 +73,8 @@ public:
         // AudioPolicyInterface
         virtual status_t setDeviceConnectionState(audio_devices_t device,
                                                           audio_policy_dev_state_t state,
-                                                          const char *device_address);
+                                                          const char *device_address,
+                                                          const char *device_name);
         virtual audio_policy_dev_state_t getDeviceConnectionState(audio_devices_t device,
                                                                               const char *device_address);
         virtual void setPhoneState(audio_mode_t state);
@@ -252,6 +253,11 @@ protected:
                       audio_port_role_t role, const sp<HwModule>& module);
             virtual ~AudioPort() {}
 
+            audio_port_handle_t getHandle() { return mId; }
+
+            void attach(const sp<HwModule>& module);
+            bool isAttached() { return mId != 0; }
+
             virtual void toAudioPort(struct audio_port *port) const;
 
             void importAudioPort(const sp<AudioPort> port);
@@ -301,6 +307,12 @@ protected:
             sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
             uint32_t mFlags; // attribute flags (e.g primary output,
                                                 // direct output...).
+
+        protected:
+            //TODO - clarify the role of mId in this case, both an "attached" indicator
+            // and a unique ID for identifying a port to the (upcoming) selection API,
+            // and its relationship to the mId in AudioOutputDescriptor and AudioInputDescriptor.
+            audio_port_handle_t mId;
         };
 
         class AudioPortConfig: public virtual RefBase
@@ -358,7 +370,8 @@ protected:
 
             audio_devices_t mDeviceType;
             String8 mAddress;
-            audio_port_handle_t mId;
+
+            static String8  emptyNameStr;
         };
 
         class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
@@ -832,7 +845,7 @@ protected:
                                 // to boost soft sounds, used to adjust volume curves accordingly
 
         Vector < sp<HwModule> > mHwModules;
-        volatile int32_t mNextUniqueId;
+        static volatile int32_t mNextUniqueId;
         volatile int32_t mAudioPortGeneration;
 
         DefaultKeyedVector<audio_patch_handle_t, sp<AudioPatch> > mAudioPatches;
@@ -882,7 +895,7 @@ protected:
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
         static bool isVirtualInputDevice(audio_devices_t device);
-        uint32_t nextUniqueId();
+        static uint32_t nextUniqueId();
         uint32_t nextAudioPortGeneration();
 private:
         // updates device caching and output for streams that can influence the
@@ -928,10 +941,10 @@ private:
         // Called by setDeviceConnectionState().
         status_t setDeviceConnectionStateInt(audio_devices_t device,
                                                           audio_policy_dev_state_t state,
-                                                          const char *device_address);
+                                                          const char *device_address,
+                                                          const char *device_name);
         sp<DeviceDescriptor>  getDeviceDescriptor(const audio_devices_t device,
                                                   const char *device_address);
-
 };
 
 };

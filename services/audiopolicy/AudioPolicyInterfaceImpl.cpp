@@ -28,7 +28,8 @@ namespace android {
 
 status_t AudioPolicyService::setDeviceConnectionState(audio_devices_t device,
                                                   audio_policy_dev_state_t state,
-                                                  const char *device_address)
+                                                  const char *device_address,
+                                                  const char *device_name)
 {
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
@@ -46,8 +47,8 @@ status_t AudioPolicyService::setDeviceConnectionState(audio_devices_t device,
 
     ALOGV("setDeviceConnectionState()");
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->setDeviceConnectionState(device,
-                                                      state, device_address);
+    return mAudioPolicyManager->setDeviceConnectionState(device, state,
+                                                         device_address, device_name);
 }
 
 audio_policy_dev_state_t AudioPolicyService::getDeviceConnectionState(

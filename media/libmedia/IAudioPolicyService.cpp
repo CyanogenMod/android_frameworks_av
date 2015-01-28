@@ -84,13 +84,15 @@ public:
     virtual status_t setDeviceConnectionState(
                                     audio_devices_t device,
                                     audio_policy_dev_state_t state,
-                                    const char *device_address)
+                                    const char *device_address,
+                                    const char *device_name)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(static_cast <uint32_t>(device));
         data.writeInt32(static_cast <uint32_t>(state));
         data.writeCString(device_address);
+        data.writeCString(device_name);
         remote()->transact(SET_DEVICE_CONNECTION_STATE, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
@@ -726,9 +728,11 @@ status_t BnAudioPolicyService::onTransact(
             audio_policy_dev_state_t state =
                     static_cast <audio_policy_dev_state_t>(data.readInt32());
             const char *device_address = data.readCString();
+            const char *device_name = data.readCString();
             reply->writeInt32(static_cast<uint32_t> (setDeviceConnectionState(device,
                                                                               state,
-                                                                              device_address)));
+                                                                              device_address,
+                                                                              device_name)));
             return NO_ERROR;
         } break;
 
