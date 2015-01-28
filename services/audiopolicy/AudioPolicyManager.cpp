@@ -5322,14 +5322,7 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
 
     ALOGV("setOutputDevice() prevDevice %04x", prevDevice);
 
-    // Device Routing has not been triggered in the following scenario:
-    // Start playback on HDMI/USB hs, pause it, unplug and plug HDMI
-    //cable/usb hs, resume playback, music starts on speaker. To avoid
-    //this, update mDevice even if device is 0 which triggers routing when
-    // HDMI cable/usb hs is reconnected
-    if (device != AUDIO_DEVICE_NONE ||
-        prevDevice == AUDIO_DEVICE_OUT_AUX_DIGITAL ||
-        prevDevice == AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET) {
+    if (device != AUDIO_DEVICE_NONE) {
         outputDesc->mDevice = device;
     }
     muteWaitMs = checkDeviceMuteStrategies(outputDesc, prevDevice, delayMs);
