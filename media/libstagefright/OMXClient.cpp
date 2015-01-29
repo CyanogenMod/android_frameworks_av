@@ -31,6 +31,11 @@
 
 #include "include/OMX.h"
 
+#ifdef STE_HARDWARE
+#include <OMX_Video.h>
+#include <OMX_Index.h>
+#endif
+
 namespace android {
 
 struct MuxOMX : public IOMX {
@@ -257,6 +262,21 @@ status_t MuxOMX::sendCommand(
 status_t MuxOMX::getParameter(
         node_id node, OMX_INDEXTYPE index,
         void *params, size_t size) {
+#ifdef STE_HARDWARE
+    /* Meticulus:
+     * If we call into our STE omx blobs with an unsupported profile index
+     * The blob freaks out and dies causing errors later. If we stop the call
+     * and just return an error here, VFM doesn't freak out and the caller
+     * can try a working profile. i.e. YouTube v5.10.1.5 (9/19/2014) and up.
+     */
+    if(index == OMX_IndexParamVideoProfileLevelQuerySupported){
+        OMX_VIDEO_PARAM_PROFILELEVELTYPE *pt = (OMX_VIDEO_PARAM_PROFILELEVELTYPE *)params;
+        ALOGI("Meticulus: eProfile=%lu eLevel=%lu nProfileIndex=%lu\n",pt->eProfile, pt->eLevel, pt->nProfileIndex);
+        if(pt->nProfileIndex == 0){
+            return -1;
+        }
+    }
+#endif
     return getOMX(node)->getParameter(node, index, params, size);
 }
 

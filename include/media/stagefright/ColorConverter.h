@@ -75,7 +75,10 @@ private:
 
     status_t convertYUV420SemiPlanar(
             const BitmapParams &src, const BitmapParams &dst);
-
+#ifdef STE_HARDWARE
+    status_t convertSTEYUV420PackedSemiPlanarMB(
+            const BitmapParams &src, const BitmapParams &dst);
+#endif
     status_t convertTIYUV420PackedSemiPlanar(
             const BitmapParams &src, const BitmapParams &dst);
 

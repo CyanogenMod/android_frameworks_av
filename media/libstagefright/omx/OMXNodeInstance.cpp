@@ -718,12 +718,20 @@ status_t OMXNodeInstance::useGraphicBuffer(
 
     // See if the newer version of the extension is present.
     OMX_INDEXTYPE index;
+#ifndef STE_HARDWARE
+    /* Meticulus:
++     * We don't support useAndroidNativeBuffer2 and although it works fine
++     * to have this in, we are always going to fall back
++     * to useAndroidNativeBuffer everytime. Removing this might speed things
++     * up a little bit.
++     */
     if (OMX_GetExtensionIndex(
             mHandle,
             const_cast<OMX_STRING>("OMX.google.android.index.useAndroidNativeBuffer2"),
             &index) == OMX_ErrorNone) {
         return useGraphicBuffer2_l(portIndex, graphicBuffer, buffer);
     }
+#endif
 
     OMX_STRING name = const_cast<OMX_STRING>(
         "OMX.google.android.index.useAndroidNativeBuffer");

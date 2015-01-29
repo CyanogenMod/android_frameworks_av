@@ -373,9 +373,8 @@ status_t AudioPolicyService::setStreamVolumeIndex(audio_stream_type_t stream,
                                                                 stream,
                                                                 index,
                                                                 device);
-    } else {
-        return mpAudioPolicy->set_stream_volume_index(mpAudioPolicy, stream, index);
     }
+return mpAudioPolicy->set_stream_volume_index(mpAudioPolicy, stream, index);
 }
 
 status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
@@ -394,9 +393,8 @@ status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
                                                                 stream,
                                                                 index,
                                                                 device);
-    } else {
-        return mpAudioPolicy->get_stream_volume_index(mpAudioPolicy, stream, index);
     }
+return mpAudioPolicy->get_stream_volume_index(mpAudioPolicy, stream, index);
 }
 
 uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
