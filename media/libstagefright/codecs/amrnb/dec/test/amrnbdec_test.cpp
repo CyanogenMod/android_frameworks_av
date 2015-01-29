@@ -26,6 +26,7 @@
  * SUCH DAMAGE.
  */
 
+#include <malloc.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
