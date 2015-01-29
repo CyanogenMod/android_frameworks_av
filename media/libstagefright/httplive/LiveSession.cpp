@@ -49,6 +49,9 @@
 
 namespace android {
 
+// Number of recently-read bytes to use for bandwidth estimation
+const size_t LiveSession::kBandwidthHistoryBytes = 200 * 1024;
+
 LiveSession::LiveSession(
         const sp<AMessage> &notify, uint32_t flags,
         const sp<IMediaHTTPService> &httpService)
@@ -84,6 +87,13 @@ LiveSession::LiveSession(
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mBuffering[i] = false;
     }
+
+    size_t numHistoryItems = kBandwidthHistoryBytes /
+            PlaylistFetcher::kDownloadBlockSize + 1;
+    if (numHistoryItems < 5) {
+        numHistoryItems = 5;
+    }
+    mHTTPDataSource->setBandwidthHistorySize(numHistoryItems);
 }
 
 LiveSession::~LiveSession() {
