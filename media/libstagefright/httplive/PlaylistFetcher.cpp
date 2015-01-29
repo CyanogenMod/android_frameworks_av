@@ -50,7 +50,7 @@ namespace android {
 const int64_t PlaylistFetcher::kMinBufferedDurationUs = 10000000ll;
 const int64_t PlaylistFetcher::kMaxMonitorDelayUs = 3000000ll;
 const int32_t PlaylistFetcher::kDownloadBlockSize = 2048;
-const int32_t PlaylistFetcher::kNumSkipFrames = 10;
+const int32_t PlaylistFetcher::kNumSkipFrames = 5;
 
 PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
@@ -561,7 +561,7 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
         // Don't resume if we would stop within a resume threshold.
         int32_t discontinuitySeq;
         int64_t latestTimeUs = 0, stopTimeUs = 0;
-        sp<AMessage> latestMeta = packetSource->getLatestDequeuedMeta();
+        sp<AMessage> latestMeta = packetSource->getLatestEnqueuedMeta();
         if (latestMeta != NULL
                 && latestMeta->findInt32("discontinuitySeq", &discontinuitySeq)
                 && discontinuitySeq == mDiscontinuitySeq
@@ -1678,7 +1678,7 @@ void PlaylistFetcher::updateDuration() {
 
 int64_t PlaylistFetcher::resumeThreshold(const sp<AMessage> &msg) {
     int64_t durationUs, threshold;
-    if (msg->findInt64("durationUs", &durationUs)) {
+    if (msg->findInt64("durationUs", &durationUs) && durationUs > 0) {
         return kNumSkipFrames * durationUs;
     }
 
