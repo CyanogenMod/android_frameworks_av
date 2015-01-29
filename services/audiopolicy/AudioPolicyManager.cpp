@@ -7981,6 +7981,9 @@ audio_stream_type_t AudioPolicyManager::streamTypefromAttributesInt(const audio_
     if ((attr->flags & AUDIO_FLAG_SCO) == AUDIO_FLAG_SCO) {
         return AUDIO_STREAM_BLUETOOTH_SCO;
     }
+    if ((attr->flags & AUDIO_FLAG_BEACON) == AUDIO_FLAG_BEACON) {
+        return AUDIO_STREAM_TTS;
+    }
 
     // usage to stream type mapping
     switch (attr->usage) {
