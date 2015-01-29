@@ -49,9 +49,8 @@ namespace android {
 // static
 const int64_t PlaylistFetcher::kMinBufferedDurationUs = 10000000ll;
 const int64_t PlaylistFetcher::kMaxMonitorDelayUs = 3000000ll;
-// LCM of 188 (size of a TS packet) & 1k works well
-const int32_t PlaylistFetcher::kDownloadBlockSize = 47 * 1024;
-const int32_t PlaylistFetcher::kNumSkipFrames = 5;
+const int32_t PlaylistFetcher::kDownloadBlockSize = 2048;
+const int32_t PlaylistFetcher::kNumSkipFrames = 10;
 
 PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
@@ -562,7 +561,7 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
         // Don't resume if we would stop within a resume threshold.
         int32_t discontinuitySeq;
         int64_t latestTimeUs = 0, stopTimeUs = 0;
-        sp<AMessage> latestMeta = packetSource->getLatestEnqueuedMeta();
+        sp<AMessage> latestMeta = packetSource->getLatestDequeuedMeta();
         if (latestMeta != NULL
                 && latestMeta->findInt32("discontinuitySeq", &discontinuitySeq)
                 && discontinuitySeq == mDiscontinuitySeq
@@ -611,12 +610,7 @@ void PlaylistFetcher::onMonitorQueue() {
     int32_t targetDurationSecs;
     int64_t targetDurationUs = kMinBufferedDurationUs;
     if (mPlaylist != NULL) {
-        if (mPlaylist->meta() == NULL || !mPlaylist->meta()->findInt32(
-                "target-duration", &targetDurationSecs)) {
-            ALOGE("Playlist is missing required EXT-X-TARGETDURATION tag");
-            notifyError(ERROR_MALFORMED);
-            return;
-        }
+        CHECK(mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs));
         targetDurationUs = targetDurationSecs * 1000000ll;
     }
 
@@ -1165,11 +1159,6 @@ const sp<ABuffer> &PlaylistFetcher::setAccessUnitProperties(
         accessUnit->meta()->setInt32("discard", discard);
     }
 
-    int32_t targetDurationSecs;
-    if (mPlaylist->meta()->findInt32("target-duration", &targetDurationSecs)) {
-        accessUnit->meta()->setInt32("targetDuration", targetDurationSecs);
-    }
-
     accessUnit->meta()->setInt32("discontinuitySeq", mDiscontinuitySeq);
     accessUnit->meta()->setInt64("segmentStartTimeUs", getSegmentStartTimeUs(mSeqNumber));
     return accessUnit;
@@ -1679,7 +1668,7 @@ void PlaylistFetcher::updateDuration() {
 
 int64_t PlaylistFetcher::resumeThreshold(const sp<AMessage> &msg) {
     int64_t durationUs, threshold;
-    if (msg->findInt64("durationUs", &durationUs) && durationUs > 0) {
+    if (msg->findInt64("durationUs", &durationUs)) {
         return kNumSkipFrames * durationUs;
     }
 
