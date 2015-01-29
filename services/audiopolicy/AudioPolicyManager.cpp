@@ -7449,9 +7449,6 @@ AudioPolicyManager::DeviceDescriptor::DeviceDescriptor(const String8& name, audi
                              NULL),
                      mDeviceType(type), mAddress(""), mId(0)
 {
-    if (mGains.size() > 0) {
-        mGains[0]->getDefaultConfig(&mGain);
-    }
 }
 
 bool AudioPolicyManager::DeviceDescriptor::equals(const sp<DeviceDescriptor>& other) const
@@ -7465,6 +7462,15 @@ bool AudioPolicyManager::DeviceDescriptor::equals(const sp<DeviceDescriptor>& ot
            (mChannelMask == 0 || other->mChannelMask == 0 ||
                 mChannelMask == other->mChannelMask);
 }
+
+void AudioPolicyManager::DeviceDescriptor::loadGains(cnode *root)
+{
+    AudioPort::loadGains(root);
+    if (mGains.size() > 0) {
+        mGains[0]->getDefaultConfig(&mGain);
+    }
+}
+
 
 void AudioPolicyManager::DeviceVector::refreshTypes()
 {
