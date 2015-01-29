@@ -145,10 +145,24 @@ status_t LiveSession::dequeueAccessUnit(
         }
     }
 
+    int32_t targetDuration = 0;
+    sp<AMessage> meta = packetSource->getLatestEnqueuedMeta();
+    if (meta != NULL) {
+        meta->findInt32("targetDuration", &targetDuration);
+    }
+
+    int64_t targetDurationUs = targetDuration * 1000000ll;
+    if (targetDurationUs == 0 ||
+            targetDurationUs > PlaylistFetcher::kMinBufferedDurationUs) {
+        // Fetchers limit buffering to
+        // min(3 * targetDuration, kMinBufferedDurationUs)
+        targetDurationUs = PlaylistFetcher::kMinBufferedDurationUs;
+    }
+
     if (mBuffering[idx]) {
         if (mSwitchInProgress
                 || packetSource->isFinished(0)
-                || packetSource->getEstimatedDurationUs() > 10000000ll) {
+                || packetSource->getEstimatedDurationUs() > targetDurationUs) {
             mBuffering[idx] = false;
         }
     }
