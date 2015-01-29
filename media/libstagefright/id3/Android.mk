@@ -4,7 +4,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
 	ID3.cpp
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Os
 
 LOCAL_MODULE := libstagefright_id3
 
