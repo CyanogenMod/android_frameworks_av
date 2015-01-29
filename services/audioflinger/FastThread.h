@@ -58,7 +58,8 @@ protected:
     long underrunNs;    // underrun likely when write cycle is greater than this value
     long overrunNs;     // overrun likely when write cycle is less than this value
     long forceNs;       // if overrun detected, force the write cycle to take this much time
-    long warmupNs;      // warmup complete when write cycle is greater than to this value
+    long warmupNsMin;   // warmup complete when write cycle is greater than or equal to this value
+    long warmupNsMax;   //                                 and less than or equal to this value
     FastThreadDumpState *mDummyDumpState;
     FastThreadDumpState *dumpState;
     bool ignoreNextOverrun;  // used to ignore initial overrun and first after an underrun
@@ -74,7 +75,8 @@ protected:
     unsigned coldGen;   // last observed mColdGen
     bool isWarm;        // true means ready to mix, false means wait for warmup before mixing
     struct timespec measuredWarmupTs;  // how long did it take for warmup to complete
-    uint32_t warmupCycles;  // counter of number of loop cycles required to warmup
+    uint32_t warmupCycles;  // counter of number of loop cycles during warmup phase
+    uint32_t warmupConsecutiveInRangeCycles;    // number of consecutive cycles in range
     NBLog::Writer dummyLogWriter;
     NBLog::Writer *logWriter;
     status_t timestampStatus;

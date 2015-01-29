@@ -138,13 +138,15 @@ void FastCapture::onStateChange()
             underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
             overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
             forceNs = (frameCount * 950000000LL) / sampleRate;      // 0.95
-            warmupNs = (frameCount * 500000000LL) / sampleRate;     // 0.50
+            warmupNsMin = (frameCount * 750000000LL) / sampleRate;  // 0.75
+            warmupNsMax = (frameCount * 1250000000LL) / sampleRate; // 1.25
         } else {
             periodNs = 0;
             underrunNs = 0;
             overrunNs = 0;
             forceNs = 0;
-            warmupNs = 0;
+            warmupNsMin = 0;
+            warmupNsMax = LONG_MAX;
         }
         readBufferState = -1;
         dumpState->mFrameCount = frameCount;
