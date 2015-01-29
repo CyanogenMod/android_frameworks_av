@@ -48,6 +48,8 @@ MidiIoWrapper::MidiIoWrapper(int fd, off64_t offset, int64_t size) {
 }
 
 MidiIoWrapper::MidiIoWrapper(const sp<DataSource> &source) {
+    ALOGV("MidiIoWrapper(DataSource)");
+    mFd = -1;
     mDataSource = source;
     off64_t l;
     if (mDataSource->getSize(&l) == OK) {
@@ -76,7 +78,7 @@ int MidiIoWrapper::readAt(void *buffer, int offset, int size) {
 }
 
 int MidiIoWrapper::size() {
-    ALOGV("size() = %d", mLength);
+    ALOGV("size() = %d", int(mLength));
     return mLength;
 }
 
