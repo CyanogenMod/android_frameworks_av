@@ -49,7 +49,8 @@ namespace android {
 // static
 const int64_t PlaylistFetcher::kMinBufferedDurationUs = 10000000ll;
 const int64_t PlaylistFetcher::kMaxMonitorDelayUs = 3000000ll;
-const int32_t PlaylistFetcher::kDownloadBlockSize = 2048;
+// LCM of 188 (size of a TS packet) & 1k works well
+const int32_t PlaylistFetcher::kDownloadBlockSize = 47 * 1024;
 const int32_t PlaylistFetcher::kNumSkipFrames = 5;
 
 PlaylistFetcher::PlaylistFetcher(
