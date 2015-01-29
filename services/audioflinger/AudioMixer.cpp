@@ -341,11 +341,46 @@ AudioMixer::RemixBufferProvider::RemixBufferProvider(audio_channel_mask_t inputC
     ALOGV("RemixBufferProvider(%p)(%#x, %#x, %#x) %zu %zu",
             this, format, inputChannelMask, outputChannelMask,
             mInputChannels, mOutputChannels);
-    // TODO: consider channel representation in index array formulation
-    // We ignore channel representation, and just use the bits.
-    memcpy_by_index_array_initialization(mIdxAry, ARRAY_SIZE(mIdxAry),
-            audio_channel_mask_get_bits(outputChannelMask),
-            audio_channel_mask_get_bits(inputChannelMask));
+
+    const audio_channel_representation_t inputRepresentation =
+            audio_channel_mask_get_representation(inputChannelMask);
+    const audio_channel_representation_t outputRepresentation =
+            audio_channel_mask_get_representation(outputChannelMask);
+    const uint32_t inputBits = audio_channel_mask_get_bits(inputChannelMask);
+    const uint32_t outputBits = audio_channel_mask_get_bits(outputChannelMask);
+
+    switch (inputRepresentation) {
+    case AUDIO_CHANNEL_REPRESENTATION_POSITION:
+        switch (outputRepresentation) {
+        case AUDIO_CHANNEL_REPRESENTATION_POSITION:
+            memcpy_by_index_array_initialization(mIdxAry, ARRAY_SIZE(mIdxAry),
+                    outputBits, inputBits);
+            return;
+        case AUDIO_CHANNEL_REPRESENTATION_INDEX:
+            // TODO: output channel index mask not currently allowed
+            // fall through
+        default:
+            break;
+        }
+        break;
+    case AUDIO_CHANNEL_REPRESENTATION_INDEX:
+        switch (outputRepresentation) {
+        case AUDIO_CHANNEL_REPRESENTATION_POSITION:
+            memcpy_by_index_array_initialization_src_index(mIdxAry, ARRAY_SIZE(mIdxAry),
+                    outputBits, inputBits);
+            return;
+        case AUDIO_CHANNEL_REPRESENTATION_INDEX:
+            // TODO: output channel index mask not currently allowed
+            // fall through
+        default:
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+    LOG_ALWAYS_FATAL("invalid channel mask conversion from %#x to %#x",
+            inputChannelMask, outputChannelMask);
 }
 
 void AudioMixer::RemixBufferProvider::copyFrames(void *dst, const void *src, size_t frames)
@@ -605,7 +640,10 @@ status_t AudioMixer::track_t::prepareForDownmix()
                     && mMixerChannelMask == AUDIO_CHANNEL_OUT_STEREO)) {
         return NO_ERROR;
     }
-    if (DownmixerBufferProvider::isMultichannelCapable()) {
+    // DownmixerBufferProvider is only used for position masks.
+    if (audio_channel_mask_get_representation(channelMask)
+                == AUDIO_CHANNEL_REPRESENTATION_POSITION
+            && DownmixerBufferProvider::isMultichannelCapable()) {
         DownmixerBufferProvider* pDbp = new DownmixerBufferProvider(channelMask,
                 mMixerChannelMask,
                 AUDIO_FORMAT_PCM_16_BIT /* TODO: use mMixerInFormat, now only PCM 16 */,
