@@ -1507,8 +1507,10 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
                     err = OK;
                 } else if (seamlessFormatChange) {
                     // reuse existing decoder and don't flush
-                    updateDecoderFormatWithoutFlush(audio, newFormat);
-                    err = OK;
+                    if (newFormat != NULL) {
+                        updateDecoderFormatWithoutFlush(audio, newFormat);
+                    }
+                    return -EWOULDBLOCK;
                 } else {
                     // This stream is unaffected by the discontinuity
                     return -EWOULDBLOCK;
