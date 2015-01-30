@@ -36,6 +36,7 @@
     1. Include headers
 ------------------------------------------------------------------------------*/
 #include <stdlib.h>
+#include <string.h>
 #include "basetype.h"
 #include "h264bsd_container.h"
 #include "H264SwDecApi.h"
