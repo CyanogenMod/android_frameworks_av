@@ -53,7 +53,7 @@ int Camera2Device::getId() const {
     return mId;
 }
 
-status_t Camera2Device::initialize(camera_module_t *module)
+status_t Camera2Device::initialize(CameraModule *module)
 {
     ATRACE_CALL();
     ALOGV("%s: Initializing device for camera %d", __FUNCTION__, mId);
@@ -68,8 +68,8 @@ status_t Camera2Device::initialize(camera_module_t *module)
 
     camera2_device_t *device;
 
-    res = CameraService::filterOpenErrorCode(module->common.methods->open(
-        &module->common, name, reinterpret_cast<hw_device_t**>(&device)));
+    res = CameraService::filterOpenErrorCode(module->open(
+            name, reinterpret_cast<hw_device_t**>(&device)));
 
     if (res != OK) {
         ALOGE("%s: Could not open camera %d: %s (%d)", __FUNCTION__,
@@ -87,7 +87,7 @@ status_t Camera2Device::initialize(camera_module_t *module)
     }
 
     camera_info info;
-    res = module->get_camera_info(mId, &info);
+    res = module->getCameraInfo(mId, &info);
     if (res != OK ) return res;
 
     if (info.device_version != device->common.version) {

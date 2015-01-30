@@ -43,7 +43,7 @@ class Camera2Device: public CameraDeviceBase {
      * CameraDevice interface
      */
     virtual int      getId() const;
-    virtual status_t initialize(camera_module_t *module);
+    virtual status_t initialize(CameraModule *module);
     virtual status_t disconnect();
     virtual status_t dump(int fd, const Vector<String16>& args);
     virtual const CameraMetadata& info() const;

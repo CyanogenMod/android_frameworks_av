@@ -78,7 +78,7 @@ status_t Camera2ClientBase<TClientBase>::checkPid(const char* checkLocation)
 }
 
 template <typename TClientBase>
-status_t Camera2ClientBase<TClientBase>::initialize(camera_module_t *module) {
+status_t Camera2ClientBase<TClientBase>::initialize(CameraModule *module) {
     ATRACE_CALL();
     ALOGV("%s: Initializing client for camera %d", __FUNCTION__,
           TClientBase::mCameraId);

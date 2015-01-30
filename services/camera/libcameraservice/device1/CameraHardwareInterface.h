@@ -89,24 +89,23 @@ public:
         }
     }
 
-    status_t initialize(hw_module_t *module)
+    status_t initialize(CameraModule *module)
     {
         ALOGI("Opening camera %s", mName.string());
-        camera_module_t *cameraModule = reinterpret_cast<camera_module_t *>(module);
         camera_info info;
-        status_t res = cameraModule->get_camera_info(atoi(mName.string()), &info);
+        status_t res = module->getCameraInfo(atoi(mName.string()), &info);
         if (res != OK) return res;
 
         int rc = OK;
-        if (module->module_api_version >= CAMERA_MODULE_API_VERSION_2_3 &&
+        if (module->getRawModule()->module_api_version >= CAMERA_MODULE_API_VERSION_2_3 &&
             info.device_version > CAMERA_DEVICE_API_VERSION_1_0) {
             // Open higher version camera device as HAL1.0 device.
-            rc = cameraModule->open_legacy(module, mName.string(),
-                                               CAMERA_DEVICE_API_VERSION_1_0,
-                                               (hw_device_t **)&mDevice);
+            rc = module->openLegacy(mName.string(),
+                                     CAMERA_DEVICE_API_VERSION_1_0,
+                                     (hw_device_t **)&mDevice);
         } else {
-            rc = CameraService::filterOpenErrorCode(module->methods->open(
-                module, mName.string(), (hw_device_t **)&mDevice));
+            rc = CameraService::filterOpenErrorCode(module->open(
+                    mName.string(), (hw_device_t **)&mDevice));
         }
         if (rc != OK) {
             ALOGE("Could not open camera %s: %d", mName.string(), rc);

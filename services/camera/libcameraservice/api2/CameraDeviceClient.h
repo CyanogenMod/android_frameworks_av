@@ -119,7 +119,7 @@ public:
             int servicePid);
     virtual ~CameraDeviceClient();
 
-    virtual status_t      initialize(camera_module_t *module);
+    virtual status_t      initialize(CameraModule *module);
 
     virtual status_t      dump(int fd, const Vector<String16>& args);
 

@@ -73,7 +73,7 @@ class Camera3Device :
     virtual int      getId() const;
 
     // Transitions to idle state on success.
-    virtual status_t initialize(camera_module_t *module);
+    virtual status_t initialize(CameraModule *module);
     virtual status_t disconnect();
     virtual status_t dump(int fd, const Vector<String16> &args);
     virtual const CameraMetadata& info() const;

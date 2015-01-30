@@ -71,7 +71,7 @@ CameraDeviceClient::CameraDeviceClient(const sp<CameraService>& cameraService,
     ALOGI("CameraDeviceClient %d: Opened", cameraId);
 }
 
-status_t CameraDeviceClient::initialize(camera_module_t *module)
+status_t CameraDeviceClient::initialize(CameraModule *module)
 {
     ATRACE_CALL();
     status_t res;

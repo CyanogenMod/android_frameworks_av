@@ -37,6 +37,8 @@
 
 #include <camera/ICameraServiceListener.h>
 
+#include "common/CameraModule.h"
+
 /* This needs to be increased if we can have more cameras */
 #define MAX_CAMERAS 2
 
@@ -153,7 +155,7 @@ public:
 
     class BasicClient : public virtual RefBase {
     public:
-        virtual status_t    initialize(camera_module_t *module) = 0;
+        virtual status_t    initialize(CameraModule *module) = 0;
         virtual void        disconnect();
 
         // because we can't virtually inherit IInterface, which breaks
@@ -385,7 +387,7 @@ private:
     sp<MediaPlayer>     mSoundPlayer[NUM_SOUNDS];
     int                 mSoundRef;  // reference count (release all MediaPlayer when 0)
 
-    camera_module_t *mModule;
+    CameraModule*     mModule;
 
     Vector<sp<ICameraServiceListener> >
                         mListenerList;
