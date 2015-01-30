@@ -67,7 +67,7 @@ Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
     mLegacyMode = legacyMode;
 }
 
-status_t Camera2Client::initialize(camera_module_t *module)
+status_t Camera2Client::initialize(CameraModule *module)
 {
     ATRACE_CALL();
     ALOGV("%s: Initializing client for camera %d", __FUNCTION__, mCameraId);

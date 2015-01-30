@@ -25,6 +25,7 @@ LOCAL_SRC_FILES:=               \
     CameraDeviceFactory.cpp \
     common/Camera2ClientBase.cpp \
     common/CameraDeviceBase.cpp \
+    common/CameraModule.cpp \
     common/FrameProcessorBase.cpp \
     api1/CameraClient.cpp \
     api1/Camera2Client.cpp \

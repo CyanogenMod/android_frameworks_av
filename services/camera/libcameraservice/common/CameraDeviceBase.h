@@ -29,6 +29,7 @@
 #include "hardware/camera3.h"
 #include "camera/CameraMetadata.h"
 #include "camera/CaptureResult.h"
+#include "common/CameraModule.h"
 
 namespace android {
 
@@ -45,7 +46,7 @@ class CameraDeviceBase : public virtual RefBase {
      */
     virtual int      getId() const = 0;
 
-    virtual status_t initialize(camera_module_t *module) = 0;
+    virtual status_t initialize(CameraModule *module) = 0;
     virtual status_t disconnect() = 0;
 
     virtual status_t dump(int fd, const Vector<String16> &args) = 0;

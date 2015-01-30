@@ -113,14 +113,17 @@ void CameraService::onFirstRef()
 
     BnCameraService::onFirstRef();
 
+    camera_module_t *rawModule;
     if (hw_get_module(CAMERA_HARDWARE_MODULE_ID,
-                (const hw_module_t **)&mModule) < 0) {
+                (const hw_module_t **)&rawModule) < 0) {
         ALOGE("Could not load camera HAL module");
         mNumberOfCameras = 0;
     }
     else {
-        ALOGI("Loaded \"%s\" camera module", mModule->common.name);
-        mNumberOfCameras = mModule->get_number_of_cameras();
+        mModule = new CameraModule(rawModule);
+        const hw_module_t *common = mModule->getRawModule();
+        ALOGI("Loaded \"%s\" camera module", common->name);
+        mNumberOfCameras = mModule->getNumberOfCameras();
         if (mNumberOfCameras > MAX_CAMERAS) {
             ALOGE("Number of cameras(%d) > MAX_CAMERAS(%d).",
                     mNumberOfCameras, MAX_CAMERAS);
@@ -130,14 +133,13 @@ void CameraService::onFirstRef()
             setCameraFree(i);
         }
 
-        if (mModule->common.module_api_version >=
-                CAMERA_MODULE_API_VERSION_2_1) {
-            mModule->set_callbacks(this);
+        if (common->module_api_version >= CAMERA_MODULE_API_VERSION_2_1) {
+            mModule->setCallbacks(this);
         }
 
         VendorTagDescriptor::clearGlobalVendorTagDescriptor();
 
-        if (mModule->common.module_api_version >= CAMERA_MODULE_API_VERSION_2_2) {
+        if (common->module_api_version >= CAMERA_MODULE_API_VERSION_2_2) {
             setUpVendorTags();
         }
 
@@ -152,6 +154,9 @@ CameraService::~CameraService() {
         }
     }
 
+    if (mModule) {
+        delete mModule;
+    }
     VendorTagDescriptor::clearGlobalVendorTagDescriptor();
     gCameraService = NULL;
 }
@@ -236,7 +241,7 @@ status_t CameraService::getCameraInfo(int cameraId,
 
     struct camera_info info;
     status_t rc = filterGetInfoErrorCode(
-        mModule->get_camera_info(cameraId, &info));
+        mModule->getCameraInfo(cameraId, &info));
     cameraInfo->facing = info.facing;
     cameraInfo->orientation = info.orientation;
     return rc;
@@ -347,7 +352,7 @@ status_t CameraService::getCameraCharacteristics(int cameraId,
 
     int facing;
     status_t ret = OK;
-    if (mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_0 ||
+    if (mModule->getRawModule()->module_api_version < CAMERA_MODULE_API_VERSION_2_0 ||
             getDeviceVersion(cameraId, &facing) <= CAMERA_DEVICE_API_VERSION_2_1 ) {
         /**
          * Backwards compatibility mode for old HALs:
@@ -368,7 +373,7 @@ status_t CameraService::getCameraCharacteristics(int cameraId,
          * Normal HAL 2.1+ codepath.
          */
         struct camera_info info;
-        ret = filterGetInfoErrorCode(mModule->get_camera_info(cameraId, &info));
+        ret = filterGetInfoErrorCode(mModule->getCameraInfo(cameraId, &info));
         *cameraInfo = info.static_camera_characteristics;
     }
 
@@ -387,12 +392,12 @@ status_t CameraService::getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescript
 
 int CameraService::getDeviceVersion(int cameraId, int* facing) {
     struct camera_info info;
-    if (mModule->get_camera_info(cameraId, &info) != OK) {
+    if (mModule->getCameraInfo(cameraId, &info) != OK) {
         return -1;
     }
 
     int deviceVersion;
-    if (mModule->common.module_api_version >= CAMERA_MODULE_API_VERSION_2_0) {
+    if (mModule->getRawModule()->module_api_version >= CAMERA_MODULE_API_VERSION_2_0) {
         deviceVersion = info.device_version;
     } else {
         deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
@@ -433,13 +438,13 @@ bool CameraService::setUpVendorTags() {
     vendor_tag_ops_t vOps = vendor_tag_ops_t();
 
     // Check if vendor operations have been implemented
-    if (mModule->get_vendor_tag_ops == NULL) {
+    if (!mModule->isVendorTagDefined()) {
         ALOGI("%s: No vendor tags defined for this device.", __FUNCTION__);
         return false;
     }
 
     ATRACE_BEGIN("camera3->get_metadata_vendor_tag_ops");
-    mModule->get_vendor_tag_ops(&vOps);
+    mModule->getVendorTagOps(&vOps);
     ATRACE_END();
 
     // Ensure all vendor operations are present
@@ -789,8 +794,9 @@ status_t CameraService::connectLegacy(
         /*out*/
         sp<ICamera>& device) {
 
+    int apiVersion = mModule->getRawModule()->module_api_version;
     if (halVersion != CAMERA_HAL_API_VERSION_UNSPECIFIED &&
-            mModule->common.module_api_version < CAMERA_MODULE_API_VERSION_2_3) {
+            apiVersion < CAMERA_MODULE_API_VERSION_2_3) {
         /*
          * Either the HAL version is unspecified in which case this just creates
          * a camera client selected by the latest device version, or
@@ -798,7 +804,7 @@ status_t CameraService::connectLegacy(
          * the open_legacy call
          */
         ALOGE("%s: camera HAL module version %x doesn't support connecting to legacy HAL devices!",
-                __FUNCTION__, mModule->common.module_api_version);
+                __FUNCTION__, apiVersion);
         return INVALID_OPERATION;
     }
 
@@ -1630,14 +1636,11 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
             return NO_ERROR;
         }
 
-        result = String8::format("Camera module HAL API version: 0x%x\n",
-                mModule->common.hal_api_version);
-        result.appendFormat("Camera module API version: 0x%x\n",
-                mModule->common.module_api_version);
-        result.appendFormat("Camera module name: %s\n",
-                mModule->common.name);
-        result.appendFormat("Camera module author: %s\n",
-                mModule->common.author);
+        const hw_module_t* common = mModule->getRawModule();
+        result = String8::format("Camera module HAL API version: 0x%x\n", common->hal_api_version);
+        result.appendFormat("Camera module API version: 0x%x\n", common->module_api_version);
+        result.appendFormat("Camera module name: %s\n", common->name);
+        result.appendFormat("Camera module author: %s\n", common->author);
         result.appendFormat("Number of camera devices: %d\n\n", mNumberOfCameras);
 
         sp<VendorTagDescriptor> desc = VendorTagDescriptor::getGlobalVendorTagDescriptor();
@@ -1657,7 +1660,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
             result = String8::format("Camera %d static information:\n", i);
             camera_info info;
 
-            status_t rc = mModule->get_camera_info(i, &info);
+            status_t rc = mModule->getCameraInfo(i, &info);
             if (rc != OK) {
                 result.appendFormat("  Error reading static information!\n");
                 write(fd, result.string(), result.size());
@@ -1666,8 +1669,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                         info.facing == CAMERA_FACING_BACK ? "BACK" : "FRONT");
                 result.appendFormat("  Orientation: %d\n", info.orientation);
                 int deviceVersion;
-                if (mModule->common.module_api_version <
-                        CAMERA_MODULE_API_VERSION_2_0) {
+                if (common->module_api_version < CAMERA_MODULE_API_VERSION_2_0) {
                     deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
                 } else {
                     deviceVersion = info.device_version;

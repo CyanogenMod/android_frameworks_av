@@ -59,7 +59,7 @@ CameraClient::CameraClient(const sp<CameraService>& cameraService,
     LOG1("CameraClient::CameraClient X (pid %d, id %d)", callingPid, cameraId);
 }
 
-status_t CameraClient::initialize(camera_module_t *module) {
+status_t CameraClient::initialize(CameraModule *module) {
     int callingPid = getCallingPid();
     status_t res;
 
@@ -75,7 +75,7 @@ status_t CameraClient::initialize(camera_module_t *module) {
     snprintf(camera_device_name, sizeof(camera_device_name), "%d", mCameraId);
 
     mHardware = new CameraHardwareInterface(camera_device_name);
-    res = mHardware->initialize(&module->common);
+    res = mHardware->initialize(module);
     if (res != OK) {
         ALOGE("%s: Camera %d: unable to initialize device: %s (%d)",
                 __FUNCTION__, mCameraId, strerror(-res), res);

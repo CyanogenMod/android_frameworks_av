@@ -50,7 +50,7 @@ ProCamera2Client::ProCamera2Client(const sp<CameraService>& cameraService,
     mExclusiveLock = false;
 }
 
-status_t ProCamera2Client::initialize(camera_module_t *module)
+status_t ProCamera2Client::initialize(CameraModule *module)
 {
     ATRACE_CALL();
     status_t res;
