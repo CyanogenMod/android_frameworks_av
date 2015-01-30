@@ -1113,6 +1113,10 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
             if (output != AUDIO_IO_HANDLE_NONE) {
                 mpClientInterface->closeOutput(output);
             }
+            // fall back to mixer output if possible when the direct output could not be open
+            if (audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE) {
+                goto non_direct_output;
+            }
             return AUDIO_IO_HANDLE_NONE;
         }
         outputDesc->mSamplingRate = config.sample_rate;
