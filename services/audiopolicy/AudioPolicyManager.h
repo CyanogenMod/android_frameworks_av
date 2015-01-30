@@ -929,6 +929,9 @@ private:
         status_t setDeviceConnectionStateInt(audio_devices_t device,
                                                           audio_policy_dev_state_t state,
                                                           const char *device_address);
+        sp<DeviceDescriptor>  getDeviceDescriptor(const audio_devices_t device,
+                                                  const char *device_address);
+
 };
 
 };

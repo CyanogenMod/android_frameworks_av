@@ -219,27 +219,21 @@ status_t AudioPolicyManager::setDeviceConnectionState(audio_devices_t device,
 }
 
 status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
-                                                          audio_policy_dev_state_t state,
-                                                  const char *device_address)
+                                                         audio_policy_dev_state_t state,
+                                                         const char *device_address)
 {
-    String8 address = (device_address == NULL) ? String8("") : String8(device_address);
-    // handle legacy remote submix case where the address was not always specified
-    if (deviceDistinguishesOnAddress(device) && (address.length() == 0)) {
-        address = String8("0");
-    }
-
     ALOGV("setDeviceConnectionState() device: %x, state %d, address %s",
-            device, state, address.string());
+            device, state, device_address != NULL ? device_address : "");
 
     // connect/disconnect only 1 device at a time
     if (!audio_is_output_device(device) && !audio_is_input_device(device)) return BAD_VALUE;
+
+    sp<DeviceDescriptor> devDesc = getDeviceDescriptor(device, device_address);
 
     // handle output devices
     if (audio_is_output_device(device)) {
         SortedVector <audio_io_handle_t> outputs;
 
-        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
-        devDesc->mAddress = address;
         ssize_t index = mAvailableOutputDevices.indexOf(devDesc);
 
         // save a copy of the opened output descriptors before any output is opened or closed
@@ -271,7 +265,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
                 return NO_MEMORY;
             }
 
-            if (checkOutputsForDevice(devDesc, state, outputs, address) != NO_ERROR) {
+            if (checkOutputsForDevice(devDesc, state, outputs, devDesc->mAddress) != NO_ERROR) {
                 mAvailableOutputDevices.remove(devDesc);
                 return INVALID_OPERATION;
             }
@@ -291,14 +285,14 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             ALOGV("setDeviceConnectionState() disconnecting output device %x", device);
 
             // Set Disconnect to HALs
-            AudioParameter param = AudioParameter(address);
+            AudioParameter param = AudioParameter(devDesc->mAddress);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
             // remove device from available output devices
             mAvailableOutputDevices.remove(devDesc);
 
-            checkOutputsForDevice(devDesc, state, outputs, address);
+            checkOutputsForDevice(devDesc, state, outputs, devDesc->mAddress);
             } break;
 
         default:
@@ -355,8 +349,6 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
     if (audio_is_input_device(device)) {
         SortedVector <audio_io_handle_t> inputs;
 
-        sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
-        devDesc->mAddress = address;
         ssize_t index = mAvailableInputDevices.indexOf(devDesc);
         switch (state)
         {
@@ -372,7 +364,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
                       device);
                 return INVALID_OPERATION;
             }
-            if (checkInputsForDevice(device, state, inputs, address) != NO_ERROR) {
+            if (checkInputsForDevice(device, state, inputs, devDesc->mAddress) != NO_ERROR) {
                 return INVALID_OPERATION;
             }
 
@@ -395,11 +387,11 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             ALOGV("setDeviceConnectionState() disconnecting input device %x", device);
 
             // Set Disconnect to HALs
-            AudioParameter param = AudioParameter(address);
+            AudioParameter param = AudioParameter(devDesc->mAddress);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
-            checkInputsForDevice(device, state, inputs, address);
+            checkInputsForDevice(device, state, inputs, devDesc->mAddress);
             mAvailableInputDevices.remove(devDesc);
 
         } break;
@@ -427,14 +419,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
 audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devices_t device,
                                                   const char *device_address)
 {
-    audio_policy_dev_state_t state = AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
-    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
-    devDesc->mAddress = (device_address == NULL) ? String8("") : String8(device_address);
-    // handle legacy remote submix case where the address was not always specified
-    if (deviceDistinguishesOnAddress(device) && (devDesc->mAddress.length() == 0)) {
-        devDesc->mAddress = String8("0");
-    }
-    ssize_t index;
+    sp<DeviceDescriptor> devDesc = getDeviceDescriptor(device, device_address);
     DeviceVector *deviceVector;
 
     if (audio_is_output_device(device)) {
@@ -446,12 +431,42 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
         return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     }
 
-    index = deviceVector->indexOf(devDesc);
+    ssize_t index = deviceVector->indexOf(devDesc);
     if (index >= 0) {
         return AUDIO_POLICY_DEVICE_STATE_AVAILABLE;
     } else {
         return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     }
+}
+
+sp<AudioPolicyManager::DeviceDescriptor>  AudioPolicyManager::getDeviceDescriptor(
+                                                                    const audio_devices_t device,
+                                                                    const char *device_address)
+{
+    String8 address = (device_address == NULL) ? String8("") : String8(device_address);
+    // handle legacy remote submix case where the address was not always specified
+    if (deviceDistinguishesOnAddress(device) && (address.length() == 0)) {
+        address = String8("0");
+    }
+
+    for (size_t i = 0; i < mHwModules.size(); i++) {
+        if (mHwModules[i]->mHandle == 0) {
+            continue;
+        }
+        DeviceVector deviceList =
+                mHwModules[i]->mDeclaredDevices.getDevicesFromTypeAddr(device, address);
+        if (!deviceList.isEmpty()) {
+            return deviceList.itemAt(0);
+        }
+        deviceList = mHwModules[i]->mDeclaredDevices.getDevicesFromType(device);
+        if (!deviceList.isEmpty()) {
+            return deviceList.itemAt(0);
+        }
+    }
+
+    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
+    devDesc->mAddress = address;
+    return devDesc;
 }
 
 void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs)
