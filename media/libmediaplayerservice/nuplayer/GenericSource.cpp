@@ -40,6 +40,11 @@
 
 namespace android {
 
+static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
+static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
+static const ssize_t kLowWaterMarkBytes = 40000;
+static const ssize_t kHighWaterMarkBytes = 200000;
+
 NuPlayer::GenericSource::GenericSource(
         const sp<AMessage> &notify,
         bool uidValid,
@@ -55,6 +60,7 @@ NuPlayer::GenericSource::GenericSource(
       mAudioIsVorbis(false),
       mIsWidevine(false),
       mIsSecure(false),
+      mIsStreaming(false),
       mUIDValid(uidValid),
       mUID(uid),
       mFd(-1),
@@ -62,7 +68,9 @@ NuPlayer::GenericSource::GenericSource(
       mMetaDataSize(-1ll),
       mBitrate(-1ll),
       mPollBufferingGeneration(0),
-      mPendingReadBufferTypes(0) {
+      mPendingReadBufferTypes(0),
+      mBuffering(false),
+      mPrepareBuffering(false) {
     resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
@@ -254,6 +262,20 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
     }
 
+    // Start the selected A/V tracks now before we start buffering.
+    // Widevine sources might re-initialize crypto when starting, if we delay
+    // this to start(), all data buffered during prepare would be wasted.
+    // (We don't actually start reading until start().)
+    if (mAudioTrack.mSource != NULL && mAudioTrack.mSource->start() != OK) {
+        ALOGE("failed to start audio track!");
+        return UNKNOWN_ERROR;
+    }
+
+    if (mVideoTrack.mSource != NULL && mVideoTrack.mSource->start() != OK) {
+        ALOGE("failed to start video track!");
+        return UNKNOWN_ERROR;
+    }
+
     mBitrate = totalBitrate;
 
     return OK;
@@ -352,9 +374,13 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             mCachedSource = static_cast<NuCachedSource2 *>(mDataSource.get());
         }
 
-        if (mIsWidevine || mCachedSource != NULL) {
-            schedulePollBuffering();
-        }
+        // For widevine or other cached streaming cases, we need to wait for
+        // enough buffering before reporting prepared.
+        // Note that even when URL doesn't start with widevine://, mIsWidevine
+        // could still be set to true later, if the streaming or file source
+        // is sniffed to be widevine. We don't want to buffer for file source
+        // in that case, so must check the flag now.
+        mIsStreaming = (mIsWidevine || mCachedSource != NULL);
     }
 
     // check initial caching status
@@ -397,7 +423,14 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             | FLAG_CAN_SEEK_FORWARD
             | FLAG_CAN_SEEK);
 
-    notifyPrepared();
+    if (mIsStreaming) {
+        mPrepareBuffering = true;
+
+        ensureCacheIsFetching();
+        restartPollBuffering();
+    } else {
+        notifyPrepared();
+    }
 }
 
 void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
@@ -489,19 +522,17 @@ void NuPlayer::GenericSource::start() {
 
     mStopRead = false;
     if (mAudioTrack.mSource != NULL) {
-        CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
-
         postReadBuffer(MEDIA_TRACK_TYPE_AUDIO);
     }
 
     if (mVideoTrack.mSource != NULL) {
-        CHECK_EQ(mVideoTrack.mSource->start(), (status_t)OK);
-
         postReadBuffer(MEDIA_TRACK_TYPE_VIDEO);
     }
 
     setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
     mStarted = true;
+
+    (new AMessage(kWhatStart, id()))->post();
 }
 
 void NuPlayer::GenericSource::stop() {
@@ -526,6 +557,8 @@ void NuPlayer::GenericSource::resume() {
     // nothing to do, just account for DRM playback status
     setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
     mStarted = true;
+
+    (new AMessage(kWhatResume, id()))->post();
 }
 
 void NuPlayer::GenericSource::disconnect() {
@@ -558,22 +591,98 @@ void NuPlayer::GenericSource::schedulePollBuffering() {
 }
 
 void NuPlayer::GenericSource::cancelPollBuffering() {
+    mBuffering = false;
     ++mPollBufferingGeneration;
 }
 
+void NuPlayer::GenericSource::restartPollBuffering() {
+    if (mIsStreaming) {
+        cancelPollBuffering();
+        onPollBuffering();
+    }
+}
+
 void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage) {
+    ALOGV("notifyBufferingUpdate: buffering %d%%", percentage);
+
     sp<AMessage> msg = dupNotify();
     msg->setInt32("what", kWhatBufferingUpdate);
     msg->setInt32("percentage", percentage);
     msg->post();
 }
 
-void NuPlayer::GenericSource::onPollBuffering() {
-    status_t finalStatus = UNKNOWN_ERROR;
-    int64_t cachedDurationUs = 0ll;
+void NuPlayer::GenericSource::startBufferingIfNecessary() {
+    ALOGV("startBufferingIfNecessary: mPrepareBuffering=%d, mBuffering=%d",
+            mPrepareBuffering, mBuffering);
+
+    if (mPrepareBuffering) {
+        return;
+    }
+
+    if (!mBuffering) {
+        mBuffering = true;
+
+        ensureCacheIsFetching();
+        sendCacheStats();
+
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", kWhatPauseOnBufferingStart);
+        notify->post();
+    }
+}
+
+void NuPlayer::GenericSource::stopBufferingIfNecessary() {
+    ALOGV("stopBufferingIfNecessary: mPrepareBuffering=%d, mBuffering=%d",
+            mPrepareBuffering, mBuffering);
+
+    if (mPrepareBuffering) {
+        mPrepareBuffering = false;
+        notifyPrepared();
+        return;
+    }
+
+    if (mBuffering) {
+        mBuffering = false;
+
+        sendCacheStats();
+
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", kWhatResumeOnBufferingEnd);
+        notify->post();
+    }
+}
+
+void NuPlayer::GenericSource::sendCacheStats() {
+    int32_t kbps = 0;
+    status_t err = UNKNOWN_ERROR;
 
     if (mCachedSource != NULL) {
-        size_t cachedDataRemaining =
+        err = mCachedSource->getEstimatedBandwidthKbps(&kbps);
+    } else if (mWVMExtractor != NULL) {
+        err = mWVMExtractor->getEstimatedBandwidthKbps(&kbps);
+    }
+
+    if (err == OK) {
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", kWhatCacheStats);
+        notify->setInt32("bandwidth", kbps);
+        notify->post();
+    }
+}
+
+void NuPlayer::GenericSource::ensureCacheIsFetching() {
+    if (mCachedSource != NULL) {
+        mCachedSource->resumeFetchingIfNecessary();
+    }
+}
+
+void NuPlayer::GenericSource::onPollBuffering() {
+    status_t finalStatus = UNKNOWN_ERROR;
+    int64_t cachedDurationUs = -1ll;
+    ssize_t cachedDataRemaining = -1;
+
+    if (mCachedSource != NULL) {
+        cachedDataRemaining =
                 mCachedSource->approxDataRemaining(&finalStatus);
 
         if (finalStatus == OK) {
@@ -593,22 +702,47 @@ void NuPlayer::GenericSource::onPollBuffering() {
             = mWVMExtractor->getCachedDurationUs(&finalStatus);
     }
 
-    if (finalStatus == ERROR_END_OF_STREAM) {
-        notifyBufferingUpdate(100);
-        cancelPollBuffering();
-        return;
-    } else if (cachedDurationUs > 0ll && mDurationUs > 0ll) {
-        int percentage = 100.0 * cachedDurationUs / mDurationUs;
-        if (percentage > 100) {
-            percentage = 100;
+    if (finalStatus != OK) {
+        ALOGV("onPollBuffering: EOS (finalStatus = %d)", finalStatus);
+
+        if (finalStatus == ERROR_END_OF_STREAM) {
+            notifyBufferingUpdate(100);
         }
 
-        notifyBufferingUpdate(percentage);
+        stopBufferingIfNecessary();
+        return;
+    } else if (cachedDurationUs >= 0ll) {
+        if (mDurationUs > 0ll) {
+            int64_t cachedPosUs = getLastReadPosition() + cachedDurationUs;
+            int percentage = 100.0 * cachedPosUs / mDurationUs;
+            if (percentage > 100) {
+                percentage = 100;
+            }
+
+            notifyBufferingUpdate(percentage);
+        }
+
+        ALOGV("onPollBuffering: cachedDurationUs %.1f sec",
+                cachedDurationUs / 1000000.0f);
+
+        if (cachedDurationUs < kLowWaterMarkUs) {
+            startBufferingIfNecessary();
+        } else if (cachedDurationUs > kHighWaterMarkUs) {
+            stopBufferingIfNecessary();
+        }
+    } else if (cachedDataRemaining >= 0) {
+        ALOGV("onPollBuffering: cachedDataRemaining %d bytes",
+                cachedDataRemaining);
+
+        if (cachedDataRemaining < kLowWaterMarkBytes) {
+            startBufferingIfNecessary();
+        } else if (cachedDataRemaining > kHighWaterMarkBytes) {
+            stopBufferingIfNecessary();
+        }
     }
 
     schedulePollBuffering();
 }
-
 
 void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
@@ -688,6 +822,14 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
 
           break;
       }
+
+      case kWhatStart:
+      case kWhatResume:
+      {
+          restartPollBuffering();
+          break;
+      }
+
       case kWhatPollBuffering:
       {
           int32_t generation;
@@ -1201,6 +1343,13 @@ status_t NuPlayer::GenericSource::doSeek(int64_t seekTimeUs) {
     if (!mStarted) {
         setDrmPlaybackStatusIfNeeded(Playback::PAUSE, 0);
     }
+
+    // If currently buffering, post kWhatBufferingEnd first, so that
+    // NuPlayer resumes. Otherwise, if cache hits high watermark
+    // before new polling happens, no one will resume the playback.
+    stopBufferingIfNecessary();
+    restartPollBuffering();
+
     return OK;
 }
 
