@@ -669,6 +669,7 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         // XXX: Currently this error is logged, but not fatal.
         usage = 0;
     }
+    int omxUsage = usage;
 
     if (mFlags & kFlagIsGrallocUsageProtected) {
         usage |= GRALLOC_USAGE_PROTECTED;
@@ -693,6 +694,18 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         }
     }
 
+    int consumerUsage = 0;
+    err = mNativeWindow->query(
+            mNativeWindow.get(), NATIVE_WINDOW_CONSUMER_USAGE_BITS,
+            &consumerUsage);
+    if (err != 0) {
+        ALOGW("failed to get consumer usage bits. ignoring");
+        err = 0;
+    }
+
+    ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec) + %#x(Consumer) = %#x",
+            omxUsage, usage, consumerUsage, usage | consumerUsage);
+    usage |= consumerUsage;
     err = native_window_set_usage(
             mNativeWindow.get(),
             usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
@@ -3272,7 +3285,8 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
     if (fmt != OMX_COLOR_FormatYUV420Planar &&
         fmt != OMX_COLOR_FormatYUV420PackedPlanar &&
         fmt != OMX_COLOR_FormatYUV420SemiPlanar &&
-        fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar) {
+        fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar &&
+        fmt != HAL_PIXEL_FORMAT_YV12) {
         ALOGW("do not know color format 0x%x = %d", fmt, fmt);
         return false;
     }
@@ -3301,8 +3315,31 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
     image.mPlane[image.Y].mHorizSubsampling = 1;
     image.mPlane[image.Y].mVertSubsampling = 1;
 
-    switch (fmt) {
-        case OMX_COLOR_FormatYUV420Planar: // used for YV12
+    switch ((int)fmt) {
+        case HAL_PIXEL_FORMAT_YV12:
+            if (params.bUsingNativeBuffers) {
+                size_t ystride = align(params.nStride, 16);
+                size_t cstride = align(params.nStride / 2, 16);
+                image.mPlane[image.Y].mRowInc = ystride;
+
+                image.mPlane[image.V].mOffset = ystride * params.nSliceHeight;
+                image.mPlane[image.V].mColInc = 1;
+                image.mPlane[image.V].mRowInc = cstride;
+                image.mPlane[image.V].mHorizSubsampling = 2;
+                image.mPlane[image.V].mVertSubsampling = 2;
+
+                image.mPlane[image.U].mOffset = image.mPlane[image.V].mOffset
+                        + (cstride * params.nSliceHeight / 2);
+                image.mPlane[image.U].mColInc = 1;
+                image.mPlane[image.U].mRowInc = cstride;
+                image.mPlane[image.U].mHorizSubsampling = 2;
+                image.mPlane[image.U].mVertSubsampling = 2;
+                break;
+            } else {
+                // fall through as YV12 is used for YUV420Planar by some codecs
+            }
+
+        case OMX_COLOR_FormatYUV420Planar:
         case OMX_COLOR_FormatYUV420PackedPlanar:
             image.mPlane[image.U].mOffset = params.nStride * params.nSliceHeight;
             image.mPlane[image.U].mColInc = 1;
@@ -3445,6 +3482,13 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                                     ABuffer::CreateAsCopy(
                                             &describeParams.sMediaImage,
                                             sizeof(describeParams.sMediaImage)));
+
+                            MediaImage *img = &describeParams.sMediaImage;
+                            ALOGV("[%s] MediaImage { F(%zux%zu) @%zu+%zu+%zu @%zu+%zu+%zu @%zu+%zu+%zu }",
+                                    mComponentName.c_str(), img->mWidth, img->mHeight,
+                                    img->mPlane[0].mOffset, img->mPlane[0].mColInc, img->mPlane[0].mRowInc,
+                                    img->mPlane[1].mOffset, img->mPlane[1].mColInc, img->mPlane[1].mRowInc,
+                                    img->mPlane[2].mOffset, img->mPlane[2].mColInc, img->mPlane[2].mRowInc);
                         }
                     }
 
@@ -3542,9 +3586,12 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     break;
                 }
             }
-
             notify->setInt32("width", videoDef->nFrameWidth);
             notify->setInt32("height", videoDef->nFrameHeight);
+            ALOGV("[%s] %s format is %s", mComponentName.c_str(),
+                    portIndex == kPortIndexInput ? "input" : "output",
+                    notify->debugString().c_str());
+
             break;
         }
 
