@@ -1334,6 +1334,15 @@ status_t ACodec::configureCodec(
             ALOGV("Configuring CPU controlled video playback.");
             mTunneled = false;
 
+            // Explicity reset the sideband handle of the window for
+            // non-tunneled video in case the window was previously used
+            // for a tunneled video playback.
+            err = native_window_set_sideband_stream(nativeWindow.get(), NULL);
+            if (err != OK) {
+                ALOGE("set_sideband_stream(NULL) failed! (err %d).", err);
+                return err;
+            }
+
             // Always try to enable dynamic output buffers on native surface
             err = mOMX->storeMetaDataInBuffers(
                     mNode, kPortIndexOutput, OMX_TRUE);
