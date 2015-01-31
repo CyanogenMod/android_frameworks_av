@@ -2269,12 +2269,16 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
     // The presented frame count must always lag behind the consumed frame count.
     // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
-    status_t status = mAudioTrack->getTimestamp(timestamp);
-    if (status != NO_ERROR) {
-        ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
-        return status;
+    status_t status = NO_ERROR;
+    if (!mUseSmallBuf) {
+        status = mAudioTrack->getTimestamp(timestamp);
+        if (status != NO_ERROR) {
+            ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
+            return status;
+        }
     }
-    if (isOffloadedOrDirect_l()) {
+
+    if (isOffloadedOrDirect_l() && !mUseSmallBuf) {
         if (isOffloaded_l() && (mState == STATE_PAUSED || mState == STATE_PAUSED_STOPPING)) {
             // use cached paused position in case another offloaded track is running.
             timestamp.mPosition = mPausedPosition;
@@ -2313,29 +2317,38 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         }
     } else {
         // Update the mapping between local consumed (mPosition) and server consumed (mServer)
-        (void) updateAndGetPosition_l();
-        // Server consumed (mServer) and presented both use the same server time base,
-        // and server consumed is always >= presented.
-        // The delta between these represents the number of frames in the buffer pipeline.
-        // If this delta between these is greater than the client position, it means that
-        // actually presented is still stuck at the starting line (figuratively speaking),
-        // waiting for the first frame to go by.  So we can't report a valid timestamp yet.
-        if ((uint32_t) (mServer - timestamp.mPosition) > mPosition) {
-            return INVALID_OPERATION;
+        if (mUseSmallBuf) {
+            uint32_t tempPos = 0;
+            tempPos = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ?
+                0 : updateAndGetPosition_l();
+            timestamp.mPosition = (tempPos / (mChannelCount * audio_bytes_per_sample(mFormat)));
+            clock_gettime(CLOCK_MONOTONIC, &timestamp.mTime);
+            return NO_ERROR;
+        } else {
+            (void) updateAndGetPosition_l();
+            // Server consumed (mServer) and presented both use the same server time base,
+            // and server consumed is always >= presented.
+            // The delta between these represents the number of frames in the buffer pipeline.
+            // If this delta between these is greater than the client position, it means that
+            // actually presented is still stuck at the starting line (figuratively speaking),
+            // waiting for the first frame to go by.  So we can't report a valid timestamp yet.
+            if ((uint32_t) (mServer - timestamp.mPosition) > mPosition) {
+                return INVALID_OPERATION;
+            }
+            // Convert timestamp position from server time base to client time base.
+            // TODO The following code should work OK now because timestamp.mPosition is 32-bit.
+            // But if we change it to 64-bit then this could fail.
+            // If (mPosition - mServer) can be negative then should use:
+            //   (int32_t)(mPosition - mServer)
+            timestamp.mPosition += mPosition - mServer;
+           // Immediately after a call to getPosition_l(), mPosition and
+           // mServer both represent the same frame position.  mPosition is
+           // in client's point of view, and mServer is in server's point of
+           // view.  So the difference between them is the "fudge factor"
+           // between client and server views due to stop() and/or new
+           // IAudioTrack.  And timestamp.mPosition is initially in server's
+           // point of view, so we need to apply the same fudge factor to it.
         }
-        // Convert timestamp position from server time base to client time base.
-        // TODO The following code should work OK now because timestamp.mPosition is 32-bit.
-        // But if we change it to 64-bit then this could fail.
-        // If (mPosition - mServer) can be negative then should use:
-        //   (int32_t)(mPosition - mServer)
-        timestamp.mPosition += mPosition - mServer;
-        // Immediately after a call to getPosition_l(), mPosition and
-        // mServer both represent the same frame position.  mPosition is
-        // in client's point of view, and mServer is in server's point of
-        // view.  So the difference between them is the "fudge factor"
-        // between client and server views due to stop() and/or new
-        // IAudioTrack.  And timestamp.mPosition is initially in server's
-        // point of view, so we need to apply the same fudge factor to it.
     }
     return status;
 }
