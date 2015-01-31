@@ -630,10 +630,7 @@ void ID3::Iterator::findFrame() {
                 | (mParent.mData[mOffset + 4] << 8)
                 | mParent.mData[mOffset + 5];
 
-            if (mFrameSize == 0) {
-                return;
-            }
-            mFrameSize += 6; // add tag id and size field
+            mFrameSize += 6;
 
             if (mOffset + mFrameSize > mParent.mSize) {
                 ALOGV("partial frame at offset %zu (size = %zu, bytes-remaining = %zu)",
@@ -674,11 +671,7 @@ void ID3::Iterator::findFrame() {
                 baseSize = U32_AT(&mParent.mData[mOffset + 4]);
             }
 
-            if (baseSize == 0) {
-                return;
-            }
-
-            mFrameSize = 10 + baseSize; // add tag id, size field and flags
+            mFrameSize = 10 + baseSize;
 
             if (mOffset + mFrameSize > mParent.mSize) {
                 ALOGV("partial frame at offset %zu (size = %zu, bytes-remaining = %zu)",
