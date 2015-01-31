@@ -1628,6 +1628,12 @@ void LiveSession::onCheckSwitchDown() {
         return;
     }
 
+    if (mSwitchInProgress || mReconfigurationInProgress) {
+        ALOGV("Switch/Reconfig in progress, defer switch down");
+        mSwitchDownMonitor->post(1000000ll);
+        return;
+    }
+
     for (size_t i = 0; i < kMaxStreams; ++i) {
         int32_t targetDuration;
         sp<AnotherPacketSource> packetSource = mPacketSources.valueFor(indexToType(i));
@@ -1658,7 +1664,6 @@ void LiveSession::onSwitchDown() {
         return;
     }
 
-    changeConfiguration(-1, mCurBandwidthIndex - 1, false);
 }
 
 // Mark switch done when:
