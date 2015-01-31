@@ -264,7 +264,7 @@ private:
     status_t setVideoFormatOnPort(
             OMX_U32 portIndex,
             int32_t width, int32_t height,
-            OMX_VIDEO_CODINGTYPE compressionFormat);
+            OMX_VIDEO_CODINGTYPE compressionFormat, float frameRate = -1.0);
 
     typedef struct drcParams {
         int32_t drcCut;
