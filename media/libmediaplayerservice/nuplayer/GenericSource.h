@@ -140,6 +140,7 @@ private:
     sp<DecryptHandle> mDecryptHandle;
     bool mStarted;
     bool mStopRead;
+    int64_t mInitialSeekTime;
     String8 mContentType;
     AString mSniffedMIME;
     off64_t mMetaDataSize;
