@@ -51,6 +51,7 @@ NuPlayer::GenericSource::GenericSource(
       mFetchSubtitleDataGeneration(0),
       mFetchTimedTextDataGeneration(0),
       mDurationUs(0ll),
+      mCachedDurationUs(0ll),
       mAudioIsVorbis(false),
       mIsWidevine(false),
       mUIDValid(uidValid),
@@ -80,6 +81,7 @@ void NuPlayer::GenericSource::resetDataSource() {
     mDrmManagerClient = NULL;
     mStarted = false;
     mStopRead = true;
+    mInitialSeekTime = -1;
 }
 
 status_t NuPlayer::GenericSource::setDataSource(
@@ -529,6 +531,11 @@ void NuPlayer::GenericSource::start() {
     }
 
     setDrmPlaybackStatusIfNeeded(Playback::START, getLastReadPosition() / 1000);
+
+    if (mInitialSeekTime > 0) {
+        doSeek(mInitialSeekTime);
+    }
+
     mStarted = true;
 }
 
@@ -600,6 +607,11 @@ void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage,
 
 status_t NuPlayer::GenericSource::getCachedDuration(int64_t *cachedDurationUs) {
     status_t finalStatus = UNKNOWN_ERROR;
+
+    if (mDurationUs > 0) {
+        *cachedDurationUs = mDurationUs;
+        return OK;
+    }
 
     if (mCachedSource != NULL) {
         size_t cachedDataRemaining =
@@ -1199,7 +1211,12 @@ status_t NuPlayer::GenericSource::doSeek(int64_t seekTimeUs) {
     // If the Widevine source is stopped, do not attempt to read any
     // more buffers.
     if (mStopRead) {
-        return INVALID_OPERATION;
+        if (mIsWidevine) {
+            return INVALID_OPERATION;
+        } else if (mInitialSeekTime == -1) {
+            mInitialSeekTime = seekTimeUs;
+            return OK;
+        }
     }
     if (mVideoTrack.mSource != NULL) {
         int64_t actualTimeUs;
