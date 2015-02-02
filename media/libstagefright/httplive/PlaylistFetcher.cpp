@@ -976,6 +976,10 @@ void PlaylistFetcher::onDownloadNext() {
         if (err == -EAGAIN) {
             // starting sequence number too low/high
             mTSParser.clear();
+            for (size_t i = 0; i < mPacketSources.size(); i++) {
+                sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
+                packetSource->clear();
+            }
             postMonitorQueue();
             return;
         } else if (err == ERROR_OUT_OF_RANGE) {
