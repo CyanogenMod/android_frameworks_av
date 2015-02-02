@@ -5061,6 +5061,9 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
     uint32_t muteWaitMs = 0;
     audio_devices_t device = outputDesc->device();
     bool shouldMute = outputDesc->isActive() && (popcount(device) >= 2);
+    // temporary mute output if device selection changes to avoid volume bursts due to
+    // different per device volumes
+    bool tempMute = outputDesc->isActive() && (device != prevDevice);
 
     for (size_t i = 0; i < NUM_STRATEGIES; i++) {
         audio_devices_t curDevice = getDeviceForStrategy((routing_strategy)i, false /*fromCache*/);
@@ -5074,7 +5077,8 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
             doMute = true;
             outputDesc->mStrategyMutedByDevice[i] = false;
         }
-        if (doMute) {
+
+        if (doMute || tempMute) {
             for (size_t j = 0; j < mOutputs.size(); j++) {
                 sp<AudioOutputDescriptor> desc = mOutputs.valueAt(j);
                 // skip output if it does not share any device with current output
@@ -5087,43 +5091,47 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
                       mute ? "muting" : "unmuting", i, curDevice, curOutput);
                 setStrategyMute((routing_strategy)i, mute, curOutput, mute ? 0 : delayMs);
                 if (desc->isStrategyActive((routing_strategy)i)) {
-                    if (mute) {
-                        // FIXME: should not need to double latency if volume could be applied
-                        // immediately by the audioflinger mixer. We must account for the delay
-                        // between now and the next time the audioflinger thread for this output
-                        // will process a buffer (which corresponds to one buffer size,
-                        // usually 1/2 or 1/4 of the latency).
-                        if (muteWaitMs < desc->latency() * 2) {
-                            muteWaitMs = desc->latency() * 2;
+                    // do tempMute only for current output
+                    if (tempMute && !mute) {
+                        if ((desc != outputDesc) && (desc->device() == device)) {
+                            ALOGD("avoid tempmute on curOutput %d as device is same", curOutput);
+                        } else {
+                            setStrategyMute((routing_strategy)i, true, curOutput);
+
+#ifdef QCOM_DIRECTTRACK
+                            //Add IsFMEnabled to maitain FM status when FM device enabled
+                            AudioParameter param = AudioParameter(mpClientInterface->getParameters(0, String8("Fm-radio")));
+                            int IsFMEnabled;
+                            if (param.getInt(String8 ("isFMON"), IsFMEnabled) == NO_ERROR){
+                                ALOGD("getParameters(): Fm-radio with IsFMEnabled %d", IsFMEnabled);
+                            }
+                            //Change latency for tunnel/LPA player to make sure no noise on device switch
+                            //Routing to  BTA2DP,  USB device ,  Proxy(WFD) will take time, increasing latency time
+                            if((desc->mFlags & AUDIO_OUTPUT_FLAG_LPA) || (desc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL)
+                                || (device & AUDIO_DEVICE_OUT_USB_DEVICE) || (device & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)
+                                || (device & AUDIO_DEVICE_OUT_PROXY) || IsFMEnabled)
+                            {
+                               setStrategyMute((routing_strategy)i, false, curOutput,desc->latency()*4 ,device);
+                            }
+                            else
+#endif
+                               setStrategyMute((routing_strategy)i, false, curOutput,desc->latency()*2 ,device);
+                        }
+                    }
+                    if ((tempMute && (desc == outputDesc)) || mute) {
+                        if (muteWaitMs < desc->latency()) {
+                            muteWaitMs = desc->latency();
                         }
                     }
                 }
             }
         }
     }
-
-    // temporary mute output if device selection changes to avoid volume bursts due to
-    // different per device volumes
-    if (outputDesc->isActive() && (device != prevDevice)) {
-        if (muteWaitMs < outputDesc->latency() * 2) {
-            muteWaitMs = outputDesc->latency() * 2;
-        }
-        for (size_t i = 0; i < NUM_STRATEGIES; i++) {
-            if (outputDesc->isStrategyActive((routing_strategy)i)) {
-                setStrategyMute((routing_strategy)i, true, outputDesc->mIoHandle);
-                // do tempMute unmute after twice the mute wait time
-#ifdef QCOM_DIRECTTRACK
-                if((outputDesc->mFlags & AUDIO_OUTPUT_FLAG_LPA) || (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_TUNNEL))
-                    {
-                     setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,muteWaitMs*4 ,device);
-                }
-                else
-#endif
-                setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,
-                                muteWaitMs *2, device);
-            }
-        }
-    }
+    // FIXME: should not need to double latency if volume could be applied immediately by the
+    // audioflinger mixer. We must account for the delay between now and the next time
+    // the audioflinger thread for this output will process a buffer (which corresponds to
+    // one buffer size, usually 1/2 or 1/4 of the latency).
+    muteWaitMs *= 2;
 
     // wait for the PCM output buffers to empty before proceeding with the rest of the command
     if (muteWaitMs > delayMs) {
