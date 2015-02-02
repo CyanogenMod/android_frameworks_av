@@ -3319,11 +3319,15 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     }
     if (initFastMixer) {
         audio_format_t fastMixerFormat;
+#ifdef LEGACY_ALSA_AUDIO
+        fastMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
+#else
         if (mMixerBufferEnabled && mEffectBufferEnabled) {
             fastMixerFormat = AUDIO_FORMAT_PCM_FLOAT;
         } else {
             fastMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
         }
+#endif
         if (mFormat != fastMixerFormat) {
             // change our Sink format to accept our intermediate precision
             mFormat = fastMixerFormat;
