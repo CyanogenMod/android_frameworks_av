@@ -35,6 +35,9 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/AUtils.h>
+#ifdef QCOM_BSP_LEGACY
+#include <media/stagefright/MetaData.h>
+#endif
 
 #include <media/stagefright/BufferProducerWrapper.h>
 #include <media/stagefright/MediaCodec.h>
@@ -55,6 +58,9 @@
 #include "include/avc_utils.h"
 
 #include <stagefright/AVExtensions.h>
+#ifdef QCOM_BSP_LEGACY
+#include <stagefright/Utils.h>
+#endif
 
 namespace android {
 
@@ -1005,6 +1011,16 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
+#ifdef QCOM_BSP_LEGACY
+    err = mNativeWindow.get()->perform(mNativeWindow.get(),
+            NATIVE_WINDOW_SET_BUFFERS_SIZE, def.nBufferSize);
+    if (err != 0) {
+        ALOGE("mNativeWindow.get()->perform() faild: %s (%d)", strerror(-err),
+                -err);
+        return err;
+
+    }
+#endif
     *bufferCount = def.nBufferCountActual;
     *bufferSize =  def.nBufferSize;
     return err;
@@ -1620,6 +1636,29 @@ status_t ACodec::setComponentRole(
     return OK;
 }
 
+#ifdef QCOM_BSP_LEGACY
+/* TODO: Remove if ExtendedUtils ever makes it into M */
+void setArbitraryModeIfInterlaced(
+        const uint8_t *ptr, const sp<MetaData> &meta) {
+    if (ptr == NULL) {
+        return;
+    }
+    uint16_t spsSize = (((uint16_t)ptr[6]) << 8) + (uint16_t)(ptr[7]);
+    int32_t width = 0, height = 0, isInterlaced = 0;
+    const uint8_t *spsStart = &ptr[8];
+
+    sp<ABuffer> seqParamSet = new ABuffer(spsSize);
+    memcpy(seqParamSet->data(), spsStart, spsSize);
+    FindAVCDimensions(seqParamSet, &width, &height, NULL, NULL, &isInterlaced);
+
+    if (isInterlaced) {
+        /* TODO: Remove when QC_AV_ENHANCEMENTS is available */
+        meta->setInt32('ArbM', 1);
+        meta->setInt32('intL', 1);
+    }
+}
+#endif
+
 status_t ACodec::configureCodec(
         const char *mime, const sp<AMessage> &msg) {
     int32_t encoder;
@@ -1918,6 +1957,19 @@ status_t ACodec::configureCodec(
         if (encoder) {
             err = setupVideoEncoder(mime, msg);
         } else {
+#ifdef QCOM_BSP_LEGACY
+            if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                sp<MetaData> meta = new MetaData;
+                const void *data;
+                size_t size;
+                uint32_t type;
+                convertMessageToMetaData(msg, meta);
+
+                if (meta->findData(kKeyAVCC, &type, &data, &size)) {
+                    setArbitraryModeIfInterlaced((const uint8_t *)data, meta);
+                }
+            }
+#endif
             err = setupVideoDecoder(mime, msg, haveNativeWindow);
         }
 
@@ -6674,6 +6726,21 @@ void ACodec::ExecutingToIdleState::changeStateIfWeOwnAllBuffers() {
             }
         }
 
+#ifdef QCOM_BSP_LEGACY
+        if(mCodec->mNativeWindow != NULL) {
+            /*
+             * reset buffer size field with SurfaceTexture
+             * back to 0. This wil ensure proper size
+             * buffers are allocated if the same SurfaceTexture
+             * is re-used in a different decode session
+             */
+            int err = mCodec->mNativeWindow.get()->perform(mCodec->mNativeWindow.get(),
+                                                            NATIVE_WINDOW_SET_BUFFERS_SIZE, 0);
+            if (err != 0) {
+                ALOGE("mNativeWindow.get()->Perform() failed: %s (%d)", strerror(-err),-err);
+            }
+#endif
+
         if ((mCodec->mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown)
                 && mCodec->mNativeWindow != NULL) {
             // We push enough 1x1 blank buffers to ensure that one of
@@ -6682,6 +6749,9 @@ void ACodec::ExecutingToIdleState::changeStateIfWeOwnAllBuffers() {
             // without the risk of scanning out one of those buffers.
             pushBlankBuffersToNativeWindow(mCodec->mNativeWindow.get());
         }
+#ifdef QCOM_BSP_LEGACY
+        }
+#endif
 
         if (err != OK) {
             mCodec->signalError(OMX_ErrorUndefined, FAILED_TRANSACTION);
