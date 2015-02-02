@@ -608,11 +608,6 @@ void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage,
 status_t NuPlayer::GenericSource::getCachedDuration(int64_t *cachedDurationUs) {
     status_t finalStatus = UNKNOWN_ERROR;
 
-    if (mDurationUs > 0) {
-        *cachedDurationUs = mDurationUs;
-        return OK;
-    }
-
     if (mCachedSource != NULL) {
         size_t cachedDataRemaining =
                 mCachedSource->approxDataRemaining(&finalStatus);
@@ -632,6 +627,9 @@ status_t NuPlayer::GenericSource::getCachedDuration(int64_t *cachedDurationUs) {
     } else if (mWVMExtractor != NULL) {
         *cachedDurationUs
             = mWVMExtractor->getCachedDurationUs(&finalStatus);
+    } else if (mDurationUs > 0) {
+        *cachedDurationUs = mDurationUs;
+        return OK;
     }
 
     if (*cachedDurationUs > 0) {
