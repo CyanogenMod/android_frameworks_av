@@ -107,7 +107,7 @@ public:
             }
         }
 
-	if ((res != NO_ERROR) || (resFrameNumber != NO_ERROR)) {
+	if ((res < NO_ERROR) || (resFrameNumber != NO_ERROR)) {
             res = FAILED_TRANSACTION;
         }
         return res;
@@ -147,7 +147,7 @@ public:
                 resFrameNumber = reply.readInt64(lastFrameNumber);
             }
         }
-        if ((res != NO_ERROR) || (resFrameNumber != NO_ERROR)) {
+        if ((res < NO_ERROR) || (resFrameNumber != NO_ERROR)) {
             res = FAILED_TRANSACTION;
         }
         return res;
@@ -167,7 +167,7 @@ public:
         status_t resFrameNumber = BAD_VALUE;
         if (reply.readInt32() != 0) {
             if (lastFrameNumber != NULL) {
-                res = reply.readInt64(lastFrameNumber);
+                resFrameNumber = reply.readInt64(lastFrameNumber);
             }
         }
         if ((res != NO_ERROR) || (resFrameNumber != NO_ERROR)) {
@@ -296,7 +296,7 @@ public:
         status_t resFrameNumber = BAD_VALUE;
         if (reply.readInt32() != 0) {
             if (lastFrameNumber != NULL) {
-                res = reply.readInt64(lastFrameNumber);
+                resFrameNumber = reply.readInt64(lastFrameNumber);
             }
         }
         if ((res != NO_ERROR) || (resFrameNumber != NO_ERROR)) {
