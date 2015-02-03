@@ -24,6 +24,7 @@
 #include "ESQueue.h"
 #include "include/avc_utils.h"
 #include "include/ID3.h"
+#include "include/ExtendedUtils.h"
 
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -489,6 +490,13 @@ ATSParser::Stream::Stream(
                     (mProgram->parserFlags() & ALIGNED_VIDEO_DATA)
                         ? ElementaryStreamQueue::kFlag_AlignedData : 0);
             break;
+        case STREAMTYPE_H265:
+            ALOGV("create ESQ for H265");
+            mQueue = new ElementaryStreamQueue(
+                    ElementaryStreamQueue::H265,
+                    (mProgram->parserFlags() & ALIGNED_VIDEO_DATA)
+                        ? ElementaryStreamQueue::kFlag_AlignedData : 0);
+            break;
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
             mQueue = new ElementaryStreamQueue(ElementaryStreamQueue::AAC);
             break;
@@ -596,6 +604,7 @@ status_t ATSParser::Stream::parse(
 bool ATSParser::Stream::isVideo() const {
     switch (mStreamType) {
         case STREAMTYPE_H264:
+        case STREAMTYPE_H265:
         case STREAMTYPE_MPEG1_VIDEO:
         case STREAMTYPE_MPEG2_VIDEO:
         case STREAMTYPE_MPEG4_VIDEO:
@@ -928,9 +937,12 @@ void ATSParser::Stream::onPayloadData(
                      mElementaryPID, mStreamType);
 
                 const char *mime;
+                bool isAvcIDR = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                        && !IsIDR(accessUnit);
+                bool isHevcIDR = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)
+                        && !ExtendedUtils::IsHevcIDR(accessUnit);
                 if (meta->findCString(kKeyMIMEType, &mime)
-                        && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
-                        && !IsIDR(accessUnit)) {
+                        && (isAvcIDR || isHevcIDR)) {
                     continue;
                 }
                 mSource = new AnotherPacketSource(meta);

@@ -24,6 +24,7 @@
 #include "M3UParser.h"
 
 #include "include/avc_utils.h"
+#include "include/ExtendedUtils.h"
 #include "include/HTTPBase.h"
 #include "include/ID3.h"
 #include "mpeg2ts/AnotherPacketSource.h"
@@ -1413,14 +1414,19 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                     const char *mime;
                     sp<MetaData> format  = source->getFormat();
                     bool isAvc = false;
-                    if (format != NULL && format->findCString(kKeyMIMEType, &mime)
-                            && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
-                        isAvc = true;
+                    bool isHevc = false;
+                    if (format != NULL && format->findCString(kKeyMIMEType, &mime)) {
+                        if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+                            isAvc = true;
+                        } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
+                            isHevc = true;
+                        }
                     }
-                    if (isAvc && IsIDR(accessUnit)) {
+                    if ((isAvc && IsIDR(accessUnit)) || (isHevc &&
+                            ExtendedUtils::IsHevcIDR(accessUnit))) {
                         mVideoBuffer->clear();
                     }
-                    if (isAvc) {
+                    if (isAvc || isHevc) {
                         mVideoBuffer->queueAccessUnit(accessUnit);
                     }
 

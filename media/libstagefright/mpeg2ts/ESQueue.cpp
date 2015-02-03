@@ -28,8 +28,12 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+#ifdef ENABLE_AV_ENHANCEMENTS
+#include <QCMetaData.h>
+#endif
 
 #include "include/avc_utils.h"
+#include "include/ExtendedUtils.h"
 
 #include <inttypes.h>
 #include <netinet/in.h>
@@ -239,6 +243,7 @@ status_t ElementaryStreamQueue::appendData(
     if (mBuffer == NULL || mBuffer->size() == 0) {
         switch (mMode) {
             case H264:
+            case H265:
             case MPEG_VIDEO:
             {
 #if 0
@@ -439,7 +444,7 @@ status_t ElementaryStreamQueue::appendData(
 }
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
-    if ((mFlags & kFlag_AlignedData) && mMode == H264) {
+    if (((mFlags & kFlag_AlignedData) && mMode == H264) || mMode == H265) {
         if (mRangeInfos.empty()) {
             return NULL;
         }
@@ -458,7 +463,18 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
         mBuffer->setRange(0, mBuffer->size() - info.mLength);
 
         if (mFormat == NULL) {
-            mFormat = MakeAVCCodecSpecificData(accessUnit);
+            if (mMode == H264) {
+                mFormat = MakeAVCCodecSpecificData(accessUnit);
+            } else if (mMode == H265) {
+                mFormat = ExtendedUtils::MakeHEVCCodecSpecificData(accessUnit);
+#ifdef ENABLE_AV_ENHANCEMENTS
+                if (mFormat != NULL) {
+                    // Unlike H264, we do not require HEVC data to be aligned.
+                    // To handle this, let the decoder do the frame parsing.
+                    mFormat->setInt32(kKeyUseArbitraryMode, 1);
+                }
+#endif
+            }
         }
 
         return accessUnit;
@@ -467,6 +483,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
     switch (mMode) {
         case H264:
             return dequeueAccessUnitH264();
+        case H265:
+            return dequeueAccessUnitH265();
         case AAC:
             return dequeueAccessUnitAAC();
         case AC3:
@@ -765,6 +783,12 @@ struct NALPosition {
     size_t nalOffset;
     size_t nalSize;
 };
+
+sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH265() {
+    ALOGE("Should not be here - frame parsing is done in decoder");
+    TRESPASS();
+    return NULL;
+}
 
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
     const uint8_t *data = mBuffer->data();

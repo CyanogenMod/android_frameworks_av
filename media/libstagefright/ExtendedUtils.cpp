@@ -53,6 +53,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#include "include/avc_utils.h"
 #include "include/ExtendedUtils.h"
 
 #include <system/window.h>
@@ -74,6 +75,10 @@ static const unsigned kMinRtpPort = 1024;
 static const unsigned kMaxRtpPort = 65535;
 
 #define ARG_TOUCH(x) (void)x
+
+static const uint8_t kHEVCNalUnitTypeIDR         = 0x13;
+static const uint8_t kHEVCNalUnitTypeIDRNoLP     = 0x14;
+static const uint8_t kHEVCNalUnitTypeCRA         = 0x15;
 static const uint8_t kHEVCNalUnitTypeVidParamSet = 0x20;
 static const uint8_t kHEVCNalUnitTypeSeqParamSet = 0x21;
 static const uint8_t kHEVCNalUnitTypePicParamSet = 0x22;
@@ -722,6 +727,55 @@ status_t ExtendedUtils::HEVCMuxer::makeHEVCCodecSpecificData(
     }
     *codecSpecificData = codecConfigData;
     return OK;
+}
+
+sp<MetaData> ExtendedUtils::MakeHEVCCodecSpecificData(const sp<ABuffer> &accessUnit) {
+    const uint8_t *data = accessUnit->data();
+    size_t size = accessUnit->size();
+
+    if (data == NULL || size == 0) {
+        ALOGE("Invalid HEVC CSD");
+        return NULL;
+    }
+
+    sp<MetaData> meta = new MetaData;
+    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_HEVC);
+    meta->setData(kKeyHVCC, kTypeHVCC, data, size);
+
+    // Set width & height to minimum (QCIF). This will trigger a port reconfig &
+    // the decoder will find the correct dimensions.
+    meta->setInt32(kKeyWidth, (int32_t)177);
+    meta->setInt32(kKeyHeight, (int32_t)144);
+
+    return meta;
+}
+
+bool ExtendedUtils::IsHevcIDR(const sp<ABuffer> &buffer) {
+    const uint8_t *data = buffer->data();
+    size_t size = buffer->size();
+
+    bool foundRef = false;
+    const uint8_t *nalStart;
+    size_t nalSize;
+    while (!foundRef && getNextNALUnit(&data, &size, &nalStart, &nalSize, true) == OK) {
+        if (nalSize == 0) {
+            ALOGW("Encountered zero-length HEVC NAL", nalSize);
+            return false;
+        }
+
+        uint8_t nalType;
+        getHEVCNalUnitType(nalStart[0], &nalType);
+
+        switch(nalType) {
+        case kHEVCNalUnitTypeIDR:
+        case kHEVCNalUnitTypeIDRNoLP:
+        case kHEVCNalUnitTypeCRA:
+            foundRef = true;
+            break;
+        }
+    }
+
+    return foundRef;
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
@@ -2105,6 +2159,16 @@ int32_t ExtendedUtils::HFR::getHFRCapabilities(
     ARG_TOUCH(codec);
     maxHFRWidth = maxHFRHeight = maxHFRFps = maxBitRate = 0;
     return -1;
+}
+
+sp<MetaData> ExtendedUtils::MakeHEVCCodecSpecificData(const sp<ABuffer> &accessUnit) {
+    ARG_TOUCH(accessUnit);
+    return NULL;
+}
+
+bool ExtendedUtils::IsHevcIDR(const sp<ABuffer> &buffer) {
+    ARG_TOUCH(buffer);
+    return false;
 }
 
 bool ExtendedUtils::ShellProp::isAudioDisabled(bool isEncoder) {
