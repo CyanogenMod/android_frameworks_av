@@ -206,7 +206,7 @@ status_t StagefrightRecorder::setVideoSize(int width, int height) {
 status_t StagefrightRecorder::setVideoFrameRate(int frames_per_second) {
     ALOGV("setVideoFrameRate: %d", frames_per_second);
     if ((frames_per_second <= 0 && frames_per_second != -1) ||
-        frames_per_second > 120) {
+        frames_per_second > kMaxHighSpeedFps) {
         ALOGE("Invalid video frame rate: %d", frames_per_second);
         return BAD_VALUE;
     }

@@ -126,6 +126,8 @@ private:
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
     sp<ALooper> mLooper;
 
+    static const int kMaxHighSpeedFps = 1000;
+
     status_t prepareInternal();
     status_t setupMPEG4orWEBMRecording();
     void setupMPEG4orWEBMMetaData(sp<MetaData> *meta);
