@@ -846,11 +846,11 @@ ssize_t LiveSession::fetchFile(
                 headers.add(
                         String8("Range"),
                         String8(
-                            StringPrintf(
+                            AStringPrintf(
                                 "bytes=%lld-%s",
                                 range_offset,
                                 range_length < 0
-                                    ? "" : StringPrintf("%lld",
+                                    ? "" : AStringPrintf("%lld",
                                             range_offset + range_length - 1).c_str()).c_str()));
             }
             status_t err = mHTTPDataSource->connect(url, &headers);

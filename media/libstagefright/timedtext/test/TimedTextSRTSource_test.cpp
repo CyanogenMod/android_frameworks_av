@@ -120,26 +120,26 @@ TEST_F(TimedTextSRTSourceTest, readAll) {
         err = mSource->read(&startTimeUs, &endTimeUs, &parcel);
         EXPECT_EQ(OK, err);
         CheckStartTimeMs(parcel, i * kSecToMsec);
-        subtitle = StringPrintf("%d\n\n", i);
+        subtitle = AStringPrintf("%d\n\n", i);
         CheckDataEquals(parcel, subtitle.c_str());
     }
     // read edge cases
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel);
     EXPECT_EQ(OK, err);
     CheckStartTimeMs(parcel, 5500);
-    subtitle = StringPrintf("6\n\n");
+    subtitle = AStringPrintf("6\n\n");
     CheckDataEquals(parcel, subtitle.c_str());
 
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel);
     EXPECT_EQ(OK, err);
     CheckStartTimeMs(parcel, 5800);
-    subtitle = StringPrintf("7\n\n");
+    subtitle = AStringPrintf("7\n\n");
     CheckDataEquals(parcel, subtitle.c_str());
 
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel);
     EXPECT_EQ(OK, err);
     CheckStartTimeMs(parcel, 6000);
-    subtitle = StringPrintf("8\n\n");
+    subtitle = AStringPrintf("8\n\n");
     CheckDataEquals(parcel, subtitle.c_str());
 
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel);
@@ -202,21 +202,21 @@ TEST_F(TimedTextSRTSourceTest, checkEdgeCase) {
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel, &options);
     EXPECT_EQ(OK, err);
     EXPECT_EQ(5500 * kMsecToUsec, startTimeUs);
-    subtitle = StringPrintf("6\n\n");
+    subtitle = AStringPrintf("6\n\n");
     CheckDataEquals(parcel, subtitle.c_str());
 
     options.setSeekTo(5800 * kMsecToUsec, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel, &options);
     EXPECT_EQ(OK, err);
     EXPECT_EQ(5800 * kMsecToUsec, startTimeUs);
-    subtitle = StringPrintf("7\n\n");
+    subtitle = AStringPrintf("7\n\n");
     CheckDataEquals(parcel, subtitle.c_str());
 
     options.setSeekTo(6000 * kMsecToUsec, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
     err = mSource->read(&startTimeUs, &endTimeUs, &parcel, &options);
     EXPECT_EQ(OK, err);
     EXPECT_EQ(6000 * kMsecToUsec, startTimeUs);
-    subtitle = StringPrintf("8\n\n");
+    subtitle = AStringPrintf("8\n\n");
     CheckDataEquals(parcel, subtitle.c_str());
 }
 

@@ -1706,7 +1706,7 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
     size_t i = 0;
     for (;;) {
         sp<ABuffer> csd;
-        if (!format->findBuffer(StringPrintf("csd-%u", i).c_str(), &csd)) {
+        if (!format->findBuffer(AStringPrintf("csd-%u", i).c_str(), &csd)) {
             break;
         }
 
@@ -2229,7 +2229,7 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
             memcpy(csd->data() + 4, nalStart, nalSize);
 
             mOutputFormat->setBuffer(
-                    StringPrintf("csd-%u", csdIndex).c_str(), csd);
+                    AStringPrintf("csd-%u", csdIndex).c_str(), csd);
 
             ++csdIndex;
         }
