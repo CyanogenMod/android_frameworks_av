@@ -426,19 +426,19 @@ AString AMessage::debugString(int32_t indent) const {
 
     AString tmp;
     if (isFourcc(mWhat)) {
-        tmp = StringPrintf(
+        tmp = AStringPrintf(
                 "'%c%c%c%c'",
                 (char)(mWhat >> 24),
                 (char)((mWhat >> 16) & 0xff),
                 (char)((mWhat >> 8) & 0xff),
                 (char)(mWhat & 0xff));
     } else {
-        tmp = StringPrintf("0x%08x", mWhat);
+        tmp = AStringPrintf("0x%08x", mWhat);
     }
     s.append(tmp);
 
     if (mTarget != 0) {
-        tmp = StringPrintf(", target = %d", mTarget);
+        tmp = AStringPrintf(", target = %d", mTarget);
         s.append(tmp);
     }
     s.append(") = {\n");
@@ -448,37 +448,37 @@ AString AMessage::debugString(int32_t indent) const {
 
         switch (item.mType) {
             case kTypeInt32:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "int32_t %s = %d", item.mName, item.u.int32Value);
                 break;
             case kTypeInt64:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "int64_t %s = %lld", item.mName, item.u.int64Value);
                 break;
             case kTypeSize:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "size_t %s = %d", item.mName, item.u.sizeValue);
                 break;
             case kTypeFloat:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "float %s = %f", item.mName, item.u.floatValue);
                 break;
             case kTypeDouble:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "double %s = %f", item.mName, item.u.doubleValue);
                 break;
             case kTypePointer:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "void *%s = %p", item.mName, item.u.ptrValue);
                 break;
             case kTypeString:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "string %s = \"%s\"",
                         item.mName,
                         item.u.stringValue->c_str());
                 break;
             case kTypeObject:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "RefBase *%s = %p", item.mName, item.u.refValue);
                 break;
             case kTypeBuffer:
@@ -486,18 +486,18 @@ AString AMessage::debugString(int32_t indent) const {
                 sp<ABuffer> buffer = static_cast<ABuffer *>(item.u.refValue);
 
                 if (buffer != NULL && buffer->data() != NULL && buffer->size() <= 64) {
-                    tmp = StringPrintf("Buffer %s = {\n", item.mName);
+                    tmp = AStringPrintf("Buffer %s = {\n", item.mName);
                     hexdump(buffer->data(), buffer->size(), indent + 4, &tmp);
                     appendIndent(&tmp, indent + 2);
                     tmp.append("}");
                 } else {
-                    tmp = StringPrintf(
+                    tmp = AStringPrintf(
                             "Buffer *%s = %p", item.mName, buffer.get());
                 }
                 break;
             }
             case kTypeMessage:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "AMessage %s = %s",
                         item.mName,
                         static_cast<AMessage *>(
@@ -505,7 +505,7 @@ AString AMessage::debugString(int32_t indent) const {
                                 indent + strlen(item.mName) + 14).c_str());
                 break;
             case kTypeRect:
-                tmp = StringPrintf(
+                tmp = AStringPrintf(
                         "Rect %s(%d, %d, %d, %d)",
                         item.mName,
                         item.u.rectValue.mLeft,

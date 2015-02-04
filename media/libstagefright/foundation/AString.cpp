@@ -366,7 +366,7 @@ status_t AString::writeToParcel(Parcel *parcel) const {
     return err;
 }
 
-AString StringPrintf(const char *format, ...) {
+AString AStringPrintf(const char *format, ...) {
     va_list ap;
     va_start(ap, format);
 

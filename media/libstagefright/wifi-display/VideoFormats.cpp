@@ -435,7 +435,7 @@ AString VideoFormats::getFormatSpec(bool forM4Message) const {
     //   max-hres (none or 2 byte)
     //   max-vres (none or 2 byte)
 
-    return StringPrintf(
+    return AStringPrintf(
             "%02x 00 %02x %02x %08x %08x %08x 00 0000 0000 00 none none",
             forM4Message ? 0x00 : ((mNativeIndex << 3) | mNativeType),
             mConfigs[mNativeType][mNativeIndex].profile,
