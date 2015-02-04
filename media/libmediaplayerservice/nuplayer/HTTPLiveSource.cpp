@@ -30,6 +30,8 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/Utils.h>
+
 
 namespace android {
 
@@ -117,6 +119,19 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
 
     return format;
 }
+
+sp<MetaData> NuPlayer::HTTPLiveSource::getFormatMeta(bool audio) {
+    sp<AMessage> format = getFormat(audio);
+
+    if (format == NULL) {
+        return NULL;
+    }
+
+    sp<MetaData> meta = new MetaData;
+    convertMessageToMetaData(format, meta);
+    return meta;
+}
+
 
 status_t NuPlayer::HTTPLiveSource::feedMoreTSData() {
     return OK;
