@@ -758,6 +758,9 @@ void PlaylistFetcher::onDownloadNext() {
                     mSeqNumber = firstSeqNumberInPlaylist;
                 }
             } else {
+                // When seeking mSegmentStartTimeUs is unavailable (< 0), we
+                // use mStartTimeUs (client supplied timestamp) to determine both start segment
+                // and relative position inside a segment
                 mSeqNumber = getSeqNumberForTime(mStartTimeUs);
                 mStartTimeUs -= getSegmentStartTimeUs(mSeqNumber);
             }
@@ -766,6 +769,10 @@ void PlaylistFetcher::onDownloadNext() {
                     mStartTimeUs, mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
         } else {
+            // When adapting or track switching, mSegmentStartTimeUs (relative
+            // to media time 0) is used to determine the start segment; mStartTimeUs (absolute
+            // timestamps coming from the media container) is used to determine the position
+            // inside a segments.
             mSeqNumber = getSeqNumberForTime(mSegmentStartTimeUs);
             if (mAdaptive) {
                 // avoid double fetch/decode
