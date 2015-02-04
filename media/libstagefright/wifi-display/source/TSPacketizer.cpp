@@ -106,7 +106,7 @@ void TSPacketizer::Track::extractCSDIfNecessary() {
             || !strcasecmp(mMIME.c_str(), MEDIA_MIMETYPE_AUDIO_AAC)) {
         for (size_t i = 0;; ++i) {
             sp<ABuffer> csd;
-            if (!mFormat->findBuffer(StringPrintf("csd-%d", i).c_str(), &csd)) {
+            if (!mFormat->findBuffer(AStringPrintf("csd-%d", i).c_str(), &csd)) {
                 break;
             }
 
