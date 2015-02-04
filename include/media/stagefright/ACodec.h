@@ -78,7 +78,7 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
 
     static bool isFlexibleColorFormat(
             const sp<IOMX> &omx, IOMX::node_id node,
-            uint32_t colorFormat, OMX_U32 *flexibleEquivalent);
+            uint32_t colorFormat, bool usingNativeBuffers, OMX_U32 *flexibleEquivalent);
 
     // Returns 0 if configuration is not supported.  NOTE: this is treated by
     // some OMX components as auto level, and by others as invalid level.
@@ -251,12 +251,13 @@ private:
     status_t setVideoPortFormatType(
             OMX_U32 portIndex,
             OMX_VIDEO_CODINGTYPE compressionFormat,
-            OMX_COLOR_FORMATTYPE colorFormat);
+            OMX_COLOR_FORMATTYPE colorFormat,
+            bool usingNativeBuffers = false);
 
-    status_t setSupportedOutputFormat();
+    status_t setSupportedOutputFormat(bool getLegacyFlexibleFormat);
 
     status_t setupVideoDecoder(
-            const char *mime, const sp<AMessage> &msg);
+            const char *mime, const sp<AMessage> &msg, bool usingNativeBuffers);
 
     status_t setupVideoEncoder(
             const char *mime, const sp<AMessage> &msg);

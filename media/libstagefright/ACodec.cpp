@@ -1258,8 +1258,8 @@ status_t ACodec::configureCodec(
     }
 
     sp<RefBase> obj;
-    int32_t haveNativeWindow = msg->findObject("native-window", &obj) &&
-        obj != NULL;
+    bool haveNativeWindow = msg->findObject("native-window", &obj)
+            && obj != NULL;
     mStoreMetaDataInOutputBuffers = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
@@ -1419,7 +1419,7 @@ status_t ACodec::configureCodec(
         if (encoder) {
             err = setupVideoEncoder(mime, msg);
         } else {
-            err = setupVideoDecoder(mime, msg);
+            err = setupVideoDecoder(mime, msg, haveNativeWindow);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         int32_t numChannels, sampleRate;
@@ -2062,7 +2062,8 @@ status_t ACodec::configureTunneledVideoPlayback(
 status_t ACodec::setVideoPortFormatType(
         OMX_U32 portIndex,
         OMX_VIDEO_CODINGTYPE compressionFormat,
-        OMX_COLOR_FORMATTYPE colorFormat) {
+        OMX_COLOR_FORMATTYPE colorFormat,
+        bool usingNativeBuffers) {
     OMX_VIDEO_PARAM_PORTFORMATTYPE format;
     InitOMXParams(&format);
     format.nPortIndex = portIndex;
@@ -2082,10 +2083,10 @@ status_t ACodec::setVideoPortFormatType(
 
         // substitute back flexible color format to codec supported format
         OMX_U32 flexibleEquivalent;
-        if (compressionFormat == OMX_VIDEO_CodingUnused &&
-                isFlexibleColorFormat(
-                        mOMX, mNode, format.eColorFormat, &flexibleEquivalent) &&
-                colorFormat == flexibleEquivalent) {
+        if (compressionFormat == OMX_VIDEO_CodingUnused
+                && isFlexibleColorFormat(
+                        mOMX, mNode, format.eColorFormat, usingNativeBuffers, &flexibleEquivalent)
+                && colorFormat == flexibleEquivalent) {
             ALOGI("[%s] using color format %#x in place of %#x",
                     mComponentName.c_str(), format.eColorFormat, colorFormat);
             colorFormat = format.eColorFormat;
@@ -2129,18 +2130,66 @@ status_t ACodec::setVideoPortFormatType(
     return err;
 }
 
-status_t ACodec::setSupportedOutputFormat() {
-    OMX_VIDEO_PARAM_PORTFORMATTYPE format;
+// Set optimal output format. OMX component lists output formats in the order
+// of preference, but this got more complicated since the introduction of flexible
+// YUV formats. We support a legacy behavior for applications that do not use
+// surface output, do not specify an output format, but expect a "usable" standard
+// OMX format. SW readable and standard formats must be flex-YUV.
+//
+// Suggested preference order:
+// - optimal format for texture rendering (mediaplayer behavior)
+// - optimal SW readable & texture renderable format (flex-YUV support)
+// - optimal SW readable non-renderable format (flex-YUV bytebuffer support)
+// - legacy "usable" standard formats
+//
+// For legacy support, we prefer a standard format, but will settle for a SW readable
+// flex-YUV format.
+status_t ACodec::setSupportedOutputFormat(bool getLegacyFlexibleFormat) {
+    OMX_VIDEO_PARAM_PORTFORMATTYPE format, legacyFormat;
     InitOMXParams(&format);
     format.nPortIndex = kPortIndexOutput;
-    format.nIndex = 0;
 
-    status_t err = mOMX->getParameter(
-            mNode, OMX_IndexParamVideoPortFormat,
-            &format, sizeof(format));
-    CHECK_EQ(err, (status_t)OK);
-    CHECK_EQ((int)format.eCompressionFormat, (int)OMX_VIDEO_CodingUnused);
+    InitOMXParams(&legacyFormat);
+    // this field will change when we find a suitable legacy format
+    legacyFormat.eColorFormat = OMX_COLOR_FormatUnused;
 
+    for (OMX_U32 index = 0; ; ++index) {
+        format.nIndex = index;
+        status_t err = mOMX->getParameter(
+                mNode, OMX_IndexParamVideoPortFormat,
+                &format, sizeof(format));
+        if (err != OK) {
+            // no more formats, pick legacy format if found
+            if (legacyFormat.eColorFormat != OMX_COLOR_FormatUnused) {
+                 memcpy(&format, &legacyFormat, sizeof(format));
+                 break;
+            }
+            return err;
+        }
+        if (format.eCompressionFormat != OMX_VIDEO_CodingUnused) {
+            return OMX_ErrorBadParameter;
+        }
+        if (!getLegacyFlexibleFormat) {
+            break;
+        }
+        // standard formats that were exposed to users before
+        if (format.eColorFormat == OMX_COLOR_FormatYUV420Planar
+                || format.eColorFormat == OMX_COLOR_FormatYUV420PackedPlanar
+                || format.eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar
+                || format.eColorFormat == OMX_COLOR_FormatYUV420PackedSemiPlanar
+                || format.eColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar) {
+            break;
+        }
+        // find best legacy non-standard format
+        OMX_U32 flexibleEquivalent;
+        if (legacyFormat.eColorFormat == OMX_COLOR_FormatUnused
+                && isFlexibleColorFormat(
+                        mOMX, mNode, format.eColorFormat, false /* usingNativeBuffers */,
+                        &flexibleEquivalent)
+                && flexibleEquivalent == OMX_COLOR_FormatYUV420Flexible) {
+            memcpy(&legacyFormat, &format, sizeof(format));
+        }
+    }
     return mOMX->setParameter(
             mNode, OMX_IndexParamVideoPortFormat,
             &format, sizeof(format));
@@ -2192,7 +2241,7 @@ static status_t GetMimeTypeForVideoCoding(
 }
 
 status_t ACodec::setupVideoDecoder(
-        const char *mime, const sp<AMessage> &msg) {
+        const char *mime, const sp<AMessage> &msg, bool haveNativeWindow) {
     int32_t width, height;
     if (!msg->findInt32("width", &width)
             || !msg->findInt32("height", &height)) {
@@ -2218,14 +2267,14 @@ status_t ACodec::setupVideoDecoder(
         OMX_COLOR_FORMATTYPE colorFormat =
             static_cast<OMX_COLOR_FORMATTYPE>(tmp);
         err = setVideoPortFormatType(
-                kPortIndexOutput, OMX_VIDEO_CodingUnused, colorFormat);
+                kPortIndexOutput, OMX_VIDEO_CodingUnused, colorFormat, haveNativeWindow);
         if (err != OK) {
             ALOGW("[%s] does not support color format %d",
                   mComponentName.c_str(), colorFormat);
-            err = setSupportedOutputFormat();
+            err = setSupportedOutputFormat(!haveNativeWindow /* getLegacyFlexibleFormat */);
         }
     } else {
-        err = setSupportedOutputFormat();
+        err = setSupportedOutputFormat(!haveNativeWindow /* getLegacyFlexibleFormat */);
     }
 
     if (err != OK) {
@@ -3239,7 +3288,7 @@ bool ACodec::describeColorFormat(
 // static
 bool ACodec::isFlexibleColorFormat(
          const sp<IOMX> &omx, IOMX::node_id node,
-         uint32_t colorFormat, OMX_U32 *flexibleEquivalent) {
+         uint32_t colorFormat, bool usingNativeBuffers, OMX_U32 *flexibleEquivalent) {
     DescribeColorFormatParams describeParams;
     InitOMXParams(&describeParams);
     describeParams.eColorFormat = (OMX_COLOR_FORMATTYPE)colorFormat;
@@ -3248,6 +3297,7 @@ bool ACodec::isFlexibleColorFormat(
     describeParams.nFrameHeight = 128;
     describeParams.nStride = 128;
     describeParams.nSliceHeight = 128;
+    describeParams.bUsingNativeBuffers = (OMX_BOOL)usingNativeBuffers;
 
     CHECK(flexibleEquivalent != NULL);
 
@@ -3305,20 +3355,23 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("slice-height", videoDef->nSliceHeight);
                     notify->setInt32("color-format", videoDef->eColorFormat);
 
-                    DescribeColorFormatParams describeParams;
-                    InitOMXParams(&describeParams);
-                    describeParams.eColorFormat = videoDef->eColorFormat;
-                    describeParams.nFrameWidth = videoDef->nFrameWidth;
-                    describeParams.nFrameHeight = videoDef->nFrameHeight;
-                    describeParams.nStride = videoDef->nStride;
-                    describeParams.nSliceHeight = videoDef->nSliceHeight;
+                    if (mNativeWindow == NULL) {
+                        DescribeColorFormatParams describeParams;
+                        InitOMXParams(&describeParams);
+                        describeParams.eColorFormat = videoDef->eColorFormat;
+                        describeParams.nFrameWidth = videoDef->nFrameWidth;
+                        describeParams.nFrameHeight = videoDef->nFrameHeight;
+                        describeParams.nStride = videoDef->nStride;
+                        describeParams.nSliceHeight = videoDef->nSliceHeight;
+                        describeParams.bUsingNativeBuffers = OMX_FALSE;
 
-                    if (describeColorFormat(mOMX, mNode, describeParams)) {
-                        notify->setBuffer(
-                                "image-data",
-                                ABuffer::CreateAsCopy(
-                                        &describeParams.sMediaImage,
-                                        sizeof(describeParams.sMediaImage)));
+                        if (describeColorFormat(mOMX, mNode, describeParams)) {
+                            notify->setBuffer(
+                                    "image-data",
+                                    ABuffer::CreateAsCopy(
+                                            &describeParams.sMediaImage,
+                                            sizeof(describeParams.sMediaImage)));
+                        }
                     }
 
                     if (portIndex != kPortIndexOutput) {
