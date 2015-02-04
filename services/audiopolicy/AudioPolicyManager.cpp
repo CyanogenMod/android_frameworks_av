@@ -242,7 +242,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
         switch (state)
         {
         // handle output device connection
-        case AUDIO_POLICY_DEVICE_STATE_AVAILABLE:
+        case AUDIO_POLICY_DEVICE_STATE_AVAILABLE: {
             if (index >= 0) {
                 ALOGW("setDeviceConnectionState() device already connected: %x", device);
                 return INVALID_OPERATION;
@@ -274,7 +274,14 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
                     "checkOutputsForDevice() returned no outputs but status OK");
             ALOGV("setDeviceConnectionState() checkOutputsForDevice() returned %zu outputs",
                   outputs.size());
-            break;
+
+
+            // Set connect to HALs
+            AudioParameter param = AudioParameter(devDesc->mAddress);
+            param.addInt(String8(AUDIO_PARAMETER_DEVICE_CONNECT), device);
+            mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
+
+            } break;
         // handle output device disconnection
         case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE: {
             if (index < 0) {
@@ -375,6 +382,12 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             } else {
                 return NO_MEMORY;
             }
+
+            // Set connect to HALs
+            AudioParameter param = AudioParameter(devDesc->mAddress);
+            param.addInt(String8(AUDIO_PARAMETER_DEVICE_CONNECT), device);
+            mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
+
         } break;
 
         // handle input device disconnection
