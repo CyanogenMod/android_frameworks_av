@@ -1546,7 +1546,7 @@ AudioFlinger::Client::Client(const sp<AudioFlinger>& audioFlinger, pid_t pid)
     :   RefBase(),
         mAudioFlinger(audioFlinger),
         // FIXME should be a "k" constant not hard-coded, in .h or ro. property, see 4 lines below
-        mMemoryDealer(new MemoryDealer(1028*1024, "AudioFlinger::Client")), //1MB + 1 more 4k page
+        mMemoryDealer(new MemoryDealer(2048*1024, "AudioFlinger::Client")), //2MB
         mPid(pid),
         mTimedTrackCount(0)
 {
