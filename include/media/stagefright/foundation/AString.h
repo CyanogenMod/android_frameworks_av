@@ -102,7 +102,7 @@ private:
     void makeMutable();
 };
 
-AString StringPrintf(const char *format, ...);
+AString AStringPrintf(const char *format, ...);
 
 }  // namespace android
 

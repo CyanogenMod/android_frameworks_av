@@ -42,7 +42,7 @@ const int64_t ARTSPConnection::kSelectTimeoutUs = 1000ll;
 
 // static
 const AString ARTSPConnection::sUserAgent =
-    StringPrintf("User-Agent: %s\r\n", MakeUserAgent().c_str());
+    AStringPrintf("User-Agent: %s\r\n", MakeUserAgent().c_str());
 
 ARTSPConnection::ARTSPConnection(bool uidValid, uid_t uid)
     : mUIDValid(uidValid),

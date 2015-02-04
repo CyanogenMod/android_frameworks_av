@@ -598,7 +598,7 @@ status_t WifiDisplaySource::sendM3(int32_t sessionID) {
     AppendCommonResponse(&request, mNextCSeq);
 
     request.append("Content-Type: text/parameters\r\n");
-    request.append(StringPrintf("Content-Length: %d\r\n", body.size()));
+    request.append(AStringPrintf("Content-Length: %d\r\n", body.size()));
     request.append("\r\n");
     request.append(body);
 
@@ -639,26 +639,26 @@ status_t WifiDisplaySource::sendM4(int32_t sessionID) {
 
     if (mSinkSupportsAudio) {
         body.append(
-                StringPrintf("wfd_audio_codecs: %s\r\n",
+                AStringPrintf("wfd_audio_codecs: %s\r\n",
                              (mUsingPCMAudio
                                 ? "LPCM 00000002 00" // 2 ch PCM 48kHz
                                 : "AAC 00000001 00")));  // 2 ch AAC 48kHz
     }
 
     body.append(
-            StringPrintf(
+            AStringPrintf(
                 "wfd_presentation_URL: rtsp://%s/wfd1.0/streamid=0 none\r\n",
                 mClientInfo.mLocalIP.c_str()));
 
     body.append(
-            StringPrintf(
+            AStringPrintf(
                 "wfd_client_rtp_ports: %s\r\n", mWfdClientRtpPorts.c_str()));
 
     AString request = "SET_PARAMETER rtsp://localhost/wfd1.0 RTSP/1.0\r\n";
     AppendCommonResponse(&request, mNextCSeq);
 
     request.append("Content-Type: text/parameters\r\n");
-    request.append(StringPrintf("Content-Length: %d\r\n", body.size()));
+    request.append(AStringPrintf("Content-Length: %d\r\n", body.size()));
     request.append("\r\n");
     request.append(body);
 
@@ -704,7 +704,7 @@ status_t WifiDisplaySource::sendTrigger(
     AppendCommonResponse(&request, mNextCSeq);
 
     request.append("Content-Type: text/parameters\r\n");
-    request.append(StringPrintf("Content-Length: %d\r\n", body.size()));
+    request.append(AStringPrintf("Content-Length: %d\r\n", body.size()));
     request.append("\r\n");
     request.append(body);
 
@@ -729,7 +729,7 @@ status_t WifiDisplaySource::sendM16(int32_t sessionID) {
 
     CHECK_EQ(sessionID, mClientSessionID);
     request.append(
-            StringPrintf("Session: %d\r\n", mClientInfo.mPlaybackSessionID));
+            AStringPrintf("Session: %d\r\n", mClientInfo.mPlaybackSessionID));
     request.append("\r\n");  // Empty body
 
     status_t err =
@@ -1305,7 +1305,7 @@ status_t WifiDisplaySource::onSetupRequest(
 
     if (rtpMode == RTPSender::TRANSPORT_TCP_INTERLEAVED) {
         response.append(
-                StringPrintf(
+                AStringPrintf(
                     "Transport: RTP/AVP/TCP;interleaved=%d-%d;",
                     clientRtp, clientRtcp));
     } else {
@@ -1318,14 +1318,14 @@ status_t WifiDisplaySource::onSetupRequest(
 
         if (clientRtcp >= 0) {
             response.append(
-                    StringPrintf(
+                    AStringPrintf(
                         "Transport: RTP/AVP/%s;unicast;client_port=%d-%d;"
                         "server_port=%d-%d\r\n",
                         transportString.c_str(),
                         clientRtp, clientRtcp, serverRtp, serverRtp + 1));
         } else {
             response.append(
-                    StringPrintf(
+                    AStringPrintf(
                         "Transport: RTP/AVP/%s;unicast;client_port=%d;"
                         "server_port=%d\r\n",
                         transportString.c_str(),
@@ -1585,15 +1585,15 @@ void WifiDisplaySource::AppendCommonResponse(
     response->append(buf);
     response->append("\r\n");
 
-    response->append(StringPrintf("Server: %s\r\n", sUserAgent.c_str()));
+    response->append(AStringPrintf("Server: %s\r\n", sUserAgent.c_str()));
 
     if (cseq >= 0) {
-        response->append(StringPrintf("CSeq: %d\r\n", cseq));
+        response->append(AStringPrintf("CSeq: %d\r\n", cseq));
     }
 
     if (playbackSessionID >= 0ll) {
         response->append(
-                StringPrintf(
+                AStringPrintf(
                     "Session: %d;timeout=%lld\r\n",
                     playbackSessionID, kPlaybackSessionTimeoutSecs));
     }
