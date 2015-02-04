@@ -1817,12 +1817,11 @@ sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
     tPCMMeta->setInt32(kKeyChannelCount, channelCount);
     tPCMMeta->setInt32(kKeyChannelMask, cmask);
 
-    int64_t duration = 0;
+    int64_t duration = INT_MAX;
     if (!sMeta->findInt64(kKeyDuration, &duration)) {
-        ALOGW("No duration in meta");
-    } else {
-        tPCMMeta->setInt64(kKeyDuration, duration);
+        ALOGW("No duration in meta setting max duration");
     }
+    tPCMMeta->setInt64(kKeyDuration, duration);
 
     int32_t bitRate = -1;
     if (!sMeta->findInt32(kKeyBitRate, &bitRate)) {
