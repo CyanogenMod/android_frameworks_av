@@ -332,7 +332,7 @@ status_t SimplePlayer::onPrepare() {
 
         size_t j = 0;
         sp<ABuffer> buffer;
-        while (format->findBuffer(StringPrintf("csd-%d", j).c_str(), &buffer)) {
+        while (format->findBuffer(AStringPrintf("csd-%d", j).c_str(), &buffer)) {
             state->mCSD.push_back(buffer);
 
             ++j;

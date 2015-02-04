@@ -461,7 +461,7 @@ void ARTPWriter::dumpSessionDesc() {
         sdp.append("m=audio ");
     }
 
-    sdp.append(StringPrintf("%d", ntohs(mRTPAddr.sin_port)));
+    sdp.append(AStringPrintf("%d", ntohs(mRTPAddr.sin_port)));
     sdp.append(
           " RTP/AVP " PT_STR "\r\n"
           "b=AS 320000\r\n"
@@ -480,7 +480,7 @@ void ARTPWriter::dumpSessionDesc() {
         CHECK_EQ(sampleRate, (mMode == AMR_NB) ? 8000 : 16000);
 
         sdp.append(mMode == AMR_NB ? "AMR" : "AMR-WB");
-        sdp.append(StringPrintf("/%d/%d", sampleRate, numChannels));
+        sdp.append(AStringPrintf("/%d/%d", sampleRate, numChannels));
     } else {
         TRESPASS();
     }
@@ -543,7 +543,7 @@ void ARTPWriter::makeH264SPropParamSets(MediaBuffer *buffer) {
     CHECK_EQ((unsigned)data[0], 0x67u);
 
     mProfileLevel =
-        StringPrintf("%02X%02X%02X", data[1], data[2], data[3]);
+        AStringPrintf("%02X%02X%02X", data[1], data[2], data[3]);
 
     encodeBase64(data, startCodePos, &mSeqParamSet);
 
