@@ -1185,7 +1185,9 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         CHECK(format->findString("mime", &mime));
 
         sp<AMessage> ccNotify = new AMessage(kWhatClosedCaptionNotify, id());
-        mCCDecoder = new CCDecoder(ccNotify);
+        if (mCCDecoder == NULL) {
+            mCCDecoder = new CCDecoder(ccNotify);
+        }
 
         if (mSourceFlags & Source::FLAG_SECURE) {
             format->setInt32("secure", true);
