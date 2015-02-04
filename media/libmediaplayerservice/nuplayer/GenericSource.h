@@ -94,9 +94,9 @@ private:
         kWhatSeek,
         kWhatReadBuffer,
         kWhatStopWidevine,
+        kWhatStart,
+        kWhatResume,
     };
-
-    Vector<sp<MediaSource> > mSources;
 
     struct Track {
         size_t mIndex;
@@ -104,6 +104,7 @@ private:
         sp<AnotherPacketSource> mPackets;
     };
 
+    Vector<sp<MediaSource> > mSources;
     Track mAudioTrack;
     int64_t mAudioTimeUs;
     int64_t mAudioLastDequeueTimeUs;
@@ -119,6 +120,7 @@ private:
     bool mAudioIsVorbis;
     bool mIsWidevine;
     bool mIsSecure;
+    bool mIsStreaming;
     bool mUIDValid;
     uid_t mUID;
     sp<IMediaHTTPService> mHTTPService;
@@ -143,6 +145,8 @@ private:
     int64_t mBitrate;
     int32_t mPollBufferingGeneration;
     uint32_t mPendingReadBufferTypes;
+    bool mBuffering;
+    bool mPrepareBuffering;
     mutable Mutex mReadBufferLock;
 
     sp<ALooper> mLooper;
@@ -194,8 +198,13 @@ private:
 
     void schedulePollBuffering();
     void cancelPollBuffering();
+    void restartPollBuffering();
     void onPollBuffering();
     void notifyBufferingUpdate(int percentage);
+    void startBufferingIfNecessary();
+    void stopBufferingIfNecessary();
+    void sendCacheStats();
+    void ensureCacheIsFetching();
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };
