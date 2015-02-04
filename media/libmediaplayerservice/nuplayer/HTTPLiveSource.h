@@ -37,6 +37,7 @@ struct NuPlayer::HTTPLiveSource : public NuPlayer::Source {
 
     virtual status_t dequeueAccessUnit(bool audio, sp<ABuffer> *accessUnit);
     virtual sp<AMessage> getFormat(bool audio);
+    virtual sp<MetaData> getFormatMeta(bool audio);
 
     virtual status_t feedMoreTSData();
     virtual status_t getDuration(int64_t *durationUs);
