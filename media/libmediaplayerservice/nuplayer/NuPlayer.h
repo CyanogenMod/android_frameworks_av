@@ -51,6 +51,7 @@ struct NuPlayer : public AHandler {
             const sp<IGraphicBufferProducer> &bufferProducer);
 
     void setAudioSink(const sp<MediaPlayerBase::AudioSink> &sink);
+    void setPlaybackRate(float rate);
     void start();
 
     void pause();
@@ -104,6 +105,7 @@ private:
         kWhatSetVideoNativeWindow       = '=NaW',
         kWhatSetAudioSink               = '=AuS',
         kWhatMoreDataQueued             = 'more',
+        kWhatSetRate                    = 'setR',
         kWhatStart                      = 'strt',
         kWhatScanSources                = 'scan',
         kWhatVideoNotify                = 'vidN',
@@ -175,6 +177,7 @@ private:
 
     int32_t mVideoScalingMode;
 
+    float mPlaybackRate;
     bool mStarted;
 
     // Actual pause state, either as requested by client or due to buffering.

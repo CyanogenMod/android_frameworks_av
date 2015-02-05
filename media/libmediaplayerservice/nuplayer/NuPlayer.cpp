@@ -180,6 +180,7 @@ NuPlayer::NuPlayer()
       mFlushingVideo(NONE),
       mResumePending(false),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
+      mPlaybackRate(1.0),
       mStarted(false),
       mPaused(false),
       mPausedByClient(false) {
@@ -312,6 +313,12 @@ void NuPlayer::setAudioSink(const sp<MediaPlayerBase::AudioSink> &sink) {
 
 void NuPlayer::start() {
     (new AMessage(kWhatStart, id()))->post();
+}
+
+void NuPlayer::setPlaybackRate(float rate) {
+    sp<AMessage> msg = new AMessage(kWhatSetRate, id());
+    msg->setFloat("rate", rate);
+    msg->post();
 }
 
 void NuPlayer::pause() {
@@ -601,6 +608,16 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 onStart();
             }
             mPausedByClient = false;
+            break;
+        }
+
+        case kWhatSetRate:
+        {
+            ALOGV("kWhatSetRate");
+            CHECK(msg->findFloat("rate", &mPlaybackRate));
+            if (mRenderer != NULL) {
+                mRenderer->setPlaybackRate(mPlaybackRate);
+            }
             break;
         }
 
@@ -1048,6 +1065,9 @@ void NuPlayer::onStart() {
     ++mRendererGeneration;
     notify->setInt32("generation", mRendererGeneration);
     mRenderer = new Renderer(mAudioSink, notify, flags);
+    if (mPlaybackRate != 1.0) {
+        mRenderer->setPlaybackRate(mPlaybackRate);
+    }
 
     mRendererLooper = new ALooper;
     mRendererLooper->setName("NuPlayerRenderer");

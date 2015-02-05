@@ -156,6 +156,7 @@ public:
     virtual status_t    stop() = 0;
     virtual status_t    pause() = 0;
     virtual bool        isPlaying() = 0;
+    virtual status_t    setPlaybackRate(float rate) { return INVALID_OPERATION; }
     virtual status_t    seekTo(int msec) = 0;
     virtual status_t    getCurrentPosition(int *msec) = 0;
     virtual status_t    getDuration(int *msec) = 0;
