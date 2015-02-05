@@ -345,9 +345,15 @@ void SoftOpus::onQueueFilled(OMX_U32 portIndex) {
             }
 
             uint8_t channel_mapping[kMaxChannels] = {0};
-            memcpy(&channel_mapping,
-                   kDefaultOpusChannelLayout,
-                   kMaxChannelsWithDefaultLayout);
+            if (mHeader->channels <= kMaxChannelsWithDefaultLayout) {
+                memcpy(&channel_mapping,
+                       kDefaultOpusChannelLayout,
+                       kMaxChannelsWithDefaultLayout);
+            } else {
+                memcpy(&channel_mapping,
+                       mHeader->stream_map,
+                       mHeader->channels);
+            }
 
             int status = OPUS_INVALID_STATE;
             mDecoder = opus_multistream_decoder_create(kRate,
