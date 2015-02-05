@@ -734,8 +734,11 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     // pertaining to sonification strategy see handleIncallSonification()
     if (isInCall()) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
-        for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-            handleIncallSonification((audio_stream_type_t)stream, false, true);
+        for (size_t j = 0; j < mOutputs.size(); j++) {
+             audio_io_handle_t curOutput = mOutputs.keyAt(j);
+             for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
+                 handleIncallSonification((audio_stream_type_t)stream, false, true, curOutput);
+             }
         }
     }
 
@@ -1006,8 +1009,11 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     // pertaining to sonification strategy see handleIncallSonification()
     if (isStateInCall(state)) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
-        for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-            handleIncallSonification((audio_stream_type_t)stream, true, true);
+        for (size_t j = 0; j < mOutputs.size(); j++) {
+             audio_io_handle_t curOutput = mOutputs.keyAt(j);
+             for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
+                 handleIncallSonification((audio_stream_type_t)stream, true, true, curOutput);
+             }
         }
     }
 
@@ -1625,8 +1631,8 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
         uint32_t muteWaitMs = setOutputDevice(output, newDevice, force);
 
         // handle special case for sonification while in call
-        if (isInCall() && (output == mPrimaryOutput)) {
-            handleIncallSonification(stream, true, false);
+        if (isInCall()) {
+            handleIncallSonification(stream, true, false, output);
         }
 
         // apply volume rules for current stream and device if necessary
@@ -1660,8 +1666,8 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
     sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(index);
 
     // handle special case for sonification while in call
-    if ((isInCall()) && (outputDesc->mRefCount[stream] == 1) && (output == mPrimaryOutput)) {
-        handleIncallSonification(stream, false, false);
+    if ((isInCall()) && (outputDesc->mRefCount[stream] == 1)) {
+        handleIncallSonification(stream, false, false, output);
     }
 
     if (outputDesc->mRefCount[stream] > 0) {
@@ -6073,7 +6079,8 @@ void AudioPolicyManager::setStreamMute(audio_stream_type_t stream,
 }
 
 void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
-                                                      bool starting, bool stateChange)
+                                                      bool starting, bool stateChange,
+                                                      audio_io_handle_t output)
 {
     // if the stream pertains to sonification strategy and we are in call we must
     // mute the stream if it is low visibility. If it is high visibility, we must play a tone
@@ -6084,7 +6091,7 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
     const routing_strategy stream_strategy = getStrategy(stream);
     if ((stream_strategy == STRATEGY_SONIFICATION) ||
             ((stream_strategy == STRATEGY_SONIFICATION_RESPECTFUL))) {
-        sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(mPrimaryOutput);
+        sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
         ALOGV("handleIncallSonification() stream %d starting %d device %x stateChange %d",
                 stream, starting, outputDesc->mDevice, stateChange);
         if (outputDesc->mRefCount[stream]) {
@@ -6095,7 +6102,7 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
             if (audio_is_low_visibility(stream)) {
                 ALOGV("handleIncallSonification() low visibility, muteCount %d", muteCount);
                 for (int i = 0; i < muteCount; i++) {
-                    setStreamMute(stream, starting, mPrimaryOutput);
+                    setStreamMute(stream, starting, output);
                 }
             } else {
                 ALOGV("handleIncallSonification() high visibility");
@@ -6103,7 +6110,7 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
                         getDeviceForStrategy(STRATEGY_PHONE, true /*fromCache*/)) {
                     ALOGV("handleIncallSonification() high visibility muted, muteCount %d", muteCount);
                     for (int i = 0; i < muteCount; i++) {
-                        setStreamMute(stream, starting, mPrimaryOutput);
+                        setStreamMute(stream, starting, output);
                     }
                 }
                 if (starting) {
