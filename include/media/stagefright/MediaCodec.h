@@ -194,7 +194,7 @@ private:
     };
 
     enum {
-        kFlagIsSoftwareCodec            = 1,
+        kFlagUsesSoftwareRenderer       = 1,
         kFlagOutputFormatChanged        = 2,
         kFlagOutputBuffersChanged       = 4,
         kFlagStickyError                = 8,
