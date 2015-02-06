@@ -944,7 +944,8 @@ private:
                                                           const char *device_address,
                                                           const char *device_name);
         sp<DeviceDescriptor>  getDeviceDescriptor(const audio_devices_t device,
-                                                  const char *device_address);
+                                                  const char *device_address,
+                                                  const char *device_name);
 };
 
 };

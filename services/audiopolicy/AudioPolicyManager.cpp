@@ -230,9 +230,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
     // connect/disconnect only 1 device at a time
     if (!audio_is_output_device(device) && !audio_is_input_device(device)) return BAD_VALUE;
 
-    sp<DeviceDescriptor> devDesc = getDeviceDescriptor(device, device_address);
-
-    String8 name = String8(device_name != NULL ? device_name : "");
+    sp<DeviceDescriptor> devDesc = getDeviceDescriptor(device, device_address, device_name);
 
     // handle output devices
     if (audio_is_output_device(device)) {
@@ -434,7 +432,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
 audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devices_t device,
                                                   const char *device_address)
 {
-    sp<DeviceDescriptor> devDesc = getDeviceDescriptor(device, device_address);
+    sp<DeviceDescriptor> devDesc = getDeviceDescriptor(device, device_address, "");
     DeviceVector *deviceVector;
 
     if (audio_is_output_device(device)) {
@@ -456,7 +454,8 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
 
 sp<AudioPolicyManager::DeviceDescriptor>  AudioPolicyManager::getDeviceDescriptor(
                                                                     const audio_devices_t device,
-                                                                    const char *device_address)
+                                                                    const char *device_address,
+                                                                    const char *device_name)
 {
     String8 address = (device_address == NULL) ? String8("") : String8(device_address);
     // handle legacy remote submix case where the address was not always specified
@@ -479,7 +478,8 @@ sp<AudioPolicyManager::DeviceDescriptor>  AudioPolicyManager::getDeviceDescripto
         }
     }
 
-    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(String8(""), device);
+    sp<DeviceDescriptor> devDesc =
+            new DeviceDescriptor(String8(device_name != NULL ? device_name : ""), device);
     devDesc->mAddress = address;
     return devDesc;
 }
