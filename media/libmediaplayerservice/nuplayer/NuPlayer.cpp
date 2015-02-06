@@ -957,7 +957,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 finishFlushIfPossible();
             } else if (what == Renderer::kWhatVideoRenderingStart) {
                 PLAYER_STATS(profileStop, STATS_PROFILE_START_LATENCY);
-                PLAYER_STATS(profileStop, STATS_PROFILE_RESUME);
                 notifyListener(MEDIA_INFO, MEDIA_INFO_RENDERING_START, 0);
             } else if (what == Renderer::kWhatMediaRenderingStart) {
                 ALOGV("media rendering started");

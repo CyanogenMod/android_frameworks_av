@@ -1223,6 +1223,7 @@ void NuPlayer::Renderer::onResume() {
     if (!mVideoQueue.empty()) {
         postDrainVideoQueue();
     }
+    PLAYER_STATS(profileStop, STATS_PROFILE_RESUME);
 }
 
 void NuPlayer::Renderer::onSetVideoFrameRate(float fps) {
