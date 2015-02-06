@@ -1257,9 +1257,10 @@ status_t ACodec::configureCodec(
         }
     }
 
+    // NOTE: we only use native window for video decoders
     sp<RefBase> obj;
     bool haveNativeWindow = msg->findObject("native-window", &obj)
-            && obj != NULL;
+            && obj != NULL && video && !encoder;
     mStoreMetaDataInOutputBuffers = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
@@ -1274,7 +1275,7 @@ status_t ACodec::configureCodec(
             mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
         }
     }
-    if (!encoder && video && haveNativeWindow) {
+    if (haveNativeWindow) {
         sp<NativeWindowWrapper> windowWrapper(
                 static_cast<NativeWindowWrapper *>(obj.get()));
         sp<ANativeWindow> nativeWindow = windowWrapper->getNativeWindow();
@@ -1323,6 +1324,8 @@ status_t ACodec::configureCodec(
                 if (err != OK) {
                     ALOGW("[%s] prepareForAdaptivePlayback failed w/ err %d",
                             mComponentName.c_str(), err);
+                    // allow failure
+                    err = OK;
                 } else {
                     inputFormat->setInt32("max-width", maxWidth);
                     inputFormat->setInt32("max-height", maxHeight);
@@ -1416,10 +1419,79 @@ status_t ACodec::configureCodec(
     }
 
     if (video) {
+        // determine need for software renderer
+        bool usingSwRenderer = false;
+        if (haveNativeWindow && mComponentName.startsWith("OMX.google.")) {
+            usingSwRenderer = true;
+            haveNativeWindow = false;
+        }
+
         if (encoder) {
             err = setupVideoEncoder(mime, msg);
         } else {
             err = setupVideoDecoder(mime, msg, haveNativeWindow);
+        }
+
+        if (err != OK) {
+            return err;
+        }
+
+        if (haveNativeWindow) {
+            sp<NativeWindowWrapper> nativeWindow(
+                    static_cast<NativeWindowWrapper *>(obj.get()));
+            CHECK(nativeWindow != NULL);
+            mNativeWindow = nativeWindow->getNativeWindow();
+
+            native_window_set_scaling_mode(
+                    mNativeWindow.get(), NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        }
+
+        // initialize native window now to get actual output format
+        // TODO: this is needed for some encoders even though they don't use native window
+        CHECK_EQ((status_t)OK, initNativeWindow());
+
+        // fallback for devices that do not handle flex-YUV for native buffers
+        if (haveNativeWindow) {
+            int32_t requestedColorFormat = OMX_COLOR_FormatUnused;
+            if (msg->findInt32("color-format", &requestedColorFormat) &&
+                    requestedColorFormat == OMX_COLOR_FormatYUV420Flexible) {
+                CHECK_EQ(getPortFormat(kPortIndexOutput, outputFormat), (status_t)OK);
+                int32_t colorFormat = OMX_COLOR_FormatUnused;
+                OMX_U32 flexibleEquivalent = OMX_COLOR_FormatUnused;
+                CHECK(outputFormat->findInt32("color-format", &colorFormat));
+                ALOGD("[%s] Requested output format %#x and got %#x.",
+                        mComponentName.c_str(), requestedColorFormat, colorFormat);
+                if (!isFlexibleColorFormat(
+                                mOMX, mNode, colorFormat, haveNativeWindow, &flexibleEquivalent)
+                        || flexibleEquivalent != (OMX_U32)requestedColorFormat) {
+                    // device did not handle flex-YUV request for native window, fall back
+                    // to SW renderer
+                    ALOGI("[%s] Falling back to software renderer", mComponentName.c_str());
+                    mNativeWindow.clear();
+                    haveNativeWindow = false;
+                    usingSwRenderer = true;
+                    if (mStoreMetaDataInOutputBuffers) {
+                        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_FALSE);
+                        mStoreMetaDataInOutputBuffers = false;
+                        // TODO: implement adaptive-playback support for bytebuffer mode.
+                        // This is done by SW codecs, but most HW codecs don't support it.
+                        inputFormat->setInt32("adaptive-playback", false);
+                    }
+                    if (err == OK) {
+                        err = mOMX->enableGraphicBuffers(mNode, kPortIndexOutput, OMX_FALSE);
+                    }
+                    if (mFlags & kFlagIsGrallocUsageProtected) {
+                        // fallback is not supported for protected playback
+                        err = PERMISSION_DENIED;
+                    } else if (err == OK) {
+                        err = setupVideoDecoder(mime, msg, false);
+                    }
+                }
+            }
+        }
+
+        if (usingSwRenderer) {
+            outputFormat->setInt32("using-sw-renderer", 1);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {
         int32_t numChannels, sampleRate;
@@ -4918,20 +4990,6 @@ bool ACodec::LoadedState::onConfigureComponent(
         mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
         return false;
     }
-
-    sp<RefBase> obj;
-    if (msg->findObject("native-window", &obj)
-            && strncmp("OMX.google.", mCodec->mComponentName.c_str(), 11)) {
-        sp<NativeWindowWrapper> nativeWindow(
-                static_cast<NativeWindowWrapper *>(obj.get()));
-        CHECK(nativeWindow != NULL);
-        mCodec->mNativeWindow = nativeWindow->getNativeWindow();
-
-        native_window_set_scaling_mode(
-                mCodec->mNativeWindow.get(),
-                NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    }
-    CHECK_EQ((status_t)OK, mCodec->initNativeWindow());
 
     {
         sp<AMessage> notify = mCodec->mNotify->dup();
