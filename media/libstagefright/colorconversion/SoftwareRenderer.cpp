@@ -227,6 +227,7 @@ void SoftwareRenderer::render(
                 buf->stride, buf->height,
                 0, 0, mCropWidth - 1, mCropHeight - 1);
     } else if (mColorFormat == OMX_COLOR_FormatYUV420Planar) {
+        // YV12 really
         const uint8_t *src_y = (const uint8_t *)data;
         const uint8_t *src_u =
                 (const uint8_t *)data + mWidth * mHeight;
