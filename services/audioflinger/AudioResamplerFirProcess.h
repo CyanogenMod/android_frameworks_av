@@ -243,6 +243,9 @@ void ProcessBase(TO* const out,
     }
 }
 
+/* Calculates a single output frame from a polyphase resampling filter.
+ * See Process() for parameter details.
+ */
 template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO>
 static inline
 void ProcessL(TO* const out,
@@ -256,6 +259,39 @@ void ProcessL(TO* const out,
     ProcessBase<CHANNELS, STRIDE, InterpNull>(out, count, coefsP, coefsN, sP, sN, 0, volumeLR);
 }
 
+/*
+ * Calculates a single output frame from a polyphase resampling filter,
+ * with filter phase interpolation.
+ *
+ * @param out should point to the output buffer with space for at least one output frame.
+ *
+ * @param count should be half the size of the total filter length (halfNumCoefs), as we
+ * use symmetry in filter coefficients to evaluate two dot products.
+ *
+ * @param coefsP is one phase of the polyphase filter bank of size halfNumCoefs, corresponding
+ * to the positive sP.
+ *
+ * @param coefsN is one phase of the polyphase filter bank of size halfNumCoefs, corresponding
+ * to the negative sN.
+ *
+ * @param coefsP1 is the next phase of coefsP (used for interpolation).
+ *
+ * @param coefsN1 is the next phase of coefsN (used for interpolation).
+ *
+ * @param sP is the positive half of the coefficients (as viewed by a convolution),
+ * starting at the original samples pointer and decrementing (by CHANNELS).
+ *
+ * @param sN is the negative half of the samples (as viewed by a convolution),
+ * starting at the original samples pointer + CHANNELS and incrementing (by CHANNELS).
+ *
+ * @param lerpP The fractional siting between the polyphase indices is given by the bits
+ * below coefShift. See fir() for details.
+ *
+ * @param volumeLR is a pointer to an array of two 32 bit volume values, one per stereo channel,
+ * expressed as a S32 integer or float.  A negative value inverts the channel 180 degrees.
+ * The pointer volumeLR should be aligned to a minimum of 8 bytes.
+ * A typical value for volume is 0x1000 to align to a unity gain output of 20.12.
+ */
 template <int CHANNELS, int STRIDE, typename TC, typename TI, typename TO, typename TINTERP>
 static inline
 void Process(TO* const out,
@@ -274,7 +310,7 @@ void Process(TO* const out,
 }
 
 /*
- * Calculates a single output frame (two samples) from input sample pointer.
+ * Calculates a single output frame from input sample pointer.
  *
  * This sets up the params for the accelerated Process() and ProcessL()
  * functions to do the appropriate dot products.
@@ -309,7 +345,7 @@ void Process(TO* const out,
  * the positive half of the filter is dot product from samples to samples-halfNumCoefs+1.
  *
  * @param volumeLR is a pointer to an array of two 32 bit volume values, one per stereo channel,
- * expressed as a S32 integer.  A negative value inverts the channel 180 degrees.
+ * expressed as a S32 integer or float.  A negative value inverts the channel 180 degrees.
  * The pointer volumeLR should be aligned to a minimum of 8 bytes.
  * A typical value for volume is 0x1000 to align to a unity gain output of 20.12.
  *

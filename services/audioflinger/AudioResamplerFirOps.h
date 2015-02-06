@@ -25,7 +25,7 @@ namespace android {
 #define USE_INLINE_ASSEMBLY (false)
 #endif
 
-#if USE_INLINE_ASSEMBLY && defined(__ARM_NEON__)
+#if defined(__aarch64__) || defined(__ARM_NEON__)
 #define USE_NEON (true)
 #include <arm_neon.h>
 #else
