@@ -135,17 +135,18 @@ retry:
         ret = sPlugin.create(source, mime, meta);
     }
 
-    if (ret != NULL) {
-       if (isDrm) {
-           ret->setDrmFlag(true);
-       } else {
-           ret->setDrmFlag(false);
-       }
-    }
-
 #ifdef QCOM_HARDWARE
     ret = ExtendedUtils::MediaExtractor_CreateIfNeeded(ret, source, mime);
 #endif
+
+    if (ret != NULL) {
+        if (isDrm) {
+            ret->setDrmFlag(true);
+        } else {
+            ret->setDrmFlag(false);
+        }
+    }
+
 
     if (ret != NULL) {
 
