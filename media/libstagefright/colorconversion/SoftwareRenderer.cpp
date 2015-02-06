@@ -107,6 +107,7 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
     if (!runningInEmulator()) {
         switch (mColorFormat) {
             case OMX_COLOR_FormatYUV420Planar:
+            case OMX_COLOR_FormatYUV420SemiPlanar:
             case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
             {
                 halFormat = HAL_PIXEL_FORMAT_YV12;
@@ -227,7 +228,6 @@ void SoftwareRenderer::render(
                 buf->stride, buf->height,
                 0, 0, mCropWidth - 1, mCropHeight - 1);
     } else if (mColorFormat == OMX_COLOR_FormatYUV420Planar) {
-        // YV12 really
         const uint8_t *src_y = (const uint8_t *)data;
         const uint8_t *src_u =
                 (const uint8_t *)data + mWidth * mHeight;
@@ -256,7 +256,8 @@ void SoftwareRenderer::render(
             dst_u += dst_c_stride;
             dst_v += dst_c_stride;
         }
-    } else if (mColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar) {
+    } else if (mColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
+            || mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
         const uint8_t *src_y = (const uint8_t *)data;
         const uint8_t *src_uv = (const uint8_t *)data
                 + mWidth * (mHeight - mCropTop / 2);
