@@ -35,6 +35,7 @@ struct M3UParser::MediaGroup : public RefBase {
         TYPE_AUDIO,
         TYPE_VIDEO,
         TYPE_SUBS,
+        TYPE_CC,
     };
 
     enum FlagBits {
@@ -991,6 +992,8 @@ status_t M3UParser::parseMedia(const AString &line) {
                 groupType = MediaGroup::TYPE_AUDIO;
             } else if (!strcasecmp("video", val.c_str())) {
                 groupType = MediaGroup::TYPE_VIDEO;
+            } else if (!strcasecmp("closed-captions", val.c_str())){
+                groupType = MediaGroup::TYPE_CC;
             } else {
                 ALOGE("Invalid media group type '%s'", val.c_str());
                 return ERROR_MALFORMED;
@@ -1101,6 +1104,13 @@ status_t M3UParser::parseMedia(const AString &line) {
     if (!haveGroupType || !haveGroupID || !haveGroupName) {
         ALOGE("Incomplete EXT-X-MEDIA element.");
         return ERROR_MALFORMED;
+    }
+
+    if (groupType == MediaGroup::TYPE_CC) {
+        // TODO: ignore this for now.
+        // CC track will be detected by CCDecoder. But we still need to
+        // pass the CC track flags (lang, auto) to the app in the future.
+        return OK;
     }
 
     uint32_t flags = 0;
