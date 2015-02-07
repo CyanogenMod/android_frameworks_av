@@ -75,7 +75,6 @@ private:
     sp<NativeWindowWrapper> mNativeWindow;
 
     sp<AMessage> mInputFormat;
-    sp<AMessage> mOutputFormat;
     sp<MediaCodec> mCodec;
     sp<ALooper> mCodecLooper;
     sp<ALooper> mDecoderLooper;
