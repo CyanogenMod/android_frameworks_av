@@ -730,11 +730,6 @@ int64_t ElementaryStreamQueue::fetchTimestamp(size_t size) {
     return timeUs;
 }
 
-struct NALPosition {
-    size_t nalOffset;
-    size_t nalSize;
-};
-
 sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
     const uint8_t *data = mBuffer->data();
 
@@ -742,6 +737,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
     Vector<NALPosition> nals;
 
     size_t totalSize = 0;
+    size_t seiCount = 0;
 
     status_t err;
     const uint8_t *nalStart;
@@ -771,6 +767,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
             // next frame.
 
             flush = true;
+        } else if (nalType == 6 && nalSize > 0) {
+            // found non-zero sized SEI
+            ++seiCount;
         }
 
         if (flush) {
@@ -779,21 +778,29 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
 
             size_t auSize = 4 * nals.size() + totalSize;
             sp<ABuffer> accessUnit = new ABuffer(auSize);
+            sp<ABuffer> sei;
+
+            if (seiCount > 0) {
+                sei = new ABuffer(seiCount * sizeof(NALPosition));
+                accessUnit->meta()->setBuffer("sei", sei);
+            }
 
 #if !LOG_NDEBUG
             AString out;
 #endif
 
             size_t dstOffset = 0;
+            size_t seiIndex = 0;
             for (size_t i = 0; i < nals.size(); ++i) {
                 const NALPosition &pos = nals.itemAt(i);
 
                 unsigned nalType = mBuffer->data()[pos.nalOffset] & 0x1f;
 
-                if (nalType == 6) {
-                    sp<ABuffer> sei = new ABuffer(pos.nalSize);
-                    memcpy(sei->data(), mBuffer->data() + pos.nalOffset, pos.nalSize);
-                    accessUnit->meta()->setBuffer("sei", sei);
+                if (nalType == 6 && pos.nalSize > 0) {
+                    CHECK_LT(seiIndex, sei->size() / sizeof(NALPosition));
+                    NALPosition &seiPos = ((NALPosition *)sei->data())[seiIndex++];
+                    seiPos.nalOffset = dstOffset + 4;
+                    seiPos.nalSize = pos.nalSize;
                 }
 
 #if !LOG_NDEBUG

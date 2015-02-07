@@ -36,6 +36,11 @@ enum {
     kAVCProfileCAVLC444Intra = 0x2c
 };
 
+struct NALPosition {
+    size_t nalOffset;
+    size_t nalSize;
+};
+
 // Optionally returns sample aspect ratio as well.
 void FindAVCDimensions(
         const sp<ABuffer> &seqParamSet,
