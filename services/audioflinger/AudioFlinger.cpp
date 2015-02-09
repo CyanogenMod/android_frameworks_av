@@ -2047,8 +2047,12 @@ status_t AudioFlinger::openOutput(audio_module_handle_t module,
           *latencyMs = 0;
           if ((flags & AUDIO_OUTPUT_FLAG_LPA) || (flags & AUDIO_OUTPUT_FLAG_TUNNEL)) {
               AudioSessionDescriptor *desc = mDirectAudioTracks.valueFor(*output);
-              *latencyMs = desc->stream->get_latency(desc->stream);
-              return NO_ERROR;
+              if(desc != NULL) {
+                 *latencyMs = desc->stream->get_latency(desc->stream);
+                 return NO_ERROR;
+              } else {
+                 return NO_INIT;
+              }
           }
 #endif
     }
