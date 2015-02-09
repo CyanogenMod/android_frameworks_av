@@ -29,6 +29,7 @@ namespace android {
 namespace {
     enum {
         STATUS_CHANGED = IBinder::FIRST_CALL_TRANSACTION,
+        TORCH_STATUS_CHANGED,
     };
 }; // namespace anonymous
 
@@ -54,8 +55,21 @@ public:
                            data,
                            &reply,
                            IBinder::FLAG_ONEWAY);
+    }
 
-        reply.readExceptionCode();
+    virtual void onTorchStatusChanged(TorchStatus status, const String16 &cameraId)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(
+                              ICameraServiceListener::getInterfaceDescriptor());
+
+        data.writeInt32(static_cast<int32_t>(status));
+        data.writeString16(cameraId);
+
+        remote()->transact(TORCH_STATUS_CHANGED,
+                           data,
+                           &reply,
+                           IBinder::FLAG_ONEWAY);
     }
 };
 
@@ -75,7 +89,16 @@ status_t BnCameraServiceListener::onTransact(
             int32_t cameraId = data.readInt32();
 
             onStatusChanged(status, cameraId);
-            reply->writeNoException();
+
+            return NO_ERROR;
+        } break;
+        case TORCH_STATUS_CHANGED: {
+            CHECK_INTERFACE(ICameraServiceListener, data, reply);
+
+            TorchStatus status = static_cast<TorchStatus>(data.readInt32());
+            String16 cameraId = data.readString16();
+
+            onTorchStatusChanged(status, cameraId);
 
             return NO_ERROR;
         } break;
