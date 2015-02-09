@@ -1667,6 +1667,10 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
 
     // handle special case for sonification while in call
     if ((isInCall()) && (outputDesc->mRefCount[stream] == 1)) {
+        if (outputDesc->isDuplicated()) {
+            handleIncallSonification(stream, false, false, outputDesc->mOutput1->mIoHandle);
+            handleIncallSonification(stream, false, false, outputDesc->mOutput2->mIoHandle);
+        }
         handleIncallSonification(stream, false, false, output);
     }
 
