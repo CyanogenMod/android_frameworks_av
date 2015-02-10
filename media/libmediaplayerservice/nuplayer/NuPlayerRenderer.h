@@ -23,6 +23,7 @@
 namespace android {
 
 struct ABuffer;
+class  AWakeLock;
 struct MediaClock;
 struct VideoFrameScheduler;
 
@@ -175,6 +176,15 @@ private:
 
     int32_t mTotalBuffersQueued;
     int32_t mLastAudioBufferDrained;
+
+    sp<AWakeLock> mWakeLock;
+
+    status_t getCurrentPositionOnLooper(int64_t *mediaUs);
+    status_t getCurrentPositionOnLooper(
+            int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo = false);
+    bool getCurrentPositionIfPaused_l(int64_t *mediaUs);
+    status_t getCurrentPositionFromAnchor(
+            int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo = false);
 
     size_t fillAudioBuffer(void *buffer, size_t size);
 
