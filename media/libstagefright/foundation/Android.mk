@@ -14,6 +14,7 @@ LOCAL_SRC_FILES:=                 \
     ANetworkSession.cpp           \
     AString.cpp                   \
     AStringUtils.cpp              \
+    AWakeLock.cpp                 \
     ParsedMessage.cpp             \
     base64.cpp                    \
     hexdump.cpp
@@ -25,7 +26,8 @@ LOCAL_SHARED_LIBRARIES := \
         libbinder         \
         libutils          \
         libcutils         \
-        liblog
+        liblog            \
+        libpowermanager
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 
