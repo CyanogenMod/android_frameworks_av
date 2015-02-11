@@ -116,6 +116,11 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
 
 sp<MetaData> NuPlayer::HTTPLiveSource::getFormatMeta(bool audio) {
     sp<AMessage> format = getFormat(audio);
+
+    if (format == NULL) {
+        return NULL;
+    }
+
     sp<MetaData> meta = new MetaData;
     convertMessageToMetaData(format, meta);
 
