@@ -221,6 +221,7 @@ int32_t FLACDecoder::flushDecoder(outBuffer *obuf) {
     /* Write ptr = read ptr = 0, empty buffer */
     obuf->i32WritePtr = 0;
     obuf->i32ReadPtr = 0;
+    obuf->eos = 0;
     return 0;
 }
 
@@ -344,16 +345,16 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
             availLength = 0;
             // Reached EOS and also the internal buffer consumed
             if (((ob.i32WritePtr - ob.i32ReadPtr) > 0) && eos) {
-            ALOGV("Parser reported EOS");
+                ALOGV("Parser reported EOS");
                 ob.eos = 1;
                 availLength = 0;
             }
             if (((ob.i32WritePtr - ob.i32ReadPtr) <= 0) && ob.eos) {
-            ALOGV("Report EOS as no more bitstream is left with the decoder");
+                ALOGV("Report EOS as no more bitstream is left with the decoder");
                 return ERROR_END_OF_STREAM;
             }
         } else {
-        ALOGVV("Reading bitsream from parser");
+            ALOGVV("Reading bitsream from parser");
             //Read from parser
             if (mInputBuffer) {
                 mInputBuffer->release();
@@ -374,10 +375,10 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
             if (mInputBuffer) {
                 //availLength being passed is the size read from parser
                 updateInputBitstream(&ob, (uint8*)mInputBuffer->data(), availLength);
-        }
+            }
 
-        availLength = ob.i32WritePtr - ob.i32ReadPtr;
-        ALOGVV("qti_flac: Bytes left in internal buffer: %d", availLength);
+            availLength = ob.i32WritePtr - ob.i32ReadPtr;
+            ALOGVV("qti_flac: Bytes left in internal buffer: %d", availLength);
         } else {
             ALOGE("qti_flac: No Buffering Required");
         }
@@ -412,7 +413,7 @@ status_t FLACDecoder::read(MediaBuffer **out, const ReadOptions* options) {
                 break;
             }
         } else {
-            ALOGE("Decoding as usual");
+            ALOGV("Decoding as usual");
         }
         // End of check after decoding
     }// End of while for decoding
