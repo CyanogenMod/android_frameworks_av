@@ -39,6 +39,9 @@ LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
     Threads.cpp                 \
     Tracks.cpp                  \
+    AudioHwDevice.cpp           \
+    AudioStreamOut.cpp          \
+    SpdifStreamOut.cpp          \
     Effects.cpp                 \
     AudioMixer.cpp.arm          \
     PatchPanel.cpp
@@ -52,6 +55,7 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_SHARED_LIBRARIES := \
     libaudioresampler \
+    libaudiospdif \
     libaudioutils \
     libcommon_time_client \
     libcutils \

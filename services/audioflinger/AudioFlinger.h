@@ -56,6 +56,9 @@
 #include <media/nbaio/NBAIO.h>
 #include "AudioWatchdog.h"
 #include "AudioMixer.h"
+#include "AudioStreamOut.h"
+#include "SpdifStreamOut.h"
+#include "AudioHwDevice.h"
 
 #include <powermanager/IPowerManager.h>
 
@@ -311,7 +314,6 @@ public:
                                         wp<RefBase> cookie);
 
 private:
-    class AudioHwDevice;    // fwd declaration for findSuitableHwDev_l
 
                audio_mode_t getMode() const { return mMode; }
 
@@ -449,7 +451,7 @@ private:
     class EffectModule;
     class EffectHandle;
     class EffectChain;
-    struct AudioStreamOut;
+
     struct AudioStreamIn;
 
     struct  stream_type_t {
@@ -586,56 +588,10 @@ private:
                 // Return true if the effect was found in mOrphanEffectChains, false otherwise.
                 bool            updateOrphanEffectChains(const sp<EffectModule>& effect);
 
-    class AudioHwDevice {
-    public:
-        enum Flags {
-            AHWD_CAN_SET_MASTER_VOLUME  = 0x1,
-            AHWD_CAN_SET_MASTER_MUTE    = 0x2,
-        };
 
-        AudioHwDevice(audio_module_handle_t handle,
-                      const char *moduleName,
-                      audio_hw_device_t *hwDevice,
-                      Flags flags)
-            : mHandle(handle), mModuleName(strdup(moduleName))
-            , mHwDevice(hwDevice)
-            , mFlags(flags) { }
-        /*virtual*/ ~AudioHwDevice() { free((void *)mModuleName); }
-
-        bool canSetMasterVolume() const {
-            return (0 != (mFlags & AHWD_CAN_SET_MASTER_VOLUME));
-        }
-
-        bool canSetMasterMute() const {
-            return (0 != (mFlags & AHWD_CAN_SET_MASTER_MUTE));
-        }
-
-        audio_module_handle_t handle() const { return mHandle; }
-        const char *moduleName() const { return mModuleName; }
-        audio_hw_device_t *hwDevice() const { return mHwDevice; }
-        uint32_t version() const { return mHwDevice->common.version; }
-
-    private:
-        const audio_module_handle_t mHandle;
-        const char * const mModuleName;
-        audio_hw_device_t * const mHwDevice;
-        const Flags mFlags;
-    };
-
-    // AudioStreamOut and AudioStreamIn are immutable, so their fields are const.
+    // AudioStreamIn is immutable, so their fields are const.
     // For emphasis, we could also make all pointers to them be "const *",
     // but that would clutter the code unnecessarily.
-
-    struct AudioStreamOut {
-        AudioHwDevice* const audioHwDev;
-        audio_stream_out_t* const stream;
-        const audio_output_flags_t flags;
-
-        audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
-
-        AudioStreamOut(AudioHwDevice *dev, audio_stream_out_t *out, audio_output_flags_t flags) :
-            audioHwDev(dev), stream(out), flags(flags) {}
-    };
 
     struct AudioStreamIn {
         AudioHwDevice* const audioHwDev;

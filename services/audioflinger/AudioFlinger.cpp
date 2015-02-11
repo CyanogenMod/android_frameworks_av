@@ -272,7 +272,7 @@ static const char * const audio_interfaces[] = {
 };
 #define ARRAY_SIZE(x) (sizeof((x))/sizeof(((x)[0])))
 
-AudioFlinger::AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
+AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
         audio_module_handle_t module,
         audio_devices_t devices)
 {
@@ -1716,8 +1716,6 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
 
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
 
-    audio_stream_out_t *outStream = NULL;
-
     // FOR TESTING ONLY:
     // This if statement allows overriding the audio policy settings
     // and forcing a specific format or channel mask to the HAL/Sink device for testing.
@@ -1739,25 +1737,18 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
         }
     }
 
-    status_t status = hwDevHal->open_output_stream(hwDevHal,
-                                                   *output,
-                                                   devices,
-                                                   flags,
-                                                   config,
-                                                   &outStream,
-                                                   address.string());
+    AudioStreamOut *outputStream = NULL;
+    status_t status = outHwDev->openOutputStream(
+            &outputStream,
+            *output,
+            devices,
+            flags,
+            config,
+            address.string());
 
     mHardwareStatus = AUDIO_HW_IDLE;
-    ALOGV("openOutput_l() openOutputStream returned output %p, sampleRate %d, Format %#x, "
-            "channelMask %#x, status %d",
-            outStream,
-            config->sample_rate,
-            config->format,
-            config->channel_mask,
-            status);
 
-    if (status == NO_ERROR && outStream != NULL) {
-        AudioStreamOut *outputStream = new AudioStreamOut(outHwDev, outStream, flags);
+    if (status == NO_ERROR) {
 
         PlaybackThread *thread;
         if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
@@ -1787,7 +1778,7 @@ status_t AudioFlinger::openOutput(audio_module_handle_t module,
                                   uint32_t *latencyMs,
                                   audio_output_flags_t flags)
 {
-    ALOGV("openOutput(), module %d Device %x, SamplingRate %d, Format %#08x, Channels %x, flags %x",
+    ALOGI("openOutput(), module %d Device %x, SamplingRate %d, Format %#08x, Channels %x, flags %x",
               module,
               (devices != NULL) ? *devices : 0,
               config->sample_rate,
