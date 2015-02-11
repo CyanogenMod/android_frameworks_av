@@ -233,8 +233,7 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
 
         if (!strncasecmp("http://", url, 7)
                 || !strncasecmp("https://", url, 8)) {
-            ALOGI("Using NuPlayer for http://");
-            return 1.0;
+            return kOurScore;
         }
 
         return 0.0;
