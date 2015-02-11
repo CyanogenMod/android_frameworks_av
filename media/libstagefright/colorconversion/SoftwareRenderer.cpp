@@ -101,10 +101,9 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
     int halFormat;
     size_t bufWidth, bufHeight;
 
-    switch ((int)mColorFormat) {
+    switch (mColorFormat) {
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
-        case OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar:
         case OMX_COLOR_FormatYUV420SemiPlanar:
         {
             if (!runningInEmulator()) {
@@ -239,7 +238,6 @@ void SoftwareRenderer::render(
             dst_v += dst_c_stride;
         }
     } else if (mColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
-            || mColorFormat == OMX_INTEL_COLOR_FormatYUV420PackedSemiPlanar
             || mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
         const uint8_t *src_y =
             (const uint8_t *)data;
