@@ -49,6 +49,7 @@ private:
     bool isTrackValid(size_t index) const;
     int32_t getTrackIndex(size_t channel) const;
     bool extractFromSEI(const sp<ABuffer> &accessUnit);
+    bool parseSEINalUnit(int64_t timeUs, const uint8_t *nalStart, size_t nalSize);
     sp<ABuffer> filterCCBuf(const sp<ABuffer> &ccBuf, size_t index);
 
     DISALLOW_EVIL_CONSTRUCTORS(CCDecoder);

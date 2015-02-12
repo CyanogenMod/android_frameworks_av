@@ -19,6 +19,7 @@
 #include <utils/Log.h>
 #include <inttypes.h>
 
+#include "avc_utils.h"
 #include "NuPlayerCCDecoder.h"
 
 #include <media/stagefright/foundation/ABitReader.h>
@@ -185,17 +186,38 @@ int32_t NuPlayer::CCDecoder::getTrackIndex(size_t channel) const {
 
 // returns true if a new CC track is found
 bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
-    int64_t timeUs;
-    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
-
     sp<ABuffer> sei;
     if (!accessUnit->meta()->findBuffer("sei", &sei) || sei == NULL) {
         return false;
     }
 
+    int64_t timeUs;
+    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+
     bool trackAdded = false;
 
-    NALBitReader br(sei->data() + 1, sei->size() - 1);
+    const NALPosition *nal = (NALPosition *) sei->data();
+
+    for (size_t i = 0; i < sei->size() / sizeof(NALPosition); ++i, ++nal) {
+        trackAdded |= parseSEINalUnit(
+                timeUs, accessUnit->data() + nal->nalOffset, nal->nalSize);
+    }
+
+    return trackAdded;
+}
+
+// returns true if a new CC track is found
+bool NuPlayer::CCDecoder::parseSEINalUnit(
+        int64_t timeUs, const uint8_t *nalStart, size_t nalSize) {
+    unsigned nalType = nalStart[0] & 0x1f;
+
+    // the buffer should only have SEI in it
+    if (nalType != 6) {
+        return false;
+    }
+
+    bool trackAdded = false;
+    NALBitReader br(nalStart + 1, nalSize - 1);
     // sei_message()
     while (br.atLeastNumBitsLeft(16)) { // at least 16-bit for sei_message()
         uint32_t payload_type = 0;
@@ -214,20 +236,25 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
 
         // sei_payload()
         if (payload_type == 4) {
-            // user_data_registered_itu_t_t35()
+            bool isCC = false;
+            if (payload_size > 1 + 2 + 4 + 1) {
+                // user_data_registered_itu_t_t35()
 
-            // ATSC A/72: 6.4.2
-            uint8_t itu_t_t35_country_code = br.getBits(8);
-            uint16_t itu_t_t35_provider_code = br.getBits(16);
-            uint32_t user_identifier = br.getBits(32);
-            uint8_t user_data_type_code = br.getBits(8);
+                // ATSC A/72: 6.4.2
+                uint8_t itu_t_t35_country_code = br.getBits(8);
+                uint16_t itu_t_t35_provider_code = br.getBits(16);
+                uint32_t user_identifier = br.getBits(32);
+                uint8_t user_data_type_code = br.getBits(8);
 
-            payload_size -= 1 + 2 + 4 + 1;
+                payload_size -= 1 + 2 + 4 + 1;
 
-            if (itu_t_t35_country_code == 0xB5
-                    && itu_t_t35_provider_code == 0x0031
-                    && user_identifier == 'GA94'
-                    && user_data_type_code == 0x3) {
+                isCC = itu_t_t35_country_code == 0xB5
+                        && itu_t_t35_provider_code == 0x0031
+                        && user_identifier == 'GA94'
+                        && user_data_type_code == 0x3;
+            }
+
+            if (isCC && payload_size > 2) {
                 // MPEG_cc_data()
                 // ATSC A/53 Part 4: 6.2.3.1
                 br.skipBits(1); //process_em_data_flag
@@ -243,7 +270,7 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
                     sp<ABuffer> ccBuf = new ABuffer(cc_count * sizeof(CCData));
                     ccBuf->setRange(0, 0);
 
-                    for (size_t i = 0; i < cc_count; i++) {
+                    for (size_t i = 0; i < cc_count && payload_size >= 3; i++) {
                         uint8_t marker = br.getBits(5);
                         CHECK_EQ(marker, 0x1f);
 
@@ -252,6 +279,8 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
                         // remove odd parity bit
                         uint8_t cc_data_1 = br.getBits(8) & 0x7f;
                         uint8_t cc_data_2 = br.getBits(8) & 0x7f;
+
+                        payload_size -= 3;
 
                         if (cc_valid
                                 && (cc_type == 0 || cc_type == 1)) {
@@ -269,7 +298,6 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
                             }
                         }
                     }
-                    payload_size -= cc_count * 3;
 
                     mCCMap.add(timeUs, ccBuf);
                     break;
