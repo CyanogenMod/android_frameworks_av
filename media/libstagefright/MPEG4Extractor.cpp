@@ -354,6 +354,8 @@ static bool AdjustChannelsAndRate(uint32_t fourcc, uint32_t *channels, uint32_t 
 
 MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
     : mMoofOffset(0),
+      mMoofFound(false),
+      mMdatFound(false),
       mDataSource(source),
       mInitCheck(NO_INIT),
       mHasVideo(false),
@@ -490,7 +492,9 @@ status_t MPEG4Extractor::readMetaData() {
 
     off64_t offset = 0;
     status_t err;
-    while (true) {
+    bool sawMoovOrSidx = false;
+
+    while (!(sawMoovOrSidx && (mMdatFound || mMoofFound))) {
         off64_t orig_offset = offset;
         err = parseChunk(&offset, 0);
 
@@ -502,23 +506,9 @@ status_t MPEG4Extractor::readMetaData() {
             ALOGE("did not advance: 0x%lld->0x%lld", orig_offset, offset);
             err = ERROR_MALFORMED;
             break;
-        } else if (err == OK) {
-            continue;
+        } else if (err == UNKNOWN_ERROR) {
+            sawMoovOrSidx = true;
         }
-
-        uint32_t hdr[2];
-        if (mDataSource->readAt(offset, hdr, 8) < 8) {
-            break;
-        }
-        uint32_t chunk_type = ntohl(hdr[1]);
-        if (chunk_type == FOURCC('m', 'o', 'o', 'f')) {
-            // store the offset of the first segment
-            mMoofOffset = offset;
-        } else if (chunk_type != FOURCC('m', 'd', 'a', 't')) {
-            // keep parsing until we get to the data
-            continue;
-        }
-        break;
     }
 
     if (mInitCheck == OK) {
@@ -864,6 +854,12 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('s', 'c', 'h', 'i'):
         case FOURCC('e', 'd', 't', 's'):
         {
+            if (chunk_type == FOURCC('m', 'o', 'o', 'f') && !mMoofFound) {
+                // store the offset of the first segment
+                mMoofFound = true;
+                mMoofOffset = *offset;
+            }
+
             if (chunk_type == FOURCC('s', 't', 'b', 'l')) {
                 ALOGV("sampleTable chunk is %" PRIu64 " bytes long.", chunk_size);
 
@@ -1830,6 +1826,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('m', 'd', 'a', 't'):
         {
             ALOGV("mdat chunk, drm: %d", mIsDrm);
+
+            mMdatFound = true;
+
             if (!mIsDrm) {
                 *offset += chunk_size;
                 break;

@@ -83,6 +83,8 @@ private:
 
     Vector<SidxEntry> mSidxEntries;
     off64_t mMoofOffset;
+    bool mMoofFound;
+    bool mMdatFound;
 
     Vector<PsshInfo> mPssh;
 
