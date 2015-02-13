@@ -934,6 +934,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if (reason == Renderer::kDueToError) {
                     mRenderer->signalDisableOffloadAudio();
                     mOffloadAudio = false;
+                    mOffloadDecodedPCM = false;
                     instantiateDecoder(true /* audio */, &mAudioDecoder);
                 }
             }
@@ -1037,6 +1038,7 @@ void NuPlayer::onResume() {
 
 void NuPlayer::onStart() {
     mOffloadAudio = false;
+    mOffloadDecodedPCM = false;
     mAudioEOS = false;
     mVideoEOS = false;
     mStarted = true;
@@ -1117,6 +1119,7 @@ void NuPlayer::onPause() {
     } else {
         ALOGW("pause called when renderer is gone or not set");
     }
+    PLAYER_STATS(profileStop, STATS_PROFILE_PAUSE);
 }
 
 bool NuPlayer::audioDecoderStillNeeded() {
