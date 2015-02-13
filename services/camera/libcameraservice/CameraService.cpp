@@ -29,6 +29,7 @@
 #include <binder/MemoryHeapBase.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
+#include <cutils/multiuser.h>
 #include <gui/Surface.h>
 #include <hardware/hardware.h>
 #include <media/AudioSystem.h>
@@ -670,7 +671,10 @@ status_t CameraService::validateConnect(int cameraId,
     }
 
     char value[PROPERTY_VALUE_MAX];
-    property_get("sys.secpolicy.camera.disabled", value, "0");
+    char key[PROPERTY_KEY_MAX];
+    int clientUserId = multiuser_get_user_id(clientUid);
+    snprintf(key, PROPERTY_KEY_MAX, "sys.secpolicy.camera.off_%d", clientUserId);
+    property_get(key, value, "0");
     if (strcmp(value, "1") == 0) {
         // Camera is disabled by DevicePolicyManager.
         ALOGI("Camera is disabled. connect X (pid %d) rejected", callingPid);
