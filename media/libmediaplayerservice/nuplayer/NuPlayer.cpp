@@ -55,8 +55,9 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 
 // TODO optimize buffer size for power consumption
-// The offload read buffer size is 32 KB but 24 KB uses less power.
-const size_t NuPlayer::kAggregateBufferSizeBytes = 24 * 1024;
+// Increase the aggregate buffer size to 240KB to make it
+// equivalent to compress offload buffer size.
+const size_t NuPlayer::kAggregateBufferSizeBytes = 240 * 1024;
 
 struct NuPlayer::Action : public RefBase {
     Action() {}
