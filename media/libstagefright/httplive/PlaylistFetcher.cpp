@@ -1098,7 +1098,7 @@ void PlaylistFetcher::onDownloadBlock() {
         return;
     }
 
-    if (bytesRead == 0) {
+    if (bytesRead == 0 || bytesRead < kDownloadBlockSize) {
         onSegmentComplete();
     } else {
         sp<AMessage> msg = new AMessage(kWhatDownloadBlock, id());

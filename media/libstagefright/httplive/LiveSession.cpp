@@ -978,6 +978,11 @@ ssize_t LiveSession::fetchFile(
 
         // The DataSource is responsible for informing us of error (n < 0) or eof (n == 0)
         // to help us break out of the loop.
+        if (maxBytesToRead == 0) {
+            ALOGE("maxBytesToRead is zero, ingore it");
+            onFetchComplete();
+            break;
+        }
         ssize_t n = (*source)->readAt(
                 buffer->size(), buffer->data() + buffer->size(),
                 maxBytesToRead);
