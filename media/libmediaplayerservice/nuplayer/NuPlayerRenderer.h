@@ -185,6 +185,8 @@ private:
     int32_t mLastAudioBufferDrained;
     sp<AWakeLock> mWakeLock;
 
+    List<sp<AMessage> > mPendingInputMessages;
+
     size_t fillAudioBuffer(void *buffer, size_t size);
 
     bool onDrainAudioQueue();

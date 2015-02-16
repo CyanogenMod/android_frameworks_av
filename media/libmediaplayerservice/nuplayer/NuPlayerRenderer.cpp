@@ -608,6 +608,11 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
         }
         sizeCopied += copy;
         mAudioRenderingStarted = true;
+        while (!mPendingInputMessages.empty()) {
+            sp<AMessage> msg = *mPendingInputMessages.begin();
+            msg->post();
+            mPendingInputMessages.erase(mPendingInputMessages.begin());
+        }
         notifyIfMediaRenderingStarted();
     }
 
@@ -966,6 +971,11 @@ void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
         }
     }
 
+    if (!audio && offloadingAudio() && !mAudioRenderingStarted) {
+        mPendingInputMessages.push_back(msg);
+        return;
+    }
+
     if (dropBufferWhileFlushing(audio, msg)) {
         return;
     }
@@ -1129,6 +1139,15 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             mAudioSink->start();
         }
     } else {
+        while (!mPendingInputMessages.empty()) {
+            sp<AMessage> msg = *mPendingInputMessages.begin();
+            sp<AMessage> notifyConsumed;
+            if (msg->findMessage("notifyConsumed", &notifyConsumed)) {
+                notifyConsumed->post();
+            }
+            mPendingInputMessages.erase(mPendingInputMessages.begin());
+        }
+
         flushQueue(&mVideoQueue);
 
         mDrainVideoQueuePending = false;
