@@ -1385,6 +1385,17 @@ status_t NuPlayer::feedDecoderInputData(bool audio, const sp<AMessage> &msg) {
         if (err == -EWOULDBLOCK) {
             return err;
         } else if (err != OK) {
+            // If it is Parser EOS reply with partial buffer to decoder
+            //to ensure that partial buffer is played out.
+            if (err == ERROR_END_OF_STREAM && doBufferAggregation && (mAggregateBuffer != NULL))
+            {
+                ALOGV("feedDecoderInputData() reply with partial aggregated buffer, %zu",
+                mAggregateBuffer->size());
+                reply->setBuffer("buffer", mAggregateBuffer);
+                mAggregateBuffer.clear();
+                reply->post();
+                return OK;
+            }
             if (err == INFO_DISCONTINUITY) {
                 if (doBufferAggregation && (mAggregateBuffer != NULL)) {
                     // We already have some data so save this for later.
