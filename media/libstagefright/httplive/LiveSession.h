@@ -226,6 +226,7 @@ private:
     AString mFetchUrl;
 
     FILE *mBackupFile;
+    bool mEraseFirstTs;
     uint32_t mSegmentCounter;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);

@@ -41,6 +41,8 @@
 #include <media/stagefright/Utils.h>
 
 #include <utils/Mutex.h>
+#include "include/ExtendedUtils.h"
+
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -82,11 +84,10 @@ LiveSession::LiveSession(
       mFirstTimeUs(0),
       mLastSeekTimeUs(0),
       mBackupFile(NULL),
+      mEraseFirstTs(0),
       mSegmentCounter(0) {
 
-    char value[PROPERTY_VALUE_MAX];
-    property_get("persist.sys.media.hls-startup", value, "0");
-    if (atoi(value)) {
+    if (ExtendedUtils::ShellProp::isCustomHLSEnabled()) {
         mDownloadFirstTS = true;
     }
 
@@ -1225,6 +1226,7 @@ bool LiveSession::switchToRealBandwidth() {
     if (mCurBandwidthIndex != bwIndex) {
         ALOGV("switching to RealBandwidth...");
         mCheckBandwidthGeneration++;
+        mEraseFirstTs = true;
         (new AMessage(kWhatSwitchConfiguration, id()))->post();
         ALOGV("Posting switchConfiguration to change bandwidth to index %d on the first play", bwIndex);
         return true;
@@ -1685,6 +1687,14 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
             }
         }
 
+        if (mEraseFirstTs && latestSeq == 0) {
+             latestSeq = -1;
+             discontinuitySeq = -1;
+             startTimeUs = 0;
+             mLastSeekTimeUs = 0;
+             segmentStartTimeUs = -1;
+             mEraseFirstTs = false;
+        }
         fetcher->startAsync(
                 sources[kAudioIndex],
                 sources[kVideoIndex],

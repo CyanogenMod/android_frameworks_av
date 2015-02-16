@@ -39,6 +39,8 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
+#include "include/ExtendedUtils.h"
+
 #include <ctype.h>
 #include <inttypes.h>
 #include <openssl/aes.h>
@@ -84,6 +86,7 @@ PlaylistFetcher::PlaylistFetcher(
       mIsFirstTSDownload(downloadFirstTs),
       mAbsoluteTimeAnchorUs(0ll),
       mVideoBuffer(new AnotherPacketSource(NULL)),
+      mTargetDurationUs(10000000ll),
       mRangeOffset(0),
       mRangeLength(0),
       mDownloadOffset(0),
@@ -673,6 +676,9 @@ void PlaylistFetcher::onMonitorQueue() {
     if (durationToBufferUs > kMinBufferedDurationUs)  {
         durationToBufferUs = kMinBufferedDurationUs;
     }
+    if (ExtendedUtils::ShellProp::isCustomHLSEnabled()) {
+        durationToBufferUs = mTargetDurationUs;
+    }
 
     int64_t bufferedDurationUs = 0ll;
     status_t finalResult = NOT_ENOUGH_DATA;
@@ -731,6 +737,10 @@ void PlaylistFetcher::onMonitorQueue() {
         }
 
     } else {
+        if (ExtendedUtils::ShellProp::isCustomHLSEnabled() && mTargetDurationUs == 10000000ll) {
+            mTargetDurationUs = 25000000ll;
+        }
+
         // Nothing to do yet, try again in a second.
 
         sp<AMessage> msg = mNotify->dup();

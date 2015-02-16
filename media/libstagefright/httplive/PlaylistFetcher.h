@@ -169,6 +169,8 @@ private:
     int64_t mAbsoluteTimeAnchorUs;
     sp<AnotherPacketSource> mVideoBuffer;
 
+    int64_t mTargetDurationUs;
+
     int64_t mRangeOffset;
     int64_t mRangeLength;
     int64_t mDownloadOffset;
