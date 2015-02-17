@@ -101,14 +101,14 @@ static void torch_mode_status_change(
 
     ICameraServiceListener::TorchStatus status;
     switch (new_status) {
-        case TORCH_MODE_STATUS_AVAILABLE:
-            status = ICameraServiceListener::TORCH_STATUS_AVAILABLE;
-            break;
-        case TORCH_MODE_STATUS_RESOURCE_BUSY:
+        case TORCH_MODE_STATUS_NOT_AVAILABLE:
             status = ICameraServiceListener::TORCH_STATUS_NOT_AVAILABLE;
             break;
-        case TORCH_MODE_STATUS_OFF:
-            status = ICameraServiceListener::TORCH_STATUS_OFF;
+        case TORCH_MODE_STATUS_AVAILABLE_OFF:
+            status = ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF;
+            break;
+        case TORCH_MODE_STATUS_AVAILABLE_ON:
+            status = ICameraServiceListener::TORCH_STATUS_AVAILABLE_ON;
             break;
         default:
             ALOGE("Unknown torch status %d", new_status);
@@ -116,7 +116,7 @@ static void torch_mode_status_change(
     }
 
     cs->onTorchStatusChanged(
-        String16(camera_id),
+        String8(camera_id),
         status);
 }
 } // extern "C"
@@ -156,23 +156,29 @@ void CameraService::onFirstRef()
     }
     else {
         mModule = new CameraModule(rawModule);
-        mFlashlight = new CameraFlashlight(*mModule, *this);
-
         const hw_module_t *common = mModule->getRawModule();
-        ALOGI("Loaded \"%s\" camera module", common->name);
+        ALOGI("Loaded \"%s\" cameraCa module", common->name);
         mNumberOfCameras = mModule->getNumberOfCameras();
         if (mNumberOfCameras > MAX_CAMERAS) {
             ALOGE("Number of cameras(%d) > MAX_CAMERAS(%d).",
                     mNumberOfCameras, MAX_CAMERAS);
             mNumberOfCameras = MAX_CAMERAS;
         }
+
+        mFlashlight = new CameraFlashlight(*mModule, *this);
+        status_t res = mFlashlight->findFlashUnits();
+        if (res) {
+            // impossible because we haven't open any camera devices.
+            ALOGE("failed to find flash units.");
+        }
+
         for (int i = 0; i < mNumberOfCameras; i++) {
             setCameraFree(i);
 
-            String16 cameraName = String16(String8::format("%d", i));
+            String8 cameraName = String8::format("%d", i);
             if (mFlashlight->hasFlashUnit(cameraName)) {
                 mTorchStatusMap.add(cameraName,
-                        ICameraServiceListener::TORCH_STATUS_AVAILABLE);
+                        ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF);
             }
         }
 
@@ -207,7 +213,7 @@ CameraService::~CameraService() {
 void CameraService::onDeviceStatusChanged(int cameraId,
                                           int newStatus)
 {
-    ALOGI("%s: Status changed for cameraId=%d, newStatus=%d", __FUNCTION__,
+    ALOGV("%s: Status changed for cameraId=%d, newStatus=%d", __FUNCTION__,
           cameraId, newStatus);
 
     if (cameraId < 0 || cameraId >= MAX_CAMERAS) {
@@ -268,24 +274,30 @@ void CameraService::onDeviceStatusChanged(int cameraId,
 
 }
 
-void CameraService::onTorchStatusChanged(const String16& cameraId,
+void CameraService::onTorchStatusChanged(const String8& cameraId,
         ICameraServiceListener::TorchStatus newStatus) {
     Mutex::Autolock al(mTorchStatusMutex);
     onTorchStatusChangedLocked(cameraId, newStatus);
 }
 
-void CameraService::onTorchStatusChangedLocked(const String16& cameraId,
+void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
         ICameraServiceListener::TorchStatus newStatus) {
     ALOGI("%s: Torch status changed for cameraId=%s, newStatus=%d",
             __FUNCTION__, cameraId.string(), newStatus);
 
-    if (getTorchStatusLocked(cameraId) == newStatus) {
+    ICameraServiceListener::TorchStatus status;
+    status_t res = getTorchStatusLocked(cameraId, &status);
+    if (res) {
+        ALOGE("%s: cannot get torch status of camera %s", cameraId.string());
+        return;
+    }
+    if (status == newStatus) {
         ALOGE("%s: Torch state transition to the same status 0x%x not allowed",
               __FUNCTION__, (uint32_t)newStatus);
         return;
     }
 
-    status_t res = setTorchStatusLocked(cameraId, newStatus);
+    res = setTorchStatusLocked(cameraId, newStatus);
     if (res) {
         ALOGE("%s: Failed to set the torch status", __FUNCTION__,
                 (uint32_t)newStatus);
@@ -294,7 +306,7 @@ void CameraService::onTorchStatusChangedLocked(const String16& cameraId,
 
     Vector<sp<ICameraServiceListener> >::const_iterator it;
     for (it = mListenerList.begin(); it != mListenerList.end(); ++it) {
-        (*it)->onTorchStatusChanged(newStatus, cameraId);
+        (*it)->onTorchStatusChanged(newStatus, String16(cameraId.string()));
     }
 }
 
@@ -754,7 +766,7 @@ status_t CameraService::connectHelperLocked(
         bool legacyMode) {
 
     // give flashlight a chance to close devices if necessary.
-    mFlashlight->prepareDeviceOpen();
+    mFlashlight->prepareDeviceOpen(String8::format("%d", cameraId));
 
     int facing = -1;
     int deviceVersion = getDeviceVersion(cameraId, &facing);
@@ -932,43 +944,93 @@ status_t CameraService::connectLegacy(
     return OK;
 }
 
+bool CameraService::validCameraIdForSetTorchMode(const String8& cameraId) {
+    // invalid string for int
+    if (cameraId.string() == NULL) {
+        return false;
+    }
+    errno = 0;
+    char *endptr;
+    long id = strtol(cameraId.string(), &endptr, 10); // base 10
+    if (errno || id > INT_MAX || id < INT_MIN || *endptr != 0) {
+        return false;
+    }
+
+    // id matches one of the plugged-in devices?
+    ICameraServiceListener::Status deviceStatus = getStatus(id);
+    if (deviceStatus != ICameraServiceListener::STATUS_PRESENT &&
+            deviceStatus != ICameraServiceListener::STATUS_NOT_AVAILABLE) {
+        return false;
+    }
+
+    return true;
+}
+
 status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
         const sp<IBinder>& clientBinder) {
     if (enabled && clientBinder == NULL) {
         ALOGE("%s: torch client binder is NULL", __FUNCTION__);
-        return -ENOSYS;
+        return -EINVAL;
     }
 
-    Mutex::Autolock al(mTorchStatusMutex);
-    status_t res = mFlashlight->setTorchMode(cameraId, enabled);
+    String8 id = String8(cameraId.string());
+
+    // verify id is valid.
+    if (validCameraIdForSetTorchMode(id) == false) {
+        ALOGE("%s: camera id is invalid %s", id.string());
+        return -EINVAL;
+    }
+
+    {
+        Mutex::Autolock al(mTorchStatusMutex);
+        ICameraServiceListener::TorchStatus status;
+        status_t res = getTorchStatusLocked(id, &status);
+        if (res) {
+            ALOGE("%s: getting current torch status failed for camera %s",
+                    __FUNCTION__, id.string());
+            return -EINVAL;
+        }
+
+        if (status == ICameraServiceListener::TORCH_STATUS_NOT_AVAILABLE) {
+            if (getStatus(atoi(id.string())) ==
+                        ICameraServiceListener::STATUS_NOT_AVAILABLE) {
+                ALOGE("%s: torch mode of camera %s is not available because "
+                        "camera is in use", __FUNCTION__, id.string());
+                return -EBUSY;
+            } else {
+                ALOGE("%s: torch mode of camera %s is not available due to "
+                        "insufficient resources", __FUNCTION__, id.string());
+                return -EUSERS;
+            }
+        }
+    }
+
+    status_t res = mFlashlight->setTorchMode(id, enabled);
     if (res) {
-        ALOGE("%s: setting torch mode of camera %s to %d failed", __FUNCTION__,
-                cameraId.string(), enabled);
+        ALOGE("%s: setting torch mode of camera %s to %d failed. %s (%d)",
+                __FUNCTION__, id.string(), enabled, strerror(-res), res);
         return res;
     }
 
-    // update the link to client's death
-    ssize_t index = mTorchClientMap.indexOfKey(cameraId);
-    if (enabled) {
-        if (index == NAME_NOT_FOUND) {
-            mTorchClientMap.add(cameraId, clientBinder);
-        } else {
-            const sp<IBinder> oldBinder = mTorchClientMap.valueAt(index);
+    {
+        // update the link to client's death
+        Mutex::Autolock al(mTorchClientMapMutex);
+        ssize_t index = mTorchClientMap.indexOfKey(id);
+        if (enabled) {
+            if (index == NAME_NOT_FOUND) {
+                mTorchClientMap.add(id, clientBinder);
+            } else {
+                const sp<IBinder> oldBinder = mTorchClientMap.valueAt(index);
+                oldBinder->unlinkToDeath(this);
+
+                mTorchClientMap.replaceValueAt(index, clientBinder);
+            }
+            clientBinder->linkToDeath(this);
+        } else if (index != NAME_NOT_FOUND) {
+            sp<IBinder> oldBinder = mTorchClientMap.valueAt(index);
             oldBinder->unlinkToDeath(this);
-
-            mTorchClientMap.replaceValueAt(index, clientBinder);
         }
-        clientBinder->linkToDeath(this);
-    } else if (index != NAME_NOT_FOUND) {
-        sp<IBinder> oldBinder = mTorchClientMap.valueAt(index);
-        oldBinder->unlinkToDeath(this);
     }
-
-    // notify the listeners the change.
-    ICameraServiceListener::TorchStatus status = enabled ?
-            ICameraServiceListener::TORCH_STATUS_ON :
-            ICameraServiceListener::TORCH_STATUS_OFF;
-    onTorchStatusChangedLocked(cameraId, status);
 
     return OK;
 }
@@ -1099,7 +1161,7 @@ status_t CameraService::connectDevice(
         int deviceVersion = getDeviceVersion(cameraId, &facing);
 
         // give flashlight a chance to close devices if necessary.
-        mFlashlight->prepareDeviceOpen();
+        mFlashlight->prepareDeviceOpen(String8::format("%d", cameraId));
 
         switch(deviceVersion) {
           case CAMERA_DEVICE_API_VERSION_1_0:
@@ -1176,8 +1238,8 @@ status_t CameraService::addListener(
     {
         Mutex::Autolock al(mTorchStatusMutex);
         for (size_t i = 0; i < mTorchStatusMap.size(); i++ ) {
-            listener->onTorchStatusChanged(mTorchStatusMap.valueAt(i),
-                    mTorchStatusMap.keyAt(i));
+            String16 id = String16(mTorchStatusMap.keyAt(i).string());
+            listener->onTorchStatusChanged(mTorchStatusMap.valueAt(i), id);
         }
 
     }
@@ -1616,6 +1678,9 @@ status_t CameraService::BasicClient::finishCameraOps() {
                 mCameraId,
                 &rejectSourceStates);
 
+        // Notify flashlight that a camera device is closed.
+        mCameraService->mFlashlight->deviceClosed(
+                String8::format("%d", mCameraId));
     }
     // Always stop watching, even if no camera op is active
     if (mOpsCallback != NULL) {
@@ -1862,17 +1927,18 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 }
 
 void CameraService::handleTorchClientBinderDied(const wp<IBinder> &who) {
-    Mutex::Autolock al(mTorchStatusMutex);
+    Mutex::Autolock al(mTorchClientMapMutex);
     for (size_t i = 0; i < mTorchClientMap.size(); i++) {
         if (mTorchClientMap[i] == who) {
             // turn off the torch mode that was turned on by dead client
-            String16 cameraId = mTorchClientMap.keyAt(i);
-            mFlashlight->setTorchMode(cameraId, false);
+            String8 cameraId = mTorchClientMap.keyAt(i);
+            status_t res = mFlashlight->setTorchMode(cameraId, false);
+            if (res) {
+                ALOGE("%s: torch client died but couldn't turn off torch: "
+                    "%s (%d)", __FUNCTION__, strerror(-res), res);
+                return;
+            }
             mTorchClientMap.removeItemsAt(i);
-
-            // notify torch mode was turned off
-            onTorchStatusChangedLocked(cameraId,
-                    ICameraServiceListener::TORCH_STATUS_OFF);
             break;
         }
     }
@@ -1968,6 +2034,19 @@ void CameraService::updateStatus(ICameraServiceListener::Status status,
             }
         }
 
+        if (status == ICameraServiceListener::STATUS_NOT_PRESENT ||
+            status == ICameraServiceListener::STATUS_NOT_AVAILABLE) {
+            // update torch status to not available when the camera device
+            // becomes not present or not available.
+            onTorchStatusChanged(String8::format("%d", cameraId),
+                    ICameraServiceListener::TORCH_STATUS_NOT_AVAILABLE);
+        } else if (status == ICameraServiceListener::STATUS_PRESENT) {
+            // update torch status to available when the camera device becomes
+            // present or available
+            onTorchStatusChanged(String8::format("%d", cameraId),
+                    ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF);
+        }
+
         Vector<sp<ICameraServiceListener> >::const_iterator it;
         for (it = mListenerList.begin(); it != mListenerList.end(); ++it) {
             (*it)->onStatusChanged(status, cameraId);
@@ -1985,17 +2064,23 @@ ICameraServiceListener::Status CameraService::getStatus(int cameraId) const {
     return mStatusList[cameraId];
 }
 
-ICameraServiceListener::TorchStatus CameraService::getTorchStatusLocked(
-        const String16& cameraId) const {
+status_t CameraService::getTorchStatusLocked(
+        const String8& cameraId,
+        ICameraServiceListener::TorchStatus *status) const {
+    if (!status) {
+        return BAD_VALUE;
+    }
     ssize_t index = mTorchStatusMap.indexOfKey(cameraId);
     if (index == NAME_NOT_FOUND) {
-        return ICameraServiceListener::TORCH_STATUS_NOT_AVAILABLE;
+        // invalid camera ID or the camera doesn't have a flash unit
+        return NAME_NOT_FOUND;
     }
 
-    return mTorchStatusMap.valueAt(index);
+    *status = mTorchStatusMap.valueAt(index);
+    return OK;
 }
 
-status_t CameraService::setTorchStatusLocked(const String16& cameraId,
+status_t CameraService::setTorchStatusLocked(const String8& cameraId,
         ICameraServiceListener::TorchStatus status) {
     ssize_t index = mTorchStatusMap.indexOfKey(cameraId);
     if (index == NAME_NOT_FOUND) {

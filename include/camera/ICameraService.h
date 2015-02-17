@@ -145,7 +145,16 @@ public:
             sp<ICamera>& device) = 0;
 
     /**
-     * Turn on or off a camera's torch mode.
+     * Turn on or off a camera's torch mode. Torch mode will be turned off by
+     * camera service if the lastest client binder that turns it on dies.
+     *
+     * return values:
+     * 0:       on a successful operation.
+     * -ENOSYS: the camera device doesn't support this operation. It it returned
+     *          if and only if android.flash.into.available is false.
+     * -EBUSY:  the camera device is opened.
+     * -EINVAL: camera_id is invalid or clientBinder is NULL when enabling a
+     *          torch mode.
      */
     virtual status_t setTorchMode(const String16& cameraId, bool enabled,
             const sp<IBinder>& clientBinder) = 0;

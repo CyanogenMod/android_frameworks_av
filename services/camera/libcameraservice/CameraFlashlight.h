@@ -19,6 +19,7 @@
 
 #include "hardware/camera_common.h"
 #include "utils/KeyedVector.h"
+#include "utils/SortedVector.h"
 #include "gui/GLConsumer.h"
 #include "gui/Surface.h"
 #include "common/CameraDeviceBase.h"
@@ -37,11 +38,11 @@ class FlashControlBase : public virtual VirtualLightRefBase {
         // cause the torch mode to be turned off in HAL v1 devices. If
         // previously-on torch mode is turned off,
         // callbacks.torch_mode_status_change() should be invoked.
-        virtual status_t hasFlashUnit(const String16& cameraId,
+        virtual status_t hasFlashUnit(const String8& cameraId,
                     bool *hasFlash) = 0;
 
         // set the torch mode to on or off.
-        virtual status_t setTorchMode(const String16& cameraId,
+        virtual status_t setTorchMode(const String8& cameraId,
                     bool enabled) = 0;
 };
 
@@ -54,43 +55,61 @@ class CameraFlashlight : public virtual VirtualLightRefBase {
                 const camera_module_callbacks_t& callbacks);
         virtual ~CameraFlashlight();
 
-        // set the torch mode to on or off.
-        status_t setTorchMode(const String16& cameraId, bool enabled);
+        // Find all flash units. This must be called before other methods. All
+        // camera devices must be closed when it's called because HAL v1 devices
+        // need to be opened to query available flash modes.
+        status_t findFlashUnits();
 
-        // Whether a camera device has a flash unit. Calling this function may
-        // cause the torch mode to be turned off in HAL v1 devices.
-        bool hasFlashUnit(const String16& cameraId);
+        // Whether a camera device has a flash unit. Before findFlashUnits() is
+        // called, this function always returns false.
+        bool hasFlashUnit(const String8& cameraId);
+
+        // set the torch mode to on or off.
+        status_t setTorchMode(const String8& cameraId, bool enabled);
 
         // Notify CameraFlashlight that camera service is going to open a camera
         // device. CameraFlashlight will free the resources that may cause the
         // camera open to fail. Camera service must call this function before
         // opening a camera device.
-        status_t prepareDeviceOpen();
+        status_t prepareDeviceOpen(const String8& cameraId);
+
+        // Notify CameraFlashlight that camera service has closed a camera
+        // device. CameraFlashlight may invoke callbacks for torch mode
+        // available depending on the implementation.
+        status_t deviceClosed(const String8& cameraId);
 
     private:
         // create flashlight control based on camera module API and camera
         // device API versions.
-        status_t createFlashlightControl(const String16& cameraId);
+        status_t createFlashlightControl(const String8& cameraId);
+
+        // mLock should be locked.
+        bool hasFlashUnitLocked(const String8& cameraId);
 
         sp<FlashControlBase> mFlashControl;
         CameraModule *mCameraModule;
         const camera_module_callbacks_t *mCallbacks;
+        SortedVector<String8> mOpenedCameraIds;
 
-        Mutex mLock;
+        // camera id -> if it has a flash unit
+        KeyedVector<String8, bool> mHasFlashlightMap;
+        bool mFlashlightMapInitialized;
+
+        Mutex mLock; // protect CameraFlashlight API
 };
 
 /**
  * Flash control for camera module v2.4 and above.
  */
-class FlashControl : public FlashControlBase {
+class ModuleFlashControl : public FlashControlBase {
     public:
-        FlashControl(CameraModule& cameraModule,
+        ModuleFlashControl(CameraModule& cameraModule,
                 const camera_module_callbacks_t& callbacks);
-        virtual ~FlashControl();
+        virtual ~ModuleFlashControl();
 
         // FlashControlBase
-        status_t hasFlashUnit(const String16& cameraId, bool *hasFlash);
-        status_t setTorchMode(const String16& cameraId, bool enabled);
+        status_t hasFlashUnit(const String8& cameraId, bool *hasFlash);
+        status_t setTorchMode(const String8& cameraId, bool enabled);
 
     private:
         CameraModule *mCameraModule;
@@ -108,30 +127,37 @@ class CameraDeviceClientFlashControl : public FlashControlBase {
         virtual ~CameraDeviceClientFlashControl();
 
         // FlashControlBase
-        status_t setTorchMode(const String16& cameraId, bool enabled);
-        status_t hasFlashUnit(const String16& cameraId, bool *hasFlash);
+        status_t setTorchMode(const String8& cameraId, bool enabled);
+        status_t hasFlashUnit(const String8& cameraId, bool *hasFlash);
 
     private:
         // connect to a camera device
-        status_t connectCameraDevice(const String16& cameraId);
+        status_t connectCameraDevice(const String8& cameraId);
+        // disconnect and free mDevice
+        status_t disconnectCameraDevice();
 
         // initialize a surface
-        status_t initializeSurface(int32_t width, int32_t height);
+        status_t initializeSurface(sp<CameraDeviceBase>& device, int32_t width,
+                int32_t height);
 
-        // submit a request with the given torch mode
-        status_t submitTorchRequest(bool enabled);
+        // submit a request to enable the torch mode
+        status_t submitTorchEnabledRequest();
 
         // get the smallest surface size of IMPLEMENTATION_DEFINED
         status_t getSmallestSurfaceSize(const camera_info& info, int32_t *width,
                     int32_t *height);
 
-        status_t hasFlashUnitLocked(const String16& cameraId, bool *hasFlash);
+        status_t hasFlashUnitLocked(const String8& cameraId, bool *hasFlash);
 
         CameraModule *mCameraModule;
         const camera_module_callbacks_t *mCallbacks;
-        String16 mCameraId;
+        String8 mCameraId;
         bool mTorchEnabled;
         CameraMetadata *mMetadata;
+        // WORKAROUND: will be set to true for HAL v2 devices where
+        // setStreamingRequest() needs to be call for torch mode settings to
+        // take effect.
+        bool mStreaming;
 
         sp<CameraDeviceBase> mDevice;
 
