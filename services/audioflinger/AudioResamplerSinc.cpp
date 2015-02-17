@@ -265,7 +265,8 @@ void AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
     if (mConstants == &veryHighQualityConstants && readResampleCoefficients) {
         mFirCoefs = readResampleCoefficients( mInSampleRate <= mSampleRate );
     } else {
-        mFirCoefs = (const int32_t *) ((mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown);
+        mFirCoefs = (const int32_t *)
+                ((mInSampleRate <= mSampleRate) ? mFirCoefsUp : mFirCoefsDown);
     }
 
     // select the appropriate resampler
