@@ -267,12 +267,15 @@ int main(int argc, char** argv)
                 if (!format) {
                     int64_t yi = toint(y, 1ULL<<(nc-1));
                     if (nc > 16) {
-                        printf("0x%08x, ", int32_t(yi));
+                        printf("0x%08x,", int32_t(yi));
                     } else {
-                        printf("0x%04x, ", int32_t(yi)&0xffff);
+                        printf("0x%04x,", int32_t(yi)&0xffff);
                     }
                 } else {
-                    printf("%.9g%s ", y, debug ? "," : "f,");
+                    printf("%.9g%s", y, debug ? "," : "f,");
+                }
+                if (j != nzc-1) {
+                    printf(" ");
                 }
             }
         }
