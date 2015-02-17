@@ -78,7 +78,7 @@ static void usage(char* name) {
             "    -n    number of zero-crossings on one side (8)\n"
             "    -l    number of lerping bits (4)\n"
             "    -m    number of polyphases (related to -l, default 16)\n"
-            "    -f    output format, can be fixed-point or floating-point (fixed)\n"
+            "    -f    output format, can be fixed, fixed16, or float (fixed)\n"
             "    -b    kaiser window parameter beta (7.865 [-80dB])\n"
             "    -v    attenuation in dBFS (0)\n",
             name, name
