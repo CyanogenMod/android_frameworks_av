@@ -586,9 +586,7 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
             mCameraId,
             (getRemoteCallback() != NULL ?
                     IInterface::asBinder(getRemoteCallback()).get() : NULL) );
-    result.appendFormat("  Current client: %s (PID %d, UID %u)\n",
-            String8(mClientPackageName).string(),
-            mClientPid, mClientUid);
+    result.appendFormat("  Current client UID %u\n", mClientUid);
 
     result.append("  State:\n");
     result.appendFormat("    Request ID counter: %d\n", mRequestIdCounter);
