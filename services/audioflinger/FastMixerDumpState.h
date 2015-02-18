@@ -18,6 +18,7 @@
 #define ANDROID_AUDIO_FAST_MIXER_DUMP_STATE_H
 
 #include "Configuration.h"
+#include "FastThreadDumpState.h"
 
 namespace android {
 

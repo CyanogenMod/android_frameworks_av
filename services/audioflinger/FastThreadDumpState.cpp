@@ -14,19 +14,24 @@
  * limitations under the License.
  */
 
-#include "Configuration.h"
-#include "FastThreadState.h"
+#include "FastThreadDumpState.h"
 
 namespace android {
 
-FastThreadState::FastThreadState() :
-    mCommand(INITIAL), mColdFutexAddr(NULL), mColdGen(0), mDumpState(NULL), mNBLogWriter(NULL)
+FastThreadDumpState::FastThreadDumpState() :
+    mCommand(FastThreadState::INITIAL), mUnderruns(0), mOverruns(0),
+    /* mMeasuredWarmupTs({0, 0}), */
+    mWarmupCycles(0)
+#ifdef FAST_MIXER_STATISTICS
+    , mSamplingN(1), mBounds(0)
+#endif
+{
+    mMeasuredWarmupTs.tv_sec = 0;
+    mMeasuredWarmupTs.tv_nsec = 0;
+}
 
+FastThreadDumpState::~FastThreadDumpState()
 {
 }
 
-FastThreadState::~FastThreadState()
-{
-}
-
-}   // namespace android
+}   // android
