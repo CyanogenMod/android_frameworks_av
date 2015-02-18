@@ -335,7 +335,90 @@ const char *AudioFlinger::ThreadBase::threadTypeToString(AudioFlinger::ThreadBas
     }
 }
 
-static String8 outputFlagsToString(audio_output_flags_t flags)
+String8 devicesToString(audio_devices_t devices)
+{
+    static const struct mapping {
+        audio_devices_t mDevices;
+        const char *    mString;
+    } mappingsOut[] = {
+        AUDIO_DEVICE_OUT_EARPIECE,          "EARPIECE",
+        AUDIO_DEVICE_OUT_SPEAKER,           "SPEAKER",
+        AUDIO_DEVICE_OUT_WIRED_HEADSET,     "WIRED_HEADSET",
+        AUDIO_DEVICE_OUT_WIRED_HEADPHONE,   "WIRED_HEADPHONE",
+        AUDIO_DEVICE_OUT_TELEPHONY_TX,      "TELEPHONY_TX",
+        AUDIO_DEVICE_NONE,                  "NONE",         // must be last
+    }, mappingsIn[] = {
+        AUDIO_DEVICE_IN_BUILTIN_MIC,        "BUILTIN_MIC",
+        AUDIO_DEVICE_IN_WIRED_HEADSET,      "WIRED_HEADSET",
+        AUDIO_DEVICE_IN_VOICE_CALL,         "VOICE_CALL",
+        AUDIO_DEVICE_IN_REMOTE_SUBMIX,      "REMOTE_SUBMIX",
+        AUDIO_DEVICE_NONE,                  "NONE",         // must be last
+    };
+    String8 result;
+    audio_devices_t allDevices = AUDIO_DEVICE_NONE;
+    const mapping *entry;
+    if (devices & AUDIO_DEVICE_BIT_IN) {
+        devices &= ~AUDIO_DEVICE_BIT_IN;
+        entry = mappingsIn;
+    } else {
+        entry = mappingsOut;
+    }
+    for ( ; entry->mDevices != AUDIO_DEVICE_NONE; entry++) {
+        allDevices = (audio_devices_t) (allDevices | entry->mDevices);
+        if (devices & entry->mDevices) {
+            if (!result.isEmpty()) {
+                result.append("|");
+            }
+            result.append(entry->mString);
+        }
+    }
+    if (devices & ~allDevices) {
+        if (!result.isEmpty()) {
+            result.append("|");
+        }
+        result.appendFormat("0x%X", devices & ~allDevices);
+    }
+    if (result.isEmpty()) {
+        result.append(entry->mString);
+    }
+    return result;
+}
+
+String8 inputFlagsToString(audio_input_flags_t flags)
+{
+    static const struct mapping {
+        audio_input_flags_t     mFlag;
+        const char *            mString;
+    } mappings[] = {
+        AUDIO_INPUT_FLAG_FAST,              "FAST",
+        AUDIO_INPUT_FLAG_HW_HOTWORD,        "HW_HOTWORD",
+        AUDIO_INPUT_FLAG_NONE,              "NONE",         // must be last
+    };
+    String8 result;
+    audio_input_flags_t allFlags = AUDIO_INPUT_FLAG_NONE;
+    const mapping *entry;
+    for (entry = mappings; entry->mFlag != AUDIO_INPUT_FLAG_NONE; entry++) {
+        allFlags = (audio_input_flags_t) (allFlags | entry->mFlag);
+        if (flags & entry->mFlag) {
+            if (!result.isEmpty()) {
+                result.append("|");
+            }
+            result.append(entry->mString);
+        }
+    }
+    if (flags & ~allFlags) {
+        if (!result.isEmpty()) {
+            result.append("|");
+        }
+        result.appendFormat("0x%X", flags & ~allFlags);
+    }
+    if (result.isEmpty()) {
+        result.append(entry->mString);
+    }
+    return result;
+}
+
+String8 outputFlagsToString(audio_output_flags_t flags)
 {
     static const struct mapping {
         audio_output_flags_t    mFlag;
@@ -372,6 +455,24 @@ static String8 outputFlagsToString(audio_output_flags_t flags)
         result.append(entry->mString);
     }
     return result;
+}
+
+const char *sourceToString(audio_source_t source)
+{
+    switch (source) {
+    case AUDIO_SOURCE_DEFAULT:              return "default";
+    case AUDIO_SOURCE_MIC:                  return "mic";
+    case AUDIO_SOURCE_VOICE_UPLINK:         return "voice uplink";
+    case AUDIO_SOURCE_VOICE_DOWNLINK:       return "voice downlink";
+    case AUDIO_SOURCE_VOICE_CALL:           return "voice call";
+    case AUDIO_SOURCE_CAMCORDER:            return "camcorder";
+    case AUDIO_SOURCE_VOICE_RECOGNITION:    return "voice recognition";
+    case AUDIO_SOURCE_VOICE_COMMUNICATION:  return "voice communication";
+    case AUDIO_SOURCE_REMOTE_SUBMIX:        return "remote submix";
+    case AUDIO_SOURCE_FM_TUNER:             return "FM tuner";
+    case AUDIO_SOURCE_HOTWORD:              return "hotword";
+    default:                                return "unknown";
+    }
 }
 
 AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,

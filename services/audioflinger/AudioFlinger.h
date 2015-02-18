@@ -796,6 +796,10 @@ private:
 #undef INCLUDING_FROM_AUDIOFLINGER_H
 
 const char *formatToString(audio_format_t format);
+String8 inputFlagsToString(audio_input_flags_t flags);
+String8 outputFlagsToString(audio_output_flags_t flags);
+String8 devicesToString(audio_devices_t devices);
+const char *sourceToString(audio_source_t source);
 
 // ----------------------------------------------------------------------------
 
