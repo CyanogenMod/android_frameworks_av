@@ -210,13 +210,4 @@ void FastCapture::onWork()
     }
 }
 
-FastCaptureDumpState::FastCaptureDumpState() : FastThreadDumpState(),
-    mReadSequence(0), mFramesRead(0), mReadErrors(0), mSampleRate(0), mFrameCount(0)
-{
-}
-
-FastCaptureDumpState::~FastCaptureDumpState()
-{
-}
-
 }   // namespace android

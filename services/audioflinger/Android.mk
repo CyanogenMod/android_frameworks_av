@@ -77,8 +77,10 @@ LOCAL_32_BIT_ONLY := true
 LOCAL_SRC_FILES += \
     AudioWatchdog.cpp        \
     FastCapture.cpp          \
+    FastCaptureDumpState.cpp \
     FastCaptureState.cpp     \
     FastMixer.cpp            \
+    FastMixerDumpState.cpp   \
     FastMixerState.cpp       \
     FastThread.cpp           \
     FastThreadDumpState.cpp  \
