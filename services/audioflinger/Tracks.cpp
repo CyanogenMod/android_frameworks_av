@@ -20,6 +20,7 @@
 //#define LOG_NDEBUG 0
 
 #include "Configuration.h"
+#include <linux/futex.h>
 #include <math.h>
 #include <sys/syscall.h>
 #include <utils/Log.h>

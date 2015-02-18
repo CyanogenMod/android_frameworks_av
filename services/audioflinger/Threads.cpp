@@ -23,7 +23,9 @@
 #include "Configuration.h"
 #include <math.h>
 #include <fcntl.h>
+#include <linux/futex.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <cutils/properties.h>
 #include <media/AudioParameter.h>
 #include <media/AudioResamplerPublic.h>
