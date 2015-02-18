@@ -59,6 +59,7 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/AudioPlayer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooperRoster.h>
 
 #include <system/audio.h>
 
@@ -247,6 +248,9 @@ void unmarshallAudioAttributes(const Parcel& parcel, audio_attributes_t *attribu
 
 namespace android {
 
+extern ALooperRoster gLooperRoster;
+
+
 static bool checkPermission(const char* permissionString) {
 #ifndef HAVE_ANDROID_OS
     return true;
@@ -428,6 +432,10 @@ status_t MediaPlayerService::Client::dump(int fd, const Vector<String16>& args) 
     return NO_ERROR;
 }
 
+/**
+ * The only arguments this understands right now are -c, -von and -voff,
+ * which are parsed by ALooperRoster::dump()
+ */
 status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
@@ -461,7 +469,7 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
         }
 
         result.append(" Files opened and/or mapped:\n");
-        snprintf(buffer, SIZE, "/proc/%d/maps", gettid());
+        snprintf(buffer, SIZE, "/proc/%d/maps", getpid());
         FILE *f = fopen(buffer, "r");
         if (f) {
             while (!feof(f)) {
@@ -481,13 +489,13 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
             result.append("\n");
         }
 
-        snprintf(buffer, SIZE, "/proc/%d/fd", gettid());
+        snprintf(buffer, SIZE, "/proc/%d/fd", getpid());
         DIR *d = opendir(buffer);
         if (d) {
             struct dirent *ent;
             while((ent = readdir(d)) != NULL) {
                 if (strcmp(ent->d_name,".") && strcmp(ent->d_name,"..")) {
-                    snprintf(buffer, SIZE, "/proc/%d/fd/%s", gettid(), ent->d_name);
+                    snprintf(buffer, SIZE, "/proc/%d/fd/%s", getpid(), ent->d_name);
                     struct stat s;
                     if (lstat(buffer, &s) == 0) {
                         if ((s.st_mode & S_IFMT) == S_IFLNK) {
@@ -527,6 +535,8 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
             result.append(buffer);
             result.append("\n");
         }
+
+        gLooperRoster.dump(fd, args);
 
         bool dumpMem = false;
         for (size_t i = 0; i < args.size(); i++) {

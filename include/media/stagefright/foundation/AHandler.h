@@ -19,6 +19,7 @@
 #define A_HANDLER_H_
 
 #include <media/stagefright/foundation/ALooper.h>
+#include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
 
 namespace android {
@@ -27,7 +28,8 @@ struct AMessage;
 
 struct AHandler : public RefBase {
     AHandler()
-        : mID(0) {
+        : mID(0),
+          mMessageCounter(0) {
     }
 
     ALooper::handler_id id() const {
@@ -47,6 +49,9 @@ private:
     void setID(ALooper::handler_id id) {
         mID = id;
     }
+
+    uint32_t mMessageCounter;
+    KeyedVector<uint32_t, uint32_t> mMessages;
 
     DISALLOW_EVIL_CONSTRUCTORS(AHandler);
 };
