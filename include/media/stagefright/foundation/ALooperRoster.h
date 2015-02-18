@@ -20,6 +20,7 @@
 
 #include <media/stagefright/foundation/ALooper.h>
 #include <utils/KeyedVector.h>
+#include <utils/String16.h>
 
 namespace android {
 
@@ -41,6 +42,8 @@ struct ALooperRoster {
     void postReply(uint32_t replyID, const sp<AMessage> &reply);
 
     sp<ALooper> findLooper(ALooper::handler_id handlerID);
+
+    void dump(int fd, const Vector<String16>& args);
 
 private:
     struct HandlerInfo {

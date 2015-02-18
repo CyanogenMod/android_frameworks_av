@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ALooperRoster"
 #include <utils/Log.h>
+#include <utils/String8.h>
 
 #include "ALooperRoster.h"
 
@@ -25,6 +26,8 @@
 #include "AMessage.h"
 
 namespace android {
+
+static bool verboseStats = false;
 
 ALooperRoster::ALooperRoster()
     : mNextHandlerID(1),
@@ -136,6 +139,17 @@ void ALooperRoster::deliverMessage(const sp<AMessage> &msg) {
     }
 
     handler->onMessageReceived(msg);
+    handler->mMessageCounter++;
+
+    if (verboseStats) {
+        uint32_t what = msg->what();
+        ssize_t idx = handler->mMessages.indexOfKey(what);
+        if (idx < 0) {
+            handler->mMessages.add(what, 1);
+        } else {
+            handler->mMessages.editValueAt(idx)++;
+        }
+    }
 }
 
 sp<ALooper> ALooperRoster::findLooper(ALooper::handler_id handlerID) {
@@ -194,6 +208,74 @@ void ALooperRoster::postReply(uint32_t replyID, const sp<AMessage> &reply) {
     CHECK(mReplies.indexOfKey(replyID) < 0);
     mReplies.add(replyID, reply);
     mRepliesCondition.broadcast();
+}
+
+static void makeFourCC(uint32_t fourcc, char *s) {
+    s[0] = (fourcc >> 24) & 0xff;
+    if (s[0]) {
+        s[1] = (fourcc >> 16) & 0xff;
+        s[2] = (fourcc >> 8) & 0xff;
+        s[3] = fourcc & 0xff;
+        s[4] = 0;
+    } else {
+        sprintf(s, "%u", fourcc);
+    }
+}
+
+void ALooperRoster::dump(int fd, const Vector<String16>& args) {
+    bool clear = false;
+    bool oldVerbose = verboseStats;
+    for (size_t i = 0;i < args.size(); i++) {
+        if (args[i] == String16("-c")) {
+            clear = true;
+        } else if (args[i] == String16("-von")) {
+            verboseStats = true;
+        } else if (args[i] == String16("-voff")) {
+            verboseStats = false;
+        }
+    }
+    String8 s;
+    if (verboseStats && !oldVerbose) {
+        s.append("(verbose stats collection enabled, stats will be cleared)\n");
+    }
+
+    Mutex::Autolock autoLock(mLock);
+    size_t n = mHandlers.size();
+    s.appendFormat(" %zd registered handlers:\n", n);
+
+    for (size_t i = 0; i < n; i++) {
+        s.appendFormat("  %zd: ", i);
+        HandlerInfo &info = mHandlers.editValueAt(i);
+        sp<ALooper> looper = info.mLooper.promote();
+        if (looper != NULL) {
+            s.append(looper->mName.c_str());
+            sp<AHandler> handler = info.mHandler.promote();
+            if (handler != NULL) {
+                s.appendFormat(": %u messages processed", handler->mMessageCounter);
+                if (verboseStats) {
+                    for (size_t j = 0; j < handler->mMessages.size(); j++) {
+                        char fourcc[15];
+                        makeFourCC(handler->mMessages.keyAt(j), fourcc);
+                        s.appendFormat("\n    %s: %d",
+                                fourcc,
+                                handler->mMessages.valueAt(j));
+                    }
+                } else {
+                    handler->mMessages.clear();
+                }
+                if (clear || (verboseStats && !oldVerbose)) {
+                    handler->mMessageCounter = 0;
+                    handler->mMessages.clear();
+                }
+            } else {
+                s.append(": <stale handler>");
+            }
+        } else {
+            s.append("<stale>");
+        }
+        s.append("\n");
+    }
+    write(fd, s.string(), s.size());
 }
 
 }  // namespace android
