@@ -826,14 +826,20 @@ bool AudioFlinger::getMicMute() const
     if (ret != NO_ERROR) {
         return false;
     }
-
+    bool mute = true;
     bool state = AUDIO_MODE_INVALID;
     AutoMutex lock(mHardwareLock);
-    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
     mHardwareStatus = AUDIO_HW_GET_MIC_MUTE;
-    dev->get_mic_mute(dev, &state);
+    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+        audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
+        status_t result = dev->get_mic_mute(dev, &state);
+        if (result == NO_ERROR) {
+            mute = mute && state;
+        }
+    }
     mHardwareStatus = AUDIO_HW_IDLE;
-    return state;
+
+    return mute;
 }
 
 status_t AudioFlinger::setMasterMute(bool muted)
