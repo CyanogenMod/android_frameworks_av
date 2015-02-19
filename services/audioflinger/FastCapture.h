@@ -20,6 +20,7 @@
 #include "FastThread.h"
 #include "StateQueue.h"
 #include "FastCaptureState.h"
+#include "FastThreadDumpState.h"
 
 namespace android {
 

@@ -48,41 +48,6 @@ struct FastThreadState {
 
 };  // struct FastThreadState
 
-
-// FIXME extract common part of comment at FastMixerDumpState
-struct FastThreadDumpState {
-    FastThreadDumpState();
-    /*virtual*/ ~FastThreadDumpState();
-
-    FastThreadState::Command mCommand;   // current command
-    uint32_t mUnderruns;        // total number of underruns
-    uint32_t mOverruns;         // total number of overruns
-    struct timespec mMeasuredWarmupTs;  // measured warmup time
-    uint32_t mWarmupCycles;     // number of loop cycles required to warmup
-
-#ifdef FAST_MIXER_STATISTICS
-    // Recently collected samples of per-cycle monotonic time, thread CPU time, and CPU frequency.
-    // kSamplingN is max size of sampling frame (statistics), and must be a power of 2 <= 0x8000.
-    // The sample arrays are virtually allocated based on this compile-time constant,
-    // but are only initialized and used based on the runtime parameter mSamplingN.
-    static const uint32_t kSamplingN = 0x8000;
-    // Corresponding runtime maximum size of sample arrays, must be a power of 2 <= kSamplingN.
-    uint32_t mSamplingN;
-    // The bounds define the interval of valid samples, and are represented as follows:
-    //      newest open (excluded) endpoint   = lower 16 bits of bounds, modulo N
-    //      oldest closed (included) endpoint = upper 16 bits of bounds, modulo N
-    // Number of valid samples is newest - oldest.
-    uint32_t mBounds;                   // bounds for mMonotonicNs, mThreadCpuNs, and mCpukHz
-    // The elements in the *Ns arrays are in units of nanoseconds <= 3999999999.
-    uint32_t mMonotonicNs[kSamplingN];  // delta monotonic (wall clock) time
-    uint32_t mLoadNs[kSamplingN];       // delta CPU load in time
-#ifdef CPU_FREQUENCY_STATISTICS
-    uint32_t mCpukHz[kSamplingN];       // absolute CPU clock frequency in kHz, bits 0-3 are CPU#
-#endif
-#endif
-
-};  // struct FastThreadDumpState
-
 }   // android
 
 #endif  // ANDROID_AUDIO_FAST_THREAD_STATE_H

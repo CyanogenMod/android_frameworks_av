@@ -25,6 +25,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include "FastThread.h"
+#include "FastThreadDumpState.h"
 
 #define FAST_DEFAULT_NS    999999999L   // ~1 sec: default time to sleep
 #define FAST_HOT_IDLE_NS     1000000L   // 1 ms: time to sleep while hot idling
