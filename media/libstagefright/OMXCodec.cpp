@@ -2801,6 +2801,10 @@ void OMXCodec::on_message(const omx_message &msg) {
                 status_t err = freeBuffer(kPortIndexOutput, i);
                 CHECK_EQ(err, (status_t)OK);
 
+            } else if (mPortStatus[kPortIndexOutput] == ENABLED
+                       && (flags & OMX_BUFFERFLAG_DATACORRUPT)) {
+                CODEC_LOGV("Filled buffer data is corrupted, drop buffer");
+                mBufferFilled.signal();
 #if 0
             } else if (mPortStatus[kPortIndexOutput] == ENABLED
                        && (flags & OMX_BUFFERFLAG_EOS)) {
