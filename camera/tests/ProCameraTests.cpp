@@ -89,6 +89,12 @@ struct ServiceListener : public BnCameraServiceListener {
         mCondition.broadcast();
     }
 
+    void onTorchStatusChanged(TorchStatus status, const String16& cameraId) {
+        dout << "On torch status changed: 0x" << std::hex
+             << (unsigned int) status << " cameraId " << cameraId.string()
+             << std::endl;
+    }
+
     status_t waitForStatusChange(Status& newStatus) {
         Mutex::Autolock al(mMutex);
 

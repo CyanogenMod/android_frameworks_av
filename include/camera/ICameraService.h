@@ -53,6 +53,7 @@ public:
         GET_LEGACY_PARAMETERS,
         SUPPORTS_CAMERA_API,
         CONNECT_LEGACY,
+        SET_TORCH_MODE,
     };
 
     enum {
@@ -142,6 +143,12 @@ public:
             int clientUid,
             /*out*/
             sp<ICamera>& device) = 0;
+
+    /**
+     * Turn on or off a camera's torch mode.
+     */
+    virtual status_t setTorchMode(const String16& cameraId, bool enabled,
+            const sp<IBinder>& clientBinder) = 0;
 };
 
 // ----------------------------------------------------------------------------

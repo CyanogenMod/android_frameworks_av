@@ -66,9 +66,33 @@ public:
         STATUS_UNKNOWN          = 0xFFFFFFFF,
     };
 
+    /**
+     * The torch mode status of a camera.
+     *
+     * Initial status will be transmitted with onTorchStatusChanged immediately
+     * after this listener is added to the service listener list.
+     */
+    enum TorchStatus {
+        // The camera's torch mode has become available to use via
+        // setTorchMode().
+        TORCH_STATUS_AVAILABLE      = TORCH_MODE_STATUS_AVAILABLE,
+        // The camera's torch mode has become not available to use via
+        // setTorchMode().
+        TORCH_STATUS_NOT_AVAILABLE  = TORCH_MODE_STATUS_RESOURCE_BUSY,
+        // The camera's torch mode has been turned off by setTorchMode().
+        TORCH_STATUS_OFF            = TORCH_MODE_STATUS_OFF,
+        // The camera's torch mode has been turned on by setTorchMode().
+        TORCH_STATUS_ON             = 0x80000000,
+
+        // Use to initialize variables only
+        TORCH_STATUS_UNKNOWN        = 0xFFFFFFFF,
+    };
+
     DECLARE_META_INTERFACE(CameraServiceListener);
 
     virtual void onStatusChanged(Status status, int32_t cameraId) = 0;
+
+    virtual void onTorchStatusChanged(TorchStatus status, const String16& cameraId) = 0;
 };
 
 // ----------------------------------------------------------------------------

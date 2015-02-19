@@ -209,6 +209,20 @@ public:
         return status;
     }
 
+    virtual status_t setTorchMode(const String16& cameraId, bool enabled,
+            const sp<IBinder>& clientBinder)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeString16(cameraId);
+        data.writeInt32(enabled ? 1 : 0);
+        data.writeStrongBinder(clientBinder);
+        remote()->transact(BnCameraService::SET_TORCH_MODE, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        return reply.readInt32();
+    }
+
     // connect to camera service (pro client)
     virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb, int cameraId,
                                 const String16 &clientPackageName, int clientUid,
@@ -488,6 +502,16 @@ status_t BnCameraService::onTransact(
             } else {
                 reply->writeInt32(0);
             }
+            return NO_ERROR;
+        } break;
+        case SET_TORCH_MODE: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            String16 cameraId = data.readString16();
+            bool enabled = data.readInt32() != 0 ? true : false;
+            const sp<IBinder> clientBinder = data.readStrongBinder();
+            status_t status = setTorchMode(cameraId, enabled, clientBinder);
+            reply->writeNoException();
+            reply->writeInt32(status);
             return NO_ERROR;
         } break;
         default:

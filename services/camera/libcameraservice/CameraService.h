@@ -36,6 +36,8 @@
 #include <camera/CameraParameters.h>
 
 #include <camera/ICameraServiceListener.h>
+#include "CameraFlashlight.h"
+
 
 #include "common/CameraModule.h"
 
@@ -70,6 +72,9 @@ public:
     // HAL Callbacks
     virtual void        onDeviceStatusChanged(int cameraId,
                                               int newStatus);
+    virtual void        onTorchStatusChanged(const String16& cameraId,
+                                             ICameraServiceListener::TorchStatus
+                                                   newStatus);
 
     /////////////////////////////////////////////////////////////////////
     // ICameraService
@@ -111,6 +116,9 @@ public:
             int cameraId,
             /*out*/
             String16* parameters);
+
+    virtual status_t    setTorchMode(const String16& cameraId, bool enabled,
+            const sp<IBinder>& clientBinder);
 
     // OK = supports api of that version, -EOPNOTSUPP = does not support
     virtual status_t    supportsCameraApi(
@@ -407,6 +415,32 @@ private:
                             ICameraServiceListener::Status status,
                             int32_t cameraId,
                             const StatusVector *rejectSourceStates = NULL);
+
+    // flashlight control
+    sp<CameraFlashlight> mFlashlight;
+    // guard mTorchStatusMap and mTorchClientMap
+    Mutex                mTorchStatusMutex;
+    // camera id -> torch status
+    KeyedVector<String16, ICameraServiceListener::TorchStatus> mTorchStatusMap;
+    // camera id -> torch client binder
+    // only store the last client that turns on each camera's torch mode
+    KeyedVector<String16, sp<IBinder> > mTorchClientMap;
+
+    // check and handle if torch client's process has died
+    void handleTorchClientBinderDied(const wp<IBinder> &who);
+
+    // handle torch mode status change and invoke callbacks. mTorchStatusMutex
+    // should be locked.
+    void onTorchStatusChangedLocked(const String16& cameraId,
+            ICameraServiceListener::TorchStatus newStatus);
+
+    // get a camera's torch status. mTorchStatusMutex should be locked.
+    ICameraServiceListener::TorchStatus getTorchStatusLocked(
+            const String16 &cameraId) const;
+
+    // set a camera's torch status. mTorchStatusMutex should be locked.
+    status_t setTorchStatusLocked(const String16 &cameraId,
+            ICameraServiceListener::TorchStatus status);
 
     // IBinder::DeathRecipient implementation
     virtual void        binderDied(const wp<IBinder> &who);
