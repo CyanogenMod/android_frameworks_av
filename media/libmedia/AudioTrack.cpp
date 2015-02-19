@@ -28,6 +28,7 @@
 #include <utils/Log.h>
 #include <private/media/AudioTrackShared.h>
 #include <media/IAudioFlinger.h>
+#include <media/AudioPolicyHelper.h>
 #include <media/AudioResamplerPublic.h>
 
 #define WAIT_PERIOD_MS                  10
@@ -281,37 +282,20 @@ status_t AudioTrack::set(
     if (streamType == AUDIO_STREAM_DEFAULT) {
         streamType = AUDIO_STREAM_MUSIC;
     }
-
     if (pAttributes == NULL) {
-        if (uint32_t(streamType) >= AUDIO_STREAM_CNT) {
+        if (uint32_t(streamType) >= AUDIO_STREAM_PUBLIC_CNT) {
             ALOGE("Invalid stream type %d", streamType);
             return BAD_VALUE;
         }
-        setAttributesFromStreamType(streamType);
         mStreamType = streamType;
+
     } else {
-        if (!isValidAttributes(pAttributes)) {
-            ALOGE("Invalid attributes: usage=%d content=%d flags=0x%x tags=[%s]",
-                pAttributes->usage, pAttributes->content_type, pAttributes->flags,
-                pAttributes->tags);
-        }
         // stream type shouldn't be looked at, this track has audio attributes
         memcpy(&mAttributes, pAttributes, sizeof(audio_attributes_t));
-        setStreamTypeFromAttributes(mAttributes);
         ALOGV("Building AudioTrack with attributes: usage=%d content=%d flags=0x%x tags=[%s]",
                 mAttributes.usage, mAttributes.content_type, mAttributes.flags, mAttributes.tags);
+        mStreamType = AUDIO_STREAM_DEFAULT;
     }
-
-    status_t status;
-    if (sampleRate == 0) {
-        status = AudioSystem::getOutputSamplingRateForAttr(&sampleRate, &mAttributes);
-        if (status != NO_ERROR) {
-            ALOGE("Could not get output sample rate for stream type %d; status %d",
-                    mStreamType, status);
-            return status;
-        }
-    }
-    mSampleRate = sampleRate;
 
     // these below should probably come from the audioFlinger too...
     if (format == AUDIO_FORMAT_DEFAULT) {
@@ -350,9 +334,10 @@ status_t AudioTrack::set(
                 // FIXME why can't we allow direct AND fast?
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
-    // only allow deep buffering for music stream type
-    if (mStreamType != AUDIO_STREAM_MUSIC) {
-        flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
+
+    // force direct flag if HW A/V sync requested
+    if ((flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
+        flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
 
     if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
@@ -371,6 +356,12 @@ status_t AudioTrack::set(
         // so no need to check for specific PCM formats here
     }
 
+    // sampling rate must be specified for direct outputs
+    if (sampleRate == 0 && (flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
+        return BAD_VALUE;
+    }
+    mSampleRate = sampleRate;
+
     // Make copy of input parameter offloadInfo so that in the future:
     //  (a) createTrack_l doesn't need it as an input parameter
     //  (b) we can support re-creation of offloaded tracks
@@ -388,7 +379,11 @@ status_t AudioTrack::set(
     mReqFrameCount = frameCount;
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
-    mSessionId = sessionId;
+    if (sessionId == AUDIO_SESSION_ALLOCATE) {
+        mSessionId = AudioSystem::newAudioUniqueId();
+    } else {
+        mSessionId = sessionId;
+    }
     int callingpid = IPCThreadState::self()->getCallingPid();
     int mypid = getpid();
     if (uid == -1 || (callingpid != mypid)) {
@@ -411,7 +406,7 @@ status_t AudioTrack::set(
     }
 
     // create the IAudioTrack
-    status = createTrack_l();
+    status_t status = createTrack_l();
 
     if (status != NO_ERROR) {
         if (mAudioTrackThread != 0) {
@@ -678,15 +673,18 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
         return INVALID_OPERATION;
     }
 
+    AutoMutex lock(mLock);
+    if (mOutput == AUDIO_IO_HANDLE_NONE) {
+        return NO_INIT;
+    }
     uint32_t afSamplingRate;
-    if (AudioSystem::getOutputSamplingRateForAttr(&afSamplingRate, &mAttributes) != NO_ERROR) {
+    if (AudioSystem::getSamplingRate(mOutput, &afSamplingRate) != NO_ERROR) {
         return NO_INIT;
     }
     if (rate == 0 || rate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
         return BAD_VALUE;
     }
 
-    AutoMutex lock(mLock);
     mSampleRate = rate;
     mProxy->setSampleRate(rate);
 
@@ -742,8 +740,7 @@ status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount
 
 void AudioTrack::setLoop_l(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    // FIXME If setting a loop also sets position to start of loop, then
-    //       this is correct.  Otherwise it should be removed.
+    // Setting the loop will reset next notification update period (like setPosition).
     mNewPosition = updateAndGetPosition_l() + mUpdatePeriod;
     mLoopPeriod = loopCount != 0 ? loopEnd - loopStart : 0;
     mStaticProxy->setLoop(loopStart, loopEnd, loopCount);
@@ -859,6 +856,10 @@ status_t AudioTrack::getPosition(uint32_t *position)
         // due to hardware latency. We leave this behavior for now.
         *position = dspFrames;
     } else {
+        if (mCblk->mFlags & CBLK_INVALID) {
+            restoreTrack_l("getPosition");
+        }
+
         // IAudioTrack::stop() isn't synchronous; we don't know when presentation completes
         *position = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ?
                 0 : updateAndGetPosition_l();
@@ -915,24 +916,38 @@ status_t AudioTrack::attachAuxEffect(int effectId)
     return status;
 }
 
+audio_stream_type_t AudioTrack::streamType() const
+{
+    if (mStreamType == AUDIO_STREAM_DEFAULT) {
+        return audio_attributes_to_stream_type(&mAttributes);
+    }
+    return mStreamType;
+}
+
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
 status_t AudioTrack::createTrack_l()
 {
-    status_t status;
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
     if (audioFlinger == 0) {
         ALOGE("Could not get audioflinger");
         return NO_INIT;
     }
 
-    audio_io_handle_t output = AudioSystem::getOutputForAttr(&mAttributes, mSampleRate, mFormat,
-            mChannelMask, mFlags, mOffloadInfo);
-    if (output == AUDIO_IO_HANDLE_NONE) {
+    audio_io_handle_t output;
+    audio_stream_type_t streamType = mStreamType;
+    audio_attributes_t *attr = (mStreamType == AUDIO_STREAM_DEFAULT) ? &mAttributes : NULL;
+    status_t status = AudioSystem::getOutputForAttr(attr, &output,
+                                                    (audio_session_t)mSessionId, &streamType,
+                                                    mSampleRate, mFormat, mChannelMask,
+                                                    mFlags, mOffloadInfo);
+
+
+    if (status != NO_ERROR || output == AUDIO_IO_HANDLE_NONE) {
         ALOGE("Could not get audio output for stream type %d, usage %d, sample rate %u, format %#x,"
               " channel mask %#x, flags %#x",
-              mStreamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
+              streamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
     {
@@ -961,7 +976,9 @@ status_t AudioTrack::createTrack_l()
         ALOGE("getSamplingRate(output=%d) status %d", output, status);
         goto release;
     }
-
+    if (mSampleRate == 0) {
+        mSampleRate = afSampleRate;
+    }
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.
     if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) && !((
@@ -1084,7 +1101,7 @@ status_t AudioTrack::createTrack_l()
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
-    sp<IAudioTrack> track = audioFlinger->createTrack(mStreamType,
+    sp<IAudioTrack> track = audioFlinger->createTrack(streamType,
                                                       mSampleRate,
                                                       // AudioFlinger only sees 16-bit PCM
                                                       mFormat == AUDIO_FORMAT_PCM_8_BIT &&
@@ -1234,7 +1251,7 @@ status_t AudioTrack::createTrack_l()
     }
 
 release:
-    AudioSystem::releaseOutput(output);
+    AudioSystem::releaseOutput(output, streamType, (audio_session_t)mSessionId);
     if (status == NO_ERROR) {
         status = NO_INIT;
     }
@@ -1830,7 +1847,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     status_t result;
 
     // refresh the audio configuration cache in this process to make sure we get new
-    // output parameters in createTrack_l()
+    // output parameters and new IAudioFlinger in createTrack_l()
     AudioSystem::clearAudioConfigCache();
 
     if (isOffloadedOrDirect_l()) {
@@ -1936,6 +1953,10 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     default:
         LOG_ALWAYS_FATAL("Invalid mState in getTimestamp(): %d", mState);
         break;
+    }
+
+    if (mCblk->mFlags & CBLK_INVALID) {
+        restoreTrack_l("getTimestamp");
     }
 
     // The presented frame count must always lag behind the consumed frame count.
@@ -2068,143 +2089,6 @@ uint32_t AudioTrack::getUnderrunFrames() const
     return mProxy->getUnderrunFrames();
 }
 
-void AudioTrack::setAttributesFromStreamType(audio_stream_type_t streamType) {
-    mAttributes.flags = 0x0;
-
-    switch(streamType) {
-    case AUDIO_STREAM_DEFAULT:
-    case AUDIO_STREAM_MUSIC:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_MUSIC;
-        mAttributes.usage = AUDIO_USAGE_MEDIA;
-        break;
-    case AUDIO_STREAM_VOICE_CALL:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
-        mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
-        break;
-    case AUDIO_STREAM_ENFORCED_AUDIBLE:
-        mAttributes.flags  |= AUDIO_FLAG_AUDIBILITY_ENFORCED;
-        // intended fall through, attributes in common with STREAM_SYSTEM
-    case AUDIO_STREAM_SYSTEM:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
-        mAttributes.usage = AUDIO_USAGE_ASSISTANCE_SONIFICATION;
-        break;
-    case AUDIO_STREAM_RING:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
-        mAttributes.usage = AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE;
-        break;
-    case AUDIO_STREAM_ALARM:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
-        mAttributes.usage = AUDIO_USAGE_ALARM;
-        break;
-    case AUDIO_STREAM_NOTIFICATION:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
-        mAttributes.usage = AUDIO_USAGE_NOTIFICATION;
-        break;
-    case AUDIO_STREAM_BLUETOOTH_SCO:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
-        mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
-        mAttributes.flags |= AUDIO_FLAG_SCO;
-        break;
-    case AUDIO_STREAM_DTMF:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
-        mAttributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING;
-        break;
-    case AUDIO_STREAM_TTS:
-        mAttributes.content_type = AUDIO_CONTENT_TYPE_SPEECH;
-        mAttributes.usage = AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY;
-        break;
-    default:
-        ALOGE("invalid stream type %d when converting to attributes", streamType);
-    }
-}
-
-void AudioTrack::setStreamTypeFromAttributes(audio_attributes_t& aa) {
-    // flags to stream type mapping
-    if ((aa.flags & AUDIO_FLAG_AUDIBILITY_ENFORCED) == AUDIO_FLAG_AUDIBILITY_ENFORCED) {
-        mStreamType = AUDIO_STREAM_ENFORCED_AUDIBLE;
-        return;
-    }
-    if ((aa.flags & AUDIO_FLAG_SCO) == AUDIO_FLAG_SCO) {
-        mStreamType = AUDIO_STREAM_BLUETOOTH_SCO;
-        return;
-    }
-
-    // usage to stream type mapping
-    switch (aa.usage) {
-    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
-        // TODO once AudioPolicyManager fully supports audio_attributes_t,
-        //   remove stream change based on phone state
-        if (AudioSystem::getPhoneState() == AUDIO_MODE_RINGTONE) {
-            mStreamType = AUDIO_STREAM_RING;
-            break;
-        }
-        /// FALL THROUGH
-    case AUDIO_USAGE_MEDIA:
-    case AUDIO_USAGE_GAME:
-    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
-        mStreamType = AUDIO_STREAM_MUSIC;
-        return;
-    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
-        mStreamType = AUDIO_STREAM_SYSTEM;
-        return;
-    case AUDIO_USAGE_VOICE_COMMUNICATION:
-        mStreamType = AUDIO_STREAM_VOICE_CALL;
-        return;
-
-    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
-        mStreamType = AUDIO_STREAM_DTMF;
-        return;
-
-    case AUDIO_USAGE_ALARM:
-        mStreamType = AUDIO_STREAM_ALARM;
-        return;
-    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
-        mStreamType = AUDIO_STREAM_RING;
-        return;
-
-    case AUDIO_USAGE_NOTIFICATION:
-    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
-    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
-    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
-    case AUDIO_USAGE_NOTIFICATION_EVENT:
-        mStreamType = AUDIO_STREAM_NOTIFICATION;
-        return;
-
-    case AUDIO_USAGE_UNKNOWN:
-    default:
-        mStreamType = AUDIO_STREAM_MUSIC;
-    }
-}
-
-bool AudioTrack::isValidAttributes(const audio_attributes_t *paa) {
-    // has flags that map to a strategy?
-    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_SCO)) != 0) {
-        return true;
-    }
-
-    // has known usage?
-    switch (paa->usage) {
-    case AUDIO_USAGE_UNKNOWN:
-    case AUDIO_USAGE_MEDIA:
-    case AUDIO_USAGE_VOICE_COMMUNICATION:
-    case AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING:
-    case AUDIO_USAGE_ALARM:
-    case AUDIO_USAGE_NOTIFICATION:
-    case AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE:
-    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_REQUEST:
-    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_INSTANT:
-    case AUDIO_USAGE_NOTIFICATION_COMMUNICATION_DELAYED:
-    case AUDIO_USAGE_NOTIFICATION_EVENT:
-    case AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY:
-    case AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE:
-    case AUDIO_USAGE_ASSISTANCE_SONIFICATION:
-    case AUDIO_USAGE_GAME:
-        break;
-    default:
-        return false;
-    }
-    return true;
-}
 // =========================================================================
 
 void AudioTrack::DeathNotifier::binderDied(const wp<IBinder>& who __unused)

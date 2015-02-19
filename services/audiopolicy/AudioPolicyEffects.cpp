@@ -105,26 +105,28 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
     inputDesc->mRefCount++;
 
     ALOGV("addInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
-
-    Vector <EffectDesc *> effects = mInputSources.valueAt(index)->mEffects;
-    for (size_t i = 0; i < effects.size(); i++) {
-        EffectDesc *effect = effects[i];
-        sp<AudioEffect> fx = new AudioEffect(NULL, &effect->mUuid, -1, 0, 0, audioSession, input);
-        status_t status = fx->initCheck();
-        if (status != NO_ERROR && status != ALREADY_EXISTS) {
-            ALOGW("addInputEffects(): failed to create Fx %s on source %d",
+    if (inputDesc->mRefCount == 1) {
+        Vector <EffectDesc *> effects = mInputSources.valueAt(index)->mEffects;
+        for (size_t i = 0; i < effects.size(); i++) {
+            EffectDesc *effect = effects[i];
+            sp<AudioEffect> fx = new AudioEffect(NULL, &effect->mUuid, -1, 0, 0,
+                                                 audioSession, input);
+            status_t status = fx->initCheck();
+            if (status != NO_ERROR && status != ALREADY_EXISTS) {
+                ALOGW("addInputEffects(): failed to create Fx %s on source %d",
+                      effect->mName, (int32_t)aliasSource);
+                // fx goes out of scope and strong ref on AudioEffect is released
+                continue;
+            }
+            for (size_t j = 0; j < effect->mParams.size(); j++) {
+                fx->setParameter(effect->mParams[j]);
+            }
+            ALOGV("addInputEffects(): added Fx %s on source: %d",
                   effect->mName, (int32_t)aliasSource);
-            // fx goes out of scope and strong ref on AudioEffect is released
-            continue;
+            inputDesc->mEffects.add(fx);
         }
-        for (size_t j = 0; j < effect->mParams.size(); j++) {
-            fx->setParameter(effect->mParams[j]);
-        }
-        ALOGV("addInputEffects(): added Fx %s on source: %d", effect->mName, (int32_t)aliasSource);
-        inputDesc->mEffects.add(fx);
+        inputDesc->setProcessorEnabled(true);
     }
-    inputDesc->setProcessorEnabled(true);
-
     return status;
 }
 
@@ -224,6 +226,11 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
     Mutex::Autolock _l(mLock);
     // create audio processors according to stream
+    // FIXME: should we have specific post processing settings for internal streams?
+    // default to media for now.
+    if (stream >= AUDIO_STREAM_PUBLIC_CNT) {
+        stream = AUDIO_STREAM_MUSIC;
+    }
     ssize_t index = mOutputStreams.indexOfKey(stream);
     if (index < 0) {
         ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
@@ -241,26 +248,28 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     }
     procDesc->mRefCount++;
 
-    ALOGV("addOutputSessionEffects(): session: %d, refCount: %d", audioSession, procDesc->mRefCount);
-
-    Vector <EffectDesc *> effects = mOutputStreams.valueAt(index)->mEffects;
-    for (size_t i = 0; i < effects.size(); i++) {
-        EffectDesc *effect = effects[i];
-        sp<AudioEffect> fx = new AudioEffect(NULL, &effect->mUuid, 0, 0, 0, audioSession, output);
-        status_t status = fx->initCheck();
-        if (status != NO_ERROR && status != ALREADY_EXISTS) {
-            ALOGE("addOutputSessionEffects(): failed to create Fx  %s on session %d",
-                  effect->mName, audioSession);
-            // fx goes out of scope and strong ref on AudioEffect is released
-            continue;
+    ALOGV("addOutputSessionEffects(): session: %d, refCount: %d",
+          audioSession, procDesc->mRefCount);
+    if (procDesc->mRefCount == 1) {
+        Vector <EffectDesc *> effects = mOutputStreams.valueAt(index)->mEffects;
+        for (size_t i = 0; i < effects.size(); i++) {
+            EffectDesc *effect = effects[i];
+            sp<AudioEffect> fx = new AudioEffect(NULL, &effect->mUuid, 0, 0, 0,
+                                                 audioSession, output);
+            status_t status = fx->initCheck();
+            if (status != NO_ERROR && status != ALREADY_EXISTS) {
+                ALOGE("addOutputSessionEffects(): failed to create Fx  %s on session %d",
+                      effect->mName, audioSession);
+                // fx goes out of scope and strong ref on AudioEffect is released
+                continue;
+            }
+            ALOGV("addOutputSessionEffects(): added Fx %s on session: %d for stream: %d",
+                  effect->mName, audioSession, (int32_t)stream);
+            procDesc->mEffects.add(fx);
         }
-        ALOGV("addOutputSessionEffects(): added Fx %s on session: %d for stream: %d",
-              effect->mName, audioSession, (int32_t)stream);
-        procDesc->mEffects.add(fx);
+
+        procDesc->setProcessorEnabled(true);
     }
-
-    procDesc->setProcessorEnabled(true);
-
     return status;
 }
 
@@ -281,7 +290,8 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
 
     EffectVector *procDesc = mOutputSessions.valueAt(index);
     procDesc->mRefCount--;
-    ALOGV("releaseOutputSessionEffects(): session: %d, refCount: %d", audioSession, procDesc->mRefCount);
+    ALOGV("releaseOutputSessionEffects(): session: %d, refCount: %d",
+          audioSession, procDesc->mRefCount);
     if (procDesc->mRefCount == 0) {
         procDesc->setProcessorEnabled(false);
         procDesc->mEffects.clear();
@@ -330,7 +340,7 @@ void AudioPolicyEffects::EffectVector::setProcessorEnabled(bool enabled)
     return (audio_source_t)i;
 }
 
-const char *AudioPolicyEffects::kStreamNames[AUDIO_STREAM_CNT+1] = {
+const char *AudioPolicyEffects::kStreamNames[AUDIO_STREAM_PUBLIC_CNT+1] = {
     AUDIO_STREAM_DEFAULT_TAG,
     AUDIO_STREAM_VOICE_CALL_TAG,
     AUDIO_STREAM_SYSTEM_TAG,
@@ -345,11 +355,11 @@ const char *AudioPolicyEffects::kStreamNames[AUDIO_STREAM_CNT+1] = {
 };
 
 // returns the audio_stream_t enum corresponding to the output stream name or
-// AUDIO_STREAM_CNT is no match found
+// AUDIO_STREAM_PUBLIC_CNT is no match found
 audio_stream_type_t AudioPolicyEffects::streamNameToEnum(const char *name)
 {
     int i;
-    for (i = AUDIO_STREAM_DEFAULT; i < AUDIO_STREAM_CNT; i++) {
+    for (i = AUDIO_STREAM_DEFAULT; i < AUDIO_STREAM_PUBLIC_CNT; i++) {
         if (strcmp(name, kStreamNames[i - AUDIO_STREAM_DEFAULT]) == 0) {
             ALOGV("streamNameToEnum found stream %s %d", name, i);
             break;
@@ -580,7 +590,7 @@ status_t AudioPolicyEffects::loadStreamEffectConfigurations(cnode *root,
     node = node->first_child;
     while (node) {
         audio_stream_type_t stream = streamNameToEnum(node->name);
-        if (stream == AUDIO_STREAM_CNT) {
+        if (stream == AUDIO_STREAM_PUBLIC_CNT) {
             ALOGW("loadStreamEffectConfigurations() invalid output stream %s", node->name);
             node = node->next;
             continue;
@@ -647,6 +657,10 @@ status_t AudioPolicyEffects::loadAudioEffectConfig(const char *path)
     loadEffects(root, effects);
     loadInputEffectConfigurations(root, effects);
     loadStreamEffectConfigurations(root, effects);
+
+    for (size_t i = 0; i < effects.size(); i++) {
+        delete effects[i];
+    }
 
     config_free(root);
     free(root);

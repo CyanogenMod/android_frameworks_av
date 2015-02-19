@@ -39,7 +39,7 @@ public:
     BurstCapture(wp<Camera2Client> client, wp<CaptureSequencer> sequencer);
     virtual ~BurstCapture();
 
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
     virtual status_t start(Vector<CameraMetadata> &metadatas, int32_t firstCaptureId);
 
 protected:

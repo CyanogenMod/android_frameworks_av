@@ -80,7 +80,7 @@ class StreamingProcessor:
     status_t incrementStreamingIds();
 
     // Callback for new recording frames from HAL
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
     // Callback from stagefright which returns used recording frames
     void releaseRecordingFrame(const sp<IMemory>& mem);
 

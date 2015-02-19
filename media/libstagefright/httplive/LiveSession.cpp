@@ -49,6 +49,9 @@
 
 namespace android {
 
+// Number of recently-read bytes to use for bandwidth estimation
+const size_t LiveSession::kBandwidthHistoryBytes = 200 * 1024;
+
 LiveSession::LiveSession(
         const sp<AMessage> &notify, uint32_t flags,
         const sp<IMediaHTTPService> &httpService)
@@ -84,6 +87,13 @@ LiveSession::LiveSession(
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mBuffering[i] = false;
     }
+
+    size_t numHistoryItems = kBandwidthHistoryBytes /
+            PlaylistFetcher::kDownloadBlockSize + 1;
+    if (numHistoryItems < 5) {
+        numHistoryItems = 5;
+    }
+    mHTTPDataSource->setBandwidthHistorySize(numHistoryItems);
 }
 
 LiveSession::~LiveSession() {
@@ -145,10 +155,24 @@ status_t LiveSession::dequeueAccessUnit(
         }
     }
 
+    int32_t targetDuration = 0;
+    sp<AMessage> meta = packetSource->getLatestEnqueuedMeta();
+    if (meta != NULL) {
+        meta->findInt32("targetDuration", &targetDuration);
+    }
+
+    int64_t targetDurationUs = targetDuration * 1000000ll;
+    if (targetDurationUs == 0 ||
+            targetDurationUs > PlaylistFetcher::kMinBufferedDurationUs) {
+        // Fetchers limit buffering to
+        // min(3 * targetDuration, kMinBufferedDurationUs)
+        targetDurationUs = PlaylistFetcher::kMinBufferedDurationUs;
+    }
+
     if (mBuffering[idx]) {
         if (mSwitchInProgress
                 || packetSource->isFinished(0)
-                || packetSource->getEstimatedDurationUs() > 10000000ll) {
+                || packetSource->getEstimatedDurationUs() > targetDurationUs) {
             mBuffering[idx] = false;
         }
     }
@@ -858,7 +882,11 @@ ssize_t LiveSession::fetchFile(
         // Only resize when we don't know the size.
         size_t bufferRemaining = buffer->capacity() - buffer->size();
         if (bufferRemaining == 0 && getSizeErr != OK) {
-            bufferRemaining = 32768;
+            size_t bufferIncrement = buffer->size() / 2;
+            if (bufferIncrement < 32768) {
+                bufferIncrement = 32768;
+            }
+            bufferRemaining = bufferIncrement;
 
             ALOGV("increasing download buffer to %zu bytes",
                  buffer->size() + bufferRemaining);
@@ -1110,11 +1138,11 @@ status_t LiveSession::onSeek(const sp<AMessage> &msg) {
 }
 
 status_t LiveSession::getDuration(int64_t *durationUs) const {
-    int64_t maxDurationUs = 0ll;
+    int64_t maxDurationUs = -1ll;
     for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
         int64_t fetcherDurationUs = mFetcherInfos.valueAt(i).mDurationUs;
 
-        if (fetcherDurationUs >= 0ll && fetcherDurationUs > maxDurationUs) {
+        if (fetcherDurationUs > maxDurationUs) {
             maxDurationUs = fetcherDurationUs;
         }
     }
@@ -1163,6 +1191,14 @@ status_t LiveSession::selectTrack(size_t index, bool select) {
         msg->post();
     }
     return err;
+}
+
+ssize_t LiveSession::getSelectedTrack(media_track_type type) const {
+    if (mPlaylist == NULL) {
+        return -1;
+    } else {
+        return mPlaylist->getSelectedTrack(type);
+    }
 }
 
 bool LiveSession::canSwitchUp() {
@@ -1458,7 +1494,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                     extra->setInt64("timeUs", timeUs);
                     discontinuityQueue = mDiscontinuities.valueFor(indexToType(j));
                     discontinuityQueue->queueDiscontinuity(
-                            ATSParser::DISCONTINUITY_SEEK, extra, true);
+                            ATSParser::DISCONTINUITY_TIME, extra, true);
                 } else {
                     int32_t type;
                     sp<AMessage> meta;
@@ -1472,14 +1508,15 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
 
                     if (meta != NULL && !meta->findInt32("discontinuity", &type)) {
                         int64_t tmpUs;
-                        CHECK(meta->findInt64("timeUs", &tmpUs));
-                        if (startTimeUs < 0 || tmpUs < startTimeUs) {
-                            startTimeUs = tmpUs;
-                        }
+                        int64_t tmpSegmentUs;
 
-                        CHECK(meta->findInt64("segmentStartTimeUs", &tmpUs));
-                        if (segmentStartTimeUs < 0 || tmpUs < segmentStartTimeUs) {
-                            segmentStartTimeUs = tmpUs;
+                        CHECK(meta->findInt64("timeUs", &tmpUs));
+                        CHECK(meta->findInt64("segmentStartTimeUs", &tmpSegmentUs));
+                        if (startTimeUs < 0 || tmpSegmentUs < segmentStartTimeUs) {
+                            startTimeUs = tmpUs;
+                            segmentStartTimeUs = tmpSegmentUs;
+                        } else if (tmpSegmentUs == segmentStartTimeUs && tmpUs < startTimeUs) {
+                            startTimeUs = tmpUs;
                         }
 
                         int32_t seq;
@@ -1591,6 +1628,12 @@ void LiveSession::onCheckSwitchDown() {
         return;
     }
 
+    if (mSwitchInProgress || mReconfigurationInProgress) {
+        ALOGV("Switch/Reconfig in progress, defer switch down");
+        mSwitchDownMonitor->post(1000000ll);
+        return;
+    }
+
     for (size_t i = 0; i < kMaxStreams; ++i) {
         int32_t targetDuration;
         sp<AnotherPacketSource> packetSource = mPacketSources.valueFor(indexToType(i));
@@ -1621,7 +1664,6 @@ void LiveSession::onSwitchDown() {
         return;
     }
 
-    changeConfiguration(-1, mCurBandwidthIndex - 1, false);
 }
 
 // Mark switch done when:

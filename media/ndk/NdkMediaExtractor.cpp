@@ -256,18 +256,23 @@ PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor *ex) {
         len -= datalen;
     }
 
-    // there are <numentries> in the buffer, we need
-    // (source buffer size) + 4 + (4 * numentries) bytes for the PsshInfo structure
-    size_t newsize = buffer->size() + 4 + (4 * numentries);
+    // there are <numentries> in the source buffer, we need
+    // (source buffer size) - (sizeof(uint32_t) * numentries) + sizeof(size_t)
+    //  + ((sizeof(void*) + sizeof(size_t)) * numentries) bytes for the PsshInfo structure
+    // Or in other words, the data lengths in the source structure are replaced by size_t
+    // (which may be the same size or larger, for 64 bit), and in addition there is an
+    // extra pointer for each entry, and an extra size_t for the entire PsshInfo.
+    size_t newsize = buffer->size() - (sizeof(uint32_t) * numentries) + sizeof(size_t)
+            + ((sizeof(void*) + sizeof(size_t)) * numentries);
     ex->mPsshBuf = new ABuffer(newsize);
     ex->mPsshBuf->setRange(0, newsize);
 
     // copy data
     const uint8_t* src = buffer->data();
     uint8_t* dst = ex->mPsshBuf->data();
-    uint8_t* dstdata = dst + 4 + numentries * sizeof(PsshEntry);
-    *((uint32_t*)dst) = numentries;
-    dst += 4;
+    uint8_t* dstdata = dst + sizeof(size_t) + numentries * sizeof(PsshEntry);
+    *((size_t*)dst) = numentries;
+    dst += sizeof(size_t);
     for (size_t i = 0; i < numentries; i++) {
         // copy uuid
         memcpy(dst, src, 16);
@@ -276,14 +281,14 @@ PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor *ex) {
 
         // get/copy data length
         uint32_t datalen = *((uint32_t*)src);
-        memcpy(dst, src, 4);
-        src += 4;
-        dst += 4;
+        *((size_t*)dst) = datalen;
+        src += sizeof(uint32_t);
+        dst += sizeof(size_t);
 
         // the next entry in the destination is a pointer to the actual data, which we store
         // after the array of PsshEntry
-        memcpy(dst, &dstdata, sizeof(dstdata));
-        dst += 4;
+        *((void**)dst) = dstdata;
+        dst += sizeof(void*);
 
         // copy the actual data
         memcpy(dstdata, src, datalen);

@@ -61,9 +61,10 @@ protected:
     void initPorts(OMX_U32 numInputBuffers,
             OMX_U32 inputBufferSize,
             OMX_U32 numOutputBuffers,
-            const char *mimeType);
+            const char *mimeType,
+            OMX_U32 minCompressionRatio = 1u);
 
-    virtual void updatePortDefinitions(bool updateCrop = true);
+    virtual void updatePortDefinitions(bool updateCrop = true, bool updateInputSize = false);
 
     uint32_t outputBufferWidth();
     uint32_t outputBufferHeight();
@@ -99,6 +100,9 @@ protected:
     } mOutputPortSettingsChange;
 
 private:
+    uint32_t mMinInputBufferSize;
+    uint32_t mMinCompressionRatio;
+
     const char *mComponentRole;
     OMX_VIDEO_CODINGTYPE mCodingType;
     const CodecProfileLevel *mProfileLevels;

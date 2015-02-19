@@ -141,6 +141,9 @@ public:
 
     private:
 
+       status_t unloadSoundModel_l(sound_model_handle_t handle);
+
+
         Mutex                                  mLock;
         wp<SoundTriggerHwService>              mService;
         struct sound_trigger_hw_device*        mHwDevice;

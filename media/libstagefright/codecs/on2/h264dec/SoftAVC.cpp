@@ -64,9 +64,11 @@ SoftAVC::SoftAVC(
       mHeadersDecoded(false),
       mEOSStatus(INPUT_DATA_AVAILABLE),
       mSignalledError(false) {
+    const size_t kMinCompressionRatio = 2;
+    const size_t kMaxOutputBufferSize = 2048 * 2048 * 3 / 2;
     initPorts(
-            kNumInputBuffers, 8192 /* inputBufferSize */,
-            kNumOutputBuffers, MEDIA_MIMETYPE_VIDEO_AVC);
+            kNumInputBuffers, kMaxOutputBufferSize / kMinCompressionRatio /* minInputBufferSize */,
+            kNumOutputBuffers, MEDIA_MIMETYPE_VIDEO_AVC, kMinCompressionRatio);
 
     CHECK_EQ(initDecoder(), (status_t)OK);
 }

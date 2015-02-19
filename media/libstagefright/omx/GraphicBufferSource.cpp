@@ -750,7 +750,7 @@ int GraphicBufferSource::findMatchingCodecBuffer_l(
 }
 
 // BufferQueue::ConsumerListener callback
-void GraphicBufferSource::onFrameAvailable() {
+void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
     Mutex::Autolock autoLock(mMutex);
 
     ALOGV("onFrameAvailable exec=%d avail=%zu",

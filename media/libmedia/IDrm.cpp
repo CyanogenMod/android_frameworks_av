@@ -54,7 +54,9 @@ enum {
     SIGN_RSA,
     VERIFY,
     SET_LISTENER,
-    UNPROVISION_DEVICE
+    UNPROVISION_DEVICE,
+    GET_SECURE_STOP,
+    RELEASE_ALL_SECURE_STOPS
 };
 
 struct BpDrm : public BpInterface<IDrm> {
@@ -255,12 +257,32 @@ struct BpDrm : public BpInterface<IDrm> {
         return reply.readInt32();
     }
 
+    virtual status_t getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
+
+        writeVector(data, ssid);
+        remote()->transact(GET_SECURE_STOP, data, &reply);
+
+        readVector(reply, secureStop);
+        return reply.readInt32();
+    }
+
     virtual status_t releaseSecureStops(Vector<uint8_t> const &ssRelease) {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, ssRelease);
         remote()->transact(RELEASE_SECURE_STOPS, data, &reply);
+
+        return reply.readInt32();
+    }
+
+    virtual status_t releaseAllSecureStops() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
+
+        remote()->transact(RELEASE_ALL_SECURE_STOPS, data, &reply);
 
         return reply.readInt32();
     }
@@ -655,12 +677,30 @@ status_t BnDrm::onTransact(
             return OK;
         }
 
+        case GET_SECURE_STOP:
+        {
+            CHECK_INTERFACE(IDrm, data, reply);
+            Vector<uint8_t> ssid, secureStop;
+            readVector(data, ssid);
+            status_t result = getSecureStop(ssid, secureStop);
+            writeVector(reply, secureStop);
+            reply->writeInt32(result);
+            return OK;
+        }
+
         case RELEASE_SECURE_STOPS:
         {
             CHECK_INTERFACE(IDrm, data, reply);
             Vector<uint8_t> ssRelease;
             readVector(data, ssRelease);
             reply->writeInt32(releaseSecureStops(ssRelease));
+            return OK;
+        }
+
+        case RELEASE_ALL_SECURE_STOPS:
+        {
+            CHECK_INTERFACE(IDrm, data, reply);
+            reply->writeInt32(releaseAllSecureStops());
             return OK;
         }
 
@@ -809,4 +849,3 @@ status_t BnDrm::onTransact(
 }
 
 }  // namespace android
-

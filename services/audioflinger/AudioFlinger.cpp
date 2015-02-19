@@ -650,6 +650,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             }
         }
 
+        setAudioHwSyncForSession_l(thread, (audio_session_t)lSessionId);
     }
 
     if (lStatus != NO_ERROR) {
@@ -890,6 +891,21 @@ bool AudioFlinger::masterMute_l() const
     return mMasterMute;
 }
 
+status_t AudioFlinger::checkStreamType(audio_stream_type_t stream) const
+{
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        ALOGW("setStreamVolume() invalid stream %d", stream);
+        return BAD_VALUE;
+    }
+    pid_t caller = IPCThreadState::self()->getCallingPid();
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT && caller != getpid_cached) {
+        ALOGW("setStreamVolume() pid %d cannot use internal stream type %d", caller, stream);
+        return PERMISSION_DENIED;
+    }
+
+    return NO_ERROR;
+}
+
 status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
         audio_io_handle_t output)
 {
@@ -898,10 +914,11 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
         return PERMISSION_DENIED;
     }
 
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        ALOGE("setStreamVolume() invalid stream %d", stream);
-        return BAD_VALUE;
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
+        return status;
     }
+    ALOG_ASSERT(stream != AUDIO_STREAM_PATCH, "attempt to change AUDIO_STREAM_PATCH volume");
 
     AutoMutex lock(mLock);
     PlaybackThread *thread = NULL;
@@ -932,8 +949,13 @@ status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
         return PERMISSION_DENIED;
     }
 
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT ||
-        uint32_t(stream) == AUDIO_STREAM_ENFORCED_AUDIBLE) {
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
+        return status;
+    }
+    ALOG_ASSERT(stream != AUDIO_STREAM_PATCH, "attempt to mute AUDIO_STREAM_PATCH");
+
+    if (uint32_t(stream) == AUDIO_STREAM_ENFORCED_AUDIBLE) {
         ALOGE("setStreamMute() invalid stream %d", stream);
         return BAD_VALUE;
     }
@@ -948,7 +970,8 @@ status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
 
 float AudioFlinger::streamVolume(audio_stream_type_t stream, audio_io_handle_t output) const
 {
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
         return 0.0f;
     }
 
@@ -969,7 +992,8 @@ float AudioFlinger::streamVolume(audio_stream_type_t stream, audio_io_handle_t o
 
 bool AudioFlinger::streamMute(audio_stream_type_t stream) const
 {
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    status_t status = checkStreamType(stream);
+    if (status != NO_ERROR) {
         return true;
     }
 
@@ -1409,13 +1433,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             goto Exit;
         }
 
-        if (deviceRequiresCaptureAudioOutputPermission(thread->inDevice())
-                && !captureAudioOutputAllowed()) {
-            ALOGE("openRecord() permission denied: capture not allowed");
-            lStatus = PERMISSION_DENIED;
-            goto Exit;
-        }
-
         pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid(pid);
 
@@ -1604,21 +1621,68 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice)
 audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId)
 {
     Mutex::Autolock _l(mLock);
-    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-        sp<PlaybackThread> thread = mPlaybackThreads.valueAt(i);
-        if ((thread->hasAudioSession(sessionId) & ThreadBase::TRACK_SESSION) != 0) {
-            // A session can only be on one thread, so exit after first match
-            String8 reply = thread->getParameters(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC));
-            AudioParameter param = AudioParameter(reply);
-            int value;
-            if (param.getInt(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC), value) == NO_ERROR) {
-                return value;
-            }
+
+    ssize_t index = mHwAvSyncIds.indexOfKey(sessionId);
+    if (index >= 0) {
+        ALOGV("getAudioHwSyncForSession found ID %d for session %d",
+              mHwAvSyncIds.valueAt(index), sessionId);
+        return mHwAvSyncIds.valueAt(index);
+    }
+
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+    if (dev == NULL) {
+        return AUDIO_HW_SYNC_INVALID;
+    }
+    char *reply = dev->get_parameters(dev, AUDIO_PARAMETER_HW_AV_SYNC);
+    AudioParameter param = AudioParameter(String8(reply));
+    free(reply);
+
+    int value;
+    if (param.getInt(String8(AUDIO_PARAMETER_HW_AV_SYNC), value) != NO_ERROR) {
+        ALOGW("getAudioHwSyncForSession error getting sync for session %d", sessionId);
+        return AUDIO_HW_SYNC_INVALID;
+    }
+
+    // allow only one session for a given HW A/V sync ID.
+    for (size_t i = 0; i < mHwAvSyncIds.size(); i++) {
+        if (mHwAvSyncIds.valueAt(i) == (audio_hw_sync_t)value) {
+            ALOGV("getAudioHwSyncForSession removing ID %d for session %d",
+                  value, mHwAvSyncIds.keyAt(i));
+            mHwAvSyncIds.removeItemsAt(i);
             break;
         }
     }
-    return AUDIO_HW_SYNC_INVALID;
+
+    mHwAvSyncIds.add(sessionId, value);
+
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        sp<PlaybackThread> thread = mPlaybackThreads.valueAt(i);
+        uint32_t sessions = thread->hasAudioSession(sessionId);
+        if (sessions & PlaybackThread::TRACK_SESSION) {
+            AudioParameter param = AudioParameter();
+            param.addInt(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC), value);
+            thread->setParameters(param.toString());
+            break;
+        }
+    }
+
+    ALOGV("getAudioHwSyncForSession adding ID %d for session %d", value, sessionId);
+    return (audio_hw_sync_t)value;
 }
+
+// setAudioHwSyncForSession_l() must be called with AudioFlinger::mLock held
+void AudioFlinger::setAudioHwSyncForSession_l(PlaybackThread *thread, audio_session_t sessionId)
+{
+    ssize_t index = mHwAvSyncIds.indexOfKey(sessionId);
+    if (index >= 0) {
+        audio_hw_sync_t syncId = mHwAvSyncIds.valueAt(index);
+        ALOGV("setAudioHwSyncForSession_l found ID %d for session %d", syncId, sessionId);
+        AudioParameter param = AudioParameter();
+        param.addInt(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC), syncId);
+        thread->setParameters(param.toString());
+    }
+}
+
 
 // ----------------------------------------------------------------------------
 
@@ -1928,13 +1992,13 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
     status_t status = inHwHal->open_input_stream(inHwHal, *input, device, &halconfig,
                                         &inStream, flags, address.string(), source);
     ALOGV("openInput_l() openInputStream returned input %p, SamplingRate %d"
-           ", Format %#x, Channels %x, flags %#x, status %d",
+           ", Format %#x, Channels %x, flags %#x, status %d addr %s",
             inStream,
             halconfig.sample_rate,
             halconfig.format,
             halconfig.channel_mask,
             flags,
-            status);
+            status, address.string());
 
     // If the input could not be opened with the requested parameters and we can handle the
     // conversion internally, try to open again with the proposed parameters. The AudioFlinger can
@@ -2585,7 +2649,8 @@ status_t AudioFlinger::moveEffectChain_l(int sessionId,
     // Check whether the destination thread has a channel count of FCC_2, which is
     // currently required for (most) effects. Prevent moving the effect chain here rather
     // than disabling the addEffect_l() call in dstThread below.
-    if (dstThread->mChannelCount != FCC_2) {
+    if ((dstThread->type() == ThreadBase::MIXER || dstThread->type() == ThreadBase::DUPLICATING) &&
+            dstThread->mChannelCount != FCC_2) {
         ALOGW("moveEffectChain_l() effect chain failed because"
                 " destination thread %p channel count(%u) != %u",
                 dstThread, dstThread->mChannelCount, FCC_2);

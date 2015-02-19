@@ -54,7 +54,6 @@ struct NuPlayer : public AHandler {
     void start();
 
     void pause();
-    void resume();
 
     // Will notify the driver through "notifyResetComplete" once finished.
     void resetAsync();
@@ -66,13 +65,11 @@ struct NuPlayer : public AHandler {
     status_t setVideoScalingMode(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
     status_t getSelectedTrack(int32_t type, Parcel* reply) const;
-    status_t selectTrack(size_t trackIndex, bool select);
+    status_t selectTrack(size_t trackIndex, bool select, int64_t timeUs);
     status_t getCurrentPosition(int64_t *mediaUs);
     void getStats(int64_t *mNumFramesTotal, int64_t *mNumFramesDropped);
 
     sp<MetaData> getFileMeta();
-
-    static const size_t kAggregateBufferSizeBytes;
 
 protected:
     virtual ~NuPlayer();
@@ -85,6 +82,7 @@ public:
 
 private:
     struct Decoder;
+    struct DecoderBase;
     struct DecoderPassThrough;
     struct CCDecoder;
     struct GenericSource;
@@ -95,7 +93,8 @@ private:
     struct Action;
     struct SeekAction;
     struct SetSurfaceAction;
-    struct ShutdownDecoderAction;
+    struct ResumeDecoderAction;
+    struct FlushDecoderAction;
     struct PostMessageAction;
     struct SimpleAction;
 
@@ -129,10 +128,9 @@ private:
     uint32_t mSourceFlags;
     sp<NativeWindowWrapper> mNativeWindow;
     sp<MediaPlayerBase::AudioSink> mAudioSink;
-    sp<Decoder> mVideoDecoder;
-    bool mVideoIsAVC;
+    sp<DecoderBase> mVideoDecoder;
     bool mOffloadAudio;
-    sp<Decoder> mAudioDecoder;
+    sp<DecoderBase> mAudioDecoder;
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
     sp<ALooper> mRendererLooper;
@@ -160,32 +158,34 @@ private:
         SHUT_DOWN,
     };
 
-    // Once the current flush is complete this indicates whether the
-    // notion of time has changed.
-    bool mTimeDiscontinuityPending;
+    enum FlushCommand {
+        FLUSH_CMD_NONE,
+        FLUSH_CMD_FLUSH,
+        FLUSH_CMD_SHUTDOWN,
+    };
 
     // Status of flush responses from the decoder and renderer.
     bool mFlushComplete[2][2];
 
-    // Used by feedDecoderInputData to aggregate small buffers into
-    // one large buffer.
-    sp<ABuffer> mPendingAudioAccessUnit;
-    status_t    mPendingAudioErr;
-    sp<ABuffer> mAggregateBuffer;
-
     FlushStatus mFlushingAudio;
     FlushStatus mFlushingVideo;
 
-    int64_t mSkipRenderingAudioUntilMediaTimeUs;
-    int64_t mSkipRenderingVideoUntilMediaTimeUs;
-
-    int64_t mNumFramesTotal, mNumFramesDropped;
+    // Status of flush responses from the decoder and renderer.
+    bool mResumePending;
 
     int32_t mVideoScalingMode;
 
     bool mStarted;
 
-    inline const sp<Decoder> &getDecoder(bool audio) {
+    // Actual pause state, either as requested by client or due to buffering.
+    bool mPaused;
+
+    // Pause state as requested by client. Note that if mPausedByClient is
+    // true, mPaused is always true; if mPausedByClient is false, mPaused could
+    // still become true, when we pause internally due to buffering.
+    bool mPausedByClient;
+
+    inline const sp<DecoderBase> &getDecoder(bool audio) {
         return audio ? mAudioDecoder : mVideoDecoder;
     }
 
@@ -196,28 +196,29 @@ private:
         mFlushComplete[1][1] = false;
     }
 
-    void openAudioSink(const sp<AMessage> &format, bool offloadOnly);
+    void tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo);
     void closeAudioSink();
 
-    status_t instantiateDecoder(bool audio, sp<Decoder> *decoder);
+    status_t instantiateDecoder(bool audio, sp<DecoderBase> *decoder);
 
     void updateVideoSize(
             const sp<AMessage> &inputFormat,
             const sp<AMessage> &outputFormat = NULL);
-
-    status_t feedDecoderInputData(bool audio, const sp<AMessage> &msg);
-    void renderBuffer(bool audio, const sp<AMessage> &msg);
 
     void notifyListener(int msg, int ext1, int ext2, const Parcel *in = NULL);
 
     void handleFlushComplete(bool audio, bool isDecoder);
     void finishFlushIfPossible();
 
+    void onStart();
+    void onResume();
+    void onPause();
+
     bool audioDecoderStillNeeded();
 
-    void flushDecoder(
-            bool audio, bool needShutdown, const sp<AMessage> &newFormat = NULL);
-    void updateDecoderFormatWithoutFlush(bool audio, const sp<AMessage> &format);
+    void flushDecoder(bool audio, bool needShutdown);
+
+    void finishResume();
 
     void postScanSources();
 
@@ -227,11 +228,11 @@ private:
     void processDeferredActions();
 
     void performSeek(int64_t seekTimeUs, bool needNotify);
-    void performDecoderFlush();
-    void performDecoderShutdown(bool audio, bool video);
+    void performDecoderFlush(FlushCommand audio, FlushCommand video);
     void performReset();
     void performScanSources();
     void performSetSurface(const sp<NativeWindowWrapper> &wrapper);
+    void performResumeDecoders(bool needNotify);
 
     void onSourceNotify(const sp<AMessage> &msg);
     void onClosedCaptionNotify(const sp<AMessage> &msg);

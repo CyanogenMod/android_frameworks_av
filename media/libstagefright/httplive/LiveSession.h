@@ -19,6 +19,7 @@
 #define LIVE_SESSION_H_
 
 #include <media/stagefright/foundation/AHandler.h>
+#include <media/mediaplayer.h>
 
 #include <utils/String8.h>
 
@@ -73,6 +74,7 @@ struct LiveSession : public AHandler {
     size_t getTrackCount() const;
     sp<AMessage> getTrackInfo(size_t trackIndex) const;
     status_t selectTrack(size_t index, bool select);
+    ssize_t getSelectedTrack(media_track_type /* type */) const;
 
     bool isSeekable() const;
     bool hasDynamicDuration() const;
@@ -111,6 +113,8 @@ private:
         kWhatCheckSwitchDown            = 'ckSD',
         kWhatSwitchDown                 = 'sDwn',
     };
+
+    static const size_t kBandwidthHistoryBytes;
 
     struct BandwidthItem {
         size_t mPlaylistIndex;

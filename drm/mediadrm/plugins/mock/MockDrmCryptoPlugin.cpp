@@ -305,6 +305,24 @@ namespace android {
         return OK;
     }
 
+    status_t MockDrmPlugin::getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop)
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::getSecureStop()");
+
+        // Properties used in mock test, set by cts test app returned from mock plugin
+        //   byte[] mock-secure-stop  -> first secure stop in list
+
+        ssize_t index = mByteArrayProperties.indexOfKey(String8("mock-secure-stop"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-secure-stop' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            secureStop = mByteArrayProperties.valueAt(index);
+        }
+        return OK;
+    }
+
     status_t MockDrmPlugin::getSecureStops(List<Vector<uint8_t> > &secureStops)
     {
         Mutex::Autolock lock(mLock);
@@ -346,6 +364,13 @@ namespace android {
         //   byte[] secure-stop-release  -> mock-ssrelease
         mByteArrayProperties.add(String8("mock-ssrelease"), ssRelease);
 
+        return OK;
+    }
+
+    status_t MockDrmPlugin::releaseAllSecureStops()
+    {
+        Mutex::Autolock lock(mLock);
+        ALOGD("MockDrmPlugin::releaseAllSecureStops()");
         return OK;
     }
 

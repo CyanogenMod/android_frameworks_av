@@ -50,7 +50,7 @@ NuPlayer::RTSPSource::RTSPSource(
       mState(DISCONNECTED),
       mFinalResult(OK),
       mDisconnectReplyID(0),
-      mBuffering(true),
+      mBuffering(false),
       mSeekGeneration(0),
       mEOSTimeoutAudio(0),
       mEOSTimeoutVideo(0) {
@@ -106,9 +106,7 @@ void NuPlayer::RTSPSource::prepareAsync() {
         mHandler->connect();
     }
 
-    sp<AMessage> notifyStart = dupNotify();
-    notifyStart->setInt32("what", kWhatBufferingStart);
-    notifyStart->post();
+    startBufferingIfNecessary();
 }
 
 void NuPlayer::RTSPSource::start() {
@@ -144,6 +142,7 @@ void NuPlayer::RTSPSource::resume() {
 }
 
 status_t NuPlayer::RTSPSource::feedMoreTSData() {
+    Mutex::Autolock _l(mBufferingLock);
     return mFinalResult;
 }
 
@@ -195,16 +194,8 @@ bool NuPlayer::RTSPSource::haveSufficientDataOnAllTracks() {
 
 status_t NuPlayer::RTSPSource::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
-    if (mBuffering) {
-        if (!haveSufficientDataOnAllTracks()) {
-            return -EWOULDBLOCK;
-        }
-
-        mBuffering = false;
-
-        sp<AMessage> notify = dupNotify();
-        notify->setInt32("what", kWhatBufferingEnd);
-        notify->post();
+    if (!stopBufferingIfNecessary()) {
+        return -EWOULDBLOCK;
     }
 
     sp<AnotherPacketSource> source = getSource(audio);
@@ -246,11 +237,7 @@ status_t NuPlayer::RTSPSource::dequeueAccessUnit(
             if (!(otherSource != NULL && otherSource->isFinished(mediaDurationUs))) {
                 // We should not enter buffering mode
                 // if any of the sources already have detected EOS.
-                mBuffering = true;
-
-                sp<AMessage> notify = dupNotify();
-                notify->setInt32("what", kWhatBufferingStart);
-                notify->post();
+                startBufferingIfNecessary();
             }
 
             return -EWOULDBLOCK;
@@ -506,7 +493,7 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             sp<AnotherPacketSource> source = info->mSource;
             if (source != NULL) {
                 source->queueDiscontinuity(
-                        ATSParser::DISCONTINUITY_SEEK,
+                        ATSParser::DISCONTINUITY_TIME,
                         NULL,
                         true /* discard */);
             }
@@ -630,7 +617,7 @@ void NuPlayer::RTSPSource::onSDPLoaded(const sp<AMessage> &msg) {
         }
 
         mState = DISCONNECTED;
-        mFinalResult = err;
+        setError(err);
 
         if (mDisconnectReplyID != 0) {
             finishDisconnectIfPossible();
@@ -657,7 +644,7 @@ void NuPlayer::RTSPSource::onDisconnected(const sp<AMessage> &msg) {
     }
 
     mState = DISCONNECTED;
-    mFinalResult = err;
+    setError(err);
 
     if (mDisconnectReplyID != 0) {
         finishDisconnectIfPossible();
@@ -677,5 +664,41 @@ void NuPlayer::RTSPSource::finishDisconnectIfPossible() {
     (new AMessage)->postReply(mDisconnectReplyID);
     mDisconnectReplyID = 0;
 }
+
+void NuPlayer::RTSPSource::setError(status_t err) {
+    Mutex::Autolock _l(mBufferingLock);
+    mFinalResult = err;
+}
+
+void NuPlayer::RTSPSource::startBufferingIfNecessary() {
+    Mutex::Autolock _l(mBufferingLock);
+
+    if (!mBuffering) {
+        mBuffering = true;
+
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", kWhatBufferingStart);
+        notify->post();
+    }
+}
+
+bool NuPlayer::RTSPSource::stopBufferingIfNecessary() {
+    Mutex::Autolock _l(mBufferingLock);
+
+    if (mBuffering) {
+        if (!haveSufficientDataOnAllTracks()) {
+            return false;
+        }
+
+        mBuffering = false;
+
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", kWhatBufferingEnd);
+        notify->post();
+    }
+
+    return true;
+}
+
 
 }  // namespace android

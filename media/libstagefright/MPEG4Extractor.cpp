@@ -999,6 +999,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
                 int64_t duration;
                 int32_t samplerate;
+                if (!mLastTrack) {
+                    return ERROR_MALFORMED;
+                }
                 if (mLastTrack->meta->findInt64(kKeyDuration, &duration) &&
                         mLastTrack->meta->findInt32(kKeySampleRate, &samplerate)) {
 
@@ -1141,7 +1144,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         {
             *offset += chunk_size;
 
-            if (chunk_data_size < 4) {
+            if (chunk_data_size < 4 || mLastTrack == NULL) {
                 return ERROR_MALFORMED;
             }
 

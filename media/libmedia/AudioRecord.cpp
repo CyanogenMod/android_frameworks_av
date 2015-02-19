@@ -82,14 +82,16 @@ AudioRecord::AudioRecord(
         uint32_t notificationFrames,
         int sessionId,
         transfer_type transferType,
-        audio_input_flags_t flags)
+        audio_input_flags_t flags,
+        const audio_attributes_t* pAttributes)
     : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mProxy(NULL)
 {
     mStatus = set(inputSource, sampleRate, format, channelMask, frameCount, cbf, user,
-            notificationFrames, false /*threadCanCallJava*/, sessionId, transferType, flags);
+            notificationFrames, false /*threadCanCallJava*/, sessionId, transferType, flags,
+            pAttributes);
 }
 
 AudioRecord::~AudioRecord()
@@ -126,7 +128,8 @@ status_t AudioRecord::set(
         bool threadCanCallJava,
         int sessionId,
         transfer_type transferType,
-        audio_input_flags_t flags)
+        audio_input_flags_t flags,
+        const audio_attributes_t* pAttributes)
 {
     ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "notificationFrames %u, sessionId %d, transferType %d, flags %#x",
@@ -164,11 +167,15 @@ status_t AudioRecord::set(
         return INVALID_OPERATION;
     }
 
-    // handle default values first.
-    if (inputSource == AUDIO_SOURCE_DEFAULT) {
-        inputSource = AUDIO_SOURCE_MIC;
+    if (pAttributes == NULL) {
+        memset(&mAttributes, 0, sizeof(audio_attributes_t));
+        mAttributes.source = inputSource;
+    } else {
+        // stream type shouldn't be looked at, this track has audio attributes
+        memcpy(&mAttributes, pAttributes, sizeof(audio_attributes_t));
+        ALOGV("Building AudioRecord with attributes: source=%d flags=0x%x tags=[%s]",
+              mAttributes.source, mAttributes.flags, mAttributes.tags);
     }
-    mInputSource = inputSource;
 
     if (sampleRate == 0) {
         ALOGE("Invalid sample rate %u", sampleRate);
@@ -444,12 +451,14 @@ status_t AudioRecord::openRecord_l(size_t epoch)
         }
     }
 
-    audio_io_handle_t input = AudioSystem::getInput(mInputSource, mSampleRate, mFormat,
-            mChannelMask, mSessionId, mFlags);
-    if (input == AUDIO_IO_HANDLE_NONE) {
+    audio_io_handle_t input;
+    status = AudioSystem::getInputForAttr(&mAttributes, &input, (audio_session_t)mSessionId,
+                                        mSampleRate, mFormat, mChannelMask, mFlags);
+
+    if (status != NO_ERROR) {
         ALOGE("Could not get audio input for record source %d, sample rate %u, format %#x, "
               "channel mask %#x, session %d, flags %#x",
-              mInputSource, mSampleRate, mFormat, mChannelMask, mSessionId, mFlags);
+              mAttributes.source, mSampleRate, mFormat, mChannelMask, mSessionId, mFlags);
         return BAD_VALUE;
     }
     {

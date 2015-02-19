@@ -449,6 +449,20 @@ status_t Drm::getSecureStops(List<Vector<uint8_t> > &secureStops) {
     return mPlugin->getSecureStops(secureStops);
 }
 
+status_t Drm::getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop) {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->getSecureStop(ssid, secureStop);
+}
+
 status_t Drm::releaseSecureStops(Vector<uint8_t> const &ssRelease) {
     Mutex::Autolock autoLock(mLock);
 
@@ -461,6 +475,20 @@ status_t Drm::releaseSecureStops(Vector<uint8_t> const &ssRelease) {
     }
 
     return mPlugin->releaseSecureStops(ssRelease);
+}
+
+status_t Drm::releaseAllSecureStops() {
+    Mutex::Autolock autoLock(mLock);
+
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    if (mPlugin == NULL) {
+        return -EINVAL;
+    }
+
+    return mPlugin->releaseAllSecureStops();
 }
 
 status_t Drm::getPropertyString(String8 const &name, String8 &value ) const {
@@ -646,10 +674,14 @@ status_t Drm::signRSA(Vector<uint8_t> const &sessionId,
 
 void Drm::binderDied(const wp<IBinder> &the_late_who)
 {
+    mEventLock.lock();
+    mListener.clear();
+    mEventLock.unlock();
+
+    Mutex::Autolock autoLock(mLock);
     delete mPlugin;
     mPlugin = NULL;
     closeFactory();
-    mListener.clear();
 }
 
 }  // namespace android

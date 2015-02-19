@@ -420,12 +420,20 @@ void Camera2Client::disconnect() {
 
     ALOGV("Camera %d: Waiting for threads", mCameraId);
 
-    mStreamingProcessor->join();
-    mFrameProcessor->join();
-    mCaptureSequencer->join();
-    mJpegProcessor->join();
-    mZslProcessorThread->join();
-    mCallbackProcessor->join();
+    {
+        // Don't wait with lock held, in case the other threads need to
+        // complete callbacks that re-enter Camera2Client
+        mBinderSerializationLock.unlock();
+
+        mStreamingProcessor->join();
+        mFrameProcessor->join();
+        mCaptureSequencer->join();
+        mJpegProcessor->join();
+        mZslProcessorThread->join();
+        mCallbackProcessor->join();
+
+        mBinderSerializationLock.lock();
+    }
 
     ALOGV("Camera %d: Deleting streams", mCameraId);
 
@@ -910,6 +918,15 @@ void Camera2Client::stopPreviewL() {
                 ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
                         __FUNCTION__, mCameraId, strerror(-res), res);
             }
+
+            // Flush all in-process captures and buffer in order to stop
+            // preview faster.
+            res = mDevice->flush();
+            if (res != OK) {
+                ALOGE("%s: Camera %d: Unable to flush pending requests: %s (%d)",
+                        __FUNCTION__, mCameraId, strerror(-res), res);
+            }
+
             res = mDevice->waitUntilDrained();
             if (res != OK) {
                 ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
@@ -921,13 +938,6 @@ void Camera2Client::stopPreviewL() {
                 ALOGE("%s: Camera %d: Unable to delete recording stream before "
                         "stop preview: %s (%d)",
                         __FUNCTION__, mCameraId, strerror(-res), res);
-            }
-            {
-                // Ideally we should recover the override after recording stopped, but
-                // right now recording stream will live until here, so we are forced to
-                // recover here. TODO: find a better way to handle that (b/17495165)
-                SharedParameters::Lock l(mParameters);
-                l.mParameters.recoverOverriddenJpegSize();
             }
             // no break
         case Parameters::WAITING_FOR_PREVIEW_WINDOW: {
@@ -1199,6 +1209,28 @@ void Camera2Client::stopRecording() {
 
     mCameraService->playSound(CameraService::SOUND_RECORDING);
 
+    // Remove recording stream to prevent it from slowing down takePicture later
+    if (!l.mParameters.recordingHint && l.mParameters.isJpegSizeOverridden()) {
+        res = stopStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+        res = mDevice->waitUntilDrained();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+        // Clean up recording stream
+        res = mStreamingProcessor->deleteRecordingStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to delete recording stream before "
+                    "stop preview: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+        l.mParameters.recoverOverriddenJpegSize();
+    }
+
     res = startPreviewL(l.mParameters, true);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to return to preview",
@@ -1381,6 +1413,34 @@ status_t Camera2Client::takePicture(int msgType) {
                     return res;
                 }
                 l.mParameters.state = Parameters::STILL_CAPTURE;
+
+                // Remove recording stream to prevent video snapshot jpeg logic kicking in
+                if (l.mParameters.isJpegSizeOverridden() &&
+                        mStreamingProcessor->getRecordingStreamId() != NO_STREAM) {
+                    res = mStreamingProcessor->togglePauseStream(/*pause*/true);
+                    if (res != OK) {
+                        ALOGE("%s: Camera %d: Can't pause streaming: %s (%d)",
+                                __FUNCTION__, mCameraId, strerror(-res), res);
+                    }
+                    res = mDevice->waitUntilDrained();
+                    if (res != OK) {
+                        ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                                __FUNCTION__, mCameraId, strerror(-res), res);
+                    }
+                    // Clean up recording stream
+                    res = mStreamingProcessor->deleteRecordingStream();
+                    if (res != OK) {
+                        ALOGE("%s: Camera %d: Unable to delete recording stream before "
+                                "stop preview: %s (%d)",
+                                __FUNCTION__, mCameraId, strerror(-res), res);
+                    }
+                    res = mStreamingProcessor->togglePauseStream(/*pause*/false);
+                    if (res != OK) {
+                        ALOGE("%s: Camera %d: Can't unpause streaming: %s (%d)",
+                                __FUNCTION__, mCameraId, strerror(-res), res);
+                    }
+                    l.mParameters.recoverOverriddenJpegSize();
+                }
                 break;
             case Parameters::RECORD:
                 // Good to go for video snapshot

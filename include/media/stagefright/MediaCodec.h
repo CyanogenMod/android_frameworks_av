@@ -194,7 +194,7 @@ private:
     };
 
     enum {
-        kFlagIsSoftwareCodec            = 1,
+        kFlagUsesSoftwareRenderer       = 1,
         kFlagOutputFormatChanged        = 2,
         kFlagOutputBuffersChanged       = 4,
         kFlagStickyError                = 8,
@@ -205,6 +205,7 @@ private:
         kFlagIsEncoder                  = 256,
         kFlagGatherCodecSpecificData    = 512,
         kFlagIsAsync                    = 1024,
+        kFlagIsComponentAllocated       = 2048,
     };
 
     struct BufferInfo {
