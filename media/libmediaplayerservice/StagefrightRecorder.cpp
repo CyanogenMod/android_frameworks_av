@@ -1581,10 +1581,11 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
 
     status_t err = OK;
     sp<MediaWriter> writer;
+    sp<MPEG4Writer> mp4writer;
     if (mOutputFormat == OUTPUT_FORMAT_WEBM) {
         writer = new WebmWriter(mOutputFd);
     } else {
-        writer = new MPEG4Writer(mOutputFd);
+        writer = mp4writer = new MPEG4Writer(mOutputFd);
     }
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {
@@ -1617,13 +1618,16 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
             mTotalBitRate += mAudioBitRate;
         }
 
+        if (mCaptureTimeLapse) {
+            // TODO(chz): pass down fps in float from MediaRecorder.java
+            mp4writer->setCaptureRate(1000000.0f / mTimeBetweenTimeLapseFrameCaptureUs);
+        }
+
         if (mInterleaveDurationUs > 0) {
-            reinterpret_cast<MPEG4Writer *>(writer.get())->
-                setInterleaveDuration(mInterleaveDurationUs);
+            mp4writer->setInterleaveDuration(mInterleaveDurationUs);
         }
         if (mLongitudex10000 > -3600000 && mLatitudex10000 > -3600000) {
-            reinterpret_cast<MPEG4Writer *>(writer.get())->
-                setGeoData(mLatitudex10000, mLongitudex10000);
+            mp4writer->setGeoData(mLatitudex10000, mLongitudex10000);
         }
     }
     if (mMaxFileDurationUs != 0) {

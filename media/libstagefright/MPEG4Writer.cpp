@@ -29,6 +29,7 @@
 #include <utils/Log.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MetaData.h>
@@ -362,6 +363,7 @@ MPEG4Writer::MPEG4Writer(int fd)
       mLatitudex10000(0),
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
+      mMetaKeys(new AMessage()),
       mStartTimeOffsetMs(-1) {
 }
 
@@ -946,6 +948,7 @@ void MPEG4Writer::writeMoovBox(int64_t durationUs) {
     if (mAreGeoTagsAvailable) {
         writeUdtaBox();
     }
+    writeMetaBox();
     int32_t id = 1;
     for (List<Track *>::iterator it = mTracks.begin();
         it != mTracks.end(); ++it, ++id) {
@@ -1115,6 +1118,14 @@ size_t MPEG4Writer::write(
     return bytes;
 }
 
+void MPEG4Writer::beginBox(uint32_t id) {
+    mBoxes.push_back(mWriteMoovBoxToMemory?
+            mMoovBoxBufferOffset: mOffset);
+
+    writeInt32(0);
+    writeInt32(id);
+}
+
 void MPEG4Writer::beginBox(const char *fourcc) {
     CHECK_EQ(strlen(fourcc), 4);
 
@@ -1239,6 +1250,15 @@ status_t MPEG4Writer::setGeoData(int latitudex10000, int longitudex10000) {
     mLatitudex10000 = latitudex10000;
     mLongitudex10000 = longitudex10000;
     mAreGeoTagsAvailable = true;
+    return OK;
+}
+
+status_t MPEG4Writer::setCaptureRate(float captureFps) {
+    if (captureFps <= 0.0f) {
+        return BAD_VALUE;
+    }
+
+    mMetaKeys->setFloat("com.android.capture.fps", captureFps);
     return OK;
 }
 
@@ -3069,6 +3089,96 @@ void MPEG4Writer::writeUdtaBox() {
     writeGeoDataBox();
     endBox();
 }
+
+void MPEG4Writer::writeHdlr() {
+    beginBox("hdlr");
+    writeInt32(0); // Version, Flags
+    writeInt32(0); // Predefined
+    writeFourcc("mdta");
+    writeInt32(0); // Reserved[0]
+    writeInt32(0); // Reserved[1]
+    writeInt32(0); // Reserved[2]
+    writeInt8(0);  // Name (empty)
+    endBox();
+}
+
+void MPEG4Writer::writeKeys() {
+    size_t count = mMetaKeys->countEntries();
+
+    beginBox("keys");
+    writeInt32(0);     // Version, Flags
+    writeInt32(count); // Entry_count
+    for (size_t i = 0; i < count; i++) {
+        AMessage::Type type;
+        const char *key = mMetaKeys->getEntryNameAt(i, &type);
+        size_t n = strlen(key);
+        writeInt32(n + 8);
+        writeFourcc("mdta");
+        write(key, n); // write without the \0
+    }
+    endBox();
+}
+
+void MPEG4Writer::writeIlst() {
+    size_t count = mMetaKeys->countEntries();
+
+    // meta data key types
+    static const int32_t kKeyType_BE32Float = 23;
+    static const int32_t kKeyType_BE32SignedInteger = 67;
+    static const int32_t kKeyType_BE32UnsignedInteger = 77;
+
+    beginBox("ilst");
+    for (size_t i = 0; i < count; i++) {
+        beginBox(i + 1); // key id (1-based)
+        beginBox("data");
+        AMessage::Type type;
+        const char *key = mMetaKeys->getEntryNameAt(i, &type);
+        switch (type) {
+            case AMessage::kTypeFloat:
+            {
+                float val;
+                CHECK(mMetaKeys->findFloat(key, &val));
+                writeInt32(kKeyType_BE32Float);
+                writeInt32(*reinterpret_cast<int32_t *>(&val));
+                break;
+            }
+
+            case AMessage::kTypeInt32:
+            {
+                int32_t val;
+                CHECK(mMetaKeys->findInt32(key, &val));
+                writeInt32(kKeyType_BE32SignedInteger);
+                writeInt32(val);
+                break;
+            }
+
+            default:
+            {
+                ALOGW("Unsupported key type, writing 0 instead");
+                writeInt32(kKeyType_BE32UnsignedInteger);
+                writeInt32(0);
+                break;
+            }
+        }
+        endBox(); // data
+        endBox(); // key id
+    }
+    endBox(); // ilst
+}
+
+void MPEG4Writer::writeMetaBox() {
+    size_t count = mMetaKeys->countEntries();
+    if (count == 0) {
+        return;
+    }
+
+    beginBox("meta");
+    writeHdlr();
+    writeKeys();
+    writeIlst();
+    endBox();
+}
+
 
 /*
  * Geodata is stored according to ISO-6709 standard.
