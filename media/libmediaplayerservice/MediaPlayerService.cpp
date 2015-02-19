@@ -1748,6 +1748,9 @@ status_t MediaPlayerService::AudioOutput::open(
             close_l();
             mTrack = mRecycledTrack;
             mRecycledTrack.clear();
+            // Even if we reuse the track we must reset mBytesWritten since it is
+            // a new media file that is played.
+            mBytesWritten = 0;
             if (mCallbackData != NULL) {
                 mCallbackData->setOutput(this);
             }
