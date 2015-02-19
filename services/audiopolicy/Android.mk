@@ -3,19 +3,19 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-    AudioPolicyService.cpp \
-    AudioPolicyEffects.cpp
+    service/AudioPolicyService.cpp \
+    service/AudioPolicyEffects.cpp
 
 ifeq ($(USE_LEGACY_AUDIO_POLICY), 1)
 LOCAL_SRC_FILES += \
-    AudioPolicyInterfaceImplLegacy.cpp \
-    AudioPolicyClientImplLegacy.cpp
+    service/AudioPolicyInterfaceImplLegacy.cpp \
+    service/AudioPolicyClientImplLegacy.cpp
 
     LOCAL_CFLAGS += -DUSE_LEGACY_AUDIO_POLICY
 else
 LOCAL_SRC_FILES += \
-    AudioPolicyInterfaceImpl.cpp \
-    AudioPolicyClientImpl.cpp
+    service/AudioPolicyInterfaceImpl.cpp \
+    service/AudioPolicyClientImpl.cpp
 endif
 
 LOCAL_C_INCLUDES := \
@@ -53,7 +53,15 @@ ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-    AudioPolicyManager.cpp
+    managerdefault/AudioPolicyManager.cpp \
+    managerdefault/ConfigParsingUtils.cpp \
+    managerdefault/Devices.cpp \
+    managerdefault/Gains.cpp \
+    managerdefault/HwModule.cpp \
+    managerdefault/IOProfile.cpp \
+    managerdefault/Ports.cpp \
+    managerdefault/AudioInputDescriptor.cpp \
+    managerdefault/AudioOutputDescriptor.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -73,7 +81,7 @@ ifneq ($(USE_CUSTOM_AUDIO_POLICY), 1)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-    AudioPolicyFactory.cpp
+    manager/AudioPolicyFactory.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libaudiopolicymanagerdefault

@@ -26,6 +26,14 @@
 #include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
+#include "Gains.h"
+#include "Ports.h"
+#include "ConfigParsingUtils.h"
+#include "Devices.h"
+#include "IOProfile.h"
+#include "HwModule.h"
+#include "AudioInputDescriptor.h"
+#include "AudioOutputDescriptor.h"
 
 namespace android {
 
@@ -192,390 +200,20 @@ public:
         virtual status_t registerPolicyMixes(Vector<AudioMix> mixes);
         virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes);
 
+        // Audio policy configuration file parsing (audio_policy.conf)
+        // TODO candidates to be moved to ConfigParsingUtils
+                void loadHwModule(cnode *root);
+                void loadHwModules(cnode *root);
+                void loadGlobalConfig(cnode *root, const sp<HwModule>& module);
+                status_t loadAudioPolicyConfig(const char *path);
+                void defaultAudioPolicyConfig(void);
+
+                // return the strategy corresponding to a given stream type
+                static routing_strategy getStrategy(audio_stream_type_t stream);
+
+                static uint32_t nextUniqueId();
 protected:
 
-        enum routing_strategy {
-            STRATEGY_MEDIA,
-            STRATEGY_PHONE,
-            STRATEGY_SONIFICATION,
-            STRATEGY_SONIFICATION_RESPECTFUL,
-            STRATEGY_DTMF,
-            STRATEGY_ENFORCED_AUDIBLE,
-            STRATEGY_TRANSMITTED_THROUGH_SPEAKER,
-            STRATEGY_ACCESSIBILITY,
-            STRATEGY_REROUTING,
-            NUM_STRATEGIES
-        };
-
-        // 4 points to define the volume attenuation curve, each characterized by the volume
-        // index (from 0 to 100) at which they apply, and the attenuation in dB at that index.
-        // we use 100 steps to avoid rounding errors when computing the volume in volIndexToAmpl()
-
-        enum { VOLMIN = 0, VOLKNEE1 = 1, VOLKNEE2 = 2, VOLMAX = 3, VOLCNT = 4};
-
-        class VolumeCurvePoint
-        {
-        public:
-            int mIndex;
-            float mDBAttenuation;
-        };
-
-        // device categories used for volume curve management.
-        enum device_category {
-            DEVICE_CATEGORY_HEADSET,
-            DEVICE_CATEGORY_SPEAKER,
-            DEVICE_CATEGORY_EARPIECE,
-            DEVICE_CATEGORY_EXT_MEDIA,
-            DEVICE_CATEGORY_CNT
-        };
-
-        class HwModule;
-
-        class AudioGain: public RefBase
-        {
-        public:
-            AudioGain(int index, bool useInChannelMask);
-            virtual ~AudioGain() {}
-
-            void dump(int fd, int spaces, int index) const;
-
-            void getDefaultConfig(struct audio_gain_config *config);
-            status_t checkConfig(const struct audio_gain_config *config);
-            int               mIndex;
-            struct audio_gain mGain;
-            bool              mUseInChannelMask;
-        };
-
-        class AudioPort: public virtual RefBase
-        {
-        public:
-            AudioPort(const String8& name, audio_port_type_t type,
-                      audio_port_role_t role, const sp<HwModule>& module);
-            virtual ~AudioPort() {}
-
-            audio_port_handle_t getHandle() { return mId; }
-
-            void attach(const sp<HwModule>& module);
-            bool isAttached() { return mId != 0; }
-
-            virtual void toAudioPort(struct audio_port *port) const;
-
-            void importAudioPort(const sp<AudioPort> port);
-            void clearCapabilities();
-
-            void loadSamplingRates(char *name);
-            void loadFormats(char *name);
-            void loadOutChannels(char *name);
-            void loadInChannels(char *name);
-
-            audio_gain_mode_t loadGainMode(char *name);
-            void loadGain(cnode *root, int index);
-            virtual void loadGains(cnode *root);
-
-            // searches for an exact match
-            status_t checkExactSamplingRate(uint32_t samplingRate) const;
-            // searches for a compatible match, and returns the best match via updatedSamplingRate
-            status_t checkCompatibleSamplingRate(uint32_t samplingRate,
-                    uint32_t *updatedSamplingRate) const;
-            // searches for an exact match
-            status_t checkExactChannelMask(audio_channel_mask_t channelMask) const;
-            // searches for a compatible match, currently implemented for input channel masks only
-            status_t checkCompatibleChannelMask(audio_channel_mask_t channelMask) const;
-            status_t checkFormat(audio_format_t format) const;
-            status_t checkGain(const struct audio_gain_config *gainConfig, int index) const;
-
-            uint32_t pickSamplingRate() const;
-            audio_channel_mask_t pickChannelMask() const;
-            audio_format_t pickFormat() const;
-
-            static const audio_format_t sPcmFormatCompareTable[];
-            static int compareFormats(audio_format_t format1, audio_format_t format2);
-
-            void dump(int fd, int spaces) const;
-
-            String8           mName;
-            audio_port_type_t mType;
-            audio_port_role_t mRole;
-            bool              mUseInChannelMask;
-            // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
-            // indicates the supported parameters should be read from the output stream
-            // after it is opened for the first time
-            Vector <uint32_t> mSamplingRates; // supported sampling rates
-            Vector <audio_channel_mask_t> mChannelMasks; // supported channel masks
-            Vector <audio_format_t> mFormats; // supported audio formats
-            Vector < sp<AudioGain> > mGains; // gain controllers
-            sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
-            uint32_t mFlags; // attribute flags (e.g primary output,
-                                                // direct output...).
-
-        protected:
-            //TODO - clarify the role of mId in this case, both an "attached" indicator
-            // and a unique ID for identifying a port to the (upcoming) selection API,
-            // and its relationship to the mId in AudioOutputDescriptor and AudioInputDescriptor.
-            audio_port_handle_t mId;
-        };
-
-        class AudioPortConfig: public virtual RefBase
-        {
-        public:
-            AudioPortConfig();
-            virtual ~AudioPortConfig() {}
-
-            status_t applyAudioPortConfig(const struct audio_port_config *config,
-                                          struct audio_port_config *backupConfig = NULL);
-            virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
-                                   const struct audio_port_config *srcConfig = NULL) const = 0;
-            virtual sp<AudioPort> getAudioPort() const = 0;
-            uint32_t mSamplingRate;
-            audio_format_t mFormat;
-            audio_channel_mask_t mChannelMask;
-            struct audio_gain_config mGain;
-        };
-
-
-        class AudioPatch: public RefBase
-        {
-        public:
-            AudioPatch(audio_patch_handle_t handle,
-                       const struct audio_patch *patch, uid_t uid) :
-                           mHandle(handle), mPatch(*patch), mUid(uid), mAfPatchHandle(0) {}
-
-            status_t dump(int fd, int spaces, int index) const;
-
-            audio_patch_handle_t mHandle;
-            struct audio_patch mPatch;
-            uid_t mUid;
-            audio_patch_handle_t mAfPatchHandle;
-        };
-
-        class DeviceDescriptor: public AudioPort, public AudioPortConfig
-        {
-        public:
-            DeviceDescriptor(const String8& name, audio_devices_t type);
-
-            virtual ~DeviceDescriptor() {}
-
-            bool equals(const sp<DeviceDescriptor>& other) const;
-
-            // AudioPortConfig
-            virtual sp<AudioPort> getAudioPort() const { return (AudioPort*) this; }
-            virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
-                                   const struct audio_port_config *srcConfig = NULL) const;
-
-            // AudioPort
-            virtual void loadGains(cnode *root);
-            virtual void toAudioPort(struct audio_port *port) const;
-
-            status_t dump(int fd, int spaces, int index) const;
-
-            audio_devices_t mDeviceType;
-            String8 mAddress;
-
-            static String8  emptyNameStr;
-        };
-
-        class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
-        {
-        public:
-            DeviceVector() : SortedVector(), mDeviceTypes(AUDIO_DEVICE_NONE) {}
-
-            ssize_t         add(const sp<DeviceDescriptor>& item);
-            ssize_t         remove(const sp<DeviceDescriptor>& item);
-            ssize_t         indexOf(const sp<DeviceDescriptor>& item) const;
-
-            audio_devices_t types() const { return mDeviceTypes; }
-
-            void loadDevicesFromType(audio_devices_t types);
-            void loadDevicesFromName(char *name, const DeviceVector& declaredDevices);
-
-            sp<DeviceDescriptor> getDevice(audio_devices_t type, String8 address) const;
-            DeviceVector getDevicesFromType(audio_devices_t types) const;
-            sp<DeviceDescriptor> getDeviceFromId(audio_port_handle_t id) const;
-            sp<DeviceDescriptor> getDeviceFromName(const String8& name) const;
-            DeviceVector getDevicesFromTypeAddr(audio_devices_t type, String8 address)
-                    const;
-
-        private:
-            void refreshTypes();
-            audio_devices_t mDeviceTypes;
-        };
-
-        // the IOProfile class describes the capabilities of an output or input stream.
-        // It is currently assumed that all combination of listed parameters are supported.
-        // It is used by the policy manager to determine if an output or input is suitable for
-        // a given use case,  open/close it accordingly and connect/disconnect audio tracks
-        // to/from it.
-        class IOProfile : public AudioPort
-        {
-        public:
-            IOProfile(const String8& name, audio_port_role_t role, const sp<HwModule>& module);
-            virtual ~IOProfile();
-
-            // This method is used for both output and input.
-            // If parameter updatedSamplingRate is non-NULL, it is assigned the actual sample rate.
-            // For input, flags is interpreted as audio_input_flags_t.
-            // TODO: merge audio_output_flags_t and audio_input_flags_t.
-            bool isCompatibleProfile(audio_devices_t device,
-                                     String8 address,
-                                     uint32_t samplingRate,
-                                     uint32_t *updatedSamplingRate,
-                                     audio_format_t format,
-                                     audio_channel_mask_t channelMask,
-                                     uint32_t flags) const;
-
-            void dump(int fd);
-            void log();
-
-            DeviceVector  mSupportedDevices; // supported devices
-                                             // (devices this output can be routed to)
-        };
-
-        class HwModule : public RefBase
-        {
-        public:
-                    HwModule(const char *name);
-                    ~HwModule();
-
-            status_t loadOutput(cnode *root);
-            status_t loadInput(cnode *root);
-            status_t loadDevice(cnode *root);
-
-            status_t addOutputProfile(String8 name, const audio_config_t *config,
-                                      audio_devices_t device, String8 address);
-            status_t removeOutputProfile(String8 name);
-            status_t addInputProfile(String8 name, const audio_config_t *config,
-                                      audio_devices_t device, String8 address);
-            status_t removeInputProfile(String8 name);
-
-            void dump(int fd);
-
-            const char *const        mName; // base name of the audio HW module (primary, a2dp ...)
-            uint32_t                 mHalVersion; // audio HAL API version
-            audio_module_handle_t    mHandle;
-            Vector < sp<IOProfile> > mOutputProfiles; // output profiles exposed by this module
-            Vector < sp<IOProfile> > mInputProfiles;  // input profiles exposed by this module
-            DeviceVector             mDeclaredDevices; // devices declared in audio_policy.conf
-
-        };
-
-        // default volume curve
-        static const VolumeCurvePoint sDefaultVolumeCurve[AudioPolicyManager::VOLCNT];
-        // default volume curve for media strategy
-        static const VolumeCurvePoint sDefaultMediaVolumeCurve[AudioPolicyManager::VOLCNT];
-        // volume curve for non-media audio on ext media outputs (HDMI, Line, etc)
-        static const VolumeCurvePoint sExtMediaSystemVolumeCurve[AudioPolicyManager::VOLCNT];
-        // volume curve for media strategy on speakers
-        static const VolumeCurvePoint sSpeakerMediaVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sSpeakerMediaVolumeCurveDrc[AudioPolicyManager::VOLCNT];
-        // volume curve for sonification strategy on speakers
-        static const VolumeCurvePoint sSpeakerSonificationVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sSpeakerSonificationVolumeCurveDrc[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sDefaultSystemVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sDefaultSystemVolumeCurveDrc[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sHeadsetSystemVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sDefaultVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sLinearVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sSilentVolumeCurve[AudioPolicyManager::VOLCNT];
-        static const VolumeCurvePoint sFullScaleVolumeCurve[AudioPolicyManager::VOLCNT];
-        // default volume curves per stream and device category. See initializeVolumeCurves()
-        static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][DEVICE_CATEGORY_CNT];
-
-        // descriptor for audio outputs. Used to maintain current configuration of each opened audio output
-        // and keep track of the usage of this output by each audio stream type.
-        class AudioOutputDescriptor: public AudioPortConfig
-        {
-        public:
-            AudioOutputDescriptor(const sp<IOProfile>& profile);
-
-            status_t    dump(int fd);
-
-            audio_devices_t device() const;
-            void changeRefCount(audio_stream_type_t stream, int delta);
-
-            bool isDuplicated() const { return (mOutput1 != NULL && mOutput2 != NULL); }
-            audio_devices_t supportedDevices();
-            uint32_t latency();
-            bool sharesHwModuleWith(const sp<AudioOutputDescriptor> outputDesc);
-            bool isActive(uint32_t inPastMs = 0) const;
-            bool isStreamActive(audio_stream_type_t stream,
-                                uint32_t inPastMs = 0,
-                                nsecs_t sysTime = 0) const;
-            bool isStrategyActive(routing_strategy strategy,
-                             uint32_t inPastMs = 0,
-                             nsecs_t sysTime = 0) const;
-
-            virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
-                                   const struct audio_port_config *srcConfig = NULL) const;
-            virtual sp<AudioPort> getAudioPort() const { return mProfile; }
-            void toAudioPort(struct audio_port *port) const;
-
-            audio_port_handle_t mId;
-            audio_io_handle_t mIoHandle;              // output handle
-            uint32_t mLatency;                  //
-            audio_output_flags_t mFlags;   //
-            audio_devices_t mDevice;                   // current device this output is routed to
-            AudioMix *mPolicyMix;             // non NULL when used by a dynamic policy
-            audio_patch_handle_t mPatchHandle;
-            uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
-            nsecs_t mStopTime[AUDIO_STREAM_CNT];
-            sp<AudioOutputDescriptor> mOutput1;    // used by duplicated outputs: first output
-            sp<AudioOutputDescriptor> mOutput2;    // used by duplicated outputs: second output
-            float mCurVolume[AUDIO_STREAM_CNT];   // current stream volume
-            int mMuteCount[AUDIO_STREAM_CNT];     // mute request counter
-            const sp<IOProfile> mProfile;          // I/O profile this output derives from
-            bool mStrategyMutedByDevice[NUM_STRATEGIES]; // strategies muted because of incompatible
-                                                // device selection. See checkDeviceMuteStrategies()
-            uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
-        };
-
-        // descriptor for audio inputs. Used to maintain current configuration of each opened audio input
-        // and keep track of the usage of this input.
-        class AudioInputDescriptor: public AudioPortConfig
-        {
-        public:
-            AudioInputDescriptor(const sp<IOProfile>& profile);
-
-            status_t    dump(int fd);
-
-            audio_port_handle_t           mId;
-            audio_io_handle_t             mIoHandle;       // input handle
-            audio_devices_t               mDevice;         // current device this input is routed to
-            AudioMix                      *mPolicyMix;     // non NULL when used by a dynamic policy
-            audio_patch_handle_t          mPatchHandle;
-            uint32_t                      mRefCount;       // number of AudioRecord clients using
-                                                           // this input
-            uint32_t                      mOpenRefCount;
-            audio_source_t                mInputSource;    // input source selected by application
-                                                           //(mediarecorder.h)
-            const sp<IOProfile>           mProfile;        // I/O profile this output derives from
-            SortedVector<audio_session_t> mSessions;       // audio sessions attached to this input
-            bool                          mIsSoundTrigger; // used by a soundtrigger capture
-
-            virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
-                                   const struct audio_port_config *srcConfig = NULL) const;
-            virtual sp<AudioPort> getAudioPort() const { return mProfile; }
-            void toAudioPort(struct audio_port *port) const;
-        };
-
-        // stream descriptor used for volume control
-        class StreamDescriptor
-        {
-        public:
-            StreamDescriptor();
-
-            int getVolumeIndex(audio_devices_t device);
-            void dump(int fd);
-
-            int mIndexMin;      // min volume index
-            int mIndexMax;      // max volume index
-            KeyedVector<audio_devices_t, int> mIndexCur;   // current volume index per device
-            bool mCanBeMuted;   // true is the stream can be muted
-
-            const VolumeCurvePoint *mVolumeCurve[DEVICE_CATEGORY_CNT];
-        };
-
-        // stream descriptor used for volume control
         class EffectDescriptor : public RefBase
         {
         public:
@@ -591,9 +229,6 @@ protected:
 
         void addOutput(audio_io_handle_t output, sp<AudioOutputDescriptor> outputDesc);
         void addInput(audio_io_handle_t input, sp<AudioInputDescriptor> inputDesc);
-
-        // return the strategy corresponding to a given stream type
-        static routing_strategy getStrategy(audio_stream_type_t stream);
 
         // return appropriate device for streams handled by the specified strategy according to current
         // phone state, connected devices...
@@ -741,12 +376,6 @@ protected:
 
         status_t setEffectEnabled(const sp<EffectDescriptor>& effectDesc, bool enabled);
 
-        // returns the category the device belongs to with regard to volume curve management
-        static device_category getDeviceCategory(audio_devices_t device);
-
-        // extract one device relevant for volume control from multiple device selection
-        static audio_devices_t getDeviceForVolume(audio_devices_t device);
-
         SortedVector<audio_io_handle_t> getOutputsForDevice(audio_devices_t device,
                         DefaultKeyedVector<audio_io_handle_t, sp<AudioOutputDescriptor> > openOutputs);
         bool vectorsEqual(SortedVector<audio_io_handle_t>& outputs1,
@@ -792,25 +421,6 @@ protected:
         audio_devices_t availablePrimaryInputDevices();
 
         void updateCallRouting(audio_devices_t rxDevice, int delayMs = 0);
-
-        //
-        // Audio policy configuration file parsing (audio_policy.conf)
-        //
-        static uint32_t stringToEnum(const struct StringToEnum *table,
-                                     size_t size,
-                                     const char *name);
-        static const char *enumToString(const struct StringToEnum *table,
-                                      size_t size,
-                                      uint32_t value);
-        static bool stringToBool(const char *value);
-        static uint32_t parseOutputFlagNames(char *name);
-        static uint32_t parseInputFlagNames(char *name);
-        static audio_devices_t parseDeviceNames(char *name);
-        void loadHwModule(cnode *root);
-        void loadHwModules(cnode *root);
-        void loadGlobalConfig(cnode *root, const sp<HwModule>& module);
-        status_t loadAudioPolicyConfig(const char *path);
-        void defaultAudioPolicyConfig(void);
 
 
         uid_t mUidCached;
@@ -892,10 +502,9 @@ protected:
         uint32_t        mTestChannels;
         uint32_t        mTestLatencyMs;
 #endif //AUDIO_POLICY_TEST
-        static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
-                int indexInUi);
+
         static bool isVirtualInputDevice(audio_devices_t device);
-        static uint32_t nextUniqueId();
+
         uint32_t nextAudioPortGeneration();
 private:
         // updates device caching and output for streams that can influence the

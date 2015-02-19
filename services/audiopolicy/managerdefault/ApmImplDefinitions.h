@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 The Android Open Source Project
+ * Copyright (C) 2015 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-#include "AudioPolicyManager.h"
-
 namespace android {
 
-extern "C" AudioPolicyInterface* createAudioPolicyManager(
-        AudioPolicyClientInterface *clientInterface)
-{
-    return new AudioPolicyManager(clientInterface);
-}
+enum routing_strategy {
+    STRATEGY_MEDIA,
+    STRATEGY_PHONE,
+    STRATEGY_SONIFICATION,
+    STRATEGY_SONIFICATION_RESPECTFUL,
+    STRATEGY_DTMF,
+    STRATEGY_ENFORCED_AUDIBLE,
+    STRATEGY_TRANSMITTED_THROUGH_SPEAKER,
+    STRATEGY_ACCESSIBILITY,
+    STRATEGY_REROUTING,
+    NUM_STRATEGIES
+};
 
-extern "C" void destroyAudioPolicyManager(AudioPolicyInterface *interface)
-{
-    delete interface;
-}
-
-}; // namespace android
+}; //namespace android
