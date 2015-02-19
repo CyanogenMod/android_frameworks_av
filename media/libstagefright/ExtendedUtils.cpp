@@ -1896,7 +1896,7 @@ bool ExtendedUtils::is24bitPCMOffloaded(const sp<MetaData> &sMeta) {
    /* Return true, if
       1. 24 bit offload flag is enabled
       2. the bit stream is raw 
-      3. this is a 24 bit PCM */
+      3. this is 24 bit PCM */
 
     if (is24bitPCMOffloadEnabled() && isRAWFormat(sMeta) &&
         getPcmSampleBits(sMeta) == 24) {

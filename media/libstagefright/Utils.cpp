@@ -796,7 +796,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo, const sp<MetaData
     if(meta->findInt32(kKeySampleBits, &bitWidth) && 24 == bitWidth)
         ALOGV("%s Bits per sample is 24", __func__);
     else
-        ALOGW("%s No Sample Bit info in meta data", __func__);
+        ALOGV("%s Sample Bit info in meta data is %d", __func__, bitWidth);
 #endif
 #endif
     if (mapMimeToAudioFormat(info.format, mime) != OK) {
