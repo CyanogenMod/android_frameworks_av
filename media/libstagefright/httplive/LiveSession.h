@@ -33,7 +33,6 @@ struct IMediaHTTPService;
 struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
-struct Parcel;
 
 struct LiveSession : public AHandler {
     enum Flags {
