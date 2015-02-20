@@ -182,9 +182,9 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
                 supportedPreviewFormats +=
                     CameraParameters::PIXEL_FORMAT_YUV420SP;
                 break;
-            // Not advertizing JPEG, RAW_SENSOR, etc, for preview formats
+            // Not advertizing JPEG, RAW16, etc, for preview formats
             case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-            case HAL_PIXEL_FORMAT_RAW_SENSOR:
+            case HAL_PIXEL_FORMAT_RAW16:
             case HAL_PIXEL_FORMAT_BLOB:
                 addComma = false;
                 break;
@@ -2253,7 +2253,7 @@ const char* Parameters::formatEnumToString(int format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:   // RGBA8888
             fmt = CameraParameters::PIXEL_FORMAT_RGBA8888;
             break;
-        case HAL_PIXEL_FORMAT_RAW_SENSOR:
+        case HAL_PIXEL_FORMAT_RAW16:
             ALOGW("Raw sensor preview format requested.");
             fmt = CameraParameters::PIXEL_FORMAT_BAYER_RGGB;
             break;
