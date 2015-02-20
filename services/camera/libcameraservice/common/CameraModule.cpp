@@ -66,6 +66,12 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         return -EINVAL;
     }
 
+    // Only override static_camera_characteristics for API2 devices
+    int apiVersion = mModule->common.module_api_version;
+    if (apiVersion < CAMERA_MODULE_API_VERSION_2_0) {
+        return mModule->get_camera_info(cameraId, info);
+    }
+
     camera_info &wrappedInfo = mCameraInfo[cameraId];
     if (!mCameraInfoCached[cameraId]) {
         camera_info rawInfo;
@@ -75,14 +81,7 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         }
         CameraMetadata &m = mCameraCharacteristics[cameraId];
         m = rawInfo.static_camera_characteristics;
-        int deviceVersion;
-        int apiVersion = mModule->common.module_api_version;
-        if (apiVersion >= CAMERA_MODULE_API_VERSION_2_0) {
-            deviceVersion = rawInfo.device_version;
-        } else {
-            deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
-        }
-        deriveCameraCharacteristicsKeys(deviceVersion, m);
+        deriveCameraCharacteristicsKeys(rawInfo.device_version, m);
         wrappedInfo = rawInfo;
         wrappedInfo.static_camera_characteristics = m.getAndLock();
         mCameraInfoCached[cameraId] = true;
