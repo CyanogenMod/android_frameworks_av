@@ -20,23 +20,11 @@
 #include "FastThread.h"
 #include "StateQueue.h"
 #include "FastCaptureState.h"
-#include "FastThreadDumpState.h"
+#include "FastCaptureDumpState.h"
 
 namespace android {
 
 typedef StateQueue<FastCaptureState> FastCaptureStateQueue;
-
-struct FastCaptureDumpState : FastThreadDumpState {
-    FastCaptureDumpState();
-    /*virtual*/ ~FastCaptureDumpState();
-
-    // FIXME by renaming, could pull up many of these to FastThreadDumpState
-    uint32_t mReadSequence;     // incremented before and after each read()
-    uint32_t mFramesRead;       // total number of frames read successfully
-    uint32_t mReadErrors;       // total number of read() errors
-    uint32_t mSampleRate;
-    size_t   mFrameCount;
-};
 
 class FastCapture : public FastThread {
 
