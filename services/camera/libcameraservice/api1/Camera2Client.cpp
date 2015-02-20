@@ -1958,7 +1958,7 @@ size_t Camera2Client::calculateBufferSize(int width, int height,
             return width * height * 2;
         case HAL_PIXEL_FORMAT_RGBA_8888:
             return width * height * 4;
-        case HAL_PIXEL_FORMAT_RAW_SENSOR:
+        case HAL_PIXEL_FORMAT_RAW16:
             return width * height * 2;
         default:
             ALOGE("%s: Unknown preview format: %x",

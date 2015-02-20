@@ -526,7 +526,7 @@ int CameraParameters::previewFormatToEnum(const char* format) {
         !strcmp(format, PIXEL_FORMAT_RGBA8888) ?
             HAL_PIXEL_FORMAT_RGBA_8888 :    // RGB8888
         !strcmp(format, PIXEL_FORMAT_BAYER_RGGB) ?
-            HAL_PIXEL_FORMAT_RAW_SENSOR :   // Raw sensor data
+            HAL_PIXEL_FORMAT_RAW16 :   // Raw sensor data
         -1;
 }
 

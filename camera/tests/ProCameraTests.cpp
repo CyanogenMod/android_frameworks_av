@@ -475,7 +475,7 @@ protected:
         CMP_STR(NV16, YCbCr_422_SP);
         CMP_STR(NV21, YCrCb_420_SP);
         CMP_STR(YUY2, YCbCr_422_I);
-        CMP_STR(RAW,  RAW_SENSOR);
+        CMP_STR(RAW,  RAW16);
         CMP_STR(RGBA, RGBA_8888);
 
         std::cerr << "Unknown format string " << str << std::endl;
