@@ -1027,7 +1027,11 @@ audio_io_handle_t aps_open_input_on_module(void *service __unused,
                                                   audio_format_t *pFormat,
                                                   audio_channel_mask_t *pChannelMask);
 int aps_close_input(void *service __unused, audio_io_handle_t input);
+#ifndef MR0_AUDIO_BLOB
 int aps_invalidate_stream(void *service __unused, audio_stream_type_t stream);
+#else
+int aps_set_stream_output(void *service, audio_stream_type_t stream, audio_io_handle_t output);
+#endif
 int aps_move_effects(void *service __unused, int session,
                                 audio_io_handle_t src_output,
                                 audio_io_handle_t dst_output);
@@ -1054,7 +1058,11 @@ namespace {
         .open_input            = aps_open_input,
         .close_input           = aps_close_input,
         .set_stream_volume     = aps_set_stream_volume,
+#ifndef MR0_AUDIO_BLOB
         .invalidate_stream     = aps_invalidate_stream,
+#else
+        .set_stream_output     = aps_set_stream_output,
+#endif
         .set_parameters        = aps_set_parameters,
         .get_parameters        = aps_get_parameters,
         .start_tone            = aps_start_tone,

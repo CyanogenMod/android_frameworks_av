@@ -59,7 +59,11 @@ enum {
     RESTORE_OUTPUT,
     OPEN_INPUT,
     CLOSE_INPUT,
+#ifndef MR0_AUDIO_BLOB
     INVALIDATE_STREAM,
+#else
+    SET_STREAM_OUTPUT,
+#endif
     SET_VOICE_VOLUME,
     GET_RENDER_POSITION,
     GET_INPUT_FRAMES_LOST,
@@ -601,6 +605,7 @@ public:
         return reply.readInt32();
     }
 
+#ifndef MR0_AUDIO_BLOB
     virtual status_t invalidateStream(audio_stream_type_t stream)
     {
         Parcel data, reply;
@@ -609,6 +614,17 @@ public:
         remote()->transact(INVALIDATE_STREAM, data, &reply);
         return reply.readInt32();
     }
+#else
+virtual status_t setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32((int32_t) stream);
+        data.writeInt32((int32_t) output);
+        remote()->transact(SET_STREAM_OUTPUT, data, &reply);
+        return reply.readInt32();
+    }
+#endif
 
     virtual status_t setVoiceVolume(float volume)
     {
@@ -1222,12 +1238,22 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32(closeInput((audio_io_handle_t) data.readInt32()));
             return NO_ERROR;
         } break;
+#ifndef MR0_AUDIO_BLOB
         case INVALIDATE_STREAM: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_stream_type_t stream = (audio_stream_type_t) data.readInt32();
             reply->writeInt32(invalidateStream(stream));
             return NO_ERROR;
         } break;
+#else
+        case SET_STREAM_OUTPUT: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            uint32_t stream = data.readInt32();
+            audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
+            reply->writeInt32(setStreamOutput((audio_stream_type_t) stream, output));
+            return NO_ERROR;
+        } break;
+#endif
         case SET_VOICE_VOLUME: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             float volume = data.readFloat();

@@ -240,6 +240,7 @@ int aps_close_input(void *service __unused, audio_io_handle_t input)
     return af->closeInput(input);
 }
 
+#ifndef MR0_AUDIO_BLOB
 int aps_invalidate_stream(void *service __unused, audio_stream_type_t stream)
 {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
@@ -249,6 +250,17 @@ int aps_invalidate_stream(void *service __unused, audio_stream_type_t stream)
 
     return af->invalidateStream(stream);
 }
+#else
+int aps_set_stream_output(void *service, audio_stream_type_t stream,
+                                    audio_io_handle_t output)
+{
+    sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
+    if (af == 0)
+        return PERMISSION_DENIED;
+
+    return af->setStreamOutput(stream, output);
+}
+#endif
 
 int aps_move_effects(void *service __unused, int session,
                                 audio_io_handle_t src_output,

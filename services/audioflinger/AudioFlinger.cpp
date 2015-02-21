@@ -153,11 +153,13 @@ static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
     if (rc) {
         goto out;
     }
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
     if ((*dev)->common.version < AUDIO_DEVICE_API_VERSION_MIN) {
         ALOGE("%s wrong audio hw device version %04x", __func__, (*dev)->common.version);
         rc = BAD_VALUE;
         goto out;
     }
+#endif
     return 0;
 
 out:
@@ -1791,6 +1793,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     {  // scope for auto-lock pattern
         AutoMutex lock(mHardwareLock);
 
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
         if (0 == mAudioHwDevs.size()) {
             mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
             if (NULL != dev->get_master_volume) {
@@ -1808,6 +1811,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                 }
             }
         }
+#endif
 
         mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
         if ((NULL != dev->set_master_volume) &&
@@ -1816,13 +1820,14 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                     AudioHwDevice::AHWD_CAN_SET_MASTER_VOLUME);
         }
 
+#if !defined(ICS_AUDIO_BLOB) && !defined(MR0_AUDIO_BLOB)
         mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
         if ((NULL != dev->set_master_mute) &&
             (OK == dev->set_master_mute(dev, mMasterMute))) {
             flags = static_cast<AudioHwDevice::Flags>(flags |
                     AudioHwDevice::AHWD_CAN_SET_MASTER_MUTE);
         }
-
+#endif
         mHardwareStatus = AUDIO_HW_IDLE;
     }
 
@@ -2425,6 +2430,7 @@ void AudioFlinger::closeInputInternal_l(sp<RecordThread> thread)
     closeInputFinish(thread);
 }
 
+#ifndef MR0_AUDIO_BLOB
 status_t AudioFlinger::invalidateStream(audio_stream_type_t stream)
 {
     Mutex::Autolock _l(mLock);
@@ -2437,7 +2443,23 @@ status_t AudioFlinger::invalidateStream(audio_stream_type_t stream)
 
     return NO_ERROR;
 }
+#else
+status_t AudioFlinger::setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output)
+{
+    Mutex::Autolock _l(mLock);
+    ALOGV("setStreamOutput() stream %d to output %d", stream, output);
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
+#ifdef QCOM_DIRECTTRACK
+        // Do not invalidate voip stream which uses directoutput thread
+        if(!(thread->type() == ThreadBase::DIRECT && (thread->mOutputFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)))
+#endif
+            thread->invalidateTracks(stream);
+    }
 
+    return NO_ERROR;
+}
+#endif
 
 audio_unique_id_t AudioFlinger::newAudioUniqueId()
 {

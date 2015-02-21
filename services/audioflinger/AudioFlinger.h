@@ -206,7 +206,11 @@ public:
 
     virtual status_t closeInput(audio_io_handle_t input);
 
+#ifndef MR0_AUDIO_BLOB
     virtual status_t invalidateStream(audio_stream_type_t stream);
+#else
+    virtual status_t setStreamOutput(audio_stream_type_t stream, audio_io_handle_t output);
+#endif
 
     virtual status_t setVoiceVolume(float volume);
 
