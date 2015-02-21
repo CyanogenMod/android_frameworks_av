@@ -69,8 +69,6 @@ struct AnotherPacketSource : public MediaSource {
     sp<AMessage> getLatestEnqueuedMeta();
     sp<AMessage> getLatestDequeuedMeta();
 
-    void eraseBuffer();
-
 protected:
     virtual ~AnotherPacketSource();
 

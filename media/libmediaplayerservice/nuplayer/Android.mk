@@ -4,7 +4,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=                       \
         GenericSource.cpp               \
         HTTPLiveSource.cpp              \
-        HTTPLiveSourceCustom.cpp           \
         NuPlayer.cpp                    \
         NuPlayerDecoder.cpp             \
         NuPlayerDecoderPassThrough.cpp  \
@@ -16,7 +15,6 @@ LOCAL_SRC_FILES:=                       \
 
 LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libstagefright/httplive            \
-    $(TOP)/frameworks/av/media/libstagefright/httplivecustom         \
 	$(TOP)/frameworks/av/media/libstagefright/include             \
 	$(TOP)/frameworks/av/media/libstagefright/mpeg2ts             \
 	$(TOP)/frameworks/av/media/libstagefright/rtsp                \

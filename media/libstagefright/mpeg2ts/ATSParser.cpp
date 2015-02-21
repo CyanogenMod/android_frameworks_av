@@ -23,7 +23,6 @@
 #include "AnotherPacketSource.h"
 #include "ESQueue.h"
 #include "include/avc_utils.h"
-#include "include/ID3.h"
 
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -138,12 +137,8 @@ private:
 
     ElementaryStreamQueue *mQueue;
 
-    bool mImageFound;
-
     status_t flush();
     status_t parsePES(ABitReader *br);
-
-    void parseImageMetaData(const uint8_t *data, size_t size);
 
     void onPayloadData(
             unsigned PTS_DTS_flags, uint64_t PTS, uint64_t DTS,
@@ -480,8 +475,7 @@ ATSParser::Stream::Stream(
       mExpectedContinuityCounter(-1),
       mPayloadStarted(false),
       mPrevPTS(0),
-      mQueue(NULL),
-      mImageFound(false) {
+      mQueue(NULL) {
     switch (mStreamType) {
         case STREAMTYPE_H264:
             mQueue = new ElementaryStreamQueue(
@@ -521,7 +515,7 @@ ATSParser::Stream::Stream(
 
     ALOGV("new stream PID 0x%02x, type 0x%02x", elementaryPID, streamType);
 
-    if (mQueue != NULL || mStreamType == STREAMTYPE_METADATA_PES) {
+    if (mQueue != NULL) {
         mBuffer = new ABuffer(192 * 1024);
         mBuffer->setRange(0, 0);
     }
@@ -535,7 +529,7 @@ ATSParser::Stream::~Stream() {
 status_t ATSParser::Stream::parse(
         unsigned continuity_counter,
         unsigned payload_unit_start_indicator, ABitReader *br) {
-    if (mQueue == NULL && mStreamType != STREAMTYPE_METADATA_PES) {
+    if (mQueue == NULL) {
         return OK;
     }
 
@@ -543,8 +537,6 @@ status_t ATSParser::Stream::parse(
             && (unsigned)mExpectedContinuityCounter != continuity_counter) {
         ALOGI("discontinuity on stream pid 0x%04x, Ignored", mElementaryPID);
 
-        mPayloadStarted = false;
-        mBuffer->setRange(0, 0);
         mExpectedContinuityCounter = -1;
         if (!payload_unit_start_indicator) {
             return OK;
@@ -856,38 +848,6 @@ status_t ATSParser::Stream::flush() {
     return err;
 }
 
-void ATSParser::Stream::parseImageMetaData(const uint8_t *data, size_t size) {
-    if (mImageFound) {
-        ALOGV("album image was already processed");
-        return;
-    }
-    ALOGV("parseImageMetaData");
-    ID3 id3(data, size);
-    if (!id3.isValid())
-        return;
-    size_t dataSize;
-    String8 mime;
-    const void *imageData = id3.getAlbumArt(&dataSize, &mime);
-    if (dataSize == 0) {
-        return;
-    }
-    ALOGV("found the album image (%s) with ID3 format in meta data", mime.string());
-    if (strcasecmp(mime, MEDIA_MIMETYPE_IMAGE_JPEG) != 0) {
-        ALOGE("only support image/jpeg");
-        return;
-    }
-    sp<AnotherPacketSource> audioSource =
-            static_cast<AnotherPacketSource *>(mProgram->getSource(AUDIO).get());
-    if (audioSource != NULL) {
-        sp<MetaData> meta = audioSource->getFormat();
-        if (meta != NULL) {
-            ALOGV("set AlbumArt in audio track source");
-            mImageFound = true;
-            meta->setData(kKeyAlbumArt, MetaData::TYPE_NONE, imageData, dataSize);
-        }
-    }
-}
-
 void ATSParser::Stream::onPayloadData(
         unsigned PTS_DTS_flags, uint64_t PTS, uint64_t /* DTS */,
         const uint8_t *data, size_t size) {
@@ -904,11 +864,6 @@ void ATSParser::Stream::onPayloadData(
     int64_t timeUs = 0ll;  // no presentation timestamp available.
     if (PTS_DTS_flags == 2 || PTS_DTS_flags == 3) {
         timeUs = mProgram->convertPTSToTimestamp(PTS);
-    }
-
-    if (mStreamType == STREAMTYPE_METADATA_PES) {
-        parseImageMetaData(data, size);
-        return;
     }
 
     status_t err = mQueue->appendData(data, size, timeUs);

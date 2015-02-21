@@ -102,7 +102,6 @@ private:
     struct CCDecoder;
     struct GenericSource;
     struct HTTPLiveSource;
-    struct HTTPLiveSourceCustom;
     struct Renderer;
     struct RTSPSource;
     struct StreamingSource;
@@ -206,7 +205,6 @@ private:
     bool mBuffering;
     bool mPlaying;
 
-    bool mImageShowed;
     bool mSeeking;
 
     bool mSkipAudioFlushAfterSuspend;
