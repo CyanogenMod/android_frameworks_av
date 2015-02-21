@@ -170,7 +170,7 @@ NuPlayer::NuPlayer()
       mOffloadAudio(false),
       mOffloadDecodedPCM(false),
       mSwitchingFromPcmOffload(false),
-      mIsStreaming(true),
+      mIsStreaming(false),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
       mRendererGeneration(0),
