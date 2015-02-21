@@ -109,6 +109,7 @@ private:
     int32_t mTotalBitRate;
 
     bool mCaptureTimeLapse;
+    float mCaptureFps;
     int64_t mTimeBetweenTimeLapseFrameCaptureUs;
     sp<CameraSourceTimeLapse> mCameraSourceTimeLapse;
 
@@ -155,7 +156,7 @@ private:
     status_t setParamAudioSamplingRate(int32_t sampleRate);
     status_t setParamAudioTimeScale(int32_t timeScale);
     status_t setParamTimeLapseEnable(int32_t timeLapseEnable);
-    status_t setParamTimeBetweenTimeLapseFrameCapture(int64_t timeUs);
+    status_t setParamTimeLapseFps(float fps);
     status_t setParamVideoEncodingBitRate(int32_t bitRate);
     status_t setParamVideoIFramesInterval(int32_t seconds);
     status_t setParamVideoEncoderProfile(int32_t profile);

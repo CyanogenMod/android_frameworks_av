@@ -75,6 +75,7 @@ StagefrightRecorder::StagefrightRecorder()
       mAudioSource(AUDIO_SOURCE_CNT),
       mVideoSource(VIDEO_SOURCE_LIST_END),
       mCaptureTimeLapse(false),
+      mCaptureFps(0.0f),
       mStarted(false) {
 
     ALOGV("Constructor");
@@ -261,6 +262,31 @@ status_t StagefrightRecorder::setOutputFile(int fd, int64_t offset, int64_t leng
     mOutputFd = dup(fd);
 
     return OK;
+}
+
+// Attempt to parse an float literal optionally surrounded by whitespace,
+// returns true on success, false otherwise.
+static bool safe_strtof(const char *s, float *val) {
+    char *end;
+
+    // It is lame, but according to man page, we have to set errno to 0
+    // before calling strtof().
+    errno = 0;
+    *val = strtof(s, &end);
+
+    if (end == s || errno == ERANGE) {
+        return false;
+    }
+
+    // Skip trailing whitespace
+    while (isspace(*end)) {
+        ++end;
+    }
+
+    // For a successful return, the string must contain nothing but a valid
+    // float literal optionally surrounded by whitespace.
+
+    return *end == '\0';
 }
 
 // Attempt to parse an int64 literal optionally surrounded by whitespace,
@@ -546,8 +572,10 @@ status_t StagefrightRecorder::setParamTimeLapseEnable(int32_t timeLapseEnable) {
     return OK;
 }
 
-status_t StagefrightRecorder::setParamTimeBetweenTimeLapseFrameCapture(int64_t timeUs) {
-    ALOGV("setParamTimeBetweenTimeLapseFrameCapture: %lld us", timeUs);
+status_t StagefrightRecorder::setParamTimeLapseFps(float fps) {
+    ALOGV("setParamTimeLapseFps: %.2f", fps);
+
+    int64_t timeUs = (int64_t) (1000000.0 / fps + 0.5f);
 
     // Not allowing time more than a day
     if (timeUs <= 0 || timeUs > 86400*1E6) {
@@ -555,6 +583,7 @@ status_t StagefrightRecorder::setParamTimeBetweenTimeLapseFrameCapture(int64_t t
         return BAD_VALUE;
     }
 
+    mCaptureFps = fps;
     mTimeBetweenTimeLapseFrameCaptureUs = timeUs;
     return OK;
 }
@@ -682,11 +711,10 @@ status_t StagefrightRecorder::setParameter(
         if (safe_strtoi32(value.string(), &timeLapseEnable)) {
             return setParamTimeLapseEnable(timeLapseEnable);
         }
-    } else if (key == "time-between-time-lapse-frame-capture") {
-        int64_t timeBetweenTimeLapseFrameCaptureUs;
-        if (safe_strtoi64(value.string(), &timeBetweenTimeLapseFrameCaptureUs)) {
-            return setParamTimeBetweenTimeLapseFrameCapture(
-                    timeBetweenTimeLapseFrameCaptureUs);
+    } else if (key == "time-lapse-fps") {
+        float fps;
+        if (safe_strtof(value.string(), &fps)) {
+            return setParamTimeLapseFps(fps);
         }
     } else {
         ALOGE("setParameter: failed to find key %s", key.string());
@@ -1619,8 +1647,7 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
         }
 
         if (mCaptureTimeLapse) {
-            // TODO(chz): pass down fps in float from MediaRecorder.java
-            mp4writer->setCaptureRate(1000000.0f / mTimeBetweenTimeLapseFrameCaptureUs);
+            mp4writer->setCaptureRate(mCaptureFps);
         }
 
         if (mInterleaveDurationUs > 0) {
