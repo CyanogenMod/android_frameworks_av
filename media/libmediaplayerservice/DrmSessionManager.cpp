@@ -23,6 +23,8 @@
 #include "DrmSessionClientInterface.h"
 #include "ProcessInfoInterface.h"
 #include <binder/IPCThreadState.h>
+#include <binder/IProcessInfoService.h>
+#include <binder/IServiceManager.h>
 #include <unistd.h>
 #include <utils/String8.h>
 
@@ -39,12 +41,25 @@ static String8 GetSessionIdString(const Vector<uint8_t> &sessionId) {
 struct ProcessInfo : public ProcessInfoInterface {
     ProcessInfo() {}
 
-    virtual int getPriority(int pid) {
-        // TODO: implement
-        // Get process state to determine priority.
-        // According to the define of PROCESS_STATE_***, higher the value lower
-        // the priority. So we will do a converting from state to priority here.
-        return -1;
+    virtual bool getPriority(int pid, int* priority) {
+        sp<IBinder> binder = defaultServiceManager()->getService(String16("processinfo"));
+        sp<IProcessInfoService> service = interface_cast<IProcessInfoService>(binder);
+
+        size_t length = 1;
+        int32_t states;
+        status_t err = service->getProcessStatesFromPids(length, &pid, &states);
+        if (err != OK) {
+            ALOGE("getProcessStatesFromPids failed");
+            return false;
+        }
+        ALOGV("pid %d states %d", pid, states);
+        if (states < 0) {
+            return false;
+        }
+
+        // Use process state as the priority. Lower the value, higher the priority.
+        *priority = states;
+        return true;
     }
 
 protected:
@@ -64,6 +79,11 @@ bool isEqualSessionId(const Vector<uint8_t> &sessionId1, const Vector<uint8_t> &
         }
     }
     return true;
+}
+
+sp<DrmSessionManager> DrmSessionManager::Instance() {
+    static sp<DrmSessionManager> drmSessionManager = new DrmSessionManager();
+    return drmSessionManager;
 }
 
 DrmSessionManager::DrmSessionManager()
@@ -155,15 +175,18 @@ bool DrmSessionManager::reclaimSession(int callingPid) {
 
     sp<DrmSessionClientInterface> drm;
     Vector<uint8_t> sessionId;
+    int lowestPriorityPid;
+    int lowestPriority;
     {
         Mutex::Autolock lock(mLock);
-        int callingPriority = mProcessInfo->getPriority(callingPid);
-        int lowestPriorityPid;
-        int lowestPriority;
+        int callingPriority;
+        if (!mProcessInfo->getPriority(callingPid, &callingPriority)) {
+            return false;
+        }
         if (!getLowestPriority_l(&lowestPriorityPid, &lowestPriority)) {
             return false;
         }
-        if (lowestPriority >= callingPriority) {
+        if (lowestPriority <= callingPriority) {
             return false;
         }
 
@@ -176,6 +199,9 @@ bool DrmSessionManager::reclaimSession(int callingPid) {
         return false;
     }
 
+    ALOGV("reclaim session(%s) opened by pid %d",
+            GetSessionIdString(sessionId).string(), lowestPriorityPid);
+
     return drm->reclaimSession(sessionId);
 }
 
@@ -185,19 +211,23 @@ int64_t DrmSessionManager::getTime_l() {
 
 bool DrmSessionManager::getLowestPriority_l(int* lowestPriorityPid, int* lowestPriority) {
     int pid = -1;
-    int priority = INT_MAX;
+    int priority = -1;
     for (size_t i = 0; i < mSessionMap.size(); ++i) {
         if (mSessionMap.valueAt(i).size() == 0) {
             // no opened session by this process.
             continue;
         }
         int tempPid = mSessionMap.keyAt(i);
-        int tempPriority = mProcessInfo->getPriority(tempPid);
+        int tempPriority;
+        if (!mProcessInfo->getPriority(tempPid, &tempPriority)) {
+            // shouldn't happen.
+            return false;
+        }
         if (pid == -1) {
             pid = tempPid;
             priority = tempPriority;
         } else {
-            if (tempPriority < priority) {
+            if (tempPriority > priority) {
                 pid = tempPid;
                 priority = tempPriority;
             }

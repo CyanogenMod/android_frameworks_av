@@ -23,6 +23,8 @@
 
 #include "Drm.h"
 
+#include "DrmSessionClientInterface.h"
+#include "DrmSessionManager.h"
 #include <media/drm/DrmAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>
@@ -32,6 +34,10 @@
 #include <binder/IPCThreadState.h>
 
 namespace android {
+
+static inline int getCallingPid() {
+    return IPCThreadState::self()->getCallingPid();
+}
 
 static bool checkPermission(const char* permissionString) {
 #ifndef HAVE_ANDROID_OS
@@ -57,14 +63,41 @@ static bool operator<(const Vector<uint8_t> &lhs, const Vector<uint8_t> &rhs) {
     return memcmp((void *)lhs.array(), (void *)rhs.array(), rhs.size()) < 0;
 }
 
+struct DrmSessionClient : public DrmSessionClientInterface {
+    DrmSessionClient(Drm* drm) : mDrm(drm) {}
+
+    virtual bool reclaimSession(const Vector<uint8_t>& sessionId) {
+        sp<Drm> drm = mDrm.promote();
+        if (drm == NULL) {
+            return true;
+        }
+        status_t err = drm->closeSession(sessionId);
+        if (err != OK) {
+            return false;
+        }
+        drm->sendEvent(DrmPlugin::kDrmPluginEventSessionReclaimed, 0, &sessionId, NULL);
+        return true;
+    }
+
+protected:
+    virtual ~DrmSessionClient() {}
+
+private:
+    wp<Drm> mDrm;
+
+    DISALLOW_EVIL_CONSTRUCTORS(DrmSessionClient);
+};
+
 Drm::Drm()
     : mInitCheck(NO_INIT),
+      mDrmSessionClient(new DrmSessionClient(this)),
       mListener(NULL),
       mFactory(NULL),
       mPlugin(NULL) {
 }
 
 Drm::~Drm() {
+    DrmSessionManager::Instance()->removeDrm(mDrmSessionClient);
     delete mPlugin;
     mPlugin = NULL;
     closeFactory();
@@ -289,7 +322,18 @@ status_t Drm::openSession(Vector<uint8_t> &sessionId) {
         return -EINVAL;
     }
 
-    return mPlugin->openSession(sessionId);
+    status_t err = mPlugin->openSession(sessionId);
+    if (err == ERROR_DRM_RESOURCE_BUSY) {
+        bool retry = false;
+        retry = DrmSessionManager::Instance()->reclaimSession(getCallingPid());
+        if (retry) {
+            err = mPlugin->openSession(sessionId);
+        }
+    }
+    if (err == OK) {
+        DrmSessionManager::Instance()->addSession(getCallingPid(), mDrmSessionClient, sessionId);
+    }
+    return err;
 }
 
 status_t Drm::closeSession(Vector<uint8_t> const &sessionId) {
@@ -303,7 +347,11 @@ status_t Drm::closeSession(Vector<uint8_t> const &sessionId) {
         return -EINVAL;
     }
 
-    return mPlugin->closeSession(sessionId);
+    status_t err = mPlugin->closeSession(sessionId);
+    if (err == OK) {
+        DrmSessionManager::Instance()->removeSession(sessionId);
+    }
+    return err;
 }
 
 status_t Drm::getKeyRequest(Vector<uint8_t> const &sessionId,
@@ -321,6 +369,8 @@ status_t Drm::getKeyRequest(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
+    DrmSessionManager::Instance()->useSession(sessionId);
+
     return mPlugin->getKeyRequest(sessionId, initData, mimeType, keyType,
                                   optionalParameters, request, defaultUrl);
 }
@@ -337,6 +387,8 @@ status_t Drm::provideKeyResponse(Vector<uint8_t> const &sessionId,
     if (mPlugin == NULL) {
         return -EINVAL;
     }
+
+    DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->provideKeyResponse(sessionId, response, keySetId);
 }
@@ -367,6 +419,8 @@ status_t Drm::restoreKeys(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
+    DrmSessionManager::Instance()->useSession(sessionId);
+
     return mPlugin->restoreKeys(sessionId, keySetId);
 }
 
@@ -381,6 +435,8 @@ status_t Drm::queryKeyStatus(Vector<uint8_t> const &sessionId,
     if (mPlugin == NULL) {
         return -EINVAL;
     }
+
+    DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->queryKeyStatus(sessionId, infoMap);
 }
@@ -561,6 +617,8 @@ status_t Drm::setCipherAlgorithm(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
+    DrmSessionManager::Instance()->useSession(sessionId);
+
     return mPlugin->setCipherAlgorithm(sessionId, algorithm);
 }
 
@@ -575,6 +633,8 @@ status_t Drm::setMacAlgorithm(Vector<uint8_t> const &sessionId,
     if (mPlugin == NULL) {
         return -EINVAL;
     }
+
+    DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->setMacAlgorithm(sessionId, algorithm);
 }
@@ -594,6 +654,8 @@ status_t Drm::encrypt(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
+    DrmSessionManager::Instance()->useSession(sessionId);
+
     return mPlugin->encrypt(sessionId, keyId, input, iv, output);
 }
 
@@ -612,6 +674,8 @@ status_t Drm::decrypt(Vector<uint8_t> const &sessionId,
         return -EINVAL;
     }
 
+    DrmSessionManager::Instance()->useSession(sessionId);
+
     return mPlugin->decrypt(sessionId, keyId, input, iv, output);
 }
 
@@ -628,6 +692,8 @@ status_t Drm::sign(Vector<uint8_t> const &sessionId,
     if (mPlugin == NULL) {
         return -EINVAL;
     }
+
+    DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->sign(sessionId, keyId, message, signature);
 }
@@ -646,6 +712,8 @@ status_t Drm::verify(Vector<uint8_t> const &sessionId,
     if (mPlugin == NULL) {
         return -EINVAL;
     }
+
+    DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->verify(sessionId, keyId, message, signature, match);
 }
@@ -668,6 +736,8 @@ status_t Drm::signRSA(Vector<uint8_t> const &sessionId,
     if (!checkPermission("android.permission.ACCESS_DRM_CERTIFICATES")) {
         return -EPERM;
     }
+
+    DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->signRSA(sessionId, algorithm, message, wrappedKey, signature);
 }

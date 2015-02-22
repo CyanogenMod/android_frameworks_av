@@ -32,7 +32,12 @@ struct FakeProcessInfo : public ProcessInfoInterface {
     FakeProcessInfo() {}
     virtual ~FakeProcessInfo() {}
 
-    virtual int getPriority(int pid) { return pid; }
+    virtual bool getPriority(int pid, int* priority) {
+        // For testing, use pid as priority.
+        // Lower the value higher the priority.
+        *priority = pid;
+        return true;
+    }
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(FakeProcessInfo);
@@ -57,7 +62,7 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(FakeDrm);
 };
 
-static const int kTestPid1 = 10;
+static const int kTestPid1 = 30;
 static const int kTestPid2 = 20;
 static const uint8_t kTestSessionId1[] = {1, 2, 3};
 static const uint8_t kTestSessionId2[] = {4, 5, 6, 7, 8};
@@ -122,7 +127,9 @@ protected:
 
         EXPECT_EQ(kTestPid1, pid);
         FakeProcessInfo processInfo;
-        EXPECT_EQ(processInfo.getPriority(kTestPid1), priority);
+        int priority1;
+        processInfo.getPriority(kTestPid1, &priority1);
+        EXPECT_EQ(priority1, priority);
     }
 
     void testGetLeastUsedSession() {
@@ -210,9 +217,9 @@ TEST_F(DrmSessionManagerTest, reclaimSession) {
     addSession();
 
     // calling pid priority is too low
-    EXPECT_FALSE(mDrmSessionManager->reclaimSession(5));
+    EXPECT_FALSE(mDrmSessionManager->reclaimSession(50));
 
-    EXPECT_TRUE(mDrmSessionManager->reclaimSession(30));
+    EXPECT_TRUE(mDrmSessionManager->reclaimSession(10));
     EXPECT_EQ(1, mTestDrm1->reclaimedSessions().size());
     EXPECT_TRUE(isEqualSessionId(mSessionId1, mTestDrm1->reclaimedSessions()[0]));
 
@@ -223,9 +230,9 @@ TEST_F(DrmSessionManagerTest, reclaimSession) {
     const uint8_t ids[] = {456, 7890, 123};
     Vector<uint8_t> sessionId;
     GetSessionId(ids, ARRAY_SIZE(ids), &sessionId);
-    mDrmSessionManager->addSession(30, drm, sessionId);
+    mDrmSessionManager->addSession(15, drm, sessionId);
 
-    EXPECT_TRUE(mDrmSessionManager->reclaimSession(40));
+    EXPECT_TRUE(mDrmSessionManager->reclaimSession(18));
     EXPECT_EQ(1, mTestDrm2->reclaimedSessions().size());
     // mSessionId2 is reclaimed.
     EXPECT_TRUE(isEqualSessionId(mSessionId2, mTestDrm2->reclaimedSessions()[0]));

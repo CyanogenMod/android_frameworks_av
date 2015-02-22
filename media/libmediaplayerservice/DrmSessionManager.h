@@ -42,6 +42,8 @@ typedef Vector<SessionInfo > SessionInfos;
 typedef KeyedVector<int, SessionInfos > PidSessionInfosMap;
 
 struct DrmSessionManager : public RefBase {
+    static sp<DrmSessionManager> Instance();
+
     DrmSessionManager();
     DrmSessionManager(sp<ProcessInfoInterface> processInfo);
 
