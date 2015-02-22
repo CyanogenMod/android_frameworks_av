@@ -10,6 +10,7 @@ LOCAL_SRC_FILES:=               \
     ActivityManager.cpp         \
     Crypto.cpp                  \
     Drm.cpp                     \
+    DrmSessionManager.cpp       \
     HDCP.cpp                    \
     MediaPlayerFactory.cpp      \
     MediaPlayerService.cpp      \
