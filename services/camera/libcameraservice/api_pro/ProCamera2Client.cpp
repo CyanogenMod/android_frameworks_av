@@ -281,7 +281,7 @@ status_t ProCamera2Client::createStream(int width, int height, int format,
     }
 
     return mDevice->createStream(window, width, height, format,
-                                 streamId);
+                                 HAL_DATASPACE_UNKNOWN, streamId);
 }
 
 // Create a request object from a template.

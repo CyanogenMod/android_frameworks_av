@@ -308,11 +308,10 @@ status_t CameraDeviceClient::deleteStream(int streamId) {
     return res;
 }
 
-status_t CameraDeviceClient::createStream(int width, int height, int format,
+status_t CameraDeviceClient::createStream(
                       const sp<IGraphicBufferProducer>& bufferProducer)
 {
     ATRACE_CALL();
-    ALOGV("%s (w = %d, h = %d, f = 0x%x)", __FUNCTION__, width, height, format);
 
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -368,7 +367,8 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
         anw = new Surface(bufferProducer, useAsync);
     }
 
-    // TODO: remove w,h,f since we are ignoring them
+    int width, height, format;
+    android_dataspace dataSpace;
 
     if ((res = anw->query(anw.get(), NATIVE_WINDOW_WIDTH, &width)) != OK) {
         ALOGE("%s: Camera %d: Failed to query Surface width", __FUNCTION__,
@@ -385,6 +385,12 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
               mCameraId);
         return res;
     }
+    if ((res = anw->query(anw.get(), NATIVE_WINDOW_DEFAULT_DATASPACE,
+                            reinterpret_cast<int*>(&dataSpace))) != OK) {
+        ALOGE("%s: Camera %d: Failed to query Surface dataSpace", __FUNCTION__,
+              mCameraId);
+        return res;
+    }
 
     // FIXME: remove this override since the default format should be
     //       IMPLEMENTATION_DEFINED. b/9487482
@@ -397,14 +403,15 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
 
     // Round dimensions to the nearest dimensions available for this format
     if (flexibleConsumer && !CameraDeviceClient::roundBufferDimensionNearest(width, height,
-            format, mDevice->info(), /*out*/&width, /*out*/&height)) {
+            format, dataSpace, mDevice->info(), /*out*/&width, /*out*/&height)) {
         ALOGE("%s: No stream configurations with the format %#x defined, failed to create stream.",
                 __FUNCTION__, format);
         return BAD_VALUE;
     }
 
     int streamId = -1;
-    res = mDevice->createStream(anw, width, height, format, &streamId);
+    res = mDevice->createStream(anw, width, height, format, dataSpace,
+            &streamId);
 
     if (res == OK) {
         mStreamMap.add(bufferProducer->asBinder(), streamId);
@@ -439,10 +446,12 @@ status_t CameraDeviceClient::createStream(int width, int height, int format,
 
 
 bool CameraDeviceClient::roundBufferDimensionNearest(int32_t width, int32_t height,
-        int32_t format, const CameraMetadata& info,
+        int32_t format, android_dataspace dataSpace, const CameraMetadata& info,
         /*out*/int32_t* outWidth, /*out*/int32_t* outHeight) {
 
     camera_metadata_ro_entry streamConfigs =
+            (dataSpace == HAL_DATASPACE_DEPTH) ?
+            info.find(ANDROID_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS) :
             info.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
 
     int32_t bestWidth = -1;

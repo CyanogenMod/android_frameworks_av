@@ -208,14 +208,11 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t createStream(int width, int height, int format,
+    virtual status_t createStream(
                           const sp<IGraphicBufferProducer>& bufferProducer)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
-        data.writeInt32(width);
-        data.writeInt32(height);
-        data.writeInt32(format);
 
         data.writeInt32(1); // marker that bufferProducer is not null
         data.writeString16(String16("unknown_name")); // name of surface
@@ -396,14 +393,6 @@ status_t BnCameraDeviceUser::onTransact(
         } break;
         case CREATE_STREAM: {
             CHECK_INTERFACE(ICameraDeviceUser, data, reply);
-            int width, height, format;
-
-            width = data.readInt32();
-            ALOGV("%s: CREATE_STREAM: width = %d", __FUNCTION__, width);
-            height = data.readInt32();
-            ALOGV("%s: CREATE_STREAM: height = %d", __FUNCTION__, height);
-            format = data.readInt32();
-            ALOGV("%s: CREATE_STREAM: format = %d", __FUNCTION__, format);
 
             sp<IGraphicBufferProducer> bp;
             if (data.readInt32() != 0) {
@@ -419,7 +408,7 @@ status_t BnCameraDeviceUser::onTransact(
             }
 
             status_t ret;
-            ret = createStream(width, height, format, bp);
+            ret = createStream(bp);
 
             reply->writeNoException();
             ALOGV("%s: CREATE_STREAM: write noException", __FUNCTION__);

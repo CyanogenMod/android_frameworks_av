@@ -84,9 +84,6 @@ public:
     virtual status_t      deleteStream(int streamId);
 
     virtual status_t      createStream(
-            int width,
-            int height,
-            int format,
             const sp<IGraphicBufferProducer>& bufferProducer);
 
     // Create a request object from a template.
@@ -161,7 +158,8 @@ private:
     // a width <= ROUNDING_WIDTH_CAP
     static const int32_t ROUNDING_WIDTH_CAP = 1080;
     static bool roundBufferDimensionNearest(int32_t width, int32_t height, int32_t format,
-            const CameraMetadata& info, /*out*/int32_t* outWidth, /*out*/int32_t* outHeight);
+            android_dataspace dataSpace, const CameraMetadata& info,
+            /*out*/int32_t* outWidth, /*out*/int32_t* outHeight);
 
     // IGraphicsBufferProducer binder -> Stream ID
     KeyedVector<sp<IBinder>, int> mStreamMap;
