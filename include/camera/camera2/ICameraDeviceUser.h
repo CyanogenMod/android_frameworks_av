@@ -101,7 +101,6 @@ public:
 
     virtual status_t        deleteStream(int streamId) = 0;
     virtual status_t        createStream(
-            int width, int height, int format,
             const sp<IGraphicBufferProducer>& bufferProducer) = 0;
 
     // Create a request object from a template.

@@ -801,12 +801,13 @@ status_t Camera3Device::createZslStream(
 }
 
 status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, int format, int *id) {
+        uint32_t width, uint32_t height, int format, android_dataspace dataSpace,
+        int *id) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
-    ALOGV("Camera %d: Creating new stream %d: %d x %d, format %d",
-            mId, mNextStreamId, width, height, format);
+    ALOGV("Camera %d: Creating new stream %d: %d x %d, format %d, dataspace %d",
+            mId, mNextStreamId, width, height, format, dataSpace);
 
     status_t res;
     bool wasActive = false;
@@ -846,10 +847,10 @@ status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
         }
 
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, jpegBufferSize, format);
+                width, height, jpegBufferSize, format, dataSpace);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, format);
+                width, height, format, dataSpace);
     }
     newStream->setStatusTracker(mStatusTracker);
 

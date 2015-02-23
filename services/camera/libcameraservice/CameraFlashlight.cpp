@@ -388,7 +388,8 @@ status_t CameraDeviceClientFlashControl::initializeSurface(
     if (mAnw == NULL) {
         return NO_MEMORY;
     }
-    res = device->createStream(mAnw, width, height, format, &mStreamId);
+    res = device->createStream(mAnw, width, height, format,
+            HAL_DATASPACE_UNKNOWN, &mStreamId);
     if (res) {
         return res;
     }

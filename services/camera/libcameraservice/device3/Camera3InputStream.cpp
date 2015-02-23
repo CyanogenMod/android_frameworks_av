@@ -29,7 +29,7 @@ namespace camera3 {
 Camera3InputStream::Camera3InputStream(int id,
         uint32_t width, uint32_t height, int format) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_INPUT, width, height,
-                            /*maxSize*/0, format) {
+                            /*maxSize*/0, format, HAL_DATASPACE_UNKNOWN) {
 
     if (format == HAL_PIXEL_FORMAT_BLOB) {
         ALOGE("%s: Bad format, BLOB not supported", __FUNCTION__);

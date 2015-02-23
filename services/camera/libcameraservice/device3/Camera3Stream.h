@@ -119,9 +119,10 @@ class Camera3Stream :
     /**
      * Get the stream's dimensions and format
      */
-    uint32_t         getWidth() const;
-    uint32_t         getHeight() const;
-    int              getFormat() const;
+    uint32_t          getWidth() const;
+    uint32_t          getHeight() const;
+    int               getFormat() const;
+    android_dataspace getDataSpace() const;
 
     /**
      * Start the stream configuration process. Returns a handle to the stream's
@@ -264,7 +265,8 @@ class Camera3Stream :
     mutable Mutex mLock;
 
     Camera3Stream(int id, camera3_stream_type type,
-            uint32_t width, uint32_t height, size_t maxSize, int format);
+            uint32_t width, uint32_t height, size_t maxSize, int format,
+            android_dataspace dataSpace);
 
     /**
      * Interface to be implemented by derived classes
