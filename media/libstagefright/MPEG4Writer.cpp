@@ -63,6 +63,14 @@ static const uint8_t kNalUnitTypeSeqParamSet = 0x07;
 static const uint8_t kNalUnitTypePicParamSet = 0x08;
 static const int64_t kInitialDelayTimeUs     = 700000LL;
 
+static const char kMetaKey_Model[]      = "com.android.model";
+static const char kMetaKey_Version[]    = "com.android.version";
+static const char kMetaKey_Build[]      = "com.android.build";
+static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
+
+/* uncomment to include model and build in meta */
+//#define SHOW_MODEL_BUILD 1
+
 class MPEG4Writer::Track {
 public:
     Track(MPEG4Writer *owner, const sp<MediaSource> &source, size_t trackId);
@@ -359,12 +367,14 @@ MPEG4Writer::MPEG4Writer(int fd)
       mOffset(0),
       mMdatOffset(0),
       mEstimatedMoovBoxSize(0),
+      mMoovExtraSize(0),
       mInterleaveDurationUs(1000000),
       mLatitudex10000(0),
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
       mMetaKeys(new AMessage()),
       mStartTimeOffsetMs(-1) {
+    addDeviceMeta();
 }
 
 MPEG4Writer::~MPEG4Writer() {
@@ -484,6 +494,34 @@ status_t MPEG4Writer::startTracks(MetaData *params) {
     return OK;
 }
 
+void MPEG4Writer::addDeviceMeta() {
+    // add device info and estimate space in 'moov'
+    char val[PROPERTY_VALUE_MAX];
+    size_t n;
+    // meta size is estimated by adding up the following:
+    // - meta header structures, which occur only once (total 66 bytes)
+    // - size for each key, which consists of a fixed header (32 bytes),
+    //   plus key length and data length.
+    mMoovExtraSize += 66;
+    if (property_get("ro.build.version.release", val, NULL)
+            && (n = strlen(val)) > 0) {
+        mMetaKeys->setString(kMetaKey_Version, val, n + 1);
+        mMoovExtraSize += sizeof(kMetaKey_Version) + n + 32;
+    }
+#ifdef SHOW_MODEL_BUILD
+    if (property_get("ro.product.model", val, NULL)
+            && (n = strlen(val)) > 0) {
+        mMetaKeys->setString(kMetaKey_Model, val, n + 1);
+        mMoovExtraSize += sizeof(kMetaKey_Model) + n + 32;
+    }
+    if (property_get("ro.build.display.id", val, NULL)
+            && (n = strlen(val)) > 0) {
+        mMetaKeys->setString(kMetaKey_Build, val, n + 1);
+        mMoovExtraSize += sizeof(kMetaKey_Build) + n + 32;
+    }
+#endif
+}
+
 int64_t MPEG4Writer::estimateMoovBoxSize(int32_t bitRate) {
     // This implementation is highly experimental/heurisitic.
     //
@@ -536,6 +574,9 @@ int64_t MPEG4Writer::estimateMoovBoxSize(int32_t bitRate) {
     if (size > MAX_MOOV_BOX_SIZE) {
         size = MAX_MOOV_BOX_SIZE;
     }
+
+    // Account for the extra stuff (Geo, meta keys, etc.)
+    size += mMoovExtraSize;
 
     ALOGI("limits: %" PRId64 "/%" PRId64 " bytes/us, bit rate: %d bps and the"
          " estimated moov size %" PRId64 " bytes",
@@ -1250,6 +1291,7 @@ status_t MPEG4Writer::setGeoData(int latitudex10000, int longitudex10000) {
     mLatitudex10000 = latitudex10000;
     mLongitudex10000 = longitudex10000;
     mAreGeoTagsAvailable = true;
+    mMoovExtraSize += 30;
     return OK;
 }
 
@@ -1258,7 +1300,9 @@ status_t MPEG4Writer::setCaptureRate(float captureFps) {
         return BAD_VALUE;
     }
 
-    mMetaKeys->setFloat("com.android.capture.fps", captureFps);
+    mMetaKeys->setFloat(kMetaKey_CaptureFps, captureFps);
+    mMoovExtraSize += sizeof(kMetaKey_CaptureFps) + 4 + 32;
+
     return OK;
 }
 
@@ -3122,11 +3166,6 @@ void MPEG4Writer::writeKeys() {
 void MPEG4Writer::writeIlst() {
     size_t count = mMetaKeys->countEntries();
 
-    // meta data key types
-    static const int32_t kKeyType_BE32Float = 23;
-    static const int32_t kKeyType_BE32SignedInteger = 67;
-    static const int32_t kKeyType_BE32UnsignedInteger = 77;
-
     beginBox("ilst");
     for (size_t i = 0; i < count; i++) {
         beginBox(i + 1); // key id (1-based)
@@ -3134,11 +3173,22 @@ void MPEG4Writer::writeIlst() {
         AMessage::Type type;
         const char *key = mMetaKeys->getEntryNameAt(i, &type);
         switch (type) {
+            case AMessage::kTypeString:
+            {
+                AString val;
+                CHECK(mMetaKeys->findString(key, &val));
+                writeInt32(1); // type = UTF8
+                writeInt32(0); // default country/language
+                write(val.c_str(), strlen(val.c_str())); // write without \0
+                break;
+            }
+
             case AMessage::kTypeFloat:
             {
                 float val;
                 CHECK(mMetaKeys->findFloat(key, &val));
-                writeInt32(kKeyType_BE32Float);
+                writeInt32(23); // type = float32
+                writeInt32(0);  // default country/language
                 writeInt32(*reinterpret_cast<int32_t *>(&val));
                 break;
             }
@@ -3147,7 +3197,8 @@ void MPEG4Writer::writeIlst() {
             {
                 int32_t val;
                 CHECK(mMetaKeys->findInt32(key, &val));
-                writeInt32(kKeyType_BE32SignedInteger);
+                writeInt32(67); // type = signed int32
+                writeInt32(0);  // default country/language
                 writeInt32(val);
                 break;
             }
@@ -3155,7 +3206,8 @@ void MPEG4Writer::writeIlst() {
             default:
             {
                 ALOGW("Unsupported key type, writing 0 instead");
-                writeInt32(kKeyType_BE32UnsignedInteger);
+                writeInt32(77); // type = unsigned int32
+                writeInt32(0);  // default country/language
                 writeInt32(0);
                 break;
             }
@@ -3178,7 +3230,6 @@ void MPEG4Writer::writeMetaBox() {
     writeIlst();
     endBox();
 }
-
 
 /*
  * Geodata is stored according to ISO-6709 standard.

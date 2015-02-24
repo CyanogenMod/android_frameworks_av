@@ -91,6 +91,7 @@ private:
     off64_t mFreeBoxOffset;
     bool mStreamableFile;
     off64_t mEstimatedMoovBoxSize;
+    off64_t mMoovExtraSize;
     uint32_t mInterleaveDurationUs;
     int32_t mTimeScale;
     int64_t mStartTimestampUs;
@@ -200,6 +201,8 @@ private:
     void writeGeoDataBox();
     void writeLatitude(int degreex10000);
     void writeLongitude(int degreex10000);
+
+    void addDeviceMeta();
     void writeHdlr();
     void writeKeys();
     void writeIlst();
