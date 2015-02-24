@@ -622,8 +622,7 @@ protected:
 
         // handle special cases for sonification strategy while in call: mute streams or replace by
         // a special tone in the device used for communication
-        void handleIncallSonification(audio_stream_type_t stream, bool starting, bool stateChange,
-                                                                   audio_io_handle_t output);
+        void handleIncallSonification(audio_stream_type_t stream, bool starting, bool stateChange);
 
         // true if device is in a telephony or VoIP call
         virtual bool isInCall();
