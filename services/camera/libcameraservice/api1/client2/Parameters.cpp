@@ -889,14 +889,29 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     previewCallbackOneShot = false;
     previewCallbackSurface = false;
 
+    Size maxJpegSize = getMaxSize(getAvailableJpegSizes());
+    int64_t minFrameDurationNs = getJpegStreamMinFrameDurationNs(maxJpegSize);
+
+    slowJpegMode = false;
+    if (minFrameDurationNs > kSlowJpegModeThreshold) {
+        slowJpegMode = true;
+        // Slow jpeg devices does not support video snapshot without
+        // slowing down preview.
+        // TODO: support video size video snapshot only?
+        params.set(CameraParameters::KEY_VIDEO_SNAPSHOT_SUPPORTED,
+            CameraParameters::FALSE);
+    }
+
     char value[PROPERTY_VALUE_MAX];
     property_get("camera.disable_zsl_mode", value, "0");
-    if (!strcmp(value,"1")) {
+    if (!strcmp(value,"1") || slowJpegMode) {
         ALOGI("Camera %d: Disabling ZSL mode", cameraId);
         zslMode = false;
     } else {
         zslMode = true;
     }
+
+    ALOGI("%s: zslMode: %d slowJpegMode %d", __FUNCTION__, zslMode, slowJpegMode);
 
     lightFx = LIGHTFX_NONE;
 
@@ -2778,6 +2793,17 @@ Parameters::Size Parameters::getMaxSizeForRatio(
     return maxSize;
 }
 
+Parameters::Size Parameters::getMaxSize(const Vector<Parameters::Size> &sizes) {
+    Size maxSize = {-1, -1};
+    for (size_t i = 0; i < sizes.size(); i++) {
+        if (sizes[i].width > maxSize.width ||
+                (sizes[i].width == maxSize.width && sizes[i].height > maxSize.height )) {
+            maxSize = sizes[i];
+        }
+    }
+    return maxSize;
+}
+
 Vector<Parameters::StreamConfiguration> Parameters::getStreamConfigurations() {
     const int STREAM_CONFIGURATION_SIZE = 4;
     const int STREAM_FORMAT_OFFSET = 0;
@@ -2792,7 +2818,7 @@ Vector<Parameters::StreamConfiguration> Parameters::getStreamConfigurations() {
 
     camera_metadata_ro_entry_t availableStreamConfigs =
                 staticInfo(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
-    for (size_t i=0; i < availableStreamConfigs.count; i+= STREAM_CONFIGURATION_SIZE) {
+    for (size_t i = 0; i < availableStreamConfigs.count; i+= STREAM_CONFIGURATION_SIZE) {
         int32_t format = availableStreamConfigs.data.i32[i + STREAM_FORMAT_OFFSET];
         int32_t width = availableStreamConfigs.data.i32[i + STREAM_WIDTH_OFFSET];
         int32_t height = availableStreamConfigs.data.i32[i + STREAM_HEIGHT_OFFSET];
@@ -2803,11 +2829,52 @@ Vector<Parameters::StreamConfiguration> Parameters::getStreamConfigurations() {
     return scs;
 }
 
+int64_t Parameters::getJpegStreamMinFrameDurationNs(Parameters::Size size) {
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        const int STREAM_DURATION_SIZE = 4;
+        const int STREAM_FORMAT_OFFSET = 0;
+        const int STREAM_WIDTH_OFFSET = 1;
+        const int STREAM_HEIGHT_OFFSET = 2;
+        const int STREAM_DURATION_OFFSET = 3;
+        camera_metadata_ro_entry_t availableStreamMinDurations =
+                    staticInfo(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS);
+        for (size_t i = 0; i < availableStreamMinDurations.count; i+= STREAM_DURATION_SIZE) {
+            int64_t format = availableStreamMinDurations.data.i64[i + STREAM_FORMAT_OFFSET];
+            int64_t width = availableStreamMinDurations.data.i64[i + STREAM_WIDTH_OFFSET];
+            int64_t height = availableStreamMinDurations.data.i64[i + STREAM_HEIGHT_OFFSET];
+            int64_t duration = availableStreamMinDurations.data.i64[i + STREAM_DURATION_OFFSET];
+            if (format == HAL_PIXEL_FORMAT_BLOB && width == size.width && height == size.height) {
+                return duration;
+            }
+        }
+    } else {
+        Vector<Size> availableJpegSizes = getAvailableJpegSizes();
+        size_t streamIdx = availableJpegSizes.size();
+        for (size_t i = 0; i < availableJpegSizes.size(); i++) {
+            if (availableJpegSizes[i].width == size.width &&
+                    availableJpegSizes[i].height == size.height) {
+                streamIdx = i;
+                break;
+            }
+        }
+        if (streamIdx != availableJpegSizes.size()) {
+            camera_metadata_ro_entry_t jpegMinDurations =
+                    staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_MIN_DURATIONS);
+            if (streamIdx < jpegMinDurations.count) {
+                return jpegMinDurations.data.i64[streamIdx];
+            }
+        }
+    }
+    ALOGE("%s: cannot find min frame duration for jpeg size %dx%d",
+            __FUNCTION__, size.width, size.height);
+    return -1;
+}
+
 SortedVector<int32_t> Parameters::getAvailableOutputFormats() {
     SortedVector<int32_t> outputFormats; // Non-duplicated output formats
     if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
         Vector<StreamConfiguration> scs = getStreamConfigurations();
-        for (size_t i=0; i < scs.size(); i++) {
+        for (size_t i = 0; i < scs.size(); i++) {
             const StreamConfiguration &sc = scs[i];
             if (sc.isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT) {
                 outputFormats.add(sc.format);
@@ -2815,7 +2882,7 @@ SortedVector<int32_t> Parameters::getAvailableOutputFormats() {
         }
     } else {
         camera_metadata_ro_entry_t availableFormats = staticInfo(ANDROID_SCALER_AVAILABLE_FORMATS);
-        for (size_t i=0; i < availableFormats.count; i++) {
+        for (size_t i = 0; i < availableFormats.count; i++) {
             outputFormats.add(availableFormats.data.i32[i]);
         }
     }
@@ -2826,7 +2893,7 @@ Vector<Parameters::Size> Parameters::getAvailableJpegSizes() {
     Vector<Parameters::Size> jpegSizes;
     if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
         Vector<StreamConfiguration> scs = getStreamConfigurations();
-        for (size_t i=0; i < scs.size(); i++) {
+        for (size_t i = 0; i < scs.size(); i++) {
             const StreamConfiguration &sc = scs[i];
             if (sc.isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT &&
                     sc.format == HAL_PIXEL_FORMAT_BLOB) {
@@ -2840,7 +2907,7 @@ Vector<Parameters::Size> Parameters::getAvailableJpegSizes() {
         const int HEIGHT_OFFSET = 1;
         camera_metadata_ro_entry_t availableJpegSizes =
             staticInfo(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
-        for (size_t i=0; i < availableJpegSizes.count; i+= JPEG_SIZE_ENTRY_COUNT) {
+        for (size_t i = 0; i < availableJpegSizes.count; i+= JPEG_SIZE_ENTRY_COUNT) {
             int width = availableJpegSizes.data.i32[i + WIDTH_OFFSET];
             int height = availableJpegSizes.data.i32[i + HEIGHT_OFFSET];
             Size sz = {width, height};
