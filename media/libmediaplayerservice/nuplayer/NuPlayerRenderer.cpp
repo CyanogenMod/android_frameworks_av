@@ -1474,7 +1474,7 @@ bool NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.is_streaming = isStreaming;
             offloadInfo.bit_width = bitsPerSample;
 #ifdef ENABLE_AV_ENHANCEMENTS
-            //offloadInfo.use_small_bufs = (audioFormat == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD);
+            offloadInfo.use_small_bufs = (audioFormat == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD);
 #endif
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
