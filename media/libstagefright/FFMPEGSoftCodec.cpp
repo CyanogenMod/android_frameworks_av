@@ -414,7 +414,10 @@ status_t FFMPEGSoftCodec::setWMVFormat(
     int32_t version = 0;
     OMX_VIDEO_PARAM_WMVTYPE paramWMV;
 
-    CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMVVersion), &version));
+    if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMVVersion), &version)) {
+        ALOGE("WMV version not detected");
+        return ERROR_UNSUPPORTED;
+    }
 
     InitOMXParams(&paramWMV);
     paramWMV.nPortIndex = kPortIndexInput;
