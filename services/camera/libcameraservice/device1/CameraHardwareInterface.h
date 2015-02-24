@@ -97,7 +97,7 @@ public:
         if (res != OK) return res;
 
         int rc = OK;
-        if (module->getRawModule()->module_api_version >= CAMERA_MODULE_API_VERSION_2_3 &&
+        if (module->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_3 &&
             info.device_version > CAMERA_DEVICE_API_VERSION_1_0) {
             // Open higher version camera device as HAL1.0 device.
             rc = module->openLegacy(mName.string(),

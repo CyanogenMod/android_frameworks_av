@@ -54,14 +54,12 @@ CameraModule::CameraModule(camera_module_t *module) {
     }
 
     mModule = module;
-    for (int i = 0; i < MAX_CAMERAS_PER_MODULE; i++) {
-        mCameraInfoCached[i] = false;
-    }
+    mCameraInfoMap.setCapacity(getNumberOfCameras());
 }
 
 int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
     Mutex::Autolock lock(mCameraInfoLock);
-    if (cameraId < 0 || cameraId >= MAX_CAMERAS_PER_MODULE) {
+    if (cameraId < 0) {
         ALOGE("%s: Invalid camera ID %d", __FUNCTION__, cameraId);
         return -EINVAL;
     }
@@ -72,21 +70,27 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         return mModule->get_camera_info(cameraId, info);
     }
 
-    camera_info &wrappedInfo = mCameraInfo[cameraId];
-    if (!mCameraInfoCached[cameraId]) {
+    ssize_t index = mCameraInfoMap.indexOfKey(cameraId);
+    if (index == NAME_NOT_FOUND) {
+        // Get camera info from raw module and cache it
+        CameraInfo cameraInfo;
         camera_info rawInfo;
         int ret = mModule->get_camera_info(cameraId, &rawInfo);
         if (ret != 0) {
             return ret;
         }
-        CameraMetadata &m = mCameraCharacteristics[cameraId];
+        CameraMetadata &m = cameraInfo.cameraCharacteristics;
         m = rawInfo.static_camera_characteristics;
         deriveCameraCharacteristicsKeys(rawInfo.device_version, m);
-        wrappedInfo = rawInfo;
-        wrappedInfo.static_camera_characteristics = m.getAndLock();
-        mCameraInfoCached[cameraId] = true;
+        cameraInfo.cameraInfo = rawInfo;
+        cameraInfo.cameraInfo.static_camera_characteristics = m.getAndLock();
+        mCameraInfoMap.add(cameraId, cameraInfo);
+        index = mCameraInfoMap.indexOfKey(cameraId);
     }
-    *info = wrappedInfo;
+
+    assert(index != NAME_NOT_FOUND);
+    // return the cached camera info
+    *info = mCameraInfoMap[index].cameraInfo;
     return 0;
 }
 
@@ -97,10 +101,6 @@ int CameraModule::open(const char* id, struct hw_device_t** device) {
 int CameraModule::openLegacy(
         const char* id, uint32_t halVersion, struct hw_device_t** device) {
     return mModule->open_legacy(&mModule->common, id, halVersion, device);
-}
-
-const hw_module_t* CameraModule::getRawModule() {
-    return &mModule->common;
 }
 
 int CameraModule::getNumberOfCameras() {
@@ -125,7 +125,6 @@ int CameraModule::setTorchMode(const char* camera_id, bool enable) {
     return mModule->set_torch_mode(camera_id, enable);
 }
 
-
 status_t CameraModule::filterOpenErrorCode(status_t err) {
     switch(err) {
         case NO_ERROR:
@@ -139,6 +138,25 @@ status_t CameraModule::filterOpenErrorCode(status_t err) {
     return -ENODEV;
 }
 
+uint16_t CameraModule::getModuleApiVersion() {
+    return mModule->common.module_api_version;
+}
+
+const char* CameraModule::getModuleName() {
+    return mModule->common.name;
+}
+
+uint16_t CameraModule::getHalApiVersion() {
+    return mModule->common.hal_api_version;
+}
+
+const char* CameraModule::getModuleAuthor() {
+    return mModule->common.author;
+}
+
+void* CameraModule::getDso() {
+    return mModule->common.dso;
+}
 
 }; // namespace android
 

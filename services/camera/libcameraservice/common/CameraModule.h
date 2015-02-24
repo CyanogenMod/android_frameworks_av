@@ -20,10 +20,7 @@
 #include <hardware/camera.h>
 #include <camera/CameraMetadata.h>
 #include <utils/Mutex.h>
-
-/* This needs to be increased if we can have more cameras */
-#define MAX_CAMERAS_PER_MODULE 2
-
+#include <utils/KeyedVector.h>
 
 namespace android {
 /**
@@ -37,7 +34,6 @@ class CameraModule {
 public:
     CameraModule(camera_module_t *module);
 
-    const hw_module_t* getRawModule();
     int getCameraInfo(int cameraId, struct camera_info *info);
     int getNumberOfCameras(void);
     int open(const char* id, struct hw_device_t** device);
@@ -46,16 +42,25 @@ public:
     bool isVendorTagDefined();
     void getVendorTagOps(vendor_tag_ops_t* ops);
     int setTorchMode(const char* camera_id, bool enable);
+    uint16_t getModuleApiVersion();
+    const char* getModuleName();
+    uint16_t getHalApiVersion();
+    const char* getModuleAuthor();
+    // Only used by CameraModuleFixture native test. Do NOT use elsewhere.
+    void *getDso();
 
 private:
     // Derive camera characteristics keys defined after HAL device version
     static void deriveCameraCharacteristicsKeys(uint32_t deviceVersion, CameraMetadata &chars);
     status_t filterOpenErrorCode(status_t err);
 
+    struct CameraInfo {
+        CameraMetadata cameraCharacteristics;
+        camera_info    cameraInfo;
+    };
+
     camera_module_t *mModule;
-    CameraMetadata mCameraCharacteristics[MAX_CAMERAS_PER_MODULE];
-    camera_info mCameraInfo[MAX_CAMERAS_PER_MODULE];
-    bool mCameraInfoCached[MAX_CAMERAS_PER_MODULE];
+    KeyedVector<int, CameraInfo> mCameraInfoMap;
     Mutex mCameraInfoLock;
 };
 

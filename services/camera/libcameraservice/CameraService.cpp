@@ -150,8 +150,7 @@ void CameraService::onFirstRef()
     }
     else {
         mModule = new CameraModule(rawModule);
-        const hw_module_t *common = mModule->getRawModule();
-        ALOGI("Loaded \"%s\" camera module", common->name);
+        ALOGI("Loaded \"%s\" camera module", mModule->getModuleName());
         mNumberOfCameras = mModule->getNumberOfCameras();
 
         mFlashlight = new CameraFlashlight(*mModule, *this);
@@ -170,7 +169,7 @@ void CameraService::onFirstRef()
             size_t conflicting_devices_length = 0;
 
             // If using post-2.4 module version, query the cost + conflicting devices from the HAL
-            if (common->module_api_version >= CAMERA_MODULE_API_VERSION_2_4) {
+            if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
                 struct camera_info info;
                 status_t rc = mModule->getCameraInfo(i, &info);
                 if (rc == NO_ERROR) {
@@ -202,13 +201,13 @@ void CameraService::onFirstRef()
             }
         }
 
-        if (common->module_api_version >= CAMERA_MODULE_API_VERSION_2_1) {
+        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_1) {
             mModule->setCallbacks(this);
         }
 
         VendorTagDescriptor::clearGlobalVendorTagDescriptor();
 
-        if (common->module_api_version >= CAMERA_MODULE_API_VERSION_2_2) {
+        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_2) {
             setUpVendorTags();
         }
 
@@ -458,7 +457,7 @@ status_t CameraService::getCameraCharacteristics(int cameraId,
 
     int facing;
     status_t ret = OK;
-    if (mModule->getRawModule()->module_api_version < CAMERA_MODULE_API_VERSION_2_0 ||
+    if (mModule->getModuleApiVersion() < CAMERA_MODULE_API_VERSION_2_0 ||
             getDeviceVersion(cameraId, &facing) <= CAMERA_DEVICE_API_VERSION_2_1 ) {
         /**
          * Backwards compatibility mode for old HALs:
@@ -551,7 +550,7 @@ int CameraService::getDeviceVersion(int cameraId, int* facing) {
     }
 
     int deviceVersion;
-    if (mModule->getRawModule()->module_api_version >= CAMERA_MODULE_API_VERSION_2_0) {
+    if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_0) {
         deviceVersion = info.device_version;
     } else {
         deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
@@ -1038,7 +1037,7 @@ status_t CameraService::connectLegacy(
         /*out*/
         sp<ICamera>& device) {
 
-    int apiVersion = mModule->getRawModule()->module_api_version;
+    int apiVersion = mModule->getModuleApiVersion();
     if (halVersion != CAMERA_HAL_API_VERSION_UNSPECIFIED &&
             apiVersion < CAMERA_MODULE_API_VERSION_2_3) {
         /*
@@ -1876,15 +1875,13 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
             return NO_ERROR;
         }
 
-        const hw_module_t* common = mModule->getRawModule();
-        result = String8::format("Camera module HAL API version: %#x\n", common->hal_api_version);
-        result.appendFormat("Camera module API version: %#x\n", common->module_api_version);
-        result.appendFormat("Camera module name: %s\n", common->name);
-        result.appendFormat("Camera module author: %s\n", common->author);
+        result = String8::format("Camera module HAL API version: 0x%x\n", mModule->getHalApiVersion());
+        result.appendFormat("Camera module API version: 0x%x\n", mModule->getModuleApiVersion());
+        result.appendFormat("Camera module name: %s\n", mModule->getModuleName());
+        result.appendFormat("Camera module author: %s\n", mModule->getModuleAuthor());
         result.appendFormat("Number of camera devices: %d\n", mNumberOfCameras);
         String8 activeClientString = mActiveClientManager.toString();
         result.appendFormat("Active Camera Clients:\n%s", activeClientString.string());
-
 
         sp<VendorTagDescriptor> desc = VendorTagDescriptor::getGlobalVendorTagDescriptor();
         if (desc == NULL) {
@@ -1932,7 +1929,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                         info.facing == CAMERA_FACING_BACK ? "BACK" : "FRONT");
                 result.appendFormat("  Orientation: %d\n", info.orientation);
                 int deviceVersion;
-                if (common->module_api_version < CAMERA_MODULE_API_VERSION_2_0) {
+                if (mModule->getModuleApiVersion() < CAMERA_MODULE_API_VERSION_2_0) {
                     deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
                 } else {
                     deviceVersion = info.device_version;
