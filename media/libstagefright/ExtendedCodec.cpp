@@ -709,12 +709,31 @@ void ExtendedCodec::configureVideoDecoder(
         fileFormatCStr = fileFormat.c_str();
     }
 
-    // Enable timestamp reordering for AVI file type, mpeg4 and vc1 codec types
+    // Enable timestamp reordering for mpeg4 and vc1 codec types, the AVI file
+    // type, and hevc content in the ts container
+    bool tsReorder = false;
     const char* roleVC1 = "OMX.qcom.video.decoder.vc1";
     const char* roleMPEG4 = "OMX.qcom.video.decoder.mpeg4";
+    const char* roleHEVC = "OMX.qcom.video.decoder.hevc";
     if (!strncmp(componentName, roleVC1, strlen(roleVC1)) ||
-            !strncmp(componentName, roleMPEG4, strlen(roleMPEG4)) ||
-            (fileFormatCStr!= NULL && !strncmp(fileFormatCStr, "video/avi", 9))) {
+            !strncmp(componentName, roleMPEG4, strlen(roleMPEG4))) {
+        // The codec requires timestamp reordering
+        tsReorder = true;
+    } else if (fileFormatCStr!= NULL) {
+        // Check for containers that support timestamp reordering
+        ALOGV("Container format = %s", fileFormatCStr);
+        if (!strncmp(fileFormatCStr, "video/avi", 9)) {
+            // The container requires timestamp reordering
+            tsReorder = true;
+        } else if (!strncmp(fileFormatCStr, MEDIA_MIMETYPE_CONTAINER_MPEG2TS,
+                strlen(MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) &&
+                !strncmp(componentName, roleHEVC, strlen(roleHEVC))) {
+            // HEVC content in the TS container requires timestamp reordering
+            tsReorder = true;
+        }
+    }
+
+    if (tsReorder) {
         ALOGI("Enabling timestamp reordering");
         QOMX_INDEXTIMESTAMPREORDER reorder;
         InitOMXParams(&reorder);
