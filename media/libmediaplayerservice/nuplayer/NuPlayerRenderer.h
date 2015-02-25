@@ -48,6 +48,8 @@ struct NuPlayer::Renderer : public AHandler {
 
     void queueEOS(bool audio, status_t finalResult);
 
+    void setPlaybackRate(float rate);
+
     void flush(bool audio, bool notifyComplete);
 
     void signalTimeDiscontinuity();
@@ -100,6 +102,7 @@ private:
         kWhatPostDrainVideoQueue = 'pDVQ',
         kWhatQueueBuffer         = 'queB',
         kWhatQueueEOS            = 'qEOS',
+        kWhatSetRate             = 'setR',
         kWhatFlush               = 'flus',
         kWhatPause               = 'paus',
         kWhatResume              = 'resm',
@@ -138,6 +141,7 @@ private:
     int32_t mVideoDrainGeneration;
 
     sp<MediaClock> mMediaClock;
+    float mPlaybackRate;
     int64_t mAudioFirstAnchorTimeMediaUs;
     int64_t mAnchorTimeMediaUs;
     int64_t mAnchorNumFramesWritten;
@@ -242,6 +246,8 @@ private:
 
     void startAudioOffloadPauseTimeout();
     void cancelAudioOffloadPauseTimeout();
+
+    int64_t getDurationUsIfPlayedAtSampleRate(uint32_t numFrames);
 
     DISALLOW_EVIL_CONSTRUCTORS(Renderer);
 };

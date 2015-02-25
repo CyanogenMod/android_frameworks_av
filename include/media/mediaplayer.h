@@ -220,6 +220,7 @@ public:
             status_t        stop();
             status_t        pause();
             bool            isPlaying();
+            status_t        setPlaybackRate(float rate);
             status_t        getVideoWidth(int *w);
             status_t        getVideoHeight(int *h);
             status_t        seekTo(int msec);
@@ -274,6 +275,7 @@ private:
     int                         mVideoWidth;
     int                         mVideoHeight;
     int                         mAudioSessionId;
+    float                       mPlaybackRate;
     float                       mSendLevel;
     struct sockaddr_in          mRetransmitEndpoint;
     bool                        mRetransmitEndpointValid;

@@ -261,6 +261,7 @@ private:
         virtual status_t        stop();
         virtual status_t        pause();
         virtual status_t        isPlaying(bool* state);
+        virtual status_t        setPlaybackRate(float rate);
         virtual status_t        seekTo(int msec);
         virtual status_t        getCurrentPosition(int* msec);
         virtual status_t        getDuration(int* msec);

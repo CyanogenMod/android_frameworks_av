@@ -341,6 +341,11 @@ bool NuPlayerDriver::isPlaying() {
     return mState == STATE_RUNNING && !mAtEOS;
 }
 
+status_t NuPlayerDriver::setPlaybackRate(float rate) {
+    mPlayer->setPlaybackRate(rate);
+    return OK;
+}
+
 status_t NuPlayerDriver::seekTo(int msec) {
     ALOGD("seekTo(%p) %d ms", this, msec);
     Mutex::Autolock autoLock(mLock);

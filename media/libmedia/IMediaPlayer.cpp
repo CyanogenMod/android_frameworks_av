@@ -39,6 +39,7 @@ enum {
     START,
     STOP,
     IS_PLAYING,
+    SET_PLAYBACK_RATE,
     PAUSE,
     SEEK_TO,
     GET_CURRENT_POSITION,
@@ -161,6 +162,15 @@ public:
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
         remote()->transact(IS_PLAYING, data, &reply);
         *state = reply.readInt32();
+        return reply.readInt32();
+    }
+
+    status_t setPlaybackRate(float rate)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
+        data.writeFloat(rate);
+        remote()->transact(SET_PLAYBACK_RATE, data, &reply);
         return reply.readInt32();
     }
 
@@ -424,6 +434,11 @@ status_t BnMediaPlayer::onTransact(
             status_t ret = isPlaying(&state);
             reply->writeInt32(state);
             reply->writeInt32(ret);
+            return NO_ERROR;
+        } break;
+        case SET_PLAYBACK_RATE: {
+            CHECK_INTERFACE(IMediaPlayer, data, reply);
+            reply->writeInt32(setPlaybackRate(data.readFloat()));
             return NO_ERROR;
         } break;
         case PAUSE: {

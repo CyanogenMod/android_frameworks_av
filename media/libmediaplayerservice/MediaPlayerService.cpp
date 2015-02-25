@@ -961,6 +961,14 @@ status_t MediaPlayerService::Client::isPlaying(bool* state)
     return NO_ERROR;
 }
 
+status_t MediaPlayerService::Client::setPlaybackRate(float rate)
+{
+    ALOGV("[%d] setPlaybackRate(%f)", mConnId, rate);
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == 0) return UNKNOWN_ERROR;
+    return p->setPlaybackRate(rate);
+}
+
 status_t MediaPlayerService::Client::getCurrentPosition(int *msec)
 {
     ALOGV("getCurrentPosition");

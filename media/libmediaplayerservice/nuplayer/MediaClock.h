@@ -32,9 +32,8 @@ struct MediaClock : public RefBase {
     void setStartingTimeMedia(int64_t startingTimeMediaUs);
 
     void clearAnchor();
-    // It's highly recommended to use timestamp of just rendered frame as
-    // anchor time, especially in paused state. Such restriction will be
-    // required when dynamic playback rate is supported in the future.
+    // It's required to use timestamp of just rendered frame as
+    // anchor time in paused state.
     void updateAnchor(
         int64_t anchorTimeMediaUs,
         int64_t anchorTimeRealUs,
@@ -42,15 +41,25 @@ struct MediaClock : public RefBase {
 
     void updateMaxTimeMedia(int64_t maxTimeMediaUs);
 
-    void pause();
-    void resume();
+    void setPlaybackRate(float rate);
 
-    int64_t getTimeMedia(int64_t realUs, bool allowPastMaxTime = false);
+    // query media time corresponding to real time |realUs|, and save the
+    // result in |outMediaUs|.
+    status_t getMediaTime(int64_t realUs,
+                          int64_t *outMediaUs,
+                          bool allowPastMaxTime = false);
+    // query real time corresponding to media time |targetMediaUs|.
+    // The result is saved in |outRealUs|.
+    status_t getRealTimeFor(int64_t targetMediaUs, int64_t *outRealUs);
 
 protected:
     virtual ~MediaClock();
 
 private:
+    status_t getMediaTime_l(int64_t realUs,
+                            int64_t *outMediaUs,
+                            bool allowPastMaxTime);
+
     Mutex mLock;
 
     int64_t mAnchorTimeMediaUs;
@@ -58,7 +67,7 @@ private:
     int64_t mMaxTimeMediaUs;
     int64_t mStartingTimeMediaUs;
 
-    bool mPaused;
+    float mPlaybackRate;
 
     DISALLOW_EVIL_CONSTRUCTORS(MediaClock);
 };

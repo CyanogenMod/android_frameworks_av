@@ -67,6 +67,7 @@ NuPlayer::Renderer::Renderer(
       mVideoQueueGeneration(0),
       mAudioDrainGeneration(0),
       mVideoDrainGeneration(0),
+      mPlaybackRate(1.0),
       mAudioFirstAnchorTimeMediaUs(-1),
       mAnchorTimeMediaUs(-1),
       mAnchorNumFramesWritten(-1),
@@ -121,6 +122,12 @@ void NuPlayer::Renderer::queueEOS(bool audio, status_t finalResult) {
     msg->post();
 }
 
+void NuPlayer::Renderer::setPlaybackRate(float rate) {
+    sp<AMessage> msg = new AMessage(kWhatSetRate, id());
+    msg->setFloat("rate", rate);
+    msg->post();
+}
+
 void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
     {
         Mutex::Autolock autoLock(mLock);
@@ -172,12 +179,7 @@ void NuPlayer::Renderer::setVideoFrameRate(float fps) {
 
 // Called on any threads.
 status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs) {
-    int64_t currentTimeUs = mMediaClock->getTimeMedia(ALooper::GetNowUs());
-    if (currentTimeUs == -1) {
-        return NO_INIT;
-    }
-    *mediaUs = currentTimeUs;
-    return OK;
+    return mMediaClock->getMediaTime(ALooper::GetNowUs(), mediaUs);
 }
 
 void NuPlayer::Renderer::clearAudioFirstAnchorTime_l() {
@@ -361,6 +363,16 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatSetRate:
+        {
+            CHECK(msg->findFloat("rate", &mPlaybackRate));
+            int32_t ratePermille = (int32_t)(0.5f + 1000 * mPlaybackRate);
+            mPlaybackRate = ratePermille / 1000.0f;
+            mMediaClock->setPlaybackRate(mPlaybackRate);
+            mAudioSink->setPlaybackRatePermille(ratePermille);
+            break;
+        }
+
         case kWhatFlush:
         {
             onFlush(msg);
@@ -541,10 +553,10 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
 
     if (mAudioFirstAnchorTimeMediaUs >= 0) {
         int64_t nowUs = ALooper::GetNowUs();
+        int64_t nowMediaUs =
+            mAudioFirstAnchorTimeMediaUs + getPlayedOutAudioDurationUs(nowUs);
         // we don't know how much data we are queueing for offloaded tracks.
-        mMediaClock->updateAnchor(mAudioFirstAnchorTimeMediaUs,
-                                  nowUs - getPlayedOutAudioDurationUs(nowUs),
-                                  INT64_MAX);
+        mMediaClock->updateAnchor(nowMediaUs, nowUs, INT64_MAX);
     }
 
     if (hasEOS) {
@@ -670,21 +682,27 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     return !mAudioQueue.empty();
 }
 
+int64_t NuPlayer::Renderer::getDurationUsIfPlayedAtSampleRate(uint32_t numFrames) {
+    int32_t sampleRate = offloadingAudio() ?
+            mCurrentOffloadInfo.sample_rate : mCurrentPcmInfo.mSampleRate;
+    // TODO: remove the (int32_t) casting below as it may overflow at 12.4 hours.
+    return (int64_t)((int32_t)numFrames * 1000000LL / sampleRate);
+}
+
+// Calculate duration of pending samples if played at normal rate (i.e., 1.0).
 int64_t NuPlayer::Renderer::getPendingAudioPlayoutDurationUs(int64_t nowUs) {
-    int64_t writtenAudioDurationUs =
-        mNumFramesWritten * 1000LL * mAudioSink->msecsPerFrame();
+    int64_t writtenAudioDurationUs = getDurationUsIfPlayedAtSampleRate(mNumFramesWritten);
     return writtenAudioDurationUs - getPlayedOutAudioDurationUs(nowUs);
 }
 
 int64_t NuPlayer::Renderer::getRealTimeUs(int64_t mediaTimeUs, int64_t nowUs) {
-    int64_t currentPositionUs =
-            mMediaClock->getTimeMedia(nowUs, true /* allowPastMaxTime */);
-    if (currentPositionUs == -1) {
+    int64_t realUs;
+    if (mMediaClock->getRealTimeFor(mediaTimeUs, &realUs) != OK) {
         // If failed to get current position, e.g. due to audio clock is
         // not ready, then just play out video immediately without delay.
         return nowUs;
     }
-    return (mediaTimeUs - currentPositionUs) + nowUs;
+    return realUs;
 }
 
 void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
@@ -696,9 +714,8 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
     }
     setAudioFirstAnchorTimeIfNeeded_l(mediaTimeUs);
     int64_t nowUs = ALooper::GetNowUs();
-    mMediaClock->updateAnchor(mediaTimeUs,
-                              nowUs + getPendingAudioPlayoutDurationUs(nowUs),
-                              mediaTimeUs);
+    int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
+    mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
     mAnchorTimeMediaUs = mediaTimeUs;
 }
 
@@ -828,9 +845,11 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
             ALOGV("video late by %lld us (%.2f secs)",
                  mVideoLateByUs, mVideoLateByUs / 1E6);
         } else {
+            int64_t mediaUs = 0;
+            mMediaClock->getMediaTime(realTimeUs, &mediaUs);
             ALOGV("rendering video at media time %.2f secs",
                     (mFlags & FLAG_REAL_TIME ? realTimeUs :
-                    mMediaClock->getTimeMedia(realTimeUs)) / 1E6);
+                    mediaUs) / 1E6);
         }
     } else {
         setVideoLateByUs(0);
@@ -1153,7 +1172,7 @@ void NuPlayer::Renderer::onPause() {
         ++mVideoDrainGeneration;
         prepareForMediaRenderingStart_l();
         mPaused = true;
-        mMediaClock->pause();
+        mMediaClock->setPlaybackRate(0.0);
     }
 
     mDrainAudioQueuePending = false;
@@ -1181,7 +1200,7 @@ void NuPlayer::Renderer::onResume() {
     {
         Mutex::Autolock autoLock(mLock);
         mPaused = false;
-        mMediaClock->resume();
+        mMediaClock->setPlaybackRate(mPlaybackRate);
 
         if (!mAudioQueue.empty()) {
             postDrainAudioQueue_l();
@@ -1222,6 +1241,7 @@ bool NuPlayer::Renderer::getSyncQueues() {
 // accessing getTimestamp() or getPosition() every time a data buffer with
 // a media time is received.
 //
+// Calculate duration of played samples if played at normal rate (i.e., 1.0).
 int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
     uint32_t numFramesPlayed;
     int64_t numFramesPlayedAt;
@@ -1259,9 +1279,8 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
         //ALOGD("getPosition: %d %lld", numFramesPlayed, numFramesPlayedAt);
     }
 
-    // TODO: remove the (int32_t) casting below as it may overflow at 12.4 hours.
     //CHECK_EQ(numFramesPlayed & (1 << 31), 0);  // can't be negative until 12.4 hrs, test
-    int64_t durationUs = (int64_t)((int32_t)numFramesPlayed * 1000LL * mAudioSink->msecsPerFrame())
+    int64_t durationUs = getDurationUsIfPlayedAtSampleRate(numFramesPlayed)
             + nowUs - numFramesPlayedAt;
     if (durationUs < 0) {
         // Occurs when numFramesPlayed position is very small and the following:
@@ -1400,6 +1419,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     &offloadInfo);
 
             if (err == OK) {
+                if (mPlaybackRate != 1.0) {
+                    mAudioSink->setPlaybackRatePermille(
+                            (int32_t)(mPlaybackRate * 1000 + 0.5f));
+                }
                 // If the playback is offloaded to h/w, we pass
                 // the HAL some metadata information.
                 // We don't want to do this for PCM because it
@@ -1455,6 +1478,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             return err;
         }
         mCurrentPcmInfo = info;
+        if (mPlaybackRate != 1.0) {
+            mAudioSink->setPlaybackRatePermille(
+                    (int32_t)(mPlaybackRate * 1000 + 0.5f));
+        }
         mAudioSink->start();
     }
     if (audioSinkChanged) {

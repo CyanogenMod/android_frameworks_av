@@ -59,6 +59,7 @@ MediaPlayer::MediaPlayer()
     mLoop = false;
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
+    mPlaybackRate = 1.0;
     mLockThreadId = 0;
     mAudioSessionId = AudioSystem::newAudioUniqueId();
     AudioSystem::acquireAudioSessionId(mAudioSessionId, -1);
@@ -376,6 +377,24 @@ bool MediaPlayer::isPlaying()
     }
     ALOGV("isPlaying: no active player");
     return false;
+}
+
+status_t MediaPlayer::setPlaybackRate(float rate)
+{
+    ALOGV("setPlaybackRate: %f", rate);
+    if (rate <= 0.0) {
+        return BAD_VALUE;
+    }
+    Mutex::Autolock _l(mLock);
+    if (mPlayer != 0) {
+        if (mPlaybackRate == rate) {
+            return NO_ERROR;
+        }
+        mPlaybackRate = rate;
+        return mPlayer->setPlaybackRate(rate);
+    }
+    ALOGV("setPlaybackRate: no active player");
+    return INVALID_OPERATION;
 }
 
 status_t MediaPlayer::getVideoWidth(int *w)

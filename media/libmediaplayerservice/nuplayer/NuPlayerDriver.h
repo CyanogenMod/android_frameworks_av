@@ -47,6 +47,7 @@ struct NuPlayerDriver : public MediaPlayerInterface {
     virtual status_t stop();
     virtual status_t pause();
     virtual bool isPlaying();
+    virtual status_t setPlaybackRate(float rate);
     virtual status_t seekTo(int msec);
     virtual status_t getCurrentPosition(int *msec);
     virtual status_t getDuration(int *msec);

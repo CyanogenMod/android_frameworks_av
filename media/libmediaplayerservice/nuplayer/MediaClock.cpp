@@ -20,19 +20,17 @@
 
 #include "MediaClock.h"
 
+#include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 
 namespace android {
-
-// Maximum time change between two updates.
-static const int64_t kMaxAnchorFluctuationUs = 1000ll;
 
 MediaClock::MediaClock()
     : mAnchorTimeMediaUs(-1),
       mAnchorTimeRealUs(-1),
       mMaxTimeMediaUs(INT64_MAX),
       mStartingTimeMediaUs(-1),
-      mPaused(false) {
+      mPlaybackRate(1.0) {
 }
 
 MediaClock::~MediaClock() {
@@ -58,14 +56,14 @@ void MediaClock::updateAnchor(
         return;
     }
 
+    Mutex::Autolock autoLock(mLock);
     int64_t nowUs = ALooper::GetNowUs();
-    int64_t nowMediaUs = anchorTimeMediaUs + nowUs - anchorTimeRealUs;
+    int64_t nowMediaUs =
+        anchorTimeMediaUs + (nowUs - anchorTimeRealUs) * (double)mPlaybackRate;
     if (nowMediaUs < 0) {
         ALOGW("reject anchor time since it leads to negative media time.");
         return;
     }
-
-    Mutex::Autolock autoLock(mLock);
     mAnchorTimeRealUs = nowUs;
     mAnchorTimeMediaUs = nowMediaUs;
     mMaxTimeMediaUs = maxTimeMediaUs;
@@ -76,60 +74,66 @@ void MediaClock::updateMaxTimeMedia(int64_t maxTimeMediaUs) {
     mMaxTimeMediaUs = maxTimeMediaUs;
 }
 
-void MediaClock::pause() {
+void MediaClock::setPlaybackRate(float rate) {
+    CHECK_GE(rate, 0.0);
     Mutex::Autolock autoLock(mLock);
-    if (mPaused) {
-        return;
-    }
-
-    mPaused = true;
     if (mAnchorTimeRealUs == -1) {
+        mPlaybackRate = rate;
         return;
     }
 
     int64_t nowUs = ALooper::GetNowUs();
-    mAnchorTimeMediaUs += nowUs - mAnchorTimeRealUs;
+    mAnchorTimeMediaUs += (nowUs - mAnchorTimeRealUs) * (double)mPlaybackRate;
     if (mAnchorTimeMediaUs < 0) {
-        ALOGW("anchor time should not be negative, set to 0.");
+        ALOGW("setRate: anchor time should not be negative, set to 0.");
         mAnchorTimeMediaUs = 0;
     }
     mAnchorTimeRealUs = nowUs;
+    mPlaybackRate = rate;
 }
 
-void MediaClock::resume() {
+status_t MediaClock::getMediaTime(
+        int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) {
     Mutex::Autolock autoLock(mLock);
-    if (!mPaused) {
-        return;
-    }
-
-    mPaused = false;
-    if (mAnchorTimeRealUs == -1) {
-        return;
-    }
-
-    mAnchorTimeRealUs = ALooper::GetNowUs();
+    return getMediaTime_l(realUs, outMediaUs, allowPastMaxTime);
 }
 
-int64_t MediaClock::getTimeMedia(int64_t realUs, bool allowPastMaxTime) {
-    Mutex::Autolock autoLock(mLock);
+status_t MediaClock::getMediaTime_l(
+        int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) {
     if (mAnchorTimeRealUs == -1) {
-        return -1ll;
+        return NO_INIT;
     }
 
-    if (mPaused) {
-        realUs = mAnchorTimeRealUs;
+    int64_t mediaUs = mAnchorTimeMediaUs
+            + (realUs - mAnchorTimeRealUs) * (double)mPlaybackRate;
+    if (mediaUs > mMaxTimeMediaUs && !allowPastMaxTime) {
+        mediaUs = mMaxTimeMediaUs;
     }
-    int64_t currentMediaUs = mAnchorTimeMediaUs + realUs - mAnchorTimeRealUs;
-    if (currentMediaUs > mMaxTimeMediaUs && !allowPastMaxTime) {
-        currentMediaUs = mMaxTimeMediaUs;
+    if (mediaUs < mStartingTimeMediaUs) {
+        mediaUs = mStartingTimeMediaUs;
     }
-    if (currentMediaUs < mStartingTimeMediaUs) {
-        currentMediaUs = mStartingTimeMediaUs;
+    if (mediaUs < 0) {
+        mediaUs = 0;
     }
-    if (currentMediaUs < 0) {
-        currentMediaUs = 0;
+    *outMediaUs = mediaUs;
+    return OK;
+}
+
+status_t MediaClock::getRealTimeFor(int64_t targetMediaUs, int64_t *outRealUs) {
+    Mutex::Autolock autoLock(mLock);
+    if (mPlaybackRate == 0.0) {
+        return NO_INIT;
     }
-    return currentMediaUs;
+
+    int64_t nowUs = ALooper::GetNowUs();
+    int64_t nowMediaUs;
+    status_t status =
+            getMediaTime_l(nowUs, &nowMediaUs, true /* allowPastMaxTime */);
+    if (status != OK) {
+        return status;
+    }
+    *outRealUs = (targetMediaUs - nowMediaUs) / (double)mPlaybackRate + nowUs;
+    return OK;
 }
 
 }  // namespace android
