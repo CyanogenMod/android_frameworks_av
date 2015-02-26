@@ -258,6 +258,9 @@ struct ExtendedUtils {
 
     static void overWriteAudioFormat(
                 sp<AMessage> &dst, const sp<AMessage> &src);
+
+    static sp<MetaData> MakeHEVCCodecSpecificData(const sp<ABuffer> &accessUnit);
+    static bool IsHevcIDR(const sp<ABuffer> &accessUnit);
 };
 
 }
