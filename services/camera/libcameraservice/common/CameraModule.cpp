@@ -91,7 +91,7 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
 }
 
 int CameraModule::open(const char* id, struct hw_device_t** device) {
-    return mModule->common.methods->open(&mModule->common, id, device);
+    return filterOpenErrorCode(mModule->common.methods->open(&mModule->common, id, device));
 }
 
 int CameraModule::openLegacy(
@@ -124,6 +124,21 @@ void CameraModule::getVendorTagOps(vendor_tag_ops_t* ops) {
 int CameraModule::setTorchMode(const char* camera_id, bool enable) {
     return mModule->set_torch_mode(camera_id, enable);
 }
+
+
+status_t CameraModule::filterOpenErrorCode(status_t err) {
+    switch(err) {
+        case NO_ERROR:
+        case -EBUSY:
+        case -EINVAL:
+        case -EUSERS:
+            return err;
+        default:
+            break;
+    }
+    return -ENODEV;
+}
+
 
 }; // namespace android
 

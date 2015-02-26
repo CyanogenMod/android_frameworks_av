@@ -89,8 +89,9 @@ status_t CameraFlashlight::createFlashlightControl(const String8& cameraId) {
 
             mFlashControl = flashControl;
         } else {
-            // todo: implement for device api 1
-            return INVALID_OPERATION;
+            mFlashControl =
+                    new CameraHardwareInterfaceFlashControl(*mCameraModule,
+                                                            *mCallbacks);
         }
     }
 
@@ -622,5 +623,252 @@ status_t CameraDeviceClientFlashControl::setTorchMode(
     return OK;
 }
 // CameraDeviceClientFlashControl implementation ends
+
+
+/////////////////////////////////////////////////////////////////////
+// CameraHardwareInterfaceFlashControl implementation begins
+// Flash control for camera module <= v2.3 and camera HAL v1
+/////////////////////////////////////////////////////////////////////
+CameraHardwareInterfaceFlashControl::CameraHardwareInterfaceFlashControl(
+        CameraModule& cameraModule,
+        const camera_module_callbacks_t& callbacks) :
+        mCameraModule(&cameraModule),
+        mCallbacks(&callbacks),
+        mTorchEnabled(false) {
+
+}
+
+CameraHardwareInterfaceFlashControl::~CameraHardwareInterfaceFlashControl() {
+    disconnectCameraDevice();
+
+    mAnw.clear();
+    mSurfaceTexture.clear();
+    mProducer.clear();
+    mConsumer.clear();
+
+    if (mTorchEnabled) {
+        if (mCallbacks) {
+            ALOGV("%s: notify the framework that torch was turned off",
+                    __FUNCTION__);
+            mCallbacks->torch_mode_status_change(mCallbacks,
+                    mCameraId.string(), TORCH_MODE_STATUS_AVAILABLE_OFF);
+        }
+    }
+}
+
+status_t CameraHardwareInterfaceFlashControl::setTorchMode(
+        const String8& cameraId, bool enabled) {
+    Mutex::Autolock l(mLock);
+
+    // pre-check
+    status_t res;
+    if (enabled) {
+        bool hasFlash = false;
+        res = hasFlashUnitLocked(cameraId, &hasFlash);
+        // invalid camera?
+        if (res) {
+            // hasFlashUnitLocked() returns BAD_INDEX if mDevice is connected to
+            // another camera device.
+            return res == BAD_INDEX ? BAD_INDEX : -EINVAL;
+        }
+        // no flash unit?
+        if (!hasFlash) {
+            return -ENOSYS;
+        }
+    } else if (mDevice == NULL || cameraId != mCameraId) {
+        // disabling the torch mode of an un-opened or different device.
+        return OK;
+    } else {
+        // disabling the torch mode of currently opened device
+        disconnectCameraDevice();
+        mTorchEnabled = false;
+        mCallbacks->torch_mode_status_change(mCallbacks,
+            cameraId.string(), TORCH_MODE_STATUS_AVAILABLE_OFF);
+        return OK;
+    }
+
+    res = startPreviewAndTorch();
+    if (res) {
+        return res;
+    }
+
+    mTorchEnabled = true;
+    mCallbacks->torch_mode_status_change(mCallbacks,
+            cameraId.string(), TORCH_MODE_STATUS_AVAILABLE_ON);
+    return OK;
+}
+
+status_t CameraHardwareInterfaceFlashControl::hasFlashUnit(
+        const String8& cameraId, bool *hasFlash) {
+    Mutex::Autolock l(mLock);
+    return hasFlashUnitLocked(cameraId, hasFlash);
+}
+
+status_t CameraHardwareInterfaceFlashControl::hasFlashUnitLocked(
+        const String8& cameraId, bool *hasFlash) {
+    if (!hasFlash) {
+        return BAD_VALUE;
+    }
+
+    status_t res;
+    if (mDevice == NULL) {
+        res = connectCameraDevice(cameraId);
+        if (res) {
+            return res;
+        }
+    }
+
+    if (cameraId != mCameraId) {
+        return BAD_INDEX;
+    }
+
+    const char *flashMode =
+            mParameters.get(CameraParameters::KEY_SUPPORTED_FLASH_MODES);
+    if (flashMode && strstr(flashMode, CameraParameters::FLASH_MODE_TORCH)) {
+        *hasFlash = true;
+    } else {
+        *hasFlash = false;
+    }
+
+    return OK;
+}
+
+status_t CameraHardwareInterfaceFlashControl::startPreviewAndTorch() {
+    status_t res = OK;
+    res = mDevice->startPreview();
+    if (res) {
+        ALOGE("%s: start preview failed. %s (%d)", __FUNCTION__,
+                strerror(-res), res);
+        return res;
+    }
+
+    mParameters.set(CameraParameters::KEY_FLASH_MODE,
+            CameraParameters::FLASH_MODE_TORCH);
+
+    return mDevice->setParameters(mParameters);
+}
+
+status_t CameraHardwareInterfaceFlashControl::getSmallestSurfaceSize(
+        int32_t *width, int32_t *height) {
+    if (!width || !height) {
+        return BAD_VALUE;
+    }
+
+    int32_t w = INT32_MAX;
+    int32_t h = 1;
+    Vector<Size> sizes;
+
+    mParameters.getSupportedPreviewSizes(sizes);
+    for (size_t i = 0; i < sizes.size(); i++) {
+        Size s = sizes[i];
+        if (w * h > s.width * s.height) {
+            w = s.width;
+            h = s.height;
+        }
+    }
+
+    if (w == INT32_MAX) {
+        return NAME_NOT_FOUND;
+    }
+
+    *width = w;
+    *height = h;
+
+    return OK;
+}
+
+status_t CameraHardwareInterfaceFlashControl::initializePreviewWindow(
+        sp<CameraHardwareInterface> device, int32_t width, int32_t height) {
+    status_t res;
+    BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+
+    mSurfaceTexture = new GLConsumer(mConsumer, 0, GLConsumer::TEXTURE_EXTERNAL,
+            true, true);
+    if (mSurfaceTexture == NULL) {
+        return NO_MEMORY;
+    }
+
+    int32_t format = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+    res = mSurfaceTexture->setDefaultBufferSize(width, height);
+    if (res) {
+        return res;
+    }
+    res = mSurfaceTexture->setDefaultBufferFormat(format);
+    if (res) {
+        return res;
+    }
+
+    mAnw = new Surface(mProducer, /*useAsync*/ true);
+    if (mAnw == NULL) {
+        return NO_MEMORY;
+    }
+
+    res = native_window_api_connect(mAnw.get(), NATIVE_WINDOW_API_CAMERA);
+    if (res) {
+        ALOGE("%s: Unable to connect to native window", __FUNCTION__);
+        return res;
+    }
+
+    return device->setPreviewWindow(mAnw);
+}
+
+status_t CameraHardwareInterfaceFlashControl::connectCameraDevice(
+        const String8& cameraId) {
+    sp<CameraHardwareInterface> device =
+            new CameraHardwareInterface(cameraId.string());
+
+    status_t res = device->initialize(mCameraModule);
+    if (res) {
+        ALOGE("%s: initializing camera %s failed", __FUNCTION__,
+                cameraId.string());
+        return res;
+    }
+
+    // need to set __get_memory in set_callbacks().
+    device->setCallbacks(NULL, NULL, NULL, NULL);
+
+    mParameters = device->getParameters();
+
+    int32_t width, height;
+    res = getSmallestSurfaceSize(&width, &height);
+    if (res) {
+        ALOGE("%s: failed to get smallest surface size for camera %s",
+                __FUNCTION__, cameraId.string());
+        return res;
+    }
+
+    res = initializePreviewWindow(device, width, height);
+    if (res) {
+        ALOGE("%s: failed to initialize preview window for camera %s",
+                __FUNCTION__, cameraId.string());
+        return res;
+    }
+
+    mCameraId = cameraId;
+    mDevice = device;
+    return OK;
+}
+
+status_t CameraHardwareInterfaceFlashControl::disconnectCameraDevice() {
+    if (mDevice == NULL) {
+        return OK;
+    }
+
+    mParameters.set(CameraParameters::KEY_FLASH_MODE,
+            CameraParameters::FLASH_MODE_OFF);
+    mDevice->setParameters(mParameters);
+    mDevice->stopPreview();
+    status_t res = native_window_api_disconnect(mAnw.get(),
+            NATIVE_WINDOW_API_CAMERA);
+    if (res) {
+        ALOGW("%s: native_window_api_disconnect failed: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+    }
+    mDevice->setPreviewWindow(NULL);
+    mDevice->release();
+
+    return OK;
+}
+// CameraHardwareInterfaceFlashControl implementation ends
 
 }

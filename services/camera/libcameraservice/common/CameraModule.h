@@ -50,6 +50,8 @@ public:
 private:
     // Derive camera characteristics keys defined after HAL device version
     static void deriveCameraCharacteristicsKeys(uint32_t deviceVersion, CameraMetadata &chars);
+    status_t filterOpenErrorCode(status_t err);
+
     camera_module_t *mModule;
     CameraMetadata mCameraCharacteristics[MAX_CAMERAS_PER_MODULE];
     camera_info mCameraInfo[MAX_CAMERAS_PER_MODULE];
