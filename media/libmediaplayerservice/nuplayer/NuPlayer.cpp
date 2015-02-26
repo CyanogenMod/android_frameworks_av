@@ -1121,6 +1121,9 @@ void NuPlayer::onStart() {
     sp<AMessage> notify = new AMessage(kWhatRendererNotify, id());
     ++mRendererGeneration;
     notify->setInt32("generation", mRendererGeneration);
+    if (mPlayerExtendedStats != NULL) {
+        notify->setObject(MEDIA_EXTENDED_STATS, mPlayerExtendedStats);
+    }
     mRenderer = new Renderer(mAudioSink, notify, flags);
 
     mRendererLooper = new ALooper;
