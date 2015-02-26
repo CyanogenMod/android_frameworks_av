@@ -104,8 +104,7 @@ public:
                                      CAMERA_DEVICE_API_VERSION_1_0,
                                      (hw_device_t **)&mDevice);
         } else {
-            rc = CameraService::filterOpenErrorCode(module->open(
-                    mName.string(), (hw_device_t **)&mDevice));
+            rc = module->open(mName.string(), (hw_device_t **)&mDevice);
         }
         if (rc != OK) {
             ALOGE("Could not open camera %s: %d", mName.string(), rc);

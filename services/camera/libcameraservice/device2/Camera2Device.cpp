@@ -68,8 +68,7 @@ status_t Camera2Device::initialize(CameraModule *module)
 
     camera2_device_t *device;
 
-    res = CameraService::filterOpenErrorCode(module->open(
-            name, reinterpret_cast<hw_device_t**>(&device)));
+    res = module->open(name, reinterpret_cast<hw_device_t**>(&device));
 
     if (res != OK) {
         ALOGE("%s: Could not open camera %d: %s (%d)", __FUNCTION__,
