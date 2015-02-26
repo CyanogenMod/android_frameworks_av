@@ -1722,28 +1722,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
     uint32_t waitTimeLeftMs = mSourceThread->waitTimeMs();
 
     if (!mActive && frames != 0) {
-        start();
-        sp<ThreadBase> thread = mThread.promote();
-        if (thread != 0) {
-            MixerThread *mixerThread = (MixerThread *)thread.get();
-            if (mFrameCount > frames) {
-                // For the first write after being inactive, ensure that we have
-                // enough frames to fill mFrameCount (which should be multiples of
-                // the minimum buffer requirements of the downstream MixerThread).
-                // This provides enough frames for the downstream mixer to begin
-                // (see AudioFlinger::PlaybackThread::Track::isReady()).
-                if (mBufferQueue.size() < kMaxOverFlowBuffers) {
-                    uint32_t startFrames = (mFrameCount - frames);
-                    pInBuffer = new Buffer;
-                    pInBuffer->mBuffer = calloc(1, startFrames * mFrameSize);
-                    pInBuffer->frameCount = startFrames;
-                    pInBuffer->raw = pInBuffer->mBuffer;
-                    mBufferQueue.add(pInBuffer);
-                } else {
-                    ALOGW("OutputTrack::write() %p no more buffers in queue", this);
-                }
-            }
-        }
+        (void) start();
     }
 
     while (waitTimeLeftMs) {
