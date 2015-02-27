@@ -16,6 +16,10 @@ CAMERA_CLIENT_LOCAL_PATH:= $(call my-dir)
 include $(call all-subdir-makefiles)
 include $(CLEAR_VARS)
 
+ifeq ($(TARGET_NEED_D2_CAMERA_HAX),true)
+LOCAL_CFLAGS += -DD2_CAMERA_HAX
+endif
+
 LOCAL_PATH := $(CAMERA_CLIENT_LOCAL_PATH)
 
 LOCAL_SRC_FILES:= \
