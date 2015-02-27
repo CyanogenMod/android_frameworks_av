@@ -29,7 +29,8 @@
 
 #define FAST_DEFAULT_NS    999999999L   // ~1 sec: default time to sleep
 #define FAST_HOT_IDLE_NS     1000000L   // 1 ms: time to sleep while hot idling
-#define MIN_WARMUP_CYCLES          2    // minimum number of loop cycles to wait for warmup
+#define MIN_WARMUP_CYCLES          2    // minimum number of consecutive in-range loop cycles
+                                        // to wait for warmup
 #define MAX_WARMUP_CYCLES         10    // maximum number of loop cycles to wait for warmup
 
 namespace android {
@@ -44,7 +45,8 @@ FastThread::FastThread() : Thread(false /*canCallJava*/),
     underrunNs(0),
     overrunNs(0),
     forceNs(0),
-    warmupNs(0),
+    warmupNsMin(0),
+    warmupNsMax(LONG_MAX),
     // re-initialized to &dummyDumpState by subclass constructor
     mDummyDumpState(NULL),
     dumpState(NULL),
@@ -60,6 +62,7 @@ FastThread::FastThread() : Thread(false /*canCallJava*/),
     isWarm(false),
     /* measuredWarmupTs({0, 0}), */
     warmupCycles(0),
+    warmupConsecutiveInRangeCycles(0),
     // dummyLogWriter
     logWriter(&dummyLogWriter),
     timestampStatus(INVALID_OPERATION),
@@ -169,6 +172,7 @@ bool FastThread::threadLoop()
                 measuredWarmupTs.tv_sec = 0;
                 measuredWarmupTs.tv_nsec = 0;
                 warmupCycles = 0;
+                warmupConsecutiveInRangeCycles = 0;
                 sleepNs = -1;
                 coldGen = current->mColdGen;
 #ifdef FAST_MIXER_STATISTICS
@@ -222,7 +226,8 @@ bool FastThread::threadLoop()
                 // To avoid an initial underrun on fast tracks after exiting standby,
                 // do not start pulling data from tracks and mixing until warmup is complete.
                 // Warmup is considered complete after the earlier of:
-                //      MIN_WARMUP_CYCLES write() attempts and last one blocks for at least warmupNs
+                //      MIN_WARMUP_CYCLES consecutive in-range write() attempts,
+                //          where "in-range" means warmupNsMin <= cycle time <= warmupNsMax
                 //      MAX_WARMUP_CYCLES write() attempts.
                 // This is overly conservative, but to get better accuracy requires a new HAL API.
                 if (!isWarm && attemptedWrite) {
@@ -233,7 +238,14 @@ bool FastThread::threadLoop()
                         measuredWarmupTs.tv_nsec -= 1000000000;
                     }
                     ++warmupCycles;
-                    if ((nsec > warmupNs && warmupCycles >= MIN_WARMUP_CYCLES) ||
+                    if (warmupNsMin <= nsec && nsec <= warmupNsMax) {
+                        ALOGV("warmup cycle %d in range: %.03f ms", warmupCycles, nsec * 1e-9);
+                        ++warmupConsecutiveInRangeCycles;
+                    } else {
+                        ALOGV("warmup cycle %d out of range: %.03f ms", warmupCycles, nsec * 1e-9);
+                        warmupConsecutiveInRangeCycles = 0;
+                    }
+                    if ((warmupConsecutiveInRangeCycles >= MIN_WARMUP_CYCLES) ||
                             (warmupCycles >= MAX_WARMUP_CYCLES)) {
                         isWarm = true;
                         dumpState->mMeasuredWarmupTs = measuredWarmupTs;
