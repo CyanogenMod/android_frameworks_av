@@ -19,6 +19,7 @@
 #define BUFFER_PRODUCER_WRAPPER_H_
 
 #include <gui/IGraphicBufferProducer.h>
+#include <media/stagefright/foundation/ABase.h>
 
 namespace android {
 
