@@ -285,10 +285,24 @@ void CameraParameters::setFloat(const char *key, float value)
 
 const char *CameraParameters::get(const char *key) const
 {
+#ifndef D2_CAMERA_HAX
     String8 v = mMap.valueFor(String8(key));
     if (v.length() == 0)
         return 0;
     return v.string();
+#else
+    size_t size = mMap.size();
+    for (size_t i = 0; i < size; i++) {
+       String8 k, v;
+       k = mMap.keyAt(i);
+       v = mMap.valueAt(i);
+       if (strcmp(k.string(), String8(key).string()) == 0)
+       {
+          return v.string();
+       }
+     }
+     return 0;
+#endif
 }
 
 int CameraParameters::getInt(const char *key) const
