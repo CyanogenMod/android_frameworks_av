@@ -115,13 +115,13 @@ inline void ProcessL<2, 16>(int32_t* const out,
 
         "1:                                      \n"
 
-        "vld2.16        {q2, q3}, [%[sP]]        \n"// (3+0d) load 8 16-bits stereo samples
-        "vld2.16        {q5, q6}, [%[sN]]!       \n"// (3) load 8 16-bits stereo samples
+        "vld2.16        {q2, q3}, [%[sP]]        \n"// (3+0d) load 8 16-bits stereo frames
+        "vld2.16        {q5, q6}, [%[sN]]!       \n"// (3) load 8 16-bits stereo frames
         "vld1.16        {q8}, [%[coefsP0]:128]!  \n"// (1) load 8 16-bits coefs
         "vld1.16        {q10}, [%[coefsN0]:128]! \n"// (1) load 8 16-bits coefs
 
-        "vrev64.16      q2, q2                   \n"// (1) reverse 8 frames of the left positive
-        "vrev64.16      q3, q3                   \n"// (0 combines+) reverse right positive
+        "vrev64.16      q2, q2                   \n"// (1) reverse 8 samples of positive left
+        "vrev64.16      q3, q3                   \n"// (0 combines+) reverse positive right
 
         "vmlal.s16      q0, d4, d17              \n"// (1) multiply (reversed) samples left
         "vmlal.s16      q0, d5, d16              \n"// (1) multiply (reversed) samples left
@@ -247,8 +247,8 @@ inline void Process<2, 16>(int32_t* const out,
 
         "1:                                      \n"
 
-        "vld2.16        {q2, q3}, [%[sP]]        \n"// (3+0d) load 8 16-bits stereo samples
-        "vld2.16        {q5, q6}, [%[sN]]!       \n"// (3) load 8 16-bits stereo samples
+        "vld2.16        {q2, q3}, [%[sP]]        \n"// (3+0d) load 8 16-bits stereo frames
+        "vld2.16        {q5, q6}, [%[sN]]!       \n"// (3) load 8 16-bits stereo frames
         "vld1.16        {q8}, [%[coefsP0]:128]!  \n"// (1) load 8 16-bits coefs
         "vld1.16        {q9}, [%[coefsP1]:128]!  \n"// (1) load 8 16-bits coefs for interpolation
         "vld1.16        {q10}, [%[coefsN1]:128]! \n"// (1) load 8 16-bits coefs
@@ -260,8 +260,8 @@ inline void Process<2, 16>(int32_t* const out,
         "vqrdmulh.s16   q9, q9, d2[0]            \n"// (2) interpolate (step2) 1st set of coefs
         "vqrdmulh.s16   q11, q11, d2[0]          \n"// (2) interpolate (step2) 2nd set of coefs
 
-        "vrev64.16      q2, q2                   \n"// (1) reverse 8 frames of the left positive
-        "vrev64.16      q3, q3                   \n"// (1) reverse 8 frames of the right positive
+        "vrev64.16      q2, q2                   \n"// (1) reverse 8 samples of positive left
+        "vrev64.16      q3, q3                   \n"// (1) reverse 8 samples of positive right
 
         "vadd.s16       q8, q8, q9               \n"// (1+1d) interpolate (step3) 1st set
         "vadd.s16       q10, q10, q11            \n"// (1+1d) interpolate (step3) 2nd set
@@ -323,7 +323,7 @@ inline void ProcessL<1, 16>(int32_t* const out,
         "vld1.32        {q8, q9}, [%[coefsP0]:128]!   \n"// load 8 32-bits coefs
         "vld1.32        {q10, q11}, [%[coefsN0]:128]! \n"// load 8 32-bits coefs
 
-        "vrev64.16      q2, q2                        \n"// reverse 8 frames of the positive side
+        "vrev64.16      q2, q2                        \n"// reverse 8 samples of the positive side
 
         "vshll.s16      q12, d4, #15                  \n"// extend samples to 31 bits
         "vshll.s16      q13, d5, #15                  \n"// extend samples to 31 bits
@@ -331,10 +331,10 @@ inline void ProcessL<1, 16>(int32_t* const out,
         "vshll.s16      q14, d6, #15                  \n"// extend samples to 31 bits
         "vshll.s16      q15, d7, #15                  \n"// extend samples to 31 bits
 
-        "vqrdmulh.s32   q12, q12, q9                  \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q13, q13, q8                  \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q14, q14, q10                 \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q15, q15, q11                 \n"// multiply samples by interpolated coef
+        "vqrdmulh.s32   q12, q12, q9                  \n"// multiply samples
+        "vqrdmulh.s32   q13, q13, q8                  \n"// multiply samples
+        "vqrdmulh.s32   q14, q14, q10                 \n"// multiply samples
+        "vqrdmulh.s32   q15, q15, q11                 \n"// multiply samples
 
         "vadd.s32       q0, q0, q12                   \n"// accumulate result
         "vadd.s32       q13, q13, q14                 \n"// accumulate result
@@ -380,13 +380,13 @@ inline void ProcessL<2, 16>(int32_t* const out,
 
         "1:                                           \n"
 
-        "vld2.16        {q2, q3}, [%[sP]]             \n"// load 4 16-bits stereo samples
-        "vld2.16        {q5, q6}, [%[sN]]!            \n"// load 4 16-bits stereo samples
-        "vld1.32        {q8, q9}, [%[coefsP0]:128]!   \n"// load 4 32-bits coefs
-        "vld1.32        {q10, q11}, [%[coefsN0]:128]! \n"// load 4 32-bits coefs
+        "vld2.16        {q2, q3}, [%[sP]]             \n"// load 8 16-bits stereo frames
+        "vld2.16        {q5, q6}, [%[sN]]!            \n"// load 8 16-bits stereo frames
+        "vld1.32        {q8, q9}, [%[coefsP0]:128]!   \n"// load 8 32-bits coefs
+        "vld1.32        {q10, q11}, [%[coefsN0]:128]! \n"// load 8 32-bits coefs
 
-        "vrev64.16      q2, q2                        \n"// reverse 8 frames of the positive side
-        "vrev64.16      q3, q3                        \n"// reverse 8 frames of the positive side
+        "vrev64.16      q2, q2                        \n"// reverse 8 samples of positive left
+        "vrev64.16      q3, q3                        \n"// reverse 8 samples of positive right
 
         "vshll.s16      q12,  d4, #15                 \n"// extend samples to 31 bits
         "vshll.s16      q13,  d5, #15                 \n"// extend samples to 31 bits
@@ -394,15 +394,15 @@ inline void ProcessL<2, 16>(int32_t* const out,
         "vshll.s16      q14,  d10, #15                \n"// extend samples to 31 bits
         "vshll.s16      q15,  d11, #15                \n"// extend samples to 31 bits
 
-        "vqrdmulh.s32   q12, q12, q9                  \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q13, q13, q8                  \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q14, q14, q10                 \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q15, q15, q11                 \n"// multiply samples by interpolated coef
+        "vqrdmulh.s32   q12, q12, q9                  \n"// multiply samples by coef
+        "vqrdmulh.s32   q13, q13, q8                  \n"// multiply samples by coef
+        "vqrdmulh.s32   q14, q14, q10                 \n"// multiply samples by coef
+        "vqrdmulh.s32   q15, q15, q11                 \n"// multiply samples by coef
 
         "vadd.s32       q0, q0, q12                   \n"// accumulate result
         "vadd.s32       q13, q13, q14                 \n"// accumulate result
-        "vadd.s32       q0, q0, q15                   \n"// (+1) accumulate result
-        "vadd.s32       q0, q0, q13                   \n"// (+1) accumulate result
+        "vadd.s32       q0, q0, q15                   \n"// accumulate result
+        "vadd.s32       q0, q0, q13                   \n"// accumulate result
 
         "vshll.s16      q12,  d6, #15                 \n"// extend samples to 31 bits
         "vshll.s16      q13,  d7, #15                 \n"// extend samples to 31 bits
@@ -410,15 +410,15 @@ inline void ProcessL<2, 16>(int32_t* const out,
         "vshll.s16      q14,  d12, #15                \n"// extend samples to 31 bits
         "vshll.s16      q15,  d13, #15                \n"// extend samples to 31 bits
 
-        "vqrdmulh.s32   q12, q12, q9                  \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q13, q13, q8                  \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q14, q14, q10                 \n"// multiply samples by interpolated coef
-        "vqrdmulh.s32   q15, q15, q11                 \n"// multiply samples by interpolated coef
+        "vqrdmulh.s32   q12, q12, q9                  \n"// multiply samples by coef
+        "vqrdmulh.s32   q13, q13, q8                  \n"// multiply samples by coef
+        "vqrdmulh.s32   q14, q14, q10                 \n"// multiply samples by coef
+        "vqrdmulh.s32   q15, q15, q11                 \n"// multiply samples by coef
 
         "vadd.s32       q4, q4, q12                   \n"// accumulate result
         "vadd.s32       q13, q13, q14                 \n"// accumulate result
-        "vadd.s32       q4, q4, q15                   \n"// (+1) accumulate result
-        "vadd.s32       q4, q4, q13                   \n"// (+1) accumulate result
+        "vadd.s32       q4, q4, q15                   \n"// accumulate result
+        "vadd.s32       q4, q4, q13                   \n"// accumulate result
 
         "subs           %[count], %[count], #8        \n"// update loop counter
         "sub            %[sP], %[sP], #32             \n"// move pointer to next set of samples
@@ -485,7 +485,7 @@ inline void Process<1, 16>(int32_t* const out,
         "vadd.s32       q10, q10, q14                 \n"// interpolate (step3)
         "vadd.s32       q11, q11, q15                 \n"// interpolate (step3)
 
-        "vrev64.16      q2, q2                        \n"// reverse 8 frames of the positive side
+        "vrev64.16      q2, q2                        \n"// reverse 8 samples of the positive side
 
         "vshll.s16      q12,  d4, #15                 \n"// extend samples to 31 bits
         "vshll.s16      q13,  d5, #15                 \n"// extend samples to 31 bits
@@ -549,8 +549,8 @@ inline void Process<2, 16>(int32_t* const out,
 
         "1:                                           \n"
 
-        "vld2.16        {q2, q3}, [%[sP]]             \n"// load 4 16-bits stereo samples
-        "vld2.16        {q5, q6}, [%[sN]]!            \n"// load 4 16-bits stereo samples
+        "vld2.16        {q2, q3}, [%[sP]]             \n"// load 8 16-bits stereo frames
+        "vld2.16        {q5, q6}, [%[sN]]!            \n"// load 8 16-bits stereo frames
         "vld1.32        {q8, q9}, [%[coefsP0]:128]!   \n"// load 8 32-bits coefs
         "vld1.32        {q12, q13}, [%[coefsP1]:128]! \n"// load 8 32-bits coefs
         "vld1.32        {q10, q11}, [%[coefsN1]:128]! \n"// load 8 32-bits coefs
@@ -571,8 +571,8 @@ inline void Process<2, 16>(int32_t* const out,
         "vadd.s32       q10, q10, q14                 \n"// interpolate (step3)
         "vadd.s32       q11, q11, q15                 \n"// interpolate (step3)
 
-        "vrev64.16      q2, q2                        \n"// reverse 8 frames of the positive side
-        "vrev64.16      q3, q3                        \n"// reverse 8 frames of the positive side
+        "vrev64.16      q2, q2                        \n"// reverse 8 samples of positive left
+        "vrev64.16      q3, q3                        \n"// reverse 8 samples of positive right
 
         "vshll.s16      q12,  d4, #15                 \n"// extend samples to 31 bits
         "vshll.s16      q13,  d5, #15                 \n"// extend samples to 31 bits
@@ -587,8 +587,8 @@ inline void Process<2, 16>(int32_t* const out,
 
         "vadd.s32       q0, q0, q12                   \n"// accumulate result
         "vadd.s32       q13, q13, q14                 \n"// accumulate result
-        "vadd.s32       q0, q0, q15                   \n"// (+1) accumulate result
-        "vadd.s32       q0, q0, q13                   \n"// (+1) accumulate result
+        "vadd.s32       q0, q0, q15                   \n"// accumulate result
+        "vadd.s32       q0, q0, q13                   \n"// accumulate result
 
         "vshll.s16      q12,  d6, #15                 \n"// extend samples to 31 bits
         "vshll.s16      q13,  d7, #15                 \n"// extend samples to 31 bits
@@ -603,8 +603,8 @@ inline void Process<2, 16>(int32_t* const out,
 
         "vadd.s32       q4, q4, q12                   \n"// accumulate result
         "vadd.s32       q13, q13, q14                 \n"// accumulate result
-        "vadd.s32       q4, q4, q15                   \n"// (+1) accumulate result
-        "vadd.s32       q4, q4, q13                   \n"// (+1) accumulate result
+        "vadd.s32       q4, q4, q15                   \n"// accumulate result
+        "vadd.s32       q4, q4, q13                   \n"// accumulate result
 
         "subs           %[count], %[count], #8        \n"// update loop counter
         "sub            %[sP], %[sP], #32             \n"// move pointer to next set of samples
