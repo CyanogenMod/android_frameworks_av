@@ -231,7 +231,7 @@ int main(int argc, char** argv)
     // generate the right half of the filter
     if (!debug) {
         printf("// cmd-line: ");
-        for (int i=1 ; i<argc ; i++) {
+        for (int i=0 ; i<argc ; i++) {
             printf("%s ", argv[i]);
         }
         printf("\n");
