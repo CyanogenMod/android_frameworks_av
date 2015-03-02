@@ -27,6 +27,8 @@ struct FastCaptureDumpState : FastThreadDumpState {
     FastCaptureDumpState();
     /*virtual*/ ~FastCaptureDumpState();
 
+    void dump(int fd) const;    // should only be called on a stable copy, not the original
+
     // FIXME by renaming, could pull up many of these to FastThreadDumpState
     uint32_t mReadSequence;     // incremented before and after each read()
     uint32_t mFramesRead;       // total number of frames read successfully

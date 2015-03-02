@@ -64,7 +64,7 @@ void FastMixerDumpState::dump(int fd) const
     }
     double measuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
             (mMeasuredWarmupTs.tv_nsec / 1000000.0);
-    double mixPeriodSec = (double) mFrameCount / (double) mSampleRate;
+    double mixPeriodSec = (double) mFrameCount / mSampleRate;
     dprintf(fd, "  FastMixer command=%s writeSequence=%u framesWritten=%u\n"
                 "            numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
                 "            sampleRate=%u frameCount=%zu measuredWarmup=%.3g ms, warmupCycles=%u\n"

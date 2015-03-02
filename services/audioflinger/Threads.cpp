@@ -6163,6 +6163,10 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     }
     dprintf(fd, "  Fast capture thread: %s\n", hasFastCapture() ? "yes" : "no");
     dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
+
+    //  Make a non-atomic copy of fast capture dump state so it won't change underneath us
+    const FastCaptureDumpState copy(mFastCaptureDumpState);
+    copy.dump(fd);
 }
 
 void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args __unused)
