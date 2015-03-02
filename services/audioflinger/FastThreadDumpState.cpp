@@ -23,15 +23,36 @@ FastThreadDumpState::FastThreadDumpState() :
     /* mMeasuredWarmupTs({0, 0}), */
     mWarmupCycles(0)
 #ifdef FAST_THREAD_STATISTICS
-    , mSamplingN(1), mBounds(0)
+    , mSamplingN(0), mBounds(0)
 #endif
 {
     mMeasuredWarmupTs.tv_sec = 0;
     mMeasuredWarmupTs.tv_nsec = 0;
+#ifdef FAST_THREAD_STATISTICS
+    increaseSamplingN(1);
+#endif
 }
 
 FastThreadDumpState::~FastThreadDumpState()
 {
 }
+
+#ifdef FAST_THREAD_STATISTICS
+void FastThreadDumpState::increaseSamplingN(uint32_t samplingN)
+{
+    if (samplingN <= mSamplingN || samplingN > kSamplingN || roundup(samplingN) != samplingN) {
+        return;
+    }
+    uint32_t additional = samplingN - mSamplingN;
+    // sample arrays aren't accessed atomically with respect to the bounds,
+    // so clearing reduces chance for dumpsys to read random uninitialized samples
+    memset(&mMonotonicNs[mSamplingN], 0, sizeof(mMonotonicNs[0]) * additional);
+    memset(&mLoadNs[mSamplingN], 0, sizeof(mLoadNs[0]) * additional);
+#ifdef CPU_FREQUENCY_STATISTICS
+    memset(&mCpukHz[mSamplingN], 0, sizeof(mCpukHz[0]) * additional);
+#endif
+    mSamplingN = samplingN;
+}
+#endif
 
 }   // android

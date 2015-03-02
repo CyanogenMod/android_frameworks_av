@@ -66,11 +66,7 @@ struct FastTrackDump {
 // Only POD types are permitted, and the contents shouldn't be trusted (i.e. do range checks).
 // It has a different lifetime than the FastMixer, and so it can't be a member of FastMixer.
 struct FastMixerDumpState : FastThreadDumpState {
-    FastMixerDumpState(
-#ifdef FAST_THREAD_STATISTICS
-            uint32_t samplingN = kSamplingNforLowRamDevice
-#endif
-            );
+    FastMixerDumpState();
     /*virtual*/ ~FastMixerDumpState();
 
     void dump(int fd) const;    // should only be called on a stable copy, not the original
@@ -83,14 +79,6 @@ struct FastMixerDumpState : FastThreadDumpState {
     size_t   mFrameCount;
     uint32_t mTrackMask;        // mask of active tracks
     FastTrackDump   mTracks[FastMixerState::kMaxFastTracks];
-
-#ifdef FAST_THREAD_STATISTICS
-    // Compile-time constant for a "low RAM device", must be a power of 2 <= kSamplingN.
-    // This value was chosen such that each array uses 1 small page (4 Kbytes).
-    static const uint32_t kSamplingNforLowRamDevice = 0x400;
-    // Increase sampling window after construction, must be a power of 2 <= kSamplingN
-    void    increaseSamplingN(uint32_t samplingN);
-#endif
 };
 
 }   // android

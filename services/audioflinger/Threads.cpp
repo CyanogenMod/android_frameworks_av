@@ -3118,7 +3118,7 @@ ssize_t AudioFlinger::MixerThread::threadLoop_write()
             state->mCommand = FastMixerState::MIX_WRITE;
 #ifdef FAST_THREAD_STATISTICS
             mFastMixerDumpState.increaseSamplingN(mAudioFlinger->isLowRamDevice() ?
-                    FastMixerDumpState::kSamplingNforLowRamDevice : FastMixerDumpState::kSamplingN);
+                FastThreadDumpState::kSamplingNforLowRamDevice : FastThreadDumpState::kSamplingN);
 #endif
             sq->end();
             sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
@@ -5388,8 +5388,8 @@ reacquire_wakelock:
                 state->mCommand = FastCaptureState::READ_WRITE;
 #if 0   // FIXME
                 mFastCaptureDumpState.increaseSamplingN(mAudioFlinger->isLowRamDevice() ?
-                        FastCaptureDumpState::kSamplingNforLowRamDevice :
-                        FastMixerDumpState::kSamplingN);
+                        FastThreadDumpState::kSamplingNforLowRamDevice :
+                        FastThreadDumpState::kSamplingN);
 #endif
                 didModify = true;
             }

@@ -39,6 +39,9 @@ struct FastThreadDumpState {
     // The sample arrays are virtually allocated based on this compile-time constant,
     // but are only initialized and used based on the runtime parameter mSamplingN.
     static const uint32_t kSamplingN = 0x8000;
+    // Compile-time constant for a "low RAM device", must be a power of 2 <= kSamplingN.
+    // This value was chosen such that each array uses 1 small page (4 Kbytes).
+    static const uint32_t kSamplingNforLowRamDevice = 0x400;
     // Corresponding runtime maximum size of sample arrays, must be a power of 2 <= kSamplingN.
     uint32_t mSamplingN;
     // The bounds define the interval of valid samples, and are represented as follows:
@@ -52,6 +55,9 @@ struct FastThreadDumpState {
 #ifdef CPU_FREQUENCY_STATISTICS
     uint32_t mCpukHz[kSamplingN];       // absolute CPU clock frequency in kHz, bits 0-3 are CPU#
 #endif
+
+    // Increase sampling window after construction, must be a power of 2 <= kSamplingN
+    void    increaseSamplingN(uint32_t samplingN);
 #endif
 
 };  // struct FastThreadDumpState

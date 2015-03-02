@@ -30,38 +30,13 @@
 
 namespace android {
 
-FastMixerDumpState::FastMixerDumpState(
-#ifdef FAST_THREAD_STATISTICS
-        uint32_t samplingN
-#endif
-        ) : FastThreadDumpState(),
+FastMixerDumpState::FastMixerDumpState() : FastThreadDumpState(),
     mWriteSequence(0), mFramesWritten(0),
     mNumTracks(0), mWriteErrors(0),
     mSampleRate(0), mFrameCount(0),
     mTrackMask(0)
 {
-#ifdef FAST_THREAD_STATISTICS
-    increaseSamplingN(samplingN);
-#endif
 }
-
-#ifdef FAST_THREAD_STATISTICS
-void FastMixerDumpState::increaseSamplingN(uint32_t samplingN)
-{
-    if (samplingN <= mSamplingN || samplingN > kSamplingN || roundup(samplingN) != samplingN) {
-        return;
-    }
-    uint32_t additional = samplingN - mSamplingN;
-    // sample arrays aren't accessed atomically with respect to the bounds,
-    // so clearing reduces chance for dumpsys to read random uninitialized samples
-    memset(&mMonotonicNs[mSamplingN], 0, sizeof(mMonotonicNs[0]) * additional);
-    memset(&mLoadNs[mSamplingN], 0, sizeof(mLoadNs[0]) * additional);
-#ifdef CPU_FREQUENCY_STATISTICS
-    memset(&mCpukHz[mSamplingN], 0, sizeof(mCpukHz[0]) * additional);
-#endif
-    mSamplingN = samplingN;
-}
-#endif
 
 FastMixerDumpState::~FastMixerDumpState()
 {
