@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 
                 if (!debug) {
                     if (j == 0)
-                        printf("\n    ");
+                        printf("\n        ");
                 }
                 if (!format) {
                     int64_t yi = toint(y, 1ULL<<(nc-1));
