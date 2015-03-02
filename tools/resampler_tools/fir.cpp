@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     double Fc = 20478;
     double atten = 1;
     int format = 0;     // 0=fixed, 1=float
-    bool declarations = 0;
+    bool declarations = false;
 
     // in order to keep the errors associated with the linear
     // interpolation of the coefficients below the quantization error
@@ -230,9 +230,9 @@ int main(int argc, char** argv)
     for (int i = M-1 ; i; i>>=1, nz++);
     // generate the right half of the filter
     if (!debug) {
-        printf("// cmd-line: ");
+        printf("// cmd-line:");
         for (int i=0 ; i<argc ; i++) {
-            printf("%s ", argv[i]);
+            printf(" %s", argv[i]);
         }
         printf("\n");
         if (declarations) {
