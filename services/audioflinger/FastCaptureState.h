@@ -44,6 +44,8 @@ struct FastCaptureState : FastThreadState {
         WRITE = 0x10,           // write to pipe sink
         READ_WRITE = 0x18;      // read from input source and write to pipe sink
 
+    // never returns NULL; asserts if command is invalid
+    static const char *commandToString(Command command);
 };  // struct FastCaptureState
 
 }   // namespace android

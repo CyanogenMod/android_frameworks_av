@@ -27,4 +27,19 @@ FastCaptureState::~FastCaptureState()
 {
 }
 
+// static
+const char *FastCaptureState::commandToString(Command command)
+{
+    const char *str = FastThreadState::commandToString(command);
+    if (str != NULL) {
+        return str;
+    }
+    switch (command) {
+    case FastCaptureState::READ:        return "READ";
+    case FastCaptureState::WRITE:       return "WRITE";
+    case FastCaptureState::READ_WRITE:  return "READ_WRITE";
+    }
+    LOG_ALWAYS_FATAL("%s", __func__);
+}
+
 }   // android

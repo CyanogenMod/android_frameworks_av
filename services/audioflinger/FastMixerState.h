@@ -73,6 +73,9 @@ struct FastMixerState : FastThreadState {
 
     // This might be a one-time configuration rather than per-state
     NBAIO_Sink* mTeeSink;       // if non-NULL, then duplicate write()s to this non-blocking sink
+
+    // never returns NULL; asserts if command is invalid
+    static const char *commandToString(Command command);
 };  // struct FastMixerState
 
 }   // namespace android

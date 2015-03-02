@@ -39,4 +39,19 @@ FastMixerState::~FastMixerState()
 {
 }
 
+// static
+const char *FastMixerState::commandToString(Command command)
+{
+    const char *str = FastThreadState::commandToString(command);
+    if (str != NULL) {
+        return str;
+    }
+    switch (command) {
+    case FastMixerState::MIX:       return "MIX";
+    case FastMixerState::WRITE:     return "WRITE";
+    case FastMixerState::MIX_WRITE: return "MIX_WRITE";
+    }
+    LOG_ALWAYS_FATAL("%s", __func__);
+}
+
 }   // namespace android

@@ -46,6 +46,8 @@ struct FastThreadState {
     FastThreadDumpState* mDumpState; // if non-NULL, then update dump state periodically
     NBLog::Writer* mNBLogWriter; // non-blocking logger
 
+    // returns NULL if command belongs to a subclass
+    static const char *commandToString(Command command);
 };  // struct FastThreadState
 
 }   // android

@@ -29,4 +29,16 @@ FastThreadState::~FastThreadState()
 {
 }
 
+// static
+const char *FastThreadState::commandToString(FastThreadState::Command command)
+{
+    switch (command) {
+    case FastThreadState::INITIAL:      return "INITIAL";
+    case FastThreadState::HOT_IDLE:     return "HOT_IDLE";
+    case FastThreadState::COLD_IDLE:    return "COLD_IDLE";
+    case FastThreadState::EXIT:         return "EXIT";
+    }
+    return NULL;
+}
+
 }   // namespace android

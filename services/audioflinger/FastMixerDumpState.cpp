@@ -62,34 +62,6 @@ void FastMixerDumpState::dump(int fd) const
         dprintf(fd, "  FastMixer not initialized\n");
         return;
     }
-#define COMMAND_MAX 32
-    char string[COMMAND_MAX];
-    switch (mCommand) {
-    case FastMixerState::INITIAL:
-        strcpy(string, "INITIAL");
-        break;
-    case FastMixerState::HOT_IDLE:
-        strcpy(string, "HOT_IDLE");
-        break;
-    case FastMixerState::COLD_IDLE:
-        strcpy(string, "COLD_IDLE");
-        break;
-    case FastMixerState::EXIT:
-        strcpy(string, "EXIT");
-        break;
-    case FastMixerState::MIX:
-        strcpy(string, "MIX");
-        break;
-    case FastMixerState::WRITE:
-        strcpy(string, "WRITE");
-        break;
-    case FastMixerState::MIX_WRITE:
-        strcpy(string, "MIX_WRITE");
-        break;
-    default:
-        snprintf(string, COMMAND_MAX, "%d", mCommand);
-        break;
-    }
     double measuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
             (mMeasuredWarmupTs.tv_nsec / 1000000.0);
     double mixPeriodSec = (double) mFrameCount / (double) mSampleRate;
@@ -97,7 +69,7 @@ void FastMixerDumpState::dump(int fd) const
                 "            numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
                 "            sampleRate=%u frameCount=%zu measuredWarmup=%.3g ms, warmupCycles=%u\n"
                 "            mixPeriod=%.2f ms\n",
-                 string, mWriteSequence, mFramesWritten,
+                 FastMixerState::commandToString(mCommand), mWriteSequence, mFramesWritten,
                  mNumTracks, mWriteErrors, mUnderruns, mOverruns,
                  mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
                  mixPeriodSec * 1e3);
