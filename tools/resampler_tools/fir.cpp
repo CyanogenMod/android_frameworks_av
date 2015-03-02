@@ -66,12 +66,13 @@ static double kaiser(int k, int N, double beta) {
 
 static void usage(char* name) {
     fprintf(stderr,
-            "usage: %s [-h] [-d] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings]"
+            "usage: %s [-h] [-d] [-D] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings]"
             " [-f {float|fixed|fixed16}] [-b beta] [-v dBFS] [-l lerp]\n"
-            "       %s [-h] [-d] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings]"
+            "       %s [-h] [-d] [-D] [-s sample_rate] [-c cut-off_frequency] [-n half_zero_crossings]"
             " [-f {float|fixed|fixed16}] [-b beta] [-v dBFS] -p M/N\n"
             "    -h    this help message\n"
             "    -d    debug, print comma-separated coefficient table\n"
+            "    -D    generate extra declarations\n"
             "    -p    generate poly-phase filter coefficients, with sample increment M/N\n"
             "    -s    sample rate (48000)\n"
             "    -c    cut-off frequency (20478)\n"
@@ -97,7 +98,8 @@ int main(int argc, char** argv)
     double Fs = 48000;
     double Fc = 20478;
     double atten = 1;
-    int format = 0;
+    int format = 0;     // 0=fixed, 1=float
+    bool declarations = 0;
 
     // in order to keep the errors associated with the linear
     // interpolation of the coefficients below the quantization error
@@ -158,10 +160,13 @@ int main(int argc, char** argv)
 
     int M = 1 << 4; // number of phases for interpolation
     int ch;
-    while ((ch = getopt(argc, argv, ":hds:c:n:f:l:m:b:p:v:z:")) != -1) {
+    while ((ch = getopt(argc, argv, ":hds:c:n:f:l:m:b:p:v:z:D")) != -1) {
         switch (ch) {
             case 'd':
                 debug = true;
+                break;
+            case 'D':
+                declarations = true;
                 break;
             case 'p':
                 if (sscanf(optarg, "%u/%u", &polyM, &polyN) != 2) {
@@ -230,19 +235,21 @@ int main(int argc, char** argv)
             printf("%s ", argv[i]);
         }
         printf("\n");
-        if (!polyphase) {
-            printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", N);
-            printf("const int32_t RESAMPLE_FIR_INT_PHASES     = %d;\n", M);
-            printf("const int32_t RESAMPLE_FIR_NUM_COEF       = %d;\n", nzc);
-        } else {
-            printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", 2*nzc*polyN);
-            printf("const int32_t RESAMPLE_FIR_NUM_COEF       = %d;\n", 2*nzc);
+        if (declarations) {
+            if (!polyphase) {
+                printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", N);
+                printf("const int32_t RESAMPLE_FIR_INT_PHASES     = %d;\n", M);
+                printf("const int32_t RESAMPLE_FIR_NUM_COEF       = %d;\n", nzc);
+            } else {
+                printf("const int32_t RESAMPLE_FIR_SIZE           = %d;\n", 2*nzc*polyN);
+                printf("const int32_t RESAMPLE_FIR_NUM_COEF       = %d;\n", 2*nzc);
+            }
+            if (!format) {
+                printf("const int32_t RESAMPLE_FIR_COEF_BITS      = %d;\n", nc);
+            }
+            printf("\n");
+            printf("static %s resampleFIR[] = {", !format ? "int32_t" : "float");
         }
-        if (!format) {
-            printf("const int32_t RESAMPLE_FIR_COEF_BITS      = %d;\n", nc);
-        }
-        printf("\n");
-        printf("static %s resampleFIR[] = {", !format ? "int32_t" : "float");
     }
 
     if (!polyphase) {
@@ -283,23 +290,22 @@ int main(int argc, char** argv)
                 if (!format) {
                     int64_t yi = toint(y, 1ULL<<(nc-1));
                     if (nc > 16) {
-                        printf("0x%08x, ", int32_t(yi));
+                        printf("0x%08x,", int32_t(yi));
                     } else {
-                        printf("0x%04x, ", int32_t(yi)&0xffff);
+                        printf("0x%04x,", int32_t(yi)&0xffff);
                     }
                 } else {
-                    printf("%.9g%s", y, debug ? "" : "f");
+                    printf("%.9g%s", y, debug ? "," : "f,");
                 }
 
-                if (debug && (i==nzc-1)) {
-                } else {
-                    printf(", ");
+                if (i != nzc-1) {
+                    printf(" ");
                 }
             }
         }
     }
 
-    if (!debug) {
+    if (!debug && declarations) {
         printf("\n};");
     }
     printf("\n");
