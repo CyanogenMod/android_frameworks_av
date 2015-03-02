@@ -127,6 +127,6 @@ private:
               void* mCoefBuffer;       // if a filter is created, this is not null
 };
 
-}; // namespace android
+} // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_DYN_H*/

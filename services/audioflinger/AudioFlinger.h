@@ -799,6 +799,6 @@ const char *formatToString(audio_format_t format);
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android
 
 #endif // ANDROID_AUDIO_FLINGER_H

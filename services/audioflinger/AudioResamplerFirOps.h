@@ -158,6 +158,6 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
 #endif
 }
 
-}; // namespace android
+} // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_FIR_OPS_H*/

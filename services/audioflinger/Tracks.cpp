@@ -2182,4 +2182,4 @@ void AudioFlinger::RecordThread::PatchRecord::releaseBuffer(Proxy::Buffer* buffe
     mProxy->releaseBuffer(buffer);
 }
 
-}; // namespace android
+} // namespace android

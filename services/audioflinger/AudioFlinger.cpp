@@ -2949,4 +2949,4 @@ status_t AudioFlinger::onTransact(
     return BnAudioFlinger::onTransact(code, data, reply, flags);
 }
 
-}; // namespace android
+} // namespace android

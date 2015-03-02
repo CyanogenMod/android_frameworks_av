@@ -6522,4 +6522,4 @@ void AudioFlinger::RecordThread::getAudioPortConfig(struct audio_port_config *co
     config->ext.mix.usecase.source = mAudioSource;
 }
 
-}; // namespace android
+} // namespace android

@@ -633,6 +633,6 @@ inline void Process<2, 16>(int32_t* const out,
 
 #endif //USE_NEON
 
-}; // namespace android
+} // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_FIR_PROCESS_NEON_H*/

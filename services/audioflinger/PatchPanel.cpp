@@ -694,4 +694,4 @@ status_t AudioFlinger::PatchPanel::setAudioPortConfig(const struct audio_port_co
 }
 
 
-}; // namespace android
+} // namespace android

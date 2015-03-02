@@ -618,4 +618,4 @@ template class AudioResamplerDyn<int16_t, int16_t, int32_t>;
 template class AudioResamplerDyn<int32_t, int16_t, int32_t>;
 
 // ----------------------------------------------------------------------------
-}; // namespace android
+} // namespace android

@@ -1953,4 +1953,4 @@ void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
     }
 }
 
-}; // namespace android
+} // namespace android

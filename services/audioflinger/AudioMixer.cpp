@@ -2300,4 +2300,4 @@ AudioMixer::process_hook_t AudioMixer::getProcessHook(int processType, uint32_t 
 }
 
 // ----------------------------------------------------------------------------
-}; // namespace android
+} // namespace android

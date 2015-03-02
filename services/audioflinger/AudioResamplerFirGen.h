@@ -707,6 +707,6 @@ static inline void firKaiserGen(T* coef, int L, int halfNumCoef,
     }
 }
 
-}; // namespace android
+} // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_FIR_GEN_H*/

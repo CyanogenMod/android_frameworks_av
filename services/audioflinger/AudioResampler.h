@@ -170,7 +170,6 @@ private:
 };
 
 // ----------------------------------------------------------------------------
-}
-; // namespace android
+} // namespace android
 
 #endif // ANDROID_AUDIO_RESAMPLER_H

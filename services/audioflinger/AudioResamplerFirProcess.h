@@ -398,6 +398,6 @@ void fir(TO* const out,
     }
 }
 
-}; // namespace android
+} // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_FIR_PROCESS_H*/

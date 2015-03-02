@@ -95,6 +95,6 @@ private:
 };
 
 // ----------------------------------------------------------------------------
-}; // namespace android
+} // namespace android
 
 #endif /*ANDROID_AUDIO_RESAMPLER_SINC_H*/

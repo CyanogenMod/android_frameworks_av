@@ -485,6 +485,6 @@ private:
 };
 
 // ----------------------------------------------------------------------------
-}; // namespace android
+} // namespace android
 
 #endif // ANDROID_AUDIO_MIXER_H

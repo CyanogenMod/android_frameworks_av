@@ -601,4 +601,4 @@ void AudioResamplerSinc::interpolate(
     }
 }
 // ----------------------------------------------------------------------------
-}; // namespace android
+} // namespace android
