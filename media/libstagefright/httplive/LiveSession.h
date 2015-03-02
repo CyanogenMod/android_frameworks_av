@@ -39,10 +39,6 @@ struct LiveSession : public AHandler {
         // Don't log any URLs.
         kFlagIncognito = 1,
     };
-    LiveSession(
-            const sp<AMessage> &notify,
-            uint32_t flags,
-            const sp<IMediaHTTPService> &httpService);
 
     enum StreamIndex {
         kAudioIndex    = 0,
@@ -56,6 +52,12 @@ struct LiveSession : public AHandler {
         STREAMTYPE_VIDEO        = 1 << kVideoIndex,
         STREAMTYPE_SUBTITLES    = 1 << kSubtitleIndex,
     };
+
+    LiveSession(
+            const sp<AMessage> &notify,
+            uint32_t flags,
+            const sp<IMediaHTTPService> &httpService);
+
     status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
@@ -109,11 +111,13 @@ private:
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
         kWhatSwapped                    = 'swap',
-        kWhatCheckSwitchDown            = 'ckSD',
-        kWhatSwitchDown                 = 'sDwn',
+        kWhatPollBuffering              = 'poll',
     };
 
     static const size_t kBandwidthHistoryBytes;
+    static const int64_t kHighWaterMark;
+    static const int64_t kMidWaterMark;
+    static const int64_t kLowWaterMark;
 
     struct BandwidthItem {
         size_t mPlaylistIndex;
@@ -168,6 +172,7 @@ private:
 
     sp<M3UParser> mPlaylist;
 
+    sp<ALooper> mFetcherLooper;
     KeyedVector<AString, FetcherInfo> mFetcherInfos;
     uint32_t mStreamMask;
 
@@ -180,7 +185,6 @@ private:
     // we use this to track reconfiguration progress.
     uint32_t mSwapMask;
 
-    KeyedVector<StreamType, sp<AnotherPacketSource> > mDiscontinuities;
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources;
     // A second set of packet sources that buffer content for the variant we're switching to.
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources2;
@@ -209,9 +213,10 @@ private:
     bool mFirstTimeUsValid;
     int64_t mFirstTimeUs;
     int64_t mLastSeekTimeUs;
-    sp<AMessage> mSwitchDownMonitor;
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
+
+    int32_t mPollBufferingGeneration;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
@@ -256,27 +261,24 @@ private:
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
     void onSwapped(const sp<AMessage> &msg);
-    void onCheckSwitchDown();
-    void onSwitchDown();
     void tryToFinishBandwidthSwitch();
-
-    void scheduleCheckBandwidthEvent();
-    void cancelCheckBandwidthEvent();
 
     // cancelBandwidthSwitch is atomic wrt swapPacketSource; call it to prevent packet sources
     // from being swapped out on stale discontinuities while manipulating
     // mPacketSources/mPacketSources2.
     void cancelBandwidthSwitch();
 
-    bool canSwitchBandwidthTo(size_t bandwidthIndex);
-    void onCheckBandwidth(const sp<AMessage> &msg);
+    void schedulePollBuffering();
+    void cancelPollBuffering();
+    void onPollBuffering();
+    bool checkBuffering(bool &low, bool &mid, bool &high);
+    void switchBandwidthIfNeeded(bool canSwitchUp);
 
     void finishDisconnect();
 
     void postPrepared(status_t err);
 
     void swapPacketSource(StreamType stream);
-    bool canSwitchUp();
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
 };

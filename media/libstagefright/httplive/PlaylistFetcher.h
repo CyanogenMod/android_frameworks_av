@@ -36,6 +36,7 @@ class String8;
 struct PlaylistFetcher : public AHandler {
     static const int64_t kMinBufferedDurationUs;
     static const int32_t kDownloadBlockSize;
+    static const int64_t kFetcherResumeThreshold;
 
     enum {
         kWhatStarted,
@@ -43,7 +44,6 @@ struct PlaylistFetcher : public AHandler {
         kWhatStopped,
         kWhatError,
         kWhatDurationUpdate,
-        kWhatTemporarilyDoneFetching,
         kWhatPrepared,
         kWhatPreparationFailed,
         kWhatStartedAt,
@@ -211,10 +211,6 @@ private:
     int32_t getSeqNumberForTime(int64_t timeUs) const;
 
     void updateDuration();
-
-    // Before resuming a fetcher in onResume, check the remaining duration is longer than that
-    // returned by resumeThreshold.
-    int64_t resumeThreshold(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaylistFetcher);
 };

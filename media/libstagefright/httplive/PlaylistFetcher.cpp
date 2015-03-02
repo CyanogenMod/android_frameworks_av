@@ -49,6 +49,7 @@ namespace android {
 // static
 const int64_t PlaylistFetcher::kMinBufferedDurationUs = 10000000ll;
 const int64_t PlaylistFetcher::kMaxMonitorDelayUs = 3000000ll;
+const int64_t PlaylistFetcher::kFetcherResumeThreshold = 100000ll;
 // LCM of 188 (size of a TS packet) & 1k works well
 const int32_t PlaylistFetcher::kDownloadBlockSize = 47 * 1024;
 const int32_t PlaylistFetcher::kNumSkipFrames = 5;
@@ -535,12 +536,19 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
     sp<AMessage> params;
     CHECK(msg->findMessage("params", &params));
 
-    bool stop = false;
+    size_t stopCount = 0;
     for (size_t i = 0; i < mPacketSources.size(); i++) {
         sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
 
         const char *stopKey;
         int streamType = mPacketSources.keyAt(i);
+
+        if (streamType == LiveSession::STREAMTYPE_SUBTITLES) {
+            // the subtitle track can always be stopped
+            ++stopCount;
+            continue;
+        }
+
         switch (streamType) {
         case LiveSession::STREAMTYPE_VIDEO:
             stopKey = "timeUsVideo";
@@ -550,15 +558,11 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
             stopKey = "timeUsAudio";
             break;
 
-        case LiveSession::STREAMTYPE_SUBTITLES:
-            stopKey = "timeUsSubtitle";
-            break;
-
         default:
             TRESPASS();
         }
 
-        // Don't resume if we would stop within a resume threshold.
+        // check if this stream has too little data left to be resumed
         int32_t discontinuitySeq;
         int64_t latestTimeUs = 0, stopTimeUs = 0;
         sp<AMessage> latestMeta = packetSource->getLatestEnqueuedMeta();
@@ -567,12 +571,13 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
                 && discontinuitySeq == mDiscontinuitySeq
                 && latestMeta->findInt64("timeUs", &latestTimeUs)
                 && params->findInt64(stopKey, &stopTimeUs)
-                && stopTimeUs - latestTimeUs < resumeThreshold(latestMeta)) {
-            stop = true;
+                && stopTimeUs - latestTimeUs < kFetcherResumeThreshold) {
+            ++stopCount;
         }
     }
 
-    if (stop) {
+    // Don't resume if all streams are within a resume threshold
+    if (stopCount == mPacketSources.size()) {
         for (size_t i = 0; i < mPacketSources.size(); i++) {
             mPacketSources.valueAt(i)->queueAccessUnit(mSession->createFormatChangeBuffer());
         }
@@ -581,7 +586,7 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
     }
 
     mStopParams = params;
-    postMonitorQueue();
+    onDownloadNext();
 
     return OK;
 }
@@ -660,9 +665,6 @@ void PlaylistFetcher::onMonitorQueue() {
 
         ALOGV("prepared, buffered=%" PRId64 " > %" PRId64 "",
                 bufferedDurationUs, targetDurationUs);
-        sp<AMessage> msg = mNotify->dup();
-        msg->setInt32("what", kWhatTemporarilyDoneFetching);
-        msg->post();
     }
 
     if (finalResult == OK && downloadMore) {
@@ -676,11 +678,6 @@ void PlaylistFetcher::onMonitorQueue() {
         msg->post(1000l);
     } else {
         // Nothing to do yet, try again in a second.
-
-        sp<AMessage> msg = mNotify->dup();
-        msg->setInt32("what", kWhatTemporarilyDoneFetching);
-        msg->post();
-
         int64_t delayUs = mPrepared ? kMaxMonitorDelayUs : targetDurationUs / 2;
         ALOGV("pausing for %" PRId64 ", buffered=%" PRId64 " > %" PRId64 "",
                 delayUs, bufferedDurationUs, durationToBufferUs);
@@ -1685,35 +1682,6 @@ void PlaylistFetcher::updateDuration() {
     msg->setInt32("what", kWhatDurationUpdate);
     msg->setInt64("durationUs", durationUs);
     msg->post();
-}
-
-int64_t PlaylistFetcher::resumeThreshold(const sp<AMessage> &msg) {
-    int64_t durationUs;
-    if (msg->findInt64("durationUs", &durationUs) && durationUs > 0) {
-        return kNumSkipFrames * durationUs;
-    }
-
-    sp<RefBase> obj;
-    msg->findObject("format", &obj);
-    MetaData *format = static_cast<MetaData *>(obj.get());
-
-    const char *mime;
-    CHECK(format->findCString(kKeyMIMEType, &mime));
-    bool audio = !strncasecmp(mime, "audio/", 6);
-    if (audio) {
-        // Assumes 1000 samples per frame.
-        int32_t sampleRate;
-        CHECK(format->findInt32(kKeySampleRate, &sampleRate));
-        return kNumSkipFrames  /* frames */ * 1000 /* samples */
-                * (1000000 / sampleRate) /* sample duration (us) */;
-    } else {
-        int32_t frameRate;
-        if (format->findInt32(kKeyFrameRate, &frameRate) && frameRate > 0) {
-            return kNumSkipFrames * (1000000 / frameRate);
-        }
-    }
-
-    return 500000ll;
 }
 
 }  // namespace android
