@@ -33,7 +33,7 @@ struct FastThreadDumpState {
     struct timespec mMeasuredWarmupTs;  // measured warmup time
     uint32_t mWarmupCycles;     // number of loop cycles required to warmup
 
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     // Recently collected samples of per-cycle monotonic time, thread CPU time, and CPU frequency.
     // kSamplingN is max size of sampling frame (statistics), and must be a power of 2 <= 0x8000.
     // The sample arrays are virtually allocated based on this compile-time constant,

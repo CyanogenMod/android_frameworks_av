@@ -22,7 +22,7 @@ FastThreadDumpState::FastThreadDumpState() :
     mCommand(FastThreadState::INITIAL), mUnderruns(0), mOverruns(0),
     /* mMeasuredWarmupTs({0, 0}), */
     mWarmupCycles(0)
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     , mSamplingN(1), mBounds(0)
 #endif
 {

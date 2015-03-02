@@ -31,7 +31,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <system/audio.h>
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
 #include <cpustats/CentralTendencyStatistics.h>
 #ifdef CPU_FREQUENCY_STATISTICS
 #include <cpustats/ThreadCpuUsage.h>
@@ -82,7 +82,7 @@ FastMixer::FastMixer() : FastThread(),
         fastTrackNames[i] = -1;
         generations[i] = 0;
     }
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     oldLoad.tv_sec = 0;
     oldLoad.tv_nsec = 0;
 #endif
