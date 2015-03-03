@@ -51,7 +51,7 @@ FastThread::FastThread() : Thread(false /*canCallJava*/),
     mDummyDumpState(NULL),
     dumpState(NULL),
     ignoreNextOverrun(true),
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     // oldLoad
     oldLoadValid(false),
     bounds(0),
@@ -130,7 +130,7 @@ bool FastThread::threadLoop()
                 if (command & FastThreadState::IDLE) {
                     onIdle();
                     oldTsValid = false;
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
                     oldLoadValid = false;
 #endif
                     ignoreNextOverrun = true;
@@ -175,7 +175,7 @@ bool FastThread::threadLoop()
                 warmupConsecutiveInRangeCycles = 0;
                 sleepNs = -1;
                 coldGen = current->mColdGen;
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
                 bounds = 0;
                 full = false;
 #endif
@@ -281,7 +281,7 @@ bool FastThread::threadLoop()
                         ignoreNextOverrun = false;
                     }
                 }
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
                 if (isWarm) {
                     // advance the FIFO queue bounds
                     size_t i = bounds & (dumpState->mSamplingN - 1);

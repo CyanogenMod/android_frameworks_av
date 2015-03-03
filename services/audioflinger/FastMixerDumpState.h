@@ -67,7 +67,7 @@ struct FastTrackDump {
 // It has a different lifetime than the FastMixer, and so it can't be a member of FastMixer.
 struct FastMixerDumpState : FastThreadDumpState {
     FastMixerDumpState(
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
             uint32_t samplingN = kSamplingNforLowRamDevice
 #endif
             );
@@ -84,7 +84,7 @@ struct FastMixerDumpState : FastThreadDumpState {
     uint32_t mTrackMask;        // mask of active tracks
     FastTrackDump   mTracks[FastMixerState::kMaxFastTracks];
 
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     // Compile-time constant for a "low RAM device", must be a power of 2 <= kSamplingN.
     // This value was chosen such that each array uses 1 small page (4 Kbytes).
     static const uint32_t kSamplingNforLowRamDevice = 0x400;

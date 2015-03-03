@@ -18,7 +18,7 @@
 //#define LOG_NDEBUG 0
 
 #include "Configuration.h"
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
 #include <cpustats/CentralTendencyStatistics.h>
 #ifdef CPU_FREQUENCY_STATISTICS
 #include <cpustats/ThreadCpuUsage.h>
@@ -31,7 +31,7 @@
 namespace android {
 
 FastMixerDumpState::FastMixerDumpState(
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
         uint32_t samplingN
 #endif
         ) : FastThreadDumpState(),
@@ -40,12 +40,12 @@ FastMixerDumpState::FastMixerDumpState(
     mSampleRate(0), mFrameCount(0),
     mTrackMask(0)
 {
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     increaseSamplingN(samplingN);
 #endif
 }
 
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
 void FastMixerDumpState::increaseSamplingN(uint32_t samplingN)
 {
     if (samplingN <= mSamplingN || samplingN > kSamplingN || roundup(samplingN) != samplingN) {
@@ -126,7 +126,7 @@ void FastMixerDumpState::dump(int fd) const
                  mNumTracks, mWriteErrors, mUnderruns, mOverruns,
                  mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
                  mixPeriodSec * 1e3);
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     // find the interval of valid samples
     uint32_t bounds = mBounds;
     uint32_t newestOpen = bounds & 0xFFFF;

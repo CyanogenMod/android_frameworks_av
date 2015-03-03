@@ -63,7 +63,7 @@ protected:
     FastThreadDumpState *mDummyDumpState;
     FastThreadDumpState *dumpState;
     bool ignoreNextOverrun;  // used to ignore initial overrun and first after an underrun
-#ifdef FAST_MIXER_STATISTICS
+#ifdef FAST_THREAD_STATISTICS
     struct timespec oldLoad;    // previous value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
     bool oldLoadValid;  // whether oldLoad is valid
     uint32_t bounds;
