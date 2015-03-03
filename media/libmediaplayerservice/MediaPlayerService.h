@@ -97,7 +97,7 @@ class MediaPlayerService : public BnMediaPlayerService
                 const audio_offload_info_t *offloadInfo = NULL);
 
         virtual status_t        start();
-        virtual ssize_t         write(const void* buffer, size_t size);
+        virtual ssize_t         write(const void* buffer, size_t size, bool blocking = true);
         virtual void            stop();
         virtual void            flush();
         virtual void            pause();

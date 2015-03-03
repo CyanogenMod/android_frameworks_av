@@ -567,6 +567,7 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
 }
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
+#if 0
     uint32_t numFramesPlayed;
     if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
         return false;
@@ -575,7 +576,6 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     ssize_t numFramesAvailableToWrite =
         mAudioSink->frameCount() - (mNumFramesWritten - numFramesPlayed);
 
-#if 0
     if (numFramesAvailableToWrite == mAudioSink->frameCount()) {
         ALOGI("audio sink underrun");
     } else {
@@ -584,10 +584,7 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     }
 #endif
 
-    size_t numBytesAvailableToWrite =
-        numFramesAvailableToWrite * mAudioSink->frameSize();
-
-    while (numBytesAvailableToWrite > 0 && !mAudioQueue.empty()) {
+    while (!mAudioQueue.empty()) {
         QueueEntry *entry = &*mAudioQueue.begin();
 
         mLastAudioBufferDrained = entry->mBufferOrdinal;
@@ -620,14 +617,16 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
         }
 
         size_t copy = entry->mBuffer->size() - entry->mOffset;
-        if (copy > numBytesAvailableToWrite) {
-            copy = numBytesAvailableToWrite;
-        }
 
-        ssize_t written = mAudioSink->write(entry->mBuffer->data() + entry->mOffset, copy);
+        ssize_t written = mAudioSink->write(entry->mBuffer->data() + entry->mOffset,
+                                            copy, false /* blocking */);
         if (written < 0) {
             // An error in AudioSink write. Perhaps the AudioSink was not properly opened.
-            ALOGE("AudioSink write error(%zd) when writing %zu bytes", written, copy);
+            if (written == WOULD_BLOCK) {
+                ALOGW("AudioSink write would block when writing %zu bytes", copy);
+            } else {
+                ALOGE("AudioSink write error(%zd) when writing %zu bytes", written, copy);
+            }
             break;
         }
 
@@ -639,7 +638,6 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             entry = NULL;
         }
 
-        numBytesAvailableToWrite -= written;
         size_t copiedFrames = written / mAudioSink->frameSize();
         mNumFramesWritten += copiedFrames;
 
@@ -651,21 +649,23 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
         if (written != (ssize_t)copy) {
             // A short count was received from AudioSink::write()
             //
-            // AudioSink write should block until exactly the number of bytes are delivered.
-            // But it may return with a short count (without an error) when:
+            // AudioSink write is called in non-blocking mode.
+            // It may return with a short count when:
             //
             // 1) Size to be copied is not a multiple of the frame size. We consider this fatal.
-            // 2) AudioSink is an AudioCache for data retrieval, and the AudioCache is exceeded.
+            // 2) The data to be copied exceeds the available buffer in AudioSink.
+            // 3) An error occurs and data has been partially copied to the buffer in AudioSink.
+            // 4) AudioSink is an AudioCache for data retrieval, and the AudioCache is exceeded.
 
             // (Case 1)
             // Must be a multiple of the frame size.  If it is not a multiple of a frame size, it
             // needs to fail, as we should not carry over fractional frames between calls.
             CHECK_EQ(copy % mAudioSink->frameSize(), 0);
 
-            // (Case 2)
+            // (Case 2, 3, 4)
             // Return early to the caller.
             // Beware of calling immediately again as this may busy-loop if you are not careful.
-            ALOGW("AudioSink write short frame count %zd < %zu", written, copy);
+            ALOGV("AudioSink write short frame count %zd < %zu", written, copy);
             break;
         }
     }

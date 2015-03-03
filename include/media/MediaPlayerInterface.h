@@ -113,7 +113,19 @@ public:
                 const audio_offload_info_t *offloadInfo = NULL) = 0;
 
         virtual status_t    start() = 0;
-        virtual ssize_t     write(const void* buffer, size_t size) = 0;
+
+        /* Input parameter |size| is in byte units stored in |buffer|.
+         * Data is copied over and actual number of bytes written (>= 0)
+         * is returned, or no data is copied and a negative status code
+         * is returned (even when |blocking| is true).
+         * When |blocking| is false, AudioSink will immediately return after
+         * part of or full |buffer| is copied over.
+         * When |blocking| is true, AudioSink will wait to copy the entire
+         * buffer, unless an error occurs or the copy operation is
+         * prematurely stopped.
+         */
+        virtual ssize_t     write(const void* buffer, size_t size, bool blocking = true) = 0;
+
         virtual void        stop() = 0;
         virtual void        flush() = 0;
         virtual void        pause() = 0;
