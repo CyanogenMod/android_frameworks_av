@@ -59,12 +59,6 @@ struct FastTrackDump {
     size_t              mFramesReady;        // most recent value only; no long-term statistics kept
 };
 
-// The FastMixerDumpState keeps a cache of FastMixer statistics that can be logged by dumpsys.
-// Each individual native word-sized field is accessed atomically.  But the
-// overall structure is non-atomic, that is there may be an inconsistency between fields.
-// No barriers or locks are used for either writing or reading.
-// Only POD types are permitted, and the contents shouldn't be trusted (i.e. do range checks).
-// It has a different lifetime than the FastMixer, and so it can't be a member of FastMixer.
 struct FastMixerDumpState : FastThreadDumpState {
     FastMixerDumpState();
     /*virtual*/ ~FastMixerDumpState();
