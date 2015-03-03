@@ -55,8 +55,8 @@ private:
 struct FastTrackDump {
     FastTrackDump() : mFramesReady(0) { }
     /*virtual*/ ~FastTrackDump() { }
-    FastTrackUnderruns mUnderruns;
-    size_t mFramesReady;        // most recent value only; no long-term statistics kept
+    FastTrackUnderruns  mUnderruns;
+    size_t              mFramesReady;        // most recent value only; no long-term statistics kept
 };
 
 // The FastMixerDumpState keeps a cache of FastMixer statistics that can be logged by dumpsys.
