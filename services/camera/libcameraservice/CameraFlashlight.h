@@ -23,6 +23,7 @@
 #include "gui/GLConsumer.h"
 #include "gui/Surface.h"
 #include "common/CameraDeviceBase.h"
+#include "device1/CameraHardwareInterface.h"
 
 namespace android {
 
@@ -147,6 +148,7 @@ class CameraDeviceClientFlashControl : public FlashControlBase {
         status_t getSmallestSurfaceSize(const camera_info& info, int32_t *width,
                     int32_t *height);
 
+        // protected by mLock
         status_t hasFlashUnitLocked(const String8& cameraId, bool *hasFlash);
 
         CameraModule *mCameraModule;
@@ -166,6 +168,54 @@ class CameraDeviceClientFlashControl : public FlashControlBase {
         sp<GLConsumer> mSurfaceTexture;
         sp<ANativeWindow> mAnw;
         int32_t mStreamId;
+
+        Mutex mLock;
+};
+
+/**
+ * Flash control for camera module <= v2.3 and camera HAL v1
+ */
+class CameraHardwareInterfaceFlashControl : public FlashControlBase {
+    public:
+        CameraHardwareInterfaceFlashControl(CameraModule& cameraModule,
+                const camera_module_callbacks_t& callbacks);
+        virtual ~CameraHardwareInterfaceFlashControl();
+
+        // FlashControlBase
+        status_t setTorchMode(const String8& cameraId, bool enabled);
+        status_t hasFlashUnit(const String8& cameraId, bool *hasFlash);
+
+    private:
+        // connect to a camera device
+        status_t connectCameraDevice(const String8& cameraId);
+
+        // disconnect and free mDevice
+        status_t disconnectCameraDevice();
+
+        // initialize the preview window
+        status_t initializePreviewWindow(sp<CameraHardwareInterface> device,
+                int32_t width, int32_t height);
+
+        // start preview and enable torch
+        status_t startPreviewAndTorch();
+
+        // get the smallest surface
+        status_t getSmallestSurfaceSize(int32_t *width, int32_t *height);
+
+        // protected by mLock
+        status_t hasFlashUnitLocked(const String8& cameraId, bool *hasFlash);
+
+        CameraModule *mCameraModule;
+        const camera_module_callbacks_t *mCallbacks;
+        sp<CameraHardwareInterface> mDevice;
+        String8 mCameraId;
+        CameraParameters mParameters;
+        bool mTorchEnabled;
+
+        sp<IGraphicBufferProducer> mProducer;
+        sp<IGraphicBufferConsumer>  mConsumer;
+        sp<GLConsumer> mSurfaceTexture;
+        sp<ANativeWindow> mAnw;
 
         Mutex mLock;
 };

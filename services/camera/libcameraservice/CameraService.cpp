@@ -496,19 +496,6 @@ int CameraService::getDeviceVersion(int cameraId, int* facing) {
     return deviceVersion;
 }
 
-status_t CameraService::filterOpenErrorCode(status_t err) {
-    switch(err) {
-        case NO_ERROR:
-        case -EBUSY:
-        case -EINVAL:
-        case -EUSERS:
-            return err;
-        default:
-            break;
-    }
-    return -ENODEV;
-}
-
 status_t CameraService::filterGetInfoErrorCode(status_t err) {
     switch(err) {
         case NO_ERROR:

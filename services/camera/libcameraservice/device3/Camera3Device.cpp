@@ -106,8 +106,8 @@ status_t Camera3Device::initialize(CameraModule *module)
     camera3_device_t *device;
 
     ATRACE_BEGIN("camera3->open");
-    res = CameraService::filterOpenErrorCode(module->open(
-            deviceName.string(), reinterpret_cast<hw_device_t**>(&device)));
+    res = module->open(deviceName.string(),
+            reinterpret_cast<hw_device_t**>(&device));
     ATRACE_END();
 
     if (res != OK) {
