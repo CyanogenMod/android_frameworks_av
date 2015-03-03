@@ -54,7 +54,7 @@ private:
     int                 mInputSourceGen;
     NBAIO_Sink*         mPipeSink;
     int                 mPipeSinkGen;
-    short*              mReadBuffer;
+    void*               mReadBuffer;
     ssize_t             mReadBufferState;   // number of initialized frames in readBuffer,
                                             // or -1 to clear
     NBAIO_Format        mFormat;
