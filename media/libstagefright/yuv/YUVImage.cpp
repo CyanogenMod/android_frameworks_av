@@ -374,13 +374,13 @@ uint8_t clamp(uint8_t v, uint8_t minValue, uint8_t maxValue) {
 
 void YUVImage::yuv2rgb(uint8_t yValue, uint8_t uValue, uint8_t vValue,
         uint8_t *r, uint8_t *g, uint8_t *b) const {
-    *r = yValue + (1.370705 * (vValue-128));
-    *g = yValue - (0.698001 * (vValue-128)) - (0.337633 * (uValue-128));
-    *b = yValue + (1.732446 * (uValue-128));
+    int rTmp = yValue + (1.370705 * (vValue-128));
+    int gTmp = yValue - (0.698001 * (vValue-128)) - (0.337633 * (uValue-128));
+    int bTmp = yValue + (1.732446 * (uValue-128));
 
-    *r = clamp(*r, 0, 255);
-    *g = clamp(*g, 0, 255);
-    *b = clamp(*b, 0, 255);
+    *r = clamp(rTmp, 0, 255);
+    *g = clamp(gTmp, 0, 255);
+    *b = clamp(bTmp, 0, 255);
 }
 
 bool YUVImage::writeToPPM(const char *filename) const {
