@@ -92,8 +92,10 @@ private:
     KeyedVector<unsigned, sp<Stream> > mStreams;
     bool mFirstPTSValid;
     uint64_t mFirstPTS;
+    int64_t mLastRecoveredPTS;
 
     status_t parseProgramMap(ABitReader *br);
+    int64_t recoverPTS(uint64_t PTS_33bit);
 
     DISALLOW_EVIL_CONSTRUCTORS(Program);
 };
@@ -182,7 +184,8 @@ ATSParser::Program::Program(
       mProgramNumber(programNumber),
       mProgramMapPID(programMapPID),
       mFirstPTSValid(false),
-      mFirstPTS(0) {
+      mFirstPTS(0),
+      mLastRecoveredPTS(0) {
     ALOGV("new program number %u", programNumber);
 }
 
@@ -425,6 +428,21 @@ status_t ATSParser::Program::parseProgramMap(ABitReader *br) {
     return OK;
 }
 
+int64_t ATSParser::Program::recoverPTS(uint64_t PTS_33bit) {
+    // We only have the lower 33-bit of the PTS. It could overflow within a
+    // reasonable amount of time. To handle the wrap-around, use fancy math
+    // to get an extended PTS that is within [-0xffffffff, 0xffffffff]
+    // of the latest recovered PTS.
+    mLastRecoveredPTS = static_cast<int64_t>(
+            ((mLastRecoveredPTS - PTS_33bit + 0x100000000ll)
+            & 0xfffffffe00000000ull) | PTS_33bit);
+
+    // We start from 0, but recovered PTS could be slightly below 0.
+    // Clamp it to 0 as rest of the pipeline doesn't take negative pts.
+    // (eg. video is read first and starts at 0, but audio starts at 0xfffffff0)
+    return mLastRecoveredPTS < 0ll ? 0ll : mLastRecoveredPTS;
+}
+
 sp<MediaSource> ATSParser::Program::getSource(SourceType type) {
     size_t index = (type == AUDIO) ? 0 : 0;
 
@@ -455,6 +473,8 @@ bool ATSParser::Program::hasSource(SourceType type) const {
 }
 
 int64_t ATSParser::Program::convertPTSToTimestamp(uint64_t PTS) {
+    PTS = recoverPTS(PTS);
+
     if (!(mParser->mFlags & TS_TIMESTAMPS_ARE_ABSOLUTE)) {
         if (!mFirstPTSValid) {
             mFirstPTSValid = true;
