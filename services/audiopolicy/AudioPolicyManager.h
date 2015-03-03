@@ -43,7 +43,8 @@ namespace android {
 #define SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY 5000
 // Time in milliseconds during witch some streams are muted while the audio path
 // is switched
-#define MUTE_TIME_MS 500
+//FIXME:: Audio team
+#define MUTE_TIME_MS 2000 //500 ms
 
 #define NUM_TEST_OUTPUTS 5
 

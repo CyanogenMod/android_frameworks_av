@@ -320,6 +320,16 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
                                                          audio_policy_dev_state_t state,
                                                          const char *device_address)
 {
+    String8 address = (device_address == NULL) ? String8("") : String8(device_address);
+
+    AudioParameter param;
+
+    // handle legacy remote submix case where the address was not always specified
+    if (deviceDistinguishesOnAddress(device) && (address.length() == 0)) {
+        address = String8("0");
+    }
+
+
     ALOGV("setDeviceConnectionState() device: %x, state %d, address %s",
             device, state, device_address != NULL ? device_address : "");
 
@@ -340,7 +350,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
         switch (state)
         {
         // handle output device connection
-        case AUDIO_POLICY_DEVICE_STATE_AVAILABLE: {
+        case AUDIO_POLICY_DEVICE_STATE_AVAILABLE:
             if (index >= 0) {
 #ifdef AUDIO_EXTN_HDMI_SPK_ENABLED
                 if ((popcount(device) == 1) && (device & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {

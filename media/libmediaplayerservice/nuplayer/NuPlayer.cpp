@@ -654,9 +654,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
                 sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
                 audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
+                sp<MetaData> vMeta = new MetaData;
+                convertMessageToMetaData(videoFormat, vMeta);
                 const bool hasVideo = (videoFormat != NULL);
                 const bool canOffload = canOffloadStream(
-                        audioMeta, hasVideo, true /* is_streaming */, streamType);
+                        audioMeta, hasVideo, vMeta, mIsStreaming /* is_streaming */, streamType);
                 if (canOffload) {
                     if (!mOffloadAudio) {
                         mRenderer->signalEnableOffloadAudio();
@@ -932,6 +934,14 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                 performSeek(positionUs, false /* needNotify */);
                 if (reason == Renderer::kDueToError) {
+				    if(ExtendedUtils::is24bitPCMOffloadEnabled()) {
+                        sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+                        if(ExtendedUtils::is24bitPCMOffloaded(audioMeta)) {
+					        ALOGV("Override pcm format to 16 bits");
+					        ExtendedUtils::setKeyPCMFormat(audioMeta, AUDIO_FORMAT_PCM_16_BIT );
+						    mSource->start();
+					    }
+				    }
                     mRenderer->signalDisableOffloadAudio();
                     mOffloadAudio = false;
                     mOffloadDecodedPCM = false;
@@ -1034,6 +1044,8 @@ void NuPlayer::onResume() {
     } else {
         ALOGW("resume called when renderer is gone or not set");
     }
+    PLAYER_STATS(notifyPlaying, true);
+    PLAYER_STATS(profileStart, STATS_PROFILE_RESUME);
 }
 
 void NuPlayer::onStart() {
@@ -1053,8 +1065,20 @@ void NuPlayer::onStart() {
             instantiateDecoder(true, &mAudioDecoder);
         }
     }
+    bool overrideSourceStart = false;
+    if (ExtendedUtils::is24bitPCMOffloadEnabled()) {
+	//if 24 bit offloading is enabled and if its such a use
+	//case do not call start since this will be called
+	//after openAudioSink
+	     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+		 overrideSourceStart = ExtendedUtils::is24bitPCMOffloaded(audioMeta);
+	}
 
+    if (overrideSourceStart) {
+	    ALOGV("%s: Do not start source, wait till openAudioSink");
+	} else {
     mSource->start();
+	}
 
     uint32_t flags = 0;
 
@@ -1069,10 +1093,27 @@ void NuPlayer::onStart() {
     }
 
     sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
+    sp<MetaData> vMeta = new MetaData;
+    convertMessageToMetaData(videoFormat, vMeta);
+    mOffloadAudio = canOffloadStream(audioMeta, (videoFormat != NULL), vMeta,
+                         mIsStreaming /* is_streaming */, streamType);
+     //For offloading decoded content
+     if (!mOffloadAudio && (audioMeta != NULL)) {
+        sp<MetaData> audioPCMMeta =
+                ExtendedUtils::createPCMMetaFromSource(audioMeta);
 
+        const char *mime = NULL;
+        if (audioMeta != NULL) {
+            audioMeta->findCString(kKeyMIMEType, &mime);
+        }
     mOffloadAudio =
-        canOffloadStream(audioMeta, (videoFormat != NULL),
-                         true /* is_streaming */, streamType);
+                ((mime && !ExtendedUtils::pcmOffloadException(mime)) &&
+                canOffloadStream(audioMeta, (videoFormat != NULL), vMeta,
+                        mIsStreaming /* is_streaming */, streamType));
+        mOffloadDecodedPCM = mOffloadAudio;
+        ALOGI("Could not offload audio decode, pcm offload decided :%d",
+                mOffloadDecodedPCM);
+    }
     if (mOffloadAudio) {
         flags |= Renderer::FLAG_OFFLOAD_AUDIO;
     }
@@ -1262,9 +1303,23 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         ++mAudioDecoderGeneration;
         notify->setInt32("generation", mAudioDecoderGeneration);
 
+        sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+
         if (mOffloadAudio && !mOffloadDecodedPCM) {
+             if(ExtendedUtils::is24bitPCMOffloadEnabled() &&
+			         ExtendedUtils::is24bitPCMOffloaded(audioMeta)) {
+                         //if offloaded, configure source for 24 bit
+                         ExtendedUtils::setKeyPCMFormat(audioMeta,AUDIO_FORMAT_PCM_8_24_BIT);
+					     mSource->start();
+			 }
             *decoder = new DecoderPassThrough(notify, mSource, mRenderer);
         } else {
+             if(ExtendedUtils::is24bitPCMOffloadEnabled() &&
+			         ExtendedUtils::is24bitPCMOffloaded(audioMeta)) {
+                         //if NOT offloaded, configure source for 16 bit
+                         ExtendedUtils::setKeyPCMFormat(audioMeta,AUDIO_FORMAT_PCM_16_BIT);
+					     mSource->start();
+			 }
             *decoder = new Decoder(notify, mSource, mRenderer);
         }
     } else {
@@ -1641,8 +1696,6 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
-    mBuffering = false;
-    mPlaying = false;
     PLAYER_STATS(notifyEOS);
     PLAYER_STATS(dump);
     PLAYER_STATS(reset);
@@ -1784,26 +1837,6 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         {
             int32_t percentage;
             CHECK(msg->findInt32("percentage", &percentage));
-
-            int64_t durationUs = 0;
-            msg->findInt64("duration", &durationUs);
-
-            bool eos = mVideoEOS || mAudioEOS
-                    || percentage == 100; // sources return 100% after EOS
-            if (durationUs < kLowWaterMarkUs && mPlaying && !eos) {
-                mBuffering = true;
-                pause();
-                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);
-                ALOGI("cache running low (< %g secs)..pausing",
-                        (double)durationUs / 1000000.0);
-            } else if (eos || durationUs > kHighWaterMarkUs) {
-                if (mBuffering && !mPlaying) {
-                    resume();
-                    ALOGI("cache has filled up..resuming");
-                }
-                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
-                mBuffering = false;
-            }
 
             notifyListener(MEDIA_BUFFERING_UPDATE, percentage, 0);
             break;

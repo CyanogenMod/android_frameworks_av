@@ -198,8 +198,6 @@ private:
     int32_t mLastAudioBufferDrained;
     sp<AWakeLock> mWakeLock;
 
-    sp<AWakeLock> mWakeLock;
-
     status_t getCurrentPositionOnLooper(int64_t *mediaUs);
     status_t getCurrentPositionOnLooper(
             int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo = false);

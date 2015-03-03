@@ -1171,20 +1171,24 @@ status_t ACodec::setComponentRole(
             "audio_decoder.g711mlaw", "audio_encoder.g711mlaw" },
         { MEDIA_MIMETYPE_AUDIO_G711_ALAW,
             "audio_decoder.g711alaw", "audio_encoder.g711alaw" },
+#ifdef ENABLE_AV_ENHANCEMENTS
 #ifdef DOLBY_UDC
         { MEDIA_MIMETYPE_AUDIO_EAC3,
             "audio_decoder.ec3", NULL },
         { MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
             "audio_decoder.ec3_joc", NULL },
 #endif // DOLBY_END
+#endif
         { MEDIA_MIMETYPE_VIDEO_AVC,
             "video_decoder.avc", "video_encoder.avc" },
         { MEDIA_MIMETYPE_VIDEO_HEVC,
             "video_decoder.hevc", "video_encoder.hevc" },
         { MEDIA_MIMETYPE_VIDEO_MPEG4,
             "video_decoder.mpeg4", "video_encoder.mpeg4" },
+#ifdef ENABLE_AV_ENHANCEMENTS			
         { MEDIA_MIMETYPE_VIDEO_MPEG4_DP,
             "video_decoder.mpeg4", NULL },
+#endif			
         { MEDIA_MIMETYPE_VIDEO_H263,
             "video_decoder.h263", "video_encoder.h263" },
         { MEDIA_MIMETYPE_VIDEO_VP8,
@@ -1193,12 +1197,14 @@ status_t ACodec::setComponentRole(
             "video_decoder.vp9", "video_encoder.vp9" },
         { MEDIA_MIMETYPE_AUDIO_RAW,
             "audio_decoder.raw", "audio_encoder.raw" },
+#ifdef ENABLE_AV_ENHANCEMENTS			
 #ifdef QTI_FLAC_DECODER
         { MEDIA_MIMETYPE_AUDIO_FLAC,
             "audio_decoder.raw", NULL },
 #else
         { MEDIA_MIMETYPE_AUDIO_FLAC,
             "audio_decoder.flac", "audio_encoder.flac" },
+#endif
 #endif
         { MEDIA_MIMETYPE_AUDIO_MSGSM,
             "audio_decoder.gsm", "audio_encoder.gsm" },
@@ -1556,7 +1562,7 @@ status_t ACodec::configureCodec(
         int32_t preventScreenCapture = 0;
         if (msg->findInt32("prevent-screen-capture", &preventScreenCapture)
                 && preventScreenCapture == 1) {
-            mFlags |= kFlagIsContentDrmProtected;
+            mFlags |= kFlagIsGrallocUsageProtected;
         }
     }
 

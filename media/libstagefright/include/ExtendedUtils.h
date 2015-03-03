@@ -258,6 +258,9 @@ struct ExtendedUtils {
 
     static void overWriteAudioFormat(
                 sp<AMessage> &dst, const sp<AMessage> &src);
+	
+    static bool is24bitPCMOffloaded(
+                const sp<MetaData> &sMeta);
 };
 
 }
