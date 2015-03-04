@@ -29,20 +29,20 @@ struct FastCaptureState : FastThreadState {
     /*virtual*/ ~FastCaptureState();
 
     // all pointer fields use raw pointers; objects are owned and ref-counted by RecordThread
-    NBAIO_Source    *mInputSource;      // HAL input device, must already be negotiated
+    NBAIO_Source*   mInputSource;       // HAL input device, must already be negotiated
     // FIXME by renaming, could pull up these fields to FastThreadState
     int             mInputSourceGen;    // increment when mInputSource is assigned
-    NBAIO_Sink      *mPipeSink;         // after reading from input source, write to this pipe sink
+    NBAIO_Sink*     mPipeSink;          // after reading from input source, write to this pipe sink
     int             mPipeSinkGen;       // increment when mPipeSink is assigned
     size_t          mFrameCount;        // number of frames per fast capture buffer
-    audio_track_cblk_t  *mCblk;         // control block for the single fast client, or NULL
+    audio_track_cblk_t* mCblk;          // control block for the single fast client, or NULL
 
     // Extends FastThreadState::Command
     static const Command
         // The following commands also process configuration changes, and can be "or"ed:
-        READ = 0x8,             // read from input source
-        WRITE = 0x10,           // write to pipe sink
-        READ_WRITE = 0x18;      // read from input source and write to pipe sink
+        READ = 0x8,                     // read from input source
+        WRITE = 0x10,                   // write to pipe sink
+        READ_WRITE = 0x18;              // read from input source and write to pipe sink
 
     // never returns NULL; asserts if command is invalid
     static const char *commandToString(Command command);

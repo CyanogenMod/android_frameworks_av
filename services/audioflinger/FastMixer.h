@@ -48,36 +48,39 @@ private:
     virtual void onStateChange();
     virtual void onWork();
 
-    // FIXME these former local variables need comments and to be renamed to have "m" prefix
-    static const FastMixerState initial;
-    FastMixerState preIdle; // copy of state before we went into idle
-    long slopNs;        // accumulated time we've woken up too early (> 0) or too late (< 0)
-    int fastTrackNames[FastMixerState::kMaxFastTracks]; // handles used by mixer to identify tracks
-    int generations[FastMixerState::kMaxFastTracks];    // last observed mFastTracks[i].mGeneration
-    NBAIO_Sink *outputSink;
-    int outputSinkGen;
-    AudioMixer* mixer;
+    // FIXME these former local variables need comments
+    static const FastMixerState sInitial;
+
+    FastMixerState  mPreIdle;   // copy of state before we went into idle
+    long            mSlopNs;    // accumulated time we've woken up too early (> 0) or too late (< 0)
+    int             mFastTrackNames[FastMixerState::kMaxFastTracks];
+                                // handles used by mixer to identify tracks
+    int             mGenerations[FastMixerState::kMaxFastTracks];
+                                // last observed mFastTracks[i].mGeneration
+    NBAIO_Sink*     mOutputSink;
+    int             mOutputSinkGen;
+    AudioMixer*     mMixer;
 
     // mSinkBuffer audio format is stored in format.mFormat.
-    void* mSinkBuffer;                  // used for mixer output format translation
+    void*           mSinkBuffer;        // used for mixer output format translation
                                         // if sink format is different than mixer output.
-    size_t mSinkBufferSize;
-    uint32_t mSinkChannelCount;
+    size_t          mSinkBufferSize;
+    uint32_t        mSinkChannelCount;
     audio_channel_mask_t mSinkChannelMask;
-    void* mMixerBuffer;                 // mixer output buffer.
-    size_t mMixerBufferSize;
-    audio_format_t mMixerBufferFormat;  // mixer output format: AUDIO_FORMAT_PCM_(16_BIT|FLOAT).
+    void*           mMixerBuffer;       // mixer output buffer.
+    size_t          mMixerBufferSize;
+    audio_format_t  mMixerBufferFormat; // mixer output format: AUDIO_FORMAT_PCM_(16_BIT|FLOAT).
 
     enum {UNDEFINED, MIXED, ZEROED} mMixerBufferState;
-    NBAIO_Format format;
-    unsigned sampleRate;
-    int fastTracksGen;
-    FastMixerDumpState dummyDumpState;
-    uint32_t totalNativeFramesWritten;  // copied to dumpState->mFramesWritten
+    NBAIO_Format    mFormat;
+    unsigned        mSampleRate;
+    int             mFastTracksGen;
+    FastMixerDumpState mDummyFastMixerDumpState;
+    uint32_t        mTotalNativeFramesWritten;  // copied to dumpState->mFramesWritten
 
     // next 2 fields are valid only when timestampStatus == NO_ERROR
-    AudioTimestamp timestamp;
-    uint32_t nativeFramesWrittenButNotPresented;
+    AudioTimestamp  mTimestamp;
+    uint32_t        mNativeFramesWrittenButNotPresented;
 
 };  // class FastMixer
 

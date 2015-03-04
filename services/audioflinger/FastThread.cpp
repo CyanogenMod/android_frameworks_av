@@ -36,47 +36,47 @@
 namespace android {
 
 FastThread::FastThread() : Thread(false /*canCallJava*/),
-    // re-initialized to &initial by subclass constructor
-     previous(NULL), current(NULL),
-    /* oldTs({0, 0}), */
-    oldTsValid(false),
-    sleepNs(-1),
-    periodNs(0),
-    underrunNs(0),
-    overrunNs(0),
-    forceNs(0),
-    warmupNsMin(0),
-    warmupNsMax(LONG_MAX),
-    // re-initialized to &dummyDumpState by subclass constructor
+    // re-initialized to &sInitial by subclass constructor
+    mPrevious(NULL), mCurrent(NULL),
+    /* mOldTs({0, 0}), */
+    mOldTsValid(false),
+    mSleepNs(-1),
+    mPeriodNs(0),
+    mUnderrunNs(0),
+    mOverrunNs(0),
+    mForceNs(0),
+    mWarmupNsMin(0),
+    mWarmupNsMax(LONG_MAX),
+    // re-initialized to &mDummySubclassDumpState by subclass constructor
     mDummyDumpState(NULL),
-    dumpState(NULL),
-    ignoreNextOverrun(true),
+    mDumpState(NULL),
+    mIgnoreNextOverrun(true),
 #ifdef FAST_THREAD_STATISTICS
-    // oldLoad
-    oldLoadValid(false),
-    bounds(0),
-    full(false),
-    // tcu
+    // mOldLoad
+    mOldLoadValid(false),
+    mBounds(0),
+    mFull(false),
+    // mTcu
 #endif
-    coldGen(0),
-    isWarm(false),
-    /* measuredWarmupTs({0, 0}), */
-    warmupCycles(0),
-    warmupConsecutiveInRangeCycles(0),
-    // dummyLogWriter
-    logWriter(&dummyLogWriter),
-    timestampStatus(INVALID_OPERATION),
+    mColdGen(0),
+    mIsWarm(false),
+    /* mMeasuredWarmupTs({0, 0}), */
+    mWarmupCycles(0),
+    mWarmupConsecutiveInRangeCycles(0),
+    // mDummyLogWriter
+    mLogWriter(&mDummyLogWriter),
+    mTimestampStatus(INVALID_OPERATION),
 
-    command(FastThreadState::INITIAL),
+    mCommand(FastThreadState::INITIAL),
 #if 0
     frameCount(0),
 #endif
-    attemptedWrite(false)
+    mAttemptedWrite(false)
 {
-    oldTs.tv_sec = 0;
-    oldTs.tv_nsec = 0;
-    measuredWarmupTs.tv_sec = 0;
-    measuredWarmupTs.tv_nsec = 0;
+    mOldTs.tv_sec = 0;
+    mOldTs.tv_nsec = 0;
+    mMeasuredWarmupTs.tv_sec = 0;
+    mMeasuredWarmupTs.tv_nsec = 0;
 }
 
 FastThread::~FastThread()
@@ -88,34 +88,34 @@ bool FastThread::threadLoop()
     for (;;) {
 
         // either nanosleep, sched_yield, or busy wait
-        if (sleepNs >= 0) {
-            if (sleepNs > 0) {
-                ALOG_ASSERT(sleepNs < 1000000000);
-                const struct timespec req = {0, sleepNs};
+        if (mSleepNs >= 0) {
+            if (mSleepNs > 0) {
+                ALOG_ASSERT(mSleepNs < 1000000000);
+                const struct timespec req = {0, mSleepNs};
                 nanosleep(&req, NULL);
             } else {
                 sched_yield();
             }
         }
         // default to long sleep for next cycle
-        sleepNs = FAST_DEFAULT_NS;
+        mSleepNs = FAST_DEFAULT_NS;
 
         // poll for state change
         const FastThreadState *next = poll();
         if (next == NULL) {
             // continue to use the default initial state until a real state is available
-            // FIXME &initial not available, should save address earlier
-            //ALOG_ASSERT(current == &initial && previous == &initial);
-            next = current;
+            // FIXME &sInitial not available, should save address earlier
+            //ALOG_ASSERT(mCurrent == &sInitial && previous == &sInitial);
+            next = mCurrent;
         }
 
-        command = next->mCommand;
-        if (next != current) {
+        mCommand = next->mCommand;
+        if (next != mCurrent) {
 
             // As soon as possible of learning of a new dump area, start using it
-            dumpState = next->mDumpState != NULL ? next->mDumpState : mDummyDumpState;
-            logWriter = next->mNBLogWriter != NULL ? next->mNBLogWriter : &dummyLogWriter;
-            setLog(logWriter);
+            mDumpState = next->mDumpState != NULL ? next->mDumpState : mDummyDumpState;
+            mLogWriter = next->mNBLogWriter != NULL ? next->mNBLogWriter : &mDummyLogWriter;
+            setLog(mLogWriter);
 
             // We want to always have a valid reference to the previous (non-idle) state.
             // However, the state queue only guarantees access to current and previous states.
@@ -126,37 +126,38 @@ bool FastThread::threadLoop()
             //  non-idle -> idle        update previous from copy of current
             //  idle     -> idle        don't update previous
             //  idle     -> non-idle    don't update previous
-            if (!(current->mCommand & FastThreadState::IDLE)) {
-                if (command & FastThreadState::IDLE) {
+            if (!(mCurrent->mCommand & FastThreadState::IDLE)) {
+                if (mCommand & FastThreadState::IDLE) {
                     onIdle();
-                    oldTsValid = false;
+                    mOldTsValid = false;
 #ifdef FAST_THREAD_STATISTICS
-                    oldLoadValid = false;
+                    mOldLoadValid = false;
 #endif
-                    ignoreNextOverrun = true;
+                    mIgnoreNextOverrun = true;
                 }
-                previous = current;
+                mPrevious = mCurrent;
             }
-            current = next;
+            mCurrent = next;
         }
 #if !LOG_NDEBUG
         next = NULL;    // not referenced again
 #endif
 
-        dumpState->mCommand = command;
+        mDumpState->mCommand = mCommand;
 
+        // FIXME what does this comment mean?
         // << current, previous, command, dumpState >>
 
-        switch (command) {
+        switch (mCommand) {
         case FastThreadState::INITIAL:
         case FastThreadState::HOT_IDLE:
-            sleepNs = FAST_HOT_IDLE_NS;
+            mSleepNs = FAST_HOT_IDLE_NS;
             continue;
         case FastThreadState::COLD_IDLE:
             // only perform a cold idle command once
             // FIXME consider checking previous state and only perform if previous != COLD_IDLE
-            if (current->mColdGen != coldGen) {
-                int32_t *coldFutexAddr = current->mColdFutexAddr;
+            if (mCurrent->mColdGen != mColdGen) {
+                int32_t *coldFutexAddr = mCurrent->mColdFutexAddr;
                 ALOG_ASSERT(coldFutexAddr != NULL);
                 int32_t old = android_atomic_dec(coldFutexAddr);
                 if (old <= 0) {
@@ -168,42 +169,42 @@ bool FastThread::threadLoop()
                 }
                 // This may be overly conservative; there could be times that the normal mixer
                 // requests such a brief cold idle that it doesn't require resetting this flag.
-                isWarm = false;
-                measuredWarmupTs.tv_sec = 0;
-                measuredWarmupTs.tv_nsec = 0;
-                warmupCycles = 0;
-                warmupConsecutiveInRangeCycles = 0;
-                sleepNs = -1;
-                coldGen = current->mColdGen;
+                mIsWarm = false;
+                mMeasuredWarmupTs.tv_sec = 0;
+                mMeasuredWarmupTs.tv_nsec = 0;
+                mWarmupCycles = 0;
+                mWarmupConsecutiveInRangeCycles = 0;
+                mSleepNs = -1;
+                mColdGen = mCurrent->mColdGen;
 #ifdef FAST_THREAD_STATISTICS
-                bounds = 0;
-                full = false;
+                mBounds = 0;
+                mFull = false;
 #endif
-                oldTsValid = !clock_gettime(CLOCK_MONOTONIC, &oldTs);
-                timestampStatus = INVALID_OPERATION;
+                mOldTsValid = !clock_gettime(CLOCK_MONOTONIC, &mOldTs);
+                mTimestampStatus = INVALID_OPERATION;
             } else {
-                sleepNs = FAST_HOT_IDLE_NS;
+                mSleepNs = FAST_HOT_IDLE_NS;
             }
             continue;
         case FastThreadState::EXIT:
             onExit();
             return false;
         default:
-            LOG_ALWAYS_FATAL_IF(!isSubClassCommand(command));
+            LOG_ALWAYS_FATAL_IF(!isSubClassCommand(mCommand));
             break;
         }
 
         // there is a non-idle state available to us; did the state change?
-        if (current != previous) {
+        if (mCurrent != mPrevious) {
             onStateChange();
 #if 1   // FIXME shouldn't need this
             // only process state change once
-            previous = current;
+            mPrevious = mCurrent;
 #endif
         }
 
         // do work using current state here
-        attemptedWrite = false;
+        mAttemptedWrite = false;
         onWork();
 
         // To be exactly periodic, compute the next sleep time based on current time.
@@ -212,13 +213,13 @@ bool FastThread::threadLoop()
         struct timespec newTs;
         int rc = clock_gettime(CLOCK_MONOTONIC, &newTs);
         if (rc == 0) {
-            //logWriter->logTimestamp(newTs);
-            if (oldTsValid) {
-                time_t sec = newTs.tv_sec - oldTs.tv_sec;
-                long nsec = newTs.tv_nsec - oldTs.tv_nsec;
+            //mLogWriter->logTimestamp(newTs);
+            if (mOldTsValid) {
+                time_t sec = newTs.tv_sec - mOldTs.tv_sec;
+                long nsec = newTs.tv_nsec - mOldTs.tv_nsec;
                 ALOGE_IF(sec < 0 || (sec == 0 && nsec < 0),
                         "clock_gettime(CLOCK_MONOTONIC) failed: was %ld.%09ld but now %ld.%09ld",
-                        oldTs.tv_sec, oldTs.tv_nsec, newTs.tv_sec, newTs.tv_nsec);
+                        mOldTs.tv_sec, mOldTs.tv_nsec, newTs.tv_sec, newTs.tv_nsec);
                 if (nsec < 0) {
                     --sec;
                     nsec += 1000000000;
@@ -227,69 +228,69 @@ bool FastThread::threadLoop()
                 // do not start pulling data from tracks and mixing until warmup is complete.
                 // Warmup is considered complete after the earlier of:
                 //      MIN_WARMUP_CYCLES consecutive in-range write() attempts,
-                //          where "in-range" means warmupNsMin <= cycle time <= warmupNsMax
+                //          where "in-range" means mWarmupNsMin <= cycle time <= mWarmupNsMax
                 //      MAX_WARMUP_CYCLES write() attempts.
                 // This is overly conservative, but to get better accuracy requires a new HAL API.
-                if (!isWarm && attemptedWrite) {
-                    measuredWarmupTs.tv_sec += sec;
-                    measuredWarmupTs.tv_nsec += nsec;
-                    if (measuredWarmupTs.tv_nsec >= 1000000000) {
-                        measuredWarmupTs.tv_sec++;
-                        measuredWarmupTs.tv_nsec -= 1000000000;
+                if (!mIsWarm && mAttemptedWrite) {
+                    mMeasuredWarmupTs.tv_sec += sec;
+                    mMeasuredWarmupTs.tv_nsec += nsec;
+                    if (mMeasuredWarmupTs.tv_nsec >= 1000000000) {
+                        mMeasuredWarmupTs.tv_sec++;
+                        mMeasuredWarmupTs.tv_nsec -= 1000000000;
                     }
-                    ++warmupCycles;
-                    if (warmupNsMin <= nsec && nsec <= warmupNsMax) {
-                        ALOGV("warmup cycle %d in range: %.03f ms", warmupCycles, nsec * 1e-9);
-                        ++warmupConsecutiveInRangeCycles;
+                    ++mWarmupCycles;
+                    if (mWarmupNsMin <= nsec && nsec <= mWarmupNsMax) {
+                        ALOGV("warmup cycle %d in range: %.03f ms", mWarmupCycles, nsec * 1e-9);
+                        ++mWarmupConsecutiveInRangeCycles;
                     } else {
-                        ALOGV("warmup cycle %d out of range: %.03f ms", warmupCycles, nsec * 1e-9);
-                        warmupConsecutiveInRangeCycles = 0;
+                        ALOGV("warmup cycle %d out of range: %.03f ms", mWarmupCycles, nsec * 1e-9);
+                        mWarmupConsecutiveInRangeCycles = 0;
                     }
-                    if ((warmupConsecutiveInRangeCycles >= MIN_WARMUP_CYCLES) ||
-                            (warmupCycles >= MAX_WARMUP_CYCLES)) {
-                        isWarm = true;
-                        dumpState->mMeasuredWarmupTs = measuredWarmupTs;
-                        dumpState->mWarmupCycles = warmupCycles;
+                    if ((mWarmupConsecutiveInRangeCycles >= MIN_WARMUP_CYCLES) ||
+                            (mWarmupCycles >= MAX_WARMUP_CYCLES)) {
+                        mIsWarm = true;
+                        mDumpState->mMeasuredWarmupTs = mMeasuredWarmupTs;
+                        mDumpState->mWarmupCycles = mWarmupCycles;
                     }
                 }
-                sleepNs = -1;
-                if (isWarm) {
-                    if (sec > 0 || nsec > underrunNs) {
+                mSleepNs = -1;
+                if (mIsWarm) {
+                    if (sec > 0 || nsec > mUnderrunNs) {
                         ATRACE_NAME("underrun");
                         // FIXME only log occasionally
                         ALOGV("underrun: time since last cycle %d.%03ld sec",
                                 (int) sec, nsec / 1000000L);
-                        dumpState->mUnderruns++;
-                        ignoreNextOverrun = true;
-                    } else if (nsec < overrunNs) {
-                        if (ignoreNextOverrun) {
-                            ignoreNextOverrun = false;
+                        mDumpState->mUnderruns++;
+                        mIgnoreNextOverrun = true;
+                    } else if (nsec < mOverrunNs) {
+                        if (mIgnoreNextOverrun) {
+                            mIgnoreNextOverrun = false;
                         } else {
                             // FIXME only log occasionally
                             ALOGV("overrun: time since last cycle %d.%03ld sec",
                                     (int) sec, nsec / 1000000L);
-                            dumpState->mOverruns++;
+                            mDumpState->mOverruns++;
                         }
                         // This forces a minimum cycle time. It:
                         //  - compensates for an audio HAL with jitter due to sample rate conversion
                         //  - works with a variable buffer depth audio HAL that never pulls at a
-                        //    rate < than overrunNs per buffer.
+                        //    rate < than mOverrunNs per buffer.
                         //  - recovers from overrun immediately after underrun
                         // It doesn't work with a non-blocking audio HAL.
-                        sleepNs = forceNs - nsec;
+                        mSleepNs = mForceNs - nsec;
                     } else {
-                        ignoreNextOverrun = false;
+                        mIgnoreNextOverrun = false;
                     }
                 }
 #ifdef FAST_THREAD_STATISTICS
-                if (isWarm) {
+                if (mIsWarm) {
                     // advance the FIFO queue bounds
-                    size_t i = bounds & (dumpState->mSamplingN - 1);
-                    bounds = (bounds & 0xFFFF0000) | ((bounds + 1) & 0xFFFF);
-                    if (full) {
-                        bounds += 0x10000;
-                    } else if (!(bounds & (dumpState->mSamplingN - 1))) {
-                        full = true;
+                    size_t i = mBounds & (mDumpState->mSamplingN - 1);
+                    mBounds = (mBounds & 0xFFFF0000) | ((mBounds + 1) & 0xFFFF);
+                    if (mFull) {
+                        mBounds += 0x10000;
+                    } else if (!(mBounds & (mDumpState->mSamplingN - 1))) {
+                        mFull = true;
                     }
                     // compute the delta value of clock_gettime(CLOCK_MONOTONIC)
                     uint32_t monotonicNs = nsec;
@@ -301,9 +302,9 @@ bool FastThread::threadLoop()
                     struct timespec newLoad;
                     rc = clock_gettime(CLOCK_THREAD_CPUTIME_ID, &newLoad);
                     if (rc == 0) {
-                        if (oldLoadValid) {
-                            sec = newLoad.tv_sec - oldLoad.tv_sec;
-                            nsec = newLoad.tv_nsec - oldLoad.tv_nsec;
+                        if (mOldLoadValid) {
+                            sec = newLoad.tv_sec - mOldLoad.tv_sec;
+                            nsec = newLoad.tv_nsec - mOldLoad.tv_nsec;
                             if (nsec < 0) {
                                 --sec;
                                 nsec += 1000000000;
@@ -314,42 +315,42 @@ bool FastThread::threadLoop()
                             }
                         } else {
                             // first time through the loop
-                            oldLoadValid = true;
+                            mOldLoadValid = true;
                         }
-                        oldLoad = newLoad;
+                        mOldLoad = newLoad;
                     }
 #ifdef CPU_FREQUENCY_STATISTICS
                     // get the absolute value of CPU clock frequency in kHz
                     int cpuNum = sched_getcpu();
-                    uint32_t kHz = tcu.getCpukHz(cpuNum);
+                    uint32_t kHz = mTcu.getCpukHz(cpuNum);
                     kHz = (kHz << 4) | (cpuNum & 0xF);
 #endif
                     // save values in FIFO queues for dumpsys
                     // these stores #1, #2, #3 are not atomic with respect to each other,
                     // or with respect to store #4 below
-                    dumpState->mMonotonicNs[i] = monotonicNs;
-                    dumpState->mLoadNs[i] = loadNs;
+                    mDumpState->mMonotonicNs[i] = monotonicNs;
+                    mDumpState->mLoadNs[i] = loadNs;
 #ifdef CPU_FREQUENCY_STATISTICS
-                    dumpState->mCpukHz[i] = kHz;
+                    mDumpState->mCpukHz[i] = kHz;
 #endif
                     // this store #4 is not atomic with respect to stores #1, #2, #3 above, but
                     // the newest open & oldest closed halves are atomic with respect to each other
-                    dumpState->mBounds = bounds;
+                    mDumpState->mBounds = mBounds;
                     ATRACE_INT("cycle_ms", monotonicNs / 1000000);
                     ATRACE_INT("load_us", loadNs / 1000);
                 }
 #endif
             } else {
                 // first time through the loop
-                oldTsValid = true;
-                sleepNs = periodNs;
-                ignoreNextOverrun = true;
+                mOldTsValid = true;
+                mSleepNs = mPeriodNs;
+                mIgnoreNextOverrun = true;
             }
-            oldTs = newTs;
+            mOldTs = newTs;
         } else {
             // monotonic clock is broken
-            oldTsValid = false;
-            sleepNs = periodNs;
+            mOldTsValid = false;
+            mSleepNs = mPeriodNs;
         }
 
     }   // for (;;)

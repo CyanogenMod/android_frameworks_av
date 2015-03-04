@@ -46,19 +46,21 @@ private:
     virtual void onStateChange();
     virtual void onWork();
 
-    static const FastCaptureState initial;
-    FastCaptureState preIdle; // copy of state before we went into idle
+    static const FastCaptureState sInitial;
+
+    FastCaptureState    mPreIdle;   // copy of state before we went into idle
     // FIXME by renaming, could pull up many of these to FastThread
-    NBAIO_Source *inputSource;
-    int inputSourceGen;
-    NBAIO_Sink *pipeSink;
-    int pipeSinkGen;
-    short *readBuffer;
-    ssize_t readBufferState;    // number of initialized frames in readBuffer, or -1 to clear
-    NBAIO_Format format;
-    unsigned sampleRate;
-    FastCaptureDumpState dummyDumpState;
-    uint32_t totalNativeFramesRead; // copied to dumpState->mFramesRead
+    NBAIO_Source*       mInputSource;
+    int                 mInputSourceGen;
+    NBAIO_Sink*         mPipeSink;
+    int                 mPipeSinkGen;
+    short*              mReadBuffer;
+    ssize_t             mReadBufferState;   // number of initialized frames in readBuffer,
+                                            // or -1 to clear
+    NBAIO_Format        mFormat;
+    unsigned            mSampleRate;
+    FastCaptureDumpState mDummyFastCaptureDumpState;
+    uint32_t            mTotalNativeFramesRead; // copied to dumpState->mFramesRead
 
 };  // class FastCapture
 

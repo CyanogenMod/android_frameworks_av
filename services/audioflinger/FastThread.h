@@ -48,44 +48,45 @@ protected:
     virtual void onStateChange() = 0;
     virtual void onWork() = 0;
 
-    // FIXME these former local variables need comments and to be renamed to have an "m" prefix
-    const FastThreadState *previous;
-    const FastThreadState *current;
-    struct timespec oldTs;
-    bool oldTsValid;
-    long sleepNs;   // -1: busy wait, 0: sched_yield, > 0: nanosleep
-    long periodNs;      // expected period; the time required to render one mix buffer
-    long underrunNs;    // underrun likely when write cycle is greater than this value
-    long overrunNs;     // overrun likely when write cycle is less than this value
-    long forceNs;       // if overrun detected, force the write cycle to take this much time
-    long warmupNsMin;   // warmup complete when write cycle is greater than or equal to this value
-    long warmupNsMax;   //                                 and less than or equal to this value
-    FastThreadDumpState *mDummyDumpState;
-    FastThreadDumpState *dumpState;
-    bool ignoreNextOverrun;  // used to ignore initial overrun and first after an underrun
+    // FIXME these former local variables need comments
+    const FastThreadState*  mPrevious;
+    const FastThreadState*  mCurrent;
+    struct timespec mOldTs;
+    bool            mOldTsValid;
+    long            mSleepNs;       // -1: busy wait, 0: sched_yield, > 0: nanosleep
+    long            mPeriodNs;      // expected period; the time required to render one mix buffer
+    long            mUnderrunNs;    // underrun likely when write cycle is greater than this value
+    long            mOverrunNs;     // overrun likely when write cycle is less than this value
+    long            mForceNs;       // if overrun detected,
+                                    // force the write cycle to take this much time
+    long            mWarmupNsMin;   // warmup complete when write cycle is greater than or equal to
+                                    // this value
+    long            mWarmupNsMax;   // and less than or equal to this value
+    FastThreadDumpState* mDummyDumpState;
+    FastThreadDumpState* mDumpState;
+    bool            mIgnoreNextOverrun;     // used to ignore initial overrun and first after an
+                                            // underrun
 #ifdef FAST_THREAD_STATISTICS
-    struct timespec oldLoad;    // previous value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
-    bool oldLoadValid;  // whether oldLoad is valid
-    uint32_t bounds;
-    bool full;          // whether we have collected at least mSamplingN samples
+    struct timespec mOldLoad;       // previous value of clock_gettime(CLOCK_THREAD_CPUTIME_ID)
+    bool            mOldLoadValid;  // whether oldLoad is valid
+    uint32_t        mBounds;
+    bool            mFull;          // whether we have collected at least mSamplingN samples
 #ifdef CPU_FREQUENCY_STATISTICS
-    ThreadCpuUsage tcu;     // for reading the current CPU clock frequency in kHz
+    ThreadCpuUsage  mTcu;           // for reading the current CPU clock frequency in kHz
 #endif
 #endif
-    unsigned coldGen;   // last observed mColdGen
-    bool isWarm;        // true means ready to mix, false means wait for warmup before mixing
-    struct timespec measuredWarmupTs;  // how long did it take for warmup to complete
-    uint32_t warmupCycles;  // counter of number of loop cycles during warmup phase
-    uint32_t warmupConsecutiveInRangeCycles;    // number of consecutive cycles in range
-    NBLog::Writer dummyLogWriter;
-    NBLog::Writer *logWriter;
-    status_t timestampStatus;
+    unsigned        mColdGen;       // last observed mColdGen
+    bool            mIsWarm;        // true means ready to mix,
+                                    // false means wait for warmup before mixing
+    struct timespec mMeasuredWarmupTs;  // how long did it take for warmup to complete
+    uint32_t        mWarmupCycles;  // counter of number of loop cycles during warmup phase
+    uint32_t        mWarmupConsecutiveInRangeCycles;    // number of consecutive cycles in range
+    NBLog::Writer   mDummyLogWriter;
+    NBLog::Writer*  mLogWriter;
+    status_t        mTimestampStatus;
 
-    FastThreadState::Command command;
-#if 0
-    size_t frameCount;
-#endif
-    bool attemptedWrite;
+    FastThreadState::Command mCommand;
+    bool            mAttemptedWrite;
 
 };  // class FastThread
 
