@@ -474,6 +474,12 @@ status_t AudioRecord::openRecord_l(size_t epoch)
 
     sp<IMemory> iMem;           // for cblk
     sp<IMemory> bufferMem;
+
+    if (audioFlinger == NULL) {
+        ALOGE("AudioFlinger was NULL!");
+        return NO_INIT;
+    }
+
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
                                                        mSampleRate, mFormat,
                                                        mChannelMask,
