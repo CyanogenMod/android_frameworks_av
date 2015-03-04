@@ -69,7 +69,7 @@ void FastCapture::onIdle()
 
 void FastCapture::onExit()
 {
-    delete[] mReadBuffer;
+    free(mReadBuffer);
 }
 
 bool FastCapture::isSubClassCommand(FastThreadState::Command command)
@@ -124,16 +124,14 @@ void FastCapture::onStateChange()
     }
 
     if ((!Format_isEqual(mFormat, previousFormat)) || (frameCount != previous->mFrameCount)) {
-        // FIXME to avoid priority inversion, don't delete here
-        delete[] mReadBuffer;
+        // FIXME to avoid priority inversion, don't free here
+        free(mReadBuffer);
         mReadBuffer = NULL;
         if (frameCount > 0 && mSampleRate > 0) {
             // FIXME new may block for unbounded time at internal mutex of the heap
             //       implementation; it would be better to have normal capture thread allocate for
             //       us to avoid blocking here and to prevent possible priority inversion
-            unsigned channelCount = Format_channelCount(mFormat);
-            // FIXME frameSize
-            mReadBuffer = new short[frameCount * channelCount];
+            (void)posix_memalign(&mReadBuffer, 32, frameCount * Format_frameSize(mFormat));
             mPeriodNs = (frameCount * 1000000000LL) / mSampleRate;      // 1.00
             mUnderrunNs = (frameCount * 1750000000LL) / mSampleRate;    // 1.75
             mOverrunNs = (frameCount * 500000000LL) / mSampleRate;      // 0.50
@@ -188,8 +186,7 @@ void FastCapture::onWork()
         ALOG_ASSERT(mReadBuffer != NULL);
         if (mReadBufferState < 0) {
             unsigned channelCount = Format_channelCount(mFormat);
-            // FIXME frameSize
-            memset(mReadBuffer, 0, frameCount * channelCount * sizeof(short));
+            memset(mReadBuffer, 0, frameCount * Format_frameSize(mFormat));
             mReadBufferState = frameCount;
         }
         if (mReadBufferState > 0) {
