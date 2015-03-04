@@ -43,7 +43,7 @@ protected:
     virtual void onSetRenderer(const sp<Renderer> &renderer);
     virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers);
     virtual void onResume(bool notifyComplete);
-    virtual void onFlush(bool notifyComplete);
+    virtual void onFlush();
     virtual void onShutdown(bool notifyComplete);
     virtual void doRequestBuffers();
 
@@ -77,6 +77,7 @@ private:
     status_t dequeueAccessUnit(sp<ABuffer> *accessUnit);
     sp<ABuffer> aggregateBuffer(const sp<ABuffer> &accessUnit);
     status_t fetchInputData(sp<AMessage> &reply);
+    void doFlush(bool notifyComplete);
 
     void onInputBufferFetched(const sp<AMessage> &msg);
     void onBufferConsumed(int32_t size);

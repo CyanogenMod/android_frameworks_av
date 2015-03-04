@@ -247,7 +247,7 @@ status_t NuPlayer::DecoderPassThrough::fetchInputData(sp<AMessage> &reply) {
                 }
 
                 if (timeChange) {
-                    onFlush(false /* notifyComplete */);
+                    doFlush(false /* notifyComplete */);
                     err = OK;
                 } else if (formatChange) {
                     // do seamless format change
@@ -364,7 +364,7 @@ void NuPlayer::DecoderPassThrough::onResume(bool notifyComplete) {
     }
 }
 
-void NuPlayer::DecoderPassThrough::onFlush(bool notifyComplete) {
+void NuPlayer::DecoderPassThrough::doFlush(bool notifyComplete) {
     ++mBufferGeneration;
     mSkipRenderingUntilMediaTimeUs = -1;
     mPendingAudioAccessUnit.clear();
@@ -376,16 +376,19 @@ void NuPlayer::DecoderPassThrough::onFlush(bool notifyComplete) {
         mRenderer->signalTimeDiscontinuity();
     }
 
-    if (notifyComplete) {
-        mPaused = true;
-        sp<AMessage> notify = mNotify->dup();
-        notify->setInt32("what", kWhatFlushCompleted);
-        notify->post();
-    }
-
     mPendingBuffersToDrain = 0;
     mCachedBytes = 0;
     mReachedEOS = false;
+}
+
+void NuPlayer::DecoderPassThrough::onFlush() {
+    doFlush(true /* notifyComplete */);
+
+    mPaused = true;
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatFlushCompleted);
+    notify->post();
+
 }
 
 void NuPlayer::DecoderPassThrough::onShutdown(bool notifyComplete) {

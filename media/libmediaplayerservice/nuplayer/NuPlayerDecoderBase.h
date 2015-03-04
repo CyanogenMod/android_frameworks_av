@@ -65,7 +65,7 @@ protected:
     virtual void onSetRenderer(const sp<Renderer> &renderer) = 0;
     virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers) = 0;
     virtual void onResume(bool notifyComplete) = 0;
-    virtual void onFlush(bool notifyComplete) = 0;
+    virtual void onFlush() = 0;
     virtual void onShutdown(bool notifyComplete) = 0;
 
     void onRequestInputBuffers();
