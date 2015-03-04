@@ -136,9 +136,9 @@ bool FastMixer::isSubClassCommand(FastThreadState::Command command)
 
 void FastMixer::onStateChange()
 {
-    const FastMixerState * const current = (const FastMixerState *) this->mCurrent;
-    const FastMixerState * const previous = (const FastMixerState *) this->mPrevious;
-    FastMixerDumpState * const dumpState = (FastMixerDumpState *) this->mDumpState;
+    const FastMixerState * const current = (const FastMixerState *) mCurrent;
+    const FastMixerState * const previous = (const FastMixerState *) mPrevious;
+    FastMixerDumpState * const dumpState = (FastMixerDumpState *) mDumpState;
     const size_t frameCount = current->mFrameCount;
 
     // handle state change here, but since we want to diff the state,
@@ -323,9 +323,9 @@ void FastMixer::onStateChange()
 
 void FastMixer::onWork()
 {
-    const FastMixerState * const current = (const FastMixerState *) this->mCurrent;
-    FastMixerDumpState * const dumpState = (FastMixerDumpState *) this->mDumpState;
-    const FastMixerState::Command command = this->mCommand;
+    const FastMixerState * const current = (const FastMixerState *) mCurrent;
+    FastMixerDumpState * const dumpState = (FastMixerDumpState *) mDumpState;
+    const FastMixerState::Command command = mCommand;
     const size_t frameCount = current->mFrameCount;
 
     if ((command & FastMixerState::MIX) && (mMixer != NULL) && mIsWarm) {

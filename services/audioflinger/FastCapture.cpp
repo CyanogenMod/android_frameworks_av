@@ -86,9 +86,9 @@ bool FastCapture::isSubClassCommand(FastThreadState::Command command)
 
 void FastCapture::onStateChange()
 {
-    const FastCaptureState * const current = (const FastCaptureState *) this->mCurrent;
-    const FastCaptureState * const previous = (const FastCaptureState *) this->mPrevious;
-    FastCaptureDumpState * const dumpState = (FastCaptureDumpState *) this->mDumpState;
+    const FastCaptureState * const current = (const FastCaptureState *) mCurrent;
+    const FastCaptureState * const previous = (const FastCaptureState *) mPrevious;
+    FastCaptureDumpState * const dumpState = (FastCaptureDumpState *) mDumpState;
     const size_t frameCount = current->mFrameCount;
 
     bool eitherChanged = false;
@@ -156,9 +156,9 @@ void FastCapture::onStateChange()
 
 void FastCapture::onWork()
 {
-    const FastCaptureState * const current = (const FastCaptureState *) this->mCurrent;
-    FastCaptureDumpState * const dumpState = (FastCaptureDumpState *) this->mDumpState;
-    const FastCaptureState::Command command = this->mCommand;
+    const FastCaptureState * const current = (const FastCaptureState *) mCurrent;
+    FastCaptureDumpState * const dumpState = (FastCaptureDumpState *) mDumpState;
+    const FastCaptureState::Command command = mCommand;
     const size_t frameCount = current->mFrameCount;
 
     if ((command & FastCaptureState::READ) /*&& isWarm*/) {
