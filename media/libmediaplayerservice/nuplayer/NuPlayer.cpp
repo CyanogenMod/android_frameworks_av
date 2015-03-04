@@ -1065,14 +1065,13 @@ void NuPlayer::onStart() {
     ++mRendererGeneration;
     notify->setInt32("generation", mRendererGeneration);
     mRenderer = new Renderer(mAudioSink, notify, flags);
-    if (mPlaybackRate != 1.0) {
-        mRenderer->setPlaybackRate(mPlaybackRate);
-    }
-
     mRendererLooper = new ALooper;
     mRendererLooper->setName("NuPlayerRenderer");
     mRendererLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
     mRendererLooper->registerHandler(mRenderer);
+    if (mPlaybackRate != 1.0) {
+        mRenderer->setPlaybackRate(mPlaybackRate);
+    }
 
     sp<MetaData> meta = getFileMeta();
     int32_t rate;
