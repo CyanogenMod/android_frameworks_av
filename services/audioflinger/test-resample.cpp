@@ -427,6 +427,14 @@ int main(int argc, char* argv[]) {
         printf("quality: %d  channels: %d  msec: %" PRId64 "  Mfrms/s: %.2lf\n",
                 quality, channels, time/1000000, output_frames * looplimit / (time / 1e9) / 1e6);
         resampler->reset();
+
+        // TODO fix legacy bug: reset does not clear buffers.
+        // delete and recreate resampler here.
+        delete resampler;
+        resampler = AudioResampler::create(format, channels,
+                    output_freq, quality);
+        resampler->setSampleRate(input_freq);
+        resampler->setVolume(AudioResampler::UNITY_GAIN_FLOAT, AudioResampler::UNITY_GAIN_FLOAT);
     }
 
     memset(output_vaddr, 0, output_size);

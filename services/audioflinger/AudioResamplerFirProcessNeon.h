@@ -22,10 +22,35 @@ namespace android {
 // depends on AudioResamplerFirOps.h, AudioResamplerFirProcess.h
 
 #if USE_NEON
+
+// use intrinsics if inline arm32 assembly is not possible
+#if !USE_INLINE_ASSEMBLY
+#define USE_INTRINSIC
+#endif
+
+// following intrinsics available only on ARM 64 bit ACLE
+#ifndef __aarch64__
+#undef vld1q_f32_x2
+#undef vld1q_s32_x2
+#endif
+
+#define TO_STRING2(x) #x
+#define TO_STRING(x) TO_STRING2(x)
+// uncomment to print GCC version, may be relevant for intrinsic optimizations
+/* #pragma message ("GCC version: " TO_STRING(__GNUC__) \
+        "." TO_STRING(__GNUC_MINOR__) \
+        "." TO_STRING(__GNUC_PATCHLEVEL__)) */
+
 //
-// NEON specializations are enabled for Process() and ProcessL()
+// NEON specializations are enabled for Process() and ProcessL() in AudioResamplerFirProcess.h
+//
+// Two variants are presented here:
+// ARM NEON inline assembly which appears up to 10-15% faster than intrinsics (gcc 4.9) for arm32.
+// ARM NEON intrinsics which can also be used by arm64 and x86/64 with NEON header.
+//
 
 // Macros to save a mono/stereo accumulator sample in q0 (and q4) as stereo out.
+// These are only used for inline assembly.
 #define ASSEMBLY_ACCUMULATE_MONO \
         "vld1.s32       {d2}, [%[vLR]:64]        \n"/* (1) load volumes */\
         "vld1.s32       {d3}, %[out]             \n"/* (2) unaligned load the output */\
@@ -45,6 +70,458 @@ namespace android {
         "vqadd.s32      d3, d3, d0               \n"/* (1+4d) accumulate result (saturating)*/\
         "vst1.s32       {d3}, %[out]             \n"/* (2+2d)store result*/
 
+template <int CHANNELS, int STRIDE, bool FIXED>
+static inline void ProcessNeonIntrinsic(int32_t* out,
+        int count,
+        const int16_t* coefsP,
+        const int16_t* coefsN,
+        const int16_t* sP,
+        const int16_t* sN,
+        const int32_t* volumeLR,
+        uint32_t lerpP,
+        const int16_t* coefsP1,
+        const int16_t* coefsN1)
+{
+    ALOG_ASSERT(count > 0 && (count & 7) == 0); // multiple of 8
+    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS == 1 || CHANNELS == 2);
+
+    sP -= CHANNELS*((STRIDE>>1)-1);
+    coefsP = (const int16_t*)__builtin_assume_aligned(coefsP, 16);
+    coefsN = (const int16_t*)__builtin_assume_aligned(coefsN, 16);
+
+    int16x4_t interp;
+    if (!FIXED) {
+        interp = vdup_n_s16(lerpP);
+        //interp = (int16x4_t)vset_lane_s32 ((int32x2_t)lerpP, interp, 0);
+        coefsP1 = (const int16_t*)__builtin_assume_aligned(coefsP1, 16);
+        coefsN1 = (const int16_t*)__builtin_assume_aligned(coefsN1, 16);
+    }
+    int32x4_t accum, accum2;
+    // warning uninitialized if we use veorq_s32
+    // (alternative to below) accum = veorq_s32(accum, accum);
+    accum = vdupq_n_s32(0);
+    if (CHANNELS == 2) {
+        // (alternative to below) accum2 = veorq_s32(accum2, accum2);
+        accum2 = vdupq_n_s32(0);
+    }
+    do {
+        int16x8_t posCoef = vld1q_s16(coefsP);
+        coefsP += 8;
+        int16x8_t negCoef = vld1q_s16(coefsN);
+        coefsN += 8;
+        if (!FIXED) { // interpolate
+            int16x8_t posCoef1 = vld1q_s16(coefsP1);
+            coefsP1 += 8;
+            int16x8_t negCoef1 = vld1q_s16(coefsN1);
+            coefsN1 += 8;
+
+            posCoef1 = vsubq_s16(posCoef1, posCoef);
+            negCoef = vsubq_s16(negCoef, negCoef1);
+
+            posCoef1 = vqrdmulhq_lane_s16(posCoef1, interp, 0);
+            negCoef = vqrdmulhq_lane_s16(negCoef, interp, 0);
+
+            posCoef = vaddq_s16(posCoef, posCoef1);
+            negCoef = vaddq_s16(negCoef, negCoef1);
+        }
+        switch (CHANNELS) {
+        case 1: {
+            int16x8_t posSamp = vld1q_s16(sP);
+            int16x8_t negSamp = vld1q_s16(sN);
+            sN += 8;
+            posSamp = vrev64q_s16(posSamp);
+
+            // dot product
+            accum = vmlal_s16(accum, vget_low_s16(posSamp), vget_high_s16(posCoef)); // reversed
+            accum = vmlal_s16(accum, vget_high_s16(posSamp), vget_low_s16(posCoef)); // reversed
+            accum = vmlal_s16(accum, vget_low_s16(negSamp), vget_low_s16(negCoef));
+            accum = vmlal_s16(accum, vget_high_s16(negSamp), vget_high_s16(negCoef));
+            sP -= 8;
+        } break;
+        case 2: {
+            int16x8x2_t posSamp = vld2q_s16(sP);
+            int16x8x2_t negSamp = vld2q_s16(sN);
+            sN += 16;
+            posSamp.val[0] = vrev64q_s16(posSamp.val[0]);
+            posSamp.val[1] = vrev64q_s16(posSamp.val[1]);
+
+            // dot product
+            accum = vmlal_s16(accum, vget_low_s16(posSamp.val[0]), vget_high_s16(posCoef)); // r
+            accum = vmlal_s16(accum, vget_high_s16(posSamp.val[0]), vget_low_s16(posCoef)); // r
+            accum2 = vmlal_s16(accum2, vget_low_s16(posSamp.val[1]), vget_high_s16(posCoef)); // r
+            accum2 = vmlal_s16(accum2, vget_high_s16(posSamp.val[1]), vget_low_s16(posCoef)); // r
+            accum = vmlal_s16(accum, vget_low_s16(negSamp.val[0]), vget_low_s16(negCoef));
+            accum = vmlal_s16(accum, vget_high_s16(negSamp.val[0]), vget_high_s16(negCoef));
+            accum2 = vmlal_s16(accum2, vget_low_s16(negSamp.val[1]), vget_low_s16(negCoef));
+            accum2 = vmlal_s16(accum2, vget_high_s16(negSamp.val[1]), vget_high_s16(negCoef));
+            sP -= 16;
+        }
+        } break;
+    } while (count -= 8);
+
+    // multiply by volume and save
+    volumeLR = (const int32_t*)__builtin_assume_aligned(volumeLR, 8);
+    int32x2_t vLR = vld1_s32(volumeLR);
+    int32x2_t outSamp = vld1_s32(out);
+    // combine and funnel down accumulator
+    int32x2_t outAccum = vpadd_s32(vget_low_s32(accum), vget_high_s32(accum));
+    if (CHANNELS == 1) {
+        // duplicate accum to both L and R
+        outAccum = vpadd_s32(outAccum, outAccum);
+    } else if (CHANNELS == 2) {
+        // accum2 contains R, fold in
+        int32x2_t outAccum2 = vpadd_s32(vget_low_s32(accum2), vget_high_s32(accum2));
+        outAccum = vpadd_s32(outAccum, outAccum2);
+    }
+    outAccum = vqrdmulh_s32(outAccum, vLR);
+    outSamp = vqadd_s32(outSamp, outAccum);
+    vst1_s32(out, outSamp);
+}
+
+template <int CHANNELS, int STRIDE, bool FIXED>
+static inline void ProcessNeonIntrinsic(int32_t* out,
+        int count,
+        const int32_t* coefsP,
+        const int32_t* coefsN,
+        const int16_t* sP,
+        const int16_t* sN,
+        const int32_t* volumeLR,
+        uint32_t lerpP,
+        const int32_t* coefsP1,
+        const int32_t* coefsN1)
+{
+    ALOG_ASSERT(count > 0 && (count & 7) == 0); // multiple of 8
+    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS == 1 || CHANNELS == 2);
+
+    sP -= CHANNELS*((STRIDE>>1)-1);
+    coefsP = (const int32_t*)__builtin_assume_aligned(coefsP, 16);
+    coefsN = (const int32_t*)__builtin_assume_aligned(coefsN, 16);
+
+    int32x2_t interp;
+    if (!FIXED) {
+        interp = vdup_n_s32(lerpP);
+        coefsP1 = (const int32_t*)__builtin_assume_aligned(coefsP1, 16);
+        coefsN1 = (const int32_t*)__builtin_assume_aligned(coefsN1, 16);
+    }
+    int32x4_t accum, accum2;
+    // warning uninitialized if we use veorq_s32
+    // (alternative to below) accum = veorq_s32(accum, accum);
+    accum = vdupq_n_s32(0);
+    if (CHANNELS == 2) {
+        // (alternative to below) accum2 = veorq_s32(accum2, accum2);
+        accum2 = vdupq_n_s32(0);
+    }
+    do {
+#ifdef vld1q_s32_x2
+        int32x4x2_t posCoef = vld1q_s32_x2(coefsP);
+        coefsP += 8;
+        int32x4x2_t negCoef = vld1q_s32_x2(coefsN);
+        coefsN += 8;
+#else
+        int32x4x2_t posCoef;
+        posCoef.val[0] = vld1q_s32(coefsP);
+        coefsP += 4;
+        posCoef.val[1] = vld1q_s32(coefsP);
+        coefsP += 4;
+        int32x4x2_t negCoef;
+        negCoef.val[0] = vld1q_s32(coefsN);
+        coefsN += 4;
+        negCoef.val[1] = vld1q_s32(coefsN);
+        coefsN += 4;
+#endif
+        if (!FIXED) { // interpolate
+#ifdef vld1q_s32_x2
+            int32x4x2_t posCoef1 = vld1q_s32_x2(coefsP1);
+            coefsP1 += 8;
+            int32x4x2_t negCoef1 = vld1q_s32_x2(coefsN1);
+            coefsN1 += 8;
+#else
+            int32x4x2_t posCoef1;
+            posCoef1.val[0] = vld1q_s32(coefsP1);
+            coefsP1 += 4;
+            posCoef1.val[1] = vld1q_s32(coefsP1);
+            coefsP1 += 4;
+            int32x4x2_t negCoef1;
+            negCoef1.val[0] = vld1q_s32(coefsN1);
+            coefsN1 += 4;
+            negCoef1.val[1] = vld1q_s32(coefsN1);
+            coefsN1 += 4;
+#endif
+
+            posCoef1.val[0] = vsubq_s32(posCoef1.val[0], posCoef.val[0]);
+            posCoef1.val[1] = vsubq_s32(posCoef1.val[1], posCoef.val[1]);
+            negCoef.val[0] = vsubq_s32(negCoef.val[0], negCoef1.val[0]);
+            negCoef.val[1] = vsubq_s32(negCoef.val[1], negCoef1.val[1]);
+
+            posCoef1.val[0] = vqrdmulhq_lane_s32(posCoef1.val[0], interp, 0);
+            posCoef1.val[1] = vqrdmulhq_lane_s32(posCoef1.val[1], interp, 0);
+            negCoef.val[0] = vqrdmulhq_lane_s32(negCoef.val[0], interp, 0);
+            negCoef.val[1] = vqrdmulhq_lane_s32(negCoef.val[1], interp, 0);
+
+            posCoef.val[0] = vaddq_s32(posCoef.val[0], posCoef1.val[0]);
+            posCoef.val[1] = vaddq_s32(posCoef.val[1], posCoef1.val[1]);
+            negCoef.val[0] = vaddq_s32(negCoef.val[0], negCoef1.val[0]);
+            negCoef.val[1] = vaddq_s32(negCoef.val[1], negCoef1.val[1]);
+        }
+        switch (CHANNELS) {
+        case 1: {
+            int16x8_t posSamp = vld1q_s16(sP);
+            int16x8_t negSamp = vld1q_s16(sN);
+            sN += 8;
+            posSamp = vrev64q_s16(posSamp);
+
+            int32x4_t posSamp0 = vshll_n_s16(vget_low_s16(posSamp), 15);
+            int32x4_t posSamp1 = vshll_n_s16(vget_high_s16(posSamp), 15);
+            int32x4_t negSamp0 = vshll_n_s16(vget_low_s16(negSamp), 15);
+            int32x4_t negSamp1 = vshll_n_s16(vget_high_s16(negSamp), 15);
+
+            // dot product
+            posSamp0 = vqrdmulhq_s32(posSamp0, posCoef.val[1]); // reversed
+            posSamp1 = vqrdmulhq_s32(posSamp1, posCoef.val[0]); // reversed
+            negSamp0 = vqrdmulhq_s32(negSamp0, negCoef.val[0]);
+            negSamp1 = vqrdmulhq_s32(negSamp1, negCoef.val[1]);
+
+            accum = vaddq_s32(accum, posSamp0);
+            negSamp0 = vaddq_s32(negSamp0, negSamp1);
+            accum = vaddq_s32(accum, posSamp1);
+            accum = vaddq_s32(accum, negSamp0);
+
+            sP -= 8;
+        } break;
+        case 2: {
+            int16x8x2_t posSamp = vld2q_s16(sP);
+            int16x8x2_t negSamp = vld2q_s16(sN);
+            sN += 16;
+            posSamp.val[0] = vrev64q_s16(posSamp.val[0]);
+            posSamp.val[1] = vrev64q_s16(posSamp.val[1]);
+
+            // left
+            int32x4_t posSamp0 = vshll_n_s16(vget_low_s16(posSamp.val[0]), 15);
+            int32x4_t posSamp1 = vshll_n_s16(vget_high_s16(posSamp.val[0]), 15);
+            int32x4_t negSamp0 = vshll_n_s16(vget_low_s16(negSamp.val[0]), 15);
+            int32x4_t negSamp1 = vshll_n_s16(vget_high_s16(negSamp.val[0]), 15);
+
+            // dot product
+            posSamp0 = vqrdmulhq_s32(posSamp0, posCoef.val[1]); // reversed
+            posSamp1 = vqrdmulhq_s32(posSamp1, posCoef.val[0]); // reversed
+            negSamp0 = vqrdmulhq_s32(negSamp0, negCoef.val[0]);
+            negSamp1 = vqrdmulhq_s32(negSamp1, negCoef.val[1]);
+
+            accum = vaddq_s32(accum, posSamp0);
+            negSamp0 = vaddq_s32(negSamp0, negSamp1);
+            accum = vaddq_s32(accum, posSamp1);
+            accum = vaddq_s32(accum, negSamp0);
+
+            // right
+            posSamp0 = vshll_n_s16(vget_low_s16(posSamp.val[1]), 15);
+            posSamp1 = vshll_n_s16(vget_high_s16(posSamp.val[1]), 15);
+            negSamp0 = vshll_n_s16(vget_low_s16(negSamp.val[1]), 15);
+            negSamp1 = vshll_n_s16(vget_high_s16(negSamp.val[1]), 15);
+
+            // dot product
+            posSamp0 = vqrdmulhq_s32(posSamp0, posCoef.val[1]); // reversed
+            posSamp1 = vqrdmulhq_s32(posSamp1, posCoef.val[0]); // reversed
+            negSamp0 = vqrdmulhq_s32(negSamp0, negCoef.val[0]);
+            negSamp1 = vqrdmulhq_s32(negSamp1, negCoef.val[1]);
+
+            accum2 = vaddq_s32(accum2, posSamp0);
+            negSamp0 = vaddq_s32(negSamp0, negSamp1);
+            accum2 = vaddq_s32(accum2, posSamp1);
+            accum2 = vaddq_s32(accum2, negSamp0);
+
+            sP -= 16;
+        } break;
+        }
+    } while (count -= 8);
+
+    // multiply by volume and save
+    volumeLR = (const int32_t*)__builtin_assume_aligned(volumeLR, 8);
+    int32x2_t vLR = vld1_s32(volumeLR);
+    int32x2_t outSamp = vld1_s32(out);
+    // combine and funnel down accumulator
+    int32x2_t outAccum = vpadd_s32(vget_low_s32(accum), vget_high_s32(accum));
+    if (CHANNELS == 1) {
+        // duplicate accum to both L and R
+        outAccum = vpadd_s32(outAccum, outAccum);
+    } else if (CHANNELS == 2) {
+        // accum2 contains R, fold in
+        int32x2_t outAccum2 = vpadd_s32(vget_low_s32(accum2), vget_high_s32(accum2));
+        outAccum = vpadd_s32(outAccum, outAccum2);
+    }
+    outAccum = vqrdmulh_s32(outAccum, vLR);
+    outSamp = vqadd_s32(outSamp, outAccum);
+    vst1_s32(out, outSamp);
+}
+
+template <int CHANNELS, int STRIDE, bool FIXED>
+static inline void ProcessNeonIntrinsic(float* out,
+        int count,
+        const float* coefsP,
+        const float* coefsN,
+        const float* sP,
+        const float* sN,
+        const float* volumeLR,
+        float lerpP,
+        const float* coefsP1,
+        const float* coefsN1)
+{
+    ALOG_ASSERT(count > 0 && (count & 7) == 0); // multiple of 8
+    COMPILE_TIME_ASSERT_FUNCTION_SCOPE(CHANNELS == 1 || CHANNELS == 2);
+
+    sP -= CHANNELS*((STRIDE>>1)-1);
+    coefsP = (const float*)__builtin_assume_aligned(coefsP, 16);
+    coefsN = (const float*)__builtin_assume_aligned(coefsN, 16);
+
+    float32x2_t interp;
+    if (!FIXED) {
+        interp = vdup_n_f32(lerpP);
+        coefsP1 = (const float*)__builtin_assume_aligned(coefsP1, 16);
+        coefsN1 = (const float*)__builtin_assume_aligned(coefsN1, 16);
+    }
+    float32x4_t accum, accum2;
+    // warning uninitialized if we use veorq_s32
+    // (alternative to below) accum = veorq_s32(accum, accum);
+    accum = vdupq_n_f32(0);
+    if (CHANNELS == 2) {
+        // (alternative to below) accum2 = veorq_s32(accum2, accum2);
+        accum2 = vdupq_n_f32(0);
+    }
+    do {
+#ifdef vld1q_f32_x2
+        float32x4x2_t posCoef = vld1q_f32_x2(coefsP);
+        coefsP += 8;
+        float32x4x2_t negCoef = vld1q_f32_x2(coefsN);
+        coefsN += 8;
+#else
+        float32x4x2_t posCoef;
+        posCoef.val[0] = vld1q_f32(coefsP);
+        coefsP += 4;
+        posCoef.val[1] = vld1q_f32(coefsP);
+        coefsP += 4;
+        float32x4x2_t negCoef;
+        negCoef.val[0] = vld1q_f32(coefsN);
+        coefsN += 4;
+        negCoef.val[1] = vld1q_f32(coefsN);
+        coefsN += 4;
+#endif
+        if (!FIXED) { // interpolate
+#ifdef vld1q_f32_x2
+            float32x4x2_t posCoef1 = vld1q_f32_x2(coefsP1);
+            coefsP1 += 8;
+            float32x4x2_t negCoef1 = vld1q_f32_x2(coefsN1);
+            coefsN1 += 8;
+#else
+            float32x4x2_t posCoef1;
+            posCoef1.val[0] = vld1q_f32(coefsP1);
+            coefsP1 += 4;
+            posCoef1.val[1] = vld1q_f32(coefsP1);
+            coefsP1 += 4;
+            float32x4x2_t negCoef1;
+            negCoef1.val[0] = vld1q_f32(coefsN1);
+            coefsN1 += 4;
+            negCoef1.val[1] = vld1q_f32(coefsN1);
+            coefsN1 += 4;
+#endif
+            posCoef1.val[0] = vsubq_f32(posCoef1.val[0], posCoef.val[0]);
+            posCoef1.val[1] = vsubq_f32(posCoef1.val[1], posCoef.val[1]);
+            negCoef.val[0] = vsubq_f32(negCoef.val[0], negCoef1.val[0]);
+            negCoef.val[1] = vsubq_f32(negCoef.val[1], negCoef1.val[1]);
+
+            posCoef.val[0] = vmlaq_lane_f32(posCoef.val[0], posCoef1.val[0], interp, 0);
+            posCoef.val[1] = vmlaq_lane_f32(posCoef.val[1], posCoef1.val[1], interp, 0);
+            negCoef.val[0] = vmlaq_lane_f32(negCoef1.val[0], negCoef.val[0], interp, 0); // rev
+            negCoef.val[1] = vmlaq_lane_f32(negCoef1.val[1], negCoef.val[1], interp, 0); // rev
+        }
+        switch (CHANNELS) {
+        case 1: {
+#ifdef vld1q_f32_x2
+            float32x4x2_t posSamp = vld1q_f32_x2(sP);
+            float32x4x2_t negSamp = vld1q_f32_x2(sN);
+            sN += 8;
+            sP -= 8;
+#else
+            float32x4x2_t posSamp;
+            posSamp.val[0] = vld1q_f32(sP);
+            sP += 4;
+            posSamp.val[1] = vld1q_f32(sP);
+            sP -= 12;
+            float32x4x2_t negSamp;
+            negSamp.val[0] = vld1q_f32(sN);
+            sN += 4;
+            negSamp.val[1] = vld1q_f32(sN);
+            sN += 4;
+#endif
+            // effectively we want a vrev128q_f32()
+            posSamp.val[0] = vrev64q_f32(posSamp.val[0]);
+            posSamp.val[1] = vrev64q_f32(posSamp.val[1]);
+            posSamp.val[0] = vcombine_f32(
+                    vget_high_f32(posSamp.val[0]), vget_low_f32(posSamp.val[0]));
+            posSamp.val[1] = vcombine_f32(
+                    vget_high_f32(posSamp.val[1]), vget_low_f32(posSamp.val[1]));
+
+            accum = vmlaq_f32(accum, posSamp.val[0], posCoef.val[1]);
+            accum = vmlaq_f32(accum, posSamp.val[1], posCoef.val[0]);
+            accum = vmlaq_f32(accum, negSamp.val[0], negCoef.val[0]);
+            accum = vmlaq_f32(accum, negSamp.val[1], negCoef.val[1]);
+        } break;
+        case 2: {
+            float32x4x2_t posSamp0 = vld2q_f32(sP);
+            sP += 8;
+            float32x4x2_t negSamp0 = vld2q_f32(sN);
+            sN += 8;
+            posSamp0.val[0] = vrev64q_f32(posSamp0.val[0]);
+            posSamp0.val[1] = vrev64q_f32(posSamp0.val[1]);
+            posSamp0.val[0] = vcombine_f32(
+                    vget_high_f32(posSamp0.val[0]), vget_low_f32(posSamp0.val[0]));
+            posSamp0.val[1] = vcombine_f32(
+                    vget_high_f32(posSamp0.val[1]), vget_low_f32(posSamp0.val[1]));
+
+            float32x4x2_t posSamp1 = vld2q_f32(sP);
+            sP -= 24;
+            float32x4x2_t negSamp1 = vld2q_f32(sN);
+            sN += 8;
+            posSamp1.val[0] = vrev64q_f32(posSamp1.val[0]);
+            posSamp1.val[1] = vrev64q_f32(posSamp1.val[1]);
+            posSamp1.val[0] = vcombine_f32(
+                    vget_high_f32(posSamp1.val[0]), vget_low_f32(posSamp1.val[0]));
+            posSamp1.val[1] = vcombine_f32(
+                    vget_high_f32(posSamp1.val[1]), vget_low_f32(posSamp1.val[1]));
+
+            // Note: speed is affected by accumulation order.
+            // Also, speed appears slower using vmul/vadd instead of vmla for
+            // stereo case, comparable for mono.
+
+            accum = vmlaq_f32(accum, negSamp0.val[0], negCoef.val[0]);
+            accum = vmlaq_f32(accum, negSamp1.val[0], negCoef.val[1]);
+            accum2 = vmlaq_f32(accum2, negSamp0.val[1], negCoef.val[0]);
+            accum2 = vmlaq_f32(accum2, negSamp1.val[1], negCoef.val[1]);
+
+            accum = vmlaq_f32(accum, posSamp0.val[0], posCoef.val[1]); // reversed
+            accum = vmlaq_f32(accum, posSamp1.val[0], posCoef.val[0]); // reversed
+            accum2 = vmlaq_f32(accum2, posSamp0.val[1], posCoef.val[1]); // reversed
+            accum2 = vmlaq_f32(accum2, posSamp1.val[1], posCoef.val[0]); // reversed
+        } break;
+        }
+    } while (count -= 8);
+
+    // multiply by volume and save
+    volumeLR = (const float*)__builtin_assume_aligned(volumeLR, 8);
+    float32x2_t vLR = vld1_f32(volumeLR);
+    float32x2_t outSamp = vld1_f32(out);
+    // combine and funnel down accumulator
+    float32x2_t outAccum = vpadd_f32(vget_low_f32(accum), vget_high_f32(accum));
+    if (CHANNELS == 1) {
+        // duplicate accum to both L and R
+        outAccum = vpadd_f32(outAccum, outAccum);
+    } else if (CHANNELS == 2) {
+        // accum2 contains R, fold in
+        float32x2_t outAccum2 = vpadd_f32(vget_low_f32(accum2), vget_high_f32(accum2));
+        outAccum = vpadd_f32(outAccum, outAccum2);
+    }
+    outSamp = vmla_f32(outSamp, outAccum, vLR);
+    vst1_f32(out, outSamp);
+}
+
 template <>
 inline void ProcessL<1, 16>(int32_t* const out,
         int count,
@@ -54,6 +531,10 @@ inline void ProcessL<1, 16>(int32_t* const out,
         const int16_t* sN,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<1, 16, true>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            0 /*lerpP*/, NULL /*coefsP1*/, NULL /*coefsN1*/);
+#else
     const int CHANNELS = 1; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -95,6 +576,7 @@ inline void ProcessL<1, 16>(int32_t* const out,
           "q0", "q1", "q2", "q3",
           "q8", "q10"
     );
+#endif
 }
 
 template <>
@@ -106,6 +588,10 @@ inline void ProcessL<2, 16>(int32_t* const out,
         const int16_t* sN,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<2, 16, true>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            0 /*lerpP*/, NULL /*coefsP1*/, NULL /*coefsN1*/);
+#else
     const int CHANNELS = 2; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -153,6 +639,7 @@ inline void ProcessL<2, 16>(int32_t* const out,
           "q4", "q5", "q6",
           "q8", "q10"
      );
+#endif
 }
 
 template <>
@@ -167,6 +654,11 @@ inline void Process<1, 16>(int32_t* const out,
         uint32_t lerpP,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<1, 16, false>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            lerpP, coefsP1, coefsN1);
+#else
+
     const int CHANNELS = 1; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -223,6 +715,7 @@ inline void Process<1, 16>(int32_t* const out,
           "q0", "q1", "q2", "q3",
           "q8", "q9", "q10", "q11"
     );
+#endif
 }
 
 template <>
@@ -237,6 +730,10 @@ inline void Process<2, 16>(int32_t* const out,
         uint32_t lerpP,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<2, 16, false>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            lerpP, coefsP1, coefsN1);
+#else
     const int CHANNELS = 2; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -299,6 +796,7 @@ inline void Process<2, 16>(int32_t* const out,
           "q4", "q5", "q6",
           "q8", "q9", "q10", "q11"
     );
+#endif
 }
 
 template <>
@@ -310,6 +808,10 @@ inline void ProcessL<1, 16>(int32_t* const out,
         const int16_t* sN,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<1, 16, true>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            0 /*lerpP*/, NULL /*coefsP1*/, NULL /*coefsN1*/);
+#else
     const int CHANNELS = 1; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -360,6 +862,7 @@ inline void ProcessL<1, 16>(int32_t* const out,
           "q8", "q9", "q10", "q11",
           "q12", "q13", "q14", "q15"
     );
+#endif
 }
 
 template <>
@@ -371,6 +874,10 @@ inline void ProcessL<2, 16>(int32_t* const out,
         const int16_t* sN,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<2, 16, true>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            0 /*lerpP*/, NULL /*coefsP1*/, NULL /*coefsN1*/);
+#else
     const int CHANNELS = 2; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -440,6 +947,7 @@ inline void ProcessL<2, 16>(int32_t* const out,
           "q8", "q9", "q10", "q11",
           "q12", "q13", "q14", "q15"
     );
+#endif
 }
 
 template <>
@@ -454,6 +962,10 @@ inline void Process<1, 16>(int32_t* const out,
         uint32_t lerpP,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<1, 16, false>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            lerpP, coefsP1, coefsN1);
+#else
     const int CHANNELS = 1; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -525,6 +1037,7 @@ inline void Process<1, 16>(int32_t* const out,
           "q8", "q9", "q10", "q11",
           "q12", "q13", "q14", "q15"
     );
+#endif
 }
 
 template <>
@@ -539,6 +1052,10 @@ inline void Process<2, 16>(int32_t* const out,
         uint32_t lerpP,
         const int32_t* const volumeLR)
 {
+#ifdef USE_INTRINSIC
+    ProcessNeonIntrinsic<2, 16, false>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            lerpP, coefsP1, coefsN1);
+#else
     const int CHANNELS = 2; // template specialization does not preserve params
     const int STRIDE = 16;
     sP -= CHANNELS*((STRIDE>>1)-1);
@@ -629,6 +1146,65 @@ inline void Process<2, 16>(int32_t* const out,
           "q8", "q9", "q10", "q11",
           "q12", "q13", "q14", "q15"
     );
+#endif
+}
+
+template<>
+inline void ProcessL<1, 16>(float* const out,
+        int count,
+        const float* coefsP,
+        const float* coefsN,
+        const float* sP,
+        const float* sN,
+        const float* const volumeLR)
+{
+    ProcessNeonIntrinsic<1, 16, true>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            0 /*lerpP*/, NULL /*coefsP1*/, NULL /*coefsN1*/);
+}
+
+template<>
+inline void ProcessL<2, 16>(float* const out,
+        int count,
+        const float* coefsP,
+        const float* coefsN,
+        const float* sP,
+        const float* sN,
+        const float* const volumeLR)
+{
+    ProcessNeonIntrinsic<2, 16, true>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            0 /*lerpP*/, NULL /*coefsP1*/, NULL /*coefsN1*/);
+}
+
+template<>
+inline void Process<1, 16>(float* const out,
+        int count,
+        const float* coefsP,
+        const float* coefsN,
+        const float* coefsP1,
+        const float* coefsN1,
+        const float* sP,
+        const float* sN,
+        float lerpP,
+        const float* const volumeLR)
+{
+    ProcessNeonIntrinsic<1, 16, false>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            lerpP, coefsP1, coefsN1);
+}
+
+template<>
+inline void Process<2, 16>(float* const out,
+        int count,
+        const float* coefsP,
+        const float* coefsN,
+        const float* coefsP1,
+        const float* coefsN1,
+        const float* sP,
+        const float* sN,
+        float lerpP,
+        const float* const volumeLR)
+{
+    ProcessNeonIntrinsic<2, 16, false>(out, count, coefsP, coefsN, sP, sN, volumeLR,
+            lerpP, coefsP1, coefsN1);
 }
 
 #endif //USE_NEON

@@ -60,7 +60,7 @@ function createwav() {
     fi
 
 # Test:
-# process__genericResampling
+# process__genericResampling with mixed integer and float track input
 # track__Resample / track__genericResample
     adb shell test-mixer $1 -s 48000 \
         -o /sdcard/tm48000grif.wav \
