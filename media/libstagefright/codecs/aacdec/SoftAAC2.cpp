@@ -623,7 +623,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                 } else {
                     int64_t currentTime = mBufferTimestamps.top();
                     currentTime += mStreamInfo->aacSamplesPerFrame *
-                            1000000ll / mStreamInfo->sampleRate;
+                            1000000ll / mStreamInfo->aacSampleRate;
                     mBufferTimestamps.add(currentTime);
                 }
             } else {
@@ -874,7 +874,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         // adjust/interpolate next time stamp
                         *currentBufLeft -= decodedSize;
                         *nextTimeStamp += mStreamInfo->aacSamplesPerFrame *
-                                1000000ll / mStreamInfo->sampleRate;
+                                1000000ll / mStreamInfo->aacSampleRate;
                         ALOGV("adjusted nextTimeStamp/size to %lld/%d",
                                 (long long) *nextTimeStamp, *currentBufLeft);
                     } else {
