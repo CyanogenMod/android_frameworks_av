@@ -1,10 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-ifeq ($(TARGET_DEVICE), manta)
-    LOCAL_CFLAGS += -DSURFACE_IS_BGR32
-endif
-
 LOCAL_SRC_FILES:=                     \
         FrameDropper.cpp              \
         GraphicBufferSource.cpp       \
