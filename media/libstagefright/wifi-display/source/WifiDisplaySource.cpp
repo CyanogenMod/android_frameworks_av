@@ -106,7 +106,7 @@ static status_t PostAndAwaitResponse(
 status_t WifiDisplaySource::start(const char *iface) {
     CHECK_EQ(mState, INITIALIZED);
 
-    sp<AMessage> msg = new AMessage(kWhatStart, id());
+    sp<AMessage> msg = new AMessage(kWhatStart, this);
     msg->setString("iface", iface);
 
     sp<AMessage> response;
@@ -114,21 +114,21 @@ status_t WifiDisplaySource::start(const char *iface) {
 }
 
 status_t WifiDisplaySource::stop() {
-    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    sp<AMessage> msg = new AMessage(kWhatStop, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t WifiDisplaySource::pause() {
-    sp<AMessage> msg = new AMessage(kWhatPause, id());
+    sp<AMessage> msg = new AMessage(kWhatPause, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t WifiDisplaySource::resume() {
-    sp<AMessage> msg = new AMessage(kWhatResume, id());
+    sp<AMessage> msg = new AMessage(kWhatResume, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
@@ -167,7 +167,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
             if (err == OK) {
                 if (inet_aton(iface.c_str(), &mInterfaceAddr) != 0) {
-                    sp<AMessage> notify = new AMessage(kWhatRTSPNotify, id());
+                    sp<AMessage> notify = new AMessage(kWhatRTSPNotify, this);
 
                     err = mNetSession->createRTSPServer(
                             mInterfaceAddr, port, notify, &mSessionID);
@@ -310,7 +310,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                 if (err == OK) {
                     mState = AWAITING_CLIENT_TEARDOWN;
 
-                    (new AMessage(kWhatTeardownTriggerTimedOut, id()))->post(
+                    (new AMessage(kWhatTeardownTriggerTimedOut, this))->post(
                             kTeardownTriggerTimeouSecs * 1000000ll);
 
                     break;
@@ -529,7 +529,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
                     // HDCPObserver::notify is completely handled before
                     // we clear the HDCP instance and unload the shared
                     // library :(
-                    (new AMessage(kWhatFinishStop2, id()))->post(300000ll);
+                    (new AMessage(kWhatFinishStop2, this))->post(300000ll);
                     break;
                 }
 
@@ -1027,7 +1027,7 @@ void WifiDisplaySource::scheduleReaper() {
     }
 
     mReaperPending = true;
-    (new AMessage(kWhatReapDeadClients, id()))->post(kReaperIntervalUs);
+    (new AMessage(kWhatReapDeadClients, this))->post(kReaperIntervalUs);
 }
 
 void WifiDisplaySource::scheduleKeepAlive(int32_t sessionID) {
@@ -1035,7 +1035,7 @@ void WifiDisplaySource::scheduleKeepAlive(int32_t sessionID) {
     // expire, make sure the timeout is greater than 5 secs to begin with.
     CHECK_GT(kPlaybackSessionTimeoutUs, 5000000ll);
 
-    sp<AMessage> msg = new AMessage(kWhatKeepAlive, id());
+    sp<AMessage> msg = new AMessage(kWhatKeepAlive, this);
     msg->setInt32("sessionID", sessionID);
     msg->post(kPlaybackSessionTimeoutUs - 5000000ll);
 }
@@ -1239,7 +1239,7 @@ status_t WifiDisplaySource::onSetupRequest(
 
     int32_t playbackSessionID = makeUniquePlaybackSessionID();
 
-    sp<AMessage> notify = new AMessage(kWhatPlaybackSessionNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatPlaybackSessionNotify, this);
     notify->setInt32("playbackSessionID", playbackSessionID);
     notify->setInt32("sessionID", sessionID);
 
@@ -1707,7 +1707,7 @@ status_t WifiDisplaySource::makeHDCP() {
         return ERROR_UNSUPPORTED;
     }
 
-    sp<AMessage> notify = new AMessage(kWhatHDCPNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatHDCPNotify, this);
     mHDCPObserver = new HDCPObserver(notify);
 
     status_t err = mHDCP->setObserver(mHDCPObserver);

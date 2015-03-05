@@ -121,7 +121,7 @@ status_t MediaCodecSource::Puller::start(const sp<MetaData> &meta,
     mLooper->registerHandler(this);
     mNotify = notify;
 
-    sp<AMessage> msg = new AMessage(kWhatStart, id());
+    sp<AMessage> msg = new AMessage(kWhatStart, this);
     msg->setObject("meta", meta);
     return postSynchronouslyAndReturnError(msg);
 }
@@ -137,19 +137,19 @@ void MediaCodecSource::Puller::stop() {
     mSource->stop();
     ALOGV("source (%s) stopped", mIsAudio ? "audio" : "video");
 
-    (new AMessage(kWhatStop, id()))->post();
+    (new AMessage(kWhatStop, this))->post();
 }
 
 void MediaCodecSource::Puller::pause() {
-    (new AMessage(kWhatPause, id()))->post();
+    (new AMessage(kWhatPause, this))->post();
 }
 
 void MediaCodecSource::Puller::resume() {
-    (new AMessage(kWhatResume, id()))->post();
+    (new AMessage(kWhatResume, this))->post();
 }
 
 void MediaCodecSource::Puller::schedulePull() {
-    sp<AMessage> msg = new AMessage(kWhatPull, id());
+    sp<AMessage> msg = new AMessage(kWhatPull, this);
     msg->setInt32("generation", mPullGeneration);
     msg->post();
 }
@@ -269,13 +269,13 @@ sp<MediaCodecSource> MediaCodecSource::Create(
 }
 
 status_t MediaCodecSource::start(MetaData* params) {
-    sp<AMessage> msg = new AMessage(kWhatStart, mReflector->id());
+    sp<AMessage> msg = new AMessage(kWhatStart, mReflector);
     msg->setObject("meta", params);
     return postSynchronouslyAndReturnError(msg);
 }
 
 status_t MediaCodecSource::stop() {
-    sp<AMessage> msg = new AMessage(kWhatStop, mReflector->id());
+    sp<AMessage> msg = new AMessage(kWhatStop, mReflector);
     status_t err = postSynchronouslyAndReturnError(msg);
 
     // mPuller->stop() needs to be done outside MediaCodecSource's looper,
@@ -294,7 +294,7 @@ status_t MediaCodecSource::stop() {
 }
 
 status_t MediaCodecSource::pause() {
-    (new AMessage(kWhatPause, mReflector->id()))->post();
+    (new AMessage(kWhatPause, mReflector))->post();
     return OK;
 }
 
@@ -422,8 +422,7 @@ status_t MediaCodecSource::initEncoder() {
         }
     }
 
-    mEncoderActivityNotify = new AMessage(
-            kWhatEncoderActivity, mReflector->id());
+    mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
     mEncoder->setCallback(mEncoderActivityNotify);
 
     err = mEncoder->start();
@@ -620,8 +619,7 @@ status_t MediaCodecSource::onStart(MetaData *params) {
         resume(startTimeUs);
     } else {
         CHECK(mPuller != NULL);
-        sp<AMessage> notify = new AMessage(
-                kWhatPullerNotify, mReflector->id());
+        sp<AMessage> notify = new AMessage(kWhatPullerNotify, mReflector);
         err = mPuller->start(params, notify);
         if (err != OK) {
             return err;

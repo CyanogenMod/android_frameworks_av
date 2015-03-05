@@ -82,7 +82,7 @@ void ARTPConnection::addStream(
         size_t index,
         const sp<AMessage> &notify,
         bool injected) {
-    sp<AMessage> msg = new AMessage(kWhatAddStream, id());
+    sp<AMessage> msg = new AMessage(kWhatAddStream, this);
     msg->setInt32("rtp-socket", rtpSocket);
     msg->setInt32("rtcp-socket", rtcpSocket);
     msg->setObject("session-desc", sessionDesc);
@@ -93,7 +93,7 @@ void ARTPConnection::addStream(
 }
 
 void ARTPConnection::removeStream(int rtpSocket, int rtcpSocket) {
-    sp<AMessage> msg = new AMessage(kWhatRemoveStream, id());
+    sp<AMessage> msg = new AMessage(kWhatRemoveStream, this);
     msg->setInt32("rtp-socket", rtpSocket);
     msg->setInt32("rtcp-socket", rtcpSocket);
     msg->post();
@@ -233,7 +233,7 @@ void ARTPConnection::postPollEvent() {
         return;
     }
 
-    sp<AMessage> msg = new AMessage(kWhatPollStreams, id());
+    sp<AMessage> msg = new AMessage(kWhatPollStreams, this);
     msg->post();
 
     mPollEventPending = true;
@@ -639,7 +639,7 @@ sp<ARTPSource> ARTPConnection::findSource(StreamInfo *info, uint32_t srcId) {
 }
 
 void ARTPConnection::injectPacket(int index, const sp<ABuffer> &buffer) {
-    sp<AMessage> msg = new AMessage(kWhatInjectPacket, id());
+    sp<AMessage> msg = new AMessage(kWhatInjectPacket, this);
     msg->setInt32("index", index);
     msg->setBuffer("buffer", buffer);
     msg->post();

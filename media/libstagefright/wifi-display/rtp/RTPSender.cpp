@@ -95,11 +95,11 @@ status_t RTPSender::initAsync(
         return INVALID_OPERATION;
     }
 
-    sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, id());
+    sp<AMessage> rtpNotify = new AMessage(kWhatRTPNotify, this);
 
     sp<AMessage> rtcpNotify;
     if (remoteRTCPPort >= 0) {
-        rtcpNotify = new AMessage(kWhatRTCPNotify, id());
+        rtcpNotify = new AMessage(kWhatRTCPNotify, this);
     }
 
     CHECK_EQ(mRTPSessionID, 0);

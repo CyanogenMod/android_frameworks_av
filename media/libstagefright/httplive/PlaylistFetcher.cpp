@@ -325,7 +325,7 @@ void PlaylistFetcher::postMonitorQueue(int64_t delayUs, int64_t minDelayUs) {
         ALOGV("Need to refresh playlist in %" PRId64 , maxDelayUs);
         delayUs = maxDelayUs;
     }
-    sp<AMessage> msg = new AMessage(kWhatMonitorQueue, id());
+    sp<AMessage> msg = new AMessage(kWhatMonitorQueue, this);
     msg->setInt32("generation", mMonitorQueueGeneration);
     msg->post(delayUs);
 }
@@ -342,7 +342,7 @@ void PlaylistFetcher::startAsync(
         int64_t segmentStartTimeUs,
         int32_t startDiscontinuitySeq,
         bool adaptive) {
-    sp<AMessage> msg = new AMessage(kWhatStart, id());
+    sp<AMessage> msg = new AMessage(kWhatStart, this);
 
     uint32_t streamTypeMask = 0ul;
 
@@ -370,17 +370,17 @@ void PlaylistFetcher::startAsync(
 }
 
 void PlaylistFetcher::pauseAsync() {
-    (new AMessage(kWhatPause, id()))->post();
+    (new AMessage(kWhatPause, this))->post();
 }
 
 void PlaylistFetcher::stopAsync(bool clear) {
-    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    sp<AMessage> msg = new AMessage(kWhatStop, this);
     msg->setInt32("clear", clear);
     msg->post();
 }
 
 void PlaylistFetcher::resumeUntilAsync(const sp<AMessage> &params) {
-    AMessage* msg = new AMessage(kWhatResumeUntil, id());
+    AMessage* msg = new AMessage(kWhatResumeUntil, this);
     msg->setMessage("params", params);
     msg->post();
 }
@@ -671,7 +671,7 @@ void PlaylistFetcher::onMonitorQueue() {
         // delay the next download slightly; hopefully this gives other concurrent fetchers
         // a better chance to run.
         // onDownloadNext();
-        sp<AMessage> msg = new AMessage(kWhatDownloadNext, id());
+        sp<AMessage> msg = new AMessage(kWhatDownloadNext, this);
         msg->setInt32("generation", mMonitorQueueGeneration);
         msg->post(1000l);
     } else {

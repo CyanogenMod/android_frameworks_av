@@ -200,9 +200,9 @@ void NuPlayer::setDriver(const wp<NuPlayerDriver> &driver) {
 }
 
 void NuPlayer::setDataSourceAsync(const sp<IStreamSource> &source) {
-    sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
+    sp<AMessage> msg = new AMessage(kWhatSetDataSource, this);
 
-    sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, this);
 
     msg->setObject("source", new StreamingSource(notify, source));
     msg->post();
@@ -230,10 +230,10 @@ void NuPlayer::setDataSourceAsync(
         const char *url,
         const KeyedVector<String8, String8> *headers) {
 
-    sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
+    sp<AMessage> msg = new AMessage(kWhatSetDataSource, this);
     size_t len = strlen(url);
 
-    sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, this);
 
     sp<Source> source;
     if (IsHTTPLiveURL(url)) {
@@ -267,9 +267,9 @@ void NuPlayer::setDataSourceAsync(
 }
 
 void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
-    sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
+    sp<AMessage> msg = new AMessage(kWhatSetDataSource, this);
 
-    sp<AMessage> notify = new AMessage(kWhatSourceNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, this);
 
     sp<GenericSource> source =
             new GenericSource(notify, mUIDValid, mUID);
@@ -286,12 +286,12 @@ void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
 }
 
 void NuPlayer::prepareAsync() {
-    (new AMessage(kWhatPrepare, id()))->post();
+    (new AMessage(kWhatPrepare, this))->post();
 }
 
 void NuPlayer::setVideoSurfaceTextureAsync(
         const sp<IGraphicBufferProducer> &bufferProducer) {
-    sp<AMessage> msg = new AMessage(kWhatSetVideoNativeWindow, id());
+    sp<AMessage> msg = new AMessage(kWhatSetVideoNativeWindow, this);
 
     if (bufferProducer == NULL) {
         msg->setObject("native-window", NULL);
@@ -306,23 +306,23 @@ void NuPlayer::setVideoSurfaceTextureAsync(
 }
 
 void NuPlayer::setAudioSink(const sp<MediaPlayerBase::AudioSink> &sink) {
-    sp<AMessage> msg = new AMessage(kWhatSetAudioSink, id());
+    sp<AMessage> msg = new AMessage(kWhatSetAudioSink, this);
     msg->setObject("sink", sink);
     msg->post();
 }
 
 void NuPlayer::start() {
-    (new AMessage(kWhatStart, id()))->post();
+    (new AMessage(kWhatStart, this))->post();
 }
 
 void NuPlayer::setPlaybackRate(float rate) {
-    sp<AMessage> msg = new AMessage(kWhatSetRate, id());
+    sp<AMessage> msg = new AMessage(kWhatSetRate, this);
     msg->setFloat("rate", rate);
     msg->post();
 }
 
 void NuPlayer::pause() {
-    (new AMessage(kWhatPause, id()))->post();
+    (new AMessage(kWhatPause, this))->post();
 }
 
 void NuPlayer::resetAsync() {
@@ -336,11 +336,11 @@ void NuPlayer::resetAsync() {
         mSource->disconnect();
     }
 
-    (new AMessage(kWhatReset, id()))->post();
+    (new AMessage(kWhatReset, this))->post();
 }
 
 void NuPlayer::seekToAsync(int64_t seekTimeUs, bool needNotify) {
-    sp<AMessage> msg = new AMessage(kWhatSeek, id());
+    sp<AMessage> msg = new AMessage(kWhatSeek, this);
     msg->setInt64("seekTimeUs", seekTimeUs);
     msg->setInt32("needNotify", needNotify);
     msg->post();
@@ -1061,7 +1061,7 @@ void NuPlayer::onStart() {
         flags |= Renderer::FLAG_OFFLOAD_AUDIO;
     }
 
-    sp<AMessage> notify = new AMessage(kWhatRendererNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatRendererNotify, this);
     ++mRendererGeneration;
     notify->setInt32("generation", mRendererGeneration);
     mRenderer = new Renderer(mAudioSink, notify, flags);
@@ -1177,7 +1177,7 @@ void NuPlayer::postScanSources() {
         return;
     }
 
-    sp<AMessage> msg = new AMessage(kWhatScanSources, id());
+    sp<AMessage> msg = new AMessage(kWhatScanSources, this);
     msg->setInt32("generation", mScanSourcesGeneration);
     msg->post();
 
@@ -1219,7 +1219,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         AString mime;
         CHECK(format->findString("mime", &mime));
 
-        sp<AMessage> ccNotify = new AMessage(kWhatClosedCaptionNotify, id());
+        sp<AMessage> ccNotify = new AMessage(kWhatClosedCaptionNotify, this);
         if (mCCDecoder == NULL) {
             mCCDecoder = new CCDecoder(ccNotify);
         }
@@ -1234,7 +1234,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     }
 
     if (audio) {
-        sp<AMessage> notify = new AMessage(kWhatAudioNotify, id());
+        sp<AMessage> notify = new AMessage(kWhatAudioNotify, this);
         ++mAudioDecoderGeneration;
         notify->setInt32("generation", mAudioDecoderGeneration);
 
@@ -1244,7 +1244,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
             *decoder = new Decoder(notify, mSource, mRenderer);
         }
     } else {
-        sp<AMessage> notify = new AMessage(kWhatVideoNotify, id());
+        sp<AMessage> notify = new AMessage(kWhatVideoNotify, this);
         ++mVideoDecoderGeneration;
         notify->setInt32("generation", mVideoDecoderGeneration);
 
@@ -1435,7 +1435,7 @@ status_t NuPlayer::setVideoScalingMode(int32_t mode) {
 }
 
 status_t NuPlayer::getTrackInfo(Parcel* reply) const {
-    sp<AMessage> msg = new AMessage(kWhatGetTrackInfo, id());
+    sp<AMessage> msg = new AMessage(kWhatGetTrackInfo, this);
     msg->setPointer("reply", reply);
 
     sp<AMessage> response;
@@ -1444,7 +1444,7 @@ status_t NuPlayer::getTrackInfo(Parcel* reply) const {
 }
 
 status_t NuPlayer::getSelectedTrack(int32_t type, Parcel* reply) const {
-    sp<AMessage> msg = new AMessage(kWhatGetSelectedTrack, id());
+    sp<AMessage> msg = new AMessage(kWhatGetSelectedTrack, this);
     msg->setPointer("reply", reply);
     msg->setInt32("type", type);
 
@@ -1457,7 +1457,7 @@ status_t NuPlayer::getSelectedTrack(int32_t type, Parcel* reply) const {
 }
 
 status_t NuPlayer::selectTrack(size_t trackIndex, bool select, int64_t timeUs) {
-    sp<AMessage> msg = new AMessage(kWhatSelectTrack, id());
+    sp<AMessage> msg = new AMessage(kWhatSelectTrack, this);
     msg->setSize("trackIndex", trackIndex);
     msg->setInt32("select", select);
     msg->setInt64("timeUs", timeUs);
@@ -1500,7 +1500,7 @@ sp<MetaData> NuPlayer::getFileMeta() {
 }
 
 void NuPlayer::schedulePollDuration() {
-    sp<AMessage> msg = new AMessage(kWhatPollDuration, id());
+    sp<AMessage> msg = new AMessage(kWhatPollDuration, this);
     msg->setInt32("generation", mPollDurationGeneration);
     msg->post();
 }

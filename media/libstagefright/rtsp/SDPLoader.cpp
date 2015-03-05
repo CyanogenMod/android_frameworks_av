@@ -51,7 +51,7 @@ SDPLoader::SDPLoader(
 void SDPLoader::load(const char *url, const KeyedVector<String8, String8> *headers) {
     mNetLooper->registerHandler(this);
 
-    sp<AMessage> msg = new AMessage(kWhatLoad, id());
+    sp<AMessage> msg = new AMessage(kWhatLoad, this);
     msg->setString("url", url);
 
     if (headers != NULL) {

@@ -63,7 +63,7 @@ void NuPlayer::StreamingSource::prepareAsync() {
 }
 
 void NuPlayer::StreamingSource::start() {
-    mStreamListener = new NuPlayerStreamListener(mSource, 0);
+    mStreamListener = new NuPlayerStreamListener(mSource, NULL);
 
     uint32_t sourceFlags = mSource->flags();
 
@@ -163,7 +163,7 @@ status_t NuPlayer::StreamingSource::postReadBuffer() {
         mBuffering = true;
     }
 
-    (new AMessage(kWhatReadBuffer, id()))->post();
+    (new AMessage(kWhatReadBuffer, this))->post();
     return OK;
 }
 

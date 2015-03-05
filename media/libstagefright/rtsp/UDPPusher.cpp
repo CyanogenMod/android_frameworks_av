@@ -65,7 +65,7 @@ void UDPPusher::start() {
     mFirstTimeMs = fromlel(timeMs);
     mFirstTimeUs = ALooper::GetNowUs();
 
-    (new AMessage(kWhatPush, id()))->post();
+    (new AMessage(kWhatPush, this))->post();
 }
 
 bool UDPPusher::onPush() {
@@ -103,7 +103,7 @@ bool UDPPusher::onPush() {
     timeMs -= mFirstTimeMs;
     int64_t whenUs = mFirstTimeUs + timeMs * 1000ll;
     int64_t nowUs = ALooper::GetNowUs();
-    (new AMessage(kWhatPush, id()))->post(whenUs - nowUs);
+    (new AMessage(kWhatPush, this))->post(whenUs - nowUs);
 
     return true;
 }

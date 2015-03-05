@@ -237,9 +237,9 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
 
     mLooper->registerHandler(this);
 
-    mCodec->setNotificationMessage(new AMessage(kWhatCodecNotify, id()));
+    mCodec->setNotificationMessage(new AMessage(kWhatCodecNotify, this));
 
-    sp<AMessage> msg = new AMessage(kWhatInit, id());
+    sp<AMessage> msg = new AMessage(kWhatInit, this);
     msg->setString("name", name);
     msg->setInt32("nameIsType", nameIsType);
 
@@ -252,7 +252,7 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
 }
 
 status_t MediaCodec::setCallback(const sp<AMessage> &callback) {
-    sp<AMessage> msg = new AMessage(kWhatSetCallback, id());
+    sp<AMessage> msg = new AMessage(kWhatSetCallback, this);
     msg->setMessage("callback", callback);
 
     sp<AMessage> response;
@@ -264,7 +264,7 @@ status_t MediaCodec::configure(
         const sp<Surface> &nativeWindow,
         const sp<ICrypto> &crypto,
         uint32_t flags) {
-    sp<AMessage> msg = new AMessage(kWhatConfigure, id());
+    sp<AMessage> msg = new AMessage(kWhatConfigure, this);
 
     msg->setMessage("format", format);
     msg->setInt32("flags", flags);
@@ -298,7 +298,7 @@ status_t MediaCodec::configure(
 
 status_t MediaCodec::createInputSurface(
         sp<IGraphicBufferProducer>* bufferProducer) {
-    sp<AMessage> msg = new AMessage(kWhatCreateInputSurface, id());
+    sp<AMessage> msg = new AMessage(kWhatCreateInputSurface, this);
 
     sp<AMessage> response;
     status_t err = PostAndAwaitResponse(msg, &response);
@@ -317,21 +317,21 @@ status_t MediaCodec::createInputSurface(
 }
 
 status_t MediaCodec::start() {
-    sp<AMessage> msg = new AMessage(kWhatStart, id());
+    sp<AMessage> msg = new AMessage(kWhatStart, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t MediaCodec::stop() {
-    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    sp<AMessage> msg = new AMessage(kWhatStop, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t MediaCodec::release() {
-    sp<AMessage> msg = new AMessage(kWhatRelease, id());
+    sp<AMessage> msg = new AMessage(kWhatRelease, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
@@ -383,7 +383,7 @@ status_t MediaCodec::queueInputBuffer(
         errorDetailMsg->clear();
     }
 
-    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, this);
     msg->setSize("index", index);
     msg->setSize("offset", offset);
     msg->setSize("size", size);
@@ -410,7 +410,7 @@ status_t MediaCodec::queueSecureInputBuffer(
         errorDetailMsg->clear();
     }
 
-    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, this);
     msg->setSize("index", index);
     msg->setSize("offset", offset);
     msg->setPointer("subSamples", (void *)subSamples);
@@ -429,7 +429,7 @@ status_t MediaCodec::queueSecureInputBuffer(
 }
 
 status_t MediaCodec::dequeueInputBuffer(size_t *index, int64_t timeoutUs) {
-    sp<AMessage> msg = new AMessage(kWhatDequeueInputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatDequeueInputBuffer, this);
     msg->setInt64("timeoutUs", timeoutUs);
 
     sp<AMessage> response;
@@ -450,7 +450,7 @@ status_t MediaCodec::dequeueOutputBuffer(
         int64_t *presentationTimeUs,
         uint32_t *flags,
         int64_t timeoutUs) {
-    sp<AMessage> msg = new AMessage(kWhatDequeueOutputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatDequeueOutputBuffer, this);
     msg->setInt64("timeoutUs", timeoutUs);
 
     sp<AMessage> response;
@@ -469,7 +469,7 @@ status_t MediaCodec::dequeueOutputBuffer(
 }
 
 status_t MediaCodec::renderOutputBufferAndRelease(size_t index) {
-    sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, this);
     msg->setSize("index", index);
     msg->setInt32("render", true);
 
@@ -478,7 +478,7 @@ status_t MediaCodec::renderOutputBufferAndRelease(size_t index) {
 }
 
 status_t MediaCodec::renderOutputBufferAndRelease(size_t index, int64_t timestampNs) {
-    sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, this);
     msg->setSize("index", index);
     msg->setInt32("render", true);
     msg->setInt64("timestampNs", timestampNs);
@@ -488,7 +488,7 @@ status_t MediaCodec::renderOutputBufferAndRelease(size_t index, int64_t timestam
 }
 
 status_t MediaCodec::releaseOutputBuffer(size_t index) {
-    sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, this);
     msg->setSize("index", index);
 
     sp<AMessage> response;
@@ -496,14 +496,14 @@ status_t MediaCodec::releaseOutputBuffer(size_t index) {
 }
 
 status_t MediaCodec::signalEndOfInputStream() {
-    sp<AMessage> msg = new AMessage(kWhatSignalEndOfInputStream, id());
+    sp<AMessage> msg = new AMessage(kWhatSignalEndOfInputStream, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t MediaCodec::getOutputFormat(sp<AMessage> *format) const {
-    sp<AMessage> msg = new AMessage(kWhatGetOutputFormat, id());
+    sp<AMessage> msg = new AMessage(kWhatGetOutputFormat, this);
 
     sp<AMessage> response;
     status_t err;
@@ -517,7 +517,7 @@ status_t MediaCodec::getOutputFormat(sp<AMessage> *format) const {
 }
 
 status_t MediaCodec::getInputFormat(sp<AMessage> *format) const {
-    sp<AMessage> msg = new AMessage(kWhatGetInputFormat, id());
+    sp<AMessage> msg = new AMessage(kWhatGetInputFormat, this);
 
     sp<AMessage> response;
     status_t err;
@@ -531,7 +531,7 @@ status_t MediaCodec::getInputFormat(sp<AMessage> *format) const {
 }
 
 status_t MediaCodec::getName(AString *name) const {
-    sp<AMessage> msg = new AMessage(kWhatGetName, id());
+    sp<AMessage> msg = new AMessage(kWhatGetName, this);
 
     sp<AMessage> response;
     status_t err;
@@ -545,7 +545,7 @@ status_t MediaCodec::getName(AString *name) const {
 }
 
 status_t MediaCodec::getInputBuffers(Vector<sp<ABuffer> > *buffers) const {
-    sp<AMessage> msg = new AMessage(kWhatGetBuffers, id());
+    sp<AMessage> msg = new AMessage(kWhatGetBuffers, this);
     msg->setInt32("portIndex", kPortIndexInput);
     msg->setPointer("buffers", buffers);
 
@@ -554,7 +554,7 @@ status_t MediaCodec::getInputBuffers(Vector<sp<ABuffer> > *buffers) const {
 }
 
 status_t MediaCodec::getOutputBuffers(Vector<sp<ABuffer> > *buffers) const {
-    sp<AMessage> msg = new AMessage(kWhatGetBuffers, id());
+    sp<AMessage> msg = new AMessage(kWhatGetBuffers, this);
     msg->setInt32("portIndex", kPortIndexOutput);
     msg->setPointer("buffers", buffers);
 
@@ -612,20 +612,20 @@ status_t MediaCodec::getBufferAndFormat(
 }
 
 status_t MediaCodec::flush() {
-    sp<AMessage> msg = new AMessage(kWhatFlush, id());
+    sp<AMessage> msg = new AMessage(kWhatFlush, this);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t MediaCodec::requestIDRFrame() {
-    (new AMessage(kWhatRequestIDRFrame, id()))->post();
+    (new AMessage(kWhatRequestIDRFrame, this))->post();
 
     return OK;
 }
 
 void MediaCodec::requestActivityNotification(const sp<AMessage> &notify) {
-    sp<AMessage> msg = new AMessage(kWhatRequestActivityNotification, id());
+    sp<AMessage> msg = new AMessage(kWhatRequestActivityNotification, this);
     msg->setMessage("notify", notify);
     msg->post();
 }
@@ -1445,7 +1445,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (timeoutUs > 0ll) {
                 sp<AMessage> timeoutMsg =
-                    new AMessage(kWhatDequeueInputTimedOut, id());
+                    new AMessage(kWhatDequeueInputTimedOut, this);
                 timeoutMsg->setInt32(
                         "generation", ++mDequeueInputTimeoutGeneration);
                 timeoutMsg->post(timeoutUs);
@@ -1519,7 +1519,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (timeoutUs > 0ll) {
                 sp<AMessage> timeoutMsg =
-                    new AMessage(kWhatDequeueOutputTimedOut, id());
+                    new AMessage(kWhatDequeueOutputTimedOut, this);
                 timeoutMsg->setInt32(
                         "generation", ++mDequeueOutputTimeoutGeneration);
                 timeoutMsg->post(timeoutUs);
@@ -1752,7 +1752,7 @@ status_t MediaCodec::queueCSDInputBuffer(size_t bufferIndex) {
 
     AString errorDetailMsg;
 
-    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, id());
+    sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, this);
     msg->setSize("index", bufferIndex);
     msg->setSize("offset", 0);
     msg->setSize("size", csd->size());
@@ -2207,7 +2207,7 @@ void MediaCodec::postActivityNotificationIfPossible() {
 }
 
 status_t MediaCodec::setParameters(const sp<AMessage> &params) {
-    sp<AMessage> msg = new AMessage(kWhatSetParameters, id());
+    sp<AMessage> msg = new AMessage(kWhatSetParameters, this);
     msg->setMessage("params", params);
 
     sp<AMessage> response;

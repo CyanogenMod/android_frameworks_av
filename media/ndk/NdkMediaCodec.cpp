@@ -136,7 +136,7 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
 
 
 static void requestActivityNotification(AMediaCodec *codec) {
-    (new AMessage(kWhatRequestActivityNotifications, codec->mHandler->id()))->post();
+    (new AMessage(kWhatRequestActivityNotifications, codec->mHandler))->post();
 }
 
 extern "C" {
@@ -219,7 +219,7 @@ media_status_t AMediaCodec_start(AMediaCodec *mData) {
     if (ret != OK) {
         return translate_error(ret);
     }
-    mData->mActivityNotification = new AMessage(kWhatActivityNotify, mData->mHandler->id());
+    mData->mActivityNotification = new AMessage(kWhatActivityNotify, mData->mHandler);
     mData->mActivityNotification->setInt32("generation", mData->mGeneration);
     requestActivityNotification(mData);
     return AMEDIA_OK;
@@ -229,7 +229,7 @@ EXPORT
 media_status_t AMediaCodec_stop(AMediaCodec *mData) {
     media_status_t ret = translate_error(mData->mCodec->stop());
 
-    sp<AMessage> msg = new AMessage(kWhatStopActivityNotifications, mData->mHandler->id());
+    sp<AMessage> msg = new AMessage(kWhatStopActivityNotifications, mData->mHandler);
     sp<AMessage> response;
     msg->postAndAwaitResponse(&response);
     mData->mActivityNotification.clear();

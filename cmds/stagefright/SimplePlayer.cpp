@@ -59,14 +59,14 @@ status_t PostAndAwaitResponse(
     return err;
 }
 status_t SimplePlayer::setDataSource(const char *path) {
-    sp<AMessage> msg = new AMessage(kWhatSetDataSource, id());
+    sp<AMessage> msg = new AMessage(kWhatSetDataSource, this);
     msg->setString("path", path);
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t SimplePlayer::setSurface(const sp<IGraphicBufferProducer> &bufferProducer) {
-    sp<AMessage> msg = new AMessage(kWhatSetSurface, id());
+    sp<AMessage> msg = new AMessage(kWhatSetSurface, this);
 
     sp<Surface> surface;
     if (bufferProducer != NULL) {
@@ -81,25 +81,25 @@ status_t SimplePlayer::setSurface(const sp<IGraphicBufferProducer> &bufferProduc
 }
 
 status_t SimplePlayer::prepare() {
-    sp<AMessage> msg = new AMessage(kWhatPrepare, id());
+    sp<AMessage> msg = new AMessage(kWhatPrepare, this);
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t SimplePlayer::start() {
-    sp<AMessage> msg = new AMessage(kWhatStart, id());
+    sp<AMessage> msg = new AMessage(kWhatStart, this);
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t SimplePlayer::stop() {
-    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    sp<AMessage> msg = new AMessage(kWhatStop, this);
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
 
 status_t SimplePlayer::reset() {
-    sp<AMessage> msg = new AMessage(kWhatReset, id());
+    sp<AMessage> msg = new AMessage(kWhatReset, this);
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
 }
@@ -382,7 +382,7 @@ status_t SimplePlayer::onStart() {
 
     mStartTimeRealUs = -1ll;
 
-    sp<AMessage> msg = new AMessage(kWhatDoMoreStuff, id());
+    sp<AMessage> msg = new AMessage(kWhatDoMoreStuff, this);
     msg->setInt32("generation", ++mDoMoreStuffGeneration);
     msg->post();
 

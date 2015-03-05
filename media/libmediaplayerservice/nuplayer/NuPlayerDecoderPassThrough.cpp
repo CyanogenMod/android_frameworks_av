@@ -333,7 +333,7 @@ void NuPlayer::DecoderPassThrough::onInputBufferFetched(
         return;
     }
 
-    sp<AMessage> reply = new AMessage(kWhatBufferConsumed, id());
+    sp<AMessage> reply = new AMessage(kWhatBufferConsumed, this);
     reply->setInt32("generation", mBufferGeneration);
     reply->setInt32("size", bufferSize);
 

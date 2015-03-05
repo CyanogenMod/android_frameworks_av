@@ -58,7 +58,7 @@ OMX_ERRORTYPE SimpleSoftOMXComponent::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_U32 param, OMX_PTR data) {
     CHECK(data == NULL);
 
-    sp<AMessage> msg = new AMessage(kWhatSendCommand, mHandler->id());
+    sp<AMessage> msg = new AMessage(kWhatSendCommand, mHandler);
     msg->setInt32("cmd", cmd);
     msg->setInt32("param", param);
     msg->post();
@@ -307,7 +307,7 @@ OMX_ERRORTYPE SimpleSoftOMXComponent::freeBuffer(
 
 OMX_ERRORTYPE SimpleSoftOMXComponent::emptyThisBuffer(
         OMX_BUFFERHEADERTYPE *buffer) {
-    sp<AMessage> msg = new AMessage(kWhatEmptyThisBuffer, mHandler->id());
+    sp<AMessage> msg = new AMessage(kWhatEmptyThisBuffer, mHandler);
     msg->setPointer("header", buffer);
     msg->post();
 
@@ -316,7 +316,7 @@ OMX_ERRORTYPE SimpleSoftOMXComponent::emptyThisBuffer(
 
 OMX_ERRORTYPE SimpleSoftOMXComponent::fillThisBuffer(
         OMX_BUFFERHEADERTYPE *buffer) {
-    sp<AMessage> msg = new AMessage(kWhatFillThisBuffer, mHandler->id());
+    sp<AMessage> msg = new AMessage(kWhatFillThisBuffer, mHandler);
     msg->setPointer("header", buffer);
     msg->post();
 

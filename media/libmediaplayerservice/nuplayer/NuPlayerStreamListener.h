@@ -29,7 +29,7 @@ struct MemoryDealer;
 struct NuPlayer::NuPlayerStreamListener : public BnStreamListener {
     NuPlayerStreamListener(
             const sp<IStreamSource> &source,
-            ALooper::handler_id targetID);
+            const sp<AHandler> &targetHandler);
 
     virtual void queueBuffer(size_t index, size_t size);
 
@@ -59,7 +59,7 @@ private:
     Mutex mLock;
 
     sp<IStreamSource> mSource;
-    ALooper::handler_id mTargetID;
+    sp<AHandler> mTargetHandler;
     sp<MemoryDealer> mMemoryDealer;
     Vector<sp<IMemory> > mBuffers;
     List<QueueEntry> mQueue;

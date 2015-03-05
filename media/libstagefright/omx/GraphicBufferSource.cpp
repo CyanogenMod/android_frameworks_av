@@ -155,7 +155,7 @@ void GraphicBufferSource::omxExecuting() {
 
         if (mLatestBufferId >= 0) {
             sp<AMessage> msg =
-                new AMessage(kWhatRepeatLastFrame, mReflector->id());
+                new AMessage(kWhatRepeatLastFrame, mReflector);
 
             msg->setInt32("generation", ++mRepeatLastFrameGeneration);
             msg->post(mRepeatAfterUs);
@@ -524,7 +524,7 @@ bool GraphicBufferSource::repeatLatestBuffer_l() {
         mRepeatLastFrameTimestamp = item.mTimestamp + mRepeatAfterUs * 1000;
 
         if (mReflector != NULL) {
-            sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector->id());
+            sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector);
             msg->setInt32("generation", ++mRepeatLastFrameGeneration);
             msg->post(mRepeatAfterUs);
         }
@@ -557,7 +557,7 @@ void GraphicBufferSource::setLatestBuffer_l(
     mRepeatLastFrameCount = kRepeatLastFrameCount;
 
     if (mReflector != NULL) {
-        sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector->id());
+        sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector);
         msg->setInt32("generation", ++mRepeatLastFrameGeneration);
         msg->post(mRepeatAfterUs);
     }

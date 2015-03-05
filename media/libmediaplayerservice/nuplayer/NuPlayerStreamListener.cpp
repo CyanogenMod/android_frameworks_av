@@ -29,9 +29,9 @@ namespace android {
 
 NuPlayer::NuPlayerStreamListener::NuPlayerStreamListener(
         const sp<IStreamSource> &source,
-        ALooper::handler_id id)
+        const sp<AHandler> &targetHandler)
     : mSource(source),
-      mTargetID(id),
+      mTargetHandler(targetHandler),
       mEOS(false),
       mSendDataNotification(true) {
     mSource->setListener(this);
@@ -65,8 +65,8 @@ void NuPlayer::NuPlayerStreamListener::queueBuffer(size_t index, size_t size) {
     if (mSendDataNotification) {
         mSendDataNotification = false;
 
-        if (mTargetID != 0) {
-            (new AMessage(kWhatMoreDataQueued, mTargetID))->post();
+        if (mTargetHandler != NULL) {
+            (new AMessage(kWhatMoreDataQueued, mTargetHandler))->post();
         }
     }
 }
@@ -86,8 +86,8 @@ void NuPlayer::NuPlayerStreamListener::issueCommand(
     if (mSendDataNotification) {
         mSendDataNotification = false;
 
-        if (mTargetID != 0) {
-            (new AMessage(kWhatMoreDataQueued, mTargetID))->post();
+        if (mTargetHandler != NULL) {
+            (new AMessage(kWhatMoreDataQueued, mTargetHandler))->post();
         }
     }
 }

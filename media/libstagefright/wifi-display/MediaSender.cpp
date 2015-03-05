@@ -121,7 +121,7 @@ status_t MediaSender::initAsync(
         }
 
         if (err == OK) {
-            sp<AMessage> notify = new AMessage(kWhatSenderNotify, id());
+            sp<AMessage> notify = new AMessage(kWhatSenderNotify, this);
             notify->setInt32("generation", mGeneration);
             mTSSender = new RTPSender(mNetSession, notify);
             looper()->registerHandler(mTSSender);
@@ -170,7 +170,7 @@ status_t MediaSender::initAsync(
         return INVALID_OPERATION;
     }
 
-    sp<AMessage> notify = new AMessage(kWhatSenderNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatSenderNotify, this);
     notify->setInt32("generation", mGeneration);
     notify->setSize("trackIndex", trackIndex);
 

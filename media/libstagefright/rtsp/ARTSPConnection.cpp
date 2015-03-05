@@ -68,28 +68,28 @@ ARTSPConnection::~ARTSPConnection() {
 }
 
 void ARTSPConnection::connect(const char *url, const sp<AMessage> &reply) {
-    sp<AMessage> msg = new AMessage(kWhatConnect, id());
+    sp<AMessage> msg = new AMessage(kWhatConnect, this);
     msg->setString("url", url);
     msg->setMessage("reply", reply);
     msg->post();
 }
 
 void ARTSPConnection::disconnect(const sp<AMessage> &reply) {
-    sp<AMessage> msg = new AMessage(kWhatDisconnect, id());
+    sp<AMessage> msg = new AMessage(kWhatDisconnect, this);
     msg->setMessage("reply", reply);
     msg->post();
 }
 
 void ARTSPConnection::sendRequest(
         const char *request, const sp<AMessage> &reply) {
-    sp<AMessage> msg = new AMessage(kWhatSendRequest, id());
+    sp<AMessage> msg = new AMessage(kWhatSendRequest, this);
     msg->setString("request", request);
     msg->setMessage("reply", reply);
     msg->post();
 }
 
 void ARTSPConnection::observeBinaryData(const sp<AMessage> &reply) {
-    sp<AMessage> msg = new AMessage(kWhatObserveBinaryData, id());
+    sp<AMessage> msg = new AMessage(kWhatObserveBinaryData, this);
     msg->setMessage("reply", reply);
     msg->post();
 }
@@ -286,7 +286,7 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
 
     if (err < 0) {
         if (errno == EINPROGRESS) {
-            sp<AMessage> msg = new AMessage(kWhatCompleteConnection, id());
+            sp<AMessage> msg = new AMessage(kWhatCompleteConnection, this);
             msg->setMessage("reply", reply);
             msg->setInt32("connection-id", mConnectionID);
             msg->post();
@@ -523,7 +523,7 @@ void ARTSPConnection::postReceiveReponseEvent() {
         return;
     }
 
-    sp<AMessage> msg = new AMessage(kWhatReceiveResponse, id());
+    sp<AMessage> msg = new AMessage(kWhatReceiveResponse, this);
     msg->post();
 
     mReceiveResponseEventPending = true;
@@ -746,7 +746,7 @@ bool ARTSPConnection::receiveRTSPReponse() {
             AString request;
             CHECK(reply->findString("original-request", &request));
 
-            sp<AMessage> msg = new AMessage(kWhatSendRequest, id());
+            sp<AMessage> msg = new AMessage(kWhatSendRequest, this);
             msg->setMessage("reply", reply);
             msg->setString("request", request.c_str(), request.size());
 

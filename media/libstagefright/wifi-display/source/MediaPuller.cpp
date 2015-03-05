@@ -63,21 +63,21 @@ status_t MediaPuller::postSynchronouslyAndReturnError(
 }
 
 status_t MediaPuller::start() {
-    return postSynchronouslyAndReturnError(new AMessage(kWhatStart, id()));
+    return postSynchronouslyAndReturnError(new AMessage(kWhatStart, this));
 }
 
 void MediaPuller::stopAsync(const sp<AMessage> &notify) {
-    sp<AMessage> msg = new AMessage(kWhatStop, id());
+    sp<AMessage> msg = new AMessage(kWhatStop, this);
     msg->setMessage("notify", notify);
     msg->post();
 }
 
 void MediaPuller::pause() {
-    (new AMessage(kWhatPause, id()))->post();
+    (new AMessage(kWhatPause, this))->post();
 }
 
 void MediaPuller::resume() {
-    (new AMessage(kWhatResume, id()))->post();
+    (new AMessage(kWhatResume, this))->post();
 }
 
 void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
@@ -215,7 +215,7 @@ void MediaPuller::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void MediaPuller::schedulePull() {
-    sp<AMessage> msg = new AMessage(kWhatPull, id());
+    sp<AMessage> msg = new AMessage(kWhatPull, this);
     msg->setInt32("generation", mPullGeneration);
     msg->post();
 }

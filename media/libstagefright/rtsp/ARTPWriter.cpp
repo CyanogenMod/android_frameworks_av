@@ -146,7 +146,7 @@ status_t ARTPWriter::start(MetaData * /* params */) {
         TRESPASS();
     }
 
-    (new AMessage(kWhatStart, mReflector->id()))->post();
+    (new AMessage(kWhatStart, mReflector))->post();
 
     while (!(mFlags & kFlagStarted)) {
         mCondition.wait(mLock);
@@ -161,7 +161,7 @@ status_t ARTPWriter::stop() {
         return OK;
     }
 
-    (new AMessage(kWhatStop, mReflector->id()))->post();
+    (new AMessage(kWhatStop, mReflector))->post();
 
     while (mFlags & kFlagStarted) {
         mCondition.wait(mLock);
@@ -213,8 +213,8 @@ void ARTPWriter::onMessageReceived(const sp<AMessage> &msg) {
                 mCondition.signal();
             }
 
-            (new AMessage(kWhatRead, mReflector->id()))->post();
-            (new AMessage(kWhatSendSR, mReflector->id()))->post();
+            (new AMessage(kWhatRead, mReflector))->post();
+            (new AMessage(kWhatSendSR, mReflector))->post();
             break;
         }
 

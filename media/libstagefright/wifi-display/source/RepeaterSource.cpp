@@ -173,7 +173,7 @@ status_t RepeaterSource::read(
 }
 
 void RepeaterSource::postRead() {
-    (new AMessage(kWhatRead, mReflector->id()))->post();
+    (new AMessage(kWhatRead, mReflector))->post();
 }
 
 void RepeaterSource::onMessageReceived(const sp<AMessage> &msg) {

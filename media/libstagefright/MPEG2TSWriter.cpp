@@ -135,7 +135,7 @@ void MPEG2TSWriter::SourceInfo::start(const sp<AMessage> &notify) {
 
     mNotify = notify;
 
-    (new AMessage(kWhatStart, id()))->post();
+    (new AMessage(kWhatStart, this))->post();
 }
 
 void MPEG2TSWriter::SourceInfo::stop() {
@@ -361,7 +361,7 @@ bool MPEG2TSWriter::SourceInfo::flushAACFrames() {
 }
 
 void MPEG2TSWriter::SourceInfo::readMore() {
-    (new AMessage(kWhatRead, id()))->post();
+    (new AMessage(kWhatRead, this))->post();
 }
 
 void MPEG2TSWriter::SourceInfo::onMessageReceived(const sp<AMessage> &msg) {
@@ -552,7 +552,7 @@ status_t MPEG2TSWriter::start(MetaData * /* param */) {
 
     for (size_t i = 0; i < mSources.size(); ++i) {
         sp<AMessage> notify =
-            new AMessage(kWhatSourceNotify, mReflector->id());
+            new AMessage(kWhatSourceNotify, mReflector);
 
         notify->setInt32("source-index", i);
 

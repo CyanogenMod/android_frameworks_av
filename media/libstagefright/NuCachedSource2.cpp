@@ -226,7 +226,7 @@ NuCachedSource2::NuCachedSource2(
     mLooper->start(false /* runOnCallingThread */, true /* canCallJava */);
 
     Mutex::Autolock autoLock(mLock);
-    (new AMessage(kWhatFetchMore, mReflector->id()))->post();
+    (new AMessage(kWhatFetchMore, mReflector))->post();
 }
 
 NuCachedSource2::~NuCachedSource2() {
@@ -433,7 +433,7 @@ void NuCachedSource2::onFetch() {
         delayUs = 100000ll;
     }
 
-    (new AMessage(kWhatFetchMore, mReflector->id()))->post(delayUs);
+    (new AMessage(kWhatFetchMore, mReflector))->post(delayUs);
 }
 
 void NuCachedSource2::onRead(const sp<AMessage> &msg) {
@@ -522,7 +522,7 @@ ssize_t NuCachedSource2::readAt(off64_t offset, void *data, size_t size) {
         return size;
     }
 
-    sp<AMessage> msg = new AMessage(kWhatRead, mReflector->id());
+    sp<AMessage> msg = new AMessage(kWhatRead, mReflector);
     msg->setInt64("offset", offset);
     msg->setPointer("data", data);
     msg->setSize("size", size);

@@ -56,25 +56,25 @@ TimedTextPlayer::~TimedTextPlayer() {
 }
 
 void TimedTextPlayer::start() {
-    (new AMessage(kWhatStart, id()))->post();
+    (new AMessage(kWhatStart, this))->post();
 }
 
 void TimedTextPlayer::pause() {
-    (new AMessage(kWhatPause, id()))->post();
+    (new AMessage(kWhatPause, this))->post();
 }
 
 void TimedTextPlayer::resume() {
-    (new AMessage(kWhatResume, id()))->post();
+    (new AMessage(kWhatResume, this))->post();
 }
 
 void TimedTextPlayer::seekToAsync(int64_t timeUs) {
-    sp<AMessage> msg = new AMessage(kWhatSeek, id());
+    sp<AMessage> msg = new AMessage(kWhatSeek, this);
     msg->setInt64("seekTimeUs", timeUs);
     msg->post();
 }
 
 void TimedTextPlayer::setDataSource(sp<TimedTextSource> source) {
-    sp<AMessage> msg = new AMessage(kWhatSetSource, id());
+    sp<AMessage> msg = new AMessage(kWhatSetSource, this);
     msg->setObject("source", source);
     msg->post();
 }
@@ -231,7 +231,7 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
     status_t err = mSource->read(&startTimeUs, &endTimeUs,
                                  &(parcelEvent->parcel), options);
     if (err == WOULD_BLOCK) {
-        sp<AMessage> msg = new AMessage(kWhatRetryRead, id());
+        sp<AMessage> msg = new AMessage(kWhatRetryRead, this);
         if (options != NULL) {
             int64_t seekTimeUs = kInvalidTimeUs;
             MediaSource::ReadOptions::SeekMode seekMode =
@@ -259,7 +259,7 @@ void TimedTextPlayer::doRead(MediaSource::ReadOptions* options) {
 
 void TimedTextPlayer::postTextEvent(const sp<ParcelEvent>& parcel, int64_t timeUs) {
     int64_t delayUs = delayUsFromCurrentTime(timeUs);
-    sp<AMessage> msg = new AMessage(kWhatSendSubtitle, id());
+    sp<AMessage> msg = new AMessage(kWhatSendSubtitle, this);
     msg->setInt32("generation", mSendSubtitleGeneration);
     if (parcel != NULL) {
         msg->setObject("subtitle", parcel);

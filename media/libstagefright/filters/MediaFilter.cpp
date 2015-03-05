@@ -60,36 +60,36 @@ void MediaFilter::setNotificationMessage(const sp<AMessage> &msg) {
 
 void MediaFilter::initiateAllocateComponent(const sp<AMessage> &msg) {
     msg->setWhat(kWhatAllocateComponent);
-    msg->setTarget(id());
+    msg->setTarget(this);
     msg->post();
 }
 
 void MediaFilter::initiateConfigureComponent(const sp<AMessage> &msg) {
     msg->setWhat(kWhatConfigureComponent);
-    msg->setTarget(id());
+    msg->setTarget(this);
     msg->post();
 }
 
 void MediaFilter::initiateCreateInputSurface() {
-    (new AMessage(kWhatCreateInputSurface, id()))->post();
+    (new AMessage(kWhatCreateInputSurface, this))->post();
 }
 
 void MediaFilter::initiateStart() {
-    (new AMessage(kWhatStart, id()))->post();
+    (new AMessage(kWhatStart, this))->post();
 }
 
 void MediaFilter::initiateShutdown(bool keepComponentAllocated) {
-    sp<AMessage> msg = new AMessage(kWhatShutdown, id());
+    sp<AMessage> msg = new AMessage(kWhatShutdown, this);
     msg->setInt32("keepComponentAllocated", keepComponentAllocated);
     msg->post();
 }
 
 void MediaFilter::signalFlush() {
-    (new AMessage(kWhatFlush, id()))->post();
+    (new AMessage(kWhatFlush, this))->post();
 }
 
 void MediaFilter::signalResume() {
-    (new AMessage(kWhatResume, id()))->post();
+    (new AMessage(kWhatResume, this))->post();
 }
 
 // nothing to do
@@ -98,13 +98,13 @@ void MediaFilter::signalRequestIDRFrame() {
 }
 
 void MediaFilter::signalSetParameters(const sp<AMessage> &params) {
-    sp<AMessage> msg = new AMessage(kWhatSetParameters, id());
+    sp<AMessage> msg = new AMessage(kWhatSetParameters, this);
     msg->setMessage("params", params);
     msg->post();
 }
 
 void MediaFilter::signalEndOfInputStream() {
-    (new AMessage(kWhatSignalEndOfInputStream, id()))->post();
+    (new AMessage(kWhatSignalEndOfInputStream, this))->post();
 }
 
 void MediaFilter::onMessageReceived(const sp<AMessage> &msg) {
@@ -208,7 +208,7 @@ sp<ABuffer> MediaFilter::PortDescription::bufferAt(size_t index) const {
 //////////////////// HELPER FUNCTIONS //////////////////////////////////////////
 
 void MediaFilter::signalProcessBuffers() {
-    (new AMessage(kWhatProcessBuffers, id()))->post();
+    (new AMessage(kWhatProcessBuffers, this))->post();
 }
 
 void MediaFilter::signalError(status_t error) {
@@ -309,7 +309,7 @@ void MediaFilter::postFillThisBuffer(BufferInfo *info) {
     info->mData->meta()->clear();
     notify->setBuffer("buffer", info->mData);
 
-    sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, id());
+    sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, this);
     reply->setInt32("buffer-id", info->mBufferID);
 
     notify->setMessage("reply", reply);
@@ -329,7 +329,7 @@ void MediaFilter::postDrainThisBuffer(BufferInfo *info) {
     notify->setInt32("flags", info->mOutputFlags);
     notify->setBuffer("buffer", info->mData);
 
-    sp<AMessage> reply = new AMessage(kWhatOutputBufferDrained, id());
+    sp<AMessage> reply = new AMessage(kWhatOutputBufferDrained, this);
     reply->setInt32("buffer-id", info->mBufferID);
 
     notify->setMessage("reply", reply);
@@ -729,7 +729,7 @@ void MediaFilter::onCreateInputSurface() {
     mGraphicBufferListener = new GraphicBufferListener;
 
     sp<AMessage> notify = new AMessage();
-    notify->setTarget(id());
+    notify->setTarget(this);
     status_t err = mGraphicBufferListener->init(
             notify, mStride, mSliceHeight, kBufferCountActual);
 

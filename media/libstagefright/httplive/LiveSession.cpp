@@ -244,7 +244,7 @@ status_t LiveSession::dequeueAccessUnit(
                 Mutex::Autolock lock(mSwapMutex);
                 if (switchGeneration == mSwitchGeneration) {
                     swapPacketSource(stream);
-                    sp<AMessage> msg = new AMessage(kWhatSwapped, id());
+                    sp<AMessage> msg = new AMessage(kWhatSwapped, this);
                     msg->setInt32("stream", stream);
                     msg->setInt32("switchGeneration", switchGeneration);
                     msg->post();
@@ -349,7 +349,7 @@ status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
 
 void LiveSession::connectAsync(
         const char *url, const KeyedVector<String8, String8> *headers) {
-    sp<AMessage> msg = new AMessage(kWhatConnect, id());
+    sp<AMessage> msg = new AMessage(kWhatConnect, this);
     msg->setString("url", url);
 
     if (headers != NULL) {
@@ -362,7 +362,7 @@ void LiveSession::connectAsync(
 }
 
 status_t LiveSession::disconnect() {
-    sp<AMessage> msg = new AMessage(kWhatDisconnect, id());
+    sp<AMessage> msg = new AMessage(kWhatDisconnect, this);
 
     sp<AMessage> response;
     status_t err = msg->postAndAwaitResponse(&response);
@@ -371,7 +371,7 @@ status_t LiveSession::disconnect() {
 }
 
 status_t LiveSession::seekTo(int64_t timeUs) {
-    sp<AMessage> msg = new AMessage(kWhatSeek, id());
+    sp<AMessage> msg = new AMessage(kWhatSeek, this);
     msg->setInt64("timeUs", timeUs);
 
     sp<AMessage> response;
@@ -757,7 +757,7 @@ void LiveSession::finishDisconnect() {
         mFetcherInfos.valueAt(i).mFetcher->stopAsync();
     }
 
-    sp<AMessage> msg = new AMessage(kWhatFinishDisconnect2, id());
+    sp<AMessage> msg = new AMessage(kWhatFinishDisconnect2, this);
 
     mContinuationCounter = mFetcherInfos.size();
     mContinuation = msg;
@@ -790,7 +790,7 @@ sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
         return NULL;
     }
 
-    sp<AMessage> notify = new AMessage(kWhatFetcherNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatFetcherNotify, this);
     notify->setString("uri", uri);
     notify->setInt32("switchGeneration", mSwitchGeneration);
 
@@ -1185,7 +1185,7 @@ status_t LiveSession::selectTrack(size_t index, bool select) {
     ++mSubtitleGeneration;
     status_t err = mPlaylist->selectTrack(index, select);
     if (err == OK) {
-        sp<AMessage> msg = new AMessage(kWhatChangeConfiguration, id());
+        sp<AMessage> msg = new AMessage(kWhatChangeConfiguration, this);
         msg->setInt32("bandwidthIndex", mCurBandwidthIndex);
         msg->setInt32("pickTrack", select);
         msg->post();
@@ -1273,9 +1273,9 @@ void LiveSession::changeConfiguration(
     sp<AMessage> msg;
     if (timeUs < 0ll) {
         // skip onChangeConfiguration2 (decoder destruction) if not seeking.
-        msg = new AMessage(kWhatChangeConfiguration3, id());
+        msg = new AMessage(kWhatChangeConfiguration3, this);
     } else {
-        msg = new AMessage(kWhatChangeConfiguration2, id());
+        msg = new AMessage(kWhatChangeConfiguration2, this);
     }
     msg->setInt32("streamMask", streamMask);
     msg->setInt32("resumeMask", resumeMask);
@@ -1372,7 +1372,7 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
     notify->setInt32("changedMask", changedMask);
 
     msg->setWhat(kWhatChangeConfiguration3);
-    msg->setTarget(id());
+    msg->setTarget(this);
 
     notify->setMessage("reply", msg);
     notify->post();
@@ -1644,7 +1644,7 @@ void LiveSession::onCheckSwitchDown() {
             int64_t targetDurationUs = targetDuration * 1000000ll;
 
             if (bufferedDurationUs < targetDurationUs / 3) {
-                (new AMessage(kWhatSwitchDown, id()))->post();
+                (new AMessage(kWhatSwitchDown, this))->post();
                 break;
             }
         }
@@ -1689,7 +1689,7 @@ void LiveSession::tryToFinishBandwidthSwitch() {
 }
 
 void LiveSession::scheduleCheckBandwidthEvent() {
-    sp<AMessage> msg = new AMessage(kWhatCheckBandwidth, id());
+    sp<AMessage> msg = new AMessage(kWhatCheckBandwidth, this);
     msg->setInt32("generation", mCheckBandwidthGeneration);
     msg->post(10000000ll);
 }
@@ -1772,7 +1772,7 @@ void LiveSession::postPrepared(status_t err) {
 
     mInPreparationPhase = false;
 
-    mSwitchDownMonitor = new AMessage(kWhatCheckSwitchDown, id());
+    mSwitchDownMonitor = new AMessage(kWhatCheckSwitchDown, this);
     mSwitchDownMonitor->post();
 }
 

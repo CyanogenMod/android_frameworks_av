@@ -87,7 +87,7 @@ void NuPlayer::RTSPSource::prepareAsync() {
     CHECK(mHandler == NULL);
     CHECK(mSDPLoader == NULL);
 
-    sp<AMessage> notify = new AMessage(kWhatNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatNotify, this);
 
     CHECK_EQ(mState, (int)DISCONNECTED);
     mState = CONNECTING;
@@ -116,7 +116,7 @@ void NuPlayer::RTSPSource::stop() {
     if (mLooper == NULL) {
         return;
     }
-    sp<AMessage> msg = new AMessage(kWhatDisconnect, id());
+    sp<AMessage> msg = new AMessage(kWhatDisconnect, this);
 
     sp<AMessage> dummy;
     msg->postAndAwaitResponse(&dummy);
@@ -292,7 +292,7 @@ status_t NuPlayer::RTSPSource::getDuration(int64_t *durationUs) {
 }
 
 status_t NuPlayer::RTSPSource::seekTo(int64_t seekTimeUs) {
-    sp<AMessage> msg = new AMessage(kWhatPerformSeek, id());
+    sp<AMessage> msg = new AMessage(kWhatPerformSeek, this);
     msg->setInt32("generation", ++mSeekGeneration);
     msg->setInt64("timeUs", seekTimeUs);
     msg->post(200000ll);
@@ -600,7 +600,7 @@ void NuPlayer::RTSPSource::onSDPLoaded(const sp<AMessage> &msg) {
             ALOGE("Unable to find url in SDP");
             err = UNKNOWN_ERROR;
         } else {
-            sp<AMessage> notify = new AMessage(kWhatNotify, id());
+            sp<AMessage> notify = new AMessage(kWhatNotify, this);
 
             mHandler = new MyHandler(rtspUri.c_str(), notify, mUIDValid, mUID);
             mLooper->registerHandler(mHandler);

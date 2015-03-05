@@ -480,7 +480,7 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
     }
     // we do not expect CODECCONFIG or SYNCFRAME for decoder
 
-    sp<AMessage> reply = new AMessage(kWhatRenderBuffer, id());
+    sp<AMessage> reply = new AMessage(kWhatRenderBuffer, this);
     reply->setSize("buffer-ix", bufferIx);
     reply->setInt32("generation", mBufferGeneration);
 
@@ -537,7 +537,7 @@ void NuPlayer::Decoder::requestCodecNotification() {
         return;
     }
     if (mCodec != NULL) {
-        sp<AMessage> reply = new AMessage(kWhatCodecNotify, id());
+        sp<AMessage> reply = new AMessage(kWhatCodecNotify, this);
         reply->setInt32("generation", mBufferGeneration);
         mCodec->requestActivityNotification(reply);
     }

@@ -214,7 +214,7 @@ void WifiDisplaySource::PlaybackSession::Track::stopAsync() {
         mConverter->shutdownAsync();
     }
 
-    sp<AMessage> msg = new AMessage(kWhatMediaPullerStopped, id());
+    sp<AMessage> msg = new AMessage(kWhatMediaPullerStopped, this);
 
     if (mStarted && mMediaPuller != NULL) {
         if (mRepeaterSource != NULL) {
@@ -382,7 +382,7 @@ status_t WifiDisplaySource::PlaybackSession::init(
         size_t videoResolutionIndex,
         VideoFormats::ProfileType videoProfileType,
         VideoFormats::LevelType videoLevelType) {
-    sp<AMessage> notify = new AMessage(kWhatMediaSenderNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatMediaSenderNotify, this);
     mMediaSender = new MediaSender(mNetSession, notify);
     looper()->registerHandler(mMediaSender);
 
@@ -440,7 +440,7 @@ void WifiDisplaySource::PlaybackSession::updateLiveness() {
 status_t WifiDisplaySource::PlaybackSession::play() {
     updateLiveness();
 
-    (new AMessage(kWhatResume, id()))->post();
+    (new AMessage(kWhatResume, this))->post();
 
     return OK;
 }
@@ -460,7 +460,7 @@ status_t WifiDisplaySource::PlaybackSession::onMediaSenderInitialized() {
 status_t WifiDisplaySource::PlaybackSession::pause() {
     updateLiveness();
 
-    (new AMessage(kWhatPause, id()))->post();
+    (new AMessage(kWhatPause, this))->post();
 
     return OK;
 }
@@ -786,7 +786,7 @@ status_t WifiDisplaySource::PlaybackSession::setupMediaPacketizer(
 
         size_t trackIndex = mTracks.size();
 
-        sp<AMessage> notify = new AMessage(kWhatTrackNotify, id());
+        sp<AMessage> notify = new AMessage(kWhatTrackNotify, this);
         notify->setSize("trackIndex", trackIndex);
 
         sp<Track> track = new Track(notify, format);
@@ -833,7 +833,7 @@ void WifiDisplaySource::PlaybackSession::schedulePullExtractor() {
 
     int64_t whenUs = sampleTimeUs - mFirstSampleTimeUs + mFirstSampleTimeRealUs;
 
-    sp<AMessage> msg = new AMessage(kWhatPullExtractorSample, id());
+    sp<AMessage> msg = new AMessage(kWhatPullExtractorSample, this);
     msg->setInt32("generation", mPullExtractorGeneration);
     msg->post(whenUs - nowUs);
 
@@ -857,7 +857,7 @@ void WifiDisplaySource::PlaybackSession::onPullExtractor() {
     size_t trackIndex;
     CHECK_EQ((status_t)OK, mExtractor->getSampleTrackIndex(&trackIndex));
 
-    sp<AMessage> msg = new AMessage(kWhatConverterNotify, id());
+    sp<AMessage> msg = new AMessage(kWhatConverterNotify, this);
 
     msg->setSize(
             "trackIndex", mExtractorTrackToInternalTrack.valueFor(trackIndex));
@@ -955,7 +955,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
                     ? MEDIA_MIMETYPE_AUDIO_RAW : MEDIA_MIMETYPE_AUDIO_AAC);
     }
 
-    notify = new AMessage(kWhatConverterNotify, id());
+    notify = new AMessage(kWhatConverterNotify, this);
     notify->setSize("trackIndex", trackIndex);
 
     sp<Converter> converter = new Converter(notify, codecLooper, format);
@@ -970,7 +970,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
         return err;
     }
 
-    notify = new AMessage(Converter::kWhatMediaPullerNotify, converter->id());
+    notify = new AMessage(Converter::kWhatMediaPullerNotify, converter);
     notify->setSize("trackIndex", trackIndex);
 
     sp<MediaPuller> puller = new MediaPuller(source, notify);
@@ -980,7 +980,7 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
         *numInputBuffers = converter->getInputBufferCount();
     }
 
-    notify = new AMessage(kWhatTrackNotify, id());
+    notify = new AMessage(kWhatTrackNotify, this);
     notify->setSize("trackIndex", trackIndex);
 
     sp<Track> track = new Track(

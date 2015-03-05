@@ -81,7 +81,7 @@ void NuPlayer::HTTPLiveSource::prepareAsync() {
         mLiveLooper->registerHandler(this);
     }
 
-    sp<AMessage> notify = new AMessage(kWhatSessionNotify, id());
+    sp<AMessage> notify = new AMessage(kWhatSessionNotify, this);
 
     mLiveSession = new LiveSession(
             notify,
@@ -153,7 +153,7 @@ status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select, i
     if (err == OK) {
         mFetchSubtitleDataGeneration++;
         if (select) {
-            sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, id());
+            sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, this);
             msg->setInt32("generation", mFetchSubtitleDataGeneration);
             msg->post();
         }

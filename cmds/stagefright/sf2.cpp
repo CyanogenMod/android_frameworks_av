@@ -72,7 +72,7 @@ struct Controller : public AHandler {
     }
 
     void startAsync() {
-        (new AMessage(kWhatStart, id()))->post();
+        (new AMessage(kWhatStart, this))->post();
     }
 
 protected:
@@ -100,7 +100,7 @@ protected:
         if (ctrlc) {
             printf("\n");
             printStatistics();
-            (new AMessage(kWhatStop, id()))->post();
+            (new AMessage(kWhatStop, this))->post();
             ctrlc = false;
         }
         switch (msg->what()) {
@@ -149,7 +149,7 @@ protected:
                 mDecodeLooper->registerHandler(mCodec);
 
                 mCodec->setNotificationMessage(
-                        new AMessage(kWhatCodecNotify, id()));
+                        new AMessage(kWhatCodecNotify, this));
 
                 sp<AMessage> format = makeFormat(mSource->getFormat());
 
@@ -168,7 +168,7 @@ protected:
                 mFinalResult = OK;
                 mSeekState = SEEK_NONE;
 
-                // (new AMessage(kWhatSeek, id()))->post(5000000ll);
+                // (new AMessage(kWhatSeek, this))->post(5000000ll);
                 break;
             }
 
@@ -225,12 +225,12 @@ protected:
                     printf((what == CodecBase::kWhatEOS) ? "$\n" : "E\n");
 
                     printStatistics();
-                    (new AMessage(kWhatStop, id()))->post();
+                    (new AMessage(kWhatStop, this))->post();
                 } else if (what == CodecBase::kWhatFlushCompleted) {
                     mSeekState = SEEK_FLUSH_COMPLETED;
                     mCodec->signalResume();
 
-                    (new AMessage(kWhatSeek, id()))->post(5000000ll);
+                    (new AMessage(kWhatSeek, this))->post(5000000ll);
                 } else if (what == CodecBase::kWhatOutputFormatChanged) {
                 } else if (what == CodecBase::kWhatShutdownCompleted) {
                     mDecodeLooper->unregisterHandler(mCodec->id());

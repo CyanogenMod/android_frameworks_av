@@ -452,61 +452,61 @@ void ACodec::setNotificationMessage(const sp<AMessage> &msg) {
 
 void ACodec::initiateSetup(const sp<AMessage> &msg) {
     msg->setWhat(kWhatSetup);
-    msg->setTarget(id());
+    msg->setTarget(this);
     msg->post();
 }
 
 void ACodec::signalSetParameters(const sp<AMessage> &params) {
-    sp<AMessage> msg = new AMessage(kWhatSetParameters, id());
+    sp<AMessage> msg = new AMessage(kWhatSetParameters, this);
     msg->setMessage("params", params);
     msg->post();
 }
 
 void ACodec::initiateAllocateComponent(const sp<AMessage> &msg) {
     msg->setWhat(kWhatAllocateComponent);
-    msg->setTarget(id());
+    msg->setTarget(this);
     msg->post();
 }
 
 void ACodec::initiateConfigureComponent(const sp<AMessage> &msg) {
     msg->setWhat(kWhatConfigureComponent);
-    msg->setTarget(id());
+    msg->setTarget(this);
     msg->post();
 }
 
 void ACodec::initiateCreateInputSurface() {
-    (new AMessage(kWhatCreateInputSurface, id()))->post();
+    (new AMessage(kWhatCreateInputSurface, this))->post();
 }
 
 void ACodec::signalEndOfInputStream() {
-    (new AMessage(kWhatSignalEndOfInputStream, id()))->post();
+    (new AMessage(kWhatSignalEndOfInputStream, this))->post();
 }
 
 void ACodec::initiateStart() {
-    (new AMessage(kWhatStart, id()))->post();
+    (new AMessage(kWhatStart, this))->post();
 }
 
 void ACodec::signalFlush() {
     ALOGV("[%s] signalFlush", mComponentName.c_str());
-    (new AMessage(kWhatFlush, id()))->post();
+    (new AMessage(kWhatFlush, this))->post();
 }
 
 void ACodec::signalResume() {
-    (new AMessage(kWhatResume, id()))->post();
+    (new AMessage(kWhatResume, this))->post();
 }
 
 void ACodec::initiateShutdown(bool keepComponentAllocated) {
-    sp<AMessage> msg = new AMessage(kWhatShutdown, id());
+    sp<AMessage> msg = new AMessage(kWhatShutdown, this);
     msg->setInt32("keepComponentAllocated", keepComponentAllocated);
     msg->post();
     if (!keepComponentAllocated) {
         // ensure shutdown completes in 3 seconds
-        (new AMessage(kWhatReleaseCodecInstance, id()))->post(3000000);
+        (new AMessage(kWhatReleaseCodecInstance, this))->post(3000000);
     }
 }
 
 void ACodec::signalRequestIDRFrame() {
-    (new AMessage(kWhatRequestIDRFrame, id()))->post();
+    (new AMessage(kWhatRequestIDRFrame, this))->post();
 }
 
 // *** NOTE: THE FOLLOWING WORKAROUND WILL BE REMOVED ***
@@ -517,7 +517,7 @@ void ACodec::signalRequestIDRFrame() {
 void ACodec::signalSubmitOutputMetaDataBufferIfEOS_workaround() {
     if (mPortEOS[kPortIndexInput] && !mPortEOS[kPortIndexOutput] &&
             mMetaDataBuffersToSubmit > 0) {
-        (new AMessage(kWhatSubmitOutputMetaDataBufferIfEOS, id()))->post();
+        (new AMessage(kWhatSubmitOutputMetaDataBufferIfEOS, this))->post();
     }
 }
 
@@ -4298,7 +4298,7 @@ void ACodec::BaseState::postFillThisBuffer(BufferInfo *info) {
     info->mData->meta()->clear();
     notify->setBuffer("buffer", info->mData);
 
-    sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, mCodec->id());
+    sp<AMessage> reply = new AMessage(kWhatInputBufferFilled, mCodec);
     reply->setInt32("buffer-id", info->mBufferID);
 
     notify->setMessage("reply", reply);
@@ -4558,7 +4558,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             }
 
             sp<AMessage> reply =
-                new AMessage(kWhatOutputBufferDrained, mCodec->id());
+                new AMessage(kWhatOutputBufferDrained, mCodec);
 
             if (!mCodec->mSentFormat && rangeLength > 0) {
                 mCodec->sendFormatChange(reply);
@@ -4834,7 +4834,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     sp<IOMX> omx = client.interface();
 
-    sp<AMessage> notify = new AMessage(kWhatOMXDied, mCodec->id());
+    sp<AMessage> notify = new AMessage(kWhatOMXDied, mCodec);
 
     mDeathNotifier = new DeathNotifier(notify);
     if (IInterface::asBinder(omx)->linkToDeath(mDeathNotifier) != OK) {
@@ -4909,7 +4909,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         return false;
     }
 
-    notify = new AMessage(kWhatOMXMessage, mCodec->id());
+    notify = new AMessage(kWhatOMXMessage, mCodec);
     observer->setNotificationMessage(notify);
 
     mCodec->mComponentName = componentName;
@@ -6000,7 +6000,7 @@ bool ACodec::FlushingState::onOMXEvent(
 
         case OMX_EventPortSettingsChanged:
         {
-            sp<AMessage> msg = new AMessage(kWhatOMXMessage, mCodec->id());
+            sp<AMessage> msg = new AMessage(kWhatOMXMessage, mCodec);
             msg->setInt32("type", omx_message::EVENT);
             msg->setInt32("node", mCodec->mNode);
             msg->setInt32("event", event);
