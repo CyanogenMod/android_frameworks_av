@@ -210,7 +210,7 @@ bool ALooper::loop() {
         mEventQueue.erase(mEventQueue.begin());
     }
 
-    gLooperRoster.deliverMessage(event.mMessage);
+    event.mMessage->deliver();
 
     // NOTE: It's important to note that at this point our "ALooper" object
     // may no longer exist (its final reference may have gone away while

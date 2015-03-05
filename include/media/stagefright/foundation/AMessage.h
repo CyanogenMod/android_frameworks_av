@@ -26,11 +26,14 @@
 namespace android {
 
 struct ABuffer;
+struct AHandler;
 struct AString;
 struct Parcel;
 
 struct AMessage : public RefBase {
-    AMessage(uint32_t what = 0, ALooper::handler_id target = 0);
+    AMessage();
+    AMessage(uint32_t what, ALooper::handler_id target = 0);
+    AMessage(uint32_t what, const sp<const AHandler> &handler);
 
     static sp<AMessage> FromParcel(const Parcel &parcel);
     void writeToParcel(Parcel *parcel) const;
@@ -39,7 +42,7 @@ struct AMessage : public RefBase {
     uint32_t what() const;
 
     void setTarget(ALooper::handler_id target);
-    ALooper::handler_id target() const;
+    void setTarget(const sp<const AHandler> &handler);
 
     void clear();
 
@@ -76,7 +79,7 @@ struct AMessage : public RefBase {
             const char *name,
             int32_t *left, int32_t *top, int32_t *right, int32_t *bottom) const;
 
-    void post(int64_t delayUs = 0);
+    status_t post(int64_t delayUs = 0);
 
     // Posts the message to its target and waits for a response (or error)
     // before returning.
@@ -117,8 +120,15 @@ protected:
     virtual ~AMessage();
 
 private:
+    friend struct ALooper; // deliver()
+
     uint32_t mWhat;
+
+    // used only for debugging
     ALooper::handler_id mTarget;
+
+    wp<AHandler> mHandler;
+    wp<ALooper> mLooper;
 
     struct Rect {
         int32_t mLeft, mTop, mRight, mBottom;
@@ -156,6 +166,8 @@ private:
             const char *name, const sp<RefBase> &obj, Type type);
 
     size_t findItemIndex(const char *name, size_t len) const;
+
+    void deliver();
 
     DISALLOW_EVIL_CONSTRUCTORS(AMessage);
 };

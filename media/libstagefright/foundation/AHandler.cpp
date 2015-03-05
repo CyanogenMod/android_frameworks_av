@@ -19,15 +19,23 @@
 #include <utils/Log.h>
 
 #include <media/stagefright/foundation/AHandler.h>
-
-#include <media/stagefright/foundation/ALooperRoster.h>
+#include <media/stagefright/foundation/AMessage.h>
 
 namespace android {
 
-sp<ALooper> AHandler::looper() {
-    extern ALooperRoster gLooperRoster;
+void AHandler::deliverMessage(const sp<AMessage> &msg) {
+    onMessageReceived(msg);
+    mMessageCounter++;
 
-    return gLooperRoster.findLooper(id());
+    if (mVerboseStats) {
+        uint32_t what = msg->what();
+        ssize_t idx = mMessages.indexOfKey(what);
+        if (idx < 0) {
+            mMessages.add(what, 1);
+        } else {
+            mMessages.editValueAt(idx)++;
+        }
+    }
 }
 
 }  // namespace android

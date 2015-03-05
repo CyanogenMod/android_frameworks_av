@@ -53,11 +53,15 @@ struct ALooper : public RefBase {
 
     static int64_t GetNowUs();
 
+    const char *getName() const {
+        return mName.c_str();
+    }
+
 protected:
     virtual ~ALooper();
 
 private:
-    friend struct ALooperRoster;
+    friend struct AMessage;       // post()
 
     struct Event {
         int64_t mWhenUs;
@@ -81,6 +85,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(ALooper);
 };
 
-}  // namespace android
+} // namespace android
 
 #endif  // A_LOOPER_H_

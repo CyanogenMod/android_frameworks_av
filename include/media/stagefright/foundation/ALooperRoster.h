@@ -33,15 +33,13 @@ struct ALooperRoster {
     void unregisterHandler(ALooper::handler_id handlerID);
     void unregisterStaleHandlers();
 
-    status_t postMessage(const sp<AMessage> &msg, int64_t delayUs = 0);
-    void deliverMessage(const sp<AMessage> &msg);
-
     status_t postAndAwaitResponse(
             const sp<AMessage> &msg, sp<AMessage> *response);
 
     void postReply(uint32_t replyID, const sp<AMessage> &reply);
 
-    sp<ALooper> findLooper(ALooper::handler_id handlerID);
+    void getHandlerAndLooper(
+            ALooper::handler_id handlerID, wp<AHandler> *handler, wp<ALooper> *looper);
 
     void dump(int fd, const Vector<String16>& args);
 

@@ -27,6 +27,7 @@
 #include "ABuffer.h"
 #include "ADebug.h"
 #include "ALooperRoster.h"
+#include "AHandler.h"
 #include "AString.h"
 
 #include <binder/Parcel.h>
@@ -36,10 +37,23 @@ namespace android {
 
 extern ALooperRoster gLooperRoster;
 
+AMessage::AMessage(void)
+    : mWhat(0),
+      mTarget(0),
+      mNumItems(0) {
+}
+
 AMessage::AMessage(uint32_t what, ALooper::handler_id target)
     : mWhat(what),
-      mTarget(target),
+      mTarget(0),
       mNumItems(0) {
+    setTarget(target);
+}
+
+AMessage::AMessage(uint32_t what, const sp<const AHandler> &handler)
+    : mWhat(what),
+      mNumItems(0) {
+    setTarget(handler);
 }
 
 AMessage::~AMessage() {
@@ -56,10 +70,19 @@ uint32_t AMessage::what() const {
 
 void AMessage::setTarget(ALooper::handler_id handlerID) {
     mTarget = handlerID;
+    gLooperRoster.getHandlerAndLooper(handlerID, &mHandler, &mLooper);
 }
 
-ALooper::handler_id AMessage::target() const {
-    return mTarget;
+void AMessage::setTarget(const sp<const AHandler> &handler) {
+    if (handler == NULL) {
+        mTarget = 0;
+        mHandler.clear();
+        mLooper.clear();
+    } else {
+        mTarget = handler->id();
+        mHandler = handler->getHandler();
+        mLooper = handler->getLooper();
+    }
 }
 
 void AMessage::clear() {
@@ -322,8 +345,25 @@ bool AMessage::findRect(
     return true;
 }
 
-void AMessage::post(int64_t delayUs) {
-    gLooperRoster.postMessage(this, delayUs);
+void AMessage::deliver() {
+    sp<AHandler> handler = mHandler.promote();
+    if (handler == NULL) {
+        ALOGW("failed to deliver message as target handler %d is gone.", mTarget);
+        return;
+    }
+
+    handler->deliverMessage(this);
+}
+
+status_t AMessage::post(int64_t delayUs) {
+    sp<ALooper> looper = mLooper.promote();
+    if (looper == NULL) {
+        ALOGW("failed to post message as target looper for handler %d is gone.", mTarget);
+        return -ENOENT;
+    }
+
+    looper->post(this, delayUs);
+    return OK;
 }
 
 status_t AMessage::postAndAwaitResponse(sp<AMessage> *response) {
@@ -348,7 +388,7 @@ bool AMessage::senderAwaitsResponse(uint32_t *replyID) const {
 }
 
 sp<AMessage> AMessage::dup() const {
-    sp<AMessage> msg = new AMessage(mWhat, mTarget);
+    sp<AMessage> msg = new AMessage(mWhat, mHandler.promote());
     msg->mNumItems = mNumItems;
 
 #ifdef DUMP_STATS
@@ -532,7 +572,8 @@ AString AMessage::debugString(int32_t indent) const {
 // static
 sp<AMessage> AMessage::FromParcel(const Parcel &parcel) {
     int32_t what = parcel.readInt32();
-    sp<AMessage> msg = new AMessage(what);
+    sp<AMessage> msg = new AMessage();
+    msg->setWhat(what);
 
     msg->mNumItems = static_cast<size_t>(parcel.readInt32());
     for (size_t i = 0; i < msg->mNumItems; ++i) {

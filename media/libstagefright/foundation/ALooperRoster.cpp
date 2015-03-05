@@ -49,7 +49,7 @@ ALooper::handler_id ALooperRoster::registerHandler(
     ALooper::handler_id handlerID = mNextHandlerID++;
     mHandlers.add(handlerID, info);
 
-    handler->setID(handlerID);
+    handler->setID(handlerID, looper);
 
     return handlerID;
 }
@@ -68,7 +68,7 @@ void ALooperRoster::unregisterHandler(ALooper::handler_id handlerID) {
     sp<AHandler> handler = info.mHandler.promote();
 
     if (handler != NULL) {
-        handler->setID(0);
+        handler->setID(0, NULL);
     }
 
     mHandlers.removeItemsAt(index);
@@ -100,96 +100,35 @@ void ALooperRoster::unregisterStaleHandlers() {
     }
 }
 
-status_t ALooperRoster::postMessage(
-        const sp<AMessage> &msg, int64_t delayUs) {
-
-    sp<ALooper> looper = findLooper(msg->target());
-
-    if (looper == NULL) {
-        return -ENOENT;
-    }
-    looper->post(msg, delayUs);
-    return OK;
-}
-
-void ALooperRoster::deliverMessage(const sp<AMessage> &msg) {
-    sp<AHandler> handler;
-
-    {
-        Mutex::Autolock autoLock(mLock);
-
-        ssize_t index = mHandlers.indexOfKey(msg->target());
-
-        if (index < 0) {
-            ALOGW("failed to deliver message. Target handler not registered.");
-            return;
-        }
-
-        const HandlerInfo &info = mHandlers.valueAt(index);
-        handler = info.mHandler.promote();
-
-        if (handler == NULL) {
-            ALOGW("failed to deliver message. "
-                 "Target handler %d registered, but object gone.",
-                 msg->target());
-
-            mHandlers.removeItemsAt(index);
-            return;
-        }
-    }
-
-    handler->onMessageReceived(msg);
-    handler->mMessageCounter++;
-
-    if (verboseStats) {
-        uint32_t what = msg->what();
-        ssize_t idx = handler->mMessages.indexOfKey(what);
-        if (idx < 0) {
-            handler->mMessages.add(what, 1);
-        } else {
-            handler->mMessages.editValueAt(idx)++;
-        }
-    }
-}
-
-sp<ALooper> ALooperRoster::findLooper(ALooper::handler_id handlerID) {
+void ALooperRoster::getHandlerAndLooper(
+        ALooper::handler_id handlerID, wp<AHandler> *handler, wp<ALooper> *looper) {
     Mutex::Autolock autoLock(mLock);
 
     ssize_t index = mHandlers.indexOfKey(handlerID);
 
     if (index < 0) {
-        return NULL;
+        handler->clear();
+        looper->clear();
+        return;
     }
 
-    sp<ALooper> looper = mHandlers.valueAt(index).mLooper.promote();
-
-    if (looper == NULL) {
-        mHandlers.removeItemsAt(index);
-        return NULL;
-    }
-
-    return looper;
+    *handler = mHandlers.valueAt(index).mHandler;
+    *looper = mHandlers.valueAt(index).mLooper;
 }
 
 status_t ALooperRoster::postAndAwaitResponse(
         const sp<AMessage> &msg, sp<AMessage> *response) {
-    sp<ALooper> looper = findLooper(msg->target());
-
-    if (looper == NULL) {
-        ALOGW("failed to post message. "
-                "Target handler %d still registered, but object gone.",
-                msg->target());
-        response->clear();
-        return -ENOENT;
-    }
-
     Mutex::Autolock autoLock(mLock);
 
     uint32_t replyID = mNextReplyID++;
 
     msg->setInt32("replyID", replyID);
 
-    looper->post(msg, 0 /* delayUs */);
+    status_t err = msg->post(0 /* delayUs */);
+    if (err != OK) {
+        response->clear();
+        return err;
+    }
 
     ssize_t index;
     while ((index = mReplies.indexOfKey(replyID)) < 0) {
@@ -225,7 +164,7 @@ static void makeFourCC(uint32_t fourcc, char *s) {
 void ALooperRoster::dump(int fd, const Vector<String16>& args) {
     bool clear = false;
     bool oldVerbose = verboseStats;
-    for (size_t i = 0;i < args.size(); i++) {
+    for (size_t i = 0; i < args.size(); i++) {
         if (args[i] == String16("-c")) {
             clear = true;
         } else if (args[i] == String16("-von")) {
@@ -241,22 +180,23 @@ void ALooperRoster::dump(int fd, const Vector<String16>& args) {
 
     Mutex::Autolock autoLock(mLock);
     size_t n = mHandlers.size();
-    s.appendFormat(" %zd registered handlers:\n", n);
+    s.appendFormat(" %zu registered handlers:\n", n);
 
     for (size_t i = 0; i < n; i++) {
-        s.appendFormat("  %zd: ", i);
+        s.appendFormat("  %d: ", mHandlers.keyAt(i));
         HandlerInfo &info = mHandlers.editValueAt(i);
         sp<ALooper> looper = info.mLooper.promote();
         if (looper != NULL) {
-            s.append(looper->mName.c_str());
+            s.append(looper->getName());
             sp<AHandler> handler = info.mHandler.promote();
             if (handler != NULL) {
+                handler->mVerboseStats = verboseStats;
                 s.appendFormat(": %u messages processed", handler->mMessageCounter);
                 if (verboseStats) {
                     for (size_t j = 0; j < handler->mMessages.size(); j++) {
                         char fourcc[15];
                         makeFourCC(handler->mMessages.keyAt(j), fourcc);
-                        s.appendFormat("\n    %s: %d",
+                        s.appendFormat("\n    %s: %u",
                                 fourcc,
                                 handler->mMessages.valueAt(j));
                     }
