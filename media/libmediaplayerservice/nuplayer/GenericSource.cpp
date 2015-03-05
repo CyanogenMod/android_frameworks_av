@@ -888,7 +888,7 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
               mVideoTrack.mPackets->clear();
           }
           sp<AMessage> response = new AMessage;
-          uint32_t replyID;
+          sp<AReplyToken> replyID;
           CHECK(msg->senderAwaitsResponse(&replyID));
           response->postReply(replyID);
           break;
@@ -990,7 +990,7 @@ void NuPlayer::GenericSource::onGetFormatMeta(sp<AMessage> msg) const {
     sp<MetaData> format = doGetFormatMeta(audio);
     response->setPointer("format", format.get());
 
-    uint32_t replyID;
+    sp<AReplyToken> replyID;
     CHECK(msg->senderAwaitsResponse(&replyID));
     response->postReply(replyID);
 }
@@ -1153,7 +1153,7 @@ void NuPlayer::GenericSource::onGetSelectedTrack(sp<AMessage> msg) const {
     ssize_t index = doGetSelectedTrack(type);
     response->setInt32("index", index);
 
-    uint32_t replyID;
+    sp<AReplyToken> replyID;
     CHECK(msg->senderAwaitsResponse(&replyID));
     response->postReply(replyID);
 }
@@ -1211,7 +1211,7 @@ void NuPlayer::GenericSource::onSelectTrack(sp<AMessage> msg) {
     status_t err = doSelectTrack(trackIndex, select, timeUs);
     response->setInt32("err", err);
 
-    uint32_t replyID;
+    sp<AReplyToken> replyID;
     CHECK(msg->senderAwaitsResponse(&replyID));
     response->postReply(replyID);
 }
@@ -1324,7 +1324,7 @@ void NuPlayer::GenericSource::onSeek(sp<AMessage> msg) {
     status_t err = doSeek(seekTimeUs);
     response->setInt32("err", err);
 
-    uint32_t replyID;
+    sp<AReplyToken> replyID;
     CHECK(msg->senderAwaitsResponse(&replyID));
     response->postReply(replyID);
 }

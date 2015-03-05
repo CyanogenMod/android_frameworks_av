@@ -30,6 +30,34 @@ struct AHandler;
 struct AString;
 struct Parcel;
 
+struct AReplyToken : public RefBase {
+    AReplyToken(const sp<ALooper> &looper)
+        : mLooper(looper),
+          mReplied(false) {
+    }
+
+private:
+    friend struct AMessage;
+    friend struct ALooper;
+    wp<ALooper> mLooper;
+    sp<AMessage> mReply;
+    bool mReplied;
+
+    sp<ALooper> getLooper() const {
+        return mLooper.promote();
+    }
+    // if reply is not set, returns false; otherwise, it retrieves the reply and returns true
+    bool retrieveReply(sp<AMessage> *reply) {
+        if (mReplied) {
+            *reply = mReply;
+            mReply.clear();
+        }
+        return mReplied;
+    }
+    // sets the reply for this token. returns OK or error
+    status_t setReply(const sp<AMessage> &reply);
+};
+
 struct AMessage : public RefBase {
     AMessage();
     AMessage(uint32_t what, const sp<const AHandler> &handler);
@@ -84,11 +112,15 @@ struct AMessage : public RefBase {
     status_t postAndAwaitResponse(sp<AMessage> *response);
 
     // If this returns true, the sender of this message is synchronously
-    // awaiting a response, the "replyID" can be used to send the response
-    // via "postReply" below.
-    bool senderAwaitsResponse(uint32_t *replyID) const;
+    // awaiting a response and the reply token is consumed from the message
+    // and stored into replyID. The reply token must be used to send the response
+    // using "postReply" below.
+    bool senderAwaitsResponse(sp<AReplyToken> *replyID);
 
-    void postReply(uint32_t replyID);
+    // Posts the message as a response to a reply token.  A reply token can
+    // only be used once. Returns OK if the response could be posted; otherwise,
+    // an error.
+    status_t postReply(const sp<AReplyToken> &replyID);
 
     // Performs a deep-copy of "this", contained messages are in turn "dup'ed".
     // Warning: RefBase items, i.e. "objects" are _not_ copied but only have

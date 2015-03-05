@@ -311,7 +311,7 @@ void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
 
 void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
     if (msg->what() == kWhatDisconnect) {
-        uint32_t replyID;
+        sp<AReplyToken> replyID;
         CHECK(msg->senderAwaitsResponse(&replyID));
 
         mDisconnectReplyID = replyID;

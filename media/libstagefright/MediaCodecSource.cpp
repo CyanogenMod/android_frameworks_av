@@ -182,7 +182,7 @@ void MediaCodecSource::Puller::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
             response->postReply(replyID);
             break;
@@ -491,7 +491,7 @@ void MediaCodecSource::signalEOS(status_t err) {
     if (mStopping && mEncoderReachedEOS) {
         ALOGI("encoder (%s) stopped", mIsVideo ? "video" : "audio");
         // posting reply to everyone that's waiting
-        List<uint32_t>::iterator it;
+        List<sp<AReplyToken>>::iterator it;
         for (it = mStopReplyIDQueue.begin();
                 it != mStopReplyIDQueue.end(); it++) {
             (new AMessage)->postReply(*it);
@@ -766,7 +766,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     }
     case kWhatStart:
     {
-        uint32_t replyID;
+        sp<AReplyToken> replyID;
         CHECK(msg->senderAwaitsResponse(&replyID));
 
         sp<RefBase> obj;
@@ -782,7 +782,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     {
         ALOGI("encoder (%s) stopping", mIsVideo ? "video" : "audio");
 
-        uint32_t replyID;
+        sp<AReplyToken> replyID;
         CHECK(msg->senderAwaitsResponse(&replyID));
 
         if (mEncoderReachedEOS) {

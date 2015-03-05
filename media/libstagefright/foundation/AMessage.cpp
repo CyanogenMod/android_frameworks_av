@@ -37,6 +37,17 @@ namespace android {
 
 extern ALooperRoster gLooperRoster;
 
+status_t AReplyToken::setReply(const sp<AMessage> &reply) {
+    if (mReplied) {
+        ALOGE("trying to post a duplicate reply");
+        return -EBUSY;
+    }
+    CHECK(mReply == NULL);
+    mReply = reply;
+    mReplied = true;
+    return OK;
+}
+
 AMessage::AMessage(void)
     : mWhat(0),
       mTarget(0),
@@ -355,24 +366,50 @@ status_t AMessage::post(int64_t delayUs) {
 }
 
 status_t AMessage::postAndAwaitResponse(sp<AMessage> *response) {
-    return gLooperRoster.postAndAwaitResponse(this, response);
+    sp<ALooper> looper = mLooper.promote();
+    if (looper == NULL) {
+        ALOGW("failed to post message as target looper for handler %d is gone.", mTarget);
+        return -ENOENT;
+    }
+
+    sp<AReplyToken> token = looper->createReplyToken();
+    if (token == NULL) {
+        ALOGE("failed to create reply token");
+        return -ENOMEM;
+    }
+    setObject("replyID", token);
+
+    looper->post(this, 0 /* delayUs */);
+    return looper->awaitResponse(token, response);
 }
 
-void AMessage::postReply(uint32_t replyID) {
-    gLooperRoster.postReply(replyID, this);
+status_t AMessage::postReply(const sp<AReplyToken> &replyToken) {
+    if (replyToken == NULL) {
+        ALOGW("failed to post reply to a NULL token");
+        return -ENOENT;
+    }
+    sp<ALooper> looper = replyToken->getLooper();
+    if (looper == NULL) {
+        ALOGW("failed to post reply as target looper is gone.");
+        return -ENOENT;
+    }
+    return looper->postReply(replyToken, this);
 }
 
-bool AMessage::senderAwaitsResponse(uint32_t *replyID) const {
-    int32_t tmp;
-    bool found = findInt32("replyID", &tmp);
+bool AMessage::senderAwaitsResponse(sp<AReplyToken> *replyToken) {
+    sp<RefBase> tmp;
+    bool found = findObject("replyID", &tmp);
 
     if (!found) {
         return false;
     }
 
-    *replyID = static_cast<uint32_t>(tmp);
+    *replyToken = static_cast<AReplyToken *>(tmp.get());
+    tmp.clear();
+    setObject("replyID", tmp);
+    // TODO: delete Object instead of setting it to NULL
 
-    return true;
+    return *replyToken != NULL;
 }
 
 sp<AMessage> AMessage::dup() const {

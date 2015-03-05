@@ -25,6 +25,7 @@ namespace android {
 
 class ALooper;
 class AMessage;
+struct AReplyToken;
 class IGraphicBufferProducer;
 class MediaCodec;
 class MetaData;
@@ -99,7 +100,7 @@ private:
     sp<Puller> mPuller;
     sp<MediaCodec> mEncoder;
     uint32_t mFlags;
-    List<uint32_t> mStopReplyIDQueue;
+    List<sp<AReplyToken>> mStopReplyIDQueue;
     bool mIsVideo;
     bool mStarted;
     bool mStopping;

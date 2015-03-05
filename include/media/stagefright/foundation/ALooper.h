@@ -30,6 +30,7 @@ namespace android {
 
 struct AHandler;
 struct AMessage;
+struct AReplyToken;
 
 struct ALooper : public RefBase {
     typedef int32_t event_id;
@@ -79,7 +80,27 @@ private:
     sp<LooperThread> mThread;
     bool mRunningLocally;
 
+    // use a separate lock for reply handling, as it is always on another thread
+    // use a central lock, however, to avoid creating a mutex for each reply
+    Mutex mRepliesLock;
+    Condition mRepliesCondition;
+
+    // START --- methods used only by AMessage
+
+    // posts a message on this looper with the given timeout
     void post(const sp<AMessage> &msg, int64_t delayUs);
+
+    // creates a reply token to be used with this looper
+    sp<AReplyToken> createReplyToken();
+    // waits for a response for the reply token.  If status is OK, the response
+    // is stored into the supplied variable.  Otherwise, it is unchanged.
+    status_t awaitResponse(const sp<AReplyToken> &replyToken, sp<AMessage> *response);
+    // posts a reply for a reply token.  If the reply could be successfully posted,
+    // it returns OK. Otherwise, it returns an error value.
+    status_t postReply(const sp<AReplyToken> &replyToken, const sp<AMessage> &msg);
+
+    // END --- methods used only by AMessage
+
     bool loop();
 
     DISALLOW_EVIL_CONSTRUCTORS(ALooper);

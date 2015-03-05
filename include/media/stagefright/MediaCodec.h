@@ -27,6 +27,7 @@ namespace android {
 
 struct ABuffer;
 struct AMessage;
+struct AReplyToken;
 struct AString;
 struct CodecBase;
 struct ICrypto;
@@ -222,7 +223,7 @@ private:
     sp<ALooper> mCodecLooper;
     sp<CodecBase> mCodec;
     AString mComponentName;
-    uint32_t mReplyID;
+    sp<AReplyToken> mReplyID;
     uint32_t mFlags;
     status_t mStickyError;
     sp<Surface> mNativeWindow;
@@ -249,10 +250,10 @@ private:
     Vector<BufferInfo> mPortBuffers[2];
 
     int32_t mDequeueInputTimeoutGeneration;
-    uint32_t mDequeueInputReplyID;
+    sp<AReplyToken> mDequeueInputReplyID;
 
     int32_t mDequeueOutputTimeoutGeneration;
-    uint32_t mDequeueOutputReplyID;
+    sp<AReplyToken> mDequeueOutputReplyID;
 
     sp<ICrypto> mCrypto;
 
@@ -267,7 +268,7 @@ private:
     static status_t PostAndAwaitResponse(
             const sp<AMessage> &msg, sp<AMessage> *response);
 
-    static void PostReplyWithError(int32_t replyID, int32_t err);
+    static void PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err);
 
     status_t init(const AString &name, bool nameIsType, bool encoder);
 
@@ -283,8 +284,8 @@ private:
             size_t portIndex, size_t index,
             sp<ABuffer> *buffer, sp<AMessage> *format);
 
-    bool handleDequeueInputBuffer(uint32_t replyID, bool newRequest = false);
-    bool handleDequeueOutputBuffer(uint32_t replyID, bool newRequest = false);
+    bool handleDequeueInputBuffer(const sp<AReplyToken> &replyID, bool newRequest = false);
+    bool handleDequeueOutputBuffer(const sp<AReplyToken> &replyID, bool newRequest = false);
     void cancelPendingDequeueOperations();
 
     void extractCSD(const sp<AMessage> &format);

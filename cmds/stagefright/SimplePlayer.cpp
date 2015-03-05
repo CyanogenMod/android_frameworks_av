@@ -116,7 +116,7 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mState = UNPREPARED;
             }
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> response = new AMessage;
@@ -139,7 +139,7 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 err = OK;
             }
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> response = new AMessage;
@@ -161,7 +161,7 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
             }
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> response = new AMessage;
@@ -194,7 +194,7 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
             }
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> response = new AMessage;
@@ -217,7 +217,7 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
             }
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> response = new AMessage;
@@ -240,7 +240,7 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mState = UNINITIALIZED;
             }
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> response = new AMessage;

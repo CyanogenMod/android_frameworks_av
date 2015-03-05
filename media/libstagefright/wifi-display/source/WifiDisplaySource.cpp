@@ -57,7 +57,7 @@ WifiDisplaySource::WifiDisplaySource(
       mNetSession(netSession),
       mClient(client),
       mSessionID(0),
-      mStopReplyID(0),
+      mStopReplyID(NULL),
       mChosenRTPPort(-1),
       mUsingPCMAudio(false),
       mClientSessionID(0),
@@ -138,7 +138,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatStart:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             AString iface;
@@ -325,7 +325,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatPause:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             status_t err = OK;
@@ -345,7 +345,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatResume:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             status_t err = OK;
@@ -492,7 +492,7 @@ void WifiDisplaySource::onMessageReceived(const sp<AMessage> &msg) {
             if (mState == AWAITING_CLIENT_TEARDOWN) {
                 ALOGI("TEARDOWN trigger timed out, forcing disconnection.");
 
-                CHECK_NE(mStopReplyID, 0);
+                CHECK(mStopReplyID != NULL);
                 finishStop();
                 break;
             }
@@ -1470,7 +1470,7 @@ status_t WifiDisplaySource::onTeardownRequest(
     mNetSession->sendRequest(sessionID, response.c_str());
 
     if (mState == AWAITING_CLIENT_TEARDOWN) {
-        CHECK_NE(mStopReplyID, 0);
+        CHECK(mStopReplyID != NULL);
         finishStop();
     } else {
         mClient->onDisplayError(IRemoteDisplayClient::kDisplayErrorUnknown);

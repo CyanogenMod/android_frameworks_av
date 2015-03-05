@@ -33,11 +33,6 @@ struct ALooperRoster {
     void unregisterHandler(ALooper::handler_id handlerID);
     void unregisterStaleHandlers();
 
-    status_t postAndAwaitResponse(
-            const sp<AMessage> &msg, sp<AMessage> *response);
-
-    void postReply(uint32_t replyID, const sp<AMessage> &reply);
-
     void dump(int fd, const Vector<String16>& args);
 
 private:
@@ -49,10 +44,6 @@ private:
     Mutex mLock;
     KeyedVector<ALooper::handler_id, HandlerInfo> mHandlers;
     ALooper::handler_id mNextHandlerID;
-    uint32_t mNextReplyID;
-    Condition mRepliesCondition;
-
-    KeyedVector<uint32_t, sp<AMessage> > mReplies;
 
     DISALLOW_EVIL_CONSTRUCTORS(ALooperRoster);
 };

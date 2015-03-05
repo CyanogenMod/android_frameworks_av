@@ -264,7 +264,7 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             response->setInt32("err", err);
             response->setInt32("offload", offloadingAudio());
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
             response->postReply(replyID);
 
@@ -273,7 +273,7 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatCloseAudioSink:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             onCloseAudioSink();

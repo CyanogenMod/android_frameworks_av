@@ -25,6 +25,7 @@
 namespace android {
 
 struct ALooper;
+struct AReplyToken;
 struct AnotherPacketSource;
 struct MyHandler;
 struct SDPLoader;
@@ -96,7 +97,7 @@ private:
     bool mIsSDP;
     State mState;
     status_t mFinalResult;
-    uint32_t mDisconnectReplyID;
+    sp<AReplyToken> mDisconnectReplyID;
     Mutex mBufferingLock;
     bool mBuffering;
 

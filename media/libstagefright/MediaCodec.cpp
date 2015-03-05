@@ -174,7 +174,7 @@ status_t MediaCodec::PostAndAwaitResponse(
 }
 
 // static
-void MediaCodec::PostReplyWithError(int32_t replyID, int32_t err) {
+void MediaCodec::PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err) {
     sp<AMessage> response = new AMessage;
     response->setInt32("err", err);
     response->postReply(replyID);
@@ -650,7 +650,7 @@ void MediaCodec::cancelPendingDequeueOperations() {
     }
 }
 
-bool MediaCodec::handleDequeueInputBuffer(uint32_t replyID, bool newRequest) {
+bool MediaCodec::handleDequeueInputBuffer(const sp<AReplyToken> &replyID, bool newRequest) {
     if (!isExecuting() || (mFlags & kFlagIsAsync)
             || (newRequest && (mFlags & kFlagDequeueInputPending))) {
         PostReplyWithError(replyID, INVALID_OPERATION);
@@ -674,7 +674,7 @@ bool MediaCodec::handleDequeueInputBuffer(uint32_t replyID, bool newRequest) {
     return true;
 }
 
-bool MediaCodec::handleDequeueOutputBuffer(uint32_t replyID, bool newRequest) {
+bool MediaCodec::handleDequeueOutputBuffer(const sp<AReplyToken> &replyID, bool newRequest) {
     sp<AMessage> response = new AMessage;
 
     if (!isExecuting() || (mFlags & kFlagIsAsync)
@@ -1198,7 +1198,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatInit:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != UNINITIALIZED) {
@@ -1234,7 +1234,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSetCallback:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState == UNINITIALIZED
@@ -1266,7 +1266,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatConfigure:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState != INITIALIZED) {
@@ -1323,7 +1323,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatCreateInputSurface:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             // Must be configured, but can't have been started yet.
@@ -1339,7 +1339,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatStart:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState == FLUSHED) {
@@ -1365,7 +1365,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             State targetState =
                 (msg->what() == kWhatStop) ? INITIALIZED : UNINITIALIZED;
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (!((mFlags & kFlagIsComponentAllocated) && targetState == UNINITIALIZED) // See 1
@@ -1413,7 +1413,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatDequeueInputBuffer:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mFlags & kFlagIsAsync) {
@@ -1474,7 +1474,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatQueueInputBuffer:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (!isExecuting()) {
@@ -1493,7 +1493,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatDequeueOutputBuffer:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mFlags & kFlagIsAsync) {
@@ -1548,7 +1548,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatReleaseOutputBuffer:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (!isExecuting()) {
@@ -1567,7 +1567,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSignalEndOfInputStream:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (!isExecuting()) {
@@ -1585,7 +1585,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatGetBuffers:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (!isExecuting() || (mFlags & kFlagIsAsync)) {
@@ -1619,7 +1619,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatFlush:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (!isExecuting()) {
@@ -1645,7 +1645,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> format =
                 (msg->what() == kWhatGetOutputFormat ? mOutputFormat : mInputFormat);
 
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if ((mState != CONFIGURED && mState != STARTING &&
@@ -1682,7 +1682,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatGetName:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mComponentName.empty()) {
@@ -1698,7 +1698,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSetParameters:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             sp<AMessage> params;

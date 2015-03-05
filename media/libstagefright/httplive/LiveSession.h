@@ -26,6 +26,7 @@
 namespace android {
 
 struct ABuffer;
+struct AReplyToken;
 struct AnotherPacketSource;
 struct DataSource;
 struct HTTPBase;
@@ -203,8 +204,8 @@ private:
 
     bool mReconfigurationInProgress;
     bool mSwitchInProgress;
-    uint32_t mDisconnectReplyID;
-    uint32_t mSeekReplyID;
+    sp<AReplyToken> mDisconnectReplyID;
+    sp<AReplyToken> mSeekReplyID;
 
     bool mFirstTimeUsValid;
     int64_t mFirstTimeUs;

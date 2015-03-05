@@ -136,7 +136,7 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatGetInputBuffers:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             Vector<sp<ABuffer> > *dstBuffers;

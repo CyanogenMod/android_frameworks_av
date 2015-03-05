@@ -27,6 +27,7 @@
 
 namespace android {
 
+struct AReplyToken;
 struct IHDCP;
 struct IRemoteDisplayClient;
 struct ParsedMessage;
@@ -121,7 +122,7 @@ private:
     struct in_addr mInterfaceAddr;
     int32_t mSessionID;
 
-    uint32_t mStopReplyID;
+    sp<AReplyToken> mStopReplyID;
 
     AString mWfdClientRtpPorts;
     int32_t mChosenRTPPort;  // extracted from "wfd_client_rtp_ports"

@@ -402,7 +402,7 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSeek:
         {
-            uint32_t seekReplyID;
+            sp<AReplyToken> seekReplyID;
             CHECK(msg->senderAwaitsResponse(&seekReplyID));
             mSeekReplyID = seekReplyID;
             mSeekReply = new AMessage;

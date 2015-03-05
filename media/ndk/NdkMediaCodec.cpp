@@ -116,7 +116,7 @@ void CodecHandler::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatStopActivityNotifications:
         {
-            uint32_t replyID;
+            sp<AReplyToken> replyID;
             msg->senderAwaitsResponse(&replyID);
 
             mCodec->mGeneration++;

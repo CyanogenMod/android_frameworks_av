@@ -30,8 +30,7 @@ namespace android {
 static bool verboseStats = false;
 
 ALooperRoster::ALooperRoster()
-    : mNextHandlerID(1),
-      mNextReplyID(1) {
+    : mNextHandlerID(1) {
 }
 
 ALooper::handler_id ALooperRoster::registerHandler(
@@ -98,39 +97,6 @@ void ALooperRoster::unregisterStaleHandlers() {
             }
         }
     }
-}
-
-status_t ALooperRoster::postAndAwaitResponse(
-        const sp<AMessage> &msg, sp<AMessage> *response) {
-    Mutex::Autolock autoLock(mLock);
-
-    uint32_t replyID = mNextReplyID++;
-
-    msg->setInt32("replyID", replyID);
-
-    status_t err = msg->post(0 /* delayUs */);
-    if (err != OK) {
-        response->clear();
-        return err;
-    }
-
-    ssize_t index;
-    while ((index = mReplies.indexOfKey(replyID)) < 0) {
-        mRepliesCondition.wait(mLock);
-    }
-
-    *response = mReplies.valueAt(index);
-    mReplies.removeItemsAt(index);
-
-    return OK;
-}
-
-void ALooperRoster::postReply(uint32_t replyID, const sp<AMessage> &reply) {
-    Mutex::Autolock autoLock(mLock);
-
-    CHECK(mReplies.indexOfKey(replyID) < 0);
-    mReplies.add(replyID, reply);
-    mRepliesCondition.broadcast();
 }
 
 static void makeFourCC(uint32_t fourcc, char *s) {
