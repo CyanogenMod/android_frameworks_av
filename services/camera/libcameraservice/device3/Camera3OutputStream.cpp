@@ -157,33 +157,9 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
     ALOG_ASSERT(output, "Expected output to be true");
 
     status_t res;
-    sp<Fence> releaseFence;
 
-    /**
-     * Fence management - calculate Release Fence
-     */
-    if (buffer.status == CAMERA3_BUFFER_STATUS_ERROR) {
-        if (buffer.release_fence != -1) {
-            ALOGE("%s: Stream %d: HAL should not set release_fence(%d) when "
-                  "there is an error", __FUNCTION__, mId, buffer.release_fence);
-            close(buffer.release_fence);
-        }
-
-        /**
-         * Reassign release fence as the acquire fence in case of error
-         */
-        releaseFence = new Fence(buffer.acquire_fence);
-    } else {
-        res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
-        if (res != OK) {
-            ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
-                  __FUNCTION__, mId, strerror(-res), res);
-            return res;
-        }
-
-        releaseFence = new Fence(buffer.release_fence);
-    }
-
+    // Fence management - always honor release fence from HAL
+    sp<Fence> releaseFence = new Fence(buffer.release_fence);
     int anwReleaseFence = releaseFence->dup();
 
     /**
@@ -215,6 +191,13 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
                 ATRACE_NAME(traceLog);
             }
             mTraceFirstBuffer = false;
+        }
+
+        res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
+        if (res != OK) {
+            ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
+                  __FUNCTION__, mId, strerror(-res), res);
+            return res;
         }
 
         res = currentConsumer->queueBuffer(currentConsumer.get(),
