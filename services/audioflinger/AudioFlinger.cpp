@@ -1957,18 +1957,18 @@ status_t AudioFlinger::restoreOutput(audio_io_handle_t output)
 status_t AudioFlinger::openInput(audio_module_handle_t module,
                                           audio_io_handle_t *input,
                                           audio_config_t *config,
-                                          audio_devices_t *device,
+                                          audio_devices_t *devices,
                                           const String8& address,
                                           audio_source_t source,
                                           audio_input_flags_t flags)
 {
     Mutex::Autolock _l(mLock);
 
-    if (*device == AUDIO_DEVICE_NONE) {
+    if (*devices == AUDIO_DEVICE_NONE) {
         return BAD_VALUE;
     }
 
-    sp<RecordThread> thread = openInput_l(module, input, config, *device, address, source, flags);
+    sp<RecordThread> thread = openInput_l(module, input, config, *devices, address, source, flags);
 
     if (thread != 0) {
         // notify client processes of the new input creation
@@ -1981,12 +1981,12 @@ status_t AudioFlinger::openInput(audio_module_handle_t module,
 sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t module,
                                                          audio_io_handle_t *input,
                                                          audio_config_t *config,
-                                                         audio_devices_t device,
+                                                         audio_devices_t devices,
                                                          const String8& address,
                                                          audio_source_t source,
                                                          audio_input_flags_t flags)
 {
-    AudioHwDevice *inHwDev = findSuitableHwDev_l(module, device);
+    AudioHwDevice *inHwDev = findSuitableHwDev_l(module, devices);
     if (inHwDev == NULL) {
         *input = AUDIO_IO_HANDLE_NONE;
         return 0;
@@ -1999,7 +1999,7 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
     audio_config_t halconfig = *config;
     audio_hw_device_t *inHwHal = inHwDev->hwDevice();
     audio_stream_in_t *inStream = NULL;
-    status_t status = inHwHal->open_input_stream(inHwHal, *input, device, &halconfig,
+    status_t status = inHwHal->open_input_stream(inHwHal, *input, devices, &halconfig,
                                         &inStream, flags, address.string(), source);
     ALOGV("openInput_l() openInputStream returned input %p, SamplingRate %d"
            ", Format %#x, Channels %x, flags %#x, status %d addr %s",
@@ -2021,7 +2021,7 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
         // FIXME describe the change proposed by HAL (save old values so we can log them here)
         ALOGV("openInput_l() reopening with proposed sampling rate and channel mask");
         inStream = NULL;
-        status = inHwHal->open_input_stream(inHwHal, *input, device, &halconfig,
+        status = inHwHal->open_input_stream(inHwHal, *input, devices, &halconfig,
                                             &inStream, flags, address.string(), source);
         // FIXME log this new status; HAL should not propose any further changes
     }
@@ -2086,7 +2086,7 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
                                   inputStream,
                                   *input,
                                   primaryOutputDevice_l(),
-                                  device
+                                  devices
 #ifdef TEE_SINK
                                   , teeSink
 #endif
