@@ -43,13 +43,6 @@ AMessage::AMessage(void)
       mNumItems(0) {
 }
 
-AMessage::AMessage(uint32_t what, ALooper::handler_id target)
-    : mWhat(what),
-      mTarget(0),
-      mNumItems(0) {
-    setTarget(target);
-}
-
 AMessage::AMessage(uint32_t what, const sp<const AHandler> &handler)
     : mWhat(what),
       mNumItems(0) {
@@ -66,11 +59,6 @@ void AMessage::setWhat(uint32_t what) {
 
 uint32_t AMessage::what() const {
     return mWhat;
-}
-
-void AMessage::setTarget(ALooper::handler_id handlerID) {
-    mTarget = handlerID;
-    gLooperRoster.getHandlerAndLooper(handlerID, &mHandler, &mLooper);
 }
 
 void AMessage::setTarget(const sp<const AHandler> &handler) {

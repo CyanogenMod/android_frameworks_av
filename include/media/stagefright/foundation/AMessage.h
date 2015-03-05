@@ -32,7 +32,6 @@ struct Parcel;
 
 struct AMessage : public RefBase {
     AMessage();
-    AMessage(uint32_t what, ALooper::handler_id target = 0);
     AMessage(uint32_t what, const sp<const AHandler> &handler);
 
     static sp<AMessage> FromParcel(const Parcel &parcel);
@@ -41,7 +40,6 @@ struct AMessage : public RefBase {
     void setWhat(uint32_t what);
     uint32_t what() const;
 
-    void setTarget(ALooper::handler_id target);
     void setTarget(const sp<const AHandler> &handler);
 
     void clear();

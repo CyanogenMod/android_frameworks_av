@@ -38,9 +38,6 @@ struct ALooperRoster {
 
     void postReply(uint32_t replyID, const sp<AMessage> &reply);
 
-    void getHandlerAndLooper(
-            ALooper::handler_id handlerID, wp<AHandler> *handler, wp<ALooper> *looper);
-
     void dump(int fd, const Vector<String16>& args);
 
 private:

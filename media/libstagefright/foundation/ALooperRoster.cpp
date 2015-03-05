@@ -100,22 +100,6 @@ void ALooperRoster::unregisterStaleHandlers() {
     }
 }
 
-void ALooperRoster::getHandlerAndLooper(
-        ALooper::handler_id handlerID, wp<AHandler> *handler, wp<ALooper> *looper) {
-    Mutex::Autolock autoLock(mLock);
-
-    ssize_t index = mHandlers.indexOfKey(handlerID);
-
-    if (index < 0) {
-        handler->clear();
-        looper->clear();
-        return;
-    }
-
-    *handler = mHandlers.valueAt(index).mHandler;
-    *looper = mHandlers.valueAt(index).mLooper;
-}
-
 status_t ALooperRoster::postAndAwaitResponse(
         const sp<AMessage> &msg, sp<AMessage> *response) {
     Mutex::Autolock autoLock(mLock);
