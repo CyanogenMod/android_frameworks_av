@@ -836,7 +836,7 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
         if (status == NO_ERROR) {
             mWakeLockToken = binder;
         }
-        ALOGV("acquireWakeLock_l() %s status %d", mName, status);
+        ALOGV("acquireWakeLock_l() %s status %d", mThreadName, status);
     }
 }
 
@@ -849,7 +849,7 @@ void AudioFlinger::ThreadBase::releaseWakeLock()
 void AudioFlinger::ThreadBase::releaseWakeLock_l()
 {
     if (mWakeLockToken != 0) {
-        ALOGV("releaseWakeLock_l() %s", mName);
+        ALOGV("releaseWakeLock_l() %s", mThreadName);
         if (mPowerManager != 0) {
             mPowerManager->releaseWakeLock(mWakeLockToken, 0,
                     true /* FIXME force oneway contrary to .aidl */);
@@ -870,7 +870,7 @@ void AudioFlinger::ThreadBase::getPowerManager_l() {
         sp<IBinder> binder =
             defaultServiceManager()->checkService(String16("power"));
         if (binder == 0) {
-            ALOGW("Thread %s cannot connect to the power manager service", mName);
+            ALOGW("Thread %s cannot connect to the power manager service", mThreadName);
         } else {
             mPowerManager = interface_cast<IPowerManager>(binder);
             binder->linkToDeath(mDeathRecipient);
@@ -890,7 +890,7 @@ void AudioFlinger::ThreadBase::updateWakeLockUids_l(const SortedVector<int> &uid
         status_t status;
         status = mPowerManager->updateWakeLockUids(mWakeLockToken, uids.size(), uids.array(),
                     true /* FIXME force oneway contrary to .aidl */);
-        ALOGV("acquireWakeLock_l() %s status %d", mName, status);
+        ALOGV("acquireWakeLock_l() %s status %d", mThreadName, status);
     }
 }
 
@@ -1074,7 +1074,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
     // mSinkBuffer is not guaranteed to be compatible with effect processing (PCM 16 stereo).
     if (mType == DIRECT) {
         ALOGW("createEffect_l() Cannot add effect %s on Direct output type thread %s",
-                desc->name, mName);
+                desc->name, mThreadName);
         lStatus = BAD_VALUE;
         goto Exit;
     }
@@ -1098,7 +1098,8 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         case DUPLICATING:
         case RECORD:
         default:
-            ALOGW("createEffect_l() Cannot add global effect %s on thread %s", desc->name, mName);
+            ALOGW("createEffect_l() Cannot add global effect %s on thread %s",
+                    desc->name, mThreadName);
             lStatus = BAD_VALUE;
             goto Exit;
         }
@@ -1363,8 +1364,8 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         // mLatchD, mLatchQ,
         mLatchDValid(false), mLatchQValid(false)
 {
-    snprintf(mName, kNameLength, "AudioOut_%X", id);
-    mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
+    snprintf(mThreadName, kThreadNameLength, "AudioOut_%X", id);
+    mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mThreadName);
 
     // Assumes constructor is called by AudioFlinger with it's mLock held, but
     // it would be safer to explicitly pass initial masterVolume/masterMute as
@@ -1500,7 +1501,7 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
 
 void AudioFlinger::PlaybackThread::onFirstRef()
 {
-    run(mName, ANDROID_PRIORITY_URGENT_AUDIO);
+    run(mThreadName, ANDROID_PRIORITY_URGENT_AUDIO);
 }
 
 // ThreadBase virtuals
@@ -5160,8 +5161,8 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     // mFastCaptureNBLogWriter
     , mFastTrackAvail(false)
 {
-    snprintf(mName, kNameLength, "AudioIn_%X", id);
-    mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mName);
+    snprintf(mThreadName, kThreadNameLength, "AudioIn_%X", id);
+    mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mThreadName);
 
     readInputParameters_l();
 
@@ -5302,7 +5303,7 @@ AudioFlinger::RecordThread::~RecordThread()
 
 void AudioFlinger::RecordThread::onFirstRef()
 {
-    run(mName, PRIORITY_URGENT_AUDIO);
+    run(mThreadName, PRIORITY_URGENT_AUDIO);
 }
 
 bool AudioFlinger::RecordThread::threadLoop()

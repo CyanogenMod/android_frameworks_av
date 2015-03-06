@@ -432,8 +432,8 @@ protected:
                 const audio_io_handle_t mId;
                 Vector< sp<EffectChain> > mEffectChains;
 
-                static const int        kNameLength = 16;   // prctl(PR_SET_NAME) limit
-                char                    mName[kNameLength];
+                static const int        kThreadNameLength = 16; // prctl(PR_SET_NAME) limit
+                char                    mThreadName[kThreadNameLength]; // guaranteed NUL-terminated
                 sp<IPowerManager>       mPowerManager;
                 sp<IBinder>             mWakeLockToken;
                 const sp<PMDeathRecipient> mDeathRecipient;
