@@ -797,19 +797,19 @@ void AudioFlinger::ThreadBase::acquireWakeLock(int uid)
 String16 AudioFlinger::ThreadBase::getWakeLockTag()
 {
     switch (mType) {
-        case MIXER:
-            return String16("AudioMix");
-        case DIRECT:
-            return String16("AudioDirectOut");
-        case DUPLICATING:
-            return String16("AudioDup");
-        case RECORD:
-            return String16("AudioIn");
-        case OFFLOAD:
-            return String16("AudioOffload");
-        default:
-            ALOG_ASSERT(false);
-            return String16("AudioUnknown");
+    case MIXER:
+        return String16("AudioMix");
+    case DIRECT:
+        return String16("AudioDirectOut");
+    case DUPLICATING:
+        return String16("AudioDup");
+    case RECORD:
+        return String16("AudioIn");
+    case OFFLOAD:
+        return String16("AudioOffload");
+    default:
+        ALOG_ASSERT(false);
+        return String16("AudioUnknown");
     }
 }
 

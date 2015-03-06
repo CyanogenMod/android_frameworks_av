@@ -69,10 +69,10 @@ void FastMixerDumpState::dump(int fd) const
                 "            numTracks=%u writeErrors=%u underruns=%u overruns=%u\n"
                 "            sampleRate=%u frameCount=%zu measuredWarmup=%.3g ms, warmupCycles=%u\n"
                 "            mixPeriod=%.2f ms\n",
-                 FastMixerState::commandToString(mCommand), mWriteSequence, mFramesWritten,
-                 mNumTracks, mWriteErrors, mUnderruns, mOverruns,
-                 mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
-                 mixPeriodSec * 1e3);
+                FastMixerState::commandToString(mCommand), mWriteSequence, mFramesWritten,
+                mNumTracks, mWriteErrors, mUnderruns, mOverruns,
+                mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
+                mixPeriodSec * 1e3);
 #ifdef FAST_THREAD_STATISTICS
     // find the interval of valid samples
     uint32_t bounds = mBounds;
