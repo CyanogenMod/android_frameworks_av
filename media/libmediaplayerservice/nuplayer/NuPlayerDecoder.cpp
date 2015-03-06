@@ -602,11 +602,11 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
                     // output queue, and handles it in renderer instead.
                     rememberCodecSpecificData(newFormat);
                     onFlush(false /* notifyComplete */);
-                    continue;
+                    err = OK;
                 } else if (seamlessFormatChange) {
                     // reuse existing decoder and don't flush
                     rememberCodecSpecificData(newFormat);
-                    continue;
+                    err = OK;
                 } else {
                     // This stream is unaffected by the discontinuity
                     return -EWOULDBLOCK;
@@ -696,7 +696,10 @@ bool NuPlayer::Decoder::onInputBufferFetched(const sp<AMessage> &msg) {
         int32_t streamErr = ERROR_END_OF_STREAM;
         CHECK(msg->findInt32("err", &streamErr) || !hasBuffer);
 
-        CHECK(streamErr != OK);
+        if (streamErr == OK) {
+            /* buffers are returned to hold on to */
+            return true;
+        }
 
         // attempt to queue EOS
         status_t err = mCodec->queueInputBuffer(
