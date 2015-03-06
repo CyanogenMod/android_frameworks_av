@@ -2809,13 +2809,13 @@ bool AudioFlinger::updateOrphanEffectChains(const sp<AudioFlinger::EffectModule>
 
 
 struct Entry {
-#define MAX_NAME 32     // %Y%m%d%H%M%S_%d.wav
-    char mName[MAX_NAME];
+#define TEE_MAX_FILENAME 32 // %Y%m%d%H%M%S_%d.wav = 4+2+2+2+2+2+1+1+4+1 = 21
+    char mFileName[TEE_MAX_FILENAME];
 };
 
 int comparEntry(const void *p1, const void *p2)
 {
-    return strcmp(((const Entry *) p1)->mName, ((const Entry *) p2)->mName);
+    return strcmp(((const Entry *) p1)->mFileName, ((const Entry *) p2)->mFileName);
 }
 
 #ifdef TEE_SINK
@@ -2834,11 +2834,11 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
         DIR *dir = opendir(teePath);
         teePath[teePathLen++] = '/';
         if (dir != NULL) {
-#define MAX_SORT 20 // number of entries to sort
-#define MAX_KEEP 10 // number of entries to keep
-            struct Entry entries[MAX_SORT];
+#define TEE_MAX_SORT 20 // number of entries to sort
+#define TEE_MAX_KEEP 10 // number of entries to keep
+            struct Entry entries[TEE_MAX_SORT];
             size_t entryCount = 0;
-            while (entryCount < MAX_SORT) {
+            while (entryCount < TEE_MAX_SORT) {
                 struct dirent de;
                 struct dirent *result = NULL;
                 int rc = readdir_r(dir, &de, &result);
@@ -2855,17 +2855,17 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
                 }
                 // ignore non .wav file entries
                 size_t nameLen = strlen(de.d_name);
-                if (nameLen <= 4 || nameLen >= MAX_NAME ||
+                if (nameLen <= 4 || nameLen >= TEE_MAX_FILENAME ||
                         strcmp(&de.d_name[nameLen - 4], ".wav")) {
                     continue;
                 }
-                strcpy(entries[entryCount++].mName, de.d_name);
+                strcpy(entries[entryCount++].mFileName, de.d_name);
             }
             (void) closedir(dir);
-            if (entryCount > MAX_KEEP) {
+            if (entryCount > TEE_MAX_KEEP) {
                 qsort(entries, entryCount, sizeof(Entry), comparEntry);
-                for (size_t i = 0; i < entryCount - MAX_KEEP; ++i) {
-                    strcpy(&teePath[teePathLen], entries[i].mName);
+                for (size_t i = 0; i < entryCount - TEE_MAX_KEEP; ++i) {
+                    strcpy(&teePath[teePathLen], entries[i].mFileName);
                     (void) unlink(teePath);
                 }
             }
