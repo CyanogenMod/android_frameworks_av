@@ -251,6 +251,7 @@ M3UParser::M3UParser(
       mIsComplete(false),
       mIsEvent(false),
       mDiscontinuitySeq(0),
+      mDiscontinuityCount(0),
       mSelectedIndex(-1) {
     mInitCheck = parse(data, size);
 }
@@ -582,6 +583,7 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                     itemMeta = new AMessage;
                 }
                 itemMeta->setInt32("discontinuity", true);
+                ++mDiscontinuityCount;
             } else if (line.startsWith("#EXT-X-STREAM-INF")) {
                 if (mMeta != NULL) {
                     return ERROR_MALFORMED;
@@ -609,6 +611,9 @@ status_t M3UParser::parse(const void *_data, size_t size) {
             } else if (line.startsWith("#EXT-X-MEDIA")) {
                 err = parseMedia(line);
             } else if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) {
+                if (mIsVariantPlaylist) {
+                    return ERROR_MALFORMED;
+                }
                 size_t seq;
                 err = parseDiscontinuitySequence(line, &seq);
                 if (err == OK) {
@@ -628,6 +633,7 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                         || !itemMeta->findInt64("durationUs", &durationUs)) {
                     return ERROR_MALFORMED;
                 }
+                itemMeta->setInt32("discontinuity-sequence", mDiscontinuitySeq + mDiscontinuityCount);
             }
 
             mItems.push();
