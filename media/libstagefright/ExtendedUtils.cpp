@@ -1548,15 +1548,21 @@ bool ExtendedUtils::RTSPStream::ParseURL_V6(
     ssize_t bracketEnd = host->find("]");
     ALOGI("ExtendedUtils::ParseURL_V6() : host->c_str() = %s", host->c_str());
 
-    if (bracketEnd > 0) {
-        if (host->find(":", bracketEnd) == bracketEnd + 1) {
-            *colonPos = host->c_str() + bracketEnd + 1;
-        }
-    } else {
+    if (bracketEnd <= 0) {
         return false;
     }
 
-    host->erase(bracketEnd, host->size() - bracketEnd);
+    // If there is a port present, leave it for parsing in ParseURL
+    // otherwise, remove all trailing characters in the hostname
+    size_t trailing = host->size() - bracketEnd;
+    if (host->find(":", bracketEnd) == bracketEnd + 1) {
+        // 2 characters must be subtracted to account for the removal of
+        // the starting and ending brackets below --> bracketEnd + 1 - 2
+        *colonPos = host->c_str() + bracketEnd - 1;
+        trailing = 1;
+    }
+
+    host->erase(bracketEnd, trailing);
     host->erase(0, 1);
 
     return true;
