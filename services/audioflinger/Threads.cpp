@@ -345,7 +345,7 @@ static String8 outputFlagsToString(audio_output_flags_t flags)
         AUDIO_OUTPUT_FLAG_PRIMARY,          "PRIMARY",
         AUDIO_OUTPUT_FLAG_FAST,             "FAST",
         AUDIO_OUTPUT_FLAG_DEEP_BUFFER,      "DEEP_BUFFER",
-        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD, "COMPRESS_OFFLOAAD",
+        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD, "COMPRESS_OFFLOAD",
         AUDIO_OUTPUT_FLAG_NON_BLOCKING,     "NON_BLOCKING",
         AUDIO_OUTPUT_FLAG_HW_AV_SYNC,       "HW_AV_SYNC",
         AUDIO_OUTPUT_FLAG_NONE,             "NONE",         // must be last
