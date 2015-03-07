@@ -53,8 +53,6 @@ struct AnotherPacketSource : public MediaSource {
     // presentation timestamps since the last discontinuity (if any).
     int64_t getBufferedDurationUs(status_t *finalResult);
 
-    int64_t getEstimatedDurationUs();
-
     status_t nextBufferTime(int64_t *timeUs);
 
     void queueAccessUnit(const sp<ABuffer> &buffer);
@@ -84,6 +82,25 @@ protected:
     virtual ~AnotherPacketSource();
 
 private:
+
+    struct DiscontinuitySegment {
+        int64_t mMaxDequeTimeUs, mMaxEnqueTimeUs;
+        DiscontinuitySegment()
+            : mMaxDequeTimeUs(-1),
+              mMaxEnqueTimeUs(-1) {
+        };
+
+        void clear() {
+            mMaxDequeTimeUs = mMaxEnqueTimeUs = -1;
+        }
+    };
+
+    // Discontinuity segments are consecutive access units between
+    // discontinuity markers. There should always be at least _ONE_
+    // discontinuity segment, hence the various CHECKs in
+    // AnotherPacketSource.cpp for non-empty()-ness.
+    List<DiscontinuitySegment> mDiscontinuitySegments;
+
     Mutex mLock;
     Condition mCondition;
 
@@ -97,10 +114,7 @@ private:
     sp<AMessage> mLatestEnqueuedMeta;
     sp<AMessage> mLatestDequeuedMeta;
 
-    size_t  mQueuedDiscontinuityCount;
-
     bool wasFormatChange(int32_t discontinuityType) const;
-    int64_t getBufferedDurationUs_l(status_t *finalResult);
 
     DISALLOW_EVIL_CONSTRUCTORS(AnotherPacketSource);
 };

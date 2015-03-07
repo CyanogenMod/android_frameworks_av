@@ -2262,8 +2262,9 @@ bool LiveSession::checkBuffering(
             continue;
         }
 
+        status_t finalResult;
         int64_t bufferedDurationUs =
-                mPacketSources[i]->getEstimatedDurationUs();
+                mPacketSources[i]->getBufferedDurationUs(&finalResult);
         ALOGV("[%s] buffered %lld us",
                 getNameForStream(mPacketSources.keyAt(i)),
                 (long long)bufferedDurationUs);
