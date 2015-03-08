@@ -91,13 +91,11 @@ sp<MetaData> AnotherPacketSource::getFormat() {
     while (it != mBuffers.end()) {
         sp<ABuffer> buffer = *it;
         int32_t discontinuity;
-        if (buffer->meta()->findInt32("discontinuity", &discontinuity)) {
-            break;
-        }
-
-        sp<RefBase> object;
-        if (buffer->meta()->findObject("format", &object)) {
-            return mFormat = static_cast<MetaData*>(object.get());
+        if (!buffer->meta()->findInt32("discontinuity", &discontinuity)) {
+            sp<RefBase> object;
+            if (buffer->meta()->findObject("format", &object)) {
+                return mFormat = static_cast<MetaData*>(object.get());
+            }
         }
 
         ++it;
