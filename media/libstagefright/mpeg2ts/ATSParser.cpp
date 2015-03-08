@@ -35,6 +35,7 @@
 #include <media/stagefright/Utils.h>
 #include <media/IStreamSource.h>
 #include <utils/KeyedVector.h>
+#include <utils/Vector.h>
 
 #include <inttypes.h>
 
@@ -86,6 +87,11 @@ struct ATSParser::Program : public RefBase {
     }
 
 private:
+    struct StreamInfo {
+        unsigned mType;
+        unsigned mPID;
+    };
+
     ATSParser *mParser;
     unsigned mProgramNumber;
     unsigned mProgramMapPID;
@@ -96,6 +102,7 @@ private:
 
     status_t parseProgramMap(ABitReader *br);
     int64_t recoverPTS(uint64_t PTS_33bit);
+    bool switchPIDs(const Vector<StreamInfo> &infos);
 
     DISALLOW_EVIL_CONSTRUCTORS(Program);
 };
@@ -185,7 +192,7 @@ ATSParser::Program::Program(
       mProgramMapPID(programMapPID),
       mFirstPTSValid(false),
       mFirstPTS(0),
-      mLastRecoveredPTS(0) {
+      mLastRecoveredPTS(-1ll) {
     ALOGV("new program number %u", programNumber);
 }
 
@@ -240,10 +247,71 @@ void ATSParser::Program::signalEOS(status_t finalResult) {
     }
 }
 
-struct StreamInfo {
-    unsigned mType;
-    unsigned mPID;
-};
+bool ATSParser::Program::switchPIDs(const Vector<StreamInfo> &infos) {
+    bool success = false;
+
+    if (mStreams.size() == infos.size()) {
+        // build type->PIDs map for old and new mapping
+        size_t i;
+        KeyedVector<int32_t, Vector<int32_t> > oldType2PIDs, newType2PIDs;
+        for (i = 0; i < mStreams.size(); ++i) {
+            ssize_t index = oldType2PIDs.indexOfKey(mStreams[i]->type());
+            if (index < 0) {
+                oldType2PIDs.add(mStreams[i]->type(), Vector<int32_t>());
+            }
+            oldType2PIDs.editValueFor(mStreams[i]->type()).push_back(mStreams[i]->pid());
+        }
+        for (i = 0; i < infos.size(); ++i) {
+            ssize_t index = newType2PIDs.indexOfKey(infos[i].mType);
+            if (index < 0) {
+                newType2PIDs.add(infos[i].mType, Vector<int32_t>());
+            }
+            newType2PIDs.editValueFor(infos[i].mType).push_back(infos[i].mPID);
+        }
+
+        // we can recover if the number of streams for each type hasn't changed
+        if (oldType2PIDs.size() == newType2PIDs.size()) {
+            success = true;
+            for (i = 0; i < oldType2PIDs.size(); ++i) {
+                // KeyedVector is sorted, we just compare key and size of each index
+                if (oldType2PIDs.keyAt(i) != newType2PIDs.keyAt(i)
+                        || oldType2PIDs[i].size() != newType2PIDs[i].size()) {
+                     success = false;
+                     break;
+                }
+            }
+        }
+
+        if (success) {
+            // save current streams to temp
+            KeyedVector<int32_t, sp<Stream> > temp;
+            for (i = 0; i < mStreams.size(); ++i) {
+                 temp.add(mStreams.keyAt(i), mStreams.editValueAt(i));
+            }
+
+            mStreams.clear();
+            for (i = 0; i < temp.size(); ++i) {
+                // The two checks below shouldn't happen,
+                // we already checked above the stream count matches
+                ssize_t index = newType2PIDs.indexOfKey(temp[i]->type());
+                CHECK(index >= 0);
+                Vector<int32_t> &newPIDs = newType2PIDs.editValueAt(index);
+                CHECK(newPIDs.size() > 0);
+
+                // get the next PID for temp[i]->type() in the new PID map
+                Vector<int32_t>::iterator it = newPIDs.begin();
+
+                // change the PID of the stream, and add it back
+                temp.editValueAt(i)->setPID(*it);
+                mStreams.add(temp[i]->pid(), temp.editValueAt(i));
+
+                // removed the used PID
+                newPIDs.erase(it);
+            }
+        }
+    }
+    return success;
+}
 
 status_t ATSParser::Program::parseProgramMap(ABitReader *br) {
     unsigned table_id = br->getBits(8);
@@ -372,39 +440,8 @@ status_t ATSParser::Program::parseProgramMap(ABitReader *br) {
         }
 #endif
 
-        // The only case we can recover from is if we have two streams
-        // and they switched PIDs.
-
-        bool success = false;
-
-        if (mStreams.size() == 2 && infos.size() == 2) {
-            const StreamInfo &info1 = infos.itemAt(0);
-            const StreamInfo &info2 = infos.itemAt(1);
-
-            sp<Stream> s1 = mStreams.editValueAt(0);
-            sp<Stream> s2 = mStreams.editValueAt(1);
-
-            bool caseA =
-                info1.mPID == s1->pid() && info1.mType == s2->type()
-                    && info2.mPID == s2->pid() && info2.mType == s1->type();
-
-            bool caseB =
-                info1.mPID == s2->pid() && info1.mType == s1->type()
-                    && info2.mPID == s1->pid() && info2.mType == s2->type();
-
-            if (caseA || caseB) {
-                unsigned pid1 = s1->pid();
-                unsigned pid2 = s2->pid();
-                s1->setPID(pid2);
-                s2->setPID(pid1);
-
-                mStreams.clear();
-                mStreams.add(s1->pid(), s1);
-                mStreams.add(s2->pid(), s2);
-
-                success = true;
-            }
-        }
+        // we can recover if number of streams for each type remain the same
+        bool success = switchPIDs(infos);
 
         if (!success) {
             ALOGI("Stream PIDs changed and we cannot recover.");
@@ -433,14 +470,25 @@ int64_t ATSParser::Program::recoverPTS(uint64_t PTS_33bit) {
     // reasonable amount of time. To handle the wrap-around, use fancy math
     // to get an extended PTS that is within [-0xffffffff, 0xffffffff]
     // of the latest recovered PTS.
-    mLastRecoveredPTS = static_cast<int64_t>(
-            ((mLastRecoveredPTS - PTS_33bit + 0x100000000ll)
-            & 0xfffffffe00000000ull) | PTS_33bit);
+    if (mLastRecoveredPTS < 0ll) {
+        // Use the original 33bit number for 1st frame, the reason is that
+        // if 1st frame wraps to negative that's far away from 0, we could
+        // never start. Only start wrapping around from 2nd frame.
+        mLastRecoveredPTS = static_cast<int64_t>(PTS_33bit);
+    } else {
+        mLastRecoveredPTS = static_cast<int64_t>(
+                ((mLastRecoveredPTS - PTS_33bit + 0x100000000ll)
+                & 0xfffffffe00000000ull) | PTS_33bit);
+        // We start from 0, but recovered PTS could be slightly below 0.
+        // Clamp it to 0 as rest of the pipeline doesn't take negative pts.
+        // (eg. video is read first and starts at 0, but audio starts at 0xfffffff0)
+        if (mLastRecoveredPTS < 0ll) {
+            ALOGI("Clamping negative recovered PTS (%lld) to 0", mLastRecoveredPTS);
+            mLastRecoveredPTS = 0ll;
+        }
+    }
 
-    // We start from 0, but recovered PTS could be slightly below 0.
-    // Clamp it to 0 as rest of the pipeline doesn't take negative pts.
-    // (eg. video is read first and starts at 0, but audio starts at 0xfffffff0)
-    return mLastRecoveredPTS < 0ll ? 0ll : mLastRecoveredPTS;
+    return mLastRecoveredPTS;
 }
 
 sp<MediaSource> ATSParser::Program::getSource(SourceType type) {
@@ -1118,7 +1166,8 @@ status_t ATSParser::parsePID(
 
         if (payload_unit_start_indicator) {
             if (!section->isEmpty()) {
-                return ERROR_UNSUPPORTED;
+                ALOGW("parsePID encounters payload_unit_start_indicator when section is not empty");
+                section->clear();
             }
 
             unsigned skip = br->getBits(8);
