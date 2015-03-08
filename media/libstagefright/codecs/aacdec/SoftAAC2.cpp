@@ -975,6 +975,7 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         mBufferSizes.clear();
         mDecodedSizes.clear();
         mLastInHeader = NULL;
+        mEndOfInput = false;
     } else {
         int avail;
         while ((avail = outputDelayRingBufferSamplesAvailable()) > 0) {
@@ -989,6 +990,7 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
             mOutputBufferCount++;
         }
         mOutputDelayRingBufferReadPos = mOutputDelayRingBufferWritePos;
+        mEndOfOutput = false;
     }
 }
 
