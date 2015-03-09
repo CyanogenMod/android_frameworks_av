@@ -299,6 +299,8 @@ private:
     status_t setupRawAudioFormat(
             OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels);
 
+    status_t setPriority(int32_t priority);
+
     status_t setMinBufferSize(OMX_U32 portIndex, size_t size);
 
     status_t setupMPEG4EncoderParameters(const sp<AMessage> &msg);
