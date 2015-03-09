@@ -1483,6 +1483,9 @@ void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& ar
 void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>& args)
 {
     dprintf(fd, "\nOutput thread %p type %d (%s):\n", this, type(), threadTypeToString(type()));
+
+    dumpBase(fd, args);
+
     dprintf(fd, "  Normal frame count: %zu\n", mNormalFrameCount);
     dprintf(fd, "  Last write occurred (msecs): %llu\n", ns2ms(systemTime() - mLastWriteTime));
     dprintf(fd, "  Total writes: %d\n", mNumWrites);
@@ -1497,8 +1500,6 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
     String8 flagsAsString = outputFlagsToString(flags);
     dprintf(fd, "  AudioStreamOut: %p flags %#x (%s)\n", output, flags, flagsAsString.string());
-
-    dumpBase(fd, args);
 }
 
 // Thread virtuals
@@ -6155,15 +6156,13 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
 {
     dprintf(fd, "\nInput thread %p:\n", this);
 
-    if (mActiveTracks.size() > 0) {
-        dprintf(fd, "  Buffer size: %zu bytes\n", mBufferSize);
-    } else {
+    dumpBase(fd, args);
+
+    if (mActiveTracks.size() == 0) {
         dprintf(fd, "  No active record clients\n");
     }
     dprintf(fd, "  Fast capture thread: %s\n", hasFastCapture() ? "yes" : "no");
     dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
-
-    dumpBase(fd, args);
 }
 
 void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args __unused)
