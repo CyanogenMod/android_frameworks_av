@@ -63,7 +63,7 @@ public:
                                     // See AudioTimestamp for the information included with event.
     };
 
-    /* Client should declare Buffer on the stack and pass address to obtainBuffer()
+    /* Client should declare a Buffer and pass the address to obtainBuffer()
      * and releaseBuffer().  See also callback_t for EVENT_MORE_DATA.
      */
 
@@ -72,14 +72,20 @@ public:
     public:
         // FIXME use m prefix
         size_t      frameCount;   // number of sample frames corresponding to size;
-                                  // on input it is the number of frames desired,
-                                  // on output is the number of frames actually filled
-                                  // (currently ignored, but will make the primary field in future)
+                                  // on input to obtainBuffer() it is the number of frames desired,
+                                  // on output from obtainBuffer() it is the number of available
+                                  //    [empty slots for] frames to be filled
+                                  // on input to releaseBuffer() it is currently ignored
 
         size_t      size;         // input/output in bytes == frameCount * frameSize
-                                  // on input it is unused
-                                  // on output is the number of bytes actually filled
-                                  // FIXME this is redundant with respect to frameCount.
+                                  // on input to obtainBuffer() it is ignored
+                                  // on output from obtainBuffer() it is the number of available
+                                  //    [empty slots for] bytes to be filled,
+                                  //    which is frameCount * frameSize
+                                  // on input to releaseBuffer() it is the number of bytes to
+                                  //    release
+                                  // FIXME This is redundant with respect to frameCount.  Consider
+                                  //    removing size and making frameCount the primary field.
 
         union {
             void*       raw;
@@ -484,7 +490,8 @@ public:
      */
             status_t    attachAuxEffect(int effectId);
 
-    /* Obtains a buffer of up to "audioBuffer->frameCount" empty slots for frames.
+    /* Public API for TRANSFER_OBTAIN mode.
+     * Obtains a buffer of up to "audioBuffer->frameCount" empty slots for frames.
      * After filling these slots with data, the caller should release them with releaseBuffer().
      * If the track buffer is not full, obtainBuffer() returns as many contiguous
      * [empty slots for] frames as are available immediately.
@@ -496,7 +503,6 @@ public:
      * is exhausted, at which point obtainBuffer() will either block
      * or return WOULD_BLOCK depending on the value of the "waitCount"
      * parameter.
-     * Each sample is 16-bit signed PCM.
      *
      * obtainBuffer() and releaseBuffer() are deprecated for direct use by applications,
      * which should use write() or callback EVENT_MORE_DATA instead.
@@ -508,13 +514,15 @@ public:
      *
      * Buffer fields
      * On entry:
-     *  frameCount  number of frames requested
+     *  frameCount  number of [empty slots for] frames requested
+     *  size        ignored
+     *  raw         ignored
      * After error return:
      *  frameCount  0
      *  size        0
      *  raw         undefined
      * After successful return:
-     *  frameCount  actual number of frames available, <= number requested
+     *  frameCount  actual number of [empty slots for] frames available, <= number requested
      *  size        actual number of bytes available
      *  raw         pointer to the buffer
      */
@@ -534,7 +542,15 @@ private:
                                      struct timespec *elapsed = NULL, size_t *nonContig = NULL);
 public:
 
-    /* Release a filled buffer of "audioBuffer->frameCount" frames for AudioFlinger to process. */
+    /* Public API for TRANSFER_OBTAIN mode.
+     * Release a filled buffer of frames for AudioFlinger to process.
+     *
+     * Buffer fields:
+     *  frameCount  currently ignored but recommend to set to actual number of frames filled
+     *  size        actual number of bytes filled, must be multiple of frameSize
+     *  raw         ignored
+     *
+     */
     // FIXME make private when obtainBuffer() for TRANSFER_OBTAIN is removed
             void        releaseBuffer(Buffer* audioBuffer);
 
