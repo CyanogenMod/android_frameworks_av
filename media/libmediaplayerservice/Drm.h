@@ -28,6 +28,7 @@ namespace android {
 
 struct DrmFactory;
 struct DrmPlugin;
+struct DrmSessionClientInterface;
 
 struct Drm : public BnDrm,
              public IBinder::DeathRecipient,
@@ -137,6 +138,8 @@ private:
     mutable Mutex mLock;
 
     status_t mInitCheck;
+
+    sp<DrmSessionClientInterface> mDrmSessionClient;
 
     sp<IDrmClient> mListener;
     mutable Mutex mEventLock;
