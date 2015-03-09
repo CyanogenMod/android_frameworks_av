@@ -741,6 +741,7 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
         dprintf(fd, "thread %p may be deadlocked\n", this);
     }
 
+    dprintf(fd, "  Thread name: %s\n", mThreadName);
     dprintf(fd, "  I/O handle: %d\n", mId);
     dprintf(fd, "  TID: %d\n", getTid());
     dprintf(fd, "  Standby: %s\n", mStandby ? "yes" : "no");
@@ -764,6 +765,9 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
     } else {
         dprintf(fd, " none\n");
     }
+    dprintf(fd, "  Output device: %#x (%s)\n", mOutDevice, devicesToString(mOutDevice).string());
+    dprintf(fd, "  Input device: %#x (%s)\n", mInDevice, devicesToString(mInDevice).string());
+    dprintf(fd, "  Audio source: %d (%s)\n", mAudioSource, sourceToString(mAudioSource));
 
     if (locked) {
         mLock.unlock();
