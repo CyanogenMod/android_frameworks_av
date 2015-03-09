@@ -1545,9 +1545,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
               (
                 (sharedBuffer != 0)
               ) ||
-              // use case 2: callback handler and frame count is default or at least as large as HAL
+              // use case 2: frame count is default or at least as large as HAL
               (
-                (tid != -1) &&
+                // we formerly checked for a callback handler (non-0 tid),
+                // but that is no longer required for TRANSFER_OBTAIN mode
                 ((frameCount == 0) ||
                 (frameCount >= mFrameCount))
               )

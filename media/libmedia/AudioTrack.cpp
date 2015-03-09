@@ -1002,7 +1002,9 @@ status_t AudioTrack::createTrack_l()
             // use case 1: shared buffer
             (mSharedBuffer != 0) ||
             // use case 2: callback transfer mode
-            (mTransfer == TRANSFER_CALLBACK)) &&
+            (mTransfer == TRANSFER_CALLBACK) ||
+            // use case 3: obtain/release mode
+            (mTransfer == TRANSFER_OBTAIN)) &&
             // matching sample rate
             (mSampleRate == afSampleRate))) {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client");
