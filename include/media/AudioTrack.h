@@ -552,7 +552,7 @@ public:
      *
      */
     // FIXME make private when obtainBuffer() for TRANSFER_OBTAIN is removed
-            void        releaseBuffer(Buffer* audioBuffer);
+            void        releaseBuffer(const Buffer* audioBuffer);
 
     /* As a convenience we provide a write() interface to the audio buffer.
      * Input parameter 'size' is in byte units.
