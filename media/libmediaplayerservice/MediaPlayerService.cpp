@@ -290,8 +290,9 @@ MediaPlayerService::MediaPlayerService()
     const sp<IServiceManager> sm(defaultServiceManager());
     if (sm != NULL) {
         const String16 name("batterystats");
+        // use checkService() to avoid blocking if service is not up yet
         sp<IBatteryStats> batteryStats =
-                interface_cast<IBatteryStats>(sm->getService(name));
+                interface_cast<IBatteryStats>(sm->checkService(name));
         if (batteryStats != NULL) {
             batteryStats->noteResetVideo();
             batteryStats->noteResetAudio();
