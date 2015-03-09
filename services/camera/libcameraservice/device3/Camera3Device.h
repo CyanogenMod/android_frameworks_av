@@ -95,7 +95,8 @@ class Camera3Device :
     // If adding streams while actively capturing, will pause device before adding
     // stream, reconfiguring device, and unpausing.
     virtual status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format, int *id);
+            uint32_t width, uint32_t height, int format,
+            android_dataspace dataSpace, int *id);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);

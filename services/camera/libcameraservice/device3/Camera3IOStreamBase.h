@@ -33,7 +33,8 @@ class Camera3IOStreamBase :
         public Camera3Stream {
   protected:
     Camera3IOStreamBase(int id, camera3_stream_type_t type,
-            uint32_t width, uint32_t height, size_t maxSize, int format);
+            uint32_t width, uint32_t height, size_t maxSize, int format,
+            android_dataspace dataSpace);
 
   public:
 

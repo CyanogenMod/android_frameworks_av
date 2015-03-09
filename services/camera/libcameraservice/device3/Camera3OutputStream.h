@@ -39,14 +39,16 @@ class Camera3OutputStream :
      * Set up a stream for formats that have 2 dimensions, such as RAW and YUV.
      */
     Camera3OutputStream(int id, sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format);
+            uint32_t width, uint32_t height, int format,
+            android_dataspace dataSpace);
 
     /**
      * Set up a stream for formats that have a variable buffer size for the same
      * dimensions, such as compressed JPEG.
      */
     Camera3OutputStream(int id, sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, size_t maxSize, int format);
+            uint32_t width, uint32_t height, size_t maxSize, int format,
+            android_dataspace dataSpace);
 
     virtual ~Camera3OutputStream();
 
@@ -64,7 +66,8 @@ class Camera3OutputStream :
 
   protected:
     Camera3OutputStream(int id, camera3_stream_type_t type,
-            uint32_t width, uint32_t height, int format);
+            uint32_t width, uint32_t height, int format,
+            android_dataspace dataSpace);
 
     /**
      * Note that we release the lock briefly in this function

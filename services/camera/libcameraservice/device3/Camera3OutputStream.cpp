@@ -33,9 +33,10 @@ namespace camera3 {
 
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, int format) :
+        uint32_t width, uint32_t height, int format,
+        android_dataspace dataSpace) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
-                            /*maxSize*/0, format),
+                            /*maxSize*/0, format, dataSpace),
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true) {
@@ -48,9 +49,10 @@ Camera3OutputStream::Camera3OutputStream(int id,
 
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<ANativeWindow> consumer,
-        uint32_t width, uint32_t height, size_t maxSize, int format) :
+        uint32_t width, uint32_t height, size_t maxSize, int format,
+        android_dataspace dataSpace) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
-                            format),
+                            format, dataSpace),
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true) {
@@ -69,10 +71,11 @@ Camera3OutputStream::Camera3OutputStream(int id,
 
 Camera3OutputStream::Camera3OutputStream(int id, camera3_stream_type_t type,
                                          uint32_t width, uint32_t height,
-                                         int format) :
+                                         int format,
+                                         android_dataspace dataSpace) :
         Camera3IOStreamBase(id, type, width, height,
                             /*maxSize*/0,
-                            format),
+                            format, dataSpace),
         mTransform(0) {
 
     // Subclasses expected to initialize mConsumer themselves
@@ -320,6 +323,14 @@ status_t Camera3OutputStream::configureQueueLocked() {
     if (res != OK) {
         ALOGE("%s: Unable to configure stream buffer format %#x for stream %d",
                 __FUNCTION__, camera3_stream::format, mId);
+        return res;
+    }
+
+    res = native_window_set_buffers_data_space(mConsumer.get(),
+            camera3_stream::data_space);
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream dataspace %#x for stream %d",
+                __FUNCTION__, camera3_stream::data_space, mId);
         return res;
     }
 

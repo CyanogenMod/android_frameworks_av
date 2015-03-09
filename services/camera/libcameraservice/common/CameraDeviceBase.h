@@ -100,17 +100,14 @@ class CameraDeviceBase : public virtual RefBase {
             nsecs_t timeout) = 0;
 
     /**
-     * Create an output stream of the requested size and format.
+     * Create an output stream of the requested size, format, and dataspace
      *
-     * If format is CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, then the HAL device selects
-     * an appropriate format; it can be queried with getStreamInfo.
-     *
-     * If format is HAL_PIXEL_FORMAT_COMPRESSED, the size parameter must be
-     * equal to the size in bytes of the buffers to allocate for the stream. For
-     * other formats, the size parameter is ignored.
+     * For HAL_PIXEL_FORMAT_BLOB formats, the width and height should be the
+     * logical dimensions of the buffer, not the number of bytes.
      */
     virtual status_t createStream(sp<ANativeWindow> consumer,
-            uint32_t width, uint32_t height, int format, int *id) = 0;
+            uint32_t width, uint32_t height, int format,
+            android_dataspace dataSpace, int *id) = 0;
 
     /**
      * Create an input reprocess stream that uses buffers from an existing
