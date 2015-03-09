@@ -220,7 +220,7 @@ TEST_F(DrmSessionManagerTest, reclaimSession) {
 
     // add a session from a higher priority process.
     sp<FakeDrm> drm = new FakeDrm;
-    const uint8_t ids[] = {456, 7890, 123};
+    const uint8_t ids[] = {1, 3, 5};
     Vector<uint8_t> sessionId;
     GetSessionId(ids, ARRAY_SIZE(ids), &sessionId);
     mDrmSessionManager->addSession(30, drm, sessionId);
