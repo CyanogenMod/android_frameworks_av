@@ -18,7 +18,9 @@
 
 #define A_BASE_H_
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(*(a)))
+#endif
 
 #define DISALLOW_EVIL_CONSTRUCTORS(name) \
     name(const name &); \
