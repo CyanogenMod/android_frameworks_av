@@ -1340,6 +1340,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *re
 
 void AudioTrack::releaseBuffer(Buffer* audioBuffer)
 {
+    // FIXME add error checking on mode, by adding an internal version
     if (mTransfer == TRANSFER_SHARED) {
         return;
     }
