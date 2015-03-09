@@ -93,13 +93,17 @@ void MediaClock::setPlaybackRate(float rate) {
 }
 
 status_t MediaClock::getMediaTime(
-        int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) {
+        int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) const {
+    if (outMediaUs == NULL) {
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
     return getMediaTime_l(realUs, outMediaUs, allowPastMaxTime);
 }
 
 status_t MediaClock::getMediaTime_l(
-        int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) {
+        int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) const {
     if (mAnchorTimeRealUs == -1) {
         return NO_INIT;
     }
@@ -119,7 +123,12 @@ status_t MediaClock::getMediaTime_l(
     return OK;
 }
 
-status_t MediaClock::getRealTimeFor(int64_t targetMediaUs, int64_t *outRealUs) {
+status_t MediaClock::getRealTimeFor(
+        int64_t targetMediaUs, int64_t *outRealUs) const {
+    if (outRealUs == NULL) {
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
     if (mPlaybackRate == 0.0) {
         return NO_INIT;

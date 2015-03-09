@@ -35,9 +35,9 @@ struct MediaClock : public RefBase {
     // It's required to use timestamp of just rendered frame as
     // anchor time in paused state.
     void updateAnchor(
-        int64_t anchorTimeMediaUs,
-        int64_t anchorTimeRealUs,
-        int64_t maxTimeMediaUs = INT64_MAX);
+            int64_t anchorTimeMediaUs,
+            int64_t anchorTimeRealUs,
+            int64_t maxTimeMediaUs = INT64_MAX);
 
     void updateMaxTimeMedia(int64_t maxTimeMediaUs);
 
@@ -45,22 +45,24 @@ struct MediaClock : public RefBase {
 
     // query media time corresponding to real time |realUs|, and save the
     // result in |outMediaUs|.
-    status_t getMediaTime(int64_t realUs,
-                          int64_t *outMediaUs,
-                          bool allowPastMaxTime = false);
+    status_t getMediaTime(
+            int64_t realUs,
+            int64_t *outMediaUs,
+            bool allowPastMaxTime = false) const;
     // query real time corresponding to media time |targetMediaUs|.
     // The result is saved in |outRealUs|.
-    status_t getRealTimeFor(int64_t targetMediaUs, int64_t *outRealUs);
+    status_t getRealTimeFor(int64_t targetMediaUs, int64_t *outRealUs) const;
 
 protected:
     virtual ~MediaClock();
 
 private:
-    status_t getMediaTime_l(int64_t realUs,
-                            int64_t *outMediaUs,
-                            bool allowPastMaxTime);
+    status_t getMediaTime_l(
+            int64_t realUs,
+            int64_t *outMediaUs,
+            bool allowPastMaxTime) const;
 
-    Mutex mLock;
+    mutable Mutex mLock;
 
     int64_t mAnchorTimeMediaUs;
     int64_t mAnchorTimeRealUs;
