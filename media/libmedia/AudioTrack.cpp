@@ -1236,7 +1236,7 @@ release:
     return status;
 }
 
-status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
+status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount, size_t *nonContig)
 {
     if (audioBuffer == NULL) {
         return BAD_VALUE;
@@ -1263,7 +1263,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
         ALOGE("%s invalid waitCount %d", __func__, waitCount);
         requested = NULL;
     }
-    return obtainBuffer(audioBuffer, requested);
+    return obtainBuffer(audioBuffer, requested, NULL /*elapsed*/, nonContig);
 }
 
 status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *requested,
