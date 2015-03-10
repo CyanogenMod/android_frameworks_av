@@ -4,7 +4,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:=                       \
         GenericSource.cpp               \
         HTTPLiveSource.cpp              \
-        MediaClock.cpp                  \
         NuPlayer.cpp                    \
         NuPlayerCCDecoder.cpp           \
         NuPlayerDecoder.cpp             \

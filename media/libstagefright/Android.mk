@@ -31,6 +31,7 @@ LOCAL_SRC_FILES:=                         \
         MediaAdapter.cpp                  \
         MediaBuffer.cpp                   \
         MediaBufferGroup.cpp              \
+        MediaClock.cpp                    \
         MediaCodec.cpp                    \
         MediaCodecList.cpp                \
         MediaCodecSource.cpp              \
