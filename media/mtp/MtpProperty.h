@@ -49,9 +49,9 @@ public:
     MtpPropertyValue    mCurrentValue;
 
     // for array types
-    int                 mDefaultArrayLength;
+    uint32_t            mDefaultArrayLength;
     MtpPropertyValue*   mDefaultArrayValues;
-    int                 mCurrentArrayLength;
+    uint32_t            mCurrentArrayLength;
     MtpPropertyValue*   mCurrentArrayValues;
 
     enum {
@@ -70,7 +70,7 @@ public:
     MtpPropertyValue    mStepSize;
 
     // for enum form
-    int                 mEnumLength;
+    uint16_t            mEnumLength;
     MtpPropertyValue*   mEnumValues;
 
 public:
@@ -83,7 +83,7 @@ public:
 
     inline MtpPropertyCode getPropertyCode() const { return mCode; }
 
-    void                read(MtpDataPacket& packet);
+    bool                read(MtpDataPacket& packet);
     void                write(MtpDataPacket& packet);
 
     void                setDefaultValue(const uint16_t* string);
@@ -102,11 +102,11 @@ public:
                         }
 
 private:
-    void                readValue(MtpDataPacket& packet, MtpPropertyValue& value);
+    bool                readValue(MtpDataPacket& packet, MtpPropertyValue& value);
     void                writeValue(MtpDataPacket& packet, MtpPropertyValue& value);
-    MtpPropertyValue*   readArrayValues(MtpDataPacket& packet, int& length);
+    MtpPropertyValue*   readArrayValues(MtpDataPacket& packet, uint32_t& length);
     void                writeArrayValues(MtpDataPacket& packet,
-                                            MtpPropertyValue* values, int length);
+                                            MtpPropertyValue* values, uint32_t length);
 };
 
 }; // namespace android

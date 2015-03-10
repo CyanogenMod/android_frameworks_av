@@ -192,8 +192,9 @@ static bool IsSeeminglyValidAC3Header(const uint8_t *ptr, size_t size) {
     return parseAC3SyncFrame(ptr, size, NULL) > 0;
 }
 
-static bool IsSeeminglyValidADTSHeader(const uint8_t *ptr, size_t size) {
-    if (size < 3) {
+static bool IsSeeminglyValidADTSHeader(
+        const uint8_t *ptr, size_t size, size_t *frameLength) {
+    if (size < 7) {
         // Not enough data to verify header.
         return false;
     }
@@ -216,6 +217,13 @@ static bool IsSeeminglyValidADTSHeader(const uint8_t *ptr, size_t size) {
         return false;
     }
 
+    size_t frameLengthInHeader =
+            ((ptr[3] & 3) << 11) + (ptr[4] << 3) + ((ptr[5] >> 5) & 7);
+    if (frameLengthInHeader > size) {
+        return false;
+    }
+
+    *frameLength = frameLengthInHeader;
     return true;
 }
 
@@ -345,8 +353,10 @@ status_t ElementaryStreamQueue::appendData(
                 }
 #else
                 ssize_t startOffset = -1;
+                size_t frameLength;
                 for (size_t i = 0; i < size; ++i) {
-                    if (IsSeeminglyValidADTSHeader(&ptr[i], size - i)) {
+                    if (IsSeeminglyValidADTSHeader(
+                            &ptr[i], size - i, &frameLength)) {
                         startOffset = i;
                         break;
                     }
@@ -360,6 +370,12 @@ status_t ElementaryStreamQueue::appendData(
                     ALOGI("found something resembling an AAC syncword at "
                           "offset %zd",
                           startOffset);
+                }
+
+                if (frameLength != size - startOffset) {
+                    ALOGV("First ADTS AAC frame length is %zd bytes, "
+                          "while the buffer size is %zd bytes.",
+                          frameLength, size - startOffset);
                 }
 
                 data = &ptr[startOffset];

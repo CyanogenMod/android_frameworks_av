@@ -149,7 +149,7 @@ AudioPolicyService::~AudioPolicyService()
 void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& client)
 {
 
-    Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mNotificationClientsLock);
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
     if (mNotificationClients.indexOfKey(uid) < 0) {
@@ -168,14 +168,17 @@ void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& cli
 // removeNotificationClient() is called when the client process dies.
 void AudioPolicyService::removeNotificationClient(uid_t uid)
 {
-    Mutex::Autolock _l(mLock);
-
-    mNotificationClients.removeItem(uid);
-
+    {
+        Mutex::Autolock _l(mNotificationClientsLock);
+        mNotificationClients.removeItem(uid);
+    }
 #ifndef USE_LEGACY_AUDIO_POLICY
+    {
+        Mutex::Autolock _l(mLock);
         if (mAudioPolicyManager) {
             mAudioPolicyManager->clearAudioPatches(uid);
         }
+    }
 #endif
 }
 
@@ -186,7 +189,7 @@ void AudioPolicyService::onAudioPortListUpdate()
 
 void AudioPolicyService::doOnAudioPortListUpdate()
 {
-    Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mNotificationClientsLock);
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
         mNotificationClients.valueAt(i)->onAudioPortListUpdate();
     }
@@ -212,7 +215,7 @@ status_t AudioPolicyService::clientReleaseAudioPatch(audio_patch_handle_t handle
 
 void AudioPolicyService::doOnAudioPatchListUpdate()
 {
-    Mutex::Autolock _l(mLock);
+    Mutex::Autolock _l(mNotificationClientsLock);
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
         mNotificationClients.valueAt(i)->onAudioPatchListUpdate();
     }
@@ -454,7 +457,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                         break;
                     }
                     mLock.unlock();
-                    svc->doReleaseOutput(data->mIO);
+                    svc->doReleaseOutput(data->mIO, data->mStream, data->mSession);
                     mLock.lock();
                     }break;
                 case CREATE_AUDIO_PATCH: {
@@ -651,7 +654,7 @@ status_t AudioPolicyService::AudioCommandThread::voiceVolumeCommand(float volume
 
 void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t output,
                                                                audio_stream_type_t stream,
-                                                               int session)
+                                                               audio_session_t session)
 {
     sp<AudioCommand> command = new AudioCommand();
     command->mCommand = STOP_OUTPUT;
@@ -664,12 +667,16 @@ void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t
     sendCommand(command);
 }
 
-void AudioPolicyService::AudioCommandThread::releaseOutputCommand(audio_io_handle_t output)
+void AudioPolicyService::AudioCommandThread::releaseOutputCommand(audio_io_handle_t output,
+                                                                  audio_stream_type_t stream,
+                                                                  audio_session_t session)
 {
     sp<AudioCommand> command = new AudioCommand();
     command->mCommand = RELEASE_OUTPUT;
     sp<ReleaseOutputData> data = new ReleaseOutputData();
     data->mIO = output;
+    data->mStream = stream;
+    data->mSession = session;
     command->mParam = data;
     ALOGV("AudioCommandThread() adding release output %d", output);
     sendCommand(command);
@@ -902,8 +909,10 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
     }
     removedCommands.clear();
 
-    // Disable wait for status if delay is not 0
-    if (delayMs != 0) {
+    // Disable wait for status if delay is not 0.
+    // Except for create audio patch command because the returned patch handle
+    // is needed by audio policy manager
+    if (delayMs != 0 && command->mCommand != CREATE_AUDIO_PATCH) {
         command->mWaitStatus = false;
     }
 

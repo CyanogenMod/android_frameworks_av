@@ -115,8 +115,6 @@ private:
     bool mDoMoreWorkPending;
     sp<AMessage> mEncoderActivityNotify;
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
-    Vector<sp<ABuffer> > mEncoderInputBuffers;
-    Vector<sp<ABuffer> > mEncoderOutputBuffers;
     List<MediaBuffer *> mInputBufferQueue;
     List<size_t> mAvailEncoderInputIndices;
     List<int64_t> mDecodingTimeQueue; // decoding time (us) for video

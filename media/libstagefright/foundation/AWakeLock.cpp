@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2015, The Linux Foundation. All rights reserved.
  * Not a Contribution.
- * Copyright (C) 2010 The Android Open Source Project
+ * Copyright (C) 2015 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,8 +47,6 @@ AWakeLock::~AWakeLock() {
 }
 
 bool AWakeLock::acquire() {
-    bool granted = false;
-
     if (mWakeLockCount == 0) {
         CHECK(mWakeLockToken == NULL);
         if (mPowerManager == NULL) {
@@ -56,7 +54,7 @@ bool AWakeLock::acquire() {
             sp<IBinder> binder =
                 defaultServiceManager()->checkService(String16("power"));
             if (binder == NULL) {
-                ALOGW("cannot connect to the power manager service");
+                ALOGW("could not get the power manager service");
             } else {
                 mPowerManager = interface_cast<IPowerManager>(binder);
                 binder->linkToDeath(mDeathRecipient);
@@ -67,22 +65,19 @@ bool AWakeLock::acquire() {
             int64_t token = IPCThreadState::self()->clearCallingIdentity();
             status_t status = mPowerManager->acquireWakeLock(
                     POWERMANAGER_PARTIAL_WAKE_LOCK,
-                    binder,
-                    String16("AWakeLock"),
-                    String16("media"));    // not oneway
+                    binder, String16("AWakeLock"), String16("media"));
             IPCThreadState::self()->restoreCallingIdentity(token);
             if (status == NO_ERROR) {
                 mWakeLockToken = binder;
                 mWakeLockCount++;
-                granted = true;
+                return true;
             }
         }
     } else {
         mWakeLockCount++;
-        granted = true;
+        return true;
     }
-
-    return granted;
+    return false;
 }
 
 void AWakeLock::release(bool force) {
@@ -97,7 +92,7 @@ void AWakeLock::release(bool force) {
         CHECK(mWakeLockToken != NULL);
         if (mPowerManager != NULL) {
             int64_t token = IPCThreadState::self()->clearCallingIdentity();
-            mPowerManager->releaseWakeLock(mWakeLockToken, 0 /* flags */);  // not oneway
+            mPowerManager->releaseWakeLock(mWakeLockToken, 0 /* flags */);
             IPCThreadState::self()->restoreCallingIdentity(token);
         }
         mWakeLockToken.clear();
@@ -110,7 +105,7 @@ void AWakeLock::clearPowerManager() {
 }
 
 void AWakeLock::PMDeathRecipient::binderDied(const wp<IBinder>& who __unused) {
-    if(mWakeLock != NULL) {
+    if (mWakeLock != NULL) {
         mWakeLock->clearPowerManager();
     }
 }

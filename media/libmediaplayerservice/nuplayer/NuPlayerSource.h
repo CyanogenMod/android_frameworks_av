@@ -39,6 +39,7 @@ struct NuPlayer::Source : public AHandler {
         FLAG_CAN_SEEK           = 8,  // the "seek bar"
         FLAG_DYNAMIC_DURATION   = 16,
         FLAG_SECURE             = 32,
+        FLAG_PROTECTED          = 64,
     };
 
     enum {
@@ -48,6 +49,9 @@ struct NuPlayer::Source : public AHandler {
         kWhatBufferingUpdate,
         kWhatBufferingStart,
         kWhatBufferingEnd,
+        kWhatPauseOnBufferingStart,
+        kWhatResumeOnBufferingEnd,
+        kWhatCacheStats,
         kWhatSubtitleData,
         kWhatTimedTextData,
         kWhatQueueDecoderShutdown,
@@ -97,7 +101,7 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
-    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */) {
+    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */, int64_t /* timeUs*/) {
         return INVALID_OPERATION;
     }
 

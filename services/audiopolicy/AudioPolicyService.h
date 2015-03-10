@@ -30,6 +30,7 @@
 #include <media/IAudioPolicyService.h>
 #include <media/ToneGenerator.h>
 #include <media/AudioEffect.h>
+#include <media/AudioPolicy.h>
 #include <hardware_legacy/AudioPolicyInterface.h>
 #include "AudioPolicyEffects.h"
 #include "AudioPolicyManager.h"
@@ -72,25 +73,31 @@ public:
                                         audio_output_flags_t flags =
                                                 AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL);
-    virtual audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
-                                            uint32_t samplingRate = 0,
-                                            audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                            audio_channel_mask_t channelMask = 0,
-                                            audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
-                                            const audio_offload_info_t *offloadInfo = NULL);
+    virtual status_t getOutputForAttr(const audio_attributes_t *attr,
+                                      audio_io_handle_t *output,
+                                      audio_session_t session,
+                                      audio_stream_type_t *stream,
+                                      uint32_t samplingRate = 0,
+                                      audio_format_t format = AUDIO_FORMAT_DEFAULT,
+                                      audio_channel_mask_t channelMask = 0,
+                                      audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                      const audio_offload_info_t *offloadInfo = NULL);
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
-                                 int session = 0);
+                                 audio_session_t session);
     virtual status_t stopOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
-                                int session = 0);
-    virtual void releaseOutput(audio_io_handle_t output);
-    virtual audio_io_handle_t getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    int audioSession,
-                                    audio_input_flags_t flags);
+                                audio_session_t session);
+    virtual void releaseOutput(audio_io_handle_t output,
+                               audio_stream_type_t stream,
+                               audio_session_t session);
+    virtual status_t getInputForAttr(const audio_attributes_t *attr,
+                                     audio_io_handle_t *input,
+                                     audio_session_t session,
+                                     uint32_t samplingRate,
+                                     audio_format_t format,
+                                     audio_channel_mask_t channelMask,
+                                     audio_input_flags_t flags);
     virtual status_t startInput(audio_io_handle_t input,
                                 audio_session_t session);
     virtual status_t stopInput(audio_io_handle_t input,
@@ -179,10 +186,14 @@ public:
 
     virtual audio_mode_t getPhoneState();
 
+    virtual status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration);
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
-                                  int session = 0);
-            void doReleaseOutput(audio_io_handle_t output);
+                                  audio_session_t session);
+            void doReleaseOutput(audio_io_handle_t output,
+                                 audio_stream_type_t stream,
+                                 audio_session_t session);
 
             status_t clientCreateAudioPatch(const struct audio_patch *patch,
                                       audio_patch_handle_t *handle,
@@ -250,8 +261,10 @@ private:
                     status_t    voiceVolumeCommand(float volume, int delayMs = 0);
                     void        stopOutputCommand(audio_io_handle_t output,
                                                   audio_stream_type_t stream,
-                                                  int session);
-                    void        releaseOutputCommand(audio_io_handle_t output);
+                                                  audio_session_t session);
+                    void        releaseOutputCommand(audio_io_handle_t output,
+                                                     audio_stream_type_t stream,
+                                                     audio_session_t session);
                     status_t    sendCommand(sp<AudioCommand>& command, int delayMs = 0);
                     void        insertCommand_l(sp<AudioCommand>& command, int delayMs = 0);
                     status_t    createAudioPatchCommand(const struct audio_patch *patch,
@@ -321,12 +334,14 @@ private:
         public:
             audio_io_handle_t mIO;
             audio_stream_type_t mStream;
-            int mSession;
+            audio_session_t mSession;
         };
 
         class ReleaseOutputData : public AudioCommandData {
         public:
             audio_io_handle_t mIO;
+            audio_stream_type_t mStream;
+            audio_session_t mSession;
         };
 
         class CreateAudioPatchData : public AudioCommandData {
@@ -495,7 +510,7 @@ private:
     AudioPolicyClient *mAudioPolicyClient;
 
     DefaultKeyedVector< uid_t, sp<NotificationClient> >    mNotificationClients;
-
+    Mutex mNotificationClientsLock;  // protects mNotificationClients
     // Manage all effects configured in audio_effects.conf
     sp<AudioPolicyEffects> mAudioPolicyEffects;
     audio_mode_t mPhoneState;

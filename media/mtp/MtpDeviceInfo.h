@@ -29,7 +29,7 @@ public:
     uint32_t                mVendorExtensionID;
     uint16_t                mVendorExtensionVersion;
     char*                   mVendorExtensionDesc;
-    uint16_t                mFunctionalCode;
+    uint16_t                mFunctionalMode;
     UInt16List*             mOperations;
     UInt16List*             mEvents;
     MtpDevicePropertyList*  mDeviceProperties;
@@ -44,7 +44,7 @@ public:
                             MtpDeviceInfo();
     virtual                 ~MtpDeviceInfo();
 
-    void                    read(MtpDataPacket& packet);
+    bool                    read(MtpDataPacket& packet);
 
     void                    print();
 };

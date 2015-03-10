@@ -31,7 +31,7 @@ struct GraphicBufferSource;
 
 struct OMXNodeInstance {
     OMXNodeInstance(
-            OMX *owner, const sp<IOMXObserver> &observer);
+            OMX *owner, const sp<IOMXObserver> &observer, const char *name);
 
     void setHandle(OMX::node_id node_id, OMX_HANDLETYPE handle);
 
@@ -149,6 +149,18 @@ private:
     KeyedVector<OMX_BUFFERHEADERTYPE *, OMX::buffer_id> mBufferHeaderToBufferID;
 #endif
 
+    // For debug support
+    char *mName;
+    int DEBUG;
+    size_t mNumPortBuffers[2];  // modified under mLock, read outside for debug
+    Mutex mDebugLock;
+    // following are modified and read under mDebugLock
+    int DEBUG_BUMP;
+    SortedVector<OMX_BUFFERHEADERTYPE *> mInputBuffersWithCodec, mOutputBuffersWithCodec;
+    size_t mDebugLevelBumpPendingBuffers[2];
+    void bumpDebugLevel_l(size_t numInputBuffers, size_t numOutputBuffers);
+    void unbumpDebugLevel_l(size_t portIndex);
+
     ~OMXNodeInstance();
 
     void addActiveBuffer(OMX_U32 portIndex, OMX::buffer_id id);
@@ -185,6 +197,10 @@ private:
     status_t storeMetaDataInBuffers_l(
             OMX_U32 portIndex, OMX_BOOL enable,
             OMX_BOOL useGraphicBuffer, OMX_BOOL *usingGraphicBufferInMeta);
+
+    status_t emptyBuffer_l(
+            OMX_BUFFERHEADERTYPE *header,
+            OMX_U32 flags, OMX_TICKS timestamp, intptr_t debugAddr);
 
     sp<GraphicBufferSource> getGraphicBufferSource();
     void setGraphicBufferSource(const sp<GraphicBufferSource>& bufferSource);

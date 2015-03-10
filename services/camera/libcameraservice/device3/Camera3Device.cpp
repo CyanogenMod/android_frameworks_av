@@ -361,16 +361,15 @@ ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const 
         return BAD_VALUE;
     }
     maxJpegBufferSize = jpegBufMaxSize.data.i32[0];
+    assert(kMinJpegBufferSize < maxJpegBufferSize);
 
     // Calculate final jpeg buffer size for the given resolution.
     float scaleFactor = ((float) (width * height)) /
             (maxJpegResolution.width * maxJpegResolution.height);
-    ssize_t jpegBufferSize = scaleFactor * maxJpegBufferSize;
-    // Bound the buffer size to [MIN_JPEG_BUFFER_SIZE, maxJpegBufferSize].
+    ssize_t jpegBufferSize = scaleFactor * (maxJpegBufferSize - kMinJpegBufferSize) +
+            kMinJpegBufferSize;
     if (jpegBufferSize > maxJpegBufferSize) {
         jpegBufferSize = maxJpegBufferSize;
-    } else if (jpegBufferSize < kMinJpegBufferSize) {
-        jpegBufferSize = kMinJpegBufferSize;
     }
 
     return jpegBufferSize;
@@ -427,7 +426,7 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
             InFlightRequest r = mInFlightMap.valueAt(i);
             lines.appendFormat("      Frame %d |  Timestamp: %" PRId64 ", metadata"
                     " arrived: %s, buffers left: %d\n", mInFlightMap.keyAt(i),
-                    r.captureTimestamp, r.haveResultMetadata ? "true" : "false",
+                    r.shutterTimestamp, r.haveResultMetadata ? "true" : "false",
                     r.numBuffersLeft);
         }
     }
@@ -1880,6 +1879,131 @@ bool Camera3Device::insert3AResult(CameraMetadata& result, int32_t tag,
     return true;
 }
 
+
+void Camera3Device::returnOutputBuffers(
+        const camera3_stream_buffer_t *outputBuffers, size_t numBuffers,
+        nsecs_t timestamp) {
+    for (size_t i = 0; i < numBuffers; i++)
+    {
+        Camera3Stream *stream = Camera3Stream::cast(outputBuffers[i].stream);
+        status_t res = stream->returnBuffer(outputBuffers[i], timestamp);
+        // Note: stream may be deallocated at this point, if this buffer was
+        // the last reference to it.
+        if (res != OK) {
+            ALOGE("Can't return buffer to its stream: %s (%d)",
+                strerror(-res), res);
+        }
+    }
+}
+
+
+void Camera3Device::removeInFlightRequestIfReadyLocked(int idx) {
+
+    const InFlightRequest &request = mInFlightMap.valueAt(idx);
+    const uint32_t frameNumber = mInFlightMap.keyAt(idx);
+
+    nsecs_t sensorTimestamp = request.sensorTimestamp;
+    nsecs_t shutterTimestamp = request.shutterTimestamp;
+
+    // Check if it's okay to remove the request from InFlightMap:
+    // In the case of a successful request:
+    //      all input and output buffers, all result metadata, shutter callback
+    //      arrived.
+    // In the case of a unsuccessful request:
+    //      all input and output buffers arrived.
+    if (request.numBuffersLeft == 0 &&
+            (request.requestStatus != OK ||
+            (request.haveResultMetadata && shutterTimestamp != 0))) {
+        ATRACE_ASYNC_END("frame capture", frameNumber);
+
+        // Sanity check - if sensor timestamp matches shutter timestamp
+        if (request.requestStatus == OK &&
+                sensorTimestamp != shutterTimestamp) {
+            SET_ERR("sensor timestamp (%" PRId64
+                ") for frame %d doesn't match shutter timestamp (%" PRId64 ")",
+                sensorTimestamp, frameNumber, shutterTimestamp);
+        }
+
+        // for an unsuccessful request, it may have pending output buffers to
+        // return.
+        assert(request.requestStatus != OK ||
+               request.pendingOutputBuffers.size() == 0);
+        returnOutputBuffers(request.pendingOutputBuffers.array(),
+            request.pendingOutputBuffers.size(), 0);
+
+        mInFlightMap.removeItemsAt(idx, 1);
+
+        ALOGVV("%s: removed frame %d from InFlightMap", __FUNCTION__, frameNumber);
+     }
+
+    // Sanity check - if we have too many in-flight frames, something has
+    // likely gone wrong
+    if (mInFlightMap.size() > kInFlightWarnLimit) {
+        CLOGE("In-flight list too large: %zu", mInFlightMap.size());
+    }
+}
+
+
+void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
+        CaptureResultExtras &resultExtras,
+        CameraMetadata &collectedPartialResult,
+        uint32_t frameNumber) {
+    if (pendingMetadata.isEmpty())
+        return;
+
+    Mutex::Autolock l(mOutputLock);
+
+    // TODO: need to track errors for tighter bounds on expected frame number
+    if (frameNumber < mNextResultFrameNumber) {
+        SET_ERR("Out-of-order capture result metadata submitted! "
+                "(got frame number %d, expecting %d)",
+                frameNumber, mNextResultFrameNumber);
+        return;
+    }
+    mNextResultFrameNumber = frameNumber + 1;
+
+    CaptureResult captureResult;
+    captureResult.mResultExtras = resultExtras;
+    captureResult.mMetadata = pendingMetadata;
+
+    if (captureResult.mMetadata.update(ANDROID_REQUEST_FRAME_COUNT,
+            (int32_t*)&frameNumber, 1) != OK) {
+        SET_ERR("Failed to set frame# in metadata (%d)",
+                frameNumber);
+        return;
+    } else {
+        ALOGVV("%s: Camera %d: Set frame# in metadata (%d)",
+                __FUNCTION__, mId, frameNumber);
+    }
+
+    // Append any previous partials to form a complete result
+    if (mUsePartialResult && !collectedPartialResult.isEmpty()) {
+        captureResult.mMetadata.append(collectedPartialResult);
+    }
+
+    captureResult.mMetadata.sort();
+
+    // Check that there's a timestamp in the result metadata
+    camera_metadata_entry entry =
+            captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
+    if (entry.count == 0) {
+        SET_ERR("No timestamp provided by HAL for frame %d!",
+                frameNumber);
+        return;
+    }
+
+    // Valid result, insert into queue
+    List<CaptureResult>::iterator queuedResult =
+            mResultQueue.insert(mResultQueue.end(), CaptureResult(captureResult));
+    ALOGVV("%s: result requestId = %" PRId32 ", frameNumber = %" PRId64
+           ", burstId = %" PRId32, __FUNCTION__,
+           queuedResult->mResultExtras.requestId,
+           queuedResult->mResultExtras.frameNumber,
+           queuedResult->mResultExtras.burstId);
+
+    mResultSignal.signal();
+}
+
 /**
  * Camera HAL device callback methods
  */
@@ -1914,11 +2038,14 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
     CaptureResultExtras resultExtras;
     bool hasInputBufferInRequest = false;
 
-    // Get capture timestamp and resultExtras from list of in-flight requests,
-    // where it was added by the shutter notification for this frame.
-    // Then update the in-flight status and remove the in-flight entry if
-    // all result data has been received.
-    nsecs_t timestamp = 0;
+    // Get shutter timestamp and resultExtras from list of in-flight requests,
+    // where it was added by the shutter notification for this frame. If the
+    // shutter timestamp isn't received yet, append the output buffers to the
+    // in-flight request and they will be returned when the shutter timestamp
+    // arrives. Update the in-flight status and remove the in-flight entry if
+    // all result data and shutter timestamp have been received.
+    nsecs_t shutterTimestamp = 0;
+
     {
         Mutex::Autolock l(mInFlightLock);
         ssize_t idx = mInFlightMap.indexOfKey(frameNumber);
@@ -1928,13 +2055,17 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             return;
         }
         InFlightRequest &request = mInFlightMap.editValueAt(idx);
-        ALOGVV("%s: got InFlightRequest requestId = %" PRId32 ", frameNumber = %" PRId64
-                ", burstId = %" PRId32,
-                __FUNCTION__, request.resultExtras.requestId, request.resultExtras.frameNumber,
-                request.resultExtras.burstId);
-        // Always update the partial count to the latest one. When framework aggregates adjacent
-        // partial results into one, the latest partial count will be used.
-        request.resultExtras.partialResultCount = result->partial_result;
+        ALOGVV("%s: got InFlightRequest requestId = %" PRId32
+                ", frameNumber = %" PRId64 ", burstId = %" PRId32
+                ", partialResultCount = %d",
+                __FUNCTION__, request.resultExtras.requestId,
+                request.resultExtras.frameNumber, request.resultExtras.burstId,
+                result->partial_result);
+        // Always update the partial count to the latest one if it's not 0
+        // (buffers only). When framework aggregates adjacent partial results
+        // into one, the latest partial count will be used.
+        if (result->partial_result != 0)
+            request.resultExtras.partialResultCount = result->partial_result;
 
         // Check if this result carries only partial metadata
         if (mUsePartialResult && result->result != NULL) {
@@ -1978,21 +2109,8 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             }
         }
 
-        timestamp = request.captureTimestamp;
-        resultExtras = request.resultExtras;
+        shutterTimestamp = request.shutterTimestamp;
         hasInputBufferInRequest = request.hasInputBuffer;
-
-        /**
-         * One of the following must happen before it's legal to call process_capture_result,
-         * unless partial metadata is being provided:
-         * - CAMERA3_MSG_SHUTTER (expected during normal operation)
-         * - CAMERA3_MSG_ERROR (expected during flush)
-         */
-        if (request.requestStatus == OK && timestamp == 0 && !isPartialResult) {
-            SET_ERR("Called before shutter notify for frame %d",
-                    frameNumber);
-            return;
-        }
 
         // Did we get the (final) result metadata for this capture?
         if (result->result != NULL && !isPartialResult) {
@@ -2026,99 +2144,38 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
             return;
         }
 
-        // Check if everything has arrived for this result (buffers and metadata), remove it from
-        // InFlightMap if both arrived or HAL reports error for this request (i.e. during flush).
-        if ((request.requestStatus != OK) ||
-                (request.haveResultMetadata && request.numBuffersLeft == 0)) {
-            ATRACE_ASYNC_END("frame capture", frameNumber);
-            mInFlightMap.removeItemsAt(idx, 1);
+        camera_metadata_ro_entry_t entry;
+        res = find_camera_metadata_ro_entry(result->result,
+                ANDROID_SENSOR_TIMESTAMP, &entry);
+        if (res == OK && entry.count == 1) {
+            request.sensorTimestamp = entry.data.i64[0];
         }
 
-        // Sanity check - if we have too many in-flight frames, something has
-        // likely gone wrong
-        if (mInFlightMap.size() > kInFlightWarnLimit) {
-            CLOGE("In-flight list too large: %zu", mInFlightMap.size());
-        }
-
-    }
-
-    // Process the result metadata, if provided
-    bool gotResult = false;
-    if (result->result != NULL && !isPartialResult) {
-        Mutex::Autolock l(mOutputLock);
-
-        gotResult = true;
-
-        // TODO: need to track errors for tighter bounds on expected frame number
-        if (frameNumber < mNextResultFrameNumber) {
-            SET_ERR("Out-of-order capture result metadata submitted! "
-                    "(got frame number %d, expecting %d)",
-                    frameNumber, mNextResultFrameNumber);
-            return;
-        }
-        mNextResultFrameNumber = frameNumber + 1;
-
-        CaptureResult captureResult;
-        captureResult.mResultExtras = resultExtras;
-        captureResult.mMetadata = result->result;
-
-        if (captureResult.mMetadata.update(ANDROID_REQUEST_FRAME_COUNT,
-                (int32_t*)&frameNumber, 1) != OK) {
-            SET_ERR("Failed to set frame# in metadata (%d)",
-                    frameNumber);
-            gotResult = false;
+        // If shutter event isn't received yet, append the output buffers to
+        // the in-flight request. Otherwise, return the output buffers to
+        // streams.
+        if (shutterTimestamp == 0) {
+            request.pendingOutputBuffers.appendArray(result->output_buffers,
+                result->num_output_buffers);
         } else {
-            ALOGVV("%s: Camera %d: Set frame# in metadata (%d)",
-                    __FUNCTION__, mId, frameNumber);
+            returnOutputBuffers(result->output_buffers,
+                result->num_output_buffers, shutterTimestamp);
         }
 
-        // Append any previous partials to form a complete result
-        if (mUsePartialResult && !collectedPartialResult.isEmpty()) {
-            captureResult.mMetadata.append(collectedPartialResult);
+        if (result->result != NULL && !isPartialResult) {
+            if (shutterTimestamp == 0) {
+                request.pendingMetadata = result->result;
+                request.partialResult.collectedResult = collectedPartialResult;
+            } else {
+                CameraMetadata metadata;
+                metadata = result->result;
+                sendCaptureResult(metadata, request.resultExtras,
+                    collectedPartialResult, frameNumber);
+            }
         }
 
-        captureResult.mMetadata.sort();
-
-        // Check that there's a timestamp in the result metadata
-
-        camera_metadata_entry entry =
-                captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
-        if (entry.count == 0) {
-            SET_ERR("No timestamp provided by HAL for frame %d!",
-                    frameNumber);
-            gotResult = false;
-        } else if (timestamp != entry.data.i64[0]) {
-            SET_ERR("Timestamp mismatch between shutter notify and result"
-                    " metadata for frame %d (%" PRId64 " vs %" PRId64 " respectively)",
-                    frameNumber, timestamp, entry.data.i64[0]);
-            gotResult = false;
-        }
-
-        if (gotResult) {
-            // Valid result, insert into queue
-            List<CaptureResult>::iterator queuedResult =
-                    mResultQueue.insert(mResultQueue.end(), CaptureResult(captureResult));
-            ALOGVV("%s: result requestId = %" PRId32 ", frameNumber = %" PRId64
-                   ", burstId = %" PRId32, __FUNCTION__,
-                   queuedResult->mResultExtras.requestId,
-                   queuedResult->mResultExtras.frameNumber,
-                   queuedResult->mResultExtras.burstId);
-        }
-    } // scope for mOutputLock
-
-    // Return completed buffers to their streams with the timestamp
-
-    for (size_t i = 0; i < result->num_output_buffers; i++) {
-        Camera3Stream *stream =
-                Camera3Stream::cast(result->output_buffers[i].stream);
-        res = stream->returnBuffer(result->output_buffers[i], timestamp);
-        // Note: stream may be deallocated at this point, if this buffer was the
-        // last reference to it.
-        if (res != OK) {
-            ALOGE("Can't return buffer %zu for frame %d to its stream: "
-                    " %s (%d)", i, frameNumber, strerror(-res), res);
-        }
-    }
+        removeInFlightRequestIfReadyLocked(idx);
+    } // scope for mInFlightLock
 
     if (result->input_buffer != NULL) {
         if (hasInputBufferInRequest) {
@@ -2138,13 +2195,6 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                     __FUNCTION__);
         }
     }
-
-    // Finally, signal any waiters for new frames
-
-    if (gotResult) {
-        mResultSignal.signal();
-    }
-
 }
 
 void Camera3Device::notify(const camera3_notify_msg *msg) {
@@ -2262,8 +2312,6 @@ void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
         mNextShutterFrameNumber = msg.frame_number + 1;
     }
 
-    CaptureResultExtras resultExtras;
-
     // Set timestamp for the request in the in-flight tracking
     // and get the request ID to send upstream
     {
@@ -2271,21 +2319,30 @@ void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
         idx = mInFlightMap.indexOfKey(msg.frame_number);
         if (idx >= 0) {
             InFlightRequest &r = mInFlightMap.editValueAt(idx);
-            r.captureTimestamp = msg.timestamp;
-            resultExtras = r.resultExtras;
+
+            ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
+                    mId, __FUNCTION__,
+                    msg.frame_number, r.resultExtras.requestId, msg.timestamp);
+            // Call listener, if any
+            if (listener != NULL) {
+                listener->notifyShutter(r.resultExtras, msg.timestamp);
+            }
+
+            r.shutterTimestamp = msg.timestamp;
+
+            // send pending result and buffers
+            sendCaptureResult(r.pendingMetadata, r.resultExtras,
+                r.partialResult.collectedResult, msg.frame_number);
+            returnOutputBuffers(r.pendingOutputBuffers.array(),
+                r.pendingOutputBuffers.size(), r.shutterTimestamp);
+            r.pendingOutputBuffers.clear();
+
+            removeInFlightRequestIfReadyLocked(idx);
         }
     }
     if (idx < 0) {
         SET_ERR("Shutter notification for non-existent frame number %d",
                 msg.frame_number);
-        return;
-    }
-    ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
-            mId, __FUNCTION__,
-            msg.frame_number, resultExtras.requestId, msg.timestamp);
-    // Call listener, if any
-    if (listener != NULL) {
-        listener->notifyShutter(resultExtras, msg.timestamp);
     }
 }
 

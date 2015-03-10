@@ -20,9 +20,12 @@
 
 #include <cutils/properties.h>
 #include <media/IMediaPlayer.h>
+#include <media/stagefright/DataSource.h>
+#include <media/stagefright/FileSource.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <utils/Errors.h>
 #include <utils/misc.h>
+#include <../libstagefright/include/WVMExtractor.h>
 
 #include "MediaPlayerFactory.h"
 
@@ -180,7 +183,7 @@ class StagefrightPlayerFactory :
     virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
                                int fd,
                                int64_t offset,
-                               int64_t /*length*/,
+                               int64_t length,
                                float /*curScore*/) {
 
 #ifdef QTI_FLAC_DECODER
@@ -203,8 +206,16 @@ class StagefrightPlayerFactory :
             }
         }
 #endif
-        if (getDefaultPlayerType()
-                == STAGEFRIGHT_PLAYER) {
+        if (legacyDrm()) {
+            sp<DataSource> source = new FileSource(dup(fd), offset, length);
+            String8 mimeType;
+            float confidence;
+            if (SniffWVM(source, &mimeType, &confidence, NULL /* format */)) {
+                return 1.0;
+            }
+        }
+
+        if (getDefaultPlayerType() == STAGEFRIGHT_PLAYER) {
             char buf[20];
             lseek(fd, offset, SEEK_SET);
             read(fd, buf, sizeof(buf));
@@ -220,9 +231,27 @@ class StagefrightPlayerFactory :
         return 0.0;
     }
 
+    virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
+                               const char* url,
+                               float /*curScore*/) {
+        if (legacyDrm() && !strncasecmp("widevine://", url, 11)) {
+            return 1.0;
+        }
+        return 0.0;
+    }
+
     virtual sp<MediaPlayerBase> createPlayer() {
         ALOGV(" create StagefrightPlayer");
         return new StagefrightPlayer();
+    }
+  private:
+    bool legacyDrm() {
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("persist.sys.media.legacy-drm", value, NULL)
+                && (!strcmp("1", value) || !strcasecmp("true", value))) {
+            return true;
+        }
+        return false;
     }
 };
 

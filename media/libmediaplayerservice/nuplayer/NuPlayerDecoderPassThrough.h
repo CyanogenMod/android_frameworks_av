@@ -20,21 +20,18 @@
 
 #include "NuPlayer.h"
 
-#include "NuPlayerDecoder.h"
+#include "NuPlayerDecoderBase.h"
 
 namespace android {
 
-struct NuPlayer::DecoderPassThrough : public Decoder {
-    DecoderPassThrough(const sp<AMessage> &notify);
+struct NuPlayer::DecoderPassThrough : public DecoderBase {
+    DecoderPassThrough(const sp<AMessage> &notify,
+                       const sp<Source> &source,
+                       const sp<Renderer> &renderer);
 
-    virtual void configure(const sp<AMessage> &format);
-    virtual void init();
-
-    virtual void signalFlush();
-    virtual void signalResume();
-    virtual void initiateShutdown();
-
-    bool supportsSeamlessFormatChange(const sp<AMessage> &to) const;
+    virtual void getStats(
+            int64_t *mNumFramesTotal,
+            int64_t *mNumFramesDropped) const;
 
 protected:
 
@@ -42,40 +39,47 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
+    virtual void onConfigure(const sp<AMessage> &format);
+    virtual void onSetRenderer(const sp<Renderer> &renderer);
+    virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers);
+    virtual void onResume(bool notifyComplete);
+    virtual void onFlush(bool notifyComplete);
+    virtual void onShutdown(bool notifyComplete);
+    virtual void doRequestBuffers();
+
 private:
     enum {
-        kWhatRequestABuffer     = 'reqB',
-        kWhatConfigure          = 'conf',
-        kWhatInputBufferFilled  = 'inpF',
         kWhatBufferConsumed     = 'bufC',
-        kWhatFlush              = 'flus',
-        kWhatShutdown           = 'shuD',
     };
 
-    sp<AMessage> mNotify;
-    sp<ALooper> mDecoderLooper;
+    sp<Source> mSource;
+    sp<Renderer> mRenderer;
+    int64_t mSkipRenderingUntilMediaTimeUs;
+    bool mPaused;
 
-    /** Returns true if a buffer was requested.
-     * Returns false if at EOS or cache already full.
-     */
-    bool requestABuffer();
-    bool isStaleReply(const sp<AMessage> &msg);
-
-    void onConfigure(const sp<AMessage> &format);
-    void onFlush();
-    void onInputBufferFilled(const sp<AMessage> &msg);
-    void onBufferConsumed(int32_t size);
-    void requestMaxBuffers();
-    void onShutdown();
-
-    int32_t mBufferGeneration;
     bool    mReachedEOS;
-    // TODO mPendingBuffersToFill and mPendingBuffersToDrain are only for
-    // debugging. They can be removed when the power investigation is done.
-    size_t  mPendingBuffersToFill;
+
+    // Used by feedDecoderInputData to aggregate small buffers into
+    // one large buffer.
+    sp<ABuffer> mPendingAudioAccessUnit;
+    status_t    mPendingAudioErr;
+    sp<ABuffer> mAggregateBuffer;
+
+    // mPendingBuffersToDrain are only for debugging. It can be removed
+    // when the power investigation is done.
     size_t  mPendingBuffersToDrain;
     size_t  mCachedBytes;
     AString mComponentName;
+
+    bool isStaleReply(const sp<AMessage> &msg);
+    bool isDoneFetching() const;
+
+    status_t dequeueAccessUnit(sp<ABuffer> *accessUnit);
+    sp<ABuffer> aggregateBuffer(const sp<ABuffer> &accessUnit);
+    status_t fetchInputData(sp<AMessage> &reply);
+
+    void onInputBufferFetched(const sp<AMessage> &msg);
+    void onBufferConsumed(int32_t size);
 
     DISALLOW_EVIL_CONSTRUCTORS(DecoderPassThrough);
 };

@@ -44,7 +44,7 @@ status_t BurstCapture::start(Vector<CameraMetadata> &/*metadatas*/,
     return INVALID_OPERATION;
 }
 
-void BurstCapture::onFrameAvailable() {
+void BurstCapture::onFrameAvailable(const BufferItem &/*item*/) {
     ALOGV("%s", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
     if(!mInputChanged) {

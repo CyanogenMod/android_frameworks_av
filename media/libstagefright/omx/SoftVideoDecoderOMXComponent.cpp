@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaDefs.h>
 
 namespace android {
@@ -61,6 +62,8 @@ SoftVideoDecoderOMXComponent::SoftVideoDecoderOMXComponent(
         mCropWidth(width),
         mCropHeight(height),
         mOutputPortSettingsChange(NONE),
+        mMinInputBufferSize(384), // arbitrary, using one uncompressed macroblock
+        mMinCompressionRatio(1),  // max input size is normally the output size
         mComponentRole(componentRole),
         mCodingType(codingType),
         mProfileLevels(profileLevels),
@@ -71,7 +74,11 @@ void SoftVideoDecoderOMXComponent::initPorts(
         OMX_U32 numInputBuffers,
         OMX_U32 inputBufferSize,
         OMX_U32 numOutputBuffers,
-        const char *mimeType) {
+        const char *mimeType,
+        OMX_U32 minCompressionRatio) {
+    mMinInputBufferSize = inputBufferSize;
+    mMinCompressionRatio = minCompressionRatio;
+
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
 
@@ -120,27 +127,32 @@ void SoftVideoDecoderOMXComponent::initPorts(
 
     addPort(def);
 
-    updatePortDefinitions();
+    updatePortDefinitions(true /* updateCrop */, true /* updateInputSize */);
 }
 
-void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop) {
-    OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
-    def->format.video.nFrameWidth = mWidth;
-    def->format.video.nFrameHeight = mHeight;
-    def->format.video.nStride = def->format.video.nFrameWidth;
-    def->format.video.nSliceHeight = def->format.video.nFrameHeight;
+void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop, bool updateInputSize) {
+    OMX_PARAM_PORTDEFINITIONTYPE *outDef = &editPortInfo(kOutputPortIndex)->mDef;
+    outDef->format.video.nFrameWidth = outputBufferWidth();
+    outDef->format.video.nFrameHeight = outputBufferHeight();
+    outDef->format.video.nStride = outDef->format.video.nFrameWidth;
+    outDef->format.video.nSliceHeight = outDef->format.video.nFrameHeight;
 
-    def->nBufferSize = def->format.video.nFrameWidth * def->format.video.nFrameHeight * 3 / 2;
+    outDef->nBufferSize =
+        (outDef->format.video.nStride * outDef->format.video.nSliceHeight * 3) / 2;
 
-    def = &editPortInfo(kOutputPortIndex)->mDef;
-    def->format.video.nFrameWidth = outputBufferWidth();
-    def->format.video.nFrameHeight = outputBufferHeight();
-    def->format.video.nStride = def->format.video.nFrameWidth;
-    def->format.video.nSliceHeight = def->format.video.nFrameHeight;
+    OMX_PARAM_PORTDEFINITIONTYPE *inDef = &editPortInfo(kInputPortIndex)->mDef;
+    inDef->format.video.nFrameWidth = mWidth;
+    inDef->format.video.nFrameHeight = mHeight;
+    // input port is compressed, hence it has no stride
+    inDef->format.video.nStride = 0;
+    inDef->format.video.nSliceHeight = 0;
 
-    def->nBufferSize =
-            (def->format.video.nFrameWidth *
-             def->format.video.nFrameHeight * 3) / 2;
+    // when output format changes, input buffer size does not actually change
+    if (updateInputSize) {
+        inDef->nBufferSize = max(
+                outDef->nBufferSize / mMinCompressionRatio,
+                max(mMinInputBufferSize, inDef->nBufferSize));
+    }
 
     if (updateCrop) {
         mCropLeft = 0;
@@ -169,7 +181,8 @@ void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
     bool strideChanged = false;
     if (fakeStride) {
         OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kOutputPortIndex)->mDef;
-        if (def->format.video.nStride != width || def->format.video.nSliceHeight != height) {
+        if (def->format.video.nStride != (OMX_S32)width
+                || def->format.video.nSliceHeight != (OMX_U32)height) {
             strideChanged = true;
         }
     }
@@ -252,7 +265,7 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalGetParameter(
                 (OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
 
             if (formatParams->nPortIndex > kMaxPortIndex) {
-                return OMX_ErrorUndefined;
+                return OMX_ErrorBadPortIndex;
             }
 
             if (formatParams->nIndex != 0) {
@@ -324,11 +337,23 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
                 (OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
 
             if (formatParams->nPortIndex > kMaxPortIndex) {
-                return OMX_ErrorUndefined;
+                return OMX_ErrorBadPortIndex;
             }
 
             if (formatParams->nIndex != 0) {
                 return OMX_ErrorNoMore;
+            }
+
+            if (formatParams->nPortIndex == kInputPortIndex) {
+                if (formatParams->eCompressionFormat != mCodingType
+                        || formatParams->eColorFormat != OMX_COLOR_FormatUnused) {
+                    return OMX_ErrorUnsupportedSetting;
+                }
+            } else {
+                if (formatParams->eCompressionFormat != OMX_VIDEO_CodingUnused
+                        || formatParams->eColorFormat != OMX_COLOR_FormatYUV420Planar) {
+                    return OMX_ErrorUnsupportedSetting;
+                }
             }
 
             return OMX_ErrorNone;
@@ -348,7 +373,7 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
                 mAdaptiveMaxWidth = 0;
                 mAdaptiveMaxHeight = 0;
             }
-            updatePortDefinitions();
+            updatePortDefinitions(true /* updateCrop */, true /* updateInputSize */);
             return OMX_ErrorNone;
         }
 
@@ -365,23 +390,21 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
             uint32_t newHeight = video_def->nFrameHeight;
             if (newWidth != oldWidth || newHeight != oldHeight) {
                 bool outputPort = (newParams->nPortIndex == kOutputPortIndex);
-                def->format.video.nFrameWidth =
-                    (mIsAdaptive && outputPort) ? mAdaptiveMaxWidth : newWidth;
-                def->format.video.nFrameHeight =
-                    (mIsAdaptive && outputPort) ? mAdaptiveMaxHeight : newHeight;
-                def->format.video.nStride = def->format.video.nFrameWidth;
-                def->format.video.nSliceHeight = def->format.video.nFrameHeight;
-                def->nBufferSize =
-                    def->format.video.nFrameWidth * def->format.video.nFrameHeight * 3 / 2;
                 if (outputPort) {
+                    // only update (essentially crop) if size changes
                     mWidth = newWidth;
                     mHeight = newHeight;
-                    mCropLeft = 0;
-                    mCropTop = 0;
-                    mCropWidth = newWidth;
-                    mCropHeight = newHeight;
+
+                    updatePortDefinitions(true /* updateCrop */, true /* updateInputSize */);
+                    // reset buffer size based on frame size
+                    newParams->nBufferSize = def->nBufferSize;
+                } else {
+                    // For input port, we only set nFrameWidth and nFrameHeight. Buffer size
+                    // is updated when configuring the output port using the max-frame-size,
+                    // though client can still request a larger size.
+                    def->format.video.nFrameWidth = newWidth;
+                    def->format.video.nFrameHeight = newHeight;
                 }
-                newParams->nBufferSize = def->nBufferSize;
             }
             return SimpleSoftOMXComponent::internalSetParameter(index, params);
         }

@@ -66,7 +66,7 @@ ZslProcessor::~ZslProcessor() {
     disconnect();
 }
 
-void ZslProcessor::onFrameAvailable() {
+void ZslProcessor::onFrameAvailable(const BufferItem& /*item*/) {
     Mutex::Autolock l(mInputMutex);
     if (!mZslBufferAvailable) {
         mZslBufferAvailable = true;

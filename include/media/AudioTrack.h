@@ -239,6 +239,9 @@ public:
      * Parameters not listed in the AudioTrack constructors above:
      *
      * threadCanCallJava:  Whether callbacks are made from an attached thread and thus can call JNI.
+     *
+     * Internal state post condition:
+     *      (mStreamType == AUDIO_STREAM_DEFAULT) implies this AudioTrack has valid attributes
      */
             status_t    set(audio_stream_type_t streamType,
                             uint32_t sampleRate,
@@ -273,7 +276,7 @@ public:
 
     /* getters, see constructors and set() */
 
-            audio_stream_type_t streamType() const { return mStreamType; }
+            audio_stream_type_t streamType() const;
             audio_format_t format() const   { return mFormat; }
 
     /* Return frame size in bytes, which for linear PCM is
@@ -604,9 +607,6 @@ protected:
             AudioTrack& operator = (const AudioTrack& other);
 
             void        setAttributesFromStreamType(audio_stream_type_t streamType);
-            void        setStreamTypeFromAttributes(audio_attributes_t& aa);
-    /* paa is guaranteed non-NULL */
-            bool        isValidAttributes(const audio_attributes_t *paa);
 
     /* a small internal class to handle the callback */
     class AudioTrackThread : public Thread
@@ -694,7 +694,8 @@ protected:
 
     // constant after constructor or set()
     audio_format_t          mFormat;                // as requested by client, not forced to 16-bit
-    audio_stream_type_t     mStreamType;
+    audio_stream_type_t     mStreamType;            // mStreamType == AUDIO_STREAM_DEFAULT implies
+                                                    // this AudioTrack has valid attributes
     uint32_t                mChannelCount;
     audio_channel_mask_t    mChannelMask;
     sp<IMemory>             mSharedBuffer;

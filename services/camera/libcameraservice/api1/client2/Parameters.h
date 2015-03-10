@@ -266,6 +266,8 @@ struct Parameters {
     status_t overrideJpegSizeByVideoSize();
     // Recover overridden jpeg size.  Called during stopRecording.
     status_t recoverOverriddenJpegSize();
+    // if video snapshot size is currently overridden
+    bool isJpegSizeOverridden();
 
     // Calculate the crop region rectangle based on current stream sizes
     struct CropRegion {
@@ -325,12 +327,16 @@ struct Parameters {
     // Note that this doesn't apply to the (deprecated) single FPS value.
     static const int kFpsToApiScale = 1000;
 
-    // Transform between (-1000,-1000)-(1000,1000) normalized coords from camera
-    // API and HAL2 (0,0)-(activePixelArray.width/height) coordinates
-    int arrayXToNormalized(int width) const;
-    int arrayYToNormalized(int height) const;
+    // Transform from (-1000,-1000)-(1000,1000) normalized coords from camera
+    // API to HAL2 (0,0)-(activePixelArray.width/height) coordinates
     int normalizedXToArray(int x) const;
     int normalizedYToArray(int y) const;
+
+    // Transform from HAL3 (0,0)-(activePixelArray.width/height) coordinates to
+    // (-1000,-1000)-(1000,1000) normalized coordinates given a scaler crop
+    // region.
+    int arrayXToNormalizedWithCrop(int x, const CropRegion &scalerCrop) const;
+    int arrayYToNormalizedWithCrop(int y, const CropRegion &scalerCrop) const;
 
     struct Range {
         int min;
@@ -341,19 +347,19 @@ struct Parameters {
 
 private:
 
-    // Convert between HAL2 sensor array coordinates and
-    // viewfinder crop-region relative array coordinates
+    // Convert from viewfinder crop-region relative array coordinates
+    // to HAL2 sensor array coordinates
     int cropXToArray(int x) const;
     int cropYToArray(int y) const;
-    int arrayXToCrop(int x) const;
-    int arrayYToCrop(int y) const;
 
-    // Convert between viewfinder crop-region relative array coordinates
-    // and camera API (-1000,1000)-(1000,1000) normalized coords
-    int cropXToNormalized(int x) const;
-    int cropYToNormalized(int y) const;
+    // Convert from camera API (-1000,1000)-(1000,1000) normalized coords
+    // to viewfinder crop-region relative array coordinates
     int normalizedXToCrop(int x) const;
     int normalizedYToCrop(int y) const;
+
+    // Given a scaler crop region, calculate preview crop region based on
+    // preview aspect ratio.
+    CropRegion calculatePreviewCrop(const CropRegion &scalerCrop) const;
 
     Vector<Size> availablePreviewSizes;
     Vector<Size> availableVideoSizes;

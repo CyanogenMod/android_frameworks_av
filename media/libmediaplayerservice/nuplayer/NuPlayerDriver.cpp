@@ -245,16 +245,24 @@ status_t NuPlayerDriver::start() {
             // fall through
         }
 
+        case STATE_PAUSED:
+        case STATE_STOPPED_AND_PREPARED:
+        {
+            if (mAtEOS && mStartupSeekTimeUs < 0) {
+                mStartupSeekTimeUs = 0;
+                mPositionUs = -1;
+            }
+
+            // fall through
+        }
+
         case STATE_PREPARED:
         {
             mAtEOS = false;
             mPlayer->start();
 
             if (mStartupSeekTimeUs >= 0) {
-                if (mStartupSeekTimeUs > 0) {
-                    mPlayer->seekToAsync(mStartupSeekTimeUs);
-                }
-
+                mPlayer->seekToAsync(mStartupSeekTimeUs);
                 mStartupSeekTimeUs = -1;
             }
             break;
@@ -266,20 +274,6 @@ status_t NuPlayerDriver::start() {
                 mPlayer->seekToAsync(0);
                 mAtEOS = false;
                 mPositionUs = -1;
-            }
-            break;
-        }
-
-        case STATE_PAUSED:
-        case STATE_STOPPED_AND_PREPARED:
-        {
-            if (mAtEOS) {
-                mPlayer->seekToAsync(0);
-                mAtEOS = false;
-                mPlayer->resume();
-                mPositionUs = -1;
-            } else {
-                mPlayer->resume();
             }
             break;
         }
@@ -322,6 +316,13 @@ status_t NuPlayerDriver::stop() {
 }
 
 status_t NuPlayerDriver::pause() {
+    // The NuPlayerRenderer may get flushed if pause for long enough, e.g. the pause timeout tear
+    // down for audio offload mode. If that happens, the NuPlayerRenderer will no longer know the
+    // current position. So similar to seekTo, update |mPositionUs| to the pause position by calling
+    // getCurrentPosition here.
+    int msec;
+    getCurrentPosition(&msec);
+
     Mutex::Autolock autoLock(mLock);
 
     switch (mState) {
@@ -354,6 +355,7 @@ status_t NuPlayerDriver::seekTo(int msec) {
 
     switch (mState) {
         case STATE_PREPARED:
+        case STATE_STOPPED_AND_PREPARED:
         {
             mStartupSeekTimeUs = seekTimeUs;
             // pretend that the seek completed. It will actually happen when starting playback.
@@ -384,13 +386,22 @@ status_t NuPlayerDriver::seekTo(int msec) {
 
 status_t NuPlayerDriver::getCurrentPosition(int *msec) {
     int64_t tempUs = 0;
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (mSeekInProgress || mState == STATE_PAUSED) {
+            tempUs = (mPositionUs <= 0) ? 0 : mPositionUs;
+            *msec = (int)divRound(tempUs, (int64_t)(1000));
+            return OK;
+        }
+    }
+
     status_t ret = mPlayer->getCurrentPosition(&tempUs);
 
     Mutex::Autolock autoLock(mLock);
     // We need to check mSeekInProgress here because mPlayer->seekToAsync is an async call, which
     // means getCurrentPosition can be called before seek is completed. Iow, renderer may return a
     // position value that's different the seek to position.
-    if (ret != OK || mSeekInProgress) {
+    if (ret != OK) {
         tempUs = (mPositionUs <= 0) ? 0 : mPositionUs;
     } else {
         mPositionUs = tempUs;
@@ -491,13 +502,16 @@ status_t NuPlayerDriver::invoke(const Parcel &request, Parcel *reply) {
         case INVOKE_ID_SELECT_TRACK:
         {
             int trackIndex = request.readInt32();
-            return mPlayer->selectTrack(trackIndex, true /* select */);
+            int msec = 0;
+            // getCurrentPosition should always return OK
+            getCurrentPosition(&msec);
+            return mPlayer->selectTrack(trackIndex, true /* select */, msec * 1000ll);
         }
 
         case INVOKE_ID_UNSELECT_TRACK:
         {
             int trackIndex = request.readInt32();
-            return mPlayer->selectTrack(trackIndex, false /* select */);
+            return mPlayer->selectTrack(trackIndex, false /* select */, 0xdeadbeef /* not used */);
         }
 
         case INVOKE_ID_GET_SELECTED_TRACK:
@@ -640,9 +654,24 @@ void NuPlayerDriver::notifyListener_l(
         case MEDIA_PLAYBACK_COMPLETE:
         {
             if (mState != STATE_RESET_IN_PROGRESS) {
+                if (mAutoLoop) {
+                    audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
+                    if (mAudioSink != NULL) {
+                        streamType = mAudioSink->getAudioStreamType();
+                    }
+                    if (streamType == AUDIO_STREAM_NOTIFICATION) {
+                        ALOGW("disabling auto-loop for notification");
+                        mAutoLoop = false;
+                    }
+                }
                 if (mLooping || (mAutoLoop
                         && (mAudioSink == NULL || mAudioSink->realtime()))) {
                     mPlayer->seekToAsync(0);
+                    if (mAudioSink != NULL) {
+                        // The renderer has stopped the sink at the end in order to play out
+                        // the last little bit of audio. If we're looping, we need to restart it.
+                        mAudioSink->start();
+                    }
                     break;
                 }
 

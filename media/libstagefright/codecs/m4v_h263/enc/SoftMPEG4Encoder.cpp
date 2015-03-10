@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SoftMPEG4Encoder"
 #include <utils/Log.h>
+#include <utils/misc.h>
 
 #include "mp4enc_api.h"
 #include "OMX_Video.h"
@@ -24,6 +25,7 @@
 #include <HardwareAPI.h>
 #include <MetadataBufferType.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -46,19 +48,30 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
+static const CodecProfileLevel kMPEG4ProfileLevels[] = {
+    { OMX_VIDEO_MPEG4ProfileCore, OMX_VIDEO_MPEG4Level2 },
+};
+
+static const CodecProfileLevel kH263ProfileLevels[] = {
+    { OMX_VIDEO_H263ProfileBaseline, OMX_VIDEO_H263Level45 },
+};
+
 SoftMPEG4Encoder::SoftMPEG4Encoder(
             const char *name,
+            const char *componentRole,
+            OMX_VIDEO_CODINGTYPE codingType,
+            const char *mime,
+            const CodecProfileLevel *profileLevels,
+            size_t numProfileLevels,
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component)
-    : SoftVideoEncoderOMXComponent(name, callbacks, appData, component),
+    : SoftVideoEncoderOMXComponent(
+            name, componentRole, codingType,
+            profileLevels, numProfileLevels,
+            176 /* width */, 144 /* height */,
+            callbacks, appData, component),
       mEncodeMode(COMBINE_MODE_WITH_ERR_RES),
-      mVideoWidth(176),
-      mVideoHeight(144),
-      mVideoFrameRate(30),
-      mVideoBitRate(192000),
-      mVideoColorFormat(OMX_COLOR_FormatYUV420Planar),
-      mStoreMetaDataInBuffers(false),
       mIDRFrameRefreshIntervalInSec(1),
       mNumInputFrames(-1),
       mStarted(false),
@@ -68,13 +81,15 @@ SoftMPEG4Encoder::SoftMPEG4Encoder(
       mEncParams(new tagvideoEncOptions),
       mInputFrameData(NULL) {
 
-   if (!strcmp(name, "OMX.google.h263.encoder")) {
+    if (codingType == OMX_VIDEO_CodingH263) {
         mEncodeMode = H263_MODE;
-    } else {
-        CHECK(!strcmp(name, "OMX.google.mpeg4.encoder"));
     }
 
-    initPorts();
+    // 256 * 1024 is a magic number for PV's encoder, not sure why
+    const size_t kOutputBufferSize = 256 * 1024;
+
+    initPorts(kNumBuffers, kNumBuffers, kOutputBufferSize, mime);
+
     ALOGI("Construct SoftMPEG4Encoder");
 }
 
@@ -98,9 +113,9 @@ OMX_ERRORTYPE SoftMPEG4Encoder::initEncParams() {
         return OMX_ErrorUndefined;
     }
     mEncParams->encMode = mEncodeMode;
-    mEncParams->encWidth[0] = mVideoWidth;
-    mEncParams->encHeight[0] = mVideoHeight;
-    mEncParams->encFrameRate[0] = mVideoFrameRate;
+    mEncParams->encWidth[0] = mWidth;
+    mEncParams->encHeight[0] = mHeight;
+    mEncParams->encFrameRate[0] = mFramerate >> 16; // mFramerate is in Q16 format
     mEncParams->rcType = VBR_1;
     mEncParams->vbvDelay = 5.0f;
 
@@ -111,27 +126,26 @@ OMX_ERRORTYPE SoftMPEG4Encoder::initEncParams() {
     mEncParams->rvlcEnable = PV_OFF;
     mEncParams->numLayers = 1;
     mEncParams->timeIncRes = 1000;
-    mEncParams->tickPerSrc = mEncParams->timeIncRes / mVideoFrameRate;
+    mEncParams->tickPerSrc = ((int64_t)mEncParams->timeIncRes << 16) / mFramerate;
 
-    mEncParams->bitRate[0] = mVideoBitRate;
+    mEncParams->bitRate[0] = mBitrate;
     mEncParams->iQuant[0] = 15;
     mEncParams->pQuant[0] = 12;
     mEncParams->quantType[0] = 0;
     mEncParams->noFrameSkipped = PV_OFF;
 
-    if (mVideoColorFormat != OMX_COLOR_FormatYUV420Planar
-            || mStoreMetaDataInBuffers) {
+    if (mColorFormat != OMX_COLOR_FormatYUV420Planar || mInputDataIsMeta) {
         // Color conversion is needed.
         free(mInputFrameData);
         mInputFrameData =
-            (uint8_t *) malloc((mVideoWidth * mVideoHeight * 3 ) >> 1);
+            (uint8_t *) malloc((mWidth * mHeight * 3 ) >> 1);
         CHECK(mInputFrameData != NULL);
     }
 
     // PV's MPEG4 encoder requires the video dimension of multiple
-    if (mVideoWidth % 16 != 0 || mVideoHeight % 16 != 0) {
+    if (mWidth % 16 != 0 || mHeight % 16 != 0) {
         ALOGE("Video frame size %dx%d must be a multiple of 16",
-            mVideoWidth, mVideoHeight);
+            mWidth, mHeight);
         return OMX_ErrorBadParameter;
     }
 
@@ -142,7 +156,7 @@ OMX_ERRORTYPE SoftMPEG4Encoder::initEncParams() {
         mEncParams->intraPeriod = 1;  // All I frames
     } else {
         mEncParams->intraPeriod =
-            (mIDRFrameRefreshIntervalInSec * mVideoFrameRate);
+            (mIDRFrameRefreshIntervalInSec * mFramerate) >> 16;
     }
 
     mEncParams->numIntraMB = 0;
@@ -201,81 +215,9 @@ OMX_ERRORTYPE SoftMPEG4Encoder::releaseEncoder() {
     return OMX_ErrorNone;
 }
 
-void SoftMPEG4Encoder::initPorts() {
-    OMX_PARAM_PORTDEFINITIONTYPE def;
-    InitOMXParams(&def);
-
-    const size_t kInputBufferSize = (mVideoWidth * mVideoHeight * 3) >> 1;
-
-    // 256 * 1024 is a magic number for PV's encoder, not sure why
-    const size_t kOutputBufferSize =
-        (kInputBufferSize > 256 * 1024)
-            ? kInputBufferSize: 256 * 1024;
-
-    def.nPortIndex = 0;
-    def.eDir = OMX_DirInput;
-    def.nBufferCountMin = kNumBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kInputBufferSize;
-    def.bEnabled = OMX_TRUE;
-    def.bPopulated = OMX_FALSE;
-    def.eDomain = OMX_PortDomainVideo;
-    def.bBuffersContiguous = OMX_FALSE;
-    def.nBufferAlignment = 1;
-
-    def.format.video.cMIMEType = const_cast<char *>("video/raw");
-
-    def.format.video.eCompressionFormat = OMX_VIDEO_CodingUnused;
-    def.format.video.eColorFormat = OMX_COLOR_FormatYUV420Planar;
-    def.format.video.xFramerate = (mVideoFrameRate << 16);  // Q16 format
-    def.format.video.nBitrate = mVideoBitRate;
-    def.format.video.nFrameWidth = mVideoWidth;
-    def.format.video.nFrameHeight = mVideoHeight;
-    def.format.video.nStride = mVideoWidth;
-    def.format.video.nSliceHeight = mVideoHeight;
-
-    addPort(def);
-
-    def.nPortIndex = 1;
-    def.eDir = OMX_DirOutput;
-    def.nBufferCountMin = kNumBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kOutputBufferSize;
-    def.bEnabled = OMX_TRUE;
-    def.bPopulated = OMX_FALSE;
-    def.eDomain = OMX_PortDomainVideo;
-    def.bBuffersContiguous = OMX_FALSE;
-    def.nBufferAlignment = 2;
-
-    def.format.video.cMIMEType =
-        (mEncodeMode == COMBINE_MODE_WITH_ERR_RES)
-            ? const_cast<char *>(MEDIA_MIMETYPE_VIDEO_MPEG4)
-            : const_cast<char *>(MEDIA_MIMETYPE_VIDEO_H263);
-
-    def.format.video.eCompressionFormat =
-        (mEncodeMode == COMBINE_MODE_WITH_ERR_RES)
-            ? OMX_VIDEO_CodingMPEG4
-            : OMX_VIDEO_CodingH263;
-
-    def.format.video.eColorFormat = OMX_COLOR_FormatUnused;
-    def.format.video.xFramerate = (0 << 16);  // Q16 format
-    def.format.video.nBitrate = mVideoBitRate;
-    def.format.video.nFrameWidth = mVideoWidth;
-    def.format.video.nFrameHeight = mVideoHeight;
-    def.format.video.nStride = mVideoWidth;
-    def.format.video.nSliceHeight = mVideoHeight;
-
-    addPort(def);
-}
-
 OMX_ERRORTYPE SoftMPEG4Encoder::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR params) {
     switch (index) {
-        case OMX_IndexParamVideoErrorCorrection:
-        {
-            return OMX_ErrorNotImplemented;
-        }
-
         case OMX_IndexParamVideoBitrate:
         {
             OMX_VIDEO_PARAM_BITRATETYPE *bitRate =
@@ -286,41 +228,7 @@ OMX_ERRORTYPE SoftMPEG4Encoder::internalGetParameter(
             }
 
             bitRate->eControlRate = OMX_Video_ControlRateVariable;
-            bitRate->nTargetBitrate = mVideoBitRate;
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamVideoPortFormat:
-        {
-            OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
-                (OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
-
-            if (formatParams->nPortIndex > 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (formatParams->nIndex > 2) {
-                return OMX_ErrorNoMore;
-            }
-
-            if (formatParams->nPortIndex == 0) {
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingUnused;
-                if (formatParams->nIndex == 0) {
-                    formatParams->eColorFormat = OMX_COLOR_FormatYUV420Planar;
-                } else if (formatParams->nIndex == 1) {
-                    formatParams->eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
-                } else {
-                    formatParams->eColorFormat = OMX_COLOR_FormatAndroidOpaque;
-                }
-            } else {
-                formatParams->eCompressionFormat =
-                    (mEncodeMode == COMBINE_MODE_WITH_ERR_RES)
-                        ? OMX_VIDEO_CodingMPEG4
-                        : OMX_VIDEO_CodingH263;
-
-                formatParams->eColorFormat = OMX_COLOR_FormatUnused;
-            }
-
+            bitRate->nTargetBitrate = mBitrate;
             return OMX_ErrorNone;
         }
 
@@ -369,32 +277,8 @@ OMX_ERRORTYPE SoftMPEG4Encoder::internalGetParameter(
             return OMX_ErrorNone;
         }
 
-        case OMX_IndexParamVideoProfileLevelQuerySupported:
-        {
-            OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
-                (OMX_VIDEO_PARAM_PROFILELEVELTYPE *)params;
-
-            if (profileLevel->nPortIndex != 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (profileLevel->nProfileIndex > 0) {
-                return OMX_ErrorNoMore;
-            }
-
-            if (mEncodeMode == H263_MODE) {
-                profileLevel->eProfile = OMX_VIDEO_H263ProfileBaseline;
-                profileLevel->eLevel = OMX_VIDEO_H263Level45;
-            } else {
-                profileLevel->eProfile = OMX_VIDEO_MPEG4ProfileCore;
-                profileLevel->eLevel = OMX_VIDEO_MPEG4Level2;
-            }
-
-            return OMX_ErrorNone;
-        }
-
         default:
-            return SimpleSoftOMXComponent::internalGetParameter(index, params);
+            return SoftVideoEncoderOMXComponent::internalGetParameter(index, params);
     }
 }
 
@@ -403,11 +287,6 @@ OMX_ERRORTYPE SoftMPEG4Encoder::internalSetParameter(
     int32_t indexFull = index;
 
     switch (indexFull) {
-        case OMX_IndexParamVideoErrorCorrection:
-        {
-            return OMX_ErrorNotImplemented;
-        }
-
         case OMX_IndexParamVideoBitrate:
         {
             OMX_VIDEO_PARAM_BITRATETYPE *bitRate =
@@ -418,112 +297,7 @@ OMX_ERRORTYPE SoftMPEG4Encoder::internalSetParameter(
                 return OMX_ErrorUndefined;
             }
 
-            mVideoBitRate = bitRate->nTargetBitrate;
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamPortDefinition:
-        {
-            OMX_PARAM_PORTDEFINITIONTYPE *def =
-                (OMX_PARAM_PORTDEFINITIONTYPE *)params;
-            if (def->nPortIndex > 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (def->nPortIndex == 0) {
-                if (def->format.video.eCompressionFormat != OMX_VIDEO_CodingUnused ||
-                    (def->format.video.eColorFormat != OMX_COLOR_FormatYUV420Planar &&
-                     def->format.video.eColorFormat != OMX_COLOR_FormatYUV420SemiPlanar &&
-                     def->format.video.eColorFormat != OMX_COLOR_FormatAndroidOpaque)) {
-                    return OMX_ErrorUndefined;
-                }
-            } else {
-                if ((mEncodeMode == COMBINE_MODE_WITH_ERR_RES &&
-                        def->format.video.eCompressionFormat != OMX_VIDEO_CodingMPEG4) ||
-                    (mEncodeMode == H263_MODE &&
-                        def->format.video.eCompressionFormat != OMX_VIDEO_CodingH263) ||
-                    (def->format.video.eColorFormat != OMX_COLOR_FormatUnused)) {
-                    return OMX_ErrorUndefined;
-                }
-            }
-
-            OMX_ERRORTYPE err = SimpleSoftOMXComponent::internalSetParameter(index, params);
-            if (OMX_ErrorNone != err) {
-                return err;
-            }
-
-            if (def->nPortIndex == 0) {
-                mVideoWidth = def->format.video.nFrameWidth;
-                mVideoHeight = def->format.video.nFrameHeight;
-                mVideoFrameRate = def->format.video.xFramerate >> 16;
-                mVideoColorFormat = def->format.video.eColorFormat;
-
-                OMX_PARAM_PORTDEFINITIONTYPE *portDef =
-                    &editPortInfo(0)->mDef;
-                portDef->format.video.nFrameWidth = mVideoWidth;
-                portDef->format.video.nFrameHeight = mVideoHeight;
-                portDef->format.video.xFramerate = def->format.video.xFramerate;
-                portDef->format.video.eColorFormat =
-                    (OMX_COLOR_FORMATTYPE) mVideoColorFormat;
-                portDef = &editPortInfo(1)->mDef;
-                portDef->format.video.nFrameWidth = mVideoWidth;
-                portDef->format.video.nFrameHeight = mVideoHeight;
-            } else {
-                mVideoBitRate = def->format.video.nBitrate;
-            }
-
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamStandardComponentRole:
-        {
-            const OMX_PARAM_COMPONENTROLETYPE *roleParams =
-                (const OMX_PARAM_COMPONENTROLETYPE *)params;
-
-            if (strncmp((const char *)roleParams->cRole,
-                        (mEncodeMode == H263_MODE)
-                            ? "video_encoder.h263": "video_encoder.mpeg4",
-                        OMX_MAX_STRINGNAME_SIZE - 1)) {
-                return OMX_ErrorUndefined;
-            }
-
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamVideoPortFormat:
-        {
-            const OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
-                (const OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
-
-            if (formatParams->nPortIndex > 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (formatParams->nIndex > 2) {
-                return OMX_ErrorNoMore;
-            }
-
-            if (formatParams->nPortIndex == 0) {
-                if (formatParams->eCompressionFormat != OMX_VIDEO_CodingUnused ||
-                    ((formatParams->nIndex == 0 &&
-                      formatParams->eColorFormat != OMX_COLOR_FormatYUV420Planar) ||
-                    (formatParams->nIndex == 1 &&
-                     formatParams->eColorFormat != OMX_COLOR_FormatYUV420SemiPlanar) ||
-                    (formatParams->nIndex == 2 &&
-                     formatParams->eColorFormat != OMX_COLOR_FormatAndroidOpaque) )) {
-                    return OMX_ErrorUndefined;
-                }
-                mVideoColorFormat = formatParams->eColorFormat;
-            } else {
-                if ((mEncodeMode == H263_MODE &&
-                        formatParams->eCompressionFormat != OMX_VIDEO_CodingH263) ||
-                    (mEncodeMode == COMBINE_MODE_WITH_ERR_RES &&
-                        formatParams->eCompressionFormat != OMX_VIDEO_CodingMPEG4) ||
-                    formatParams->eColorFormat != OMX_COLOR_FormatUnused) {
-                    return OMX_ErrorUndefined;
-                }
-            }
-
+            mBitrate = bitRate->nTargetBitrate;
             return OMX_ErrorNone;
         }
 
@@ -574,29 +348,8 @@ OMX_ERRORTYPE SoftMPEG4Encoder::internalSetParameter(
             return OMX_ErrorNone;
         }
 
-        case kStoreMetaDataExtensionIndex:
-        {
-            StoreMetaDataInBuffersParams *storeParams =
-                    (StoreMetaDataInBuffersParams*)params;
-            if (storeParams->nPortIndex != 0) {
-                ALOGE("%s: StoreMetadataInBuffersParams.nPortIndex not zero!",
-                        __FUNCTION__);
-                return OMX_ErrorUndefined;
-            }
-
-            mStoreMetaDataInBuffers = storeParams->bStoreMetaData;
-            ALOGV("StoreMetaDataInBuffers set to: %s",
-                    mStoreMetaDataInBuffers ? " true" : "false");
-
-            if (mStoreMetaDataInBuffers) {
-                mVideoColorFormat = OMX_COLOR_FormatAndroidOpaque;
-            }
-
-            return OMX_ErrorNone;
-        }
-
         default:
-            return SimpleSoftOMXComponent::internalSetParameter(index, params);
+            return SoftVideoEncoderOMXComponent::internalSetParameter(index, params);
     }
 }
 
@@ -659,7 +412,7 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
 
         if (inHeader->nFilledLen > 0) {
             const uint8_t *inputData = NULL;
-            if (mStoreMetaDataInBuffers) {
+            if (mInputDataIsMeta) {
                 if (inHeader->nFilledLen != 8) {
                     ALOGE("MetaData buffer is wrong size! "
                             "(got %u bytes, expected 8)", inHeader->nFilledLen);
@@ -669,9 +422,9 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
                 }
                 inputData =
                     extractGraphicBuffer(
-                            mInputFrameData, (mVideoWidth * mVideoHeight * 3) >> 1,
+                            mInputFrameData, (mWidth * mHeight * 3) >> 1,
                             inHeader->pBuffer + inHeader->nOffset, inHeader->nFilledLen,
-                            mVideoWidth, mVideoHeight);
+                            mWidth, mHeight);
                 if (inputData == NULL) {
                     ALOGE("Unable to extract gralloc buffer in metadata mode");
                     mSignalledError = true;
@@ -680,9 +433,9 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
                 }
             } else {
                 inputData = (const uint8_t *)inHeader->pBuffer + inHeader->nOffset;
-                if (mVideoColorFormat != OMX_COLOR_FormatYUV420Planar) {
+                if (mColorFormat != OMX_COLOR_FormatYUV420Planar) {
                     ConvertYUV420SemiPlanarToYUV420Planar(
-                        inputData, mInputFrameData, mVideoWidth, mVideoHeight);
+                        inputData, mInputFrameData, mWidth, mHeight);
                     inputData = mInputFrameData;
                 }
             }
@@ -692,8 +445,8 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
             VideoEncFrameIO vin, vout;
             memset(&vin, 0, sizeof(vin));
             memset(&vout, 0, sizeof(vout));
-            vin.height = ((mVideoHeight  + 15) >> 4) << 4;
-            vin.pitch = ((mVideoWidth + 15) >> 4) << 4;
+            vin.height = align(mHeight, 16);
+            vin.pitch = align(mWidth, 16);
             vin.timestamp = (inHeader->nTimeStamp + 500) / 1000;  // in ms
             vin.yChan = (uint8_t *)inputData;
             vin.uChan = vin.yChan + vin.height * vin.pitch;
@@ -741,5 +494,19 @@ void SoftMPEG4Encoder::onQueueFilled(OMX_U32 /* portIndex */) {
 android::SoftOMXComponent *createSoftOMXComponent(
         const char *name, const OMX_CALLBACKTYPE *callbacks,
         OMX_PTR appData, OMX_COMPONENTTYPE **component) {
-    return new android::SoftMPEG4Encoder(name, callbacks, appData, component);
+    using namespace android;
+    if (!strcmp(name, "OMX.google.h263.encoder")) {
+        return new android::SoftMPEG4Encoder(
+                name, "video_encoder.h263", OMX_VIDEO_CodingH263, MEDIA_MIMETYPE_VIDEO_H263,
+                kH263ProfileLevels, NELEM(kH263ProfileLevels),
+                callbacks, appData, component);
+    } else if (!strcmp(name, "OMX.google.mpeg4.encoder")) {
+        return new android::SoftMPEG4Encoder(
+                name, "video_encoder.mpeg4", OMX_VIDEO_CodingMPEG4, MEDIA_MIMETYPE_VIDEO_MPEG4,
+                kMPEG4ProfileLevels, NELEM(kMPEG4ProfileLevels),
+                callbacks, appData, component);
+    } else {
+        CHECK(!"Unknown component");
+    }
+    return NULL;
 }

@@ -39,7 +39,13 @@ LOCAL_SRC_FILES := \
 # FIXME Move this library to frameworks/native
 LOCAL_MODULE := libserviceutility
 
-include $(BUILD_STATIC_LIBRARY)
+LOCAL_SHARED_LIBRARIES := \
+    libcutils \
+    libutils \
+    liblog \
+    libbinder
+
+include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 
@@ -71,13 +77,13 @@ LOCAL_SHARED_LIBRARIES := \
     libhardware \
     libhardware_legacy \
     libeffects \
-    libpowermanager
+    libpowermanager \
+    libserviceutility
 
 LOCAL_STATIC_LIBRARIES := \
     libscheduling_policy \
     libcpustats \
-    libmedia_helper \
-    libserviceutility
+    libmedia_helper
 
 #QTI Resampler
 ifeq ($(call is-vendor-board-platform,QCOM),true)

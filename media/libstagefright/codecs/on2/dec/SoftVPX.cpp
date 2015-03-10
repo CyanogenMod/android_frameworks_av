@@ -40,10 +40,13 @@ SoftVPX::SoftVPX(
       mMode(codingType == OMX_VIDEO_CodingVP8 ? MODE_VP8 : MODE_VP9),
       mCtx(NULL),
       mImg(NULL) {
-    initPorts(kNumBuffers, 768 * 1024 /* inputBufferSize */,
-            kNumBuffers,
-            codingType == OMX_VIDEO_CodingVP8 ? MEDIA_MIMETYPE_VIDEO_VP8 : MEDIA_MIMETYPE_VIDEO_VP9);
-
+    // arbitrary from avc/hevc as vpx does not specify a min compression ratio
+    const size_t kMinCompressionRatio = mMode == MODE_VP8 ? 2 : 4;
+    const char *mime = mMode == MODE_VP8 ? MEDIA_MIMETYPE_VIDEO_VP8 : MEDIA_MIMETYPE_VIDEO_VP9;
+    const size_t kMaxOutputBufferSize = 2048 * 2048 * 3 / 2;
+    initPorts(
+            kNumBuffers, kMaxOutputBufferSize / kMinCompressionRatio /* inputBufferSize */,
+            kNumBuffers, mime, kMinCompressionRatio);
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
 
@@ -189,4 +192,5 @@ android::SoftOMXComponent *createSoftOMXComponent(
     } else {
         CHECK(!"Unknown component");
     }
+    return NULL;
 }

@@ -142,6 +142,7 @@ static const uint32_t bandFreqRange[FIVEBAND_NUMBANDS][2] = {
                                        {1800001, 7000000},
                                        {7000001, 1}};
 
+//Note: If these frequencies change, please update LimitLevel values accordingly.
 static const LVM_UINT16  EQNB_5BandPresetsFrequencies[] = {
                                        60,           /* Frequencies in Hz */
                                        230,
@@ -191,6 +192,20 @@ static const PresetConfig gEqualizerPresets[] = {
                                         {"Jazz"},
                                         {"Pop"},
                                         {"Rock"}};
+
+/* The following tables have been computed using the actual levels measured by the output of
+ * white noise or pink noise (IEC268-1) for the EQ and BassBoost Effects. These are estimates of
+ * the actual energy that 'could' be present in the given band.
+ * If the frequency values in EQNB_5BandPresetsFrequencies change, these values might need to be
+ * updated.
+ */
+
+static const float LimitLevel_bandEnergyContribution[FIVEBAND_NUMBANDS] = {
+        5.0, 6.5, 6.45, 4.8, 1.7 };
+
+static const float LimitLevel_bassBoostEnergyContribution = 6.7;
+
+static const float LimitLevel_virtualizerContribution = 1.9;
 
 #if __cplusplus
 }  // extern "C"

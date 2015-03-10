@@ -247,10 +247,13 @@ OSCL_EXPORT_REF Bool PVInitVideoDecoder(VideoDecControls *decCtrl, uint8 *volbuf
                         video->vol[idx]->useReverseVLC = 0;
                         video->intra_acdcPredDisable = 1;
                         video->vol[idx]->scalability = 0;
-                        video->size = (int32)width * height;
 
-                        video->displayWidth = video->width = width;
-                        video->displayHeight = video->height = height;
+                        video->displayWidth = width;
+                        video->displayHeight = height;
+                        video->width = (width + 15) & -16;
+                        video->height = (height + 15) & -16;
+                        video->size = (int32)video->width * video->height;
+
 #ifdef PV_ANNEX_IJKT_SUPPORT
                         video->modified_quant = 0;
                         video->advanced_INTRA = 0;
@@ -289,8 +292,10 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
 
     if (video->shortVideoHeader == PV_TRUE)
     {
-        video->displayWidth = video->width = width;
-        video->displayHeight = video->height = height;
+        video->displayWidth = width;
+        video->displayHeight = height;
+        video->width = (width + 15) & -16;
+        video->height = (height + 15) & -16;
 
         video->nMBPerRow =
             video->nMBinGOB  = video->width / MB_SIZE;
