@@ -18,7 +18,7 @@
 #define LOG_TAG "MediaClock"
 #include <utils/Log.h>
 
-#include "MediaClock.h"
+#include <media/stagefright/MediaClock.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
