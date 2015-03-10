@@ -299,6 +299,9 @@ status_t AudioTrack::set(
         ALOGV("Building AudioTrack with attributes: usage=%d content=%d flags=0x%x tags=[%s]",
                 mAttributes.usage, mAttributes.content_type, mAttributes.flags, mAttributes.tags);
         mStreamType = AUDIO_STREAM_DEFAULT;
+        if ((mAttributes.flags & AUDIO_FLAG_HW_AV_SYNC) != 0) {
+            flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_HW_AV_SYNC);
+        }
     }
 
     // these below should probably come from the audioFlinger too...
