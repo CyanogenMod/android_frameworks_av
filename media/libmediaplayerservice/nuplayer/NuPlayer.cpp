@@ -628,12 +628,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
-            if (!(ExtendedUtils::isRAWFormat(audioMeta) &&
-                ExtendedUtils::is24bitPCMOffloadEnabled() &&
-                ExtendedUtils::getPcmSampleBits(audioMeta) == 24)) {
-                // Call mSource->start() after openAudioSink for 24 bit pcm playback
-                mSource->start();
-            }
+            mSource->start();
 
             uint32_t flags = 0;
 
@@ -992,8 +987,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if ((ExtendedUtils::isRAWFormat(audioMeta) &&
                     ExtendedUtils::is24bitPCMOffloadEnabled() &&
                     ExtendedUtils::getPcmSampleBits(audioMeta) == 24)) {
-                    ALOGV("update pcmformat in WAVExtractor to 16 bit");
+                    ALOGI("update pcm format in WAVExtractor to 16 bit");
                     ExtendedUtils::setKeyPCMFormat(audioMeta, AUDIO_FORMAT_PCM_16_BIT );
+                    mSource->stop();
                     mSource->start();
                 }
 
@@ -1296,6 +1292,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
                 ExtendedUtils::is24bitPCMOffloadEnabled() &&
                 (ExtendedUtils::getPcmSampleBits(audioMeta) == 24)) {
                 ExtendedUtils::setKeyPCMFormat(audioMeta,AUDIO_FORMAT_PCM_8_24_BIT);
+                ALOGI("update pcmformat in WAVExtractor to 24 bit");
+                mSource->stop();
                 mSource->start();
             }
             *decoder = new DecoderPassThrough(notify);
@@ -1304,6 +1302,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<Decoder> *decoder) {
                 ExtendedUtils::is24bitPCMOffloadEnabled() &&
                 (ExtendedUtils::getPcmSampleBits(audioMeta) == 24)) {
                 ExtendedUtils::setKeyPCMFormat(audioMeta,AUDIO_FORMAT_PCM_16_BIT);
+                ALOGI("update pcmformat in WAVExtractor to 16 bit");
+                mSource->stop();
                 mSource->start();
             }
             *decoder = new Decoder(notify);
