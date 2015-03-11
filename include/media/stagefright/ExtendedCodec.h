@@ -180,9 +180,11 @@ private:
             sp<IOMX> OMXhandle, IOMX::node_id nodeID,
             bool isEncoder );
 
+#ifdef QCOM_ADDITIONAL_CODECS
     static void setAC3Format(
             int32_t numChannels, int32_t sampleRate,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID);
+#endif
 
     static status_t setDIVXFormat(
             const sp<AMessage> &msg, const char* mime,
