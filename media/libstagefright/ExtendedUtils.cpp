@@ -1176,9 +1176,9 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     const char * extFormats[ ] = {
         MEDIA_MIMETYPE_AUDIO_AMR_WB_PLUS,
         MEDIA_MIMETYPE_VIDEO_HEVC,
+#ifdef DOLBY_UDC
         MEDIA_MIMETYPE_AUDIO_AC3,
         MEDIA_MIMETYPE_AUDIO_EAC3,
-#ifdef DOLBY_UDC
         MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
 #endif
         MEDIA_MIMETYPE_AUDIO_AAC,

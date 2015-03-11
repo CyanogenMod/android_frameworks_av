@@ -366,6 +366,7 @@ status_t ExtendedCodec::setAudioFormat(
     ALOGV("setAudioFormat called");
     status_t err = OK;
 
+#ifdef USE_QCOM_AC3
     if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EAC3, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));
@@ -373,7 +374,9 @@ status_t ExtendedCodec::setAudioFormat(
         /* Commenting following call as AC3 soft decoder does not
          need it and it causes issue with playback*/
         //setAC3Format(numChannels, sampleRate, OMXhandle, nodeID);
-    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EVRC, mime)) {
+    } else
+#endif
+    if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_EVRC, mime)) {
         int32_t numChannels, sampleRate;
         CHECK(msg->findInt32("channel-count", &numChannels));
         CHECK(msg->findInt32("sample-rate", &sampleRate));
@@ -416,8 +419,10 @@ status_t ExtendedCodec::setVideoFormat(
         *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
         *compressionFormat = OMX_VIDEO_CodingWMV;
+#ifdef QCOM_ADDITIONAL_CODECS
     } else if (!strcasecmp(MEDIA_MIMETYPE_CONTAINER_MPEG2, mime)) {
         *compressionFormat = OMX_VIDEO_CodingMPEG2;
+#endif
     } else {
         retVal = BAD_VALUE;
     }
@@ -448,8 +453,10 @@ status_t ExtendedCodec::setSupportedRole(
           "video_decoder.divx", NULL },
         { MEDIA_MIMETYPE_VIDEO_WMV,
           "video_decoder.vc1",  NULL },
+#ifdef USE_QCOM_AC3
         { MEDIA_MIMETYPE_AUDIO_AC3,
           "audio_decoder.ac3", NULL },
+#endif
         { MEDIA_MIMETYPE_AUDIO_WMA,
           "audio_decoder.wma", NULL },
         { MEDIA_MIMETYPE_VIDEO_HEVC,
@@ -1026,6 +1033,7 @@ status_t ExtendedCodec::setWMAFormat(
     return OK;
 }
 
+#ifdef QCOM_ADDITIONAL_CODECS
 void ExtendedCodec::setAC3Format(
         int32_t numChannels, int32_t sampleRate, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID) {
@@ -1106,6 +1114,7 @@ void ExtendedCodec::setAC3Format(
     err = OMXhandle->setParameter(nodeID, indexTypeAC3PP, &profileAC3PP, sizeof(profileAC3PP));
     CHECK_EQ(err, (status_t)OK);
 }
+#endif
 
 status_t ExtendedCodec::setAMRWBPLUSFormat(
         int32_t numChannels, int32_t sampleRate, sp<IOMX> OMXhandle,
@@ -1381,6 +1390,7 @@ bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
         ARG_TOUCH(isEncoder);
     }
 
+#ifdef QCOM_ADDITIONAL_CODECS
     void ExtendedCodec::setAC3Format(
             int32_t numChannels, int32_t sampleRate,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID) {
@@ -1389,6 +1399,7 @@ bool ExtendedCodec::isSourcePauseRequired(const char *componentName) {
         ARG_TOUCH(OMXhandle);
         ARG_TOUCH(nodeID);
     }
+#endif
 
     status_t ExtendedCodec::setAMRWBPLUSFormat(
             int32_t numChannels, int32_t sampleRate,
