@@ -715,6 +715,7 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
     int64_t nowUs = ALooper::GetNowUs();
     int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
     mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+    mAnchorNumFramesWritten = mNumFramesWritten;
     mAnchorTimeMediaUs = mediaTimeUs;
 }
 
