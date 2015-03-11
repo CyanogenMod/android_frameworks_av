@@ -36,6 +36,8 @@ LOCAL_SRC_FILES:= \
     IMediaRecorder.cpp \
     IRemoteDisplay.cpp \
     IRemoteDisplayClient.cpp \
+    IResourceManagerClient.cpp \
+    IResourceManagerService.cpp \
     IStreamSource.cpp \
     MediaCodecInfo.cpp \
     Metadata.cpp \
@@ -53,6 +55,8 @@ LOCAL_SRC_FILES:= \
     CharacterEncodingDetector.cpp \
     IMediaDeathNotifier.cpp \
     MediaProfiles.cpp \
+    MediaResource.cpp \
+    MediaResourcePolicy.cpp \
     IEffect.cpp \
     IEffectClient.cpp \
     AudioEffect.cpp \
