@@ -300,7 +300,7 @@ private:
 
     status_t setupAC3Codec(bool encoder, int32_t numChannels, int32_t sampleRate, int32_t bitsPerSample);
 
-    status_t setupEAC3Codec(bool encoder, int32_t numChannels, int32_t sampleRate);
+    status_t setupEAC3Codec(bool encoder, int32_t numChannels, int32_t sampleRate, int32_t bitsPerSample);
 
     status_t selectAudioPortFormat(
             OMX_U32 portIndex, OMX_AUDIO_CODINGTYPE desiredFormat);
