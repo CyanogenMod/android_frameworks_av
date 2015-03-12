@@ -266,7 +266,7 @@ class Camera3Stream :
 
     Camera3Stream(int id, camera3_stream_type type,
             uint32_t width, uint32_t height, size_t maxSize, int format,
-            android_dataspace dataSpace);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
 
     /**
      * Interface to be implemented by derived classes

@@ -308,8 +308,7 @@ status_t CameraDeviceClient::deleteStream(int streamId) {
     return res;
 }
 
-status_t CameraDeviceClient::createStream(
-                      const sp<IGraphicBufferProducer>& bufferProducer)
+status_t CameraDeviceClient::createStream(const OutputConfiguration &outputConfiguration)
 {
     ATRACE_CALL();
 
@@ -318,6 +317,8 @@ status_t CameraDeviceClient::createStream(
 
     Mutex::Autolock icl(mBinderSerializationLock);
 
+
+    sp<IGraphicBufferProducer> bufferProducer = outputConfiguration.getGraphicBufferProducer();
     if (bufferProducer == NULL) {
         ALOGE("%s: bufferProducer must not be null", __FUNCTION__);
         return BAD_VALUE;
@@ -411,7 +412,9 @@ status_t CameraDeviceClient::createStream(
 
     int streamId = -1;
     res = mDevice->createStream(anw, width, height, format, dataSpace,
-            &streamId);
+                                static_cast<camera3_stream_rotation_t>
+                                        (outputConfiguration.getRotation()),
+                                &streamId);
 
     if (res == OK) {
         mStreamMap.add(bufferProducer->asBinder(), streamId);

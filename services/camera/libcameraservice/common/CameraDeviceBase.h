@@ -100,14 +100,14 @@ class CameraDeviceBase : public virtual RefBase {
             nsecs_t timeout) = 0;
 
     /**
-     * Create an output stream of the requested size, format, and dataspace
+     * Create an output stream of the requested size, format, rotation and dataspace
      *
      * For HAL_PIXEL_FORMAT_BLOB formats, the width and height should be the
      * logical dimensions of the buffer, not the number of bytes.
      */
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, int *id) = 0;
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id) = 0;
 
     /**
      * Create an input reprocess stream that uses buffers from an existing

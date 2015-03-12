@@ -185,8 +185,8 @@ status_t ZslProcessor::updateStream(const Parameters &params) {
                 (int)CAMERA2_HAL_PIXEL_FORMAT_ZSL :
                 (int)HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
         res = device->createStream(mZslWindow,
-                params.fastInfo.arrayWidth, params.fastInfo.arrayHeight,
-                streamType, HAL_DATASPACE_UNKNOWN, &mZslStreamId);
+                params.fastInfo.arrayWidth, params.fastInfo.arrayHeight, streamType,
+                HAL_DATASPACE_UNKNOWN, CAMERA3_STREAM_ROTATION_0, &mZslStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for ZSL: "
                     "%s (%d)", __FUNCTION__, mId,

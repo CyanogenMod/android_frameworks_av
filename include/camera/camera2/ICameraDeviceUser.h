@@ -27,9 +27,9 @@ namespace android {
 
 class ICameraDeviceUserClient;
 class IGraphicBufferProducer;
-class Surface;
 class CaptureRequest;
 class CameraMetadata;
+class OutputConfiguration;
 
 enum {
     NO_IN_FLIGHT_REPEATING_FRAMES = -1,
@@ -100,8 +100,8 @@ public:
     virtual status_t        endConfigure() = 0;
 
     virtual status_t        deleteStream(int streamId) = 0;
-    virtual status_t        createStream(
-            const sp<IGraphicBufferProducer>& bufferProducer) = 0;
+
+    virtual status_t        createStream(const OutputConfiguration& outputConfiguration) = 0;
 
     // Create a request object from a template.
     virtual status_t        createDefaultRequest(int templateId,

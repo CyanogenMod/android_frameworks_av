@@ -96,7 +96,7 @@ class Camera3Device :
     // stream, reconfiguring device, and unpausing.
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, int *id);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);

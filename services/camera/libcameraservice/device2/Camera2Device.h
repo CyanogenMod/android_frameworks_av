@@ -58,7 +58,7 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t waitUntilRequestReceived(int32_t requestId, nsecs_t timeout);
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, int *id);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
     virtual status_t getStreamInfo(int id,
             uint32_t *width, uint32_t *height, uint32_t *format);
