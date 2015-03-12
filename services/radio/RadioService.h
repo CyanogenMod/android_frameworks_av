@@ -66,8 +66,7 @@ public:
     class Module : public virtual RefBase {
     public:
 
-       Module(const sp<RadioService>& service,
-              radio_hw_device* hwDevice,
+       Module(radio_hw_device* hwDevice,
               struct radio_properties properties);
 
        virtual ~Module();
@@ -88,16 +87,17 @@ public:
        const struct radio_properties properties() const { return mProperties; }
        const struct radio_band_config *getDefaultConfig() const ;
 
-       wp<RadioService> service() const { return mService; }
-
     private:
 
-        Mutex                         mLock;
-        wp<RadioService>              mService;
-        const struct radio_hw_device        *mHwDevice;
-        const struct radio_properties       mProperties;
-        Vector< sp<ModuleClient> >    mModuleClients;
-        bool                          mMute;
+       void notifyDeviceConnection(bool connected, const char *address);
+
+        Mutex                         mLock;          // protects  mModuleClients
+        const struct radio_hw_device  *mHwDevice;     // HAL hardware device
+        const struct radio_properties mProperties;    // cached hardware module properties
+        Vector< sp<ModuleClient> >    mModuleClients; // list of attached clients
+        bool                          mMute;          // radio audio source state
+                                                      // when unmuted, audio is routed to the
+                                                      // output device selected for media use case.
     }; // class Module
 
     class CallbackThread : public Thread {
@@ -120,11 +120,11 @@ public:
                 sp<IMemory> prepareEvent(radio_hal_event_t *halEvent);
 
     private:
-        wp<ModuleClient>      mModuleClient;
-        Condition             mCallbackCond;
-        Mutex                 mCallbackLock;
-        Vector< sp<IMemory> > mEventQueue;
-        sp<MemoryDealer>      mMemoryDealer;
+        wp<ModuleClient>      mModuleClient;    // client module the thread belongs to
+        Condition             mCallbackCond;    // condition signaled when a new event is posted
+        Mutex                 mCallbackLock;    // protects mEventQueue
+        Vector< sp<IMemory> > mEventQueue;      // pending callback events
+        sp<MemoryDealer>      mMemoryDealer;    // shared memory for callback event
     }; // class CallbackThread
 
     class ModuleClient : public BnRadio,
@@ -181,13 +181,15 @@ public:
 
     private:
 
-        mutable Mutex               mLock;
-        wp<Module>                  mModule;
-        sp<IRadioClient>            mClient;
-        radio_band_config_t         mConfig;
-        sp<CallbackThread>          mCallbackThread;
+        mutable Mutex               mLock;           // protects mClient, mConfig and mTuner
+        wp<Module>                  mModule;         // The module this client is attached to
+        sp<IRadioClient>            mClient;         // event callback binder interface
+        radio_band_config_t         mConfig;         // current band configuration
+        sp<CallbackThread>          mCallbackThread; // event callback thread
         const bool                  mAudio;
-        const struct radio_tuner    *mTuner;
+        const struct radio_tuner    *mTuner;        // HAL tuner interface. NULL indicates that
+                                                    // this client does not have control on any
+                                                    // tuner
     }; // class ModuleClient
 
 
@@ -199,8 +201,8 @@ private:
 
     static void convertProperties(radio_properties_t *properties,
                                   const radio_hal_properties_t *halProperties);
-    Mutex               mServiceLock;
-    volatile int32_t    mNextUniqueId;
+    Mutex               mServiceLock;   // protects mModules
+    volatile int32_t    mNextUniqueId;  // for module ID allocation
     DefaultKeyedVector< radio_handle_t, sp<Module> > mModules;
 };
 

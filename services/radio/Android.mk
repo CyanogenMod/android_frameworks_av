@@ -26,6 +26,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libutils \
     libbinder \
     libcutils \
+    libmedia \
     libhardware \
     libradio \
     libradio_metadata
