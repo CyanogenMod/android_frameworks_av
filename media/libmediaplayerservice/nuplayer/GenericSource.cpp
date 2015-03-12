@@ -471,6 +471,7 @@ void NuPlayer::GenericSource::start() {
             * 1. kKeyPCMFormat is not set
             * 2. kKeyPCMFormat is not set to 24bit
             */
+            ALOGI("Retrieving 24 bit data from source");
             CHECK_EQ(mAudioTrack.mSource->start(audioMeta.get()), (status_t)OK);
         } else {
             CHECK_EQ(mAudioTrack.mSource->start(), (status_t)OK);
