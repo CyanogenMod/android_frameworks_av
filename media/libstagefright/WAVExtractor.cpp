@@ -370,8 +370,7 @@ status_t WAVSource::start(MetaData *params) {
 
     ALOGV("WAVSource::start");
 
-    if(mStarted) {
-        ALOGW("WAVSource::start, already started. mOutputFormat set to:%d",mOutputFormat);
+    if (mStarted) {
         return OK;
     }
 
