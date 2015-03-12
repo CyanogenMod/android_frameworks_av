@@ -47,7 +47,7 @@ const Camera3Stream* Camera3Stream::cast(const camera3_stream *stream) {
 Camera3Stream::Camera3Stream(int id,
         camera3_stream_type type,
         uint32_t width, uint32_t height, size_t maxSize, int format,
-        android_dataspace dataSpace) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
     camera3_stream(),
     mId(id),
     mName(String8::format("Camera3Stream[%d]", id)),
@@ -60,6 +60,7 @@ Camera3Stream::Camera3Stream(int id,
     camera3_stream::height = height;
     camera3_stream::format = format;
     camera3_stream::data_space = dataSpace;
+    camera3_stream::rotation = rotation;
     camera3_stream::usage = 0;
     camera3_stream::max_buffers = 0;
     camera3_stream::priv = NULL;

@@ -115,7 +115,7 @@ Camera3ZslStream::Camera3ZslStream(int id, uint32_t width, uint32_t height,
         Camera3OutputStream(id, CAMERA3_STREAM_BIDIRECTIONAL,
                             width, height,
                             HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED,
-                            HAL_DATASPACE_UNKNOWN),
+                            HAL_DATASPACE_UNKNOWN, CAMERA3_STREAM_ROTATION_0),
         mDepth(bufferCount) {
 
     sp<IGraphicBufferProducer> producer;

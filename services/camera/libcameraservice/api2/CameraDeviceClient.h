@@ -19,6 +19,7 @@
 
 #include <camera/camera2/ICameraDeviceUser.h>
 #include <camera/camera2/ICameraDeviceCallbacks.h>
+#include <camera/camera2/OutputConfiguration.h>
 
 #include "CameraService.h"
 #include "common/FrameProcessorBase.h"
@@ -83,8 +84,7 @@ public:
     // Returns -EBUSY if device is not idle
     virtual status_t      deleteStream(int streamId);
 
-    virtual status_t      createStream(
-            const sp<IGraphicBufferProducer>& bufferProducer);
+    virtual status_t      createStream(const OutputConfiguration &outputConfiguration);
 
     // Create a request object from a template.
     virtual status_t      createDefaultRequest(int templateId,

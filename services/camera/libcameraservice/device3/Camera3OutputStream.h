@@ -40,7 +40,7 @@ class Camera3OutputStream :
      */
     Camera3OutputStream(int id, sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
 
     /**
      * Set up a stream for formats that have a variable buffer size for the same
@@ -48,7 +48,7 @@ class Camera3OutputStream :
      */
     Camera3OutputStream(int id, sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, size_t maxSize, int format,
-            android_dataspace dataSpace);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
 
     virtual ~Camera3OutputStream();
 
@@ -67,7 +67,7 @@ class Camera3OutputStream :
   protected:
     Camera3OutputStream(int id, camera3_stream_type_t type,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
 
     /**
      * Note that we release the lock briefly in this function

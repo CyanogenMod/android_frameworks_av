@@ -242,7 +242,7 @@ status_t Camera2Device::waitUntilRequestReceived(int32_t requestId, nsecs_t time
 
 status_t Camera2Device::createStream(sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format,
-        android_dataspace /*dataSpace*/, int *id) {
+        android_dataspace /*dataSpace*/, camera3_stream_rotation_t rotation, int *id) {
     ATRACE_CALL();
     status_t res;
     ALOGV("%s: E", __FUNCTION__);

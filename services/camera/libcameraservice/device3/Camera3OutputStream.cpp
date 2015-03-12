@@ -34,9 +34,9 @@ namespace camera3 {
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, int format,
-        android_dataspace dataSpace) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
-                            /*maxSize*/0, format, dataSpace),
+                            /*maxSize*/0, format, dataSpace, rotation),
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true) {
@@ -50,9 +50,9 @@ Camera3OutputStream::Camera3OutputStream(int id,
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<ANativeWindow> consumer,
         uint32_t width, uint32_t height, size_t maxSize, int format,
-        android_dataspace dataSpace) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
-                            format, dataSpace),
+                            format, dataSpace, rotation),
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true) {
@@ -72,10 +72,11 @@ Camera3OutputStream::Camera3OutputStream(int id,
 Camera3OutputStream::Camera3OutputStream(int id, camera3_stream_type_t type,
                                          uint32_t width, uint32_t height,
                                          int format,
-                                         android_dataspace dataSpace) :
+                                         android_dataspace dataSpace,
+                                         camera3_stream_rotation_t rotation) :
         Camera3IOStreamBase(id, type, width, height,
                             /*maxSize*/0,
-                            format, dataSpace),
+                            format, dataSpace, rotation),
         mTransform(0) {
 
     // Subclasses expected to initialize mConsumer themselves
