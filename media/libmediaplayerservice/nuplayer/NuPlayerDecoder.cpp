@@ -56,6 +56,7 @@ NuPlayer::Decoder::Decoder(
       mIsVideoAVC(false),
       mIsSecure(false),
       mFormatChangePending(false),
+      mTimeChangePending(false),
       mPaused(true),
       mResumePending(false),
       mComponentName("decoder") {
@@ -121,6 +122,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     CHECK(mCodec == NULL);
 
     mFormatChangePending = false;
+    mTimeChangePending = false;
 
     ++mBufferGeneration;
 
@@ -235,7 +237,7 @@ void NuPlayer::Decoder::onResume(bool notifyComplete) {
     }
 }
 
-void NuPlayer::Decoder::onFlush(bool notifyComplete) {
+void NuPlayer::Decoder::doFlush(bool notifyComplete) {
     if (mCCDecoder != NULL) {
         mCCDecoder->flush();
     }
@@ -259,13 +261,22 @@ void NuPlayer::Decoder::onFlush(bool notifyComplete) {
         // we attempt to release the buffers even if flush fails.
     }
     releaseAndResetMediaBuffers();
+}
 
-    if (notifyComplete) {
-        sp<AMessage> notify = mNotify->dup();
-        notify->setInt32("what", kWhatFlushCompleted);
-        notify->post();
-        mPaused = true;
+void NuPlayer::Decoder::onFlush() {
+    doFlush(true);
+
+    if (isDiscontinuityPending()) {
+        // This could happen if the client starts seeking/shutdown
+        // after we queued an EOS for discontinuities.
+        // We can consider discontinuity handled.
+        finishHandleDiscontinuity(false /* flushOnTimeChange */);
     }
+
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatFlushCompleted);
+    notify->post();
+    mPaused = true;
 }
 
 void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
@@ -309,16 +320,17 @@ void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
 }
 
 void NuPlayer::Decoder::doRequestBuffers() {
-    if (mFormatChangePending) {
+    if (isDiscontinuityPending()) {
         return;
     }
     status_t err = OK;
-    while (!mDequeuedInputBuffers.empty()) {
+    while (err == OK && !mDequeuedInputBuffers.empty()) {
         size_t bufferIx = *mDequeuedInputBuffers.begin();
         sp<AMessage> msg = new AMessage();
         msg->setSize("buffer-ix", bufferIx);
         err = fetchInputData(msg);
-        if (err != OK) {
+        if (err != OK && err != ERROR_END_OF_STREAM) {
+            // if EOS, need to queue EOS buffer
             break;
         }
         mDequeuedInputBuffers.erase(mDequeuedInputBuffers.begin());
@@ -336,7 +348,7 @@ void NuPlayer::Decoder::doRequestBuffers() {
 }
 
 bool NuPlayer::Decoder::handleAnInputBuffer() {
-    if (mFormatChangePending) {
+    if (isDiscontinuityPending()) {
         return false;
     }
     size_t bufferIx = -1;
@@ -391,9 +403,6 @@ bool NuPlayer::Decoder::handleAnInputBuffer() {
 }
 
 bool NuPlayer::Decoder::handleAnOutputBuffer() {
-    if (mFormatChangePending) {
-        return false;
-    }
     size_t bufferIx = -1;
     size_t offset;
     size_t size;
@@ -474,17 +483,20 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
     buffer->setRange(offset, size);
     buffer->meta()->clear();
     buffer->meta()->setInt64("timeUs", timeUs);
-    if (flags & MediaCodec::BUFFER_FLAG_EOS) {
-        buffer->meta()->setInt32("eos", true);
-        notifyResumeCompleteIfNecessary();
-    }
+
+    bool eos = flags & MediaCodec::BUFFER_FLAG_EOS;
     // we do not expect CODECCONFIG or SYNCFRAME for decoder
 
     sp<AMessage> reply = new AMessage(kWhatRenderBuffer, this);
     reply->setSize("buffer-ix", bufferIx);
     reply->setInt32("generation", mBufferGeneration);
 
-    if (mSkipRenderingUntilMediaTimeUs >= 0) {
+    if (eos) {
+        ALOGI("[%s] saw output EOS", mIsAudio ? "audio" : "video");
+
+        buffer->meta()->setInt32("eos", true);
+        reply->setInt32("eos", true);
+    } else if (mSkipRenderingUntilMediaTimeUs >= 0) {
         if (timeUs < mSkipRenderingUntilMediaTimeUs) {
             ALOGV("[%s] dropping buffer at time %lld as requested.",
                      mComponentName.c_str(), (long long)timeUs);
@@ -502,7 +514,7 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
     if (mRenderer != NULL) {
         // send the buffer to renderer.
         mRenderer->queueBuffer(mIsAudio, buffer, reply);
-        if (flags & MediaCodec::BUFFER_FLAG_EOS) {
+        if (eos && !isDiscontinuityPending()) {
             mRenderer->queueEOS(mIsAudio, ERROR_END_OF_STREAM);
         }
     }
@@ -533,9 +545,6 @@ void NuPlayer::Decoder::releaseAndResetMediaBuffers() {
 }
 
 void NuPlayer::Decoder::requestCodecNotification() {
-    if (mFormatChangePending) {
-        return;
-    }
     if (mCodec != NULL) {
         sp<AMessage> reply = new AMessage(kWhatCodecNotify, this);
         reply->setInt32("generation", mBufferGeneration);
@@ -582,39 +591,31 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
                     formatChange = !seamlessFormatChange;
                 }
 
-                if (formatChange || timeChange) {
-                    sp<AMessage> msg = mNotify->dup();
-                    msg->setInt32("what", kWhatInputDiscontinuity);
-                    msg->setInt32("formatChange", formatChange);
-                    msg->post();
-                }
-
+                // For format or time change, return EOS to queue EOS input,
+                // then wait for EOS on output.
                 if (formatChange /* not seamless */) {
-                    // must change decoder
-                    // return EOS and wait to be killed
                     mFormatChangePending = true;
-                    return ERROR_END_OF_STREAM;
+                    err = ERROR_END_OF_STREAM;
                 } else if (timeChange) {
-                    // need to flush
-                    // TODO: Ideally we shouldn't need a flush upon time
-                    // discontinuity, flushing will cause loss of frames.
-                    // We probably should queue a time change marker to the
-                    // output queue, and handles it in renderer instead.
                     rememberCodecSpecificData(newFormat);
-                    onFlush(false /* notifyComplete */);
-                    err = OK;
+                    mTimeChangePending = true;
+                    err = ERROR_END_OF_STREAM;
                 } else if (seamlessFormatChange) {
                     // reuse existing decoder and don't flush
                     rememberCodecSpecificData(newFormat);
-                    err = OK;
+                    continue;
                 } else {
                     // This stream is unaffected by the discontinuity
                     return -EWOULDBLOCK;
                 }
             }
 
+            // reply should only be returned without a buffer set
+            // when there is an error (including EOS)
+            CHECK(err != OK);
+
             reply->setInt32("err", err);
-            return OK;
+            return ERROR_END_OF_STREAM;
         }
 
         if (!mIsAudio) {
@@ -636,7 +637,7 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
 #if 0
     int64_t mediaTimeUs;
     CHECK(accessUnit->meta()->findInt64("timeUs", &mediaTimeUs));
-    ALOGV("feeding %s input buffer at media time %.2f secs",
+    ALOGV("[%s] feeding input buffer at media time %" PRId64,
          mIsAudio ? "audio" : "video",
          mediaTimeUs / 1E6);
 #endif
@@ -696,10 +697,7 @@ bool NuPlayer::Decoder::onInputBufferFetched(const sp<AMessage> &msg) {
         int32_t streamErr = ERROR_END_OF_STREAM;
         CHECK(msg->findInt32("err", &streamErr) || !hasBuffer);
 
-        if (streamErr == OK) {
-            /* buffers are returned to hold on to */
-            return true;
-        }
+        CHECK(streamErr != OK);
 
         // attempt to queue EOS
         status_t err = mCodec->queueInputBuffer(
@@ -781,6 +779,7 @@ void NuPlayer::Decoder::onRenderBuffer(const sp<AMessage> &msg) {
     status_t err;
     int32_t render;
     size_t bufferIx;
+    int32_t eos;
     CHECK(msg->findSize("buffer-ix", &bufferIx));
 
     if (!mIsAudio) {
@@ -805,6 +804,42 @@ void NuPlayer::Decoder::onRenderBuffer(const sp<AMessage> &msg) {
                 mComponentName.c_str(), err);
         handleError(err);
     }
+    if (msg->findInt32("eos", &eos) && eos
+            && isDiscontinuityPending()) {
+        finishHandleDiscontinuity(true /* flushOnTimeChange */);
+    }
+}
+
+bool NuPlayer::Decoder::isDiscontinuityPending() const {
+    return mFormatChangePending || mTimeChangePending;
+}
+
+void NuPlayer::Decoder::finishHandleDiscontinuity(bool flushOnTimeChange) {
+    ALOGV("finishHandleDiscontinuity: format %d, time %d, flush %d",
+            mFormatChangePending, mTimeChangePending, flushOnTimeChange);
+
+    // If we have format change, pause and wait to be killed;
+    // If we have time change only, flush and restart fetching.
+
+    if (mFormatChangePending) {
+        mPaused = true;
+    } else if (mTimeChangePending) {
+        if (flushOnTimeChange) {
+            doFlush(false /*notifyComplete*/);
+        }
+
+        // restart fetching input
+        scheduleRequestBuffers();
+    }
+
+    // Notify NuPlayer to either shutdown decoder, or rescan sources
+    sp<AMessage> msg = mNotify->dup();
+    msg->setInt32("what", kWhatInputDiscontinuity);
+    msg->setInt32("formatChange", mFormatChangePending);
+    msg->post();
+
+    mFormatChangePending = false;
+    mTimeChangePending = false;
 }
 
 bool NuPlayer::Decoder::supportsSeamlessAudioFormatChange(

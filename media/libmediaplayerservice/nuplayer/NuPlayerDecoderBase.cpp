@@ -157,7 +157,7 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatFlush:
         {
-            onFlush(true);
+            onFlush();
             break;
         }
 
