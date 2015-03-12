@@ -65,12 +65,12 @@ NuPlayer::GenericSource::GenericSource(
       mUID(uid),
       mFd(-1),
       mDrmManagerClient(NULL),
-      mMetaDataSize(-1ll),
       mBitrate(-1ll),
       mPollBufferingGeneration(0),
       mPendingReadBufferTypes(0),
       mBuffering(false),
-      mPrepareBuffering(false) {
+      mPrepareBuffering(false),
+      mPrevBufferPercentage(-1) {
     resetDataSource();
     DataSource::RegisterDefaultSniffers();
 }
@@ -147,14 +147,11 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             return UNKNOWN_ERROR;
         }
     } else if (mIsStreaming) {
-        if (mSniffedMIME.empty()) {
-            if (!mDataSource->sniff(&mimeType, &confidence, &dummy)) {
-                return UNKNOWN_ERROR;
-            }
-            mSniffedMIME = mimeType.string();
+        if (!mDataSource->sniff(&mimeType, &confidence, &dummy)) {
+            return UNKNOWN_ERROR;
         }
         isWidevineStreaming = !strcasecmp(
-                mSniffedMIME.c_str(), MEDIA_MIMETYPE_CONTAINER_WVM);
+                mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM);
     }
 
     if (isWidevineStreaming) {
@@ -169,7 +166,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         extractor = mWVMExtractor;
     } else {
         extractor = MediaExtractor::Create(mDataSource,
-                mSniffedMIME.empty() ? NULL: mSniffedMIME.c_str());
+                mimeType.isEmpty() ? NULL : mimeType.string());
     }
 
     if (extractor == NULL) {
@@ -347,6 +344,7 @@ void NuPlayer::GenericSource::onPrepareAsync() {
 
         if (!mUri.empty()) {
             const char* uri = mUri.c_str();
+            String8 contentType;
             mIsWidevine = !strncasecmp(uri, "widevine://", 11);
 
             if (!strncasecmp("http://", uri, 7)
@@ -361,7 +359,7 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             }
 
             mDataSource = DataSource::CreateFromURI(
-                   mHTTPService, uri, &mUriHeaders, &mContentType,
+                   mHTTPService, uri, &mUriHeaders, &contentType,
                    static_cast<HTTPBase *>(mHttpSource.get()));
         } else {
             mIsWidevine = false;
@@ -389,20 +387,8 @@ void NuPlayer::GenericSource::onPrepareAsync() {
         mIsStreaming = (mIsWidevine || mCachedSource != NULL);
     }
 
-    // check initial caching status
-    status_t err = prefillCacheIfNecessary();
-    if (err != OK) {
-        if (err == -EAGAIN) {
-            (new AMessage(kWhatPrepareAsync, this))->post(200000);
-        } else {
-            ALOGE("Failed to prefill data cache!");
-            notifyPreparedAndCleanup(UNKNOWN_ERROR);
-        }
-        return;
-    }
-
-    // init extrator from data source
-    err = initFromDataSource();
+    // init extractor from data source
+    status_t err = initFromDataSource();
 
     if (err != OK) {
         ALOGE("Failed to init from data source!");
@@ -441,9 +427,6 @@ void NuPlayer::GenericSource::onPrepareAsync() {
 
 void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
     if (err != OK) {
-        mMetaDataSize = -1ll;
-        mContentType = "";
-        mSniffedMIME = "";
         mDataSource.clear();
         mCachedSource.clear();
         mHttpSource.clear();
@@ -451,76 +434,6 @@ void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
         cancelPollBuffering();
     }
     notifyPrepared(err);
-}
-
-status_t NuPlayer::GenericSource::prefillCacheIfNecessary() {
-    CHECK(mDataSource != NULL);
-
-    if (mCachedSource == NULL) {
-        // no prefill if the data source is not cached
-        return OK;
-    }
-
-    // We're not doing this for streams that appear to be audio-only
-    // streams to ensure that even low bandwidth streams start
-    // playing back fairly instantly.
-    if (!strncasecmp(mContentType.string(), "audio/", 6)) {
-        return OK;
-    }
-
-    // We're going to prefill the cache before trying to instantiate
-    // the extractor below, as the latter is an operation that otherwise
-    // could block on the datasource for a significant amount of time.
-    // During that time we'd be unable to abort the preparation phase
-    // without this prefill.
-
-    // Initially make sure we have at least 192 KB for the sniff
-    // to complete without blocking.
-    static const size_t kMinBytesForSniffing = 192 * 1024;
-    static const size_t kDefaultMetaSize = 200000;
-
-    status_t finalStatus;
-
-    size_t cachedDataRemaining =
-            mCachedSource->approxDataRemaining(&finalStatus);
-
-    if (finalStatus != OK || (mMetaDataSize >= 0
-            && (off64_t)cachedDataRemaining >= mMetaDataSize)) {
-        ALOGV("stop caching, status %d, "
-                "metaDataSize %lld, cachedDataRemaining %zu",
-                finalStatus, mMetaDataSize, cachedDataRemaining);
-        return OK;
-    }
-
-    ALOGV("now cached %zu bytes of data", cachedDataRemaining);
-
-    if (mMetaDataSize < 0
-            && cachedDataRemaining >= kMinBytesForSniffing) {
-        String8 tmp;
-        float confidence;
-        sp<AMessage> meta;
-        if (!mCachedSource->sniff(&tmp, &confidence, &meta)) {
-            return UNKNOWN_ERROR;
-        }
-
-        // We successfully identified the file's extractor to
-        // be, remember this mime type so we don't have to
-        // sniff it again when we call MediaExtractor::Create()
-        mSniffedMIME = tmp.string();
-
-        if (meta == NULL
-                || !meta->findInt64("meta-data-size",
-                        reinterpret_cast<int64_t*>(&mMetaDataSize))) {
-            mMetaDataSize = kDefaultMetaSize;
-        }
-
-        if (mMetaDataSize < 0ll) {
-            ALOGE("invalid metaDataSize = %lld bytes", mMetaDataSize);
-            return UNKNOWN_ERROR;
-        }
-    }
-
-    return -EAGAIN;
 }
 
 void NuPlayer::GenericSource::start() {
@@ -599,6 +512,7 @@ void NuPlayer::GenericSource::schedulePollBuffering() {
 void NuPlayer::GenericSource::cancelPollBuffering() {
     mBuffering = false;
     ++mPollBufferingGeneration;
+    mPrevBufferPercentage = -1;
 }
 
 void NuPlayer::GenericSource::restartPollBuffering() {
@@ -608,7 +522,19 @@ void NuPlayer::GenericSource::restartPollBuffering() {
     }
 }
 
-void NuPlayer::GenericSource::notifyBufferingUpdate(int percentage) {
+void NuPlayer::GenericSource::notifyBufferingUpdate(int32_t percentage) {
+    // Buffering percent could go backward as it's estimated from remaining
+    // data and last access time. This could cause the buffering position
+    // drawn on media control to jitter slightly. Remember previously reported
+    // percentage and don't allow it to go backward.
+    if (percentage < mPrevBufferPercentage) {
+        percentage = mPrevBufferPercentage;
+    } else if (percentage > 100) {
+        percentage = 100;
+    }
+
+    mPrevBufferPercentage = percentage;
+
     ALOGV("notifyBufferingUpdate: buffering %d%%", percentage);
 
     sp<AMessage> msg = dupNotify();

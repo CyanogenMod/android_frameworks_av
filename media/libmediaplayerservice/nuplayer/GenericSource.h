@@ -139,14 +139,13 @@ private:
     sp<DecryptHandle> mDecryptHandle;
     bool mStarted;
     bool mStopRead;
-    String8 mContentType;
-    AString mSniffedMIME;
-    off64_t mMetaDataSize;
     int64_t mBitrate;
     int32_t mPollBufferingGeneration;
     uint32_t mPendingReadBufferTypes;
     bool mBuffering;
     bool mPrepareBuffering;
+    int32_t mPrevBufferPercentage;
+
     mutable Mutex mReadBufferLock;
 
     sp<ALooper> mLooper;
@@ -157,8 +156,6 @@ private:
     void checkDrmStatus(const sp<DataSource>& dataSource);
     int64_t getLastReadPosition();
     void setDrmPlaybackStatusIfNeeded(int playbackStatus, int64_t position);
-
-    status_t prefillCacheIfNecessary();
 
     void notifyPreparedAndCleanup(status_t err);
 
@@ -200,7 +197,7 @@ private:
     void cancelPollBuffering();
     void restartPollBuffering();
     void onPollBuffering();
-    void notifyBufferingUpdate(int percentage);
+    void notifyBufferingUpdate(int32_t percentage);
     void startBufferingIfNecessary();
     void stopBufferingIfNecessary();
     void sendCacheStats();
