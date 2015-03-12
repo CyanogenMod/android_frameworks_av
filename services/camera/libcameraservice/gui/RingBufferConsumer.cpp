@@ -268,7 +268,7 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
     return OK;
 }
 
-void RingBufferConsumer::onFrameAvailable(const android::BufferItem& item) {
+void RingBufferConsumer::onFrameAvailable(const BufferItem& item) {
     status_t err;
 
     {

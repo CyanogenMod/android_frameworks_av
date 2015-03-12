@@ -26,6 +26,7 @@
 #include <media/hardware/MetadataBufferType.h>
 
 #include <ui/GraphicBuffer.h>
+#include <gui/BufferItem.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/IGraphicBufferAlloc.h>
 #include <OMX_Component.h>
@@ -290,7 +291,7 @@ status_t SurfaceMediaSource::read(
     // TODO: mCurrentSlot can be made a bufferstate since there
     // can be more than one "current" slots.
 
-    BufferQueue::BufferItem item;
+    BufferItem item;
     // If the recording has started and the queue is empty, then just
     // wait here till the frames come in from the client side
     while (mStarted) {
