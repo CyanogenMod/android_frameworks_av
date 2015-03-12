@@ -1506,9 +1506,6 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     "audio_format", mime.c_str());
             onDisableOffloadAudio();
         } else {
-                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
-                } else if (ExtendedUtils::is16bitPCMOffloadEnabled()) {
-                    bitWidth = 16;
 #ifdef ENABLE_AV_ENHANCEMENTS
             if (pcmOffload) {
                 if (bitsPerSample > 16) {
