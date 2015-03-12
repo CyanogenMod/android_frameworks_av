@@ -483,7 +483,7 @@ int64_t ATSParser::Program::recoverPTS(uint64_t PTS_33bit) {
         // Clamp it to 0 as rest of the pipeline doesn't take negative pts.
         // (eg. video is read first and starts at 0, but audio starts at 0xfffffff0)
         if (mLastRecoveredPTS < 0ll) {
-            ALOGI("Clamping negative recovered PTS (%lld) to 0", mLastRecoveredPTS);
+            ALOGI("Clamping negative recovered PTS (%" PRId64 ") to 0", mLastRecoveredPTS);
             mLastRecoveredPTS = 0ll;
         }
     }
