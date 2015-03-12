@@ -1858,7 +1858,6 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
 sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
                 const sp<MetaData> &sMeta)
 {
-
     sp<MetaData> tPCMMeta = new MetaData;
     //hard code as RAW
     tPCMMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
@@ -1868,7 +1867,7 @@ sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
     tPCMMeta->setInt32(kKeySampleBits, 16);
 
     if (sMeta == NULL) {
-        ALOGV("%s: no meta returning dummy meta");
+        ALOGW("no meta returning dummy meta");
         return tPCMMeta;
     }
 

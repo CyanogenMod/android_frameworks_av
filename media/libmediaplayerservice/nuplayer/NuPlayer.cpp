@@ -728,7 +728,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if (mOffloadAudio) {
                     // open audio sink early under offload mode.
                     sp<AMessage> format = mSource->getFormat(true /*audio*/);
-                    openAudioSink(format, true /*offloadOnly*/);
+                    if (format != NULL) {
+                        openAudioSink(format, true /*offloadOnly*/);
+                    }
                 }
                 instantiateDecoder(true, &mAudioDecoder);
             }
