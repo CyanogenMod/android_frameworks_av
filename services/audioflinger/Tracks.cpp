@@ -444,8 +444,6 @@ AudioFlinger::PlaybackThread::Track::Track(
         //       this means we are potentially denying other more important fast tracks from
         //       being created.  It would be better to allocate the index dynamically.
         mFastIndex = i;
-        // Read the initial underruns because this field is never cleared by the fast mixer
-        mObservedUnderruns = thread->getFastTrackUnderruns(i);
         thread->mFastTrackAvailMask &= ~(1 << i);
     }
 }
@@ -694,6 +692,12 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
         }
 
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+        if (isFastTrack()) {
+            // refresh fast track underruns on start because that field is never cleared
+            // by the fast mixer; furthermore, the same track can be recycled, i.e. start
+            // after stop.
+            mObservedUnderruns = playbackThread->getFastTrackUnderruns(mFastIndex);
+        }
         status = playbackThread->addTrack_l(this);
         if (status == INVALID_OPERATION || status == PERMISSION_DENIED) {
             triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
