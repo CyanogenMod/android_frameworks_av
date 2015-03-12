@@ -41,9 +41,9 @@ public:
         return mProducer;
     }
 
-    BufferQueue::BufferItem getBufferItem();
-    sp<GraphicBuffer> getBuffer(BufferQueue::BufferItem item);
-    status_t releaseBuffer(BufferQueue::BufferItem item);
+    BufferItem getBufferItem();
+    sp<GraphicBuffer> getBuffer(BufferItem item);
+    status_t releaseBuffer(BufferItem item);
 
     enum {
         kWhatFrameAvailable = 'frav',
