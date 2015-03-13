@@ -67,7 +67,7 @@ void NuPlayer::DecoderPassThrough::getStats(
     *numFramesDropped = 0;
 }
 
-void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
+void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format, bool isStreaming) {
     ALOGV("[%s] onConfigure", mComponentName.c_str());
     mCachedBytes = 0;
     mPendingBuffersToDrain = 0;
@@ -90,8 +90,8 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     }
 
     status_t err = mRenderer->openAudioSink(
-            format, true /* offloadOnly */, false /* hasVideo */,
-            AUDIO_OUTPUT_FLAG_NONE /* flags */, isStreaming, NULL /* isOffloaded */);
+            format, true /* offloadOnly */, hasVideo /* hasVideo */, isStreaming,
+            AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */);
     if (err != OK) {
         handleError(err);
     }

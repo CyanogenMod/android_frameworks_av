@@ -119,7 +119,7 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
+void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format, bool isStreaming) {
     CHECK(mCodec == NULL);
 
     mFormatChangePending = false;
