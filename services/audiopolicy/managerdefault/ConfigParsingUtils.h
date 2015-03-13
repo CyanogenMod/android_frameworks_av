@@ -26,7 +26,9 @@ struct StringToEnum {
 };
 
 #define STRING_TO_ENUM(string) { #string, string }
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#endif
 
 const StringToEnum sDeviceNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_DEVICE_OUT_EARPIECE),
