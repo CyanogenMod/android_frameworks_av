@@ -33,6 +33,7 @@
 #include "CameraService.h"
 #include "MediaLogService.h"
 #include "MediaPlayerService.h"
+#include "ResourceManagerService.h"
 #include "service/AudioPolicyService.h"
 #include "SoundTriggerHwService.h"
 #include "RadioService.h"
@@ -128,6 +129,7 @@ int main(int argc __unused, char** argv)
         ALOGI("ServiceManager: %p", sm.get());
         AudioFlinger::instantiate();
         MediaPlayerService::instantiate();
+        ResourceManagerService::instantiate();
         CameraService::instantiate();
         AudioPolicyService::instantiate();
         SoundTriggerHwService::instantiate();

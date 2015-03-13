@@ -20,6 +20,7 @@
 
 #include <gui/IGraphicBufferProducer.h>
 #include <media/hardware/CryptoAPI.h>
+#include <media/MediaResource.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <utils/Vector.h>
 
@@ -34,6 +35,8 @@ struct IBatteryStats;
 struct ICrypto;
 struct IMemory;
 struct MemoryDealer;
+class IResourceManagerClient;
+class IResourceManagerService;
 struct SoftwareRenderer;
 struct Surface;
 
@@ -230,6 +233,30 @@ private:
         bool mOwnedByClient;
     };
 
+    struct ResourceManagerServiceProxy : public IBinder::DeathRecipient {
+        ResourceManagerServiceProxy();
+        ~ResourceManagerServiceProxy();
+
+        void init();
+
+        // implements DeathRecipient
+        virtual void binderDied(const wp<IBinder>& /*who*/);
+
+        void addResource(
+                int pid,
+                int64_t clientId,
+                const sp<IResourceManagerClient> client,
+                const Vector<MediaResource> &resources);
+
+        void removeResource(int64_t clientId);
+
+        bool reclaimResource(int callingPid, const Vector<MediaResource> &resources);
+
+    private:
+        Mutex mLock;
+        sp<IResourceManagerService> mService;
+    };
+
     State mState;
     sp<ALooper> mLooper;
     sp<ALooper> mCodecLooper;
@@ -245,13 +272,21 @@ private:
     sp<AMessage> mCallback;
     sp<MemoryDealer> mDealer;
 
+    sp<IResourceManagerClient> mResourceManagerClient;
+    sp<ResourceManagerServiceProxy> mResourceManagerService;
+
     bool mBatteryStatNotified;
     bool mIsVideo;
+    int32_t mVideoWidth;
+    int32_t mVideoHeight;
 
     // initial create parameters
     AString mInitName;
     bool mInitNameIsType;
     bool mInitIsEncoder;
+
+    // configure parameter
+    sp<AMessage> mConfigureMsg;
 
     // Used only to synchronize asynchronous getBufferAndFormat
     // across all the other (synchronous) buffer state change
@@ -319,6 +354,9 @@ private:
     status_t amendOutputFormatWithCodecSpecificData(const sp<ABuffer> &buffer);
     void updateBatteryStat();
     bool isExecuting() const;
+
+    uint64_t getGraphicBufferSize();
+    void addResource(const char *type, uint64_t value);
 
     /* called to get the last codec error when the sticky flag is set.
      * if no such codec error is found, returns UNKNOWN_ERROR.
