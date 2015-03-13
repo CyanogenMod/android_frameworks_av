@@ -154,6 +154,15 @@ private:
     /** Utility members */
     bool enforceRequestPermissions(CameraMetadata& metadata);
 
+    // Find the square of the euclidean distance between two points
+    static int64_t euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
+
+    // Find the closest dimensions for a given format in available stream configurations with
+    // a width <= ROUNDING_WIDTH_CAP
+    static const int32_t ROUNDING_WIDTH_CAP = 1080;
+    static bool roundBufferDimensionNearest(int32_t width, int32_t height, int32_t format,
+            const CameraMetadata& info, /*out*/int32_t* outWidth, /*out*/int32_t* outHeight);
+
     // IGraphicsBufferProducer binder -> Stream ID
     KeyedVector<sp<IBinder>, int> mStreamMap;
 

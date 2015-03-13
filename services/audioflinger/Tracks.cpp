@@ -513,7 +513,7 @@ void AudioFlinger::PlaybackThread::Track::destroy()
             wasActive = playbackThread->destroyTrack_l(this);
         }
         if (isExternalTrack() && !wasActive) {
-            AudioSystem::releaseOutput(mThreadIoHandle);
+            AudioSystem::releaseOutput(mThreadIoHandle, mStreamType, (audio_session_t)mSessionId);
         }
 #ifdef DOLBY_UDC
         // Notify effect DAP controller that processed audio is no longer available
@@ -637,15 +637,16 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
 
 // ExtendedAudioBufferProvider interface
 
-// Note that framesReady() takes a mutex on the control block using tryLock().
-// This could result in priority inversion if framesReady() is called by the normal mixer,
-// as the normal mixer thread runs at lower
-// priority than the client's callback thread:  there is a short window within framesReady()
-// during which the normal mixer could be preempted, and the client callback would block.
-// Another problem can occur if framesReady() is called by the fast mixer:
-// the tryLock() could block for up to 1 ms, and a sequence of these could delay fast mixer.
-// FIXME Replace AudioTrackShared control block implementation by a non-blocking FIFO queue.
+// framesReady() may return an approximation of the number of frames if called
+// from a different thread than the one calling Proxy->obtainBuffer() and
+// Proxy->releaseBuffer(). Also note there is no mutual exclusion in the
+// AudioTrackServerProxy so be especially careful calling with FastTracks.
 size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
+    if (mSharedBuffer != 0 && (isStopped() || isStopping())) {
+        // Static tracks return zero frames immediately upon stopping (for FastTracks).
+        // The remainder of the buffer is not drained.
+        return 0;
+    }
     return mAudioTrackServerProxy->framesReady();
 }
 
@@ -848,12 +849,11 @@ void AudioFlinger::PlaybackThread::Track::flush()
             // this will be done by prepareTracks_l() when the track is stopped.
             // prepareTracks_l() will see mState == FLUSHED, then
             // remove from active track list, reset(), and trigger presentation complete
+            if (isDirect()) {
+                mFlushHwPending = true;
+            }
             if (playbackThread->mActiveTracks.indexOf(this) < 0) {
                 reset();
-                if (thread->type() == ThreadBase::DIRECT) {
-                    DirectOutputThread *t = (DirectOutputThread *)playbackThread;
-                    t->flushHw_l();
-                }
             }
         }
         // Prevent flush being lost if the track is flushed and then resumed
@@ -866,7 +866,7 @@ void AudioFlinger::PlaybackThread::Track::flush()
 // must be called with thread lock held
 void AudioFlinger::PlaybackThread::Track::flushAck()
 {
-    if (!isOffloaded())
+    if (!isOffloaded() && !isDirect())
         return;
 
     mFlushHwPending = false;
@@ -1704,8 +1704,9 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             audio_channel_mask_t channelMask,
             size_t frameCount,
             int uid)
-    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
-                NULL, 0, 0, uid, IAudioFlinger::TRACK_DEFAULT, TYPE_OUTPUT),
+    :   Track(playbackThread, NULL, AUDIO_STREAM_PATCH,
+              sampleRate, format, channelMask, frameCount,
+              NULL, 0, 0, uid, IAudioFlinger::TRACK_DEFAULT, TYPE_OUTPUT),
     mActive(false), mSourceThread(sourceThread), mClientProxy(NULL)
 {
 
@@ -1920,7 +1921,8 @@ AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThr
                                                      size_t frameCount,
                                                      void *buffer,
                                                      IAudioFlinger::track_flags_t flags)
-    :   Track(playbackThread, NULL, AUDIO_STREAM_CNT, sampleRate, format, channelMask, frameCount,
+    :   Track(playbackThread, NULL, AUDIO_STREAM_PATCH,
+              sampleRate, format, channelMask, frameCount,
               buffer, 0, 0, getuid(), flags, TYPE_PATCH),
               mProxy(new ClientProxy(mCblk, mBuffer, frameCount, mFrameSize, true, true))
 {

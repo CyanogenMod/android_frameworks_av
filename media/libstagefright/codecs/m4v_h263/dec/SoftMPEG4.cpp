@@ -21,6 +21,7 @@
 #include "SoftMPEG4.h"
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/IOMX.h>
@@ -70,7 +71,7 @@ SoftMPEG4::SoftMPEG4(
       mPvTime(0) {
     initPorts(
             kNumInputBuffers,
-            8192 /* inputBufferSize */,
+            352 * 288 * 3 / 2 /* minInputBufferSize */,
             kNumOutputBuffers,
             (mMode == MODE_MPEG4)
             ? MEDIA_MIMETYPE_VIDEO_MPEG4 : MEDIA_MIMETYPE_VIDEO_H263);
@@ -353,14 +354,14 @@ void SoftMPEG4::onReset() {
     }
 }
 
-void SoftMPEG4::updatePortDefinitions() {
-    SoftVideoDecoderOMXComponent::updatePortDefinitions();
+void SoftMPEG4::updatePortDefinitions(bool updateCrop, bool updateInputSize) {
+    SoftVideoDecoderOMXComponent::updatePortDefinitions(updateCrop, updateInputSize);
 
     /* We have to align our width and height - this should affect stride! */
     OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kOutputPortIndex)->mDef;
-    def->nBufferSize =
-        (((def->format.video.nFrameWidth + 15) & -16)
-            * ((def->format.video.nFrameHeight + 15) & -16) * 3) / 2;
+    def->format.video.nStride = align(def->format.video.nStride, 16);
+    def->format.video.nSliceHeight = align(def->format.video.nSliceHeight, 16);
+    def->nBufferSize = (def->format.video.nStride * def->format.video.nSliceHeight * 3) / 2;
 }
 
 }  // namespace android
@@ -382,5 +383,6 @@ android::SoftOMXComponent *createSoftOMXComponent(
     } else {
         CHECK(!"Unknown component");
     }
+    return NULL;
 }
 

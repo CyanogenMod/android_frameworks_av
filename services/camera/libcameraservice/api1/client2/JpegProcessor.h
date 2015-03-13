@@ -47,7 +47,7 @@ class JpegProcessor:
     ~JpegProcessor();
 
     // CpuConsumer listener implementation
-    void onFrameAvailable();
+    void onFrameAvailable(const BufferItem& item);
 
     status_t updateStream(const Parameters &params);
     status_t deleteStream();

@@ -32,6 +32,9 @@ namespace android {
 
 // client singleton for AudioFlinger binder interface
 Mutex AudioSystem::gLock;
+Mutex AudioSystem::gLockCache;
+Mutex AudioSystem::gLockAPS;
+Mutex AudioSystem::gLockAPC;
 sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
@@ -48,33 +51,40 @@ size_t AudioSystem::gInBuffSize = 0;    // zero indicates cache is invalid
 sp<AudioSystem::AudioPortCallback> AudioSystem::gAudioPortCallback;
 
 // establish binder interface to AudioFlinger service
-const sp<IAudioFlinger>& AudioSystem::get_audio_flinger()
+const sp<IAudioFlinger> AudioSystem::get_audio_flinger()
 {
-    Mutex::Autolock _l(gLock);
-    if (gAudioFlinger == 0) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder;
-        do {
-            binder = sm->getService(String16("media.audio_flinger"));
-            if (binder != 0)
-                break;
-            ALOGW("AudioFlinger not published, waiting...");
-            usleep(500000); // 0.5 s
-        } while (true);
-        if (gAudioFlingerClient == NULL) {
-            gAudioFlingerClient = new AudioFlingerClient();
-        } else {
-            if (gAudioErrorCallback) {
-                gAudioErrorCallback(NO_ERROR);
+    sp<IAudioFlinger> af;
+    sp<AudioFlingerClient> afc;
+    {
+        Mutex::Autolock _l(gLock);
+        if (gAudioFlinger == 0) {
+            sp<IServiceManager> sm = defaultServiceManager();
+            sp<IBinder> binder;
+            do {
+                binder = sm->getService(String16("media.audio_flinger"));
+                if (binder != 0)
+                    break;
+                ALOGW("AudioFlinger not published, waiting...");
+                usleep(500000); // 0.5 s
+            } while (true);
+            if (gAudioFlingerClient == NULL) {
+                gAudioFlingerClient = new AudioFlingerClient();
+            } else {
+                if (gAudioErrorCallback) {
+                    gAudioErrorCallback(NO_ERROR);
+                }
             }
+            binder->linkToDeath(gAudioFlingerClient);
+            gAudioFlinger = interface_cast<IAudioFlinger>(binder);
+            LOG_ALWAYS_FATAL_IF(gAudioFlinger == 0);
+            afc = gAudioFlingerClient;
         }
-        binder->linkToDeath(gAudioFlingerClient);
-        gAudioFlinger = interface_cast<IAudioFlinger>(binder);
-        gAudioFlinger->registerClient(gAudioFlingerClient);
+        af = gAudioFlinger;
     }
-    ALOGE_IF(gAudioFlinger==0, "no AudioFlinger!?");
-
-    return gAudioFlinger;
+    if (afc != 0) {
+        af->registerClient(afc);
+    }
+    return af;
 }
 
 /* static */ status_t AudioSystem::checkAudioFlinger()
@@ -245,36 +255,23 @@ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream
     return getSamplingRate(output, samplingRate);
 }
 
-status_t AudioSystem::getOutputSamplingRateForAttr(uint32_t* samplingRate,
-        const audio_attributes_t *attr)
-{
-    if (attr == NULL) {
-        return BAD_VALUE;
-    }
-    audio_io_handle_t output = getOutputForAttr(attr);
-    if (output == 0) {
-        return PERMISSION_DENIED;
-    }
-    return getSamplingRate(output, samplingRate);
-}
-
 status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
                                       uint32_t* samplingRate)
 {
-    OutputDescriptor *outputDesc;
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
 
-    gLock.lock();
-    outputDesc = AudioSystem::gOutputs.valueFor(output);
+    Mutex::Autolock _l(gLockCache);
+
+    OutputDescriptor *outputDesc = AudioSystem::gOutputs.valueFor(output);
     if (outputDesc == NULL) {
         ALOGV("getOutputSamplingRate() no output descriptor for output %d in gOutputs", output);
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) return PERMISSION_DENIED;
+        gLockCache.unlock();
         *samplingRate = af->sampleRate(output);
+        gLockCache.lock();
     } else {
         ALOGV("getOutputSamplingRate() reading from output desc");
         *samplingRate = outputDesc->samplingRate;
-        gLock.unlock();
     }
     if (*samplingRate == 0) {
         ALOGE("AudioSystem::getSamplingRate failed for output %d", output);
@@ -305,18 +302,18 @@ status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_
 status_t AudioSystem::getFrameCount(audio_io_handle_t output,
                                     size_t* frameCount)
 {
-    OutputDescriptor *outputDesc;
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
 
-    gLock.lock();
-    outputDesc = AudioSystem::gOutputs.valueFor(output);
+    Mutex::Autolock _l(gLockCache);
+
+    OutputDescriptor *outputDesc = AudioSystem::gOutputs.valueFor(output);
     if (outputDesc == NULL) {
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) return PERMISSION_DENIED;
+        gLockCache.unlock();
         *frameCount = af->frameCount(output);
+        gLockCache.lock();
     } else {
         *frameCount = outputDesc->frameCount;
-        gLock.unlock();
     }
     if (*frameCount == 0) {
         ALOGE("AudioSystem::getFrameCount failed for output %d", output);
@@ -347,18 +344,18 @@ status_t AudioSystem::getOutputLatency(uint32_t* latency, audio_stream_type_t st
 status_t AudioSystem::getLatency(audio_io_handle_t output,
                                  uint32_t* latency)
 {
-    OutputDescriptor *outputDesc;
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
 
-    gLock.lock();
-    outputDesc = AudioSystem::gOutputs.valueFor(output);
+    Mutex::Autolock _l(gLockCache);
+
+    OutputDescriptor *outputDesc = AudioSystem::gOutputs.valueFor(output);
     if (outputDesc == NULL) {
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) return PERMISSION_DENIED;
+        gLockCache.unlock();
         *latency = af->latency(output);
+        gLockCache.lock();
     } else {
         *latency = outputDesc->latency;
-        gLock.unlock();
     }
 
     ALOGV("getLatency() output %d, latency %d", output, *latency);
@@ -369,24 +366,24 @@ status_t AudioSystem::getLatency(audio_io_handle_t output,
 status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t format,
         audio_channel_mask_t channelMask, size_t* buffSize)
 {
-    gLock.lock();
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) {
+        return PERMISSION_DENIED;
+    }
+    Mutex::Autolock _l(gLockCache);
     // Do we have a stale gInBufferSize or are we requesting the input buffer size for new values
     size_t inBuffSize = gInBuffSize;
     if ((inBuffSize == 0) || (sampleRate != gPrevInSamplingRate) || (format != gPrevInFormat)
         || (channelMask != gPrevInChannelMask)) {
-        gLock.unlock();
-        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
-        if (af == 0) {
-            return PERMISSION_DENIED;
-        }
+        gLockCache.unlock();
         inBuffSize = af->getInputBufferSize(sampleRate, format, channelMask);
+        gLockCache.lock();
         if (inBuffSize == 0) {
             ALOGE("AudioSystem::getInputBufferSize failed sampleRate %d format %#x channelMask %x",
                     sampleRate, format, channelMask);
             return BAD_VALUE;
         }
         // A benign race is possible here: we could overwrite a fresher cache entry
-        gLock.lock();
         // save the request params
         gPrevInSamplingRate = sampleRate;
         gPrevInFormat = format;
@@ -394,7 +391,6 @@ status_t AudioSystem::getInputBufferSize(uint32_t sampleRate, audio_format_t for
 
         gInBuffSize = inBuffSize;
     }
-    gLock.unlock();
     *buffSize = inBuffSize;
 
     return NO_ERROR;
@@ -461,14 +457,21 @@ audio_hw_sync_t AudioSystem::getAudioHwSyncForSession(audio_session_t sessionId)
 
 void AudioSystem::AudioFlingerClient::binderDied(const wp<IBinder>& who __unused)
 {
-    Mutex::Autolock _l(AudioSystem::gLock);
+    audio_error_callback cb = NULL;
+    {
+        Mutex::Autolock _l(AudioSystem::gLock);
+        AudioSystem::gAudioFlinger.clear();
+        cb = gAudioErrorCallback;
+    }
 
-    AudioSystem::gAudioFlinger.clear();
-    // clear output handles and stream to output map caches
-    AudioSystem::gOutputs.clear();
+    {
+        // clear output handles and stream to output map caches
+        Mutex::Autolock _l(gLockCache);
+        AudioSystem::gOutputs.clear();
+    }
 
-    if (gAudioErrorCallback) {
-        gAudioErrorCallback(DEAD_OBJECT);
+    if (cb) {
+        cb(DEAD_OBJECT);
     }
     ALOGW("AudioFlinger server died!");
 }
@@ -481,7 +484,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
 
     if (ioHandle == AUDIO_IO_HANDLE_NONE) return;
 
-    Mutex::Autolock _l(AudioSystem::gLock);
+    Mutex::Autolock _l(AudioSystem::gLockCache);
 
     switch (event) {
     case STREAM_CONFIG_CHANGED:
@@ -543,55 +546,44 @@ void AudioSystem::setErrorCallback(audio_error_callback cb)
     gAudioErrorCallback = cb;
 }
 
-
-bool AudioSystem::routedToA2dpOutput(audio_stream_type_t streamType)
-{
-    switch (streamType) {
-    case AUDIO_STREAM_MUSIC:
-    case AUDIO_STREAM_VOICE_CALL:
-    case AUDIO_STREAM_BLUETOOTH_SCO:
-    case AUDIO_STREAM_SYSTEM:
-        return true;
-    default:
-        return false;
-    }
-}
-
-
 // client singleton for AudioPolicyService binder interface
+// protected by gLockAPS
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
 sp<AudioSystem::AudioPolicyServiceClient> AudioSystem::gAudioPolicyServiceClient;
 
 
 // establish binder interface to AudioPolicy service
-const sp<IAudioPolicyService>& AudioSystem::get_audio_policy_service()
+const sp<IAudioPolicyService> AudioSystem::get_audio_policy_service()
 {
-    gLock.lock();
-    if (gAudioPolicyService == 0) {
-        sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder;
-        do {
-            binder = sm->getService(String16("media.audio_policy"));
-            if (binder != 0)
-                break;
-            ALOGW("AudioPolicyService not published, waiting...");
-            usleep(500000); // 0.5 s
-        } while (true);
-        if (gAudioPolicyServiceClient == NULL) {
-            gAudioPolicyServiceClient = new AudioPolicyServiceClient();
+    sp<IAudioPolicyService> ap;
+    sp<AudioPolicyServiceClient> apc;
+    {
+        Mutex::Autolock _l(gLockAPS);
+        if (gAudioPolicyService == 0) {
+            sp<IServiceManager> sm = defaultServiceManager();
+            sp<IBinder> binder;
+            do {
+                binder = sm->getService(String16("media.audio_policy"));
+                if (binder != 0)
+                    break;
+                ALOGW("AudioPolicyService not published, waiting...");
+                usleep(500000); // 0.5 s
+            } while (true);
+            if (gAudioPolicyServiceClient == NULL) {
+                gAudioPolicyServiceClient = new AudioPolicyServiceClient();
+            }
+            binder->linkToDeath(gAudioPolicyServiceClient);
+            gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
+            LOG_ALWAYS_FATAL_IF(gAudioPolicyService == 0);
+            apc = gAudioPolicyServiceClient;
         }
-        binder->linkToDeath(gAudioPolicyServiceClient);
-        gAudioPolicyService = interface_cast<IAudioPolicyService>(binder);
-        gLock.unlock();
-        // Registering the client takes the AudioPolicyService lock.
-        // Don't hold the AudioSystem lock at the same time.
-        gAudioPolicyService->registerClient(gAudioPolicyServiceClient);
-    } else {
-        // There exists a benign race condition where gAudioPolicyService
-        // is set, but gAudioPolicyServiceClient is not yet registered.
-        gLock.unlock();
+        ap = gAudioPolicyService;
     }
-    return gAudioPolicyService;
+    if (apc != 0) {
+        ap->registerClient(apc);
+    }
+
+    return ap;
 }
 
 // ---------------------------------------------------------------------------
@@ -657,22 +649,26 @@ audio_io_handle_t AudioSystem::getOutput(audio_stream_type_t stream,
     return aps->getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
 }
 
-audio_io_handle_t AudioSystem::getOutputForAttr(const audio_attributes_t *attr,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_output_flags_t flags,
-                                    const audio_offload_info_t *offloadInfo)
+status_t AudioSystem::getOutputForAttr(const audio_attributes_t *attr,
+                                        audio_io_handle_t *output,
+                                        audio_session_t session,
+                                        audio_stream_type_t *stream,
+                                        uint32_t samplingRate,
+                                        audio_format_t format,
+                                        audio_channel_mask_t channelMask,
+                                        audio_output_flags_t flags,
+                                        const audio_offload_info_t *offloadInfo)
 {
-    if (attr == NULL) return 0;
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-    if (aps == 0) return 0;
-    return aps->getOutputForAttr(attr, samplingRate, format, channelMask, flags, offloadInfo);
+    if (aps == 0) return NO_INIT;
+    return aps->getOutputForAttr(attr, output, session, stream,
+                                 samplingRate, format, channelMask,
+                                 flags, offloadInfo);
 }
 
 status_t AudioSystem::startOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
-                                  int session)
+                                  audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
@@ -681,30 +677,33 @@ status_t AudioSystem::startOutput(audio_io_handle_t output,
 
 status_t AudioSystem::stopOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
-                                 int session)
+                                 audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
     return aps->stopOutput(output, stream, session);
 }
 
-void AudioSystem::releaseOutput(audio_io_handle_t output)
+void AudioSystem::releaseOutput(audio_io_handle_t output,
+                                audio_stream_type_t stream,
+                                audio_session_t session)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return;
-    aps->releaseOutput(output);
+    aps->releaseOutput(output, stream, session);
 }
 
-audio_io_handle_t AudioSystem::getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    int sessionId,
-                                    audio_input_flags_t flags)
+status_t AudioSystem::getInputForAttr(const audio_attributes_t *attr,
+                                audio_io_handle_t *input,
+                                audio_session_t session,
+                                uint32_t samplingRate,
+                                audio_format_t format,
+                                audio_channel_mask_t channelMask,
+                                audio_input_flags_t flags)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
-    if (aps == 0) return 0;
-    return aps->getInput(inputSource, samplingRate, format, channelMask, sessionId, flags);
+    if (aps == 0) return NO_INIT;
+    return aps->getInputForAttr(attr, input, session, samplingRate, format, channelMask, flags);
 }
 
 status_t AudioSystem::startInput(audio_io_handle_t input,
@@ -856,9 +855,21 @@ status_t AudioSystem::setLowRamDevice(bool isLowRamDevice)
 
 void AudioSystem::clearAudioConfigCache()
 {
-    Mutex::Autolock _l(gLock);
+    // called by restoreTrack_l(), which needs new IAudioFlinger and IAudioPolicyService instances
     ALOGV("clearAudioConfigCache()");
-    gOutputs.clear();
+    {
+        Mutex::Autolock _l(gLockCache);
+        gOutputs.clear();
+    }
+    {
+        Mutex::Autolock _l(gLock);
+        gAudioFlinger.clear();
+    }
+    {
+        Mutex::Autolock _l(gLockAPS);
+        gAudioPolicyService.clear();
+    }
+    // Do not clear gAudioPortCallback
 }
 
 bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
@@ -920,7 +931,7 @@ status_t AudioSystem::setAudioPortConfig(const struct audio_port_config *config)
 
 void AudioSystem::setAudioPortCallback(sp<AudioPortCallback> callBack)
 {
-    Mutex::Autolock _l(gLock);
+    Mutex::Autolock _l(gLockAPC);
     gAudioPortCallback = callBack;
 }
 
@@ -947,23 +958,34 @@ audio_mode_t AudioSystem::getPhoneState()
     return aps->getPhoneState();
 }
 
+status_t AudioSystem::registerPolicyMixes(Vector<AudioMix> mixes, bool registration)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->registerPolicyMixes(mixes, registration);
+}
 
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
 {
-    Mutex::Autolock _l(gLock);
-    if (gAudioPortCallback != 0) {
-        gAudioPortCallback->onServiceDied();
+    {
+        Mutex::Autolock _l(gLockAPC);
+        if (gAudioPortCallback != 0) {
+            gAudioPortCallback->onServiceDied();
+        }
     }
-    AudioSystem::gAudioPolicyService.clear();
+    {
+        Mutex::Autolock _l(gLockAPS);
+        AudioSystem::gAudioPolicyService.clear();
+    }
 
     ALOGW("AudioPolicyService server died!");
 }
 
 void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
 {
-    Mutex::Autolock _l(gLock);
+    Mutex::Autolock _l(gLockAPC);
     if (gAudioPortCallback != 0) {
         gAudioPortCallback->onAudioPortListUpdate();
     }
@@ -971,7 +993,7 @@ void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
 
 void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
 {
-    Mutex::Autolock _l(gLock);
+    Mutex::Autolock _l(gLockAPC);
     if (gAudioPortCallback != 0) {
         gAudioPortCallback->onAudioPatchListUpdate();
     }

@@ -53,7 +53,7 @@ class ZslProcessor:
     ~ZslProcessor();
 
     // From mZslConsumer
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
     // From FrameProcessor
     virtual void onResultAvailable(const CaptureResult &result);
 

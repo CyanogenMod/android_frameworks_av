@@ -155,18 +155,6 @@ private:
     // that specifies algorithm interface (e.g. vp8)
     vpx_codec_iface_t* mCodecInterface;
 
-    // Width of the input frames
-    int32_t mWidth;
-
-    // Height of the input frames
-    int32_t mHeight;
-
-    // Target bitrate set for the encoder, in bits per second.
-    uint32_t mBitrate;
-
-    // Target framerate set for the encoder.
-    uint32_t mFramerate;
-
     // If a request for a change it bitrate has been received.
     bool mBitrateUpdated;
 
@@ -181,9 +169,6 @@ private:
     // Parameter that denotes whether error resilience
     // is enabled in encoder
     OMX_BOOL mErrorResilience;
-
-    // Color format for the input port
-    OMX_COLOR_FORMATTYPE mColorFormat;
 
     // Encoder profile corresponding to OMX level parameter
     //
@@ -229,13 +214,7 @@ private:
     // indeed YUV420SemiPlanar.
     uint8_t* mConversionBuffer;
 
-    bool mInputDataIsMeta;
-
     bool mKeyFrameRequested;
-
-    // Initializes input and output OMX ports with sensible
-    // default values.
-    void initPorts();
 
     // Initializes vpx encoder with available settings.
     status_t initEncoder();
@@ -250,22 +229,9 @@ private:
     // Get current encode flags
     vpx_enc_frame_flags_t getEncodeFlags();
 
-    // Handles port changes with respect to color formats
-    OMX_ERRORTYPE internalSetFormatParams(
-        const OMX_VIDEO_PARAM_PORTFORMATTYPE* format);
-
-    // Verifies the component role tried to be set to this OMX component is
-    // strictly video_encoder.vp8
-    OMX_ERRORTYPE internalSetRoleParams(
-        const OMX_PARAM_COMPONENTROLETYPE* role);
-
     // Updates bitrate to reflect port settings.
     OMX_ERRORTYPE internalSetBitrateParams(
         const OMX_VIDEO_PARAM_BITRATETYPE* bitrate);
-
-    // Handles port definition changes.
-    OMX_ERRORTYPE internalSetPortParams(
-        const OMX_PARAM_PORTDEFINITIONTYPE* port);
 
     // Handles vp8 specific parameters.
     OMX_ERRORTYPE internalSetVp8Params(
@@ -274,10 +240,6 @@ private:
     // Handles Android vp8 specific parameters.
     OMX_ERRORTYPE internalSetAndroidVp8Params(
         const OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE* vp8AndroidParams);
-
-    // Updates encoder profile
-    OMX_ERRORTYPE internalSetProfileLevel(
-        const OMX_VIDEO_PARAM_PROFILELEVELTYPE* profileAndLevel);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftVPXEncoder);
 };

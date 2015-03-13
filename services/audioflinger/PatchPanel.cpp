@@ -166,7 +166,9 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
             if (*handle == mPatches[index]->mHandle) {
                 ALOGV("createAudioPatch() removing patch handle %d", *handle);
                 halHandle = mPatches[index]->mHalHandle;
+                Patch *removedPatch = mPatches[index];
                 mPatches.removeAt(index);
+                delete removedPatch;
                 break;
             }
         }

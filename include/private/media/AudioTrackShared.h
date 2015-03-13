@@ -451,7 +451,14 @@ private:
     ssize_t             pollPosition(); // poll for state queue update, and return current position
     StaticAudioTrackSingleStateQueue::Observer  mObserver;
     size_t              mPosition;  // server's current play position in frames, relative to 0
-    size_t              mEnd;       // cached value computed from mState, safe for asynchronous read
+
+    size_t              mFramesReadySafe; // Assuming size_t read/writes are atomic on 32 / 64 bit
+                                          // processors, this is a thread-safe version of
+                                          // mFramesReady.
+    int64_t             mFramesReady;     // The number of frames ready in the static buffer
+                                          // including loops.  This is 64 bits since loop mode
+                                          // can cause a track to appear to have a large number
+                                          // of frames. INT64_MAX means an infinite loop.
     bool                mFramesReadyIsCalledByMultipleThreads;
     StaticAudioTrackState   mState;
 };

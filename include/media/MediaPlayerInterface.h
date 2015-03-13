@@ -209,8 +209,15 @@ public:
 
     void        sendEvent(int msg, int ext1=0, int ext2=0,
                           const Parcel *obj=NULL) {
-        Mutex::Autolock autoLock(mNotifyLock);
-        if (mNotify) mNotify(mCookie, msg, ext1, ext2, obj);
+        notify_callback_f notifyCB;
+        void* cookie;
+        {
+            Mutex::Autolock autoLock(mNotifyLock);
+            notifyCB = mNotify;
+            cookie = mCookie;
+        }
+
+        if (notifyCB) notifyCB(cookie, msg, ext1, ext2, obj);
     }
 
     virtual status_t dump(int fd, const Vector<String16> &args) const {

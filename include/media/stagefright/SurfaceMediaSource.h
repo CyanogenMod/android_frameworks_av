@@ -124,7 +124,7 @@ protected:
     // Implementation of the BufferQueue::ConsumerListener interface.  These
     // calls are used to notify the Surface of asynchronous events in the
     // BufferQueue.
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const BufferItem& item);
 
     // Used as a hook to BufferQueue::disconnect()
     // This is called by the client side when it is done

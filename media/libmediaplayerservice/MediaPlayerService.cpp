@@ -2179,6 +2179,7 @@ ssize_t MediaPlayerService::AudioCache::write(const void* buffer, size_t size)
         // immutable with respect to future writes.
         //
         // It is thus safe for another thread to read the AudioCache.
+        Mutex::Autolock lock(mLock);
         mCommandComplete = true;
         mSignal.signal();
     }
@@ -2213,7 +2214,6 @@ void MediaPlayerService::AudioCache::notify(
     {
     case MEDIA_ERROR:
         ALOGE("Error %d, %d occurred", ext1, ext2);
-        p->mError = ext1;
         break;
     case MEDIA_PREPARED:
         ALOGV("prepared");
@@ -2228,6 +2228,9 @@ void MediaPlayerService::AudioCache::notify(
 
     // wake up thread
     Mutex::Autolock lock(p->mLock);
+    if (msg == MEDIA_ERROR) {
+        p->mError = ext1;
+    }
     p->mCommandComplete = true;
     p->mSignal.signal();
 }

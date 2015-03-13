@@ -60,8 +60,6 @@ struct ATSParser : public RefBase {
         DISCONTINUITY_ABSOLUTE_TIME     = 8,
         DISCONTINUITY_TIME_OFFSET       = 16,
 
-        DISCONTINUITY_SEEK              = DISCONTINUITY_TIME,
-
         // For legacy reasons this also implies a time discontinuity.
         DISCONTINUITY_FORMATCHANGE      =
             DISCONTINUITY_AUDIO_FORMAT
@@ -95,6 +93,7 @@ struct ATSParser : public RefBase {
         NUM_SOURCE_TYPES = 2
     };
     sp<MediaSource> getSource(SourceType type);
+    bool hasSource(SourceType type) const;
 
     bool PTSTimeDeltaEstablished();
 

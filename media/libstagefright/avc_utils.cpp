@@ -222,28 +222,25 @@ status_t getNextNALUnit(
     *nalStart = NULL;
     *nalSize = 0;
 
-    if (size == 0) {
+    if (size < 3) {
         return -EAGAIN;
     }
-
-    // Skip any number of leading 0x00.
 
     size_t offset = 0;
-    while (offset < size && data[offset] == 0x00) {
-        ++offset;
-    }
-
-    if (offset == size) {
-        return -EAGAIN;
-    }
 
     // A valid startcode consists of at least two 0x00 bytes followed by 0x01.
-
-    if (offset < 2 || data[offset] != 0x01) {
-        return ERROR_MALFORMED;
+    for (; offset + 2 < size; ++offset) {
+        if (data[offset + 2] == 0x01 && data[offset] == 0x00
+                && data[offset + 1] == 0x00) {
+            break;
+        }
     }
-
-    ++offset;
+    if (offset + 2 >= size) {
+        *_data = &data[offset];
+        *_size = 2;
+        return -EAGAIN;
+    }
+    offset += 3;
 
     size_t startOffset = offset;
 
