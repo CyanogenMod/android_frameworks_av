@@ -65,6 +65,7 @@ CameraDeviceClient::CameraDeviceClient(const sp<CameraService>& cameraService,
                                    int servicePid) :
     Camera2ClientBase(cameraService, remoteCallback, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
+    mInputStream(),
     mRequestIdCounter(0) {
 
     ATRACE_CALL();
@@ -127,12 +128,25 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
     List<const CameraMetadata> metadataRequestList;
     int32_t requestId = mRequestIdCounter;
     uint32_t loopCounter = 0;
+    bool isReprocess = false;
 
     for (List<sp<CaptureRequest> >::iterator it = requests.begin(); it != requests.end(); ++it) {
         sp<CaptureRequest> request = *it;
         if (request == 0) {
             ALOGE("%s: Camera %d: Sent null request.",
                     __FUNCTION__, mCameraId);
+            return BAD_VALUE;
+        } else if (it == requests.begin()) {
+            isReprocess = request->mIsReprocess;
+            if (isReprocess && !mInputStream.configured) {
+                ALOGE("%s: Camera %d: no input stream is configured.");
+                return BAD_VALUE;
+            } else if (isReprocess && streaming) {
+                ALOGE("%s: Camera %d: streaming reprocess requests not supported.");
+                return BAD_VALUE;
+            }
+        } else if (isReprocess != request->mIsReprocess) {
+            ALOGE("%s: Camera %d: Sent regular and reprocess requests.");
             return BAD_VALUE;
         }
 
@@ -181,6 +195,10 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
 
         metadata.update(ANDROID_REQUEST_OUTPUT_STREAMS, &outputStreamIds[0],
                         outputStreamIds.size());
+
+        if (isReprocess) {
+            metadata.update(ANDROID_REQUEST_INPUT_STREAMS, &mInputStream.id, 1);
+        }
 
         metadata.update(ANDROID_REQUEST_ID, &requestId, /*size*/1);
         loopCounter++; // loopCounter starts from 1
@@ -260,8 +278,8 @@ status_t CameraDeviceClient::beginConfigure() {
 }
 
 status_t CameraDeviceClient::endConfigure() {
-    ALOGV("%s: ending configure (%zu streams)",
-            __FUNCTION__, mStreamMap.size());
+    ALOGV("%s: ending configure (%d input stream, %zu output streams)",
+            __FUNCTION__, mInputStream.configured ? 1 : 0, mStreamMap.size());
 
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -284,19 +302,25 @@ status_t CameraDeviceClient::deleteStream(int streamId) {
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
-    // Guard against trying to delete non-created streams
+    bool isInput = false;
     ssize_t index = NAME_NOT_FOUND;
-    for (size_t i = 0; i < mStreamMap.size(); ++i) {
-        if (streamId == mStreamMap.valueAt(i)) {
-            index = i;
-            break;
-        }
-    }
 
-    if (index == NAME_NOT_FOUND) {
-        ALOGW("%s: Camera %d: Invalid stream ID (%d) specified, no stream "
-              "created yet", __FUNCTION__, mCameraId, streamId);
-        return BAD_VALUE;
+    if (mInputStream.configured && mInputStream.id == streamId) {
+        isInput = true;
+    } else {
+        // Guard against trying to delete non-created streams
+        for (size_t i = 0; i < mStreamMap.size(); ++i) {
+            if (streamId == mStreamMap.valueAt(i)) {
+                index = i;
+                break;
+            }
+        }
+
+        if (index == NAME_NOT_FOUND) {
+            ALOGW("%s: Camera %d: Invalid stream ID (%d) specified, no stream "
+                  "created yet", __FUNCTION__, mCameraId, streamId);
+            return BAD_VALUE;
+        }
     }
 
     // Also returns BAD_VALUE if stream ID was not valid
@@ -307,8 +331,11 @@ status_t CameraDeviceClient::deleteStream(int streamId) {
               " already checked and the stream ID (%d) should be valid.",
               __FUNCTION__, mCameraId, streamId);
     } else if (res == OK) {
-        mStreamMap.removeItemsAt(index);
-
+        if (isInput) {
+            mInputStream.configured = false;
+        } else {
+            mStreamMap.removeItemsAt(index);
+        }
     }
 
     return res;
@@ -449,6 +476,58 @@ status_t CameraDeviceClient::createStream(const OutputConfiguration &outputConfi
     return res;
 }
 
+
+status_t CameraDeviceClient::createInputStream(int width, int height,
+        int format) {
+
+    ATRACE_CALL();
+    ALOGV("%s (w = %d, h = %d, f = 0x%x)", __FUNCTION__, width, height, format);
+
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+    if (!mDevice.get()) return DEAD_OBJECT;
+
+    if (mInputStream.configured) {
+        ALOGE("%s: Camera %d: Already has an input stream "
+                " configuration. (ID %zd)", __FUNCTION__, mCameraId,
+                mInputStream.id);
+        return ALREADY_EXISTS;
+    }
+
+    int streamId = -1;
+    res = mDevice->createInputStream(width, height, format, &streamId);
+    if (res == OK) {
+        mInputStream.configured = true;
+        mInputStream.width = width;
+        mInputStream.height = height;
+        mInputStream.format = format;
+        mInputStream.id = streamId;
+
+        ALOGV("%s: Camera %d: Successfully created a new input stream ID %d",
+              __FUNCTION__, mCameraId, streamId);
+
+        return streamId;
+    }
+
+    return res;
+}
+
+status_t CameraDeviceClient::getInputBufferProducer(
+        /*out*/sp<IGraphicBufferProducer> *producer) {
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    if (producer == NULL) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+    if (!mDevice.get()) return DEAD_OBJECT;
+
+    return mDevice->getInputBufferProducer(producer);
+}
 
 bool CameraDeviceClient::roundBufferDimensionNearest(int32_t width, int32_t height,
         int32_t format, android_dataspace dataSpace, const CameraMetadata& info,
@@ -602,13 +681,19 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
 
     result.append("  State:\n");
     result.appendFormat("    Request ID counter: %d\n", mRequestIdCounter);
+    if (mInputStream.configured) {
+        result.appendFormat("    Current input stream ID: %d\n",
+                    mInputStream.id);
+    } else {
+        result.append("    No input stream configured.\n");
+    }
     if (!mStreamMap.isEmpty()) {
-        result.append("    Current stream IDs:\n");
+        result.append("    Current output stream IDs:\n");
         for (size_t i = 0; i < mStreamMap.size(); i++) {
             result.appendFormat("      Stream %d\n", mStreamMap.valueAt(i));
         }
     } else {
-        result.append("    No streams configured.\n");
+        result.append("    No output streams configured.\n");
     }
     write(fd, result.string(), result.size());
     // TODO: print dynamic/request section from most recent requests

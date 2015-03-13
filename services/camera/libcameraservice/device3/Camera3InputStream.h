@@ -49,6 +49,7 @@ class Camera3InputStream : public Camera3IOStreamBase {
   private:
 
     sp<BufferItemConsumer> mConsumer;
+    sp<IGraphicBufferProducer> mProducer;
     Vector<BufferItem> mBuffersInFlight;
 
     /**
@@ -68,6 +69,8 @@ class Camera3InputStream : public Camera3IOStreamBase {
     virtual status_t getInputBufferLocked(camera3_stream_buffer *buffer);
     virtual status_t returnInputBufferLocked(
             const camera3_stream_buffer &buffer);
+    virtual status_t getInputBufferProducerLocked(
+            sp<IGraphicBufferProducer> *producer);
     virtual status_t disconnectLocked();
 
     virtual status_t configureQueueLocked();

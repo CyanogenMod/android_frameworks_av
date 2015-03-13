@@ -30,6 +30,7 @@ public:
 
     CameraMetadata          mMetadata;
     Vector<sp<Surface> >    mSurfaceList;
+    bool                    mIsReprocess;
 
     /**
      * Keep impl up-to-date with CaptureRequest.java in frameworks/base

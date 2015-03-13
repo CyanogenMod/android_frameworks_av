@@ -42,6 +42,8 @@ enum {
     END_CONFIGURE,
     DELETE_STREAM,
     CREATE_STREAM,
+    CREATE_INPUT_STREAM,
+    GET_INPUT_SURFACE,
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
     WAIT_UNTIL_IDLE,
@@ -223,6 +225,50 @@ public:
 
         reply.readExceptionCode();
         return reply.readInt32();
+    }
+
+    virtual status_t createInputStream(int width, int height, int format)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        data.writeInt32(width);
+        data.writeInt32(height);
+        data.writeInt32(format);
+
+        remote()->transact(CREATE_INPUT_STREAM, data, &reply);
+
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
+    // get the buffer producer of the input stream
+    virtual status_t getInputBufferProducer(
+            sp<IGraphicBufferProducer> *producer) {
+        if (producer == NULL) {
+            return BAD_VALUE;
+        }
+
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+
+        remote()->transact(GET_INPUT_SURFACE, data, &reply);
+
+        reply.readExceptionCode();
+        status_t result = reply.readInt32() ;
+        if (result != OK) {
+            return result;
+        }
+
+        sp<IGraphicBufferProducer> bp = NULL;
+        if (reply.readInt32() != 0) {
+            String16 name = readMaybeEmptyString16(reply);
+            bp = interface_cast<IGraphicBufferProducer>(
+                    reply.readStrongBinder());
+        }
+
+        *producer = bp;
+
+        return *producer == NULL ? INVALID_OPERATION : OK;
     }
 
     // Create a request object from a template.
@@ -409,7 +455,35 @@ status_t BnCameraDeviceUser::onTransact(
 
             return NO_ERROR;
         } break;
+        case CREATE_INPUT_STREAM: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            int width, height, format;
 
+            width = data.readInt32();
+            height = data.readInt32();
+            format = data.readInt32();
+            status_t ret = createInputStream(width, height, format);
+
+            reply->writeNoException();
+            reply->writeInt32(ret);
+            return NO_ERROR;
+
+        } break;
+        case GET_INPUT_SURFACE: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+
+            sp<IGraphicBufferProducer> bp;
+            status_t ret = getInputBufferProducer(&bp);
+            sp<IBinder> b(IInterface::asBinder(ret == OK ? bp : NULL));
+
+            reply->writeNoException();
+            reply->writeInt32(ret);
+            reply->writeInt32(1);
+            reply->writeString16(String16("camera input")); // name of surface
+            reply->writeStrongBinder(b);
+
+            return NO_ERROR;
+        } break;
         case CREATE_DEFAULT_REQUEST: {
             CHECK_INTERFACE(ICameraDeviceUser, data, reply);
 

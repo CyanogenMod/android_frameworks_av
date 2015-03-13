@@ -346,6 +346,13 @@ status_t Camera3Stream::returnInputBuffer(const camera3_stream_buffer &buffer) {
     return res;
 }
 
+status_t Camera3Stream::getInputBufferProducer(sp<IGraphicBufferProducer> *producer) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+
+    return getInputBufferProducerLocked(producer);
+}
+
 void Camera3Stream::fireBufferListenersLocked(
         const camera3_stream_buffer& /*buffer*/, bool acquired, bool output) {
     List<wp<Camera3StreamBufferListener> >::iterator it, end;
@@ -502,6 +509,10 @@ status_t Camera3Stream::getInputBufferLocked(camera3_stream_buffer *) {
 }
 status_t Camera3Stream::returnInputBufferLocked(
         const camera3_stream_buffer &) {
+    ALOGE("%s: This type of stream does not support input", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+status_t Camera3Stream::getInputBufferProducerLocked(sp<IGraphicBufferProducer> *producer) {
     ALOGE("%s: This type of stream does not support input", __FUNCTION__);
     return INVALID_OPERATION;
 }

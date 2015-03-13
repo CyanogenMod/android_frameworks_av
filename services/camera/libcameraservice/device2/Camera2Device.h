@@ -59,6 +59,8 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t createStream(sp<ANativeWindow> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id);
+    virtual status_t createInputStream(
+            uint32_t width, uint32_t height, int format, int *id);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
     virtual status_t getStreamInfo(int id,
             uint32_t *width, uint32_t *height, uint32_t *format);
@@ -67,6 +69,8 @@ class Camera2Device: public CameraDeviceBase {
     virtual status_t deleteReprocessStream(int id);
     // No-op on HAL2 devices
     virtual status_t configureStreams();
+    virtual status_t getInputBufferProducer(
+            sp<IGraphicBufferProducer> *producer);
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
     virtual status_t waitUntilDrained();
     virtual status_t setNotifyCallback(NotificationListener *listener);

@@ -116,6 +116,8 @@ class Camera3Device :
     virtual status_t deleteReprocessStream(int id);
 
     virtual status_t configureStreams();
+    virtual status_t getInputBufferProducer(
+            sp<IGraphicBufferProducer> *producer);
 
     virtual status_t createDefaultRequest(int templateId, CameraMetadata *request);
 
@@ -178,6 +180,14 @@ class Camera3Device :
     CameraMetadata             mRequestTemplateCache[CAMERA3_TEMPLATE_COUNT];
 
     uint32_t                   mDeviceVersion;
+
+    struct Size {
+        uint32_t width;
+        uint32_t height;
+        Size(uint32_t w = 0, uint32_t h = 0) : width(w), height(h){}
+    };
+    // Map from format to size.
+    Vector<Size>               mSupportedOpaqueInputSizes;
 
     enum Status {
         STATUS_ERROR,
@@ -324,11 +334,11 @@ class Camera3Device :
      */
     bool               tryLockSpinRightRound(Mutex& lock);
 
-    struct Size {
-        int width;
-        int height;
-        Size(int w, int h) : width(w), height(h){}
-    };
+    /**
+     * Helper function to determine if an input size for implementation defined
+     * format is supported.
+     */
+    bool isOpaqueInputSizeSupported(uint32_t width, uint32_t height);
 
     /**
      * Helper function to get the largest Jpeg resolution (in area)
@@ -639,8 +649,10 @@ class Camera3Device :
     Mutex                  mOutputLock;
 
     /**** Scope for mOutputLock ****/
-
+    // the minimal frame number of the next non-reprocess result
     uint32_t               mNextResultFrameNumber;
+    // the minimal frame number of the next reprocess result
+    uint32_t               mNextReprocessResultFrameNumber;
     uint32_t               mNextShutterFrameNumber;
     List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
@@ -669,7 +681,8 @@ class Camera3Device :
     // partial results, and the frame number to the result queue.
     void sendCaptureResult(CameraMetadata &pendingMetadata,
             CaptureResultExtras &resultExtras,
-            CameraMetadata &collectedPartialResult, uint32_t frameNumber);
+            CameraMetadata &collectedPartialResult, uint32_t frameNumber,
+            bool reprocess);
 
     /**** Scope for mInFlightLock ****/
 

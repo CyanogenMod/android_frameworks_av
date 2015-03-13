@@ -30,6 +30,7 @@
 #include "camera/CameraMetadata.h"
 #include "camera/CaptureResult.h"
 #include "common/CameraModule.h"
+#include "gui/IGraphicBufferProducer.h"
 
 namespace android {
 
@@ -110,6 +111,14 @@ class CameraDeviceBase : public virtual RefBase {
             android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id) = 0;
 
     /**
+     * Create an input stream of width, height, and format.
+     *
+     * Return value is the stream ID if non-negative and an error if negative.
+     */
+    virtual status_t createInputStream(uint32_t width, uint32_t height,
+            int32_t format, /*out*/ int32_t *id) = 0;
+
+    /**
      * Create an input reprocess stream that uses buffers from an existing
      * output stream.
      */
@@ -149,6 +158,10 @@ class CameraDeviceBase : public virtual RefBase {
      * - INVALID_OPERATION if the device was in the wrong state
      */
     virtual status_t configureStreams() = 0;
+
+    // get the buffer producer of the input stream
+    virtual status_t getInputBufferProducer(
+            sp<IGraphicBufferProducer> *producer) = 0;
 
     /**
      * Create a metadata buffer with fields that the HAL device believes are

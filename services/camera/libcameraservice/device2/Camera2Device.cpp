@@ -1581,4 +1581,18 @@ int Camera2Device::ReprocessStreamAdapter::release_buffer(
     return OK;
 }
 
+// camera 2 devices don't support reprocessing
+status_t Camera2Device::createInputStream(
+    uint32_t width, uint32_t height, int format, int *id) {
+    ALOGE("%s: camera 2 devices don't support reprocessing", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
+// camera 2 devices don't support reprocessing
+status_t Camera2Device::getInputBufferProducer(
+        sp<IGraphicBufferProducer> *producer) {
+    ALOGE("%s: camera 2 devices don't support reprocessing", __FUNCTION__);
+    return INVALID_OPERATION;
+}
+
 }; // namespace android

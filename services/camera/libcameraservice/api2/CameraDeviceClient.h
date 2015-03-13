@@ -86,6 +86,13 @@ public:
 
     virtual status_t      createStream(const OutputConfiguration &outputConfiguration);
 
+    // Create an input stream of width, height, and format.
+    virtual status_t      createInputStream(int width, int height, int format);
+
+    // Get the buffer producer of the input stream
+    virtual status_t      getInputBufferProducer(
+                                /*out*/sp<IGraphicBufferProducer> *producer);
+
     // Create a request object from a template.
     virtual status_t      createDefaultRequest(int templateId,
                                                /*out*/
@@ -161,10 +168,18 @@ private:
             android_dataspace dataSpace, const CameraMetadata& info,
             /*out*/int32_t* outWidth, /*out*/int32_t* outHeight);
 
-    // IGraphicsBufferProducer binder -> Stream ID
+    // IGraphicsBufferProducer binder -> Stream ID for output streams
     KeyedVector<sp<IBinder>, int> mStreamMap;
 
-    // Stream ID
+    struct InputStreamConfiguration {
+        bool configured;
+        int32_t width;
+        int32_t height;
+        int32_t format;
+        int32_t id;
+    } mInputStream;
+
+    // Request ID
     Vector<int> mStreamingRequestList;
 
     int32_t mRequestIdCounter;
