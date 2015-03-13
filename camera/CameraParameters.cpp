@@ -490,6 +490,11 @@ void CameraParameters::getSupportedPreviewFormats(Vector<int>& formats) const {
     const char* supportedPreviewFormats =
           get(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS);
 
+    if (supportedPreviewFormats == NULL) {
+        ALOGW("%s: No supported preview formats.", __FUNCTION__);
+        return;
+    }
+
     String8 fmtStr(supportedPreviewFormats);
     char* prevFmts = fmtStr.lockBuffer(fmtStr.size());
 

@@ -44,7 +44,7 @@ class CallbackProcessor:
     CallbackProcessor(sp<Camera2Client> client);
     ~CallbackProcessor();
 
-    void onFrameAvailable();
+    void onFrameAvailable(const BufferItem& item);
 
     // Set to NULL to disable the direct-to-app callback window
     status_t setCallbackWindow(sp<ANativeWindow> callbackWindow);

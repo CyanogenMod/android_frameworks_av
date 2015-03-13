@@ -104,6 +104,7 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
     switch (mColorFormat) {
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+        case OMX_COLOR_FormatYUV420SemiPlanar:
         {
             if (!runningInEmulator()) {
                 halFormat = HAL_PIXEL_FORMAT_YV12;
@@ -236,9 +237,8 @@ void SoftwareRenderer::render(
             dst_u += dst_c_stride;
             dst_v += dst_c_stride;
         }
-    } else {
-        CHECK_EQ(mColorFormat, OMX_TI_COLOR_FormatYUV420PackedSemiPlanar);
-
+    } else if (mColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
+            || mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
         const uint8_t *src_y =
             (const uint8_t *)data;
 
@@ -271,6 +271,8 @@ void SoftwareRenderer::render(
             dst_u += dst_c_stride;
             dst_v += dst_c_stride;
         }
+    } else {
+        LOG_ALWAYS_FATAL("bad color format %#x", mColorFormat);
     }
 
     CHECK_EQ(0, mapper.unlock(buf->handle));

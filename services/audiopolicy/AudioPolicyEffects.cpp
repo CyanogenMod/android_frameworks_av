@@ -226,6 +226,11 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
     Mutex::Autolock _l(mLock);
     // create audio processors according to stream
+    // FIXME: should we have specific post processing settings for internal streams?
+    // default to media for now.
+    if (stream >= AUDIO_STREAM_PUBLIC_CNT) {
+        stream = AUDIO_STREAM_MUSIC;
+    }
     ssize_t index = mOutputStreams.indexOfKey(stream);
     if (index < 0) {
         ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
@@ -335,7 +340,7 @@ void AudioPolicyEffects::EffectVector::setProcessorEnabled(bool enabled)
     return (audio_source_t)i;
 }
 
-const char *AudioPolicyEffects::kStreamNames[AUDIO_STREAM_CNT+1] = {
+const char *AudioPolicyEffects::kStreamNames[AUDIO_STREAM_PUBLIC_CNT+1] = {
     AUDIO_STREAM_DEFAULT_TAG,
     AUDIO_STREAM_VOICE_CALL_TAG,
     AUDIO_STREAM_SYSTEM_TAG,
@@ -350,11 +355,11 @@ const char *AudioPolicyEffects::kStreamNames[AUDIO_STREAM_CNT+1] = {
 };
 
 // returns the audio_stream_t enum corresponding to the output stream name or
-// AUDIO_STREAM_CNT is no match found
+// AUDIO_STREAM_PUBLIC_CNT is no match found
 audio_stream_type_t AudioPolicyEffects::streamNameToEnum(const char *name)
 {
     int i;
-    for (i = AUDIO_STREAM_DEFAULT; i < AUDIO_STREAM_CNT; i++) {
+    for (i = AUDIO_STREAM_DEFAULT; i < AUDIO_STREAM_PUBLIC_CNT; i++) {
         if (strcmp(name, kStreamNames[i - AUDIO_STREAM_DEFAULT]) == 0) {
             ALOGV("streamNameToEnum found stream %s %d", name, i);
             break;
@@ -585,7 +590,7 @@ status_t AudioPolicyEffects::loadStreamEffectConfigurations(cnode *root,
     node = node->first_child;
     while (node) {
         audio_stream_type_t stream = streamNameToEnum(node->name);
-        if (stream == AUDIO_STREAM_CNT) {
+        if (stream == AUDIO_STREAM_PUBLIC_CNT) {
             ALOGW("loadStreamEffectConfigurations() invalid output stream %s", node->name);
             node = node->next;
             continue;
@@ -652,6 +657,10 @@ status_t AudioPolicyEffects::loadAudioEffectConfig(const char *path)
     loadEffects(root, effects);
     loadInputEffectConfigurations(root, effects);
     loadStreamEffectConfigurations(root, effects);
+
+    for (size_t i = 0; i < effects.size(); i++) {
+        delete effects[i];
+    }
 
     config_free(root);
     free(root);

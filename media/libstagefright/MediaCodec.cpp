@@ -873,9 +873,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findString("componentName", &mComponentName));
 
                     if (mComponentName.startsWith("OMX.google.")) {
-                        mFlags |= kFlagIsSoftwareCodec;
+                        mFlags |= kFlagUsesSoftwareRenderer;
                     } else {
-                        mFlags &= ~kFlagIsSoftwareCodec;
+                        mFlags &= ~kFlagUsesSoftwareRenderer;
                     }
 
                     if (mComponentName.endsWith(".secure")) {
@@ -898,6 +898,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findMessage("input-format", &mInputFormat));
                     CHECK(msg->findMessage("output-format", &mOutputFormat));
 
+                    int32_t usingSwRenderer;
+                    if (mOutputFormat->findInt32("using-sw-renderer", &usingSwRenderer)
+                            && usingSwRenderer) {
+                        mFlags |= kFlagUsesSoftwareRenderer;
+                    }
                     setState(CONFIGURED);
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -993,7 +998,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     if (mSoftRenderer == NULL &&
                             mNativeWindow != NULL &&
-                            (mFlags & kFlagIsSoftwareCodec)) {
+                            (mFlags & kFlagUsesSoftwareRenderer)) {
                         AString mime;
                         CHECK(msg->findString("mime", &mime));
 
@@ -1015,6 +1020,18 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mFlags |= kFlagOutputFormatChanged;
                         postActivityNotificationIfPossible();
                     }
+
+                    // Notify mCrypto of video resolution changes
+                    if (mCrypto != NULL) {
+                        int32_t left, top, right, bottom, width, height;
+                        if (mOutputFormat->findRect("crop", &left, &top, &right, &bottom)) {
+                            mCrypto->notifyResolution(right - left + 1, bottom - top + 1);
+                        } else if (mOutputFormat->findInt32("width", &width)
+                                && mOutputFormat->findInt32("height", &height)) {
+                            mCrypto->notifyResolution(width, height);
+                        }
+                    }
+
                     break;
                 }
 
@@ -1320,8 +1337,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->senderAwaitsResponse(&replyID));
 
             if (mState == FLUSHED) {
+                setState(STARTED);
                 mCodec->signalResume();
                 PostReplyWithError(replyID, OK);
+                break;
             } else if (mState != CONFIGURED) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
@@ -1343,9 +1362,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (!(mFlags & kFlagIsComponentAllocated) && mState != INITIALIZED
+            if (!((mFlags & kFlagIsComponentAllocated) && targetState == UNINITIALIZED) // See 1
+                    && mState != INITIALIZED
                     && mState != CONFIGURED && !isExecuting()) {
-                // We may be in "UNINITIALIZED" state already and
+                // 1) Permit release to shut down the component if allocated.
+                //
+                // 2) We may be in "UNINITIALIZED" state already and
                 // also shutdown the encoder/decoder without the
                 // client being aware of this if media server died while
                 // we were being stopped. The client would assume that
@@ -1560,7 +1582,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             uint32_t replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
-            if (!isExecuting()) {
+            if (!isExecuting() || (mFlags & kFlagIsAsync)) {
                 PostReplyWithError(replyID, INVALID_OPERATION);
                 break;
             } else if (mFlags & kFlagStickyError) {

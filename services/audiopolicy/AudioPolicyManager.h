@@ -23,6 +23,7 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/SortedVector.h>
+#include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
 
@@ -42,7 +43,8 @@ namespace android {
 #define SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY 5000
 // Time in milliseconds during witch some streams are muted while the audio path
 // is switched
-#define MUTE_TIME_MS 500
+//FIXME:: Audio team
+#define MUTE_TIME_MS 2000 //500 ms
 
 #define NUM_TEST_OUTPUTS 5
 
@@ -87,25 +89,32 @@ public:
                                             audio_channel_mask_t channelMask,
                                             audio_output_flags_t flags,
                                             const audio_offload_info_t *offloadInfo);
-        virtual audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
-                                            uint32_t samplingRate,
-                                            audio_format_t format,
-                                            audio_channel_mask_t channelMask,
-                                            audio_output_flags_t flags,
-                                            const audio_offload_info_t *offloadInfo);
+        virtual status_t getOutputForAttr(const audio_attributes_t *attr,
+                                          audio_io_handle_t *output,
+                                          audio_session_t session,
+                                          audio_stream_type_t *stream,
+                                          uint32_t samplingRate,
+                                          audio_format_t format,
+                                          audio_channel_mask_t channelMask,
+                                          audio_output_flags_t flags,
+                                          const audio_offload_info_t *offloadInfo);
         virtual status_t startOutput(audio_io_handle_t output,
                                      audio_stream_type_t stream,
-                                     int session = 0);
+                                     audio_session_t session);
         virtual status_t stopOutput(audio_io_handle_t output,
                                     audio_stream_type_t stream,
-                                    int session = 0);
-        virtual void releaseOutput(audio_io_handle_t output);
-        virtual audio_io_handle_t getInput(audio_source_t inputSource,
-                                            uint32_t samplingRate,
-                                            audio_format_t format,
-                                            audio_channel_mask_t channelMask,
-                                            audio_session_t session,
-                                            audio_input_flags_t flags);
+                                    audio_session_t session);
+        virtual void releaseOutput(audio_io_handle_t output,
+                                   audio_stream_type_t stream,
+                                   audio_session_t session);
+        virtual status_t getInputForAttr(const audio_attributes_t *attr,
+                                         audio_io_handle_t *input,
+                                         audio_session_t session,
+                                         uint32_t samplingRate,
+                                         audio_format_t format,
+                                         audio_channel_mask_t channelMask,
+                                         audio_input_flags_t flags,
+                                         input_type_t *inputType);
 
         // indicates to the audio policy manager that the input starts being used.
         virtual status_t startInput(audio_io_handle_t input,
@@ -148,6 +157,8 @@ public:
         // return whether a stream is playing remotely, override to change the definition of
         //   local/remote playback, used for instance by notification manager to not make
         //   media players lose audio focus when not playing locally
+        //   For the base implementation, "remotely" means playing during screen mirroring which
+        //   uses an output for playback with a non-empty, non "0" address.
         virtual bool isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs = 0) const;
         virtual bool isSourceActive(audio_source_t source) const;
 
@@ -178,6 +189,9 @@ public:
 
         virtual status_t releaseSoundTriggerSession(audio_session_t session);
 
+        virtual status_t registerPolicyMixes(Vector<AudioMix> mixes);
+        virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes);
+
 protected:
 
         enum routing_strategy {
@@ -187,6 +201,9 @@ protected:
             STRATEGY_SONIFICATION_RESPECTFUL,
             STRATEGY_DTMF,
             STRATEGY_ENFORCED_AUDIBLE,
+            STRATEGY_TRANSMITTED_THROUGH_SPEAKER,
+            STRATEGY_ACCESSIBILITY,
+            STRATEGY_REROUTING,
             NUM_STRATEGIES
         };
 
@@ -248,7 +265,7 @@ protected:
 
             audio_gain_mode_t loadGainMode(char *name);
             void loadGain(cnode *root, int index);
-            void loadGains(cnode *root);
+            virtual void loadGains(cnode *root);
 
             // searches for an exact match
             status_t checkExactSamplingRate(uint32_t samplingRate) const;
@@ -328,10 +345,14 @@ protected:
             virtual ~DeviceDescriptor() {}
 
             bool equals(const sp<DeviceDescriptor>& other) const;
+
+            // AudioPortConfig
+            virtual sp<AudioPort> getAudioPort() const { return (AudioPort*) this; }
             virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const;
-            virtual sp<AudioPort> getAudioPort() const { return (AudioPort*) this; }
 
+            // AudioPort
+            virtual void loadGains(cnode *root);
             virtual void toAudioPort(struct audio_port *port) const;
 
             status_t dump(int fd, int spaces, int index) const;
@@ -383,6 +404,7 @@ protected:
             // For input, flags is interpreted as audio_input_flags_t.
             // TODO: merge audio_output_flags_t and audio_input_flags_t.
             bool isCompatibleProfile(audio_devices_t device,
+                                     String8 address,
                                      uint32_t samplingRate,
                                      uint32_t *updatedSamplingRate,
                                      audio_format_t format,
@@ -405,6 +427,13 @@ protected:
             status_t loadOutput(cnode *root);
             status_t loadInput(cnode *root);
             status_t loadDevice(cnode *root);
+
+            status_t addOutputProfile(String8 name, const audio_config_t *config,
+                                      audio_devices_t device, String8 address);
+            status_t removeOutputProfile(String8 name);
+            status_t addInputProfile(String8 name, const audio_config_t *config,
+                                      audio_devices_t device, String8 address);
+            status_t removeInputProfile(String8 name);
 
             void dump(int fd);
 
@@ -434,6 +463,9 @@ protected:
         static const VolumeCurvePoint sHeadsetSystemVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sDefaultVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
         static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sLinearVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sSilentVolumeCurve[AudioPolicyManager::VOLCNT];
+        static const VolumeCurvePoint sFullScaleVolumeCurve[AudioPolicyManager::VOLCNT];
         // default volume curves per stream and device category. See initializeVolumeCurves()
         static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][DEVICE_CATEGORY_CNT];
 
@@ -471,6 +503,7 @@ protected:
             uint32_t mLatency;                  //
             audio_output_flags_t mFlags;   //
             audio_devices_t mDevice;                   // current device this output is routed to
+            AudioMix *mPolicyMix;             // non NULL when used by a dynamic policy
             audio_patch_handle_t mPatchHandle;
             uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
             nsecs_t mStopTime[AUDIO_STREAM_CNT];
@@ -496,6 +529,7 @@ protected:
             audio_port_handle_t           mId;
             audio_io_handle_t             mIoHandle;       // input handle
             audio_devices_t               mDevice;         // current device this input is routed to
+            AudioMix                      *mPolicyMix;     // non NULL when used by a dynamic policy
             audio_patch_handle_t          mPatchHandle;
             uint32_t                      mRefCount;       // number of AudioRecord clients using
                                                            // this input
@@ -565,7 +599,7 @@ protected:
 
         // change the route of the specified output. Returns the number of ms we have slept to
         // allow new routing to take effect in certain cases.
-        uint32_t setOutputDevice(audio_io_handle_t output,
+        virtual uint32_t setOutputDevice(audio_io_handle_t output,
                              audio_devices_t device,
                              bool force = false,
                              int delayMs = 0,
@@ -600,8 +634,10 @@ protected:
                                     audio_io_handle_t output, audio_devices_t device);
 
         // check that volume change is permitted, compute and send new volume to audio hardware
-        status_t checkAndSetVolume(audio_stream_type_t stream, int index, audio_io_handle_t output,
-                                   audio_devices_t device, int delayMs = 0, bool force = false);
+        virtual status_t checkAndSetVolume(audio_stream_type_t stream, int index,
+                                           audio_io_handle_t output,
+                                           audio_devices_t device,
+                                           int delayMs = 0, bool force = false);
 
         // apply all stream volumes to the specified output and device
         void applyStreamVolumes(audio_io_handle_t output, audio_devices_t device, int delayMs = 0, bool force = false);
@@ -708,7 +744,7 @@ protected:
         // if muting, wait for the audio in pcm buffer to be drained before proceeding
         // if unmuting, unmute only after the specified delay
         // Returns the number of ms waited
-        uint32_t  checkDeviceMuteStrategies(sp<AudioOutputDescriptor> outputDesc,
+        virtual uint32_t  checkDeviceMuteStrategies(sp<AudioOutputDescriptor> outputDesc,
                                             audio_devices_t prevDevice,
                                             uint32_t delayMs);
 
@@ -717,10 +753,11 @@ protected:
                                        audio_format_t format);
         // samplingRate parameter is an in/out and so may be modified
         sp<IOProfile> getInputProfile(audio_devices_t device,
-                                   uint32_t& samplingRate,
-                                   audio_format_t format,
-                                   audio_channel_mask_t channelMask,
-                                   audio_input_flags_t flags);
+                                      String8 address,
+                                      uint32_t& samplingRate,
+                                      audio_format_t format,
+                                      audio_channel_mask_t channelMask,
+                                      audio_input_flags_t flags);
         sp<IOProfile> getProfileForDirectOutput(audio_devices_t device,
                                                        uint32_t samplingRate,
                                                        audio_format_t format,
@@ -731,9 +768,9 @@ protected:
 
         bool isNonOffloadableEffectEnabled();
 
-        status_t addAudioPatch(audio_patch_handle_t handle,
+        virtual status_t addAudioPatch(audio_patch_handle_t handle,
                                const sp<AudioPatch>& patch);
-        status_t removeAudioPatch(audio_patch_handle_t handle);
+        virtual status_t removeAudioPatch(audio_patch_handle_t handle);
 
         sp<AudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
         sp<AudioInputDescriptor> getInputFromId(audio_port_handle_t id) const;
@@ -806,6 +843,29 @@ protected:
         sp<AudioPatch> mCallTxPatch;
         sp<AudioPatch> mCallRxPatch;
 
+        // for supporting "beacon" streams, i.e. streams that only play on speaker, and never
+        // when something other than STREAM_TTS (a.k.a. "Transmitted Through Speaker") is playing
+        enum {
+            STARTING_OUTPUT,
+            STARTING_BEACON,
+            STOPPING_OUTPUT,
+            STOPPING_BEACON
+        };
+        uint32_t mBeaconMuteRefCount;   // ref count for stream that would mute beacon
+        uint32_t mBeaconPlayingRefCount;// ref count for the playing beacon streams
+        bool mBeaconMuted;              // has STREAM_TTS been muted
+
+        // custom mix entry in mPolicyMixes
+        class AudioPolicyMix : public RefBase {
+        public:
+            AudioPolicyMix() {}
+
+            AudioMix    mMix;                   // Audio policy mix descriptor
+            sp<AudioOutputDescriptor> mOutput;  // Corresponding output stream
+        };
+        DefaultKeyedVector<String8, sp<AudioPolicyMix> > mPolicyMixes; // list of registered mixes
+
+
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
         Condition mWaitWorkCV;
@@ -854,10 +914,13 @@ protected:
 private:
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
+        static bool isVirtualInputDevice(audio_devices_t device);
+        uint32_t nextUniqueId();
+        uint32_t nextAudioPortGeneration();
+private:
         // updates device caching and output for streams that can influence the
         //    routing of notifications
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
-        static bool isVirtualInputDevice(audio_devices_t device);
         static bool deviceDistinguishesOnAddress(audio_devices_t device);
         // find the outputs on a given output descriptor that have the given address.
         // to be called on an AudioOutputDescriptor whose supported devices (as defined
@@ -865,14 +928,14 @@ private:
         // see deviceDistinguishesOnAddress(audio_devices_t) for whether the device type is one
         //   where addresses are used to distinguish between one connected device and another.
         void findIoHandlesByAddress(sp<AudioOutputDescriptor> desc /*in*/,
+                const audio_devices_t device /*in*/,
                 const String8 address /*in*/,
                 SortedVector<audio_io_handle_t>& outputs /*out*/);
-        uint32_t nextUniqueId();
-        uint32_t nextAudioPortGeneration();
         uint32_t curAudioPortGeneration() const { return mAudioPortGeneration; }
         // internal method to return the output handle for the given device and format
         audio_io_handle_t getOutputForDevice(
                 audio_devices_t device,
+                audio_session_t session,
                 audio_stream_type_t stream,
                 uint32_t samplingRate,
                 audio_format_t format,
@@ -881,7 +944,6 @@ private:
                 const audio_offload_info_t *offloadInfo);
         // internal function to derive a stream type value from audio attributes
         audio_stream_type_t streamTypefromAttributesInt(const audio_attributes_t *attr);
-
         // Used for voip + voice concurrency usecase
         int mPrevPhoneState;
         int mvoice_call_state;
@@ -895,6 +957,27 @@ protected:
 #include "DolbyAudioPolicy.h"
         DolbyAudioPolicy mDolbyAudioPolicy;
 #endif // DOLBY_END
+        // return true if any output is playing anything besides the stream to ignore
+        bool isAnyOutputActive(audio_stream_type_t streamToIgnore);
+        // event is one of STARTING_OUTPUT, STARTING_BEACON, STOPPING_OUTPUT, STOPPING_BEACON
+        // returns 0 if no mute/unmute event happened, the largest latency of the device where
+        //   the mute/unmute happened
+        uint32_t handleEventForBeacon(int event);
+        uint32_t setBeaconMute(bool mute);
+        bool     isValidAttributes(const audio_attributes_t *paa);
+
+        // select input device corresponding to requested audio source and return associated policy
+        // mix if any. Calls getDeviceForInputSource().
+        audio_devices_t getDeviceAndMixForInputSource(audio_source_t inputSource,
+                                                        AudioMix **policyMix = NULL);
+
+        // Called by setDeviceConnectionState().
+        status_t setDeviceConnectionStateInt(audio_devices_t device,
+                                                          audio_policy_dev_state_t state,
+                                                          const char *device_address);
+        sp<DeviceDescriptor>  getDeviceDescriptor(const audio_devices_t device,
+                                                  const char *device_address);
+
 };
 
 };

@@ -113,8 +113,18 @@ public:
         return android::ERROR_DRM_CANNOT_HANDLE;
     }
 
+    virtual status_t getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop) {
+        UNUSED(ssid);
+        UNUSED(secureStop);
+        return android::ERROR_DRM_CANNOT_HANDLE;
+    }
+
     virtual status_t releaseSecureStops(const Vector<uint8_t>& ssRelease) {
         UNUSED(ssRelease);
+        return android::ERROR_DRM_CANNOT_HANDLE;
+    }
+
+    virtual status_t releaseAllSecureStops() {
         return android::ERROR_DRM_CANNOT_HANDLE;
     }
 

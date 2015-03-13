@@ -1938,6 +1938,28 @@ void ExtendedUtils::overWriteAudioFormat(
     return;
 }
 
+
+bool ExtendedUtils::is24bitPCMOffloaded(const sp<MetaData> &sMeta) {
+    bool decision = false;
+
+    if (sMeta == NULL) {
+        return decision;
+    }
+
+   /* Return true, if
+      1. 24 bit offload flag is enabled
+      2. the bit stream is raw 
+      3. this is 24 bit PCM */
+
+    if (is24bitPCMOffloadEnabled() && isRAWFormat(sMeta) &&
+        getPcmSampleBits(sMeta) == 24) {
+        ALOGV("%s: decided its true for 24 bit PCM offloading", __func__);
+        decision = true;
+    }
+
+    return decision;
+}
+
 }
 #else //ENABLE_AV_ENHANCEMENTS
 
@@ -2220,6 +2242,12 @@ void ExtendedUtils::overWriteAudioFormat(
     ARG_TOUCH(dst);
     ARG_TOUCH(src);
     return;
+}
+
+bool ExtendedUtils::is24bitPCMOffloaded(const sp<MetaData> &sMeta) {
+    ARG_TOUCH(sMeta);
+
+    return false;
 }
 
 } // namespace android

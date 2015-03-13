@@ -21,6 +21,7 @@
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/AString.h>
+#include <media/mediaplayer.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -46,6 +47,7 @@ struct M3UParser : public RefBase {
     size_t getTrackCount() const;
     sp<AMessage> getTrackInfo(size_t index) const;
     ssize_t getSelectedIndex() const;
+    ssize_t getSelectedTrack(media_track_type /* type */) const;
 
     bool getTypeURI(size_t index, const char *key, AString *uri) const;
 

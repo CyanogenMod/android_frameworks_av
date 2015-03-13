@@ -18,6 +18,7 @@
 #define ANDROID_AUDIOSYSTEM_H_
 
 #include <hardware/audio_effect.h>
+#include <media/AudioPolicy.h>
 #include <media/IAudioFlingerClient.h>
 #include <media/IAudioPolicyServiceClient.h>
 #include <system/audio.h>
@@ -90,7 +91,7 @@ public:
     static void setErrorCallback(audio_error_callback cb);
 
     // helper function to obtain AudioFlinger service handle
-    static const sp<IAudioFlinger>& get_audio_flinger();
+    static const sp<IAudioFlinger> get_audio_flinger();
 
     static float linearToLog(int volume);
     static int logToLinear(float volume);
@@ -99,8 +100,6 @@ public:
     // to be non-zero if status == NO_ERROR
     static status_t getOutputSamplingRate(uint32_t* samplingRate,
             audio_stream_type_t stream);
-    static status_t getOutputSamplingRateForAttr(uint32_t* samplingRate,
-                const audio_attributes_t *attr);
     static status_t getOutputFrameCount(size_t* frameCount,
             audio_stream_type_t stream);
     static status_t getOutputLatency(uint32_t* latency,
@@ -115,8 +114,6 @@ public:
     // audio_stream_out->get_latency()
     static status_t getLatency(audio_io_handle_t output,
                                uint32_t* latency);
-
-    static bool routedToA2dpOutput(audio_stream_type_t streamType);
 
     // return status NO_ERROR implies *buffSize > 0
     static status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
@@ -219,7 +216,10 @@ public:
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL);
-    static audio_io_handle_t getOutputForAttr(const audio_attributes_t *attr,
+    static status_t getOutputForAttr(const audio_attributes_t *attr,
+                                        audio_io_handle_t *output,
+                                        audio_session_t session,
+                                        audio_stream_type_t *stream,
                                         uint32_t samplingRate = 0,
                                         audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                         audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
@@ -227,20 +227,23 @@ public:
                                         const audio_offload_info_t *offloadInfo = NULL);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
-                                int session);
+                                audio_session_t session);
     static status_t stopOutput(audio_io_handle_t output,
                                audio_stream_type_t stream,
-                               int session);
-    static void releaseOutput(audio_io_handle_t output);
+                               audio_session_t session);
+    static void releaseOutput(audio_io_handle_t output,
+                              audio_stream_type_t stream,
+                              audio_session_t session);
 
     // Client must successfully hand off the handle reference to AudioFlinger via openRecord(),
     // or release it with releaseInput().
-    static audio_io_handle_t getInput(audio_source_t inputSource,
+    static status_t getInputForAttr(const audio_attributes_t *attr,
+                                    audio_io_handle_t *input,
+                                    audio_session_t session,
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    int sessionId,
-                                    audio_input_flags_t);
+                                    audio_input_flags_t flags);
 
     static status_t startInput(audio_io_handle_t input,
                                audio_session_t session);
@@ -274,7 +277,7 @@ public:
     // and output configuration cache (gOutputs)
     static void clearAudioConfigCache();
 
-    static const sp<IAudioPolicyService>& get_audio_policy_service();
+    static const sp<IAudioPolicyService> get_audio_policy_service();
 
     // helpers for android.media.AudioManager.getProperty(), see description there for meaning
     static uint32_t getPrimaryOutputSamplingRate();
@@ -321,6 +324,8 @@ public:
     static status_t releaseSoundTriggerSession(audio_session_t session);
 
     static audio_mode_t getPhoneState();
+
+    static status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration);
 
     // ----------------------------------------------------------------------------
 
@@ -377,7 +382,11 @@ private:
     friend class AudioFlingerClient;
     friend class AudioPolicyServiceClient;
 
-    static Mutex gLock;
+    static Mutex gLock;      // protects gAudioFlinger and gAudioErrorCallback,
+    static Mutex gLockCache; // protects gOutputs, gPrevInSamplingRate, gPrevInFormat,
+                             // gPrevInChannelMask and gInBuffSize
+    static Mutex gLockAPS;   // protects gAudioPolicyService and gAudioPolicyServiceClient
+    static Mutex gLockAPC;   // protects gAudioPortCallback
     static sp<IAudioFlinger> gAudioFlinger;
     static audio_error_callback gAudioErrorCallback;
 

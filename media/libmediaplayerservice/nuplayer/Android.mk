@@ -5,7 +5,9 @@ LOCAL_SRC_FILES:=                       \
         GenericSource.cpp               \
         HTTPLiveSource.cpp              \
         NuPlayer.cpp                    \
+        NuPlayerCCDecoder.cpp           \
         NuPlayerDecoder.cpp             \
+        NuPlayerDecoderBase.cpp         \
         NuPlayerDecoderPassThrough.cpp  \
         NuPlayerDriver.cpp              \
         NuPlayerRenderer.cpp            \

@@ -635,7 +635,7 @@ status_t StreamingProcessor::incrementStreamingIds() {
     return OK;
 }
 
-void StreamingProcessor::onFrameAvailable() {
+void StreamingProcessor::onFrameAvailable(const BufferItem& /*item*/) {
     ATRACE_CALL();
     Mutex::Autolock l(mMutex);
     if (!mRecordingFrameAvailable) {

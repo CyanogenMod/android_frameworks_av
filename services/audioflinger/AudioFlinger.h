@@ -759,6 +759,8 @@ private:
                 // Effect chains without a valid thread
                 DefaultKeyedVector< audio_session_t , sp<EffectChain> > mOrphanEffectChains;
 
+                // list of sessions for which a valid HW A/V sync ID was retrieved from the HAL
+                DefaultKeyedVector< audio_session_t , audio_hw_sync_t >mHwAvSyncIds;
 private:
     sp<Client>  registerPid(pid_t pid);    // always returns non-0
 
@@ -767,6 +769,9 @@ private:
     void        closeOutputInternal_l(sp<PlaybackThread> thread);
     status_t    closeInput_nonvirtual(audio_io_handle_t input);
     void        closeInputInternal_l(sp<RecordThread> thread);
+    void        setAudioHwSyncForSession_l(PlaybackThread *thread, audio_session_t sessionId);
+
+    status_t    checkStreamType(audio_stream_type_t stream) const;
 
 #ifdef TEE_SINK
     // all record threads serially share a common tee sink, which is re-created on format change

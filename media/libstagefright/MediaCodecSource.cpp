@@ -774,7 +774,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             status_t err = mEncoder->getOutputBuffer(index, &outbuf);
             if (err != OK || outbuf == NULL) {
                 signalEOS();
-                    break;
+                break;
             }
 
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
@@ -829,14 +829,14 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             mEncoder->releaseOutputBuffer(index);
-        } else if (cbID == MediaCodec::CB_ERROR) {
+       } else if (cbID == MediaCodec::CB_ERROR) {
             status_t err;
             CHECK(msg->findInt32("err", &err));
             ALOGE("Encoder (%s) reported error : 0x%x",
                     mIsVideo ? "video" : "audio", err);
             signalEOS();
-        }
-        break;
+       }
+       break;
     }
     case kWhatStart:
     {

@@ -165,7 +165,7 @@ class RingBufferConsumer : public ConsumerBase,
   private:
 
     // Override ConsumerBase::onFrameAvailable
-    virtual void onFrameAvailable();
+    virtual void onFrameAvailable(const android::BufferItem& item);
 
     void pinBufferLocked(const BufferItem& item);
     void unpinBuffer(const BufferItem& item);
