@@ -634,7 +634,7 @@ status_t AudioTrack::set(
     mSequence = 1;
     mObservedSequence = mSequence;
     mInUnderrun = false;
-    ALOGE("AudioTrack::set : Exit");
+
     return NO_ERROR;
 }
 // -------------------------------------------------------------------------
