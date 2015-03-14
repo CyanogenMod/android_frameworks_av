@@ -634,7 +634,7 @@ status_t AudioTrack::set(
     mSequence = 1;
     mObservedSequence = mSequence;
     mInUnderrun = false;
-    ALOGE("AudioTrack::set : Exit");
+    ALOGV("AudioTrack::set : Exit");
     return NO_ERROR;
 }
 // -------------------------------------------------------------------------
@@ -772,7 +772,7 @@ void AudioTrack::flush()
 {
 #ifdef QCOM_DIRECTTRACK
     if(mDirectTrack != NULL) {
-        ALOGE("mdirect track flush");
+        ALOGV("mDirectTrack flush");
         mDirectTrack->flush();
         return ;
     }
