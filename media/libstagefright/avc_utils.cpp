@@ -26,6 +26,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <utils/misc.h>
 
 namespace android {
 
@@ -186,17 +187,31 @@ void FindAVCDimensions(
             if (aspect_ratio_idc == 255 /* extendedSAR */) {
                 sar_width = br.getBits(16);
                 sar_height = br.getBits(16);
-            } else if (aspect_ratio_idc > 0 && aspect_ratio_idc < 14) {
-                static const int32_t kFixedSARWidth[] = {
-                    1, 12, 10, 16, 40, 24, 20, 32, 80, 18, 15, 64, 160
+            } else {
+                static const struct { unsigned width, height; } kFixedSARs[] = {
+                        {   0,  0 }, // Invalid
+                        {   1,  1 },
+                        {  12, 11 },
+                        {  10, 11 },
+                        {  16, 11 },
+                        {  40, 33 },
+                        {  24, 11 },
+                        {  20, 11 },
+                        {  32, 11 },
+                        {  80, 33 },
+                        {  18, 11 },
+                        {  15, 11 },
+                        {  64, 33 },
+                        { 160, 99 },
+                        {   4,  3 },
+                        {   3,  2 },
+                        {   2,  1 },
                 };
 
-                static const int32_t kFixedSARHeight[] = {
-                    1, 11, 11, 11, 33, 11, 11, 11, 33, 11, 11, 33, 99
-                };
-
-                sar_width = kFixedSARWidth[aspect_ratio_idc - 1];
-                sar_height = kFixedSARHeight[aspect_ratio_idc - 1];
+                if (aspect_ratio_idc > 0 && aspect_ratio_idc < NELEM(kFixedSARs)) {
+                    sar_width = kFixedSARs[aspect_ratio_idc].width;
+                    sar_height = kFixedSARs[aspect_ratio_idc].height;
+                }
             }
         }
 
