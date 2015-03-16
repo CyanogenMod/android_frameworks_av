@@ -35,6 +35,7 @@
 #include "MediaPlayerService.h"
 #include "service/AudioPolicyService.h"
 #include "SoundTriggerHwService.h"
+#include "RadioService.h"
 
 using namespace android;
 
@@ -130,6 +131,7 @@ int main(int argc __unused, char** argv)
         CameraService::instantiate();
         AudioPolicyService::instantiate();
         SoundTriggerHwService::instantiate();
+        RadioService::instantiate();
         registerExtensions();
         ProcessState::self()->startThreadPool();
         IPCThreadState::self()->joinThreadPool();
