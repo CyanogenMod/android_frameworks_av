@@ -59,6 +59,8 @@
 
 namespace android {
 
+static const int64_t kMax32BitFileSize = 0x00ffffffffLL; // 4GB
+
 // To collect the encoder usage for the battery app
 static void addBatteryData(uint32_t params) {
     sp<IBinder> binder =
@@ -453,6 +455,10 @@ status_t StagefrightRecorder::setParamMaxFileSizeBytes(int64_t bytes) {
     }
 
     mMaxFileSizeBytes = bytes;
+
+    // If requested size is >4GB, force 64-bit offsets
+    mUse64BitFileOffset |= (bytes >= kMax32BitFileSize);
+
     return OK;
 }
 
