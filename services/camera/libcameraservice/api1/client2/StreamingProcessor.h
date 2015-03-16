@@ -124,7 +124,7 @@ class StreamingProcessor:
 
     static const size_t kDefaultRecordingHeapCount = 8;
     size_t mRecordingHeapCount;
-    Vector<BufferItemConsumer::BufferItem> mRecordingBuffers;
+    Vector<BufferItem> mRecordingBuffers;
     size_t mRecordingHeapHead, mRecordingHeapFree;
 
     virtual bool threadLoop();

@@ -18,6 +18,7 @@
 #define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
+#include <gui/BufferItem.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include "Camera3InputStream.h"
