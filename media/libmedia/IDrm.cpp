@@ -125,7 +125,8 @@ struct BpDrm : public BpInterface<IDrm> {
                       Vector<uint8_t> const &initData,
                       String8 const &mimeType, DrmPlugin::KeyType keyType,
                       KeyedVector<String8, String8> const &optionalParameters,
-                      Vector<uint8_t> &request, String8 &defaultUrl) {
+                      Vector<uint8_t> &request, String8 &defaultUrl,
+                      DrmPlugin::KeyRequestType *keyRequestType) {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
@@ -143,6 +144,7 @@ struct BpDrm : public BpInterface<IDrm> {
 
         readVector(reply, request);
         defaultUrl = reply.readString8();
+        *keyRequestType = static_cast<DrmPlugin::KeyRequestType>(reply.readInt32());
 
         return reply.readInt32();
     }
@@ -562,13 +564,15 @@ status_t BnDrm::onTransact(
 
             Vector<uint8_t> request;
             String8 defaultUrl;
+            DrmPlugin::KeyRequestType keyRequestType;
 
-            status_t result = getKeyRequest(sessionId, initData,
-                                            mimeType, keyType,
-                                            optionalParameters,
-                                            request, defaultUrl);
+            status_t result = getKeyRequest(sessionId, initData, mimeType,
+                    keyType, optionalParameters, request, defaultUrl,
+                    &keyRequestType);
+
             writeVector(reply, request);
             reply->writeString8(defaultUrl);
+            reply->writeInt32(static_cast<int32_t>(keyRequestType));
             reply->writeInt32(result);
             return OK;
         }

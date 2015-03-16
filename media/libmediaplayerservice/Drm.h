@@ -53,7 +53,8 @@ struct Drm : public BnDrm,
                       Vector<uint8_t> const &initData,
                       String8 const &mimeType, DrmPlugin::KeyType keyType,
                       KeyedVector<String8, String8> const &optionalParameters,
-                      Vector<uint8_t> &request, String8 &defaultUrl);
+                      Vector<uint8_t> &request, String8 &defaultUrl,
+                      DrmPlugin::KeyRequestType *keyRequestType);
 
     virtual status_t provideKeyResponse(Vector<uint8_t> const &sessionId,
                                         Vector<uint8_t> const &response,

@@ -54,7 +54,8 @@ public:
             KeyType keyType,
             const KeyedVector<String8, String8>& optionalParameters,
             Vector<uint8_t>& request,
-            String8& defaultUrl);
+            String8& defaultUrl,
+            DrmPlugin::KeyRequestType *keyRequestType);
 
     virtual status_t provideKeyResponse(
             const Vector<uint8_t>& scope,

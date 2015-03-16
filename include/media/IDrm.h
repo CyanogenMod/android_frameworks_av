@@ -47,7 +47,8 @@ struct IDrm : public IInterface {
                       Vector<uint8_t> const &initData,
                       String8 const &mimeType, DrmPlugin::KeyType keyType,
                       KeyedVector<String8, String8> const &optionalParameters,
-                      Vector<uint8_t> &request, String8 &defaultUrl) = 0;
+                      Vector<uint8_t> &request, String8 &defaultUrl,
+                      DrmPlugin::KeyRequestType *keyRequestType) = 0;
 
     virtual status_t provideKeyResponse(Vector<uint8_t> const &sessionId,
                                         Vector<uint8_t> const &response,
