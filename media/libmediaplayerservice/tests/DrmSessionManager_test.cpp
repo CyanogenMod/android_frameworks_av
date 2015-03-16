@@ -23,8 +23,8 @@
 #include "Drm.h"
 #include "DrmSessionClientInterface.h"
 #include "DrmSessionManager.h"
-#include "ProcessInfoInterface.h"
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/ProcessInfoInterface.h>
 
 namespace android {
 

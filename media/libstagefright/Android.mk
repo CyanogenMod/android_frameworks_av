@@ -47,6 +47,7 @@ LOCAL_SRC_FILES:=                         \
         OMXClient.cpp                     \
         OMXCodec.cpp                      \
         OggExtractor.cpp                  \
+        ProcessInfo.cpp                   \
         SampleIterator.cpp                \
         SampleTable.cpp                   \
         SkipCutBuffer.cpp                 \
