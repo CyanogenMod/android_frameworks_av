@@ -41,7 +41,6 @@ public:
 
     audio_devices_t mDeviceType;
     String8 mAddress;
-    audio_port_handle_t mId;
 
     static String8  emptyNameStr;
 };
