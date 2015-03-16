@@ -5208,7 +5208,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     }
 
     if (initFastCapture) {
-        // create a Pipe for FastMixer to write to, and for us and fast tracks to read from
+        // create a Pipe for FastCapture to write to, and for us and fast tracks to read from
         NBAIO_Format format = mInputSource->format();
         size_t pipeFramesP2 = roundup(mSampleRate / 25);    // double-buffering of 20 ms each
         size_t pipeSize = pipeFramesP2 * Format_frameSize(format);

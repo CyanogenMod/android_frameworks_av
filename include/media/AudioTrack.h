@@ -182,7 +182,7 @@ public:
                         AudioTrack( audio_stream_type_t streamType,
                                     uint32_t sampleRate,
                                     audio_format_t format,
-                                    audio_channel_mask_t,
+                                    audio_channel_mask_t channelMask,
                                     size_t frameCount    = 0,
                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                     callback_t cbf       = NULL,
@@ -574,7 +574,7 @@ public:
      *      WOULD_BLOCK         when obtainBuffer() returns same, or
      *                          AudioTrack was stopped during the write
      *      or any other error code returned by IAudioTrack::start() or restoreTrack_l().
-     * Default behavior is to only return until all data has been transferred. Set 'blocking' to
+     * Default behavior is to only return when all data has been transferred. Set 'blocking' to
      * false for the method to return immediately without waiting to try multiple times to write
      * the full content of the buffer.
      */

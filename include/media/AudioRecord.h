@@ -152,8 +152,8 @@ public:
      * sessionId:          Not yet supported.
      * transferType:       How data is transferred from AudioRecord.
      * flags:              See comments on audio_input_flags_t in <system/audio.h>
+     * pAttributes:        If not NULL, supersedes inputSource for use case selection.
      * threadCanCallJava:  Not present in parameter list, and so is fixed at false.
-     * pAttributes:        if not NULL, supersedes inputSource for use case selection
      */
 
                         AudioRecord(audio_source_t inputSource,
