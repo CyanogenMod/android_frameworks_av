@@ -21,10 +21,10 @@
 #include "DrmSessionManager.h"
 
 #include "DrmSessionClientInterface.h"
-#include "ProcessInfoInterface.h"
 #include <binder/IPCThreadState.h>
 #include <binder/IProcessInfoService.h>
 #include <binder/IServiceManager.h>
+#include <media/stagefright/ProcessInfo.h>
 #include <unistd.h>
 #include <utils/String8.h>
 
@@ -37,37 +37,6 @@ static String8 GetSessionIdString(const Vector<uint8_t> &sessionId) {
     }
     return sessionIdStr;
 }
-
-struct ProcessInfo : public ProcessInfoInterface {
-    ProcessInfo() {}
-
-    virtual bool getPriority(int pid, int* priority) {
-        sp<IBinder> binder = defaultServiceManager()->getService(String16("processinfo"));
-        sp<IProcessInfoService> service = interface_cast<IProcessInfoService>(binder);
-
-        size_t length = 1;
-        int32_t states;
-        status_t err = service->getProcessStatesFromPids(length, &pid, &states);
-        if (err != OK) {
-            ALOGE("getProcessStatesFromPids failed");
-            return false;
-        }
-        ALOGV("pid %d states %d", pid, states);
-        if (states < 0) {
-            return false;
-        }
-
-        // Use process state as the priority. Lower the value, higher the priority.
-        *priority = states;
-        return true;
-    }
-
-protected:
-    virtual ~ProcessInfo() {}
-
-private:
-    DISALLOW_EVIL_CONSTRUCTORS(ProcessInfo);
-};
 
 bool isEqualSessionId(const Vector<uint8_t> &sessionId1, const Vector<uint8_t> &sessionId2) {
     if (sessionId1.size() != sessionId2.size()) {
