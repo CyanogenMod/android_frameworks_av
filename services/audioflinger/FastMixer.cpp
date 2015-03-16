@@ -415,6 +415,7 @@ void FastMixer::onWork()
             memset(mMixerBuffer, 0, mMixerBufferSize);
             mMixerBufferState = ZEROED;
         }
+        // prepare the buffer used to write to sink
         void *buffer = mSinkBuffer != NULL ? mSinkBuffer : mMixerBuffer;
         if (mFormat.mFormat != mMixerBufferFormat) { // sink format not the same as mixer format
             memcpy_by_audio_format(buffer, mFormat.mFormat, mMixerBuffer, mMixerBufferFormat,

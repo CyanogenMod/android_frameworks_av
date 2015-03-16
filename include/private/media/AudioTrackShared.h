@@ -53,8 +53,8 @@ namespace android {
 struct AudioTrackSharedStreaming {
     // similar to NBAIO MonoPipe
     // in continuously incrementing frame units, take modulo buffer size, which must be a power of 2
-    volatile int32_t mFront;    // read by server
-    volatile int32_t mRear;     // write by client
+    volatile int32_t mFront;    // read by consumer (output: server, input: client)
+    volatile int32_t mRear;     // written by producer (output: client, input: server)
     volatile int32_t mFlush;    // incremented by client to indicate a request to flush;
                                 // server notices and discards all data between mFront and mRear
     volatile uint32_t mUnderrunFrames;  // server increments for each unavailable but desired frame

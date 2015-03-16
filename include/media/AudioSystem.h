@@ -110,7 +110,7 @@ public:
     // audio_stream->get_buffer_size()/audio_stream_out_frame_size()
     static status_t getFrameCount(audio_io_handle_t output,
                                   size_t* frameCount);
-    // returns the audio output stream latency in ms. Corresponds to
+    // returns the audio output latency in ms. Corresponds to
     // audio_stream_out->get_latency()
     static status_t getLatency(audio_io_handle_t output,
                                uint32_t* latency);
@@ -122,7 +122,7 @@ public:
     static status_t setVoiceVolume(float volume);
 
     // return the number of audio frames written by AudioFlinger to audio HAL and
-    // audio dsp to DAC since the specified output I/O handle has exited standby.
+    // audio dsp to DAC since the specified output has exited standby.
     // returned status (from utils/Errors.h) can be:
     // - NO_ERROR: successful operation, halFrames and dspFrames point to valid data
     // - INVALID_OPERATION: Not supported on current hardware platform
