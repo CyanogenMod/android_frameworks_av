@@ -106,6 +106,7 @@ public:
      *  - BAD_VALUE: unsupported configuration
      * frameCount is guaranteed to be non-zero if status is NO_ERROR,
      * and is undefined otherwise.
+     * FIXME This API assumes a route, and so should be deprecated.
      */
 
      static status_t getMinFrameCount(size_t* frameCount,

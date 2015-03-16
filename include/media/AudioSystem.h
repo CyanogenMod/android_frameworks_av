@@ -98,10 +98,13 @@ public:
 
     // Returned samplingRate and frameCount output values are guaranteed
     // to be non-zero if status == NO_ERROR
+    // FIXME This API assumes a route, and so should be deprecated.
     static status_t getOutputSamplingRate(uint32_t* samplingRate,
             audio_stream_type_t stream);
+    // FIXME This API assumes a route, and so should be deprecated.
     static status_t getOutputFrameCount(size_t* frameCount,
             audio_stream_type_t stream);
+    // FIXME This API assumes a route, and so should be deprecated.
     static status_t getOutputLatency(uint32_t* latency,
             audio_stream_type_t stream);
     static status_t getSamplingRate(audio_io_handle_t output,
@@ -116,6 +119,7 @@ public:
                                uint32_t* latency);
 
     // return status NO_ERROR implies *buffSize > 0
+    // FIXME This API assumes a route, and so should deprecated.
     static status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
         audio_channel_mask_t channelMask, size_t* buffSize);
 
