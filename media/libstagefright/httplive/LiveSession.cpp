@@ -50,12 +50,74 @@
 namespace android {
 
 // static
-// Number of recently-read bytes to use for bandwidth estimation
-const size_t LiveSession::kBandwidthHistoryBytes = 200 * 1024;
 // High water mark to start up switch or report prepared)
 const int64_t LiveSession::kHighWaterMark = 8000000ll;
 const int64_t LiveSession::kMidWaterMark = 5000000ll;
 const int64_t LiveSession::kLowWaterMark = 3000000ll;
+
+struct LiveSession::BandwidthEstimator : public RefBase {
+    BandwidthEstimator();
+
+    void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
+    bool estimateBandwidth(int32_t *bandwidth);
+
+private:
+    // Bandwidth estimation parameters
+    static const int32_t kMaxBandwidthHistoryItems = 20;
+    static const int64_t kMaxBandwidthHistoryWindowUs = 3000000ll; // 3 sec
+
+    struct BandwidthEntry {
+        int64_t mDelayUs;
+        size_t mNumBytes;
+    };
+
+    Mutex mLock;
+    List<BandwidthEntry> mBandwidthHistory;
+    int64_t mTotalTransferTimeUs;
+    size_t mTotalTransferBytes;
+
+    DISALLOW_EVIL_CONSTRUCTORS(BandwidthEstimator);
+};
+
+LiveSession::BandwidthEstimator::BandwidthEstimator() :
+    mTotalTransferTimeUs(0),
+    mTotalTransferBytes(0) {
+}
+
+void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
+        size_t numBytes, int64_t delayUs) {
+    AutoMutex autoLock(mLock);
+
+    BandwidthEntry entry;
+    entry.mDelayUs = delayUs;
+    entry.mNumBytes = numBytes;
+    mTotalTransferTimeUs += delayUs;
+    mTotalTransferBytes += numBytes;
+    mBandwidthHistory.push_back(entry);
+
+    // trim old samples, keeping at least kMaxBandwidthHistoryItems samples,
+    // and total transfer time at least kMaxBandwidthHistoryWindowUs.
+    while (mBandwidthHistory.size() > kMaxBandwidthHistoryItems) {
+        List<BandwidthEntry>::iterator it = mBandwidthHistory.begin();
+        if (mTotalTransferTimeUs - it->mDelayUs < kMaxBandwidthHistoryWindowUs) {
+            break;
+        }
+        mTotalTransferTimeUs -= it->mDelayUs;
+        mTotalTransferBytes -= it->mNumBytes;
+        mBandwidthHistory.erase(mBandwidthHistory.begin());
+    }
+}
+
+bool LiveSession::BandwidthEstimator::estimateBandwidth(int32_t *bandwidthBps) {
+    AutoMutex autoLock(mLock);
+
+    if (mBandwidthHistory.size() < 2) {
+        return false;
+    }
+
+    *bandwidthBps = ((double)mTotalTransferBytes * 8E6 / mTotalTransferTimeUs);
+    return true;
+}
 
 LiveSession::LiveSession(
         const sp<AMessage> &notify, uint32_t flags,
@@ -66,10 +128,10 @@ LiveSession::LiveSession(
       mInPreparationPhase(true),
       mHTTPDataSource(new MediaHTTP(mHTTPService->makeHTTPConnection())),
       mCurBandwidthIndex(-1),
+      mBandwidthEstimator(new BandwidthEstimator()),
       mStreamMask(0),
       mNewStreamMask(0),
       mSwapMask(0),
-      mCheckBandwidthGeneration(0),
       mSwitchGeneration(0),
       mSubtitleGeneration(0),
       mLastDequeuedTimeUs(0ll),
@@ -89,13 +151,6 @@ LiveSession::LiveSession(
         mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
     }
-
-    size_t numHistoryItems = kBandwidthHistoryBytes /
-            PlaylistFetcher::kDownloadBlockSize + 1;
-    if (numHistoryItems < 5) {
-        numHistoryItems = 5;
-    }
-    mHTTPDataSource->setBandwidthHistorySize(numHistoryItems);
 }
 
 LiveSession::~LiveSession() {
@@ -948,8 +1003,15 @@ static double uniformRand() {
 }
 #endif
 
-size_t LiveSession::getBandwidthIndex() {
-    if (mBandwidthItems.size() == 0) {
+void LiveSession::addBandwidthMeasurement(size_t numBytes, int64_t delayUs) {
+    mBandwidthEstimator->addBandwidthMeasurement(numBytes, delayUs);
+}
+
+size_t LiveSession::getBandwidthIndex(int32_t bandwidthBps) {
+    if (mBandwidthItems.size() < 2) {
+        // shouldn't be here if we only have 1 bandwidth, check
+        // logic to get rid of redundant bandwidth polling
+        ALOGW("getBandwidthIndex() called for single bandwidth playlist!");
         return 0;
     }
 
@@ -967,15 +1029,6 @@ size_t LiveSession::getBandwidthIndex() {
     }
 
     if (index < 0) {
-        int32_t bandwidthBps;
-        if (mHTTPDataSource != NULL
-                && mHTTPDataSource->estimateBandwidth(&bandwidthBps)) {
-            ALOGV("bandwidth estimated at %.2f kbps", bandwidthBps / 1024.0f);
-        } else {
-            ALOGV("no bandwidth estimate.");
-            return 0;  // Pick the lowest bandwidth stream by default.
-        }
-
         char value[PROPERTY_VALUE_MAX];
         if (property_get("media.httplive.max-bw", value, NULL)) {
             char *end;
@@ -992,15 +1045,9 @@ size_t LiveSession::getBandwidthIndex() {
 
         index = mBandwidthItems.size() - 1;
         while (index > 0) {
-            // consider only 80% of the available bandwidth, but if we are switching up,
-            // be even more conservative (70%) to avoid overestimating and immediately
-            // switching back.
-            size_t adjustedBandwidthBps = bandwidthBps;
-            if (index > mCurBandwidthIndex) {
-                adjustedBandwidthBps = adjustedBandwidthBps * 7 / 10;
-            } else {
-                adjustedBandwidthBps = adjustedBandwidthBps * 8 / 10;
-            }
+            // be conservative (70%) to avoid overestimating and immediately
+            // switching down again.
+            size_t adjustedBandwidthBps = bandwidthBps * 7 / 10;
             if (mBandwidthItems.itemAt(index).mBandwidth <= adjustedBandwidthBps) {
                 break;
             }
@@ -1577,9 +1624,9 @@ void LiveSession::cancelPollBuffering() {
 
 void LiveSession::onPollBuffering() {
     ALOGV("onPollBuffering: mSwitchInProgress %d, mReconfigurationInProgress %d, "
-            "mInPreparationPhase %d, mStreamMask 0x%x",
+            "mInPreparationPhase %d, mCurBandwidthIndex %d, mStreamMask 0x%x",
         mSwitchInProgress, mReconfigurationInProgress,
-        mInPreparationPhase, mStreamMask);
+        mInPreparationPhase, mCurBandwidthIndex, mStreamMask);
 
     bool low, mid, high;
     if (checkBuffering(low, mid, high)) {
@@ -1588,8 +1635,8 @@ void LiveSession::onPollBuffering() {
         }
 
         // don't switch before we report prepared
-        if (!mInPreparationPhase && (low || high)) {
-            switchBandwidthIfNeeded(high);
+        if (!mInPreparationPhase) {
+            switchBandwidthIfNeeded(high, !mid);
         }
     }
 
@@ -1704,11 +1751,35 @@ bool LiveSession::checkBuffering(bool &low, bool &mid, bool &high) {
     return false;
 }
 
-void LiveSession::switchBandwidthIfNeeded(bool canSwitchUp) {
-    ssize_t bandwidthIndex = getBandwidthIndex();
+void LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
+    // no need to check bandwidth if we only have 1 bandwidth settings
+    if (mBandwidthItems.size() < 2) {
+        return;
+    }
 
-    if ((canSwitchUp && bandwidthIndex > mCurBandwidthIndex)
-            || (!canSwitchUp && bandwidthIndex < mCurBandwidthIndex)) {
+    int32_t bandwidthBps;
+    if (mBandwidthEstimator->estimateBandwidth(&bandwidthBps)) {
+        ALOGV("bandwidth estimated at %.2f kbps", bandwidthBps / 1024.0f);
+    } else {
+        ALOGV("no bandwidth estimate.");
+        return;
+    }
+
+    int32_t curBandwidth = mBandwidthItems.itemAt(mCurBandwidthIndex).mBandwidth;
+    bool bandwidthLow = bandwidthBps < (int32_t)curBandwidth * 8 / 10;
+    bool bandwidthHigh = bandwidthBps > (int32_t)curBandwidth * 12 / 10;
+
+    if ((bufferHigh && bandwidthHigh) || (bufferLow && bandwidthLow)) {
+        ssize_t bandwidthIndex = getBandwidthIndex(bandwidthBps);
+
+        if (bandwidthIndex == mCurBandwidthIndex
+                || (bufferHigh && bandwidthIndex < mCurBandwidthIndex)
+                || (bufferLow && bandwidthIndex > mCurBandwidthIndex)) {
+            return;
+        }
+
+        ALOGI("#### Initiate Bandwidth Switch: %d => %d",
+                mCurBandwidthIndex, bandwidthIndex);
         changeConfiguration(-1, bandwidthIndex, false);
     }
 }
