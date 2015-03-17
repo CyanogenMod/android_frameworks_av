@@ -243,7 +243,7 @@ routing_strategy Engine::getStrategyForStream(audio_stream_type_t stream)
 
 routing_strategy Engine::getStrategyForUsage(audio_usage_t usage)
 {
-    const AudioOutputCollection &outputs = mApmObserver->getOutputs();
+    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
 
     // usage to strategy mapping
     switch (usage) {
@@ -291,7 +291,7 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
     const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
     const DeviceVector &availableInputDevices = mApmObserver->getAvailableInputDevices();
 
-    const AudioOutputCollection &outputs = mApmObserver->getOutputs();
+    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
 
     uint32_t device = AUDIO_DEVICE_NONE;
     uint32_t availableOutputDevicesType = availableOutputDevices.types();
@@ -582,7 +582,7 @@ audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) cons
 {
     const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
     const DeviceVector &availableInputDevices = mApmObserver->getAvailableInputDevices();
-    const AudioOutputCollection &outputs = mApmObserver->getOutputs();
+    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
     audio_devices_t availableDeviceTypes = availableInputDevices.types() & ~AUDIO_DEVICE_BIT_IN;
 
     uint32_t device = AUDIO_DEVICE_NONE;

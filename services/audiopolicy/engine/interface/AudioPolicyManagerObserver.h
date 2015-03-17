@@ -43,7 +43,7 @@ public:
 
     virtual const AudioPolicyMixCollection &getAudioPolicyMixCollection() const = 0;
 
-    virtual const AudioOutputCollection &getOutputs() const = 0;
+    virtual const SwAudioOutputCollection &getOutputs() const = 0;
 
     virtual const AudioInputCollection &getInputs() const = 0;
 

@@ -26,12 +26,12 @@
 
 namespace android {
 
-void AudioPolicyMix::setOutput(sp<AudioOutputDescriptor> &output)
+void AudioPolicyMix::setOutput(sp<SwAudioOutputDescriptor> &output)
 {
     mOutput = output;
 }
 
-const sp<AudioOutputDescriptor> &AudioPolicyMix::getOutput() const
+const sp<SwAudioOutputDescriptor> &AudioPolicyMix::getOutput() const
 {
     return mOutput;
 }
@@ -88,7 +88,7 @@ status_t AudioPolicyMixCollection::getAudioPolicyMix(String8 address,
     return NO_ERROR;
 }
 
-void AudioPolicyMixCollection::closeOutput(sp<AudioOutputDescriptor> &desc)
+void AudioPolicyMixCollection::closeOutput(sp<SwAudioOutputDescriptor> &desc)
 {
     for (size_t i = 0; i < size(); i++) {
         sp<AudioPolicyMix> policyMix = valueAt(i);
@@ -99,7 +99,7 @@ void AudioPolicyMixCollection::closeOutput(sp<AudioOutputDescriptor> &desc)
 }
 
 status_t AudioPolicyMixCollection::getOutputForAttr(audio_attributes_t attributes,
-                                                    sp<AudioOutputDescriptor> &desc)
+                                                    sp<SwAudioOutputDescriptor> &desc)
 {
     for (size_t i = 0; i < size(); i++) {
         sp<AudioPolicyMix> policyMix = valueAt(i);

@@ -27,25 +27,36 @@ namespace android {
 
 class IOProfile;
 class AudioMix;
+class AudioPolicyClientInterface;
 
 // descriptor for audio outputs. Used to maintain current configuration of each opened audio output
 // and keep track of the usage of this output by each audio stream type.
 class AudioOutputDescriptor: public AudioPortConfig
 {
 public:
-    AudioOutputDescriptor(const sp<IOProfile>& profile);
+    AudioOutputDescriptor(const sp<AudioPort>& port,
+                          AudioPolicyClientInterface *clientInterface);
+    virtual ~AudioOutputDescriptor() {}
 
     status_t    dump(int fd);
     void        log(const char* indent);
 
-    audio_devices_t device() const;
-    void changeRefCount(audio_stream_type_t stream, int delta);
     audio_port_handle_t getId() const;
-    void setIoHandle(audio_io_handle_t ioHandle);
-    bool isDuplicated() const { return (mOutput1 != NULL && mOutput2 != NULL); }
-    audio_devices_t supportedDevices();
-    uint32_t latency();
-    bool sharesHwModuleWith(const sp<AudioOutputDescriptor> outputDesc);
+    virtual audio_devices_t device() const;
+    virtual bool sharesHwModuleWith(const sp<AudioOutputDescriptor> outputDesc);
+    virtual audio_devices_t supportedDevices();
+    virtual bool isDuplicated() const { return false; }
+    virtual uint32_t latency() { return 0; }
+    virtual bool isFixedVolume(audio_devices_t device);
+    virtual sp<AudioOutputDescriptor> subOutput1() { return 0; }
+    virtual sp<AudioOutputDescriptor> subOutput2() { return 0; }
+    virtual bool setVolume(float volume,
+                           audio_stream_type_t stream,
+                           audio_devices_t device,
+                           uint32_t delayMs,
+                           bool force);
+    virtual void changeRefCount(audio_stream_type_t stream, int delta);
+
     bool isActive(uint32_t inPastMs = 0) const;
     bool isStreamActive(audio_stream_type_t stream,
                         uint32_t inPastMs = 0,
@@ -53,34 +64,69 @@ public:
 
     virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                            const struct audio_port_config *srcConfig = NULL) const;
-    virtual sp<AudioPort> getAudioPort() const { return mProfile; }
-    void toAudioPort(struct audio_port *port) const;
+    virtual sp<AudioPort> getAudioPort() const { return mPort; }
+    virtual void toAudioPort(struct audio_port *port) const;
 
     audio_module_handle_t getModuleHandle() const;
 
-    audio_io_handle_t mIoHandle;              // output handle
-    uint32_t mLatency;                  //
-    audio_output_flags_t mFlags;   //
+    sp<AudioPort>       mPort;
     audio_devices_t mDevice;                   // current device this output is routed to
-    AudioMix *mPolicyMix;             // non NULL when used by a dynamic policy
     audio_patch_handle_t mPatchHandle;
     uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
     nsecs_t mStopTime[AUDIO_STREAM_CNT];
-    sp<AudioOutputDescriptor> mOutput1;    // used by duplicated outputs: first output
-    sp<AudioOutputDescriptor> mOutput2;    // used by duplicated outputs: second output
     float mCurVolume[AUDIO_STREAM_CNT];   // current stream volume
     int mMuteCount[AUDIO_STREAM_CNT];     // mute request counter
-    const sp<IOProfile> mProfile;          // I/O profile this output derives from
     bool mStrategyMutedByDevice[NUM_STRATEGIES]; // strategies muted because of incompatible
                                         // device selection. See checkDeviceMuteStrategies()
-    uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
+    AudioPolicyClientInterface *mClientInterface;
 
-private:
+protected:
     audio_port_handle_t mId;
 };
 
-class AudioOutputCollection :
-        public DefaultKeyedVector< audio_io_handle_t, sp<AudioOutputDescriptor> >
+// Audio output driven by a software mixer in audio flinger.
+class SwAudioOutputDescriptor: public AudioOutputDescriptor
+{
+public:
+    SwAudioOutputDescriptor(const sp<IOProfile>& profile,
+                            AudioPolicyClientInterface *clientInterface);
+    virtual ~SwAudioOutputDescriptor() {}
+
+    status_t    dump(int fd);
+
+    void setIoHandle(audio_io_handle_t ioHandle);
+
+    virtual audio_devices_t device() const;
+    virtual bool sharesHwModuleWith(const sp<AudioOutputDescriptor> outputDesc);
+    virtual audio_devices_t supportedDevices();
+    virtual uint32_t latency();
+    virtual bool isDuplicated() const { return (mOutput1 != NULL && mOutput2 != NULL); }
+    virtual bool isFixedVolume(audio_devices_t device);
+    virtual sp<AudioOutputDescriptor> subOutput1() { return mOutput1; }
+    virtual sp<AudioOutputDescriptor> subOutput2() { return mOutput2; }
+    virtual void changeRefCount(audio_stream_type_t stream, int delta);
+    virtual bool setVolume(float volume,
+                           audio_stream_type_t stream,
+                           audio_devices_t device,
+                           uint32_t delayMs,
+                           bool force);
+
+    virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
+                           const struct audio_port_config *srcConfig = NULL) const;
+    virtual void toAudioPort(struct audio_port *port) const;
+
+    const sp<IOProfile> mProfile;          // I/O profile this output derives from
+    audio_io_handle_t mIoHandle;           // output handle
+    uint32_t mLatency;                  //
+    audio_output_flags_t mFlags;   //
+    AudioMix *mPolicyMix;             // non NULL when used by a dynamic policy
+    sp<SwAudioOutputDescriptor> mOutput1;    // used by duplicated outputs: first output
+    sp<SwAudioOutputDescriptor> mOutput2;    // used by duplicated outputs: second output
+    uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
+};
+
+class SwAudioOutputCollection :
+        public DefaultKeyedVector< audio_io_handle_t, sp<SwAudioOutputDescriptor> >
 {
 public:
     bool isStreamActive(audio_stream_type_t stream, uint32_t inPastMs = 0) const;
@@ -99,9 +145,9 @@ public:
      */
     audio_io_handle_t getA2dpOutput() const;
 
-    sp<AudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
+    sp<SwAudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
 
-    sp<AudioOutputDescriptor> getPrimaryOutput() const;
+    sp<SwAudioOutputDescriptor> getPrimaryOutput() const;
 
     /**
      * return true if any output is playing anything besides the stream to ignore
