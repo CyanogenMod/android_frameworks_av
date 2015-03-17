@@ -863,8 +863,11 @@ nsecs_t AudioRecord::processAudioBuffer()
     if (!markerReached && position < markerPosition) {
         minFrames = markerPosition - position;
     }
-    if (updatePeriod > 0 && updatePeriod < minFrames) {
-        minFrames = updatePeriod;
+    if (updatePeriod > 0) {
+        uint32_t remaining = newPosition - position;
+        if (remaining < minFrames) {
+            minFrames = remaining;
+        }
     }
 
     // If > 0, poll periodically to recover from a stuck server.  A good value is 2.
