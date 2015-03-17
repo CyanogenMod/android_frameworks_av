@@ -1305,7 +1305,7 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
         if ((mStreamMask & streamMask & indexToType(i))
                 && !mStreams[i].mUri.empty()
                 && !(URIs[i] == mStreams[i].mUri)) {
-            ALOGV("stream %d changed: oldURI %s, newURI %s", i,
+            ALOGV("stream %zu changed: oldURI %s, newURI %s", i,
                     mStreams[i].mUri.c_str(), URIs[i].c_str());
             sp<AnotherPacketSource> source = mPacketSources.valueFor(indexToType(i));
             source->queueDiscontinuity(
@@ -1477,7 +1477,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                             break;
                         }
 
-                        ALOGV("stream[%d]: queue format change", j);
+                        ALOGV("stream[%zu]: queue format change", j);
 
                         sources[j]->queueDiscontinuity(
                                 ATSParser::DISCONTINUITY_FORMATCHANGE, NULL, true);
@@ -1682,7 +1682,7 @@ bool LiveSession::checkBuffering(bool &low, bool &mid, bool &high) {
         ++activeCount;
         int64_t bufferedDurationUs =
                 mPacketSources[i]->getEstimatedDurationUs();
-        ALOGV("source[%d]: buffered %lld us", i, bufferedDurationUs);
+        ALOGV("source[%zu]: buffered %lld us", i, (long long)bufferedDurationUs);
         if (bufferedDurationUs < kLowWaterMark) {
             ++lowCount;
             break;

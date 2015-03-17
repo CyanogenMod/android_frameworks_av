@@ -116,7 +116,7 @@ private:
     // adapting or switching tracks.
     int64_t mSegmentStartTimeUs;
 
-    ssize_t mDiscontinuitySeq;
+    int32_t mDiscontinuitySeq;
     bool mStartTimeUsRelative;
     sp<AMessage> mStopParams; // message containing the latest timestamps we should fetch.
 
