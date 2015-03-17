@@ -70,6 +70,7 @@ private:
     bool mIsComplete;
     bool mIsEvent;
     size_t mDiscontinuitySeq;
+    int32_t mDiscontinuityCount;
 
     sp<AMessage> mMeta;
     Vector<Item> mItems;

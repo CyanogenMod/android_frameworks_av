@@ -48,7 +48,10 @@ AnotherPacketSource::AnotherPacketSource(const sp<MetaData> &meta)
 }
 
 void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
-    CHECK(mFormat == NULL);
+    if (mFormat != NULL) {
+        // Only allowed to be set once. Requires explicit clear to reset.
+        return;
+    }
 
     mIsAudio = false;
     mIsVideo = false;
@@ -94,7 +97,8 @@ sp<MetaData> AnotherPacketSource::getFormat() {
         if (!buffer->meta()->findInt32("discontinuity", &discontinuity)) {
             sp<RefBase> object;
             if (buffer->meta()->findObject("format", &object)) {
-                return mFormat = static_cast<MetaData*>(object.get());
+                setFormat(static_cast<MetaData*>(object.get()));
+                return mFormat;
             }
         }
 
@@ -129,7 +133,7 @@ status_t AnotherPacketSource::dequeueAccessUnit(sp<ABuffer> *buffer) {
 
         sp<RefBase> object;
         if ((*buffer)->meta()->findObject("format", &object)) {
-            mFormat = static_cast<MetaData*>(object.get());
+            setFormat(static_cast<MetaData*>(object.get()));
         }
 
         return OK;
@@ -164,7 +168,7 @@ status_t AnotherPacketSource::read(
 
         sp<RefBase> object;
         if (buffer->meta()->findObject("format", &object)) {
-            mFormat = static_cast<MetaData*>(object.get());
+            setFormat(static_cast<MetaData*>(object.get()));
         }
 
         int64_t timeUs;

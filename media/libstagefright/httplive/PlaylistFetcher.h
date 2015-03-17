@@ -67,7 +67,7 @@ struct PlaylistFetcher : public AHandler {
             int32_t startDiscontinuitySeq = 0,
             bool adaptive = false);
 
-    void pauseAsync();
+    void pauseAsync(bool immediate = false);
 
     void stopAsync(bool clear = true);
 
@@ -130,12 +130,19 @@ private:
     int32_t mSeqNumber;
     int32_t mNumRetries;
     bool mStartup;
+    bool mIDRFound;
     bool mAdaptive;
     bool mPrepared;
+    bool mTimeChangeSignaled;
     int64_t mNextPTSTimeUs;
 
     int32_t mMonitorQueueGeneration;
     const int32_t mSubtitleGeneration;
+
+    int32_t mLastDiscontinuitySeq;
+
+    Mutex mStoppingLock;
+    bool mStopping;
 
     enum RefreshState {
         INITIAL_MINIMUM_RELOAD_DELAY,
@@ -152,7 +159,6 @@ private:
     bool mFirstPTSValid;
     uint64_t mFirstPTS;
     int64_t mFirstTimeUs;
-    int64_t mAbsoluteTimeAnchorUs;
     sp<AnotherPacketSource> mVideoBuffer;
 
     // Stores the initialization vector to decrypt the next block of cipher text, which can
@@ -175,6 +181,7 @@ private:
 
     void postMonitorQueue(int64_t delayUs = 0, int64_t minDelayUs = 0);
     void cancelMonitorQueue();
+    void setStopping(bool stopping);
 
     int64_t delayUsToRefreshPlaylist() const;
     status_t refreshPlaylist();

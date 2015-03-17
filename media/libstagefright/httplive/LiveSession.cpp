@@ -76,8 +76,6 @@ LiveSession::LiveSession(
       mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
       mSwitchInProgress(false),
-      mDisconnectReplyID(0),
-      mSeekReplyID(0),
       mFirstTimeUsValid(false),
       mFirstTimeUs(0),
       mLastSeekTimeUs(0),
@@ -90,7 +88,6 @@ LiveSession::LiveSession(
     for (size_t i = 0; i < kMaxStreams; ++i) {
         mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
-        mBuffering[i] = false;
     }
 
     size_t numHistoryItems = kBandwidthHistoryBytes /
@@ -139,13 +136,24 @@ status_t LiveSession::dequeueAccessUnit(
     ssize_t idx = typeToIndex(stream);
     if (!packetSource->hasBufferAvailable(&finalResult)) {
         if (finalResult == OK) {
-            mBuffering[idx] = true;
             return -EAGAIN;
         } else {
             return finalResult;
         }
     }
 
+    // Do not let client pull data if we don't have format yet.
+    // We might only have a format discontinuity queued without actual data.
+    // When NuPlayerDecoder dequeues the format discontinuity, it will
+    // immediately try to getFormat. If we return NULL, NuPlayerDecoder
+    // thinks it can do seamless change, so will not shutdown decoder.
+    // When the actual format arrives, it can't handle it and get stuck.
+    // TODO: We need a method to check if the packet source has any
+    //       data packets available, dequeuing should only start then.
+    sp<MetaData> format = packetSource->getFormat();
+    if (format == NULL) {
+        return -EAGAIN;
+    }
     int32_t targetDuration = 0;
     sp<AMessage> meta = packetSource->getLatestEnqueuedMeta();
     if (meta != NULL) {
@@ -158,18 +166,6 @@ status_t LiveSession::dequeueAccessUnit(
         // Fetchers limit buffering to
         // min(3 * targetDuration, kMinBufferedDurationUs)
         targetDurationUs = PlaylistFetcher::kMinBufferedDurationUs;
-    }
-
-    if (mBuffering[idx]) {
-        if (mSwitchInProgress
-                || packetSource->isFinished(0)
-                || packetSource->hasBufferAvailable(&finalResult)) {
-            mBuffering[idx] = false;
-        }
-    }
-
-    if (mBuffering[idx]) {
-        return -EAGAIN;
     }
 
     // wait for counterpart
@@ -737,7 +733,7 @@ void LiveSession::onFinishDisconnect2() {
     response->setInt32("err", OK);
 
     response->postReply(mDisconnectReplyID);
-    mDisconnectReplyID = 0;
+    mDisconnectReplyID.clear();
 }
 
 sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
@@ -1192,25 +1188,27 @@ void LiveSession::changeConfiguration(
 
         bool discardFetcher = true;
 
-        // If we're seeking all current fetchers are discarded.
         if (timeUs < 0ll) {
             // delay fetcher removal if not picking tracks
             discardFetcher = pickTrack;
 
-            for (size_t j = 0; j < kMaxStreams; ++j) {
-                StreamType type = indexToType(j);
-                if ((streamMask & type) && uri == URIs[j]) {
-                    resumeMask |= type;
-                    streamMask &= ~type;
-                    discardFetcher = false;
-                }
+        }
+
+        for (size_t j = 0; j < kMaxStreams; ++j) {
+            StreamType type = indexToType(j);
+            if ((streamMask & type) && uri == URIs[j]) {
+                resumeMask |= type;
+                streamMask &= ~type;
+                discardFetcher = false;
             }
         }
 
         if (discardFetcher) {
             mFetcherInfos.valueAt(i).mFetcher->stopAsync();
         } else {
-            mFetcherInfos.valueAt(i).mFetcher->pauseAsync();
+            // if we're seeking, pause immediately (no need to finish the segment)
+            bool immediate = (timeUs >= 0ll);
+            mFetcherInfos.valueAt(i).mFetcher->pauseAsync(immediate);
         }
     }
 
@@ -1274,11 +1272,11 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
         mDiscontinuityOffsetTimesUs.clear();
         mDiscontinuityAbsStartTimesUs.clear();
 
-        if (mSeekReplyID != 0) {
+        if (mSeekReplyID != NULL) {
             CHECK(mSeekReply != NULL);
             mSeekReply->setInt32("err", OK);
             mSeekReply->postReply(mSeekReplyID);
-            mSeekReplyID = 0;
+            mSeekReplyID.clear();
             mSeekReply.clear();
         }
     }
@@ -1287,9 +1285,6 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
     CHECK(msg->findInt32("streamMask", (int32_t *)&streamMask));
     CHECK(msg->findInt32("resumeMask", (int32_t *)&resumeMask));
 
-    // currently onChangeConfiguration2 is only called for seeking;
-    // remove the following CHECK if using it else where.
-    CHECK_EQ(resumeMask, 0);
     streamMask |= resumeMask;
 
     AString URIs[kMaxStreams];
@@ -1301,17 +1296,25 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
         }
     }
 
-    // Determine which decoders to shutdown on the player side,
-    // a decoder has to be shutdown if either
-    // 1) its streamtype was active before but now longer isn't.
-    // or
-    // 2) its streamtype was already active and still is but the URI
-    //    has changed.
     uint32_t changedMask = 0;
     for (size_t i = 0; i < kMaxStreams && i != kSubtitleIndex; ++i) {
-        if (((mStreamMask & streamMask & indexToType(i))
-                && !(URIs[i] == mStreams[i].mUri))
-                || (mStreamMask & ~streamMask & indexToType(i))) {
+        // stream URI could change even if onChangeConfiguration2 is only
+        // used for seek. Seek could happen during a bw switch, in this
+        // case bw switch will be cancelled, but the seekTo position will
+        // fetch from the new URI.
+        if ((mStreamMask & streamMask & indexToType(i))
+                && !mStreams[i].mUri.empty()
+                && !(URIs[i] == mStreams[i].mUri)) {
+            ALOGV("stream %d changed: oldURI %s, newURI %s", i,
+                    mStreams[i].mUri.c_str(), URIs[i].c_str());
+            sp<AnotherPacketSource> source = mPacketSources.valueFor(indexToType(i));
+            source->queueDiscontinuity(
+                    ATSParser::DISCONTINUITY_FORMATCHANGE, NULL, true);
+        }
+        // Determine which decoders to shutdown on the player side,
+        // a decoder has to be shutdown if its streamtype was active
+        // before but now longer isn't.
+        if ((mStreamMask & ~streamMask & indexToType(i))) {
             changedMask |= indexToType(i);
         }
     }
@@ -1394,7 +1397,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         if (sources[kAudioIndex] != NULL || sources[kVideoIndex] != NULL
                 || sources[kSubtitleIndex] != NULL) {
             info.mFetcher->startAsync(
-                    sources[kAudioIndex], sources[kVideoIndex], sources[kSubtitleIndex]);
+                    sources[kAudioIndex], sources[kVideoIndex], sources[kSubtitleIndex], timeUs);
         } else {
             info.mToBeRemoved = true;
         }
@@ -1514,7 +1517,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         mStreamMask = mNewStreamMask;
     }
 
-    if (mDisconnectReplyID != 0) {
+    if (mDisconnectReplyID != NULL) {
         finishDisconnect();
     }
 }
