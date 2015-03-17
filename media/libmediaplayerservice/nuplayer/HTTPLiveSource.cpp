@@ -281,6 +281,34 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case LiveSession::kWhatBufferingStart:
+        {
+            sp<AMessage> notify = dupNotify();
+            notify->setInt32("what", kWhatPauseOnBufferingStart);
+            notify->post();
+            break;
+        }
+
+        case LiveSession::kWhatBufferingEnd:
+        {
+            sp<AMessage> notify = dupNotify();
+            notify->setInt32("what", kWhatResumeOnBufferingEnd);
+            notify->post();
+            break;
+        }
+
+
+        case LiveSession::kWhatBufferingUpdate:
+        {
+            sp<AMessage> notify = dupNotify();
+            int32_t percentage;
+            CHECK(msg->findInt32("percentage", &percentage));
+            notify->setInt32("what", kWhatBufferingUpdate);
+            notify->setInt32("percentage", percentage);
+            notify->post();
+            break;
+        }
+
         case LiveSession::kWhatError:
         {
             break;

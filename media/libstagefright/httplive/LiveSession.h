@@ -89,11 +89,16 @@ struct LiveSession : public AHandler {
     bool isSeekable() const;
     bool hasDynamicDuration() const;
 
+    static const char *getKeyForStream(StreamType type);
+
     enum {
         kWhatStreamsChanged,
         kWhatError,
         kWhatPrepared,
         kWhatPreparationFailed,
+        kWhatBufferingStart,
+        kWhatBufferingEnd,
+        kWhatBufferingUpdate,
     };
 
 protected:
@@ -116,9 +121,15 @@ private:
         kWhatPollBuffering              = 'poll',
     };
 
-    static const int64_t kHighWaterMark;
-    static const int64_t kMidWaterMark;
-    static const int64_t kLowWaterMark;
+    // Bandwidth Switch Mark Defaults
+    static const int64_t kUpSwitchMark = 25000000ll;
+    static const int64_t kDownSwitchMark = 18000000ll;
+    static const int64_t kUpSwitchMargin = 5000000ll;
+
+    // Buffer Prepare/Ready/Underflow Marks
+    static const int64_t kReadyMark = 5000000ll;
+    static const int64_t kPrepareMark = 1500000ll;
+    static const int64_t kUnderflowMark = 1000000ll;
 
     struct BandwidthEstimator;
     struct BandwidthItem {
@@ -160,8 +171,10 @@ private:
     uint32_t mFlags;
     sp<IMediaHTTPService> mHTTPService;
 
+    bool mBuffering;
     bool mInPreparationPhase;
-    bool mBuffering[kMaxStreams];
+    int32_t mPollBufferingGeneration;
+    int32_t mPrevBufferPercentage;
 
     sp<HTTPBase> mHTTPDataSource;
     KeyedVector<String8, String8> mExtraHeaders;
@@ -170,6 +183,7 @@ private:
 
     Vector<BandwidthItem> mBandwidthItems;
     ssize_t mCurBandwidthIndex;
+    ssize_t mOrigBandwidthIndex;
     int32_t mLastBandwidthBps;
     sp<BandwidthEstimator> mBandwidthEstimator;
 
@@ -204,6 +218,10 @@ private:
 
     bool mReconfigurationInProgress;
     bool mSwitchInProgress;
+    int64_t mUpSwitchMark;
+    int64_t mDownSwitchMark;
+    int64_t mUpSwitchMargin;
+
     sp<AReplyToken> mDisconnectReplyID;
     sp<AReplyToken> mSeekReplyID;
 
@@ -212,8 +230,6 @@ private:
     int64_t mLastSeekTimeUs;
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
-
-    int32_t mPollBufferingGeneration;
 
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
@@ -247,6 +263,10 @@ private:
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
 
+    bool resumeFetcher(
+            const AString &uri, uint32_t streamMask,
+            int64_t timeUs = -1ll, bool newUri = false);
+
     float getAbortThreshold(
             ssize_t currentBWIndex, ssize_t targetBWIndex) const;
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
@@ -258,24 +278,32 @@ private:
     static ssize_t typeToIndex(int32_t type);
 
     void changeConfiguration(
-            int64_t timeUs, size_t bandwidthIndex, bool pickTrack = false);
+            int64_t timeUs, ssize_t bwIndex = -1, bool pickTrack = false);
     void onChangeConfiguration(const sp<AMessage> &msg);
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
-    void swapPacketSource(StreamType stream);
-    void tryToFinishBandwidthSwitch(const AString &uri);
 
-    void cancelBandwidthSwitch();
+    void swapPacketSource(StreamType stream);
+    void tryToFinishBandwidthSwitch(const AString &oldUri);
+    void cancelBandwidthSwitch(bool resume = false);
+    bool checkSwitchProgress(
+            sp<AMessage> &msg, int64_t delayUs, bool *needResumeUntil);
+
+    void switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow);
 
     void schedulePollBuffering();
     void cancelPollBuffering();
+    void restartPollBuffering();
     void onPollBuffering();
-    bool checkBuffering(bool &low, bool &mid, bool &high);
-    void switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow);
+    bool checkBuffering(bool &underflow, bool &ready, bool &down, bool &up);
+    void startBufferingIfNecessary();
+    void stopBufferingIfNecessary();
+    void notifyBufferingUpdate(int32_t percentage);
 
     void finishDisconnect();
 
     void postPrepared(status_t err);
+    void postError(status_t err);
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
 };

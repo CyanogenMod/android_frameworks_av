@@ -70,8 +70,14 @@ struct AnotherPacketSource : public MediaSource {
 
     bool isFinished(int64_t duration) const;
 
+    void enable(bool enable);
+
     sp<AMessage> getLatestEnqueuedMeta();
     sp<AMessage> getLatestDequeuedMeta();
+    sp<AMessage> getMetaAfterLastDequeued(int64_t delayUs);
+
+    void trimBuffersAfterTimeUs(size_t discontinuitySeq, int64_t timeUs);
+    sp<AMessage> trimBuffersBeforeTimeUs(size_t discontinuitySeq, int64_t timeUs);
 
 protected:
     virtual ~AnotherPacketSource();
@@ -82,6 +88,7 @@ private:
 
     bool mIsAudio;
     bool mIsVideo;
+    bool mEnabled;
     sp<MetaData> mFormat;
     int64_t mLastQueuedTimeUs;
     List<sp<ABuffer> > mBuffers;
