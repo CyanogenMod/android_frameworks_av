@@ -5136,10 +5136,9 @@ reacquire_wakelock:
                 break;
             }
 
-            // if no active track(s), then standby and release wakelock
+            // if no active track(s), then standby (down below) and release wakelock (here)
             size_t size = mActiveTracks.size();
             if (size == 0) {
-                standbyIfNotAlreadyInStandby();
                 // exitPending() can't become true here
                 releaseWakeLock_l();
                 ALOGV("RecordThread: loop stopping");
@@ -5214,6 +5213,10 @@ reacquire_wakelock:
                     ALOG_ASSERT(fastTrack == 0);
                     fastTrack = activeTrack;
                 }
+            }
+            // standby must be done before mStartStopCond broadcast
+            if (activeTracks.size() == 0) {
+                standbyIfNotAlreadyInStandby();
             }
             if (doBroadcast) {
                 mStartStopCond.broadcast();
