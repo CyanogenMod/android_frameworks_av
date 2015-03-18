@@ -5867,8 +5867,9 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
-            // use case: callback handler
-            (tid != -1) &&
+            // we formerly checked for a callback handler (non-0 tid),
+            // but that is no longer required for TRANSFER_OBTAIN mode
+            //
             // frame count is not specified, or is exactly the pipe depth
             ((frameCount == 0) || (frameCount == mPipeFramesP2)) &&
             // PCM data
