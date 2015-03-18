@@ -14,9 +14,18 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include "Ports.h"
 #include "ApmImplDefinitions.h"
+#include <utils/Errors.h>
+#include <utils/Timers.h>
+#include <system/audio.h>
 
 namespace android {
+
+class IOProfile;
+class AudioMix;
 
 // descriptor for audio outputs. Used to maintain current configuration of each opened audio output
 // and keep track of the usage of this output by each audio stream type.
@@ -38,9 +47,6 @@ public:
     bool isStreamActive(audio_stream_type_t stream,
                         uint32_t inPastMs = 0,
                         nsecs_t sysTime = 0) const;
-    bool isStrategyActive(routing_strategy strategy,
-                     uint32_t inPastMs = 0,
-                     nsecs_t sysTime = 0) const;
 
     virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                            const struct audio_port_config *srcConfig = NULL) const;

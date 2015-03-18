@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include <system/audio.h>
+#include <sys/types.h>
+
 namespace android {
 
 // ----------------------------------------------------------------------------

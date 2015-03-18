@@ -24,7 +24,9 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-#include "AudioPolicyManager.h"
+#include "Gains.h"
+#include <utils/Log.h>
+#include <utils/String8.h>
 
 #include <math.h>
 

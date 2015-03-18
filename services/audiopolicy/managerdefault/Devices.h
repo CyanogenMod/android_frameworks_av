@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-namespace android {
+#pragma once
 
-class AudioPort;
-class AudioPortConfig;
+#include "Ports.h"
+#include <utils/Errors.h>
+#include <utils/String8.h>
+#include <utils/SortedVector.h>
+#include <cutils/config_utils.h>
+#include <system/audio.h>
+
+namespace android {
 
 class DeviceDescriptor: public AudioPort, public AudioPortConfig
 {

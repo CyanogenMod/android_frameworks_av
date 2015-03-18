@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-
-#ifndef ANDROID_AUDIO_POLICY_CONF_H
-#define ANDROID_AUDIO_POLICY_CONF_H
-
+#pragma once
 
 /////////////////////////////////////////////////
 //      Definitions for audio policy configuration file (audio_policy.conf)
@@ -71,7 +68,3 @@
 #define GAIN_STEP_VALUE "step_value_mB"
 #define GAIN_MIN_RAMP_MS "min_ramp_ms"
 #define GAIN_MAX_RAMP_MS "max_ramp_ms"
-
-
-
-#endif  // ANDROID_AUDIO_POLICY_CONF_H

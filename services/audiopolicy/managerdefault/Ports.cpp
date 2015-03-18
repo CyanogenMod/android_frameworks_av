@@ -17,11 +17,15 @@
 #define LOG_TAG "APM::Ports"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
-
+#include "Ports.h"
+#include "HwModule.h"
+#include "Gains.h"
+#include "ConfigParsingUtils.h"
 #include "audio_policy_conf.h"
 
 namespace android {
+
+int32_t volatile AudioPort::mNextUniqueId = 1;
 
 // --- AudioPort class implementation
 
@@ -34,7 +38,7 @@ AudioPort::AudioPort(const String8& name, audio_port_type_t type,
 }
 
 void AudioPort::attach(const sp<HwModule>& module) {
-    mId = AudioPolicyManager::nextUniqueId();
+    mId = android_atomic_inc(&mNextUniqueId);
     mModule = module;
 }
 

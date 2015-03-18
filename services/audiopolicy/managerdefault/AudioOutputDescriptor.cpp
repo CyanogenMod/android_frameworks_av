@@ -17,7 +17,11 @@
 #define LOG_TAG "APM::AudioOutputDescriptor"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
+#include "AudioOutputDescriptor.h"
+#include "IOProfile.h"
+#include "Gains.h"
+#include "HwModule.h"
+#include <media/AudioPolicy.h>
 
 namespace android {
 
@@ -108,23 +112,15 @@ audio_devices_t AudioOutputDescriptor::supportedDevices()
 
 bool AudioOutputDescriptor::isActive(uint32_t inPastMs) const
 {
-    return isStrategyActive(NUM_STRATEGIES, inPastMs);
-}
-
-bool AudioOutputDescriptor::isStrategyActive(routing_strategy strategy,
-                                                                       uint32_t inPastMs,
-                                                                       nsecs_t sysTime) const
-{
-    if ((sysTime == 0) && (inPastMs != 0)) {
+    nsecs_t sysTime = 0;
+    if (inPastMs != 0) {
         sysTime = systemTime();
     }
     for (int i = 0; i < (int)AUDIO_STREAM_CNT; i++) {
         if (i == AUDIO_STREAM_PATCH) {
             continue;
         }
-        if (((AudioPolicyManager::getStrategy((audio_stream_type_t)i) == strategy) ||
-                (NUM_STRATEGIES == strategy)) &&
-                isStreamActive((audio_stream_type_t)i, inPastMs, sysTime)) {
+        if (isStreamActive((audio_stream_type_t)i, inPastMs, sysTime)) {
             return true;
         }
     }

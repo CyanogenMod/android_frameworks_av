@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#pragma once
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -60,9 +61,6 @@ namespace android {
 // Default minimum length allowed for offloading a compressed track
 // Can be overridden by the audio.offload.min.duration.secs property
 #define OFFLOAD_DEFAULT_MIN_DURATION_SECS 60
-
-#define MAX_MIXER_SAMPLING_RATE 48000
-#define MAX_MIXER_CHANNEL_COUNT 8
 
 // ----------------------------------------------------------------------------
 // AudioPolicyManager implements audio policy manager behavior common to all platforms.
@@ -555,6 +553,9 @@ private:
         sp<DeviceDescriptor>  getDeviceDescriptor(const audio_devices_t device,
                                                   const char *device_address,
                                                   const char *device_name);
+
+        bool isStrategyActive(const sp<AudioOutputDescriptor> outputDesc, routing_strategy strategy,
+                              uint32_t inPastMs = 0, nsecs_t sysTime = 0) const;
 };
 
 };

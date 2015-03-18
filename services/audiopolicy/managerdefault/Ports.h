@@ -14,9 +14,22 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include <utils/String8.h>
+#include <utils/Vector.h>
+#include <utils/RefBase.h>
+#include <utils/Errors.h>
+#include <system/audio.h>
+#include <cutils/config_utils.h>
+
+#define MAX_MIXER_SAMPLING_RATE 48000
+#define MAX_MIXER_CHANNEL_COUNT 8
+
 namespace android {
 
 class HwModule;
+class AudioGain;
 
 class AudioPort: public virtual RefBase
 {
@@ -86,6 +99,9 @@ protected:
     // and a unique ID for identifying a port to the (upcoming) selection API,
     // and its relationship to the mId in AudioOutputDescriptor and AudioInputDescriptor.
     audio_port_handle_t mId;
+
+private:
+    static volatile int32_t mNextUniqueId;
 };
 
 class AudioPortConfig: public virtual RefBase

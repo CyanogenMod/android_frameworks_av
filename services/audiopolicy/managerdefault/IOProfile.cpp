@@ -17,7 +17,9 @@
 #define LOG_TAG "APM::IOProfile"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
+#include "IOProfile.h"
+#include "HwModule.h"
+#include "Gains.h"
 
 namespace android {
 

@@ -17,7 +17,8 @@
 #define LOG_TAG "APM::ConfigParsingUtils"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
+#include "ConfigParsingUtils.h"
+#include <utils/Log.h>
 
 namespace android {
 

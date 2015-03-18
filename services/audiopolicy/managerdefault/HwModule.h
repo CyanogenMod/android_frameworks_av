@@ -14,7 +14,19 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include "Devices.h"
+#include <utils/RefBase.h>
+#include <utils/String8.h>
+#include <utils/Errors.h>
+#include <utils/Vector.h>
+#include <system/audio.h>
+#include <cutils/config_utils.h>
+
 namespace android {
+
+class IOProfile;
 
 class HwModule : public RefBase
 {

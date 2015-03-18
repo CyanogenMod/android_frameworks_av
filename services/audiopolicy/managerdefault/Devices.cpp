@@ -17,7 +17,10 @@
 #define LOG_TAG "APM::Devices"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
+#include "Devices.h"
+#include "Gains.h"
+#include "HwModule.h"
+#include "ConfigParsingUtils.h"
 
 namespace android {
 
