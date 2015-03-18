@@ -65,9 +65,9 @@ struct PlaylistFetcher : public AHandler {
             int64_t segmentStartTimeUs = -1ll, // starting position within playlist
             // startTimeUs!=segmentStartTimeUs only when playlist is live
             int32_t startDiscontinuitySeq = 0,
-            bool adaptive = false);
+            LiveSession::SeekMode seekMode = LiveSession::kSeekModeExactPosition);
 
-    void pauseAsync(bool immediate = false);
+    void pauseAsync(float thresholdRatio);
 
     void stopAsync(bool clear = true);
 
@@ -95,6 +95,8 @@ private:
         kWhatDownloadNext   = 'dlnx',
     };
 
+    struct DownloadState;
+
     static const int64_t kMaxMonitorDelayUs;
     static const int32_t kNumSkipFrames;
 
@@ -105,6 +107,7 @@ private:
     sp<AMessage> mNotify;
     sp<AMessage> mStartTimeUsNotify;
 
+    sp<HTTPBase> mHTTPDataSource;
     sp<LiveSession> mSession;
     AString mURI;
 
@@ -131,7 +134,7 @@ private:
     int32_t mNumRetries;
     bool mStartup;
     bool mIDRFound;
-    bool mAdaptive;
+    int32_t mSeekMode;
     bool mPrepared;
     bool mTimeChangeSignaled;
     int64_t mNextPTSTimeUs;
@@ -140,9 +143,6 @@ private:
     const int32_t mSubtitleGeneration;
 
     int32_t mLastDiscontinuitySeq;
-
-    Mutex mStoppingLock;
-    bool mStopping;
 
     enum RefreshState {
         INITIAL_MINIMUM_RELOAD_DELAY,
@@ -157,14 +157,19 @@ private:
     sp<ATSParser> mTSParser;
 
     bool mFirstPTSValid;
-    uint64_t mFirstPTS;
     int64_t mFirstTimeUs;
+    int64_t mSegmentFirstPTS;
     sp<AnotherPacketSource> mVideoBuffer;
 
     // Stores the initialization vector to decrypt the next block of cipher text, which can
     // either be derived from the sequence number, read from the manifest, or copied from
     // the last block of cipher text (cipher-block chaining).
     unsigned char mAESInitVec[16];
+
+    Mutex mThresholdLock;
+    float mThresholdRatio;
+
+    sp<DownloadState> mDownloadState;
 
     // Set first to true if decrypting the first segment of a playlist segment. When
     // first is true, reset the initialization vector based on the available
@@ -181,7 +186,8 @@ private:
 
     void postMonitorQueue(int64_t delayUs = 0, int64_t minDelayUs = 0);
     void cancelMonitorQueue();
-    void setStopping(bool stopping);
+    void setStoppingThreshold(float thresholdRatio);
+    bool shouldPauseDownload(bool startFound);
 
     int64_t delayUsToRefreshPlaylist() const;
     status_t refreshPlaylist();
@@ -195,6 +201,11 @@ private:
     void onStop(const sp<AMessage> &msg);
     void onMonitorQueue();
     void onDownloadNext();
+    bool initDownloadState(
+            AString &uri,
+            sp<AMessage> &itemMeta,
+            int32_t &firstSeqNumberInPlaylist,
+            int32_t &lastSeqNumberInPlaylist);
 
     // Resume a fetcher to continue until the stopping point stored in msg.
     status_t onResumeUntil(const sp<AMessage> &msg);
@@ -213,7 +224,8 @@ private:
     void queueDiscontinuity(
             ATSParser::DiscontinuityType type, const sp<AMessage> &extra);
 
-    int32_t getSeqNumberWithAnchorTime(int64_t anchorTimeUs) const;
+    int32_t getSeqNumberWithAnchorTime(
+            int64_t anchorTimeUs, int64_t targetDurationUs) const;
     int32_t getSeqNumberForDiscontinuity(size_t discontinuitySeq) const;
     int32_t getSeqNumberForTime(int64_t timeUs) const;
 

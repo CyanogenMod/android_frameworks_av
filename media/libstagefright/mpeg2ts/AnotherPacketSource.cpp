@@ -298,8 +298,24 @@ void AnotherPacketSource::signalEOS(status_t result) {
 
 bool AnotherPacketSource::hasBufferAvailable(status_t *finalResult) {
     Mutex::Autolock autoLock(mLock);
+    *finalResult = OK;
     if (!mBuffers.empty()) {
         return true;
+    }
+
+    *finalResult = mEOSResult;
+    return false;
+}
+
+bool AnotherPacketSource::hasDataBufferAvailable(status_t *finalResult) {
+    Mutex::Autolock autoLock(mLock);
+    *finalResult = OK;
+    List<sp<ABuffer> >::iterator it;
+    for (it = mBuffers.begin(); it != mBuffers.end(); it++) {
+        int32_t discontinuity;
+        if (!(*it)->meta()->findInt32("discontinuity", &discontinuity)) {
+            return true;
+        }
     }
 
     *finalResult = mEOSResult;
