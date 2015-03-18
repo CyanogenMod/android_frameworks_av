@@ -19,7 +19,7 @@
 
 #include "HwModule.h"
 #include "IOProfile.h"
-#include "Gains.h"
+#include "AudioGain.h"
 #include "ConfigParsingUtils.h"
 #include "audio_policy_conf.h"
 #include <hardware/audio.h>

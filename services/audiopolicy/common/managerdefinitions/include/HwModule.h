@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "Devices.h"
+#include "DeviceDescriptor.h"
 #include <utils/RefBase.h>
 #include <utils/String8.h>
 #include <utils/Errors.h>

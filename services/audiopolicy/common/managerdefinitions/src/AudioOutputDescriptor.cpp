@@ -19,7 +19,7 @@
 
 #include "AudioOutputDescriptor.h"
 #include "IOProfile.h"
-#include "Gains.h"
+#include "AudioGain.h"
 #include "HwModule.h"
 #include <media/AudioPolicy.h>
 
@@ -60,6 +60,12 @@ audio_devices_t AudioOutputDescriptor::device() const
     } else {
         return mDevice;
     }
+}
+
+void AudioOutputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
+{
+    mId = AudioPort::getNextUniqueId();
+    mIoHandle = ioHandle;
 }
 
 uint32_t AudioOutputDescriptor::latency()

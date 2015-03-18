@@ -19,7 +19,7 @@
 
 #include "AudioInputDescriptor.h"
 #include "IOProfile.h"
-#include "Gains.h"
+#include "AudioGain.h"
 #include "HwModule.h"
 #include <media/AudioPolicy.h>
 
@@ -38,6 +38,12 @@ AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
             profile->mGains[0]->getDefaultConfig(&mGain);
         }
     }
+}
+
+void AudioInputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
+{
+    mId = AudioPort::getNextUniqueId();
+    mIoHandle = ioHandle;
 }
 
 void AudioInputDescriptor::toAudioPortConfig(

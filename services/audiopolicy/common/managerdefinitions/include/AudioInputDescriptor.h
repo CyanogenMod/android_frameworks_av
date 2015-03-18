@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "Ports.h"
+#include "AudioPort.h"
 #include <utils/Errors.h>
 #include <system/audio.h>
 #include <utils/SortedVector.h>
@@ -32,6 +32,7 @@ class AudioInputDescriptor: public AudioPortConfig
 {
 public:
     AudioInputDescriptor(const sp<IOProfile>& profile);
+    void setIoHandle(audio_io_handle_t ioHandle);
 
     status_t    dump(int fd);
 
