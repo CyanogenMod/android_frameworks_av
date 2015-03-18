@@ -5854,6 +5854,7 @@ bool AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
     if (exitPending()) {
         return true;
     }
+    standbyIfNotAlreadyInStandby();
     // FIXME incorrect usage of wait: no explicit predicate or loop
     mStartStopCond.wait(mLock);
     // if we have been restarted, recordTrack is in mActiveTracks here
