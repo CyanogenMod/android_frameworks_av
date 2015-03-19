@@ -51,6 +51,7 @@ struct MediaCodec : public AHandler {
         CB_OUTPUT_AVAILABLE = 2,
         CB_ERROR = 3,
         CB_OUTPUT_FORMAT_CHANGED = 4,
+        CB_RESOURCE_RECLAIMED = 5,
     };
 
     struct BatteryNotifier;
