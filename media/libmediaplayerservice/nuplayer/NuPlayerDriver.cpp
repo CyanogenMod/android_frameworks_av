@@ -409,6 +409,7 @@ status_t NuPlayerDriver::seekTo(int msec) {
         {
             mAtEOS = false;
             mSeekInProgress = true;
+            mStartupSeekTimeUs = seekTimeUs;
             // seeks can take a while, so we essentially paused
             notifyListener_l(MEDIA_PAUSED);
             mPlayer->seekToAsync(seekTimeUs, true /* needNotify */);
