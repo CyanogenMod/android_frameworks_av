@@ -14,6 +14,7 @@ LOCAL_SRC_FILES:= \
     src/AudioOutputDescriptor.cpp \
     src/EffectDescriptor.cpp \
     src/ConfigParsingUtils.cpp \
+    src/SoundTriggerSession.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
