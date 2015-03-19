@@ -834,7 +834,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     // in the background.
 
     if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) ||
-            !isNonOffloadableEffectEnabled()) {
+            !mEffects.isNonOffloadableEffectEnabled()) {
         profile = getProfileForDirectOutput(device,
                                            samplingRate,
                                            format,
@@ -1724,107 +1724,7 @@ status_t AudioPolicyManager::registerEffect(const effect_descriptor_t *desc,
             return INVALID_OPERATION;
         }
     }
-
-    if (mTotalEffectsMemory + desc->memoryUsage > getMaxEffectsMemory()) {
-        ALOGW("registerEffect() memory limit exceeded for Fx %s, Memory %d KB",
-                desc->name, desc->memoryUsage);
-        return INVALID_OPERATION;
-    }
-    mTotalEffectsMemory += desc->memoryUsage;
-    ALOGV("registerEffect() effect %s, io %d, strategy %d session %d id %d",
-            desc->name, io, strategy, session, id);
-    ALOGV("registerEffect() memory %d, total memory %d", desc->memoryUsage, mTotalEffectsMemory);
-
-    sp<EffectDescriptor> effectDesc = new EffectDescriptor();
-    memcpy (&effectDesc->mDesc, desc, sizeof(effect_descriptor_t));
-    effectDesc->mIo = io;
-    effectDesc->mStrategy = (routing_strategy)strategy;
-    effectDesc->mSession = session;
-    effectDesc->mEnabled = false;
-
-    mEffects.add(id, effectDesc);
-
-    return NO_ERROR;
-}
-
-status_t AudioPolicyManager::unregisterEffect(int id)
-{
-    ssize_t index = mEffects.indexOfKey(id);
-    if (index < 0) {
-        ALOGW("unregisterEffect() unknown effect ID %d", id);
-        return INVALID_OPERATION;
-    }
-
-    sp<EffectDescriptor> effectDesc = mEffects.valueAt(index);
-
-    setEffectEnabled(effectDesc, false);
-
-    if (mTotalEffectsMemory < effectDesc->mDesc.memoryUsage) {
-        ALOGW("unregisterEffect() memory %d too big for total %d",
-                effectDesc->mDesc.memoryUsage, mTotalEffectsMemory);
-        effectDesc->mDesc.memoryUsage = mTotalEffectsMemory;
-    }
-    mTotalEffectsMemory -= effectDesc->mDesc.memoryUsage;
-    ALOGV("unregisterEffect() effect %s, ID %d, memory %d total memory %d",
-            effectDesc->mDesc.name, id, effectDesc->mDesc.memoryUsage, mTotalEffectsMemory);
-
-    mEffects.removeItem(id);
-
-    return NO_ERROR;
-}
-
-status_t AudioPolicyManager::setEffectEnabled(int id, bool enabled)
-{
-    ssize_t index = mEffects.indexOfKey(id);
-    if (index < 0) {
-        ALOGW("unregisterEffect() unknown effect ID %d", id);
-        return INVALID_OPERATION;
-    }
-
-    return setEffectEnabled(mEffects.valueAt(index), enabled);
-}
-
-status_t AudioPolicyManager::setEffectEnabled(const sp<EffectDescriptor>& effectDesc, bool enabled)
-{
-    if (enabled == effectDesc->mEnabled) {
-        ALOGV("setEffectEnabled(%s) effect already %s",
-             enabled?"true":"false", enabled?"enabled":"disabled");
-        return INVALID_OPERATION;
-    }
-
-    if (enabled) {
-        if (mTotalEffectsCpuLoad + effectDesc->mDesc.cpuLoad > getMaxEffectsCpuLoad()) {
-            ALOGW("setEffectEnabled(true) CPU Load limit exceeded for Fx %s, CPU %f MIPS",
-                 effectDesc->mDesc.name, (float)effectDesc->mDesc.cpuLoad/10);
-            return INVALID_OPERATION;
-        }
-        mTotalEffectsCpuLoad += effectDesc->mDesc.cpuLoad;
-        ALOGV("setEffectEnabled(true) total CPU %d", mTotalEffectsCpuLoad);
-    } else {
-        if (mTotalEffectsCpuLoad < effectDesc->mDesc.cpuLoad) {
-            ALOGW("setEffectEnabled(false) CPU load %d too high for total %d",
-                    effectDesc->mDesc.cpuLoad, mTotalEffectsCpuLoad);
-            effectDesc->mDesc.cpuLoad = mTotalEffectsCpuLoad;
-        }
-        mTotalEffectsCpuLoad -= effectDesc->mDesc.cpuLoad;
-        ALOGV("setEffectEnabled(false) total CPU %d", mTotalEffectsCpuLoad);
-    }
-    effectDesc->mEnabled = enabled;
-    return NO_ERROR;
-}
-
-bool AudioPolicyManager::isNonOffloadableEffectEnabled()
-{
-    for (size_t i = 0; i < mEffects.size(); i++) {
-        sp<EffectDescriptor> effectDesc = mEffects.valueAt(i);
-        if (effectDesc->mEnabled && (effectDesc->mStrategy == STRATEGY_MEDIA) &&
-                ((effectDesc->mDesc.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) == 0)) {
-            ALOGV("isNonOffloadableEffectEnabled() non offloadable effect %s enabled on session %d",
-                  effectDesc->mDesc.name, effectDesc->mSession);
-            return true;
-        }
-    }
-    return false;
+    return mEffects.registerEffect(desc, io, strategy, session, id);
 }
 
 bool AudioPolicyManager::isSourceActive(audio_source_t source) const
@@ -2013,18 +1913,7 @@ status_t AudioPolicyManager::dump(int fd)
         mStreams[i].dump(fd);
     }
 
-    snprintf(buffer, SIZE, "\nTotal Effects CPU: %f MIPS, Total Effects memory: %d KB\n",
-            (float)mTotalEffectsCpuLoad/10, mTotalEffectsMemory);
-    write(fd, buffer, strlen(buffer));
-
-    snprintf(buffer, SIZE, "Registered effects:\n");
-    write(fd, buffer, strlen(buffer));
-    for (size_t i = 0; i < mEffects.size(); i++) {
-        snprintf(buffer, SIZE, "- Effect %d dump:\n", mEffects.keyAt(i));
-        write(fd, buffer, strlen(buffer));
-        mEffects.valueAt(i)->dump(fd);
-    }
-
+    mEffects.dump(fd);
     mAudioPatches.dump(fd);
 
     return NO_ERROR;
@@ -2082,7 +1971,7 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
     // FIXME: We should check the audio session here but we do not have it in this context.
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
-    if (isNonOffloadableEffectEnabled()) {
+    if (mEffects.isNonOffloadableEffectEnabled()) {
         return false;
     }
 
@@ -2602,7 +2491,6 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mPrimaryOutput((audio_io_handle_t)0),
     mPhoneState(AUDIO_MODE_NORMAL),
     mLimitRingtoneVolume(false), mLastVoiceVolume(-1.0f),
-    mTotalEffectsCpuLoad(0), mTotalEffectsMemory(0),
     mA2dpSuspended(false),
     mSpeakerDrcEnabled(false),
     mAudioPortGeneration(1),
@@ -5088,41 +4976,6 @@ bool AudioPolicyManager::isStateInCall(int state) {
     return ((state == AUDIO_MODE_IN_CALL) ||
             (state == AUDIO_MODE_IN_COMMUNICATION));
 }
-
-uint32_t AudioPolicyManager::getMaxEffectsCpuLoad()
-{
-    return MAX_EFFECTS_CPU_LOAD;
-}
-
-uint32_t AudioPolicyManager::getMaxEffectsMemory()
-{
-    return MAX_EFFECTS_MEMORY;
-}
-
-
-// --- EffectDescriptor class implementation
-
-status_t AudioPolicyManager::EffectDescriptor::dump(int fd)
-{
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    snprintf(buffer, SIZE, " I/O: %d\n", mIo);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Strategy: %d\n", mStrategy);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Session: %d\n", mSession);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Name: %s\n",  mDesc.name);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " %s\n",  mEnabled ? "Enabled" : "Disabled");
-    result.append(buffer);
-    write(fd, result.string(), result.size());
-
-    return NO_ERROR;
-}
-
 
 void AudioPolicyManager::defaultAudioPolicyConfig(void)
 {

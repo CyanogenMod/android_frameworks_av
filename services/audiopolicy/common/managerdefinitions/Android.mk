@@ -12,6 +12,7 @@ LOCAL_SRC_FILES:= \
     src/AudioPatch.cpp \
     src/AudioInputDescriptor.cpp \
     src/AudioOutputDescriptor.cpp \
+    src/EffectDescriptor.cpp \
     src/ConfigParsingUtils.cpp \
 
 LOCAL_SHARED_LIBRARIES := \
