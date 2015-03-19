@@ -22,10 +22,11 @@
 #include <utils/SortedVector.h>
 #include <cutils/config_utils.h>
 #include <system/audio.h>
+#include <system/audio_policy.h>
 
 namespace android {
 
-class DeviceDescriptor: public AudioPort, public AudioPortConfig
+class DeviceDescriptor : public AudioPort, public AudioPortConfig
 {
 public:
     DeviceDescriptor(const String8& name, audio_devices_t type);
@@ -43,12 +44,16 @@ public:
     virtual void loadGains(cnode *root);
     virtual void toAudioPort(struct audio_port *port) const;
 
+    audio_devices_t type() const { return mDeviceType; }
     status_t dump(int fd, int spaces, int index) const;
 
-    audio_devices_t mDeviceType;
     String8 mAddress;
+    audio_port_handle_t mId;
 
     static String8  emptyNameStr;
+
+private:
+    audio_devices_t mDeviceType;
 };
 
 class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
@@ -56,9 +61,9 @@ class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
 public:
     DeviceVector() : SortedVector(), mDeviceTypes(AUDIO_DEVICE_NONE) {}
 
-    ssize_t         add(const sp<DeviceDescriptor>& item);
-    ssize_t         remove(const sp<DeviceDescriptor>& item);
-    ssize_t         indexOf(const sp<DeviceDescriptor>& item) const;
+    ssize_t add(const sp<DeviceDescriptor>& item);
+    ssize_t remove(const sp<DeviceDescriptor>& item);
+    ssize_t indexOf(const sp<DeviceDescriptor>& item) const;
 
     audio_devices_t types() const { return mDeviceTypes; }
 
@@ -69,8 +74,13 @@ public:
     DeviceVector getDevicesFromType(audio_devices_t types) const;
     sp<DeviceDescriptor> getDeviceFromId(audio_port_handle_t id) const;
     sp<DeviceDescriptor> getDeviceFromName(const String8& name) const;
-    DeviceVector getDevicesFromTypeAddr(audio_devices_t type, String8 address)
-    const;
+    DeviceVector getDevicesFromTypeAddr(audio_devices_t type, String8 address) const;
+
+    audio_devices_t getDevicesFromHwModule(audio_module_handle_t moduleHandle) const;
+
+    audio_policy_dev_state_t getDeviceConnectionState(const sp<DeviceDescriptor> &devDesc) const;
+
+    status_t dump(int fd, const String8 &direction) const;
 
 private:
     void refreshTypes();

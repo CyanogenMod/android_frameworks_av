@@ -16,13 +16,13 @@ else
 LOCAL_SRC_FILES += \
     service/AudioPolicyInterfaceImpl.cpp \
     service/AudioPolicyClientImpl.cpp
-
 endif
 
 LOCAL_C_INCLUDES := \
     $(TOPDIR)frameworks/av/services/audioflinger \
     $(call include-path-for, audio-effects) \
-    $(call include-path-for, audio-utils)
+    $(call include-path-for, audio-utils) \
+    $(TOPDIR)frameworks/av/services/audiopolicy/common/include
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -63,6 +63,9 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libsoundtrigger
 
+LOCAL_C_INCLUDES += \
+    $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
+
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libaudiopolicycomponents
@@ -83,6 +86,9 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_STATIC_LIBRARIES := \
     libaudiopolicycomponents
+
+LOCAL_C_INCLUDES += \
+    $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
 
 LOCAL_MODULE:= libaudiopolicymanager
 

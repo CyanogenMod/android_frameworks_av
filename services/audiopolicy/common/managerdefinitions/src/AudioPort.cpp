@@ -22,6 +22,7 @@
 #include "AudioGain.h"
 #include "ConfigParsingUtils.h"
 #include "audio_policy_conf.h"
+#include <policy.h>
 
 namespace android {
 
@@ -30,7 +31,7 @@ int32_t volatile AudioPort::mNextUniqueId = 1;
 // --- AudioPort class implementation
 
 AudioPort::AudioPort(const String8& name, audio_port_type_t type,
-          audio_port_role_t role, const sp<HwModule>& module) :
+                     audio_port_role_t role, const sp<HwModule>& module) :
     mName(name), mType(type), mRole(role), mModule(module), mFlags(0), mId(0)
 {
     mUseInChannelMask = ((type == AUDIO_PORT_TYPE_DEVICE) && (role == AUDIO_PORT_ROLE_SOURCE)) ||
@@ -46,6 +47,11 @@ void AudioPort::attach(const sp<HwModule>& module)
 audio_port_handle_t AudioPort::getNextUniqueId()
 {
     return static_cast<audio_port_handle_t>(android_atomic_inc(&mNextUniqueId));
+}
+
+audio_module_handle_t AudioPort::getModuleHandle() const
+{
+    return mModule->mHandle;
 }
 
 void AudioPort::toAudioPort(struct audio_port *port) const

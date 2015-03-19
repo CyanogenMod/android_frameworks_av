@@ -37,12 +37,12 @@ IOProfile::~IOProfile()
 // Sampling rate, format and channel mask must be specified in order to
 // get a valid a match
 bool IOProfile::isCompatibleProfile(audio_devices_t device,
-                                                        String8 address,
-                                                        uint32_t samplingRate,
-                                                        uint32_t *updatedSamplingRate,
-                                                        audio_format_t format,
-                                                        audio_channel_mask_t channelMask,
-                                                        uint32_t flags) const
+                                    String8 address,
+                                    uint32_t samplingRate,
+                                    uint32_t *updatedSamplingRate,
+                                    audio_format_t format,
+                                    audio_channel_mask_t channelMask,
+                                    uint32_t flags) const
 {
     const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;

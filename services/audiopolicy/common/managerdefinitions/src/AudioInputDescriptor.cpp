@@ -22,6 +22,7 @@
 #include "AudioGain.h"
 #include "HwModule.h"
 #include <media/AudioPolicy.h>
+#include <policy.h>
 
 namespace android {
 
@@ -46,9 +47,13 @@ void AudioInputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
     mIoHandle = ioHandle;
 }
 
-void AudioInputDescriptor::toAudioPortConfig(
-                                                   struct audio_port_config *dstConfig,
-                                                   const struct audio_port_config *srcConfig) const
+audio_module_handle_t AudioInputDescriptor::getModuleHandle() const
+{
+    return mProfile->getModuleHandle();
+}
+
+void AudioInputDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig,
+                                             const struct audio_port_config *srcConfig) const
 {
     ALOG_ASSERT(mProfile != 0,
                 "toAudioPortConfig() called on input with null profile %d", mIoHandle);
@@ -68,8 +73,7 @@ void AudioInputDescriptor::toAudioPortConfig(
     dstConfig->ext.mix.usecase.source = mInputSource;
 }
 
-void AudioInputDescriptor::toAudioPort(
-                                                    struct audio_port *port) const
+void AudioInputDescriptor::toAudioPort(struct audio_port *port) const
 {
     ALOG_ASSERT(mProfile != 0, "toAudioPort() called on input with null profile %d", mIoHandle);
 
@@ -103,6 +107,79 @@ status_t AudioInputDescriptor::dump(int fd)
     result.append(buffer);
 
     write(fd, result.string(), result.size());
+
+    return NO_ERROR;
+}
+
+bool AudioInputCollection::isSourceActive(audio_source_t source) const
+{
+    for (size_t i = 0; i < size(); i++) {
+        const sp<AudioInputDescriptor>  inputDescriptor = valueAt(i);
+        if (inputDescriptor->mRefCount == 0) {
+            continue;
+        }
+        if (inputDescriptor->mInputSource == (int)source) {
+            return true;
+        }
+    }
+    return false;
+}
+
+sp<AudioInputDescriptor> AudioInputCollection::getInputFromId(audio_port_handle_t id) const
+{
+    sp<AudioInputDescriptor> inputDesc = NULL;
+    for (size_t i = 0; i < size(); i++) {
+        inputDesc = valueAt(i);
+        if (inputDesc->mId == id) {
+            break;
+        }
+    }
+    return inputDesc;
+}
+
+uint32_t AudioInputCollection::activeInputsCount() const
+{
+    uint32_t count = 0;
+    for (size_t i = 0; i < size(); i++) {
+        const sp<AudioInputDescriptor>  desc = valueAt(i);
+        if (desc->mRefCount > 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+audio_io_handle_t AudioInputCollection::getActiveInput(bool ignoreVirtualInputs)
+{
+    for (size_t i = 0; i < size(); i++) {
+        const sp<AudioInputDescriptor>  input_descriptor = valueAt(i);
+        if ((input_descriptor->mRefCount > 0)
+                && (!ignoreVirtualInputs || !is_virtual_input_device(input_descriptor->mDevice))) {
+            return keyAt(i);
+        }
+    }
+    return 0;
+}
+
+audio_devices_t AudioInputCollection::getSupportedDevices(audio_io_handle_t handle) const
+{
+    sp<AudioInputDescriptor> inputDesc = valueFor(handle);
+    audio_devices_t devices = inputDesc->mProfile->mSupportedDevices.types();
+    return devices;
+}
+
+status_t AudioInputCollection::dump(int fd) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "\nInputs dump:\n");
+    write(fd, buffer, strlen(buffer));
+    for (size_t i = 0; i < size(); i++) {
+        snprintf(buffer, SIZE, "- Input %d dump:\n", keyAt(i));
+        write(fd, buffer, strlen(buffer));
+        valueAt(i)->dump(fd);
+    }
 
     return NO_ERROR;
 }

@@ -17,8 +17,10 @@
 #pragma once
 
 #include <system/audio.h>
+#include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
+#include <utils/KeyedVector.h>
 
 namespace android {
 
@@ -36,6 +38,18 @@ public:
 
 private:
     static volatile int32_t mNextUniqueId;
+};
+
+class AudioPatchCollection : public DefaultKeyedVector<audio_patch_handle_t, sp<AudioPatch> >
+{
+public:
+    status_t addAudioPatch(audio_patch_handle_t handle, const sp<AudioPatch>& patch);
+
+    status_t removeAudioPatch(audio_patch_handle_t handle);
+
+    status_t listAudioPatches(unsigned int *num_patches, struct audio_patch *patches) const;
+
+    status_t dump(int fd) const;
 };
 
 }; // namespace android

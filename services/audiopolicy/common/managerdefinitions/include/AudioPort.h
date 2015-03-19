@@ -23,19 +23,16 @@
 #include <system/audio.h>
 #include <cutils/config_utils.h>
 
-#define MAX_MIXER_SAMPLING_RATE 48000
-#define MAX_MIXER_CHANNEL_COUNT 8
-
 namespace android {
 
 class HwModule;
 class AudioGain;
 
-class AudioPort: public virtual RefBase
+class AudioPort : public virtual RefBase
 {
 public:
     AudioPort(const String8& name, audio_port_type_t type,
-            audio_port_role_t role, const sp<HwModule>& module);
+              audio_port_role_t role, const sp<HwModule>& module);
     virtual ~AudioPort() {}
 
     audio_port_handle_t getHandle() { return mId; }
@@ -78,6 +75,8 @@ public:
     static const audio_format_t sPcmFormatCompareTable[];
     static int compareFormats(audio_format_t format1, audio_format_t format2);
 
+    audio_module_handle_t getModuleHandle() const;
+
     void dump(int fd, int spaces) const;
 
     String8           mName;
@@ -106,7 +105,7 @@ private:
     static volatile int32_t mNextUniqueId;
 };
 
-class AudioPortConfig: public virtual RefBase
+class AudioPortConfig : public virtual RefBase
 {
 public:
     AudioPortConfig();
