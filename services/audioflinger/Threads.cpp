@@ -1687,7 +1687,11 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 lStatus = BAD_VALUE;
                 goto Exit;
         }
+#ifdef SPEEX_RESAMPLER
+        if (AudioResampler::checkRate(mSampleRate, sampleRate)) {
+#else
         if (sampleRate > mSampleRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
+#endif
             ALOGE("Sample rate out of range: %u mSampleRate %u", sampleRate, mSampleRate);
             lStatus = BAD_VALUE;
             goto Exit;
@@ -3838,8 +3842,14 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             uint32_t reqSampleRate = track->mAudioTrackServerProxy->getSampleRate();
             if (reqSampleRate == 0) {
                 reqSampleRate = mSampleRate;
+#ifdef SPEEX_RESAMPLER
+            } else if (AudioResampler::checkRate(mSampleRate, reqSampleRate)) {
+                reqSampleRate = AudioResampler::checkRate(mSampleRate,
+                                                          reqSampleRate);
+#else
             } else if (reqSampleRate > maxSampleRate) {
                 reqSampleRate = maxSampleRate;
+#endif
             }
             mAudioMixer->setParameter(
                 name,
@@ -6587,8 +6597,13 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
             if (status == BAD_VALUE &&
                 reqFormat == mInput->stream->common.get_format(&mInput->stream->common) &&
                 reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
+#ifdef SPEEX_RESAMPLER
+                !AudioResampler::checkRate(samplingRate,
+                        mInput->stream->common.get_sample_rate(&mInput->stream->common)) &&
+#else
                 (mInput->stream->common.get_sample_rate(&mInput->stream->common)
                         <= (2 * samplingRate)) &&
+#endif
                 audio_channel_count_from_in_mask(
                         mInput->stream->common.get_channels(&mInput->stream->common)) <= FCC_2 &&
                 (channelMask == AUDIO_CHANNEL_IN_MONO ||

@@ -47,8 +47,8 @@ public:
         DYN_LOW_QUALITY=5,
         DYN_MED_QUALITY=6,
         DYN_HIGH_QUALITY=7,
-#ifdef QTI_RESAMPLER
-        QTI_QUALITY=8,
+#ifdef SPEEX_RESAMPLER
+        SPEEX_QUALITY=8,
 #endif
     };
 
@@ -56,6 +56,11 @@ public:
 
     static AudioResampler* create(audio_format_t format, int inChannelCount,
             int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);
+
+#ifdef SPEEX_RESAMPLER
+    static int32_t checkRate(int32_t outRate, int32_t inRate);
+    virtual int32_t checkCRate(int32_t outRate, int32_t inRate) const;
+#endif
 
     virtual ~AudioResampler();
 

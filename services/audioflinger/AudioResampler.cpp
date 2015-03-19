@@ -28,8 +28,9 @@
 #include "AudioResamplerCubic.h"
 #include "AudioResamplerDyn.h"
 
-#ifdef QTI_RESAMPLER
-#include "AudioResamplerQTI.h"
+#ifdef SPEEX_RESAMPLER
+#include "AudioResamplerSpeex.h"
+#include <utils/threads.h>
 #endif
 
 #ifdef __arm__
@@ -97,8 +98,8 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
     case DYN_LOW_QUALITY:
     case DYN_MED_QUALITY:
     case DYN_HIGH_QUALITY:
-#ifdef QTI_RESAMPLER
-    case QTI_QUALITY:
+#ifdef SPEEX_RESAMPLER
+    case SPEEX_QUALITY:
 #endif
         return true;
     default:
@@ -120,8 +121,8 @@ void AudioResampler::init_routine()
         if (*endptr == '\0') {
             defaultQuality = (src_quality) l;
             ALOGD("forcing AudioResampler quality to %d", defaultQuality);
-#ifdef QTI_RESAMPLER
-            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > QTI_QUALITY) {
+#ifdef SPEEX_RESAMPLER
+            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > SPEEX_QUALITY) {
 #else
             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > DYN_HIGH_QUALITY) {
 #endif
@@ -153,6 +154,10 @@ uint32_t AudioResampler::qualityMHz(src_quality quality)
         return 6;
     case DYN_HIGH_QUALITY:
         return 12;
+#ifdef SPEEX_RESAMPLER
+    case SPEEX_QUALITY:
+        return 10;
+#endif
     }
 }
 
@@ -221,9 +226,9 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
         case DYN_HIGH_QUALITY:
             quality = DYN_MED_QUALITY;
             break;
-#ifdef QTI_RESAMPLER
-        case QTI_QUALITY:
-            quality = DYN_HIGH_QUALITY;
+#ifdef SPEEX_RESAMPLER
+        case SPEEX_QUALITY:
+            quality = DEFAULT_QUALITY;
             break;
 #endif
         }
@@ -272,10 +277,11 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
             }
         }
         break;
-#ifdef QTI_RESAMPLER
-    case QTI_QUALITY:
-        ALOGV("Create QTI_QUALITY Resampler = %d",quality);
-        resampler = new AudioResamplerQTI(format, inChannelCount, sampleRate);
+#ifdef SPEEX_RESAMPLER
+    case SPEEX_QUALITY:
+        ALOGV("Create Speex Resampler");
+        LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
+        resampler = new AudioResamplerSpeex(inChannelCount, sampleRate);
         break;
 #endif
     }
@@ -284,6 +290,32 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
     resampler->init();
     return resampler;
 }
+
+#ifdef SPEEX_RESAMPLER
+int32_t AudioResampler::checkRate(int32_t outRate, int32_t inRate) {
+    static AudioResampler *resampler = NULL;
+
+    if (!resampler) {
+        static android::Mutex lock;
+        android::AutoMutex _l(lock);
+        if (!resampler) {
+            resampler = create(AUDIO_FORMAT_PCM_16_BIT, 2, outRate);
+            ALOGD("static resampler for checkRate() allocated\n");
+        }
+    }
+
+    return resampler->checkCRate(outRate, inRate);
+}
+
+int32_t AudioResampler::checkCRate(int32_t outRate, int32_t inRate) const {
+    if (inRate > 2*outRate) {
+        ALOGD("Unsupported conversion from %d to %d. Maximum input rate is %d.\n",
+             inRate, outRate, 2*outRate);
+        return 2*outRate;
+    }
+    return 0;
+}
+#endif
 
 AudioResampler::AudioResampler(int inChannelCount,
         int32_t sampleRate, src_quality quality) :

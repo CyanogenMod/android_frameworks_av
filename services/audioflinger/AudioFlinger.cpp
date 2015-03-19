@@ -2386,9 +2386,13 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
     // resample the input and do mono to stereo or stereo to mono conversions on 16 bit PCM inputs.
     if (status == BAD_VALUE &&
             config->format == halconfig.format && halconfig.format == AUDIO_FORMAT_PCM_16_BIT &&
-        (halconfig.sample_rate <= 2 * config->sample_rate) &&
-        (audio_channel_count_from_in_mask(halconfig.channel_mask) <= FCC_2) &&
-        (audio_channel_count_from_in_mask(config->channel_mask) <= FCC_2)) {
+#ifdef SPEEX_RESAMPLER
+            !AudioResampler::checkRate(config->sample_rate, halconfig.sample_rate) &&
+#else
+            (halconfig.sample_rate <= 2 * config->sample_rate) &&
+#endif
+            (audio_channel_count_from_in_mask(halconfig.channel_mask) <= FCC_2) &&
+            (audio_channel_count_from_in_mask(config->channel_mask) <= FCC_2)) {
         // FIXME describe the change proposed by HAL (save old values so we can log them here)
         ALOGV("openInput_l() reopening with proposed sampling rate and channel mask");
         inStream = NULL;

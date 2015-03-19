@@ -113,23 +113,8 @@ endif
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH)),true)
-    LOCAL_CFLAGS += -DHDMI_PASSTHROUGH_ENABLED
-endif
-
-ifeq ($(strip $(BOARD_USES_SRS_TRUEMEDIA)),true)
-LOCAL_SHARED_LIBRARIES += libsrsprocessing
-LOCAL_CFLAGS += -DSRS_PROCESSING
-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-effects
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS)), true)
-LOCAL_CFLAGS += -DHW_ACC_EFFECTS
-LOCAL_WHOLE_STATIC_LIBRARIES := libhwacceffectswrapper
-LOCAL_C_INCLUDES += hardware/qcom/audio/post_proc
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DTS_EAGLE)), true)
-LOCAL_CFLAGS += -DHW_ACC_HPX
-endif
+ifneq ($(TARGET_DISABLE_SPEEX_RESAMPLER),true)
+    LOCAL_CFLAGS += -DSPEEX_RESAMPLER
 endif
 
 include $(BUILD_SHARED_LIBRARY)
@@ -156,6 +141,13 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog
 
+ifneq ($(TARGET_DISABLE_SPEEX_RESAMPLER),true)
+    LOCAL_CFLAGS += -DSPEEX_RESAMPLER
+    LOCAL_SRC_FILES += AudioResamplerSpeex.cpp.arm
+    LOCAL_C_INCLUDES += external/speex/include
+    LOCAL_SHARED_LIBRARIES += libspeexresampler
+endif
+
 LOCAL_MODULE:= test-resample
 
 LOCAL_MODULE_TAGS := optional
@@ -178,23 +170,12 @@ LOCAL_SHARED_LIBRARIES := \
     libdl \
     liblog
 
-#QTI Resampler
-ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)),true)
-ifdef TARGET_2ND_ARCH
-LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) += AudioResamplerQTI.cpp.arm
-LOCAL_C_INCLUDES_$(TARGET_2ND_ARCH) += $(TARGET_OUT_HEADERS)/mm-audio/audio-src
-LOCAL_SHARED_LIBRARIES_$(TARGET_2ND_ARCH) += libqct_resampler
-LOCAL_CFLAGS_$(TARGET_2ND_ARCH) += -DQTI_RESAMPLER
-else
-LOCAL_SRC_FILES += AudioResamplerQTI.cpp.arm
-LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-src
-LOCAL_SHARED_LIBRARIES += libqct_resampler
-LOCAL_CFLAGS += -DQTI_RESAMPLER
+ifneq ($(TARGET_DISABLE_SPEEX_RESAMPLER),true)
+    LOCAL_CFLAGS += -DSPEEX_RESAMPLER
+    LOCAL_SRC_FILES += AudioResamplerSpeex.cpp.arm
+    LOCAL_C_INCLUDES += external/speex/include
+    LOCAL_SHARED_LIBRARIES += libspeexresampler
 endif
-endif
-endif
-#QTI Resampler
 
 LOCAL_MODULE := libaudioresampler
 LOCAL_CFLAGS += -std=gnu++11
