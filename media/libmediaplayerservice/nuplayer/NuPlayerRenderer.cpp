@@ -566,12 +566,22 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
 }
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
-#if 0
+    // TODO: This call to getPosition checks if AudioTrack has been created
+    // in AudioSink before draining audio. If AudioTrack doesn't exist, then
+    // CHECKs on getPosition will fail.
+    // We still need to figure out why AudioTrack is not created when
+    // this function is called. One possible reason could be leftover
+    // audio. Another possible place is to check whether decoder
+    // has received INFO_FORMAT_CHANGED as the first buffer since
+    // AudioSink is opened there, and possible interactions with flush
+    // immediately after start. Investigate error message
+    // "vorbis_dsp_synthesis returned -135", along with RTSP.
     uint32_t numFramesPlayed;
     if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
         return false;
     }
 
+#if 0
     ssize_t numFramesAvailableToWrite =
         mAudioSink->frameCount() - (mNumFramesWritten - numFramesPlayed);
 
