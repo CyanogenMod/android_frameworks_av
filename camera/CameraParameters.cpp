@@ -530,4 +530,8 @@ int CameraParameters::previewFormatToEnum(const char* format) {
         -1;
 }
 
+bool CameraParameters::isEmpty() const {
+    return mMap.isEmpty();
+}
+
 }; // namespace android

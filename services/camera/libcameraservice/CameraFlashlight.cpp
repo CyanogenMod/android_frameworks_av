@@ -110,6 +110,20 @@ status_t CameraFlashlight::setTorchMode(const String8& cameraId, bool enabled) {
     status_t res = OK;
     Mutex::Autolock l(mLock);
 
+    if (mOpenedCameraIds.indexOf(cameraId) != NAME_NOT_FOUND) {
+        // This case is needed to avoid state corruption during the following call sequence:
+        // CameraService::setTorchMode for camera ID 0 begins, does torch status checks
+        // CameraService::connect for camera ID 0 begins, calls prepareDeviceOpen, ends
+        // CameraService::setTorchMode for camera ID 0 continues, calls
+        //        CameraFlashlight::setTorchMode
+
+        // TODO: Move torch status checks and state updates behind this CameraFlashlight lock
+        // to avoid other similar race conditions.
+        ALOGE("%s: Camera device %s is in use, cannot set torch mode.",
+                __FUNCTION__, cameraId.string());
+        return -EBUSY;
+    }
+
     if (mFlashControl == NULL) {
         if (enabled == false) {
             return OK;
