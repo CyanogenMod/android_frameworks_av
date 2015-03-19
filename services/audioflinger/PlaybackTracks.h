@@ -157,8 +157,9 @@ private:
     bool                mFlushHwPending; // track requests for thread flush
 
     // for last call to getTimestamp
-    bool                mPreviousValid;
-    uint32_t            mPreviousFramesWritten;
+    bool                mPreviousTimestampValid;
+    // This is either the first timestamp or one that has passed
+    // the check to prevent retrograde motion.
     AudioTimestamp      mPreviousTimestamp;
 };  // end of Track
 

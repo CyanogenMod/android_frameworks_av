@@ -405,9 +405,7 @@ AudioFlinger::PlaybackThread::Track::Track(
     mAudioTrackServerProxy(NULL),
     mResumeToStopping(false),
     mFlushHwPending(false),
-    mPreviousValid(false),
-    mPreviousFramesWritten(0)
-    // mPreviousTimestamp
+    mPreviousTimestampValid(false)
 {
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
@@ -864,7 +862,7 @@ void AudioFlinger::PlaybackThread::Track::reset()
         if (mState == FLUSHED) {
             mState = IDLE;
         }
-        mPreviousValid = false;
+        mPreviousTimestampValid = false;
     }
 }
 
@@ -886,19 +884,22 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
 {
     // Client should implement this using SSQ; the unpresented frame count in latch is irrelevant
     if (isFastTrack()) {
-        // FIXME no lock held to set mPreviousValid = false
+        // FIXME no lock held to set mPreviousTimestampValid = false
         return INVALID_OPERATION;
     }
     sp<ThreadBase> thread = mThread.promote();
     if (thread == 0) {
-        // FIXME no lock held to set mPreviousValid = false
+        // FIXME no lock held to set mPreviousTimestampValid = false
         return INVALID_OPERATION;
     }
+
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
+
+    status_t result = INVALID_OPERATION;
     if (!isOffloaded() && !isDirect()) {
         if (!playbackThread->mLatchQValid) {
-            mPreviousValid = false;
+            mPreviousTimestampValid = false;
             return INVALID_OPERATION;
         }
         uint32_t unpresentedFrames =
@@ -914,36 +915,54 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
         uint32_t framesWritten = i >= 0 ?
                 playbackThread->mLatchQ.mFramesReleased[i] :
                 mAudioTrackServerProxy->framesReleased();
-        bool checkPreviousTimestamp = mPreviousValid && framesWritten >= mPreviousFramesWritten;
         if (framesWritten < unpresentedFrames) {
-            mPreviousValid = false;
-            return INVALID_OPERATION;
+            mPreviousTimestampValid = false;
+            // return invalid result
+        } else {
+            timestamp.mPosition = framesWritten - unpresentedFrames;
+            timestamp.mTime = playbackThread->mLatchQ.mTimestamp.mTime;
+            result = NO_ERROR;
         }
-        mPreviousFramesWritten = framesWritten;
-        uint32_t position = framesWritten - unpresentedFrames;
-        struct timespec time = playbackThread->mLatchQ.mTimestamp.mTime;
-        if (checkPreviousTimestamp) {
-            if (time.tv_sec < mPreviousTimestamp.mTime.tv_sec ||
-                    (time.tv_sec == mPreviousTimestamp.mTime.tv_sec &&
-                    time.tv_nsec < mPreviousTimestamp.mTime.tv_nsec)) {
-                ALOGW("Time is going backwards");
-            }
-            // position can bobble slightly as an artifact; this hides the bobble
-            static const uint32_t MINIMUM_POSITION_DELTA = 8u;
-            if ((position <= mPreviousTimestamp.mPosition) ||
-                    (position - mPreviousTimestamp.mPosition) < MINIMUM_POSITION_DELTA) {
-                position = mPreviousTimestamp.mPosition;
-                time = mPreviousTimestamp.mTime;
-            }
-        }
-        timestamp.mPosition = position;
-        timestamp.mTime = time;
-        mPreviousTimestamp = timestamp;
-        mPreviousValid = true;
-        return NO_ERROR;
+    } else { // offloaded or direct
+        result = playbackThread->getTimestamp_l(timestamp);
     }
 
-    return playbackThread->getTimestamp_l(timestamp);
+    // Prevent retrograde motion in timestamp.
+    if (result == NO_ERROR) {
+        if (mPreviousTimestampValid) {
+            if (timestamp.mTime.tv_sec < mPreviousTimestamp.mTime.tv_sec ||
+                    (timestamp.mTime.tv_sec == mPreviousTimestamp.mTime.tv_sec &&
+                    timestamp.mTime.tv_nsec < mPreviousTimestamp.mTime.tv_nsec)) {
+                ALOGW("WARNING - retrograde timestamp time");
+                // FIXME Consider blocking this from propagating upwards.
+            }
+
+            // Looking at signed delta will work even when the timestamps
+            // are wrapping around.
+            int32_t deltaPosition = static_cast<int32_t>(timestamp.mPosition
+                    - mPreviousTimestamp.mPosition);
+            // position can bobble slightly as an artifact; this hides the bobble
+            static const int32_t MINIMUM_POSITION_DELTA = 8;
+            if (deltaPosition < 0) {
+#define TIME_TO_NANOS(time) ((uint64_t)time.tv_sec * 1000000000 + time.tv_nsec)
+                ALOGW("WARNING - retrograde timestamp position corrected,"
+                        " %d = %u - %u, (at %llu, %llu nanos)",
+                        deltaPosition,
+                        timestamp.mPosition,
+                        mPreviousTimestamp.mPosition,
+                        TIME_TO_NANOS(timestamp.mTime),
+                        TIME_TO_NANOS(mPreviousTimestamp.mTime));
+#undef TIME_TO_NANOS
+            }
+            if (deltaPosition < MINIMUM_POSITION_DELTA) {
+                // Current timestamp is bad. Use last valid timestamp.
+                timestamp = mPreviousTimestamp;
+            }
+        }
+        mPreviousTimestamp = timestamp;
+        mPreviousTimestampValid = true;
+    }
+    return result;
 }
 
 status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
