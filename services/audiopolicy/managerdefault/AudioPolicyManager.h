@@ -39,6 +39,7 @@
 #include <AudioPolicyMix.h>
 #include <EffectDescriptor.h>
 #include <SoundTriggerSession.h>
+#include <StreamDescriptor.h>
 
 namespace android {
 
@@ -435,10 +436,10 @@ protected:
         int mPhoneState;                                                    // current phone state
         audio_policy_forced_cfg_t mForceUse[AUDIO_POLICY_FORCE_USE_CNT];   // current forced use configuration
 
-        StreamDescriptor mStreams[AUDIO_STREAM_CNT];           // stream descriptors for volume control
-        bool    mLimitRingtoneVolume;                                       // limit ringtone volume to music volume if headset connected
+        StreamDescriptorCollection mStreams; // stream descriptors for volume control
+        bool    mLimitRingtoneVolume;        // limit ringtone volume to music volume if headset connected
         audio_devices_t mDeviceForStrategy[NUM_STRATEGIES];
-        float   mLastVoiceVolume;                                           // last voice volume value sent to audio HAL
+        float   mLastVoiceVolume;            // last voice volume value sent to audio HAL
 
         EffectDescriptorCollection mEffects;  // list of registered audio effects
         bool    mA2dpSuspended;  // true if A2DP output is suspended

@@ -16,70 +16,43 @@
 
 #pragma once
 
+#include <Volume.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <system/audio.h>
-#include <utils/KeyedVector.h>
 
 namespace android {
-
-class VolumeCurvePoint
-{
-public:
-    int mIndex;
-    float mDBAttenuation;
-};
 
 class StreamDescriptor;
 
 class ApmGains
 {
 public :
-    // 4 points to define the volume attenuation curve, each characterized by the volume
-    // index (from 0 to 100) at which they apply, and the attenuation in dB at that index.
-    // we use 100 steps to avoid rounding errors when computing the volume in volIndexToAmpl()
-    enum { VOLMIN = 0, VOLKNEE1 = 1, VOLKNEE2 = 2, VOLMAX = 3, VOLCNT = 4};
-
-    // device categories used for volume curve management.
-    enum device_category {
-        DEVICE_CATEGORY_HEADSET,
-        DEVICE_CATEGORY_SPEAKER,
-        DEVICE_CATEGORY_EARPIECE,
-        DEVICE_CATEGORY_EXT_MEDIA,
-        DEVICE_CATEGORY_CNT
-    };
-
-    // returns the category the device belongs to with regard to volume curve management
-    static ApmGains::device_category getDeviceCategory(audio_devices_t device);
-
-    // extract one device relevant for volume control from multiple device selection
-    static audio_devices_t getDeviceForVolume(audio_devices_t device);
-
     static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                     int indexInUi);
 
     // default volume curve
-    static const VolumeCurvePoint sDefaultVolumeCurve[ApmGains::VOLCNT];
+    static const VolumeCurvePoint sDefaultVolumeCurve[Volume::VOLCNT];
     // default volume curve for media strategy
-    static const VolumeCurvePoint sDefaultMediaVolumeCurve[ApmGains::VOLCNT];
+    static const VolumeCurvePoint sDefaultMediaVolumeCurve[Volume::VOLCNT];
     // volume curve for non-media audio on ext media outputs (HDMI, Line, etc)
-    static const VolumeCurvePoint sExtMediaSystemVolumeCurve[ApmGains::VOLCNT];
+    static const VolumeCurvePoint sExtMediaSystemVolumeCurve[Volume::VOLCNT];
     // volume curve for media strategy on speakers
-    static const VolumeCurvePoint sSpeakerMediaVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sSpeakerMediaVolumeCurveDrc[ApmGains::VOLCNT];
+    static const VolumeCurvePoint sSpeakerMediaVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sSpeakerMediaVolumeCurveDrc[Volume::VOLCNT];
     // volume curve for sonification strategy on speakers
-    static const VolumeCurvePoint sSpeakerSonificationVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sSpeakerSonificationVolumeCurveDrc[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sDefaultSystemVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sDefaultSystemVolumeCurveDrc[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sHeadsetSystemVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sDefaultVoiceVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sLinearVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sSilentVolumeCurve[ApmGains::VOLCNT];
-    static const VolumeCurvePoint sFullScaleVolumeCurve[ApmGains::VOLCNT];
+    static const VolumeCurvePoint sSpeakerSonificationVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sSpeakerSonificationVolumeCurveDrc[Volume::VOLCNT];
+    static const VolumeCurvePoint sDefaultSystemVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sDefaultSystemVolumeCurveDrc[Volume::VOLCNT];
+    static const VolumeCurvePoint sHeadsetSystemVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sDefaultVoiceVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sSpeakerVoiceVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sLinearVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sSilentVolumeCurve[Volume::VOLCNT];
+    static const VolumeCurvePoint sFullScaleVolumeCurve[Volume::VOLCNT];
     // default volume curves per stream and device category. See initializeVolumeCurves()
-    static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][ApmGains::DEVICE_CATEGORY_CNT];
+    static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][Volume::DEVICE_CATEGORY_CNT];
 };
 
 
@@ -96,24 +69,6 @@ public:
     int               mIndex;
     struct audio_gain mGain;
     bool              mUseInChannelMask;
-};
-
-
-// stream descriptor used for volume control
-class StreamDescriptor
-{
-public:
-    StreamDescriptor();
-
-    int getVolumeIndex(audio_devices_t device);
-    void dump(int fd);
-
-    int mIndexMin;      // min volume index
-    int mIndexMax;      // max volume index
-    KeyedVector<audio_devices_t, int> mIndexCur;   // current volume index per device
-    bool mCanBeMuted;   // true is the stream can be muted
-
-    const VolumeCurvePoint *mVolumeCurve[ApmGains::DEVICE_CATEGORY_CNT];
 };
 
 }; // namespace android

@@ -5,6 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     src/DeviceDescriptor.cpp \
     src/AudioGain.cpp \
+    src/StreamDescriptor.cpp \
     src/HwModule.cpp \
     src/IOProfile.cpp \
     src/AudioPort.cpp \
