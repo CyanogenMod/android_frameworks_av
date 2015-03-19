@@ -102,6 +102,7 @@ NuPlayer::Renderer::Renderer(
       mVideoLateByUs(0ll),
       mHasAudio(false),
       mHasVideo(false),
+      mFoundAudioEOS(false),
       mNotifyCompleteAudio(false),
       mNotifyCompleteVideo(false),
       mSyncQueues(false),
@@ -311,7 +312,8 @@ void NuPlayer::Renderer::setVideoFrameRate(float fps) {
 
 // Called on any threads.
 status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs) {
-    return mMediaClock->getMediaTime(ALooper::GetNowUs(), mediaUs);
+    return mMediaClock->getMediaTime(
+            ALooper::GetNowUs(), mediaUs, (mHasAudio && mFoundAudioEOS));
 }
 
 void NuPlayer::Renderer::clearAudioFirstAnchorTime_l() {
@@ -1145,6 +1147,9 @@ void NuPlayer::Renderer::notifyVideoRenderingStart() {
 }
 
 void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult, int64_t delayUs) {
+    if (audio) {
+        mFoundAudioEOS = true;
+    }
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatEOS);
     notify->setInt32("audio", static_cast<int32_t>(audio));
