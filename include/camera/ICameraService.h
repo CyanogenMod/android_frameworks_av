@@ -25,8 +25,6 @@ namespace android {
 
 class ICamera;
 class ICameraClient;
-class IProCameraUser;
-class IProCameraCallbacks;
 class ICameraServiceListener;
 class ICameraDeviceUser;
 class ICameraDeviceCallbacks;
@@ -44,7 +42,6 @@ public:
         GET_NUMBER_OF_CAMERAS = IBinder::FIRST_CALL_TRANSACTION,
         GET_CAMERA_INFO,
         CONNECT,
-        CONNECT_PRO,
         CONNECT_DEVICE,
         ADD_LISTENER,
         REMOVE_LISTENER,
@@ -104,13 +101,6 @@ public:
             int clientUid,
             /*out*/
             sp<ICamera>& device) = 0;
-
-    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb,
-            int cameraId,
-            const String16& clientPackageName,
-            int clientUid,
-            /*out*/
-            sp<IProCameraUser>& device) = 0;
 
     virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,

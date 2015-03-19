@@ -27,8 +27,6 @@
 
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
-#include <camera/IProCameraUser.h>
-#include <camera/IProCameraCallbacks.h>
 #include <camera/camera2/ICameraDeviceUser.h>
 #include <camera/camera2/ICameraDeviceCallbacks.h>
 #include <camera/VendorTagDescriptor.h>
@@ -127,11 +125,6 @@ public:
             /*out*/
             sp<ICamera>& device);
 
-    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb,
-            int cameraId, const String16& clientPackageName, int clientUid,
-            /*out*/
-            sp<IProCameraUser>& device);
-
     virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
@@ -195,7 +188,7 @@ public:
         // virtual inheritance
         virtual sp<IBinder> asBinderWrapper() = 0;
 
-        // Return the remote callback binder object (e.g. IProCameraCallbacks)
+        // Return the remote callback binder object (e.g. ICameraDeviceCallbacks)
         sp<IBinder>         getRemote() {
             return mRemoteBinder;
         }
@@ -329,51 +322,6 @@ public:
         sp<ICameraClient>               mRemoteCallback;
 
     }; // class Client
-
-    class ProClient : public BnProCameraUser, public BasicClient {
-    public:
-        typedef IProCameraCallbacks TCamCallbacks;
-
-        ProClient(const sp<CameraService>& cameraService,
-                const sp<IProCameraCallbacks>& remoteCallback,
-                const String16& clientPackageName,
-                int cameraId,
-                int cameraFacing,
-                int clientPid,
-                uid_t clientUid,
-                int servicePid);
-
-        virtual ~ProClient();
-
-        const sp<IProCameraCallbacks>& getRemoteCallback() {
-            return mRemoteCallback;
-        }
-
-        /***
-            IProCamera implementation
-         ***/
-        virtual status_t      connect(const sp<IProCameraCallbacks>& callbacks)
-                                                                            = 0;
-        virtual status_t      exclusiveTryLock() = 0;
-        virtual status_t      exclusiveLock() = 0;
-        virtual status_t      exclusiveUnlock() = 0;
-
-        virtual bool          hasExclusiveLock() = 0;
-
-        // Note that the callee gets a copy of the metadata.
-        virtual int           submitRequest(camera_metadata_t* metadata,
-                                            bool streaming = false) = 0;
-        virtual status_t      cancelRequest(int requestId) = 0;
-
-        // Callbacks from camera service
-        virtual void          onExclusiveLockStolen() = 0;
-
-        virtual void          notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
-                                          const CaptureResultExtras& resultExtras);
-    protected:
-
-        sp<IProCameraCallbacks> mRemoteCallback;
-    }; // class ProClient
 
     typedef std::shared_ptr<resource_policy::ClientDescriptor<String8,
             sp<CameraService::BasicClient>>> DescriptorPtr;

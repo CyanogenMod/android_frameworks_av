@@ -645,9 +645,6 @@ void CameraDeviceClient::notifyShutter(const CaptureResultExtras& resultExtras,
     }
 }
 
-// TODO: refactor the code below this with IProCameraUser.
-// it's 100% copy-pasted, so lets not change it right now to make it easier.
-
 void CameraDeviceClient::detachDevice() {
     if (mDevice == 0) return;
 

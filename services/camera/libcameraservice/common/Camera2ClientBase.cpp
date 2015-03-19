@@ -337,7 +337,6 @@ void Camera2ClientBase<TClientBase>::SharedCameraCallbacks::clear() {
     mRemoteCallback.clear();
 }
 
-template class Camera2ClientBase<CameraService::ProClient>;
 template class Camera2ClientBase<CameraService::Client>;
 template class Camera2ClientBase<CameraDeviceClientBase>;
 

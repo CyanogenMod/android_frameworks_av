@@ -42,7 +42,6 @@ LOCAL_SRC_FILES:=               \
     api1/client2/CaptureSequencer.cpp \
     api1/client2/ZslProcessor3.cpp \
     api2/CameraDeviceClient.cpp \
-    api_pro/ProCamera2Client.cpp \
     device2/Camera2Device.cpp \
     device3/Camera3Device.cpp \
     device3/Camera3Stream.cpp \

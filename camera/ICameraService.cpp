@@ -2,16 +2,16 @@
 **
 ** Copyright 2008, The Android Open Source Project
 **
-** Licensed under the Apache License, Version 2.0 (the "License"); 
-** you may not use this file except in compliance with the License. 
-** You may obtain a copy of the License at 
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
 **
-**     http://www.apache.org/licenses/LICENSE-2.0 
+**     http://www.apache.org/licenses/LICENSE-2.0
 **
-** Unless required by applicable law or agreed to in writing, software 
-** distributed under the License is distributed on an "AS IS" BASIS, 
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-** See the License for the specific language governing permissions and 
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
 
@@ -29,8 +29,6 @@
 
 #include <camera/ICameraService.h>
 #include <camera/ICameraServiceListener.h>
-#include <camera/IProCameraUser.h>
-#include <camera/IProCameraCallbacks.h>
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
 #include <camera/camera2/ICameraDeviceUser.h>
@@ -223,28 +221,6 @@ public:
         return reply.readInt32();
     }
 
-    // connect to camera service (pro client)
-    virtual status_t connectPro(const sp<IProCameraCallbacks>& cameraCb, int cameraId,
-                                const String16 &clientPackageName, int clientUid,
-                                /*out*/
-                                sp<IProCameraUser>& device)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
-        data.writeStrongBinder(IInterface::asBinder(cameraCb));
-        data.writeInt32(cameraId);
-        data.writeString16(clientPackageName);
-        data.writeInt32(clientUid);
-        remote()->transact(BnCameraService::CONNECT_PRO, data, &reply);
-
-        if (readExceptionCode(reply)) return -EPROTO;
-        status_t status = reply.readInt32();
-        if (reply.readInt32() != 0) {
-            device = interface_cast<IProCameraUser>(reply.readStrongBinder());
-        }
-        return status;
-    }
-
     // connect to camera service (android.hardware.camera2.CameraDevice)
     virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
@@ -393,26 +369,6 @@ status_t BnCameraService::onTransact(
             int32_t clientUid = data.readInt32();
             sp<ICamera> camera;
             status_t status = connect(cameraClient, cameraId,
-                    clientName, clientUid, /*out*/camera);
-            reply->writeNoException();
-            reply->writeInt32(status);
-            if (camera != NULL) {
-                reply->writeInt32(1);
-                reply->writeStrongBinder(IInterface::asBinder(camera));
-            } else {
-                reply->writeInt32(0);
-            }
-            return NO_ERROR;
-        } break;
-        case CONNECT_PRO: {
-            CHECK_INTERFACE(ICameraService, data, reply);
-            sp<IProCameraCallbacks> cameraClient =
-                interface_cast<IProCameraCallbacks>(data.readStrongBinder());
-            int32_t cameraId = data.readInt32();
-            const String16 clientName = data.readString16();
-            int32_t clientUid = data.readInt32();
-            sp<IProCameraUser> camera;
-            status_t status = connectPro(cameraClient, cameraId,
                     clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);

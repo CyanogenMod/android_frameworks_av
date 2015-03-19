@@ -29,7 +29,6 @@
 #include <camera/ICameraService.h>
 
 // needed to instantiate
-#include <camera/ProCamera.h>
 #include <camera/Camera.h>
 
 #include <system/camera_metadata.h>
@@ -217,7 +216,6 @@ status_t CameraBase<TCam, TCamTraits>::removeServiceListener(
     return cs->removeListener(listener);
 }
 
-template class CameraBase<ProCamera>;
 template class CameraBase<Camera>;
 
 } // namespace android

@@ -52,7 +52,6 @@
 #include "CameraService.h"
 #include "api1/CameraClient.h"
 #include "api1/Camera2Client.h"
-#include "api_pro/ProCamera2Client.h"
 #include "api2/CameraDeviceClient.h"
 #include "utils/CameraTraces.h"
 #include "CameraDeviceFactory.h"
@@ -1066,16 +1065,6 @@ status_t CameraService::connectLegacy(
     return NO_ERROR;
 }
 
-status_t CameraService::connectPro(const sp<IProCameraCallbacks>& cameraCb,
-                                   int cameraId,
-                                   const String16& clientPackageName,
-                                   int clientUid,
-                                   /*out*/
-                                   sp<IProCameraUser>& device) {
-    ALOGE("%s: Unimplemented, please use connectDevice", __FUNCTION__);
-    return INVALID_OPERATION;
-}
-
 status_t CameraService::connectDevice(
         const sp<ICameraDeviceCallbacks>& cameraCb,
         int cameraId,
@@ -1428,7 +1417,6 @@ status_t CameraService::onTransact(
     // Permission checks
     switch (code) {
         case BnCameraService::CONNECT:
-        case BnCameraService::CONNECT_PRO:
         case BnCameraService::CONNECT_DEVICE:
         case BnCameraService::CONNECT_LEGACY:
             const int pid = getCallingPid();
@@ -1707,33 +1695,6 @@ void CameraService::Client::OpsCallback::opChanged(int32_t op,
     if (client != NULL) {
         client->opChanged(op, packageName);
     }
-}
-
-// ----------------------------------------------------------------------------
-//                  IProCamera
-// ----------------------------------------------------------------------------
-
-CameraService::ProClient::ProClient(const sp<CameraService>& cameraService,
-        const sp<IProCameraCallbacks>& remoteCallback,
-        const String16& clientPackageName,
-        int cameraId,
-        int cameraFacing,
-        int clientPid,
-        uid_t clientUid,
-        int servicePid)
-        : CameraService::BasicClient(cameraService, IInterface::asBinder(remoteCallback),
-                clientPackageName, cameraId, cameraFacing,
-                clientPid,  clientUid, servicePid)
-{
-    mRemoteCallback = remoteCallback;
-}
-
-CameraService::ProClient::~ProClient() {
-}
-
-void CameraService::ProClient::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
-        const CaptureResultExtras& resultExtras) {
-    mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
 }
 
 // ----------------------------------------------------------------------------

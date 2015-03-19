@@ -36,7 +36,7 @@ public:
     typedef typename TClientBase::TCamCallbacks TCamCallbacks;
 
     /**
-     * Base binder interface (see ICamera/IProCameraUser for details)
+     * Base binder interface (see ICamera/ICameraDeviceUser for details)
      */
     virtual status_t      connect(const sp<TCamCallbacks>& callbacks);
     virtual void          disconnect();
