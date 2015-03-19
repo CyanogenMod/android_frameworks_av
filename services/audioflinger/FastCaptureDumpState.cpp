@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "FastCaptureDumpState"
+//define LOG_NDEBUG 0
+
+#include "Configuration.h"
+#include <utils/Log.h>
 #include "FastCaptureDumpState.h"
+#include "FastCaptureState.h"
 
 namespace android {
 
@@ -25,6 +31,23 @@ FastCaptureDumpState::FastCaptureDumpState() : FastThreadDumpState(),
 
 FastCaptureDumpState::~FastCaptureDumpState()
 {
+}
+
+void FastCaptureDumpState::dump(int fd) const
+{
+    if (mCommand == FastCaptureState::INITIAL) {
+        dprintf(fd, "  FastCapture not initialized\n");
+        return;
+    }
+    double measuredWarmupMs = (mMeasuredWarmupTs.tv_sec * 1000.0) +
+            (mMeasuredWarmupTs.tv_nsec / 1000000.0);
+    double periodSec = (double) mFrameCount / mSampleRate;
+    dprintf(fd, "  FastCapture command=%s readSequence=%u framesRead=%u\n"
+                "              readErrors=%u sampleRate=%u frameCount=%zu\n"
+                "              measuredWarmup=%.3g ms, warmupCycles=%u period=%.2f ms\n",
+                FastCaptureState::commandToString(mCommand), mReadSequence, mFramesRead,
+                mReadErrors, mSampleRate, mFrameCount, measuredWarmupMs, mWarmupCycles,
+                periodSec * 1e3);
 }
 
 }   // android
