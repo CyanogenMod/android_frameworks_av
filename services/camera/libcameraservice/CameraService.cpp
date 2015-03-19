@@ -884,7 +884,11 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
         std::vector<int> ownerPids(mActiveClientManager.getAllOwners());
         ownerPids.push_back(clientPid);
 
-        std::vector<int> priorities(ownerPids.size(), PROCESS_STATE_NONEXISTENT);
+        // Use the value +PROCESS_STATE_NONEXISTENT, to avoid taking
+        // address of PROCESS_STATE_NONEXISTENT as a reference argument
+        // for the vector constructor. PROCESS_STATE_NONEXISTENT does
+        // not have an out-of-class definition.
+        std::vector<int> priorities(ownerPids.size(), +PROCESS_STATE_NONEXISTENT);
 
         // Get priorites of all active PIDs
         ProcessInfoService::getProcessStatesFromPids(ownerPids.size(), &ownerPids[0],
