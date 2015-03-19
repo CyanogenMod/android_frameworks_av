@@ -921,8 +921,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     mAudioDecoder.clear();
                     ++mAudioDecoderGeneration;
                 } else {
-                    ALOGV("Decoded PCM offload flushing");
-                    if (mAudioDecoder != NULL) {
+                    ALOGV("Decoded PCM offload flushing mFLushingAudio %d", mFlushingAudio);
+                    if (mAudioDecoder != NULL && mFlushingAudio == NONE) {
                         flushDecoder(true /* audio */, true/* needShutdown */);
                     }
                 }
