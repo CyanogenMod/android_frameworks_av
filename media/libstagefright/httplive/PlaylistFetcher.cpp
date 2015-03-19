@@ -648,23 +648,23 @@ void PlaylistFetcher::onMonitorQueue() {
         targetDurationUs = targetDurationSecs * 1000000ll;
     }
 
-    int64_t durationToBufferUs = kMinBufferedDurationUs;
-
     int64_t bufferedDurationUs = 0ll;
-    status_t finalResult = NOT_ENOUGH_DATA;
+    status_t finalResult = OK;
     if (mStreamTypeMask == LiveSession::STREAMTYPE_SUBTITLES) {
         sp<AnotherPacketSource> packetSource =
             mPacketSources.valueFor(LiveSession::STREAMTYPE_SUBTITLES);
 
         bufferedDurationUs =
                 packetSource->getBufferedDurationUs(&finalResult);
-        finalResult = OK;
     } else {
-        // Use max stream duration to prevent us from waiting on a non-existent stream;
-        // when we cannot make out from the manifest what streams are included in a playlist
-        // we might assume extra streams.
+        // Use min stream duration, but ignore streams that never have any packet
+        // enqueued to prevent us from waiting on a non-existent stream;
+        // when we cannot make out from the manifest what streams are included in
+        // a playlist we might assume extra streams.
+        bufferedDurationUs = -1ll;
         for (size_t i = 0; i < mPacketSources.size(); ++i) {
-            if ((mStreamTypeMask & mPacketSources.keyAt(i)) == 0) {
+            if ((mStreamTypeMask & mPacketSources.keyAt(i)) == 0
+                    || mPacketSources[i]->getLatestEnqueuedMeta() == NULL) {
                 continue;
             }
 
@@ -672,24 +672,19 @@ void PlaylistFetcher::onMonitorQueue() {
                 mPacketSources.valueAt(i)->getBufferedDurationUs(&finalResult);
             ALOGV("buffered %" PRId64 " for stream %d",
                     bufferedStreamDurationUs, mPacketSources.keyAt(i));
-            if (bufferedStreamDurationUs > bufferedDurationUs) {
+            if (bufferedDurationUs == -1ll
+                 || bufferedStreamDurationUs < bufferedDurationUs) {
                 bufferedDurationUs = bufferedStreamDurationUs;
             }
         }
-    }
-    downloadMore = (bufferedDurationUs < durationToBufferUs);
-
-    // signal start if buffered up at least the target size
-    if (!mPrepared && bufferedDurationUs > targetDurationUs && downloadMore) {
-        mPrepared = true;
-
-        ALOGV("prepared, buffered=%" PRId64 " > %" PRId64 "",
-                bufferedDurationUs, targetDurationUs);
+        if (bufferedDurationUs == -1ll) {
+            bufferedDurationUs = 0ll;
+        }
     }
 
-    if (finalResult == OK && downloadMore) {
+    if (finalResult == OK && bufferedDurationUs < kMinBufferedDurationUs) {
         ALOGV("monitoring, buffered=%" PRId64 " < %" PRId64 "",
-                bufferedDurationUs, durationToBufferUs);
+                bufferedDurationUs, kMinBufferedDurationUs);
         // delay the next download slightly; hopefully this gives other concurrent fetchers
         // a better chance to run.
         // onDownloadNext();
@@ -697,13 +692,16 @@ void PlaylistFetcher::onMonitorQueue() {
         msg->setInt32("generation", mMonitorQueueGeneration);
         msg->post(1000l);
     } else {
-        // Nothing to do yet, try again in a second.
-        int64_t delayUs = mPrepared ? kMaxMonitorDelayUs : targetDurationUs / 2;
+        // We'd like to maintain buffering above durationToBufferUs, so try
+        // again when buffer just about to go below durationToBufferUs
+        // (or after targetDurationUs / 2, whichever is smaller).
+        int64_t delayUs = bufferedDurationUs - kMinBufferedDurationUs + 1000000ll;
+        if (delayUs > targetDurationUs / 2) {
+            delayUs = targetDurationUs / 2;
+        }
         ALOGV("pausing for %" PRId64 ", buffered=%" PRId64 " > %" PRId64 "",
-                delayUs, bufferedDurationUs, durationToBufferUs);
-        // :TRICKY: need to enforce minimum delay because the delay to
-        // refresh the playlist will become 0
-        postMonitorQueue(delayUs, mPrepared ? targetDurationUs * 2 : 0);
+                delayUs, bufferedDurationUs, kMinBufferedDurationUs);
+        postMonitorQueue(delayUs);
     }
 }
 
@@ -986,8 +984,19 @@ void PlaylistFetcher::onDownloadNext() {
     // block-wise download
     ssize_t bytesRead;
     do {
+        int64_t startUs = ALooper::GetNowUs();
+
         bytesRead = mSession->fetchFile(
                 uri.c_str(), &buffer, range_offset, range_length, kDownloadBlockSize, &source);
+
+        // add sample for bandwidth estimation (excluding subtitles)
+        if (bytesRead > 0
+                && (mStreamTypeMask
+                        & (LiveSession::STREAMTYPE_AUDIO
+                        | LiveSession::STREAMTYPE_VIDEO))) {
+            int64_t delayUs = ALooper::GetNowUs() - startUs;
+            mSession->addBandwidthMeasurement(bytesRead, delayUs);
+        }
 
         if (bytesRead < 0) {
             status_t err = bytesRead;

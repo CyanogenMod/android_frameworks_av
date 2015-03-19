@@ -106,7 +106,6 @@ private:
         kWhatDisconnect                 = 'disc',
         kWhatSeek                       = 'seek',
         kWhatFetcherNotify              = 'notf',
-        kWhatCheckBandwidth             = 'bndw',
         kWhatChangeConfiguration        = 'chC0',
         kWhatChangeConfiguration2       = 'chC2',
         kWhatChangeConfiguration3       = 'chC3',
@@ -115,11 +114,11 @@ private:
         kWhatPollBuffering              = 'poll',
     };
 
-    static const size_t kBandwidthHistoryBytes;
     static const int64_t kHighWaterMark;
     static const int64_t kMidWaterMark;
     static const int64_t kLowWaterMark;
 
+    struct BandwidthEstimator;
     struct BandwidthItem {
         size_t mPlaylistIndex;
         unsigned long mBandwidth;
@@ -170,6 +169,7 @@ private:
 
     Vector<BandwidthItem> mBandwidthItems;
     ssize_t mCurBandwidthIndex;
+    sp<BandwidthEstimator> mBandwidthEstimator;
 
     sp<M3UParser> mPlaylist;
 
@@ -195,7 +195,6 @@ private:
     // * a forced bandwidth switch termination in cancelSwitch on the live looper.
     Mutex mSwapMutex;
 
-    int32_t mCheckBandwidthGeneration;
     int32_t mSwitchGeneration;
     int32_t mSubtitleGeneration;
 
@@ -249,7 +248,8 @@ private:
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
 
-    size_t getBandwidthIndex();
+    void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
+    size_t getBandwidthIndex(int32_t bandwidthBps);
     int64_t latestMediaSegmentStartTimeUs();
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
@@ -273,7 +273,7 @@ private:
     void cancelPollBuffering();
     void onPollBuffering();
     bool checkBuffering(bool &low, bool &mid, bool &high);
-    void switchBandwidthIfNeeded(bool canSwitchUp);
+    void switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow);
 
     void finishDisconnect();
 
