@@ -403,7 +403,7 @@ status_t CameraDeviceClientFlashControl::initializeSurface(
         return NO_MEMORY;
     }
     res = device->createStream(mAnw, width, height, format,
-            HAL_DATASPACE_UNKNOWN, &mStreamId);
+            HAL_DATASPACE_UNKNOWN, CAMERA3_STREAM_ROTATION_0, &mStreamId);
     if (res) {
         return res;
     }

@@ -76,6 +76,7 @@ class Camera3DummyStream :
     static const int DUMMY_HEIGHT = 240;
     static const int DUMMY_FORMAT = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     static const android_dataspace DUMMY_DATASPACE = HAL_DATASPACE_UNKNOWN;
+    static const camera3_stream_rotation_t DUMMY_ROTATION = CAMERA3_STREAM_ROTATION_0;
     static const uint32_t DUMMY_USAGE = GRALLOC_USAGE_HW_COMPOSER;
 
     /**

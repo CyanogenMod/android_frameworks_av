@@ -26,6 +26,7 @@
 #include <gui/Surface.h>
 #include <camera/CameraMetadata.h>
 #include <camera/camera2/CaptureRequest.h>
+#include <camera/camera2/OutputConfiguration.h>
 
 namespace android {
 
@@ -208,17 +209,16 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t createStream(
-                          const sp<IGraphicBufferProducer>& bufferProducer)
+    virtual status_t createStream(const OutputConfiguration& outputConfiguration)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
-
-        data.writeInt32(1); // marker that bufferProducer is not null
-        data.writeString16(String16("unknown_name")); // name of surface
-        sp<IBinder> b(IInterface::asBinder(bufferProducer));
-        data.writeStrongBinder(b);
-
+        if (outputConfiguration.getGraphicBufferProducer() != NULL) {
+            data.writeInt32(1); // marker that OutputConfiguration is not null. Mimic aidl behavior
+            outputConfiguration.writeToParcel(data);
+        } else {
+            data.writeInt32(0);
+        }
         remote()->transact(CREATE_STREAM, data, &reply);
 
         reply.readExceptionCode();
@@ -394,21 +394,13 @@ status_t BnCameraDeviceUser::onTransact(
         case CREATE_STREAM: {
             CHECK_INTERFACE(ICameraDeviceUser, data, reply);
 
-            sp<IGraphicBufferProducer> bp;
+            status_t ret = BAD_VALUE;
             if (data.readInt32() != 0) {
-                String16 name = readMaybeEmptyString16(data);
-                bp = interface_cast<IGraphicBufferProducer>(
-                        data.readStrongBinder());
-
-                ALOGV("%s: CREATE_STREAM: bp = %p, name = %s", __FUNCTION__,
-                      bp.get(), String8(name).string());
+                OutputConfiguration outputConfiguration(data);
+                ret = createStream(outputConfiguration);
             } else {
-                ALOGV("%s: CREATE_STREAM: bp = unset, name = unset",
-                      __FUNCTION__);
+                ALOGE("%s: cannot take an empty OutputConfiguration", __FUNCTION__);
             }
-
-            status_t ret;
-            ret = createStream(bp);
 
             reply->writeNoException();
             ALOGV("%s: CREATE_STREAM: write noException", __FUNCTION__);

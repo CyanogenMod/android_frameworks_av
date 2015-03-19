@@ -183,7 +183,7 @@ status_t StreamingProcessor::updatePreviewStream(const Parameters &params) {
         res = device->createStream(mPreviewWindow,
                 params.previewWidth, params.previewHeight,
                 CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, HAL_DATASPACE_UNKNOWN,
-                &mPreviewStreamId);
+                CAMERA3_STREAM_ROTATION_0, &mPreviewStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Unable to create preview stream: %s (%d)",
                     __FUNCTION__, mId, strerror(-res), res);
@@ -426,8 +426,8 @@ status_t StreamingProcessor::updateRecordingStream(const Parameters &params) {
         // TODO: Wire this in from encoder side
         res = device->createStream(mRecordingWindow,
                 params.videoWidth, params.videoHeight,
-                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE,
-                HAL_DATASPACE_BT709, &mRecordingStreamId);
+                CAMERA2_HAL_PIXEL_FORMAT_OPAQUE, HAL_DATASPACE_BT709,
+                CAMERA3_STREAM_ROTATION_0, &mRecordingStreamId);
         if (res != OK) {
             ALOGE("%s: Camera %d: Can't create output stream for recording: "
                     "%s (%d)", __FUNCTION__, mId,

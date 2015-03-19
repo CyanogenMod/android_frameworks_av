@@ -35,6 +35,7 @@ LOCAL_SRC_FILES:= \
 	camera2/ICameraDeviceUser.cpp \
 	camera2/ICameraDeviceCallbacks.cpp \
 	camera2/CaptureRequest.cpp \
+	camera2/OutputConfiguration.cpp \
 	ProCamera.cpp \
 	CameraBase.cpp \
 	CameraUtils.cpp \
