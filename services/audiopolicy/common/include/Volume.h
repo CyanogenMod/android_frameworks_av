@@ -18,6 +18,10 @@
 
 #include <system/audio.h>
 #include <utils/Log.h>
+#include <math.h>
+
+// Absolute min volume in dB (can be represented in single precision normal float value)
+#define VOLUME_MIN_DB (-758)
 
 class VolumeCurvePoint
 {
@@ -32,7 +36,7 @@ public:
     /**
      * 4 points to define the volume attenuation curve, each characterized by the volume
      * index (from 0 to 100) at which they apply, and the attenuation in dB at that index.
-     * we use 100 steps to avoid rounding errors when computing the volume in volIndexToAmpl()
+     * we use 100 steps to avoid rounding errors when computing the volume in volIndexToDb()
      *
      * @todo shall become configurable
      */
@@ -132,6 +136,22 @@ public:
         default:
             return DEVICE_CATEGORY_SPEAKER;
         }
+    }
+
+    static inline float DbToAmpl(float decibels)
+    {
+        if (decibels <= VOLUME_MIN_DB) {
+            return 0.0f;
+        }
+        return exp( decibels * 0.115129f); // exp( dB * ln(10) / 20 )
+    }
+
+    static inline float AmplToDb(float amplification)
+    {
+        if (amplification == 0) {
+            return VOLUME_MIN_DB;
+        }
+        return 20 * log10(amplification);
     }
 
 };

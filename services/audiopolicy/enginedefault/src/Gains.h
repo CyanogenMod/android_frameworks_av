@@ -29,8 +29,13 @@ class StreamDescriptor;
 class Gains
 {
 public :
-    static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
-                    int indexInUi);
+    static float volIndexToAmpl(Volume::device_category deviceCategory,
+                                const StreamDescriptor& streamDesc,
+                                int indexInUi);
+
+    static float volIndexToDb(Volume::device_category deviceCategory,
+                              const StreamDescriptor& streamDesc,
+                              int indexInUi);
 
     // default volume curve
     static const VolumeCurvePoint sDefaultVolumeCurve[Volume::VOLCNT];

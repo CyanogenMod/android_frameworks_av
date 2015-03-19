@@ -197,10 +197,10 @@ const VolumeCurvePoint *Gains::sVolumeProfiles[AUDIO_STREAM_CNT]
 };
 
 //static
-float Gains::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
-        int indexInUi)
+float Gains::volIndexToDb(Volume::device_category deviceCategory,
+                          const StreamDescriptor& streamDesc,
+                          int indexInUi)
 {
-    Volume::device_category deviceCategory = Volume::getDeviceCategory(device);
     const VolumeCurvePoint *curve = streamDesc.getVolumeCurvePoint(deviceCategory);
 
     // the volume index in the UI is relative to the min and max volume indices for this stream type
@@ -212,7 +212,7 @@ float Gains::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& stre
     // find what part of the curve this index volume belongs to, or if it's out of bounds
     int segment = 0;
     if (volIdx < curve[Volume::VOLMIN].mIndex) {         // out of bounds
-        return 0.0f;
+        return VOLUME_MIN_DB;
     } else if (volIdx < curve[Volume::VOLKNEE1].mIndex) {
         segment = 0;
     } else if (volIdx < curve[Volume::VOLKNEE2].mIndex) {
@@ -220,7 +220,7 @@ float Gains::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& stre
     } else if (volIdx <= curve[Volume::VOLMAX].mIndex) {
         segment = 2;
     } else {                                                               // out of bounds
-        return 1.0f;
+        return 0.0f;
     }
 
     // linear interpolation in the attenuation table in dB
@@ -231,17 +231,25 @@ float Gains::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& stre
                     ((float)(curve[segment+1].mIndex -
                             curve[segment].mIndex)) );
 
-    float amplification = exp( decibels * 0.115129f); // exp( dB * ln(10) / 20 )
-
-    ALOGVV("VOLUME vol index=[%d %d %d], dB=[%.1f %.1f %.1f] ampl=%.5f",
+    ALOGVV("VOLUME vol index=[%d %d %d], dB=[%.1f %.1f %.1f]",
             curve[segment].mIndex, volIdx,
             curve[segment+1].mIndex,
             curve[segment].mDBAttenuation,
             decibels,
-            curve[segment+1].mDBAttenuation,
-            amplification);
+            curve[segment+1].mDBAttenuation);
 
-    return amplification;
+    return decibels;
 }
+
+
+//static
+float Gains::volIndexToAmpl(Volume::device_category deviceCategory,
+                            const StreamDescriptor& streamDesc,
+                            int indexInUi)
+{
+    return Volume::DbToAmpl(volIndexToDb(deviceCategory, streamDesc, indexInUi));
+}
+
+
 
 }; // namespace android

@@ -63,12 +63,13 @@ status_t Engine::initCheck()
     return (mApmObserver != NULL) ?  NO_ERROR : NO_INIT;
 }
 
-float Engine::volIndexToAmpl(Volume::device_category category, audio_stream_type_t streamType,
+float Engine::volIndexToDb(Volume::device_category category, audio_stream_type_t streamType,
                              int indexInUi)
 {
     const StreamDescriptor &streamDesc = mApmObserver->getStreamDescriptors().valueAt(streamType);
-    return Gains::volIndexToAmpl(category, streamDesc, indexInUi);
+    return Gains::volIndexToDb(category, streamDesc, indexInUi);
 }
+
 
 status_t Engine::initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax)
 {
