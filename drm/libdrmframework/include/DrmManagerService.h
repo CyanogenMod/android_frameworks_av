@@ -42,8 +42,27 @@ public:
     static void instantiate();
 
 private:
+    enum drm_perm_t {
+        CONSUME_RIGHTS          = 0,
+        SET_PLAYBACK_STATUS     = 1,
+        OPEN_DECRYPT_SESSION    = 2,
+        CLOSE_DECRYPT_SESSION   = 3,
+        INITIALIZE_DECRYPT_UNIT = 4,
+        DECRYPT                 = 5,
+        FINALIZE_DECRYPT_UNIT   = 6,
+        PREAD                   = 7,
+    };
+
+    static const char *const drm_perm_labels[];
+
     DrmManagerService();
     virtual ~DrmManagerService();
+
+    static const char *get_perm_label(drm_perm_t perm);
+
+    static bool selinuxIsProtectedCallAllowed(pid_t spid, drm_perm_t perm);
+
+    static bool isProtectedCallAllowed(drm_perm_t perm);
 
 public:
     int addUniqueId(bool isNative);
