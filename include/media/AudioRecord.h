@@ -123,7 +123,7 @@ public:
     enum transfer_type {
         TRANSFER_DEFAULT,   // not specified explicitly; determine from the other parameters
         TRANSFER_CALLBACK,  // callback EVENT_MORE_DATA
-        TRANSFER_OBTAIN,    // FIXME deprecated: call obtainBuffer() and releaseBuffer()
+        TRANSFER_OBTAIN,    // call obtainBuffer() and releaseBuffer()
         TRANSFER_SYNC,      // synchronous read()
     };
 
@@ -344,9 +344,6 @@ public:
      * or return WOULD_BLOCK depending on the value of the "waitCount"
      * parameter.
      *
-     * obtainBuffer() and releaseBuffer() are deprecated for direct use by applications,
-     * which should use read() or callback EVENT_MORE_DATA instead.
-     *
      * Interpretation of waitCount:
      *  +n  limits wait time to n * WAIT_PERIOD_MS,
      *  -1  causes an (almost) infinite wait time,
@@ -367,9 +364,7 @@ public:
      *  raw         pointer to the buffer
      */
 
-    /* FIXME Deprecated public API for TRANSFER_OBTAIN mode */
-            status_t    obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
-                                __attribute__((__deprecated__));
+            status_t    obtainBuffer(Buffer* audioBuffer, int32_t waitCount);
 
 private:
     /* If nonContig is non-NULL, it is an output parameter that will be set to the number of
