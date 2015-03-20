@@ -54,6 +54,12 @@ struct LiveSession : public AHandler {
         STREAMTYPE_SUBTITLES    = 1 << kSubtitleIndex,
     };
 
+    enum SeekMode {
+        kSeekModeExactPosition = 0, // used for seeking
+        kSeekModeNextSample    = 1, // used for seamless switching
+        kSeekModeNextSegment   = 2, // used for seamless switching
+    };
+
     LiveSession(
             const sp<AMessage> &notify,
             uint32_t flags,
@@ -62,6 +68,8 @@ struct LiveSession : public AHandler {
     status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
+
+    sp<HTTPBase> getHTTPDataSource();
 
     void connectAsync(
             const char *url,
@@ -88,11 +96,6 @@ struct LiveSession : public AHandler {
         kWhatPreparationFailed,
     };
 
-    // create a format-change discontinuity
-    //
-    // swap:
-    //   whether is format-change discontinuity should trigger a buffer swap
-    sp<ABuffer> createFormatChangeBuffer(bool swap = true);
 protected:
     virtual ~LiveSession();
 
@@ -110,7 +113,6 @@ private:
         kWhatChangeConfiguration2       = 'chC2',
         kWhatChangeConfiguration3       = 'chC3',
         kWhatFinishDisconnect2          = 'fin2',
-        kWhatSwapped                    = 'swap',
         kWhatPollBuffering              = 'poll',
     };
 
@@ -127,23 +129,22 @@ private:
     struct FetcherInfo {
         sp<PlaylistFetcher> mFetcher;
         int64_t mDurationUs;
-        bool mIsPrepared;
         bool mToBeRemoved;
+        bool mToBeResumed;
     };
 
     struct StreamItem {
         const char *mType;
         AString mUri, mNewUri;
+        SeekMode mSeekMode;
         size_t mCurDiscontinuitySeq;
         int64_t mLastDequeuedTimeUs;
         int64_t mLastSampleDurationUs;
         StreamItem()
-            : mType(""),
-              mCurDiscontinuitySeq(0),
-              mLastDequeuedTimeUs(0),
-              mLastSampleDurationUs(0) {}
+            : StreamItem("") {}
         StreamItem(const char *type)
             : mType(type),
+              mSeekMode(kSeekModeExactPosition),
               mCurDiscontinuitySeq(0),
               mLastDequeuedTimeUs(0),
               mLastSampleDurationUs(0) {}
@@ -169,6 +170,7 @@ private:
 
     Vector<BandwidthItem> mBandwidthItems;
     ssize_t mCurBandwidthIndex;
+    int32_t mLastBandwidthBps;
     sp<BandwidthEstimator> mBandwidthEstimator;
 
     sp<M3UParser> mPlaylist;
@@ -189,11 +191,6 @@ private:
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources;
     // A second set of packet sources that buffer content for the variant we're switching to.
     KeyedVector<StreamType, sp<AnotherPacketSource> > mPacketSources2;
-
-    // A mutex used to serialize two sets of events:
-    // * the swapping of packet sources in dequeueAccessUnit on the player thread, AND
-    // * a forced bandwidth switch termination in cancelSwitch on the live looper.
-    Mutex mSwapMutex;
 
     int32_t mSwitchGeneration;
     int32_t mSubtitleGeneration;
@@ -243,11 +240,15 @@ private:
             uint32_t block_size = 0,
             /* reuse DataSource if doing partial fetch */
             sp<DataSource> *source = NULL,
-            String8 *actualUrl = NULL);
+            String8 *actualUrl = NULL,
+            /* force connect http even when resuing DataSource */
+            bool forceConnectHTTP = false);
 
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
 
+    float getAbortThreshold(
+            ssize_t currentBWIndex, ssize_t targetBWIndex) const;
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
     size_t getBandwidthIndex(int32_t bandwidthBps);
     int64_t latestMediaSegmentStartTimeUs();
@@ -261,12 +262,9 @@ private:
     void onChangeConfiguration(const sp<AMessage> &msg);
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
-    void onSwapped(const sp<AMessage> &msg);
-    void tryToFinishBandwidthSwitch();
+    void swapPacketSource(StreamType stream);
+    void tryToFinishBandwidthSwitch(const AString &uri);
 
-    // cancelBandwidthSwitch is atomic wrt swapPacketSource; call it to prevent packet sources
-    // from being swapped out on stale discontinuities while manipulating
-    // mPacketSources/mPacketSources2.
     void cancelBandwidthSwitch();
 
     void schedulePollBuffering();
@@ -278,8 +276,6 @@ private:
     void finishDisconnect();
 
     void postPrepared(status_t err);
-
-    void swapPacketSource(StreamType stream);
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);
 };

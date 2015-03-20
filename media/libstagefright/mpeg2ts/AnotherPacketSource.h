@@ -43,7 +43,11 @@ struct AnotherPacketSource : public MediaSource {
 
     void clear();
 
+    // Returns true if we have any packets including discontinuities
     bool hasBufferAvailable(status_t *finalResult);
+
+    // Returns true if we have packets that's not discontinuities
+    bool hasDataBufferAvailable(status_t *finalResult);
 
     // Returns the difference between the last and the first queued
     // presentation timestamps since the last discontinuity (if any).
