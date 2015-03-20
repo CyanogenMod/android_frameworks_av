@@ -629,10 +629,14 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
         // These are PCM-like formats with a fixed sample rate but
         // a variable number of channels.
 
+        int32_t sampleRate;
         int32_t numChannels;
         CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
+        if (!meta->findInt32(kKeySampleRate, &sampleRate)) {
+            sampleRate = 8000;
+        }
 
-        setG711Format(numChannels);
+        setG711Format(sampleRate, numChannels);
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_RAW, mMIME)) {
         CHECK(!mIsEncoder);
 
@@ -3616,9 +3620,9 @@ status_t OMXCodec::setAC3Format(int32_t numChannels, int32_t sampleRate) {
             sizeof(def));
 }
 
-void OMXCodec::setG711Format(int32_t numChannels) {
+void OMXCodec::setG711Format(int32_t sampleRate, int32_t numChannels) {
     CHECK(!mIsEncoder);
-    setRawAudioFormat(kPortIndexInput, 8000, numChannels);
+    setRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
 }
 
 void OMXCodec::setImageOutputFormat(
