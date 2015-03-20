@@ -178,5 +178,4 @@ private:
 IMPLEMENT_META_INTERFACE(
         MediaHTTPConnection, "android.media.IMediaHTTPConnection");
 
-}  // namespace android
-
+} // namespace android
