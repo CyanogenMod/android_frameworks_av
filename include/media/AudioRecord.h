@@ -406,8 +406,11 @@ public:
      *      WOULD_BLOCK         when obtainBuffer() returns same, or
      *                          AudioRecord was stopped during the read
      *      or any other error code returned by IAudioRecord::start() or restoreRecord_l().
+     * Default behavior is to only return when all data has been transferred. Set 'blocking' to
+     * false for the method to return immediately without waiting to try multiple times to read
+     * the full content of the buffer.
      */
-            ssize_t     read(void* buffer, size_t size);
+            ssize_t     read(void* buffer, size_t size, bool blocking = true);
 
     /* Return the number of input frames lost in the audio driver since the last call of this
      * function.  Audio driver is expected to reset the value to 0 and restart counting upon
