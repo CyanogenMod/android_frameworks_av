@@ -108,4 +108,4 @@ IMediaDeathNotifier::DeathNotifier::~DeathNotifier()
     }
 }
 
-}; // namespace android
+} // namespace android

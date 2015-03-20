@@ -91,4 +91,4 @@ status_t BnAudioRecord::onTransact(
     }
 }
 
-}; // namespace android
+} // namespace android

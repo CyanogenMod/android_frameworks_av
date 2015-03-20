@@ -180,4 +180,4 @@ status_t AudioParameter::getAt(size_t index, String8& key, String8& value)
     }
 }
 
-};  // namespace android
+} // namespace android

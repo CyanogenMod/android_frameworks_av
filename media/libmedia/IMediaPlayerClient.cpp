@@ -75,4 +75,4 @@ status_t BnMediaPlayerClient::onTransact(
     }
 }
 
-}; // namespace android
+} // namespace android

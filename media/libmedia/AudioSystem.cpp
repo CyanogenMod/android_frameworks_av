@@ -1003,4 +1003,4 @@ void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
     }
 }
 
-}; // namespace android
+} // namespace android

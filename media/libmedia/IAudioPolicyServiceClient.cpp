@@ -80,4 +80,4 @@ status_t BnAudioPolicyServiceClient::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

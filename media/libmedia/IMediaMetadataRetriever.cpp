@@ -297,4 +297,4 @@ status_t BnMediaMetadataRetriever::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

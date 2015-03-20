@@ -486,4 +486,4 @@ status_t AudioEffect::guidToString(const effect_uuid_t *guid, char *str, size_t 
 }
 
 
-}; // namespace android
+} // namespace android

@@ -101,4 +101,4 @@ status_t BnRemoteDisplayClient::onTransact(
     }
 }
 
-}; // namespace android
+} // namespace android

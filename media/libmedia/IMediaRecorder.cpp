@@ -463,4 +463,4 @@ status_t BnMediaRecorder::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

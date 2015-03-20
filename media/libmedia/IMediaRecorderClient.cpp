@@ -67,4 +67,4 @@ status_t BnMediaRecorderClient::onTransact(
     }
 }
 
-}; // namespace android
+} // namespace android
