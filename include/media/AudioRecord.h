@@ -315,7 +315,12 @@ public:
      * Returned value:
      *  handle on audio hardware input
      */
-            audio_io_handle_t    getInput() const;
+// FIXME The only known public caller is frameworks/opt/net/voip/src/jni/rtp/AudioGroup.cpp
+            audio_io_handle_t    getInput() const __attribute__((__deprecated__))
+                                                { return getInputPrivate(); }
+private:
+            audio_io_handle_t    getInputPrivate() const;
+public:
 
     /* Returns the audio session ID associated with this AudioRecord.
      *

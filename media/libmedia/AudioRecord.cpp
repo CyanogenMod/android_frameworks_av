@@ -416,7 +416,7 @@ status_t AudioRecord::getPosition(uint32_t *position) const
 uint32_t AudioRecord::getInputFramesLost() const
 {
     // no need to check mActive, because if inactive this will return 0, which is what we want
-    return AudioSystem::getInputFramesLost(getInput());
+    return AudioSystem::getInputFramesLost(getInputPrivate());
 }
 
 // -------------------------------------------------------------------------
@@ -712,7 +712,7 @@ void AudioRecord::releaseBuffer(Buffer* audioBuffer)
     // the server does not automatically disable recorder on overrun, so no need to restart
 }
 
-audio_io_handle_t AudioRecord::getInput() const
+audio_io_handle_t AudioRecord::getInputPrivate() const
 {
     AutoMutex lock(mLock);
     return mInput;
