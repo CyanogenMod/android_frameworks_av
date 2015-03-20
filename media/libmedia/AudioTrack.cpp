@@ -1090,6 +1090,7 @@ status_t AudioTrack::createTrack_l()
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
+    int originalSessionId = mSessionId;
     sp<IAudioTrack> track = audioFlinger->createTrack(streamType,
                                                       mSampleRate,
                                                       mFormat,
@@ -1102,6 +1103,8 @@ status_t AudioTrack::createTrack_l()
                                                       &mSessionId,
                                                       mClientUid,
                                                       &status);
+    ALOGE_IF(originalSessionId != AUDIO_SESSION_ALLOCATE && mSessionId != originalSessionId,
+            "session ID changed from %d to %d", originalSessionId, mSessionId);
 
     if (status != NO_ERROR) {
         ALOGE("AudioFlinger could not create track, status: %d", status);
@@ -1194,9 +1197,13 @@ status_t AudioTrack::createTrack_l()
     // address space.  AudioFlinger::TrackBase::mBuffer is for the server address space.
     void* buffers;
     if (mSharedBuffer == 0) {
-        buffers = (char*)cblk + sizeof(audio_track_cblk_t);
+        buffers = cblk + 1;
     } else {
         buffers = mSharedBuffer->pointer();
+        if (buffers == NULL) {
+            ALOGE("Could not get buffer pointer");
+            return NO_INIT;
+        }
     }
 
     mAudioTrack->attachAuxEffect(mAuxEffectId);
@@ -1783,7 +1790,7 @@ nsecs_t AudioTrack::processAudioBuffer()
             return WAIT_PERIOD_MS * 1000000LL;
         }
 
-        size_t releasedFrames = audioBuffer.size / mFrameSize;
+        size_t releasedFrames = writtenSize / mFrameSize;
         audioBuffer.frameCount = releasedFrames;
         mRemainingFrames -= releasedFrames;
         if (misalignment >= releasedFrames) {
