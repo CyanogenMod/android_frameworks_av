@@ -161,8 +161,6 @@ status_t AudioRecord::set(
     }
     mTransfer = transferType;
 
-    AutoMutex lock(mLock);
-
     // invariant that mAudioRecord != 0 is true only after set() returns successfully
     if (mAudioRecord != 0) {
         ALOGE("Track already in use");
@@ -235,6 +233,7 @@ status_t AudioRecord::set(
     if (cbf != NULL) {
         mAudioRecordThread = new AudioRecordThread(*this, threadCanCallJava);
         mAudioRecordThread->run("AudioRecord", ANDROID_PRIORITY_AUDIO);
+        // thread begins in paused state, and will not reference us until start()
     }
 
     // create the IAudioRecord

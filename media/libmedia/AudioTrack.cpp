@@ -274,8 +274,6 @@ status_t AudioTrack::set(
 
     ALOGV("set() streamType %d frameCount %zu flags %04x", streamType, frameCount, flags);
 
-    AutoMutex lock(mLock);
-
     // invariant that mAudioTrack != 0 is true only after set() returns successfully
     if (mAudioTrack != 0) {
         ALOGE("Track already in use");
@@ -401,6 +399,7 @@ status_t AudioTrack::set(
     if (cbf != NULL) {
         mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
         mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
+        // thread begins in paused state, and will not reference us until start()
     }
 
     // create the IAudioTrack
