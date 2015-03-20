@@ -1255,12 +1255,18 @@ release:
 status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, int32_t waitCount, size_t *nonContig)
 {
     if (audioBuffer == NULL) {
+        if (nonContig != NULL) {
+            *nonContig = 0;
+        }
         return BAD_VALUE;
     }
     if (mTransfer != TRANSFER_OBTAIN) {
         audioBuffer->frameCount = 0;
         audioBuffer->size = 0;
         audioBuffer->raw = NULL;
+        if (nonContig != NULL) {
+            *nonContig = 0;
+        }
         return INVALID_OPERATION;
     }
 

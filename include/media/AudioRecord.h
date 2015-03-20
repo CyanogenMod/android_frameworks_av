@@ -335,6 +335,13 @@ public:
      * After draining these frames of data, the caller should release them with releaseBuffer().
      * If the track buffer is not empty, obtainBuffer() returns as many contiguous
      * full frames as are available immediately.
+     *
+     * If nonContig is non-NULL, it is an output parameter that will be set to the number of
+     * additional non-contiguous frames that are predicted to be available immediately,
+     * if the client were to release the first frames and then call obtainBuffer() again.
+     * This value is only a prediction, and needs to be confirmed.
+     * It will be set to zero for an error return.
+     *
      * If the track buffer is empty and track is stopped, obtainBuffer() returns WOULD_BLOCK
      * regardless of the value of waitCount.
      * If the track buffer is empty and track is not stopped, obtainBuffer() blocks with a
@@ -364,11 +371,15 @@ public:
      *  raw         pointer to the buffer
      */
 
-            status_t    obtainBuffer(Buffer* audioBuffer, int32_t waitCount);
+            status_t    obtainBuffer(Buffer* audioBuffer, int32_t waitCount,
+                                size_t *nonContig = NULL);
 
 private:
     /* If nonContig is non-NULL, it is an output parameter that will be set to the number of
-     * additional non-contiguous frames that are available immediately.
+     * additional non-contiguous frames that are predicted to be available immediately,
+     * if the client were to release the first frames and then call obtainBuffer() again.
+     * This value is only a prediction, and needs to be confirmed.
+     * It will be set to zero for an error return.
      * FIXME We could pass an array of Buffers instead of only one Buffer to obtainBuffer(),
      * in case the requested amount of frames is in two or more non-contiguous regions.
      * FIXME requested and elapsed are both relative times.  Consider changing to absolute time.
