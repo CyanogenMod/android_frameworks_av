@@ -112,7 +112,9 @@ AudioRecord::~AudioRecord()
         mCblkMemory.clear();
         mBufferMemory.clear();
         IPCThreadState::self()->flushCommands();
-        AudioSystem::releaseAudioSessionId(mSessionId, -1);
+        ALOGV("~AudioRecord, releasing session id %d",
+                mSessionId);
+        AudioSystem::releaseAudioSessionId(mSessionId, -1 /*pid*/);
     }
 }
 
@@ -286,7 +288,6 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 
     status_t status = NO_ERROR;
     if (!(flags & CBLK_INVALID)) {
-        ALOGV("mAudioRecord->start()");
         status = mAudioRecord->start(event, triggerSession);
         if (status == DEAD_OBJECT) {
             flags |= CBLK_INVALID;
@@ -443,7 +444,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
             (mTransfer == TRANSFER_CALLBACK) &&
             // matching sample rate
             (mSampleRate == afSampleRate))) {
-        ALOGW("AUDIO_INPUT_FLAG_FAST denied by client");
+        ALOGW("AUDIO_INPUT_FLAG_FAST denied by client; transfer %d, track %u Hz, primary %u Hz",
+                mTransfer, mSampleRate, afSampleRate);
         // once denied, do not request again if IAudioRecord is re-created
         mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
     }

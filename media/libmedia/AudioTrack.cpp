@@ -203,8 +203,8 @@ AudioTrack::~AudioTrack()
         mCblkMemory.clear();
         mSharedBuffer.clear();
         IPCThreadState::self()->flushCommands();
-        ALOGV("~AudioTrack, releasing session id from %d on behalf of %d",
-                IPCThreadState::self()->getCallingPid(), mClientPid);
+        ALOGV("~AudioTrack, releasing session id %d from %d on behalf of %d",
+                mSessionId, IPCThreadState::self()->getCallingPid(), mClientPid);
         AudioSystem::releaseAudioSessionId(mSessionId, mClientPid);
     }
 }
@@ -229,9 +229,9 @@ status_t AudioTrack::set(
         const audio_attributes_t* pAttributes)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
-          "flags #%x, notificationFrames %u, sessionId %d, transferType %d",
+          "flags #%x, notificationFrames %u, sessionId %d, transferType %d, uid %d, pid %d",
           streamType, sampleRate, format, channelMask, frameCount, flags, notificationFrames,
-          sessionId, transferType);
+          sessionId, transferType, uid, pid);
 
     switch (transferType) {
     case TRANSFER_DEFAULT:
@@ -964,9 +964,9 @@ status_t AudioTrack::createTrack_l()
 
 
     if (status != NO_ERROR || output == AUDIO_IO_HANDLE_NONE) {
-        ALOGE("Could not get audio output for stream type %d, usage %d, sample rate %u, format %#x,"
+        ALOGE("Could not get audio output for session %d, stream type %d, usage %d, sample rate %u, format %#x,"
               " channel mask %#x, flags %#x",
-              streamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
+              mSessionId, streamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
     {
@@ -981,6 +981,7 @@ status_t AudioTrack::createTrack_l()
         ALOGE("getLatency(%d) failed status %d", output, status);
         goto release;
     }
+    ALOGV("createTrack_l() output %d afLatency %u", output, afLatency);
 
     size_t afFrameCount;
     status = AudioSystem::getFrameCount(output, &afFrameCount);
@@ -1010,11 +1011,11 @@ status_t AudioTrack::createTrack_l()
             (mTransfer == TRANSFER_OBTAIN)) &&
             // matching sample rate
             (mSampleRate == afSampleRate))) {
-        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client");
+        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d, track %u Hz, output %u Hz",
+                mTransfer, mSampleRate, afSampleRate);
         // once denied, do not request again if IAudioTrack is re-created
         mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
-    ALOGV("createTrack_l() output %d afLatency %d", output, afLatency);
 
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
     //  n = 1   fast track with single buffering; nBuffering is ignored
