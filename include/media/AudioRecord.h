@@ -386,8 +386,14 @@ private:
                                      struct timespec *elapsed = NULL, size_t *nonContig = NULL);
 public:
 
-    /* Release an emptied buffer of "audioBuffer->frameCount" frames for AudioFlinger to re-fill. */
-    // FIXME make private when obtainBuffer() for TRANSFER_OBTAIN is removed
+    /* Public API for TRANSFER_OBTAIN mode.
+     * Release an emptied buffer of "audioBuffer->frameCount" frames for AudioFlinger to re-fill.
+     *
+     * Buffer fields:
+     *  frameCount  currently ignored but recommend to set to actual number of frames consumed
+     *  size        actual number of bytes consumed, must be multiple of frameSize
+     *  raw         ignored
+     */
             void        releaseBuffer(const Buffer* audioBuffer);
 
     /* As a convenience we provide a read() interface to the audio buffer.
