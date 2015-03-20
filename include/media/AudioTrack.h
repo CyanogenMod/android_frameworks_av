@@ -625,8 +625,6 @@ protected:
                         AudioTrack(const AudioTrack& other);
             AudioTrack& operator = (const AudioTrack& other);
 
-            void        setAttributesFromStreamType(audio_stream_type_t streamType);
-
     /* a small internal class to handle the callback */
     class AudioTrackThread : public Thread
     {
