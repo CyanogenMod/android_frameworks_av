@@ -19,6 +19,7 @@
 #include "include/AMRExtractor.h"
 
 #include "include/AACExtractor.h"
+#include "include/CallbackDataSource.h"
 #include "include/DRMExtractor.h"
 #include "include/FLACExtractor.h"
 #include "include/HTTPBase.h"
@@ -279,6 +280,10 @@ sp<DataSource> DataSource::CreateMediaHTTP(const sp<IMediaHTTPService> &httpServ
     } else {
         return new MediaHTTP(conn);
     }
+}
+
+sp<DataSource> DataSource::CreateFromIDataSource(const sp<IDataSource> &source) {
+    return new CallbackDataSource(source);
 }
 
 String8 DataSource::getMIMEType() const {

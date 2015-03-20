@@ -124,6 +124,12 @@ status_t NuPlayer::GenericSource::setDataSource(
     return OK;
 }
 
+status_t NuPlayer::GenericSource::setDataSource(const sp<DataSource>& source) {
+    resetDataSource();
+    mDataSource = source;
+    return OK;
+}
+
 sp<MetaData> NuPlayer::GenericSource::getFileFormatMeta() const {
     return mFileMeta;
 }
@@ -377,19 +383,19 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             notifyPreparedAndCleanup(UNKNOWN_ERROR);
             return;
         }
-
-        if (mDataSource->flags() & DataSource::kIsCachingDataSource) {
-            mCachedSource = static_cast<NuCachedSource2 *>(mDataSource.get());
-        }
-
-        // For widevine or other cached streaming cases, we need to wait for
-        // enough buffering before reporting prepared.
-        // Note that even when URL doesn't start with widevine://, mIsWidevine
-        // could still be set to true later, if the streaming or file source
-        // is sniffed to be widevine. We don't want to buffer for file source
-        // in that case, so must check the flag now.
-        mIsStreaming = (mIsWidevine || mCachedSource != NULL);
     }
+
+    if (mDataSource->flags() & DataSource::kIsCachingDataSource) {
+        mCachedSource = static_cast<NuCachedSource2 *>(mDataSource.get());
+    }
+
+    // For widevine or other cached streaming cases, we need to wait for
+    // enough buffering before reporting prepared.
+    // Note that even when URL doesn't start with widevine://, mIsWidevine
+    // could still be set to true later, if the streaming or file source
+    // is sniffed to be widevine. We don't want to buffer for file source
+    // in that case, so must check the flag now.
+    mIsStreaming = (mIsWidevine || mCachedSource != NULL);
 
     // init extractor from data source
     status_t err = initFromDataSource();

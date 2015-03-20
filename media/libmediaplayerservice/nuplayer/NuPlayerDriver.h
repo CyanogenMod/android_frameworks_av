@@ -39,6 +39,8 @@ struct NuPlayerDriver : public MediaPlayerInterface {
 
     virtual status_t setDataSource(const sp<IStreamSource> &source);
 
+    virtual status_t setDataSource(const sp<DataSource>& dataSource);
+
     virtual status_t setVideoSurfaceTexture(
             const sp<IGraphicBufferProducer> &bufferProducer);
     virtual status_t prepare();

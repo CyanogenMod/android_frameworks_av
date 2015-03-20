@@ -26,7 +26,8 @@
 
 namespace android {
 
-struct IMediaHTTPService;
+class IDataSource;
+class IMediaHTTPService;
 
 class IMediaMetadataRetriever: public IInterface
 {
@@ -40,6 +41,7 @@ public:
             const KeyedVector<String8, String8> *headers = NULL) = 0;
 
     virtual status_t        setDataSource(int fd, int64_t offset, int64_t length) = 0;
+    virtual status_t        setDataSource(const sp<IDataSource>& dataSource) = 0;
     virtual sp<IMemory>     getFrameAtTime(int64_t timeUs, int option) = 0;
     virtual sp<IMemory>     extractAlbumArt() = 0;
     virtual const char*     extractMetadata(int keyCode) = 0;

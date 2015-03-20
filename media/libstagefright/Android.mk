@@ -12,6 +12,7 @@ LOCAL_SRC_FILES:=                         \
         AudioPlayer.cpp                   \
         AudioSource.cpp                   \
         AwesomePlayer.cpp                 \
+        CallbackDataSource.cpp            \
         CameraSource.cpp                  \
         CameraSourceTimeLapse.cpp         \
         ClockEstimator.cpp                \

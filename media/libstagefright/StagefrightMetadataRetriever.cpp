@@ -47,10 +47,7 @@ StagefrightMetadataRetriever::StagefrightMetadataRetriever()
 
 StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
     ALOGV("~StagefrightMetadataRetriever()");
-
-    delete mAlbumArt;
-    mAlbumArt = NULL;
-
+    clearMetadata();
     mClient.disconnect();
 }
 
@@ -60,11 +57,7 @@ status_t StagefrightMetadataRetriever::setDataSource(
         const KeyedVector<String8, String8> *headers) {
     ALOGV("setDataSource(%s)", uri);
 
-    mParsedMetaData = false;
-    mMetaData.clear();
-    delete mAlbumArt;
-    mAlbumArt = NULL;
-
+    clearMetadata();
     mSource = DataSource::CreateFromURI(httpService, uri, headers);
 
     if (mSource == NULL) {
@@ -92,11 +85,7 @@ status_t StagefrightMetadataRetriever::setDataSource(
 
     ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
 
-    mParsedMetaData = false;
-    mMetaData.clear();
-    delete mAlbumArt;
-    mAlbumArt = NULL;
-
+    clearMetadata();
     mSource = new FileSource(fd, offset, length);
 
     status_t err;
@@ -111,6 +100,23 @@ status_t StagefrightMetadataRetriever::setDataSource(
     if (mExtractor == NULL) {
         mSource.clear();
 
+        return UNKNOWN_ERROR;
+    }
+
+    return OK;
+}
+
+status_t StagefrightMetadataRetriever::setDataSource(
+        const sp<DataSource>& source) {
+    ALOGV("setDataSource(DataSource)");
+
+    clearMetadata();
+    mSource = source;
+    mExtractor = MediaExtractor::Create(mSource);
+
+    if (mExtractor == NULL) {
+        ALOGE("Failed to instantiate a MediaExtractor.");
+        mSource.clear();
         return UNKNOWN_ERROR;
     }
 
@@ -627,6 +633,13 @@ void StagefrightMetadataRetriever::parseMetaData() {
     if (mExtractor->getDrmFlag()) {
         mMetaData.add(METADATA_KEY_IS_DRM, String8("1"));
     }
+}
+
+void StagefrightMetadataRetriever::clearMetadata() {
+    mParsedMetaData = false;
+    mMetaData.clear();
+    delete mAlbumArt;
+    mAlbumArt = NULL;
 }
 
 }  // namespace android

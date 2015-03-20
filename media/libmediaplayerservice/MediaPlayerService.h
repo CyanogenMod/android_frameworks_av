@@ -35,6 +35,7 @@
 namespace android {
 
 class AudioTrack;
+class IDataSource;
 class IMediaRecorder;
 class IMediaMetadataRetriever;
 class IOMX;
@@ -292,6 +293,8 @@ private:
         virtual status_t        setDataSource(int fd, int64_t offset, int64_t length);
 
         virtual status_t        setDataSource(const sp<IStreamSource> &source);
+        virtual status_t        setDataSource(const sp<IDataSource> &source);
+
 
         sp<MediaPlayerBase>     setDataSource_pre(player_type playerType);
         void                    setDataSource_post(const sp<MediaPlayerBase>& p,
