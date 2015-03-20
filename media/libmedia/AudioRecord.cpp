@@ -692,7 +692,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, const struct timespec *r
     return status;
 }
 
-void AudioRecord::releaseBuffer(Buffer* audioBuffer)
+void AudioRecord::releaseBuffer(const Buffer* audioBuffer)
 {
     // FIXME add error checking on mode, by adding an internal version
 
