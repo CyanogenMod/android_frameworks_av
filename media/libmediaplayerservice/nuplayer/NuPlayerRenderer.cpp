@@ -242,7 +242,7 @@ status_t NuPlayer::Renderer::getCurrentPositionFromAnchor(
 
     // limit position to the last queued media time (for video only stream
     // position will be discrete as we don't know how long each frame lasts)
-    if (mAnchorMaxMediaUs >= 0 && !allowPastQueuedVideo) {
+    if (!mHasAudio && mAnchorMaxMediaUs >= 0 && !allowPastQueuedVideo) {
         if (positionUs > mAnchorMaxMediaUs) {
             positionUs = mAnchorMaxMediaUs;
         }
