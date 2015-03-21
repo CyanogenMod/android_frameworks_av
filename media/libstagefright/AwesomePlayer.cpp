@@ -1991,6 +1991,7 @@ status_t AwesomePlayer::initAudioDecoder() {
             }
             flags |= OMXCodec::kSoftwareCodecsOnly;
         }
+        }
         mOmxSource = OMXCodec::Create(
                 mClient.interface(), mAudioTrack->getFormat(),
                 false, // createEncoder
