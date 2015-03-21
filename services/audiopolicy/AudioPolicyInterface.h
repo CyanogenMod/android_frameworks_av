@@ -110,6 +110,7 @@ public:
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags,
+                                        int selectedDeviceId,
                                         const audio_offload_info_t *offloadInfo) = 0;
     // indicates to the audio policy manager that the output starts being used by corresponding stream.
     virtual status_t startOutput(audio_io_handle_t output,

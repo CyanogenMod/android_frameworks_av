@@ -110,6 +110,7 @@ public:
                                           audio_format_t format,
                                           audio_channel_mask_t channelMask,
                                           audio_output_flags_t flags,
+                                          audio_port_handle_t selectedDeviceId,
                                           const audio_offload_info_t *offloadInfo);
         virtual status_t startOutput(audio_io_handle_t output,
                                      audio_stream_type_t stream,
@@ -226,6 +227,46 @@ public:
 
         // return the strategy corresponding to a given stream type
         routing_strategy getStrategy(audio_stream_type_t stream) const;
+
+protected:
+        class SessionRoute : public RefBase
+        {
+        public:
+            friend class SessionRouteMap;
+            SessionRoute(audio_session_t session,
+                         audio_stream_type_t streamType,
+                         sp<DeviceDescriptor> deviceDescriptor)
+                : mSession(session),
+                  mStreamType(streamType),
+                  mDeviceDescriptor(deviceDescriptor),
+                  mRefCount(0),
+                  mActivityCount(0) {}
+
+            audio_session_t         mSession;
+            audio_stream_type_t     mStreamType;
+
+            sp<DeviceDescriptor>    mDeviceDescriptor;
+
+            // "reference" counting
+            int mRefCount;       // +/- on references
+            int mActivityCount;  // +/- on start/stop
+
+            void log(const char* prefix);
+        };
+
+        class SessionRouteMap: public KeyedVector<audio_session_t, sp<SessionRoute>>
+        {
+         public:
+            bool hasRoute(audio_session_t session);
+            void addRoute(audio_session_t session, audio_stream_type_t streamType,
+                          sp<DeviceDescriptor> deviceDescriptor);
+            void removeRoute(audio_session_t session);
+
+            int incRouteActivity(audio_session_t session);
+            int decRouteActivity(audio_session_t session);
+
+            void log(const char* caption);
+        };
 
         // From AudioPolicyManagerObserver
         virtual const AudioPatchCollection &getAudioPatches() const
@@ -474,6 +515,9 @@ protected:
         AudioInputCollection mInputs;     // list of input descriptors
         DeviceVector  mAvailableOutputDevices; // all available output devices
         DeviceVector  mAvailableInputDevices;  // all available input devices
+
+        SessionRouteMap mOutputRoutes;
+        SessionRouteMap mInputRoutes;
 
         StreamDescriptorCollection mStreams; // stream descriptors for volume control
         bool    mLimitRingtoneVolume;        // limit ringtone volume to music volume if headset connected

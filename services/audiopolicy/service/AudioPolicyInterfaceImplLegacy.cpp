@@ -569,6 +569,7 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_format_t format,
                                               audio_channel_mask_t channelMask,
                                               audio_output_flags_t flags,
+                                              int selectedDeviceId __unused,
                                               const audio_offload_info_t *offloadInfo)
 {
     if (attr != NULL) {

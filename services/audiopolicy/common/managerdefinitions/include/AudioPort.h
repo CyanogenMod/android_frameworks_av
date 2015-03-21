@@ -78,6 +78,7 @@ public:
     audio_module_handle_t getModuleHandle() const;
 
     void dump(int fd, int spaces) const;
+    void log(const char* indent) const;
 
     String8           mName;
     audio_port_type_t mType;

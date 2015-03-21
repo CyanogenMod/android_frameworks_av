@@ -477,6 +477,26 @@ private:
             audio_io_handle_t    getOutput() const;
 public:
 
+    /* Selects the audio device to use for output of this AudioTrack. A value of
+     * AUDIO_PORT_HANDLE_NONE indicates default (AudioPolicyManager) routing.
+     *
+     * Parameters:
+     *  The device ID of the selected device (as returned by the AudioDevicesManager API).
+     *
+     * Returned value:
+     *  - NO_ERROR: successful operation
+     *    TODO: what else can happen here?
+     */
+            status_t    setOutputDevice(audio_port_handle_t deviceId);
+
+    /* Returns the ID of the audio device used for output of this AudioTrack.
+     * A value of AUDIO_PORT_HANDLE_NONE indicates default (AudioPolicyManager) routing.
+     *
+     * Parameters:
+     *  none.
+     */
+     audio_port_handle_t getOutputDevice();
+
     /* Returns the unique session ID associated with this track.
      *
      * Parameters:
@@ -816,6 +836,10 @@ protected:
 
     bool                    mInUnderrun;            // whether track is currently in underrun state
     uint32_t                mPausedPosition;
+
+    // For Device Selection API
+    //  a value of AUDIO_PORT_HANDLE_NONE indicated default (AudioPolicyManager) routing.
+    int                     mSelectedDeviceId;
 
 private:
     class DeathNotifier : public IBinder::DeathRecipient {

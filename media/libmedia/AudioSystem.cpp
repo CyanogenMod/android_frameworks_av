@@ -658,13 +658,14 @@ status_t AudioSystem::getOutputForAttr(const audio_attributes_t *attr,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags,
+                                        audio_port_handle_t selectedDeviceId,
                                         const audio_offload_info_t *offloadInfo)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return NO_INIT;
     return aps->getOutputForAttr(attr, output, session, stream,
                                  samplingRate, format, channelMask,
-                                 flags, offloadInfo);
+                                 flags, selectedDeviceId, offloadInfo);
 }
 
 status_t AudioSystem::startOutput(audio_io_handle_t output,

@@ -46,6 +46,7 @@ public:
 
     audio_devices_t type() const { return mDeviceType; }
     status_t dump(int fd, int spaces, int index) const;
+    void log() const;
 
     String8 mAddress;
     audio_port_handle_t mId;

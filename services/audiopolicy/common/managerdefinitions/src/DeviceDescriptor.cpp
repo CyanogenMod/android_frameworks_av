@@ -317,4 +317,16 @@ status_t DeviceDescriptor::dump(int fd, int spaces, int index) const
     return NO_ERROR;
 }
 
+void DeviceDescriptor::log() const
+{
+    ALOGI("Device id:%d type:0x%X:%s, addr:%s",
+          mId,
+          mDeviceType,
+          ConfigParsingUtils::enumToString(
+             sDeviceNameToEnumTable, ARRAY_SIZE(sDeviceNameToEnumTable), mDeviceType),
+          mAddress.string());
+
+    AudioPort::log("  ");
+}
+
 }; // namespace android
