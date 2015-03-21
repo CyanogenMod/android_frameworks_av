@@ -35,7 +35,6 @@
 #include <binder/ProcessInfoService.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
-#include <cutils/multiuser.h>
 #include <gui/Surface.h>
 #include <hardware/hardware.h>
 #include <media/AudioSystem.h>
@@ -123,9 +122,8 @@ static void torch_mode_status_change(
 // should be ok for now.
 static CameraService *gCameraService;
 
-CameraService::CameraService()
-    : mEventLog(DEFAULT_EVICTION_LOG_LENGTH), mSoundRef(0), mModule(0), mFlashlight(0)
-{
+CameraService::CameraService() : mEventLog(DEFAULT_EVICTION_LOG_LENGTH),
+        mLastUserId(DEFAULT_LAST_USER_ID), mSoundRef(0), mModule(0), mFlashlight(0) {
     ALOGI("CameraService started (pid=%d)", getpid());
     gCameraService = this;
 
@@ -757,7 +755,8 @@ status_t CameraService::getLegacyParametersLazy(int cameraId,
     return INVALID_OPERATION;
 }
 
-status_t CameraService::validateConnect(const String8& cameraId, /*inout*/int& clientUid) const {
+status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/int& clientUid)
+        const {
 
     int callingPid = getCallingPid();
 
@@ -795,6 +794,13 @@ status_t CameraService::validateConnect(const String8& cameraId, /*inout*/int& c
         ALOGE("CameraService::connect X (PID %d) rejected (camera %s is disabled by device "
                 "policy)", callingPid, cameraId.string());
         return -EACCES;
+    }
+
+    // Only allow clients who are being used by the current foreground device user.
+    if (mLastUserId != clientUserId && mLastUserId != DEFAULT_LAST_USER_ID) {
+        ALOGE("CameraService::connect X (PID %d) rejected (cannot connect from non-foreground "
+                "device user)", callingPid);
+        return PERMISSION_DENIED;
     }
 
     return checkIfDeviceIsUsable(cameraId);
@@ -1163,6 +1169,21 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
     return OK;
 }
 
+void CameraService::notifySystemEvent(int eventId, int arg0) {
+    switch(eventId) {
+        case ICameraService::USER_SWITCHED: {
+            doUserSwitch(/*newUserId*/arg0);
+            break;
+        }
+        case ICameraService::NO_EVENT:
+        default: {
+            ALOGW("%s: Received invalid system event from system_server: %d", __FUNCTION__,
+                    eventId);
+            break;
+        }
+    }
+}
+
 status_t CameraService::addListener(
                                 const sp<ICameraServiceListener>& listener) {
     ALOGV("%s: Add listener %p", __FUNCTION__, listener.get());
@@ -1351,6 +1372,8 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
         // other clients from connecting in mServiceLockWrapper if held
         mServiceLock.unlock();
 
+        // Do not clear caller identity, remote caller should be client proccess
+
         for (auto& i : evicted) {
             if (i.get() != nullptr) {
                 i->disconnect();
@@ -1392,6 +1415,60 @@ sp<CameraService::BasicClient> CameraService::removeClientLocked(const String8& 
     return clientDescriptorPtr->getValue();
 }
 
+void CameraService::doUserSwitch(int newUserId) {
+    // Acquire mServiceLock and prevent other clients from connecting
+    std::unique_ptr<AutoConditionLock> lock =
+            AutoConditionLock::waitAndAcquire(mServiceLockWrapper);
+
+    if (newUserId <= 0) {
+        ALOGW("%s: Bad user ID %d given during user switch, resetting to default.", __FUNCTION__,
+                newUserId);
+        newUserId = DEFAULT_LAST_USER_ID;
+    }
+
+    mLastUserId = newUserId;
+
+    // Current user has switched, evict all current clients.
+    std::vector<sp<BasicClient>> evicted;
+    for (auto& i : mActiveClientManager.getAll()) {
+        auto clientSp = i->getValue();
+
+        if (clientSp.get() == nullptr) {
+            ALOGE("%s: Dead client still in mActiveClientManager.", __FUNCTION__);
+            continue;
+        }
+
+        evicted.push_back(clientSp);
+
+        String8 curTime = getFormattedCurrentTime();
+
+        ALOGE("Evicting conflicting client for camera ID %s due to user change",
+                i->getKey().string());
+        // Log the clients evicted
+        mEventLog.add(String8::format("%s : EVICT device %s client for package %s (PID %"
+                PRId32 ", priority %" PRId32 ")\n   - Evicted due to user switch.",
+                curTime.string(), i->getKey().string(),
+                String8{clientSp->getPackageName()}.string(), i->getOwnerId(),
+                i->getPriority()));
+
+    }
+
+    // Do not hold mServiceLock while disconnecting clients, but retain the condition
+    // blocking other clients from connecting in mServiceLockWrapper if held.
+    mServiceLock.unlock();
+
+    // Clear caller identity temporarily so client disconnect PID checks work correctly
+    int64_t token = IPCThreadState::self()->clearCallingIdentity();
+
+    for (auto& i : evicted) {
+        i->disconnect();
+    }
+
+    IPCThreadState::self()->restoreCallingIdentity(token);
+
+    // Reacquire mServiceLock
+    mServiceLock.lock();
+}
 
 void CameraService::logDisconnected(const String8& cameraId, int clientPid,
         const String8& clientPackage) {
@@ -1411,16 +1488,18 @@ void CameraService::logConnected(const String8& cameraId, int clientPid,
             curTime.string(), cameraId.string(), clientPackage.string(), clientPid));
 }
 
-status_t CameraService::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
+status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+        uint32_t flags) {
+
+    const int pid = getCallingPid();
+    const int selfPid = getpid();
+
     // Permission checks
     switch (code) {
         case BnCameraService::CONNECT:
         case BnCameraService::CONNECT_DEVICE:
-        case BnCameraService::CONNECT_LEGACY:
-            const int pid = getCallingPid();
-            const int self_pid = getpid();
-            if (pid != self_pid) {
+        case BnCameraService::CONNECT_LEGACY: {
+            if (pid != selfPid) {
                 // we're called from a different process, do the real check
                 if (!checkCallingPermission(
                         String16("android.permission.CAMERA"))) {
@@ -1431,6 +1510,21 @@ status_t CameraService::onTransact(
                 }
             }
             break;
+        }
+        case BnCameraService::NOTIFY_SYSTEM_EVENT: {
+            if (pid != selfPid) {
+                // Ensure we're being called by system_server, or similar process with
+                // permissions to notify the camera service about system events
+                if (!checkCallingPermission(
+                        String16("android.permission.CAMERA_SEND_SYSTEM_EVENTS"))) {
+                    const int uid = getCallingUid();
+                    ALOGE("Permission Denial: cannot send updates to camera service about system"
+                            " events from pid=%d, uid=%d", pid, uid);
+                    return PERMISSION_DENIED;
+                }
+            }
+            break;
+        }
     }
 
     return BnCameraService::onTransact(code, data, reply, flags);
@@ -1544,7 +1638,11 @@ CameraService::BasicClient::~BasicClient() {
 }
 
 void CameraService::BasicClient::disconnect() {
-    if (mDisconnected) return;
+    if (mDisconnected) {
+        ALOGE("%s: Disconnect called on already disconnected client for device %d", __FUNCTION__,
+                mCameraId);
+        return;
+    }
     mDisconnected = true;;
 
     mCameraService->removeByClient(this);

@@ -51,6 +51,7 @@ public:
         SUPPORTS_CAMERA_API,
         CONNECT_LEGACY,
         SET_TORCH_MODE,
+        NOTIFY_SYSTEM_EVENT,
     };
 
     enum {
@@ -64,7 +65,18 @@ public:
 
     enum {
         CAMERA_HAL_API_VERSION_UNSPECIFIED = -1
-      };
+    };
+
+    /**
+     * Keep up-to-date with declarations in
+     * frameworks/base/services/core/java/com/android/server/camera/CameraService.java
+     *
+     * These event codes are intended to be used with the notifySystemEvent call.
+     */
+    enum {
+        NO_EVENT = 0,
+        USER_SWITCHED,
+    };
 
 public:
     DECLARE_META_INTERFACE(CameraService);
@@ -148,6 +160,11 @@ public:
      */
     virtual status_t setTorchMode(const String16& cameraId, bool enabled,
             const sp<IBinder>& clientBinder) = 0;
+
+    /**
+     * Notify the camera service of a system event.  Should only be called from system_server.
+     */
+    virtual void notifySystemEvent(int eventId, int arg0) = 0;
 };
 
 // ----------------------------------------------------------------------------

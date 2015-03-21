@@ -302,6 +302,15 @@ public:
         status_t res = data.readInt32();
         return res;
     }
+
+    virtual void notifySystemEvent(int eventId, int arg0) {
+        Parcel data, reply;
+        data.writeInt32(eventId);
+        data.writeInt32(arg0);
+        remote()->transact(BnCameraService::NOTIFY_SYSTEM_EVENT, data, &reply,
+                IBinder::FLAG_ONEWAY);
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(CameraService, "android.hardware.ICameraService");
@@ -468,6 +477,13 @@ status_t BnCameraService::onTransact(
             status_t status = setTorchMode(cameraId, enabled, clientBinder);
             reply->writeNoException();
             reply->writeInt32(status);
+            return NO_ERROR;
+        } break;
+        case NOTIFY_SYSTEM_EVENT: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            int eventId = data.readInt32();
+            int arg0 = data.readInt32();
+            notifySystemEvent(eventId, arg0);
             return NO_ERROR;
         } break;
         default:
