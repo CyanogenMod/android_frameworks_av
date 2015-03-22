@@ -3224,10 +3224,10 @@ return false;
 
     char propValue[PROPERTY_VALUE_MAX];
     bool pcmOffload = false;
-
-#ifdef ENABLE_AV_ENHANCEMENTS
     if (audio_is_offload_pcm(offloadInfo.format)) {
         bool prop_enabled = false;
+
+#ifdef ENABLE_AV_ENHANCEMENTS
         if ((AUDIO_FORMAT_PCM_16_BIT_OFFLOAD == offloadInfo.format) &&
                property_get("audio.offload.pcm.16bit.enable", propValue, NULL)) {
             prop_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
