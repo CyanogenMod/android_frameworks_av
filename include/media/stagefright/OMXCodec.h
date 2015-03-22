@@ -250,7 +250,7 @@ private:
 
     status_t setAC3Format(int32_t numChannels, int32_t sampleRate);
 
-    void setG711Format(int32_t numChannels);
+    void setG711Format(int32_t sampleRate, int32_t numChannels);
 
     status_t setVideoPortFormatType(
             OMX_U32 portIndex,

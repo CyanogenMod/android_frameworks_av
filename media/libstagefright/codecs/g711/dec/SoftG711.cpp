@@ -41,8 +41,9 @@ SoftG711::SoftG711(
         OMX_COMPONENTTYPE **component)
     : SimpleSoftOMXComponent(name, callbacks, appData, component),
       mIsMLaw(true),
+      mSignalledError(false),
       mNumChannels(1),
-      mSignalledError(false) {
+      mSamplingRate(8000) {
     if (!strcmp(name, "OMX.google.g711.alaw.decoder")) {
         mIsMLaw = false;
     } else {
@@ -129,7 +130,7 @@ OMX_ERRORTYPE SoftG711::internalGetParameter(
             pcmParams->eChannelMapping[1] = OMX_AUDIO_ChannelRF;
 
             pcmParams->nChannels = mNumChannels;
-            pcmParams->nSamplingRate = 8000;
+            pcmParams->nSamplingRate = mSamplingRate;
 
             return OMX_ErrorNone;
         }
@@ -158,6 +159,8 @@ OMX_ERRORTYPE SoftG711::internalSetParameter(
             if(pcmParams->nPortIndex == 0) {
                 mNumChannels = pcmParams->nChannels;
             }
+
+            mSamplingRate = pcmParams->nSamplingRate;
 
             return OMX_ErrorNone;
         }
