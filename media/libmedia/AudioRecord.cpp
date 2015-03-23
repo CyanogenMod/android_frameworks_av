@@ -424,7 +424,6 @@ uint32_t AudioRecord::getInputFramesLost() const
 // must be called with mLock held
 status_t AudioRecord::openRecord_l(size_t epoch)
 {
-    status_t status;
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
     if (audioFlinger == 0) {
         ALOGE("Could not get audioflinger");
@@ -460,7 +459,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
 
     audio_io_handle_t input;
-    status = AudioSystem::getInputForAttr(&mAttributes, &input, (audio_session_t)mSessionId,
+    status_t status = AudioSystem::getInputForAttr(&mAttributes, &input,
+                                        (audio_session_t)mSessionId,
                                         mSampleRate, mFormat, mChannelMask, mFlags);
 
     if (status != NO_ERROR) {
@@ -1001,14 +1001,13 @@ status_t AudioRecord::restoreRecord_l(const char *from)
 {
     ALOGW("dead IAudioRecord, creating a new one from %s()", from);
     ++mSequence;
-    status_t result;
 
     // if the new IAudioRecord is created, openRecord_l() will modify the
     // following member variables: mAudioRecord, mCblkMemory, mCblk, mBufferMemory.
     // It will also delete the strong references on previous IAudioRecord and IMemory
     size_t position = mProxy->getPosition();
     mNewPosition = position + mUpdatePeriod;
-    result = openRecord_l(position);
+    status_t result = openRecord_l(position);
     if (result == NO_ERROR) {
         if (mActive) {
             // callback thread or sync event hasn't changed

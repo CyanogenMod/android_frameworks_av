@@ -1415,8 +1415,7 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
             return ssize_t(err);
         }
 
-        size_t toWrite;
-        toWrite = audioBuffer.size;
+        size_t toWrite = audioBuffer.size;
         memcpy(audioBuffer.i8, buffer, toWrite);
         buffer = ((const char *) buffer) + toWrite;
         userSize -= toWrite;
@@ -1829,7 +1828,6 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     ALOGW("dead IAudioTrack, %s, creating a new one from %s()",
           isOffloadedOrDirect_l() ? "Offloaded or Direct" : "PCM", from);
     ++mSequence;
-    status_t result;
 
     // refresh the audio configuration cache in this process to make sure we get new
     // output parameters and new IAudioFlinger in createTrack_l()
@@ -1851,7 +1849,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
     // It will also delete the strong references on previous IAudioTrack and IMemory.
     // If a new IAudioTrack cannot be created, the previous (dead) instance will be left intact.
-    result = createTrack_l();
+    status_t result = createTrack_l();
 
     // take the frames that will be lost by track recreation into account in saved position
     // For streaming tracks, this is the amount we obtained from the user/client
