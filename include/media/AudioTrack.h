@@ -667,10 +667,6 @@ protected:
             static const nsecs_t NS_WHENEVER = -1, NS_INACTIVE = -2, NS_NEVER = -3;
             nsecs_t processAudioBuffer();
 
-            bool     isOffloaded() const;
-            bool     isDirect() const;
-            bool     isOffloadedOrDirect() const;
-
             // caller must hold lock on mLock for all _l methods
 
             status_t createTrack_l();
@@ -682,6 +678,10 @@ protected:
 
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from);
+
+            bool     isOffloaded() const;
+            bool     isDirect() const;
+            bool     isOffloadedOrDirect() const;
 
             bool     isOffloaded_l() const
                 { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
