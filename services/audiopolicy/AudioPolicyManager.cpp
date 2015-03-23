@@ -220,6 +220,11 @@ const StringToEnum sInChannelsNameToEnumTable[] = {
 #ifdef AUDIO_EXTN_SSR_ENABLED
     STRING_TO_ENUM(AUDIO_CHANNEL_IN_5POINT1),
 #endif
+#ifdef QCOM_DIRECTTRACK
+    STRING_TO_ENUM(AUDIO_CHANNEL_IN_VOICE_CALL_MONO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_IN_VOICE_DNLINK_MONO),
+    STRING_TO_ENUM(AUDIO_CHANNEL_IN_VOICE_UPLINK_MONO),
+#endif
 };
 
 const StringToEnum sGainModeNameToEnumTable[] = {
@@ -1776,28 +1781,22 @@ audio_io_handle_t AudioPolicyManager::getInput(audio_source_t inputSource,
         return AUDIO_IO_HANDLE_NONE;
     }
 
-    /*The below code is intentionally not ported.
-    It's not needed to update the channel mask based on source because
-    the source is sent to audio HAL through set_parameters().
-    For example, if source = VOICE_CALL, does not mean we need to capture two channels.
-    If the sound recorder app selects AMR as encoding format but source as RX+TX,
-    we need both in ONE channel. So we use the channels set by the app and use source
-    to tell the driver what needs to captured (RX only, TX only, or RX+TX ).*/
+#ifdef QCOM_DIRECTTRACK
     // adapt channel selection to input source
-    /*switch (inputSource) {
+    switch (inputSource) {
     case AUDIO_SOURCE_VOICE_UPLINK:
-        channelMask = AUDIO_CHANNEL_IN_VOICE_UPLINK;
+        channelMask |= AUDIO_CHANNEL_IN_VOICE_UPLINK;
         break;
     case AUDIO_SOURCE_VOICE_DOWNLINK:
-        channelMask = AUDIO_CHANNEL_IN_VOICE_DNLINK;
+        channelMask |= AUDIO_CHANNEL_IN_VOICE_DNLINK;
         break;
     case AUDIO_SOURCE_VOICE_CALL:
-        channelMask = AUDIO_CHANNEL_IN_VOICE_UPLINK | AUDIO_CHANNEL_IN_VOICE_DNLINK;
+        channelMask |= AUDIO_CHANNEL_IN_VOICE_UPLINK | AUDIO_CHANNEL_IN_VOICE_DNLINK;
         break;
     default:
         break;
     }
-*/
+#endif
 
 #ifdef VOICE_CONCURRENCY
 
