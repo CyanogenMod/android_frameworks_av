@@ -1862,7 +1862,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // For streaming tracks, this is the amount we obtained from the user/client
     // (not the number actually consumed at the server - those are already lost).
     (void) updateAndGetPosition_l();
-    if (mStaticProxy != 0) {
+    if (mStaticProxy == 0) {
         mPosition = mReleased;
     }
 
