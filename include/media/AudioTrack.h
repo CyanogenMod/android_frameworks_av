@@ -560,7 +560,6 @@ public:
      *  frameCount  currently ignored but recommend to set to actual number of frames filled
      *  size        actual number of bytes filled, must be multiple of frameSize
      *  raw         ignored
-     *
      */
     // FIXME make private when obtainBuffer() for TRANSFER_OBTAIN is removed
             void        releaseBuffer(const Buffer* audioBuffer);
@@ -774,6 +773,7 @@ protected:
     bool                    mMarkerReached;
     uint32_t                mNewPosition;           // in frames
     uint32_t                mUpdatePeriod;          // in frames, zero means no EVENT_NEW_POS
+
     uint32_t                mServer;                // in frames, last known mProxy->getPosition()
                                                     // which is count of frames consumed by server,
                                                     // reset by new IAudioTrack,

@@ -54,5 +54,4 @@ struct BpMediaHTTPService : public BpInterface<IMediaHTTPService> {
 IMPLEMENT_META_INTERFACE(
         MediaHTTPService, "android.media.IMediaHTTPService");
 
-}  // namespace android
-
+} // namespace android

@@ -470,7 +470,7 @@ private:
     bool                    mActive;
 
     // for client callback handler
-    callback_t              mCbf;               // callback handler for events, or NULL
+    callback_t              mCbf;                   // callback handler for events, or NULL
     void*                   mUserData;
 
     // for notification APIs
@@ -487,10 +487,10 @@ private:
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
     uint32_t                mObservedSequence;      // last observed value of mSequence
 
-    uint32_t                mMarkerPosition;    // in wrapping (overflow) frame units
+    uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
     bool                    mMarkerReached;
-    uint32_t                mNewPosition;       // in frames
-    uint32_t                mUpdatePeriod;      // in frames, zero means no EVENT_NEW_POS
+    uint32_t                mNewPosition;           // in frames
+    uint32_t                mUpdatePeriod;          // in frames, zero means no EVENT_NEW_POS
 
     status_t                mStatus;
 
