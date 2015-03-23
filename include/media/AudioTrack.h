@@ -91,7 +91,7 @@ public:
             void*       raw;
             short*      i16;      // signed 16-bit
             int8_t*     i8;       // unsigned 8-bit, offset by 0x80
-        };                        // input: unused, output: pointer to buffer
+        };                        // input to obtainBuffer(): unused, output: pointer to buffer
     };
 
     /* As a convenience, if a callback is supplied, a handler thread
