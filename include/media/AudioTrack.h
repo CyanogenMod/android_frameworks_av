@@ -584,6 +584,7 @@ public:
 
     /*
      * Dumps the state of an audio track.
+     * Not a general-purpose API; intended only for use by media player service to dump its tracks.
      */
             status_t    dump(int fd, const Vector<String16>& args) const;
 
