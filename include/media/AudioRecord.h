@@ -42,8 +42,7 @@ public:
         EVENT_MORE_DATA = 0,        // Request to read available data from buffer.
                                     // If this event is delivered but the callback handler
                                     // does not want to read the available data, the handler must
-                                    // explicitly
-                                    // ignore the event by setting frameCount to zero.
+                                    // explicitly ignore the event by setting frameCount to zero.
         EVENT_OVERRUN = 1,          // Buffer overrun occurred.
         EVENT_MARKER = 2,           // Record head is at the specified marker position
                                     // (See setMarkerPosition()).
@@ -53,7 +52,7 @@ public:
                                     // voluntary invalidation by mediaserver, or mediaserver crash.
     };
 
-    /* Client should declare Buffer on the stack and pass address to obtainBuffer()
+    /* Client should declare a Buffer and pass address to obtainBuffer()
      * and releaseBuffer().  See also callback_t for EVENT_MORE_DATA.
      */
 
@@ -62,20 +61,25 @@ public:
     public:
         // FIXME use m prefix
         size_t      frameCount;     // number of sample frames corresponding to size;
-                                    // on input it is the number of frames available,
-                                    // on output is the number of frames actually drained
-                                    // (currently ignored but will make the primary field in future)
+                                    // on input to obtainBuffer() it is the number of frames desired,
+                                    // on output from obtainBuffer() it is the number of available
+                                    //    frames to be read
+                                    // on input to releaseBuffer() it is currently ignored
 
         size_t      size;           // input/output in bytes == frameCount * frameSize
-                                    // on output is the number of bytes actually drained
-                                    // FIXME this is redundant with respect to frameCount,
-                                    // and TRANSFER_OBTAIN mode is broken for 8-bit data
-                                    // since we don't define the frame format
+                                    // on input to obtainBuffer() it is ignored
+                                    // on output from obtainBuffer() it is the number of available
+                                    //    bytes to be read, which is frameCount * frameSize
+                                    // on input to releaseBuffer() it is the number of bytes to
+                                    //    release
+                                    // FIXME This is redundant with respect to frameCount.  Consider
+                                    //    removing size and making frameCount the primary field.
 
         union {
             void*       raw;
             short*      i16;        // signed 16-bit
             int8_t*     i8;         // unsigned 8-bit, offset by 0x80
+                                    // input to obtainBuffer(): unused, output: pointer to buffer
         };
     };
 
@@ -145,7 +149,8 @@ public:
      *                     be larger if the requested size is not compatible with current audio HAL
      *                     latency.  Zero means to use a default value.
      * cbf:                Callback function. If not null, this function is called periodically
-     *                     to consume new data and inform of marker, position updates, etc.
+     *                     to consume new data in TRANSFER_CALLBACK mode
+     *                     and inform of marker, position updates, etc.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames are ready in record track output buffer.
@@ -212,7 +217,7 @@ public:
             status_t    initCheck() const   { return mStatus; }
 
     /* Returns this track's estimated latency in milliseconds.
-     * This includes the latency due to AudioRecord buffer size,
+     * This includes the latency due to AudioRecord buffer size, resampling if applicable,
      * and audio hardware driver.
      */
             uint32_t    latency() const     { return mLatency; }
@@ -324,7 +329,8 @@ public:
      */
             int    getSessionId() const { return mSessionId; }
 
-    /* Obtains a buffer of up to "audioBuffer->frameCount" full frames.
+    /* Public API for TRANSFER_OBTAIN mode.
+     * Obtains a buffer of up to "audioBuffer->frameCount" full frames.
      * After draining these frames of data, the caller should release them with releaseBuffer().
      * If the track buffer is not empty, obtainBuffer() returns as many contiguous
      * full frames as are available immediately.
@@ -348,6 +354,8 @@ public:
      * Buffer fields
      * On entry:
      *  frameCount  number of frames requested
+     *  size        ignored
+     *  raw         ignored
      * After error return:
      *  frameCount  0
      *  size        0

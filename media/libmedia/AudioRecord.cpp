@@ -694,7 +694,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, const struct timespec *r
 
 void AudioRecord::releaseBuffer(Buffer* audioBuffer)
 {
-    // all TRANSFER_* are valid
+    // FIXME add error checking on mode, by adding an internal version
 
     size_t stepCount = audioBuffer->size / mFrameSize;
     if (stepCount == 0) {
