@@ -465,7 +465,9 @@ public:
      *  handle on audio hardware output, or AUDIO_IO_HANDLE_NONE if the
      *  track needed to be re-created but that failed
      */
+private:
             audio_io_handle_t    getOutput() const;
+public:
 
     /* Returns the unique session ID associated with this track.
      *
