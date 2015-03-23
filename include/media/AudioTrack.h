@@ -150,9 +150,6 @@ public:
     /* Creates an AudioTrack object and registers it with AudioFlinger.
      * Once created, the track needs to be started before it can be used.
      * Unspecified values are set to appropriate default values.
-     * With this constructor, the track is configured for streaming mode.
-     * Data to be rendered is supplied by write() or by the callback EVENT_MORE_DATA.
-     * Intermixing a combination of write() and non-ignored EVENT_MORE_DATA is not allowed.
      *
      * Parameters:
      *
@@ -170,13 +167,21 @@ public:
      *                     configuration.  Zero means to use a default value.
      * flags:              See comments on audio_output_flags_t in <system/audio.h>.
      * cbf:                Callback function. If not null, this function is called periodically
-     *                     to provide new data and inform of marker, position updates, etc.
+     *                     to provide new data in TRANSFER_CALLBACK mode
+     *                     and inform of marker, position updates, etc.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
      *                     frames have been consumed from track input buffer.
      *                     This is expressed in units of frames at the initial source sample rate.
      * sessionId:          Specific session ID, or zero to use default.
      * transferType:       How data is transferred to AudioTrack.
+     * offloadInfo:        If not NULL, provides offload parameters for
+     *                     AudioSystem::getOutputForAttr().
+     * uid:                User ID of the app which initially requested this AudioTrack
+     *                     for power management tracking, or -1 for current user ID.
+     * pid:                Process ID of the app which initially requested this AudioTrack
+     *                     for power management tracking, or -1 for current process ID.
+     * pAttributes:        If not NULL, supersedes streamType for use case selection.
      * threadCanCallJava:  Not present in parameter list, and so is fixed at false.
      */
 
@@ -199,7 +204,9 @@ public:
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
      * Data to be rendered is passed in a shared memory buffer
-     * identified by the argument sharedBuffer, which must be non-0.
+     * identified by the argument sharedBuffer, which should be non-0.
+     * If sharedBuffer is zero, this constructor is equivalent to the previous constructor
+     * but without the ability to specify a non-zero value for the frameCount parameter.
      * The memory should be initialized to the desired data before calling start().
      * The write() method is not supported in this case.
      * It is recommended to pass a callback function to be notified of playback end by an

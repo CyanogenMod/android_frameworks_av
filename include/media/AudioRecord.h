@@ -61,7 +61,7 @@ public:
     public:
         // FIXME use m prefix
         size_t      frameCount;     // number of sample frames corresponding to size;
-                                    // on input to obtainBuffer() it is the number of frames desired,
+                                    // on input to obtainBuffer() it is the number of frames desired
                                     // on output from obtainBuffer() it is the number of available
                                     //    frames to be read
                                     // on input to releaseBuffer() it is currently ignored
