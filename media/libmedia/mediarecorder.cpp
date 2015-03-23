@@ -680,4 +680,4 @@ void MediaRecorder::died()
     notify(MEDIA_RECORDER_EVENT_ERROR, MEDIA_ERROR_SERVER_DIED, 0);
 }
 
-}; // namespace android
+} // namespace android

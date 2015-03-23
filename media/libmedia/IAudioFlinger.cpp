@@ -1369,4 +1369,4 @@ status_t BnAudioFlinger::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

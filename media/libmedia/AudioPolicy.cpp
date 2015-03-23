@@ -112,4 +112,4 @@ status_t AudioMix::writeToParcel(Parcel *parcel) const
     return NO_ERROR;
 }
 
-}; // namespace android
+} // namespace android

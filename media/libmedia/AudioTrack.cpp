@@ -2183,4 +2183,4 @@ void AudioTrack::AudioTrackThread::pauseInternal(nsecs_t ns)
     mPausedNs = ns;
 }
 
-}; // namespace android
+} // namespace android

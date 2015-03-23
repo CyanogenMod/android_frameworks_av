@@ -1133,4 +1133,4 @@ void AudioRecord::AudioRecordThread::pauseInternal(nsecs_t ns)
 
 // -------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

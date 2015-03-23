@@ -110,4 +110,4 @@ void StringArray::setEntry(int idx, const char* str) {
 }
 
 
-}; // namespace android
+} // namespace android

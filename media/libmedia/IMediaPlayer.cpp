@@ -574,4 +574,4 @@ status_t BnMediaPlayer::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

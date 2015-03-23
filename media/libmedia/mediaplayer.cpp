@@ -877,4 +877,4 @@ status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
     return mPlayer->setNextPlayer(next == NULL ? NULL : next->mPlayer);
 }
 
-}; // namespace android
+} // namespace android

@@ -160,4 +160,4 @@ status_t BnMediaCodecList::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

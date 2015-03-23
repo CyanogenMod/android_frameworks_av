@@ -91,4 +91,4 @@ status_t BnMediaLogService::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

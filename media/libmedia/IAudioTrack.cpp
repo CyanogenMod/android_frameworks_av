@@ -292,4 +292,4 @@ status_t BnAudioTrack::onTransact(
     }
 }
 
-}; // namespace android
+} // namespace android

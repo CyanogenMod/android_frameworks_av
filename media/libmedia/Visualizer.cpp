@@ -429,4 +429,4 @@ bool Visualizer::CaptureThread::threadLoop()
     return false;
 }
 
-}; // namespace android
+} // namespace android

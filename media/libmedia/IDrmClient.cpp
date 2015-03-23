@@ -78,4 +78,4 @@ status_t BnDrmClient::onTransact(
     }
 }
 
-}; // namespace android
+} // namespace android

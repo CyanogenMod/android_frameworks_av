@@ -141,4 +141,4 @@ status_t BnEffectClient::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android

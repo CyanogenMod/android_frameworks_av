@@ -201,4 +201,4 @@ status_t BnEffect::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace android
