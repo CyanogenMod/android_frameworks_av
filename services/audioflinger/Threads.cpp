@@ -2009,7 +2009,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
         LOG_FATAL("HAL format %#x not supported for mixed output",
                 mFormat);
     }
-    mFrameSize = audio_stream_out_frame_size(mOutput->stream);
+    mFrameSize = mOutput->getFrameSize();
     mBufferSize = mOutput->stream->common.get_buffer_size(&mOutput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
     if (mFrameCount & 15) {
@@ -2160,7 +2160,7 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, ui
     } else {
         status_t status;
         uint32_t frames;
-        status = mOutput->stream->get_render_position(mOutput->stream, &frames);
+        status = mOutput->getRenderPosition(&frames);
         *dspFrames = (size_t)frames;
         return status;
     }
@@ -2202,13 +2202,13 @@ uint32_t AudioFlinger::PlaybackThread::getStrategyForSession_l(int sessionId)
 }
 
 
-AudioFlinger::AudioStreamOut* AudioFlinger::PlaybackThread::getOutput() const
+AudioStreamOut* AudioFlinger::PlaybackThread::getOutput() const
 {
     Mutex::Autolock _l(mLock);
     return mOutput;
 }
 
-AudioFlinger::AudioStreamOut* AudioFlinger::PlaybackThread::clearOutput()
+AudioStreamOut* AudioFlinger::PlaybackThread::clearOutput()
 {
     Mutex::Autolock _l(mLock);
     AudioStreamOut *output = mOutput;
@@ -2354,8 +2354,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         }
         // FIXME We should have an implementation of timestamps for direct output threads.
         // They are used e.g for multichannel PCM playback over HDMI.
-        bytesWritten = mOutput->stream->write(mOutput->stream,
-                                                   (char *)mSinkBuffer + offset, mBytesRemaining);
+        bytesWritten = mOutput->write((char *)mSinkBuffer + offset, mBytesRemaining);
         if (mUseAsyncWrite &&
                 ((bytesWritten < 0) || (bytesWritten == (ssize_t)mBytesRemaining))) {
             // do not wait for async callback in case of error of full write
@@ -2908,8 +2907,7 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
     if ((mType == OFFLOAD || mType == DIRECT)
             && mOutput != NULL && mOutput->stream->get_presentation_position) {
         uint64_t position64;
-        int ret = mOutput->stream->get_presentation_position(
-                                                mOutput->stream, &position64, &timestamp.mTime);
+        int ret = mOutput->getPresentationPosition(&position64, &timestamp.mTime);
         if (ret == 0) {
             timestamp.mPosition = (uint32_t)position64;
             return NO_ERROR;
@@ -3289,7 +3287,7 @@ bool AudioFlinger::PlaybackThread::waitingAsyncCallback()
 void AudioFlinger::PlaybackThread::threadLoop_standby()
 {
     ALOGV("Audio hardware entering standby, mixer %p, suspend count %d", this, mSuspended);
-    mOutput->stream->common.standby(&mOutput->stream->common);
+    mOutput->standby();
     if (mUseAsyncWrite != 0) {
         // discard any pending drain or write ack by incrementing sequence
         mWriteAckSequence = (mWriteAckSequence + 2) & ~1;
@@ -4058,7 +4056,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
                                                 keyValuePair.string());
         if (!mStandby && status == INVALID_OPERATION) {
-            mOutput->stream->common.standby(&mOutput->stream->common);
+            mOutput->standby();
             mStandby = true;
             mBytesWritten = 0;
             status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
@@ -4400,8 +4398,8 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
     while (frameCount) {
         AudioBufferProvider::Buffer buffer;
         buffer.frameCount = frameCount;
-        mActiveTrack->getNextBuffer(&buffer);
-        if (buffer.raw == NULL) {
+        status_t status = mActiveTrack->getNextBuffer(&buffer);
+        if (status != NO_ERROR || buffer.raw == NULL) {
             memset(curBuf, 0, frameCount * mFrameSize);
             break;
         }
@@ -4513,7 +4511,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
         status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
                                                 keyValuePair.string());
         if (!mStandby && status == INVALID_OPERATION) {
-            mOutput->stream->common.standby(&mOutput->stream->common);
+            mOutput->standby();
             mStandby = true;
             mBytesWritten = 0;
             status = mOutput->stream->common.set_parameters(&mOutput->stream->common,
@@ -4576,9 +4574,7 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 
 void AudioFlinger::DirectOutputThread::flushHw_l()
 {
-    if (mOutput->stream->flush != NULL) {
-        mOutput->stream->flush(mOutput->stream);
-    }
+    mOutput->flush();
     mHwPaused = false;
 }
 
@@ -4868,7 +4864,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
                     size_t framesWritten =
-                            mBytesWritten / audio_stream_out_frame_size(mOutput->stream);
+                            mBytesWritten / mOutput->getFrameSize();
                     track->presentationComplete(framesWritten, audioHALFrames);
                     track->reset();
                     tracksToRemove->add(track);
