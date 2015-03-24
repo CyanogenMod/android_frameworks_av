@@ -438,9 +438,12 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     }
 
     // Client can only express a preference for FAST.  Server will perform additional tests.
-    if ((mFlags & AUDIO_INPUT_FLAG_FAST) && !(
-            // use case: callback transfer mode
-            (mTransfer == TRANSFER_CALLBACK) &&
+    if ((mFlags & AUDIO_INPUT_FLAG_FAST) && !((
+            // either of these use cases:
+            // use case 1: callback transfer mode
+            (mTransfer == TRANSFER_CALLBACK) ||
+            // use case 2: obtain/release mode
+            (mTransfer == TRANSFER_OBTAIN)) &&
             // matching sample rate
             (mSampleRate == afSampleRate))) {
         ALOGW("AUDIO_INPUT_FLAG_FAST denied by client; transfer %d, track %u Hz, primary %u Hz",
