@@ -183,6 +183,7 @@ public:
 
     /* Initialize an AudioRecord that was created using the AudioRecord() constructor.
      * Don't call set() more than once, or after an AudioRecord() constructor that takes parameters.
+     * set() is not multi-thread safe.
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful intialization
      *  - INVALID_OPERATION: AudioRecord is already initialized or record device is already in use

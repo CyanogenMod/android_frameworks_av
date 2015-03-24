@@ -238,6 +238,7 @@ public:
 
     /* Initialize an AudioTrack that was created using the AudioTrack() constructor.
      * Don't call set() more than once, or after the AudioTrack() constructors that take parameters.
+     * set() is not multi-thread safe.
      * Returned status (from utils/Errors.h) can be:
      *  - NO_ERROR: successful initialization
      *  - INVALID_OPERATION: AudioTrack is already initialized
