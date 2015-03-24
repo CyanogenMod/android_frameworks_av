@@ -111,7 +111,8 @@ namespace android {
                                           Vector<uint8_t> const &initData,
                                           String8 const &mimeType, KeyType keyType,
                                           KeyedVector<String8, String8> const &optionalParameters,
-                                          Vector<uint8_t> &request, String8 &defaultUrl)
+                                          Vector<uint8_t> &request, String8 &defaultUrl,
+                                          KeyRequestType *keyRequestType)
     {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::getKeyRequest(sessionId=%s, initData=%s, mimeType=%s"
@@ -149,6 +150,7 @@ namespace android {
         // Properties used in mock test, set by cts test app returned from mock plugin
         //   byte[] mock-request       -> request
         //   string mock-default-url   -> defaultUrl
+        //   string mock-key-request-type -> keyRequestType
 
         index = mByteArrayProperties.indexOfKey(String8("mock-request"));
         if (index < 0) {
@@ -165,6 +167,16 @@ namespace android {
         } else {
             defaultUrl = mStringProperties.valueAt(index);
         }
+
+        index = mStringProperties.indexOfKey(String8("mock-keyRequestType"));
+        if (index < 0) {
+            ALOGD("Missing 'mock-keyRequestType' parameter for mock");
+            return BAD_VALUE;
+        } else {
+            *keyRequestType = static_cast<KeyRequestType>(
+                atoi(mStringProperties.valueAt(index).string()));
+        }
+
         return OK;
     }
 

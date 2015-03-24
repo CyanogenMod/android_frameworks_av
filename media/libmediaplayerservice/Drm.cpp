@@ -358,7 +358,8 @@ status_t Drm::getKeyRequest(Vector<uint8_t> const &sessionId,
                             Vector<uint8_t> const &initData,
                             String8 const &mimeType, DrmPlugin::KeyType keyType,
                             KeyedVector<String8, String8> const &optionalParameters,
-                            Vector<uint8_t> &request, String8 &defaultUrl) {
+                            Vector<uint8_t> &request, String8 &defaultUrl,
+                            DrmPlugin::KeyRequestType *keyRequestType) {
     Mutex::Autolock autoLock(mLock);
 
     if (mInitCheck != OK) {
@@ -372,7 +373,8 @@ status_t Drm::getKeyRequest(Vector<uint8_t> const &sessionId,
     DrmSessionManager::Instance()->useSession(sessionId);
 
     return mPlugin->getKeyRequest(sessionId, initData, mimeType, keyType,
-                                  optionalParameters, request, defaultUrl);
+                                  optionalParameters, request, defaultUrl,
+                                  keyRequestType);
 }
 
 status_t Drm::provideKeyResponse(Vector<uint8_t> const &sessionId,

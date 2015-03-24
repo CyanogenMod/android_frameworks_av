@@ -312,8 +312,10 @@ media_status_t AMediaDrm_getKeyRequest(AMediaDrm *mObj, const AMediaDrmScope *sc
                 String8(optionalParameters[i].mValue));
     }
     String8 defaultUrl;
+    DrmPlugin::KeyRequestType keyRequestType;
     status_t status = mObj->mDrm->getKeyRequest(*iter, mdInit, String8(mimeType),
-            mdKeyType, mdOptionalParameters, mObj->mKeyRequest, defaultUrl);
+            mdKeyType, mdOptionalParameters, mObj->mKeyRequest, defaultUrl,
+            &keyRequestType);
     if (status != OK) {
         return translateStatus(status);
     } else {
@@ -725,4 +727,3 @@ media_status_t AMediaDrm_verify(AMediaDrm *mObj, const AMediaDrmSessionId *sessi
 }
 
 } // extern "C"
-

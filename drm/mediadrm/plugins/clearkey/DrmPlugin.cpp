@@ -48,12 +48,13 @@ status_t DrmPlugin::getKeyRequest(
         KeyType keyType,
         const KeyedVector<String8, String8>& optionalParameters,
         Vector<uint8_t>& request,
-        String8& defaultUrl) {
+        String8& defaultUrl,
+        DrmPlugin::KeyRequestType *keyRequestType) {
     UNUSED(optionalParameters);
     if (keyType != kKeyType_Streaming) {
         return android::ERROR_DRM_CANNOT_HANDLE;
     }
-
+    *keyRequestType = DrmPlugin::kKeyRequestType_Initial;
     sp<Session> session = mSessionLibrary->findSession(scope);
     defaultUrl.clear();
     return session->getKeyRequest(initData, initDataType, &request);
