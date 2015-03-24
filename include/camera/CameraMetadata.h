@@ -56,7 +56,7 @@ class CameraMetadata {
      * thread-safety, it simply prevents the camera_metadata_t pointer returned
      * here from being accidentally invalidated by CameraMetadata operations.
      */
-    const camera_metadata_t* getAndLock();
+    const camera_metadata_t* getAndLock() const;
 
     /**
      * Unlock the CameraMetadata for use again. After this unlock, the pointer
@@ -208,7 +208,7 @@ class CameraMetadata {
 
   private:
     camera_metadata_t *mBuffer;
-    bool               mLocked;
+    mutable bool       mLocked;
 
     /**
      * Check if tag has a given type

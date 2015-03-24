@@ -73,24 +73,25 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
     ssize_t index = mCameraInfoMap.indexOfKey(cameraId);
     if (index == NAME_NOT_FOUND) {
         // Get camera info from raw module and cache it
-        CameraInfo cameraInfo;
-        camera_info rawInfo;
+        camera_info rawInfo, cameraInfo;
         int ret = mModule->get_camera_info(cameraId, &rawInfo);
         if (ret != 0) {
             return ret;
         }
-        CameraMetadata &m = cameraInfo.cameraCharacteristics;
+        CameraMetadata m;
         m = rawInfo.static_camera_characteristics;
         deriveCameraCharacteristicsKeys(rawInfo.device_version, m);
-        cameraInfo.cameraInfo = rawInfo;
-        cameraInfo.cameraInfo.static_camera_characteristics = m.getAndLock();
+        mCameraCharacteristicsMap.add(cameraId, m);
+        cameraInfo = rawInfo;
+        cameraInfo.static_camera_characteristics =
+                mCameraCharacteristicsMap.valueFor(cameraId).getAndLock();
         mCameraInfoMap.add(cameraId, cameraInfo);
         index = mCameraInfoMap.indexOfKey(cameraId);
     }
 
     assert(index != NAME_NOT_FOUND);
     // return the cached camera info
-    *info = mCameraInfoMap[index].cameraInfo;
+    *info = mCameraInfoMap[index];
     return 0;
 }
 
