@@ -532,7 +532,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
         mLock.unlock();
         svc.clear();
         mLock.lock();
-        if (!exitPending() && mAudioCommands.isEmpty()) {
+        if (!exitPending() && (mAudioCommands.isEmpty() || waitTime != INT64_MAX)) {
             // release delayed commands wake lock
             release_wake_lock(mName.string());
             ALOGV("AudioCommandThread() going to sleep");
