@@ -1,0 +1,541 @@
+/*
+ * Copyright 2015 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+//#define LOG_NDEBUG 0
+#define LOG_TAG "MediaSync"
+#include <inttypes.h>
+
+#include <gui/BufferQueue.h>
+#include <gui/IGraphicBufferConsumer.h>
+#include <gui/IGraphicBufferProducer.h>
+
+#include <media/AudioTrack.h>
+#include <media/stagefright/MediaClock.h>
+#include <media/stagefright/MediaSync.h>
+#include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
+#include <media/stagefright/foundation/AMessage.h>
+
+#include <ui/GraphicBuffer.h>
+
+// Maximum late time allowed for a video frame to be rendered. When a video
+// frame arrives later than this number, it will be discarded without rendering.
+static const int64_t kMaxAllowedVideoLateTimeUs = 40000ll;
+
+namespace android {
+
+// static
+sp<MediaSync> MediaSync::create() {
+    sp<MediaSync> sync = new MediaSync();
+    sync->mLooper->registerHandler(sync);
+    return sync;
+}
+
+MediaSync::MediaSync()
+      : mIsAbandoned(false),
+        mMutex(),
+        mReleaseCondition(),
+        mNumOutstandingBuffers(0),
+        mNativeSampleRateInHz(0),
+        mNumFramesWritten(0),
+        mHasAudio(false),
+        mNextBufferItemMediaUs(-1),
+        mPlaybackRate(0.0) {
+    mMediaClock = new MediaClock;
+
+    mLooper = new ALooper;
+    mLooper->setName("MediaSync");
+    mLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
+}
+
+MediaSync::~MediaSync() {
+    if (mInput != NULL) {
+        mInput->consumerDisconnect();
+    }
+    if (mOutput != NULL) {
+        mOutput->disconnect(NATIVE_WINDOW_API_MEDIA);
+    }
+
+    if (mLooper != NULL) {
+        mLooper->unregisterHandler(id());
+        mLooper->stop();
+    }
+}
+
+status_t MediaSync::configureSurface(const sp<IGraphicBufferProducer> &output) {
+    Mutex::Autolock lock(mMutex);
+
+    // TODO: support suface change.
+    if (mOutput != NULL) {
+        ALOGE("configureSurface: output surface has already been configured.");
+        return INVALID_OPERATION;
+    }
+
+    if (output != NULL) {
+        IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
+        sp<OutputListener> listener(new OutputListener(this));
+        IInterface::asBinder(output)->linkToDeath(listener);
+        status_t status =
+            output->connect(listener,
+                            NATIVE_WINDOW_API_MEDIA,
+                            true /* producerControlledByApp */,
+                            &queueBufferOutput);
+        if (status != NO_ERROR) {
+            ALOGE("configureSurface: failed to connect (%d)", status);
+            return status;
+        }
+
+        mOutput = output;
+    }
+
+    return NO_ERROR;
+}
+
+// |audioTrack| is used only for querying information.
+status_t MediaSync::configureAudioTrack(
+        const sp<AudioTrack> &audioTrack, uint32_t nativeSampleRateInHz) {
+    Mutex::Autolock lock(mMutex);
+
+    // TODO: support audio track change.
+    if (mAudioTrack != NULL) {
+        ALOGE("configureAudioTrack: audioTrack has already been configured.");
+        return INVALID_OPERATION;
+    }
+
+    mAudioTrack = audioTrack;
+    mNativeSampleRateInHz = nativeSampleRateInHz;
+
+    return NO_ERROR;
+}
+
+status_t MediaSync::createInputSurface(
+        sp<IGraphicBufferProducer> *outBufferProducer) {
+    if (outBufferProducer == NULL) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mMutex);
+
+    if (mOutput == NULL) {
+        return NO_INIT;
+    }
+
+    if (mInput != NULL) {
+        return INVALID_OPERATION;
+    }
+
+    sp<IGraphicBufferProducer> bufferProducer;
+    sp<IGraphicBufferConsumer> bufferConsumer;
+    BufferQueue::createBufferQueue(&bufferProducer, &bufferConsumer);
+
+    sp<InputListener> listener(new InputListener(this));
+    IInterface::asBinder(bufferConsumer)->linkToDeath(listener);
+    status_t status =
+        bufferConsumer->consumerConnect(listener, false /* controlledByApp */);
+    if (status == NO_ERROR) {
+        bufferConsumer->setConsumerName(String8("MediaSync"));
+        *outBufferProducer = bufferProducer;
+        mInput = bufferConsumer;
+    }
+    return status;
+}
+
+status_t MediaSync::setPlaybackRate(float rate) {
+    if (rate < 0.0) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mMutex);
+
+    if (rate > mPlaybackRate) {
+        mNextBufferItemMediaUs = -1;
+    }
+    mPlaybackRate = rate;
+    mMediaClock->setPlaybackRate(rate);
+    onDrainVideo_l();
+
+    return OK;
+}
+
+sp<const MediaClock> MediaSync::getMediaClock() {
+    return mMediaClock;
+}
+
+status_t MediaSync::updateQueuedAudioData(
+        size_t sizeInBytes, int64_t presentationTimeUs) {
+    if (sizeInBytes == 0) {
+        return OK;
+    }
+
+    Mutex::Autolock lock(mMutex);
+
+    if (mAudioTrack == NULL) {
+        ALOGW("updateQueuedAudioData: audioTrack has NOT been configured.");
+        return INVALID_OPERATION;
+    }
+
+    int64_t numFrames = sizeInBytes / mAudioTrack->frameSize();
+    int64_t maxMediaTimeUs = presentationTimeUs
+            + getDurationIfPlayedAtNativeSampleRate_l(numFrames);
+    mNumFramesWritten += numFrames;
+
+    int64_t nowUs = ALooper::GetNowUs();
+    int64_t nowMediaUs = maxMediaTimeUs
+            - getDurationIfPlayedAtNativeSampleRate_l(mNumFramesWritten)
+            + getPlayedOutAudioDurationMedia_l(nowUs);
+
+    int64_t oldRealTime = -1;
+    if (mNextBufferItemMediaUs != -1) {
+        oldRealTime = getRealTime(mNextBufferItemMediaUs, nowUs);
+    }
+
+    mMediaClock->updateAnchor(nowMediaUs, nowUs, maxMediaTimeUs);
+    mHasAudio = true;
+
+    if (oldRealTime != -1) {
+        int64_t newRealTime = getRealTime(mNextBufferItemMediaUs, nowUs);
+        if (newRealTime < oldRealTime) {
+            mNextBufferItemMediaUs = -1;
+            onDrainVideo_l();
+        }
+    }
+
+    return OK;
+}
+
+void MediaSync::setName(const AString &name) {
+    Mutex::Autolock lock(mMutex);
+    mInput->setConsumerName(String8(name.c_str()));
+}
+
+int64_t MediaSync::getRealTime(int64_t mediaTimeUs, int64_t nowUs) {
+    int64_t realUs;
+    if (mMediaClock->getRealTimeFor(mediaTimeUs, &realUs) != OK) {
+        // If failed to get current position, e.g. due to audio clock is
+        // not ready, then just play out video immediately without delay.
+        return nowUs;
+    }
+    return realUs;
+}
+
+int64_t MediaSync::getDurationIfPlayedAtNativeSampleRate_l(int64_t numFrames) {
+    return (numFrames * 1000000LL / mNativeSampleRateInHz);
+}
+
+int64_t MediaSync::getPlayedOutAudioDurationMedia_l(int64_t nowUs) {
+    CHECK(mAudioTrack != NULL);
+
+    uint32_t numFramesPlayed;
+    int64_t numFramesPlayedAt;
+    AudioTimestamp ts;
+    static const int64_t kStaleTimestamp100ms = 100000;
+
+    status_t res = mAudioTrack->getTimestamp(ts);
+    if (res == OK) {
+        // case 1: mixing audio tracks.
+        numFramesPlayed = ts.mPosition;
+        numFramesPlayedAt =
+            ts.mTime.tv_sec * 1000000LL + ts.mTime.tv_nsec / 1000;
+        const int64_t timestampAge = nowUs - numFramesPlayedAt;
+        if (timestampAge > kStaleTimestamp100ms) {
+            // This is an audio FIXME.
+            // getTimestamp returns a timestamp which may come from audio
+            // mixing threads. After pausing, the MixerThread may go idle,
+            // thus the mTime estimate may become stale. Assuming that the
+            // MixerThread runs 20ms, with FastMixer at 5ms, the max latency
+            // should be about 25ms with an average around 12ms (to be
+            // verified). For safety we use 100ms.
+            ALOGV("getTimestamp: returned stale timestamp nowUs(%lld) "
+                  "numFramesPlayedAt(%lld)",
+                  (long long)nowUs, (long long)numFramesPlayedAt);
+            numFramesPlayedAt = nowUs - kStaleTimestamp100ms;
+        }
+        //ALOGD("getTimestamp: OK %d %lld",
+        //      numFramesPlayed, (long long)numFramesPlayedAt);
+    } else if (res == WOULD_BLOCK) {
+        // case 2: transitory state on start of a new track
+        numFramesPlayed = 0;
+        numFramesPlayedAt = nowUs;
+        //ALOGD("getTimestamp: WOULD_BLOCK %d %lld",
+        //      numFramesPlayed, (long long)numFramesPlayedAt);
+    } else {
+        // case 3: transitory at new track or audio fast tracks.
+        res = mAudioTrack->getPosition(&numFramesPlayed);
+        CHECK_EQ(res, (status_t)OK);
+        numFramesPlayedAt = nowUs;
+        numFramesPlayedAt += 1000LL * mAudioTrack->latency() / 2; /* XXX */
+        //ALOGD("getPosition: %d %lld", numFramesPlayed, numFramesPlayedAt);
+    }
+
+    //can't be negative until 12.4 hrs, test.
+    //CHECK_EQ(numFramesPlayed & (1 << 31), 0);
+    int64_t durationUs =
+        getDurationIfPlayedAtNativeSampleRate_l(numFramesPlayed)
+            + nowUs - numFramesPlayedAt;
+    if (durationUs < 0) {
+        // Occurs when numFramesPlayed position is very small and the following:
+        // (1) In case 1, the time nowUs is computed before getTimestamp() is
+        //     called and numFramesPlayedAt is greater than nowUs by time more
+        //     than numFramesPlayed.
+        // (2) In case 3, using getPosition and adding mAudioTrack->latency()
+        //     to numFramesPlayedAt, by a time amount greater than
+        //     numFramesPlayed.
+        //
+        // Both of these are transitory conditions.
+        ALOGV("getPlayedOutAudioDurationMedia_l: negative duration %lld "
+              "set to zero", (long long)durationUs);
+        durationUs = 0;
+    }
+    ALOGV("getPlayedOutAudioDurationMedia_l(%lld) nowUs(%lld) frames(%u) "
+          "framesAt(%lld)",
+          (long long)durationUs, (long long)nowUs, numFramesPlayed,
+          (long long)numFramesPlayedAt);
+    return durationUs;
+}
+
+void MediaSync::onDrainVideo_l() {
+    if (!isPlaying()) {
+        return;
+    }
+
+    int64_t nowUs = ALooper::GetNowUs();
+
+    while (!mBufferItems.empty()) {
+        BufferItem *bufferItem = &*mBufferItems.begin();
+        int64_t itemMediaUs = bufferItem->mTimestamp / 1000;
+        int64_t itemRealUs = getRealTime(itemMediaUs, nowUs);
+        if (itemRealUs <= nowUs) {
+            if (mHasAudio) {
+                if (nowUs - itemRealUs <= kMaxAllowedVideoLateTimeUs) {
+                    renderOneBufferItem_l(*bufferItem);
+                } else {
+                    // too late.
+                    returnBufferToInput_l(
+                            bufferItem->mGraphicBuffer, bufferItem->mFence);
+                }
+            } else {
+                // always render video buffer in video-only mode.
+                renderOneBufferItem_l(*bufferItem);
+
+                // smooth out videos >= 10fps
+                mMediaClock->updateAnchor(
+                        itemMediaUs, nowUs, itemMediaUs + 100000);
+            }
+
+            mBufferItems.erase(mBufferItems.begin());
+
+            if (mBufferItems.empty()) {
+                mNextBufferItemMediaUs = -1;
+            }
+        } else {
+            if (mNextBufferItemMediaUs == -1
+                    || mNextBufferItemMediaUs != itemMediaUs) {
+                sp<AMessage> msg = new AMessage(kWhatDrainVideo, this);
+                msg->post(itemRealUs - nowUs);
+            }
+            break;
+        }
+    }
+}
+
+void MediaSync::onFrameAvailableFromInput() {
+    Mutex::Autolock lock(mMutex);
+
+    // If there are too many outstanding buffers, wait until a buffer is
+    // released back to the input in onBufferReleased.
+    while (mNumOutstandingBuffers >= MAX_OUTSTANDING_BUFFERS) {
+        mReleaseCondition.wait(mMutex);
+
+        // If the sync is abandoned while we are waiting, the release
+        // condition variable will be broadcast, and we should just return
+        // without attempting to do anything more (since the input queue will
+        // also be abandoned).
+        if (mIsAbandoned) {
+            return;
+        }
+    }
+    ++mNumOutstandingBuffers;
+
+    // Acquire and detach the buffer from the input.
+    BufferItem bufferItem;
+    status_t status = mInput->acquireBuffer(&bufferItem, 0 /* presentWhen */);
+    if (status != NO_ERROR) {
+        ALOGE("acquiring buffer from input failed (%d)", status);
+        return;
+    }
+
+    ALOGV("acquired buffer %#llx from input", (long long)bufferItem.mGraphicBuffer->getId());
+
+    status = mInput->detachBuffer(bufferItem.mBuf);
+    if (status != NO_ERROR) {
+        ALOGE("detaching buffer from input failed (%d)", status);
+        if (status == NO_INIT) {
+            // If the input has been abandoned, move on.
+            onAbandoned_l(true /* isInput */);
+        }
+        return;
+    }
+
+    mBufferItems.push_back(bufferItem);
+    onDrainVideo_l();
+}
+
+void MediaSync::renderOneBufferItem_l( const BufferItem &bufferItem) {
+    IGraphicBufferProducer::QueueBufferInput queueInput(
+            bufferItem.mTimestamp,
+            bufferItem.mIsAutoTimestamp,
+            bufferItem.mDataSpace,
+            bufferItem.mCrop,
+            static_cast<int32_t>(bufferItem.mScalingMode),
+            bufferItem.mTransform,
+            bufferItem.mIsDroppable,
+            bufferItem.mFence);
+
+    // Attach and queue the buffer to the output.
+    int slot;
+    status_t status = mOutput->attachBuffer(&slot, bufferItem.mGraphicBuffer);
+    ALOGE_IF(status != NO_ERROR, "attaching buffer to output failed (%d)", status);
+    if (status == NO_ERROR) {
+        IGraphicBufferProducer::QueueBufferOutput queueOutput;
+        status = mOutput->queueBuffer(slot, queueInput, &queueOutput);
+        ALOGE_IF(status != NO_ERROR, "queueing buffer to output failed (%d)", status);
+    }
+
+    if (status != NO_ERROR) {
+        returnBufferToInput_l(bufferItem.mGraphicBuffer, bufferItem.mFence);
+        if (status == NO_INIT) {
+            // If the output has been abandoned, move on.
+            onAbandoned_l(false /* isInput */);
+        }
+        return;
+    }
+
+    ALOGV("queued buffer %#llx to output", (long long)bufferItem.mGraphicBuffer->getId());
+}
+
+void MediaSync::onBufferReleasedByOutput() {
+    Mutex::Autolock lock(mMutex);
+
+    sp<GraphicBuffer> buffer;
+    sp<Fence> fence;
+    status_t status = mOutput->detachNextBuffer(&buffer, &fence);
+    ALOGE_IF(status != NO_ERROR, "detaching buffer from output failed (%d)", status);
+
+    if (status == NO_INIT) {
+        // If the output has been abandoned, we can't do anything else,
+        // since buffer is invalid.
+        onAbandoned_l(false /* isInput */);
+        return;
+    }
+
+    ALOGV("detached buffer %#llx from output", (long long)buffer->getId());
+
+    // If we've been abandoned, we can't return the buffer to the input, so just
+    // move on.
+    if (mIsAbandoned) {
+        return;
+    }
+
+    returnBufferToInput_l(buffer, fence);
+}
+
+void MediaSync::returnBufferToInput_l(
+        const sp<GraphicBuffer> &buffer, const sp<Fence> &fence) {
+    // Attach and release the buffer back to the input.
+    int consumerSlot;
+    status_t status = mInput->attachBuffer(&consumerSlot, buffer);
+    ALOGE_IF(status != NO_ERROR, "attaching buffer to input failed (%d)", status);
+    if (status == NO_ERROR) {
+        status = mInput->releaseBuffer(consumerSlot, 0 /* frameNumber */,
+                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
+        ALOGE_IF(status != NO_ERROR, "releasing buffer to input failed (%d)", status);
+    }
+
+    if (status != NO_ERROR) {
+        // TODO: do we need to try to return this buffer later?
+        return;
+    }
+
+    ALOGV("released buffer %#llx to input", (long long)buffer->getId());
+
+    // Notify any waiting onFrameAvailable calls.
+    --mNumOutstandingBuffers;
+    mReleaseCondition.signal();
+}
+
+void MediaSync::onAbandoned_l(bool isInput) {
+    ALOGE("the %s has abandoned me", (isInput ? "input" : "output"));
+    if (!mIsAbandoned) {
+        if (isInput) {
+            mOutput->disconnect(NATIVE_WINDOW_API_MEDIA);
+        } else {
+            mInput->consumerDisconnect();
+        }
+        mIsAbandoned = true;
+    }
+    mReleaseCondition.broadcast();
+}
+
+void MediaSync::onMessageReceived(const sp<AMessage> &msg) {
+    switch (msg->what()) {
+        case kWhatDrainVideo:
+        {
+            Mutex::Autolock lock(mMutex);
+            onDrainVideo_l();
+            break;
+        }
+
+        default:
+            TRESPASS();
+            break;
+    }
+}
+
+MediaSync::InputListener::InputListener(const sp<MediaSync> &sync)
+      : mSync(sync) {}
+
+MediaSync::InputListener::~InputListener() {}
+
+void MediaSync::InputListener::onFrameAvailable(const BufferItem &/* item */) {
+    mSync->onFrameAvailableFromInput();
+}
+
+// We don't care about sideband streams, since we won't relay them.
+void MediaSync::InputListener::onSidebandStreamChanged() {
+    ALOGE("onSidebandStreamChanged: got sideband stream unexpectedly.");
+}
+
+
+void MediaSync::InputListener::binderDied(const wp<IBinder> &/* who */) {
+    Mutex::Autolock lock(mSync->mMutex);
+    mSync->onAbandoned_l(true /* isInput */);
+}
+
+MediaSync::OutputListener::OutputListener(const sp<MediaSync> &sync)
+      : mSync(sync) {}
+
+MediaSync::OutputListener::~OutputListener() {}
+
+void MediaSync::OutputListener::onBufferReleased() {
+    mSync->onBufferReleasedByOutput();
+}
+
+void MediaSync::OutputListener::binderDied(const wp<IBinder> &/* who */) {
+    Mutex::Autolock lock(mSync->mMutex);
+    mSync->onAbandoned_l(false /* isInput */);
+}
+
+} // namespace android

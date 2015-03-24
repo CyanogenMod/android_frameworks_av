@@ -37,6 +37,7 @@ LOCAL_SRC_FILES:=                         \
         MediaCodecSource.cpp              \
         MediaDefs.cpp                     \
         MediaExtractor.cpp                \
+        MediaSync.cpp                     \
         MidiExtractor.cpp                 \
         http/MediaHTTP.cpp                \
         MediaMuxer.cpp                    \
