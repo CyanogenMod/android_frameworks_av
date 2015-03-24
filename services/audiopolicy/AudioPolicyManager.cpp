@@ -2183,6 +2183,11 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     audio_source_t halInputSource;
     AudioMix *policyMix = NULL;
 
+    if (inputSource == AUDIO_SOURCE_DEFAULT) {
+        inputSource = AUDIO_SOURCE_MIC;
+    }
+    halInputSource = inputSource;
+
 #ifdef VOICE_CONCURRENCY
 
     char propValue[PROPERTY_VALUE_MAX];
@@ -2240,14 +2245,8 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     }
 
 #endif
-
-    if (inputSource == AUDIO_SOURCE_DEFAULT) {
-        inputSource = AUDIO_SOURCE_MIC;
-    }
-    halInputSource = inputSource;
-
     if (inputSource == AUDIO_SOURCE_REMOTE_SUBMIX &&
-            strncmp(attr->tags, "addr=", strlen("addr=")) == 0) {
+        strncmp(attr->tags, "addr=", strlen("addr=")) == 0) {
         device = AUDIO_DEVICE_IN_REMOTE_SUBMIX;
         address = String8(attr->tags + strlen("addr="));
         ssize_t index = mPolicyMixes.indexOfKey(address);
@@ -2282,12 +2281,20 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         } else if (audio_is_remote_submix_device(device)) {
             address = String8("0");
             *inputType = API_INPUT_MIX_CAPTURE;
+
         } else {
             *inputType = API_INPUT_LEGACY;
         }
-#ifdef QCOM_DIRECTTRACK
+
+        /*The below code is intentionally not ported.
+        It's not needed to update the channel mask based on source because
+        the source is sent to audio HAL through set_parameters().
+        For example, if source = VOICE_CALL, does not mean we need to capture two channels.
+        If the sound recorder app selects AMR as encoding format but source as RX+TX,
+        we need both in ONE channel. So we use the channels set by the app and use source
+        to tell the driver what needs to captured (RX only, TX only, or RX+TX ).*/
         // adapt channel selection to input source
-        switch (inputSource) {
+        /*switch (inputSource) {
         case AUDIO_SOURCE_VOICE_UPLINK:
             channelMask |= AUDIO_CHANNEL_IN_VOICE_UPLINK;
             break;
@@ -2299,8 +2306,8 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
             break;
         default:
             break;
-        }
-#endif
+        }*/
+
         if (inputSource == AUDIO_SOURCE_HOTWORD) {
             ssize_t index = mSoundTriggerSessions.indexOfKey(session);
             if (index >= 0) {
@@ -2375,7 +2382,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     inputDesc->mIsSoundTrigger = isSoundTrigger;
     inputDesc->mPolicyMix = policyMix;
 
-    ALOGV("getInputForAttr() returns input type = %d", inputType);
+    ALOGV("getInputForAttr() returns input type = %d", *inputType);
 
     addInput(*input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
@@ -2697,7 +2704,7 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
         audio_devices_t availableOutputDeviceTypes = mAvailableOutputDevices.types();
         if (((device == AUDIO_DEVICE_OUT_DEFAULT) &&
               ((availableOutputDeviceTypes & AUDIO_DEVICE_OUT_FM) != AUDIO_DEVICE_OUT_FM)) ||
-              (device == curDevice)) {
+              ((curDevice & strategyDevice) != 0)) {
 #else
         if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & strategyDevice) != 0)) {
 #endif
