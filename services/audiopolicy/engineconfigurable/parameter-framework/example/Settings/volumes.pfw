@@ -1,0 +1,545 @@
+supDomain: VolumeProfilesForStream
+	domain: Calibration
+		conf: Calibration
+			component: /Policy/policy/streams
+				component: voice_call/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: speaker_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -16.0
+						2/index = 66
+						2/db_attenuation = -8.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
+				component: system/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -30.0
+						1/index = 33
+						1/db_attenuation = -26.0
+						2/index = 66
+						2/db_attenuation = -22.0
+						3/index = 100
+						3/db_attenuation = -18.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -21.0
+						3/index = 100
+						3/db_attenuation = -10.0
+
+				component: ring/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -49.5
+						1/index = 33
+						1/db_attenuation = -33.5
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -35.7
+						1/index = 33
+						1/db_attenuation = -26.1
+						2/index = 66
+						2/db_attenuation = -13.2
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -49.5
+						1/index = 33
+						1/db_attenuation = -33.5
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -27.0
+						3/index = 100
+						3/db_attenuation = -10.0
+
+				component: music/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -56.0
+						1/index = 33
+						1/db_attenuation = -34.0
+						2/index = 66
+						2/db_attenuation = -11.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
+				component: alarm/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -49.5
+						1/index = 33
+						1/db_attenuation = -33.5
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -35.7
+						1/index = 33
+						1/db_attenuation = -26.1
+						2/index = 66
+						2/db_attenuation = -13.2
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -49.5
+						1/index = 33
+						1/db_attenuation = -33.5
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -27.0
+						3/index = 100
+						3/db_attenuation = -10.0
+
+				component: notification/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -49.5
+						1/index = 33
+						1/db_attenuation = -33.5
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -35.7
+						1/index = 33
+						1/db_attenuation = -26.1
+						2/index = 66
+						2/db_attenuation = -13.2
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -49.5
+						1/index = 33
+						1/db_attenuation = -33.5
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -27.0
+						3/index = 100
+						3/db_attenuation = -10.0
+
+				component: bluetooth_sco/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: speaker_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -16.0
+						2/index = 66
+						2/db_attenuation = -8.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
+				component: enforced_audible/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -30.0
+						1/index = 33
+						1/db_attenuation = -26.0
+						2/index = 66
+						2/db_attenuation = -22.0
+						3/index = 100
+						3/db_attenuation = -18.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -27.0
+						3/index = 100
+						3/db_attenuation = -10.0
+
+				component: tts/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -96.0
+						1/index = 1
+						1/db_attenuation = -96.0
+						2/index = 2
+						2/db_attenuation = -96.0
+						3/index = 100
+						3/db_attenuation = -96.0
+					component: speaker_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -96.0
+						1/index = 33
+						1/db_attenuation = -68.0
+						2/index = 66
+						2/db_attenuation = -34.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -96.0
+						1/index = 1
+						1/db_attenuation = -96.0
+						2/index = 2
+						2/db_attenuation = -96.0
+						3/index = 100
+						3/db_attenuation = -96.0
+					component: extmedia_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -96.0
+						1/index = 1
+						1/db_attenuation = -96.0
+						2/index = 2
+						2/db_attenuation = -96.0
+						3/index = 100
+						3/db_attenuation = -96.0
+
+				component: accessibility/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -56.0
+						1/index = 33
+						1/db_attenuation = -34.0
+						2/index = 66
+						2/db_attenuation = -11.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
+				component: rerouting/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
+				component: patch/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: speaker_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: extmedia_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = 0.0
+						1/index = 1
+						1/db_attenuation = 0.0
+						2/index = 2
+						2/db_attenuation = 0.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
+	domain: Dtmf
+		conf: InCall
+			ANY
+				TelephonyMode Is InCall
+				TelephonyMode Is InCommunication
+
+			component: /Policy/policy/streams
+				component: dtmf/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -30.0
+						1/index = 33
+						1/db_attenuation = -26.0
+						2/index = 66
+						2/db_attenuation = -22.0
+						3/index = 100
+						3/db_attenuation = -18.0
+					component: speaker_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: earpiece_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -27.0
+						3/index = 100
+						3/db_attenuation = -10.0
+
+		conf: OutOfCall
+			component: /Policy/policy/streams
+				component: dtmf/volume_profiles
+					component: headset_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: speaker_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -16.0
+						2/index = 66
+						2/db_attenuation = -8.0
+						3/index = 100
+						3/db_attenuation = 0.0
+					component: earpiece_device_category/curve_points
+						0/index = 0
+						0/db_attenuation = -24.0
+						1/index = 33
+						1/db_attenuation = -18.0
+						2/index = 66
+						2/db_attenuation = -12.0
+						3/index = 100
+						3/db_attenuation = -6.0
+					component: extmedia_device_category/curve_points
+						0/index = 1
+						0/db_attenuation = -58.0
+						1/index = 33
+						1/db_attenuation = -40.0
+						2/index = 66
+						2/db_attenuation = -17.0
+						3/index = 100
+						3/db_attenuation = 0.0
+
