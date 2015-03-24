@@ -55,8 +55,7 @@ status_t CameraFlashlight::createFlashlightControl(const String8& cameraId) {
 
     status_t res = OK;
 
-    if (mCameraModule->getRawModule()->module_api_version >=
-            CAMERA_MODULE_API_VERSION_2_4) {
+    if (mCameraModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
         mFlashControl = new ModuleFlashControl(*mCameraModule, *mCallbacks);
         if (mFlashControl == NULL) {
             ALOGV("%s: cannot create flash control for module api v2.4+",
@@ -66,8 +65,8 @@ status_t CameraFlashlight::createFlashlightControl(const String8& cameraId) {
     } else {
         uint32_t deviceVersion = CAMERA_DEVICE_API_VERSION_1_0;
 
-        if (mCameraModule->getRawModule()->module_api_version >=
-                CAMERA_MODULE_API_VERSION_2_0) {
+        if (mCameraModule->getModuleApiVersion() >=
+                    CAMERA_MODULE_API_VERSION_2_0) {
             camera_info info;
             res = mCameraModule->getCameraInfo(
                     atoi(String8(cameraId).string()), &info);
@@ -224,8 +223,7 @@ status_t CameraFlashlight::prepareDeviceOpen(const String8& cameraId) {
         return NO_INIT;
     }
 
-    if (mCameraModule->getRawModule()->module_api_version <
-            CAMERA_MODULE_API_VERSION_2_4) {
+    if (mCameraModule->getModuleApiVersion() < CAMERA_MODULE_API_VERSION_2_4) {
         // framework is going to open a camera device, all flash light control
         // should be closed for backward compatible support.
         mFlashControl.clear();
@@ -274,8 +272,7 @@ status_t CameraFlashlight::deviceClosed(const String8& cameraId) {
     if (mOpenedCameraIds.size() != 0)
         return OK;
 
-    if (mCameraModule->getRawModule()->module_api_version <
-            CAMERA_MODULE_API_VERSION_2_4) {
+    if (mCameraModule->getModuleApiVersion() < CAMERA_MODULE_API_VERSION_2_4) {
         // notify torch available for all cameras with a flash
         int numCameras = mCameraModule->getNumberOfCameras();
         for (int i = 0; i < numCameras; i++) {
