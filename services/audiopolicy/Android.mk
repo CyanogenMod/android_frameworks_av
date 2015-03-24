@@ -22,7 +22,8 @@ LOCAL_C_INCLUDES := \
     $(TOPDIR)frameworks/av/services/audioflinger \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils) \
-    $(TOPDIR)frameworks/av/services/audiopolicy/common/include
+    $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
+    $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -63,8 +64,11 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libsoundtrigger
 
+LOCAL_SHARED_LIBRARIES += libaudiopolicyenginedefault
+
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
+    $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
 
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
@@ -89,6 +93,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
+    $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
 
 LOCAL_MODULE:= libaudiopolicymanager
 

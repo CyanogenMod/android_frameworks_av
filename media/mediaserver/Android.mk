@@ -39,6 +39,8 @@ LOCAL_C_INCLUDES := \
     frameworks/av/services/audioflinger \
     frameworks/av/services/audiopolicy \
     frameworks/av/services/audiopolicy/common/managerdefinitions/include \
+    frameworks/av/services/audiopolicy/common/include \
+    frameworks/av/services/audiopolicy/engine/interface \
     frameworks/av/services/camera/libcameraservice \
     frameworks/av/services/mediaresourcemanager \
     $(call include-path-for, audio-utils) \

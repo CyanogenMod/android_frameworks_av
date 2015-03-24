@@ -18,6 +18,10 @@
 
 namespace android {
 
+// Time in milliseconds after media stopped playing during which we consider that the
+// sonification should be as unobtrusive as during the time media was playing.
+#define SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY 5000
+
 enum routing_strategy {
     STRATEGY_MEDIA,
     STRATEGY_PHONE,

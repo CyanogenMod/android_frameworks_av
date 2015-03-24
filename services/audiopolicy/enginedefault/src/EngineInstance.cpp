@@ -14,27 +14,41 @@
  * limitations under the License.
  */
 
-#pragma once
+#include <AudioPolicyManagerInterface.h>
+#include "AudioPolicyEngineInstance.h"
+#include "Engine.h"
 
-#include <utils/Errors.h>
-#include <utils/RefBase.h>
-#include <system/audio.h>
-
-namespace android {
-
-class AudioGain: public RefBase
+namespace android
 {
-public:
-    AudioGain(int index, bool useInChannelMask);
-    virtual ~AudioGain() {}
+namespace audio_policy
+{
 
-    void dump(int fd, int spaces, int index) const;
+EngineInstance::EngineInstance()
+{
+}
 
-    void getDefaultConfig(struct audio_gain_config *config);
-    status_t checkConfig(const struct audio_gain_config *config);
-    int               mIndex;
-    struct audio_gain mGain;
-    bool              mUseInChannelMask;
-};
+EngineInstance *EngineInstance::getInstance()
+{
+    static EngineInstance instance;
+    return &instance;
+}
 
-}; // namespace android
+EngineInstance::~EngineInstance()
+{
+}
+
+Engine *EngineInstance::getEngine() const
+{
+    static Engine engine;
+    return &engine;
+}
+
+template <>
+AudioPolicyManagerInterface *EngineInstance::queryInterface() const
+{
+    return getEngine()->queryInterface<AudioPolicyManagerInterface>();
+}
+
+} // namespace audio_policy
+} // namespace android
+
