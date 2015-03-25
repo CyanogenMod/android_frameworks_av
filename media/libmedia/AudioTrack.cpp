@@ -160,6 +160,12 @@ AudioTrack::AudioTrack(
 #endif
 
 {
+#ifdef QCOM_DIRECTTRACK
+    mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
+    mAttributes.usage = AUDIO_USAGE_UNKNOWN;
+    mAttributes.flags = 0x0;
+    strcpy(mAttributes.tags, "");
+#endif
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
@@ -195,6 +201,12 @@ AudioTrack::AudioTrack(
       mPausedPosition(0)
 #endif
 {
+#ifdef QCOM_DIRECTTRACK
+    mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
+    mAttributes.usage = AUDIO_USAGE_UNKNOWN;
+    mAttributes.flags = 0x0;
+    strcpy(mAttributes.tags, "");
+#endif
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
             sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo,
