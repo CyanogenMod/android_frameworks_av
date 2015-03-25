@@ -41,6 +41,15 @@ static Mutex sInitMutex;
 
 static MediaCodecList *gCodecList = NULL;
 
+static bool parseBoolean(const char *s) {
+    if (!strcasecmp(s, "true") || !strcasecmp(s, "yes") || !strcasecmp(s, "y")) {
+        return true;
+    }
+    char *end;
+    unsigned long res = strtoul(s, &end, 10);
+    return *s != '\0' && *end == '\0' && res > 0;
+}
+
 // static
 sp<IMediaCodecList> MediaCodecList::sCodecList;
 
@@ -123,8 +132,16 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml) {
         return;
     }
 
+    // TODO: parse/create overrides.xml, update mCodecInfos and mSettings with overrides.
+
     for (size_t i = mCodecInfos.size(); i-- > 0;) {
         const MediaCodecInfo &info = *mCodecInfos.itemAt(i).get();
+        for (size_t i = 0; i < info.mCaps.size(); ++i) {
+            const sp<MediaCodecInfo::Capabilities> &caps = info.mCaps.valueAt(i);
+            for (size_t j = 0; j < mSettings.size(); ++j) {
+                caps->getDetails()->setString(mSettings.keyAt(j).c_str(), mSettings[j].c_str());
+            }
+        }
 
         if (info.mCaps.size() == 0) {
             // No types supported by this component???
@@ -328,6 +345,16 @@ void MediaCodecList::startElementHandler(
                 mCurrentSection = SECTION_DECODERS;
             } else if (!strcmp(name, "Encoders")) {
                 mCurrentSection = SECTION_ENCODERS;
+            } else if (!strcmp(name, "Settings")) {
+                mCurrentSection = SECTION_SETTINGS;
+            }
+            break;
+        }
+
+        case SECTION_SETTINGS:
+        {
+            if (!strcmp(name, "Setting")) {
+                mInitCheck = addSettingFromAttributes(attrs);
             }
             break;
         }
@@ -397,6 +424,14 @@ void MediaCodecList::endElementHandler(const char *name) {
     }
 
     switch (mCurrentSection) {
+        case SECTION_SETTINGS:
+        {
+            if (!strcmp(name, "Settings")) {
+                mCurrentSection = SECTION_TOPLEVEL;
+            }
+            break;
+        }
+
         case SECTION_DECODERS:
         {
             if (!strcmp(name, "Decoders")) {
@@ -460,6 +495,52 @@ void MediaCodecList::endElementHandler(const char *name) {
     }
 
     --mDepth;
+}
+
+status_t MediaCodecList::addSettingFromAttributes(const char **attrs) {
+    const char *name = NULL;
+    const char *value = NULL;
+    const char *update = NULL;
+
+    size_t i = 0;
+    while (attrs[i] != NULL) {
+        if (!strcmp(attrs[i], "name")) {
+            if (attrs[i + 1] == NULL) {
+                return -EINVAL;
+            }
+            name = attrs[i + 1];
+            ++i;
+        } else if (!strcmp(attrs[i], "value")) {
+            if (attrs[i + 1] == NULL) {
+                return -EINVAL;
+            }
+            value = attrs[i + 1];
+            ++i;
+        } else if (!strcmp(attrs[i], "update")) {
+            if (attrs[i + 1] == NULL) {
+                return -EINVAL;
+            }
+            update = attrs[i + 1];
+            ++i;
+        } else {
+            return -EINVAL;
+        }
+
+        ++i;
+    }
+
+    if (name == NULL || value == NULL) {
+        return -EINVAL;
+    }
+
+    bool isUpdate = (update != NULL) && parseBoolean(update);
+    bool isExisted = (mSettings.indexOfKey(name) >= 0);
+    if (isUpdate != isExisted) {
+        return -EINVAL;
+    }
+
+    mSettings.add(name, value);
+    return OK;
 }
 
 status_t MediaCodecList::addMediaCodecFromAttributes(
@@ -758,7 +839,8 @@ status_t MediaCodecList::addLimit(const char **attrs) {
             return limitFoundMissingAttr(name, "ranges", found);
         } else if (msg->contains("scale")) {
             return limitFoundMissingAttr(name, "scale");
-        } else if ((name == "alignment" || name == "block-size") ^
+        } else if ((name == "alignment" || name == "block-size"
+                || name == "max-supported-instances") ^
                 (found = msg->findString("value", &value))) {
             return limitFoundMissingAttr(name, "value", found);
         }
@@ -778,15 +860,6 @@ status_t MediaCodecList::addLimit(const char **attrs) {
         }
     }
     return OK;
-}
-
-static bool parseBoolean(const char *s) {
-    if (!strcasecmp(s, "true") || !strcasecmp(s, "yes") || !strcasecmp(s, "y")) {
-        return true;
-    }
-    char *end;
-    unsigned long res = strtoul(s, &end, 10);
-    return *s != '\0' && *end == '\0' && res > 0;
 }
 
 status_t MediaCodecList::addFeature(const char **attrs) {
