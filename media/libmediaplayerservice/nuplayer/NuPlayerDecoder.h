@@ -87,8 +87,15 @@ private:
     bool mResumePending;
     AString mComponentName;
 
-    bool handleAnInputBuffer();
-    bool handleAnOutputBuffer();
+    void handleError(int32_t err);
+    bool handleAnInputBuffer(size_t index);
+    bool handleAnOutputBuffer(
+            size_t index,
+            size_t offset,
+            size_t size,
+            int64_t timeUs,
+            int32_t flags);
+    void handleOutputFormatChange(const sp<AMessage> &format);
 
     void releaseAndResetMediaBuffers();
     void requestCodecNotification();

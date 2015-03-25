@@ -399,6 +399,9 @@ status_t MediaCodecSource::initEncoder() {
 
     ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
 
+    mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
+    mEncoder->setCallback(mEncoderActivityNotify);
+
     status_t err = mEncoder->configure(
                 mOutputFormat,
                 NULL /* nativeWindow */,
@@ -421,9 +424,6 @@ status_t MediaCodecSource::initEncoder() {
             return err;
         }
     }
-
-    mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
-    mEncoder->setCallback(mEncoderActivityNotify);
 
     err = mEncoder->start();
 
