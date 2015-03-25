@@ -54,13 +54,9 @@ private:
     static void deriveCameraCharacteristicsKeys(uint32_t deviceVersion, CameraMetadata &chars);
     status_t filterOpenErrorCode(status_t err);
 
-    struct CameraInfo {
-        CameraMetadata cameraCharacteristics;
-        camera_info    cameraInfo;
-    };
-
     camera_module_t *mModule;
-    KeyedVector<int, CameraInfo> mCameraInfoMap;
+    KeyedVector<int, camera_info> mCameraInfoMap;
+    KeyedVector<int, CameraMetadata> mCameraCharacteristicsMap;
     Mutex mCameraInfoLock;
 };
 
