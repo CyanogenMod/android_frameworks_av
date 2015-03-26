@@ -30,6 +30,7 @@ enum {
     CREATE = IBinder::FIRST_CALL_TRANSACTION,
     COUNT_CODECS,
     GET_CODEC_INFO,
+    GET_GLOBAL_SETTINGS,
     FIND_CODEC_BY_TYPE,
     FIND_CODEC_BY_NAME,
 };
@@ -59,6 +60,19 @@ public:
         status_t err = reply.readInt32();
         if (err == OK) {
             return MediaCodecInfo::FromParcel(reply);
+        } else {
+            return NULL;
+        }
+    }
+
+    virtual const sp<AMessage> getGlobalSettings() const
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaCodecList::getInterfaceDescriptor());
+        remote()->transact(GET_GLOBAL_SETTINGS, data, &reply);
+        status_t err = reply.readInt32();
+        if (err == OK) {
+            return AMessage::FromParcel(reply);
         } else {
             return NULL;
         }
@@ -115,6 +129,20 @@ status_t BnMediaCodecList::onTransact(
             CHECK_INTERFACE(IMediaCodecList, data, reply);
             size_t index = static_cast<size_t>(data.readInt32());
             const sp<MediaCodecInfo> info = getCodecInfo(index);
+            if (info != NULL) {
+                reply->writeInt32(OK);
+                info->writeToParcel(reply);
+            } else {
+                reply->writeInt32(-ERANGE);
+            }
+            return NO_ERROR;
+        }
+        break;
+
+        case GET_GLOBAL_SETTINGS:
+        {
+            CHECK_INTERFACE(IMediaCodecList, data, reply);
+            const sp<AMessage> info = getGlobalSettings();
             if (info != NULL) {
                 reply->writeInt32(OK);
                 info->writeToParcel(reply);

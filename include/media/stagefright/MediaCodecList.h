@@ -48,8 +48,13 @@ struct MediaCodecList : public BnMediaCodecList {
         return mCodecInfos.itemAt(index);
     }
 
+    virtual const sp<AMessage> getGlobalSettings() const;
+
     // to be used by MediaPlayerService alone
     static sp<IMediaCodecList> getLocalInstance();
+
+    // only to be used in getLocalInstance
+    void updateDetailsForMultipleCodecs(const KeyedVector<AString, CodecSettings>& updates);
 
 private:
     class BinderDeathObserver : public IBinder::DeathRecipient {
@@ -75,11 +80,14 @@ private:
 
     status_t mInitCheck;
     Section mCurrentSection;
+    bool mUpdate;
     Vector<Section> mPastSections;
     int32_t mDepth;
     AString mHrefBase;
 
-    KeyedVector<AString, AString> mSettings;
+    sp<AMessage> mGlobalSettings;
+    KeyedVector<AString, CodecSettings> mOverrides;
+
     Vector<sp<MediaCodecInfo> > mCodecInfos;
     sp<MediaCodecInfo> mCurrentInfo;
     sp<IOMX> mOMX;
@@ -89,7 +97,7 @@ private:
 
     status_t initCheck() const;
     void parseXMLFile(const char *path);
-    void parseTopLevelXMLFile(const char *path);
+    void parseTopLevelXMLFile(const char *path, bool ignore_errors = false);
 
     static void StartElementHandlerWrapper(
             void *me, const char *name, const char **attrs);
@@ -103,6 +111,8 @@ private:
     status_t addSettingFromAttributes(const char **attrs);
     status_t addMediaCodecFromAttributes(bool encoder, const char **attrs);
     void addMediaCodec(bool encoder, const char *name, const char *type = NULL);
+
+    void setCurrentCodecInfo(bool encoder, const char *name, const char *type);
 
     status_t addQuirk(const char **attrs);
     status_t addTypeFromAttributes(const char **attrs);

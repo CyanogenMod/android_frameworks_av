@@ -206,6 +206,17 @@ status_t MediaCodecInfo::addMime(const char *mime) {
     return OK;
 }
 
+status_t MediaCodecInfo::updateMime(const char *mime) {
+    ssize_t ix = getCapabilityIndex(mime);
+    if (ix < 0) {
+        ALOGE("updateMime mime not found %s", mime);
+        return -EINVAL;
+    }
+
+    mCurrentCaps = mCaps.valueAt(ix);
+    return OK;
+}
+
 void MediaCodecInfo::removeMime(const char *mime) {
     ssize_t ix = getCapabilityIndex(mime);
     if (ix >= 0) {

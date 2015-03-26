@@ -21,6 +21,8 @@
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 
+#include <media/stagefright/foundation/AMessage.h>
+
 namespace android {
 
 struct MediaCodecInfo;
@@ -32,6 +34,8 @@ public:
 
     virtual size_t countCodecs() const = 0;
     virtual sp<MediaCodecInfo> getCodecInfo(size_t index) const = 0;
+
+    virtual const sp<AMessage> getGlobalSettings() const = 0;
 
     virtual ssize_t findCodecByType(
             const char *type, bool encoder, size_t startIndex = 0) const = 0;

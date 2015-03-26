@@ -34,6 +34,7 @@ LOCAL_SRC_FILES:=                         \
         MediaClock.cpp                    \
         MediaCodec.cpp                    \
         MediaCodecList.cpp                \
+        MediaCodecListOverrides.cpp       \
         MediaCodecSource.cpp              \
         MediaDefs.cpp                     \
         MediaExtractor.cpp                \

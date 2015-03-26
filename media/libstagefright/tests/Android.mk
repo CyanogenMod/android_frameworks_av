@@ -62,6 +62,33 @@ LOCAL_C_INCLUDES := \
 
 include $(BUILD_NATIVE_TEST)
 
+include $(CLEAR_VARS)
+LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
+
+LOCAL_MODULE := MediaCodecListOverrides_test
+
+LOCAL_MODULE_TAGS := tests
+
+LOCAL_SRC_FILES := \
+	MediaCodecListOverrides_test.cpp \
+
+LOCAL_SHARED_LIBRARIES := \
+	libmedia \
+	libstagefright \
+	libstagefright_foundation \
+	libstagefright_omx \
+	libutils \
+	liblog
+
+LOCAL_C_INCLUDES := \
+	frameworks/av/media/libstagefright \
+	frameworks/av/media/libstagefright/include \
+	frameworks/native/include/media/openmax \
+
+LOCAL_32_BIT_ONLY := true
+
+include $(BUILD_NATIVE_TEST)
+
 # Include subdirectory makefiles
 # ============================================================
 
