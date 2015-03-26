@@ -356,14 +356,6 @@ status_t NuPlayerDriver::seekTo(int msec) {
         case STATE_PREPARED:
         case STATE_STOPPED_AND_PREPARED:
         {
-            int curpos = 0;
-            if (mPositionUs > 0) {
-                curpos = (mPositionUs + 500ll) / 1000;
-            }
-            if (curpos == msec) {
-                // nothing to do, and doing something anyway could result in deadlock (b/15323063)
-                break;
-            }
             mStartupSeekTimeUs = seekTimeUs;
             // pretend that the seek completed. It will actually happen when starting playback.
             // TODO: actually perform the seek here, so the player is ready to go at the new
