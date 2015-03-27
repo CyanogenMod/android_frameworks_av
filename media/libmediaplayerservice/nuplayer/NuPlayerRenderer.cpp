@@ -1491,10 +1491,12 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             onDisableOffloadAudio();
         } else {
 #ifdef ENABLE_AV_ENHANCEMENTS
-            if (bitsPerSample > 16 && ExtendedUtils::is24bitPCMOffloadEnabled()) {
-                audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
-            } else if (ExtendedUtils::is16bitPCMOffloadEnabled()) {
-                audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+            if (audio_is_linear_pcm(audioFormat)) {
+                if (bitsPerSample > 16 && ExtendedUtils::is24bitPCMOffloadEnabled()) {
+                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+                } else if (ExtendedUtils::is16bitPCMOffloadEnabled()) {
+                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+                }
             }
 #endif
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
