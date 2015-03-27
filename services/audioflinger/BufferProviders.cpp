@@ -20,7 +20,9 @@
 #include <audio_effects/effect_downmix.h>
 #include <audio_utils/primitives.h>
 #include <audio_utils/format.h>
+#include <media/AudioResamplerPublic.h>
 #include <media/EffectsFactoryApi.h>
+
 #include <utils/Log.h>
 
 #include "Configuration.h"
@@ -356,6 +358,166 @@ ReformatBufferProvider::ReformatBufferProvider(int32_t channelCount,
 void ReformatBufferProvider::copyFrames(void *dst, const void *src, size_t frames)
 {
     memcpy_by_audio_format(dst, mOutputFormat, src, mInputFormat, frames * mChannelCount);
+}
+
+TimestretchBufferProvider::TimestretchBufferProvider(int32_t channelCount,
+        audio_format_t format, uint32_t sampleRate, float speed, float pitch) :
+        mChannelCount(channelCount),
+        mFormat(format),
+        mSampleRate(sampleRate),
+        mFrameSize(channelCount * audio_bytes_per_sample(format)),
+        mSpeed(speed),
+        mPitch(pitch),
+        mLocalBufferFrameCount(0),
+        mLocalBufferData(NULL),
+        mRemaining(0)
+{
+    ALOGV("TimestretchBufferProvider(%p)(%u, %#x, %u %f %f)",
+            this, channelCount, format, sampleRate, speed, pitch);
+    mBuffer.frameCount = 0;
+}
+
+TimestretchBufferProvider::~TimestretchBufferProvider()
+{
+    ALOGV("~TimestretchBufferProvider(%p)", this);
+    if (mBuffer.frameCount != 0) {
+        mTrackBufferProvider->releaseBuffer(&mBuffer);
+    }
+    free(mLocalBufferData);
+}
+
+status_t TimestretchBufferProvider::getNextBuffer(
+        AudioBufferProvider::Buffer *pBuffer, int64_t pts)
+{
+    ALOGV("TimestretchBufferProvider(%p)::getNextBuffer(%p (%zu), %lld)",
+            this, pBuffer, pBuffer->frameCount, pts);
+
+    // BYPASS
+    //return mTrackBufferProvider->getNextBuffer(pBuffer, pts);
+
+    // check if previously processed data is sufficient.
+    if (pBuffer->frameCount <= mRemaining) {
+        ALOGV("previous sufficient");
+        pBuffer->raw = mLocalBufferData;
+        return OK;
+    }
+
+    // do we need to resize our buffer?
+    if (pBuffer->frameCount > mLocalBufferFrameCount) {
+        void *newmem;
+        if (posix_memalign(&newmem, 32, pBuffer->frameCount * mFrameSize) == OK) {
+            if (mRemaining != 0) {
+                memcpy(newmem, mLocalBufferData, mRemaining * mFrameSize);
+            }
+            free(mLocalBufferData);
+            mLocalBufferData = newmem;
+            mLocalBufferFrameCount = pBuffer->frameCount;
+        }
+    }
+
+    // need to fetch more data
+    const size_t outputDesired = pBuffer->frameCount - mRemaining;
+    mBuffer.frameCount = mSpeed == AUDIO_TIMESTRETCH_SPEED_NORMAL
+            ? outputDesired : outputDesired * mSpeed + 1;
+
+    status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
+
+    ALOG_ASSERT(res == OK || mBuffer.frameCount == 0);
+    if (res != OK || mBuffer.frameCount == 0) { // not needed by API spec, but to be safe.
+        ALOGD("buffer error");
+        if (mRemaining == 0) {
+            pBuffer->raw = NULL;
+            pBuffer->frameCount = 0;
+            return res;
+        } else { // return partial count
+            pBuffer->raw = mLocalBufferData;
+            pBuffer->frameCount = mRemaining;
+            return OK;
+        }
+    }
+
+    // time-stretch the data
+    size_t dstAvailable = min(mLocalBufferFrameCount - mRemaining, outputDesired);
+    size_t srcAvailable = mBuffer.frameCount;
+    processFrames((uint8_t*)mLocalBufferData + mRemaining * mFrameSize, &dstAvailable,
+            mBuffer.raw, &srcAvailable);
+
+    // release all data consumed
+    mBuffer.frameCount = srcAvailable;
+    mTrackBufferProvider->releaseBuffer(&mBuffer);
+
+    // update buffer vars with the actual data processed and return with buffer
+    mRemaining += dstAvailable;
+
+    pBuffer->raw = mLocalBufferData;
+    pBuffer->frameCount = mRemaining;
+
+    return OK;
+}
+
+void TimestretchBufferProvider::releaseBuffer(AudioBufferProvider::Buffer *pBuffer)
+{
+    ALOGV("TimestretchBufferProvider(%p)::releaseBuffer(%p (%zu))",
+       this, pBuffer, pBuffer->frameCount);
+
+    // BYPASS
+    //return mTrackBufferProvider->releaseBuffer(pBuffer);
+
+    // LOG_ALWAYS_FATAL_IF(pBuffer->frameCount == 0, "Invalid framecount");
+    if (pBuffer->frameCount < mRemaining) {
+        memcpy(mLocalBufferData,
+                (uint8_t*)mLocalBufferData + pBuffer->frameCount * mFrameSize,
+                (mRemaining - pBuffer->frameCount) * mFrameSize);
+        mRemaining -= pBuffer->frameCount;
+    } else if (pBuffer->frameCount == mRemaining) {
+        mRemaining = 0;
+    } else {
+        LOG_ALWAYS_FATAL("Releasing more frames(%zu) than available(%zu)",
+                pBuffer->frameCount, mRemaining);
+    }
+
+    pBuffer->raw = NULL;
+    pBuffer->frameCount = 0;
+}
+
+void TimestretchBufferProvider::reset()
+{
+    mRemaining = 0;
+}
+
+status_t TimestretchBufferProvider::setPlaybackRate(float speed, float pitch)
+{
+    mSpeed = speed;
+    mPitch = pitch;
+    return OK;
+}
+
+void TimestretchBufferProvider::processFrames(void *dstBuffer, size_t *dstFrames,
+        const void *srcBuffer, size_t *srcFrames)
+{
+    ALOGV("processFrames(%zu %zu)  remaining(%zu)", *dstFrames, *srcFrames, mRemaining);
+    // Note dstFrames is the required number of frames.
+
+    // Ensure consumption from src is as expected.
+    const size_t targetSrc = *dstFrames * mSpeed;
+    if (*srcFrames < targetSrc) { // limit dst frames to that possible
+        *dstFrames = *srcFrames / mSpeed;
+    } else if (*srcFrames > targetSrc + 1) {
+        *srcFrames = targetSrc + 1;
+    }
+
+    // Do the time stretch by memory copy without any local buffer.
+    if (*dstFrames <= *srcFrames) {
+        size_t copySize = mFrameSize * *dstFrames;
+        memcpy(dstBuffer, srcBuffer, copySize);
+    } else {
+        // cyclically repeat the source.
+        for (size_t count = 0; count < *dstFrames; count += *srcFrames) {
+            size_t remaining = min(*srcFrames, *dstFrames - count);
+            memcpy((uint8_t*)dstBuffer + mFrameSize * count,
+                    srcBuffer, mFrameSize * *srcFrames);
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------
