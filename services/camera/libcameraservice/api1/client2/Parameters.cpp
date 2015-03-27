@@ -65,15 +65,29 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     const Size MAX_PREVIEW_SIZE = { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT };
     // Treat the H.264 max size as the max supported video size.
     MediaProfiles *videoEncoderProfiles = MediaProfiles::getInstance();
-    int32_t maxVideoWidth = videoEncoderProfiles->getVideoEncoderParamByName(
-                            "enc.vid.width.max", VIDEO_ENCODER_H264);
-    int32_t maxVideoHeight = videoEncoderProfiles->getVideoEncoderParamByName(
-                            "enc.vid.height.max", VIDEO_ENCODER_H264);
-    const Size MAX_VIDEO_SIZE = {maxVideoWidth, maxVideoHeight};
+    Vector<video_encoder> encoders = videoEncoderProfiles->getVideoEncoders();
+    int32_t maxVideoWidth = 0;
+    int32_t maxVideoHeight = 0;
+    for (size_t i = 0; i < encoders.size(); i++) {
+        int width = videoEncoderProfiles->getVideoEncoderParamByName(
+                "enc.vid.width.max", encoders[i]);
+        int height = videoEncoderProfiles->getVideoEncoderParamByName(
+                "enc.vid.height.max", encoders[i]);
+        // Treat width/height separately here to handle the case where different
+        // profile might report max size of different aspect ratio
+        if (width > maxVideoWidth) {
+            maxVideoWidth = width;
+        }
+        if (height > maxVideoHeight) {
+            maxVideoHeight = height;
+        }
+    }
+    // This is just an upper bound and may not be an actually valid video size
+    const Size VIDEO_SIZE_UPPER_BOUND = {maxVideoWidth, maxVideoHeight};
 
     res = getFilteredSizes(MAX_PREVIEW_SIZE, &availablePreviewSizes);
     if (res != OK) return res;
-    res = getFilteredSizes(MAX_VIDEO_SIZE, &availableVideoSizes);
+    res = getFilteredSizes(VIDEO_SIZE_UPPER_BOUND, &availableVideoSizes);
     if (res != OK) return res;
 
     // Select initial preview and video size that's under the initial bound and
