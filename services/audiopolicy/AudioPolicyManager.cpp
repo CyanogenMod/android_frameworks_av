@@ -2630,9 +2630,13 @@ void AudioPolicyManager::closeAllInputs() {
             mAudioPatches.removeItemsAt(patch_index);
             patchRemoved = true;
         }
-        mpClientInterface->closeInput(mInputs.keyAt(input_index));
+        if ((inputDesc->mIsSoundTrigger) && (mInputs.size() == 1)) {
+            ALOGD("Do not close sound trigger input handle");
+        } else {
+            mpClientInterface->closeInput(mInputs.keyAt(input_index));
+            mInputs.removeItem(mInputs.keyAt(input_index));
+        }
     }
-    mInputs.clear();
     nextAudioPortGeneration();
 
     if (patchRemoved) {
