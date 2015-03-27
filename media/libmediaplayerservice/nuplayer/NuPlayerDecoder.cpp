@@ -119,7 +119,7 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
-void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
+void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format, bool isStreaming) {
     CHECK(mCodec == NULL);
 
     mFormatChangePending = false;
@@ -469,12 +469,8 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
                 flags = AUDIO_OUTPUT_FLAG_NONE;
             }
 
-            uint32_t isStreaming = 0;
-            sp<AMessage> notify = mNotify->dup();
-            notify->findInt32("isStreaming", (int32_t *)&isStreaming);
-
             res = mRenderer->openAudioSink(
-                    format, false /* offloadOnly */, hasVideo, flags, isStreaming, NULL /* isOffloaded */);
+                    format, false /* offloadOnly */, hasVideo, false, flags, NULL /* isOffloaded */);
             if (res != OK) {
                 ALOGE("Failed to open AudioSink on format change for %s (err=%d)",
                         mComponentName.c_str(), res);

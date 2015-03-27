@@ -170,7 +170,7 @@ NuPlayer::NuPlayer()
       mOffloadAudio(false),
       mOffloadDecodedPCM(false),
       mSwitchingFromPcmOffload(false),
-      mIsStreaming(false),
+      mIsStreaming(true),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
       mRendererGeneration(0),
@@ -1348,7 +1348,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     }
 
     (*decoder)->init();
-    (*decoder)->configure(format);
+    (*decoder)->configure(format, mIsStreaming);
 
     // allocate buffers to decrypt widevine source buffers
     if (!audio && (mSourceFlags & Source::FLAG_SECURE)) {
