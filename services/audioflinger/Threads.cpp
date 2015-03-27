@@ -1608,13 +1608,19 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     // If you change this calculation, also review the start threshold which is related.
     if (!(*flags & IAudioFlinger::TRACK_FAST)
             && audio_is_linear_pcm(format) && sharedBuffer == 0) {
+        // this must match AudioTrack.cpp calculateMinFrameCount().
+        // TODO: Move to a common library
         uint32_t latencyMs = mOutput->stream->get_latency(mOutput->stream);
         uint32_t minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
         if (minBufCount < 2) {
             minBufCount = 2;
         }
+        // For normal mixing tracks, if speed is > 1.0f (normal), AudioTrack
+        // or the client should compute and pass in a larger buffer request.
         size_t minFrameCount =
-                minBufCount * sourceFramesNeeded(sampleRate, mNormalFrameCount, mSampleRate);
+                minBufCount * sourceFramesNeededWithTimestretch(
+                        sampleRate, mNormalFrameCount,
+                        mSampleRate, AUDIO_TIMESTRETCH_SPEED_NORMAL /*speed*/);
         if (frameCount < minFrameCount) { // including frameCount == 0
             frameCount = minFrameCount;
         }
@@ -3592,21 +3598,17 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // hence the test on (mMixerStatus == MIXER_TRACKS_READY) meaning the track was mixed
         // during last round
         size_t desiredFrames;
-        uint32_t sr = track->sampleRate();
-        if (sr == mSampleRate) {
-            desiredFrames = mNormalFrameCount;
-        } else {
-            desiredFrames = sourceFramesNeeded(sr, mNormalFrameCount, mSampleRate);
-            // add frames already consumed but not yet released by the resampler
-            // because mAudioTrackServerProxy->framesReady() will include these frames
-            desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
-#if 0
-            // the minimum track buffer size is normally twice the number of frames necessary
-            // to fill one buffer and the resampler should not leave more than one buffer worth
-            // of unreleased frames after each pass, but just in case...
-            ALOG_ASSERT(desiredFrames <= cblk->frameCount_);
-#endif
-        }
+        const uint32_t sampleRate = track->mAudioTrackServerProxy->getSampleRate();
+        float speed, pitch;
+        track->mAudioTrackServerProxy->getPlaybackRate(&speed, &pitch);
+
+        desiredFrames = sourceFramesNeededWithTimestretch(
+                sampleRate, mNormalFrameCount, mSampleRate, speed);
+        // TODO: ONLY USED FOR LEGACY RESAMPLERS, remove when they are removed.
+        // add frames already consumed but not yet released by the resampler
+        // because mAudioTrackServerProxy->framesReady() will include these frames
+        desiredFrames += mAudioMixer->getUnreleasedFrames(track->name());
+
         uint32_t minFrames = 1;
         if ((track->sharedBuffer() == 0) && !track->isStopped() && !track->isPausing() &&
                 (mMixerStatusIgnoringFastTracks == MIXER_TRACKS_READY)) {
@@ -3769,6 +3771,17 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 AudioMixer::RESAMPLE,
                 AudioMixer::SAMPLE_RATE,
                 (void *)(uintptr_t)reqSampleRate);
+
+            // set the playback rate as an float array {speed, pitch}
+            float playbackRate[2];
+            track->mAudioTrackServerProxy->getPlaybackRate(
+                    &playbackRate[0] /*speed*/, &playbackRate[1] /*pitch*/);
+            mAudioMixer->setParameter(
+                name,
+                AudioMixer::TIMESTRETCH,
+                AudioMixer::PLAYBACK_RATE,
+                playbackRate);
+
             /*
              * Select the appropriate output buffer for the track.
              *
