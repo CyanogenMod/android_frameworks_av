@@ -247,7 +247,7 @@ status_t NuPlayer::Renderer::getCurrentPositionFromAnchor(
 
     // limit position to the last queued media time (for video only stream
     // position will be discrete as we don't know how long each frame lasts)
-    if (mAnchorMaxMediaUs >= 0 && !allowPastQueuedVideo) {
+    if (!mHasAudio && mAnchorMaxMediaUs >= 0 && !allowPastQueuedVideo) {
         if (positionUs > mAnchorMaxMediaUs) {
             positionUs = mAnchorMaxMediaUs;
         }
@@ -1462,7 +1462,6 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
     ALOGV("openAudioSink: offloadOnly(%d) offloadingAudio(%d)",
             offloadOnly, offloadingAudio());
     bool audioSinkChanged = false;
-    bool pcmOffload = false;
 
     int32_t numChannels;
     CHECK(format->findInt32("channel-count", &numChannels));
@@ -1482,21 +1481,6 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
     AString mime;
     CHECK(format->findString("mime", &mime));
 
-#ifdef ENABLE_AV_ENHANCEMENTS
-    pcmOffload = ExtendedUtils::isPcmOffloadEnabled() &&
-            !strcasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW);
-
-    // At this point we can check if PCM should be offloaded
-    if (!offloadingAudio() && (!offloadOnly && pcmOffload)) {
-        sp<MetaData> aMeta = new MetaData;
-        convertMessageToMetaData(format, aMeta);
-        if  (canOffloadStream(aMeta, false, new MetaData,
-                    true, AUDIO_STREAM_MUSIC)) {
-            mFlags |= FLAG_OFFLOAD_AUDIO;
-        }
-    }
-#endif
-
     if (offloadingAudio()) {
         audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
         status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
@@ -1507,12 +1491,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             onDisableOffloadAudio();
         } else {
 #ifdef ENABLE_AV_ENHANCEMENTS
-            if (pcmOffload) {
-                if (bitsPerSample > 16) {
-                    audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
-                } else {
-                    audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
-                }
+            if (bitsPerSample > 16 && ExtendedUtils::is24bitPCMOffloadEnabled()) {
+                audioFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+            } else if (ExtendedUtils::is16bitPCMOffloadEnabled()) {
+                audioFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
             }
 #endif
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",

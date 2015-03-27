@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 - 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013 - 2015, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -289,8 +289,11 @@ status_t ExtendedCodec::setDIVXFormat(
         InitOMXParams(&paramDivX);
         paramDivX.nPortIndex = port_index;
         int32_t DivxVersion = 0;
-        CHECK(msg->findInt32(getMsgKey(kKeyDivXVersion),&DivxVersion));
-        ALOGV("Divx Version Type %d\n",DivxVersion);
+        if (!msg->findInt32(getMsgKey(kKeyDivXVersion), &DivxVersion)) {
+            DivxVersion = kTypeDivXVer_4;
+            ALOGW("Divx version key missing, initializing the version to %d", DivxVersion);
+        }
+        ALOGV("Divx Version Type %d", DivxVersion);
 
         if (DivxVersion == kTypeDivXVer_4) {
             paramDivX.eFormat = QOMX_VIDEO_DIVXFormat4;

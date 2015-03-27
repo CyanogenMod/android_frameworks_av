@@ -60,6 +60,8 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 // A device mask for all audio input devices that are considered "virtual" when evaluating
 // active inputs in getActiveInput()
 //FIXME::  Audio team
@@ -76,6 +78,10 @@
 // type alone is not enough: the address must match too
 #define APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX | \
                                             AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
+
+// Following delay should be used if the calculated routing delay from all active
+// input streams is higher than this value
+#define MAX_VOICE_CALL_START_DELAY_MS 100
 
 #include <inttypes.h>
 #include <math.h>
@@ -1073,6 +1079,9 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
             setStrategyMute(STRATEGY_SONIFICATION, false, mOutputs.keyAt(i), MUTE_TIME_MS,
                 getDeviceForStrategy(STRATEGY_SONIFICATION, true /*fromCache*/));
         }
+         ALOGV("Setting the delay from %dms to %dms", delayMs,
+               MIN(delayMs, MAX_VOICE_CALL_START_DELAY_MS));
+         delayMs = MIN(delayMs, MAX_VOICE_CALL_START_DELAY_MS);
     }
 
     // Note that despite the fact that getNewOutputDevice() is called on the primary output,
@@ -5623,7 +5632,7 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
             if (device) break;
             device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_DEVICE;
             if (device) break;
-            if (mPhoneState != AUDIO_MODE_IN_CALL) {
+            if (!isInCall()) {
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_USB_ACCESSORY;
                 if (device) break;
                 device = availableOutputDeviceTypes & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET;

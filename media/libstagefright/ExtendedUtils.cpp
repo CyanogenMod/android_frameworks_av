@@ -945,8 +945,8 @@ sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
     sp<MetaData> format = audioSource->getFormat();
     int bitWidth = 16;
 #if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
-    format->findInt32(kKeySampleBits, &bitWidth);
-    tempMetadata->setInt32(kKeySampleBits, bitWidth);
+    format->findInt32(kKeyBitsPerSample, &bitWidth);
+    tempMetadata->setInt32(kKeyBitsPerSample, bitWidth);
     tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_16_BIT);
     char prop_pcmoffload[PROPERTY_VALUE_MAX] = {0};
     property_get("audio.offload.pcm.24bit.enable", prop_pcmoffload, "0");
@@ -1066,7 +1066,7 @@ bool ExtendedUtils::isRAWFormat(const sp<AMessage> &format) {
 int32_t ExtendedUtils::getPcmSampleBits(const sp<MetaData> &meta) {
     int32_t bitWidth = 16;
     if (meta != NULL) {
-        meta->findInt32(kKeySampleBits, &bitWidth);
+        meta->findInt32(kKeyBitsPerSample, &bitWidth);
     }
     return bitWidth;
 }
@@ -1579,15 +1579,21 @@ bool ExtendedUtils::RTSPStream::ParseURL_V6(
     ssize_t bracketEnd = host->find("]");
     ALOGI("ExtendedUtils::ParseURL_V6() : host->c_str() = %s", host->c_str());
 
-    if (bracketEnd > 0) {
-        if (host->find(":", bracketEnd) == bracketEnd + 1) {
-            *colonPos = host->c_str() + bracketEnd + 1;
-        }
-    } else {
+    if (bracketEnd <= 0) {
         return false;
     }
 
-    host->erase(bracketEnd, host->size() - bracketEnd);
+    // If there is a port present, leave it for parsing in ParseURL
+    // otherwise, remove all trailing characters in the hostname
+    size_t trailing = host->size() - bracketEnd;
+    if (host->find(":", bracketEnd) == bracketEnd + 1) {
+        // 2 characters must be subtracted to account for the removal of
+        // the starting and ending brackets below --> bracketEnd + 1 - 2
+        *colonPos = host->c_str() + bracketEnd - 1;
+        trailing = 1;
+    }
+
+    host->erase(bracketEnd, trailing);
     host->erase(0, 1);
 
     return true;
@@ -1895,17 +1901,16 @@ bool ExtendedUtils::pcmOffloadException(const char* const mime) {
 sp<MetaData> ExtendedUtils::createPCMMetaFromSource(
                 const sp<MetaData> &sMeta)
 {
-
     sp<MetaData> tPCMMeta = new MetaData;
     //hard code as RAW
     tPCMMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
 
     //TODO: remove this hard coding and use the meta info, but the issue
     //is that decoder does not provide this info for now
-    tPCMMeta->setInt32(kKeySampleBits, 16);
+    tPCMMeta->setInt32(kKeyBitsPerSample, 16);
 
     if (sMeta == NULL) {
-        ALOGV("%s: no meta returning dummy meta");
+        ALOGW("no meta returning dummy meta");
         return tPCMMeta;
     }
 

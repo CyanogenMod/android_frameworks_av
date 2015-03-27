@@ -81,6 +81,9 @@ static const bool kUseFloat = false;
 // Set to default copy buffer size in frames for input processing.
 static const size_t kCopyBufferFrameCount = 256;
 
+#ifdef QTI_RESAMPLER
+#define QTI_RESAMPLER_MAX_SAMPLERATE 192000
+#endif
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -970,7 +973,9 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
                 // quality level based on the initial ratio, but that could change later.
                 // Should have a way to distinguish tracks with static ratios vs. dynamic ratios.
 #ifdef QTI_RESAMPLER
-                if ((trackSampleRate > devSampleRate * 2) && (devSampleRate == 48000)) {
+                if ((trackSampleRate <= QTI_RESAMPLER_MAX_SAMPLERATE) &&
+                       (trackSampleRate > devSampleRate * 2) &&
+                       (devSampleRate == 48000)) {
                     quality = AudioResampler::QTI_QUALITY;
                 } else
 #endif

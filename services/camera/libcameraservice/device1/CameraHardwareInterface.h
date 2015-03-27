@@ -92,20 +92,6 @@ public:
         }
     }
 
-    status_t filterOpenErrorCode(status_t err) {
-        switch(err) {
-            case NO_ERROR:
-            case -EBUSY:
-            case -EINVAL:
-            case -EUSERS:
-                return err;
-            default:
-                break;
-        }
-        return -ENODEV;
-    }
-
-
     status_t initialize(hw_module_t *module)
     {
         ALOGI("Opening camera %s", mName.string());
@@ -122,7 +108,7 @@ public:
                                                CAMERA_DEVICE_API_VERSION_1_0,
                                                (hw_device_t **)&mDevice);
         } else {
-            rc = filterOpenErrorCode(module->methods->open(
+            rc = CameraService::filterOpenErrorCode(module->methods->open(
                 module, mName.string(), (hw_device_t **)&mDevice));
         }
         if (rc != OK) {
