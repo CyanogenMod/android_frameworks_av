@@ -44,9 +44,11 @@ struct PlaylistFetcher : public AHandler {
         kWhatStopped,
         kWhatError,
         kWhatDurationUpdate,
+        kWhatTargetDurationUpdate,
         kWhatPrepared,
         kWhatPreparationFailed,
         kWhatStartedAt,
+        kWhatStopReached,
     };
 
     PlaylistFetcher(
@@ -64,7 +66,7 @@ struct PlaylistFetcher : public AHandler {
             int64_t startTimeUs = -1ll,         // starting timestamps
             int64_t segmentStartTimeUs = -1ll, // starting position within playlist
             // startTimeUs!=segmentStartTimeUs only when playlist is live
-            int32_t startDiscontinuitySeq = 0,
+            int32_t startDiscontinuitySeq = -1,
             LiveSession::SeekMode seekMode = LiveSession::kSeekModeExactPosition);
 
     void pauseAsync(float thresholdRatio);
@@ -135,7 +137,6 @@ private:
     bool mStartup;
     bool mIDRFound;
     int32_t mSeekMode;
-    bool mPrepared;
     bool mTimeChangeSignaled;
     int64_t mNextPTSTimeUs;
 
@@ -187,7 +188,7 @@ private:
     void postMonitorQueue(int64_t delayUs = 0, int64_t minDelayUs = 0);
     void cancelMonitorQueue();
     void setStoppingThreshold(float thresholdRatio);
-    bool shouldPauseDownload(bool startFound);
+    bool shouldPauseDownload();
 
     int64_t delayUsToRefreshPlaylist() const;
     status_t refreshPlaylist();
@@ -195,6 +196,8 @@ private:
     // Returns the media time in us of the segment specified by seqNumber.
     // This is computed by summing the durations of all segments before it.
     int64_t getSegmentStartTimeUs(int32_t seqNumber) const;
+    // Returns the duration time in us of the segment specified.
+    int64_t getSegmentDurationUs(int32_t seqNumber) const;
 
     status_t onStart(const sp<AMessage> &msg);
     void onPause();
@@ -219,6 +222,7 @@ private:
     status_t extractAndQueueAccessUnits(
             const sp<ABuffer> &buffer, const sp<AMessage> &itemMeta);
 
+    void notifyStopReached();
     void notifyError(status_t err);
 
     void queueDiscontinuity(
@@ -230,6 +234,7 @@ private:
     int32_t getSeqNumberForTime(int64_t timeUs) const;
 
     void updateDuration();
+    void updateTargetDuration();
 
     DISALLOW_EVIL_CONSTRUCTORS(PlaylistFetcher);
 };
