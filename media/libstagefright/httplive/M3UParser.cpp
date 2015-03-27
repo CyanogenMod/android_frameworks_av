@@ -395,7 +395,9 @@ ssize_t M3UParser::getSelectedTrack(media_track_type type) const {
 
 bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
     if (!mIsVariantPlaylist) {
-        *uri = mBaseURI;
+        if (uri != NULL) {
+            *uri = mBaseURI;
+        }
 
         // Assume media without any more specific attribute contains
         // audio and video, but no subtitles.
@@ -408,7 +410,9 @@ bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
 
     AString groupID;
     if (!meta->findString(key, &groupID)) {
-        *uri = mItems.itemAt(index).mURI;
+        if (uri != NULL) {
+            *uri = mItems.itemAt(index).mURI;
+        }
 
         AString codecs;
         if (!meta->findString("codecs", &codecs)) {
@@ -434,16 +438,24 @@ bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
         }
     }
 
-    sp<MediaGroup> group = mMediaGroups.valueFor(groupID);
-    if (!group->getActiveURI(uri)) {
-        return false;
-    }
+    // if uri == NULL, we're only checking if the type is present,
+    // don't care about the active URI (or if there is an active one)
+    if (uri != NULL) {
+        sp<MediaGroup> group = mMediaGroups.valueFor(groupID);
+        if (!group->getActiveURI(uri)) {
+            return false;
+        }
 
-    if ((*uri).empty()) {
-        *uri = mItems.itemAt(index).mURI;
+        if ((*uri).empty()) {
+            *uri = mItems.itemAt(index).mURI;
+        }
     }
 
     return true;
+}
+
+bool M3UParser::hasType(size_t index, const char *key) const {
+    return getTypeURI(index, key, NULL /* uri */);
 }
 
 static bool MakeURL(const char *baseURL, const char *url, AString *out) {
@@ -633,7 +645,8 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                         || !itemMeta->findInt64("durationUs", &durationUs)) {
                     return ERROR_MALFORMED;
                 }
-                itemMeta->setInt32("discontinuity-sequence", mDiscontinuitySeq + mDiscontinuityCount);
+                itemMeta->setInt32("discontinuity-sequence",
+                        mDiscontinuitySeq + mDiscontinuityCount);
             }
 
             mItems.push();
@@ -648,6 +661,14 @@ status_t M3UParser::parse(const void *_data, size_t size) {
 
         offset = offsetLF + 1;
         ++lineNo;
+    }
+
+    // error checking of all fields that's required to appear once
+    // (currently only checking "target-duration")
+    int32_t targetDurationSecs;
+    if (!mIsVariantPlaylist && (mMeta == NULL || !mMeta->findInt32(
+            "target-duration", &targetDurationSecs))) {
+        return ERROR_MALFORMED;
     }
 
     return OK;

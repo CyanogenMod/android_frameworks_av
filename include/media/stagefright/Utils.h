@@ -65,6 +65,17 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
 
 AString uriDebugString(const AString &uri, bool incognito = false);
 
+struct HLSTime {
+    int32_t mSeq;
+    int64_t mTimeUs;
+    sp<AMessage> mMeta;
+
+    HLSTime(const sp<AMessage> &meta = NULL);
+    int64_t getSegmentTimeUs(bool midpoint = false) const;
+};
+
+bool operator <(const HLSTime &t0, const HLSTime &t1);
+
 }  // namespace android
 
 #endif  // UTILS_H_

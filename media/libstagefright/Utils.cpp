@@ -822,5 +822,36 @@ AString uriDebugString(const AString &uri, bool incognito) {
     return AString("<no-scheme URI suppressed>");
 }
 
+HLSTime::HLSTime(const sp<AMessage>& meta) :
+    mSeq(-1),
+    mTimeUs(-1ll),
+    mMeta(meta) {
+    if (meta != NULL) {
+        CHECK(meta->findInt32("discontinuitySeq", &mSeq));
+        CHECK(meta->findInt64("timeUs", &mTimeUs));
+    }
+}
+
+int64_t HLSTime::getSegmentTimeUs(bool midpoint) const {
+    int64_t segmentStartTimeUs = -1ll;
+    if (mMeta != NULL) {
+        CHECK(mMeta->findInt64("segmentStartTimeUs", &segmentStartTimeUs));
+        if (midpoint) {
+            int64_t durationUs;
+            CHECK(mMeta->findInt64("segmentDurationUs", &durationUs));
+            segmentStartTimeUs += durationUs / 2;
+        }
+    }
+    return segmentStartTimeUs;
+}
+
+bool operator <(const HLSTime &t0, const HLSTime &t1) {
+    // we can only compare discontinuity sequence and timestamp.
+    // (mSegmentTimeUs is not reliable in live streaming case, it's the
+    // time starting from beginning of playlist but playlist could change.)
+    return t0.mSeq < t1.mSeq
+            || (t0.mSeq == t1.mSeq && t0.mTimeUs < t1.mTimeUs);
+}
+
 }  // namespace android
 

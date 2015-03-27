@@ -48,7 +48,8 @@ namespace android {
 static const size_t kTSPacketSize = 188;
 
 struct ATSParser::Program : public RefBase {
-    Program(ATSParser *parser, unsigned programNumber, unsigned programMapPID);
+    Program(ATSParser *parser, unsigned programNumber, unsigned programMapPID,
+            int64_t lastRecoveredPTS);
 
     bool parsePSISection(
             unsigned pid, ABitReader *br, status_t *err);
@@ -186,13 +187,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ATSParser::Program::Program(
-        ATSParser *parser, unsigned programNumber, unsigned programMapPID)
+        ATSParser *parser, unsigned programNumber, unsigned programMapPID,
+        int64_t lastRecoveredPTS)
     : mParser(parser),
       mProgramNumber(programNumber),
       mProgramMapPID(programMapPID),
       mFirstPTSValid(false),
       mFirstPTS(0),
-      mLastRecoveredPTS(-1ll) {
+      mLastRecoveredPTS(lastRecoveredPTS) {
     ALOGV("new program number %u", programNumber);
 }
 
@@ -1037,6 +1039,7 @@ ATSParser::ATSParser(uint32_t flags)
       mAbsoluteTimeAnchorUs(-1ll),
       mTimeOffsetValid(false),
       mTimeOffsetUs(0ll),
+      mLastRecoveredPTS(-1ll),
       mNumTSPacketsParsed(0),
       mNumPCRs(0) {
     mPSISections.add(0 /* PID */, new PSISection);
@@ -1055,11 +1058,21 @@ status_t ATSParser::feedTSPacket(const void *data, size_t size) {
 void ATSParser::signalDiscontinuity(
         DiscontinuityType type, const sp<AMessage> &extra) {
     int64_t mediaTimeUs;
-    if ((type & DISCONTINUITY_TIME)
-            && extra != NULL
-            && extra->findInt64(
-                IStreamListener::kKeyMediaTimeUs, &mediaTimeUs)) {
-        mAbsoluteTimeAnchorUs = mediaTimeUs;
+    if ((type & DISCONTINUITY_TIME) && extra != NULL) {
+        if (extra->findInt64(IStreamListener::kKeyMediaTimeUs, &mediaTimeUs)) {
+            mAbsoluteTimeAnchorUs = mediaTimeUs;
+        }
+        if ((mFlags & TS_TIMESTAMPS_ARE_ABSOLUTE)
+                && extra->findInt64(
+                    IStreamListener::kKeyRecentMediaTimeUs, &mediaTimeUs)) {
+            if (mAbsoluteTimeAnchorUs >= 0ll) {
+                mediaTimeUs -= mAbsoluteTimeAnchorUs;
+            }
+            if (mTimeOffsetValid) {
+                mediaTimeUs -= mTimeOffsetUs;
+            }
+            mLastRecoveredPTS = (mediaTimeUs * 9) / 100;
+        }
     } else if (type == DISCONTINUITY_ABSOLUTE_TIME) {
         int64_t timeUs;
         CHECK(extra->findInt64("timeUs", &timeUs));
@@ -1143,7 +1156,7 @@ void ATSParser::parseProgramAssociationTable(ABitReader *br) {
 
             if (!found) {
                 mPrograms.push(
-                        new Program(this, program_number, programMapPID));
+                        new Program(this, program_number, programMapPID, mLastRecoveredPTS));
             }
 
             if (mPSISections.indexOfKey(programMapPID) < 0) {

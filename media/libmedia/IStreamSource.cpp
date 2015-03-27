@@ -35,6 +35,9 @@ const char *const IStreamListener::kKeyDiscontinuityMask = "discontinuity-mask";
 // static
 const char *const IStreamListener::kKeyMediaTimeUs = "media-time-us";
 
+// static
+const char *const IStreamListener::kKeyRecentMediaTimeUs = "recent-media-time-us";
+
 enum {
     // IStreamSource
     SET_LISTENER = IBinder::FIRST_CALL_TRANSACTION,

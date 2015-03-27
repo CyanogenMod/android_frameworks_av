@@ -29,6 +29,7 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
 #include <utils/Vector.h>
 
 #include <inttypes.h>
@@ -461,6 +462,10 @@ void AnotherPacketSource::enable(bool enable) {
     mEnabled = enable;
 }
 
+/*
+ * returns the sample meta that's delayUs after queue head
+ * (NULL if such sample is unavailable)
+ */
 sp<AMessage> AnotherPacketSource::getMetaAfterLastDequeued(int64_t delayUs) {
     Mutex::Autolock autoLock(mLock);
     int64_t firstUs = -1;
@@ -490,18 +495,27 @@ sp<AMessage> AnotherPacketSource::getMetaAfterLastDequeued(int64_t delayUs) {
             }
         }
     }
-    return mLatestEnqueuedMeta;
+    return NULL;
 }
 
-void AnotherPacketSource::trimBuffersAfterTimeUs(
-        size_t discontinuitySeq, int64_t timeUs) {
-    ALOGV("trimBuffersAfterTimeUs: discontinuitySeq %zu, timeUs %lld",
-            discontinuitySeq, (long long)timeUs);
+/*
+ * removes samples with time equal or after meta
+ */
+void AnotherPacketSource::trimBuffersAfterMeta(
+        const sp<AMessage> &meta) {
+    if (meta == NULL) {
+        ALOGW("trimming with NULL meta, ignoring");
+        return;
+    }
 
     Mutex::Autolock autoLock(mLock);
     if (mBuffers.empty()) {
         return;
     }
+
+    HLSTime stopTime(meta);
+    ALOGV("trimBuffersAfterMeta: discontinuitySeq %zu, timeUs %lld",
+            stopTime.mSeq, (long long)stopTime.mTimeUs);
 
     List<sp<ABuffer> >::iterator it;
     sp<AMessage> newLatestEnqueuedMeta = NULL;
@@ -514,20 +528,15 @@ void AnotherPacketSource::trimBuffersAfterTimeUs(
             newDiscontinuityCount++;
             continue;
         }
-        size_t curDiscontinuitySeq;
-        int64_t curTimeUs;
-        CHECK(buffer->meta()->findInt32(
-                "discontinuitySeq", (int32_t*)&curDiscontinuitySeq));
-        CHECK(buffer->meta()->findInt64("timeUs", &curTimeUs));
-        if ((curDiscontinuitySeq > discontinuitySeq
-                || (curDiscontinuitySeq == discontinuitySeq
-                        && curTimeUs >= timeUs))) {
-            ALOGI("trimming from %lld (inclusive) to end",
-                    (long long)curTimeUs);
+
+        HLSTime curTime(buffer->meta());
+        if (!(curTime < stopTime)) {
+            ALOGV("trimming from %lld (inclusive) to end",
+                    (long long)curTime.mTimeUs);
             break;
         }
         newLatestEnqueuedMeta = buffer->meta();
-        newLastQueuedTimeUs = curTimeUs;
+        newLastQueuedTimeUs = curTime.mTimeUs;
     }
     mBuffers.erase(it, mBuffers.end());
     mLatestEnqueuedMeta = newLatestEnqueuedMeta;
@@ -535,11 +544,20 @@ void AnotherPacketSource::trimBuffersAfterTimeUs(
     mQueuedDiscontinuityCount = newDiscontinuityCount;
 }
 
-sp<AMessage> AnotherPacketSource::trimBuffersBeforeTimeUs(
-        size_t discontinuitySeq, int64_t timeUs) {
-    ALOGV("trimBuffersBeforeTimeUs: discontinuitySeq %zu, timeUs %lld",
-            discontinuitySeq, (long long)timeUs);
-    sp<AMessage> meta;
+/*
+ * removes samples with time equal or before meta;
+ * returns first sample left in the queue.
+ *
+ * (for AVC, if trim happens, the samples left will always start
+ * at next IDR.)
+ */
+sp<AMessage> AnotherPacketSource::trimBuffersBeforeMeta(
+        const sp<AMessage> &meta) {
+    HLSTime startTime(meta);
+    ALOGV("trimBuffersBeforeMeta: discontinuitySeq %zu, timeUs %lld",
+            startTime.mSeq, (long long)startTime.mTimeUs);
+
+    sp<AMessage> firstMeta;
     Mutex::Autolock autoLock(mLock);
     if (mBuffers.empty()) {
         return NULL;
@@ -572,24 +590,19 @@ sp<AMessage> AnotherPacketSource::trimBuffersBeforeTimeUs(
         if (isAvc && !IsIDR(buffer)) {
             continue;
         }
-        size_t curDiscontinuitySeq;
-        int64_t curTimeUs;
-        CHECK(buffer->meta()->findInt32(
-                "discontinuitySeq", (int32_t*)&curDiscontinuitySeq));
-        CHECK(buffer->meta()->findInt64("timeUs", &curTimeUs));
-        if ((curDiscontinuitySeq > discontinuitySeq
-                || (curDiscontinuitySeq == discontinuitySeq
-                        && curTimeUs > timeUs))) {
-            ALOGI("trimming from beginning to %lld (not inclusive)",
-                    (long long)curTimeUs);
-            meta = buffer->meta();
+
+        HLSTime curTime(buffer->meta());
+        if (startTime < curTime) {
+            ALOGV("trimming from beginning to %lld (not inclusive)",
+                    (long long)curTime.mTimeUs);
+            firstMeta = buffer->meta();
             break;
         }
     }
     mBuffers.erase(mBuffers.begin(), it);
     mQueuedDiscontinuityCount -= discontinuityCount;
     mLatestDequeuedMeta = NULL;
-    return meta;
+    return firstMeta;
 }
 
 }  // namespace android
