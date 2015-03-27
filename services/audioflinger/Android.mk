@@ -44,9 +44,9 @@ LOCAL_SRC_FILES:=               \
     SpdifStreamOut.cpp          \
     Effects.cpp                 \
     AudioMixer.cpp.arm          \
-    PatchPanel.cpp
-
-LOCAL_SRC_FILES += StateQueue.cpp
+    BufferProviders.cpp         \
+    PatchPanel.cpp              \
+    StateQueue.cpp
 
 LOCAL_C_INCLUDES := \
     $(TOPDIR)frameworks/av/services/audiopolicy \
