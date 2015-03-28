@@ -944,7 +944,6 @@ sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
     sp<MetaData> tempMetadata = new MetaData;
     sp<MetaData> format = audioSource->getFormat();
     int bitWidth = 16;
-#if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
     format->findInt32(kKeyBitsPerSample, &bitWidth);
     tempMetadata->setInt32(kKeyBitsPerSample, bitWidth);
     tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_16_BIT);
@@ -955,7 +954,6 @@ sp<MetaData> ExtendedUtils::updatePCMFormatAndBitwidth(
         (!strcmp(prop_pcmoffload, "true") || atoi(prop_pcmoffload))) {
         tempMetadata->setInt32(kKeyPcmFormat, AUDIO_FORMAT_PCM_8_24_BIT);
     }
-#endif
     return tempMetadata;
 }
 

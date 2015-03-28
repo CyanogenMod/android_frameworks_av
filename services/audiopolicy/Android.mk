@@ -1,5 +1,74 @@
 LOCAL_PATH:= $(call my-dir)
 
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+
+ifeq ($(call is-board-platform-in-list, apq8084 msm8974 msm8226 msm8610),true)
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_COMPRESS_VOIP)),false)
+common_cflags += -DAUDIO_EXTN_COMPRESS_VOIP_ENABLED
+endif
+endif
+
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FORMATS)),false)
+common_cflags += -DAUDIO_EXTN_FORMATS_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM)),true)
+common_cflags += -DAUDIO_EXTN_FM_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_SPK)),true)
+common_cflags += -DAUDIO_EXTN_HDMI_SPK_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MULTI_VOICE_SESSIONS)),true)
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_INCALL_MUSIC)),false)
+common_cflags += -DAUDIO_EXTN_INCALL_MUSIC_ENABLED
+endif
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MULTIPLE_TUNNEL)), true)
+common_cflags += -DMULTIPLE_OFFLOAD_ENABLED
+endif
+
+ifneq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),false)
+common_cflags += -DAUDIO_EXTN_AFE_PROXY_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SSR)),true)
+common_cflags += -DAUDIO_EXTN_SSR_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VOICE_CONCURRENCY)),true)
+common_cflags += -DVOICE_CONCURRENCY
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY)),true)
+common_cflags += -DRECORD_PLAY_CONCURRENCY
+endif
+
+ifeq ($(strip $(DOLBY_UDC)),true)
+common_cflags += -DDOLBY_UDC
+endif #DOLBY_UDC
+ifeq ($(strip $(DOLBY_DDP)),true)
+common_cflags += -DDOLBY_DDP
+endif #DOLBY_DDP
+ifeq ($(strip $(DOLBY_DAP)),true)
+    ifdef DOLBY_DAP_OPENSLES
+        common_cflags += -DDOLBY_DAP_OPENSLES
+    endif
+endif #DOLBY_END
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH)),true)
+common_cflags += -DHDMI_PASSTHROUGH_ENABLED
+endif
+
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+common_cflags += -DENABLE_AV_ENHANCEMENTS
+endif
+
+endif
+
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
@@ -45,8 +114,8 @@ endif
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper
 
-LOCAL_MODULE:= libaudiopolicyservice
-
+LOCAL_MODULE := libaudiopolicyservice
+LOCAL_CFLAGS += $(common_cflags)
 LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
@@ -59,12 +128,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     AudioPolicyManager.cpp
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DTS_EAGLE)),true)
-  LOCAL_CFLAGS += -DDTS_EAGLE
-  LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
-  LOCAL_SRC_FILES += AudioUtil.c
-endif
-
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
@@ -74,75 +137,15 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_COMPRESS_VOIP)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_COMPRESS_VOIP_ENABLED
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DTS_EAGLE)),true)
+  LOCAL_CFLAGS += -DDTS_EAGLE
+  LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+  LOCAL_SRC_FILES += AudioUtil.c
 endif
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FORMATS)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_FORMATS_ENABLED
-endif
+LOCAL_CFLAGS += $(common_cflags)
 
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_FM_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_SPK)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_HDMI_SPK_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_INCALL_MUSIC)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_INCALL_MUSIC_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MULTIPLE_TUNNEL)), true)
-LOCAL_CFLAGS += -DMULTIPLE_OFFLOAD_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD)),true)
-    LOCAL_CFLAGS += -DPCM_OFFLOAD_ENABLED_16
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD_24)),true)
-    LOCAL_CFLAGS += -DPCM_OFFLOAD_ENABLED_24
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_AFE_PROXY_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SSR)),true)
-LOCAL_CFLAGS += -DAUDIO_EXTN_SSR_ENABLED
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VOICE_CONCURRENCY)),true)
-LOCAL_CFLAGS += -DVOICE_CONCURRENCY
-endif
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY)),true)
-LOCAL_CFLAGS += -DRECORD_PLAY_CONCURRENCY
-endif
-
-ifeq ($(strip $(DOLBY_UDC)),true)
-  LOCAL_CFLAGS += -DDOLBY_UDC
-endif #DOLBY_UDC
-ifeq ($(strip $(DOLBY_DDP)),true)
-  LOCAL_CFLAGS += -DDOLBY_DDP
-endif #DOLBY_DDP
-ifeq ($(strip $(DOLBY_DAP)),true)
-    ifdef DOLBY_DAP_OPENSLES
-        LOCAL_CFLAGS += -DDOLBY_DAP_OPENSLES
-    endif
-endif #DOLBY_END
-
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH)),true)
-    LOCAL_CFLAGS += -DHDMI_PASSTHROUGH_ENABLED
-endif
-
-ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
-  LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
-endif
-
-LOCAL_MODULE:= libaudiopolicymanagerdefault
+LOCAL_MODULE := libaudiopolicymanagerdefault
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -156,9 +159,12 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
     libaudiopolicymanagerdefault
 
-LOCAL_MODULE:= libaudiopolicymanager
+LOCAL_MODULE := libaudiopolicymanager
+
+LOCAL_CFLAGS += $(common_cflags)
 
 include $(BUILD_SHARED_LIBRARY)
 
 endif
+
 endif
