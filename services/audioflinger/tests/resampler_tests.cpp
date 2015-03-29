@@ -48,7 +48,10 @@ void resample(int channels, void *output,
         if (thisFrames == 0 || thisFrames > outputFrames - i) {
             thisFrames = outputFrames - i;
         }
-        resampler->resample((int32_t*) output + channels*i, thisFrames, provider);
+        size_t framesResampled = resampler->resample(
+                (int32_t*) output + channels*i, thisFrames, provider);
+        // we should have enough buffer space, so there is no short count.
+        ASSERT_EQ(thisFrames, framesResampled);
         i += thisFrames;
     }
 }

@@ -41,7 +41,7 @@ public:
     AudioResamplerOrder1(int inChannelCount, int32_t sampleRate) :
         AudioResampler(inChannelCount, sampleRate, LOW_QUALITY), mX0L(0), mX0R(0) {
     }
-    virtual void resample(int32_t* out, size_t outFrameCount,
+    virtual size_t resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
 private:
     // number of bits used in interpolation multiply - 15 bits avoids overflow
@@ -51,9 +51,9 @@ private:
     static const int kPreInterpShift = kNumPhaseBits - kNumInterpBits;
 
     void init() {}
-    void resampleMono16(int32_t* out, size_t outFrameCount,
+    size_t resampleMono16(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
-    void resampleStereo16(int32_t* out, size_t outFrameCount,
+    size_t resampleStereo16(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
 #ifdef ASM_ARM_RESAMP1  // asm optimisation for ResamplerOrder1
     void AsmMono16Loop(int16_t *in, int32_t* maxOutPt, int32_t maxInIdx,
@@ -329,7 +329,7 @@ void AudioResampler::reset() {
 
 // ----------------------------------------------------------------------------
 
-void AudioResamplerOrder1::resample(int32_t* out, size_t outFrameCount,
+size_t AudioResamplerOrder1::resample(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider) {
 
     // should never happen, but we overflow if it does
@@ -338,15 +338,16 @@ void AudioResamplerOrder1::resample(int32_t* out, size_t outFrameCount,
     // select the appropriate resampler
     switch (mChannelCount) {
     case 1:
-        resampleMono16(out, outFrameCount, provider);
-        break;
+        return resampleMono16(out, outFrameCount, provider);
     case 2:
-        resampleStereo16(out, outFrameCount, provider);
-        break;
+        return resampleStereo16(out, outFrameCount, provider);
+    default:
+        LOG_ALWAYS_FATAL("invalid channel count: %d", mChannelCount);
+        return 0;
     }
 }
 
-void AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount,
+size_t AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider) {
 
     int32_t vl = mVolume[0];
@@ -442,9 +443,10 @@ resampleStereo16_exit:
     // save state
     mInputIndex = inputIndex;
     mPhaseFraction = phaseFraction;
+    return outputIndex / 2 /* channels for stereo */;
 }
 
-void AudioResamplerOrder1::resampleMono16(int32_t* out, size_t outFrameCount,
+size_t AudioResamplerOrder1::resampleMono16(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider) {
 
     int32_t vl = mVolume[0];
@@ -538,6 +540,7 @@ resampleMono16_exit:
     // save state
     mInputIndex = inputIndex;
     mPhaseFraction = phaseFraction;
+    return outputIndex;
 }
 
 #ifdef ASM_ARM_RESAMP1  // asm optimisation for ResamplerOrder1
