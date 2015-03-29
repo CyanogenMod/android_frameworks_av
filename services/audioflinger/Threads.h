@@ -1036,17 +1036,46 @@ class RecordThread : public ThreadBase
 public:
 
     class RecordTrack;
+
+    /* The ResamplerBufferProvider is used to retrieve recorded input data from the
+     * RecordThread.  It maintains local state on the relative position of the read
+     * position of the RecordTrack compared with the RecordThread.
+     */
     class ResamplerBufferProvider : public AudioBufferProvider
-                        // derives from AudioBufferProvider interface for use by resampler
     {
     public:
-        ResamplerBufferProvider(RecordTrack* recordTrack) : mRecordTrack(recordTrack) { }
+        ResamplerBufferProvider(RecordTrack* recordTrack) :
+            mRecordTrack(recordTrack),
+            mRsmpInUnrel(0), mRsmpInFront(0) { }
         virtual ~ResamplerBufferProvider() { }
+
+        // called to set the ResamplerBufferProvider to head of the RecordThread data buffer,
+        // skipping any previous data read from the hal.
+        virtual void reset();
+
+        /* Synchronizes RecordTrack position with the RecordThread.
+         * Calculates available frames and handle overruns if the RecordThread
+         * has advanced faster than the ResamplerBufferProvider has retrieved data.
+         * TODO: why not do this for every getNextBuffer?
+         *
+         * Parameters
+         * framesAvailable:  pointer to optional output size_t to store record track
+         *                   frames available.
+         *      hasOverrun:  pointer to optional boolean, returns true if track has overrun.
+         */
+
+        virtual void sync(size_t *framesAvailable = NULL, bool *hasOverrun = NULL);
+
         // AudioBufferProvider interface
         virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
         virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
     private:
         RecordTrack * const mRecordTrack;
+        size_t              mRsmpInUnrel;   // unreleased frames remaining from
+                                            // most recent getNextBuffer
+                                            // for debug only
+        int32_t             mRsmpInFront;   // next available frame
+                                            // rolling counter that is never cleared
     };
 
     /* The RecordBufferConverter is used for format, channel, and sample rate
