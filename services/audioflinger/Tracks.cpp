@@ -1989,7 +1989,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
                           ((flags & IAudioFlinger::TRACK_FAST) ? ALLOC_PIPE : ALLOC_CBLK) :
                           ((buffer == NULL) ? ALLOC_LOCAL : ALLOC_NONE),
                   type),
-        mOverflow(false), mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0),
+        mOverflow(false),
         // See real initialization of mRsmpInFront at RecordThread::start()
         mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
 {
@@ -1997,21 +1997,23 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         return;
     }
 
+    mRecordBufferConverter = new RecordBufferConverter(
+            thread->mChannelMask, thread->mFormat, thread->mSampleRate,
+            channelMask, format, sampleRate);
+    // Check if the RecordBufferConverter construction was successful.
+    // If not, don't continue with construction.
+    //
+    // NOTE: It would be extremely rare that the record track cannot be created
+    // for the current device, but a pending or future device change would make
+    // the record track configuration valid.
+    if (mRecordBufferConverter->initCheck() != NO_ERROR) {
+        ALOGE("RecordTrack unable to create record buffer converter");
+        return;
+    }
+
     mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
                                               mFrameSize, !isExternalTrack());
-
-    uint32_t channelCount = audio_channel_count_from_in_mask(channelMask);
-    // FIXME I don't understand either of the channel count checks
-    if (thread->mSampleRate != sampleRate && thread->mChannelCount <= FCC_2 &&
-            channelCount <= FCC_2) {
-        // sink SR
-        mResampler = AudioResampler::create(AUDIO_FORMAT_PCM_16_BIT,
-                thread->mChannelCount, sampleRate);
-        // source SR
-        mResampler->setSampleRate(thread->mSampleRate);
-        mResampler->setVolume(AudioMixer::UNITY_GAIN_FLOAT, AudioMixer::UNITY_GAIN_FLOAT);
-        mResamplerBufferProvider = new ResamplerBufferProvider(this);
-    }
+    mResamplerBufferProvider = new ResamplerBufferProvider(this);
 
     if (flags & IAudioFlinger::TRACK_FAST) {
         ALOG_ASSERT(thread->mFastTrackAvail);
@@ -2022,9 +2024,17 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
 AudioFlinger::RecordThread::RecordTrack::~RecordTrack()
 {
     ALOGV("%s", __func__);
-    delete mResampler;
-    delete[] mRsmpOutBuffer;
+    delete mRecordBufferConverter;
     delete mResamplerBufferProvider;
+}
+
+status_t AudioFlinger::RecordThread::RecordTrack::initCheck() const
+{
+    status_t status = TrackBase::initCheck();
+    if (status == NO_ERROR && mServerProxy == 0) {
+        status = BAD_VALUE;
+    }
+    return status;
 }
 
 // AudioBufferProvider interface

@@ -5290,7 +5290,6 @@ failed: ;
     // FIXME mNormalSource
 }
 
-
 AudioFlinger::RecordThread::~RecordThread()
 {
     if (mFastCapture != 0) {
@@ -5594,6 +5593,8 @@ reacquire_wakelock:
                 continue;
             }
 
+            // TODO: Update the activeTrack buffer converter in case of reconfigure.
+
             enum {
                 OVERRUN_UNKNOWN,
                 OVERRUN_TRUE,
@@ -5630,109 +5631,9 @@ reacquire_wakelock:
                     break;
                 }
 
-                if (activeTrack->mResampler == NULL) {
-                    // no resampling
-                    if (framesIn > framesOut) {
-                        framesIn = framesOut;
-                    } else {
-                        framesOut = framesIn;
-                    }
-                    int8_t *dst = activeTrack->mSink.i8;
-                    while (framesIn > 0) {
-                        front &= mRsmpInFramesP2 - 1;
-                        size_t part1 = mRsmpInFramesP2 - front;
-                        if (part1 > framesIn) {
-                            part1 = framesIn;
-                        }
-                        int8_t *src = (int8_t *)mRsmpInBuffer + (front * mFrameSize);
-                        if (mChannelCount == activeTrack->mChannelCount) {
-                            memcpy(dst, src, part1 * mFrameSize);
-                        } else if (mChannelCount == 1) {
-                            upmix_to_stereo_i16_from_mono_i16((int16_t *)dst, (const int16_t *)src,
-                                    part1);
-                        } else {
-                            downmix_to_mono_i16_from_stereo_i16((int16_t *)dst,
-                                    (const int16_t *)src, part1);
-                        }
-                        dst += part1 * activeTrack->mFrameSize;
-                        front += part1;
-                        framesIn -= part1;
-                    }
-                    activeTrack->mRsmpInFront += framesOut;
-
-                } else {
-                    // resampling
-                    // FIXME framesInNeeded should really be part of resampler API, and should
-                    //       depend on the SRC ratio
-                    //       to keep mRsmpInBuffer full so resampler always has sufficient input
-                    size_t framesInNeeded;
-                    // FIXME only re-calculate when it changes, and optimize for common ratios
-                    // Do not precompute in/out because floating point is not associative
-                    // e.g. a*b/c != a*(b/c).
-                    const double in(mSampleRate);
-                    const double out(activeTrack->mSampleRate);
-                    framesInNeeded = ceil(framesOut * in / out) + 1;
-                    ALOGV("need %u frames in to produce %u out given in/out ratio of %.4g",
-                                framesInNeeded, framesOut, in / out);
-                    // Although we theoretically have framesIn in circular buffer, some of those are
-                    // unreleased frames, and thus must be discounted for purpose of budgeting.
-                    size_t unreleased = activeTrack->mRsmpInUnrel;
-                    framesIn = framesIn > unreleased ? framesIn - unreleased : 0;
-                    if (framesIn < framesInNeeded) {
-                        ALOGV("not enough to resample: have %u frames in but need %u in to "
-                                "produce %u out given in/out ratio of %.4g",
-                                framesIn, framesInNeeded, framesOut, in / out);
-                        size_t newFramesOut = framesIn > 0 ? floor((framesIn - 1) * out / in) : 0;
-                        LOG_ALWAYS_FATAL_IF(newFramesOut >= framesOut);
-                        if (newFramesOut == 0) {
-                            break;
-                        }
-                        framesInNeeded = ceil(newFramesOut * in / out) + 1;
-                        ALOGV("now need %u frames in to produce %u out given out/in ratio of %.4g",
-                                framesInNeeded, newFramesOut, out / in);
-                        LOG_ALWAYS_FATAL_IF(framesIn < framesInNeeded);
-                        ALOGV("success 2: have %u frames in and need %u in to produce %u out "
-                              "given in/out ratio of %.4g",
-                              framesIn, framesInNeeded, newFramesOut, in / out);
-                        framesOut = newFramesOut;
-                    } else {
-                        ALOGV("success 1: have %u in and need %u in to produce %u out "
-                            "given in/out ratio of %.4g",
-                            framesIn, framesInNeeded, framesOut, in / out);
-                    }
-
-                    // reallocate mRsmpOutBuffer as needed; we will grow but never shrink
-                    if (activeTrack->mRsmpOutFrameCount < framesOut) {
-                        // FIXME why does each track need it's own mRsmpOutBuffer? can't they share?
-                        delete[] activeTrack->mRsmpOutBuffer;
-                        // resampler always outputs stereo
-                        activeTrack->mRsmpOutBuffer = new int32_t[framesOut * FCC_2];
-                        activeTrack->mRsmpOutFrameCount = framesOut;
-                    }
-
-                    // resampler accumulates, but we only have one source track
-                    memset(activeTrack->mRsmpOutBuffer, 0, framesOut * FCC_2 * sizeof(int32_t));
-                    activeTrack->mResampler->resample(activeTrack->mRsmpOutBuffer, framesOut,
-                            // FIXME how about having activeTrack implement this interface itself?
-                            activeTrack->mResamplerBufferProvider
-                            /*this*/ /* AudioBufferProvider* */);
-                    // ditherAndClamp() works as long as all buffers returned by
-                    // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
-                    if (activeTrack->mChannelCount == 1) {
-                        // temporarily type pun mRsmpOutBuffer from Q4.27 to int16_t
-                        ditherAndClamp(activeTrack->mRsmpOutBuffer, activeTrack->mRsmpOutBuffer,
-                                framesOut);
-                        // the resampler always outputs stereo samples:
-                        // do post stereo to mono conversion
-                        downmix_to_mono_i16_from_stereo_i16(activeTrack->mSink.i16,
-                                (const int16_t *)activeTrack->mRsmpOutBuffer, framesOut);
-                    } else {
-                        ditherAndClamp((int32_t *)activeTrack->mSink.raw,
-                                activeTrack->mRsmpOutBuffer, framesOut);
-                    }
-                    // now done with mRsmpOutBuffer
-
-                }
+                // process frames from the RecordThread buffer provider to the RecordTrack buffer
+                framesOut = activeTrack->mRecordBufferConverter->convert(
+                        activeTrack->mSink.raw, activeTrack->mResamplerBufferProvider, framesOut);
 
                 if (framesOut > 0 && (overrun == OVERRUN_UNKNOWN)) {
                     overrun = OVERRUN_FALSE;
@@ -6043,10 +5944,8 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
 
         recordTrack->mRsmpInFront = mRsmpInRear;
         recordTrack->mRsmpInUnrel = 0;
-        // FIXME why reset?
-        if (recordTrack->mResampler != NULL) {
-            recordTrack->mResampler->reset();
-        }
+        // clear any converter state as new data will be discontinuous
+        recordTrack->mRecordBufferConverter->reset();
         recordTrack->mState = TrackBase::STARTING_2;
         // signal thread to start
         mWaitWorkCV.broadcast();
@@ -6282,6 +6181,186 @@ void AudioFlinger::RecordThread::ResamplerBufferProvider::releaseBuffer(
     buffer->frameCount = 0;
 }
 
+AudioFlinger::RecordThread::RecordBufferConverter::RecordBufferConverter(
+        audio_channel_mask_t srcChannelMask, audio_format_t srcFormat,
+        uint32_t srcSampleRate,
+        audio_channel_mask_t dstChannelMask, audio_format_t dstFormat,
+        uint32_t dstSampleRate) :
+            mSrcChannelMask(AUDIO_CHANNEL_INVALID), // updateParameters will set following vars
+            // mSrcFormat
+            // mSrcSampleRate
+            // mDstChannelMask
+            // mDstFormat
+            // mDstSampleRate
+            // mSrcChannelCount
+            // mDstChannelCount
+            // mDstFrameSize
+            mBuf(NULL), mBufFrames(0), mBufFrameSize(0),
+            mResampler(NULL), mRsmpOutBuffer(NULL), mRsmpOutFrameCount(0)
+{
+    (void)updateParameters(srcChannelMask, srcFormat, srcSampleRate,
+            dstChannelMask, dstFormat, dstSampleRate);
+}
+
+AudioFlinger::RecordThread::RecordBufferConverter::~RecordBufferConverter() {
+    free(mBuf);
+    delete mResampler;
+    free(mRsmpOutBuffer);
+}
+
+size_t AudioFlinger::RecordThread::RecordBufferConverter::convert(void *dst,
+        AudioBufferProvider *provider, size_t frames)
+{
+    if (mSrcSampleRate == mDstSampleRate) {
+        ALOGVV("NO RESAMPLING sampleRate:%u mSrcFormat:%#x mDstFormat:%#x",
+                mSrcSampleRate, mSrcFormat, mDstFormat);
+
+        AudioBufferProvider::Buffer buffer;
+        for (size_t i = frames; i > 0; ) {
+            buffer.frameCount = i;
+            status_t status = provider->getNextBuffer(&buffer, 0);
+            if (status != OK || buffer.frameCount == 0) {
+                frames -= i; // cannot fill request.
+                break;
+            }
+            // convert to destination buffer
+            convert(dst, buffer.raw, buffer.frameCount);
+
+            dst = (int8_t*)dst + buffer.frameCount * mDstFrameSize;
+            i -= buffer.frameCount;
+            provider->releaseBuffer(&buffer);
+        }
+    } else {
+         ALOGVV("RESAMPLING mSrcSampleRate:%u mDstSampleRate:%u mSrcFormat:%#x mDstFormat:%#x",
+                 mSrcSampleRate, mDstSampleRate, mSrcFormat, mDstFormat);
+
+        // reallocate mRsmpOutBuffer as needed; we will grow but never shrink
+        if (mRsmpOutFrameCount < frames) {
+            // FIXME why does each track need it's own mRsmpOutBuffer? can't they share?
+            free(mRsmpOutBuffer);
+            // resampler always outputs stereo (FOR NOW)
+            (void)posix_memalign(&mRsmpOutBuffer, 32, frames * FCC_2 * sizeof(int32_t) /*Q4.27*/);
+            mRsmpOutFrameCount = frames;
+        }
+        // resampler accumulates, but we only have one source track
+        memset(mRsmpOutBuffer, 0, frames * FCC_2 * sizeof(int32_t));
+        frames = mResampler->resample((int32_t*)mRsmpOutBuffer, frames, provider);
+
+        // convert to destination buffer
+        convert(dst, mRsmpOutBuffer, frames);
+    }
+    return frames;
+}
+
+status_t AudioFlinger::RecordThread::RecordBufferConverter::updateParameters(
+        audio_channel_mask_t srcChannelMask, audio_format_t srcFormat,
+        uint32_t srcSampleRate,
+        audio_channel_mask_t dstChannelMask, audio_format_t dstFormat,
+        uint32_t dstSampleRate)
+{
+    // quick evaluation if there is any change.
+    if (mSrcFormat == srcFormat
+            && mSrcChannelMask == srcChannelMask
+            && mSrcSampleRate == srcSampleRate
+            && mDstFormat == dstFormat
+            && mDstChannelMask == dstChannelMask
+            && mDstSampleRate == dstSampleRate) {
+        return NO_ERROR;
+    }
+
+    const bool valid =
+            audio_is_input_channel(srcChannelMask)
+            && audio_is_input_channel(dstChannelMask)
+            && audio_is_valid_format(srcFormat) && audio_is_linear_pcm(srcFormat)
+            && audio_is_valid_format(dstFormat) && audio_is_linear_pcm(dstFormat)
+            && (srcSampleRate <= dstSampleRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX)
+            ; // no upsampling checks for now
+    if (!valid) {
+        return BAD_VALUE;
+    }
+
+    mSrcFormat = srcFormat;
+    mSrcChannelMask = srcChannelMask;
+    mSrcSampleRate = srcSampleRate;
+    mDstFormat = dstFormat;
+    mDstChannelMask = dstChannelMask;
+    mDstSampleRate = dstSampleRate;
+
+    // compute derived parameters
+    mSrcChannelCount = audio_channel_count_from_in_mask(srcChannelMask);
+    mDstChannelCount = audio_channel_count_from_in_mask(dstChannelMask);
+    mDstFrameSize = mDstChannelCount * audio_bytes_per_sample(mDstFormat);
+
+    // do we need a format buffer?
+    if (mSrcFormat != mDstFormat && mDstChannelCount != mSrcChannelCount) {
+        mBufFrameSize = mDstChannelCount * audio_bytes_per_sample(mSrcFormat);
+    } else {
+        mBufFrameSize = 0;
+    }
+    mBufFrames = 0; // force the buffer to be resized.
+
+    // do we need to resample?
+    if (mSrcSampleRate != mDstSampleRate) {
+        if (mResampler != NULL) {
+            delete mResampler;
+        }
+        mResampler = AudioResampler::create(AUDIO_FORMAT_PCM_16_BIT,
+                mSrcChannelCount, mDstSampleRate); // may seem confusing...
+        mResampler->setSampleRate(mSrcSampleRate);
+        mResampler->setVolume(AudioMixer::UNITY_GAIN_FLOAT, AudioMixer::UNITY_GAIN_FLOAT);
+    }
+    return NO_ERROR;
+}
+
+void AudioFlinger::RecordThread::RecordBufferConverter::convert(
+        void *dst, /*const*/ void *src, size_t frames)
+{
+    // check if a memcpy will do
+    if (mResampler == NULL
+            && mSrcChannelCount == mDstChannelCount
+            && mSrcFormat == mDstFormat) {
+        memcpy(dst, src,
+                frames * mDstChannelCount * audio_bytes_per_sample(mDstFormat));
+        return;
+    }
+    // reallocate buffer if needed
+    if (mBufFrameSize != 0 && mBufFrames < frames) {
+        free(mBuf);
+        mBufFrames = frames;
+        (void)posix_memalign(&mBuf, 32, mBufFrames * mBufFrameSize);
+    }
+    // do processing
+    if (mResampler != NULL) {
+        // src channel count is always >= 2.
+        void *dstBuf = mBuf != NULL ? mBuf : dst;
+        // ditherAndClamp() works as long as all buffers returned by
+        // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
+        if (mDstChannelCount == 1) {
+            // the resampler always outputs stereo samples.
+            // FIXME: this rewrites back into src
+            ditherAndClamp((int32_t *)src, (const int32_t *)src, frames);
+            downmix_to_mono_i16_from_stereo_i16((int16_t *)dstBuf,
+                    (const int16_t *)src, frames);
+        } else {
+            ditherAndClamp((int32_t *)dstBuf, (const int32_t *)src, frames);
+        }
+    } else if (mSrcChannelCount != mDstChannelCount) {
+        void *dstBuf = mBuf != NULL ? mBuf : dst;
+        if (mSrcChannelCount == 1) {
+            upmix_to_stereo_i16_from_mono_i16((int16_t *)dstBuf, (const int16_t *)src,
+                    frames);
+        } else {
+            downmix_to_mono_i16_from_stereo_i16((int16_t *)dstBuf,
+                    (const int16_t *)src, frames);
+        }
+    }
+    if (mSrcFormat != mDstFormat) {
+        void *srcBuf = mBuf != NULL ? mBuf : src;
+        memcpy_by_audio_format(dst, mDstFormat, srcBuf, mSrcFormat,
+                frames * mDstChannelCount);
+    }
+}
+
 bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValuePair,
                                                         status_t& status)
 {
@@ -6303,7 +6382,7 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
         reconfig = true;
     }
     if (param.getInt(String8(AudioParameter::keyFormat), value) == NO_ERROR) {
-        if ((audio_format_t) value != AUDIO_FORMAT_PCM_16_BIT) {
+        if (!audio_is_linear_pcm((audio_format_t) value)) {
             status = BAD_VALUE;
         } else {
             reqFormat = (audio_format_t) value;
@@ -6377,10 +6456,10 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
         }
         if (reconfig) {
             if (status == BAD_VALUE &&
-                reqFormat == mInput->stream->common.get_format(&mInput->stream->common) &&
-                reqFormat == AUDIO_FORMAT_PCM_16_BIT &&
+                audio_is_linear_pcm(mInput->stream->common.get_format(&mInput->stream->common)) &&
+                audio_is_linear_pcm(reqFormat) &&
                 (mInput->stream->common.get_sample_rate(&mInput->stream->common)
-                        <= (2 * samplingRate)) &&
+                        <= (AUDIO_RESAMPLER_DOWN_RATIO_MAX * samplingRate)) &&
                 audio_channel_count_from_in_mask(
                         mInput->stream->common.get_channels(&mInput->stream->common)) <= FCC_2 &&
                 (channelMask == AUDIO_CHANNEL_IN_MONO ||
@@ -6451,6 +6530,8 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // The value is somewhat arbitrary, and could probably be even larger.
     // A larger value should allow more old data to be read after a track calls start(),
     // without increasing latency.
+    //
+    // Note this is independent of the maximum downsampling ratio permitted for capture.
     mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
     delete[] mRsmpInBuffer;

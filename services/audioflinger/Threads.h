@@ -1049,6 +1049,87 @@ public:
         RecordTrack * const mRecordTrack;
     };
 
+    /* The RecordBufferConverter is used for format, channel, and sample rate
+     * conversion for a RecordTrack.
+     *
+     * TODO: Self contained, so move to a separate file later.
+     *
+     * RecordBufferConverter uses the convert() method rather than exposing a
+     * buffer provider interface; this is to save a memory copy.
+     */
+    class RecordBufferConverter
+    {
+    public:
+        RecordBufferConverter(
+                audio_channel_mask_t srcChannelMask, audio_format_t srcFormat,
+                uint32_t srcSampleRate,
+                audio_channel_mask_t dstChannelMask, audio_format_t dstFormat,
+                uint32_t dstSampleRate);
+
+        ~RecordBufferConverter();
+
+        /* Converts input data from an AudioBufferProvider by format, channelMask,
+         * and sampleRate to a destination buffer.
+         *
+         * Parameters
+         *      dst:  buffer to place the converted data.
+         * provider:  buffer provider to obtain source data.
+         *   frames:  number of frames to convert
+         *
+         * Returns the number of frames converted.
+         */
+        size_t convert(void *dst, AudioBufferProvider *provider, size_t frames);
+
+        // returns NO_ERROR if constructor was successful
+        status_t initCheck() const {
+            // mSrcChannelMask set on successful updateParameters
+            return mSrcChannelMask != AUDIO_CHANNEL_INVALID ? NO_ERROR : NO_INIT;
+        }
+
+        // allows dynamic reconfigure of all parameters
+        status_t updateParameters(
+                audio_channel_mask_t srcChannelMask, audio_format_t srcFormat,
+                uint32_t srcSampleRate,
+                audio_channel_mask_t dstChannelMask, audio_format_t dstFormat,
+                uint32_t dstSampleRate);
+
+        // called to reset resampler buffers on record track discontinuity
+        void reset() {
+            if (mResampler != NULL) {
+                mResampler->reset();
+            }
+        }
+
+    private:
+        // internal convert function for format and channel mask.
+        void convert(void *dst, /*const*/ void *src, size_t frames);
+
+        // user provided information
+        audio_channel_mask_t mSrcChannelMask;
+        audio_format_t       mSrcFormat;
+        uint32_t             mSrcSampleRate;
+        audio_channel_mask_t mDstChannelMask;
+        audio_format_t       mDstFormat;
+        uint32_t             mDstSampleRate;
+
+        // derived information
+        uint32_t             mSrcChannelCount;
+        uint32_t             mDstChannelCount;
+        size_t               mDstFrameSize;
+
+        // format conversion buffer
+        void                *mBuf;
+        size_t               mBufFrames;
+        size_t               mBufFrameSize;
+
+        // resampler info
+        AudioResampler      *mResampler;
+        // interleaved stereo pairs of fixed-point Q4.27 or float depending on resampler
+        void                *mRsmpOutBuffer;
+        // current allocated frame count for the above, which may be larger than needed
+        size_t               mRsmpOutFrameCount;
+    };
+
 #include "RecordTracks.h"
 
             RecordThread(const sp<AudioFlinger>& audioFlinger,
