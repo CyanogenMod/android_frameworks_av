@@ -680,6 +680,18 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
     uint32_t numFramesPlayed;
+    if(!mAudioSink->ready() && !mAudioQueue.empty()) {
+        while (!mAudioQueue.empty()) {
+            QueueEntry *entry = &*mAudioQueue.begin();
+            if (entry->mBuffer == NULL) {
+                notifyEOS(true /* audio */, entry->mFinalResult);
+            }
+            mAudioQueue.erase(mAudioQueue.begin());
+            entry = NULL;
+        }
+        return false;
+    }
+
     if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
         return false;
     }
