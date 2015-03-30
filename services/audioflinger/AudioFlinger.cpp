@@ -131,6 +131,14 @@ const char *formatToString(audio_format_t format) {
     case AUDIO_FORMAT_OPUS: return "opus";
     case AUDIO_FORMAT_AC3: return "ac-3";
     case AUDIO_FORMAT_E_AC3: return "e-ac-3";
+    case AUDIO_FORMAT_PCM_OFFLOAD:
+        switch (format) {
+        case AUDIO_FORMAT_PCM_16_BIT_OFFLOAD: return "pcm-16bit-offload";
+        case AUDIO_FORMAT_PCM_24_BIT_OFFLOAD: return "pcm-24bit-offload";
+        default:
+            break;
+        }
+        break;
     default:
         break;
     }
