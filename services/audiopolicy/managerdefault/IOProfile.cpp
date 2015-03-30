@@ -46,8 +46,16 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
     ALOG_ASSERT(isPlaybackThread != isRecordThread);
 
-    if (device != AUDIO_DEVICE_NONE && mSupportedDevices.getDevice(device, address) == 0) {
-        return false;
+
+    if (device != AUDIO_DEVICE_NONE) {
+        // just check types if multiple devices are selected
+        if (popcount(device & ~AUDIO_DEVICE_BIT_IN) > 1) {
+            if ((mSupportedDevices.types() & device) != device) {
+                return false;
+            }
+        } else if (mSupportedDevices.getDevice(device, address) == 0) {
+            return false;
+        }
     }
 
     if (samplingRate == 0) {
