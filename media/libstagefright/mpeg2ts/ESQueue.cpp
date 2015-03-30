@@ -286,8 +286,8 @@ status_t ElementaryStreamQueue::appendData(
                 uint8_t *ptr = (uint8_t *)data;
 
                 ssize_t startOffset = -1;
-                for (size_t i = 0; i + 3 < size; ++i) {
-                    if (!memcmp("\x00\x00\x00\x01", &ptr[i], 4)) {
+                for (size_t i = 0; i + 2 < size; ++i) {
+                    if (!memcmp("\x00\x00\x01", &ptr[i], 3)) {
                         startOffset = i;
                         break;
                     }
