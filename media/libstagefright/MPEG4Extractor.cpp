@@ -17,7 +17,7 @@
  * code that are surrounded by "DOLBY..." are copyrighted and
  * licensed separately, as follows:
  *
- *  (C) 2011-2014 Dolby Laboratories, Inc.
+ *  (C) 2011-2015 Dolby Laboratories, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1513,7 +1513,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 if (buffer[data_offset] & 0x1) {
                     mLastTrack->meta->setCString(
                             kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_EAC3_JOC);
-                    DLOGD("@DDP - flag_ec3_extension_type_a = 1 - Set EAC3/JOC mimetype");
+                    DLOGD("@DDP - flag_eac3_extension_type_a = 1 - Set EAC3/JOC mimetype");
                 }
             }
             else if (chunk_data_size > (data_offset +1)){

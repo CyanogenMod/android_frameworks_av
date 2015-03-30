@@ -17,7 +17,7 @@
  * code that are surrounded by "DOLBY..." are copyrighted and
  * licensed separately, as follows:
  *
- *  (C) 2011-2014 Dolby Laboratories, Inc.
+ *  (C) 2011-2015 Dolby Laboratories, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,8 +120,8 @@ static const struct {
     { "OMX.google.gsm.decoder", "gsmdec", "audio_decoder.gsm" },
 #ifdef DOLBY_UDC
     { "OMX.dolby.ac3.decoder", "ddpdec", "audio_decoder.ac3" },
-    { "OMX.dolby.ec3.decoder", "ddpdec", "audio_decoder.ec3" },
-    { "OMX.dolby.ec3_joc.decoder", "ddpdec", "audio_decoder.ec3_joc" },
+    { "OMX.dolby.eac3.decoder", "ddpdec", "audio_decoder.eac3" },
+    { "OMX.dolby.eac3_joc.decoder", "ddpdec", "audio_decoder.eac3_joc" },
 #endif // DOLBY_END
 #ifdef DTS_CODEC_M_
     { "OMX.DTS.audio_decoder.dts", "dtsdec", "audio_decoder.dts" },
