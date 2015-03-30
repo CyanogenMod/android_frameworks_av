@@ -170,7 +170,7 @@ NuPlayer::NuPlayer()
       mOffloadAudio(false),
       mOffloadDecodedPCM(false),
       mSwitchingFromPcmOffload(false),
-      mIsStreaming(true),
+      mIsStreaming(false),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
       mRendererGeneration(0),
@@ -1277,7 +1277,7 @@ void NuPlayer::tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVi
     }
 
     status_t err = mRenderer->openAudioSink(
-            format, true /* offloadOnly */, hasVideo, mIsStreaming, AUDIO_OUTPUT_FLAG_NONE, &mOffloadAudio);
+            format, true /* offloadOnly */, hasVideo, AUDIO_OUTPUT_FLAG_NONE, mIsStreaming, &mOffloadAudio);
     if (err != OK) {
         // Any failure we turn off mOffloadAudio.
         mOffloadAudio = false;
@@ -1337,6 +1337,9 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         notify->setInt32("generation", mAudioDecoderGeneration);
 
         sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+        const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
+
+        format->setInt32("has-video", hasVideo);
 
         if (mOffloadAudio && !mOffloadDecodedPCM) {
             if (ExtendedUtils::is24bitPCMOffloadEnabled()) {
@@ -1382,7 +1385,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     }
 
     (*decoder)->init();
-    (*decoder)->configure(format, mIsStreaming);
+    (*decoder)->configure(format);
 
     // allocate buffers to decrypt widevine source buffers
     if (!audio && (mSourceFlags & Source::FLAG_SECURE)) {

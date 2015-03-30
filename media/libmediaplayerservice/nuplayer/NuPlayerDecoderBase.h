@@ -31,7 +31,7 @@ struct MediaBuffer;
 struct NuPlayer::DecoderBase : public AHandler {
     DecoderBase(const sp<AMessage> &notify);
 
-    void configure(const sp<AMessage> &format, bool isStreaming);
+    void configure(const sp<AMessage> &format);
     void init();
 
     void setRenderer(const sp<Renderer> &renderer);
@@ -61,7 +61,7 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
-    virtual void onConfigure(const sp<AMessage> &format, bool isStreaming) = 0;
+    virtual void onConfigure(const sp<AMessage> &format) = 0;
     virtual void onSetRenderer(const sp<Renderer> &renderer) = 0;
     virtual void onGetInputBuffers(Vector<sp<ABuffer> > *dstBuffers) = 0;
     virtual void onResume(bool notifyComplete) = 0;
