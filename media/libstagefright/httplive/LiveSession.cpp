@@ -50,6 +50,17 @@
 
 namespace android {
 
+// static
+// Bandwidth Switch Mark Defaults
+const int64_t LiveSession::kUpSwitchMarkUs = 25000000ll;
+const int64_t LiveSession::kDownSwitchMarkUs = 18000000ll;
+const int64_t LiveSession::kUpSwitchMarginUs = 5000000ll;
+
+// Buffer Prepare/Ready/Underflow Marks
+const int64_t LiveSession::kReadyMarkUs = 5000000ll;
+const int64_t LiveSession::kPrepareMarkUs = 1500000ll;
+const int64_t LiveSession::kUnderflowMarkUs = 1000000ll;
+
 struct LiveSession::BandwidthEstimator : public RefBase {
     BandwidthEstimator();
 
@@ -153,9 +164,9 @@ LiveSession::LiveSession(
       mRealTimeBaseUs(0ll),
       mReconfigurationInProgress(false),
       mSwitchInProgress(false),
-      mUpSwitchMark(kUpSwitchMark),
-      mDownSwitchMark(kDownSwitchMark),
-      mUpSwitchMargin(kUpSwitchMargin),
+      mUpSwitchMark(kUpSwitchMarkUs),
+      mDownSwitchMark(kDownSwitchMarkUs),
+      mUpSwitchMargin(kUpSwitchMarginUs),
       mFirstTimeUsValid(false),
       mFirstTimeUs(0),
       mLastSeekTimeUs(0) {
@@ -563,9 +574,9 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     int64_t targetDurationUs;
                     CHECK(msg->findInt64("targetDurationUs", &targetDurationUs));
-                    mUpSwitchMark = min(kUpSwitchMark, targetDurationUs * 3);
-                    mDownSwitchMark = min(kDownSwitchMark, targetDurationUs * 9 / 4);
-                    mUpSwitchMargin = min(kUpSwitchMargin, targetDurationUs);
+                    mUpSwitchMark = min(kUpSwitchMarkUs, targetDurationUs * 3);
+                    mDownSwitchMark = min(kDownSwitchMarkUs, targetDurationUs * 9 / 4);
+                    mUpSwitchMargin = min(kUpSwitchMarginUs, targetDurationUs);
                     break;
                 }
 
@@ -656,7 +667,7 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                     // If switching up, require a cushion bigger than kUnderflowMark
                     // to avoid buffering immediately after the switch.
                     // (If we don't have that cushion we'd rather cancel and try again.)
-                    int64_t delayUs = switchUp ? (kUnderflowMark + 1000000ll) : 0;
+                    int64_t delayUs = switchUp ? (kUnderflowMarkUs + 1000000ll) : 0;
                     bool needResumeUntil = false;
                     sp<AMessage> stopParams = msg;
                     if (checkSwitchProgress(stopParams, delayUs, &needResumeUntil)) {
@@ -2068,13 +2079,13 @@ bool LiveSession::checkBuffering(
         }
 
         ++activeCount;
-        int64_t readyMark = mInPreparationPhase ? kPrepareMark : kReadyMark;
+        int64_t readyMark = mInPreparationPhase ? kPrepareMarkUs : kReadyMarkUs;
         if (bufferedDurationUs > readyMark
                 || mPacketSources[i]->isFinished(0)) {
             ++readyCount;
         }
         if (!mPacketSources[i]->isFinished(0)) {
-            if (bufferedDurationUs < kUnderflowMark) {
+            if (bufferedDurationUs < kUnderflowMarkUs) {
                 ++underflowCount;
             }
             if (bufferedDurationUs > mUpSwitchMark) {

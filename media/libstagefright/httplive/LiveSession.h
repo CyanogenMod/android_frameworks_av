@@ -122,14 +122,14 @@ private:
     };
 
     // Bandwidth Switch Mark Defaults
-    static const int64_t kUpSwitchMark = 25000000ll;
-    static const int64_t kDownSwitchMark = 18000000ll;
-    static const int64_t kUpSwitchMargin = 5000000ll;
+    static const int64_t kUpSwitchMarkUs;
+    static const int64_t kDownSwitchMarkUs;
+    static const int64_t kUpSwitchMarginUs;
 
     // Buffer Prepare/Ready/Underflow Marks
-    static const int64_t kReadyMark = 5000000ll;
-    static const int64_t kPrepareMark = 1500000ll;
-    static const int64_t kUnderflowMark = 1000000ll;
+    static const int64_t kReadyMarkUs;
+    static const int64_t kPrepareMarkUs;
+    static const int64_t kUnderflowMarkUs;
 
     struct BandwidthEstimator;
     struct BandwidthItem {
