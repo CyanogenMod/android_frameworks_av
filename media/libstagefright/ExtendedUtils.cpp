@@ -1120,13 +1120,17 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
     bool amrwbAudio              = false;
     bool hevcVideo               = false;
     bool dolbyAudio              = false;
+#ifndef QCOM_DIRECTTRACK
     bool mpeg4Container          = false;
     bool aacAudioTrack           = false;
+#endif
     int  numOfTrack              = 0;
 
+#ifndef QCOM_DIRECTTRACK
     mpeg4Container = !strncasecmp(mime,
                                 MEDIA_MIMETYPE_CONTAINER_MPEG4,
                                 strlen(MEDIA_MIMETYPE_CONTAINER_MPEG4));
+#endif
 
     if (defaultExt != NULL) {
         for (size_t trackItt = 0; trackItt < defaultExt->countTracks(); ++trackItt) {
@@ -1152,9 +1156,11 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
                                           MEDIA_MIMETYPE_AUDIO_AMR_WB,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AMR_WB));
 
+#ifndef QCOM_DIRECTTRACK
                 aacAudioTrack = !strncasecmp(mime.string(),
                                           MEDIA_MIMETYPE_AUDIO_AAC,
                                           strlen(MEDIA_MIMETYPE_AUDIO_AAC));
+#endif
 
                 for (size_t i = 0; i < ARRAY_SIZE(dolbyFormats); i++) {
                     if (!strncasecmp(mime.string(), dolbyFormats[i], strlen(dolbyFormats[i]))) {
@@ -1179,8 +1185,12 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
             bCheckExtendedExtractor = true;
         } else if (numOfTrack == 1) {
             if ((videoTrackFound) ||
+#ifndef QCOM_DIRECTTRACK
                 (!videoTrackFound && !audioTrackFound) ||
                 (audioTrackFound && mpeg4Container && aacAudioTrack)) {
+#else
+                (!videoTrackFound && !audioTrackFound)) {
+#endif
                 bCheckExtendedExtractor = true;
             }
         } else if (numOfTrack >= 2) {
@@ -1232,7 +1242,9 @@ sp<MediaExtractor> ExtendedUtils::MediaExtractor_CreateIfNeeded(sp<MediaExtracto
         MEDIA_MIMETYPE_AUDIO_EAC3,
         MEDIA_MIMETYPE_AUDIO_EAC3_JOC,
 #endif
+#ifndef QCOM_DIRECTTRACK
         MEDIA_MIMETYPE_AUDIO_AAC,
+#endif
     };
 
     for (size_t trackItt = 0; (trackItt < retExtExtractor->countTracks()); ++trackItt) {
