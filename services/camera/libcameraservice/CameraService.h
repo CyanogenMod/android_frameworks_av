@@ -17,6 +17,7 @@
 #ifndef ANDROID_SERVERS_CAMERA_CAMERASERVICE_H
 #define ANDROID_SERVERS_CAMERA_CAMERASERVICE_H
 
+#include <cutils/multiuser.h>
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <binder/AppOpsManager.h>
@@ -92,6 +93,11 @@ public:
     // Default number of messages to store in eviction log
     static const size_t DEFAULT_EVICTION_LOG_LENGTH = 50;
 
+    enum {
+        // Default last user id
+        DEFAULT_LAST_USER_ID = 0,
+    };
+
     // Implementation of BinderService<T>
     static char const* getServiceName() { return "media.camera"; }
 
@@ -144,6 +150,8 @@ public:
 
     virtual status_t    setTorchMode(const String16& cameraId, bool enabled,
             const sp<IBinder>& clientBinder);
+
+    virtual void notifySystemEvent(int eventId, int arg0);
 
     // OK = supports api of that version, -EOPNOTSUPP = does not support
     virtual status_t    supportsCameraApi(
@@ -447,7 +455,7 @@ private:
     virtual void onFirstRef();
 
     // Check if we can connect, before we acquire the service lock.
-    status_t validateConnect(const String8& cameraId, /*inout*/int& clientUid) const;
+    status_t validateConnectLocked(const String8& cameraId, /*inout*/int& clientUid) const;
 
     // Handle active client evictions, and update service state.
     // Only call with with mServiceLock held.
@@ -484,6 +492,9 @@ private:
 
     // Circular buffer for storing event logging for dumps
     RingBuffer<String8> mEventLog;
+
+    // UID of last user.
+    int mLastUserId;
 
     /**
      * Get the camera state for a given camera id.
@@ -528,6 +539,11 @@ private:
      * This method must be called with mServiceLock held.
      */
     sp<CameraService::BasicClient> removeClientLocked(const String8& cameraId);
+
+    /**
+     * Handle a notification that the current device user has changed.
+     */
+    void doUserSwitch(int newUserId);
 
     /**
      * Add a event log message that a client has been disconnected.
@@ -702,21 +718,23 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
             "Camera API version %d", clientPid, clientName8.string(), cameraId.string(),
             halVersion, static_cast<int>(effectiveApiLevel));
 
-    // Enforce client permissions and do basic sanity checks
-    if((ret = validateConnect(cameraId, /*inout*/clientUid)) != NO_ERROR) {
-        return ret;
-    }
-
     sp<CLIENT> client = nullptr;
     {
         // Acquire mServiceLock and prevent other clients from connecting
         std::unique_ptr<AutoConditionLock> lock =
                 AutoConditionLock::waitAndAcquire(mServiceLockWrapper, DEFAULT_CONNECT_TIMEOUT_NS);
+
         if (lock == nullptr) {
             ALOGE("CameraService::connect X (PID %d) rejected (too many other clients connecting)."
                     , clientPid);
             return -EBUSY;
         }
+
+        // Enforce client permissions and do basic sanity checks
+        if((ret = validateConnectLocked(cameraId, /*inout*/clientUid)) != NO_ERROR) {
+            return ret;
+        }
+        mLastUserId = multiuser_get_user_id(clientUid);
 
         // Check the shim parameters after acquiring lock, if they have already been updated and
         // we were doing a shim update, return immediately
