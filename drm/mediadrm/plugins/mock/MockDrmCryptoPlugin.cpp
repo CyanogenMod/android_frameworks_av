@@ -56,7 +56,7 @@ namespace android {
         return true;
     }
 
-    status_t MockDrmFactory::createDrmPlugin(const uint8_t uuid[16], DrmPlugin **plugin)
+    status_t MockDrmFactory::createDrmPlugin(const uint8_t /* uuid */[16], DrmPlugin **plugin)
     {
         *plugin = new MockDrmPlugin();
         return OK;
@@ -68,8 +68,9 @@ namespace android {
         return (!memcmp(uuid, mock_uuid, sizeof(mock_uuid)));
     }
 
-    status_t MockCryptoFactory::createPlugin(const uint8_t uuid[16], const void *data,
-                                             size_t size, CryptoPlugin **plugin)
+    status_t MockCryptoFactory::createPlugin(const uint8_t /* uuid */[16],
+                                             const void * /* data */,
+                                             size_t /* size */, CryptoPlugin **plugin)
     {
         *plugin = new MockCryptoPlugin();
         return OK;
@@ -150,7 +151,7 @@ namespace android {
         // Properties used in mock test, set by cts test app returned from mock plugin
         //   byte[] mock-request       -> request
         //   string mock-default-url   -> defaultUrl
-        //   string mock-key-request-type -> keyRequestType
+        //   string mock-keyRequestType -> keyRequestType
 
         index = mByteArrayProperties.indexOfKey(String8("mock-request"));
         if (index < 0) {
@@ -266,8 +267,8 @@ namespace android {
         return OK;
     }
 
-    status_t MockDrmPlugin::getProvisionRequest(String8 const &certType,
-                                                String8 const &certAuthority,
+    status_t MockDrmPlugin::getProvisionRequest(String8 const & /* certType */,
+                                                String8 const & /* certAuthority */,
                                                 Vector<uint8_t> &request,
                                                 String8 &defaultUrl)
     {
@@ -297,8 +298,8 @@ namespace android {
     }
 
     status_t MockDrmPlugin::provideProvisionResponse(Vector<uint8_t> const &response,
-                                                     Vector<uint8_t> &certificate,
-                                                     Vector<uint8_t> &wrappedKey)
+                                                     Vector<uint8_t> & /* certificate */,
+                                                     Vector<uint8_t> & /* wrappedKey */)
     {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::provideProvisionResponse(%s)",
@@ -317,7 +318,8 @@ namespace android {
         return OK;
     }
 
-    status_t MockDrmPlugin::getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop)
+    status_t MockDrmPlugin::getSecureStop(Vector<uint8_t> const & /* ssid */,
+                                          Vector<uint8_t> & secureStop)
     {
         Mutex::Autolock lock(mLock);
         ALOGD("MockDrmPlugin::getSecureStop()");
@@ -439,6 +441,63 @@ namespace android {
                   pData ? vectorToString(*pData) : "{}");
 
             sendEvent(eventType, extra, pSessionId, pData);
+        } else if (name == "mock-send-expiration-update") {
+            int64_t expiryTimeMS;
+            sscanf(value.string(), "%jd", &expiryTimeMS);
+
+            Vector<uint8_t> const *pSessionId = NULL;
+            ssize_t index = mByteArrayProperties.indexOfKey(String8("mock-event-session-id"));
+            if (index >= 0) {
+                pSessionId = &mByteArrayProperties[index];
+            }
+
+            ALOGD("sending expiration-update from mock drm plugin: %jd %s",
+                  expiryTimeMS, pSessionId ? vectorToString(*pSessionId) : "{}");
+
+            sendExpirationUpdate(pSessionId, expiryTimeMS);
+        } else if (name == "mock-send-keys-change") {
+            Vector<uint8_t> const *pSessionId = NULL;
+            ssize_t index = mByteArrayProperties.indexOfKey(String8("mock-event-session-id"));
+            if (index >= 0) {
+                pSessionId = &mByteArrayProperties[index];
+            }
+
+            ALOGD("sending keys-change from mock drm plugin: %s",
+                  pSessionId ? vectorToString(*pSessionId) : "{}");
+
+            Vector<DrmPlugin::KeyStatus> keyStatusList;
+            DrmPlugin::KeyStatus keyStatus;
+            uint8_t keyId1[] = {'k', 'e', 'y', '1'};
+            keyStatus.mKeyId.clear();
+            keyStatus.mKeyId.appendArray(keyId1, sizeof(keyId1));
+            keyStatus.mType = DrmPlugin::kKeyStatusType_Usable;
+            keyStatusList.add(keyStatus);
+
+            uint8_t keyId2[] = {'k', 'e', 'y', '2'};
+            keyStatus.mKeyId.clear();
+            keyStatus.mKeyId.appendArray(keyId2, sizeof(keyId2));
+            keyStatus.mType = DrmPlugin::kKeyStatusType_Expired;
+            keyStatusList.add(keyStatus);
+
+            uint8_t keyId3[] = {'k', 'e', 'y', '3'};
+            keyStatus.mKeyId.clear();
+            keyStatus.mKeyId.appendArray(keyId3, sizeof(keyId3));
+            keyStatus.mType = DrmPlugin::kKeyStatusType_OutputNotAllowed;
+            keyStatusList.add(keyStatus);
+
+            uint8_t keyId4[] = {'k', 'e', 'y', '4'};
+            keyStatus.mKeyId.clear();
+            keyStatus.mKeyId.appendArray(keyId4, sizeof(keyId4));
+            keyStatus.mType = DrmPlugin::kKeyStatusType_StatusPending;
+            keyStatusList.add(keyStatus);
+
+            uint8_t keyId5[] = {'k', 'e', 'y', '5'};
+            keyStatus.mKeyId.clear();
+            keyStatus.mKeyId.appendArray(keyId5, sizeof(keyId5));
+            keyStatus.mType = DrmPlugin::kKeyStatusType_InternalError;
+            keyStatusList.add(keyStatus);
+
+            sendKeysChange(pSessionId, &keyStatusList, true);
         } else {
             mStringProperties.add(name, value);
         }
@@ -740,7 +799,7 @@ namespace android {
     ssize_t
     MockCryptoPlugin::decrypt(bool secure, const uint8_t key[16], const uint8_t iv[16],
                               Mode mode, const void *srcPtr, const SubSample *subSamples,
-                              size_t numSubSamples, void *dstPtr, AString *errorDetailMsg)
+                              size_t numSubSamples, void *dstPtr, AString * /* errorDetailMsg */)
     {
         ALOGD("MockCryptoPlugin::decrypt(secure=%d, key=%s, iv=%s, mode=%d, src=%p, "
               "subSamples=%s, dst=%p)",
@@ -769,7 +828,7 @@ namespace android {
     {
         String8 result;
         for (size_t i = 0; i < numSubSamples; i++) {
-            result.appendFormat("[%zu] {clear:%zu, encrypted:%zu} ", i,
+            result.appendFormat("[%zu] {clear:%u, encrypted:%u} ", i,
                                 subSamples[i].mNumBytesOfClearData,
                                 subSamples[i].mNumBytesOfEncryptedData);
         }

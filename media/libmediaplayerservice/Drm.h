@@ -133,6 +133,13 @@ struct Drm : public BnDrm,
                            Vector<uint8_t> const *sessionId,
                            Vector<uint8_t> const *data);
 
+    virtual void sendExpirationUpdate(Vector<uint8_t> const *sessionId,
+                                      int64_t expiryTimeInMS);
+
+    virtual void sendKeysChange(Vector<uint8_t> const *sessionId,
+                                Vector<DrmPlugin::KeyStatus> const *keyStatusList,
+                                bool hasNewUsableKey);
+
     virtual void binderDied(const wp<IBinder> &the_late_who);
 
 private:
@@ -157,7 +164,7 @@ private:
     void findFactoryForScheme(const uint8_t uuid[16]);
     bool loadLibraryForScheme(const String8 &path, const uint8_t uuid[16]);
     void closeFactory();
-
+    void writeByteArray(Parcel &obj, Vector<uint8_t> const *array);
 
     DISALLOW_EVIL_CONSTRUCTORS(Drm);
 };

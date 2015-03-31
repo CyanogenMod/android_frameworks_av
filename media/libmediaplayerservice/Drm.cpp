@@ -136,22 +136,54 @@ void Drm::sendEvent(DrmPlugin::EventType eventType, int extra,
 
     if (listener != NULL) {
         Parcel obj;
-        if (sessionId && sessionId->size()) {
-            obj.writeInt32(sessionId->size());
-            obj.write(sessionId->array(), sessionId->size());
-        } else {
-            obj.writeInt32(0);
-        }
-
-        if (data && data->size()) {
-            obj.writeInt32(data->size());
-            obj.write(data->array(), data->size());
-        } else {
-            obj.writeInt32(0);
-        }
+        writeByteArray(obj, sessionId);
+        writeByteArray(obj, data);
 
         Mutex::Autolock lock(mNotifyLock);
         listener->notify(eventType, extra, &obj);
+    }
+}
+
+void Drm::sendExpirationUpdate(Vector<uint8_t> const *sessionId,
+                               int64_t expiryTimeInMS)
+{
+    mEventLock.lock();
+    sp<IDrmClient> listener = mListener;
+    mEventLock.unlock();
+
+    if (listener != NULL) {
+        Parcel obj;
+        writeByteArray(obj, sessionId);
+        obj.writeInt64(expiryTimeInMS);
+
+        Mutex::Autolock lock(mNotifyLock);
+        listener->notify(DrmPlugin::kDrmPluginEventExpirationUpdate, 0, &obj);
+    }
+}
+
+void Drm::sendKeysChange(Vector<uint8_t> const *sessionId,
+                         Vector<DrmPlugin::KeyStatus> const *keyStatusList,
+                         bool hasNewUsableKey)
+{
+    mEventLock.lock();
+    sp<IDrmClient> listener = mListener;
+    mEventLock.unlock();
+
+    if (listener != NULL) {
+        Parcel obj;
+        writeByteArray(obj, sessionId);
+
+        size_t nkeys = keyStatusList->size();
+        obj.writeInt32(keyStatusList->size());
+        for (size_t i = 0; i < nkeys; ++i) {
+            const DrmPlugin::KeyStatus *keyStatus = &keyStatusList->itemAt(i);
+            writeByteArray(obj, &keyStatus->mKeyId);
+            obj.writeInt32(keyStatus->mType);
+        }
+        obj.writeInt32(hasNewUsableKey);
+
+        Mutex::Autolock lock(mNotifyLock);
+        listener->notify(DrmPlugin::kDrmPluginEventKeysChange, 0, &obj);
     }
 }
 
@@ -754,6 +786,16 @@ void Drm::binderDied(const wp<IBinder> &the_late_who)
     delete mPlugin;
     mPlugin = NULL;
     closeFactory();
+}
+
+void Drm::writeByteArray(Parcel &obj, Vector<uint8_t> const *array)
+{
+    if (array && array->size()) {
+        obj.writeInt32(array->size());
+        obj.write(array->array(), array->size());
+    } else {
+        obj.writeInt32(0);
+    }
 }
 
 }  // namespace android
