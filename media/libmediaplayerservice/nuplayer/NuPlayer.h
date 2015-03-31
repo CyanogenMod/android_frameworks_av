@@ -218,6 +218,8 @@ private:
 
     status_t instantiateDecoder(bool audio, sp<DecoderBase> *decoder);
 
+    status_t onInstantiateSecureDecoders();
+
     void updateVideoSize(
             const sp<AMessage> &inputFormat,
             const sp<AMessage> &outputFormat = NULL);

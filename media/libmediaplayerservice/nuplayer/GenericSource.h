@@ -96,6 +96,7 @@ private:
         kWhatStopWidevine,
         kWhatStart,
         kWhatResume,
+        kWhatSecureDecodersInstantiated,
     };
 
     struct Track {
@@ -161,6 +162,9 @@ private:
     status_t prefillCacheIfNecessary();
 
     void notifyPreparedAndCleanup(status_t err);
+    void onSecureDecodersInstantiated(status_t err);
+    void finishPrepareAsync();
+    status_t startSources();
 
     void onGetFormatMeta(sp<AMessage> msg) const;
     sp<MetaData> doGetFormatMeta(bool audio) const;
