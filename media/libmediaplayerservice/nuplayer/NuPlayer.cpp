@@ -1052,7 +1052,8 @@ void NuPlayer::onResume() {
     }
     // |mAudioDecoder| may have been released due to the pause timeout, so re-create it if
     // needed.
-    if (audioDecoderStillNeeded() && mAudioDecoder == NULL) {
+    if (audioDecoderStillNeeded() && mAudioDecoder == NULL
+            && !ExtendedUtils::ShellProp::isAudioDisabled(false)) {
         instantiateDecoder(true /* audio */, &mAudioDecoder);
     }
     if (mRenderer != NULL) {
