@@ -563,14 +563,18 @@ status_t AudioTrack::set(
     mAuxEffectId = 0;
     mFlags = flags;
     mCbf = cbf;
-
 #ifdef QCOM_DIRECTTRACK
+    status_t status;
+    audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
+   
+
     if (flags & AUDIO_OUTPUT_FLAG_LPA || flags & AUDIO_OUTPUT_FLAG_TUNNEL) {
-        audio_io_handle_t output = AudioSystem::getOutputForAttr(&mAttributes, &output,
-                                                        (audio_session_t)mSessionId, &streamType,
-                                                        mSampleRate, mFormat, mChannelMask,
-                                                        mFlags, mOffloadInfo);
-    if (output == AUDIO_IO_HANDLE_NONE) {
+         AudioSystem::getOutputForAttr(&mAttributes, &output,
+                                            (audio_session_t)mSessionId, &streamType, 
+                                             mSampleRate, mFormat,mChannelMask, 
+                                             mFlags, mOffloadInfo); 
+
+    if (status != NO_ERROR && output == AUDIO_IO_HANDLE_NONE) {
         ALOGE("Could not get audio output for stream type %d, usage %d, sample rate %u, format %#x,"
               " channel mask %#x, flags %#x",
               mStreamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
