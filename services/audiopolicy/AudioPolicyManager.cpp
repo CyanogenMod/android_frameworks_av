@@ -5281,7 +5281,8 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
         mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
     } else if (isInCall() ||
-                    outputDesc->isStrategyActive(STRATEGY_PHONE)) {
+                 outputDesc->isStrategyActive(STRATEGY_PHONE) ||
+                 primaryOutputDesc->isStrategyActive(STRATEGY_PHONE)) {
         device = getDeviceForStrategy(STRATEGY_PHONE, fromCache);
     } else if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE)) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
