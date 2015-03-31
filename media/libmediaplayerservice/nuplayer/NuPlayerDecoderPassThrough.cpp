@@ -74,11 +74,14 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
 
     onRequestInputBuffers();
 
+    int32_t hasVideo = 0;
+    format->findInt32("has-video", &hasVideo);
+
     // The audio sink is already opened before the PassThrough decoder is created.
     // Opening again might be relevant if decoder is instantiated after shutdown and
     // format is different.
     status_t err = mRenderer->openAudioSink(
-            format, true /* offloadOnly */, false /* hasVideo */,
+            format, true /* offloadOnly */, hasVideo,
             AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */);
     if (err != OK) {
         handleError(err);
