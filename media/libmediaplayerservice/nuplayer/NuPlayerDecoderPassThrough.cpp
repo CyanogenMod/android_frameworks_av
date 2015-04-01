@@ -389,7 +389,7 @@ void NuPlayer::DecoderPassThrough::onFlush(bool notifyComplete) {
 
     if (mRenderer != NULL) {
         mRenderer->flush(true /* audio */, notifyComplete);
-        mRenderer->signalTimeDiscontinuity();
+        mRenderer->signalTimeDiscontinuity(true /* audio */);
     }
 
     if (notifyComplete) {

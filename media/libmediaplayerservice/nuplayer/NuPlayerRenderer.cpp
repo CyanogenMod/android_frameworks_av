@@ -151,13 +151,17 @@ void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
     msg->post();
 }
 
-void NuPlayer::Renderer::signalTimeDiscontinuity() {
+void NuPlayer::Renderer::signalTimeDiscontinuity(bool audio) {
     Mutex::Autolock autoLock(mLock);
     // CHECK(mAudioQueue.empty());
     // CHECK(mVideoQueue.empty());
-    setAudioFirstAnchorTime(-1);
-    setAnchorTime(-1, -1);
-    setVideoLateByUs(0);
+    if (audio) {
+        setAudioFirstAnchorTime(-1);
+        setAnchorTime(-1, -1);
+    } else {
+        setVideoLateByUs(0);
+    }
+
     mSyncQueues = false;
 }
 

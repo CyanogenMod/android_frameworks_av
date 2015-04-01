@@ -49,7 +49,7 @@ struct NuPlayer::Renderer : public AHandler {
 
     void flush(bool audio, bool notifyComplete);
 
-    void signalTimeDiscontinuity();
+    void signalTimeDiscontinuity(bool audio);
 
     void signalAudioSinkChanged();
 

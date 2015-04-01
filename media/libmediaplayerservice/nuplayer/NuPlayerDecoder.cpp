@@ -264,7 +264,7 @@ void NuPlayer::Decoder::onFlush(bool notifyComplete) {
 
     if (mRenderer != NULL) {
         mRenderer->flush(mIsAudio, notifyComplete);
-        mRenderer->signalTimeDiscontinuity();
+        mRenderer->signalTimeDiscontinuity(mIsAudio);
     }
 
     status_t err = OK;
