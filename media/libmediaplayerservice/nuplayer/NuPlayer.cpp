@@ -1004,22 +1004,40 @@ void NuPlayer::onResume() {
     }
 }
 
+status_t NuPlayer::onInstantiateSecureDecoders() {
+    status_t err;
+    if (!(mSourceFlags & Source::FLAG_SECURE)) {
+        return BAD_TYPE;
+    }
+
+    if (mRenderer != NULL) {
+        ALOGE("renderer should not be set when instantiating secure decoders");
+        return UNKNOWN_ERROR;
+    }
+
+    // TRICKY: We rely on mRenderer being null, so that decoder does not start requesting
+    // data on instantiation.
+    if (mNativeWindow != NULL) {
+        err = instantiateDecoder(false, &mVideoDecoder);
+        if (err != OK) {
+            return err;
+        }
+    }
+
+    if (mAudioSink != NULL) {
+        err = instantiateDecoder(true, &mAudioDecoder);
+        if (err != OK) {
+            return err;
+        }
+    }
+    return OK;
+}
+
 void NuPlayer::onStart() {
     mOffloadAudio = false;
     mAudioEOS = false;
     mVideoEOS = false;
     mStarted = true;
-
-    /* instantiate decoders now for secure playback */
-    if (mSourceFlags & Source::FLAG_SECURE) {
-        if (mNativeWindow != NULL) {
-            instantiateDecoder(false, &mVideoDecoder);
-        }
-
-        if (mAudioSink != NULL) {
-            instantiateDecoder(true, &mAudioDecoder);
-        }
-    }
 
     mSource->start();
 
@@ -1371,7 +1389,7 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
     FlushStatus newStatus =
         needShutdown ? FLUSHING_DECODER_SHUTDOWN : FLUSHING_DECODER;
 
-    mFlushComplete[audio][false /* isDecoder */] = false;
+    mFlushComplete[audio][false /* isDecoder */] = (mRenderer == NULL);
     mFlushComplete[audio][true /* isDecoder */] = false;
     if (audio) {
         ALOGE_IF(mFlushingAudio != NONE,
@@ -1656,6 +1674,23 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
     CHECK(msg->findInt32("what", &what));
 
     switch (what) {
+        case Source::kWhatInstantiateSecureDecoders:
+        {
+            if (mSource == NULL) {
+                // This is a stale notification from a source that was
+                // asynchronously preparing when the client called reset().
+                // We handled the reset, the source is gone.
+                break;
+            }
+
+            sp<AMessage> reply;
+            CHECK(msg->findMessage("reply", &reply));
+            status_t err = onInstantiateSecureDecoders();
+            reply->setInt32("err", err);
+            reply->post();
+            break;
+        }
+
         case Source::kWhatPrepared:
         {
             if (mSource == NULL) {
@@ -1667,6 +1702,14 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
             int32_t err;
             CHECK(msg->findInt32("err", &err));
+
+            if (err != OK) {
+                // shut down potential secure codecs in case client never calls reset
+                mDeferredActions.push_back(
+                        new FlushDecoderAction(FLUSH_CMD_SHUTDOWN /* audio */,
+                                               FLUSH_CMD_SHUTDOWN /* video */));
+                processDeferredActions();
+            }
 
             sp<NuPlayerDriver> driver = mDriver.promote();
             if (driver != NULL) {
@@ -1949,6 +1992,13 @@ void NuPlayer::Source::notifyPrepared(status_t err) {
     sp<AMessage> notify = dupNotify();
     notify->setInt32("what", kWhatPrepared);
     notify->setInt32("err", err);
+    notify->post();
+}
+
+void NuPlayer::Source::notifyInstantiateSecureDecoders(const sp<AMessage> &reply) {
+    sp<AMessage> notify = dupNotify();
+    notify->setInt32("what", kWhatInstantiateSecureDecoders);
+    notify->setMessage("reply", reply);
     notify->post();
 }
 
