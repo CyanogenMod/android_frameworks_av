@@ -521,6 +521,10 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     }
 }
 
+audio_mode_t AudioPolicyManager::getPhoneState() {
+    return mEngine->getPhoneState();
+}
+
 void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
                                          audio_policy_forced_cfg_t config)
 {
