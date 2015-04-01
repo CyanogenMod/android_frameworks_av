@@ -16,6 +16,7 @@
 
 #pragma once
 
+
 /////////////////////////////////////////////////
 //      Definitions for audio policy configuration file (audio_policy.conf)
 /////////////////////////////////////////////////
@@ -50,9 +51,9 @@
                                     // "formats" in outputs descriptors indicating that supported
                                     // values should be queried after opening the output.
 
-#define DEVICES_TAG "devices"
-#define DEVICE_TYPE "type"
-#define DEVICE_ADDRESS "address"
+#define APM_DEVICES_TAG "devices"
+#define APM_DEVICE_TYPE "type"
+#define APM_DEVICE_ADDRESS "address"
 
 #define MIXERS_TAG "mixers"
 #define MIXER_TYPE "type"

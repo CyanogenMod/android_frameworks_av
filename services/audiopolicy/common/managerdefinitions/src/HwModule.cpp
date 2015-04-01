@@ -142,7 +142,7 @@ status_t HwModule::loadDevice(cnode *root)
 
     audio_devices_t type = AUDIO_DEVICE_NONE;
     while (node) {
-        if (strcmp(node->name, DEVICE_TYPE) == 0) {
+        if (strcmp(node->name, APM_DEVICE_TYPE) == 0) {
             type = ConfigParsingUtils::parseDeviceNames((char *)node->value);
             break;
         }
@@ -158,7 +158,7 @@ status_t HwModule::loadDevice(cnode *root)
 
     node = root->first_child;
     while (node) {
-        if (strcmp(node->name, DEVICE_ADDRESS) == 0) {
+        if (strcmp(node->name, APM_DEVICE_ADDRESS) == 0) {
             deviceDesc->mAddress = String8((char *)node->value);
         } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
             if (audio_is_input_device(type)) {

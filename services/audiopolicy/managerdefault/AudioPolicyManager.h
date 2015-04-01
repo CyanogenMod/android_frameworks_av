@@ -27,6 +27,7 @@
 #include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
+#include <AudioPolicyManagerInterface.h>
 #include <AudioPolicyManagerObserver.h>
 #include <AudioGain.h>
 #include <AudioPort.h>
@@ -43,8 +44,6 @@
 #include <StreamDescriptor.h>
 
 namespace android {
-
-class AudioPolicyManagerInterface;
 
 // ----------------------------------------------------------------------------
 
@@ -284,6 +283,9 @@ protected:
         virtual audio_devices_t getDeviceForStrategy(routing_strategy strategy,
                                                      bool fromCache);
 
+        bool isStrategyActive(const sp<AudioOutputDescriptor> outputDesc, routing_strategy strategy,
+                              uint32_t inPastMs = 0, nsecs_t sysTime = 0) const;
+
         // change the route of the specified output. Returns the number of ms we have slept to
         // allow new routing to take effect in certain cases.
         virtual uint32_t setOutputDevice(audio_io_handle_t output,
@@ -336,6 +338,8 @@ protected:
         // handle special cases for sonification strategy while in call: mute streams or replace by
         // a special tone in the device used for communication
         void handleIncallSonification(audio_stream_type_t stream, bool starting, bool stateChange);
+
+        audio_mode_t getPhoneState();
 
         // true if device is in a telephony or VoIP call
         virtual bool isInCall();
@@ -523,6 +527,9 @@ protected:
 #endif //AUDIO_POLICY_TEST
 
         uint32_t nextAudioPortGeneration();
+
+        // Audio Policy Engine Interface.
+        AudioPolicyManagerInterface *mEngine;
 private:
         // updates device caching and output for streams that can influence the
         //    routing of notifications
@@ -566,12 +573,6 @@ private:
                                                           audio_policy_dev_state_t state,
                                                           const char *device_address,
                                                           const char *device_name);
-
-        bool isStrategyActive(const sp<AudioOutputDescriptor> outputDesc, routing_strategy strategy,
-                              uint32_t inPastMs = 0, nsecs_t sysTime = 0) const;
-
-        // Audio Policy Engine Interface.
-        AudioPolicyManagerInterface *mEngine;
 };
 
 };

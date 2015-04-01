@@ -54,6 +54,8 @@ public:
 
 private:
     audio_devices_t mDeviceType;
+
+friend class DeviceVector;
 };
 
 class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
