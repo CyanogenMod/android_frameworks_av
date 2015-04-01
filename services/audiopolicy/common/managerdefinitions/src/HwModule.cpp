@@ -23,6 +23,7 @@
 #include "ConfigParsingUtils.h"
 #include "audio_policy_conf.h"
 #include <hardware/audio.h>
+#include <policy.h>
 
 namespace android {
 
@@ -277,6 +278,94 @@ void HwModule::dump(int fd)
             mDeclaredDevices[i]->dump(fd, 4, i);
         }
     }
+}
+
+sp <HwModule> HwModuleCollection::getModuleFromName(const char *name) const
+{
+    sp <HwModule> module;
+
+    for (size_t i = 0; i < size(); i++)
+    {
+        if (strcmp(itemAt(i)->mName, name) == 0) {
+            return itemAt(i);
+        }
+    }
+    return module;
+}
+
+
+sp <HwModule> HwModuleCollection::getModuleForDevice(audio_devices_t device) const
+{
+    sp <HwModule> module;
+
+    for (size_t i = 0; i < size(); i++) {
+        if (itemAt(i)->mHandle == 0) {
+            continue;
+        }
+        if (audio_is_output_device(device)) {
+            for (size_t j = 0; j < itemAt(i)->mOutputProfiles.size(); j++)
+            {
+                if (itemAt(i)->mOutputProfiles[j]->mSupportedDevices.types() & device) {
+                    return itemAt(i);
+                }
+            }
+        } else {
+            for (size_t j = 0; j < itemAt(i)->mInputProfiles.size(); j++) {
+                if (itemAt(i)->mInputProfiles[j]->mSupportedDevices.types() &
+                        device & ~AUDIO_DEVICE_BIT_IN) {
+                    return itemAt(i);
+                }
+            }
+        }
+    }
+    return module;
+}
+
+sp<DeviceDescriptor>  HwModuleCollection::getDeviceDescriptor(const audio_devices_t device,
+                                                              const char *device_address,
+                                                              const char *device_name) const
+{
+    String8 address = (device_address == NULL) ? String8("") : String8(device_address);
+    // handle legacy remote submix case where the address was not always specified
+    if (device_distinguishes_on_address(device) && (address.length() == 0)) {
+        address = String8("0");
+    }
+
+    for (size_t i = 0; i < size(); i++) {
+        const sp<HwModule> hwModule = itemAt(i);
+        if (hwModule->mHandle == 0) {
+            continue;
+        }
+        DeviceVector deviceList =
+                hwModule->mDeclaredDevices.getDevicesFromTypeAddr(device, address);
+        if (!deviceList.isEmpty()) {
+            return deviceList.itemAt(0);
+        }
+        deviceList = hwModule->mDeclaredDevices.getDevicesFromType(device);
+        if (!deviceList.isEmpty()) {
+            return deviceList.itemAt(0);
+        }
+    }
+
+    sp<DeviceDescriptor> devDesc =
+            new DeviceDescriptor(String8(device_name != NULL ? device_name : ""), device);
+    devDesc->mAddress = address;
+    return devDesc;
+}
+
+status_t HwModuleCollection::dump(int fd) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "\nHW Modules dump:\n");
+    write(fd, buffer, strlen(buffer));
+    for (size_t i = 0; i < size(); i++) {
+        snprintf(buffer, SIZE, "- HW Module %zu:\n", i + 1);
+        write(fd, buffer, strlen(buffer));
+        itemAt(i)->dump(fd);
+    }
+    return NO_ERROR;
 }
 
 } //namespace android

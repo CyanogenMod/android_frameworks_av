@@ -45,6 +45,8 @@ public:
             audio_devices_t device, String8 address);
     status_t removeInputProfile(String8 name);
 
+    audio_module_handle_t getHandle() const { return mHandle; }
+
     void dump(int fd);
 
     const char *const        mName; // base name of the audio HW module (primary, a2dp ...)
@@ -53,6 +55,20 @@ public:
     Vector < sp<IOProfile> > mOutputProfiles; // output profiles exposed by this module
     Vector < sp<IOProfile> > mInputProfiles;  // input profiles exposed by this module
     DeviceVector             mDeclaredDevices; // devices declared in audio_policy.conf
+};
+
+class HwModuleCollection : public Vector< sp<HwModule> >
+{
+public:
+    sp<HwModule> getModuleFromName(const char *name) const;
+
+    sp <HwModule> getModuleForDevice(audio_devices_t device) const;
+
+    sp<DeviceDescriptor>  getDeviceDescriptor(const audio_devices_t device,
+                                              const char *device_address,
+                                              const char *device_name) const;
+
+    status_t dump(int fd) const;
 };
 
 }; // namespace android

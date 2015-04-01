@@ -18,6 +18,7 @@
 //#define LOG_NDEBUG 0
 
 #include "AudioPatch.h"
+#include "AudioGain.h"
 #include "ConfigParsingUtils.h"
 #include <cutils/log.h>
 #include <utils/String8.h>
@@ -78,6 +79,75 @@ status_t AudioPatch::dump(int fd, int spaces, int index) const
     }
 
     write(fd, result.string(), result.size());
+    return NO_ERROR;
+}
+
+status_t AudioPatchCollection::addAudioPatch(audio_patch_handle_t handle,
+                                             const sp<AudioPatch>& patch)
+{
+    ssize_t index = indexOfKey(handle);
+
+    if (index >= 0) {
+        ALOGW("addAudioPatch() patch %d already in", handle);
+        return ALREADY_EXISTS;
+    }
+    add(handle, patch);
+    ALOGV("addAudioPatch() handle %d af handle %d num_sources %d num_sinks %d source handle %d"
+            "sink handle %d",
+          handle, patch->mAfPatchHandle, patch->mPatch.num_sources, patch->mPatch.num_sinks,
+          patch->mPatch.sources[0].id, patch->mPatch.sinks[0].id);
+    return NO_ERROR;
+}
+
+status_t AudioPatchCollection::removeAudioPatch(audio_patch_handle_t handle)
+{
+    ssize_t index = indexOfKey(handle);
+
+    if (index < 0) {
+        ALOGW("removeAudioPatch() patch %d not in", handle);
+        return ALREADY_EXISTS;
+    }
+    ALOGV("removeAudioPatch() handle %d af handle %d", handle, valueAt(index)->mAfPatchHandle);
+    removeItemsAt(index);
+    return NO_ERROR;
+}
+
+status_t AudioPatchCollection::listAudioPatches(unsigned int *num_patches,
+                                                struct audio_patch *patches) const
+{
+    if (num_patches == NULL || (*num_patches != 0 && patches == NULL)) {
+        return BAD_VALUE;
+    }
+    ALOGV("listAudioPatches() num_patches %d patches %p available patches %zu",
+          *num_patches, patches, size());
+    if (patches == NULL) {
+        *num_patches = 0;
+    }
+
+    size_t patchesWritten = 0;
+    size_t patchesMax = *num_patches;
+    for (size_t i = 0; i  < size() && patchesWritten < patchesMax; i++) {
+        const sp<AudioPatch>  patch = valueAt(i);
+        patches[patchesWritten] = patch->mPatch;
+        patches[patchesWritten++].id = patch->mHandle;
+        ALOGV("listAudioPatches() patch %zu num_sources %d num_sinks %d",
+              i, patch->mPatch.num_sources, patch->mPatch.num_sinks);
+    }
+    *num_patches = size();
+
+    ALOGV("listAudioPatches() got %zu patches needed %d", patchesWritten, *num_patches);
+    return NO_ERROR;
+}
+
+status_t AudioPatchCollection::dump(int fd) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+    snprintf(buffer, SIZE, "\nAudio Patches:\n");
+    write(fd, buffer, strlen(buffer));
+    for (size_t i = 0; i < size(); i++) {
+        valueAt(i)->dump(fd, 2, i);
+    }
     return NO_ERROR;
 }
 

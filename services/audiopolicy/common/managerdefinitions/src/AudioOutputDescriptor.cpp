@@ -23,10 +23,13 @@
 #include "HwModule.h"
 #include <media/AudioPolicy.h>
 
+// A device mask for all audio output devices that are considered "remote" when evaluating
+// active output devices in isStreamActiveRemotely()
+#define APM_AUDIO_OUT_DEVICE_REMOTE_ALL  AUDIO_DEVICE_OUT_REMOTE_SUBMIX
+
 namespace android {
 
-AudioOutputDescriptor::AudioOutputDescriptor(
-        const sp<IOProfile>& profile)
+AudioOutputDescriptor::AudioOutputDescriptor(const sp<IOProfile>& profile)
     : mId(0), mIoHandle(0), mLatency(0),
     mFlags((audio_output_flags_t)0), mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL),
     mPatchHandle(0),
@@ -51,6 +54,11 @@ AudioOutputDescriptor::AudioOutputDescriptor(
             profile->mGains[0]->getDefaultConfig(&mGain);
         }
     }
+}
+
+audio_module_handle_t AudioOutputDescriptor::getModuleHandle() const
+{
+    return mProfile->getModuleHandle();
 }
 
 audio_devices_t AudioOutputDescriptor::device() const
@@ -134,8 +142,8 @@ bool AudioOutputDescriptor::isActive(uint32_t inPastMs) const
 }
 
 bool AudioOutputDescriptor::isStreamActive(audio_stream_type_t stream,
-                                                                       uint32_t inPastMs,
-                                                                       nsecs_t sysTime) const
+                                           uint32_t inPastMs,
+                                           nsecs_t sysTime) const
 {
     if (mRefCount[stream] != 0) {
         return true;
@@ -218,6 +226,108 @@ status_t AudioOutputDescriptor::dump(int fd)
     return NO_ERROR;
 }
 
+bool AudioOutputCollection::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
+{
+    nsecs_t sysTime = systemTime();
+    for (size_t i = 0; i < this->size(); i++) {
+        const sp<AudioOutputDescriptor> outputDesc = this->valueAt(i);
+        if (outputDesc->isStreamActive(stream, inPastMs, sysTime)) {
+            return true;
+        }
+    }
+    return false;
+}
 
+bool AudioOutputCollection::isStreamActiveRemotely(audio_stream_type_t stream,
+                                                   uint32_t inPastMs) const
+{
+    nsecs_t sysTime = systemTime();
+    for (size_t i = 0; i < size(); i++) {
+        const sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+        if (((outputDesc->device() & APM_AUDIO_OUT_DEVICE_REMOTE_ALL) != 0) &&
+                outputDesc->isStreamActive(stream, inPastMs, sysTime)) {
+            // do not consider re routing (when the output is going to a dynamic policy)
+            // as "remote playback"
+            if (outputDesc->mPolicyMix == NULL) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+audio_io_handle_t AudioOutputCollection::getA2dpOutput() const
+{
+    for (size_t i = 0; i < size(); i++) {
+        sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+        if (!outputDesc->isDuplicated() && outputDesc->device() & AUDIO_DEVICE_OUT_ALL_A2DP) {
+            return this->keyAt(i);
+        }
+    }
+    return 0;
+}
+
+sp<AudioOutputDescriptor> AudioOutputCollection::getPrimaryOutput() const
+{
+    for (size_t i = 0; i < size(); i++) {
+        const sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+        if (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
+            return outputDesc;
+        }
+    }
+    return NULL;
+}
+
+sp<AudioOutputDescriptor> AudioOutputCollection::getOutputFromId(audio_port_handle_t id) const
+{
+    sp<AudioOutputDescriptor> outputDesc = NULL;
+    for (size_t i = 0; i < size(); i++) {
+        outputDesc = valueAt(i);
+        if (outputDesc->mId == id) {
+            break;
+        }
+    }
+    return outputDesc;
+}
+
+bool AudioOutputCollection::isAnyOutputActive(audio_stream_type_t streamToIgnore) const
+{
+    for (size_t s = 0 ; s < AUDIO_STREAM_CNT ; s++) {
+        if (s == (size_t) streamToIgnore) {
+            continue;
+        }
+        for (size_t i = 0; i < size(); i++) {
+            const sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+            if (outputDesc->mRefCount[s] != 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+audio_devices_t AudioOutputCollection::getSupportedDevices(audio_io_handle_t handle) const
+{
+    sp<AudioOutputDescriptor> outputDesc = valueFor(handle);
+    audio_devices_t devices = outputDesc->mProfile->mSupportedDevices.types();
+    return devices;
+}
+
+
+status_t AudioOutputCollection::dump(int fd) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "\nOutputs dump:\n");
+    write(fd, buffer, strlen(buffer));
+    for (size_t i = 0; i < size(); i++) {
+        snprintf(buffer, SIZE, "- Output %d dump:\n", keyAt(i));
+        write(fd, buffer, strlen(buffer));
+        valueAt(i)->dump(fd);
+    }
+
+    return NO_ERROR;
+}
 
 }; //namespace android

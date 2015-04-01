@@ -20,6 +20,7 @@
 #include <utils/Errors.h>
 #include <system/audio.h>
 #include <utils/SortedVector.h>
+#include <utils/KeyedVector.h>
 
 namespace android {
 
@@ -33,6 +34,8 @@ class AudioInputDescriptor: public AudioPortConfig
 public:
     AudioInputDescriptor(const sp<IOProfile>& profile);
     void setIoHandle(audio_io_handle_t ioHandle);
+
+    audio_module_handle_t getModuleHandle() const;
 
     status_t    dump(int fd);
 
@@ -55,5 +58,28 @@ public:
     virtual sp<AudioPort> getAudioPort() const { return mProfile; }
     void toAudioPort(struct audio_port *port) const;
 };
+
+class AudioInputCollection :
+        public DefaultKeyedVector< audio_io_handle_t, sp<AudioInputDescriptor> >
+{
+public:
+    bool isSourceActive(audio_source_t source) const;
+
+    sp<AudioInputDescriptor> getInputFromId(audio_port_handle_t id) const;
+
+    uint32_t activeInputsCount() const;
+
+    /**
+     * return io handle of active input or 0 if no input is active
+     * Only considers inputs from physical devices (e.g. main mic, headset mic) when
+     * ignoreVirtualInputs is true.
+     */
+    audio_io_handle_t getActiveInput(bool ignoreVirtualInputs = true);
+
+    audio_devices_t getSupportedDevices(audio_io_handle_t handle) const;
+
+    status_t dump(int fd) const;
+};
+
 
 }; // namespace android

@@ -20,6 +20,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
+    $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
 
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include

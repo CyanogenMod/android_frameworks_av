@@ -16,8 +16,16 @@
 
 #pragma once
 
+#include "DeviceDescriptor.h"
+#include "HwModule.h"
+#include "audio_policy_conf.h"
 #include <system/audio.h>
-#include <sys/types.h>
+#include <utils/Log.h>
+#include <utils/Vector.h>
+#include <utils/SortedVector.h>
+#include <cutils/config_utils.h>
+#include <utils/RefBase.h>
+#include <system/audio_policy.h>
 
 namespace android {
 
@@ -161,6 +169,32 @@ public:
     static uint32_t parseOutputFlagNames(char *name);
     static uint32_t parseInputFlagNames(char *name);
     static audio_devices_t parseDeviceNames(char *name);
+
+    static void loadHwModules(cnode *root, HwModuleCollection &hwModules,
+                              DeviceVector &availableInputDevices,
+                              DeviceVector &availableOutputDevices,
+                              sp<DeviceDescriptor> &defaultOutputDevices,
+                              bool &isSpeakerDrcEnabled);
+
+    static void loadGlobalConfig(cnode *root, const sp<HwModule>& module,
+                                 DeviceVector &availableInputDevices,
+                                 DeviceVector &availableOutputDevices,
+                                 sp<DeviceDescriptor> &defaultOutputDevices,
+                                 bool &isSpeakerDrcEnabled);
+
+    static status_t loadAudioPolicyConfig(const char *path,
+                                          HwModuleCollection &hwModules,
+                                          DeviceVector &availableInputDevices,
+                                          DeviceVector &availableOutputDevices,
+                                          sp<DeviceDescriptor> &defaultOutputDevices,
+                                          bool &isSpeakerDrcEnabled);
+
+private:
+    static void loadHwModule(cnode *root, HwModuleCollection &hwModules,
+                             DeviceVector &availableInputDevices,
+                             DeviceVector &availableOutputDevices,
+                             sp<DeviceDescriptor> &defaultOutputDevices,
+                             bool &isSpeakerDrcEnabled);
 };
 
 }; // namespace android

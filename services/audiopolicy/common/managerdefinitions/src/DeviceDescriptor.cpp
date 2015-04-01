@@ -27,11 +27,11 @@ namespace android {
 String8 DeviceDescriptor::emptyNameStr = String8("");
 
 DeviceDescriptor::DeviceDescriptor(const String8& name, audio_devices_t type) :
-                     AudioPort(name, AUDIO_PORT_TYPE_DEVICE,
-                               audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
-                                                              AUDIO_PORT_ROLE_SOURCE,
-                             NULL),
-                     mDeviceType(type), mAddress("")
+    AudioPort(name, AUDIO_PORT_TYPE_DEVICE,
+              audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
+                                             AUDIO_PORT_ROLE_SOURCE,
+              NULL),
+    mAddress(""), mDeviceType(type)
 {
 
 }
@@ -60,7 +60,7 @@ void DeviceVector::refreshTypes()
 {
     mDeviceTypes = AUDIO_DEVICE_NONE;
     for(size_t i = 0; i < size(); i++) {
-        mDeviceTypes |= itemAt(i)->mDeviceType;
+        mDeviceTypes |= itemAt(i)->type();
     }
     ALOGV("DeviceVector::refreshTypes() mDeviceTypes %08x", mDeviceTypes);
 }
@@ -85,7 +85,7 @@ ssize_t DeviceVector::add(const sp<DeviceDescriptor>& item)
             refreshTypes();
         }
     } else {
-        ALOGW("DeviceVector::add device %08x already in", item->mDeviceType);
+        ALOGW("DeviceVector::add device %08x already in", item->type());
         ret = -1;
     }
     return ret;
@@ -97,7 +97,7 @@ ssize_t DeviceVector::remove(const sp<DeviceDescriptor>& item)
     ssize_t ret = indexOf(item);
 
     if (ret < 0) {
-        ALOGW("DeviceVector::remove device %08x not in", item->mDeviceType);
+        ALOGW("DeviceVector::remove device %08x not in", item->type());
     } else {
         ret = SortedVector::removeAt(ret);
         if (ret >= 0) {
@@ -105,6 +105,17 @@ ssize_t DeviceVector::remove(const sp<DeviceDescriptor>& item)
         }
     }
     return ret;
+}
+
+audio_devices_t DeviceVector::getDevicesFromHwModule(audio_module_handle_t moduleHandle) const
+{
+    audio_devices_t devices = AUDIO_DEVICE_NONE;
+    for (size_t i = 0; i < size(); i++) {
+        if (itemAt(i)->getModuleHandle() == moduleHandle) {
+            devices |= itemAt(i)->type();
+        }
+    }
+    return devices;
 }
 
 void DeviceVector::loadDevicesFromType(audio_devices_t types)
@@ -154,7 +165,7 @@ sp<DeviceDescriptor> DeviceVector::getDevice(audio_devices_t type, String8 addre
 {
     sp<DeviceDescriptor> device;
     for (size_t i = 0; i < size(); i++) {
-        if (itemAt(i)->mDeviceType == type) {
+        if (itemAt(i)->type() == type) {
             if (address == "" || itemAt(i)->mAddress == address) {
                 device = itemAt(i);
                 if (itemAt(i)->mAddress == address) {
@@ -192,7 +203,7 @@ DeviceVector DeviceVector::getDevicesFromType(audio_devices_t type) const
             devices.add(itemAt(i));
             type &= ~curType;
             ALOGV("DeviceVector::getDevicesFromType() for type %x found %p",
-                  itemAt(i)->mDeviceType, itemAt(i).get());
+                  itemAt(i)->type(), itemAt(i).get());
         }
     }
     return devices;
@@ -203,7 +214,7 @@ DeviceVector DeviceVector::getDevicesFromTypeAddr(
 {
     DeviceVector devices;
     for (size_t i = 0; i < size(); i++) {
-        if (itemAt(i)->mDeviceType == type) {
+        if (itemAt(i)->type() == type) {
             if (itemAt(i)->mAddress == address) {
                 devices.add(itemAt(i));
             }
@@ -222,6 +233,26 @@ sp<DeviceDescriptor> DeviceVector::getDeviceFromName(const String8& name) const
         }
     }
     return device;
+}
+
+
+status_t DeviceVector::dump(int fd, const String8 &direction) const
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "\n Available %s devices:\n", direction.string());
+    write(fd, buffer, strlen(buffer));
+    for (size_t i = 0; i < size(); i++) {
+        itemAt(i)->dump(fd, 2, i);
+    }
+    return NO_ERROR;
+}
+
+audio_policy_dev_state_t DeviceVector::getDeviceConnectionState(const sp<DeviceDescriptor> &devDesc) const
+{
+    ssize_t index = indexOf(devDesc);
+    return index >= 0 ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
 }
 
 void DeviceDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig,

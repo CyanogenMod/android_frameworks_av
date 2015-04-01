@@ -20,6 +20,7 @@
 #include "ApmImplDefinitions.h"
 #include <utils/Errors.h>
 #include <utils/Timers.h>
+#include <utils/KeyedVector.h>
 #include <system/audio.h>
 
 namespace android {
@@ -54,6 +55,8 @@ public:
     virtual sp<AudioPort> getAudioPort() const { return mProfile; }
     void toAudioPort(struct audio_port *port) const;
 
+    audio_module_handle_t getModuleHandle() const;
+
     audio_port_handle_t mId;
     audio_io_handle_t mIoHandle;              // output handle
     uint32_t mLatency;                  //
@@ -71,6 +74,40 @@ public:
     bool mStrategyMutedByDevice[NUM_STRATEGIES]; // strategies muted because of incompatible
                                         // device selection. See checkDeviceMuteStrategies()
     uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
+};
+
+class AudioOutputCollection :
+        public DefaultKeyedVector< audio_io_handle_t, sp<AudioOutputDescriptor> >
+{
+public:
+    bool isStreamActive(audio_stream_type_t stream, uint32_t inPastMs = 0) const;
+
+    /**
+     * return whether a stream is playing remotely, override to change the definition of
+     * local/remote playback, used for instance by notification manager to not make
+     * media players lose audio focus when not playing locally
+     * For the base implementation, "remotely" means playing during screen mirroring which
+     * uses an output for playback with a non-empty, non "0" address.
+     */
+    bool isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs = 0) const;
+
+    /**
+     * returns the A2DP output handle if it is open or 0 otherwise
+     */
+    audio_io_handle_t getA2dpOutput() const;
+
+    sp<AudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
+
+    sp<AudioOutputDescriptor> getPrimaryOutput() const;
+
+    /**
+     * return true if any output is playing anything besides the stream to ignore
+     */
+    bool isAnyOutputActive(audio_stream_type_t streamToIgnore) const;
+
+    audio_devices_t getSupportedDevices(audio_io_handle_t handle) const;
+
+    status_t dump(int fd) const;
 };
 
 }; // namespace android
