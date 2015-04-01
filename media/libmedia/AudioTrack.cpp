@@ -667,14 +667,18 @@ void AudioTrack::getAuxEffectSendLevel(float* level) const
 
 status_t AudioTrack::setSampleRate(uint32_t rate)
 {
-    if (mIsTimed || isOffloadedOrDirect()) {
+    AutoMutex lock(mLock);
+    if (rate == mSampleRate) {
+        return NO_ERROR;
+    }
+    if (mIsTimed || isOffloadedOrDirect_l() || (mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
         return INVALID_OPERATION;
     }
-
-    AutoMutex lock(mLock);
     if (mOutput == AUDIO_IO_HANDLE_NONE) {
         return NO_INIT;
     }
+    // NOTE: it is theoretically possible, but highly unlikely, that a device change
+    // could mean a previously allowed sampling rate is no longer allowed.
     uint32_t afSamplingRate;
     if (AudioSystem::getSamplingRate(mOutput, &afSamplingRate) != NO_ERROR) {
         return NO_INIT;
