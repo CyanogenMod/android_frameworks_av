@@ -25,6 +25,7 @@
 #endif
 
 #include "AudioGain.h"
+#include "StreamDescriptor.h"
 #include <utils/Log.h>
 #include <utils/String8.h>
 
@@ -33,38 +34,38 @@
 namespace android {
 
 const VolumeCurvePoint
-ApmGains::sDefaultVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sDefaultVolumeCurve[Volume::VOLCNT] = {
     {1, -49.5f}, {33, -33.5f}, {66, -17.0f}, {100, 0.0f}
 };
 
 
 const VolumeCurvePoint
-ApmGains::sDefaultMediaVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sDefaultMediaVolumeCurve[Volume::VOLCNT] = {
     {1, -58.0f}, {20, -40.0f}, {60, -17.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sExtMediaSystemVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sExtMediaSystemVolumeCurve[Volume::VOLCNT] = {
     {1, -58.0f}, {20, -40.0f}, {60, -21.0f}, {100, -10.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sSpeakerMediaVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sSpeakerMediaVolumeCurve[Volume::VOLCNT] = {
     {1, -56.0f}, {20, -34.0f}, {60, -11.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sSpeakerMediaVolumeCurveDrc[ApmGains::VOLCNT] = {
+ApmGains::sSpeakerMediaVolumeCurveDrc[Volume::VOLCNT] = {
     {1, -55.0f}, {20, -43.0f}, {86, -12.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sSpeakerSonificationVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sSpeakerSonificationVolumeCurve[Volume::VOLCNT] = {
     {1, -29.7f}, {33, -20.1f}, {66, -10.2f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sSpeakerSonificationVolumeCurveDrc[ApmGains::VOLCNT] = {
+ApmGains::sSpeakerSonificationVolumeCurveDrc[Volume::VOLCNT] = {
     {1, -35.7f}, {33, -26.1f}, {66, -13.2f}, {100, 0.0f}
 };
 
@@ -74,47 +75,47 @@ ApmGains::sSpeakerSonificationVolumeCurveDrc[ApmGains::VOLCNT] = {
 // The range is constrained between -24dB and -6dB over speaker and -30dB and -18dB over headset.
 
 const VolumeCurvePoint
-ApmGains::sDefaultSystemVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sDefaultSystemVolumeCurve[Volume::VOLCNT] = {
     {1, -24.0f}, {33, -18.0f}, {66, -12.0f}, {100, -6.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sDefaultSystemVolumeCurveDrc[ApmGains::VOLCNT] = {
+ApmGains::sDefaultSystemVolumeCurveDrc[Volume::VOLCNT] = {
     {1, -34.0f}, {33, -24.0f}, {66, -15.0f}, {100, -6.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sHeadsetSystemVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sHeadsetSystemVolumeCurve[Volume::VOLCNT] = {
     {1, -30.0f}, {33, -26.0f}, {66, -22.0f}, {100, -18.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sDefaultVoiceVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sDefaultVoiceVolumeCurve[Volume::VOLCNT] = {
     {0, -42.0f}, {33, -28.0f}, {66, -14.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sSpeakerVoiceVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sSpeakerVoiceVolumeCurve[Volume::VOLCNT] = {
     {0, -24.0f}, {33, -16.0f}, {66, -8.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sLinearVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sLinearVolumeCurve[Volume::VOLCNT] = {
     {0, -96.0f}, {33, -68.0f}, {66, -34.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sSilentVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sSilentVolumeCurve[Volume::VOLCNT] = {
     {0, -96.0f}, {1, -96.0f}, {2, -96.0f}, {100, -96.0f}
 };
 
 const VolumeCurvePoint
-ApmGains::sFullScaleVolumeCurve[ApmGains::VOLCNT] = {
+ApmGains::sFullScaleVolumeCurve[Volume::VOLCNT] = {
     {0, 0.0f}, {1, 0.0f}, {2, 0.0f}, {100, 0.0f}
 };
 
 const VolumeCurvePoint *ApmGains::sVolumeProfiles[AUDIO_STREAM_CNT]
-                                                  [ApmGains::DEVICE_CATEGORY_CNT] = {
+                                                  [Volume::DEVICE_CATEGORY_CNT] = {
     { // AUDIO_STREAM_VOICE_CALL
         ApmGains::sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_HEADSET
         ApmGains::sSpeakerVoiceVolumeCurve, // DEVICE_CATEGORY_SPEAKER
@@ -197,93 +198,27 @@ const VolumeCurvePoint *ApmGains::sVolumeProfiles[AUDIO_STREAM_CNT]
 };
 
 //static
-audio_devices_t ApmGains::getDeviceForVolume(audio_devices_t device)
-{
-    if (device == AUDIO_DEVICE_NONE) {
-        // this happens when forcing a route update and no track is active on an output.
-        // In this case the returned category is not important.
-        device =  AUDIO_DEVICE_OUT_SPEAKER;
-    } else if (popcount(device) > 1) {
-        // Multiple device selection is either:
-        //  - speaker + one other device: give priority to speaker in this case.
-        //  - one A2DP device + another device: happens with duplicated output. In this case
-        // retain the device on the A2DP output as the other must not correspond to an active
-        // selection if not the speaker.
-        //  - HDMI-CEC system audio mode only output: give priority to available item in order.
-        if (device & AUDIO_DEVICE_OUT_SPEAKER) {
-            device = AUDIO_DEVICE_OUT_SPEAKER;
-        } else if (device & AUDIO_DEVICE_OUT_HDMI_ARC) {
-            device = AUDIO_DEVICE_OUT_HDMI_ARC;
-        } else if (device & AUDIO_DEVICE_OUT_AUX_LINE) {
-            device = AUDIO_DEVICE_OUT_AUX_LINE;
-        } else if (device & AUDIO_DEVICE_OUT_SPDIF) {
-            device = AUDIO_DEVICE_OUT_SPDIF;
-        } else {
-            device = (audio_devices_t)(device & AUDIO_DEVICE_OUT_ALL_A2DP);
-        }
-    }
-
-    /*SPEAKER_SAFE is an alias of SPEAKER for purposes of volume control*/
-    if (device == AUDIO_DEVICE_OUT_SPEAKER_SAFE)
-        device = AUDIO_DEVICE_OUT_SPEAKER;
-
-    ALOGW_IF(popcount(device) != 1,
-            "getDeviceForVolume() invalid device combination: %08x",
-            device);
-
-    return device;
-}
-
-//static
-ApmGains::device_category ApmGains::getDeviceCategory(audio_devices_t device)
-{
-    switch(getDeviceForVolume(device)) {
-        case AUDIO_DEVICE_OUT_EARPIECE:
-            return ApmGains::DEVICE_CATEGORY_EARPIECE;
-        case AUDIO_DEVICE_OUT_WIRED_HEADSET:
-        case AUDIO_DEVICE_OUT_WIRED_HEADPHONE:
-        case AUDIO_DEVICE_OUT_BLUETOOTH_SCO:
-        case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET:
-        case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP:
-        case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES:
-            return ApmGains::DEVICE_CATEGORY_HEADSET;
-        case AUDIO_DEVICE_OUT_LINE:
-        case AUDIO_DEVICE_OUT_AUX_DIGITAL:
-        /*USB?  Remote submix?*/
-            return ApmGains::DEVICE_CATEGORY_EXT_MEDIA;
-        case AUDIO_DEVICE_OUT_SPEAKER:
-        case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
-        case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER:
-        case AUDIO_DEVICE_OUT_USB_ACCESSORY:
-        case AUDIO_DEVICE_OUT_USB_DEVICE:
-        case AUDIO_DEVICE_OUT_REMOTE_SUBMIX:
-        default:
-            return ApmGains::DEVICE_CATEGORY_SPEAKER;
-    }
-}
-
-//static
 float ApmGains::volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
         int indexInUi)
 {
-    ApmGains::device_category deviceCategory = ApmGains::getDeviceCategory(device);
-    const VolumeCurvePoint *curve = streamDesc.mVolumeCurve[deviceCategory];
+    Volume::device_category deviceCategory = Volume::getDeviceCategory(device);
+    const VolumeCurvePoint *curve = streamDesc.getVolumeCurvePoint(deviceCategory);
 
     // the volume index in the UI is relative to the min and max volume indices for this stream type
-    int nbSteps = 1 + curve[ApmGains::VOLMAX].mIndex -
-            curve[ApmGains::VOLMIN].mIndex;
-    int volIdx = (nbSteps * (indexInUi - streamDesc.mIndexMin)) /
-            (streamDesc.mIndexMax - streamDesc.mIndexMin);
+    int nbSteps = 1 + curve[Volume::VOLMAX].mIndex -
+            curve[Volume::VOLMIN].mIndex;
+    int volIdx = (nbSteps * (indexInUi - streamDesc.getVolumeIndexMin())) /
+            (streamDesc.getVolumeIndexMax() - streamDesc.getVolumeIndexMin());
 
     // find what part of the curve this index volume belongs to, or if it's out of bounds
     int segment = 0;
-    if (volIdx < curve[ApmGains::VOLMIN].mIndex) {         // out of bounds
+    if (volIdx < curve[Volume::VOLMIN].mIndex) {         // out of bounds
         return 0.0f;
-    } else if (volIdx < curve[ApmGains::VOLKNEE1].mIndex) {
+    } else if (volIdx < curve[Volume::VOLKNEE1].mIndex) {
         segment = 0;
-    } else if (volIdx < curve[ApmGains::VOLKNEE2].mIndex) {
+    } else if (volIdx < curve[Volume::VOLKNEE2].mIndex) {
         segment = 1;
-    } else if (volIdx <= curve[ApmGains::VOLMAX].mIndex) {
+    } else if (volIdx <= curve[Volume::VOLMAX].mIndex) {
         segment = 2;
     } else {                                                               // out of bounds
         return 1.0f;
@@ -402,45 +337,6 @@ void AudioGain::dump(int fd, int spaces, int index) const
     result.append(buffer);
     snprintf(buffer, SIZE, "%*s- max_ramp_ms: %d ms\n", spaces, "", mGain.max_ramp_ms);
     result.append(buffer);
-
-    write(fd, result.string(), result.size());
-}
-
-
-// --- StreamDescriptor class implementation
-
-StreamDescriptor::StreamDescriptor()
-    :   mIndexMin(0), mIndexMax(1), mCanBeMuted(true)
-{
-    mIndexCur.add(AUDIO_DEVICE_OUT_DEFAULT, 0);
-}
-
-int StreamDescriptor::getVolumeIndex(audio_devices_t device)
-{
-    device = ApmGains::getDeviceForVolume(device);
-    // there is always a valid entry for AUDIO_DEVICE_OUT_DEFAULT
-    if (mIndexCur.indexOfKey(device) < 0) {
-        device = AUDIO_DEVICE_OUT_DEFAULT;
-    }
-    return mIndexCur.valueFor(device);
-}
-
-void StreamDescriptor::dump(int fd)
-{
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    snprintf(buffer, SIZE, "%s         %02d         %02d         ",
-             mCanBeMuted ? "true " : "false", mIndexMin, mIndexMax);
-    result.append(buffer);
-    for (size_t i = 0; i < mIndexCur.size(); i++) {
-        snprintf(buffer, SIZE, "%04x : %02d, ",
-                 mIndexCur.keyAt(i),
-                 mIndexCur.valueAt(i));
-        result.append(buffer);
-    }
-    result.append("\n");
 
     write(fd, result.string(), result.size());
 }
