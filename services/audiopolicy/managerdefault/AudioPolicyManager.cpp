@@ -707,45 +707,16 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
         }
         stream_type_to_audio_attributes(*stream, &attributes);
     }
-
-    for (size_t i = 0; i < mPolicyMixes.size(); i++) {
-        sp<AudioOutputDescriptor> desc;
-        if (mPolicyMixes[i]->mMix.mMixType == MIX_TYPE_PLAYERS) {
-            for (size_t j = 0; j < mPolicyMixes[i]->mMix.mCriteria.size(); j++) {
-                if ((RULE_MATCH_ATTRIBUTE_USAGE == mPolicyMixes[i]->mMix.mCriteria[j].mRule &&
-                        mPolicyMixes[i]->mMix.mCriteria[j].mAttr.mUsage == attributes.usage) ||
-                    (RULE_EXCLUDE_ATTRIBUTE_USAGE == mPolicyMixes[i]->mMix.mCriteria[j].mRule &&
-                        mPolicyMixes[i]->mMix.mCriteria[j].mAttr.mUsage != attributes.usage)) {
-                    desc = mPolicyMixes[i]->mOutput;
-                    break;
-                }
-                if (strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
-                        strncmp(attributes.tags + strlen("addr="),
-                                mPolicyMixes[i]->mMix.mRegistrationId.string(),
-                                AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - strlen("addr=") - 1) == 0) {
-                    desc = mPolicyMixes[i]->mOutput;
-                    break;
-                }
-            }
-        } else if (mPolicyMixes[i]->mMix.mMixType == MIX_TYPE_RECORDERS) {
-            if (attributes.usage == AUDIO_USAGE_VIRTUAL_SOURCE &&
-                    strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
-                    strncmp(attributes.tags + strlen("addr="),
-                            mPolicyMixes[i]->mMix.mRegistrationId.string(),
-                            AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - strlen("addr=") - 1) == 0) {
-                desc = mPolicyMixes[i]->mOutput;
-            }
+    sp<AudioOutputDescriptor> desc;
+    if (mPolicyMixes.getOutputForAttr(attributes, desc) == NO_ERROR) {
+        ALOG_ASSERT(desc != 0, "Invalid desc returned by getOutputForAttr");
+        if (!audio_is_linear_pcm(format)) {
+            return BAD_VALUE;
         }
-        if (desc != 0) {
-            if (!audio_is_linear_pcm(format)) {
-                return BAD_VALUE;
-            }
-            desc->mPolicyMix = &mPolicyMixes[i]->mMix;
-            *stream = streamTypefromAttributesInt(&attributes);
-            *output = desc->mIoHandle;
-            ALOGV("getOutputForAttr() returns output %d", *output);
-            return NO_ERROR;
-        }
+        *stream = streamTypefromAttributesInt(&attributes);
+        *output = desc->mIoHandle;
+        ALOGV("getOutputForAttr() returns output %d", *output);
+        return NO_ERROR;
     }
     if (attributes.usage == AUDIO_USAGE_VIRTUAL_SOURCE) {
         ALOGW("getOutputForAttr() no policy mix found for usage AUDIO_USAGE_VIRTUAL_SOURCE");
@@ -1286,19 +1257,13 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
 
     if (inputSource == AUDIO_SOURCE_REMOTE_SUBMIX &&
             strncmp(attr->tags, "addr=", strlen("addr=")) == 0) {
+        status_t ret = mPolicyMixes.getInputMixForAttr(*attr, policyMix);
+        if (ret != NO_ERROR) {
+            return ret;
+        }
+        *inputType = API_INPUT_MIX_EXT_POLICY_REROUTE;
         device = AUDIO_DEVICE_IN_REMOTE_SUBMIX;
         address = String8(attr->tags + strlen("addr="));
-        ssize_t index = mPolicyMixes.indexOfKey(address);
-        if (index < 0) {
-            ALOGW("getInputForAttr() no policy for address %s", address.string());
-            return BAD_VALUE;
-        }
-        if (mPolicyMixes[index]->mMix.mMixType != MIX_TYPE_PLAYERS) {
-            ALOGW("getInputForAttr() bad policy mix type for address %s", address.string());
-            return BAD_VALUE;
-        }
-        policyMix = &mPolicyMixes[index]->mMix;
-        *inputType = API_INPUT_MIX_EXT_POLICY_REROUTE;
     } else {
         device = getDeviceAndMixForInputSource(inputSource, &policyMix);
         if (device == AUDIO_DEVICE_NONE) {
@@ -1929,9 +1894,8 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
 
     for (size_t i = 0; i < mixes.size(); i++) {
         String8 address = mixes[i].mRegistrationId;
-        ssize_t index = mPolicyMixes.indexOfKey(address);
-        if (index >= 0) {
-            ALOGE("registerPolicyMixes(): mix for address %s already registered", address.string());
+
+        if (mPolicyMixes.registerMix(address, mixes[i]) != NO_ERROR) {
             continue;
         }
         audio_config_t outputConfig = mixes[i].mFormat;
@@ -1944,9 +1908,7 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
                                  AUDIO_DEVICE_OUT_REMOTE_SUBMIX, address);
         module->addInputProfile(address, &inputConfig,
                                  AUDIO_DEVICE_IN_REMOTE_SUBMIX, address);
-        sp<AudioPolicyMix> policyMix = new AudioPolicyMix();
-        policyMix->mMix = mixes[i];
-        mPolicyMixes.add(address, policyMix);
+
         if (mixes[i].mMixType == MIX_TYPE_PLAYERS) {
             setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                                      AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
@@ -1979,13 +1941,10 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
 
     for (size_t i = 0; i < mixes.size(); i++) {
         String8 address = mixes[i].mRegistrationId;
-        ssize_t index = mPolicyMixes.indexOfKey(address);
-        if (index < 0) {
-            ALOGE("unregisterPolicyMixes(): mix for address %s not registered", address.string());
+
+        if (mPolicyMixes.unregisterMix(address) != NO_ERROR) {
             continue;
         }
-
-        mPolicyMixes.removeItemsAt(index);
 
         if (getDeviceConnectionState(AUDIO_DEVICE_IN_REMOTE_SUBMIX, address.string()) ==
                                              AUDIO_POLICY_DEVICE_STATE_AVAILABLE)
@@ -3261,14 +3220,14 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                 if (output != AUDIO_IO_HANDLE_NONE) {
                     addOutput(output, desc);
                     if (device_distinguishes_on_address(device) && address != "0") {
-                        ssize_t index = mPolicyMixes.indexOfKey(address);
-                        if (index >= 0) {
-                            mPolicyMixes[index]->mOutput = desc;
-                            desc->mPolicyMix = &mPolicyMixes[index]->mMix;
-                        } else {
+                        sp<AudioPolicyMix> policyMix;
+                        if (mPolicyMixes.getAudioPolicyMix(address, policyMix) != NO_ERROR) {
                             ALOGE("checkOutputsForDevice() cannot find policy for address %s",
                                   address.string());
                         }
+                        policyMix->setOutput(desc);
+                        desc->mPolicyMix = &(policyMix->getMix());
+
                     } else if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) {
                         // no duplicated output for direct outputs and
                         // outputs used by dynamic policy mixes
@@ -3579,12 +3538,7 @@ void AudioPolicyManager::closeOutput(audio_io_handle_t output)
         ALOGW("closeOutput() unknown output %d", output);
         return;
     }
-
-    for (size_t i = 0; i < mPolicyMixes.size(); i++) {
-        if (mPolicyMixes[i]->mOutput == outputDesc) {
-            mPolicyMixes[i]->mOutput.clear();
-        }
-    }
+    mPolicyMixes.closeOutput(outputDesc);
 
     // look for duplicated outputs connected to the output being removed.
     for (size_t i = 0; i < mOutputs.size(); i++) {
@@ -4730,29 +4684,13 @@ sp<IOProfile> AudioPolicyManager::getInputProfile(audio_devices_t device,
 audio_devices_t AudioPolicyManager::getDeviceAndMixForInputSource(audio_source_t inputSource,
                                                                   AudioMix **policyMix)
 {
-    audio_devices_t availableDeviceTypes = mAvailableInputDevices.types() &
-                                            ~AUDIO_DEVICE_BIT_IN;
+    audio_devices_t availableDeviceTypes = mAvailableInputDevices.types() & ~AUDIO_DEVICE_BIT_IN;
+    audio_devices_t selectedDeviceFromMix =
+           mPolicyMixes.getDeviceAndMixForInputSource(inputSource, availableDeviceTypes, policyMix);
 
-    for (size_t i = 0; i < mPolicyMixes.size(); i++) {
-        if (mPolicyMixes[i]->mMix.mMixType != MIX_TYPE_RECORDERS) {
-            continue;
-        }
-        for (size_t j = 0; j < mPolicyMixes[i]->mMix.mCriteria.size(); j++) {
-            if ((RULE_MATCH_ATTRIBUTE_CAPTURE_PRESET == mPolicyMixes[i]->mMix.mCriteria[j].mRule &&
-                    mPolicyMixes[i]->mMix.mCriteria[j].mAttr.mSource == inputSource) ||
-               (RULE_EXCLUDE_ATTRIBUTE_CAPTURE_PRESET == mPolicyMixes[i]->mMix.mCriteria[j].mRule &&
-                    mPolicyMixes[i]->mMix.mCriteria[j].mAttr.mSource != inputSource)) {
-                if (availableDeviceTypes & AUDIO_DEVICE_IN_REMOTE_SUBMIX) {
-                    if (policyMix != NULL) {
-                        *policyMix = &mPolicyMixes[i]->mMix;
-                    }
-                    return AUDIO_DEVICE_IN_REMOTE_SUBMIX;
-                }
-                break;
-            }
-        }
+    if (selectedDeviceFromMix != AUDIO_DEVICE_NONE) {
+        return selectedDeviceFromMix;
     }
-
     return getDeviceForInputSource(inputSource);
 }
 

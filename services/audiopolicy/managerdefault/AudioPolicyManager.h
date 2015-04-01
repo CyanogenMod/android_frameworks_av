@@ -36,6 +36,7 @@
 #include <HwModule.h>
 #include <AudioInputDescriptor.h>
 #include <AudioOutputDescriptor.h>
+#include <AudioPolicyMix.h>
 
 namespace android {
 
@@ -474,16 +475,7 @@ protected:
         uint32_t mBeaconPlayingRefCount;// ref count for the playing beacon streams
         bool mBeaconMuted;              // has STREAM_TTS been muted
 
-        // custom mix entry in mPolicyMixes
-        class AudioPolicyMix : public RefBase {
-        public:
-            AudioPolicyMix() {}
-
-            AudioMix    mMix;                   // Audio policy mix descriptor
-            sp<AudioOutputDescriptor> mOutput;  // Corresponding output stream
-        };
-        DefaultKeyedVector<String8, sp<AudioPolicyMix> > mPolicyMixes; // list of registered mixes
-
+        AudioPolicyMixCollection mPolicyMixes; // list of registered mixes
 
 #ifdef AUDIO_POLICY_TEST
         Mutex   mLock;
