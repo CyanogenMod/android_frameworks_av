@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "Ports.h"
+#include "AudioPort.h"
 #include "ApmImplDefinitions.h"
 #include <utils/Errors.h>
 #include <utils/Timers.h>
@@ -39,6 +39,7 @@ public:
     audio_devices_t device() const;
     void changeRefCount(audio_stream_type_t stream, int delta);
 
+    void setIoHandle(audio_io_handle_t ioHandle);
     bool isDuplicated() const { return (mOutput1 != NULL && mOutput2 != NULL); }
     audio_devices_t supportedDevices();
     uint32_t latency();

@@ -16,6 +16,7 @@ else
 LOCAL_SRC_FILES += \
     service/AudioPolicyInterfaceImpl.cpp \
     service/AudioPolicyClientImpl.cpp
+
 endif
 
 LOCAL_C_INCLUDES := \
@@ -39,7 +40,8 @@ LOCAL_SHARED_LIBRARIES += \
 endif
 
 LOCAL_STATIC_LIBRARIES := \
-    libmedia_helper
+    libmedia_helper \
+    libaudiopolicycomponents
 
 LOCAL_MODULE:= libaudiopolicyservice
 
@@ -54,14 +56,6 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
     managerdefault/AudioPolicyManager.cpp \
-    managerdefault/ConfigParsingUtils.cpp \
-    managerdefault/Devices.cpp \
-    managerdefault/Gains.cpp \
-    managerdefault/HwModule.cpp \
-    managerdefault/IOProfile.cpp \
-    managerdefault/Ports.cpp \
-    managerdefault/AudioInputDescriptor.cpp \
-    managerdefault/AudioOutputDescriptor.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -70,7 +64,8 @@ LOCAL_SHARED_LIBRARIES := \
     libsoundtrigger
 
 LOCAL_STATIC_LIBRARIES := \
-    libmedia_helper
+    libmedia_helper \
+    libaudiopolicycomponents
 
 LOCAL_MODULE:= libaudiopolicymanagerdefault
 
@@ -86,9 +81,17 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
     libaudiopolicymanagerdefault
 
+LOCAL_STATIC_LIBRARIES := \
+    libaudiopolicycomponents
+
 LOCAL_MODULE:= libaudiopolicymanager
 
 include $(BUILD_SHARED_LIBRARY)
 
 endif
 endif
+
+#######################################################################
+# Recursive call sub-folder Android.mk
+#
+include $(call all-makefiles-under,$(LOCAL_PATH))

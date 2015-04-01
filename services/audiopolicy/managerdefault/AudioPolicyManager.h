@@ -27,14 +27,15 @@
 #include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
-#include "Gains.h"
-#include "Ports.h"
-#include "ConfigParsingUtils.h"
-#include "Devices.h"
-#include "IOProfile.h"
-#include "HwModule.h"
-#include "AudioInputDescriptor.h"
-#include "AudioOutputDescriptor.h"
+#include <AudioGain.h>
+#include <AudioPort.h>
+#include <AudioPatch.h>
+#include <ConfigParsingUtils.h>
+#include <DeviceDescriptor.h>
+#include <IOProfile.h>
+#include <HwModule.h>
+#include <AudioInputDescriptor.h>
+#include <AudioOutputDescriptor.h>
 
 namespace android {
 
@@ -208,8 +209,6 @@ public:
 
                 // return the strategy corresponding to a given stream type
                 static routing_strategy getStrategy(audio_stream_type_t stream);
-
-                static uint32_t nextUniqueId();
 protected:
 
         class EffectDescriptor : public RefBase
@@ -453,7 +452,6 @@ protected:
                                 // to boost soft sounds, used to adjust volume curves accordingly
 
         Vector < sp<HwModule> > mHwModules;
-        static volatile int32_t mNextUniqueId;
         volatile int32_t mAudioPortGeneration;
 
         DefaultKeyedVector<audio_patch_handle_t, sp<AudioPatch> > mAudioPatches;

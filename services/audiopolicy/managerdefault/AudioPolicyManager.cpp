@@ -393,8 +393,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         ALOGW_IF(status != NO_ERROR, "updateCallRouting() error %d creating RX audio patch",
                                                status);
         if (status == NO_ERROR) {
-            mCallRxPatch = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
-                                       &patch, mUidCached);
+            mCallRxPatch = new AudioPatch(&patch, mUidCached);
             mCallRxPatch->mAfPatchHandle = afPatchHandle;
             mCallRxPatch->mUid = mUidCached;
         }
@@ -436,8 +435,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         ALOGW_IF(status != NO_ERROR, "setPhoneState() error %d creating TX audio patch",
                                                status);
         if (status == NO_ERROR) {
-            mCallTxPatch = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
-                                       &patch, mUidCached);
+            mCallTxPatch = new AudioPatch(&patch, mUidCached);
             mCallTxPatch->mAfPatchHandle = afPatchHandle;
             mCallTxPatch->mUid = mUidCached;
         }
@@ -2634,8 +2632,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                                   status, afPatchHandle);
             if (status == NO_ERROR) {
                 if (index < 0) {
-                    patchDesc = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
-                                               &newPatch, uid);
+                    patchDesc = new AudioPatch(&newPatch, uid);
                     addAudioPatch(patchDesc->mHandle, patchDesc);
                 } else {
                     patchDesc->mPatch = newPatch;
@@ -2880,18 +2877,10 @@ status_t AudioPolicyManager::removeAudioPatch(audio_patch_handle_t handle)
 // ----------------------------------------------------------------------------
 // AudioPolicyManager
 // ----------------------------------------------------------------------------
-
-uint32_t AudioPolicyManager::nextUniqueId()
-{
-    return android_atomic_inc(&mNextUniqueId);
-}
-
 uint32_t AudioPolicyManager::nextAudioPortGeneration()
 {
     return android_atomic_inc(&mAudioPortGeneration);
 }
-
-int32_t volatile AudioPolicyManager::mNextUniqueId = 1;
 
 AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterface)
     :
@@ -3314,16 +3303,14 @@ int AudioPolicyManager::testOutputIndex(audio_io_handle_t output)
 
 void AudioPolicyManager::addOutput(audio_io_handle_t output, sp<AudioOutputDescriptor> outputDesc)
 {
-    outputDesc->mIoHandle = output;
-    outputDesc->mId = nextUniqueId();
+    outputDesc->setIoHandle(output);
     mOutputs.add(output, outputDesc);
     nextAudioPortGeneration();
 }
 
 void AudioPolicyManager::addInput(audio_io_handle_t input, sp<AudioInputDescriptor> inputDesc)
 {
-    inputDesc->mIoHandle = input;
-    inputDesc->mId = nextUniqueId();
+    inputDesc->setIoHandle(input);
     mInputs.add(input, inputDesc);
     nextAudioPortGeneration();
 }
@@ -4827,8 +4814,7 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
                                        status, afPatchHandle, patch.num_sources, patch.num_sinks);
             if (status == NO_ERROR) {
                 if (index < 0) {
-                    patchDesc = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
-                                               &patch, mUidCached);
+                    patchDesc = new AudioPatch(&patch, mUidCached);
                     addAudioPatch(patchDesc->mHandle, patchDesc);
                 } else {
                     patchDesc->mPatch = patch;
@@ -4934,8 +4920,7 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
                                                                           status, afPatchHandle);
             if (status == NO_ERROR) {
                 if (index < 0) {
-                    patchDesc = new AudioPatch((audio_patch_handle_t)nextUniqueId(),
-                                               &patch, mUidCached);
+                    patchDesc = new AudioPatch(&patch, mUidCached);
                     addAudioPatch(patchDesc->mHandle, patchDesc);
                 } else {
                     patchDesc->mPatch = patch;

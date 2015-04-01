@@ -43,6 +43,8 @@ public:
     void attach(const sp<HwModule>& module);
     bool isAttached() { return mId != 0; }
 
+    static audio_port_handle_t getNextUniqueId();
+
     virtual void toAudioPort(struct audio_port *port) const;
 
     void importAudioPort(const sp<AudioPort> port);
@@ -119,20 +121,6 @@ public:
     audio_format_t mFormat;
     audio_channel_mask_t mChannelMask;
     struct audio_gain_config mGain;
-};
-
-
-class AudioPatch: public RefBase
-{
-public:
-    AudioPatch(audio_patch_handle_t handle, const struct audio_patch *patch, uid_t uid);
-
-    status_t dump(int fd, int spaces, int index) const;
-
-    audio_patch_handle_t mHandle;
-    struct audio_patch mPatch;
-    uid_t mUid;
-    audio_patch_handle_t mAfPatchHandle;
 };
 
 }; // namespace android

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "APM::Gains"
+#define LOG_TAG "APM::AudioGain"
 //#define LOG_NDEBUG 0
 
 //#define VERY_VERBOSE_LOGGING
@@ -24,7 +24,7 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-#include "Gains.h"
+#include "AudioGain.h"
 #include <utils/Log.h>
 #include <utils/String8.h>
 

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "APM::Ports"
+#define LOG_TAG "APM::AudioPort"
 //#define LOG_NDEBUG 0
 
-#include "Ports.h"
+#include "AudioPort.h"
 #include "HwModule.h"
-#include "Gains.h"
+#include "AudioGain.h"
 #include "ConfigParsingUtils.h"
 #include "audio_policy_conf.h"
 
@@ -37,9 +37,15 @@ AudioPort::AudioPort(const String8& name, audio_port_type_t type,
                     ((type == AUDIO_PORT_TYPE_MIX) && (role == AUDIO_PORT_ROLE_SINK));
 }
 
-void AudioPort::attach(const sp<HwModule>& module) {
-    mId = android_atomic_inc(&mNextUniqueId);
+void AudioPort::attach(const sp<HwModule>& module)
+{
+    mId = getNextUniqueId();
     mModule = module;
+}
+
+audio_port_handle_t AudioPort::getNextUniqueId()
+{
+    return static_cast<audio_port_handle_t>(android_atomic_inc(&mNextUniqueId));
 }
 
 void AudioPort::toAudioPort(struct audio_port *port) const
@@ -788,61 +794,5 @@ void AudioPortConfig::toAudioPortConfig(struct audio_port_config *dstConfig,
         dstConfig->config_mask &= ~AUDIO_PORT_CONFIG_GAIN;
     }
 }
-
-
-// --- AudioPatch class implementation
-
-AudioPatch::AudioPatch(audio_patch_handle_t handle,
-            const struct audio_patch *patch, uid_t uid) :
-                mHandle(handle), mPatch(*patch), mUid(uid), mAfPatchHandle(0)
-{}
-
-status_t AudioPatch::dump(int fd, int spaces, int index) const
-{
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
-    snprintf(buffer, SIZE, "%*sAudio patch %d:\n", spaces, "", index+1);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "%*s- handle: %2d\n", spaces, "", mHandle);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "%*s- audio flinger handle: %2d\n", spaces, "", mAfPatchHandle);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "%*s- owner uid: %2d\n", spaces, "", mUid);
-    result.append(buffer);
-    snprintf(buffer, SIZE, "%*s- %d sources:\n", spaces, "", mPatch.num_sources);
-    result.append(buffer);
-    for (size_t i = 0; i < mPatch.num_sources; i++) {
-        if (mPatch.sources[i].type == AUDIO_PORT_TYPE_DEVICE) {
-            snprintf(buffer, SIZE, "%*s- Device ID %d %s\n", spaces + 2, "",
-                     mPatch.sources[i].id, ConfigParsingUtils::enumToString(sDeviceNameToEnumTable,
-                                                        ARRAY_SIZE(sDeviceNameToEnumTable),
-                                                        mPatch.sources[i].ext.device.type));
-        } else {
-            snprintf(buffer, SIZE, "%*s- Mix ID %d I/O handle %d\n", spaces + 2, "",
-                     mPatch.sources[i].id, mPatch.sources[i].ext.mix.handle);
-        }
-        result.append(buffer);
-    }
-    snprintf(buffer, SIZE, "%*s- %d sinks:\n", spaces, "", mPatch.num_sinks);
-    result.append(buffer);
-    for (size_t i = 0; i < mPatch.num_sinks; i++) {
-        if (mPatch.sinks[i].type == AUDIO_PORT_TYPE_DEVICE) {
-            snprintf(buffer, SIZE, "%*s- Device ID %d %s\n", spaces + 2, "",
-                     mPatch.sinks[i].id, ConfigParsingUtils::enumToString(sDeviceNameToEnumTable,
-                                                        ARRAY_SIZE(sDeviceNameToEnumTable),
-                                                        mPatch.sinks[i].ext.device.type));
-        } else {
-            snprintf(buffer, SIZE, "%*s- Mix ID %d I/O handle %d\n", spaces + 2, "",
-                     mPatch.sinks[i].id, mPatch.sinks[i].ext.mix.handle);
-        }
-        result.append(buffer);
-    }
-
-    write(fd, result.string(), result.size());
-    return NO_ERROR;
-}
-
 
 }; // namespace android

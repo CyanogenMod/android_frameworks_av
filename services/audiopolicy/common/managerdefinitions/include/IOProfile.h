@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "Ports.h"
-#include "Devices.h"
+#include "AudioPort.h"
+#include "DeviceDescriptor.h"
 #include <utils/String8.h>
 #include <system/audio.h>
 

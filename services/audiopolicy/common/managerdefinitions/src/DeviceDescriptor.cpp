@@ -17,8 +17,8 @@
 #define LOG_TAG "APM::Devices"
 //#define LOG_NDEBUG 0
 
-#include "Devices.h"
-#include "Gains.h"
+#include "DeviceDescriptor.h"
+#include "AudioGain.h"
 #include "HwModule.h"
 #include "ConfigParsingUtils.h"
 

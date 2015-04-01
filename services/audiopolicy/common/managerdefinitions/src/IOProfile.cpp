@@ -19,7 +19,7 @@
 
 #include "IOProfile.h"
 #include "HwModule.h"
-#include "Gains.h"
+#include "AudioGain.h"
 
 namespace android {
 
