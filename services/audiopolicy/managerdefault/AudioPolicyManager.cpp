@@ -2458,21 +2458,7 @@ status_t AudioPolicyManager::acquireSoundTriggerSession(audio_session_t *session
     *ioHandle = (audio_io_handle_t)mpClientInterface->newAudioUniqueId();
     *device = getDeviceAndMixForInputSource(AUDIO_SOURCE_HOTWORD);
 
-    mSoundTriggerSessions.add(*session, *ioHandle);
-
-    return NO_ERROR;
-}
-
-status_t AudioPolicyManager::releaseSoundTriggerSession(audio_session_t session)
-{
-    ssize_t index = mSoundTriggerSessions.indexOfKey(session);
-    if (index < 0) {
-        ALOGW("acquireSoundTriggerSession() session %d not registered", session);
-        return BAD_VALUE;
-    }
-
-    mSoundTriggerSessions.removeItem(session);
-    return NO_ERROR;
+    return mSoundTriggerSessions.acquireSession(*session, *ioHandle);
 }
 
 // ----------------------------------------------------------------------------

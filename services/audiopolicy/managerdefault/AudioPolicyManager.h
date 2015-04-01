@@ -38,6 +38,7 @@
 #include <AudioOutputDescriptor.h>
 #include <AudioPolicyMix.h>
 #include <EffectDescriptor.h>
+#include <SoundTriggerSession.h>
 
 namespace android {
 
@@ -208,7 +209,10 @@ public:
                                                audio_io_handle_t *ioHandle,
                                                audio_devices_t *device);
 
-        virtual status_t releaseSoundTriggerSession(audio_session_t session);
+        virtual status_t releaseSoundTriggerSession(audio_session_t session)
+        {
+            return mSoundTriggerSessions.releaseSession(session);
+        }
 
         virtual status_t registerPolicyMixes(Vector<AudioMix> mixes);
         virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes);
@@ -448,7 +452,7 @@ protected:
 
         AudioPatchCollection mAudioPatches;
 
-        DefaultKeyedVector<audio_session_t, audio_io_handle_t> mSoundTriggerSessions;
+        SoundTriggerSessionCollection mSoundTriggerSessions;
 
         sp<AudioPatch> mCallTxPatch;
         sp<AudioPatch> mCallRxPatch;
