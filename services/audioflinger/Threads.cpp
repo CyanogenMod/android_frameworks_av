@@ -4316,6 +4316,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             }
             if (track->isStopping_1()) {
                 track->mState = TrackBase::STOPPING_2;
+                if (last && mHwPaused) {
+                     doHwResume = true;
+                     mHwPaused = false;
+                 }
             }
             if ((track->sharedBuffer() != 0) || track->isStopped() ||
                     track->isStopping_2() || track->isPaused()) {
@@ -4455,14 +4459,17 @@ void AudioFlinger::DirectOutputThread::threadLoop_exit()
 bool AudioFlinger::DirectOutputThread::shouldStandby_l()
 {
     bool trackPaused = false;
+    bool trackStopped = false;
 
     // do not put the HAL in standby when paused. AwesomePlayer clear the offloaded AudioTrack
     // after a timeout and we will enter standby then.
     if (mTracks.size() > 0) {
         trackPaused = mTracks[mTracks.size() - 1]->isPaused();
+        trackStopped = mTracks[mTracks.size() - 1]->isStopped() ||
+                           mTracks[mTracks.size() - 1]->mState == TrackBase::IDLE;
     }
 
-    return !mStandby && !(trackPaused || (usesHwAvSync() && mHwPaused));
+    return !mStandby && !(trackPaused || (usesHwAvSync() && mHwPaused && !trackStopped));
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
@@ -4565,7 +4572,10 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
 
     // use shorter standby delay as on normal output to release
     // hardware resources as soon as possible
-    if (audio_is_linear_pcm(mFormat)) {
+    // no delay on outputs with HW A/V sync
+    if (usesHwAvSync()) {
+        standbyDelay = 0;
+    } else if (audio_is_linear_pcm(mFormat)) {
         standbyDelay = microseconds(activeSleepTime*2);
     } else {
         standbyDelay = kOffloadStandbyDelayNs;

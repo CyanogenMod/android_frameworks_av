@@ -745,6 +745,7 @@ void AudioFlinger::PlaybackThread::Track::stop()
                 // move to STOPPING_2 when drain completes and then STOPPED
                 mState = STOPPING_1;
             }
+            playbackThread->broadcast_l();
             ALOGV("not stopping/stopped => stopping/stopped (%d) on thread %p", mName,
                     playbackThread);
         }
