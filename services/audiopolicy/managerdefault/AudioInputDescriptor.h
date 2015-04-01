@@ -14,7 +14,17 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include "Ports.h"
+#include <utils/Errors.h>
+#include <system/audio.h>
+#include <utils/SortedVector.h>
+
 namespace android {
+
+class IOProfile;
+class AudioMix;
 
 // descriptor for audio inputs. Used to maintain current configuration of each opened audio input
 // and keep track of the usage of this input.

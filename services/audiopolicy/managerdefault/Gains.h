@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include <utils/Errors.h>
+#include <utils/RefBase.h>
+#include <system/audio.h>
+#include <utils/KeyedVector.h>
+
 namespace android {
 
 class VolumeCurvePoint

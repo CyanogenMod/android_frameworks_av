@@ -518,12 +518,12 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
             // mute media and sonification strategies and delay device switch by the largest
             // latency of any output where either strategy is active.
             // This avoid sending the ring tone or music tail into the earpiece or headset.
-            if ((desc->isStrategyActive(STRATEGY_MEDIA,
-                                     SONIFICATION_HEADSET_MUSIC_DELAY,
-                                     sysTime) ||
-                    desc->isStrategyActive(STRATEGY_SONIFICATION,
-                                         SONIFICATION_HEADSET_MUSIC_DELAY,
-                                         sysTime)) &&
+            if ((isStrategyActive(desc, STRATEGY_MEDIA,
+                                  SONIFICATION_HEADSET_MUSIC_DELAY,
+                                  sysTime) ||
+                 isStrategyActive(desc, STRATEGY_SONIFICATION,
+                                  SONIFICATION_HEADSET_MUSIC_DELAY,
+                                  sysTime)) &&
                     (delayMs < (int)desc->mLatency*2)) {
                 delayMs = desc->mLatency*2;
             }
@@ -3971,7 +3971,7 @@ void AudioPolicyManager::checkOutputForStrategy(routing_strategy strategy)
         // mute strategy while moving tracks from one output to another
         for (size_t i = 0; i < srcOutputs.size(); i++) {
             sp<AudioOutputDescriptor> desc = mOutputs.valueFor(srcOutputs[i]);
-            if (desc->isStrategyActive(strategy)) {
+            if (isStrategyActive(desc, strategy)) {
                 setStrategyMute(strategy, true, srcOutputs[i]);
                 setStrategyMute(strategy, false, srcOutputs[i], MUTE_TIME_MS, newDevice);
             }
@@ -4117,27 +4117,27 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(audio_io_handle_t output,
     //      use device for strategy DTMF
     // 9: the strategy for beacon, a.k.a. "transmitted through speaker" is active on the output:
     //      use device for strategy t-t-s
-    if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE) &&
+    if (isStrategyActive(outputDesc, STRATEGY_ENFORCED_AUDIBLE) &&
         mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
     } else if (isInCall() ||
-                    outputDesc->isStrategyActive(STRATEGY_PHONE)) {
+                    isStrategyActive(outputDesc, STRATEGY_PHONE)) {
         device = getDeviceForStrategy(STRATEGY_PHONE, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_ENFORCED_AUDIBLE)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_ENFORCED_AUDIBLE)) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_SONIFICATION)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_SONIFICATION)) {
         device = getDeviceForStrategy(STRATEGY_SONIFICATION, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_SONIFICATION_RESPECTFUL)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_SONIFICATION_RESPECTFUL)) {
         device = getDeviceForStrategy(STRATEGY_SONIFICATION_RESPECTFUL, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_ACCESSIBILITY)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_ACCESSIBILITY)) {
         device = getDeviceForStrategy(STRATEGY_ACCESSIBILITY, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_MEDIA)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_MEDIA)) {
         device = getDeviceForStrategy(STRATEGY_MEDIA, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_DTMF)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_DTMF)) {
         device = getDeviceForStrategy(STRATEGY_DTMF, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_TRANSMITTED_THROUGH_SPEAKER)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_TRANSMITTED_THROUGH_SPEAKER)) {
         device = getDeviceForStrategy(STRATEGY_TRANSMITTED_THROUGH_SPEAKER, fromCache);
-    } else if (outputDesc->isStrategyActive(STRATEGY_REROUTING)) {
+    } else if (isStrategyActive(outputDesc, STRATEGY_REROUTING)) {
         device = getDeviceForStrategy(STRATEGY_REROUTING, fromCache);
     }
 
@@ -4182,7 +4182,7 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
     SortedVector<audio_io_handle_t> outputs = getOutputsForDevice(devices, mOutputs);
     for (size_t i = 0; i < outputs.size(); i++) {
         sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(outputs[i]);
-        if (outputDesc->isStrategyActive(strategy)) {
+        if (isStrategyActive(outputDesc, strategy)) {
             devices = outputDesc->device();
             break;
         }
@@ -4698,7 +4698,7 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
                 ALOGVV("checkDeviceMuteStrategies() %s strategy %d (curDevice %04x) on output %d",
                       mute ? "muting" : "unmuting", i, curDevice, curOutput);
                 setStrategyMute((routing_strategy)i, mute, curOutput, mute ? 0 : delayMs);
-                if (desc->isStrategyActive((routing_strategy)i)) {
+                if (isStrategyActive(desc, (routing_strategy)i)) {
                     if (mute) {
                         // FIXME: should not need to double latency if volume could be applied
                         // immediately by the audioflinger mixer. We must account for the delay
@@ -4721,7 +4721,7 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
             muteWaitMs = outputDesc->latency() * 2;
         }
         for (size_t i = 0; i < NUM_STRATEGIES; i++) {
-            if (outputDesc->isStrategyActive((routing_strategy)i)) {
+            if (isStrategyActive(outputDesc, (routing_strategy)i)) {
                 setStrategyMute((routing_strategy)i, true, outputDesc->mIoHandle);
                 // do tempMute unmute after twice the mute wait time
                 setStrategyMute((routing_strategy)i, false, outputDesc->mIoHandle,
@@ -5761,6 +5761,27 @@ bool AudioPolicyManager::isValidAttributes(const audio_attributes_t *paa) {
         return false;
     }
     return true;
+}
+
+
+bool AudioPolicyManager::isStrategyActive(const sp<AudioOutputDescriptor> outputDesc,
+                                          routing_strategy strategy, uint32_t inPastMs,
+                                          nsecs_t sysTime) const
+{
+    if ((sysTime == 0) && (inPastMs != 0)) {
+        sysTime = systemTime();
+    }
+    for (int i = 0; i < (int)AUDIO_STREAM_CNT; i++) {
+        if (i == AUDIO_STREAM_PATCH) {
+            continue;
+        }
+        if (((getStrategy((audio_stream_type_t)i) == strategy) ||
+                (NUM_STRATEGIES == strategy)) &&
+                outputDesc->isStreamActive((audio_stream_type_t)i, inPastMs, sysTime)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }; // namespace android

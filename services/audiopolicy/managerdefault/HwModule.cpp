@@ -17,7 +17,10 @@
 #define LOG_TAG "APM::HwModule"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
+#include "HwModule.h"
+#include "IOProfile.h"
+#include "Gains.h"
+#include "ConfigParsingUtils.h"
 #include "audio_policy_conf.h"
 #include <hardware/audio.h>
 

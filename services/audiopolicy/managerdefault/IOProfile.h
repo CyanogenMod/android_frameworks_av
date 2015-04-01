@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+#pragma once
+
+#include "Ports.h"
+#include "Devices.h"
+#include <utils/String8.h>
+#include <system/audio.h>
+
 namespace android {
 
 class HwModule;

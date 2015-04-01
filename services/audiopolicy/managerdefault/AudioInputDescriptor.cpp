@@ -17,7 +17,11 @@
 #define LOG_TAG "APM::AudioInputDescriptor"
 //#define LOG_NDEBUG 0
 
-#include "AudioPolicyManager.h"
+#include "AudioInputDescriptor.h"
+#include "IOProfile.h"
+#include "Gains.h"
+#include "HwModule.h"
+#include <media/AudioPolicy.h>
 
 namespace android {
 
