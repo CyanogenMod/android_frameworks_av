@@ -27,6 +27,7 @@
 #include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
+#include <AudioPolicyManagerObserver.h>
 #include <AudioGain.h>
 #include <AudioPort.h>
 #include <AudioPatch.h>
@@ -43,6 +44,8 @@
 
 namespace android {
 
+class AudioPolicyManagerInterface;
+
 // ----------------------------------------------------------------------------
 
 // Attenuation applied to STRATEGY_SONIFICATION streams when a headset is connected: 6dB
@@ -52,9 +55,7 @@ namespace android {
 // Time in milliseconds during which we consider that music is still active after a music
 // track was stopped - see computeVolume()
 #define SONIFICATION_HEADSET_MUSIC_DELAY  5000
-// Time in milliseconds after media stopped playing during which we consider that the
-// sonification should be as unobtrusive as during the time media was playing.
-#define SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY 5000
+
 // Time in milliseconds during witch some streams are muted while the audio path
 // is switched
 #define MUTE_TIME_MS 2000
@@ -71,7 +72,8 @@ namespace android {
 // AudioPolicyManager implements audio policy manager behavior common to all platforms.
 // ----------------------------------------------------------------------------
 
-class AudioPolicyManager: public AudioPolicyInterface
+class AudioPolicyManager : public AudioPolicyInterface, public AudioPolicyManagerObserver
+
 #ifdef AUDIO_POLICY_TEST
     , public Thread
 #endif //AUDIO_POLICY_TEST
@@ -92,6 +94,7 @@ public:
         virtual void setForceUse(audio_policy_force_use_t usage,
                                  audio_policy_forced_cfg_t config);
         virtual audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage);
+
         virtual void setSystemProperty(const char* property, const char* value);
         virtual status_t initCheck();
         virtual audio_io_handle_t getOutput(audio_stream_type_t stream,
@@ -222,8 +225,46 @@ public:
         // TODO candidates to be moved to ConfigParsingUtils
                 void defaultAudioPolicyConfig(void);
 
-                // return the strategy corresponding to a given stream type
-                static routing_strategy getStrategy(audio_stream_type_t stream);
+        // return the strategy corresponding to a given stream type
+        routing_strategy getStrategy(audio_stream_type_t stream) const;
+
+        // From AudioPolicyManagerObserver
+        virtual const AudioPatchCollection &getAudioPatches() const
+        {
+            return mAudioPatches;
+        }
+        virtual const SoundTriggerSessionCollection &getSoundTriggerSessionCollection() const
+        {
+            return mSoundTriggerSessions;
+        }
+        virtual const AudioPolicyMixCollection &getAudioPolicyMixCollection() const
+        {
+            return mPolicyMixes;
+        }
+        virtual const AudioOutputCollection &getOutputs() const
+        {
+            return mOutputs;
+        }
+        virtual const AudioInputCollection &getInputs() const
+        {
+            return mInputs;
+        }
+        virtual const DeviceVector &getAvailableOutputDevices() const
+        {
+            return mAvailableOutputDevices;
+        }
+        virtual const DeviceVector &getAvailableInputDevices() const
+        {
+            return mAvailableInputDevices;
+        }
+        virtual StreamDescriptorCollection &getStreamDescriptors()
+        {
+            return mStreams;
+        }
+        virtual const sp<DeviceDescriptor> &getDefaultOutputDevice() const
+        {
+            return mDefaultOutputDevice;
+        }
 protected:
         void addOutput(audio_io_handle_t output, sp<AudioOutputDescriptor> outputDesc);
         void removeOutput(audio_io_handle_t output);
@@ -264,9 +305,6 @@ protected:
         // select input device corresponding to requested audio source
         virtual audio_devices_t getDeviceForInputSource(audio_source_t inputSource);
 
-        // initialize volume curves for each strategy and device category
-        void initializeVolumeCurves();
-
         // compute the actual volume for a given stream according to the requested index and a particular
         // device
         virtual float computeVolume(audio_stream_type_t stream, int index,
@@ -301,7 +339,6 @@ protected:
 
         // true if device is in a telephony or VoIP call
         virtual bool isInCall();
-
         // true if given state represents a device in a telephony or VoIP call
         virtual bool isStateInCall(int state);
 
@@ -433,8 +470,6 @@ protected:
         AudioInputCollection mInputs;     // list of input descriptors
         DeviceVector  mAvailableOutputDevices; // all available output devices
         DeviceVector  mAvailableInputDevices;  // all available input devices
-        int mPhoneState;                                                    // current phone state
-        audio_policy_forced_cfg_t mForceUse[AUDIO_POLICY_FORCE_USE_CNT];   // current forced use configuration
 
         StreamDescriptorCollection mStreams; // stream descriptors for volume control
         bool    mLimitRingtoneVolume;        // limit ringtone volume to music volume if headset connected
@@ -534,6 +569,9 @@ private:
 
         bool isStrategyActive(const sp<AudioOutputDescriptor> outputDesc, routing_strategy strategy,
                               uint32_t inPastMs = 0, nsecs_t sysTime = 0) const;
+
+        // Audio Policy Engine Interface.
+        AudioPolicyManagerInterface *mEngine;
 };
 
 };
