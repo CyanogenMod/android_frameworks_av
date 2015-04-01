@@ -37,6 +37,7 @@
 #include <AudioInputDescriptor.h>
 #include <AudioOutputDescriptor.h>
 #include <AudioPolicyMix.h>
+#include <EffectDescriptor.h>
 
 namespace android {
 
@@ -158,8 +159,14 @@ public:
                                         uint32_t strategy,
                                         int session,
                                         int id);
-        virtual status_t unregisterEffect(int id);
-        virtual status_t setEffectEnabled(int id, bool enabled);
+        virtual status_t unregisterEffect(int id)
+        {
+            return mEffects.unregisterEffect(id);
+        }
+        virtual status_t setEffectEnabled(int id, bool enabled)
+        {
+            return mEffects.setEffectEnabled(id, enabled);
+        }
 
         virtual bool isStreamActive(audio_stream_type_t stream, uint32_t inPastMs = 0) const
         {
@@ -213,20 +220,6 @@ public:
                 // return the strategy corresponding to a given stream type
                 static routing_strategy getStrategy(audio_stream_type_t stream);
 protected:
-
-        class EffectDescriptor : public RefBase
-        {
-        public:
-
-            status_t dump(int fd);
-
-            int mIo;                // io the effect is attached to
-            routing_strategy mStrategy; // routing strategy the effect is associated to
-            int mSession;               // audio session the effect is on
-            effect_descriptor_t mDesc;  // effect descriptor
-            bool mEnabled;              // enabled state: CPU load being used or not
-        };
-
         void addOutput(audio_io_handle_t output, sp<AudioOutputDescriptor> outputDesc);
         void removeOutput(audio_io_handle_t output);
         void addInput(audio_io_handle_t input, sp<AudioInputDescriptor> inputDesc);
@@ -357,15 +350,20 @@ protected:
         // selects the most appropriate device on input for current state
         audio_devices_t getNewInputDevice(audio_io_handle_t input);
 
-        virtual uint32_t getMaxEffectsCpuLoad();
-        virtual uint32_t getMaxEffectsMemory();
+        virtual uint32_t getMaxEffectsCpuLoad()
+        {
+            return mEffects.getMaxEffectsCpuLoad();
+        }
+
+        virtual uint32_t getMaxEffectsMemory()
+        {
+            return mEffects.getMaxEffectsMemory();
+        }
 #ifdef AUDIO_POLICY_TEST
         virtual     bool        threadLoop();
                     void        exit();
         int testOutputIndex(audio_io_handle_t output);
 #endif //AUDIO_POLICY_TEST
-
-        status_t setEffectEnabled(const sp<EffectDescriptor>& effectDesc, bool enabled);
 
         SortedVector<audio_io_handle_t> getOutputsForDevice(audio_devices_t device,
                                                             AudioOutputCollection openOutputs);
@@ -397,8 +395,6 @@ protected:
                                                        audio_output_flags_t flags);
 
         audio_io_handle_t selectOutputForEffects(const SortedVector<audio_io_handle_t>& outputs);
-
-        bool isNonOffloadableEffectEnabled();
 
         virtual status_t addAudioPatch(audio_patch_handle_t handle, const sp<AudioPatch>& patch)
         {
@@ -440,13 +436,7 @@ protected:
         audio_devices_t mDeviceForStrategy[NUM_STRATEGIES];
         float   mLastVoiceVolume;                                           // last voice volume value sent to audio HAL
 
-        // Maximum CPU load allocated to audio effects in 0.1 MIPS (ARMv5TE, 0 WS memory) units
-        static const uint32_t MAX_EFFECTS_CPU_LOAD = 1000;
-        // Maximum memory allocated to audio effects in KB
-        static const uint32_t MAX_EFFECTS_MEMORY = 512;
-        uint32_t mTotalEffectsCpuLoad; // current CPU load used by effects
-        uint32_t mTotalEffectsMemory;  // current memory used by effects
-        KeyedVector<int, sp<EffectDescriptor> > mEffects;  // list of registered audio effects
+        EffectDescriptorCollection mEffects;  // list of registered audio effects
         bool    mA2dpSuspended;  // true if A2DP output is suspended
         sp<DeviceDescriptor> mDefaultOutputDevice; // output device selected by default at boot time
         bool mSpeakerDrcEnabled;// true on devices that use DRC on the DEVICE_CATEGORY_SPEAKER path

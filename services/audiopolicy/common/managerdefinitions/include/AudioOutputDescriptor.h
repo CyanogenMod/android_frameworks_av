@@ -17,7 +17,7 @@
 #pragma once
 
 #include "AudioPort.h"
-#include "ApmImplDefinitions.h"
+#include <RoutingStrategy.h>
 #include <utils/Errors.h>
 #include <utils/Timers.h>
 #include <utils/KeyedVector.h>
