@@ -34,7 +34,6 @@ namespace android {
 Mutex AudioSystem::gLock;
 Mutex AudioSystem::gLockCache;
 Mutex AudioSystem::gLockAPS;
-Mutex AudioSystem::gLockAPC;
 sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
@@ -47,8 +46,6 @@ uint32_t AudioSystem::gPrevInSamplingRate;
 audio_format_t AudioSystem::gPrevInFormat;
 audio_channel_mask_t AudioSystem::gPrevInChannelMask;
 size_t AudioSystem::gInBuffSize = 0;    // zero indicates cache is invalid
-
-sp<AudioSystem::AudioPortCallback> AudioSystem::gAudioPortCallback;
 
 // establish binder interface to AudioFlinger service
 const sp<IAudioFlinger> AudioSystem::get_audio_flinger()
@@ -873,7 +870,6 @@ void AudioSystem::clearAudioConfigCache()
         Mutex::Autolock _l(gLockAPS);
         gAudioPolicyService.clear();
     }
-    // Do not clear gAudioPortCallback
 }
 
 bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
@@ -933,11 +929,30 @@ status_t AudioSystem::setAudioPortConfig(const struct audio_port_config *config)
     return aps->setAudioPortConfig(config);
 }
 
-void AudioSystem::setAudioPortCallback(sp<AudioPortCallback> callBack)
+status_t AudioSystem::addAudioPortCallback(const sp<AudioPortCallback>& callBack)
 {
-    Mutex::Autolock _l(gLockAPC);
-    gAudioPortCallback = callBack;
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+
+    Mutex::Autolock _l(gLockAPS);
+    if (gAudioPolicyServiceClient == 0) {
+        return NO_INIT;
+    }
+    return gAudioPolicyServiceClient->addAudioPortCallback(callBack);
 }
+
+status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callBack)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+
+    Mutex::Autolock _l(gLockAPS);
+    if (gAudioPolicyServiceClient == 0) {
+        return NO_INIT;
+    }
+    return gAudioPolicyServiceClient->removeAudioPortCallback(callBack);
+}
+
 
 status_t AudioSystem::acquireSoundTriggerSession(audio_session_t *session,
                                        audio_io_handle_t *ioHandle,
@@ -971,12 +986,58 @@ status_t AudioSystem::registerPolicyMixes(Vector<AudioMix> mixes, bool registrat
 
 // ---------------------------------------------------------------------------
 
+status_t AudioSystem::AudioPolicyServiceClient::addAudioPortCallback(
+        const sp<AudioPortCallback>& callBack)
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mAudioPortCallbacks.size(); i++) {
+        if (mAudioPortCallbacks[i] == callBack) {
+            return INVALID_OPERATION;
+        }
+    }
+    mAudioPortCallbacks.add(callBack);
+    return NO_ERROR;
+}
+
+status_t AudioSystem::AudioPolicyServiceClient::removeAudioPortCallback(
+        const sp<AudioPortCallback>& callBack)
+{
+    Mutex::Autolock _l(mLock);
+    size_t i;
+    for (i = 0; i < mAudioPortCallbacks.size(); i++) {
+        if (mAudioPortCallbacks[i] == callBack) {
+            break;
+        }
+    }
+    if (i == mAudioPortCallbacks.size()) {
+        return INVALID_OPERATION;
+    }
+    mAudioPortCallbacks.removeAt(i);
+    return NO_ERROR;
+}
+
+void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mAudioPortCallbacks.size(); i++) {
+        mAudioPortCallbacks[i]->onAudioPortListUpdate();
+    }
+}
+
+void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mAudioPortCallbacks.size(); i++) {
+        mAudioPortCallbacks[i]->onAudioPatchListUpdate();
+    }
+}
+
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
 {
     {
-        Mutex::Autolock _l(gLockAPC);
-        if (gAudioPortCallback != 0) {
-            gAudioPortCallback->onServiceDied();
+        Mutex::Autolock _l(mLock);
+        for (size_t i = 0; i < mAudioPortCallbacks.size(); i++) {
+            mAudioPortCallbacks[i]->onServiceDied();
         }
     }
     {
@@ -985,22 +1046,6 @@ void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __
     }
 
     ALOGW("AudioPolicyService server died!");
-}
-
-void AudioSystem::AudioPolicyServiceClient::onAudioPortListUpdate()
-{
-    Mutex::Autolock _l(gLockAPC);
-    if (gAudioPortCallback != 0) {
-        gAudioPortCallback->onAudioPortListUpdate();
-    }
-}
-
-void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
-{
-    Mutex::Autolock _l(gLockAPC);
-    if (gAudioPortCallback != 0) {
-        gAudioPortCallback->onAudioPatchListUpdate();
-    }
 }
 
 } // namespace android

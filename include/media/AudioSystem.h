@@ -346,7 +346,8 @@ public:
 
     };
 
-    static void setAudioPortCallback(sp<AudioPortCallback> callBack);
+    static status_t addAudioPortCallback(const sp<AudioPortCallback>& callBack);
+    static status_t removeAudioPortCallback(const sp<AudioPortCallback>& callBack);
 
 private:
 
@@ -373,12 +374,19 @@ private:
         AudioPolicyServiceClient() {
         }
 
+        status_t addAudioPortCallback(const sp<AudioPortCallback>& callBack);
+        status_t removeAudioPortCallback(const sp<AudioPortCallback>& callBack);
+
         // DeathRecipient
         virtual void binderDied(const wp<IBinder>& who);
 
         // IAudioPolicyServiceClient
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();
+
+    private:
+        Mutex                               mLock;
+        Vector <sp <AudioPortCallback> >    mAudioPortCallbacks;
     };
 
     static sp<AudioFlingerClient> gAudioFlingerClient;
@@ -390,7 +398,6 @@ private:
     static Mutex gLockCache; // protects gOutputs, gPrevInSamplingRate, gPrevInFormat,
                              // gPrevInChannelMask and gInBuffSize
     static Mutex gLockAPS;   // protects gAudioPolicyService and gAudioPolicyServiceClient
-    static Mutex gLockAPC;   // protects gAudioPortCallback
     static sp<IAudioFlinger> gAudioFlinger;
     static audio_error_callback gAudioErrorCallback;
 
@@ -405,8 +412,6 @@ private:
     // list of output descriptors containing cached parameters
     // (sampling rate, framecount, channel count...)
     static DefaultKeyedVector<audio_io_handle_t, OutputDescriptor *> gOutputs;
-
-    static sp<AudioPortCallback> gAudioPortCallback;
 };
 
 };  // namespace android
