@@ -992,6 +992,7 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         PLAYER_STATS(logFrameDropped);
     } else {
         PLAYER_STATS(logFrameRendered);
+        PLAYER_STATS(profileStop, STATS_PROFILE_RESUME);
     }
 }
 
@@ -1352,7 +1353,6 @@ void NuPlayer::Renderer::onResume() {
     if (!mVideoQueue.empty()) {
         postDrainVideoQueue_l();
     }
-    PLAYER_STATS(profileStop, STATS_PROFILE_RESUME);
 }
 
 void NuPlayer::Renderer::onSetVideoFrameRate(float fps) {
