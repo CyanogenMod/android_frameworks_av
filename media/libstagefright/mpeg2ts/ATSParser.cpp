@@ -937,13 +937,15 @@ void ATSParser::Stream::onPayloadData(
                      mElementaryPID, mStreamType);
 
                 const char *mime;
-                bool isAvcIDR = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
-                        && !IsIDR(accessUnit);
-                bool isHevcIDR = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)
-                        && !ExtendedUtils::IsHevcIDR(accessUnit);
-                if (meta->findCString(kKeyMIMEType, &mime)
-                        && (isAvcIDR || isHevcIDR)) {
-                    continue;
+                if (meta->findCString(kKeyMIMEType, &mime)) {
+                    bool isAvcNonIdr = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                            && !IsIDR(accessUnit);
+                    bool isHevcNonIdr = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)
+                            && !ExtendedUtils::IsHevcIDR(accessUnit);
+                    if (isAvcNonIdr || isHevcNonIdr) {
+                        // Keep dequeuing until we find the first IDR frame
+                        continue;
+                    }
                 }
                 mSource = new AnotherPacketSource(meta);
                 mSource->queueAccessUnit(accessUnit);

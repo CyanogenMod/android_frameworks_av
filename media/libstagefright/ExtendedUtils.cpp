@@ -736,6 +736,14 @@ sp<MetaData> ExtendedUtils::MakeHEVCCodecSpecificData(const sp<ABuffer> &accessU
     meta->setInt32(kKeyWidth, (int32_t)177);
     meta->setInt32(kKeyHeight, (int32_t)144);
 
+    // Let the decoder do the frame parsing for HEVC in case access unit data is
+    // not aligned to frame boundaries.
+    meta->setInt32(kKeyUseArbitraryMode, 1);
+
+    // Set the container format as TS, so that timestamp reordering can be
+    // enabled for HEVC TS clips.
+    meta->setCString(kKeyFileFormat, MEDIA_MIMETYPE_CONTAINER_MPEG2TS);
+
     return meta;
 }
 
