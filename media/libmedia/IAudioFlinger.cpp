@@ -87,6 +87,8 @@ enum {
 #endif
 };
 
+#define MAX_ITEMS_PER_LIST 1024
+
 class BpAudioFlinger : public BpInterface<IAudioFlinger>
 {
 public:
@@ -1356,15 +1358,27 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case LIST_AUDIO_PORTS: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            unsigned int num_ports = data.readInt32();
+            unsigned int numPortsReq = data.readInt32();
+            if (numPortsReq > MAX_ITEMS_PER_LIST) {
+                numPortsReq = MAX_ITEMS_PER_LIST;
+            }
+            unsigned int numPorts = numPortsReq;
             struct audio_port *ports =
-                    (struct audio_port *)calloc(num_ports,
+                    (struct audio_port *)calloc(numPortsReq,
                                                            sizeof(struct audio_port));
-            status_t status = listAudioPorts(&num_ports, ports);
+            if (ports == NULL) {
+                reply->writeInt32(NO_MEMORY);
+                reply->writeInt32(0);
+                return NO_ERROR;
+            }
+            status_t status = listAudioPorts(&numPorts, ports);
             reply->writeInt32(status);
+            reply->writeInt32(numPorts);
             if (status == NO_ERROR) {
-                reply->writeInt32(num_ports);
-                reply->write(&ports, num_ports * sizeof(struct audio_port));
+                if (numPortsReq > numPorts) {
+                    numPortsReq = numPorts;
+                }
+                reply->write(ports, numPortsReq * sizeof(struct audio_port));
             }
             free(ports);
             return NO_ERROR;
@@ -1403,15 +1417,27 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case LIST_AUDIO_PATCHES: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            unsigned int num_patches = data.readInt32();
+            unsigned int numPatchesReq = data.readInt32();
+            if (numPatchesReq > MAX_ITEMS_PER_LIST) {
+                numPatchesReq = MAX_ITEMS_PER_LIST;
+            }
+            unsigned int numPatches = numPatchesReq;
             struct audio_patch *patches =
-                    (struct audio_patch *)calloc(num_patches,
+                    (struct audio_patch *)calloc(numPatchesReq,
                                                  sizeof(struct audio_patch));
-            status_t status = listAudioPatches(&num_patches, patches);
+            if (patches == NULL) {
+                reply->writeInt32(NO_MEMORY);
+                reply->writeInt32(0);
+                return NO_ERROR;
+            }
+            status_t status = listAudioPatches(&numPatches, patches);
             reply->writeInt32(status);
+            reply->writeInt32(numPatches);
             if (status == NO_ERROR) {
-                reply->writeInt32(num_patches);
-                reply->write(&patches, num_patches * sizeof(struct audio_patch));
+                if (numPatchesReq > numPatches) {
+                    numPatchesReq = numPatches;
+                }
+                reply->write(patches, numPatchesReq * sizeof(struct audio_patch));
             }
             free(patches);
             return NO_ERROR;
