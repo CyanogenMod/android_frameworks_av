@@ -1257,6 +1257,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         notify->setInt32("generation", mAudioDecoderGeneration);
 
         if (mOffloadAudio) {
+            const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
+            format->setInt32("has-video", hasVideo);
             *decoder = new DecoderPassThrough(notify, mSource, mRenderer);
         } else {
             *decoder = new Decoder(notify, mSource, mRenderer);
