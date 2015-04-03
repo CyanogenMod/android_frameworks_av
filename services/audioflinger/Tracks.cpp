@@ -1861,13 +1861,14 @@ void AudioFlinger::PlaybackThread::OutputTrack::clearBufferQueue()
 
 
 AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThread,
+                                                     audio_stream_type_t streamType,
                                                      uint32_t sampleRate,
                                                      audio_channel_mask_t channelMask,
                                                      audio_format_t format,
                                                      size_t frameCount,
                                                      void *buffer,
                                                      IAudioFlinger::track_flags_t flags)
-    :   Track(playbackThread, NULL, AUDIO_STREAM_PATCH,
+    :   Track(playbackThread, NULL, streamType,
               sampleRate, format, channelMask, frameCount,
               buffer, 0, 0, getuid(), flags, TYPE_PATCH),
               mProxy(new ClientProxy(mCblk, mBuffer, frameCount, mFrameSize, true, true))

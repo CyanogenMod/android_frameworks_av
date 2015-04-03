@@ -200,26 +200,17 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                     status = BAD_VALUE;
                     goto exit;
                 }
-                // limit to connections between devices and input streams for HAL before 3.0
-                if (patch->sinks[i].ext.mix.hw_module == srcModule &&
-                        (audioHwDevice->version() < AUDIO_DEVICE_API_VERSION_3_0) &&
-                        (patch->sinks[i].type != AUDIO_PORT_TYPE_MIX)) {
-                    ALOGW("createAudioPatch() invalid sink type %d for device source",
-                          patch->sinks[i].type);
-                    status = BAD_VALUE;
-                    goto exit;
-                }
             }
 
-            if (patch->sinks[0].ext.device.hw_module != srcModule) {
-                // limit to device to device connection if not on same hw module
-                if (patch->sinks[0].type != AUDIO_PORT_TYPE_DEVICE) {
-                    ALOGW("createAudioPatch() invalid sink type for cross hw module");
-                    status = INVALID_OPERATION;
-                    goto exit;
-                }
-                // special case num sources == 2 -=> reuse an exiting output mix to connect to the
-                // sink
+            // manage patches requiring a software bridge
+            // - Device to device AND
+            //    - source HW module != destination HW module OR
+            //    - audio HAL version < 3.0
+            //    - special patch request with 2 sources (reuse one existing output mix)
+            if ((patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE) &&
+                    ((patch->sinks[0].ext.device.hw_module != srcModule) ||
+                    (audioHwDevice->version() < AUDIO_DEVICE_API_VERSION_3_0) ||
+                    (patch->num_sources == 2))) {
                 if (patch->num_sources == 2) {
                     if (patch->sources[1].type != AUDIO_PORT_TYPE_MIX ||
                             patch->sinks[0].ext.device.hw_module !=
@@ -304,6 +295,11 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                                                                &halHandle);
                     }
                 } else {
+                    if (patch->sinks[0].type != AUDIO_PORT_TYPE_MIX) {
+                        status = INVALID_OPERATION;
+                        goto exit;
+                    }
+
                     sp<ThreadBase> thread = audioflinger->checkRecordThread_l(
                                                                     patch->sinks[0].ext.mix.handle);
                     if (thread == 0) {
@@ -472,6 +468,7 @@ status_t AudioFlinger::PatchPanel::createPatchConnections(Patch *patch,
     // this track is given the same buffer as the PatchRecord buffer
     patch->mPatchTrack = new PlaybackThread::PatchTrack(
                                            patch->mPlaybackThread.get(),
+                                           audioPatch->sources[1].ext.mix.usecase.stream,
                                            sampleRate,
                                            outChannelMask,
                                            format,
@@ -578,8 +575,8 @@ status_t AudioFlinger::PatchPanel::releaseAudioPatch(audio_patch_handle_t handle
                 break;
             }
 
-            if (patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE &&
-                    patch->sinks[0].ext.device.hw_module != srcModule) {
+            if (removedPatch->mRecordPatchHandle != AUDIO_PATCH_HANDLE_NONE ||
+                    removedPatch->mPlaybackPatchHandle != AUDIO_PATCH_HANDLE_NONE) {
                 clearPatchConnections(removedPatch);
                 break;
             }
@@ -692,6 +689,5 @@ status_t AudioFlinger::PatchPanel::setAudioPortConfig(const struct audio_port_co
     }
     return NO_ERROR;
 }
-
 
 } // namespace android
