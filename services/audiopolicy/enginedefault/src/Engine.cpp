@@ -515,7 +515,7 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
         if (device2 == AUDIO_DEVICE_NONE) {
             device2 = availableOutputDevicesType & AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
         }
-        if ((device2 == AUDIO_DEVICE_NONE)) {
+        if (device2 == AUDIO_DEVICE_NONE) {
             device2 = availableOutputDevicesType & AUDIO_DEVICE_OUT_LINE;
         }
         if (device2 == AUDIO_DEVICE_NONE) {
