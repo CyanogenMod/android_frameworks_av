@@ -81,6 +81,13 @@ struct IStreamListener : public IInterface {
     // with the next PTS occuring in the stream. The value is of type int64_t.
     static const char *const kKeyMediaTimeUs;
 
+    // Optionally signalled as part of a discontinuity that includes
+    // DISCONTINUITY_TIME. It indicates the media time (in us) of a recent
+    // sample from the same content, and is used as a hint for the parser to
+    // handle PTS wraparound. This is required when a new parser is created
+    // to continue parsing content from the same timeline.
+    static const char *const kKeyRecentMediaTimeUs;
+
     virtual void issueCommand(
             Command cmd, bool synchronous, const sp<AMessage> &msg = NULL) = 0;
 };

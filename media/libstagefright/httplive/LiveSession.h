@@ -34,6 +34,7 @@ struct IMediaHTTPService;
 struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
+struct HLSTime;
 
 struct LiveSession : public AHandler {
     enum Flags {
@@ -125,6 +126,7 @@ private:
     static const int64_t kUpSwitchMarkUs;
     static const int64_t kDownSwitchMarkUs;
     static const int64_t kUpSwitchMarginUs;
+    static const int64_t kResumeThresholdUs;
 
     // Buffer Prepare/Ready/Underflow Marks
     static const int64_t kReadyMarkUs;
@@ -271,7 +273,7 @@ private:
             ssize_t currentBWIndex, ssize_t targetBWIndex) const;
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
     size_t getBandwidthIndex(int32_t bandwidthBps);
-    int64_t latestMediaSegmentStartTimeUs();
+    HLSTime latestMediaSegmentStartTime() const;
 
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
     static StreamType indexToType(int idx);

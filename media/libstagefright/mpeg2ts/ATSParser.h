@@ -118,6 +118,7 @@ private:
 
     bool mTimeOffsetValid;
     int64_t mTimeOffsetUs;
+    int64_t mLastRecoveredPTS;
 
     size_t mNumTSPacketsParsed;
 

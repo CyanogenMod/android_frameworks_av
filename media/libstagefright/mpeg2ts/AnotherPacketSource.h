@@ -76,8 +76,8 @@ struct AnotherPacketSource : public MediaSource {
     sp<AMessage> getLatestDequeuedMeta();
     sp<AMessage> getMetaAfterLastDequeued(int64_t delayUs);
 
-    void trimBuffersAfterTimeUs(size_t discontinuitySeq, int64_t timeUs);
-    sp<AMessage> trimBuffersBeforeTimeUs(size_t discontinuitySeq, int64_t timeUs);
+    void trimBuffersAfterMeta(const sp<AMessage> &meta);
+    sp<AMessage> trimBuffersBeforeMeta(const sp<AMessage> &meta);
 
 protected:
     virtual ~AnotherPacketSource();

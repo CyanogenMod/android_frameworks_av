@@ -52,9 +52,10 @@ namespace android {
 
 // static
 // Bandwidth Switch Mark Defaults
-const int64_t LiveSession::kUpSwitchMarkUs = 25000000ll;
-const int64_t LiveSession::kDownSwitchMarkUs = 18000000ll;
+const int64_t LiveSession::kUpSwitchMarkUs = 15000000ll;
+const int64_t LiveSession::kDownSwitchMarkUs = 20000000ll;
 const int64_t LiveSession::kUpSwitchMarginUs = 5000000ll;
+const int64_t LiveSession::kResumeThresholdUs = 100000ll;
 
 // Buffer Prepare/Ready/Underflow Marks
 const int64_t LiveSession::kReadyMarkUs = 5000000ll;
@@ -70,7 +71,7 @@ struct LiveSession::BandwidthEstimator : public RefBase {
 private:
     // Bandwidth estimation parameters
     static const int32_t kMaxBandwidthHistoryItems = 20;
-    static const int64_t kMaxBandwidthHistoryWindowUs = 3000000ll; // 3 sec
+    static const int64_t kMaxBandwidthHistoryWindowUs = 5000000ll; // 5 sec
 
     struct BandwidthEntry {
         int64_t mDelayUs;
@@ -405,26 +406,30 @@ bool LiveSession::checkSwitchProgress(
         sp<AMessage> lastDequeueMeta, lastEnqueueMeta;
         if (delayUs > 0) {
             lastDequeueMeta = source->getMetaAfterLastDequeued(delayUs);
+            if (lastDequeueMeta == NULL) {
+                // this means we don't have enough cushion, try again later
+                ALOGV("[%s] up switching failed due to insufficient buffer",
+                        stream == STREAMTYPE_AUDIO ? "audio" : "video");
+                return false;
+            }
         } else {
+            // It's okay for lastDequeueMeta to be NULL here, it means the
+            // decoder hasn't even started dequeueing
             lastDequeueMeta = source->getLatestDequeuedMeta();
         }
         // Then, trim off packets at beginning of mPacketSources2 that's before
         // the latest dequeued time. These samples are definitely too late.
-        int64_t lastTimeUs, startTimeUs;
-        int32_t lastSeq, startSeq;
-        if (lastDequeueMeta != NULL) {
-            CHECK(lastDequeueMeta->findInt64("timeUs", &lastTimeUs));
-            CHECK(lastDequeueMeta->findInt32("discontinuitySeq", &lastSeq));
-            firstNewMeta[i] = mPacketSources2.editValueAt(i)
-                    ->trimBuffersBeforeTimeUs(lastSeq, lastTimeUs);
-        }
+        firstNewMeta[i] = mPacketSources2.editValueAt(i)
+                            ->trimBuffersBeforeMeta(lastDequeueMeta);
+
         // Now firstNewMeta[i] is the first sample after the trim.
         // If it's NULL, we failed because dequeue already past all samples
         // in mPacketSource2, we have to try again.
         if (firstNewMeta[i] == NULL) {
+            HLSTime dequeueTime(lastDequeueMeta);
             ALOGV("[%s] dequeue time (%d, %lld) past start time",
                     stream == STREAMTYPE_AUDIO ? "audio" : "video",
-                            lastSeq, (long long) lastTimeUs);
+                    dequeueTime.mSeq, (long long) dequeueTime.mTimeUs);
             return false;
         }
 
@@ -434,20 +439,16 @@ bool LiveSession::checkSwitchProgress(
         // lastEnqueueMeta == NULL means old fetcher stopped at a discontinuity
         // boundary, no need to resume as the content will look different anyways
         if (lastEnqueueMeta != NULL) {
-            CHECK(lastEnqueueMeta->findInt64("timeUs", &lastTimeUs));
-            CHECK(lastEnqueueMeta->findInt32("discontinuitySeq", &lastSeq));
-            CHECK(firstNewMeta[i]->findInt64("timeUs", &startTimeUs));
-            CHECK(firstNewMeta[i]->findInt32("discontinuitySeq", &startSeq));
+            HLSTime lastTime(lastEnqueueMeta), startTime(firstNewMeta[i]);
 
             // no need to resume old fetcher if new fetcher started in different
             // discontinuity sequence, as the content will look different.
-            *needResumeUntil |=
-                    (startSeq == lastSeq
-                            && startTimeUs - lastTimeUs > 100000ll);
+            *needResumeUntil |= (startTime.mSeq == lastTime.mSeq
+                    && startTime.mTimeUs - lastTime.mTimeUs > kResumeThresholdUs);
 
-            // update the stopTime for resumeUntil, as we might have removed some
-            // packets from the head in mPacketSource2
-            stopParams->setInt64(getKeyForStream(stream), startTimeUs);
+            // update the stopTime for resumeUntil
+            stopParams->setInt32("discontinuitySeq", startTime.mSeq);
+            stopParams->setInt64(getKeyForStream(stream), startTime.mTimeUs);
         }
     }
 
@@ -457,18 +458,11 @@ bool LiveSession::checkSwitchProgress(
     for (size_t i = 0; i < kMaxStreams; ++i) {
         StreamType stream = indexToType(i);
         if (!(mSwapMask & mNewStreamMask & stream)
-            || (newUri != mStreams[i].mNewUri)) {
+            || (newUri != mStreams[i].mNewUri)
+            || stream == STREAMTYPE_SUBTITLES) {
             continue;
         }
-        if (stream == STREAMTYPE_SUBTITLES) {
-            continue;
-        }
-        int64_t startTimeUs;
-        int32_t startSeq;
-        CHECK(firstNewMeta[i] != NULL);
-        CHECK(firstNewMeta[i]->findInt64("timeUs", &startTimeUs));
-        CHECK(firstNewMeta[i]->findInt32("discontinuitySeq", &startSeq));
-        mPacketSources.valueFor(stream)->trimBuffersAfterTimeUs(startSeq, startTimeUs);
+        mPacketSources.valueFor(stream)->trimBuffersAfterMeta(firstNewMeta[i]);
     }
 
     // no resumeUntil if already underflow
@@ -574,7 +568,7 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     int64_t targetDurationUs;
                     CHECK(msg->findInt64("targetDurationUs", &targetDurationUs));
-                    mUpSwitchMark = min(kUpSwitchMarkUs, targetDurationUs * 3);
+                    mUpSwitchMark = min(kUpSwitchMarkUs, targetDurationUs * 7 / 4);
                     mDownSwitchMark = min(kDownSwitchMarkUs, targetDurationUs * 9 / 4);
                     mUpSwitchMargin = min(kUpSwitchMarginUs, targetDurationUs);
                     break;
@@ -625,15 +619,15 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     ALOGV("kWhatStopReached");
 
-                    AString uri;
-                    CHECK(msg->findString("uri", &uri));
+                    AString oldUri;
+                    CHECK(msg->findString("uri", &oldUri));
 
-                    ssize_t index = mFetcherInfos.indexOfKey(uri);
+                    ssize_t index = mFetcherInfos.indexOfKey(oldUri);
                     if (index < 0) {
                         break;
                     }
 
-                    tryToFinishBandwidthSwitch(uri);
+                    tryToFinishBandwidthSwitch(oldUri);
                     break;
                 }
 
@@ -837,6 +831,7 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
     size_t initialBandwidthIndex = 0;
 
     if (mPlaylist->isVariantPlaylist()) {
+        Vector<BandwidthItem> itemsWithVideo;
         for (size_t i = 0; i < mPlaylist->size(); ++i) {
             BandwidthItem item;
 
@@ -848,14 +843,22 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
 
             CHECK(meta->findInt32("bandwidth", (int32_t *)&item.mBandwidth));
 
-            if (initialBandwidth == 0) {
-                initialBandwidth = item.mBandwidth;
-            }
-
             mBandwidthItems.push(item);
+            if (mPlaylist->hasType(i, "video")) {
+                itemsWithVideo.push(item);
+            }
+        }
+        // remove the audio-only variants if we have at least one with video
+        if (!itemsWithVideo.empty()
+                && itemsWithVideo.size() < mBandwidthItems.size()) {
+            mBandwidthItems.clear();
+            for (size_t i = 0; i < itemsWithVideo.size(); ++i) {
+                mBandwidthItems.push(itemsWithVideo[i]);
+            }
         }
 
         CHECK_GT(mBandwidthItems.size(), 0u);
+        initialBandwidth = mBandwidthItems[0].mBandwidth;
 
         mBandwidthItems.sort(SortByBandwidth);
 
@@ -1089,6 +1092,9 @@ sp<M3UParser> LiveSession::fetchPlaylist(
     sp<ABuffer> buffer;
     String8 actualUrl;
     ssize_t  err = fetchFile(url, &buffer, 0, -1, 0, NULL, &actualUrl);
+
+    // close off the connection after use
+    mHTTPDataSource->disconnect();
 
     if (err <= 0) {
         return NULL;
@@ -1333,22 +1339,14 @@ size_t LiveSession::getBandwidthIndex(int32_t bandwidthBps) {
     return index;
 }
 
-int64_t LiveSession::latestMediaSegmentStartTimeUs() {
-    sp<AMessage> audioMeta = mPacketSources.valueFor(STREAMTYPE_AUDIO)->getLatestDequeuedMeta();
-    int64_t minSegmentStartTimeUs = -1, videoSegmentStartTimeUs = -1;
-    if (audioMeta != NULL) {
-        audioMeta->findInt64("segmentStartTimeUs", &minSegmentStartTimeUs);
-    }
+HLSTime LiveSession::latestMediaSegmentStartTime() const {
+    HLSTime audioTime(mPacketSources.valueFor(
+                    STREAMTYPE_AUDIO)->getLatestDequeuedMeta());
 
-    sp<AMessage> videoMeta = mPacketSources.valueFor(STREAMTYPE_VIDEO)->getLatestDequeuedMeta();
-    if (videoMeta != NULL
-            && videoMeta->findInt64("segmentStartTimeUs", &videoSegmentStartTimeUs)) {
-        if (minSegmentStartTimeUs < 0 || videoSegmentStartTimeUs < minSegmentStartTimeUs) {
-            minSegmentStartTimeUs = videoSegmentStartTimeUs;
-        }
+    HLSTime videoTime(mPacketSources.valueFor(
+                    STREAMTYPE_VIDEO)->getLatestDequeuedMeta());
 
-    }
-    return minSegmentStartTimeUs;
+    return audioTime < videoTime ? videoTime : audioTime;
 }
 
 status_t LiveSession::onSeek(const sp<AMessage> &msg) {
@@ -1459,14 +1457,9 @@ void LiveSession::changeConfiguration(
         }
 
         const AString &uri = mFetcherInfos.keyAt(i);
+        sp<PlaylistFetcher> &fetcher = mFetcherInfos.editValueAt(i).mFetcher;
 
-        bool discardFetcher = true;
-
-        if (timeUs < 0ll) {
-            // delay fetcher removal if not picking tracks
-            discardFetcher = pickTrack;
-        }
-
+        bool discardFetcher = true, delayRemoval = false;
         for (size_t j = 0; j < kMaxStreams; ++j) {
             StreamType type = indexToType(j);
             if ((streamMask & type) && uri == URIs[j]) {
@@ -1475,15 +1468,23 @@ void LiveSession::changeConfiguration(
                 discardFetcher = false;
             }
         }
+        // Delay fetcher removal if not picking tracks, AND old fetcher
+        // has stream mask that overlaps new variant. (Okay to discard
+        // old fetcher now, if completely no overlap.)
+        if (discardFetcher && timeUs < 0ll && !pickTrack
+                && (fetcher->getStreamTypeMask() & streamMask)) {
+            discardFetcher = false;
+            delayRemoval = true;
+        }
 
         if (discardFetcher) {
-            mFetcherInfos.valueAt(i).mFetcher->stopAsync();
+            fetcher->stopAsync();
         } else {
             float threshold = -1.0f; // always finish fetching by default
             if (timeUs >= 0ll) {
                 // seeking, no need to finish fetching
                 threshold = 0.0f;
-            } else if (!pickTrack) {
+            } else if (delayRemoval) {
                 // adapting, abort if remaining of current segment is over threshold
                 threshold = getAbortThreshold(
                         mOrigBandwidthIndex, mCurBandwidthIndex);
@@ -1491,7 +1492,7 @@ void LiveSession::changeConfiguration(
 
             ALOGV("Pausing with threshold %.3f", threshold);
 
-            mFetcherInfos.valueAt(i).mFetcher->pauseAsync(threshold);
+            fetcher->pauseAsync(threshold);
         }
     }
 
@@ -1640,17 +1641,29 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     CHECK(msg->findInt32("streamMask", (int32_t *)&streamMask));
     CHECK(msg->findInt32("resumeMask", (int32_t *)&resumeMask));
 
+    mNewStreamMask = streamMask | resumeMask;
+
     int64_t timeUs;
     int32_t pickTrack;
     bool switching = false;
-    bool finishSwitching = false;
     CHECK(msg->findInt64("timeUs", &timeUs));
     CHECK(msg->findInt32("pickTrack", &pickTrack));
 
     if (timeUs < 0ll) {
         if (!pickTrack) {
-            switching = true;
-            finishSwitching = (streamMask == 0);
+            // mSwapMask contains streams that are in both old and new variant,
+            // (in mNewStreamMask & mStreamMask) but with different URIs
+            // (not in resumeMask).
+            // For example, old variant has video and audio in two separate
+            // URIs, and new variant has only audio with unchanged URI. mSwapMask
+            // should be 0 as there is nothing to swap. We only need to stop video,
+            // and resume audio.
+            mSwapMask =  mNewStreamMask & mStreamMask & ~resumeMask;
+            switching = (mSwapMask != 0);
+            if (!switching) {
+                ALOGV("#### Finishing Bandwidth Switch Early: %zd => %zd",
+                        mOrigBandwidthIndex, mCurBandwidthIndex);
+            }
         }
         mRealTimeBaseUs = ALooper::GetNowUs() - mLastDequeuedTimeUs;
     } else {
@@ -1665,11 +1678,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 CHECK(msg->findString(mStreams[i].uriKey().c_str(), &mStreams[i].mUri));
             }
         }
-    }
-
-    mNewStreamMask = streamMask | resumeMask;
-    if (switching) {
-        mSwapMask = mStreamMask & ~resumeMask;
     }
 
     // Of all existing fetchers:
@@ -1701,14 +1709,12 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         sp<PlaylistFetcher> fetcher = addFetcher(uri.c_str());
         CHECK(fetcher != NULL);
 
-        int64_t startTimeUs = -1;
-        int64_t segmentStartTimeUs = -1ll;
-        int32_t discontinuitySeq = -1;
+        HLSTime startTime;
         SeekMode seekMode = kSeekModeExactPosition;
         sp<AnotherPacketSource> sources[kMaxStreams];
 
-        if (i == kSubtitleIndex) {
-            segmentStartTimeUs = latestMediaSegmentStartTimeUs();
+        if (i == kSubtitleIndex || (!pickTrack && !switching)) {
+            startTime = latestMediaSegmentStartTime();
         }
 
         // TRICKY: looping from i as earlier streams are already removed from streamMask
@@ -1718,25 +1724,15 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 sources[j] = mPacketSources.valueFor(indexToType(j));
 
                 if (timeUs >= 0) {
-                    startTimeUs = timeUs;
+                    startTime.mTimeUs = timeUs;
                 } else {
                     int32_t type;
                     sp<AMessage> meta;
-                    if (pickTrack) {
-                        // selecting
-
-                        // FIXME:
-                        // This should only apply to the track that's being picked, we
-                        // need a bitmask to indicate that.
-                        //
-                        // It's possible that selectTrack() gets called during a bandwidth
-                        // switch, and we needed to fetch a new variant. The new fetcher
-                        // should start from where old fetcher left off, not where decoder
-                        // is dequeueing at.
-
+                    if (!switching) {
+                        // selecting, or adapting but no swap required
                         meta = sources[j]->getLatestDequeuedMeta();
                     } else {
-                        // adapting
+                        // adapting and swap required
                         meta = sources[j]->getLatestEnqueuedMeta();
                         if (meta != NULL && mCurBandwidthIndex > mOrigBandwidthIndex) {
                             // switching up
@@ -1744,60 +1740,28 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                         }
                     }
 
-                    if (j != kSubtitleIndex
-                            && meta != NULL
+                    if (j != kSubtitleIndex && meta != NULL
                             && !meta->findInt32("discontinuity", &type)) {
-                        int64_t tmpUs;
-                        int64_t tmpSegmentUs;
-                        int32_t seq;
-
-                        CHECK(meta->findInt64("timeUs", &tmpUs));
-                        CHECK(meta->findInt64("segmentStartTimeUs", &tmpSegmentUs));
-                        CHECK(meta->findInt32("discontinuitySeq", &seq));
-                        // If we're switching and looking for next sample or segment, set the target
-                        // segment start time to tmpSegmentUs + tmpDurationUs / 2, which is
-                        // the middle point of the segment where the last sample was.
-                        // This is needed if segments of the two variants are not perfectly
-                        // aligned. (If the corresponding segment in new variant starts slightly
-                        // later than that in the old variant, we still want the switching to
-                        // start in the next one, not the current one)
-                        if (mStreams[j].mSeekMode == kSeekModeNextSample
-                                || mStreams[j].mSeekMode == kSeekModeNextSegment) {
-                            int64_t tmpDurationUs;
-                            CHECK(meta->findInt64("segmentDurationUs", &tmpDurationUs));
-                            tmpSegmentUs += tmpDurationUs / 2;
-                        }
-                        if (startTimeUs < 0 || seq > discontinuitySeq
-                            || (seq == discontinuitySeq
-                            && (tmpSegmentUs > segmentStartTimeUs
-                            || (tmpSegmentUs == segmentStartTimeUs
-                            && tmpUs > startTimeUs)))) {
-                            startTimeUs = tmpUs;
-                            segmentStartTimeUs = tmpSegmentUs;
-                            discontinuitySeq = seq;
+                        HLSTime tmpTime(meta);
+                        if (startTime < tmpTime) {
+                            startTime = tmpTime;
                         }
                     }
 
-                    if (pickTrack) {
-                        // selecting track, queue discontinuities before content
+                    if (!switching) {
+                        // selecting, or adapting but no swap required
                         sources[j]->clear();
                         if (j == kSubtitleIndex) {
                             break;
                         }
 
                         ALOGV("stream[%zu]: queue format change", j);
-
                         sources[j]->queueDiscontinuity(
                                 ATSParser::DISCONTINUITY_FORMAT_ONLY, NULL, true);
                     } else {
-                        // adapting, queue discontinuities after resume
+                        // switching, queue discontinuities after resume
                         sources[j] = mPacketSources2.valueFor(indexToType(j));
                         sources[j]->clear();
-                        uint32_t extraStreams = mNewStreamMask & (~mStreamMask);
-                        if (extraStreams & indexToType(j)) {
-                            sources[j]->queueDiscontinuity(
-                                ATSParser::DISCONTINUITY_FORMAT_ONLY, NULL, true);
-                        }
                         // the new fetcher might be providing streams that used to be
                         // provided by two different fetchers,  if one of the fetcher
                         // paused in the middle while the other somehow paused in next
@@ -1812,13 +1776,19 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
             }
         }
 
+        // Set the target segment start time to the middle point of the
+        // segment where the last sample was.
+        // This gives a better guess if segments of the two variants are not
+        // perfectly aligned. (If the corresponding segment in new variant
+        // starts slightly later than that in the old variant, we still want
+        // to pick that segment, not the one before)
         fetcher->startAsync(
                 sources[kAudioIndex],
                 sources[kVideoIndex],
                 sources[kSubtitleIndex],
-                startTimeUs < 0 ? mLastSeekTimeUs : startTimeUs,
-                segmentStartTimeUs,
-                discontinuitySeq,
+                startTime.mTimeUs < 0 ? mLastSeekTimeUs : startTime.mTimeUs,
+                startTime.getSegmentTimeUs(true /* midpoint */),
+                startTime.mSeq,
                 seekMode);
     }
 
@@ -1829,18 +1799,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
     mReconfigurationInProgress = false;
     if (switching) {
         mSwitchInProgress = true;
-
-        if (finishSwitching) {
-            // Switch is finished now, no new fetchers are created.
-            // This path is hit when old variant had video and audio from
-            // two separate fetchers, while new variant has audio only,
-            // which reuses the previous audio fetcher.
-            for (size_t i = 0; i < kMaxStreams; ++i) {
-                if (mSwapMask & indexToType(i)) {
-                    tryToFinishBandwidthSwitch(mStreams[i].mUri);
-                }
-            }
-        }
     } else {
         mStreamMask = mNewStreamMask;
         mOrigBandwidthIndex = mCurBandwidthIndex;
@@ -1939,7 +1897,6 @@ void LiveSession::tryToFinishBandwidthSwitch(const AString &oldUri) {
     mStreamMask = mNewStreamMask;
     mSwitchInProgress = false;
     mOrigBandwidthIndex = mCurBandwidthIndex;
-
 
     restartPollBuffering();
 }
@@ -2090,7 +2047,8 @@ bool LiveSession::checkBuffering(
             }
             if (bufferedDurationUs > mUpSwitchMark) {
                 ++upCount;
-            } else if (bufferedDurationUs < mDownSwitchMark) {
+            }
+            if (bufferedDurationUs < mDownSwitchMark) {
                 ++downCount;
             }
         }
@@ -2169,15 +2127,24 @@ void LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
     }
 
     int32_t curBandwidth = mBandwidthItems.itemAt(mCurBandwidthIndex).mBandwidth;
-    bool bandwidthLow = bandwidthBps < (int32_t)curBandwidth * 8 / 10;
-    bool bandwidthHigh = bandwidthBps > (int32_t)curBandwidth * 12 / 10;
+    // canSwithDown and canSwitchUp can't both be true.
+    // we only want to switch up when measured bw is 120% higher than current variant,
+    // and we only want to switch down when measured bw is below current variant.
+    bool canSwithDown = bufferLow
+            && (bandwidthBps < (int32_t)curBandwidth);
+    bool canSwitchUp = bufferHigh
+            && (bandwidthBps > (int32_t)curBandwidth * 12 / 10);
 
-    if ((bufferHigh && bandwidthHigh) || (bufferLow && bandwidthLow)) {
+    if (canSwithDown || canSwitchUp) {
         ssize_t bandwidthIndex = getBandwidthIndex(bandwidthBps);
 
+        // it's possible that we're checking for canSwitchUp case, but the returned
+        // bandwidthIndex is < mCurBandwidthIndex, as getBandwidthIndex() only uses 70%
+        // of measured bw. In that case we don't want to do anything, since we have
+        // both enough buffer and enough bw.
         if (bandwidthIndex == mCurBandwidthIndex
-                || (bufferHigh && bandwidthIndex < mCurBandwidthIndex)
-                || (bufferLow && bandwidthIndex > mCurBandwidthIndex)) {
+                || (canSwitchUp && bandwidthIndex < mCurBandwidthIndex)
+                || (canSwithDown && bandwidthIndex > mCurBandwidthIndex)) {
             return;
         }
 

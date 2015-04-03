@@ -50,6 +50,7 @@ struct M3UParser : public RefBase {
     ssize_t getSelectedTrack(media_track_type /* type */) const;
 
     bool getTypeURI(size_t index, const char *key, AString *uri) const;
+    bool hasType(size_t index, const char *key) const;
 
 protected:
     virtual ~M3UParser();
