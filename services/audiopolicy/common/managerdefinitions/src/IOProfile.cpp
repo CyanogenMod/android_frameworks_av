@@ -23,9 +23,8 @@
 
 namespace android {
 
-IOProfile::IOProfile(const String8& name, audio_port_role_t role,
-                                         const sp<HwModule>& module)
-    : AudioPort(name, AUDIO_PORT_TYPE_MIX, role, module)
+IOProfile::IOProfile(const String8& name, audio_port_role_t role)
+    : AudioPort(name, AUDIO_PORT_TYPE_MIX, role)
 {
 }
 

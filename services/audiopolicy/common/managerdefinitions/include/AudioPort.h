@@ -32,13 +32,11 @@ class AudioPort : public virtual RefBase
 {
 public:
     AudioPort(const String8& name, audio_port_type_t type,
-              audio_port_role_t role, const sp<HwModule>& module);
+              audio_port_role_t role);
     virtual ~AudioPort() {}
 
-    audio_port_handle_t getHandle() { return mId; }
-
-    void attach(const sp<HwModule>& module);
-    bool isAttached() { return mId != 0; }
+    virtual void attach(const sp<HwModule>& module);
+    bool isAttached() { return mModule != 0; }
 
     static audio_port_handle_t getNextUniqueId();
 
@@ -76,6 +74,8 @@ public:
     static int compareFormats(audio_format_t format1, audio_format_t format2);
 
     audio_module_handle_t getModuleHandle() const;
+    uint32_t getModuleVersion() const;
+    const char *getModuleName() const;
 
     void dump(int fd, int spaces) const;
     void log(const char* indent) const;
@@ -94,13 +94,6 @@ public:
     sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
     uint32_t mFlags; // attribute flags (e.g primary output,
                      // direct output...).
-
-
-protected:
-    //TODO - clarify the role of mId in this case, both an "attached" indicator
-    // and a unique ID for identifying a port to the (upcoming) selection API,
-    // and its relationship to the mId in AudioOutputDescriptor and AudioInputDescriptor.
-    audio_port_handle_t mId;
 
 private:
     static volatile int32_t mNextUniqueId;

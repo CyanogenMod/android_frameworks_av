@@ -681,7 +681,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     sp<DeviceDescriptor> deviceDesc;
 
     for (size_t i = 0; i < mAvailableOutputDevices.size(); i++) {
-        if (mAvailableOutputDevices[i]->getHandle() == selectedDeviceId) {
+        if (mAvailableOutputDevices[i]->getId() == selectedDeviceId) {
             deviceDesc = mAvailableOutputDevices[i];
             break;
         }
@@ -818,7 +818,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         if (offloadInfo != NULL) {
             config.offload_info = *offloadInfo;
         }
-        status = mpClientInterface->openOutput(profile->mModule->mHandle,
+        status = mpClientInterface->openOutput(profile->getModuleHandle(),
                                                &output,
                                                &config,
                                                &outputDesc->mDevice,
@@ -1286,8 +1286,8 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         }
     }
 
-    if (profile->mModule->mHandle == 0) {
-        ALOGE("getInputForAttr(): HW module %s not opened", profile->mModule->mName);
+    if (profile->getModuleHandle() == 0) {
+        ALOGE("getInputForAttr(): HW module %s not opened", profile->getModuleName());
         return NO_INIT;
     }
 
@@ -1296,7 +1296,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     config.channel_mask = channelMask;
     config.format = format;
 
-    status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
+    status_t status = mpClientInterface->openInput(profile->getModuleHandle(),
                                                    input,
                                                    &config,
                                                    &device,
@@ -2184,7 +2184,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 }
                 sinkDeviceDesc->toAudioPortConfig(&newPatch.sinks[i], &patch->sinks[i]);
 
-                if (srcDeviceDesc->mModule != sinkDeviceDesc->mModule) {
+                if (srcDeviceDesc->getModuleHandle() != sinkDeviceDesc->getModuleHandle()) {
                     // only one sink supported when connected devices across HW modules
                     if (patch->num_sinks > 1) {
                         return INVALID_OPERATION;
@@ -2503,7 +2503,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             config.channel_mask = outputDesc->mChannelMask;
             config.format = outputDesc->mFormat;
             audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
-            status_t status = mpClientInterface->openOutput(outProfile->mModule->mHandle,
+            status_t status = mpClientInterface->openOutput(outProfile->getModuleHandle(),
                                                             &output,
                                                             &config,
                                                             &outputDesc->mDevice,
@@ -2579,7 +2579,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             config.channel_mask = inputDesc->mChannelMask;
             config.format = inputDesc->mFormat;
             audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
-            status_t status = mpClientInterface->openInput(inProfile->mModule->mHandle,
+            status_t status = mpClientInterface->openInput(inProfile->getModuleHandle(),
                                                            &input,
                                                            &config,
                                                            &inputDesc->mDevice,
@@ -2784,7 +2784,7 @@ bool AudioPolicyManager::threadLoop()
                 sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(mPrimaryOutput);
                 mpClientInterface->closeOutput(mPrimaryOutput);
 
-                audio_module_handle_t moduleHandle = outputDesc->mModule->mHandle;
+                audio_module_handle_t moduleHandle = outputDesc->getModuleHandle();
 
                 removeOutput(mPrimaryOutput);
                 sp<AudioOutputDescriptor> outputDesc = new AudioOutputDescriptor(NULL);
@@ -2958,7 +2958,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             config.offload_info.channel_mask = desc->mChannelMask;
             config.offload_info.format = desc->mFormat;
             audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
-            status_t status = mpClientInterface->openOutput(profile->mModule->mHandle,
+            status_t status = mpClientInterface->openOutput(profile->getModuleHandle(),
                                                             &output,
                                                             &config,
                                                             &desc->mDevice,
@@ -3028,7 +3028,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                     config.offload_info.sample_rate = config.sample_rate;
                     config.offload_info.channel_mask = config.channel_mask;
                     config.offload_info.format = config.format;
-                    status = mpClientInterface->openOutput(profile->mModule->mHandle,
+                    status = mpClientInterface->openOutput(profile->getModuleHandle(),
                                                            &output,
                                                            &config,
                                                            &desc->mDevice,
@@ -3233,7 +3233,7 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
             config.channel_mask = desc->mChannelMask;
             config.format = desc->mFormat;
             audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
-            status_t status = mpClientInterface->openInput(profile->mModule->mHandle,
+            status_t status = mpClientInterface->openInput(profile->getModuleHandle(),
                                                            &input,
                                                            &config,
                                                            &desc->mDevice,
@@ -4518,7 +4518,8 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
 
     module = new HwModule("primary");
 
-    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SOURCE, module);
+    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SOURCE);
+    profile->attach(module);
     profile->mSamplingRates.add(44100);
     profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
     profile->mChannelMasks.add(AUDIO_CHANNEL_OUT_STEREO);
@@ -4526,7 +4527,8 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
     profile->mFlags = AUDIO_OUTPUT_FLAG_PRIMARY;
     module->mOutputProfiles.add(profile);
 
-    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SINK, module);
+    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SINK);
+    profile->attach(module);
     profile->mSamplingRates.add(8000);
     profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
     profile->mChannelMasks.add(AUDIO_CHANNEL_IN_MONO);

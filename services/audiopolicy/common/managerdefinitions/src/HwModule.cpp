@@ -48,7 +48,7 @@ status_t HwModule::loadInput(cnode *root)
 {
     cnode *node = root->first_child;
 
-    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SINK, this);
+    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SINK);
 
     while (node) {
         if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
@@ -83,6 +83,7 @@ status_t HwModule::loadInput(cnode *root)
         ALOGV("loadInput() adding input Supported Devices %04x",
               profile->mSupportedDevices.types());
 
+        profile->attach(this);
         mInputProfiles.add(profile);
         return NO_ERROR;
     } else {
@@ -94,7 +95,7 @@ status_t HwModule::loadOutput(cnode *root)
 {
     cnode *node = root->first_child;
 
-    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SOURCE, this);
+    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SOURCE);
 
     while (node) {
         if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
@@ -128,7 +129,7 @@ status_t HwModule::loadOutput(cnode *root)
 
         ALOGV("loadOutput() adding output Supported Devices %04x, mFlags %04x",
               profile->mSupportedDevices.types(), profile->mFlags);
-
+        profile->attach(this);
         mOutputProfiles.add(profile);
         return NO_ERROR;
     } else {
@@ -154,7 +155,6 @@ status_t HwModule::loadDevice(cnode *root)
         return BAD_VALUE;
     }
     sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(String8(root->name), type);
-    deviceDesc->mModule = this;
 
     node = root->first_child;
     while (node) {
@@ -183,7 +183,7 @@ status_t HwModule::loadDevice(cnode *root)
 status_t HwModule::addOutputProfile(String8 name, const audio_config_t *config,
                                                   audio_devices_t device, String8 address)
 {
-    sp<IOProfile> profile = new IOProfile(name, AUDIO_PORT_ROLE_SOURCE, this);
+    sp<IOProfile> profile = new IOProfile(name, AUDIO_PORT_ROLE_SOURCE);
 
     profile->mSamplingRates.add(config->sample_rate);
     profile->mChannelMasks.add(config->channel_mask);
@@ -193,6 +193,7 @@ status_t HwModule::addOutputProfile(String8 name, const audio_config_t *config,
     devDesc->mAddress = address;
     profile->mSupportedDevices.add(devDesc);
 
+    profile->attach(this);
     mOutputProfiles.add(profile);
 
     return NO_ERROR;
@@ -213,7 +214,7 @@ status_t HwModule::removeOutputProfile(String8 name)
 status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
                                                   audio_devices_t device, String8 address)
 {
-    sp<IOProfile> profile = new IOProfile(name, AUDIO_PORT_ROLE_SINK, this);
+    sp<IOProfile> profile = new IOProfile(name, AUDIO_PORT_ROLE_SINK);
 
     profile->mSamplingRates.add(config->sample_rate);
     profile->mChannelMasks.add(config->channel_mask);
@@ -225,6 +226,7 @@ status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
 
     ALOGV("addInputProfile() name %s rate %d mask 0x08", name.string(), config->sample_rate, config->channel_mask);
 
+    profile->attach(this);
     mInputProfiles.add(profile);
 
     return NO_ERROR;

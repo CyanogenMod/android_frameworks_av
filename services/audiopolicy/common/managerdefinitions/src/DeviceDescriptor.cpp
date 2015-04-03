@@ -29,11 +29,21 @@ String8 DeviceDescriptor::emptyNameStr = String8("");
 DeviceDescriptor::DeviceDescriptor(const String8& name, audio_devices_t type) :
     AudioPort(name, AUDIO_PORT_TYPE_DEVICE,
               audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
-                                             AUDIO_PORT_ROLE_SOURCE,
-              NULL),
-    mAddress(""), mDeviceType(type)
+                                             AUDIO_PORT_ROLE_SOURCE),
+    mAddress(""), mDeviceType(type), mId(0)
 {
 
+}
+
+audio_port_handle_t DeviceDescriptor::getId() const
+{
+    return mId;
+}
+
+void DeviceDescriptor::attach(const sp<HwModule>& module)
+{
+    AudioPort::attach(module);
+    mId = getNextUniqueId();
 }
 
 bool DeviceDescriptor::equals(const sp<DeviceDescriptor>& other) const
@@ -139,11 +149,14 @@ void DeviceVector::loadDevicesFromName(char *name,
     char *devName = strtok(name, "|");
     while (devName != NULL) {
         if (strlen(devName) != 0) {
-            audio_devices_t type = ConfigParsingUtils::stringToEnum(sDeviceNameToEnumTable,
-                                 ARRAY_SIZE(sDeviceNameToEnumTable),
+            audio_devices_t type = ConfigParsingUtils::stringToEnum(sDeviceTypeToEnumTable,
+                                 ARRAY_SIZE(sDeviceTypeToEnumTable),
                                  devName);
             if (type != AUDIO_DEVICE_NONE) {
-                sp<DeviceDescriptor> dev = new DeviceDescriptor(String8(name), type);
+                devName = (char *)ConfigParsingUtils::enumToString(sDeviceNameToEnumTable,
+                                                           ARRAY_SIZE(sDeviceNameToEnumTable),
+                                                           type);
+                sp<DeviceDescriptor> dev = new DeviceDescriptor(String8(devName), type);
                 if (type == AUDIO_DEVICE_IN_REMOTE_SUBMIX ||
                         type == AUDIO_DEVICE_OUT_REMOTE_SUBMIX ) {
                     dev->mAddress = String8("0");
@@ -183,7 +196,7 @@ sp<DeviceDescriptor> DeviceVector::getDeviceFromId(audio_port_handle_t id) const
 {
     sp<DeviceDescriptor> device;
     for (size_t i = 0; i < size(); i++) {
-        if (itemAt(i)->getHandle() == id) {
+        if (itemAt(i)->getId() == id) {
             device = itemAt(i);
             break;
         }
@@ -303,8 +316,8 @@ status_t DeviceDescriptor::dump(int fd, int spaces, int index) const
         result.append(buffer);
     }
     snprintf(buffer, SIZE, "%*s- type: %-48s\n", spaces, "",
-            ConfigParsingUtils::enumToString(sDeviceNameToEnumTable,
-                    ARRAY_SIZE(sDeviceNameToEnumTable),
+            ConfigParsingUtils::enumToString(sDeviceTypeToEnumTable,
+                    ARRAY_SIZE(sDeviceTypeToEnumTable),
                     mDeviceType));
     result.append(buffer);
     if (mAddress.size() != 0) {

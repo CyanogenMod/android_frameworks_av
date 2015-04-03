@@ -31,8 +31,8 @@ int32_t volatile AudioPort::mNextUniqueId = 1;
 // --- AudioPort class implementation
 
 AudioPort::AudioPort(const String8& name, audio_port_type_t type,
-                     audio_port_role_t role, const sp<HwModule>& module) :
-    mName(name), mType(type), mRole(role), mModule(module), mFlags(0), mId(0)
+                     audio_port_role_t role) :
+    mName(name), mType(type), mRole(role), mFlags(0)
 {
     mUseInChannelMask = ((type == AUDIO_PORT_TYPE_DEVICE) && (role == AUDIO_PORT_ROLE_SOURCE)) ||
                     ((type == AUDIO_PORT_TYPE_MIX) && (role == AUDIO_PORT_ROLE_SINK));
@@ -40,7 +40,6 @@ AudioPort::AudioPort(const String8& name, audio_port_type_t type,
 
 void AudioPort::attach(const sp<HwModule>& module)
 {
-    mId = getNextUniqueId();
     mModule = module;
 }
 
@@ -51,7 +50,26 @@ audio_port_handle_t AudioPort::getNextUniqueId()
 
 audio_module_handle_t AudioPort::getModuleHandle() const
 {
+    if (mModule == 0) {
+        return 0;
+    }
     return mModule->mHandle;
+}
+
+uint32_t AudioPort::getModuleVersion() const
+{
+    if (mModule == 0) {
+        return 0;
+    }
+    return mModule->mHalVersion;
+}
+
+const char *AudioPort::getModuleName() const
+{
+    if (mModule == 0) {
+        return "";
+    }
+    return mModule->mName;
 }
 
 void AudioPort::toAudioPort(struct audio_port *port) const
@@ -629,7 +647,7 @@ void AudioPort::dump(int fd, int spaces) const
     char buffer[SIZE];
     String8 result;
 
-    if (mName.size() != 0) {
+    if (mName.length() != 0) {
         snprintf(buffer, SIZE, "%*s- name: %s\n", spaces, "", mName.string());
         result.append(buffer);
     }
@@ -687,7 +705,6 @@ void AudioPort::dump(int fd, int spaces) const
     if (mGains.size() != 0) {
         snprintf(buffer, SIZE, "%*s- gains:\n", spaces, "");
         write(fd, buffer, strlen(buffer) + 1);
-        result.append(buffer);
         for (size_t i = 0; i < mGains.size(); i++) {
             mGains[i]->dump(fd, spaces + 2, i);
         }

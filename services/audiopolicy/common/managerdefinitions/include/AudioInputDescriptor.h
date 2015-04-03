@@ -34,12 +34,11 @@ class AudioInputDescriptor: public AudioPortConfig
 public:
     AudioInputDescriptor(const sp<IOProfile>& profile);
     void setIoHandle(audio_io_handle_t ioHandle);
-
+    audio_port_handle_t getId() const;
     audio_module_handle_t getModuleHandle() const;
 
     status_t    dump(int fd);
 
-    audio_port_handle_t           mId;
     audio_io_handle_t             mIoHandle;       // input handle
     audio_devices_t               mDevice;         // current device this input is routed to
     AudioMix                      *mPolicyMix;     // non NULL when used by a dynamic policy
@@ -57,6 +56,9 @@ public:
             const struct audio_port_config *srcConfig = NULL) const;
     virtual sp<AudioPort> getAudioPort() const { return mProfile; }
     void toAudioPort(struct audio_port *port) const;
+
+private:
+    audio_port_handle_t           mId;
 };
 
 class AudioInputCollection :
