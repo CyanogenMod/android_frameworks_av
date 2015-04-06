@@ -268,6 +268,12 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
     }
 
+    mBitrate = totalBitrate;
+
+    return OK;
+}
+
+status_t NuPlayer::GenericSource::startSources() {
     // Start the selected A/V tracks now before we start buffering.
     // Widevine sources might re-initialize crypto when starting, if we delay
     // this to start(), all data buffered during prepare would be wasted.
@@ -281,8 +287,6 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         ALOGE("failed to start video track!");
         return UNKNOWN_ERROR;
     }
-
-    mBitrate = totalBitrate;
 
     return OK;
 }
@@ -429,6 +433,32 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             | FLAG_CAN_SEEK_FORWARD
             | FLAG_CAN_SEEK);
 
+    if (mIsSecure) {
+        // secure decoders must be instantiated before starting widevine source
+        sp<AMessage> reply = new AMessage(kWhatSecureDecodersInstantiated, id());
+        notifyInstantiateSecureDecoders(reply);
+    } else {
+        finishPrepareAsync();
+    }
+}
+
+void NuPlayer::GenericSource::onSecureDecodersInstantiated(status_t err) {
+    if (err != OK) {
+        ALOGE("Failed to instantiate secure decoders!");
+        notifyPreparedAndCleanup(err);
+        return;
+    }
+    finishPrepareAsync();
+}
+
+void NuPlayer::GenericSource::finishPrepareAsync() {
+    status_t err = startSources();
+    if (err != OK) {
+        ALOGE("Failed to init start data source!");
+        notifyPreparedAndCleanup(err);
+        return;
+    }
+
     if (mIsStreaming) {
         mPrepareBuffering = true;
 
@@ -447,6 +477,7 @@ void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
         mDataSource.clear();
         mCachedSource.clear();
         mHttpSource.clear();
+        mBitrate = -1;
 
         cancelPollBuffering();
     }
@@ -876,6 +907,14 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
       case kWhatReadBuffer:
       {
           onReadBuffer(msg);
+          break;
+      }
+
+      case kWhatSecureDecodersInstantiated:
+      {
+          int32_t err;
+          CHECK(msg->findInt32("err", &err));
+          onSecureDecodersInstantiated(err);
           break;
       }
 
