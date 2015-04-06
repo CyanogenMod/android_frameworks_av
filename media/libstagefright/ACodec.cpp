@@ -1685,6 +1685,16 @@ status_t ACodec::configureCodec(
         err = setPriority(priority);
     }
 
+    int32_t rateInt = -1;
+    float rateFloat = -1;
+    if (!msg->findFloat("operating-rate", &rateFloat)) {
+        msg->findInt32("operating-rate", &rateInt);
+        rateFloat = (float)rateInt;  // 16MHz (FLINTMAX) is OK for upper bound.
+    }
+    if (rateFloat > 0) {
+        err = setOperatingRate(rateFloat, video);
+    }
+
     mBaseOutputFormat = outputFormat;
 
     CHECK_EQ(getPortFormat(kPortIndexInput, inputFormat), (status_t)OK);
@@ -1707,6 +1717,34 @@ status_t ACodec::setPriority(int32_t priority) {
             &config, sizeof(config));
     if (temp != OK) {
         ALOGI("codec does not support config priority (err %d)", temp);
+    }
+    return OK;
+}
+
+status_t ACodec::setOperatingRate(float rateFloat, bool isVideo) {
+    if (rateFloat < 0) {
+        return BAD_VALUE;
+    }
+    OMX_U32 rate;
+    if (isVideo) {
+        if (rateFloat > 65535) {
+            return BAD_VALUE;
+        }
+        rate = (OMX_U32)(rateFloat * 65536.0f + 0.5f);
+    } else {
+        if (rateFloat > UINT_MAX) {
+            return BAD_VALUE;
+        }
+        rate = (OMX_U32)(rateFloat);
+    }
+    OMX_PARAM_U32TYPE config;
+    InitOMXParams(&config);
+    config.nU32 = rate;
+    status_t err = mOMX->setConfig(
+            mNode, (OMX_INDEXTYPE)OMX_IndexConfigOperatingRate,
+            &config, sizeof(config));
+    if (err != OK) {
+        ALOGI("codec does not support config operating rate (err %d)", err);
     }
     return OK;
 }

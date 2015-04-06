@@ -300,6 +300,7 @@ private:
             OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels);
 
     status_t setPriority(int32_t priority);
+    status_t setOperatingRate(float rateFloat, bool isVideo);
 
     status_t setMinBufferSize(OMX_U32 portIndex, size_t size);
 
