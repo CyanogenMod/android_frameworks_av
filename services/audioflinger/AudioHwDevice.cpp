@@ -44,7 +44,7 @@ status_t AudioHwDevice::openOutputStream(
     AudioStreamOut *outputStream = new AudioStreamOut(this, flags);
 
     // Try to open the HAL first using the current format.
-    ALOGV("AudioHwDevice::openOutputStream(), try "
+    ALOGV("openOutputStream(), try "
             " sampleRate %d, Format %#x, "
             "channelMask %#x",
             config->sample_rate,
@@ -59,7 +59,7 @@ status_t AudioHwDevice::openOutputStream(
         // FIXME Look at any modification to the config.
         // The HAL might modify the config to suggest a wrapped format.
         // Log this so we can see what the HALs are doing.
-        ALOGI("AudioHwDevice::openOutputStream(), HAL returned"
+        ALOGI("openOutputStream(), HAL returned"
             " sampleRate %d, Format %#x, "
             "channelMask %#x, status %d",
             config->sample_rate,
@@ -72,16 +72,19 @@ status_t AudioHwDevice::openOutputStream(
                 && ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)
                 && ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0);
 
-        // FIXME - Add isEncodingSupported() query to SPDIF wrapper then
-        // call it from here.
         if (wrapperNeeded) {
-            outputStream = new SpdifStreamOut(this, flags);
-            status = outputStream->open(handle, devices, &originalConfig, address);
-            if (status != NO_ERROR) {
-                ALOGE("ERROR - AudioHwDevice::openOutputStream(), SPDIF open returned %d",
-                    status);
-                delete outputStream;
-                outputStream = NULL;
+            if (SPDIFEncoder::isFormatSupported(originalConfig.format)) {
+                outputStream = new SpdifStreamOut(this, flags, originalConfig.format);
+                status = outputStream->open(handle, devices, &originalConfig, address);
+                if (status != NO_ERROR) {
+                    ALOGE("ERROR - openOutputStream(), SPDIF open returned %d",
+                        status);
+                    delete outputStream;
+                    outputStream = NULL;
+                }
+            } else {
+                ALOGE("ERROR - openOutputStream(), SPDIFEncoder does not support format 0x%08x",
+                    originalConfig.format);
             }
         }
     }

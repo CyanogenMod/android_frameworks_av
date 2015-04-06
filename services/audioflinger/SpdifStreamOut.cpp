@@ -32,10 +32,12 @@ namespace android {
  * If the AudioFlinger is processing encoded data and the HAL expects
  * PCM then we need to wrap the data in an SPDIF wrapper.
  */
-SpdifStreamOut::SpdifStreamOut(AudioHwDevice *dev, audio_output_flags_t flags)
+SpdifStreamOut::SpdifStreamOut(AudioHwDevice *dev,
+            audio_output_flags_t flags,
+            audio_format_t format)
         : AudioStreamOut(dev,flags)
         , mRateMultiplier(1)
-        , mSpdifEncoder(this)
+        , mSpdifEncoder(this, format)
         , mRenderPositionHal(0)
         , mPreviousHalPosition32(0)
 {
@@ -49,15 +51,15 @@ status_t SpdifStreamOut::open(
 {
     struct audio_config customConfig = *config;
 
-    customConfig.format = AUDIO_FORMAT_PCM_16_BIT;
-    customConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
-
     // Some data bursts run at a higher sample rate.
+    // TODO Move this into the audio_utils as a static method.
     switch(config->format) {
         case AUDIO_FORMAT_E_AC3:
             mRateMultiplier = 4;
             break;
         case AUDIO_FORMAT_AC3:
+        case AUDIO_FORMAT_DTS:
+        case AUDIO_FORMAT_DTS_HD:
             mRateMultiplier = 1;
             break;
         default:
@@ -66,6 +68,9 @@ status_t SpdifStreamOut::open(
             return BAD_VALUE;
     }
     customConfig.sample_rate = config->sample_rate * mRateMultiplier;
+
+    customConfig.format = AUDIO_FORMAT_PCM_16_BIT;
+    customConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
 
     // Always print this because otherwise it could be very confusing if the
     // HAL and AudioFlinger are using different formats.
