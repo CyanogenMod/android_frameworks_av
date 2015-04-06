@@ -1665,7 +1665,18 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     return err;
                 }
             }
+            if (mPath.size() >= 2
+                    && mPath[mPath.size() - 2] == FOURCC('m', 'p', '4', 'v')) {
+                // Check if the video is MPEG2
+                ESDS esds(&buffer[4], chunk_data_size - 4);
 
+                uint8_t objectTypeIndication;
+                if (esds.getObjectTypeIndication(&objectTypeIndication) == OK) {
+                    if (objectTypeIndication >= 0x60 && objectTypeIndication <= 0x65) {
+                        mLastTrack->meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_MPEG2);
+                    }
+                }
+            }
             break;
         }
 
@@ -2830,6 +2841,7 @@ status_t MPEG4Extractor::verifyTrack(Track *track) {
             return ERROR_MALFORMED;
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4)
+            || !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG2)
             || !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
         if (!track->meta->findData(kKeyESDS, &type, &data, &size)
                 || type != kTypeESDS) {
