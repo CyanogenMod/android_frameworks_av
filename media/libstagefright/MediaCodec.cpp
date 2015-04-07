@@ -22,7 +22,9 @@
 #include "include/SoftwareRenderer.h"
 
 #include <binder/IBatteryStats.h>
+#include <binder/IMemory.h>
 #include <binder/IServiceManager.h>
+#include <binder/MemoryDealer.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -969,6 +971,17 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     size_t numBuffers = portDesc->countBuffers();
 
+                    size_t totalSize = 0;
+                    for (size_t i = 0; i < numBuffers; ++i) {
+                        if (portIndex == kPortIndexInput && mCrypto != NULL) {
+                            totalSize += portDesc->bufferAt(i)->capacity();
+                        }
+                    }
+
+                    if (totalSize) {
+                        mDealer = new MemoryDealer(totalSize, "MediaCodec");
+                    }
+
                     for (size_t i = 0; i < numBuffers; ++i) {
                         BufferInfo info;
                         info.mBufferID = portDesc->bufferIDAt(i);
@@ -976,8 +989,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         info.mData = portDesc->bufferAt(i);
 
                         if (portIndex == kPortIndexInput && mCrypto != NULL) {
+                            sp<IMemory> mem = mDealer->allocate(info.mData->capacity());
                             info.mEncryptedData =
-                                new ABuffer(info.mData->capacity());
+                                new ABuffer(mem->pointer(), info.mData->capacity());
+                            info.mSharedEncryptedBuffer = mem;
                         }
 
                         buffers->push_back(info);
@@ -1953,7 +1968,8 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
                 key,
                 iv,
                 mode,
-                info->mEncryptedData->base() + offset,
+                info->mSharedEncryptedBuffer,
+                offset,
                 subSamples,
                 numSubSamples,
                 info->mData->base(),
