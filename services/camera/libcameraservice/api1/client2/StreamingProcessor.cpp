@@ -27,6 +27,7 @@
 
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include <gui/BufferItem.h>
 #include <gui/Surface.h>
 #include <media/hardware/MetadataBufferType.h>
 
@@ -675,7 +676,7 @@ status_t StreamingProcessor::processRecordingFrame() {
     sp<Camera2Client> client = mClient.promote();
     if (client == 0) {
         // Discard frames during shutdown
-        BufferItemConsumer::BufferItem imgBuffer;
+        BufferItem imgBuffer;
         res = mRecordingConsumer->acquireBuffer(&imgBuffer, 0);
         if (res != OK) {
             if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
@@ -693,7 +694,7 @@ status_t StreamingProcessor::processRecordingFrame() {
             with Camera2Client code calling into StreamingProcessor */
         SharedParameters::Lock l(client->getParameters());
         Mutex::Autolock m(mMutex);
-        BufferItemConsumer::BufferItem imgBuffer;
+        BufferItem imgBuffer;
         res = mRecordingConsumer->acquireBuffer(&imgBuffer, 0);
         if (res != OK) {
             if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
@@ -819,8 +820,7 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
 
     size_t itemIndex;
     for (itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
-        const BufferItemConsumer::BufferItem item =
-                mRecordingBuffers[itemIndex];
+        const BufferItem item = mRecordingBuffers[itemIndex];
         if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT &&
                 item.mGraphicBuffer->handle == imgHandle) {
             break;
@@ -864,8 +864,7 @@ void StreamingProcessor::releaseAllRecordingFramesLocked() {
 
     size_t releasedCount = 0;
     for (size_t itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
-        const BufferItemConsumer::BufferItem item =
-                mRecordingBuffers[itemIndex];
+        const BufferItem item = mRecordingBuffers[itemIndex];
         if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT) {
             res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
             if (res != OK) {

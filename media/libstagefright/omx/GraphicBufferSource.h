@@ -187,15 +187,15 @@ private:
 
     // Marks the mCodecBuffers entry as in-use, copies the GraphicBuffer
     // reference into the codec buffer, and submits the data to the codec.
-    status_t submitBuffer_l(const BufferQueue::BufferItem &item, int cbi);
+    status_t submitBuffer_l(const BufferItem &item, int cbi);
 
     // Submits an empty buffer, with the EOS flag set.   Returns without
     // doing anything if we don't have a codec buffer available.
     void submitEndOfInputStream_l();
 
-    void setLatestSubmittedBuffer_l(const BufferQueue::BufferItem &item);
+    void setLatestSubmittedBuffer_l(const BufferItem &item);
     bool repeatLatestSubmittedBuffer_l();
-    int64_t getTimestamp(const BufferQueue::BufferItem &item);
+    int64_t getTimestamp(const BufferItem &item);
 
     // Lock, covers all member variables.
     mutable Mutex mMutex;

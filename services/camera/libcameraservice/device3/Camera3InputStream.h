@@ -48,8 +48,6 @@ class Camera3InputStream : public Camera3IOStreamBase {
 
   private:
 
-    typedef BufferItemConsumer::BufferItem BufferItem;
-
     sp<BufferItemConsumer> mConsumer;
     Vector<BufferItem> mBuffersInFlight;
 

@@ -440,7 +440,7 @@ status_t ZslProcessor::processNewZslBuffer() {
         zslConsumer = mZslConsumer;
     }
     ALOGVV("Trying to get next buffer");
-    BufferItemConsumer::BufferItem item;
+    BufferItem item;
     res = zslConsumer->acquireBuffer(&item, 0);
     if (res != OK) {
         if (res != BufferItemConsumer::NO_BUFFER_AVAILABLE) {
