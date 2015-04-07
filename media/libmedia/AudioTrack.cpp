@@ -122,6 +122,7 @@ AudioTrack::AudioTrack()
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
+      mUseSmallBuf(false),
       mPausedPosition(0)
 {
     mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
