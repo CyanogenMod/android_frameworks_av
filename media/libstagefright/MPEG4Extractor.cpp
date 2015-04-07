@@ -1274,6 +1274,11 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 return ERROR_IO;
             }
 
+            if (!timescale) {
+                ALOGE("timescale should not be ZERO.");
+                return ERROR_MALFORMED;
+            }
+
             mLastTrack->timescale = ntohl(timescale);
 
             // 14496-12 says all ones means indeterminate, but some files seem to use
@@ -2849,6 +2854,11 @@ status_t MPEG4Extractor::verifyTrack(Track *track) {
     if (track->sampleTable == NULL || !track->sampleTable->isValid()) {
         // Make sure we have all the metadata we need.
         ALOGE("stbl atom missing/invalid.");
+        return ERROR_MALFORMED;
+    }
+
+    if (track->timescale == 0) {
+        ALOGE("timescale invalid.");
         return ERROR_MALFORMED;
     }
 
