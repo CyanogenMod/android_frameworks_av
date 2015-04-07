@@ -590,6 +590,16 @@ private:
      */
     void logClientDied(int clientPid, const char* reason);
 
+    /**
+     * Add a event log message that a serious service-level error has occured
+     */
+    void logServiceError(const char* msg, int errorCode);
+
+    /**
+     * Dump the event log to an FD
+     */
+    void dumpEventLog(int fd);
+
     int                 mNumberOfCameras;
 
     // sounds

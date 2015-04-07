@@ -57,6 +57,14 @@ CameraModule::CameraModule(camera_module_t *module) {
     mCameraInfoMap.setCapacity(getNumberOfCameras());
 }
 
+int CameraModule::init() {
+    if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4 &&
+            mModule->init != NULL) {
+        return mModule->init();
+    }
+    return OK;
+}
+
 int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
     Mutex::Autolock lock(mCameraInfoLock);
     if (cameraId < 0) {
@@ -92,7 +100,7 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
     assert(index != NAME_NOT_FOUND);
     // return the cached camera info
     *info = mCameraInfoMap[index];
-    return 0;
+    return OK;
 }
 
 int CameraModule::open(const char* id, struct hw_device_t** device) {
@@ -160,4 +168,3 @@ void* CameraModule::getDso() {
 }
 
 }; // namespace android
-
