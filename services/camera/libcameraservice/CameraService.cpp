@@ -122,7 +122,7 @@ static void torch_mode_status_change(
 // should be ok for now.
 static CameraService *gCameraService;
 
-CameraService::CameraService() : mEventLog(DEFAULT_EVICTION_LOG_LENGTH),
+CameraService::CameraService() : mEventLog(DEFAULT_EVENT_LOG_LENGTH),
         mLastUserId(DEFAULT_LAST_USER_ID), mSoundRef(0), mModule(0), mFlashlight(0) {
     ALOGI("CameraService started (pid=%d)", getpid());
     gCameraService = this;
@@ -242,6 +242,8 @@ void CameraService::onDeviceStatusChanged(camera_device_status_t  cameraId,
     }
 
     if (newStatus == CAMERA_DEVICE_STATUS_NOT_PRESENT) {
+        logDeviceRemoved(id, String8::format("Device status changed from %d to %d", oldStatus,
+                newStatus));
         sp<BasicClient> clientToDisconnect;
         {
             // Don't do this in updateStatus to avoid deadlock over mServiceLock
@@ -274,6 +276,10 @@ void CameraService::onDeviceStatusChanged(camera_device_status_t  cameraId,
         }
 
     } else {
+        if (oldStatus == ICameraServiceListener::Status::STATUS_NOT_PRESENT) {
+            logDeviceAdded(id, String8::format("Device status changed from %d to %d", oldStatus,
+                    newStatus));
+        }
         updateStatus(static_cast<ICameraServiceListener::Status>(newStatus), id);
     }
 
@@ -765,8 +771,8 @@ status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/
     } else {
         // We only trust our own process to forward client UIDs
         if (callingPid != getpid()) {
-            ALOGE("CameraService::connect X (PID %d) rejected (don't trust clientUid)",
-                    callingPid);
+            ALOGE("CameraService::connect X (PID %d) rejected (don't trust clientUid %d)",
+                    callingPid, clientUid);
             return PERMISSION_DENIED;
         }
     }
@@ -796,10 +802,12 @@ status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/
         return -EACCES;
     }
 
-    // Only allow clients who are being used by the current foreground device user.
-    if (mLastUserId != clientUserId && mLastUserId != DEFAULT_LAST_USER_ID) {
-        ALOGE("CameraService::connect X (PID %d) rejected (cannot connect from non-foreground "
-                "device user)", callingPid);
+    // Only allow clients who are being used by the current foreground device user, unless calling
+    // from our own process.
+    if (callingPid != getpid() &&
+            (mLastUserId != clientUserId && mLastUserId != DEFAULT_LAST_USER_ID)) {
+        ALOGE("CameraService::connect X (PID %d) rejected (cannot connect from previous "
+                "device user %d, current device user %d)", callingPid, clientUserId, mLastUserId);
         return PERMISSION_DENIED;
     }
 
@@ -934,7 +942,7 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
                     mActiveClientManager.getIncompatibleClients(clientDescriptor);
 
             String8 msg = String8::format("%s : DENIED connect device %s client for package %s "
-                    "(PID %d, priority %d)", curTime.string(),
+                    "(PID %d, priority %d) due to eviction policy", curTime.string(),
                     cameraId.string(), packageName.string(), clientPid,
                     getCameraPriorityFromProcState(priorities[priorities.size() - 1]));
 
@@ -946,6 +954,7 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
             }
 
             // Log the client's attempt
+            Mutex::Autolock l(mLogLock);
             mEventLog.add(msg);
 
             return -EBUSY;
@@ -967,12 +976,10 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
                     i->getKey().string());
             evictedClients.push_back(clientSp);
 
-            String8 curTime = getFormattedCurrentTime();
-
             // Log the clients evicted
-            mEventLog.add(String8::format("%s : EVICT device %s client for package %s (PID %"
-                    PRId32 ", priority %" PRId32 ")\n   - Evicted by device %s client for "
-                    "package %s (PID %d, priority %" PRId32 ")", curTime.string(),
+            logEvent(String8::format("EVICT device %s client held by package %s (PID"
+                    " %" PRId32 ", priority %" PRId32 ")\n   - Evicted by device %s client for"
+                    " package %s (PID %d, priority %" PRId32 ")",
                     i->getKey().string(), String8{clientSp->getPackageName()}.string(),
                     i->getOwnerId(), i->getPriority(), cameraId.string(),
                     packageName.string(), clientPid,
@@ -1027,6 +1034,8 @@ status_t CameraService::connect(
             clientPackageName, clientUid, API_1, false, false, /*out*/client);
 
     if(ret != NO_ERROR) {
+        logRejected(id, getCallingPid(), String8(clientPackageName),
+                String8::format("%s (%d)", strerror(-ret), ret));
         return ret;
     }
 
@@ -1042,6 +1051,7 @@ status_t CameraService::connectLegacy(
         /*out*/
         sp<ICamera>& device) {
 
+    String8 id = String8::format("%d", cameraId);
     int apiVersion = mModule->getModuleApiVersion();
     if (halVersion != CAMERA_HAL_API_VERSION_UNSPECIFIED &&
             apiVersion < CAMERA_MODULE_API_VERSION_2_3) {
@@ -1053,16 +1063,19 @@ status_t CameraService::connectLegacy(
          */
         ALOGE("%s: camera HAL module version %x doesn't support connecting to legacy HAL devices!",
                 __FUNCTION__, apiVersion);
+        logRejected(id, getCallingPid(), String8(clientPackageName),
+                String8("HAL module version doesn't support legacy HAL connections"));
         return INVALID_OPERATION;
     }
 
     status_t ret = NO_ERROR;
-    String8 id = String8::format("%d", cameraId);
     sp<Client> client = nullptr;
     ret = connectHelper<ICameraClient,Client>(cameraClient, id, halVersion, clientPackageName,
             clientUid, API_1, true, false, /*out*/client);
 
     if(ret != NO_ERROR) {
+        logRejected(id, getCallingPid(), String8(clientPackageName),
+                String8::format("%s (%d)", strerror(-ret), ret));
         return ret;
     }
 
@@ -1086,6 +1099,8 @@ status_t CameraService::connectDevice(
             /*out*/client);
 
     if(ret != NO_ERROR) {
+        logRejected(id, getCallingPid(), String8(clientPackageName),
+                String8::format("%s (%d)", strerror(-ret), ret));
         return ret;
     }
 
@@ -1426,6 +1441,8 @@ void CameraService::doUserSwitch(int newUserId) {
         newUserId = DEFAULT_LAST_USER_ID;
     }
 
+    logUserSwitch(mLastUserId, newUserId);
+
     mLastUserId = newUserId;
 
     // Current user has switched, evict all current clients.
@@ -1444,12 +1461,12 @@ void CameraService::doUserSwitch(int newUserId) {
 
         ALOGE("Evicting conflicting client for camera ID %s due to user change",
                 i->getKey().string());
+
         // Log the clients evicted
-        mEventLog.add(String8::format("%s : EVICT device %s client for package %s (PID %"
+        logEvent(String8::format("EVICT device %s client held by package %s (PID %"
                 PRId32 ", priority %" PRId32 ")\n   - Evicted due to user switch.",
-                curTime.string(), i->getKey().string(),
-                String8{clientSp->getPackageName()}.string(), i->getOwnerId(),
-                i->getPriority()));
+                i->getKey().string(), String8{clientSp->getPackageName()}.string(),
+                i->getOwnerId(), i->getPriority()));
 
     }
 
@@ -1470,22 +1487,52 @@ void CameraService::doUserSwitch(int newUserId) {
     mServiceLock.lock();
 }
 
-void CameraService::logDisconnected(const String8& cameraId, int clientPid,
-        const String8& clientPackage) {
-
+void CameraService::logEvent(const char* event) {
     String8 curTime = getFormattedCurrentTime();
-    // Log the clients evicted
-    mEventLog.add(String8::format("%s : DISCONNECT device %s client for package %s (PID %d)",
-            curTime.string(), cameraId.string(), clientPackage.string(), clientPid));
+    Mutex::Autolock l(mLogLock);
+    mEventLog.add(String8::format("%s : %s", curTime.string(), event));
 }
 
-void CameraService::logConnected(const String8& cameraId, int clientPid,
-        const String8& clientPackage) {
-
-    String8 curTime = getFormattedCurrentTime();
+void CameraService::logDisconnected(const char* cameraId, int clientPid,
+        const char* clientPackage) {
     // Log the clients evicted
-    mEventLog.add(String8::format("%s : CONNECT device %s client for package %s (PID %d)",
-            curTime.string(), cameraId.string(), clientPackage.string(), clientPid));
+    logEvent(String8::format("DISCONNECT device %s client for package %s (PID %d)", cameraId,
+            clientPackage, clientPid));
+}
+
+void CameraService::logConnected(const char* cameraId, int clientPid,
+        const char* clientPackage) {
+    // Log the clients evicted
+    logEvent(String8::format("CONNECT device %s client for package %s (PID %d)", cameraId,
+            clientPackage, clientPid));
+}
+
+void CameraService::logRejected(const char* cameraId, int clientPid,
+        const char* clientPackage, const char* reason) {
+    // Log the client rejected
+    logEvent(String8::format("REJECT device %s client for package %s (PID %d), reason: (%s)",
+            cameraId, clientPackage, clientPid, reason));
+}
+
+void CameraService::logUserSwitch(int oldUserId, int newUserId) {
+    // Log the new and old users
+    logEvent(String8::format("USER_SWITCH from old user: %d , to new user: %d", oldUserId,
+            newUserId));
+}
+
+void CameraService::logDeviceRemoved(const char* cameraId, const char* reason) {
+    // Log the device removal
+    logEvent(String8::format("REMOVE device %s, reason: (%s)", cameraId, reason));
+}
+
+void CameraService::logDeviceAdded(const char* cameraId, const char* reason) {
+    // Log the device removal
+    logEvent(String8::format("ADD device %s, reason: (%s)", cameraId, reason));
+}
+
+void CameraService::logClientDied(int clientPid, const char* reason) {
+    // Log the device removal
+    logEvent(String8::format("DIED client(s) with PID %d, reason: (%s)", clientPid, reason));
 }
 
 status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
@@ -1911,7 +1958,7 @@ static bool tryLock(Mutex& mutex)
 }
 
 status_t CameraService::dump(int fd, const Vector<String16>& args) {
-    String8 result;
+    String8 result("Dump of the Camera Service:\n");
     if (checkCallingPermission(String16("android.permission.DUMP")) == false) {
         result.appendFormat("Permission Denial: "
                 "can't dump CameraService from pid=%d, uid=%d\n",
@@ -1957,12 +2004,15 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 
         result = String8("Prior client events (most recent at top):\n");
 
-        for (const auto& msg : mEventLog) {
-            result.appendFormat("%s\n", msg.string());
-        }
+        {
+            Mutex::Autolock l(mLogLock);
+            for (const auto& msg : mEventLog) {
+                result.appendFormat("%s\n", msg.string());
+            }
 
-        if (mEventLog.size() == DEFAULT_EVICTION_LOG_LENGTH) {
-            result.append("...\n");
+            if (mEventLog.size() == DEFAULT_EVENT_LOG_LENGTH) {
+                result.append("...\n");
+            }
         }
 
         write(fd, result.string(), result.size());
@@ -2094,9 +2144,11 @@ void CameraService::handleTorchClientBinderDied(const wp<IBinder> &who) {
 /*virtual*/void CameraService::binderDied(const wp<IBinder> &who) {
 
     /**
-      * While tempting to promote the wp<IBinder> into a sp,
-      * it's actually not supported by the binder driver
+      * While tempting to promote the wp<IBinder> into a sp, it's actually not supported by the
+      * binder driver
       */
+
+    logClientDied(getCallingPid(), String8("Binder died unexpectedly"));
 
     // check torch client
     handleTorchClientBinderDied(who);

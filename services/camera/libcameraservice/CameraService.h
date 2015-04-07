@@ -91,7 +91,7 @@ public:
     static const nsecs_t DEFAULT_CONNECT_TIMEOUT_NS = 3000000000;
 
     // Default number of messages to store in eviction log
-    static const size_t DEFAULT_EVICTION_LOG_LENGTH = 50;
+    static const size_t DEFAULT_EVENT_LOG_LENGTH = 100;
 
     enum {
         // Default last user id
@@ -492,6 +492,7 @@ private:
 
     // Circular buffer for storing event logging for dumps
     RingBuffer<String8> mEventLog;
+    Mutex mLogLock;
 
     // UID of last user.
     int mLastUserId;
@@ -546,14 +547,45 @@ private:
     void doUserSwitch(int newUserId);
 
     /**
-     * Add a event log message that a client has been disconnected.
+     * Add an event log message.
      */
-    void logDisconnected(const String8& cameraId, int clientPid, const String8& clientPackage);
+    void logEvent(const char* event);
 
     /**
-     * Add a event log message that a client has been connected.
+     * Add an event log message that a client has been disconnected.
      */
-    void logConnected(const String8& cameraId, int clientPid, const String8& clientPackage);
+    void logDisconnected(const char* cameraId, int clientPid, const char* clientPackage);
+
+    /**
+     * Add an event log message that a client has been connected.
+     */
+    void logConnected(const char* cameraId, int clientPid, const char* clientPackage);
+
+    /**
+     * Add an event log message that a client's connect attempt has been rejected.
+     */
+    void logRejected(const char* cameraId, int clientPid, const char* clientPackage,
+            const char* reason);
+
+    /**
+     * Add an event log message that the current device user has been switched.
+     */
+    void logUserSwitch(int oldUserId, int newUserId);
+
+    /**
+     * Add an event log message that a device has been removed by the HAL
+     */
+    void logDeviceRemoved(const char* cameraId, const char* reason);
+
+    /**
+     * Add an event log message that a device has been added by the HAL
+     */
+    void logDeviceAdded(const char* cameraId, const char* reason);
+
+    /**
+     * Add an event log message that a client has unexpectedly died.
+     */
+    void logClientDied(int clientPid, const char* reason);
 
     int                 mNumberOfCameras;
 
@@ -714,9 +746,10 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
     String8 clientName8(clientPackageName);
     int clientPid = getCallingPid();
 
-    ALOGI("CameraService::connect call E (PID %d \"%s\", camera ID %s) for HAL version %d and "
+    ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) for HAL version %s and "
             "Camera API version %d", clientPid, clientName8.string(), cameraId.string(),
-            halVersion, static_cast<int>(effectiveApiLevel));
+            (halVersion == -1) ? "default" : std::to_string(halVersion).c_str(),
+            static_cast<int>(effectiveApiLevel));
 
     sp<CLIENT> client = nullptr;
     {
@@ -734,7 +767,15 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
         if((ret = validateConnectLocked(cameraId, /*inout*/clientUid)) != NO_ERROR) {
             return ret;
         }
-        mLastUserId = multiuser_get_user_id(clientUid);
+        int userId = multiuser_get_user_id(clientUid);
+
+        if (userId != mLastUserId && clientPid != getpid() ) {
+            // If no previous user ID had been set, set to the user of the caller.
+            logUserSwitch(mLastUserId, userId);
+            LOG_ALWAYS_FATAL_IF(mLastUserId != DEFAULT_LAST_USER_ID,
+                    "Invalid state: Should never update user ID here unless was default");
+            mLastUserId = userId;
+        }
 
         // Check the shim parameters after acquiring lock, if they have already been updated and
         // we were doing a shim update, return immediately
