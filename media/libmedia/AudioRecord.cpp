@@ -189,13 +189,9 @@ status_t AudioRecord::set(
     }
 
     // validate parameters
-    if (!audio_is_valid_format(format)) {
-        ALOGE("Invalid format %#x", format);
-        return BAD_VALUE;
-    }
-    // Temporary restriction: AudioFlinger currently supports 16-bit PCM only
-    if (format != AUDIO_FORMAT_PCM_16_BIT) {
-        ALOGE("Format %#x is not supported", format);
+    // AudioFlinger capture only supports linear PCM
+    if (!audio_is_valid_format(format) || !audio_is_linear_pcm(format)) {
+        ALOGE("Format %#x is not linear pcm", format);
         return BAD_VALUE;
     }
     mFormat = format;

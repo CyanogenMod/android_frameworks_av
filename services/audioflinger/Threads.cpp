@@ -86,7 +86,13 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+// TODO: Move these macro/inlines to a header file.
 #define max(a, b) ((a) > (b) ? (a) : (b))
+template <typename T>
+static inline T min(const T& a, const T& b)
+{
+    return a < b ? a : b;
+}
 
 namespace android {
 
@@ -5622,6 +5628,13 @@ reacquire_wakelock:
                     break;
                 }
 
+                // Don't allow framesOut to be larger than what is possible with resampling
+                // from framesIn.
+                // This isn't strictly necessary but helps limit buffer resizing in
+                // RecordBufferConverter.  TODO: remove when no longer needed.
+                framesOut = min(framesOut,
+                        destinationFramesPossible(
+                                framesIn, mSampleRate, activeTrack->mSampleRate));
                 // process frames from the RecordThread buffer provider to the RecordTrack buffer
                 framesOut = activeTrack->mRecordBufferConverter->convert(
                         activeTrack->mSink.raw, activeTrack->mResamplerBufferProvider, framesOut);
