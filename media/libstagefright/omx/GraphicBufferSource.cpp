@@ -28,6 +28,7 @@
 
 #include <media/hardware/MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
+#include <gui/BufferItem.h>
 
 #include <inttypes.h>
 
@@ -359,7 +360,7 @@ void GraphicBufferSource::suspend(bool suspend) {
         mSuspended = true;
 
         while (mNumFramesAvailable > 0) {
-            BufferQueue::BufferItem item;
+            BufferItem item;
             status_t err = mConsumer->acquireBuffer(&item, 0);
 
             if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
@@ -409,7 +410,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
 
     ALOGV("fillCodecBuffer_l: acquiring buffer, avail=%zu",
             mNumFramesAvailable);
-    BufferQueue::BufferItem item;
+    BufferItem item;
     status_t err = mConsumer->acquireBuffer(&item, 0);
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
         // shouldn't happen
@@ -492,7 +493,7 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
         return false;
     }
 
-    BufferQueue::BufferItem item;
+    BufferItem item;
     item.mBuf = mLatestSubmittedBufferId;
     item.mFrameNumber = mLatestSubmittedBufferFrameNum;
     item.mTimestamp = mRepeatLastFrameTimestamp;
@@ -523,7 +524,7 @@ bool GraphicBufferSource::repeatLatestSubmittedBuffer_l() {
 }
 
 void GraphicBufferSource::setLatestSubmittedBuffer_l(
-        const BufferQueue::BufferItem &item) {
+        const BufferItem &item) {
     ALOGV("setLatestSubmittedBuffer_l");
 
     if (mLatestSubmittedBufferId >= 0) {
@@ -579,7 +580,7 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
     return OK;
 }
 
-int64_t GraphicBufferSource::getTimestamp(const BufferQueue::BufferItem &item) {
+int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
     int64_t timeUs = item.mTimestamp / 1000;
 
     if (mTimePerCaptureUs > 0ll) {
@@ -640,7 +641,7 @@ int64_t GraphicBufferSource::getTimestamp(const BufferQueue::BufferItem &item) {
 }
 
 status_t GraphicBufferSource::submitBuffer_l(
-        const BufferQueue::BufferItem &item, int cbi) {
+        const BufferItem &item, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
 
     int64_t timeUs = getTimestamp(item);
@@ -766,7 +767,7 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
             ALOGV("onFrameAvailable: suspended, ignoring frame");
         }
 
-        BufferQueue::BufferItem item;
+        BufferItem item;
         status_t err = mConsumer->acquireBuffer(&item, 0);
         if (err == OK) {
             // If this is the first time we're seeing this buffer, add it to our

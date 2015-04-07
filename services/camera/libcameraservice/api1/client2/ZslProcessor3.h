@@ -22,6 +22,7 @@
 #include <utils/Vector.h>
 #include <utils/Mutex.h>
 #include <utils/Condition.h>
+#include <gui/BufferItem.h>
 #include <gui/BufferItemConsumer.h>
 #include <camera/CameraMetadata.h>
 
@@ -104,7 +105,7 @@ class ZslProcessor3 :
     sp<camera3::Camera3ZslStream> mZslStream;
 
     struct ZslPair {
-        BufferItemConsumer::BufferItem buffer;
+        BufferItem buffer;
         CameraMetadata frame;
     };
 
