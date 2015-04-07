@@ -62,8 +62,12 @@ public:
     // searches for an exact match
     status_t checkExactChannelMask(audio_channel_mask_t channelMask) const;
     // searches for a compatible match, currently implemented for input channel masks only
-    status_t checkCompatibleChannelMask(audio_channel_mask_t channelMask) const;
-    status_t checkFormat(audio_format_t format) const;
+    status_t checkCompatibleChannelMask(audio_channel_mask_t channelMask,
+            audio_channel_mask_t *updatedChannelMask) const;
+
+    status_t checkExactFormat(audio_format_t format) const;
+    // searches for a compatible match, currently implemented for input formats only
+    status_t checkCompatibleFormat(audio_format_t format, audio_format_t *updatedFormat) const;
     status_t checkGain(const struct audio_gain_config *gainConfig, int index) const;
 
     uint32_t pickSamplingRate() const;
@@ -71,6 +75,11 @@ public:
     audio_format_t pickFormat() const;
 
     static const audio_format_t sPcmFormatCompareTable[];
+    static int compareFormatsGoodToBad(
+            const audio_format_t *format1, const audio_format_t *format2) {
+        // compareFormats sorts from bad to good, we reverse it here
+        return compareFormats(*format2, *format1);
+    }
     static int compareFormats(audio_format_t format1, audio_format_t format2);
 
     audio_module_handle_t getModuleHandle() const;

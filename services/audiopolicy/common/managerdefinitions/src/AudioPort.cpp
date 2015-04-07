@@ -16,7 +16,7 @@
 
 #define LOG_TAG "APM::AudioPort"
 //#define LOG_NDEBUG 0
-
+#include <media/AudioResamplerPublic.h>
 #include "AudioPort.h"
 #include "HwModule.h"
 #include "AudioGain.h"
@@ -216,6 +216,7 @@ void AudioPort::loadFormats(char *name)
         }
         str = strtok(NULL, "|");
     }
+    mFormats.sort(compareFormatsGoodToBad);
 }
 
 void AudioPort::loadInChannels(char *name)
@@ -358,6 +359,9 @@ status_t AudioPort::checkCompatibleSamplingRate(uint32_t samplingRate,
         uint32_t *updatedSamplingRate) const
 {
     if (mSamplingRates.isEmpty()) {
+        if (updatedSamplingRate != NULL) {
+            *updatedSamplingRate = samplingRate;
+        }
         return NO_ERROR;
     }
 
@@ -387,16 +391,11 @@ status_t AudioPort::checkCompatibleSamplingRate(uint32_t samplingRate,
             }
         }
     }
-    // This uses hard-coded knowledge about AudioFlinger resampling ratios.
-    // TODO Move these assumptions out.
-    static const uint32_t kMaxDownSampleRatio = 6;  // beyond this aliasing occurs
-    static const uint32_t kMaxUpSampleRatio = 256;  // beyond this sample rate inaccuracies occur
-                                                    // due to approximation by an int32_t of the
-                                                    // phase increments
+
     // Prefer to down-sample from a higher sampling rate, as we get the desired frequency spectrum.
     if (minAbove >= 0) {
         candidate = mSamplingRates[minAbove];
-        if (candidate / kMaxDownSampleRatio <= samplingRate) {
+        if (candidate / AUDIO_RESAMPLER_DOWN_RATIO_MAX <= samplingRate) {
             if (updatedSamplingRate != NULL) {
                 *updatedSamplingRate = candidate;
             }
@@ -406,7 +405,7 @@ status_t AudioPort::checkCompatibleSamplingRate(uint32_t samplingRate,
     // But if we have to up-sample from a lower sampling rate, that's OK.
     if (maxBelow >= 0) {
         candidate = mSamplingRates[maxBelow];
-        if (candidate * kMaxUpSampleRatio >= samplingRate) {
+        if (candidate * AUDIO_RESAMPLER_UP_RATIO_MAX >= samplingRate) {
             if (updatedSamplingRate != NULL) {
                 *updatedSamplingRate = candidate;
             }
@@ -431,10 +430,13 @@ status_t AudioPort::checkExactChannelMask(audio_channel_mask_t channelMask) cons
     return BAD_VALUE;
 }
 
-status_t AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask)
-        const
+status_t AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask,
+        audio_channel_mask_t *updatedChannelMask) const
 {
     if (mChannelMasks.isEmpty()) {
+        if (updatedChannelMask != NULL) {
+            *updatedChannelMask = channelMask;
+        }
         return NO_ERROR;
     }
 
@@ -443,6 +445,9 @@ status_t AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask)
         // FIXME Does not handle multi-channel automatic conversions yet
         audio_channel_mask_t supported = mChannelMasks[i];
         if (supported == channelMask) {
+            if (updatedChannelMask != NULL) {
+                *updatedChannelMask = channelMask;
+            }
             return NO_ERROR;
         }
         if (isRecordThread) {
@@ -452,6 +457,9 @@ status_t AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask)
                     && channelMask == AUDIO_CHANNEL_IN_MONO) ||
                 (supported == AUDIO_CHANNEL_IN_MONO && (channelMask == AUDIO_CHANNEL_IN_FRONT_BACK
                     || channelMask == AUDIO_CHANNEL_IN_STEREO))) {
+                if (updatedChannelMask != NULL) {
+                    *updatedChannelMask = supported;
+                }
                 return NO_ERROR;
             }
         }
@@ -459,7 +467,7 @@ status_t AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask)
     return BAD_VALUE;
 }
 
-status_t AudioPort::checkFormat(audio_format_t format) const
+status_t AudioPort::checkExactFormat(audio_format_t format) const
 {
     if (mFormats.isEmpty()) {
         return NO_ERROR;
@@ -473,6 +481,33 @@ status_t AudioPort::checkFormat(audio_format_t format) const
     return BAD_VALUE;
 }
 
+status_t AudioPort::checkCompatibleFormat(audio_format_t format, audio_format_t *updatedFormat)
+        const
+{
+    if (mFormats.isEmpty()) {
+        if (updatedFormat != NULL) {
+            *updatedFormat = format;
+        }
+        return NO_ERROR;
+    }
+
+    const bool checkInexact = // when port is input and format is linear pcm
+            mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK
+            && audio_is_linear_pcm(format);
+
+    for (size_t i = 0; i < mFormats.size(); ++i) {
+        if (mFormats[i] == format ||
+                (checkInexact && audio_is_linear_pcm(mFormats[i]))) {
+            // for inexact checks we take the first linear pcm format since
+            // mFormats is sorted from best PCM format to worst PCM format.
+            if (updatedFormat != NULL) {
+                *updatedFormat = mFormats[i];
+            }
+            return NO_ERROR;
+        }
+    }
+    return BAD_VALUE;
+}
 
 uint32_t AudioPort::pickSamplingRate() const
 {
@@ -756,7 +791,7 @@ status_t AudioPortConfig::applyAudioPortConfig(
         mChannelMask = config->channel_mask;
     }
     if (config->config_mask & AUDIO_PORT_CONFIG_FORMAT) {
-        status = audioport->checkFormat(config->format);
+        status = audioport->checkExactFormat(config->format);
         if (status != NO_ERROR) {
             goto exit;
         }

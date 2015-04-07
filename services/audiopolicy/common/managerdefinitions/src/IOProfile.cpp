@@ -40,7 +40,9 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
                                     uint32_t samplingRate,
                                     uint32_t *updatedSamplingRate,
                                     audio_format_t format,
+                                    audio_format_t *updatedFormat,
                                     audio_channel_mask_t channelMask,
+                                    audio_channel_mask_t *updatedChannelMask,
                                     uint32_t flags) const
 {
     const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
@@ -71,7 +73,14 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
          return false;
     }
 
-    if (!audio_is_valid_format(format) || checkFormat(format) != NO_ERROR) {
+    if (!audio_is_valid_format(format)) {
+        return false;
+    }
+    if (isPlaybackThread && checkExactFormat(format) != NO_ERROR) {
+        return false;
+    }
+    audio_format_t myUpdatedFormat = format;
+    if (isRecordThread && checkCompatibleFormat(format, &myUpdatedFormat) != NO_ERROR) {
         return false;
     }
 
@@ -79,8 +88,9 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
             checkExactChannelMask(channelMask) != NO_ERROR)) {
         return false;
     }
+    audio_channel_mask_t myUpdatedChannelMask = channelMask;
     if (isRecordThread && (!audio_is_input_channel(channelMask) ||
-            checkCompatibleChannelMask(channelMask) != NO_ERROR)) {
+            checkCompatibleChannelMask(channelMask, &myUpdatedChannelMask) != NO_ERROR)) {
         return false;
     }
 
@@ -98,6 +108,12 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
 
     if (updatedSamplingRate != NULL) {
         *updatedSamplingRate = myUpdatedSamplingRate;
+    }
+    if (updatedFormat != NULL) {
+        *updatedFormat = myUpdatedFormat;
+    }
+    if (updatedChannelMask != NULL) {
+        *updatedChannelMask = myUpdatedChannelMask;
     }
     return true;
 }
