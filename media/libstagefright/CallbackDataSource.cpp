@@ -70,9 +70,10 @@ ssize_t CallbackDataSource::readAt(off64_t offset, void* data, size_t size) {
         if (numRead == 0) {
             return totalNumRead;
         }
-        // Sanity check.
-        CHECK((size_t)numRead <= numToRead && numRead >= 0 &&
-                (size_t)numRead <= bufferSize);
+        if ((size_t)numRead > numToRead) {
+            return ERROR_OUT_OF_RANGE;
+        }
+        CHECK(numRead >= 0 && (size_t)numRead <= bufferSize);
         memcpy(((uint8_t*)data) + totalNumRead, mMemory->pointer(), numRead);
         numLeft -= numRead;
         totalNumRead += numRead;
@@ -92,6 +93,51 @@ status_t CallbackDataSource::getSize(off64_t *size) {
         return ERROR_UNSUPPORTED;
     }
     return OK;
+}
+
+TinyCacheSource::TinyCacheSource(const sp<DataSource>& source)
+    : mSource(source), mCachedOffset(0), mCachedSize(0) {
+}
+
+status_t TinyCacheSource::initCheck() const {
+    return mSource->initCheck();
+}
+
+ssize_t TinyCacheSource::readAt(off64_t offset, void* data, size_t size) {
+    if (size >= kCacheSize) {
+        return mSource->readAt(offset, data, size);
+    }
+
+    // Check if the cache satisfies the read.
+    if (offset >= mCachedOffset && offset + size <= mCachedOffset + mCachedSize) {
+        memcpy(data, &mCache[offset - mCachedOffset], size);
+        return size;
+    }
+
+    // Fill the cache and copy to the caller.
+    const ssize_t numRead = mSource->readAt(offset, mCache, kCacheSize);
+    if (numRead <= 0) {
+        return numRead;
+    }
+    if ((size_t)numRead > kCacheSize) {
+        return ERROR_OUT_OF_RANGE;
+    }
+
+    mCachedSize = numRead;
+    mCachedOffset = offset;
+    CHECK(mCachedSize <= kCacheSize && mCachedOffset >= 0);
+    const size_t numToReturn = std::min(size, (size_t)numRead);
+    memcpy(data, mCache, numToReturn);
+
+    return numToReturn;
+}
+
+status_t TinyCacheSource::getSize(off64_t *size) {
+    return mSource->getSize(size);
+}
+
+uint32_t TinyCacheSource::flags() {
+    return mSource->flags();
 }
 
 } // namespace android

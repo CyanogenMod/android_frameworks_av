@@ -44,6 +44,36 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(CallbackDataSource);
 };
 
+
+// A caching DataSource that wraps a CallbackDataSource. For reads smaller
+// than kCacheSize it will read up to kCacheSize ahead and cache it.
+// This reduces the number of binder round trips to the IDataSource and has a significant
+// impact on time taken for filetype sniffing and metadata extraction.
+class TinyCacheSource : public DataSource {
+public:
+    TinyCacheSource(const sp<DataSource>& source);
+
+    virtual status_t initCheck() const;
+    virtual ssize_t readAt(off64_t offset, void* data, size_t size);
+    virtual status_t getSize(off64_t* size);
+    virtual uint32_t flags();
+
+private:
+    // 2kb comes from experimenting with the time-to-first-frame from a MediaPlayer
+    // with an in-memory MediaDataSource source on a Nexus 5. Beyond 2kb there was
+    // no improvement.
+    enum {
+        kCacheSize = 2048,
+    };
+
+    sp<DataSource> mSource;
+    uint8_t mCache[kCacheSize];
+    off64_t mCachedOffset;
+    size_t mCachedSize;
+
+    DISALLOW_EVIL_CONSTRUCTORS(TinyCacheSource);
+};
+
 }; // namespace android
 
 #endif // ANDROID_CALLBACKDATASOURCE_H
