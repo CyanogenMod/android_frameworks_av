@@ -30,10 +30,11 @@
 namespace android {
 
 AudioOutputDescriptor::AudioOutputDescriptor(const sp<IOProfile>& profile)
-    : mId(0), mIoHandle(0), mLatency(0),
+    : mIoHandle(0), mLatency(0),
     mFlags((audio_output_flags_t)0), mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL),
     mPatchHandle(0),
-    mOutput1(0), mOutput2(0), mProfile(profile), mDirectOpenCount(0)
+    mOutput1(0), mOutput2(0), mProfile(profile), mDirectOpenCount(0),
+    mId(0)
 {
     // clear usage count for all stream types
     for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
@@ -58,7 +59,15 @@ AudioOutputDescriptor::AudioOutputDescriptor(const sp<IOProfile>& profile)
 
 audio_module_handle_t AudioOutputDescriptor::getModuleHandle() const
 {
+    if (mProfile == 0) {
+        return 0;
+    }
     return mProfile->getModuleHandle();
+}
+
+audio_port_handle_t AudioOutputDescriptor::getId() const
+{
+    return mId;
 }
 
 audio_devices_t AudioOutputDescriptor::device() const
@@ -93,7 +102,7 @@ bool AudioOutputDescriptor::sharesHwModuleWith(
     } else if (outputDesc->isDuplicated()){
         return sharesHwModuleWith(outputDesc->mOutput1) || sharesHwModuleWith(outputDesc->mOutput2);
     } else {
-        return (mProfile->mModule == outputDesc->mProfile->mModule);
+        return (getModuleHandle() == outputDesc->getModuleHandle());
     }
 }
 
@@ -176,7 +185,7 @@ void AudioOutputDescriptor::toAudioPortConfig(
     dstConfig->id = mId;
     dstConfig->role = AUDIO_PORT_ROLE_SOURCE;
     dstConfig->type = AUDIO_PORT_TYPE_MIX;
-    dstConfig->ext.mix.hw_module = mProfile->mModule->mHandle;
+    dstConfig->ext.mix.hw_module = getModuleHandle();
     dstConfig->ext.mix.handle = mIoHandle;
     dstConfig->ext.mix.usecase.stream = AUDIO_STREAM_DEFAULT;
 }
@@ -188,7 +197,7 @@ void AudioOutputDescriptor::toAudioPort(
     mProfile->toAudioPort(port);
     port->id = mId;
     toAudioPortConfig(&port->active_config);
-    port->ext.mix.hw_module = mProfile->mModule->mHandle;
+    port->ext.mix.hw_module = getModuleHandle();
     port->ext.mix.handle = mIoHandle;
     port->ext.mix.latency_class =
             mFlags & AUDIO_OUTPUT_FLAG_FAST ? AUDIO_LATENCY_LOW : AUDIO_LATENCY_NORMAL;
@@ -200,7 +209,7 @@ status_t AudioOutputDescriptor::dump(int fd)
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, " ID: %d\n", mId);
+    snprintf(buffer, SIZE, " ID: %d\n", getId());
     result.append(buffer);
     snprintf(buffer, SIZE, " Sampling rate: %d\n", mSamplingRate);
     result.append(buffer);
@@ -289,7 +298,7 @@ sp<AudioOutputDescriptor> AudioOutputCollection::getOutputFromId(audio_port_hand
     sp<AudioOutputDescriptor> outputDesc = NULL;
     for (size_t i = 0; i < size(); i++) {
         outputDesc = valueAt(i);
-        if (outputDesc->mId == id) {
+        if (outputDesc->getId() == id) {
             break;
         }
     }

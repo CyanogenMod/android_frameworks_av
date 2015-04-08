@@ -40,7 +40,7 @@ public:
 
     audio_devices_t device() const;
     void changeRefCount(audio_stream_type_t stream, int delta);
-
+    audio_port_handle_t getId() const;
     void setIoHandle(audio_io_handle_t ioHandle);
     bool isDuplicated() const { return (mOutput1 != NULL && mOutput2 != NULL); }
     audio_devices_t supportedDevices();
@@ -58,7 +58,6 @@ public:
 
     audio_module_handle_t getModuleHandle() const;
 
-    audio_port_handle_t mId;
     audio_io_handle_t mIoHandle;              // output handle
     uint32_t mLatency;                  //
     audio_output_flags_t mFlags;   //
@@ -75,6 +74,9 @@ public:
     bool mStrategyMutedByDevice[NUM_STRATEGIES]; // strategies muted because of incompatible
                                         // device selection. See checkDeviceMuteStrategies()
     uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
+
+private:
+    audio_port_handle_t mId;
 };
 
 class AudioOutputCollection :

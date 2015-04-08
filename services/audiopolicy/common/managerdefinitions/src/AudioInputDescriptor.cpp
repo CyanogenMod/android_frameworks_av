@@ -27,9 +27,9 @@
 namespace android {
 
 AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
-    : mId(0), mIoHandle(0),
+    : mIoHandle(0),
       mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL), mPatchHandle(0), mRefCount(0),
-      mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile), mIsSoundTrigger(false)
+      mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile), mIsSoundTrigger(false), mId(0)
 {
     if (profile != NULL) {
         mSamplingRate = profile->pickSamplingRate();
@@ -49,7 +49,15 @@ void AudioInputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
 
 audio_module_handle_t AudioInputDescriptor::getModuleHandle() const
 {
+    if (mProfile == 0) {
+        return 0;
+    }
     return mProfile->getModuleHandle();
+}
+
+audio_port_handle_t AudioInputDescriptor::getId() const
+{
+    return mId;
 }
 
 void AudioInputDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig,
@@ -68,7 +76,7 @@ void AudioInputDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig
     dstConfig->id = mId;
     dstConfig->role = AUDIO_PORT_ROLE_SINK;
     dstConfig->type = AUDIO_PORT_TYPE_MIX;
-    dstConfig->ext.mix.hw_module = mProfile->mModule->mHandle;
+    dstConfig->ext.mix.hw_module = getModuleHandle();
     dstConfig->ext.mix.handle = mIoHandle;
     dstConfig->ext.mix.usecase.source = mInputSource;
 }
@@ -80,7 +88,7 @@ void AudioInputDescriptor::toAudioPort(struct audio_port *port) const
     mProfile->toAudioPort(port);
     port->id = mId;
     toAudioPortConfig(&port->active_config);
-    port->ext.mix.hw_module = mProfile->mModule->mHandle;
+    port->ext.mix.hw_module = getModuleHandle();
     port->ext.mix.handle = mIoHandle;
     port->ext.mix.latency_class = AUDIO_LATENCY_NORMAL;
 }
@@ -91,7 +99,7 @@ status_t AudioInputDescriptor::dump(int fd)
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, " ID: %d\n", mId);
+    snprintf(buffer, SIZE, " ID: %d\n", getId());
     result.append(buffer);
     snprintf(buffer, SIZE, " Sampling rate: %d\n", mSamplingRate);
     result.append(buffer);
@@ -130,7 +138,7 @@ sp<AudioInputDescriptor> AudioInputCollection::getInputFromId(audio_port_handle_
     sp<AudioInputDescriptor> inputDesc = NULL;
     for (size_t i = 0; i < size(); i++) {
         inputDesc = valueAt(i);
-        if (inputDesc->mId == id) {
+        if (inputDesc->getId() == id) {
             break;
         }
     }

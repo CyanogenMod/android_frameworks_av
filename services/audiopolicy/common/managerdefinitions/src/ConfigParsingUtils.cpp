@@ -113,8 +113,8 @@ audio_devices_t ConfigParsingUtils::parseDeviceNames(char *name)
     char *devName = strtok(name, "|");
     while (devName != NULL) {
         if (strlen(devName) != 0) {
-            device |= stringToEnum(sDeviceNameToEnumTable,
-                                 ARRAY_SIZE(sDeviceNameToEnumTable),
+            device |= stringToEnum(sDeviceTypeToEnumTable,
+                                 ARRAY_SIZE(sDeviceTypeToEnumTable),
                                  devName);
          }
         devName = strtok(NULL, "|");
@@ -224,8 +224,8 @@ void ConfigParsingUtils::loadGlobalConfig(cnode *root, const sp<HwModule>& modul
                   availableOutputDevices.types());
         } else if (strcmp(DEFAULT_OUTPUT_DEVICE_TAG, node->name) == 0) {
             audio_devices_t device = (audio_devices_t)stringToEnum(
-                    sDeviceNameToEnumTable,
-                    ARRAY_SIZE(sDeviceNameToEnumTable),
+                    sDeviceTypeToEnumTable,
+                    ARRAY_SIZE(sDeviceTypeToEnumTable),
                     (char *)node->value);
             if (device != AUDIO_DEVICE_NONE) {
                 defaultOutputDevice = new DeviceDescriptor(String8("default-output"), device);

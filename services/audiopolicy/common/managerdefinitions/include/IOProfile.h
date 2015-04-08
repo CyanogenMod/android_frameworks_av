@@ -33,7 +33,7 @@ class HwModule;
 class IOProfile : public AudioPort
 {
 public:
-    IOProfile(const String8& name, audio_port_role_t role, const sp<HwModule>& module);
+    IOProfile(const String8& name, audio_port_role_t role);
     virtual ~IOProfile();
 
     // This method is used for both output and input.

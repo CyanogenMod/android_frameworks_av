@@ -41,20 +41,22 @@ public:
             const struct audio_port_config *srcConfig = NULL) const;
 
     // AudioPort
+    virtual void attach(const sp<HwModule>& module);
     virtual void loadGains(cnode *root);
     virtual void toAudioPort(struct audio_port *port) const;
 
+    audio_port_handle_t getId() const;
     audio_devices_t type() const { return mDeviceType; }
     status_t dump(int fd, int spaces, int index) const;
     void log() const;
 
     String8 mAddress;
-    audio_port_handle_t mId;
 
     static String8  emptyNameStr;
 
 private:
-    audio_devices_t mDeviceType;
+    audio_devices_t     mDeviceType;
+    audio_port_handle_t mId;
 
 friend class DeviceVector;
 };
