@@ -67,12 +67,18 @@ public:
     // Resample int16_t samples from provider and accumulate into 'out'.
     // A mono provider delivers a sequence of samples.
     // A stereo provider delivers a sequence of interleaved pairs of samples.
-    // Multi-channel providers are not supported.
+    //
     // In either case, 'out' holds interleaved pairs of fixed-point Q4.27.
     // That is, for a mono provider, there is an implicit up-channeling.
     // Since this method accumulates, the caller is responsible for clearing 'out' initially.
-    // FIXME assumes provider is always successful; it should return the actual frame count.
-    virtual void resample(int32_t* out, size_t outFrameCount,
+    //
+    // For a float resampler, 'out' holds interleaved pairs of float samples.
+    //
+    // Multichannel interleaved frames for n > 2 is supported for quality DYN_LOW_QUALITY,
+    // DYN_MED_QUALITY, and DYN_HIGH_QUALITY.
+    //
+    // Returns the number of frames resampled into the out buffer.
+    virtual size_t resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider) = 0;
 
     virtual void reset();

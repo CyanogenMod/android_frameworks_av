@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "AudioSRC"
+#define LOG_TAG "AudioResamplerCubic"
 
 #include <stdint.h>
 #include <string.h>
@@ -32,7 +32,7 @@ void AudioResamplerCubic::init() {
     memset(&right, 0, sizeof(state));
 }
 
-void AudioResamplerCubic::resample(int32_t* out, size_t outFrameCount,
+size_t AudioResamplerCubic::resample(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider) {
 
     // should never happen, but we overflow if it does
@@ -41,15 +41,16 @@ void AudioResamplerCubic::resample(int32_t* out, size_t outFrameCount,
     // select the appropriate resampler
     switch (mChannelCount) {
     case 1:
-        resampleMono16(out, outFrameCount, provider);
-        break;
+        return resampleMono16(out, outFrameCount, provider);
     case 2:
-        resampleStereo16(out, outFrameCount, provider);
-        break;
+        return resampleStereo16(out, outFrameCount, provider);
+    default:
+        LOG_ALWAYS_FATAL("invalid channel count: %d", mChannelCount);
+        return 0;
     }
 }
 
-void AudioResamplerCubic::resampleStereo16(int32_t* out, size_t outFrameCount,
+size_t AudioResamplerCubic::resampleStereo16(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider) {
 
     int32_t vl = mVolume[0];
@@ -67,7 +68,7 @@ void AudioResamplerCubic::resampleStereo16(int32_t* out, size_t outFrameCount,
         mBuffer.frameCount = inFrameCount;
         provider->getNextBuffer(&mBuffer, mPTS);
         if (mBuffer.raw == NULL) {
-            return;
+            return 0;
         }
         // ALOGW("New buffer: offset=%p, frames=%dn", mBuffer.raw, mBuffer.frameCount);
     }
@@ -115,9 +116,10 @@ save_state:
     // ALOGW("Done: index=%d, fraction=%u", inputIndex, phaseFraction);
     mInputIndex = inputIndex;
     mPhaseFraction = phaseFraction;
+    return outputIndex / 2 /* channels for stereo */;
 }
 
-void AudioResamplerCubic::resampleMono16(int32_t* out, size_t outFrameCount,
+size_t AudioResamplerCubic::resampleMono16(int32_t* out, size_t outFrameCount,
         AudioBufferProvider* provider) {
 
     int32_t vl = mVolume[0];
@@ -135,7 +137,7 @@ void AudioResamplerCubic::resampleMono16(int32_t* out, size_t outFrameCount,
         mBuffer.frameCount = inFrameCount;
         provider->getNextBuffer(&mBuffer, mPTS);
         if (mBuffer.raw == NULL) {
-            return;
+            return 0;
         }
         // ALOGW("New buffer: offset=%p, frames=%d", mBuffer.raw, mBuffer.frameCount);
     }
@@ -182,6 +184,7 @@ save_state:
     // ALOGW("Done: index=%d, fraction=%u", inputIndex, phaseFraction);
     mInputIndex = inputIndex;
     mPhaseFraction = phaseFraction;
+    return outputIndex;
 }
 
 // ----------------------------------------------------------------------------

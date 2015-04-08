@@ -31,7 +31,7 @@ public:
     AudioResamplerCubic(int inChannelCount, int32_t sampleRate) :
         AudioResampler(inChannelCount, sampleRate, MED_QUALITY) {
     }
-    virtual void resample(int32_t* out, size_t outFrameCount,
+    virtual size_t resample(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
 private:
     // number of bits used in interpolation multiply - 14 bits avoids overflow
@@ -43,9 +43,9 @@ private:
         int32_t a, b, c, y0, y1, y2, y3;
     } state;
     void init();
-    void resampleMono16(int32_t* out, size_t outFrameCount,
+    size_t resampleMono16(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
-    void resampleStereo16(int32_t* out, size_t outFrameCount,
+    size_t resampleStereo16(int32_t* out, size_t outFrameCount,
             AudioBufferProvider* provider);
     static inline int32_t interp(state* p, int32_t x) {
         return (((((p->a * x >> 14) + p->b) * x >> 14) + p->c) * x >> 14) + p->y1;
