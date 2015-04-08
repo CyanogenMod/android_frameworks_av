@@ -514,7 +514,7 @@ void AnotherPacketSource::trimBuffersAfterMeta(
     }
 
     HLSTime stopTime(meta);
-    ALOGV("trimBuffersAfterMeta: discontinuitySeq %zu, timeUs %lld",
+    ALOGV("trimBuffersAfterMeta: discontinuitySeq %d, timeUs %lld",
             stopTime.mSeq, (long long)stopTime.mTimeUs);
 
     List<sp<ABuffer> >::iterator it;
@@ -554,7 +554,7 @@ void AnotherPacketSource::trimBuffersAfterMeta(
 sp<AMessage> AnotherPacketSource::trimBuffersBeforeMeta(
         const sp<AMessage> &meta) {
     HLSTime startTime(meta);
-    ALOGV("trimBuffersBeforeMeta: discontinuitySeq %zu, timeUs %lld",
+    ALOGV("trimBuffersBeforeMeta: discontinuitySeq %d, timeUs %lld",
             startTime.mSeq, (long long)startTime.mTimeUs);
 
     sp<AMessage> firstMeta;

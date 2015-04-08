@@ -91,6 +91,7 @@ struct LiveSession : public AHandler {
     bool hasDynamicDuration() const;
 
     static const char *getKeyForStream(StreamType type);
+    static const char *getNameForStream(StreamType type);
 
     enum {
         kWhatStreamsChanged,

@@ -55,7 +55,10 @@ struct PlaylistFetcher : public AHandler {
             const sp<AMessage> &notify,
             const sp<LiveSession> &session,
             const char *uri,
+            int32_t id,
             int32_t subtitleGeneration);
+
+    int32_t getFetcherID() const;
 
     sp<DataSource> getDataSource();
 
@@ -112,6 +115,8 @@ private:
     sp<HTTPBase> mHTTPDataSource;
     sp<LiveSession> mSession;
     AString mURI;
+
+    int32_t mFetcherID;
 
     uint32_t mStreamTypeMask;
     int64_t mStartTimeUs;
