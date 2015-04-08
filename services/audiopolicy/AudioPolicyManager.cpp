@@ -932,7 +932,10 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
             // Move tracks associated to this strategy from previous output to new output
             for (int i = AUDIO_STREAM_SYSTEM; i < (int)AUDIO_STREAM_CNT; i++) {
                 ALOGV(" Invalidate on call mode for stream :: %d ", i);
-                //FIXME see fixme on name change
+                if (i == AUDIO_STREAM_PATCH) {
+                    ALOGV("not calling invalidate for AUDIO_STREAM_PATCH");
+                    continue;
+                }
                 mpClientInterface->invalidateStream((audio_stream_type_t)i);
             }
         }
@@ -1020,7 +1023,10 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
        //call invalidate tracks so that any open streams can fall back to deep buffer/compress path from ULL
        for (int i = AUDIO_STREAM_SYSTEM; i < (int)AUDIO_STREAM_CNT; i++) {
            ALOGD("Invalidate after call ends for stream :: %d ", i);
-           //FIXME see fixme on name change
+           if (i == AUDIO_STREAM_PATCH) {
+               ALOGV("not calling invalidate for AUDIO_STREAM_PATCH");
+               continue;
+           }
            mpClientInterface->invalidateStream((audio_stream_type_t)i);
        }
     }
