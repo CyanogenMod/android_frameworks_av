@@ -237,7 +237,7 @@ private:
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
-    status_t onSeek(const sp<AMessage> &msg);
+    void onSeek(const sp<AMessage> &msg);
     void onFinishDisconnect2();
 
     // If given a non-zero block_size (default 0), it is used to cap the number of
