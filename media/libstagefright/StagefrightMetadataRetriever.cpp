@@ -519,6 +519,12 @@ void StagefrightMetadataRetriever::parseMetaData() {
 
     mMetaData.add(METADATA_KEY_NUM_TRACKS, String8(tmp));
 
+    float captureFps;
+    if (meta->findFloat(kKeyCaptureFramerate, &captureFps)) {
+        sprintf(tmp, "%f", captureFps);
+        mMetaData.add(METADATA_KEY_CAPTURE_FRAMERATE, String8(tmp));
+    }
+
     bool hasAudio = false;
     bool hasVideo = false;
     int32_t videoWidth = -1;

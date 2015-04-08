@@ -98,6 +98,7 @@ enum {
     kKeyCompilation       = 'cpil',  // cstring
     kKeyLocation          = 'loc ',  // cstring
     kKeyTimeScale         = 'tmsl',  // int32_t
+    kKeyCaptureFramerate  = 'capF',  // float (capture fps)
 
     // video profile and level
     kKeyVideoProfile      = 'vprf',  // int32_t
