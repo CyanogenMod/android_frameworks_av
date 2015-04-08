@@ -353,6 +353,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
             ALOG_ASSERT(!outputDesc->isDuplicated(),
                         "updateCallRouting() RX device output is duplicated");
             outputDesc->toAudioPortConfig(&patch.sources[1]);
+            patch.sources[1].ext.mix.usecase.stream = AUDIO_STREAM_PATCH;
             patch.num_sources = 2;
         }
 
@@ -395,6 +396,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
             ALOG_ASSERT(!outputDesc->isDuplicated(),
                         "updateCallRouting() RX device output is duplicated");
             outputDesc->toAudioPortConfig(&patch.sources[1]);
+            patch.sources[1].ext.mix.usecase.stream = AUDIO_STREAM_PATCH;
             patch.num_sources = 2;
         }
 
@@ -2184,8 +2186,12 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 }
                 sinkDeviceDesc->toAudioPortConfig(&newPatch.sinks[i], &patch->sinks[i]);
 
-                if (srcDeviceDesc->getModuleHandle() != sinkDeviceDesc->getModuleHandle()) {
-                    // only one sink supported when connected devices across HW modules
+                // create a software bridge in PatchPanel if:
+                // - source and sink devices are on differnt HW modules OR
+                // - audio HAL version is < 3.0
+                if ((srcDeviceDesc->getModuleHandle() != sinkDeviceDesc->getModuleHandle()) ||
+                        (srcDeviceDesc->mModule->mHalVersion < AUDIO_DEVICE_API_VERSION_3_0)) {
+                    // support only one sink device for now to simplify output selection logic
                     if (patch->num_sinks > 1) {
                         return INVALID_OPERATION;
                     }
@@ -2202,6 +2208,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                             return INVALID_OPERATION;
                         }
                         outputDesc->toAudioPortConfig(&newPatch.sources[1], &patch->sources[0]);
+                        newPatch.sources[1].ext.mix.usecase.stream = AUDIO_STREAM_PATCH;
                         newPatch.num_sources = 2;
                     }
                 }

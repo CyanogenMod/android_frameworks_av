@@ -298,6 +298,7 @@ class PatchTrack : public Track, public PatchProxyBufferProvider {
 public:
 
                         PatchTrack(PlaybackThread *playbackThread,
+                                   audio_stream_type_t streamType,
                                    uint32_t sampleRate,
                                    audio_channel_mask_t channelMask,
                                    audio_format_t format,
