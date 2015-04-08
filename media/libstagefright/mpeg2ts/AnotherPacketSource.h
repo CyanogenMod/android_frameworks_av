@@ -67,6 +67,7 @@ struct AnotherPacketSource : public MediaSource {
     void signalEOS(status_t result);
 
     status_t dequeueAccessUnit(sp<ABuffer> *buffer);
+    void requeueAccessUnit(const sp<ABuffer> &buffer);
 
     bool isFinished(int64_t duration) const;
 

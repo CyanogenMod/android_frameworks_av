@@ -415,6 +415,7 @@ status_t ElementaryStreamQueue::appendData(
             }
 
             case PCM_AUDIO:
+            case METADATA:
             {
                 break;
             }
@@ -499,6 +500,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
             return dequeueAccessUnitMPEG4Video();
         case PCM_AUDIO:
             return dequeueAccessUnitPCMAudio();
+        case METADATA:
+            return dequeueAccessUnitMetadata();
         default:
             CHECK_EQ((unsigned)mMode, (unsigned)MPEG_AUDIO);
             return dequeueAccessUnitMPEGAudio();
@@ -1292,5 +1295,25 @@ void ElementaryStreamQueue::signalEOS() {
     }
 }
 
+sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMetadata() {
+    size_t size = mBuffer->size();
+    if (!size) {
+        return NULL;
+    }
+
+    sp<ABuffer> accessUnit = new ABuffer(size);
+    int64_t timeUs = fetchTimestamp(size);
+    accessUnit->meta()->setInt64("timeUs", timeUs);
+
+    memcpy(accessUnit->data(), mBuffer->data(), size);
+    mBuffer->setRange(0, 0);
+
+    if (mFormat == NULL) {
+        mFormat = new MetaData;
+        mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_DATA_METADATA);
+    }
+
+    return accessUnit;
+}
 
 }  // namespace android

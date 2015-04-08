@@ -64,6 +64,7 @@ extern const char *MEDIA_MIMETYPE_TEXT_3GPP;
 extern const char *MEDIA_MIMETYPE_TEXT_SUBRIP;
 extern const char *MEDIA_MIMETYPE_TEXT_VTT;
 extern const char *MEDIA_MIMETYPE_TEXT_CEA_608;
+extern const char *MEDIA_MIMETYPE_DATA_METADATA;
 
 }  // namespace android
 

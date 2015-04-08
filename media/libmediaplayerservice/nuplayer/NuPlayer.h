@@ -249,6 +249,7 @@ private:
             bool audio, bool video, const sp<AMessage> &reply);
 
     void sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex);
+    void sendTimedMetaData(const sp<ABuffer> &buffer);
     void sendTimedTextData(const sp<ABuffer> &buffer);
 
     void writeTrackInfo(Parcel* reply, const sp<AMessage> format) const;

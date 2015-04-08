@@ -857,6 +857,9 @@ void MediaPlayer::notify(int msg, int ext1, int ext2, const Parcel *obj)
     case MEDIA_SUBTITLE_DATA:
         ALOGV("Received subtitle data message");
         break;
+    case MEDIA_META_DATA:
+        ALOGV("Received timed metadata message");
+        break;
     default:
         ALOGV("unrecognized message: (%d, %d, %d)", msg, ext1, ext2);
         break;

@@ -38,6 +38,7 @@
 #include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaHTTP.h>
+#include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
@@ -135,6 +136,8 @@ const char *LiveSession::getKeyForStream(StreamType type) {
             return "timeUsAudio";
         case STREAMTYPE_SUBTITLES:
             return "timeUsSubtitle";
+        case STREAMTYPE_METADATA:
+            return "timeUsMetadata"; // unused
         default:
             TRESPASS();
     }
@@ -150,10 +153,28 @@ const char *LiveSession::getNameForStream(StreamType type) {
             return "audio";
         case STREAMTYPE_SUBTITLES:
             return "subs";
+        case STREAMTYPE_METADATA:
+            return "metadata";
         default:
             break;
     }
     return "unknown";
+}
+
+//static
+ATSParser::SourceType LiveSession::getSourceTypeForStream(StreamType type) {
+    switch (type) {
+        case STREAMTYPE_VIDEO:
+            return ATSParser::VIDEO;
+        case STREAMTYPE_AUDIO:
+            return ATSParser::AUDIO;
+        case STREAMTYPE_METADATA:
+            return ATSParser::META;
+        case STREAMTYPE_SUBTITLES:
+        default:
+            TRESPASS();
+    }
+    return ATSParser::NUM_SOURCE_TYPES; // should not reach here
 }
 
 LiveSession::LiveSession(
@@ -187,12 +208,13 @@ LiveSession::LiveSession(
       mUpSwitchMargin(kUpSwitchMarginUs),
       mFirstTimeUsValid(false),
       mFirstTimeUs(0),
-      mLastSeekTimeUs(0) {
+      mLastSeekTimeUs(0),
+      mHasMetadata(false) {
     mStreams[kAudioIndex] = StreamItem("audio");
     mStreams[kVideoIndex] = StreamItem("video");
     mStreams[kSubtitleIndex] = StreamItem("subtitles");
 
-    for (size_t i = 0; i < kMaxStreams; ++i) {
+    for (size_t i = 0; i < kNumSources; ++i) {
         mPacketSources.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
         mPacketSources2.add(indexToType(i), new AnotherPacketSource(NULL /* meta */));
     }
@@ -202,6 +224,20 @@ LiveSession::~LiveSession() {
     if (mFetcherLooper != NULL) {
         mFetcherLooper->stop();
     }
+}
+
+int64_t LiveSession::calculateMediaTimeUs(
+        int64_t firstTimeUs, int64_t timeUs, int32_t discontinuitySeq) {
+    if (timeUs >= firstTimeUs) {
+        timeUs -= firstTimeUs;
+    } else {
+        timeUs = 0;
+    }
+    timeUs += mLastSeekTimeUs;
+    if (mDiscontinuityOffsetTimesUs.indexOfKey(discontinuitySeq) >= 0) {
+        timeUs += mDiscontinuityOffsetTimesUs.valueFor(discontinuitySeq);
+    }
+    return timeUs;
 }
 
 status_t LiveSession::dequeueAccessUnit(
@@ -236,7 +272,6 @@ status_t LiveSession::dequeueAccessUnit(
 
     status_t err = packetSource->dequeueAccessUnit(accessUnit);
 
-    StreamItem& strm = mStreams[streamIdx];
     if (err == INFO_DISCONTINUITY) {
         // adaptive streaming, discontinuities in the playlist
         int32_t type;
@@ -256,6 +291,7 @@ status_t LiveSession::dequeueAccessUnit(
         if (stream == STREAMTYPE_AUDIO || stream == STREAMTYPE_VIDEO) {
             int64_t timeUs, originalTimeUs;
             int32_t discontinuitySeq = 0;
+            StreamItem& strm = mStreams[streamIdx];
             CHECK((*accessUnit)->meta()->findInt64("timeUs",  &timeUs));
             originalTimeUs = timeUs;
             (*accessUnit)->meta()->findInt32("discontinuitySeq", &discontinuitySeq);
@@ -299,15 +335,7 @@ status_t LiveSession::dequeueAccessUnit(
             }
 
             strm.mLastDequeuedTimeUs = timeUs;
-            if (timeUs >= firstTimeUs) {
-                timeUs -= firstTimeUs;
-            } else {
-                timeUs = 0;
-            }
-            timeUs += mLastSeekTimeUs;
-            if (mDiscontinuityOffsetTimesUs.indexOfKey(discontinuitySeq) >= 0) {
-                timeUs += mDiscontinuityOffsetTimesUs.valueFor(discontinuitySeq);
-            }
+            timeUs = calculateMediaTimeUs(firstTimeUs, timeUs, discontinuitySeq);
 
             ALOGV("[%s] dequeueAccessUnit: time %lld us, original %lld us",
                     streamStr, (long long)timeUs, (long long)originalTimeUs);
@@ -323,6 +351,17 @@ status_t LiveSession::dequeueAccessUnit(
             (*accessUnit)->meta()->setInt32(
                     "trackIndex", mPlaylist->getSelectedIndex());
             (*accessUnit)->meta()->setInt64("baseUs", mRealTimeBaseUs);
+        } else if (stream == STREAMTYPE_METADATA) {
+            HLSTime mdTime((*accessUnit)->meta());
+            if (mDiscontinuityAbsStartTimesUs.indexOfKey(mdTime.mSeq) < 0) {
+                packetSource->requeueAccessUnit((*accessUnit));
+                return -EAGAIN;
+            } else {
+                int64_t firstTimeUs = mDiscontinuityAbsStartTimesUs.valueFor(mdTime.mSeq);
+                int64_t timeUs = calculateMediaTimeUs(firstTimeUs, mdTime.mTimeUs, mdTime.mSeq);
+                (*accessUnit)->meta()->setInt64("timeUs",  timeUs);
+                (*accessUnit)->meta()->setInt64("baseUs", mRealTimeBaseUs);
+            }
         }
     } else {
         ALOGI("[%s] encountered error %d", streamStr, err);
@@ -728,6 +767,17 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
+                case PlaylistFetcher::kWhatMetadataDetected:
+                {
+                    if (!mHasMetadata) {
+                        mHasMetadata = true;
+                        sp<AMessage> notify = mNotify->dup();
+                        notify->setInt32("what", kWhatMetadataDetected);
+                        notify->post();
+                    }
+                    break;
+                }
+
                 default:
                     TRESPASS();
             }
@@ -788,7 +838,7 @@ int LiveSession::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b)
 
 // static
 LiveSession::StreamType LiveSession::indexToType(int idx) {
-    CHECK(idx >= 0 && idx < kMaxStreams);
+    CHECK(idx >= 0 && idx < kNumSources);
     return (StreamType)(1 << idx);
 }
 
@@ -801,6 +851,8 @@ ssize_t LiveSession::typeToIndex(int32_t type) {
             return 1;
         case STREAMTYPE_SUBTITLES:
             return 2;
+        case STREAMTYPE_METADATA:
+            return 3;
         default:
             return -1;
     };
@@ -1179,6 +1231,45 @@ static double uniformRand() {
 }
 #endif
 
+bool LiveSession::UriIsSameAsIndex(const AString &uri, int32_t i, bool newUri) {
+    ALOGI("[timed_id3] i %d UriIsSameAsIndex newUri %s, %s", i,
+            newUri ? "true" : "false",
+            newUri ? mStreams[i].mNewUri.c_str() : mStreams[i].mUri.c_str());
+    return i >= 0
+            && ((!newUri && uri == mStreams[i].mUri)
+            || (newUri && uri == mStreams[i].mNewUri));
+}
+
+sp<AnotherPacketSource> LiveSession::getPacketSourceForStreamIndex(
+        size_t trackIndex, bool newUri) {
+    StreamType type = indexToType(trackIndex);
+    sp<AnotherPacketSource> source = NULL;
+    if (newUri) {
+        source = mPacketSources2.valueFor(type);
+        source->clear();
+    } else {
+        source = mPacketSources.valueFor(type);
+    };
+    return source;
+}
+
+sp<AnotherPacketSource> LiveSession::getMetadataSource(
+        sp<AnotherPacketSource> sources[kNumSources], uint32_t streamMask, bool newUri) {
+    // todo: One case where the following strategy can fail is when audio and video
+    // are in separate playlists, both are transport streams, and the metadata
+    // is actually contained in the audio stream.
+    ALOGV("[timed_id3] getMetadataSourceForUri streamMask %x newUri %s",
+            streamMask, newUri ? "true" : "false");
+
+    if ((sources[kVideoIndex] != NULL) // video fetcher; or ...
+            || (!(streamMask & STREAMTYPE_VIDEO) && sources[kAudioIndex] != NULL)) {
+            // ... audio fetcher for audio only variant
+        return getPacketSourceForStreamIndex(kMetaDataIndex, newUri);
+    }
+
+    return NULL;
+}
+
 bool LiveSession::resumeFetcher(
         const AString &uri, uint32_t streamMask, int64_t timeUs, bool newUri) {
     ssize_t index = mFetcherInfos.indexOfKey(uri);
@@ -1188,18 +1279,11 @@ bool LiveSession::resumeFetcher(
     }
 
     bool resume = false;
-    sp<AnotherPacketSource> sources[kMaxStreams];
+    sp<AnotherPacketSource> sources[kNumSources];
     for (size_t i = 0; i < kMaxStreams; ++i) {
-        if ((streamMask & indexToType(i))
-            && ((!newUri && uri == mStreams[i].mUri)
-            || (newUri && uri == mStreams[i].mNewUri))) {
+        if ((streamMask & indexToType(i)) && UriIsSameAsIndex(uri, i, newUri)) {
             resume = true;
-            if (newUri) {
-                sources[i] = mPacketSources2.valueFor(indexToType(i));
-                sources[i]->clear();
-            } else {
-                sources[i] = mPacketSources.valueFor(indexToType(i));
-            }
+            sources[i] = getPacketSourceForStreamIndex(i, newUri);
         }
     }
 
@@ -1214,6 +1298,7 @@ bool LiveSession::resumeFetcher(
                 sources[kAudioIndex],
                 sources[kVideoIndex],
                 sources[kSubtitleIndex],
+                getMetadataSource(sources, streamMask, newUri),
                 timeUs, -1, -1, seekMode);
     }
 
@@ -1424,7 +1509,7 @@ size_t LiveSession::getTrackCount() const {
     if (mPlaylist == NULL) {
         return 0;
     } else {
-        return mPlaylist->getTrackCount();
+        return mPlaylist->getTrackCount() + (mHasMetadata ? 1 : 0);
     }
 }
 
@@ -1432,6 +1517,13 @@ sp<AMessage> LiveSession::getTrackInfo(size_t trackIndex) const {
     if (mPlaylist == NULL) {
         return NULL;
     } else {
+        if (trackIndex == mPlaylist->getTrackCount() && mHasMetadata) {
+            sp<AMessage> format = new AMessage();
+            format->setInt32("type", MEDIA_TRACK_TYPE_METADATA);
+            format->setString("language", "und");
+            format->setString("mime", MEDIA_MIMETYPE_DATA_METADATA);
+            return format;
+        }
         return mPlaylist->getTrackInfo(trackIndex);
     }
 }
@@ -1768,7 +1860,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
 
         HLSTime startTime;
         SeekMode seekMode = kSeekModeExactPosition;
-        sp<AnotherPacketSource> sources[kMaxStreams];
+        sp<AnotherPacketSource> sources[kNumSources];
 
         if (i == kSubtitleIndex || (!pickTrack && !switching)) {
             startTime = latestMediaSegmentStartTime();
@@ -1797,8 +1889,8 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                         }
                     }
 
-                    if (j != kSubtitleIndex && meta != NULL
-                            && !meta->findInt32("discontinuity", &type)) {
+                    if ((j == kAudioIndex || j == kVideoIndex)
+                            && meta != NULL && !meta->findInt32("discontinuity", &type)) {
                         HLSTime tmpTime(meta);
                         if (startTime < tmpTime) {
                             startTime = tmpTime;
@@ -1851,6 +1943,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 sources[kAudioIndex],
                 sources[kVideoIndex],
                 sources[kSubtitleIndex],
+                getMetadataSource(sources, mNewStreamMask, switching),
                 startTime.mTimeUs < 0 ? mLastSeekTimeUs : startTime.mTimeUs,
                 startTime.getSegmentTimeUs(true /* midpoint */),
                 startTime.mSeq,

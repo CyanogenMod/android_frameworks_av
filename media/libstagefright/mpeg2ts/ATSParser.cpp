@@ -132,6 +132,7 @@ struct ATSParser::Stream : public RefBase {
 
     bool isAudio() const;
     bool isVideo() const;
+    bool isMeta() const;
 
 protected:
     virtual ~Stream();
@@ -604,6 +605,11 @@ ATSParser::Stream::Stream(
                     ElementaryStreamQueue::AC3);
             break;
 
+        case STREAMTYPE_METADATA:
+            mQueue = new ElementaryStreamQueue(
+                    ElementaryStreamQueue::METADATA);
+            break;
+
         default:
             break;
     }
@@ -720,6 +726,13 @@ bool ATSParser::Stream::isAudio() const {
         default:
             return false;
     }
+}
+
+bool ATSParser::Stream::isMeta() const {
+    if (mStreamType == STREAMTYPE_METADATA) {
+        return true;
+    }
+    return false;
 }
 
 void ATSParser::Stream::signalDiscontinuity(
@@ -1032,6 +1045,14 @@ sp<MediaSource> ATSParser::Stream::getSource(SourceType type) {
         case AUDIO:
         {
             if (isAudio()) {
+                return mSource;
+            }
+            break;
+        }
+
+        case META:
+        {
+            if (isMeta()) {
                 return mSource;
             }
             break;

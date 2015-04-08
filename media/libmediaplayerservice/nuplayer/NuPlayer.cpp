@@ -1859,6 +1859,17 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+        case Source::kWhatTimedMetaData:
+        {
+            sp<ABuffer> buffer;
+            if (!msg->findBuffer("buffer", &buffer)) {
+                notifyListener(MEDIA_INFO, MEDIA_INFO_METADATA_UPDATE, 0);
+            } else {
+                sendTimedMetaData(buffer);
+            }
+            break;
+        }
+
         case Source::kWhatTimedTextData:
         {
             int32_t generation;
@@ -1965,6 +1976,19 @@ void NuPlayer::sendSubtitleData(const sp<ABuffer> &buffer, int32_t baseIndex) {
     in.write(buffer->data(), buffer->size());
 
     notifyListener(MEDIA_SUBTITLE_DATA, 0, 0, &in);
+}
+
+void NuPlayer::sendTimedMetaData(const sp<ABuffer> &buffer) {
+    int64_t timeUs;
+    CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+
+    Parcel in;
+    in.writeInt64(timeUs);
+    in.writeInt32(buffer->size());
+    in.writeInt32(buffer->size());
+    in.write(buffer->data(), buffer->size());
+
+    notifyListener(MEDIA_META_DATA, 0, 0, &in);
 }
 
 void NuPlayer::sendTimedTextData(const sp<ABuffer> &buffer) {

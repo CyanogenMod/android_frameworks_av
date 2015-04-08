@@ -74,7 +74,8 @@ struct ATSParser : public RefBase {
     enum SourceType {
         VIDEO = 0,
         AUDIO = 1,
-        NUM_SOURCE_TYPES = 2
+        META  = 2,
+        NUM_SOURCE_TYPES = 3
     };
     sp<MediaSource> getSource(SourceType type);
     bool hasSource(SourceType type) const;
@@ -90,6 +91,7 @@ struct ATSParser : public RefBase {
         STREAMTYPE_MPEG2_AUDIO          = 0x04,
         STREAMTYPE_MPEG2_AUDIO_ADTS     = 0x0f,
         STREAMTYPE_MPEG4_VIDEO          = 0x10,
+        STREAMTYPE_METADATA             = 0x15,
         STREAMTYPE_H264                 = 0x1b,
 
         // From ATSC A/53 Part 3:2009, 6.7.1

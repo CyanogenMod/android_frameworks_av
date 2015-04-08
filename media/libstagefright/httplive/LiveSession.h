@@ -23,6 +23,8 @@
 
 #include <utils/String8.h>
 
+#include "mpeg2ts/ATSParser.h"
+
 namespace android {
 
 struct ABuffer;
@@ -47,12 +49,15 @@ struct LiveSession : public AHandler {
         kVideoIndex    = 1,
         kSubtitleIndex = 2,
         kMaxStreams    = 3,
+        kMetaDataIndex = 3,
+        kNumSources    = 4,
     };
 
     enum StreamType {
         STREAMTYPE_AUDIO        = 1 << kAudioIndex,
         STREAMTYPE_VIDEO        = 1 << kVideoIndex,
         STREAMTYPE_SUBTITLES    = 1 << kSubtitleIndex,
+        STREAMTYPE_METADATA     = 1 << kMetaDataIndex,
     };
 
     enum SeekMode {
@@ -66,6 +71,7 @@ struct LiveSession : public AHandler {
             uint32_t flags,
             const sp<IMediaHTTPService> &httpService);
 
+    int64_t calculateMediaTimeUs(int64_t firstTimeUs, int64_t timeUs, int32_t discontinuitySeq);
     status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
@@ -92,6 +98,7 @@ struct LiveSession : public AHandler {
 
     static const char *getKeyForStream(StreamType type);
     static const char *getNameForStream(StreamType type);
+    static ATSParser::SourceType getSourceTypeForStream(StreamType type);
 
     enum {
         kWhatStreamsChanged,
@@ -101,6 +108,7 @@ struct LiveSession : public AHandler {
         kWhatBufferingStart,
         kWhatBufferingEnd,
         kWhatBufferingUpdate,
+        kWhatMetadataDetected,
     };
 
 protected:
@@ -233,6 +241,8 @@ private:
     bool mFirstTimeUsValid;
     int64_t mFirstTimeUs;
     int64_t mLastSeekTimeUs;
+    bool mHasMetadata;
+
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
 
@@ -267,6 +277,11 @@ private:
 
     sp<M3UParser> fetchPlaylist(
             const char *url, uint8_t *curPlaylistHash, bool *unchanged);
+
+    bool UriIsSameAsIndex( const AString &uri, int32_t index, bool newUri);
+    sp<AnotherPacketSource> getPacketSourceForStreamIndex(size_t trackIndex, bool newUri);
+    sp<AnotherPacketSource> getMetadataSource(
+            sp<AnotherPacketSource> sources[kNumSources], uint32_t streamMask, bool newUri);
 
     bool resumeFetcher(
             const AString &uri, uint32_t streamMask,
