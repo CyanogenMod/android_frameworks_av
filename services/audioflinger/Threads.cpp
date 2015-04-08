@@ -5593,6 +5593,7 @@ reacquire_wakelock:
                 continue;
             }
 
+            // TODO: This code probably should be moved to RecordTrack.
             // TODO: Update the activeTrack buffer converter in case of reconfigure.
 
             enum {
@@ -5609,24 +5610,14 @@ reacquire_wakelock:
                 size_t framesOut = activeTrack->mSink.frameCount;
                 LOG_ALWAYS_FATAL_IF((status == OK) != (framesOut > 0));
 
-                int32_t front = activeTrack->mRsmpInFront;
-                ssize_t filled = rear - front;
+                // check available frames and handle overrun conditions
+                // if the record track isn't draining fast enough.
+                bool hasOverrun;
                 size_t framesIn;
-
-                if (filled < 0) {
-                    // should not happen, but treat like a massive overrun and re-sync
-                    framesIn = 0;
-                    activeTrack->mRsmpInFront = rear;
-                    overrun = OVERRUN_TRUE;
-                } else if ((size_t) filled <= mRsmpInFrames) {
-                    framesIn = (size_t) filled;
-                } else {
-                    // client is not keeping up with server, but give it latest data
-                    framesIn = mRsmpInFrames;
-                    activeTrack->mRsmpInFront = front = rear - framesIn;
+                activeTrack->mResamplerBufferProvider->sync(&framesIn, &hasOverrun);
+                if (hasOverrun) {
                     overrun = OVERRUN_TRUE;
                 }
-
                 if (framesOut == 0 || framesIn == 0) {
                     break;
                 }
@@ -5942,8 +5933,7 @@ status_t AudioFlinger::RecordThread::start(RecordThread::RecordTrack* recordTrac
         // was initialized to some value closer to the thread's mRsmpInFront, then the track could
         // see previously buffered data before it called start(), but with greater risk of overrun.
 
-        recordTrack->mRsmpInFront = mRsmpInRear;
-        recordTrack->mRsmpInUnrel = 0;
+        recordTrack->mResamplerBufferProvider->reset();
         // clear any converter state as new data will be discontinuous
         recordTrack->mRecordBufferConverter->reset();
         recordTrack->mState = TrackBase::STARTING_2;
@@ -6121,12 +6111,52 @@ void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args
     write(fd, result.string(), result.size());
 }
 
+
+void AudioFlinger::RecordThread::ResamplerBufferProvider::reset()
+{
+    sp<ThreadBase> threadBase = mRecordTrack->mThread.promote();
+    RecordThread *recordThread = (RecordThread *) threadBase.get();
+    mRsmpInFront = recordThread->mRsmpInRear;
+    mRsmpInUnrel = 0;
+}
+
+void AudioFlinger::RecordThread::ResamplerBufferProvider::sync(
+        size_t *framesAvailable, bool *hasOverrun)
+{
+    sp<ThreadBase> threadBase = mRecordTrack->mThread.promote();
+    RecordThread *recordThread = (RecordThread *) threadBase.get();
+    const int32_t rear = recordThread->mRsmpInRear;
+    const int32_t front = mRsmpInFront;
+    const ssize_t filled = rear - front;
+
+    size_t framesIn;
+    bool overrun = false;
+    if (filled < 0) {
+        // should not happen, but treat like a massive overrun and re-sync
+        framesIn = 0;
+        mRsmpInFront = rear;
+        overrun = true;
+    } else if ((size_t) filled <= recordThread->mRsmpInFrames) {
+        framesIn = (size_t) filled;
+    } else {
+        // client is not keeping up with server, but give it latest data
+        framesIn = recordThread->mRsmpInFrames;
+        mRsmpInFront = /* front = */ rear - framesIn;
+        overrun = true;
+    }
+    if (framesAvailable != NULL) {
+        *framesAvailable = framesIn;
+    }
+    if (hasOverrun != NULL) {
+        *hasOverrun = overrun;
+    }
+}
+
 // AudioBufferProvider interface
 status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
         AudioBufferProvider::Buffer* buffer, int64_t pts __unused)
 {
-    RecordTrack *activeTrack = mRecordTrack;
-    sp<ThreadBase> threadBase = activeTrack->mThread.promote();
+    sp<ThreadBase> threadBase = mRecordTrack->mThread.promote();
     if (threadBase == 0) {
         buffer->frameCount = 0;
         buffer->raw = NULL;
@@ -6134,7 +6164,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
     }
     RecordThread *recordThread = (RecordThread *) threadBase.get();
     int32_t rear = recordThread->mRsmpInRear;
-    int32_t front = activeTrack->mRsmpInFront;
+    int32_t front = mRsmpInFront;
     ssize_t filled = rear - front;
     // FIXME should not be P2 (don't want to increase latency)
     // FIXME if client not keeping up, discard
@@ -6151,17 +6181,16 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
         part1 = ask;
     }
     if (part1 == 0) {
-        // Higher-level should keep mRsmpInBuffer full, and not call resampler if empty
-        LOG_ALWAYS_FATAL("RecordThread::getNextBuffer() starved");
+        // out of data is fine since the resampler will return a short-count.
         buffer->raw = NULL;
         buffer->frameCount = 0;
-        activeTrack->mRsmpInUnrel = 0;
+        mRsmpInUnrel = 0;
         return NOT_ENOUGH_DATA;
     }
 
     buffer->raw = recordThread->mRsmpInBuffer + front * recordThread->mChannelCount;
     buffer->frameCount = part1;
-    activeTrack->mRsmpInUnrel = part1;
+    mRsmpInUnrel = part1;
     return NO_ERROR;
 }
 
@@ -6169,14 +6198,13 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
 void AudioFlinger::RecordThread::ResamplerBufferProvider::releaseBuffer(
         AudioBufferProvider::Buffer* buffer)
 {
-    RecordTrack *activeTrack = mRecordTrack;
     size_t stepCount = buffer->frameCount;
     if (stepCount == 0) {
         return;
     }
-    ALOG_ASSERT(stepCount <= activeTrack->mRsmpInUnrel);
-    activeTrack->mRsmpInUnrel -= stepCount;
-    activeTrack->mRsmpInFront += stepCount;
+    ALOG_ASSERT(stepCount <= mRsmpInUnrel);
+    mRsmpInUnrel -= stepCount;
+    mRsmpInFront += stepCount;
     buffer->raw = NULL;
     buffer->frameCount = 0;
 }

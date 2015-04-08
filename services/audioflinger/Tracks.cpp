@@ -1991,8 +1991,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
                           ((buffer == NULL) ? ALLOC_LOCAL : ALLOC_NONE),
                   type),
         mOverflow(false),
-        // See real initialization of mRsmpInFront at RecordThread::start()
-        mRsmpInUnrel(0), mRsmpInFront(0), mFramesToDrop(0), mResamplerBufferProvider(NULL)
+        mFramesToDrop(0)
 {
     if (mCblk == NULL) {
         return;

@@ -67,14 +67,6 @@ private:
 
     bool                mOverflow;  // overflow on most recent attempt to fill client buffer
 
-
-            size_t                              mRsmpInUnrel;   // unreleased frames remaining from
-                                                                // most recent getNextBuffer
-                                                                // for debug only
-
-            // rolling counter that is never cleared
-            int32_t                             mRsmpInFront;   // next available frame
-
             AudioBufferProvider::Buffer mSink;  // references client's buffer sink in shared memory
 
             // sync event triggering actual audio capture. Frames read before this event will
