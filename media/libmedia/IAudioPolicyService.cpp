@@ -173,6 +173,7 @@ public:
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags,
+                                        audio_port_handle_t selectedDeviceId,
                                         const audio_offload_info_t *offloadInfo)
         {
             Parcel data, reply;
@@ -208,6 +209,7 @@ public:
             data.writeInt32(static_cast <uint32_t>(format));
             data.writeInt32(channelMask);
             data.writeInt32(static_cast <uint32_t>(flags));
+            data.writeInt32(selectedDeviceId);
             // hasOffloadInfo
             if (offloadInfo == NULL) {
                 data.writeInt32(0);
@@ -815,6 +817,7 @@ status_t BnAudioPolicyService::onTransact(
             audio_channel_mask_t channelMask = data.readInt32();
             audio_output_flags_t flags =
                     static_cast <audio_output_flags_t>(data.readInt32());
+            audio_port_handle_t selectedDeviceId = data.readInt32();
             bool hasOffloadInfo = data.readInt32() != 0;
             audio_offload_info_t offloadInfo;
             if (hasOffloadInfo) {
@@ -824,7 +827,7 @@ status_t BnAudioPolicyService::onTransact(
             status_t status = getOutputForAttr(hasAttributes ? &attr : NULL,
                     &output, session, &stream,
                     samplingRate, format, channelMask,
-                    flags, hasOffloadInfo ? &offloadInfo : NULL);
+                    flags, selectedDeviceId, hasOffloadInfo ? &offloadInfo : NULL);
             reply->writeInt32(status);
             reply->writeInt32(output);
             reply->writeInt32(stream);

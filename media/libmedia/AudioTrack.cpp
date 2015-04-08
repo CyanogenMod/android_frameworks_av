@@ -121,7 +121,8 @@ AudioTrack::AudioTrack()
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0)
+      mPausedPosition(0),
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
 {
     mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
     mAttributes.usage = AUDIO_USAGE_UNKNOWN;
@@ -149,7 +150,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0)
+      mPausedPosition(0),
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
@@ -177,7 +179,8 @@ AudioTrack::AudioTrack(
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0)
+      mPausedPosition(0),
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
@@ -928,6 +931,21 @@ audio_io_handle_t AudioTrack::getOutput() const
     return mOutput;
 }
 
+status_t AudioTrack::setOutputDevice(audio_port_handle_t deviceId) {
+    AutoMutex lock(mLock);
+    if (mSelectedDeviceId != deviceId) {
+        mSelectedDeviceId = deviceId;
+        return restoreTrack_l("setOutputDevice() restart");
+    } else {
+        return NO_ERROR;
+    }
+}
+
+audio_port_handle_t AudioTrack::getOutputDevice() {
+    AutoMutex lock(mLock);
+    return mSelectedDeviceId;
+}
+
 status_t AudioTrack::attachAuxEffect(int effectId)
 {
     AutoMutex lock(mLock);
@@ -960,11 +978,12 @@ status_t AudioTrack::createTrack_l()
     audio_io_handle_t output;
     audio_stream_type_t streamType = mStreamType;
     audio_attributes_t *attr = (mStreamType == AUDIO_STREAM_DEFAULT) ? &mAttributes : NULL;
-    status_t status = AudioSystem::getOutputForAttr(attr, &output,
-                                                    (audio_session_t)mSessionId, &streamType,
-                                                    mSampleRate, mFormat, mChannelMask,
-                                                    mFlags, mOffloadInfo);
 
+    status_t status;
+    status = AudioSystem::getOutputForAttr(attr, &output,
+                                           (audio_session_t)mSessionId, &streamType,
+                                           mSampleRate, mFormat, mChannelMask,
+                                           mFlags, mSelectedDeviceId, mOffloadInfo);
 
     if (status != NO_ERROR || output == AUDIO_IO_HANDLE_NONE) {
         ALOGE("Could not get audio output for session %d, stream type %d, usage %d, sample rate %u, format %#x,"

@@ -621,6 +621,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_format_t format,
                                               audio_channel_mask_t channelMask,
                                               audio_output_flags_t flags,
+                                              audio_port_handle_t selectedDeviceId,
                                               const audio_offload_info_t *offloadInfo)
 {
     audio_attributes_t attributes;
@@ -675,6 +676,17 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     if (*output == AUDIO_IO_HANDLE_NONE) {
         return INVALID_OPERATION;
     }
+
+    // Explicit routing?
+    sp<DeviceDescriptor> deviceDesc;
+
+    for (size_t i = 0; i < mAvailableOutputDevices.size(); i++) {
+        if (mAvailableOutputDevices[i]->getHandle() == selectedDeviceId) {
+            deviceDesc = mAvailableOutputDevices[i];
+            break;
+        }
+    }
+    mOutputRoutes.addRoute(session, *stream, deviceDesc);
     return NO_ERROR;
 }
 
@@ -856,7 +868,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     }
 
 non_direct_output:
-
     // ignoring channel mask due to downmix capability in mixer
 
     // open a non direct output
@@ -874,7 +885,7 @@ non_direct_output:
     ALOGW_IF((output == 0), "getOutput() could not find output for stream %d, samplingRate %d,"
             "format %d, channels %x, flags %x", stream, samplingRate, format, channelMask, flags);
 
-    ALOGV("getOutput() returns output %d", output);
+    ALOGV("  getOutputForDevice() returns output %d", output);
 
     return output;
 }
@@ -941,7 +952,8 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
                                              audio_stream_type_t stream,
                                              audio_session_t session)
 {
-    ALOGV("startOutput() output %d, stream %d, session %d", output, stream, session);
+    ALOGV("startOutput() output %d, stream %d, session %d",
+          output, stream, session);
     ssize_t index = mOutputs.indexOfKey(output);
     if (index < 0) {
         ALOGW("startOutput() unknown output %d", output);
@@ -963,11 +975,13 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
     }
 
     sp<AudioOutputDescriptor> outputDesc = mOutputs.valueAt(index);
-
     // increment usage count for this stream on the requested output:
     // NOTE that the usage count is the same for duplicated output and hardware output which is
     // necessary for a correct control of hardware output routing by startOutput() and stopOutput()
     outputDesc->changeRefCount(stream, 1);
+
+    // Routing?
+    mOutputRoutes.incRouteActivity(session);
 
     if (outputDesc->mRefCount[stream] == 1) {
         // starting an output being rerouted?
@@ -1067,6 +1081,10 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
     if (outputDesc->mRefCount[stream] > 0) {
         // decrement usage count of this stream on the output
         outputDesc->changeRefCount(stream, -1);
+
+        // Routing?
+        mOutputRoutes.decRouteActivity(session);
+
         // store time at which the stream was stopped - see isStreamActive()
         if (outputDesc->mRefCount[stream] == 0) {
             // Automatically disable the remote submix input when output is stopped on a
@@ -1137,6 +1155,9 @@ void AudioPolicyManager::releaseOutput(audio_io_handle_t output,
         return;
     }
 #endif //AUDIO_POLICY_TEST
+
+    // Routing
+    mOutputRoutes.removeRoute(session);
 
     sp<AudioOutputDescriptor> desc = mOutputs.valueAt(index);
     if (desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
@@ -3779,6 +3800,21 @@ uint32_t AudioPolicyManager::setBeaconMute(bool mute) {
 audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strategy,
                                                          bool fromCache)
 {
+    // Routing
+    // see if we have an explicit route
+    // scan the whole RouteMap, for each entry, convert the stream type to a strategy
+    // (getStrategy(stream)).
+    // if the strategy from the stream type in the RouteMap is the same as the argument above,
+    // and activity count is non-zero
+    // the device = the device from the descriptor in the RouteMap, and exit.
+    for (size_t routeIndex = 0; routeIndex < mOutputRoutes.size(); routeIndex++) {
+        sp<SessionRoute> route = mOutputRoutes.valueAt(routeIndex);
+        routing_strategy strat = getStrategy(route->mStreamType);
+        if (strat == strategy && route->mDeviceDescriptor != 0 /*&& route->mActivityCount != 0*/) {
+            return route->mDeviceDescriptor->type();
+        }
+    }
+
     if (fromCache) {
         ALOGVV("getDeviceForStrategy() from cache strategy %d, device %x",
               strategy, mDeviceForStrategy[strategy]);
@@ -3895,8 +3931,8 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
     }
     // no need to proceed if new device is not AUDIO_DEVICE_NONE and not supported by current
     // output profile
-    if ((device != AUDIO_DEVICE_NONE) &&
-            ((device & outputDesc->mProfile->mSupportedDevices.types()) == 0)) {
+    if (device != AUDIO_DEVICE_NONE &&
+        (device & outputDesc->mProfile->mSupportedDevices.types()) == 0) {
         return 0;
     }
 
@@ -3905,7 +3941,7 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
 
     audio_devices_t prevDevice = outputDesc->mDevice;
 
-    ALOGV("setOutputDevice() prevDevice %04x", prevDevice);
+    ALOGV("setOutputDevice() prevDevice 0x%04x", prevDevice);
 
     if (device != AUDIO_DEVICE_NONE) {
         outputDesc->mDevice = device;
@@ -3918,9 +3954,10 @@ uint32_t AudioPolicyManager::setOutputDevice(audio_io_handle_t output,
     //  AND force is not specified
     //  AND the output is connected by a valid audio patch.
     // Doing this check here allows the caller to call setOutputDevice() without conditions
-    if ((device == AUDIO_DEVICE_NONE || device == prevDevice) && !force &&
-            outputDesc->mPatchHandle != 0) {
-        ALOGV("setOutputDevice() setting same device %04x or null device for output %d",
+    if ((device == AUDIO_DEVICE_NONE || device == prevDevice) &&
+        !force &&
+        outputDesc->mPatchHandle != 0) {
+        ALOGV("setOutputDevice() setting same device 0x%04x or null device for output %d",
               device, output);
         return muteWaitMs;
     }
@@ -4403,6 +4440,70 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
                 }
             }
         }
+    }
+}
+
+// --- SessionRoute class implementation
+void AudioPolicyManager::SessionRoute::log(const char* prefix) {
+    ALOGI("%s[SessionRoute strm:0x%X, sess:0x%X, dev:0x%X refs:%d act:%d",
+          prefix, mStreamType, mSession,
+          mDeviceDescriptor != 0 ? mDeviceDescriptor->type() : AUDIO_DEVICE_NONE,
+          mRefCount, mActivityCount);
+}
+
+// --- SessionRouteMap class implementation
+bool AudioPolicyManager::SessionRouteMap::hasRoute(audio_session_t session)
+{
+    return indexOfKey(session) >= 0 && valueFor(session)->mDeviceDescriptor != 0;
+}
+
+void AudioPolicyManager::SessionRouteMap::addRoute(audio_session_t session,
+                                                   audio_stream_type_t streamType,
+                                                   sp<DeviceDescriptor> deviceDescriptor)
+{
+    sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
+    if (route != NULL) {
+        route->mRefCount++;
+        route->mDeviceDescriptor = deviceDescriptor;
+    } else {
+        route = new AudioPolicyManager::SessionRoute(session, streamType, deviceDescriptor);
+        route->mRefCount++;
+        add(session, route);
+    }
+}
+
+void AudioPolicyManager::SessionRouteMap::removeRoute(audio_session_t session)
+{
+    sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
+    if (route != 0) {
+        ALOG_ASSERT(route->mRefCount > 0);
+        --route->mRefCount;
+        if (route->mRefCount <= 0) {
+            removeItem(session);
+        }
+    }
+}
+
+int AudioPolicyManager::SessionRouteMap::incRouteActivity(audio_session_t session)
+{
+    sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
+    return route != 0 ? ++(route->mActivityCount) : -1;
+}
+
+int AudioPolicyManager::SessionRouteMap::decRouteActivity(audio_session_t session)
+{
+    sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
+    if (route != 0 && route->mActivityCount > 0) {
+        return --(route->mActivityCount);
+    } else {
+        return -1;
+    }
+}
+
+void AudioPolicyManager::SessionRouteMap::log(const char* caption) {
+    ALOGI("%s ----", caption);
+    for(size_t index = 0; index < size(); index++) {
+        valueAt(index)->log("  ");
     }
 }
 

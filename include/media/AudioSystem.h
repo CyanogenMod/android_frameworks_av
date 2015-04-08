@@ -221,14 +221,15 @@ public:
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL);
     static status_t getOutputForAttr(const audio_attributes_t *attr,
-                                        audio_io_handle_t *output,
-                                        audio_session_t session,
-                                        audio_stream_type_t *stream,
-                                        uint32_t samplingRate = 0,
-                                        audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                        audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
-                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
-                                        const audio_offload_info_t *offloadInfo = NULL);
+                                     audio_io_handle_t *output,
+                                     audio_session_t session,
+                                     audio_stream_type_t *stream,
+                                     uint32_t samplingRate = 0,
+                                     audio_format_t format = AUDIO_FORMAT_DEFAULT,
+                                     audio_channel_mask_t channelMask = AUDIO_CHANNEL_OUT_STEREO,
+                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                     audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE,
+                                     const audio_offload_info_t *offloadInfo = NULL);
     static status_t startOutput(audio_io_handle_t output,
                                 audio_stream_type_t stream,
                                 audio_session_t session);

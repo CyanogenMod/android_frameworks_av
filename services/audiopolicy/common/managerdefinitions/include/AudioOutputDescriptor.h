@@ -36,6 +36,7 @@ public:
     AudioOutputDescriptor(const sp<IOProfile>& profile);
 
     status_t    dump(int fd);
+    void        log(const char* indent);
 
     audio_devices_t device() const;
     void changeRefCount(audio_stream_type_t stream, int delta);

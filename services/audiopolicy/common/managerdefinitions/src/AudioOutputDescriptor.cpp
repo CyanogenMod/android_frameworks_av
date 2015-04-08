@@ -226,6 +226,12 @@ status_t AudioOutputDescriptor::dump(int fd)
     return NO_ERROR;
 }
 
+void AudioOutputDescriptor::log(const char* indent)
+{
+    ALOGI("%sID: %d,0x%X, [rt:%d fmt:0x%X ch:0x%X] hndl:%d",
+          indent, mId, mId, mSamplingRate, mFormat, mChannelMask, mIoHandle);
+}
+
 bool AudioOutputCollection::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
     nsecs_t sysTime = systemTime();

@@ -694,6 +694,10 @@ void AudioPort::dump(int fd, int spaces) const
     }
 }
 
+void AudioPort::log(const char* indent) const
+{
+    ALOGI("%s Port[nm:%s, type:%d, role:%d]", indent, mName.string(), mType, mRole);
+}
 
 // --- AudioPortConfig class implementation
 
