@@ -1612,6 +1612,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('s', 't', 'c', 'o'):
         case FOURCC('c', 'o', '6', '4'):
         {
+            if ((mLastTrack == NULL) || (mLastTrack->sampleTable == NULL))
+                return ERROR_MALFORMED;
+
             status_t err =
                 mLastTrack->sampleTable->setChunkOffsetParams(
                         chunk_type, data_offset, chunk_data_size);
@@ -1627,6 +1630,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('s', 't', 's', 'c'):
         {
+            if ((mLastTrack == NULL) || (mLastTrack->sampleTable == NULL))
+                return ERROR_MALFORMED;
+
             status_t err =
                 mLastTrack->sampleTable->setSampleToChunkParams(
                         data_offset, chunk_data_size);
@@ -1643,6 +1649,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('s', 't', 's', 'z'):
         case FOURCC('s', 't', 'z', '2'):
         {
+            if ((mLastTrack == NULL) || (mLastTrack->sampleTable == NULL))
+                return ERROR_MALFORMED;
+
             status_t err =
                 mLastTrack->sampleTable->setSampleSizeParams(
                         chunk_type, data_offset, chunk_data_size);
@@ -1712,6 +1721,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('s', 't', 't', 's'):
         {
+            if ((mLastTrack == NULL) || (mLastTrack->sampleTable == NULL))
+                return ERROR_MALFORMED;
+
             *offset += chunk_size;
 
             status_t err =
@@ -1727,6 +1739,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('c', 't', 't', 's'):
         {
+            if ((mLastTrack == NULL) || (mLastTrack->sampleTable == NULL))
+                return ERROR_MALFORMED;
+
             *offset += chunk_size;
 
             status_t err =
@@ -1742,6 +1757,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('s', 't', 's', 's'):
         {
+            if ((mLastTrack == NULL) || (mLastTrack->sampleTable == NULL))
+                return ERROR_MALFORMED;
+
             *offset += chunk_size;
             // Ignore stss block for audio even if its present
             // All audio sample are sync samples itself,
