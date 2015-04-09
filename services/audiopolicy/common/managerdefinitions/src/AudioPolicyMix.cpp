@@ -46,9 +46,9 @@ void AudioPolicyMix::setMix(AudioMix &mix)
     mMix = mix;
 }
 
-android::AudioMix &AudioPolicyMix::getMix()
+android::AudioMix *AudioPolicyMix::getMix()
 {
-    return mMix;
+    return &mMix;
 }
 
 status_t AudioPolicyMixCollection::registerMix(String8 address, AudioMix mix)
@@ -103,36 +103,36 @@ status_t AudioPolicyMixCollection::getOutputForAttr(audio_attributes_t attribute
 {
     for (size_t i = 0; i < size(); i++) {
         sp<AudioPolicyMix> policyMix = valueAt(i);
-        AudioMix mix = policyMix->getMix();
+        AudioMix *mix = policyMix->getMix();
 
-        if (mix.mMixType == MIX_TYPE_PLAYERS) {
-            for (size_t j = 0; j < mix.mCriteria.size(); j++) {
-                if ((RULE_MATCH_ATTRIBUTE_USAGE == mix.mCriteria[j].mRule &&
-                     mix.mCriteria[j].mAttr.mUsage == attributes.usage) ||
-                        (RULE_EXCLUDE_ATTRIBUTE_USAGE == mix.mCriteria[j].mRule &&
-                         mix.mCriteria[j].mAttr.mUsage != attributes.usage)) {
+        if (mix->mMixType == MIX_TYPE_PLAYERS) {
+            for (size_t j = 0; j < mix->mCriteria.size(); j++) {
+                if ((RULE_MATCH_ATTRIBUTE_USAGE == mix->mCriteria[j].mRule &&
+                     mix->mCriteria[j].mAttr.mUsage == attributes.usage) ||
+                        (RULE_EXCLUDE_ATTRIBUTE_USAGE == mix->mCriteria[j].mRule &&
+                         mix->mCriteria[j].mAttr.mUsage != attributes.usage)) {
                     desc = policyMix->getOutput();
                     break;
                 }
                 if (strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
                         strncmp(attributes.tags + strlen("addr="),
-                                mix.mRegistrationId.string(),
+                                mix->mRegistrationId.string(),
                                 AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - strlen("addr=") - 1) == 0) {
                     desc = policyMix->getOutput();
                     break;
                 }
             }
-        } else if (mix.mMixType == MIX_TYPE_RECORDERS) {
+        } else if (mix->mMixType == MIX_TYPE_RECORDERS) {
             if (attributes.usage == AUDIO_USAGE_VIRTUAL_SOURCE &&
                     strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
                     strncmp(attributes.tags + strlen("addr="),
-                            mix.mRegistrationId.string(),
+                            mix->mRegistrationId.string(),
                             AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - strlen("addr=") - 1) == 0) {
                 desc = policyMix->getOutput();
             }
         }
         if (desc != 0) {
-            desc->mPolicyMix = &mix;
+            desc->mPolicyMix = mix;
             return NO_ERROR;
         }
     }
@@ -144,19 +144,19 @@ audio_devices_t AudioPolicyMixCollection::getDeviceAndMixForInputSource(audio_so
                                                                         AudioMix **policyMix)
 {
     for (size_t i = 0; i < size(); i++) {
-        AudioMix mix = valueAt(i)->getMix();
+        AudioMix *mix = valueAt(i)->getMix();
 
-        if (mix.mMixType != MIX_TYPE_RECORDERS) {
+        if (mix->mMixType != MIX_TYPE_RECORDERS) {
             continue;
         }
-        for (size_t j = 0; j < mix.mCriteria.size(); j++) {
-            if ((RULE_MATCH_ATTRIBUTE_CAPTURE_PRESET == mix.mCriteria[j].mRule &&
-                    mix.mCriteria[j].mAttr.mSource == inputSource) ||
-               (RULE_EXCLUDE_ATTRIBUTE_CAPTURE_PRESET == mix.mCriteria[j].mRule &&
-                    mix.mCriteria[j].mAttr.mSource != inputSource)) {
+        for (size_t j = 0; j < mix->mCriteria.size(); j++) {
+            if ((RULE_MATCH_ATTRIBUTE_CAPTURE_PRESET == mix->mCriteria[j].mRule &&
+                    mix->mCriteria[j].mAttr.mSource == inputSource) ||
+               (RULE_EXCLUDE_ATTRIBUTE_CAPTURE_PRESET == mix->mCriteria[j].mRule &&
+                    mix->mCriteria[j].mAttr.mSource != inputSource)) {
                 if (availDevices & AUDIO_DEVICE_IN_REMOTE_SUBMIX) {
                     if (policyMix != NULL) {
-                        *policyMix = &mix;
+                        *policyMix = mix;
                     }
                     return AUDIO_DEVICE_IN_REMOTE_SUBMIX;
                 }
@@ -167,7 +167,7 @@ audio_devices_t AudioPolicyMixCollection::getDeviceAndMixForInputSource(audio_so
     return AUDIO_DEVICE_NONE;
 }
 
-status_t AudioPolicyMixCollection::getInputMixForAttr(audio_attributes_t attr, AudioMix *&policyMix)
+status_t AudioPolicyMixCollection::getInputMixForAttr(audio_attributes_t attr, AudioMix **policyMix)
 {
     if (strncmp(attr.tags, "addr=", strlen("addr=")) != 0) {
         return BAD_VALUE;
@@ -180,13 +180,13 @@ status_t AudioPolicyMixCollection::getInputMixForAttr(audio_attributes_t attr, A
         return BAD_VALUE;
     }
     sp<AudioPolicyMix> audioPolicyMix = valueAt(index);
-    AudioMix mix = audioPolicyMix->getMix();
+    AudioMix *mix = audioPolicyMix->getMix();
 
-    if (mix.mMixType != MIX_TYPE_PLAYERS) {
+    if (mix->mMixType != MIX_TYPE_PLAYERS) {
         ALOGW("getInputForAttr() bad policy mix type for address %s", address.string());
         return BAD_VALUE;
     }
-    policyMix = &mix;
+    *policyMix = mix;
     return NO_ERROR;
 }
 
