@@ -74,7 +74,7 @@ public:
     audio_patch_handle_t mPatchHandle;
     uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
     nsecs_t mStopTime[AUDIO_STREAM_CNT];
-    float mCurVolume[AUDIO_STREAM_CNT];   // current stream volume
+    float mCurVolume[AUDIO_STREAM_CNT];   // current stream volume in dB
     int mMuteCount[AUDIO_STREAM_CNT];     // mute request counter
     bool mStrategyMutedByDevice[NUM_STRATEGIES]; // strategies muted because of incompatible
                                         // device selection. See checkDeviceMuteStrategies()

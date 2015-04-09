@@ -21,6 +21,7 @@
 #include "AudioOutputDescriptor.h"
 #include "IOProfile.h"
 #include "AudioGain.h"
+#include "Volume.h"
 #include "HwModule.h"
 #include <media/AudioPolicy.h>
 
@@ -354,11 +355,12 @@ bool SwAudioOutputDescriptor::setVolume(float volume,
     if (changed) {
         // Force VOICE_CALL to track BLUETOOTH_SCO stream volume when bluetooth audio is
         // enabled
+        float volume = Volume::DbToAmpl(mCurVolume[stream]);
         if (stream == AUDIO_STREAM_BLUETOOTH_SCO) {
             mClientInterface->setStreamVolume(
-                    AUDIO_STREAM_VOICE_CALL, mCurVolume[stream], mIoHandle, delayMs);
+                    AUDIO_STREAM_VOICE_CALL, volume, mIoHandle, delayMs);
         }
-        mClientInterface->setStreamVolume(stream, mCurVolume[stream], mIoHandle, delayMs);
+        mClientInterface->setStreamVolume(stream, volume, mIoHandle, delayMs);
     }
     return changed;
 }

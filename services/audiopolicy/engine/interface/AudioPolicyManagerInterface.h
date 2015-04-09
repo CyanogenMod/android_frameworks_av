@@ -134,16 +134,16 @@ public:
                                               audio_policy_dev_state_t state) = 0;
 
     /**
-     * Translate a volume index given by the UI to an amplification value for a stream type
+     * Translate a volume index given by the UI to an amplification value in dB for a stream type
      * and a device category.
      *
      * @param[in] deviceCategory for which the conversion is requested.
      * @param[in] stream type for which the conversion is requested.
      * @param[in] indexInUi index received from the UI to be translated.
      *
-     * @return amplification value matching the UI index for this given device and stream.
+     * @return amplification value in dB matching the UI index for this given device and stream.
      */
-    virtual float volIndexToAmpl(Volume::device_category deviceCategory, audio_stream_type_t stream,
+    virtual float volIndexToDb(Volume::device_category deviceCategory, audio_stream_type_t stream,
                                  int indexInUi) = 0;
 
     /**

@@ -4251,9 +4251,7 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                                             int index,
                                             audio_devices_t device)
 {
-    float volume = 1.0;
-
-    volume = mEngine->volIndexToAmpl(Volume::getDeviceCategory(device), stream, index);
+    float volumeDb = mEngine->volIndexToDb(Volume::getDeviceCategory(device), stream, index);
 
     // if a headset is connected, apply the following rules to ring tones and notifications
     // to avoid sound level bursts in user's ears:
@@ -4271,26 +4269,26 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                 || ((stream_strategy == STRATEGY_ENFORCED_AUDIBLE) &&
                     (mEngine->getForceUse(AUDIO_POLICY_FORCE_FOR_SYSTEM) == AUDIO_POLICY_FORCE_NONE))) &&
             mStreams.canBeMuted(stream)) {
-        volume *= SONIFICATION_HEADSET_VOLUME_FACTOR;
+        volumeDb += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
         // when the phone is ringing we must consider that music could have been paused just before
         // by the music application and behave as if music was active if the last music track was
         // just stopped
         if (isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_HEADSET_MUSIC_DELAY) ||
                 mLimitRingtoneVolume) {
             audio_devices_t musicDevice = getDeviceForStrategy(STRATEGY_MEDIA, true /*fromCache*/);
-            float musicVol = computeVolume(AUDIO_STREAM_MUSIC,
-                               mStreams.valueFor(AUDIO_STREAM_MUSIC).getVolumeIndex(musicDevice),
+            float musicVolDB = computeVolume(AUDIO_STREAM_MUSIC,
+                                 mStreams.valueFor(AUDIO_STREAM_MUSIC).getVolumeIndex(musicDevice),
                                musicDevice);
-            float minVol = (musicVol > SONIFICATION_HEADSET_VOLUME_MIN) ?
-                                musicVol : SONIFICATION_HEADSET_VOLUME_MIN;
-            if (volume > minVol) {
-                volume = minVol;
-                ALOGV("computeVolume limiting volume to %f musicVol %f", minVol, musicVol);
+            float minVolDB = (musicVolDB > SONIFICATION_HEADSET_VOLUME_MIN_DB) ?
+                    musicVolDB : SONIFICATION_HEADSET_VOLUME_MIN_DB;
+            if (volumeDb > minVolDB) {
+                volumeDb = minVolDB;
+                ALOGV("computeVolume limiting volume to %f musicVol %f", minVolDB, musicVolDB);
             }
         }
     }
 
-    return volume;
+    return volumeDb;
 }
 
 status_t AudioPolicyManager::checkAndSetVolume(audio_stream_type_t stream,
@@ -4320,12 +4318,12 @@ status_t AudioPolicyManager::checkAndSetVolume(audio_stream_type_t stream,
         device = outputDesc->device();
     }
 
-    float volume = computeVolume(stream, index, device);
+    float volumeDb = computeVolume(stream, index, device);
     if (outputDesc->isFixedVolume(device)) {
-        volume = 1.0f;
+        volumeDb = 0.0f;
     }
 
-    outputDesc->setVolume(volume, stream, device, delayMs, force);
+    outputDesc->setVolume(volumeDb, stream, device, delayMs, force);
 
     if (stream == AUDIO_STREAM_VOICE_CALL ||
         stream == AUDIO_STREAM_BLUETOOTH_SCO) {
