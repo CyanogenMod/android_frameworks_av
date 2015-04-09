@@ -24,7 +24,7 @@
 
 namespace android {
 
-class AudioOutputDescriptor;
+class SwAudioOutputDescriptor;
 
 /**
  * custom mix entry in mPolicyMixes
@@ -33,9 +33,9 @@ class AudioPolicyMix : public RefBase {
 public:
     AudioPolicyMix() {}
 
-    const sp<AudioOutputDescriptor> &getOutput() const;
+    const sp<SwAudioOutputDescriptor> &getOutput() const;
 
-    void setOutput(sp<AudioOutputDescriptor> &output);
+    void setOutput(sp<SwAudioOutputDescriptor> &output);
 
     void clearOutput();
 
@@ -45,7 +45,7 @@ public:
 
 private:
     AudioMix    mMix;                   // Audio policy mix descriptor
-    sp<AudioOutputDescriptor> mOutput;  // Corresponding output stream
+    sp<SwAudioOutputDescriptor> mOutput;  // Corresponding output stream
 };
 
 
@@ -58,18 +58,18 @@ public:
 
     status_t unregisterMix(String8 address);
 
-    void closeOutput(sp<AudioOutputDescriptor> &desc);
+    void closeOutput(sp<SwAudioOutputDescriptor> &desc);
 
     /**
      * Try to find an output descriptor for the given attributes.
      *
-     * @param[in] attributes to consider for the research of output descriptor.
+     * @param[in] attributes to consider fowr the research of output descriptor.
      * @param[out] desc to return if an output could be found.
      *
      * @return NO_ERROR if an output was found for the given attribute (in this case, the
      *                  descriptor output param is initialized), error code otherwise.
      */
-    status_t getOutputForAttr(audio_attributes_t attributes, sp<AudioOutputDescriptor> &desc);
+    status_t getOutputForAttr(audio_attributes_t attributes, sp<SwAudioOutputDescriptor> &desc);
 
     audio_devices_t getDeviceAndMixForInputSource(audio_source_t inputSource,
                                                   audio_devices_t availableDeviceTypes,

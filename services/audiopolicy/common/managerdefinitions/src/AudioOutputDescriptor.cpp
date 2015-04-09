@@ -17,6 +17,7 @@
 #define LOG_TAG "APM::AudioOutputDescriptor"
 //#define LOG_NDEBUG 0
 
+#include <AudioPolicyInterface.h>
 #include "AudioOutputDescriptor.h"
 #include "IOProfile.h"
 #include "AudioGain.h"
@@ -29,12 +30,10 @@
 
 namespace android {
 
-AudioOutputDescriptor::AudioOutputDescriptor(const sp<IOProfile>& profile)
-    : mIoHandle(0), mLatency(0),
-    mFlags((audio_output_flags_t)0), mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL),
-    mPatchHandle(0),
-    mOutput1(0), mOutput2(0), mProfile(profile), mDirectOpenCount(0),
-    mId(0)
+AudioOutputDescriptor::AudioOutputDescriptor(const sp<AudioPort>& port,
+                                             AudioPolicyClientInterface *clientInterface)
+    : mPort(port), mDevice(AUDIO_DEVICE_NONE),
+      mPatchHandle(0), mClientInterface(clientInterface), mId(0)
 {
     // clear usage count for all stream types
     for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
@@ -46,23 +45,19 @@ AudioOutputDescriptor::AudioOutputDescriptor(const sp<IOProfile>& profile)
     for (int i = 0; i < NUM_STRATEGIES; i++) {
         mStrategyMutedByDevice[i] = false;
     }
-    if (profile != NULL) {
-        mFlags = (audio_output_flags_t)profile->mFlags;
-        mSamplingRate = profile->pickSamplingRate();
-        mFormat = profile->pickFormat();
-        mChannelMask = profile->pickChannelMask();
-        if (profile->mGains.size() > 0) {
-            profile->mGains[0]->getDefaultConfig(&mGain);
+    if (port != NULL) {
+        mSamplingRate = port->pickSamplingRate();
+        mFormat = port->pickFormat();
+        mChannelMask = port->pickChannelMask();
+        if (port->mGains.size() > 0) {
+            port->mGains[0]->getDefaultConfig(&mGain);
         }
     }
 }
 
 audio_module_handle_t AudioOutputDescriptor::getModuleHandle() const
 {
-    if (mProfile == 0) {
-        return 0;
-    }
-    return mProfile->getModuleHandle();
+    return mPort->getModuleHandle();
 }
 
 audio_port_handle_t AudioOutputDescriptor::getId() const
@@ -72,35 +67,20 @@ audio_port_handle_t AudioOutputDescriptor::getId() const
 
 audio_devices_t AudioOutputDescriptor::device() const
 {
-    if (isDuplicated()) {
-        return (audio_devices_t)(mOutput1->mDevice | mOutput2->mDevice);
-    } else {
-        return mDevice;
-    }
+    return mDevice;
 }
 
-void AudioOutputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
+audio_devices_t AudioOutputDescriptor::supportedDevices()
 {
-    mId = AudioPort::getNextUniqueId();
-    mIoHandle = ioHandle;
-}
-
-uint32_t AudioOutputDescriptor::latency()
-{
-    if (isDuplicated()) {
-        return (mOutput1->mLatency > mOutput2->mLatency) ? mOutput1->mLatency : mOutput2->mLatency;
-    } else {
-        return mLatency;
-    }
+    return mDevice;
 }
 
 bool AudioOutputDescriptor::sharesHwModuleWith(
         const sp<AudioOutputDescriptor> outputDesc)
 {
-    if (isDuplicated()) {
-        return mOutput1->sharesHwModuleWith(outputDesc) || mOutput2->sharesHwModuleWith(outputDesc);
-    } else if (outputDesc->isDuplicated()){
-        return sharesHwModuleWith(outputDesc->mOutput1) || sharesHwModuleWith(outputDesc->mOutput2);
+    if (outputDesc->isDuplicated()) {
+        return sharesHwModuleWith(outputDesc->subOutput1()) ||
+                    sharesHwModuleWith(outputDesc->subOutput2());
     } else {
         return (getModuleHandle() == outputDesc->getModuleHandle());
     }
@@ -109,11 +89,6 @@ bool AudioOutputDescriptor::sharesHwModuleWith(
 void AudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
                                                                    int delta)
 {
-    // forward usage count change to attached outputs
-    if (isDuplicated()) {
-        mOutput1->changeRefCount(stream, delta);
-        mOutput2->changeRefCount(stream, delta);
-    }
     if ((delta + (int)mRefCount[stream]) < 0) {
         ALOGW("changeRefCount() invalid delta %d for stream %d, refCount %d",
               delta, stream, mRefCount[stream]);
@@ -122,15 +97,6 @@ void AudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
     }
     mRefCount[stream] += delta;
     ALOGV("changeRefCount() stream %d, count %d", stream, mRefCount[stream]);
-}
-
-audio_devices_t AudioOutputDescriptor::supportedDevices()
-{
-    if (isDuplicated()) {
-        return (audio_devices_t)(mOutput1->supportedDevices() | mOutput2->supportedDevices());
-    } else {
-        return mProfile->mSupportedDevices.types() ;
-    }
 }
 
 bool AudioOutputDescriptor::isActive(uint32_t inPastMs) const
@@ -169,12 +135,33 @@ bool AudioOutputDescriptor::isStreamActive(audio_stream_type_t stream,
     return false;
 }
 
+
+bool AudioOutputDescriptor::isFixedVolume(audio_devices_t device __unused)
+{
+    return false;
+}
+
+bool AudioOutputDescriptor::setVolume(float volume,
+                                      audio_stream_type_t stream,
+                                      audio_devices_t device __unused,
+                                      uint32_t delayMs,
+                                      bool force)
+{
+    // We actually change the volume if:
+    // - the float value returned by computeVolume() changed
+    // - the force flag is set
+    if (volume != mCurVolume[stream] || force) {
+        ALOGV("setVolume() for stream %d, volume %f, delay %d", stream, volume, delayMs);
+        mCurVolume[stream] = volume;
+        return true;
+    }
+    return false;
+}
+
 void AudioOutputDescriptor::toAudioPortConfig(
                                                  struct audio_port_config *dstConfig,
                                                  const struct audio_port_config *srcConfig) const
 {
-    ALOG_ASSERT(!isDuplicated(), "toAudioPortConfig() called on duplicated output %d", mIoHandle);
-
     dstConfig->config_mask = AUDIO_PORT_CONFIG_SAMPLE_RATE|AUDIO_PORT_CONFIG_CHANNEL_MASK|
                             AUDIO_PORT_CONFIG_FORMAT|AUDIO_PORT_CONFIG_GAIN;
     if (srcConfig != NULL) {
@@ -186,21 +173,15 @@ void AudioOutputDescriptor::toAudioPortConfig(
     dstConfig->role = AUDIO_PORT_ROLE_SOURCE;
     dstConfig->type = AUDIO_PORT_TYPE_MIX;
     dstConfig->ext.mix.hw_module = getModuleHandle();
-    dstConfig->ext.mix.handle = mIoHandle;
     dstConfig->ext.mix.usecase.stream = AUDIO_STREAM_DEFAULT;
 }
 
 void AudioOutputDescriptor::toAudioPort(
                                                     struct audio_port *port) const
 {
-    ALOG_ASSERT(!isDuplicated(), "toAudioPort() called on duplicated output %d", mIoHandle);
-    mProfile->toAudioPort(port);
+    mPort->toAudioPort(port);
     port->id = mId;
-    toAudioPortConfig(&port->active_config);
     port->ext.mix.hw_module = getModuleHandle();
-    port->ext.mix.handle = mIoHandle;
-    port->ext.mix.latency_class =
-            mFlags & AUDIO_OUTPUT_FLAG_FAST ? AUDIO_LATENCY_LOW : AUDIO_LATENCY_NORMAL;
 }
 
 status_t AudioOutputDescriptor::dump(int fd)
@@ -209,17 +190,13 @@ status_t AudioOutputDescriptor::dump(int fd)
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, " ID: %d\n", getId());
+    snprintf(buffer, SIZE, " ID: %d\n", mId);
     result.append(buffer);
     snprintf(buffer, SIZE, " Sampling rate: %d\n", mSamplingRate);
     result.append(buffer);
     snprintf(buffer, SIZE, " Format: %08x\n", mFormat);
     result.append(buffer);
     snprintf(buffer, SIZE, " Channels: %08x\n", mChannelMask);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Latency: %d\n", mLatency);
-    result.append(buffer);
-    snprintf(buffer, SIZE, " Flags %08x\n", mFlags);
     result.append(buffer);
     snprintf(buffer, SIZE, " Devices %08x\n", device());
     result.append(buffer);
@@ -237,15 +214,162 @@ status_t AudioOutputDescriptor::dump(int fd)
 
 void AudioOutputDescriptor::log(const char* indent)
 {
-    ALOGI("%sID: %d,0x%X, [rt:%d fmt:0x%X ch:0x%X] hndl:%d",
-          indent, mId, mId, mSamplingRate, mFormat, mChannelMask, mIoHandle);
+    ALOGI("%sID: %d,0x%X, [rt:%d fmt:0x%X ch:0x%X]",
+          indent, mId, mId, mSamplingRate, mFormat, mChannelMask);
 }
 
-bool AudioOutputCollection::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
+// SwAudioOutputDescriptor implementation
+SwAudioOutputDescriptor::SwAudioOutputDescriptor(
+        const sp<IOProfile>& profile, AudioPolicyClientInterface *clientInterface)
+    : AudioOutputDescriptor(profile, clientInterface),
+    mProfile(profile), mIoHandle(0), mLatency(0),
+    mFlags((audio_output_flags_t)0), mPolicyMix(NULL),
+    mOutput1(0), mOutput2(0), mDirectOpenCount(0)
+{
+    if (profile != NULL) {
+        mFlags = (audio_output_flags_t)profile->mFlags;
+    }
+}
+
+void SwAudioOutputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
+{
+    mId = AudioPort::getNextUniqueId();
+    mIoHandle = ioHandle;
+}
+
+
+status_t SwAudioOutputDescriptor::dump(int fd)
+{
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+    String8 result;
+
+    snprintf(buffer, SIZE, " Latency: %d\n", mLatency);
+    result.append(buffer);
+    snprintf(buffer, SIZE, " Flags %08x\n", mFlags);
+    result.append(buffer);
+    write(fd, result.string(), result.size());
+
+    AudioOutputDescriptor::dump(fd);
+
+    return NO_ERROR;
+}
+
+audio_devices_t SwAudioOutputDescriptor::device() const
+{
+    if (isDuplicated()) {
+        return (audio_devices_t)(mOutput1->mDevice | mOutput2->mDevice);
+    } else {
+        return mDevice;
+    }
+}
+
+bool SwAudioOutputDescriptor::sharesHwModuleWith(
+        const sp<AudioOutputDescriptor> outputDesc)
+{
+    if (isDuplicated()) {
+        return mOutput1->sharesHwModuleWith(outputDesc) || mOutput2->sharesHwModuleWith(outputDesc);
+    } else if (outputDesc->isDuplicated()){
+        return sharesHwModuleWith(outputDesc->subOutput1()) ||
+                    sharesHwModuleWith(outputDesc->subOutput2());
+    } else {
+        return AudioOutputDescriptor::sharesHwModuleWith(outputDesc);
+    }
+}
+
+audio_devices_t SwAudioOutputDescriptor::supportedDevices()
+{
+    if (isDuplicated()) {
+        return (audio_devices_t)(mOutput1->supportedDevices() | mOutput2->supportedDevices());
+    } else {
+        return mProfile->mSupportedDevices.types() ;
+    }
+}
+
+uint32_t SwAudioOutputDescriptor::latency()
+{
+    if (isDuplicated()) {
+        return (mOutput1->mLatency > mOutput2->mLatency) ? mOutput1->mLatency : mOutput2->mLatency;
+    } else {
+        return mLatency;
+    }
+}
+
+void SwAudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
+                                                                   int delta)
+{
+    // forward usage count change to attached outputs
+    if (isDuplicated()) {
+        mOutput1->changeRefCount(stream, delta);
+        mOutput2->changeRefCount(stream, delta);
+    }
+    AudioOutputDescriptor::changeRefCount(stream, delta);
+}
+
+
+bool SwAudioOutputDescriptor::isFixedVolume(audio_devices_t device)
+{
+    // unit gain if rerouting to external policy
+    if (device == AUDIO_DEVICE_OUT_REMOTE_SUBMIX) {
+        if (mPolicyMix != NULL) {
+            ALOGV("max gain when rerouting for output=%d", mIoHandle);
+            return true;
+        }
+    }
+    return false;
+}
+
+void SwAudioOutputDescriptor::toAudioPortConfig(
+                                                 struct audio_port_config *dstConfig,
+                                                 const struct audio_port_config *srcConfig) const
+{
+
+    ALOG_ASSERT(!isDuplicated(), "toAudioPortConfig() called on duplicated output %d", mIoHandle);
+    AudioOutputDescriptor::toAudioPortConfig(dstConfig, srcConfig);
+
+    dstConfig->ext.mix.handle = mIoHandle;
+}
+
+void SwAudioOutputDescriptor::toAudioPort(
+                                                    struct audio_port *port) const
+{
+    ALOG_ASSERT(!isDuplicated(), "toAudioPort() called on duplicated output %d", mIoHandle);
+
+    AudioOutputDescriptor::toAudioPort(port);
+
+    toAudioPortConfig(&port->active_config);
+    port->ext.mix.handle = mIoHandle;
+    port->ext.mix.latency_class =
+            mFlags & AUDIO_OUTPUT_FLAG_FAST ? AUDIO_LATENCY_LOW : AUDIO_LATENCY_NORMAL;
+}
+
+bool SwAudioOutputDescriptor::setVolume(float volume,
+                                        audio_stream_type_t stream,
+                                        audio_devices_t device,
+                                        uint32_t delayMs,
+                                        bool force)
+{
+    bool changed = AudioOutputDescriptor::setVolume(volume, stream, device, delayMs, force);
+
+    if (changed) {
+        // Force VOICE_CALL to track BLUETOOTH_SCO stream volume when bluetooth audio is
+        // enabled
+        if (stream == AUDIO_STREAM_BLUETOOTH_SCO) {
+            mClientInterface->setStreamVolume(
+                    AUDIO_STREAM_VOICE_CALL, mCurVolume[stream], mIoHandle, delayMs);
+        }
+        mClientInterface->setStreamVolume(stream, mCurVolume[stream], mIoHandle, delayMs);
+    }
+    return changed;
+}
+
+// SwAudioOutputCollection implementation
+
+bool SwAudioOutputCollection::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
     nsecs_t sysTime = systemTime();
     for (size_t i = 0; i < this->size(); i++) {
-        const sp<AudioOutputDescriptor> outputDesc = this->valueAt(i);
+        const sp<SwAudioOutputDescriptor> outputDesc = this->valueAt(i);
         if (outputDesc->isStreamActive(stream, inPastMs, sysTime)) {
             return true;
         }
@@ -253,12 +377,12 @@ bool AudioOutputCollection::isStreamActive(audio_stream_type_t stream, uint32_t 
     return false;
 }
 
-bool AudioOutputCollection::isStreamActiveRemotely(audio_stream_type_t stream,
+bool SwAudioOutputCollection::isStreamActiveRemotely(audio_stream_type_t stream,
                                                    uint32_t inPastMs) const
 {
     nsecs_t sysTime = systemTime();
     for (size_t i = 0; i < size(); i++) {
-        const sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+        const sp<SwAudioOutputDescriptor> outputDesc = valueAt(i);
         if (((outputDesc->device() & APM_AUDIO_OUT_DEVICE_REMOTE_ALL) != 0) &&
                 outputDesc->isStreamActive(stream, inPastMs, sysTime)) {
             // do not consider re routing (when the output is going to a dynamic policy)
@@ -271,10 +395,10 @@ bool AudioOutputCollection::isStreamActiveRemotely(audio_stream_type_t stream,
     return false;
 }
 
-audio_io_handle_t AudioOutputCollection::getA2dpOutput() const
+audio_io_handle_t SwAudioOutputCollection::getA2dpOutput() const
 {
     for (size_t i = 0; i < size(); i++) {
-        sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+        sp<SwAudioOutputDescriptor> outputDesc = valueAt(i);
         if (!outputDesc->isDuplicated() && outputDesc->device() & AUDIO_DEVICE_OUT_ALL_A2DP) {
             return this->keyAt(i);
         }
@@ -282,10 +406,10 @@ audio_io_handle_t AudioOutputCollection::getA2dpOutput() const
     return 0;
 }
 
-sp<AudioOutputDescriptor> AudioOutputCollection::getPrimaryOutput() const
+sp<SwAudioOutputDescriptor> SwAudioOutputCollection::getPrimaryOutput() const
 {
     for (size_t i = 0; i < size(); i++) {
-        const sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+        const sp<SwAudioOutputDescriptor> outputDesc = valueAt(i);
         if (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
             return outputDesc;
         }
@@ -293,9 +417,9 @@ sp<AudioOutputDescriptor> AudioOutputCollection::getPrimaryOutput() const
     return NULL;
 }
 
-sp<AudioOutputDescriptor> AudioOutputCollection::getOutputFromId(audio_port_handle_t id) const
+sp<SwAudioOutputDescriptor> SwAudioOutputCollection::getOutputFromId(audio_port_handle_t id) const
 {
-    sp<AudioOutputDescriptor> outputDesc = NULL;
+    sp<SwAudioOutputDescriptor> outputDesc = NULL;
     for (size_t i = 0; i < size(); i++) {
         outputDesc = valueAt(i);
         if (outputDesc->getId() == id) {
@@ -305,14 +429,14 @@ sp<AudioOutputDescriptor> AudioOutputCollection::getOutputFromId(audio_port_hand
     return outputDesc;
 }
 
-bool AudioOutputCollection::isAnyOutputActive(audio_stream_type_t streamToIgnore) const
+bool SwAudioOutputCollection::isAnyOutputActive(audio_stream_type_t streamToIgnore) const
 {
     for (size_t s = 0 ; s < AUDIO_STREAM_CNT ; s++) {
         if (s == (size_t) streamToIgnore) {
             continue;
         }
         for (size_t i = 0; i < size(); i++) {
-            const sp<AudioOutputDescriptor> outputDesc = valueAt(i);
+            const sp<SwAudioOutputDescriptor> outputDesc = valueAt(i);
             if (outputDesc->mRefCount[s] != 0) {
                 return true;
             }
@@ -321,15 +445,15 @@ bool AudioOutputCollection::isAnyOutputActive(audio_stream_type_t streamToIgnore
     return false;
 }
 
-audio_devices_t AudioOutputCollection::getSupportedDevices(audio_io_handle_t handle) const
+audio_devices_t SwAudioOutputCollection::getSupportedDevices(audio_io_handle_t handle) const
 {
-    sp<AudioOutputDescriptor> outputDesc = valueFor(handle);
+    sp<SwAudioOutputDescriptor> outputDesc = valueFor(handle);
     audio_devices_t devices = outputDesc->mProfile->mSupportedDevices.types();
     return devices;
 }
 
 
-status_t AudioOutputCollection::dump(int fd) const
+status_t SwAudioOutputCollection::dump(int fd) const
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
