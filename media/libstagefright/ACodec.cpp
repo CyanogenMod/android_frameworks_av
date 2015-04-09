@@ -506,6 +506,8 @@ ACodec::ACodec()
       mSentFormat(false),
       mIsVideo(false),
       mIsEncoder(false),
+      mEncoderComponent(false),
+      mComponentAllocByName(false),
       mFatalError(false),
       mShutdownInProgress(false),
       mExplicitShutdown(false),
@@ -5507,6 +5509,8 @@ void ACodec::UninitializedState::stateEntered() {
     mCodec->mOMX.clear();
     mCodec->mQuirks = 0;
     mCodec->mFlags = 0;
+    mCodec->mEncoderComponent = 0;
+    mCodec->mComponentAllocByName = 0;
     mCodec->mInputMetadataType = kMetadataBufferTypeInvalid;
     mCodec->mOutputMetadataType = kMetadataBufferTypeInvalid;
     mCodec->mComponentName.clear();
@@ -5612,6 +5616,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         ssize_t index = matchingCodecs.add();
         OMXCodec::CodecNameAndQuirks *entry = &matchingCodecs.editItemAt(index);
         entry->mName = String8(componentName.c_str());
+        mCodec->mComponentAllocByName = true;
 
         if (!OMXCodec::findCodecQuirks(
                     componentName.c_str(), &entry->mQuirks)) {
@@ -5622,6 +5627,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
         if (!msg->findInt32("encoder", &encoder)) {
             encoder = false;
+        }
+
+        if (encoder == true) {
+            mCodec->mEncoderComponent = true;
         }
 
         OMXCodec::findMatchingCodecs(
@@ -5826,17 +5835,13 @@ bool ACodec::LoadedState::onConfigureComponent(
         ALOGE("[%s] configureCodec returning error %d",
               mCodec->mComponentName.c_str(), err);
 
-        int32_t encoder;
-        if (!msg->findInt32("encoder", &encoder)) {
-            encoder = false;
-        }
-
-        if (!encoder && !strncmp(mime.c_str(), "video/", strlen("video/"))) {
+        if (!mCodec->mEncoderComponent && !mCodec->mComponentAllocByName &&
+            !strncmp(mime.c_str(), "video/", strlen("video/"))) {
             Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
             OMXCodec::findMatchingCodecs(
                 mime.c_str(),
-                encoder, // createEncoder
+                false, // createEncoder
                 NULL,  // matchComponentName
                 0,     // flags
                 &matchingCodecs);
@@ -5878,8 +5883,7 @@ bool ACodec::LoadedState::onConfigureComponent(
 
             if (mCodec->mNode == 0) {
                 if (!mime.empty()) {
-                    ALOGE("Unable to instantiate a %scoder for type '%s' with err %#x.",
-                            encoder ? "en" : "de", mime.c_str(), err);
+                    ALOGE("Unable to instantiate a decoder for type '%s'", mime.c_str());
                 } else {
                     ALOGE("Unable to instantiate codec '%s' with err %#x.", componentName.c_str(), err);
                 }
