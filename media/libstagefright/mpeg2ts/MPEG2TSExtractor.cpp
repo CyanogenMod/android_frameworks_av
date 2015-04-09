@@ -85,12 +85,6 @@ status_t MPEG2TSSource::read(
         MediaBuffer **out, const ReadOptions *options) {
     *out = NULL;
 
-    int64_t seekTimeUs;
-    ReadOptions::SeekMode seekMode;
-    if (mSeekable && options && options->getSeekTo(&seekTimeUs, &seekMode)) {
-        return ERROR_UNSUPPORTED;
-    }
-
     status_t finalResult;
     while (!mImpl->hasBufferAvailable(&finalResult)) {
         if (finalResult != OK) {
@@ -100,6 +94,17 @@ status_t MPEG2TSSource::read(
         status_t err = mExtractor->feedMore();
         if (err != OK) {
             mImpl->signalEOS(err);
+        }
+    }
+
+    int64_t seekTimeUs;
+    ReadOptions::SeekMode seekMode;
+    if (mSeekable && options && options->getSeekTo(&seekTimeUs, &seekMode)) {
+        // A seek was requested, but we don't actually support seeking and so can only "seek" to
+        // the current position
+        int64_t nextBufTimeUs;
+        if (mImpl->nextBufferTime(&nextBufTimeUs) != OK || seekTimeUs != nextBufTimeUs) {
+            return ERROR_UNSUPPORTED;
         }
     }
 
