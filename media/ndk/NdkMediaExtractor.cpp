@@ -243,15 +243,27 @@ PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor *ex) {
     while (len > 0) {
         numentries++;
 
+        if (len < 16) {
+            ALOGE("invalid PSSH data");
+            return NULL;
+        }
         // skip uuid
         data += 16;
         len -= 16;
 
         // get data length
+        if (len < 4) {
+            ALOGE("invalid PSSH data");
+            return NULL;
+        }
         uint32_t datalen = *((uint32_t*)data);
         data += 4;
         len -= 4;
 
+        if (len < datalen) {
+            ALOGE("invalid PSSH data");
+            return NULL;
+        }
         // skip the data
         data += datalen;
         len -= datalen;
@@ -265,6 +277,10 @@ PsshInfo* AMediaExtractor_getPsshInfo(AMediaExtractor *ex) {
     // extra pointer for each entry, and an extra size_t for the entire PsshInfo.
     size_t newsize = buffer->size() - (sizeof(uint32_t) * numentries) + sizeof(size_t)
             + ((sizeof(void*) + sizeof(size_t)) * numentries);
+    if (newsize <= buffer->size()) {
+        ALOGE("invalid PSSH data");
+        return NULL;
+    }
     ex->mPsshBuf = new ABuffer(newsize);
     ex->mPsshBuf->setRange(0, newsize);
 
