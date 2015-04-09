@@ -292,7 +292,7 @@ private:
     bool checkSwitchProgress(
             sp<AMessage> &msg, int64_t delayUs, bool *needResumeUntil);
 
-    void switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow);
+    bool switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow);
 
     void schedulePollBuffering();
     void cancelPollBuffering();
