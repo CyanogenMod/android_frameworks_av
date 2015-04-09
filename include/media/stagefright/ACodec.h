@@ -205,6 +205,8 @@ private:
     bool mSentFormat;
     bool mIsEncoder;
     bool mUseMetadataOnEncoderOutput;
+    bool mEncoderComponent;
+    bool mComponentAllocByName;
     bool mShutdownInProgress;
     bool mExplicitShutdown;
 
