@@ -1980,6 +1980,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 return ERROR_IO;
             }
 
+            if (mLastTrack == NULL)
+                return ERROR_MALFORMED;
+
             uint32_t type = ntohl(buffer);
             // For the 3GPP file format, the handler-type within the 'hdlr' box
             // shall be 'text'. We also want to support 'sbtl' handler type
