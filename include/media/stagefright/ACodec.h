@@ -243,6 +243,8 @@ protected:
     bool mSentFormat;
     bool mIsVideo;
     bool mIsEncoder;
+    bool mEncoderComponent;
+    bool mComponentAllocByName;
     bool mFatalError;
     bool mShutdownInProgress;
     bool mExplicitShutdown;
