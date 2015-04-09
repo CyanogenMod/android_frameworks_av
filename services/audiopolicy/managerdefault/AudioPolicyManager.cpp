@@ -1189,7 +1189,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
 
     if (inputSource == AUDIO_SOURCE_REMOTE_SUBMIX &&
             strncmp(attr->tags, "addr=", strlen("addr=")) == 0) {
-        status_t ret = mPolicyMixes.getInputMixForAttr(*attr, policyMix);
+        status_t ret = mPolicyMixes.getInputMixForAttr(*attr, &policyMix);
         if (ret != NO_ERROR) {
             return ret;
         }
@@ -1308,7 +1308,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     inputDesc->mIsSoundTrigger = isSoundTrigger;
     inputDesc->mPolicyMix = policyMix;
 
-    ALOGV("getInputForAttr() returns input type = %d", inputType);
+    ALOGV("getInputForAttr() returns input type = %d", *inputType);
 
     addInput(*input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
@@ -3032,7 +3032,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                                   address.string());
                         }
                         policyMix->setOutput(desc);
-                        desc->mPolicyMix = &(policyMix->getMix());
+                        desc->mPolicyMix = policyMix->getMix();
 
                     } else if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) {
                         // no duplicated output for direct outputs and

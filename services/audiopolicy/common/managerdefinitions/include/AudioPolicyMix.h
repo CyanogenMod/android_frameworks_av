@@ -39,7 +39,7 @@ public:
 
     void clearOutput();
 
-    android::AudioMix &getMix();
+    android::AudioMix *getMix();
 
     void setMix(AudioMix &mix);
 
@@ -75,7 +75,7 @@ public:
                                                   audio_devices_t availableDeviceTypes,
                                                   AudioMix **policyMix);
 
-    status_t getInputMixForAttr(audio_attributes_t attr, AudioMix *&policyMix);
+    status_t getInputMixForAttr(audio_attributes_t attr, AudioMix **policyMix);
 };
 
 }; // namespace android
