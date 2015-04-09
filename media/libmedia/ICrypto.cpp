@@ -19,6 +19,7 @@
 #include <utils/Log.h>
 
 #include <binder/Parcel.h>
+#include <binder/IMemory.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -97,7 +98,7 @@ struct BpCrypto : public BpInterface<ICrypto> {
             const uint8_t key[16],
             const uint8_t iv[16],
             CryptoPlugin::Mode mode,
-            const void *srcPtr,
+            const sp<IMemory> &sharedBuffer, size_t offset,
             const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
             void *dstPtr,
             AString *errorDetailMsg) {
@@ -126,7 +127,8 @@ struct BpCrypto : public BpInterface<ICrypto> {
         }
 
         data.writeInt32(totalSize);
-        data.write(srcPtr, totalSize);
+        data.writeStrongBinder(IInterface::asBinder(sharedBuffer));
+        data.writeInt32(offset);
 
         data.writeInt32(numSubSamples);
         data.write(subSamples, sizeof(CryptoPlugin::SubSample) * numSubSamples);
@@ -245,8 +247,9 @@ status_t BnCrypto::onTransact(
             data.read(iv, sizeof(iv));
 
             size_t totalSize = data.readInt32();
-            void *srcData = malloc(totalSize);
-            data.read(srcData, totalSize);
+            sp<IMemory> sharedBuffer =
+                interface_cast<IMemory>(data.readStrongBinder());
+            int32_t offset = data.readInt32();
 
             int32_t numSubSamples = data.readInt32();
 
@@ -265,15 +268,21 @@ status_t BnCrypto::onTransact(
             }
 
             AString errorDetailMsg;
-            ssize_t result = decrypt(
+            ssize_t result;
+
+            if (offset + totalSize > sharedBuffer->size()) {
+                result = -EINVAL;
+            } else {
+                result = decrypt(
                     secure,
                     key,
                     iv,
                     mode,
-                    srcData,
+                    sharedBuffer, offset,
                     subSamples, numSubSamples,
                     dstPtr,
                     &errorDetailMsg);
+            }
 
             reply->writeInt32(result);
 
@@ -293,9 +302,6 @@ status_t BnCrypto::onTransact(
 
             delete[] subSamples;
             subSamples = NULL;
-
-            free(srcData);
-            srcData = NULL;
 
             return OK;
         }

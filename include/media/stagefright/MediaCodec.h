@@ -30,8 +30,10 @@ struct AMessage;
 struct AReplyToken;
 struct AString;
 struct CodecBase;
-struct ICrypto;
 struct IBatteryStats;
+struct ICrypto;
+struct IMemory;
+struct MemoryDealer;
 struct SoftwareRenderer;
 struct Surface;
 
@@ -214,6 +216,7 @@ private:
         uint32_t mBufferID;
         sp<ABuffer> mData;
         sp<ABuffer> mEncryptedData;
+        sp<IMemory> mSharedEncryptedBuffer;
         sp<AMessage> mNotify;
         sp<AMessage> mFormat;
         bool mOwnedByClient;
@@ -232,6 +235,7 @@ private:
     sp<AMessage> mOutputFormat;
     sp<AMessage> mInputFormat;
     sp<AMessage> mCallback;
+    sp<MemoryDealer> mDealer;
 
     bool mBatteryStatNotified;
     bool mIsVideo;

@@ -22,6 +22,7 @@
 
 #include "Crypto.h"
 
+#include <binder/IMemory.h>
 #include <media/hardware/CryptoAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>
@@ -238,7 +239,7 @@ ssize_t Crypto::decrypt(
         const uint8_t key[16],
         const uint8_t iv[16],
         CryptoPlugin::Mode mode,
-        const void *srcPtr,
+        const sp<IMemory> &sharedBuffer, size_t offset,
         const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
         void *dstPtr,
         AString *errorDetailMsg) {
@@ -251,6 +252,8 @@ ssize_t Crypto::decrypt(
     if (mPlugin == NULL) {
         return -EINVAL;
     }
+
+    const void *srcPtr = static_cast<uint8_t *>(sharedBuffer->pointer()) + offset;
 
     return mPlugin->decrypt(
             secure, key, iv, mode, srcPtr, subSamples, numSubSamples, dstPtr,
