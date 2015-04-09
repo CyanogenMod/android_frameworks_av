@@ -45,6 +45,8 @@
 #include "AudioFlinger.h"
 #include "ServiceUtilities.h"
 
+#include <media/AudioResamplerPublic.h>
+
 #include <media/EffectsFactoryApi.h>
 #include <audio_effects/effect_visualizer.h>
 #include <audio_effects/effect_ns.h>
@@ -1140,19 +1142,46 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
     if (ret != NO_ERROR) {
         return 0;
     }
+    if (!audio_is_valid_format(format) || !audio_is_linear_pcm(format)) {
+        return 0;
+    }
 
     AutoMutex lock(mHardwareLock);
     mHardwareStatus = AUDIO_HW_GET_INPUT_BUFFER_SIZE;
-    audio_config_t config;
-    memset(&config, 0, sizeof(config));
-    config.sample_rate = sampleRate;
-    config.channel_mask = channelMask;
-    config.format = format;
+    audio_config_t config, proposed;
+    memset(&proposed, 0, sizeof(proposed));
+    proposed.sample_rate = sampleRate;
+    proposed.channel_mask = channelMask;
+    proposed.format = format;
 
     audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
-    size_t size = dev->get_input_buffer_size(dev, &config);
+    size_t frames;
+    for (;;) {
+        // Note: config is currently a const parameter for get_input_buffer_size()
+        // but we use a copy from proposed in case config changes from the call.
+        config = proposed;
+        frames = dev->get_input_buffer_size(dev, &config);
+        if (frames != 0) {
+            break; // hal success, config is the result
+        }
+        // change one parameter of the configuration each iteration to a more "common" value
+        // to see if the device will support it.
+        if (proposed.format != AUDIO_FORMAT_PCM_16_BIT) {
+            proposed.format = AUDIO_FORMAT_PCM_16_BIT;
+        } else if (proposed.sample_rate != 44100) { // 44.1 is claimed as must in CDD as well as
+            proposed.sample_rate = 44100;           // legacy AudioRecord.java. TODO: Query hw?
+        } else {
+            ALOGW("getInputBufferSize failed with minimum buffer size sampleRate %u, "
+                    "format %#x, channelMask 0x%X",
+                    sampleRate, format, channelMask);
+            break; // retries failed, break out of loop with frames == 0.
+        }
+    }
     mHardwareStatus = AUDIO_HW_IDLE;
-    return size;
+    if (frames > 0 && config.sample_rate != sampleRate) {
+        frames = destinationFramesPossible(frames, sampleRate, config.sample_rate);
+    }
+    return frames; // may be converted to bytes at the Java level.
 }
 
 uint32_t AudioFlinger::getInputFramesLost(audio_io_handle_t ioHandle) const
@@ -1419,9 +1448,8 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         goto Exit;
     }
 
-    // we don't yet support anything other than 16-bit PCM
-    if (!(audio_is_valid_format(format) &&
-            audio_is_linear_pcm(format) && format == AUDIO_FORMAT_PCM_16_BIT)) {
+    // we don't yet support anything other than linear PCM
+    if (!audio_is_valid_format(format) || !audio_is_linear_pcm(format)) {
         ALOGE("openRecord() invalid format %#x", format);
         lStatus = BAD_VALUE;
         goto Exit;
@@ -2002,11 +2030,11 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
             status, address.string());
 
     // If the input could not be opened with the requested parameters and we can handle the
-    // conversion internally, try to open again with the proposed parameters. The AudioFlinger can
-    // resample the input and do mono to stereo or stereo to mono conversions on 16 bit PCM inputs.
+    // conversion internally, try to open again with the proposed parameters.
     if (status == BAD_VALUE &&
-            config->format == halconfig.format && halconfig.format == AUDIO_FORMAT_PCM_16_BIT &&
-        (halconfig.sample_rate <= 2 * config->sample_rate) &&
+        audio_is_linear_pcm(config->format) &&
+        audio_is_linear_pcm(halconfig.format) &&
+        (halconfig.sample_rate <= AUDIO_RESAMPLER_DOWN_RATIO_MAX * config->sample_rate) &&
         (audio_channel_count_from_in_mask(halconfig.channel_mask) <= FCC_2) &&
         (audio_channel_count_from_in_mask(config->channel_mask) <= FCC_2)) {
         // FIXME describe the change proposed by HAL (save old values so we can log them here)
