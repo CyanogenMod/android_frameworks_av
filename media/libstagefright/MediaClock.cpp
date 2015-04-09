@@ -92,6 +92,11 @@ void MediaClock::setPlaybackRate(float rate) {
     mPlaybackRate = rate;
 }
 
+float MediaClock::getPlaybackRate() const {
+    Mutex::Autolock autoLock(mLock);
+    return mPlaybackRate;
+}
+
 status_t MediaClock::getMediaTime(
         int64_t realUs, int64_t *outMediaUs, bool allowPastMaxTime) const {
     if (outMediaUs == NULL) {

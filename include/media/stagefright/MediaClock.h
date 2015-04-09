@@ -42,6 +42,7 @@ struct MediaClock : public RefBase {
     void updateMaxTimeMedia(int64_t maxTimeMediaUs);
 
     void setPlaybackRate(float rate);
+    float getPlaybackRate() const;
 
     // query media time corresponding to real time |realUs|, and save the
     // result in |outMediaUs|.
