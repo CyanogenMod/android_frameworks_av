@@ -498,16 +498,15 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSeek:
         {
-            sp<AReplyToken> seekReplyID;
-            CHECK(msg->senderAwaitsResponse(&seekReplyID));
-            mSeekReplyID = seekReplyID;
+            if (mReconfigurationInProgress) {
+                msg->post(50000);
+                break;
+            }
+
+            CHECK(msg->senderAwaitsResponse(&mSeekReplyID));
             mSeekReply = new AMessage;
 
-            status_t err = onSeek(msg);
-
-            if (err != OK) {
-                msg->post(50000);
-            }
+            onSeek(msg);
             break;
         }
 
@@ -1372,16 +1371,10 @@ HLSTime LiveSession::latestMediaSegmentStartTime() const {
     return audioTime < videoTime ? videoTime : audioTime;
 }
 
-status_t LiveSession::onSeek(const sp<AMessage> &msg) {
+void LiveSession::onSeek(const sp<AMessage> &msg) {
     int64_t timeUs;
     CHECK(msg->findInt64("timeUs", &timeUs));
-
-    if (!mReconfigurationInProgress) {
-        changeConfiguration(timeUs);
-        return OK;
-    } else {
-        return -EWOULDBLOCK;
-    }
+    changeConfiguration(timeUs);
 }
 
 status_t LiveSession::getDuration(int64_t *durationUs) const {
