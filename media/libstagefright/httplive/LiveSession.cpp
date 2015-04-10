@@ -1455,6 +1455,10 @@ void LiveSession::changeConfiguration(
     if (bandwidthIndex >= 0) {
         mOrigBandwidthIndex = mCurBandwidthIndex;
         mCurBandwidthIndex = bandwidthIndex;
+        if (mOrigBandwidthIndex != mCurBandwidthIndex) {
+            ALOGI("#### Starting Bandwidth Switch: %zd => %zd",
+                    mOrigBandwidthIndex, mCurBandwidthIndex);
+        }
     }
     CHECK_LT(mCurBandwidthIndex, mBandwidthItems.size());
     const BandwidthItem &item = mBandwidthItems.itemAt(mCurBandwidthIndex);
@@ -1574,6 +1578,7 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
 
     if (timeUs >= 0) {
         mLastSeekTimeUs = timeUs;
+        mLastDequeuedTimeUs = timeUs;
 
         for (size_t i = 0; i < mPacketSources.size(); i++) {
             mPacketSources.editValueAt(i)->clear();
@@ -1626,8 +1631,10 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
             ALOGV("stream %zu changed: oldURI %s, newURI %s", i,
                     mStreams[i].mUri.c_str(), URIs[i].c_str());
             sp<AnotherPacketSource> source = mPacketSources.valueFor(indexToType(i));
-            source->queueDiscontinuity(
-                    ATSParser::DISCONTINUITY_FORMATCHANGE, NULL, true);
+            if (source->getLatestDequeuedMeta() != NULL) {
+                source->queueDiscontinuity(
+                        ATSParser::DISCONTINUITY_FORMATCHANGE, NULL, true);
+            }
         }
         // Determine which decoders to shutdown on the player side,
         // a decoder has to be shutdown if its streamtype was active
@@ -1687,10 +1694,6 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
             // and resume audio.
             mSwapMask =  mNewStreamMask & mStreamMask & ~resumeMask;
             switching = (mSwapMask != 0);
-            if (!switching) {
-                ALOGV("#### Finishing Bandwidth Switch Early: %zd => %zd",
-                        mOrigBandwidthIndex, mCurBandwidthIndex);
-            }
         }
         mRealTimeBaseUs = ALooper::GetNowUs() - mLastDequeuedTimeUs;
     } else {
@@ -1843,7 +1846,11 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
         mSwitchInProgress = true;
     } else {
         mStreamMask = mNewStreamMask;
-        mOrigBandwidthIndex = mCurBandwidthIndex;
+        if (mOrigBandwidthIndex != mCurBandwidthIndex) {
+            ALOGV("#### Finished Bandwidth Switch Early: %zd => %zd",
+                    mOrigBandwidthIndex, mCurBandwidthIndex);
+            mOrigBandwidthIndex = mCurBandwidthIndex;
+        }
     }
 
     ALOGV("onChangeConfiguration3: mSwitchInProgress %d, mStreamMask 0x%x",
@@ -1970,11 +1977,19 @@ void LiveSession::onPollBuffering() {
 
     bool underflow, ready, down, up;
     if (checkBuffering(underflow, ready, down, up)) {
-        if (mInPreparationPhase && ready) {
-            postPrepared(OK);
+        if (mInPreparationPhase) {
+            // Allow down switch even if we're still preparing.
+            //
+            // Some streams have a high bandwidth index as default,
+            // when bandwidth is low, it takes a long time to buffer
+            // to ready mark, then it immediately pauses after start
+            // as we have to do a down switch. It's better experience
+            // to restart from a lower index, if we detect low bw.
+            if (!switchBandwidthIfNeeded(false /* up */, down) && ready) {
+                postPrepared(OK);
+            }
         }
 
-        // don't switch before we report prepared
         if (!mInPreparationPhase) {
             if (ready) {
                 stopBufferingIfNecessary();
@@ -1982,8 +1997,7 @@ void LiveSession::onPollBuffering() {
                 startBufferingIfNecessary();
             }
             switchBandwidthIfNeeded(up, down);
-       }
-
+        }
     }
 
     schedulePollBuffering();
@@ -2075,7 +2089,8 @@ bool LiveSession::checkBuffering(
             if (mPacketSources[i]->isFinished(0 /* duration */)) {
                 percent = 100;
             } else {
-                percent = (int32_t)(100.0 * (mLastDequeuedTimeUs + bufferedDurationUs) / durationUs);
+                percent = (int32_t)(100.0 *
+                        (mLastDequeuedTimeUs + bufferedDurationUs) / durationUs);
             }
             if (minBufferPercent < 0 || percent < minBufferPercent) {
                 minBufferPercent = percent;
@@ -2158,10 +2173,14 @@ void LiveSession::notifyBufferingUpdate(int32_t percentage) {
     notify->post();
 }
 
-void LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
+/*
+ * returns true if a bandwidth switch is actually needed (and started),
+ * returns false otherwise
+ */
+bool LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
     // no need to check bandwidth if we only have 1 bandwidth settings
     if (mSwitchInProgress || mBandwidthItems.size() < 2) {
-        return;
+        return false;
     }
 
     int32_t bandwidthBps;
@@ -2170,7 +2189,7 @@ void LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
         mLastBandwidthBps = bandwidthBps;
     } else {
         ALOGV("no bandwidth estimate.");
-        return;
+        return false;
     }
 
     int32_t curBandwidth = mBandwidthItems.itemAt(mCurBandwidthIndex).mBandwidth;
@@ -2189,16 +2208,16 @@ void LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
         // bandwidthIndex is < mCurBandwidthIndex, as getBandwidthIndex() only uses 70%
         // of measured bw. In that case we don't want to do anything, since we have
         // both enough buffer and enough bw.
-        if (bandwidthIndex == mCurBandwidthIndex
-                || (canSwitchUp && bandwidthIndex < mCurBandwidthIndex)
-                || (canSwithDown && bandwidthIndex > mCurBandwidthIndex)) {
-            return;
+        if ((canSwitchUp && bandwidthIndex > mCurBandwidthIndex)
+         || (canSwithDown && bandwidthIndex < mCurBandwidthIndex)) {
+            // if not yet prepared, just restart again with new bw index.
+            // this is faster and playback experience is cleaner.
+            changeConfiguration(
+                    mInPreparationPhase ? 0 : -1ll, bandwidthIndex);
+            return true;
         }
-
-        ALOGI("#### Starting Bandwidth Switch: %zd => %zd",
-                mCurBandwidthIndex, bandwidthIndex);
-        changeConfiguration(-1, bandwidthIndex, false);
     }
+    return false;
 }
 
 void LiveSession::postError(status_t err) {

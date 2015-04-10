@@ -355,9 +355,14 @@ int64_t AnotherPacketSource::getBufferedDurationUs_l(status_t *finalResult) {
     int64_t time2 = -1;
     int64_t durationUs = 0;
 
-    List<sp<ABuffer> >::iterator it = mBuffers.begin();
-    while (it != mBuffers.end()) {
+    List<sp<ABuffer> >::iterator it;
+    for (it = mBuffers.begin(); it != mBuffers.end(); it++) {
         const sp<ABuffer> &buffer = *it;
+
+        int32_t discard;
+        if (buffer->meta()->findInt32("discard", &discard) && discard) {
+            continue;
+        }
 
         int64_t timeUs;
         if (buffer->meta()->findInt64("timeUs", &timeUs)) {
@@ -373,8 +378,6 @@ int64_t AnotherPacketSource::getBufferedDurationUs_l(status_t *finalResult) {
             durationUs += time2 - time1;
             time1 = time2 = -1;
         }
-
-        ++it;
     }
 
     return durationUs + (time2 - time1);
@@ -393,11 +396,19 @@ int64_t AnotherPacketSource::getEstimatedDurationUs() {
         return getBufferedDurationUs_l(&finalResult);
     }
 
-    List<sp<ABuffer> >::iterator it = mBuffers.begin();
-    sp<ABuffer> buffer = *it;
+    sp<ABuffer> buffer;
+    int32_t discard;
+    int64_t startTimeUs = -1ll;
+    List<sp<ABuffer> >::iterator it;
+    for (it = mBuffers.begin(); it != mBuffers.end(); it++) {
+        buffer = *it;
+        if (buffer->meta()->findInt32("discard", &discard) && discard) {
+            continue;
+        }
+        buffer->meta()->findInt64("timeUs", &startTimeUs);
+        break;
+    }
 
-    int64_t startTimeUs;
-    buffer->meta()->findInt64("timeUs", &startTimeUs);
     if (startTimeUs < 0) {
         return 0;
     }
