@@ -38,7 +38,8 @@ namespace android {
 class SpdifStreamOut : public AudioStreamOut {
 public:
 
-    SpdifStreamOut(AudioHwDevice *dev, audio_output_flags_t flags);
+    SpdifStreamOut(AudioHwDevice *dev, audio_output_flags_t flags,
+            audio_format_t format);
 
     virtual ~SpdifStreamOut() { }
 
@@ -77,8 +78,9 @@ private:
     class MySPDIFEncoder : public SPDIFEncoder
     {
     public:
-        MySPDIFEncoder(SpdifStreamOut *spdifStreamOut)
-          : mSpdifStreamOut(spdifStreamOut)
+        MySPDIFEncoder(SpdifStreamOut *spdifStreamOut, audio_format_t format)
+          :  SPDIFEncoder(format)
+          , mSpdifStreamOut(spdifStreamOut)
         {
         }
 
