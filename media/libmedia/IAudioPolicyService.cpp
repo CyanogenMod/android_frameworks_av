@@ -71,6 +71,8 @@ enum {
     RELEASE_SOUNDTRIGGER_SESSION,
     GET_PHONE_STATE,
     REGISTER_POLICY_MIXES,
+    START_AUDIO_SOURCE,
+    STOP_AUDIO_SOURCE
 };
 
 #define MAX_ITEMS_PER_LIST 1024
@@ -714,6 +716,42 @@ public:
         }
         return status;
     }
+
+    virtual status_t startAudioSource(const struct audio_port_config *source,
+                                      const audio_attributes_t *attributes,
+                                      audio_io_handle_t *handle)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        if (source == NULL || attributes == NULL || handle == NULL) {
+            return BAD_VALUE;
+        }
+        data.write(source, sizeof(struct audio_port_config));
+        data.write(attributes, sizeof(audio_attributes_t));
+        status_t status = remote()->transact(START_AUDIO_SOURCE, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        status = (status_t)reply.readInt32();
+        if (status != NO_ERROR) {
+            return status;
+        }
+        *handle = (audio_io_handle_t)reply.readInt32();
+        return status;
+    }
+
+    virtual status_t stopAudioSource(audio_io_handle_t handle)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32(handle);
+        status_t status = remote()->transact(STOP_AUDIO_SOURCE, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        status = (status_t)reply.readInt32();
+        return status;
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -1220,6 +1258,27 @@ status_t BnAudioPolicyService::onTransact(
                 }
             }
             status_t status = registerPolicyMixes(mixes, registration);
+            reply->writeInt32(status);
+            return NO_ERROR;
+        } break;
+
+        case START_AUDIO_SOURCE: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            struct audio_port_config source;
+            data.read(&source, sizeof(struct audio_port_config));
+            audio_attributes_t attributes;
+            data.read(&attributes, sizeof(audio_attributes_t));
+            audio_io_handle_t handle;
+            status_t status = startAudioSource(&source, &attributes, &handle);
+            reply->writeInt32(status);
+            reply->writeInt32(handle);
+            return NO_ERROR;
+        } break;
+
+        case STOP_AUDIO_SOURCE: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_io_handle_t handle = (audio_io_handle_t)data.readInt32();
+            status_t status = stopAudioSource(handle);
             reply->writeInt32(status);
             return NO_ERROR;
         } break;

@@ -661,4 +661,26 @@ status_t AudioPolicyService::registerPolicyMixes(Vector<AudioMix> mixes, bool re
     }
 }
 
+status_t AudioPolicyService::startAudioSource(const struct audio_port_config *source,
+                                  const audio_attributes_t *attributes,
+                                  audio_io_handle_t *handle)
+{
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->startAudioSource(source, attributes, handle);
+}
+
+status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
+{
+    Mutex::Autolock _l(mLock);
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+
+    return mAudioPolicyManager->stopAudioSource(handle);
+}
+
 }; // namespace android

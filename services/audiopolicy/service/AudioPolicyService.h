@@ -192,6 +192,11 @@ public:
 
     virtual status_t registerPolicyMixes(Vector<AudioMix> mixes, bool registration);
 
+    virtual status_t startAudioSource(const struct audio_port_config *source,
+                                      const audio_attributes_t *attributes,
+                                      audio_io_handle_t *handle);
+    virtual status_t stopAudioSource(audio_io_handle_t handle);
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   audio_session_t session);

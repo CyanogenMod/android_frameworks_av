@@ -2462,6 +2462,18 @@ status_t AudioPolicyManager::acquireSoundTriggerSession(audio_session_t *session
     return mSoundTriggerSessions.acquireSession(*session, *ioHandle);
 }
 
+status_t AudioPolicyManager::startAudioSource(const struct audio_port_config *source,
+                                       const audio_attributes_t *attributes,
+                                       audio_io_handle_t *handle)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyManager::stopAudioSource(audio_io_handle_t handle)
+{
+    return INVALID_OPERATION;
+}
+
 // ----------------------------------------------------------------------------
 // AudioPolicyManager
 // ----------------------------------------------------------------------------

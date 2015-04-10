@@ -985,6 +985,22 @@ status_t AudioSystem::registerPolicyMixes(Vector<AudioMix> mixes, bool registrat
     return aps->registerPolicyMixes(mixes, registration);
 }
 
+status_t AudioSystem::startAudioSource(const struct audio_port_config *source,
+                                       const audio_attributes_t *attributes,
+                                       audio_io_handle_t *handle)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->startAudioSource(source, attributes, handle);
+}
+
+status_t AudioSystem::stopAudioSource(audio_io_handle_t handle)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->stopAudioSource(handle);
+}
+
 // ---------------------------------------------------------------------------
 
 status_t AudioSystem::AudioPolicyServiceClient::addAudioPortCallback(

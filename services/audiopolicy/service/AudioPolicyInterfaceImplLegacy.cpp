@@ -604,4 +604,16 @@ status_t AudioPolicyService::registerPolicyMixes(Vector<AudioMix> mixes __unused
     return INVALID_OPERATION;
 }
 
+status_t AudioPolicyService::startAudioSource(const struct audio_port_config *source,
+                                  const audio_attributes_t *attributes,
+                                  audio_io_handle_t *handle)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
+{
+    return INVALID_OPERATION;
+}
+
 }; // namespace android

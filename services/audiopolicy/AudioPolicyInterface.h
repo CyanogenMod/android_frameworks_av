@@ -218,6 +218,11 @@ public:
 
     virtual status_t registerPolicyMixes(Vector<AudioMix> mixes) = 0;
     virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes) = 0;
+
+    virtual status_t startAudioSource(const struct audio_port_config *source,
+                                      const audio_attributes_t *attributes,
+                                      audio_io_handle_t *handle) = 0;
+    virtual status_t stopAudioSource(audio_io_handle_t handle) = 0;
 };
 
 
