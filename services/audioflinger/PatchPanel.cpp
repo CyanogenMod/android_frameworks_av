@@ -152,7 +152,8 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
         return BAD_VALUE;
     }
     if (patch->num_sources == 0 || patch->num_sources > AUDIO_PATCH_PORTS_MAX ||
-            patch->num_sinks == 0 || patch->num_sinks > AUDIO_PATCH_PORTS_MAX) {
+            (patch->num_sinks == 0 && patch->num_sources != 2) ||
+            patch->num_sinks > AUDIO_PATCH_PORTS_MAX) {
         return BAD_VALUE;
     }
     // limit number of sources to 1 for now or 2 sources for special cross hw module case.
@@ -203,18 +204,18 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
             }
 
             // manage patches requiring a software bridge
+            // - special patch request with 2 sources (reuse one existing output mix) OR
             // - Device to device AND
             //    - source HW module != destination HW module OR
             //    - audio HAL version < 3.0
-            //    - special patch request with 2 sources (reuse one existing output mix)
-            if ((patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE) &&
-                    ((patch->sinks[0].ext.device.hw_module != srcModule) ||
-                    (audioHwDevice->version() < AUDIO_DEVICE_API_VERSION_3_0) ||
-                    (patch->num_sources == 2))) {
+            if ((patch->num_sources == 2) ||
+                ((patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE) &&
+                 ((patch->sinks[0].ext.device.hw_module != srcModule) ||
+                  (audioHwDevice->version() < AUDIO_DEVICE_API_VERSION_3_0)))) {
                 if (patch->num_sources == 2) {
                     if (patch->sources[1].type != AUDIO_PORT_TYPE_MIX ||
-                            patch->sinks[0].ext.device.hw_module !=
-                                    patch->sources[1].ext.mix.hw_module) {
+                            (patch->num_sinks != 0 && patch->sinks[0].ext.device.hw_module !=
+                                    patch->sources[1].ext.mix.hw_module)) {
                         ALOGW("createAudioPatch() invalid source combination");
                         status = INVALID_OPERATION;
                         goto exit;
@@ -379,12 +380,16 @@ status_t AudioFlinger::PatchPanel::createPatchConnections(Patch *patch,
     }
 
     // create patch from playback thread output to sink device
-    patch->mPlaybackThread->getAudioPortConfig(&subPatch.sources[0]);
-    subPatch.sinks[0] = audioPatch->sinks[0];
-    status = createAudioPatch(&subPatch, &patch->mPlaybackPatchHandle);
-    if (status != NO_ERROR) {
+    if (audioPatch->num_sinks != 0) {
+        patch->mPlaybackThread->getAudioPortConfig(&subPatch.sources[0]);
+        subPatch.sinks[0] = audioPatch->sinks[0];
+        status = createAudioPatch(&subPatch, &patch->mPlaybackPatchHandle);
+        if (status != NO_ERROR) {
+            patch->mPlaybackPatchHandle = AUDIO_PATCH_HANDLE_NONE;
+            return status;
+        }
+    } else {
         patch->mPlaybackPatchHandle = AUDIO_PATCH_HANDLE_NONE;
-        return status;
     }
 
     // use a pseudo LCM between input and output framecount

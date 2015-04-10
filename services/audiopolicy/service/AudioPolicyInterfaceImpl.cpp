@@ -690,7 +690,8 @@ status_t AudioPolicyService::startAudioSource(const struct audio_port_config *so
         return NO_INIT;
     }
 
-    return mAudioPolicyManager->startAudioSource(source, attributes, handle);
+    return mAudioPolicyManager->startAudioSource(source, attributes, handle,
+                                                 IPCThreadState::self()->getCallingUid());
 }
 
 status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
