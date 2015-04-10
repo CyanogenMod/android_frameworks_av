@@ -585,8 +585,10 @@ sp<IOProfile> AudioPolicyManager::getProfileForDirectOutput(
         }
         for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++) {
             sp<IOProfile> profile = mHwModules[i]->mOutputProfiles[j];
-            bool found = profile->isCompatibleProfile(device, String8(""), samplingRate,
-                    NULL /*updatedSamplingRate*/, format, channelMask,
+            bool found = profile->isCompatibleProfile(device, String8(""),
+                    samplingRate, NULL /*updatedSamplingRate*/,
+                    format, NULL /*updatedFormat*/,
+                    channelMask, NULL /*updatedChannelMask*/,
                     flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ?
                         AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD : AUDIO_OUTPUT_FLAG_DIRECT);
             if (found && (mAvailableOutputDevices.types() & profile->mSupportedDevices.types())) {
@@ -1303,20 +1305,25 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         }
     }
 
-    sp<IOProfile> profile = getInputProfile(device, address,
-                                            samplingRate, format, channelMask,
-                                            flags);
-    if (profile == 0) {
-        //retry without flags
-        audio_input_flags_t log_flags = flags;
-        flags = AUDIO_INPUT_FLAG_NONE;
+    // find a compatible input profile (not necessarily identical in parameters)
+    sp<IOProfile> profile;
+    // samplingRate and flags may be updated by getInputProfile
+    uint32_t profileSamplingRate = samplingRate;
+    audio_format_t profileFormat = format;
+    audio_channel_mask_t profileChannelMask = channelMask;
+    audio_input_flags_t profileFlags = flags;
+    for (;;) {
         profile = getInputProfile(device, address,
-                                  samplingRate, format, channelMask,
-                                  flags);
-        if (profile == 0) {
+                                  profileSamplingRate, profileFormat, profileChannelMask,
+                                  profileFlags);
+        if (profile != 0) {
+            break; // success
+        } else if (profileFlags != AUDIO_INPUT_FLAG_NONE) {
+            profileFlags = AUDIO_INPUT_FLAG_NONE; // retry
+        } else { // fail
             ALOGW("getInputForAttr() could not find profile for device 0x%X, samplingRate %u,"
                     "format %#x, channelMask 0x%X, flags %#x",
-                    device, samplingRate, format, channelMask, log_flags);
+                    device, samplingRate, format, channelMask, flags);
             return BAD_VALUE;
         }
     }
@@ -1327,9 +1334,9 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     }
 
     audio_config_t config = AUDIO_CONFIG_INITIALIZER;
-    config.sample_rate = samplingRate;
-    config.channel_mask = channelMask;
-    config.format = format;
+    config.sample_rate = profileSamplingRate;
+    config.channel_mask = profileChannelMask;
+    config.format = profileFormat;
 
     status_t status = mpClientInterface->openInput(profile->getModuleHandle(),
                                                    input,
@@ -1337,14 +1344,15 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
                                                    &device,
                                                    address,
                                                    halInputSource,
-                                                   flags);
+                                                   profileFlags);
 
     // only accept input with the exact requested set of parameters
     if (status != NO_ERROR || *input == AUDIO_IO_HANDLE_NONE ||
-        (samplingRate != config.sample_rate) ||
-        (format != config.format) ||
-        (channelMask != config.channel_mask)) {
-        ALOGW("getInputForAttr() failed opening input: samplingRate %d, format %d, channelMask %x",
+        (profileSamplingRate != config.sample_rate) ||
+        (profileFormat != config.format) ||
+        (profileChannelMask != config.channel_mask)) {
+        ALOGW("getInputForAttr() failed opening input: samplingRate %d, format %d,"
+                " channelMask %x",
                 samplingRate, format, channelMask);
         if (*input != AUDIO_IO_HANDLE_NONE) {
             mpClientInterface->closeInput(*input);
@@ -1356,9 +1364,9 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     inputDesc->mInputSource = inputSource;
     inputDesc->mRefCount = 0;
     inputDesc->mOpenRefCount = 1;
-    inputDesc->mSamplingRate = samplingRate;
-    inputDesc->mFormat = format;
-    inputDesc->mChannelMask = channelMask;
+    inputDesc->mSamplingRate = profileSamplingRate;
+    inputDesc->mFormat = profileFormat;
+    inputDesc->mChannelMask = profileChannelMask;
     inputDesc->mDevice = device;
     inputDesc->mSessions.add(session);
     inputDesc->mIsSoundTrigger = isSoundTrigger;
@@ -2122,9 +2130,12 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                            patch->sources[0].sample_rate,
                                                            NULL,  // updatedSamplingRate
                                                            patch->sources[0].format,
+                                                           NULL,  // updatedFormat
                                                            patch->sources[0].channel_mask,
+                                                           NULL,  // updatedChannelMask
                                                            AUDIO_OUTPUT_FLAG_NONE /*FIXME*/)) {
-                ALOGV("createAudioPatch() profile not supported for device %08x", devDesc->type());
+                ALOGV("createAudioPatch() profile not supported for device %08x",
+                        devDesc->type());
                 return INVALID_OPERATION;
             }
             devices.add(devDesc);
@@ -2176,7 +2187,9 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                           patch->sinks[0].sample_rate,
                                                           NULL, /*updatedSampleRate*/
                                                           patch->sinks[0].format,
+                                                          NULL, /*updatedFormat*/
                                                           patch->sinks[0].channel_mask,
+                                                          NULL, /*updatedChannelMask*/
                                                           // FIXME for the parameter type,
                                                           // and the NONE
                                                           (audio_output_flags_t)
@@ -4201,12 +4214,15 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
 sp<IOProfile> AudioPolicyManager::getInputProfile(audio_devices_t device,
                                                   String8 address,
                                                   uint32_t& samplingRate,
-                                                  audio_format_t format,
-                                                  audio_channel_mask_t channelMask,
+                                                  audio_format_t& format,
+                                                  audio_channel_mask_t& channelMask,
                                                   audio_input_flags_t flags)
 {
     // Choose an input profile based on the requested capture parameters: select the first available
     // profile supporting all requested parameters.
+    //
+    // TODO: perhaps isCompatibleProfile should return a "matching" score so we can return
+    // the best matching profile, not the first one.
 
     for (size_t i = 0; i < mHwModules.size(); i++)
     {
@@ -4219,7 +4235,11 @@ sp<IOProfile> AudioPolicyManager::getInputProfile(audio_devices_t device,
             // profile->log();
             if (profile->isCompatibleProfile(device, address, samplingRate,
                                              &samplingRate /*updatedSamplingRate*/,
-                                             format, channelMask, (audio_output_flags_t) flags)) {
+                                             format,
+                                             &format /*updatedFormat*/,
+                                             channelMask,
+                                             &channelMask /*updatedChannelMask*/,
+                                             (audio_output_flags_t) flags)) {
 
                 return profile;
             }

@@ -45,7 +45,9 @@ public:
                              uint32_t samplingRate,
                              uint32_t *updatedSamplingRate,
                              audio_format_t format,
+                             audio_format_t *updatedFormat,
                              audio_channel_mask_t channelMask,
+                             audio_channel_mask_t *updatedChannelMask,
                              uint32_t flags) const;
 
     void dump(int fd);

@@ -470,12 +470,12 @@ protected:
         audio_io_handle_t selectOutput(const SortedVector<audio_io_handle_t>& outputs,
                                        audio_output_flags_t flags,
                                        audio_format_t format);
-        // samplingRate parameter is an in/out and so may be modified
+        // samplingRate, format, channelMask are in/out and so may be modified
         sp<IOProfile> getInputProfile(audio_devices_t device,
                                       String8 address,
                                       uint32_t& samplingRate,
-                                      audio_format_t format,
-                                      audio_channel_mask_t channelMask,
+                                      audio_format_t& format,
+                                      audio_channel_mask_t& channelMask,
                                       audio_input_flags_t flags);
         sp<IOProfile> getProfileForDirectOutput(audio_devices_t device,
                                                        uint32_t samplingRate,
