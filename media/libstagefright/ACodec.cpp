@@ -4902,6 +4902,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     sp<CodecObserver> observer = new CodecObserver;
     IOMX::node_id node = NULL;
 
+    status_t err = OMX_ErrorComponentNotFound;
     for (size_t matchIndex = 0; matchIndex < matchingCodecs.size();
             ++matchIndex) {
         componentName = matchingCodecs.itemAt(matchIndex).mName.string();
@@ -4910,7 +4911,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         pid_t tid = gettid();
         int prevPriority = androidGetThreadPriority(tid);
         androidSetThreadPriority(tid, ANDROID_PRIORITY_FOREGROUND);
-        status_t err = omx->allocateNode(componentName.c_str(), observer, &node);
+        err = omx->allocateNode(componentName.c_str(), observer, &node);
         androidSetThreadPriority(tid, prevPriority);
 
         if (err == OK) {
@@ -4924,13 +4925,13 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     if (node == NULL) {
         if (!mime.empty()) {
-            ALOGE("Unable to instantiate a %scoder for type '%s'.",
-                    encoder ? "en" : "de", mime.c_str());
+            ALOGE("Unable to instantiate a %scoder for type '%s' with err %#x.",
+                    encoder ? "en" : "de", mime.c_str(), err);
         } else {
-            ALOGE("Unable to instantiate codec '%s'.", componentName.c_str());
+            ALOGE("Unable to instantiate codec '%s' with err %#x.", componentName.c_str(), err);
         }
 
-        mCodec->signalError(OMX_ErrorComponentNotFound);
+        mCodec->signalError(err, makeNoSideEffectStatus(err));
         return false;
     }
 
