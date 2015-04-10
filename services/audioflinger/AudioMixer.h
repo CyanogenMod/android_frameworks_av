@@ -73,6 +73,7 @@ public:
         RESAMPLE        = 0x3001,
         RAMP_VOLUME     = 0x3002, // ramp to new volume
         VOLUME          = 0x3003, // don't ramp
+        TIMESTRETCH     = 0x3004,
 
         // set Parameter names
         // for target TRACK
@@ -100,6 +101,9 @@ public:
         VOLUME0         = 0x4200,
         VOLUME1         = 0x4201,
         AUXLEVEL        = 0x4210,
+        // for target TIMESTRETCH
+        PLAYBACK_RATE   = 0x4300, // Configure timestretch on this track name;
+                                  // parameter 'value' is a pointer to the new playback rate.
     };
 
 
@@ -214,6 +218,9 @@ private:
 
         /* Buffer providers are constructed to translate the track input data as needed.
          *
+         * TODO: perhaps make a single PlaybackConverterProvider class to move
+         * all pre-mixer track buffer conversions outside the AudioMixer class.
+         *
          * 1) mInputBufferProvider: The AudioTrack buffer provider.
          * 2) mReformatBufferProvider: If not NULL, performs the audio reformat to
          *    match either mMixerInFormat or mDownmixRequiresFormat, if the downmixer
@@ -223,11 +230,13 @@ private:
          *    the number of channels required by the mixer sink.
          * 4) mPostDownmixReformatBufferProvider: If not NULL, performs reformatting from
          *    the downmixer requirements to the mixer engine input requirements.
+         * 5) mTimestretchBufferProvider: Adds timestretching for playback rate
          */
         AudioBufferProvider*     mInputBufferProvider;    // externally provided buffer provider.
         PassthruBufferProvider*  mReformatBufferProvider; // provider wrapper for reformatting.
         PassthruBufferProvider*  downmixerBufferProvider; // wrapper for channel conversion.
         PassthruBufferProvider*  mPostDownmixReformatBufferProvider;
+        PassthruBufferProvider*  mTimestretchBufferProvider;
 
         int32_t     sessionId;
 
@@ -250,6 +259,9 @@ private:
         audio_channel_mask_t mMixerChannelMask;
         uint32_t             mMixerChannelCount;
 
+        float          mSpeed;
+        float          mPitch;
+
         bool        needsRamp() { return (volumeInc[0] | volumeInc[1] | auxInc) != 0; }
         bool        setResampler(uint32_t trackSampleRate, uint32_t devSampleRate);
         bool        doesResample() const { return resampler != NULL; }
@@ -262,6 +274,7 @@ private:
         void        unprepareForDownmix();
         status_t    prepareForReformat();
         void        unprepareForReformat();
+        bool        setPlaybackRate(float speed, float pitch);
         void        reconfigureBufferProviders();
     };
 

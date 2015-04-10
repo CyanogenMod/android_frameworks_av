@@ -146,6 +146,45 @@ protected:
     const audio_format_t mOutputFormat;
 };
 
+// TimestretchBufferProvider derives from PassthruBufferProvider for time stretching
+class TimestretchBufferProvider : public PassthruBufferProvider {
+public:
+    TimestretchBufferProvider(int32_t channelCount,
+            audio_format_t format, uint32_t sampleRate, float speed, float pitch);
+    virtual ~TimestretchBufferProvider();
+
+    // Overrides AudioBufferProvider methods
+    virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
+    virtual void releaseBuffer(Buffer* buffer);
+
+    // Overrides PassthruBufferProvider
+    virtual void reset();
+
+    virtual status_t setPlaybackRate(float speed, float pitch);
+
+    // processes frames
+    // dstBuffer is where to place the data
+    // dstFrames [in/out] is the desired frames (return with actual placed in buffer)
+    // srcBuffer is the source data
+    // srcFrames [in/out] is the available source frames (return with consumed)
+    virtual void processFrames(void *dstBuffer, size_t *dstFrames,
+            const void *srcBuffer, size_t *srcFrames);
+
+protected:
+    const uint32_t       mChannelCount;
+    const audio_format_t mFormat;
+    const uint32_t       mSampleRate; // const for now (TODO change this)
+    const size_t         mFrameSize;
+    float                mSpeed;
+    float                mPitch;
+
+private:
+    AudioBufferProvider::Buffer mBuffer;
+    size_t               mLocalBufferFrameCount;
+    void                *mLocalBufferData;
+    size_t               mRemaining;
+};
+
 // ----------------------------------------------------------------------------
 } // namespace android
 

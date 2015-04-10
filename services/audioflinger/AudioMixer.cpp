@@ -123,6 +123,7 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
         t->resampler = NULL;
         t->downmixerBufferProvider = NULL;
         t->mReformatBufferProvider = NULL;
+        t->mTimestretchBufferProvider = NULL;
         t++;
     }
 
@@ -135,6 +136,7 @@ AudioMixer::~AudioMixer()
         delete t->resampler;
         delete t->downmixerBufferProvider;
         delete t->mReformatBufferProvider;
+        delete t->mTimestretchBufferProvider;
         t++;
     }
     delete [] mState.outputTemp;
@@ -213,6 +215,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
         t->mReformatBufferProvider = NULL;
         t->downmixerBufferProvider = NULL;
         t->mPostDownmixReformatBufferProvider = NULL;
+        t->mTimestretchBufferProvider = NULL;
         t->mMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
         t->mFormat = format;
         t->mMixerInFormat = selectMixerInFormat(format);
@@ -220,6 +223,8 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
         t->mMixerChannelMask = audio_channel_mask_from_representation_and_bits(
                 AUDIO_CHANNEL_REPRESENTATION_POSITION, AUDIO_CHANNEL_OUT_STEREO);
         t->mMixerChannelCount = audio_channel_count_from_out_mask(t->mMixerChannelMask);
+        t->mSpeed = AUDIO_TIMESTRETCH_SPEED_NORMAL;
+        t->mPitch = AUDIO_TIMESTRETCH_PITCH_NORMAL;
         // Check the downmixing (or upmixing) requirements.
         status_t status = t->prepareForDownmix();
         if (status != OK) {
@@ -412,6 +417,10 @@ void AudioMixer::track_t::reconfigureBufferProviders()
         mPostDownmixReformatBufferProvider->setBufferProvider(bufferProvider);
         bufferProvider = mPostDownmixReformatBufferProvider;
     }
+    if (mTimestretchBufferProvider) {
+        mTimestretchBufferProvider->setBufferProvider(bufferProvider);
+        bufferProvider = mTimestretchBufferProvider;
+    }
 }
 
 void AudioMixer::deleteTrackName(int name)
@@ -432,7 +441,9 @@ void AudioMixer::deleteTrackName(int name)
     mState.tracks[name].unprepareForDownmix();
     // delete the reformatter
     mState.tracks[name].unprepareForReformat();
-
+    // delete the timestretch provider
+    delete track.mTimestretchBufferProvider;
+    track.mTimestretchBufferProvider = NULL;
     mTrackNames &= ~(1<<name);
 }
 
@@ -654,6 +665,26 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             }
         }
         break;
+        case TIMESTRETCH:
+            switch (param) {
+            case PLAYBACK_RATE: {
+                const float speed = reinterpret_cast<float*>(value)[0];
+                const float pitch = reinterpret_cast<float*>(value)[1];
+                ALOG_ASSERT(AUDIO_TIMESTRETCH_SPEED_MIN <= speed
+                        && speed <= AUDIO_TIMESTRETCH_SPEED_MAX,
+                        "bad speed %f", speed);
+                ALOG_ASSERT(AUDIO_TIMESTRETCH_PITCH_MIN <= pitch
+                        && pitch <= AUDIO_TIMESTRETCH_PITCH_MAX,
+                        "bad pitch %f", pitch);
+                if (track.setPlaybackRate(speed, pitch)) {
+                    ALOGV("setParameter(TIMESTRETCH, PLAYBACK_RATE, %f %f", speed, pitch);
+                    // invalidateState(1 << name);
+                }
+                } break;
+            default:
+                LOG_ALWAYS_FATAL("setParameter timestretch: bad param %d", param);
+            }
+            break;
 
     default:
         LOG_ALWAYS_FATAL("setParameter: bad target %d", target);
@@ -697,6 +728,28 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
         }
     }
     return false;
+}
+
+bool AudioMixer::track_t::setPlaybackRate(float speed, float pitch)
+{
+    if (speed == mSpeed && pitch == mPitch) {
+        return false;
+    }
+    mSpeed = speed;
+    mPitch = pitch;
+    if (mTimestretchBufferProvider == NULL) {
+        // TODO: Remove MONO_HACK. Resampler sees #channels after the downmixer
+        // but if none exists, it is the channel count (1 for mono).
+        const int timestretchChannelCount = downmixerBufferProvider != NULL
+                ? mMixerChannelCount : channelCount;
+        mTimestretchBufferProvider = new TimestretchBufferProvider(timestretchChannelCount,
+                mMixerInFormat, sampleRate, speed, pitch);
+        reconfigureBufferProviders();
+    } else {
+        reinterpret_cast<TimestretchBufferProvider*>(mTimestretchBufferProvider)
+                ->setPlaybackRate(speed, pitch);
+    }
+    return true;
 }
 
 /* Checks to see if the volume ramp has completed and clears the increment
@@ -777,6 +830,8 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
         mState.tracks[name].downmixerBufferProvider->reset();
     } else if (mState.tracks[name].mPostDownmixReformatBufferProvider != NULL) {
         mState.tracks[name].mPostDownmixReformatBufferProvider->reset();
+    } else if (mState.tracks[name].mTimestretchBufferProvider != NULL) {
+        mState.tracks[name].mTimestretchBufferProvider->reset();
     }
 
     mState.tracks[name].mInputBufferProvider = bufferProvider;

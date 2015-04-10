@@ -34,6 +34,14 @@
 // an int32_t of the phase increments, making the resulting sample rate inexact.
 #define AUDIO_RESAMPLER_UP_RATIO_MAX 65536
 
+#define AUDIO_TIMESTRETCH_SPEED_MIN    0.5f
+#define AUDIO_TIMESTRETCH_SPEED_MAX    2.0f
+#define AUDIO_TIMESTRETCH_SPEED_NORMAL 1.0f
+
+#define AUDIO_TIMESTRETCH_PITCH_MIN    0.5f
+#define AUDIO_TIMESTRETCH_PITCH_MAX    2.0f
+#define AUDIO_TIMESTRETCH_PITCH_NORMAL 1.0f
+
 // Returns the source frames needed to resample to destination frames.  This is not a precise
 // value and depends on the resampler (and possibly how it handles rounding internally).
 // Nevertheless, this should be an upper bound on the requirements of the resampler.
