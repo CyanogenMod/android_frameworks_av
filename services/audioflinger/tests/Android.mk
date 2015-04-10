@@ -39,6 +39,7 @@ endif
 LOCAL_SRC_FILES:= \
 	test-mixer.cpp \
 	../AudioMixer.cpp.arm \
+	../BufferProviders.cpp
 
 LOCAL_C_INCLUDES := \
 	$(call include-path-for, audio-effects) \
