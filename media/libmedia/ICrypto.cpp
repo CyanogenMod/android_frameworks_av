@@ -35,6 +35,7 @@ enum {
     REQUIRES_SECURE_COMPONENT,
     DECRYPT,
     NOTIFY_RESOLUTION,
+    SET_MEDIADRM_SESSION,
 };
 
 struct BpCrypto : public BpInterface<ICrypto> {
@@ -161,13 +162,45 @@ struct BpCrypto : public BpInterface<ICrypto> {
         remote()->transact(NOTIFY_RESOLUTION, data, &reply);
     }
 
+    virtual status_t setMediaDrmSession(const Vector<uint8_t> &sessionId) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
+
+        writeVector(data, sessionId);
+        remote()->transact(SET_MEDIADRM_SESSION, data, &reply);
+
+        return reply.readInt32();
+    }
+
 private:
+    void readVector(Parcel &reply, Vector<uint8_t> &vector) const {
+        uint32_t size = reply.readInt32();
+        vector.insertAt((size_t)0, size);
+        reply.read(vector.editArray(), size);
+    }
+
+    void writeVector(Parcel &data, Vector<uint8_t> const &vector) const {
+        data.writeInt32(vector.size());
+        data.write(vector.array(), vector.size());
+    }
+
     DISALLOW_EVIL_CONSTRUCTORS(BpCrypto);
 };
 
 IMPLEMENT_META_INTERFACE(Crypto, "android.hardware.ICrypto");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void BnCrypto::readVector(const Parcel &data, Vector<uint8_t> &vector) const {
+    uint32_t size = data.readInt32();
+    vector.insertAt((size_t)0, size);
+    data.read(vector.editArray(), size);
+}
+
+void BnCrypto::writeVector(Parcel *reply, Vector<uint8_t> const &vector) const {
+    reply->writeInt32(vector.size());
+    reply->write(vector.array(), vector.size());
+}
 
 status_t BnCrypto::onTransact(
     uint32_t code, const Parcel &data, Parcel *reply, uint32_t flags) {
@@ -314,6 +347,15 @@ status_t BnCrypto::onTransact(
             int32_t height = data.readInt32();
             notifyResolution(width, height);
 
+            return OK;
+        }
+
+        case SET_MEDIADRM_SESSION:
+        {
+            CHECK_INTERFACE(IDrm, data, reply);
+            Vector<uint8_t> sessionId;
+            readVector(data, sessionId);
+            reply->writeInt32(setMediaDrmSession(sessionId));
             return OK;
         }
 

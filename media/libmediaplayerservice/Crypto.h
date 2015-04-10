@@ -47,6 +47,8 @@ struct Crypto : public BnCrypto {
 
     virtual void notifyResolution(uint32_t width, uint32_t height);
 
+    virtual status_t setMediaDrmSession(const Vector<uint8_t> &sessionId);
+
     virtual ssize_t decrypt(
             bool secure,
             const uint8_t key[16],
