@@ -42,6 +42,8 @@
 #define AUDIO_TIMESTRETCH_PITCH_MAX    2.0f
 #define AUDIO_TIMESTRETCH_PITCH_NORMAL 1.0f
 
+// TODO: Consider putting these inlines into a class scope
+
 // Returns the source frames needed to resample to destination frames.  This is not a precise
 // value and depends on the resampler (and possibly how it handles rounding internally).
 // Nevertheless, this should be an upper bound on the requirements of the resampler.
@@ -64,6 +66,15 @@ static inline size_t destinationFramesPossible(size_t srcFrames, uint32_t srcSam
     }
     uint64_t dstFrames = (uint64_t)srcFrames * dstSampleRate / srcSampleRate;
     return dstFrames > 2 ? dstFrames - 2 : 0;
+}
+
+static inline size_t sourceFramesNeededWithTimestretch(
+        uint32_t srcSampleRate, size_t dstFramesRequired, uint32_t dstSampleRate,
+        float speed) {
+    // required is the number of input frames the resampler needs
+    size_t required = sourceFramesNeeded(srcSampleRate, dstFramesRequired, dstSampleRate);
+    // to deliver this, the time stretcher requires:
+    return required * (double)speed + 1 + 1; // accounting for rounding dependencies
 }
 
 #endif // ANDROID_AUDIO_RESAMPLER_PUBLIC_H

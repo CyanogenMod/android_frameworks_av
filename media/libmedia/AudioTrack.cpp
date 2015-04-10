@@ -56,6 +56,24 @@ static int64_t getNowUs()
     return convertTimespecToUs(tv);
 }
 
+// Must match similar computation in createTrack_l in Threads.cpp.
+// TODO: Move to a common library
+static size_t calculateMinFrameCount(
+        uint32_t afLatencyMs, uint32_t afFrameCount, uint32_t afSampleRate,
+        uint32_t sampleRate, float speed)
+{
+    // Ensure that buffer depth covers at least audio hardware latency
+    uint32_t minBufCount = afLatencyMs / ((1000 * afFrameCount) / afSampleRate);
+    if (minBufCount < 2) {
+        minBufCount = 2;
+    }
+    ALOGV("calculateMinFrameCount afLatency %u  afFrameCount %u  afSampleRate %u  "
+            "sampleRate %u  speed %f  minBufCount: %u",
+            afLatencyMs, afFrameCount, afSampleRate, sampleRate, speed, minBufCount);
+    return minBufCount * sourceFramesNeededWithTimestretch(
+            sampleRate, afFrameCount, afSampleRate, speed);
+}
+
 // static
 status_t AudioTrack::getMinFrameCount(
         size_t* frameCount,
@@ -94,13 +112,10 @@ status_t AudioTrack::getMinFrameCount(
         return status;
     }
 
-    // Ensure that buffer depth covers at least audio hardware latency
-    uint32_t minBufCount = afLatency / ((1000 * afFrameCount) / afSampleRate);
-    if (minBufCount < 2) {
-        minBufCount = 2;
-    }
+    // When called from createTrack, speed is 1.0f (normal speed).
+    // This is rechecked again on setting playback rate (TODO: on setting sample rate, too).
+    *frameCount = calculateMinFrameCount(afLatency, afFrameCount, afSampleRate, sampleRate, 1.0f);
 
-    *frameCount = minBufCount * sourceFramesNeeded(sampleRate, afFrameCount, afSampleRate);
     // The formula above should always produce a non-zero value under normal circumstances:
     // AudioTrack.SAMPLE_RATE_HZ_MIN <= sampleRate <= AudioTrack.SAMPLE_RATE_HZ_MAX.
     // Return error in the unlikely event that it does not, as that's part of the API contract.
@@ -109,8 +124,8 @@ status_t AudioTrack::getMinFrameCount(
                 streamType, sampleRate);
         return BAD_VALUE;
     }
-    ALOGV("getMinFrameCount=%zu: afFrameCount=%zu, minBufCount=%u, afSampleRate=%u, afLatency=%u",
-            *frameCount, afFrameCount, minBufCount, afSampleRate, afLatency);
+    ALOGV("getMinFrameCount=%zu: afFrameCount=%zu, afSampleRate=%u, afLatency=%u",
+            *frameCount, afFrameCount, afSampleRate, afLatency);
     return NO_ERROR;
 }
 
@@ -360,6 +375,8 @@ status_t AudioTrack::set(
         return BAD_VALUE;
     }
     mSampleRate = sampleRate;
+    mSpeed = AUDIO_TIMESTRETCH_SPEED_NORMAL;
+    mPitch = AUDIO_TIMESTRETCH_PITCH_NORMAL;
 
     // Make copy of input parameter offloadInfo so that in the future:
     //  (a) createTrack_l doesn't need it as an input parameter
@@ -689,6 +706,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (rate == 0 || rate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
         return BAD_VALUE;
     }
+    // TODO: Should we also check if the buffer size is compatible?
 
     mSampleRate = rate;
     mProxy->setSampleRate(rate);
@@ -717,6 +735,42 @@ uint32_t AudioTrack::getSampleRate() const
         }
     }
     return mSampleRate;
+}
+
+status_t AudioTrack::setPlaybackRate(float speed, float pitch)
+{
+    if (speed < AUDIO_TIMESTRETCH_SPEED_MIN
+            || speed > AUDIO_TIMESTRETCH_SPEED_MAX
+            || pitch < AUDIO_TIMESTRETCH_PITCH_MIN
+            || pitch > AUDIO_TIMESTRETCH_PITCH_MAX) {
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (speed == mSpeed && pitch == mPitch) {
+        return NO_ERROR;
+    }
+    if (mIsTimed || isOffloadedOrDirect_l()) {
+        return INVALID_OPERATION;
+    }
+    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
+        return INVALID_OPERATION;
+    }
+    // Check if the buffer size is compatible.
+    if (!isSampleRateSpeedAllowed_l(mSampleRate, speed)) {
+        ALOGV("setPlaybackRate(%f, %f) failed", speed, pitch);
+        return BAD_VALUE;
+    }
+    mSpeed = speed;
+    mPitch = pitch;
+    mProxy->setPlaybackRate(speed, pitch);
+    return NO_ERROR;
+}
+
+void AudioTrack::getPlaybackRate(float *speed, float *pitch) const
+{
+    AutoMutex lock(mLock);
+    *speed = mSpeed;
+    *pitch = mPitch;
 }
 
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)
@@ -1086,8 +1140,16 @@ status_t AudioTrack::createTrack_l()
         // there _is_ a frameCount parameter.  We silently ignore it.
         frameCount = mSharedBuffer->size() / mFrameSize;
     } else {
-        // For fast and normal streaming tracks,
-        // the frame count calculations and checks are done by server
+        // For fast tracks the frame count calculations and checks are done by server
+
+        if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
+            // for normal tracks precompute the frame count based on speed.
+            const size_t minFrameCount = calculateMinFrameCount(
+                    afLatency, afFrameCount, afSampleRate, mSampleRate, mSpeed);
+            if (frameCount < minFrameCount) {
+                frameCount = minFrameCount;
+            }
+        }
     }
 
     IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
@@ -1230,6 +1292,7 @@ status_t AudioTrack::createTrack_l()
     }
 
     mAudioTrack->attachAuxEffect(mAuxEffectId);
+    // FIXME doesn't take into account speed or future sample rate changes (until restoreTrack)
     // FIXME don't believe this lie
     mLatency = afLatency + (1000*frameCount) / mSampleRate;
 
@@ -1255,6 +1318,7 @@ status_t AudioTrack::createTrack_l()
 
     mProxy->setSendLevel(mSendLevel);
     mProxy->setSampleRate(mSampleRate);
+    mProxy->setPlaybackRate(mSpeed, mPitch);
     mProxy->setMinimum(mNotificationFramesAct);
 
     mDeathNotifier = new DeathNotifier(this);
@@ -1617,6 +1681,7 @@ nsecs_t AudioTrack::processAudioBuffer()
 
     // Cache other fields that will be needed soon
     uint32_t sampleRate = mSampleRate;
+    float speed = mSpeed;
     uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
         mRefreshRemaining = false;
@@ -1745,7 +1810,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     if (minFrames != (uint32_t) ~0) {
         // This "fudge factor" avoids soaking CPU, and compensates for late progress by server
         static const nsecs_t kFudgeNs = 10000000LL; // 10 ms
-        ns = ((minFrames * 1000000000LL) / sampleRate) + kFudgeNs;
+        ns = ((double)minFrames * 1000000000) / ((double)sampleRate * speed) + kFudgeNs;
     }
 
     // If not supplying data by EVENT_MORE_DATA, then we're done
@@ -1786,7 +1851,8 @@ nsecs_t AudioTrack::processAudioBuffer()
         if (mRetryOnPartialBuffer && !isOffloaded()) {
             mRetryOnPartialBuffer = false;
             if (avail < mRemainingFrames) {
-                int64_t myns = ((mRemainingFrames - avail) * 1100000000LL) / sampleRate;
+                int64_t myns = ((double)(mRemainingFrames - avail) * 1100000000)
+                        / ((double)sampleRate * speed);
                 if (ns < 0 || myns < ns) {
                     ns = myns;
                 }
@@ -1841,7 +1907,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         // that total to a sum == notificationFrames.
         if (0 < misalignment && misalignment <= mRemainingFrames) {
             mRemainingFrames = misalignment;
-            return (mRemainingFrames * 1100000000LL) / sampleRate;
+            return ((double)mRemainingFrames * 1100000000) / ((double)sampleRate * speed);
         }
 #endif
 
@@ -1936,6 +2002,41 @@ uint32_t AudioTrack::updateAndGetPosition_l()
     return mPosition += (uint32_t) delta;
 }
 
+bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) const
+{
+    // applicable for mixing tracks only (not offloaded or direct)
+    if (mStaticProxy != 0) {
+        return true; // static tracks do not have issues with buffer sizing.
+    }
+    status_t status;
+    uint32_t afLatency;
+    status = AudioSystem::getLatency(mOutput, &afLatency);
+    if (status != NO_ERROR) {
+        ALOGE("getLatency(%d) failed status %d", mOutput, status);
+        return false;
+    }
+
+    size_t afFrameCount;
+    status = AudioSystem::getFrameCount(mOutput, &afFrameCount);
+    if (status != NO_ERROR) {
+        ALOGE("getFrameCount(output=%d) status %d", mOutput, status);
+        return false;
+    }
+
+    uint32_t afSampleRate;
+    status = AudioSystem::getSamplingRate(mOutput, &afSampleRate);
+    if (status != NO_ERROR) {
+        ALOGE("getSamplingRate(output=%d) status %d", mOutput, status);
+        return false;
+    }
+
+    const size_t minFrameCount =
+            calculateMinFrameCount(afLatency, afFrameCount, afSampleRate, sampleRate, speed);
+    ALOGV("isSampleRateSpeedAllowed_l mFrameCount %zu  minFrameCount %zu",
+            mFrameCount, minFrameCount);
+    return mFrameCount >= minFrameCount;
+}
+
 status_t AudioTrack::setParameters(const String8& keyValuePairs)
 {
     AutoMutex lock(mLock);
@@ -2001,7 +2102,8 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
                     return WOULD_BLOCK;  // stale timestamp time, occurs before start.
                 }
                 const int64_t deltaTimeUs = timestampTimeUs - mStartUs;
-                const int64_t deltaPositionByUs = timestamp.mPosition * 1000000LL / mSampleRate;
+                const int64_t deltaPositionByUs = (double)timestamp.mPosition * 1000000
+                        / ((double)mSampleRate * mSpeed);
 
                 if (deltaPositionByUs > deltaTimeUs + kTimeJitterUs) {
                     // Verify that the counter can't count faster than the sample rate
@@ -2088,7 +2190,8 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
     snprintf(buffer, 255, "  format(%d), channel count(%d), frame count(%zu)\n", mFormat,
             mChannelCount, mFrameCount);
     result.append(buffer);
-    snprintf(buffer, 255, "  sample rate(%u), status(%d)\n", mSampleRate, mStatus);
+    snprintf(buffer, 255, "  sample rate(%u), speed(%f), status(%d)\n",
+            mSampleRate, mSpeed, mStatus);
     result.append(buffer);
     snprintf(buffer, 255, "  state(%d), latency (%d)\n", mState, mLatency);
     result.append(buffer);

@@ -359,6 +359,21 @@ public:
     /* Return current source sample rate in Hz */
             uint32_t    getSampleRate() const;
 
+    /* Set source playback rate for timestretch
+     * 1.0 is normal speed: < 1.0 is slower, > 1.0 is faster
+     * 1.0 is normal pitch: < 1.0 is lower pitch, > 1.0 is higher pitch
+     *
+     * AUDIO_TIMESTRETCH_SPEED_MIN <= speed <= AUDIO_TIMESTRETCH_SPEED_MAX
+     * AUDIO_TIMESTRETCH_PITCH_MIN <= pitch <= AUDIO_TIMESTRETCH_PITCH_MAX
+     *
+     * Speed increases the playback rate of media, but does not alter pitch.
+     * Pitch increases the "tonal frequency" of media, but does not affect the playback rate.
+     */
+            status_t    setPlaybackRate(float speed, float pitch);
+
+    /* Return current playback rate */
+            void        getPlaybackRate(float *speed, float *pitch) const;
+
     /* Enables looping and sets the start and end points of looping.
      * Only supported for static buffer mode.
      *
@@ -719,6 +734,9 @@ protected:
             // increment mPosition by the delta of mServer, and return new value of mPosition
             uint32_t updateAndGetPosition_l();
 
+            // check sample rate and speed is compatible with AudioTrack
+            bool     isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) const;
+
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;
@@ -730,6 +748,8 @@ protected:
     float                   mVolume[2];
     float                   mSendLevel;
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it
+    float                   mSpeed;                 // timestretch: 1.0f for normal speed.
+    float                   mPitch;                 // timestretch: 1.0f for normal pitch.
     size_t                  mFrameCount;            // corresponds to current IAudioTrack, value is
                                                     // reported back by AudioFlinger to the client
     size_t                  mReqFrameCount;         // frame count to request the first or next time

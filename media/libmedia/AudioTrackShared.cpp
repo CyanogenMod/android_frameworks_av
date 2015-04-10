@@ -793,6 +793,16 @@ void AudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
     (void) android_atomic_or(CBLK_UNDERRUN, &cblk->mFlags);
 }
 
+void AudioTrackServerProxy::getPlaybackRate(float *speed, float *pitch)
+{   // do not call from multiple threads without holding lock
+    AudioTrackPlaybackRate playbackRate;
+    if (mPlaybackRateObserver.poll(playbackRate)) {
+        mPlaybackRate = playbackRate;
+    }
+    *speed = mPlaybackRate.mSpeed;
+    *pitch = mPlaybackRate.mPitch;
+}
+
 // ---------------------------------------------------------------------------
 
 StaticAudioTrackServerProxy::StaticAudioTrackServerProxy(audio_track_cblk_t* cblk, void *buffers,
