@@ -268,4 +268,14 @@ void Crypto::notifyResolution(uint32_t width, uint32_t height) {
     }
 }
 
+status_t Crypto::setMediaDrmSession(const Vector<uint8_t> &sessionId) {
+    Mutex::Autolock autoLock(mLock);
+
+    status_t result = NO_INIT;
+    if (mInitCheck == OK && mPlugin != NULL) {
+        result = mPlugin->setMediaDrmSession(sessionId);
+    }
+    return result;
+}
+
 }  // namespace android

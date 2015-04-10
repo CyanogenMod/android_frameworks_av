@@ -44,6 +44,8 @@ struct ICrypto : public IInterface {
 
     virtual void notifyResolution(uint32_t width, uint32_t height) = 0;
 
+    virtual status_t setMediaDrmSession(const Vector<uint8_t> &sessionId) = 0;
+
     virtual ssize_t decrypt(
             bool secure,
             const uint8_t key[16],
@@ -62,6 +64,9 @@ struct BnCrypto : public BnInterface<ICrypto> {
     virtual status_t onTransact(
             uint32_t code, const Parcel &data, Parcel *reply,
             uint32_t flags = 0);
+private:
+    void readVector(const Parcel &data, Vector<uint8_t> &vector) const;
+    void writeVector(Parcel *reply, Vector<uint8_t> const &vector) const;
 };
 
 }  // namespace android
