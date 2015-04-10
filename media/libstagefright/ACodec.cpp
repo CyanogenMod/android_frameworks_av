@@ -4931,7 +4931,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
             ALOGE("Unable to instantiate codec '%s' with err %#x.", componentName.c_str(), err);
         }
 
-        mCodec->signalError(err, makeNoSideEffectStatus(err));
+        mCodec->signalError((OMX_ERRORTYPE)err, makeNoSideEffectStatus(err));
         return false;
     }
 
