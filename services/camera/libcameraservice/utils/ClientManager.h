@@ -17,7 +17,9 @@
 #ifndef ANDROID_SERVICE_UTILS_EVICTION_POLICY_MANAGER_H
 #define ANDROID_SERVICE_UTILS_EVICTION_POLICY_MANAGER_H
 
+#include <utils/Condition.h>
 #include <utils/Mutex.h>
+#include <utils/Timers.h>
 
 #include <algorithm>
 #include <utility>
@@ -263,6 +265,16 @@ public:
      */
     std::shared_ptr<ClientDescriptor<KEY, VALUE>> get(const KEY& key) const;
 
+    /**
+     * Block until the given client is no longer in the active clients list, or the timeout
+     * occurred.
+     *
+     * Returns NO_ERROR if this succeeded, -ETIMEDOUT on a timeout, or a negative error code on
+     * failure.
+     */
+    status_t waitUntilRemoved(const std::shared_ptr<ClientDescriptor<KEY, VALUE>> client,
+            nsecs_t timeout) const;
+
 protected:
     ~ClientManager();
 
@@ -284,6 +296,7 @@ private:
     int64_t getCurrentCostLocked() const;
 
     mutable Mutex mLock;
+    mutable Condition mRemovedCondition;
     int32_t mMaxCost;
     // LRU ordered, most recent at end
     std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> mClients;
@@ -430,6 +443,7 @@ std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> ClientManager<KEY, VA
         }), mClients.end());
 
     mClients.push_back(client);
+    mRemovedCondition.broadcast();
 
     return evicted;
 }
@@ -487,6 +501,7 @@ template<class KEY, class VALUE>
 void ClientManager<KEY, VALUE>::removeAll() {
     Mutex::Autolock lock(mLock);
     mClients.clear();
+    mRemovedCondition.broadcast();
 }
 
 template<class KEY, class VALUE>
@@ -505,6 +520,39 @@ std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE>::remove(
             return false;
         }), mClients.end());
 
+    mRemovedCondition.broadcast();
+    return ret;
+}
+
+template<class KEY, class VALUE>
+status_t ClientManager<KEY, VALUE>::waitUntilRemoved(
+        const std::shared_ptr<ClientDescriptor<KEY, VALUE>> client,
+        nsecs_t timeout) const {
+    status_t ret = NO_ERROR;
+    Mutex::Autolock lock(mLock);
+
+    bool isRemoved = false;
+
+    // Figure out what time in the future we should hit the timeout
+    nsecs_t failTime = systemTime(SYSTEM_TIME_MONOTONIC) + timeout;
+
+    while (!isRemoved) {
+        isRemoved = true;
+        for (const auto& i : mClients) {
+            if (i == client) {
+                isRemoved = false;
+            }
+        }
+
+        if (!isRemoved) {
+            ret = mRemovedCondition.waitRelative(mLock, timeout);
+            if (ret != NO_ERROR) {
+                break;
+            }
+            timeout = failTime - systemTime(SYSTEM_TIME_MONOTONIC);
+        }
+    }
+
     return ret;
 }
 
@@ -520,6 +568,7 @@ void ClientManager<KEY, VALUE>::remove(
             }
             return false;
         }), mClients.end());
+    mRemovedCondition.broadcast();
 }
 
 template<class KEY, class VALUE>
