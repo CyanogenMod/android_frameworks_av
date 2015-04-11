@@ -808,6 +808,29 @@ status_t M3UParser::parseStreamInf(
                 *meta = new AMessage;
             }
             (*meta)->setString(key.c_str(), codecs.c_str());
+        } else if (!strcasecmp("resolution", key.c_str())) {
+            const char *s = val.c_str();
+            char *end;
+            unsigned long width = strtoul(s, &end, 10);
+
+            if (end == s || *end != 'x') {
+                // malformed
+                continue;
+            }
+
+            s = end + 1;
+            unsigned long height = strtoul(s, &end, 10);
+
+            if (end == s || *end != '\0') {
+                // malformed
+                continue;
+            }
+
+            if (meta->get() == NULL) {
+                *meta = new AMessage;
+            }
+            (*meta)->setInt32("width", width);
+            (*meta)->setInt32("height", height);
         } else if (!strcasecmp("audio", key.c_str())
                 || !strcasecmp("video", key.c_str())
                 || !strcasecmp("subtitles", key.c_str())) {

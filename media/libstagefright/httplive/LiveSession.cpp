@@ -171,6 +171,8 @@ LiveSession::LiveSession(
       mOrigBandwidthIndex(-1),
       mLastBandwidthBps(-1ll),
       mBandwidthEstimator(new BandwidthEstimator()),
+      mMaxWidth(720),
+      mMaxHeight(480),
       mStreamMask(0),
       mNewStreamMask(0),
       mSwapMask(0),
@@ -345,6 +347,9 @@ status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
     if (stream == STREAMTYPE_AUDIO) {
         // set AAC input buffer size to 32K bytes (256kbps x 1sec)
         meta->setInt32(kKeyMaxInputSize, 32 * 1024);
+    } else if (stream == STREAMTYPE_VIDEO) {
+        meta->setInt32(kKeyMaxWidth, mMaxWidth);
+        meta->setInt32(kKeyMaxHeight, mMaxHeight);
     }
 
     return convertMetaDataToMessage(meta, format);
@@ -847,6 +852,9 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
     size_t initialBandwidth = 0;
     size_t initialBandwidthIndex = 0;
 
+    int32_t maxWidth = 0;
+    int32_t maxHeight = 0;
+
     if (mPlaylist->isVariantPlaylist()) {
         Vector<BandwidthItem> itemsWithVideo;
         for (size_t i = 0; i < mPlaylist->size(); ++i) {
@@ -859,6 +867,14 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
             mPlaylist->itemAt(i, &uri, &meta);
 
             CHECK(meta->findInt32("bandwidth", (int32_t *)&item.mBandwidth));
+
+            int32_t width, height;
+            if (meta->findInt32("width", &width)) {
+                maxWidth = max(maxWidth, width);
+            }
+            if (meta->findInt32("height", &height)) {
+                maxHeight = max(maxHeight, height);
+            }
 
             mBandwidthItems.push(item);
             if (mPlaylist->hasType(i, "video")) {
@@ -892,6 +908,9 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
         item.mBandwidth = 0;
         mBandwidthItems.push(item);
     }
+
+    mMaxWidth = maxWidth > 0 ? maxWidth : mMaxWidth;
+    mMaxHeight = maxHeight > 0 ? maxHeight : mMaxHeight;
 
     mPlaylist->pickRandomMediaItems();
     changeConfiguration(

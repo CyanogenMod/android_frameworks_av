@@ -191,6 +191,8 @@ private:
     sp<BandwidthEstimator> mBandwidthEstimator;
 
     sp<M3UParser> mPlaylist;
+    int32_t mMaxWidth;
+    int32_t mMaxHeight;
 
     sp<ALooper> mFetcherLooper;
     KeyedVector<AString, FetcherInfo> mFetcherInfos;

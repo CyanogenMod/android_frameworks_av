@@ -166,6 +166,16 @@ status_t convertMetaDataToMessage(
         msg->setInt32("max-input-size", maxInputSize);
     }
 
+    int32_t maxWidth;
+    if (meta->findInt32(kKeyMaxWidth, &maxWidth)) {
+        msg->setInt32("max-width", maxWidth);
+    }
+
+    int32_t maxHeight;
+    if (meta->findInt32(kKeyMaxHeight, &maxHeight)) {
+        msg->setInt32("max-height", maxHeight);
+    }
+
     int32_t rotationDegrees;
     if (meta->findInt32(kKeyRotation, &rotationDegrees)) {
         msg->setInt32("rotation-degrees", rotationDegrees);
@@ -566,6 +576,16 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     int32_t maxInputSize;
     if (msg->findInt32("max-input-size", &maxInputSize)) {
         meta->setInt32(kKeyMaxInputSize, maxInputSize);
+    }
+
+    int32_t maxWidth;
+    if (msg->findInt32("max-width", &maxWidth)) {
+        meta->setInt32(kKeyMaxWidth, maxWidth);
+    }
+
+    int32_t maxHeight;
+    if (msg->findInt32("max-height", &maxHeight)) {
+        meta->setInt32(kKeyMaxHeight, maxHeight);
     }
 
     // reassemble the csd data into its original form
