@@ -244,15 +244,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
         return;
     }
 
-    // the following should work after start
-//    CHECK_EQ((status_t)OK, mCodec->getInputBuffers(&mInputBuffers));
     releaseAndResetMediaBuffers();
-//    CHECK_EQ((status_t)OK, mCodec->getOutputBuffers(&mOutputBuffers));
-//    ALOGV("[%s] got %zu input and %zu output buffers",
-//            mComponentName.c_str(),
-//            mInputBuffers.size(),
-//            mOutputBuffers.size());
-
 
     mPaused = false;
     mResumePending = false;
@@ -262,16 +254,14 @@ void NuPlayer::Decoder::onSetRenderer(const sp<Renderer> &renderer) {
     bool hadNoRenderer = (mRenderer == NULL);
     mRenderer = renderer;
     if (hadNoRenderer && mRenderer != NULL) {
-        requestCodecNotification();
+        // this means that the widevine legacy source is ready
+        onRequestInputBuffers();
     }
 }
 
 void NuPlayer::Decoder::onGetInputBuffers(
         Vector<sp<ABuffer> > *dstBuffers) {
-    dstBuffers->clear();
-    for (size_t i = 0; i < mInputBuffers.size(); i++) {
-        dstBuffers->push(mInputBuffers[i]);
-    }
+    CHECK_EQ((status_t)OK, mCodec->getWidevineLegacyBuffers(dstBuffers));
 }
 
 void NuPlayer::Decoder::onResume(bool notifyComplete) {
@@ -367,7 +357,9 @@ void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
 }
 
 void NuPlayer::Decoder::doRequestBuffers() {
-    if (isDiscontinuityPending()) {
+    // mRenderer is only NULL if we have a legacy widevine source that
+    // is not yet ready. In this case we must not fetch input.
+    if (isDiscontinuityPending() || mRenderer == NULL) {
         return;
     }
     status_t err = OK;

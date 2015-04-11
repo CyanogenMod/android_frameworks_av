@@ -135,6 +135,8 @@ struct MediaCodec : public AHandler {
     status_t getOutputFormat(sp<AMessage> *format) const;
     status_t getInputFormat(sp<AMessage> *format) const;
 
+    status_t getWidevineLegacyBuffers(Vector<sp<ABuffer> > *buffers) const;
+
     status_t getInputBuffers(Vector<sp<ABuffer> > *buffers) const;
     status_t getOutputBuffers(Vector<sp<ABuffer> > *buffers) const;
 
