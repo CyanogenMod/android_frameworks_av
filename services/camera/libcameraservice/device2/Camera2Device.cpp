@@ -618,6 +618,12 @@ status_t Camera2Device::flush(int64_t* /*lastFrameNumber*/) {
     return waitUntilDrained();
 }
 
+status_t Camera2Device::prepare(int streamId) {
+    ATRACE_CALL();
+    ALOGE("%s: Camera %d: unimplemented", __FUNCTION__, mId);
+    return NO_INIT;
+}
+
 uint32_t Camera2Device::getDeviceVersion() {
     ATRACE_CALL();
     return mDeviceVersion;

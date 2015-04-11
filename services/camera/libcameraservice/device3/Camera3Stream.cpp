@@ -194,6 +194,11 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
         return OK;
     }
 
+    // Reset prepared state, since buffer config has changed, and existing
+    // allocations are no longer valid
+    mPrepared = false;
+    mStreamUnpreparable = false;
+
     status_t res;
     res = configureQueueLocked();
     if (res != OK) {
@@ -242,6 +247,125 @@ status_t Camera3Stream::cancelConfiguration() {
 
     mState = (mState == STATE_IN_RECONFIG) ? STATE_CONFIGURED : STATE_CONSTRUCTED;
     return OK;
+}
+
+bool Camera3Stream::isUnpreparable() {
+    ATRACE_CALL();
+
+    Mutex::Autolock l(mLock);
+    return mStreamUnpreparable;
+}
+
+status_t Camera3Stream::startPrepare() {
+    ATRACE_CALL();
+
+    Mutex::Autolock l(mLock);
+    status_t res = OK;
+
+    // This function should be only called when the stream is configured already.
+    if (mState != STATE_CONFIGURED) {
+        ALOGE("%s: Stream %d: Can't prepare stream if stream is not in CONFIGURED "
+                "state %d", __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // This function can't be called if the stream has already received filled
+    // buffers
+    if (mStreamUnpreparable) {
+        ALOGE("%s: Stream %d: Can't prepare stream that's already in use",
+                __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    if (getHandoutOutputBufferCountLocked() > 0) {
+        ALOGE("%s: Stream %d: Can't prepare stream that has outstanding buffers",
+                __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    if (mPrepared) return OK;
+
+    size_t bufferCount = getBufferCountLocked();
+
+    mPreparedBuffers.insertAt(camera3_stream_buffer_t(), /*index*/0, bufferCount);
+    mPreparedBufferIdx = 0;
+
+    mState = STATE_PREPARING;
+
+    return NOT_ENOUGH_DATA;
+}
+
+bool Camera3Stream::isPreparing() const {
+    Mutex::Autolock l(mLock);
+    return mState == STATE_PREPARING;
+}
+
+status_t Camera3Stream::prepareNextBuffer() {
+    ATRACE_CALL();
+
+    Mutex::Autolock l(mLock);
+    status_t res = OK;
+
+    // This function should be only called when the stream is preparing
+    if (mState != STATE_PREPARING) {
+        ALOGE("%s: Stream %d: Can't prepare buffer if stream is not in PREPARING "
+                "state %d", __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // Get next buffer - this may allocate, and take a while for large buffers
+    res = getBufferLocked( &mPreparedBuffers.editItemAt(mPreparedBufferIdx) );
+    if (res != OK) {
+        ALOGE("%s: Stream %d: Unable to allocate buffer %d during preparation",
+                __FUNCTION__, mId, mPreparedBufferIdx);
+        return NO_INIT;
+    }
+
+    mPreparedBufferIdx++;
+
+    // Check if we still have buffers left to allocate
+    if (mPreparedBufferIdx < mPreparedBuffers.size()) {
+        return NOT_ENOUGH_DATA;
+    }
+
+    // Done with prepare - mark stream as such, and return all buffers
+    // via cancelPrepare
+    mPrepared = true;
+
+    return cancelPrepareLocked();
+}
+
+status_t Camera3Stream::cancelPrepare() {
+    ATRACE_CALL();
+
+    Mutex::Autolock l(mLock);
+
+    return cancelPrepareLocked();
+}
+
+status_t Camera3Stream::cancelPrepareLocked() {
+    status_t res = OK;
+
+    // This function should be only called when the stream is mid-preparing.
+    if (mState != STATE_PREPARING) {
+        ALOGE("%s: Stream %d: Can't cancel prepare stream if stream is not in "
+                "PREPARING state %d", __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // Return all valid buffers to stream, in ERROR state to indicate
+    // they weren't filled.
+    for (size_t i = 0; i < mPreparedBufferIdx; i++) {
+        mPreparedBuffers.editItemAt(i).release_fence = -1;
+        mPreparedBuffers.editItemAt(i).status = CAMERA3_BUFFER_STATUS_ERROR;
+        returnBufferLocked(mPreparedBuffers[i], 0);
+    }
+    mPreparedBuffers.clear();
+    mPreparedBufferIdx = 0;
+
+    mState = STATE_CONFIGURED;
+
+    return res;
 }
 
 status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
@@ -427,14 +551,12 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
             ALOGE("%s: register_stream_buffers is deprecated in HAL3.2; "
                     "must be set to NULL in camera3_device::ops", __FUNCTION__);
             return INVALID_OPERATION;
-        } else {
-            ALOGD("%s: Skipping NULL check for deprecated register_stream_buffers", __FUNCTION__);
         }
 
         return OK;
-    } else {
-        ALOGV("%s: register_stream_buffers using deprecated code path", __FUNCTION__);
     }
+
+    ALOGV("%s: register_stream_buffers using deprecated code path", __FUNCTION__);
 
     status_t res;
 
@@ -490,6 +612,8 @@ status_t Camera3Stream::registerBuffersLocked(camera3_device *hal3Device) {
         streamBuffers.editItemAt(i).status = CAMERA3_BUFFER_STATUS_ERROR;
         returnBufferLocked(streamBuffers[i], 0);
     }
+
+    mPrepared = true;
 
     return res;
 }

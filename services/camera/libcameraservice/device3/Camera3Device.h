@@ -138,6 +138,8 @@ class Camera3Device :
 
     virtual status_t flush(int64_t *lastFrameNumber = NULL);
 
+    virtual status_t prepare(int streamId);
+
     virtual uint32_t getDeviceVersion();
 
     virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
@@ -374,7 +376,7 @@ class Camera3Device :
                 sp<camera3::StatusTracker> statusTracker,
                 camera3_device_t *hal3Device);
 
-        void     setNotifyCallback(NotificationListener *listener);
+        void     setNotificationListener(NotificationListener *listener);
 
         /**
          * Call after stream (re)-configuration is completed.
@@ -437,6 +439,12 @@ class Camera3Device :
          * with process_capture_request.
          */
         CameraMetadata getLatestRequest() const;
+
+        /**
+         * Returns true if the stream is a target of any queued or repeating
+         * capture request
+         */
+        bool isStreamPending(sp<camera3::Camera3StreamInterface>& stream);
 
       protected:
 
@@ -559,7 +567,6 @@ class Camera3Device :
         Vector<camera3_stream_buffer_t> pendingOutputBuffers;
 
 
-
         // Fields used by the partial result only
         struct PartialResultInFlight {
             // Set by process_capture_result once 3A has been sent to clients
@@ -610,7 +617,8 @@ class Camera3Device :
                 resultExtras(extras),
                 hasInputBuffer(hasInput){
         }
-};
+    };
+
     // Map from frame number to the in-flight request state
     typedef KeyedVector<uint32_t, InFlightRequest> InFlightMap;
 
@@ -640,6 +648,45 @@ class Camera3Device :
      * Tracking for idle detection
      */
     sp<camera3::StatusTracker> mStatusTracker;
+
+    /**
+     * Thread for preparing streams
+     */
+    class PreparerThread : private Thread, public virtual RefBase {
+      public:
+        PreparerThread();
+        ~PreparerThread();
+
+        void setNotificationListener(NotificationListener *listener);
+
+        /**
+         * Queue up a stream to be prepared. Streams are processed by
+         * a background thread in FIFO order
+         */
+        status_t prepare(sp<camera3::Camera3StreamInterface>& stream);
+
+        /**
+         * Cancel all current and pending stream preparation
+         */
+        status_t clear();
+
+      private:
+        Mutex mLock;
+
+        virtual bool threadLoop();
+
+        // Guarded by mLock
+
+        NotificationListener *mListener;
+        List<sp<camera3::Camera3StreamInterface> > mPendingStreams;
+        bool mActive;
+        bool mCancelNow;
+
+        // Only accessed by threadLoop and the destructor
+
+        sp<camera3::Camera3StreamInterface> mCurrentStream;
+    };
+    sp<PreparerThread> mPreparerThread;
 
     /**
      * Output result queue and current HAL device 3A state

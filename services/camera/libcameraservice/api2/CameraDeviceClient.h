@@ -109,6 +109,9 @@ public:
     virtual status_t      flush(/*out*/
                                 int64_t* lastFrameNumber = NULL);
 
+    // Prepare stream by preallocating its buffers
+    virtual status_t      prepare(int streamId);
+
     /**
      * Interface used by CameraService
      */
@@ -135,6 +138,7 @@ public:
     virtual void notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
                              const CaptureResultExtras& resultExtras);
     virtual void notifyShutter(const CaptureResultExtras& resultExtras, nsecs_t timestamp);
+    virtual void notifyPrepared(int streamId);
 
     /**
      * Interface used by independent components of CameraDeviceClient.

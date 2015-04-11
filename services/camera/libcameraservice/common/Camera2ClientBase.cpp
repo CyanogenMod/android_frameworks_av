@@ -280,6 +280,14 @@ void Camera2ClientBase<TClientBase>::notifyAutoWhitebalance(uint8_t newState,
 }
 
 template <typename TClientBase>
+void Camera2ClientBase<TClientBase>::notifyPrepared(int streamId) {
+    (void)streamId;
+
+    ALOGV("%s: Stream %d now prepared",
+            __FUNCTION__, streamId);
+}
+
+template <typename TClientBase>
 int Camera2ClientBase<TClientBase>::getCameraId() const {
     return TClientBase::mCameraId;
 }

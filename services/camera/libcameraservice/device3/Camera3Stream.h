@@ -57,8 +57,15 @@ namespace camera3 {
  *    re-registering buffers with HAL.
  *
  *  STATE_CONFIGURED: Stream is configured, and has registered buffers with the
- *    HAL. The stream's getBuffer/returnBuffer work. The priv pointer may still be
- *    modified.
+ *    HAL (if necessary). The stream's getBuffer/returnBuffer work. The priv
+ *    pointer may still be modified.
+ *
+ *  STATE_PREPARING: The stream's buffers are being pre-allocated for use.  On
+ *    older HALs, this is done as part of configuration, but in newer HALs
+ *    buffers may be allocated at time of first use. But some use cases require
+ *    buffer allocation upfront, to minmize disruption due to lengthy allocation
+ *    duration.  In this state, only prepareNextBuffer() and cancelPrepare()
+ *    may be called.
  *
  * Transition table:
  *
@@ -82,6 +89,12 @@ namespace camera3 {
  *    STATE_CONFIGURED     => STATE_CONSTRUCTED:
  *        When disconnect() is called after making sure stream is idle with
  *        waitUntilIdle().
+ *    STATE_CONFIGURED     => STATE_PREPARING:
+ *        When startPrepare is called before the stream has a buffer
+ *        queued back into it for the first time.
+ *    STATE_PREPARING      => STATE_CONFIGURED:
+ *        When sufficient prepareNextBuffer calls have been made to allocate
+ *        all stream buffers, or cancelPrepare is called.
  *
  * Status Tracking:
  *    Each stream is tracked by StatusTracker as a separate component,
@@ -165,6 +178,73 @@ class Camera3Stream :
      * This is done if the HAL rejects the proposed combined stream configuration
      */
     status_t         cancelConfiguration();
+
+    /**
+     * Determine whether the stream has already become in-use (has received
+     * a valid filled buffer), which determines if a stream can still have
+     * prepareNextBuffer called on it.
+     */
+    bool             isUnpreparable();
+
+    /**
+     * Start stream preparation. May only be called in the CONFIGURED state,
+     * when no valid buffers have yet been returned to this stream.
+     *
+     * If no prepartion is necessary, returns OK and does not transition to
+     * PREPARING state. Otherwise, returns NOT_ENOUGH_DATA and transitions
+     * to PREPARING.
+     *
+     * This call performs no allocation, so is quick to call.
+     *
+     * Returns:
+     *    OK if no more buffers need to be preallocated
+     *    NOT_ENOUGH_DATA if calls to prepareNextBuffer are needed to finish
+     *        buffer pre-allocation, and transitions to the PREPARING state.
+     *    NO_INIT in case of a serious error from the HAL device
+     *    INVALID_OPERATION if called when not in CONFIGURED state, or a
+     *        valid buffer has already been returned to this stream.
+     */
+    status_t         startPrepare();
+
+    /**
+     * Check if the stream is mid-preparing.
+     */
+    bool             isPreparing() const;
+
+    /**
+     * Continue stream buffer preparation by allocating the next
+     * buffer for this stream.  May only be called in the PREPARED state.
+     *
+     * Returns OK and transitions to the CONFIGURED state if all buffers
+     * are allocated after the call concludes. Otherwise returns NOT_ENOUGH_DATA.
+     *
+     * This call allocates one buffer, which may take several milliseconds for
+     * large buffers.
+     *
+     * Returns:
+     *    OK if no more buffers need to be preallocated, and transitions
+     *        to the CONFIGURED state.
+     *    NOT_ENOUGH_DATA if more calls to prepareNextBuffer are needed to finish
+     *        buffer pre-allocation.
+     *    NO_INIT in case of a serious error from the HAL device
+     *    INVALID_OPERATION if called when not in CONFIGURED state, or a
+     *        valid buffer has already been returned to this stream.
+     */
+    status_t         prepareNextBuffer();
+
+    /**
+     * Cancel stream preparation early. In case allocation needs to be
+     * stopped, this method transitions the stream back to the CONFIGURED state.
+     * Buffers that have been allocated with prepareNextBuffer remain that way,
+     * but a later use of prepareNextBuffer will require just as many
+     * calls as if the earlier prepare attempt had not existed.
+     *
+     * Returns:
+     *    OK if cancellation succeeded, and transitions to the CONFIGURED state
+     *    INVALID_OPERATION if not in the PREPARING state
+     *    NO_INIT in case of a serious error from the HAL device
+     */
+    status_t        cancelPrepare();
 
     /**
      * Fill in the camera3_stream_buffer with the next valid buffer for this
@@ -263,7 +343,8 @@ class Camera3Stream :
         STATE_CONSTRUCTED,
         STATE_IN_CONFIG,
         STATE_IN_RECONFIG,
-        STATE_CONFIGURED
+        STATE_CONFIGURED,
+        STATE_PREPARING
     } mState;
 
     mutable Mutex mLock;
@@ -312,12 +393,16 @@ class Camera3Stream :
 
     // Get the usage flags for the other endpoint, or return
     // INVALID_OPERATION if they cannot be obtained.
-    virtual status_t getEndpointUsage(uint32_t *usage) = 0;
+    virtual status_t getEndpointUsage(uint32_t *usage) const = 0;
 
     // Tracking for idle state
     wp<StatusTracker> mStatusTracker;
     // Status tracker component ID
     int mStatusId;
+
+    // Tracking for stream prepare - whether this stream can still have
+    // prepareNextBuffer called on it.
+    bool mStreamUnpreparable;
 
   private:
     uint32_t oldUsage;
@@ -332,6 +417,18 @@ class Camera3Stream :
     void fireBufferListenersLocked(const camera3_stream_buffer& buffer,
                                   bool acquired, bool output);
     List<wp<Camera3StreamBufferListener> > mBufferListenerList;
+
+    status_t        cancelPrepareLocked();
+
+    // Tracking for PREPARING state
+
+    // State of buffer preallocation. Only true if either prepareNextBuffer
+    // has been called sufficient number of times, or stream configuration
+    // had to register buffers with the HAL
+    bool mPrepared;
+
+    Vector<camera3_stream_buffer_t> mPreparedBuffers;
+    size_t mPreparedBufferIdx;
 
 }; // class Camera3Stream
 

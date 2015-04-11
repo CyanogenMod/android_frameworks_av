@@ -84,7 +84,7 @@ class Camera3IOStreamBase :
 
     virtual size_t   getHandoutInputBufferCountLocked();
 
-    virtual status_t getEndpointUsage(uint32_t *usage) = 0;
+    virtual status_t getEndpointUsage(uint32_t *usage) const = 0;
 
     status_t getBufferPreconditionCheckLocked() const;
     status_t returnBufferPreconditionCheckLocked() const;

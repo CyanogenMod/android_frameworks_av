@@ -175,6 +175,8 @@ status_t Camera3Device::initialize(CameraModule *module)
         return res;
     }
 
+    mPreparerThread = new PreparerThread();
+
     /** Everything is good to go */
 
     mDeviceVersion = device->common.version;
@@ -1190,7 +1192,8 @@ status_t Camera3Device::setNotifyCallback(NotificationListener *listener) {
         ALOGW("%s: Replacing old callback listener", __FUNCTION__);
     }
     mListener = listener;
-    mRequestThread->setNotifyCallback(listener);
+    mRequestThread->setNotificationListener(listener);
+    mPreparerThread->setNotificationListener(listener);
 
     return OK;
 }
@@ -1336,6 +1339,34 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
     return res;
 }
 
+status_t Camera3Device::prepare(int streamId) {
+    ATRACE_CALL();
+    ALOGV("%s: Camera %d: Preparing stream %d", __FUNCTION__, mId, streamId);
+
+    sp<Camera3StreamInterface> stream;
+    ssize_t outputStreamIdx = mOutputStreams.indexOfKey(streamId);
+    if (outputStreamIdx == NAME_NOT_FOUND) {
+        CLOGE("Stream %d does not exist", streamId);
+        return BAD_VALUE;
+    }
+
+    stream = mOutputStreams.editValueAt(outputStreamIdx);
+
+    if (stream->isUnpreparable() || stream->hasOutstandingBuffers() ) {
+        ALOGE("%s: Camera %d: Stream %d has already been a request target",
+                __FUNCTION__, mId, streamId);
+        return BAD_VALUE;
+    }
+
+    if (mRequestThread->isStreamPending(stream)) {
+        ALOGE("%s: Camera %d: Stream %d is already a target in a pending request",
+                __FUNCTION__, mId, streamId);
+        return BAD_VALUE;
+    }
+
+    return mPreparerThread->prepare(stream);
+}
+
 uint32_t Camera3Device::getDeviceVersion() {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
@@ -1409,6 +1440,11 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
                 return NULL;
             }
         }
+        // Check if stream is being prepared
+        if (mInputStream->isPreparing()) {
+            CLOGE("Request references an input stream that's being prepared!");
+            return NULL;
+        }
 
         newRequest->mInputStream = mInputStream;
         newRequest->mSettings.erase(ANDROID_REQUEST_INPUT_STREAMS);
@@ -1440,6 +1476,11 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
                         stream->getId(), strerror(-res), res);
                 return NULL;
             }
+        }
+        // Check if stream is being prepared
+        if (stream->isPreparing()) {
+            CLOGE("Request references an output stream that's being prepared!");
+            return NULL;
         }
 
         newRequest->mOutputStreams.push(stream);
@@ -1915,7 +1956,6 @@ bool Camera3Device::insert3AResult(CameraMetadata& result, int32_t tag,
     }
     return true;
 }
-
 
 void Camera3Device::returnOutputBuffers(
         const camera3_stream_buffer_t *outputBuffers, size_t numBuffers,
@@ -2416,7 +2456,7 @@ CameraMetadata Camera3Device::getLatestRequestLocked() {
 Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         sp<StatusTracker> statusTracker,
         camera3_device_t *hal3Device) :
-        Thread(false),
+        Thread(/*canCallJava*/false),
         mParent(parent),
         mStatusTracker(statusTracker),
         mHal3Device(hal3Device),
@@ -2432,7 +2472,7 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
     mStatusId = statusTracker->addComponent();
 }
 
-void Camera3Device::RequestThread::setNotifyCallback(
+void Camera3Device::RequestThread::setNotificationListener(
         NotificationListener *listener) {
     Mutex::Autolock l(mRequestLock);
     mListener = listener;
@@ -2846,6 +2886,26 @@ CameraMetadata Camera3Device::RequestThread::getLatestRequest() const {
     return mLatestRequest;
 }
 
+bool Camera3Device::RequestThread::isStreamPending(
+        sp<Camera3StreamInterface>& stream) {
+    Mutex::Autolock l(mRequestLock);
+
+    for (const auto& request : mRequestQueue) {
+        for (const auto& s : request->mOutputStreams) {
+            if (stream == s) return true;
+        }
+        if (stream == request->mInputStream) return true;
+    }
+
+    for (const auto& request : mRepeatingRequests) {
+        for (const auto& s : request->mOutputStreams) {
+            if (stream == s) return true;
+        }
+        if (stream == request->mInputStream) return true;
+    }
+
+    return false;
+}
 
 void Camera3Device::RequestThread::cleanUpFailedRequest(
         camera3_capture_request_t &request,
@@ -3193,6 +3253,138 @@ status_t Camera3Device::RequestThread::addDummyTriggerIds(
     return OK;
 }
 
+/**
+ * PreparerThread inner class methods
+ */
+
+Camera3Device::PreparerThread::PreparerThread() :
+        Thread(/*canCallJava*/false), mActive(false), mCancelNow(false) {
+}
+
+Camera3Device::PreparerThread::~PreparerThread() {
+    Thread::requestExitAndWait();
+    if (mCurrentStream != nullptr) {
+        mCurrentStream->cancelPrepare();
+        ATRACE_ASYNC_END("stream prepare", mCurrentStream->getId());
+        mCurrentStream.clear();
+    }
+    clear();
+}
+
+status_t Camera3Device::PreparerThread::prepare(sp<Camera3StreamInterface>& stream) {
+    status_t res;
+
+    Mutex::Autolock l(mLock);
+
+    res = stream->startPrepare();
+    if (res == OK) {
+        // No preparation needed, fire listener right off
+        ALOGV("%s: Stream %d already prepared", __FUNCTION__, stream->getId());
+        if (mListener) {
+            mListener->notifyPrepared(stream->getId());
+        }
+        return OK;
+    } else if (res != NOT_ENOUGH_DATA) {
+        return res;
+    }
+
+    // Need to prepare, start up thread if necessary
+    if (!mActive) {
+        // mRunning will change to false before the thread fully shuts down, so wait to be sure it
+        // isn't running
+        Thread::requestExitAndWait();
+        res = Thread::run("C3PrepThread", PRIORITY_BACKGROUND);
+        if (res != OK) {
+            ALOGE("%s: Unable to start preparer stream: %d (%s)", __FUNCTION__, res, strerror(-res));
+            if (mListener) {
+                mListener->notifyPrepared(stream->getId());
+            }
+            return res;
+        }
+        mCancelNow = false;
+        mActive = true;
+        ALOGV("%s: Preparer stream started", __FUNCTION__);
+    }
+
+    // queue up the work
+    mPendingStreams.push_back(stream);
+    ALOGV("%s: Stream %d queued for preparing", __FUNCTION__, stream->getId());
+
+    return OK;
+}
+
+status_t Camera3Device::PreparerThread::clear() {
+    status_t res;
+
+    Mutex::Autolock l(mLock);
+
+    for (const auto& stream : mPendingStreams) {
+        stream->cancelPrepare();
+    }
+    mPendingStreams.clear();
+    mCancelNow = true;
+
+    return OK;
+}
+
+void Camera3Device::PreparerThread::setNotificationListener(NotificationListener *listener) {
+    Mutex::Autolock l(mLock);
+    mListener = listener;
+}
+
+bool Camera3Device::PreparerThread::threadLoop() {
+    status_t res;
+    {
+        Mutex::Autolock l(mLock);
+        if (mCurrentStream == nullptr) {
+            // End thread if done with work
+            if (mPendingStreams.empty()) {
+                ALOGV("%s: Preparer stream out of work", __FUNCTION__);
+                // threadLoop _must not_ re-acquire mLock after it sets mActive to false; would
+                // cause deadlock with prepare()'s requestExitAndWait triggered by !mActive.
+                mActive = false;
+                return false;
+            }
+
+            // Get next stream to prepare
+            auto it = mPendingStreams.begin();
+            mCurrentStream = *it;
+            mPendingStreams.erase(it);
+            ATRACE_ASYNC_BEGIN("stream prepare", mCurrentStream->getId());
+            ALOGV("%s: Preparing stream %d", __FUNCTION__, mCurrentStream->getId());
+        } else if (mCancelNow) {
+            mCurrentStream->cancelPrepare();
+            ATRACE_ASYNC_END("stream prepare", mCurrentStream->getId());
+            ALOGV("%s: Cancelling stream %d prepare", __FUNCTION__, mCurrentStream->getId());
+            mCurrentStream.clear();
+            mCancelNow = false;
+            return true;
+        }
+    }
+
+    res = mCurrentStream->prepareNextBuffer();
+    if (res == NOT_ENOUGH_DATA) return true;
+    if (res != OK) {
+        // Something bad happened; try to recover by cancelling prepare and
+        // signalling listener anyway
+        ALOGE("%s: Stream %d returned error %d (%s) during prepare", __FUNCTION__,
+                mCurrentStream->getId(), res, strerror(-res));
+        mCurrentStream->cancelPrepare();
+    }
+
+    // This stream has finished, notify listener
+    Mutex::Autolock l(mLock);
+    if (mListener) {
+        ALOGV("%s: Stream %d prepare done, signaling listener", __FUNCTION__,
+                mCurrentStream->getId());
+        mListener->notifyPrepared(mCurrentStream->getId());
+    }
+
+    ATRACE_ASYNC_END("stream prepare", mCurrentStream->getId());
+    mCurrentStream.clear();
+
+    return true;
+}
 
 /**
  * Static callback forwarding methods from HAL to instance

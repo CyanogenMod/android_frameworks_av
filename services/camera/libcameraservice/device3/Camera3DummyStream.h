@@ -89,7 +89,7 @@ class Camera3DummyStream :
 
     virtual status_t configureQueueLocked();
 
-    virtual status_t getEndpointUsage(uint32_t *usage);
+    virtual status_t getEndpointUsage(uint32_t *usage) const;
 
 }; // class Camera3DummyStream
 

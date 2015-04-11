@@ -75,7 +75,7 @@ class Camera3InputStream : public Camera3IOStreamBase {
 
     virtual status_t configureQueueLocked();
 
-    virtual status_t getEndpointUsage(uint32_t *usage);
+    virtual status_t getEndpointUsage(uint32_t *usage) const;
 
 }; // class Camera3InputStream
 
