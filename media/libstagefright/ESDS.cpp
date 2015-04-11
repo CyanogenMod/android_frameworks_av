@@ -136,6 +136,8 @@ status_t ESDS::parseESDescriptor(size_t offset, size_t size) {
     --size;
 
     if (streamDependenceFlag) {
+        if (size < 2)
+            return ERROR_MALFORMED;
         offset += 2;
         size -= 2;
     }
@@ -145,11 +147,15 @@ status_t ESDS::parseESDescriptor(size_t offset, size_t size) {
             return ERROR_MALFORMED;
         }
         unsigned URLlength = mData[offset];
+        if (URLlength >= size)
+            return ERROR_MALFORMED;
         offset += URLlength + 1;
         size -= URLlength + 1;
     }
 
     if (OCRstreamFlag) {
+        if (size < 2)
+            return ERROR_MALFORMED;
         offset += 2;
         size -= 2;
 
