@@ -36,6 +36,9 @@ struct M3UParser : public RefBase {
     bool isComplete() const;
     bool isEvent() const;
     size_t getDiscontinuitySeq() const;
+    int64_t getTargetDuration() const;
+    int32_t getFirstSeqNumber() const;
+    void getSeqNumberRange(int32_t *firstSeq, int32_t *lastSeq) const;
 
     sp<AMessage> meta();
 
@@ -70,6 +73,9 @@ private:
     bool mIsVariantPlaylist;
     bool mIsComplete;
     bool mIsEvent;
+    int32_t mFirstSeqNumber;
+    int32_t mLastSeqNumber;
+    int64_t mTargetDurationUs;
     size_t mDiscontinuitySeq;
     int32_t mDiscontinuityCount;
 

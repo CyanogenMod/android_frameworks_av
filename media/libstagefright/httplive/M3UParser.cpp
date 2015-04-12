@@ -250,6 +250,9 @@ M3UParser::M3UParser(
       mIsVariantPlaylist(false),
       mIsComplete(false),
       mIsEvent(false),
+      mFirstSeqNumber(-1),
+      mLastSeqNumber(-1),
+      mTargetDurationUs(-1ll),
       mDiscontinuitySeq(0),
       mDiscontinuityCount(0),
       mSelectedIndex(-1) {
@@ -281,6 +284,19 @@ bool M3UParser::isEvent() const {
 
 size_t M3UParser::getDiscontinuitySeq() const {
     return mDiscontinuitySeq;
+}
+
+int64_t M3UParser::getTargetDuration() const {
+    return mTargetDurationUs;
+}
+
+int32_t M3UParser::getFirstSeqNumber() const {
+    return mFirstSeqNumber;
+}
+
+void M3UParser::getSeqNumberRange(int32_t *firstSeq, int32_t *lastSeq) const {
+    *firstSeq = mFirstSeqNumber;
+    *lastSeq = mLastSeqNumber;
 }
 
 sp<AMessage> M3UParser::meta() {
@@ -664,11 +680,22 @@ status_t M3UParser::parse(const void *_data, size_t size) {
     }
 
     // error checking of all fields that's required to appear once
-    // (currently only checking "target-duration")
-    int32_t targetDurationSecs;
-    if (!mIsVariantPlaylist && (mMeta == NULL || !mMeta->findInt32(
-            "target-duration", &targetDurationSecs))) {
-        return ERROR_MALFORMED;
+    // (currently only checking "target-duration"), and
+    // initialization of playlist properties (eg. mTargetDurationUs)
+    if (!mIsVariantPlaylist) {
+        int32_t targetDurationSecs;
+        if (mMeta == NULL || !mMeta->findInt32(
+                "target-duration", &targetDurationSecs)) {
+            ALOGE("Media playlist missing #EXT-X-TARGETDURATION");
+            return ERROR_MALFORMED;
+        }
+        mTargetDurationUs = targetDurationSecs * 1000000ll;
+
+        mFirstSeqNumber = 0;
+        if (mMeta != NULL) {
+            mMeta->findInt32("media-sequence", &mFirstSeqNumber);
+        }
+        mLastSeqNumber = mFirstSeqNumber + mItems.size() - 1;
     }
 
     return OK;

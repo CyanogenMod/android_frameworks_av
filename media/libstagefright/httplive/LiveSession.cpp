@@ -67,7 +67,7 @@ struct LiveSession::BandwidthEstimator : public RefBase {
     BandwidthEstimator();
 
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
-    bool estimateBandwidth(int32_t *bandwidth);
+    bool estimateBandwidth(int32_t *bandwidth, bool *isStable = NULL);
 
 private:
     // Bandwidth estimation parameters
@@ -81,6 +81,9 @@ private:
 
     Mutex mLock;
     List<BandwidthEntry> mBandwidthHistory;
+    List<int32_t> mPrevEstimates;
+    bool mHasNewSample;
+    bool mIsStable;
     int64_t mTotalTransferTimeUs;
     size_t mTotalTransferBytes;
 
@@ -88,6 +91,8 @@ private:
 };
 
 LiveSession::BandwidthEstimator::BandwidthEstimator() :
+    mHasNewSample(false),
+    mIsStable(true),
     mTotalTransferTimeUs(0),
     mTotalTransferBytes(0) {
 }
@@ -102,6 +107,7 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
     mTotalTransferTimeUs += delayUs;
     mTotalTransferBytes += numBytes;
     mBandwidthHistory.push_back(entry);
+    mHasNewSample = true;
 
     // trim old samples, keeping at least kMaxBandwidthHistoryItems samples,
     // and total transfer time at least kMaxBandwidthHistoryWindowUs.
@@ -116,14 +122,43 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
     }
 }
 
-bool LiveSession::BandwidthEstimator::estimateBandwidth(int32_t *bandwidthBps) {
+bool LiveSession::BandwidthEstimator::estimateBandwidth(int32_t *bandwidthBps, bool *isStable) {
     AutoMutex autoLock(mLock);
 
     if (mBandwidthHistory.size() < 2) {
         return false;
     }
 
+    if (!mHasNewSample) {
+        *bandwidthBps = *(--mPrevEstimates.end());
+        if (isStable) {
+            *isStable = mIsStable;
+        }
+        return true;
+    }
+
     *bandwidthBps = ((double)mTotalTransferBytes * 8E6 / mTotalTransferTimeUs);
+    mPrevEstimates.push_back(*bandwidthBps);
+    while (mPrevEstimates.size() > 3) {
+        mPrevEstimates.erase(mPrevEstimates.begin());
+    }
+    mHasNewSample = false;
+
+    int32_t minEstimate = -1, maxEstimate = -1;
+    List<int32_t>::iterator it;
+    for (it = mPrevEstimates.begin(); it != mPrevEstimates.end(); it++) {
+        int32_t estimate = *it;
+        if (minEstimate < 0 || minEstimate > estimate) {
+            minEstimate = estimate;
+        }
+        if (maxEstimate < 0 || maxEstimate < estimate) {
+            maxEstimate = estimate;
+        }
+    }
+    mIsStable = (maxEstimate <= minEstimate * 4 / 3);
+    if (isStable) {
+       *isStable = mIsStable;
+    }
     return true;
 }
 
@@ -1930,7 +1965,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 fetcher->getFetcherID(),
                 (long long)startTime.mTimeUs,
                 (long long)mLastSeekTimeUs,
-                (long long)startTime.getSegmentTimeUs(true /* midpoint */),
+                (long long)startTime.getSegmentTimeUs(),
                 seekMode);
 
         // Set the target segment start time to the middle point of the
@@ -1945,7 +1980,7 @@ void LiveSession::onChangeConfiguration3(const sp<AMessage> &msg) {
                 sources[kSubtitleIndex],
                 getMetadataSource(sources, mNewStreamMask, switching),
                 startTime.mTimeUs < 0 ? mLastSeekTimeUs : startTime.mTimeUs,
-                startTime.getSegmentTimeUs(true /* midpoint */),
+                startTime.getSegmentTimeUs(),
                 startTime.mSeq,
                 seekMode);
     }
@@ -2296,7 +2331,8 @@ bool LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
     }
 
     int32_t bandwidthBps;
-    if (mBandwidthEstimator->estimateBandwidth(&bandwidthBps)) {
+    bool isStable;
+    if (mBandwidthEstimator->estimateBandwidth(&bandwidthBps, &isStable)) {
         ALOGV("bandwidth estimated at %.2f kbps", bandwidthBps / 1024.0f);
         mLastBandwidthBps = bandwidthBps;
     } else {
@@ -2308,12 +2344,18 @@ bool LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
     // canSwithDown and canSwitchUp can't both be true.
     // we only want to switch up when measured bw is 120% higher than current variant,
     // and we only want to switch down when measured bw is below current variant.
-    bool canSwithDown = bufferLow
+    bool canSwitchDown = bufferLow
             && (bandwidthBps < (int32_t)curBandwidth);
     bool canSwitchUp = bufferHigh
             && (bandwidthBps > (int32_t)curBandwidth * 12 / 10);
 
-    if (canSwithDown || canSwitchUp) {
+    if (canSwitchDown || canSwitchUp) {
+        // bandwidth estimating has some delay, if we have to downswitch when
+        // it hasn't stabilized, be very conservative on bandwidth.
+        if (!isStable && canSwitchDown) {
+            bandwidthBps /= 2;
+        }
+
         ssize_t bandwidthIndex = getBandwidthIndex(bandwidthBps);
 
         // it's possible that we're checking for canSwitchUp case, but the returned
@@ -2321,7 +2363,7 @@ bool LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
         // of measured bw. In that case we don't want to do anything, since we have
         // both enough buffer and enough bw.
         if ((canSwitchUp && bandwidthIndex > mCurBandwidthIndex)
-         || (canSwithDown && bandwidthIndex < mCurBandwidthIndex)) {
+         || (canSwitchDown && bandwidthIndex < mCurBandwidthIndex)) {
             // if not yet prepared, just restart again with new bw index.
             // this is faster and playback experience is cleaner.
             changeConfiguration(
