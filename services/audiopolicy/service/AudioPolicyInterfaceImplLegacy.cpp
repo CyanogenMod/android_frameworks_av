@@ -255,8 +255,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
         inputSource = AUDIO_SOURCE_MIC;
     }
 
-    if (((inputSource == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) ||
-        ((inputSource == AUDIO_SOURCE_FM_TUNER) && !captureFmTunerAllowed())) {
+    if ((inputSource == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) {
         return BAD_VALUE;
     }
 

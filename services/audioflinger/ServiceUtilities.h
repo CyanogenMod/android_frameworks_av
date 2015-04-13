@@ -23,7 +23,6 @@ extern pid_t getpid_cached;
 bool recordingAllowed();
 bool captureAudioOutputAllowed();
 bool captureHotwordAllowed();
-bool captureFmTunerAllowed();
 bool settingsAllowed();
 bool modifyAudioRoutingAllowed();
 bool dumpAllowed();
