@@ -312,6 +312,9 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
                 int64_t delayUs =
                     mAudioSink->msecsPerFrame()
                         * numFramesPendingPlayout * 1000ll;
+                if (mPlaybackRate > 1.0f) {
+                    delayUs /= mPlaybackRate;
+                }
 
                 // Let's give it more data after about half that time
                 // has elapsed.
