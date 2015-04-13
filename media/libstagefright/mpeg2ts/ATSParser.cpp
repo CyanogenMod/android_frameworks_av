@@ -54,10 +54,13 @@ struct ATSParser::Program : public RefBase {
     bool parsePSISection(
             unsigned pid, ABitReader *br, status_t *err);
 
+    // Pass to appropriate stream according to pid, and set event if it's a PES
+    // with a sync frame.
+    // Note that the method itself does not touch event.
     bool parsePID(
             unsigned pid, unsigned continuity_counter,
             unsigned payload_unit_start_indicator,
-            ABitReader *br, status_t *err);
+            ABitReader *br, status_t *err, SyncEvent *event);
 
     void signalDiscontinuity(
             DiscontinuityType type, const sp<AMessage> &extra);
@@ -118,10 +121,14 @@ struct ATSParser::Stream : public RefBase {
     unsigned pid() const { return mElementaryPID; }
     void setPID(unsigned pid) { mElementaryPID = pid; }
 
+    // Parse the payload and set event when PES with a sync frame is detected.
+    // This method knows when a PES starts; so record mPesStartOffset in that
+    // case.
     status_t parse(
             unsigned continuity_counter,
             unsigned payload_unit_start_indicator,
-            ABitReader *br);
+            ABitReader *br,
+            SyncEvent *event);
 
     void signalDiscontinuity(
             DiscontinuityType type, const sp<AMessage> &extra);
@@ -150,17 +157,24 @@ private:
     bool mEOSReached;
 
     uint64_t mPrevPTS;
+    off64_t mPesStartOffset;
 
     ElementaryStreamQueue *mQueue;
 
-    status_t flush();
-    status_t parsePES(ABitReader *br);
+    // Flush accumulated payload if necessary --- i.e. at EOS or at the start of
+    // another payload. event is set if the flushed payload is PES with a sync
+    // frame.
+    status_t flush(SyncEvent *event);
+    // Strip and parse PES headers and pass remaining payload into onPayload
+    // with parsed metadata. event is set if the PES contains a sync frame.
+    status_t parsePES(ABitReader *br, SyncEvent *event);
 
+    // Feed the payload into mQueue and if a packet is identified, queue it
+    // into mSource. If the packet is a sync frame. set event with start offset
+    // and timestamp of the packet.
     void onPayloadData(
             unsigned PTS_DTS_flags, uint64_t PTS, uint64_t DTS,
-            const uint8_t *data, size_t size);
-
-    void extractAACFrames(const sp<ABuffer> &buffer);
+            const uint8_t *data, size_t size, SyncEvent *event);
 
     DISALLOW_EVIL_CONSTRUCTORS(Stream);
 };
@@ -189,6 +203,17 @@ private:
 
     DISALLOW_EVIL_CONSTRUCTORS(PSISection);
 };
+
+ATSParser::SyncEvent::SyncEvent(off64_t offset)
+    : mInit(false), mOffset(offset), mTimeUs(0) {}
+
+void ATSParser::SyncEvent::init(off64_t offset, const sp<MediaSource> &source,
+        int64_t timeUs) {
+    mInit = true;
+    mOffset = offset;
+    mMediaSource = source;
+    mTimeUs = timeUs;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,7 +245,7 @@ bool ATSParser::Program::parsePSISection(
 bool ATSParser::Program::parsePID(
         unsigned pid, unsigned continuity_counter,
         unsigned payload_unit_start_indicator,
-        ABitReader *br, status_t *err) {
+        ABitReader *br, status_t *err, SyncEvent *event) {
     *err = OK;
 
     ssize_t index = mStreams.indexOfKey(pid);
@@ -229,7 +254,7 @@ bool ATSParser::Program::parsePID(
     }
 
     *err = mStreams.editValueAt(index)->parse(
-            continuity_counter, payload_unit_start_indicator, br);
+            continuity_counter, payload_unit_start_indicator, br, event);
 
     return true;
 }
@@ -628,7 +653,8 @@ ATSParser::Stream::~Stream() {
 
 status_t ATSParser::Stream::parse(
         unsigned continuity_counter,
-        unsigned payload_unit_start_indicator, ABitReader *br) {
+        unsigned payload_unit_start_indicator, ABitReader *br,
+        SyncEvent *event) {
     if (mQueue == NULL) {
         return OK;
     }
@@ -659,12 +685,13 @@ status_t ATSParser::Stream::parse(
     mExpectedContinuityCounter = (continuity_counter + 1) & 0x0f;
 
     if (payload_unit_start_indicator) {
+        off64_t offset = (event != NULL) ? event->getOffset() : 0;
         if (mPayloadStarted) {
             // Otherwise we run the danger of receiving the trailing bytes
             // of a PES packet that we never saw the start of and assuming
             // we have a a complete PES packet.
 
-            status_t err = flush();
+            status_t err = flush(event);
 
             if (err != OK) {
                 return err;
@@ -672,6 +699,7 @@ status_t ATSParser::Stream::parse(
         }
 
         mPayloadStarted = true;
+        mPesStartOffset = offset;
     }
 
     if (!mPayloadStarted) {
@@ -785,10 +813,10 @@ void ATSParser::Stream::signalEOS(status_t finalResult) {
         mSource->signalEOS(finalResult);
     }
     mEOSReached = true;
-    flush();
+    flush(NULL);
 }
 
-status_t ATSParser::Stream::parsePES(ABitReader *br) {
+status_t ATSParser::Stream::parsePES(ABitReader *br, SyncEvent *event) {
     unsigned packet_startcode_prefix = br->getBits(24);
 
     ALOGV("packet_startcode_prefix = 0x%08x", packet_startcode_prefix);
@@ -973,13 +1001,13 @@ status_t ATSParser::Stream::parsePES(ABitReader *br) {
             }
 
             onPayloadData(
-                    PTS_DTS_flags, PTS, DTS, br->data(), dataLength);
+                    PTS_DTS_flags, PTS, DTS, br->data(), dataLength, event);
 
             br->skipBits(dataLength * 8);
         } else {
             onPayloadData(
                     PTS_DTS_flags, PTS, DTS,
-                    br->data(), br->numBitsLeft() / 8);
+                    br->data(), br->numBitsLeft() / 8, event);
 
             size_t payloadSizeBits = br->numBitsLeft();
             if (payloadSizeBits % 8 != 0u) {
@@ -1003,7 +1031,7 @@ status_t ATSParser::Stream::parsePES(ABitReader *br) {
     return OK;
 }
 
-status_t ATSParser::Stream::flush() {
+status_t ATSParser::Stream::flush(SyncEvent *event) {
     if (mBuffer->size() == 0) {
         return OK;
     }
@@ -1012,7 +1040,7 @@ status_t ATSParser::Stream::flush() {
 
     ABitReader br(mBuffer->data(), mBuffer->size());
 
-    status_t err = parsePES(&br);
+    status_t err = parsePES(&br, event);
 
     mBuffer->setRange(0, 0);
 
@@ -1021,7 +1049,7 @@ status_t ATSParser::Stream::flush() {
 
 void ATSParser::Stream::onPayloadData(
         unsigned PTS_DTS_flags, uint64_t PTS, uint64_t /* DTS */,
-        const uint8_t *data, size_t size) {
+        const uint8_t *data, size_t size, SyncEvent *event) {
 #if 0
     ALOGI("payload streamType 0x%02x, PTS = 0x%016llx, dPTS = %lld",
           mStreamType,
@@ -1048,6 +1076,7 @@ void ATSParser::Stream::onPayloadData(
     }
 
     sp<ABuffer> accessUnit;
+    bool found = false;
     while ((accessUnit = mQueue->dequeueAccessUnit()) != NULL) {
         if (mSource == NULL) {
             sp<MetaData> meta = mQueue->getFormat();
@@ -1074,6 +1103,17 @@ void ATSParser::Stream::onPayloadData(
                 mSource->setFormat(mQueue->getFormat());
             }
             mSource->queueAccessUnit(accessUnit);
+        }
+
+        if ((event != NULL) && !found && mQueue->getFormat() != NULL) {
+            int32_t sync = 0;
+            if (accessUnit->meta()->findInt32("isSync", &sync) && sync) {
+                int64_t timeUs;
+                if (accessUnit->meta()->findInt64("timeUs", &timeUs)) {
+                    found = true;
+                    event->init(mPesStartOffset, mSource, timeUs);
+                }
+            }
         }
     }
 }
@@ -1127,14 +1167,15 @@ ATSParser::ATSParser(uint32_t flags)
 ATSParser::~ATSParser() {
 }
 
-status_t ATSParser::feedTSPacket(const void *data, size_t size) {
+status_t ATSParser::feedTSPacket(const void *data, size_t size,
+        SyncEvent *event) {
     if (size != kTSPacketSize) {
         ALOGE("Wrong TS packet size");
         return BAD_VALUE;
     }
 
     ABitReader br((const uint8_t *)data, kTSPacketSize);
-    return parseTS(&br);
+    return parseTS(&br, event);
 }
 
 void ATSParser::signalDiscontinuity(
@@ -1262,7 +1303,8 @@ void ATSParser::parseProgramAssociationTable(ABitReader *br) {
 status_t ATSParser::parsePID(
         ABitReader *br, unsigned PID,
         unsigned continuity_counter,
-        unsigned payload_unit_start_indicator) {
+        unsigned payload_unit_start_indicator,
+        SyncEvent *event) {
     ssize_t sectionIndex = mPSISections.indexOfKey(PID);
 
     if (sectionIndex >= 0) {
@@ -1334,7 +1376,7 @@ status_t ATSParser::parsePID(
         status_t err;
         if (mPrograms.editItemAt(i)->parsePID(
                     PID, continuity_counter, payload_unit_start_indicator,
-                    br, &err)) {
+                    br, &err, event)) {
             if (err != OK) {
                 return err;
             }
@@ -1405,7 +1447,7 @@ status_t ATSParser::parseAdaptationField(ABitReader *br, unsigned PID) {
     return OK;
 }
 
-status_t ATSParser::parseTS(ABitReader *br) {
+status_t ATSParser::parseTS(ABitReader *br, SyncEvent *event) {
     ALOGV("---");
 
     unsigned sync_byte = br->getBits(8);
@@ -1444,8 +1486,8 @@ status_t ATSParser::parseTS(ABitReader *br) {
     }
     if (err == OK) {
         if (adaptation_field_control == 1 || adaptation_field_control == 3) {
-            err = parsePID(
-                    br, PID, continuity_counter, payload_unit_start_indicator);
+            err = parsePID(br, PID, continuity_counter,
+                    payload_unit_start_indicator, event);
         }
     }
 

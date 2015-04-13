@@ -22,6 +22,7 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaSource.h>
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 #include <utils/RefBase.h>
@@ -30,7 +31,6 @@ namespace android {
 
 class ABitReader;
 struct ABuffer;
-struct MediaSource;
 
 struct ATSParser : public RefBase {
     enum DiscontinuityType {
@@ -62,9 +62,43 @@ struct ATSParser : public RefBase {
         ALIGNED_VIDEO_DATA         = 2,
     };
 
+    // Event is used to signal sync point event at feedTSPacket().
+    struct SyncEvent {
+        SyncEvent(off64_t offset);
+
+        void init(off64_t offset, const sp<MediaSource> &source,
+                int64_t timeUs);
+
+        bool isInit() { return mInit; }
+        off64_t getOffset() { return mOffset; }
+        const sp<MediaSource> &getMediaSource() { return mMediaSource; }
+        int64_t getTimeUs() { return mTimeUs; }
+
+    private:
+        bool mInit;
+        /*
+         * mInit == false: the current offset
+         * mInit == true: the start offset of sync payload
+         */
+        off64_t mOffset;
+        /* The media source object for this event. */
+        sp<MediaSource> mMediaSource;
+        /* The timestamp of the sync frame. */
+        int64_t mTimeUs;
+    };
+
     ATSParser(uint32_t flags = 0);
 
-    status_t feedTSPacket(const void *data, size_t size);
+    // Feed a TS packet into the parser. uninitialized event with the start
+    // offset of this TS packet goes in, and if the parser detects PES with
+    // a sync frame, the event will be initiailzed with the start offset of the
+    // PES. Note that the offset of the event can be different from what we fed,
+    // as a PES may consist of multiple TS packets.
+    //
+    // Even in the case feedTSPacket() returns non-OK value, event still may be
+    // initialized if the parsing failed after the detection.
+    status_t feedTSPacket(
+            const void *data, size_t size, SyncEvent *event = NULL);
 
     void signalDiscontinuity(
             DiscontinuityType type, const sp<AMessage> &extra);
@@ -126,15 +160,25 @@ private:
 
     void parseProgramAssociationTable(ABitReader *br);
     void parseProgramMap(ABitReader *br);
-    void parsePES(ABitReader *br);
+    // Parse PES packet where br is pointing to. If the PES contains a sync
+    // frame, set event with the time and the start offset of this PES.
+    // Note that the method itself does not touch event.
+    void parsePES(ABitReader *br, SyncEvent *event);
 
+    // Strip remaining packet headers and pass to appropriate program/stream
+    // to parse the payload. If the payload turns out to be PES and contains
+    // a sync frame, event shall be set with the time and start offset of the
+    // PES.
+    // Note that the method itself does not touch event.
     status_t parsePID(
         ABitReader *br, unsigned PID,
         unsigned continuity_counter,
-        unsigned payload_unit_start_indicator);
+        unsigned payload_unit_start_indicator,
+        SyncEvent *event);
 
     status_t parseAdaptationField(ABitReader *br, unsigned PID);
-    status_t parseTS(ABitReader *br);
+    // see feedTSPacket().
+    status_t parseTS(ABitReader *br, SyncEvent *event);
 
     void updatePCR(unsigned PID, uint64_t PCR, size_t byteOffsetFromStart);
 
