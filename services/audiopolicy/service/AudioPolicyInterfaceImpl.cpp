@@ -262,8 +262,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
         return BAD_VALUE;
     }
 
-    if (((attr->source == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) ||
-        ((attr->source == AUDIO_SOURCE_FM_TUNER) && !captureFmTunerAllowed())) {
+    if ((attr->source == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) {
         return BAD_VALUE;
     }
     sp<AudioPolicyEffects>audioPolicyEffects;
