@@ -50,6 +50,7 @@ LOCAL_SRC_FILES:=               \
 
 LOCAL_C_INCLUDES := \
     $(TOPDIR)frameworks/av/services/audiopolicy \
+    $(TOPDIR)external/sonic \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
@@ -68,7 +69,8 @@ LOCAL_SHARED_LIBRARIES := \
     libhardware_legacy \
     libeffects \
     libpowermanager \
-    libserviceutility
+    libserviceutility \
+    libsonic
 
 LOCAL_STATIC_LIBRARIES := \
     libscheduling_policy \

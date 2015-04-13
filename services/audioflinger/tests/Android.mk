@@ -44,7 +44,8 @@ LOCAL_SRC_FILES:= \
 LOCAL_C_INCLUDES := \
 	$(call include-path-for, audio-effects) \
 	$(call include-path-for, audio-utils) \
-	frameworks/av/services/audioflinger
+	frameworks/av/services/audioflinger \
+	external/sonic
 
 LOCAL_STATIC_LIBRARIES := \
 	libsndfile
@@ -58,7 +59,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libdl \
 	libcutils \
 	libutils \
-	liblog
+	liblog \
+	libsonic
 
 LOCAL_MODULE:= test-mixer
 

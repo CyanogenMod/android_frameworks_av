@@ -23,6 +23,7 @@
 #include <hardware/audio_effect.h>
 #include <media/AudioBufferProvider.h>
 #include <system/audio.h>
+#include <sonic.h>
 
 namespace android {
 
@@ -183,6 +184,7 @@ private:
     size_t               mLocalBufferFrameCount;
     void                *mLocalBufferData;
     size_t               mRemaining;
+    sonicStream          mSonicStream;
 };
 
 // ----------------------------------------------------------------------------

@@ -45,7 +45,8 @@ LOCAL_C_INCLUDES := \
     frameworks/av/services/mediaresourcemanager \
     $(call include-path-for, audio-utils) \
     frameworks/av/services/soundtrigger \
-    frameworks/av/services/radio
+    frameworks/av/services/radio \
+    external/sonic
 
 LOCAL_MODULE:= mediaserver
 LOCAL_32_BIT_ONLY := true
