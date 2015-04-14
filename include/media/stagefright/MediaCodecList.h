@@ -60,6 +60,7 @@ private:
 
     enum Section {
         SECTION_TOPLEVEL,
+        SECTION_SETTINGS,
         SECTION_DECODERS,
         SECTION_DECODER,
         SECTION_DECODER_TYPE,
@@ -78,6 +79,7 @@ private:
     int32_t mDepth;
     AString mHrefBase;
 
+    KeyedVector<AString, AString> mSettings;
     Vector<sp<MediaCodecInfo> > mCodecInfos;
     sp<MediaCodecInfo> mCurrentInfo;
     sp<IOMX> mOMX;
@@ -98,6 +100,7 @@ private:
     void endElementHandler(const char *name);
 
     status_t includeXMLFile(const char **attrs);
+    status_t addSettingFromAttributes(const char **attrs);
     status_t addMediaCodecFromAttributes(bool encoder, const char **attrs);
     void addMediaCodec(bool encoder, const char *name, const char *type = NULL);
 
