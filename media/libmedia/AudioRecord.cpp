@@ -596,15 +596,21 @@ release:
     return status;
 }
 
-status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
+status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount, size_t *nonContig)
 {
     if (audioBuffer == NULL) {
+        if (nonContig != NULL) {
+            *nonContig = 0;
+        }
         return BAD_VALUE;
     }
     if (mTransfer != TRANSFER_OBTAIN) {
         audioBuffer->frameCount = 0;
         audioBuffer->size = 0;
         audioBuffer->raw = NULL;
+        if (nonContig != NULL) {
+            *nonContig = 0;
+        }
         return INVALID_OPERATION;
     }
 
@@ -623,7 +629,7 @@ status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, int32_t waitCount)
         ALOGE("%s invalid waitCount %d", __func__, waitCount);
         requested = NULL;
     }
-    return obtainBuffer(audioBuffer, requested);
+    return obtainBuffer(audioBuffer, requested, NULL /*elapsed*/, nonContig);
 }
 
 status_t AudioRecord::obtainBuffer(Buffer* audioBuffer, const struct timespec *requested,
