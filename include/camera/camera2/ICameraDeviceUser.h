@@ -103,6 +103,19 @@ public:
 
     virtual status_t        createStream(const OutputConfiguration& outputConfiguration) = 0;
 
+    /**
+     * Create an input stream of width, height, and format (one of
+     * HAL_PIXEL_FORMAT_*)
+     *
+     * Return stream ID if it's a non-negative value. status_t if it's a
+     * negative value.
+     */
+    virtual status_t        createInputStream(int width, int height, int format) = 0;
+
+    // get the buffer producer of the input stream
+    virtual status_t        getInputBufferProducer(
+            sp<IGraphicBufferProducer> *producer) = 0;
+
     // Create a request object from a template.
     virtual status_t        createDefaultRequest(int templateId,
                                                  /*out*/

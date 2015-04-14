@@ -62,6 +62,7 @@ Camera3Device::Camera3Device(int id):
         mUsePartialResult(false),
         mNumPartialResults(1),
         mNextResultFrameNumber(0),
+        mNextReprocessResultFrameNumber(0),
         mNextShutterFrameNumber(0),
         mListener(NULL)
 {
@@ -198,6 +199,17 @@ status_t Camera3Device::initialize(CameraModule *module)
                 mDeviceInfo.find(ANDROID_QUIRKS_USE_PARTIAL_RESULT);
         if (partialResultsQuirk.count > 0 && partialResultsQuirk.data.u8[0] == 1) {
             mUsePartialResult = true;
+        }
+    }
+
+    camera_metadata_entry configs =
+            mDeviceInfo.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+    for (uint32_t i = 0; i < configs.count; i += 4) {
+        if (configs.data.i32[i] == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED &&
+                configs.data.i32[i + 3] ==
+                ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT) {
+            mSupportedOpaqueInputSizes.add(Size(configs.data.i32[i + 1],
+                    configs.data.i32[i + 2]));
         }
     }
 
@@ -1019,6 +1031,20 @@ status_t Camera3Device::configureStreams() {
     return configureStreamsLocked();
 }
 
+status_t Camera3Device::getInputBufferProducer(
+        sp<IGraphicBufferProducer> *producer) {
+    Mutex::Autolock il(mInterfaceLock);
+    Mutex::Autolock l(mLock);
+
+    if (producer == NULL) {
+        return BAD_VALUE;
+    } else if (mInputStream == NULL) {
+        return INVALID_OPERATION;
+    }
+
+    return mInputStream->getInputBufferProducer(producer);
+}
+
 status_t Camera3Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
     ATRACE_CALL();
@@ -1421,6 +1447,17 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
     newRequest->mSettings.erase(ANDROID_REQUEST_OUTPUT_STREAMS);
 
     return newRequest;
+}
+
+bool Camera3Device::isOpaqueInputSizeSupported(uint32_t width, uint32_t height) {
+    for (uint32_t i = 0; i < mSupportedOpaqueInputSizes.size(); i++) {
+        Size size = mSupportedOpaqueInputSizes[i];
+        if (size.width == width && size.height == height) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 status_t Camera3Device::configureStreamsLocked() {
@@ -1947,20 +1984,31 @@ void Camera3Device::removeInFlightRequestIfReadyLocked(int idx) {
 void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
         CaptureResultExtras &resultExtras,
         CameraMetadata &collectedPartialResult,
-        uint32_t frameNumber) {
+        uint32_t frameNumber,
+        bool reprocess) {
     if (pendingMetadata.isEmpty())
         return;
 
     Mutex::Autolock l(mOutputLock);
 
     // TODO: need to track errors for tighter bounds on expected frame number
-    if (frameNumber < mNextResultFrameNumber) {
-        SET_ERR("Out-of-order capture result metadata submitted! "
+    if (reprocess) {
+        if (frameNumber < mNextReprocessResultFrameNumber) {
+            SET_ERR("Out-of-order reprocess capture result metadata submitted! "
                 "(got frame number %d, expecting %d)",
-                frameNumber, mNextResultFrameNumber);
-        return;
+                frameNumber, mNextReprocessResultFrameNumber);
+            return;
+        }
+        mNextReprocessResultFrameNumber = frameNumber + 1;
+    } else {
+        if (frameNumber < mNextResultFrameNumber) {
+            SET_ERR("Out-of-order capture result metadata submitted! "
+                    "(got frame number %d, expecting %d)",
+                    frameNumber, mNextResultFrameNumber);
+            return;
+        }
+        mNextResultFrameNumber = frameNumber + 1;
     }
-    mNextResultFrameNumber = frameNumber + 1;
 
     CaptureResult captureResult;
     captureResult.mResultExtras = resultExtras;
@@ -2170,7 +2218,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 CameraMetadata metadata;
                 metadata = result->result;
                 sendCaptureResult(metadata, request.resultExtras,
-                    collectedPartialResult, frameNumber);
+                    collectedPartialResult, frameNumber, hasInputBufferInRequest);
             }
         }
 
@@ -2332,7 +2380,8 @@ void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
 
             // send pending result and buffers
             sendCaptureResult(r.pendingMetadata, r.resultExtras,
-                r.partialResult.collectedResult, msg.frame_number);
+                r.partialResult.collectedResult, msg.frame_number,
+                r.hasInputBuffer);
             returnOutputBuffers(r.pendingOutputBuffers.array(),
                 r.pendingOutputBuffers.size(), r.shutterTimestamp);
             r.pendingOutputBuffers.clear();
@@ -2669,7 +2718,6 @@ bool Camera3Device::RequestThread::threadLoop() {
     // Fill in buffers
 
     if (nextRequest->mInputStream != NULL) {
-        request.input_buffer = &inputBuffer;
         res = nextRequest->mInputStream->getInputBuffer(&inputBuffer);
         if (res != OK) {
             // Can't get input buffer from gralloc queue - this could be due to
@@ -2686,6 +2734,7 @@ bool Camera3Device::RequestThread::threadLoop() {
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
         }
+        request.input_buffer = &inputBuffer;
         totalNumBuffers += 1;
     } else {
         request.input_buffer = NULL;

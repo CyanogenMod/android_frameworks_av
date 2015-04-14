@@ -128,6 +128,13 @@ class Camera3StreamInterface : public virtual RefBase {
     virtual status_t returnInputBuffer(const camera3_stream_buffer &buffer) = 0;
 
     /**
+     * Get the buffer producer of the input buffer queue.
+     *
+     * This method only applies to input streams.
+     */
+    virtual status_t getInputBufferProducer(sp<IGraphicBufferProducer> *producer) = 0;
+
+    /**
      * Whether any of the stream's buffers are currently in use by the HAL,
      * including buffers that have been returned but not yet had their
      * release fence signaled.

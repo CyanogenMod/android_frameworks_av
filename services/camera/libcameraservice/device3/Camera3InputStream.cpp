@@ -65,8 +65,8 @@ status_t Camera3InputStream::getInputBufferLocked(
     assert(mConsumer != 0);
 
     BufferItem bufferItem;
-    res = mConsumer->acquireBuffer(&bufferItem, /*waitForFence*/false);
 
+    res = mConsumer->acquireBuffer(&bufferItem, /*waitForFence*/false);
     if (res != OK) {
         ALOGE("%s: Stream %d: Can't acquire next output buffer: %s (%d)",
                 __FUNCTION__, mId, strerror(-res), res);
@@ -162,6 +162,21 @@ status_t Camera3InputStream::returnInputBufferLocked(
     return returnAnyBufferLocked(buffer, /*timestamp*/0, /*output*/false);
 }
 
+status_t Camera3InputStream::getInputBufferProducerLocked(
+            sp<IGraphicBufferProducer> *producer) {
+    ATRACE_CALL();
+
+    if (producer == NULL) {
+        return BAD_VALUE;
+    } else if (mProducer == NULL) {
+        ALOGE("%s: No input stream is configured");
+        return INVALID_OPERATION;
+    }
+
+    *producer = mProducer;
+    return OK;
+}
+
 status_t Camera3InputStream::disconnectLocked() {
 
     status_t res;
@@ -212,10 +227,17 @@ status_t Camera3InputStream::configureQueueLocked() {
         res = producer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers);
         if (res != OK || minUndequeuedBuffers < 0) {
             ALOGE("%s: Stream %d: Could not query min undequeued buffers (error %d, bufCount %d)",
-                  __FUNCTION__, mId, res, minUndequeuedBuffers);
+                    __FUNCTION__, mId, res, minUndequeuedBuffers);
             return res;
         }
         size_t minBufs = static_cast<size_t>(minUndequeuedBuffers);
+
+        if (camera3_stream::max_buffers == 0) {
+            ALOGE("%s: %d: HAL sets max_buffer to 0. Must be at least 1.",
+                    __FUNCTION__, __LINE__);
+            return INVALID_OPERATION;
+        }
+
         /*
          * We promise never to 'acquire' more than camera3_stream::max_buffers
          * at any one time.
@@ -232,6 +254,8 @@ status_t Camera3InputStream::configureQueueLocked() {
         mConsumer = new BufferItemConsumer(consumer, camera3_stream::usage,
                                            mTotalBufferCount);
         mConsumer->setName(String8::format("Camera3-InputStream-%d", mId));
+
+        mProducer = producer;
     }
 
     res = mConsumer->setDefaultBufferSize(camera3_stream::width,

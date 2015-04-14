@@ -396,8 +396,22 @@ status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) {
     int32_t u = 0;
     res = mConsumer->query(mConsumer.get(),
             NATIVE_WINDOW_CONSUMER_USAGE_BITS, &u);
-    *usage = u;
 
+    // If an opaque output stream's endpoint is ImageReader, add
+    // GRALLOC_USAGE_HW_CAMERA_ZSL to the usage so HAL knows it will be used
+    // for the ZSL use case.
+    // Assume it's for ImageReader if the consumer usage doesn't have any of these bits set:
+    //     1. GRALLOC_USAGE_HW_TEXTURE
+    //     2. GRALLOC_USAGE_HW_RENDER
+    //     3. GRALLOC_USAGE_HW_COMPOSER
+    //     4. GRALLOC_USAGE_HW_VIDEO_ENCODER
+    if (camera3_stream::format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED &&
+            (u & (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER |
+            GRALLOC_USAGE_HW_VIDEO_ENCODER)) == 0) {
+        u |= GRALLOC_USAGE_HW_CAMERA_ZSL;
+    }
+
+    *usage = u;
     return res;
 }
 
