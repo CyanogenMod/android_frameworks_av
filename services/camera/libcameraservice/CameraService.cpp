@@ -866,7 +866,7 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
         std::shared_ptr<resource_policy::ClientDescriptor<String8, sp<BasicClient>>>* partial) {
 
     status_t ret = NO_ERROR;
-    std::vector<sp<BasicClient>> evictedClients;
+    std::vector<DescriptorPtr> evictedClients;
     DescriptorPtr clientDescriptor;
     {
         if (effectiveApiLevel == API_1) {
@@ -974,7 +974,7 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
 
             ALOGE("CameraService::connect evicting conflicting client for camera ID %s",
                     i->getKey().string());
-            evictedClients.push_back(clientSp);
+            evictedClients.push_back(i);
 
             // Log the clients evicted
             logEvent(String8::format("EVICT device %s client held by package %s (PID"
@@ -1001,11 +1001,30 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
     // Destroy evicted clients
     for (auto& i : evictedClients) {
         // Disconnect is blocking, and should only have returned when HAL has cleaned up
-        i->disconnect(); // Clients will remove themselves from the active client list here
+        i->getValue()->disconnect(); // Clients will remove themselves from the active client list
     }
-    evictedClients.clear();
 
     IPCThreadState::self()->restoreCallingIdentity(token);
+
+    for (const auto& i : evictedClients) {
+        ALOGV("%s: Waiting for disconnect to complete for client for device %s (PID %" PRId32 ")",
+                __FUNCTION__, i->getKey().string(), i->getOwnerId());
+        ret = mActiveClientManager.waitUntilRemoved(i, DEFAULT_DISCONNECT_TIMEOUT_NS);
+        if (ret == TIMED_OUT) {
+            ALOGE("%s: Timed out waiting for client for device %s to disconnect, "
+                    "current clients:\n%s", __FUNCTION__, i->getKey().string(),
+                    mActiveClientManager.toString().string());
+            return -EBUSY;
+        }
+        if (ret != NO_ERROR) {
+            ALOGE("%s: Received error waiting for client for device %s to disconnect: %s (%d), "
+                    "current clients:\n%s", __FUNCTION__, i->getKey().string(), strerror(-ret),
+                    ret, mActiveClientManager.toString().string());
+            return ret;
+        }
+    }
+
+    evictedClients.clear();
 
     // Once clients have been disconnected, relock
     mServiceLock.lock();

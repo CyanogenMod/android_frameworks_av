@@ -90,6 +90,9 @@ public:
     // 3 second busy timeout when other clients are connecting
     static const nsecs_t DEFAULT_CONNECT_TIMEOUT_NS = 3000000000;
 
+    // 1 second busy timeout when other clients are disconnecting
+    static const nsecs_t DEFAULT_DISCONNECT_TIMEOUT_NS = 1000000000;
+
     // Default number of messages to store in eviction log
     static const size_t DEFAULT_EVENT_LOG_LENGTH = 100;
 
