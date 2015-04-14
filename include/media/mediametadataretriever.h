@@ -57,6 +57,7 @@ enum {
     METADATA_KEY_IS_DRM          = 22,
     METADATA_KEY_LOCATION        = 23,
     METADATA_KEY_VIDEO_ROTATION  = 24,
+    METADATA_KEY_CAPTURE_FRAMERATE = 25,
 
     // Add more here...
 };

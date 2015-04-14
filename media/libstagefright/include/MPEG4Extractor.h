@@ -104,11 +104,15 @@ private:
     String8 mLastCommentName;
     String8 mLastCommentData;
 
+    KeyedVector<uint32_t, AString> mMetaKeyMap;
+
     status_t readMetaData();
     status_t parseChunk(off64_t *offset, int depth);
     status_t parseITunesMetaData(off64_t offset, size_t size);
     status_t parse3GPPMetaData(off64_t offset, size_t size, int depth);
     void parseID3v2MetaData(off64_t offset);
+    status_t parseQTMetaKey(off64_t data_offset, size_t data_size);
+    status_t parseQTMetaVal(int32_t keyId, off64_t data_offset, size_t data_size);
 
     status_t updateAudioTrackInfoFromESDS_MPEG4Audio(
             const void *esds_data, size_t esds_size);

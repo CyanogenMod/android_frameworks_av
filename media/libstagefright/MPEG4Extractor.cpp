@@ -739,6 +739,16 @@ static bool underMetaDataPath(const Vector<uint32_t> &path) {
         && path[3] == FOURCC('i', 'l', 's', 't');
 }
 
+static bool underQTMetaPath(const Vector<uint32_t> &path, int32_t depth) {
+    return path.size() >= 2
+            && path[0] == FOURCC('m', 'o', 'o', 'v')
+            && path[1] == FOURCC('m', 'e', 't', 'a')
+            && (depth == 2
+            || (depth == 3
+                    && (path[2] == FOURCC('i', 'l', 's', 't')
+                    ||  path[2] == FOURCC('k', 'e', 'y', 's'))));
+}
+
 // Given a time in seconds since Jan 1 1904, produce a human-readable string.
 static void convertTimeToDate(int64_t time_1904, String8 *s) {
     time_t time_1970 = time_1904 - (((66 * 365 + 17) * 24) * 3600);
@@ -1732,31 +1742,35 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('m', 'e', 't', 'a'):
         {
-            uint8_t buffer[4];
-            if (chunk_data_size < (off64_t)sizeof(buffer)) {
-                *offset += chunk_size;
-                return ERROR_MALFORMED;
-            }
-
-            if (mDataSource->readAt(
-                        data_offset, buffer, 4) < 4) {
-                *offset += chunk_size;
-                return ERROR_IO;
-            }
-
-            if (U32_AT(buffer) != 0) {
-                // Should be version 0, flags 0.
-
-                // If it's not, let's assume this is one of those
-                // apparently malformed chunks that don't have flags
-                // and completely different semantics than what's
-                // in the MPEG4 specs and skip it.
-                *offset += chunk_size;
-                return OK;
-            }
-
             off64_t stop_offset = *offset + chunk_size;
-            *offset = data_offset + sizeof(buffer);
+            *offset = data_offset;
+            bool isParsingMetaKeys = underQTMetaPath(mPath, 2);
+            if (!isParsingMetaKeys) {
+                uint8_t buffer[4];
+                if (chunk_data_size < (off64_t)sizeof(buffer)) {
+                    *offset += chunk_size;
+                    return ERROR_MALFORMED;
+                }
+
+                if (mDataSource->readAt(
+                            data_offset, buffer, 4) < 4) {
+                    *offset += chunk_size;
+                    return ERROR_IO;
+                }
+
+                if (U32_AT(buffer) != 0) {
+                    // Should be version 0, flags 0.
+
+                    // If it's not, let's assume this is one of those
+                    // apparently malformed chunks that don't have flags
+                    // and completely different semantics than what's
+                    // in the MPEG4 specs and skip it.
+                    *offset += chunk_size;
+                    return OK;
+                }
+                *offset +=  sizeof(buffer);
+            }
+
             while (*offset < stop_offset) {
                 status_t err = parseChunk(offset, depth + 1);
                 if (err != OK) {
@@ -1920,6 +1934,16 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             break;
         }
 
+        case FOURCC('k', 'e', 'y', 's'):
+        {
+            *offset += chunk_size;
+
+            if (underQTMetaPath(mPath, 3)) {
+                parseQTMetaKey(data_offset, chunk_data_size);
+            }
+            break;
+        }
+
         case FOURCC('t', 'r', 'e', 'x'):
         {
             *offset += chunk_size;
@@ -2050,6 +2074,12 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         default:
         {
+            // check if we're parsing 'ilst' for meta keys
+            // if so, treat type as a number (key-id).
+            if (underQTMetaPath(mPath, 3)) {
+                parseQTMetaVal(chunk_type, data_offset, chunk_data_size);
+            }
+
             *offset += chunk_size;
             break;
         }
@@ -2180,7 +2210,108 @@ status_t MPEG4Extractor::parseSegmentIndex(off64_t offset, size_t size) {
     return OK;
 }
 
+status_t MPEG4Extractor::parseQTMetaKey(off64_t offset, size_t size) {
+    if (size < 8) {
+        return ERROR_MALFORMED;
+    }
 
+    uint32_t count;
+    if (!mDataSource->getUInt32(offset + 4, &count)) {
+        return ERROR_MALFORMED;
+    }
+
+    if (mMetaKeyMap.size() > 0) {
+        ALOGW("'keys' atom seen again, discarding existing entries");
+        mMetaKeyMap.clear();
+    }
+
+    off64_t keyOffset = offset + 8;
+    off64_t stopOffset = offset + size;
+    for (size_t i = 1; i <= count; i++) {
+        if (keyOffset + 8 > stopOffset) {
+            return ERROR_MALFORMED;
+        }
+
+        uint32_t keySize;
+        if (!mDataSource->getUInt32(keyOffset, &keySize)
+                || keySize < 8
+                || keyOffset + keySize > stopOffset) {
+            return ERROR_MALFORMED;
+        }
+
+        uint32_t type;
+        if (!mDataSource->getUInt32(keyOffset + 4, &type)
+                || type != FOURCC('m', 'd', 't', 'a')) {
+            return ERROR_MALFORMED;
+        }
+
+        keySize -= 8;
+        keyOffset += 8;
+
+        sp<ABuffer> keyData = new ABuffer(keySize);
+        if (keyData->data() == NULL) {
+            return ERROR_MALFORMED;
+        }
+        if (mDataSource->readAt(
+                keyOffset, keyData->data(), keySize) < (ssize_t) keySize) {
+            return ERROR_MALFORMED;
+        }
+
+        AString key((const char *)keyData->data(), keySize);
+        mMetaKeyMap.add(i, key);
+
+        keyOffset += keySize;
+    }
+    return OK;
+}
+
+status_t MPEG4Extractor::parseQTMetaVal(
+        int32_t keyId, off64_t offset, size_t size) {
+    ssize_t index = mMetaKeyMap.indexOfKey(keyId);
+    if (index < 0) {
+        // corresponding key is not present, ignore
+        return ERROR_MALFORMED;
+    }
+
+    if (size <= 16) {
+        return ERROR_MALFORMED;
+    }
+    uint32_t dataSize;
+    if (!mDataSource->getUInt32(offset, &dataSize)
+            || dataSize > size || dataSize <= 16) {
+        return ERROR_MALFORMED;
+    }
+    uint32_t atomFourCC;
+    if (!mDataSource->getUInt32(offset + 4, &atomFourCC)
+            || atomFourCC != FOURCC('d', 'a', 't', 'a')) {
+        return ERROR_MALFORMED;
+    }
+    uint32_t dataType;
+    if (!mDataSource->getUInt32(offset + 8, &dataType)
+            || ((dataType & 0xff000000) != 0)) {
+        // not well-known type
+        return ERROR_MALFORMED;
+    }
+
+    dataSize -= 16;
+    offset += 16;
+
+    if (dataType == 23 && dataSize >= 4) {
+        // BE Float32
+        uint32_t val;
+        if (!mDataSource->getUInt32(offset, &val)) {
+            return ERROR_MALFORMED;
+        }
+        if (!strcasecmp(mMetaKeyMap[index].c_str(), "com.android.capture.fps")) {
+            mFileMetaData->setFloat(kKeyCaptureFramerate, *(float *)&val);
+        }
+    } else {
+        // add more keys if needed
+        ALOGV("ignoring key: type %d, size %d", dataType, dataSize);
+    }
+
+    return OK;
+}
 
 status_t MPEG4Extractor::parseTrackHeader(
         off64_t data_offset, off64_t data_size) {
