@@ -183,6 +183,11 @@ status_t AnotherPacketSource::read(
 
         mediaBuffer->meta_data()->setInt64(kKeyTime, timeUs);
 
+        int32_t isSync;
+        if (buffer->meta()->findInt32("isSync", &isSync)) {
+            mediaBuffer->meta_data()->setInt32(kKeyIsSyncFrame, isSync);
+        }
+
         *out = mediaBuffer;
         return OK;
     }

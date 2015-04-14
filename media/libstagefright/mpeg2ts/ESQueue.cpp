@@ -533,6 +533,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAC3() {
     int64_t timeUs = fetchTimestamp(syncStartPos + payloadSize);
     CHECK_GE(timeUs, 0ll);
     accessUnit->meta()->setInt64("timeUs", timeUs);
+    accessUnit->meta()->setInt32("isSync", 1);
 
     memmove(
             mBuffer->data(),
@@ -582,6 +583,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
     int64_t timeUs = fetchTimestamp(payloadSize + 4);
     CHECK_GE(timeUs, 0ll);
     accessUnit->meta()->setInt64("timeUs", timeUs);
+    accessUnit->meta()->setInt32("isSync", 1);
 
     int16_t *ptr = (int16_t *)accessUnit->data();
     for (size_t i = 0; i < payloadSize / sizeof(int16_t); ++i) {
@@ -693,6 +695,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
     mBuffer->setRange(0, mBuffer->size() - offset);
 
     accessUnit->meta()->setInt64("timeUs", timeUs);
+    accessUnit->meta()->setInt32("isSync", 1);
 
     return accessUnit;
 }
@@ -743,6 +746,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
     const uint8_t *nalStart;
     size_t nalSize;
     bool foundSlice = false;
+    bool foundIDR = false;
     while ((err = getNextNALUnit(&data, &size, &nalStart, &nalSize)) == OK) {
         if (nalSize == 0) continue;
 
@@ -750,6 +754,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
         bool flush = false;
 
         if (nalType == 1 || nalType == 5) {
+            if (nalType == 5) {
+                foundIDR = true;
+            }
             if (foundSlice) {
                 ABitReader br(nalStart + 1, nalSize);
                 unsigned first_mb_in_slice = parseUE(&br);
@@ -838,6 +845,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
             CHECK_GE(timeUs, 0ll);
 
             accessUnit->meta()->setInt64("timeUs", timeUs);
+            if (foundIDR) {
+                accessUnit->meta()->setInt32("isSync", 1);
+            }
 
             if (mFormat == NULL) {
                 mFormat = MakeAVCCodecSpecificData(accessUnit);
@@ -894,6 +904,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGAudio() {
     CHECK_GE(timeUs, 0ll);
 
     accessUnit->meta()->setInt64("timeUs", timeUs);
+    accessUnit->meta()->setInt32("isSync", 1);
 
     if (mFormat == NULL) {
         mFormat = new MetaData;
@@ -970,6 +981,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
     int pprevStartCode = -1;
     int prevStartCode = -1;
     int currentStartCode = -1;
+    bool gopFound = false;
+    bool isClosedGop = false;
+    bool brokenLink = false;
 
     size_t offset = 0;
     while (offset + 3 < size) {
@@ -1032,6 +1046,13 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
             }
         }
 
+        if (mFormat != NULL && currentStartCode == 0xb8) {
+            // GOP layer
+            gopFound = true;
+            isClosedGop = (data[offset + 7] & 0x40) != 0;
+            brokenLink = (data[offset + 7] & 0x20) != 0;
+        }
+
         if (mFormat != NULL && currentStartCode == 0x00) {
             // Picture start
 
@@ -1053,6 +1074,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
                 offset = 0;
 
                 accessUnit->meta()->setInt64("timeUs", timeUs);
+                if (gopFound && (!brokenLink || isClosedGop)) {
+                    accessUnit->meta()->setInt32("isSync", 1);
+                }
 
                 ALOGV("returning MPEG video access unit at time %" PRId64 " us",
                       timeUs);
@@ -1197,6 +1221,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEG4Video() {
             case SKIP_TO_VOP_START:
             {
                 if (chunkType == 0xb6) {
+                    int vopCodingType = (data[offset + 4] & 0xc0) >> 6;
+
                     offset += chunkSize;
 
                     sp<ABuffer> accessUnit = new ABuffer(offset);
@@ -1212,6 +1238,9 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEG4Video() {
                     offset = 0;
 
                     accessUnit->meta()->setInt64("timeUs", timeUs);
+                    if (vopCodingType == 0) {  // intra-coded VOP
+                        accessUnit->meta()->setInt32("isSync", 1);
+                    }
 
                     ALOGV("returning MPEG4 video access unit at time %" PRId64 " us",
                          timeUs);
