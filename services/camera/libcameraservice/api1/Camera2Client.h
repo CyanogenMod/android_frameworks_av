@@ -77,6 +77,8 @@ public:
     virtual status_t        setParameters(const String8& params);
     virtual String8         getParameters() const;
     virtual status_t        sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
+    virtual void            notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+                                        const CaptureResultExtras& resultExtras);
 
     /**
      * Interface used by CameraService

@@ -1709,6 +1709,40 @@ status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
     return mStreamingProcessor->setRecordingBufferCount(count);
 }
 
+void Camera2Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+        const CaptureResultExtras& resultExtras) {
+    int32_t err = CAMERA_ERROR_UNKNOWN;
+    switch(errorCode) {
+        case ICameraDeviceCallbacks::ERROR_CAMERA_DISCONNECTED:
+            err = CAMERA_ERROR_RELEASED;
+            break;
+        case ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
+            err = CAMERA_ERROR_UNKNOWN;
+            break;
+        case ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE:
+            err = CAMERA_ERROR_SERVER_DIED;
+            break;
+        case ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST:
+        case ICameraDeviceCallbacks::ERROR_CAMERA_RESULT:
+        case ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER:
+            ALOGW("%s: Received recoverable error %d from HAL - ignoring, requestId %" PRId32,
+                    __FUNCTION__, errorCode, resultExtras.requestId);
+            return;
+        default:
+            err = CAMERA_ERROR_UNKNOWN;
+            break;
+    }
+
+    ALOGE("%s: Error condition %d reported by HAL, requestId %" PRId32, __FUNCTION__, errorCode,
+              resultExtras.requestId);
+
+    SharedCameraCallbacks::Lock l(mSharedCameraCallbacks);
+    if (l.mRemoteCallback != nullptr) {
+        l.mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, err, 0);
+    }
+}
+
+
 /** Device-related methods */
 void Camera2Client::notifyAutoFocus(uint8_t newState, int triggerId) {
     ALOGV("%s: Autofocus state now %d, last trigger %d",
