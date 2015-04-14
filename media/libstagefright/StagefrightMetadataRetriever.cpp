@@ -20,21 +20,34 @@
 #include <inttypes.h>
 
 #include <utils/Log.h>
+#include <gui/Surface.h>
 
 #include "include/StagefrightMetadataRetriever.h"
 
+#include <media/ICrypto.h>
 #include <media/IMediaHTTPService.h>
+
+#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/ColorConverter.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/FileSource.h>
+#include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/MediaCodec.h>
+#include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXCodec.h>
-#include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/Utils.h>
+
 #include <CharacterEncodingDetector.h>
 
 namespace android {
+
+static const int64_t kBufferTimeOutUs = 30000ll; // 30 msec
+static const size_t kRetryCount = 20; // must be >0
 
 StagefrightMetadataRetriever::StagefrightMetadataRetriever()
     : mParsedMetaData(false),
@@ -123,73 +136,52 @@ status_t StagefrightMetadataRetriever::setDataSource(
     return OK;
 }
 
-static bool isYUV420PlanarSupported(
-            OMXClient *client,
-            const sp<MetaData> &trackMeta) {
-
-    const char *mime;
-    CHECK(trackMeta->findCString(kKeyMIMEType, &mime));
-
-    Vector<CodecCapabilities> caps;
-    if (QueryCodecs(client->interface(), mime,
-                    true, /* queryDecoders */
-                    true, /* hwCodecOnly */
-                    &caps) == OK) {
-
-        for (size_t j = 0; j < caps.size(); ++j) {
-            CodecCapabilities cap = caps[j];
-            for (size_t i = 0; i < cap.mColorFormats.size(); ++i) {
-                if (cap.mColorFormats[i] == OMX_COLOR_FormatYUV420Planar) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-static VideoFrame *extractVideoFrameWithCodecFlags(
-        OMXClient *client,
+static VideoFrame *extractVideoFrame(
+        const char *componentName,
         const sp<MetaData> &trackMeta,
         const sp<MediaSource> &source,
-        uint32_t flags,
         int64_t frameTimeUs,
         int seekMode) {
 
     sp<MetaData> format = source->getFormat();
 
-    // XXX:
-    // Once all vendors support OMX_COLOR_FormatYUV420Planar, we can
-    // remove this check and always set the decoder output color format
-    if (isYUV420PlanarSupported(client, trackMeta)) {
-        format->setInt32(kKeyColorFormat, OMX_COLOR_FormatYUV420Planar);
-    }
+    sp<AMessage> videoFormat;
+    convertMetaDataToMessage(trackMeta, &videoFormat);
 
-    sp<MediaSource> decoder =
-        OMXCodec::Create(
-                client->interface(), format, false, source,
-                NULL, flags | OMXCodec::kClientNeedsFramebuffer);
+    // TODO: Use Flexible color instead
+    videoFormat->setInt32("color-format", OMX_COLOR_FormatYUV420Planar);
 
-    if (decoder.get() == NULL) {
-        ALOGV("unable to instantiate video decoder.");
+    status_t err;
+    sp<ALooper> looper = new ALooper;
+    looper->start();
+    sp<MediaCodec> decoder = MediaCodec::CreateByComponentName(
+            looper, componentName, &err);
 
+    if (decoder.get() == NULL || err != OK) {
+        ALOGW("Failed to instantiate decoder [%s]", componentName);
         return NULL;
     }
 
-    status_t err = decoder->start();
+    err = decoder->configure(videoFormat, NULL /* surface */, NULL /* crypto */, 0 /* flags */);
     if (err != OK) {
-        ALOGW("OMXCodec::start returned error %d (0x%08x)\n", err, err);
+        ALOGW("configure returned error %d (%s)", err, asString(err));
+        decoder->release();
         return NULL;
     }
 
-    // Read one output buffer, ignore format change notifications
-    // and spurious empty buffers.
+    err = decoder->start();
+    if (err != OK) {
+        ALOGW("start returned error %d (%s)", err, asString(err));
+        decoder->release();
+        return NULL;
+    }
 
     MediaSource::ReadOptions options;
     if (seekMode < MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC ||
         seekMode > MediaSource::ReadOptions::SEEK_CLOSEST) {
 
         ALOGE("Unknown seek mode: %d", seekMode);
+        decoder->release();
         return NULL;
     }
 
@@ -208,64 +200,155 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
         options.setSeekTo(frameTimeUs, mode);
     }
 
-    MediaBuffer *buffer = NULL;
-    do {
-        if (buffer != NULL) {
-            buffer->release();
-            buffer = NULL;
-        }
-        err = decoder->read(&buffer, &options);
-        options.clearSeekTo();
-    } while (err == INFO_FORMAT_CHANGED
-             || (buffer != NULL && buffer->range_length() == 0));
-
+    err = source->start();
     if (err != OK) {
-        CHECK(buffer == NULL);
+        ALOGW("source failed to start: %d (%s)", err, asString(err));
+        decoder->release();
+        return NULL;
+    }
 
-        ALOGV("decoding frame failed.");
+    Vector<sp<ABuffer> > inputBuffers;
+    err = decoder->getInputBuffers(&inputBuffers);
+    if (err != OK) {
+        ALOGW("failed to get input buffers: %d (%s)", err, asString(err));
+        decoder->release();
+        return NULL;
+    }
+
+    Vector<sp<ABuffer> > outputBuffers;
+    err = decoder->getOutputBuffers(&outputBuffers);
+    if (err != OK) {
+        ALOGW("failed to get output buffers: %d (%s)", err, asString(err));
+        decoder->release();
+        return NULL;
+    }
+
+    sp<AMessage> outputFormat = NULL;
+    bool haveMoreInputs = true;
+    size_t index, offset, size;
+    int64_t timeUs;
+    size_t retriesLeft = kRetryCount;
+    bool done = false;
+
+    do {
+        size_t inputIndex = -1;
+        int64_t ptsUs = 0ll;
+        uint32_t flags = 0;
+        sp<ABuffer> codecBuffer = NULL;
+
+        while (haveMoreInputs) {
+            err = decoder->dequeueInputBuffer(&inputIndex, kBufferTimeOutUs);
+            if (err != OK) {
+                ALOGW("Timed out waiting for input");
+                if (retriesLeft) {
+                    err = OK;
+                }
+                break;
+            }
+            codecBuffer = inputBuffers[inputIndex];
+
+            MediaBuffer *mediaBuffer = NULL;
+
+            err = source->read(&mediaBuffer, &options);
+            options.clearSeekTo();
+            if (err != OK) {
+                ALOGW("Input Error or EOS");
+                haveMoreInputs = false;
+                break;
+            }
+
+            if (mediaBuffer->range_length() > codecBuffer->capacity()) {
+                ALOGE("buffer size (%zu) too large for codec input size (%zu)",
+                        mediaBuffer->range_length(), codecBuffer->capacity());
+                err = BAD_VALUE;
+            } else {
+                codecBuffer->setRange(0, mediaBuffer->range_length());
+
+                CHECK(mediaBuffer->meta_data()->findInt64(kKeyTime, &ptsUs));
+                memcpy(codecBuffer->data(),
+                        (const uint8_t*)mediaBuffer->data() + mediaBuffer->range_offset(),
+                        mediaBuffer->range_length());
+            }
+
+            mediaBuffer->release();
+            break;
+        }
+
+        if (err == OK && inputIndex < inputBuffers.size()) {
+            ALOGV("QueueInput: size=%zu ts=%" PRId64 " us flags=%x",
+                    codecBuffer->size(), ptsUs, flags);
+            err = decoder->queueInputBuffer(
+                    inputIndex,
+                    codecBuffer->offset(),
+                    codecBuffer->size(),
+                    ptsUs,
+                    flags);
+
+            // we don't expect an output from codec config buffer
+            if (flags & MediaCodec::BUFFER_FLAG_CODECCONFIG) {
+                continue;
+            }
+        }
+
+        while (err == OK) {
+            // wait for a decoded buffer
+            err = decoder->dequeueOutputBuffer(
+                    &index,
+                    &offset,
+                    &size,
+                    &timeUs,
+                    &flags,
+                    kBufferTimeOutUs);
+
+            if (err == INFO_FORMAT_CHANGED) {
+                ALOGV("Received format change");
+                err = decoder->getOutputFormat(&outputFormat);
+            } else if (err == INFO_OUTPUT_BUFFERS_CHANGED) {
+                ALOGV("Output buffers changed");
+                err = decoder->getOutputBuffers(&outputBuffers);
+            } else {
+                if (err == -EAGAIN /* INFO_TRY_AGAIN_LATER */ && --retriesLeft > 0) {
+                    ALOGV("Timed-out waiting for output.. retries left = %d", retriesLeft);
+                    err = OK;
+                } else if (err == OK) {
+                    ALOGV("Received an output buffer");
+                    done = true;
+                } else {
+                    ALOGW("Received error %d (%s) instead of output", err, asString(err));
+                    done = true;
+                }
+                break;
+            }
+        }
+    } while (err == OK && !done);
+
+    if (err != OK || size <= 0 || outputFormat == NULL) {
+        ALOGE("Failed to decode thumbnail frame");
+        source->stop();
         decoder->stop();
-
+        decoder->release();
         return NULL;
     }
 
     ALOGV("successfully decoded video frame.");
+    sp<ABuffer> videoFrameBuffer = outputBuffers.itemAt(index);
 
-    int32_t unreadable;
-    if (buffer->meta_data()->findInt32(kKeyIsUnreadable, &unreadable)
-            && unreadable != 0) {
-        ALOGV("video frame is unreadable, decoder does not give us access "
-             "to the video data.");
-
-        buffer->release();
-        buffer = NULL;
-
-        decoder->stop();
-
-        return NULL;
-    }
-
-    int64_t timeUs;
-    CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
     if (thumbNailTime >= 0) {
         if (timeUs != thumbNailTime) {
-            const char *mime;
-            CHECK(trackMeta->findCString(kKeyMIMEType, &mime));
+            AString mime;
+            CHECK(outputFormat->findString("mime", &mime));
 
-            ALOGV("thumbNailTime = %" PRId64 " us, timeUs = %" PRId64 " us, mime = %s",
-                 thumbNailTime, timeUs, mime);
+            ALOGV("thumbNailTime = %lld us, timeUs = %lld us, mime = %s",
+                    (long long)thumbNailTime, (long long)timeUs, mime.c_str());
         }
     }
 
-    sp<MetaData> meta = decoder->getFormat();
-
     int32_t width, height;
-    CHECK(meta->findInt32(kKeyWidth, &width));
-    CHECK(meta->findInt32(kKeyHeight, &height));
+    CHECK(outputFormat->findInt32("width", &width));
+    CHECK(outputFormat->findInt32("height", &height));
 
     int32_t crop_left, crop_top, crop_right, crop_bottom;
-    if (!meta->findRect(
-                kKeyCropRect,
-                &crop_left, &crop_top, &crop_right, &crop_bottom)) {
+    if (!outputFormat->findRect("crop", &crop_left, &crop_top, &crop_right, &crop_bottom)) {
         crop_left = crop_top = 0;
         crop_right = width - 1;
         crop_bottom = height - 1;
@@ -285,23 +368,21 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
     frame->mData = new uint8_t[frame->mSize];
     frame->mRotationAngle = rotationAngle;
 
-    int32_t displayWidth, displayHeight;
-    if (meta->findInt32(kKeyDisplayWidth, &displayWidth)) {
-        frame->mDisplayWidth = displayWidth;
-    }
-    if (meta->findInt32(kKeyDisplayHeight, &displayHeight)) {
-        frame->mDisplayHeight = displayHeight;
+    int32_t sarWidth, sarHeight;
+    if (trackMeta->findInt32(kKeySARWidth, &sarWidth)
+            && trackMeta->findInt32(kKeySARHeight, &sarHeight)
+            && sarHeight != 0) {
+        frame->mDisplayWidth = (frame->mDisplayWidth * sarWidth) / sarHeight;
     }
 
     int32_t srcFormat;
-    CHECK(meta->findInt32(kKeyColorFormat, &srcFormat));
+    CHECK(outputFormat->findInt32("color-format", &srcFormat));
 
-    ColorConverter converter(
-            (OMX_COLOR_FORMATTYPE)srcFormat, OMX_COLOR_Format16bitRGB565);
+    ColorConverter converter((OMX_COLOR_FORMATTYPE)srcFormat, OMX_COLOR_Format16bitRGB565);
 
     if (converter.isValid()) {
         err = converter.convert(
-                (const uint8_t *)buffer->data() + buffer->range_offset(),
+                (const uint8_t *)videoFrameBuffer->data(),
                 width, height,
                 crop_left, crop_top, crop_right, crop_bottom,
                 frame->mData,
@@ -309,17 +390,16 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
                 frame->mHeight,
                 0, 0, frame->mWidth - 1, frame->mHeight - 1);
     } else {
-        ALOGE("Unable to instantiate color conversion from format 0x%08x to "
-              "RGB565",
-              srcFormat);
+        ALOGE("Unable to convert from format 0x%08x to RGB565", srcFormat);
 
         err = ERROR_UNSUPPORTED;
     }
 
-    buffer->release();
-    buffer = NULL;
-
+    videoFrameBuffer.clear();
+    source->stop();
+    decoder->releaseOutputBuffer(index);
     decoder->stop();
+    decoder->release();
 
     if (err != OK) {
         ALOGE("Colorconverter failed to convert frame.");
@@ -390,20 +470,29 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
         mAlbumArt = MediaAlbumArt::fromData(dataSize, data);
     }
 
-    VideoFrame *frame =
-        extractVideoFrameWithCodecFlags(
-                &mClient, trackMeta, source, OMXCodec::kPreferSoftwareCodecs,
-                timeUs, option);
+    const char *mime;
+    CHECK(trackMeta->findCString(kKeyMIMEType, &mime));
 
-    if (frame == NULL) {
-        ALOGV("Software decoder failed to extract thumbnail, "
-             "trying hardware decoder.");
+    Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
+    OMXCodec::findMatchingCodecs(
+            mime,
+            false, /* encoder */
+            NULL, /* matchComponentName */
+            OMXCodec::kPreferSoftwareCodecs,
+            &matchingCodecs);
 
-        frame = extractVideoFrameWithCodecFlags(&mClient, trackMeta, source, 0,
-                        timeUs, option);
+    for (size_t i = 0; i < matchingCodecs.size(); ++i) {
+        const char *componentName = matchingCodecs[i].mName.string();
+        VideoFrame *frame =
+            extractVideoFrame(componentName, trackMeta, source, timeUs, option);
+
+        if (frame != NULL) {
+            return frame;
+        }
+        ALOGV("%s failed to extract thumbnail, trying next decoder.", componentName);
     }
 
-    return frame;
+    return NULL;
 }
 
 MediaAlbumArt *StagefrightMetadataRetriever::extractAlbumArt() {
