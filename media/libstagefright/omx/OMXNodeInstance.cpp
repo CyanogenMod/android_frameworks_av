@@ -32,8 +32,6 @@
 
 #ifdef MTK_HARDWARE
 #include <bufferallocator/OMXNodeInstanceBufferHandler.h>
-#define ENABLE_MTK_BUF_ADDR_ALIGNMENT
-#define MTK_BUF_ADDR_ALIGNMENT_VALUE 512
 #endif
 
 
@@ -483,25 +481,9 @@ status_t OMXNodeInstance::useBuffer(
 
     OMX_BUFFERHEADERTYPE *header;
 
-
-#ifdef MTK_HARDWARE
-  #ifdef ENABLE_MTK_BUF_ADDR_ALIGNMENT
-    OMX_U8 *ptr = static_cast<OMX_U8 *>(params->pointer());
-    OMX_U32 pBuffer = ((reinterpret_cast<OMX_U32>(ptr)+(MTK_BUF_ADDR_ALIGNMENT_VALUE-1))&~(MTK_BUF_ADDR_ALIGNMENT_VALUE-1));
-  #else
-    OMX_U8 *ptr = static_cast<OMX_U8 *>(params->pointer());
-    OMX_U32 pBuffer = ((reinterpret_cast<OMX_U32>(ptr));
-  #endif
-#endif
-
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
-#ifdef MTK_HARDWARE
-            params->size(), (OMX_U8 *)pBuffer
-#else
-            params->size(), static_cast<OMX_U8 *>(params->pointer())
-#endif
-            );
+            params->size(), static_cast<OMX_U8 *>(params->pointer()));
 
     if (err != OMX_ErrorNone) {
         ALOGE("OMX_UseBuffer failed with error %d (0x%08x)", err, err);
