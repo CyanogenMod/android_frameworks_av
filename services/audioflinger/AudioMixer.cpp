@@ -410,6 +410,9 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
         t->resampler = NULL;
         t->downmixerBufferProvider = NULL;
         t->mReformatBufferProvider = NULL;
+#ifdef HW_ACC_EFFECTS
+        t->hwAcc = NULL;
+#endif
         t++;
     }
 
@@ -696,6 +699,11 @@ void AudioMixer::deleteTrackName(int name)
     unprepareTrackForDownmix(&mState.tracks[name], name);
     // delete the reformatter
     unprepareTrackForReformat(&mState.tracks[name], name);
+    // delete the hwAcc effects
+#ifdef HW_ACC_EFFECTS
+    delete track.hwAcc;
+    track.hwAcc = NULL;
+#endif
 
     mTrackNames &= ~(1<<name);
 }
