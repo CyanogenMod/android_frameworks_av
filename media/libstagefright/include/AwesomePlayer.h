@@ -420,8 +420,9 @@ private:
     bool inSupportedTunnelFormats(const char * mime);
     //Flag to check if tunnel mode audio is enabled
     bool mIsTunnelAudio;
+    //Flag to check if tunnel mode audio teardown
+    bool mIsTunnelTearDown;
 #endif
-
     bool isWidevineContent() const;
 
     AwesomePlayer(const AwesomePlayer &);
