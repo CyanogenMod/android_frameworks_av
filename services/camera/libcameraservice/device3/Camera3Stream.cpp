@@ -109,11 +109,7 @@ camera3_stream* Camera3Stream::startConfiguration() {
             // oldUsage/oldMaxBuffers
             return this;
         case STATE_CONFIGURED:
-            if (stream_type == CAMERA3_STREAM_INPUT) {
-                ALOGE("%s: Cannot configure an input stream twice",
-                        __FUNCTION__);
-                return NULL;
-            } else if (hasOutstandingBuffersLocked()) {
+            if (hasOutstandingBuffersLocked()) {
                 ALOGE("%s: Cannot configure stream; has outstanding buffers",
                         __FUNCTION__);
                 return NULL;
