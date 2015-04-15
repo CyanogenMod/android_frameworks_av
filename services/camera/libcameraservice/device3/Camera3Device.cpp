@@ -1082,9 +1082,9 @@ status_t Camera3Device::createDefaultRequest(int templateId,
         mHal3Device, templateId);
     ATRACE_END();
     if (rawRequest == NULL) {
-        SET_ERR_L("HAL is unable to construct default settings for template %d",
-                templateId);
-        return DEAD_OBJECT;
+        ALOGI("%s: template %d is not supported on this camera device",
+              __FUNCTION__, templateId);
+        return BAD_VALUE;
     }
     *request = rawRequest;
     mRequestTemplateCache[templateId] = rawRequest;
