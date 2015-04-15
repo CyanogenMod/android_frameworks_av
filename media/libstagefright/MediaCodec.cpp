@@ -23,10 +23,12 @@
 
 #include <binder/IBatteryStats.h>
 #include <binder/IMemory.h>
+#include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryDealer.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
+#include <media/IResourceManagerService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -46,6 +48,45 @@
 #include <utils/Singleton.h>
 
 namespace android {
+
+static inline int getCallingPid() {
+    return IPCThreadState::self()->getCallingPid();
+}
+
+static int64_t getId(sp<IResourceManagerClient> client) {
+    return (int64_t) client.get();
+}
+
+static bool isResourceError(status_t err) {
+    return (err == OMX_ErrorInsufficientResources);
+}
+
+static const int kMaxRetry = 2;
+
+struct ResourceManagerClient : public BnResourceManagerClient {
+    ResourceManagerClient(MediaCodec* codec) : mMediaCodec(codec) {}
+
+    virtual bool reclaimResource() {
+        sp<MediaCodec> codec = mMediaCodec.promote();
+        if (codec == NULL) {
+            // codec is already gone.
+            return true;
+        }
+        status_t err = codec->release();
+        if (err != OK) {
+            ALOGW("ResourceManagerClient failed to release codec with err %d", err);
+        }
+        return (err == OK);
+    }
+
+protected:
+    virtual ~ResourceManagerClient() {}
+
+private:
+    wp<MediaCodec> mMediaCodec;
+
+    DISALLOW_EVIL_CONSTRUCTORS(ResourceManagerClient);
+};
 
 struct MediaCodec::BatteryNotifier : public Singleton<BatteryNotifier> {
     BatteryNotifier();
@@ -178,6 +219,65 @@ void MediaCodec::BatteryNotifier::onBatteryStatServiceDied() {
     // started.
 }
 
+MediaCodec::ResourceManagerServiceProxy::ResourceManagerServiceProxy() {
+}
+
+MediaCodec::ResourceManagerServiceProxy::~ResourceManagerServiceProxy() {
+    if (mService != NULL) {
+        IInterface::asBinder(mService)->unlinkToDeath(this);
+    }
+}
+
+void MediaCodec::ResourceManagerServiceProxy::init() {
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = sm->getService(String16("media.resource_manager"));
+    mService = interface_cast<IResourceManagerService>(binder);
+    if (mService == NULL) {
+        ALOGE("Failed to get ResourceManagerService");
+        return;
+    }
+    if (IInterface::asBinder(mService)->linkToDeath(this) != OK) {
+        mService.clear();
+        ALOGE("Failed to linkToDeath to ResourceManagerService.");
+        return;
+    }
+}
+
+void MediaCodec::ResourceManagerServiceProxy::binderDied(const wp<IBinder>& /*who*/) {
+    ALOGW("ResourceManagerService died.");
+    Mutex::Autolock _l(mLock);
+    mService.clear();
+}
+
+void MediaCodec::ResourceManagerServiceProxy::addResource(
+        int pid,
+        int64_t clientId,
+        const sp<IResourceManagerClient> client,
+        const Vector<MediaResource> &resources) {
+    Mutex::Autolock _l(mLock);
+    if (mService == NULL) {
+        return;
+    }
+    mService->addResource(pid, clientId, client, resources);
+}
+
+void MediaCodec::ResourceManagerServiceProxy::removeResource(int64_t clientId) {
+    Mutex::Autolock _l(mLock);
+    if (mService == NULL) {
+        return;
+    }
+    mService->removeResource(clientId);
+}
+
+bool MediaCodec::ResourceManagerServiceProxy::reclaimResource(
+        int callingPid, const Vector<MediaResource> &resources) {
+    Mutex::Autolock _l(mLock);
+    if (mService == NULL) {
+        return false;
+    }
+    return mService->reclaimResource(callingPid, resources);
+}
+
 // static
 sp<MediaCodec> MediaCodec::CreateByType(
         const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err) {
@@ -208,10 +308,14 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
       mCodec(NULL),
       mReplyID(0),
       mFlags(0),
+      mResourceManagerClient(new ResourceManagerClient(this)),
+      mResourceManagerService(new ResourceManagerServiceProxy()),
       mStickyError(OK),
       mSoftRenderer(NULL),
       mBatteryStatNotified(false),
       mIsVideo(false),
+      mVideoWidth(0),
+      mVideoHeight(0),
       mDequeueInputTimeoutGeneration(0),
       mDequeueInputReplyID(0),
       mDequeueOutputTimeoutGeneration(0),
@@ -221,6 +325,7 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
 
 MediaCodec::~MediaCodec() {
     CHECK_EQ(mState, UNINITIALIZED);
+    mResourceManagerService->removeResource(getId(mResourceManagerClient));
 }
 
 // static
@@ -247,6 +352,8 @@ void MediaCodec::PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err)
 }
 
 status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
+    mResourceManagerService->init();
+
     // save init parameters for reset
     mInitName = name;
     mInitNameIsType = nameIsType;
@@ -266,12 +373,13 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
         return NAME_NOT_FOUND;
     }
 
-    bool needDedicatedLooper = false;
+    bool secureCodec = false;
     if (nameIsType && !strncasecmp(name.c_str(), "video/", 6)) {
-        needDedicatedLooper = true;
+        mIsVideo = true;
     } else {
         AString tmp = name;
         if (tmp.endsWith(".secure")) {
+            secureCodec = true;
             tmp.erase(tmp.size() - 7, 7);
         }
         const sp<IMediaCodecList> mcl = MediaCodecList::getInstance();
@@ -282,14 +390,15 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
             info->getSupportedMimes(&mimes);
             for (size_t i = 0; i < mimes.size(); i++) {
                 if (mimes[i].startsWith("video/")) {
-                    needDedicatedLooper = true;
+                    mIsVideo = true;
                     break;
                 }
             }
         }
     }
 
-    if (needDedicatedLooper) {
+    if (mIsVideo) {
+        // video codec needs dedicated looper
         if (mCodecLooper == NULL) {
             mCodecLooper = new ALooper;
             mCodecLooper->setName("CodecLooper");
@@ -313,8 +422,25 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
         msg->setInt32("encoder", encoder);
     }
 
-    sp<AMessage> response;
-    return PostAndAwaitResponse(msg, &response);
+    status_t err;
+    Vector<MediaResource> resources;
+    const char *type = secureCodec ? kResourceSecureCodec : kResourceNonSecureCodec;
+    resources.push_back(MediaResource(String8(type), 1));
+    for (int i = 0; i <= kMaxRetry; ++i) {
+        if (i > 0) {
+            // Don't try to reclaim resource for the first time.
+            if (!mResourceManagerService->reclaimResource(getCallingPid(), resources)) {
+                break;
+            }
+        }
+
+        sp<AMessage> response;
+        err = PostAndAwaitResponse(msg, &response);
+        if (!isResourceError(err)) {
+            break;
+        }
+    }
+    return err;
 }
 
 status_t MediaCodec::setCallback(const sp<AMessage> &callback) {
@@ -332,6 +458,11 @@ status_t MediaCodec::configure(
         uint32_t flags) {
     sp<AMessage> msg = new AMessage(kWhatConfigure, this);
 
+    if (mIsVideo) {
+        format->findInt32("width", &mVideoWidth);
+        format->findInt32("height", &mVideoHeight);
+    }
+
     msg->setMessage("format", format);
     msg->setInt32("flags", flags);
 
@@ -345,20 +476,41 @@ status_t MediaCodec::configure(
         msg->setPointer("crypto", crypto.get());
     }
 
-    sp<AMessage> response;
-    status_t err = PostAndAwaitResponse(msg, &response);
+    // save msg for reset
+    mConfigureMsg = msg;
 
-    if (err != OK && err != INVALID_OPERATION) {
-        // MediaCodec now set state to UNINITIALIZED upon any fatal error.
-        // To maintain backward-compatibility, do a reset() to put codec
-        // back into INITIALIZED state.
-        // But don't reset if the err is INVALID_OPERATION, which means
-        // the configure failure is due to wrong state.
+    status_t err;
+    Vector<MediaResource> resources;
+    const char *type = (mFlags & kFlagIsSecure) ?
+            kResourceSecureCodec : kResourceNonSecureCodec;
+    resources.push_back(MediaResource(String8(type), 1));
+    // Don't know the buffer size at this point, but it's fine to use 1 because
+    // the reclaimResource call doesn't consider the requester's buffer size for now.
+    resources.push_back(MediaResource(String8(kResourceGraphicMemory), 1));
+    for (int i = 0; i <= kMaxRetry; ++i) {
+        if (i > 0) {
+            // Don't try to reclaim resource for the first time.
+            if (!mResourceManagerService->reclaimResource(getCallingPid(), resources)) {
+                break;
+            }
+        }
 
-        ALOGE("configure failed with err 0x%08x, resetting...", err);
-        reset();
+        sp<AMessage> response;
+        err = PostAndAwaitResponse(msg, &response);
+        if (err != OK && err != INVALID_OPERATION) {
+            // MediaCodec now set state to UNINITIALIZED upon any fatal error.
+            // To maintain backward-compatibility, do a reset() to put codec
+            // back into INITIALIZED state.
+            // But don't reset if the err is INVALID_OPERATION, which means
+            // the configure failure is due to wrong state.
+
+            ALOGE("configure failed with err 0x%08x, resetting...", err);
+            reset();
+        }
+        if (!isResourceError(err)) {
+            break;
+        }
     }
-
     return err;
 }
 
@@ -382,11 +534,65 @@ status_t MediaCodec::createInputSurface(
     return err;
 }
 
+uint64_t MediaCodec::getGraphicBufferSize() {
+    if (!mIsVideo) {
+        return 0;
+    }
+
+    uint64_t size = 0;
+    size_t portNum = sizeof(mPortBuffers) / sizeof((mPortBuffers)[0]);
+    for (size_t i = 0; i < portNum; ++i) {
+        // TODO: this is just an estimation, we should get the real buffer size from ACodec.
+        size += mPortBuffers[i].size() * mVideoWidth * mVideoHeight * 3 / 2;
+    }
+    return size;
+}
+
+void MediaCodec::addResource(const char *type, uint64_t value) {
+    Vector<MediaResource> resources;
+    resources.push_back(MediaResource(String8(type), value));
+    mResourceManagerService->addResource(
+            getCallingPid(), getId(mResourceManagerClient), mResourceManagerClient, resources);
+}
+
 status_t MediaCodec::start() {
     sp<AMessage> msg = new AMessage(kWhatStart, this);
 
-    sp<AMessage> response;
-    return PostAndAwaitResponse(msg, &response);
+    status_t err;
+    Vector<MediaResource> resources;
+    const char *type = (mFlags & kFlagIsSecure) ?
+            kResourceSecureCodec : kResourceNonSecureCodec;
+    resources.push_back(MediaResource(String8(type), 1));
+    // Don't know the buffer size at this point, but it's fine to use 1 because
+    // the reclaimResource call doesn't consider the requester's buffer size for now.
+    resources.push_back(MediaResource(String8(kResourceGraphicMemory), 1));
+    for (int i = 0; i <= kMaxRetry; ++i) {
+        if (i > 0) {
+            // Don't try to reclaim resource for the first time.
+            if (!mResourceManagerService->reclaimResource(getCallingPid(), resources)) {
+                break;
+            }
+            // Recover codec from previous error before retry start.
+            err = reset();
+            if (err != OK) {
+                ALOGE("retrying start: failed to reset codec");
+                break;
+            }
+            sp<AMessage> response;
+            err = PostAndAwaitResponse(mConfigureMsg, &response);
+            if (err != OK) {
+                ALOGE("retrying start: failed to configure codec");
+                break;
+            }
+        }
+
+        sp<AMessage> response;
+        err = PostAndAwaitResponse(msg, &response);
+        if (!isResourceError(err)) {
+            break;
+        }
+    }
+    return err;
 }
 
 status_t MediaCodec::stop() {
@@ -960,11 +1166,15 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mFlags &= ~kFlagUsesSoftwareRenderer;
                     }
 
+                    String8 resourceType;
                     if (mComponentName.endsWith(".secure")) {
                         mFlags |= kFlagIsSecure;
+                        resourceType = String8(kResourceSecureCodec);
                     } else {
                         mFlags &= ~kFlagIsSecure;
+                        resourceType = String8(kResourceNonSecureCodec);
                     }
+                    addResource(resourceType, 1);
 
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -1077,6 +1287,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             // We're always allocating output buffers after
                             // allocating input buffers, so this is a good
                             // indication that now all buffers are allocated.
+                            if (mIsVideo) {
+                                addResource(kResourceGraphicMemory, getGraphicBufferSize());
+                            }
                             setState(STARTED);
                             (new AMessage)->postReply(mReplyID);
                         } else {
@@ -1255,6 +1468,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mComponentName.clear();
                     }
                     mFlags &= ~kFlagIsComponentAllocated;
+
+                    mResourceManagerService->removeResource(getId(mResourceManagerClient));
 
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -2357,12 +2572,6 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
 
 void MediaCodec::updateBatteryStat() {
     if (mState == CONFIGURED && !mBatteryStatNotified) {
-        AString mime;
-        CHECK(mOutputFormat != NULL &&
-                mOutputFormat->findString("mime", &mime));
-
-        mIsVideo = mime.startsWithIgnoreCase("video/");
-
         BatteryNotifier& notifier(BatteryNotifier::getInstance());
 
         if (mIsVideo) {

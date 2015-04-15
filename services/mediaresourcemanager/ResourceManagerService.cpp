@@ -126,6 +126,7 @@ void ResourceManagerService::addResource(
     Mutex::Autolock lock(mLock);
     ResourceInfos& infos = getResourceInfosForEdit(pid, mMap);
     ResourceInfo& info = getResourceInfoForEdit(clientId, client, infos);
+    // TODO: do the merge instead of append.
     info.resources.appendVector(resources);
 }
 
@@ -197,19 +198,58 @@ bool ResourceManagerService::reclaimResource(
                 }
             }
         }
+
+        if (clients.size() == 0) {
+            // if we are here, run the third pass to free one codec with the same type.
+            for (size_t i = 0; i < resources.size(); ++i) {
+                String8 type = resources[i].mType;
+                if (type == kResourceSecureCodec || type == kResourceNonSecureCodec) {
+                    sp<IResourceManagerClient> client;
+                    if (!getLowestPriorityBiggestClient_l(callingPid, type, &client)) {
+                        return false;
+                    }
+                    clients.push_back(client);
+                }
+            }
+        }
     }
 
     if (clients.size() == 0) {
         return false;
     }
 
+    sp<IResourceManagerClient> failedClient;
     for (size_t i = 0; i < clients.size(); ++i) {
         ALOGV("reclaimResource from client %p", clients[i].get());
         if (!clients[i]->reclaimResource()) {
-            return false;
+            failedClient = clients[i];
+            break;
         }
     }
-    return true;
+
+    {
+        Mutex::Autolock lock(mLock);
+        bool found = false;
+        for (size_t i = 0; i < mMap.size(); ++i) {
+            ResourceInfos &infos = mMap.editValueAt(i);
+            for (size_t j = 0; j < infos.size();) {
+                if (infos[j].client == failedClient) {
+                    j = infos.removeAt(j);
+                    found = true;
+                } else {
+                    ++j;
+                }
+            }
+            if (found) {
+                break;
+            }
+        }
+        if (!found) {
+            ALOGV("didn't find failed client");
+        }
+    }
+
+    return (failedClient == NULL);
 }
 
 bool ResourceManagerService::getAllClients_l(

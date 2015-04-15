@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright 2015 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,6 +118,20 @@ protected:
         client3->reset();
     }
 
+    // test set up
+    // ---------------------------------------------------------------------------------
+    //   pid                priority         client           type               number
+    // ---------------------------------------------------------------------------------
+    //   kTestPid1(30)      30               mTestClient1     secure codec       1
+    //                                                        graphic memory     200
+    //                                                        graphic memory     200
+    // ---------------------------------------------------------------------------------
+    //   kTestPid2(20)      20               mTestClient2     non-secure codec   1
+    //                                                        graphic memory     300
+    //                                       -------------------------------------------
+    //                                       mTestClient3     secure codec       1
+    //                                                        graphic memory     100
+    // ---------------------------------------------------------------------------------
     void addResource() {
         // kTestPid1 mTestClient1
         Vector<MediaResource> resources1;
@@ -202,10 +216,12 @@ protected:
         int lowPriorityPid = 100;
         EXPECT_FALSE(mService->getAllClients_l(lowPriorityPid, type, &clients));
         int midPriorityPid = 25;
-        EXPECT_FALSE(mService->getAllClients_l(lowPriorityPid, type, &clients));
+        // some higher priority process (e.g. kTestPid2) owns the resource, so getAllClients_l
+        // will fail.
+        EXPECT_FALSE(mService->getAllClients_l(midPriorityPid, type, &clients));
         int highPriorityPid = 10;
-        EXPECT_TRUE(mService->getAllClients_l(10, unknowType, &clients));
-        EXPECT_TRUE(mService->getAllClients_l(10, type, &clients));
+        EXPECT_TRUE(mService->getAllClients_l(highPriorityPid, unknowType, &clients));
+        EXPECT_TRUE(mService->getAllClients_l(highPriorityPid, type, &clients));
 
         EXPECT_EQ(2u, clients.size());
         EXPECT_EQ(mTestClient3, clients[0]);
@@ -308,6 +324,30 @@ protected:
             // nothing left
             EXPECT_FALSE(mService->reclaimResource(10, resources));
         }
+
+        // ### secure codecs can coexist and secure codec can coexist with non-secure codec ###
+        {
+            addResource();
+            mService->mSupportsMultipleSecureCodecs = true;
+            mService->mSupportsSecureWithNonSecureCodec = true;
+
+            Vector<MediaResource> resources;
+            resources.push_back(MediaResource(String8(kResourceSecureCodec), 1));
+
+            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            // secure codec from lowest process got reclaimed
+            verifyClients(true, false, false);
+
+            // call again should reclaim another secure codec from lowest process
+            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            verifyClients(false, false, true);
+
+            // nothing left
+            EXPECT_FALSE(mService->reclaimResource(10, resources));
+
+            // clean up client 2 which still has non secure codec left
+            mService->removeResource((int64_t) mTestClient2.get());
+        }
     }
 
     void testReclaimResourceNonSecure() {
@@ -359,6 +399,26 @@ protected:
 
             // nothing left
             EXPECT_FALSE(mService->reclaimResource(10, resources));
+        }
+
+        // ### secure codec can coexist with non-secure codec ###
+        {
+            addResource();
+            mService->mSupportsSecureWithNonSecureCodec = true;
+
+            Vector<MediaResource> resources;
+            resources.push_back(MediaResource(String8(kResourceNonSecureCodec), 1));
+
+            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            // one non secure codec from lowest process got reclaimed
+            verifyClients(false, true, false);
+
+            // nothing left
+            EXPECT_FALSE(mService->reclaimResource(10, resources));
+
+            // clean up client 1 and 3 which still have secure codec left
+            mService->removeResource((int64_t) mTestClient1.get());
+            mService->removeResource((int64_t) mTestClient3.get());
         }
     }
 
