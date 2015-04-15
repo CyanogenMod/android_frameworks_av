@@ -745,7 +745,8 @@ static bool underQTMetaPath(const Vector<uint32_t> &path, int32_t depth) {
             && path[1] == FOURCC('m', 'e', 't', 'a')
             && (depth == 2
             || (depth == 3
-                    && (path[2] == FOURCC('i', 'l', 's', 't')
+                    && (path[2] == FOURCC('h', 'd', 'l', 'r')
+                    ||  path[2] == FOURCC('i', 'l', 's', 't')
                     ||  path[2] == FOURCC('k', 'e', 'y', 's'))));
 }
 
@@ -1913,6 +1914,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('h', 'd', 'l', 'r'):
         {
             *offset += chunk_size;
+
+            if (underQTMetaPath(mPath, 3)) {
+                break;
+            }
 
             uint32_t buffer;
             if (mDataSource->readAt(
