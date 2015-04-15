@@ -225,7 +225,7 @@ SwAudioOutputDescriptor::SwAudioOutputDescriptor(
     : AudioOutputDescriptor(profile, clientInterface),
     mProfile(profile), mIoHandle(0), mLatency(0),
     mFlags((audio_output_flags_t)0), mPolicyMix(NULL),
-    mOutput1(0), mOutput2(0), mDirectOpenCount(0)
+    mOutput1(0), mOutput2(0), mDirectOpenCount(0), mGlobalRefCount(0)
 {
     if (profile != NULL) {
         mFlags = (audio_output_flags_t)profile->mFlags;
@@ -305,6 +305,27 @@ void SwAudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
         mOutput2->changeRefCount(stream, delta);
     }
     AudioOutputDescriptor::changeRefCount(stream, delta);
+
+    // handle stream-independent ref count
+    uint32_t oldGlobalRefCount = mGlobalRefCount;
+    if ((delta + (int)mGlobalRefCount) < 0) {
+        ALOGW("changeRefCount() invalid delta %d globalRefCount %d", delta, mGlobalRefCount);
+        mGlobalRefCount = 0;
+    } else {
+        mGlobalRefCount += delta;
+    }
+    if ((oldGlobalRefCount == 0) && (mGlobalRefCount > 0)) {
+        if ((mPolicyMix != NULL) && ((mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+                    MIX_STATE_MIXING);
+        }
+
+    } else if ((oldGlobalRefCount > 0) && (mGlobalRefCount == 0)) {
+        if ((mPolicyMix != NULL) && ((mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+                    MIX_STATE_IDLE);
+        }
+    }
 }
 
 

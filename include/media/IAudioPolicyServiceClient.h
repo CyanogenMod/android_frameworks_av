@@ -35,6 +35,8 @@ public:
     virtual void onAudioPortListUpdate() = 0;
     // Notifies a change of audio patch configuration.
     virtual void onAudioPatchListUpdate() = 0;
+    // Notifies a change in the mixing state of a specific mix in a dynamic audio policy
+    virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
 };
 
 

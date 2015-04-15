@@ -1033,6 +1033,12 @@ void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
     }
 }
 
+void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
+        String8 regId, int32_t state)
+{
+    ALOGV("TODO propagate onDynamicPolicyMixStateUpdate(%s, %d)", regId.string(), state);
+}
+
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
 {
     {

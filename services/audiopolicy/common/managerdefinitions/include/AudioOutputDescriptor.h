@@ -123,6 +123,7 @@ public:
     sp<SwAudioOutputDescriptor> mOutput1;    // used by duplicated outputs: first output
     sp<SwAudioOutputDescriptor> mOutput2;    // used by duplicated outputs: second output
     uint32_t mDirectOpenCount; // number of clients using this output (direct outputs only)
+    uint32_t mGlobalRefCount;  // non-stream-specific ref count
 };
 
 class SwAudioOutputCollection :

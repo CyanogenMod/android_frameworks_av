@@ -213,6 +213,9 @@ public:
             void onAudioPatchListUpdate();
             void doOnAudioPatchListUpdate();
 
+            void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+            void doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+
 private:
                         AudioPolicyService() ANDROID_API;
     virtual             ~AudioPolicyService();
@@ -243,6 +246,7 @@ private:
             UPDATE_AUDIOPORT_LIST,
             UPDATE_AUDIOPATCH_LIST,
             SET_AUDIOPORT_CONFIG,
+            DYN_POLICY_MIX_STATE_UPDATE
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -280,6 +284,7 @@ private:
                     void        updateAudioPatchListCommand();
                     status_t    setAudioPortConfigCommand(const struct audio_port_config *config,
                                                           int delayMs);
+                    void        dynamicPolicyMixStateUpdateCommand(String8 regId, int32_t state);
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
@@ -362,6 +367,12 @@ private:
         class SetAudioPortConfigData : public AudioCommandData {
         public:
             struct audio_port_config mConfig;
+        };
+
+        class DynPolicyMixStateUpdateData : public AudioCommandData {
+        public:
+            String8 mRegId;
+            int32_t mState;
         };
 
         Mutex   mLock;
@@ -469,6 +480,7 @@ private:
 
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();
+        virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
 
         virtual audio_unique_id_t newAudioUniqueId();
 
@@ -484,8 +496,9 @@ private:
                                                 uid_t uid);
         virtual             ~NotificationClient();
 
-                            void        onAudioPortListUpdate();
-                            void        onAudioPatchListUpdate();
+                            void      onAudioPortListUpdate();
+                            void      onAudioPatchListUpdate();
+                            void      onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
 
                 // IBinder::DeathRecipient
                 virtual     void        binderDied(const wp<IBinder>& who);

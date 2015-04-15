@@ -213,6 +213,12 @@ void AudioPolicyService::AudioPolicyClient::onAudioPatchListUpdate()
     mAudioPolicyService->onAudioPatchListUpdate();
 }
 
+void AudioPolicyService::AudioPolicyClient::onDynamicPolicyMixStateUpdate(
+        String8 regId, int32_t state)
+{
+    mAudioPolicyService->onDynamicPolicyMixStateUpdate(regId, state);
+}
+
 audio_unique_id_t AudioPolicyService::AudioPolicyClient::newAudioUniqueId()
 {
     return AudioSystem::newAudioUniqueId();
