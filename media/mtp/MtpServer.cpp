@@ -119,6 +119,8 @@ MtpServer::~MtpServer() {
 void MtpServer::addStorage(MtpStorage* storage) {
     Mutex::Autolock autoLock(mMutex);
 
+    if(getStorage(storage->getStorageID()) != NULL)
+        return;
     mStorages.push(storage);
     sendStoreAdded(storage->getStorageID());
 }
