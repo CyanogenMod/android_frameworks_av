@@ -156,6 +156,7 @@ private:
     sp<ABuffer> mBuffer;
     sp<AnotherPacketSource> mSource;
     bool mPayloadStarted;
+    bool mEOSReached;
 
     uint64_t mPrevPTS;
 
@@ -513,6 +514,7 @@ ATSParser::Stream::Stream(
       mPCR_PID(PCR_PID),
       mExpectedContinuityCounter(-1),
       mPayloadStarted(false),
+      mEOSReached(false),
       mPrevPTS(0),
       mQueue(NULL) {
     switch (mStreamType) {
@@ -713,6 +715,8 @@ void ATSParser::Stream::signalEOS(status_t finalResult) {
     if (mSource != NULL) {
         mSource->signalEOS(finalResult);
     }
+    mEOSReached = true;
+    flush();
 }
 
 status_t ATSParser::Stream::parsePES(ABitReader *br) {
@@ -922,6 +926,10 @@ void ATSParser::Stream::onPayloadData(
     }
 
     status_t err = mQueue->appendData(data, size, timeUs);
+
+    if (mEOSReached) {
+        mQueue->signalEOS();
+    }
 
     if (err != OK) {
         return;

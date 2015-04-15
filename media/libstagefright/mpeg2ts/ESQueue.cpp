@@ -58,7 +58,8 @@ namespace android {
 
 ElementaryStreamQueue::ElementaryStreamQueue(Mode mode, uint32_t flags)
     : mMode(mode),
-      mFlags(flags) {
+      mFlags(flags),
+      mEOSReached(false) {
 }
 
 sp<MetaData> ElementaryStreamQueue::getFormat() {
@@ -272,6 +273,11 @@ static bool IsSeeminglyValidDDPAudioHeader(const uint8_t *ptr, size_t size) {
 #endif // DOLBY_END
 status_t ElementaryStreamQueue::appendData(
         const void *data, size_t size, int64_t timeUs) {
+
+    if (mEOSReached) {
+        ALOGE("appending data after EOS");
+        return ERROR_MALFORMED;
+    }
     if (mBuffer == NULL || mBuffer->size() == 0) {
         switch (mMode) {
             case H264:
@@ -1452,5 +1458,18 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEG4Video() {
 
     return NULL;
 }
+
+void ElementaryStreamQueue::signalEOS() {
+    if (!mEOSReached) {
+        if (mMode == MPEG_VIDEO) {
+            const char *theEnd = "\x00\x00\x01\x00";
+            appendData(theEnd, 4, 0);
+        }
+        mEOSReached = true;
+    } else {
+        ALOGW("EOS already signaled");
+    }
+}
+
 
 }  // namespace android
