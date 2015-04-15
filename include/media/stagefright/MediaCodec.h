@@ -56,13 +56,7 @@ struct MediaCodec : public AHandler {
         CB_OUTPUT_AVAILABLE = 2,
         CB_ERROR = 3,
         CB_OUTPUT_FORMAT_CHANGED = 4,
-        CB_CODEC_RELEASED = 5,
-    };
-
-    // used by CB_CODEC_RELEASED to tell the upper layer the cause of the release.
-    enum ReleaseReason {
-        REASON_UNKNOWN = 0,
-        REASON_RECLAIMED,  // resources reclaimed by resource manager
+        CB_RESOURCE_RECLAIMED = 5,
     };
 
     struct BatteryNotifier;
