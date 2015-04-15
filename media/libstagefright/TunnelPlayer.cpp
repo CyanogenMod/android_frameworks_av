@@ -344,7 +344,7 @@ size_t TunnelPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink::cb_event_t event) {
     TunnelPlayer *me = (TunnelPlayer *)cookie;
     if(me != NULL) {
-        ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+        ALOGV("AudioSinkCallback :: postAudioEOS mSeeking %d", me->mSeeking);
         if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
             if(me->mReachedEOS == true) {
                 //in the case of seek all these flags will be reset
@@ -360,6 +360,9 @@ size_t TunnelPlayer::AudioSinkCallback(
             me->mReachedEOS = true;
             me->mKillExtractorThread = true;
             me->mObserver->postAudioEOS(0);
+       } else if (event == MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN) {
+            ALOGV("AudioSinkCallback :: CB_EVENT_TEAR_DOWN " );
+            me->mObserver->postAudioTearDown();
        }
     }
     return 1;
@@ -692,7 +695,10 @@ int64_t TunnelPlayer::getRealTimeUs() {
 
 void TunnelPlayer::getPlayedTimeFromDSP_l(int64_t* timeStamp ) {
     ALOGV("going to query timestamp");
-    mAudioSink->getTimeStamp((uint64_t*)timeStamp);
+    if (!mIsAudioRouted)
+        *timeStamp = 0;
+    else
+        mAudioSink->getTimeStamp((uint64_t*)timeStamp);
     ALOGV("timestamp returned from DSP %lld ", (*timeStamp));
     return;
 }

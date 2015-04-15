@@ -574,7 +574,7 @@ status_t AudioTrack::set(
    
 
     if (flags & AUDIO_OUTPUT_FLAG_LPA || flags & AUDIO_OUTPUT_FLAG_TUNNEL) {
-         AudioSystem::getOutputForAttr(&mAttributes, &output,
+         status = AudioSystem::getOutputForAttr(&mAttributes, &output,
                                             (audio_session_t)mSessionId, &streamType, 
                                              mSampleRate, mFormat,mChannelMask, 
                                              mFlags, mOffloadInfo); 
@@ -2490,6 +2490,10 @@ void AudioTrack::notify(int msg) {
     if (msg == EVENT_HW_FAIL) {
         ALOGV("Posting event HW fail to Audio Sink.");
         mCbf(EVENT_HW_FAIL, mUserData, 0);
+    }
+    if (msg == EVENT_NEW_IAUDIOTRACK) {
+        ALOGV("Posting event new AudioTrack to Audio Sink.");
+        mCbf(EVENT_NEW_IAUDIOTRACK, mUserData, 0);
     }
 }
 

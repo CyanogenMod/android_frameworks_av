@@ -128,6 +128,9 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES:= \
     AudioPolicyManager.cpp
 
+LOCAL_C_INCLUDES := \
+    $(call include-path-for, audio-effects)
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
