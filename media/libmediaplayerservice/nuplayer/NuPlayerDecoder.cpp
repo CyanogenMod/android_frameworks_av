@@ -463,10 +463,6 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
         size_t size,
         int64_t timeUs,
         int32_t flags) {
-    if (mFormatChangePending) {
-        return false;
-    }
-
 //    CHECK_LT(bufferIx, mOutputBuffers.size());
     sp<ABuffer> buffer;
     mCodec->getOutputBuffer(index, &buffer);
