@@ -47,7 +47,8 @@ enum {
     CREATE_DEFAULT_REQUEST,
     GET_CAMERA_INFO,
     WAIT_UNTIL_IDLE,
-    FLUSH
+    FLUSH,
+    PREPARE
 };
 
 namespace {
@@ -348,6 +349,20 @@ public:
         return res;
     }
 
+    virtual status_t prepare(int streamId)
+    {
+        ALOGV("prepare");
+        Parcel data, reply;
+
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        data.writeInt32(streamId);
+
+        remote()->transact(PREPARE, data, &reply);
+
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
 private:
 
 
@@ -545,6 +560,14 @@ status_t BnCameraDeviceUser::onTransact(
             reply->writeInt32(endConfigure());
             return NO_ERROR;
         } break;
+        case PREPARE: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            int streamId = data.readInt32();
+            reply->writeNoException();
+            reply->writeInt32(prepare(streamId));
+            return NO_ERROR;
+        } break;
+
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

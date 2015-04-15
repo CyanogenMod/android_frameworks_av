@@ -99,7 +99,7 @@ class Camera3OutputStream :
 
     virtual status_t configureQueueLocked();
 
-    virtual status_t getEndpointUsage(uint32_t *usage);
+    virtual status_t getEndpointUsage(uint32_t *usage) const;
 
 }; // class Camera3OutputStream
 

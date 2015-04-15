@@ -671,6 +671,42 @@ status_t CameraDeviceClient::flush(int64_t* lastFrameNumber) {
     return mDevice->flush(lastFrameNumber);
 }
 
+status_t CameraDeviceClient::prepare(int streamId) {
+    ATRACE_CALL();
+    ALOGV("%s", __FUNCTION__);
+
+    status_t res = OK;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    // Guard against trying to prepare non-created streams
+    ssize_t index = NAME_NOT_FOUND;
+    for (size_t i = 0; i < mStreamMap.size(); ++i) {
+        if (streamId == mStreamMap.valueAt(i)) {
+            index = i;
+            break;
+        }
+    }
+
+    if (index == NAME_NOT_FOUND) {
+        ALOGW("%s: Camera %d: Invalid stream ID (%d) specified, no stream "
+              "created yet", __FUNCTION__, mCameraId, streamId);
+        return BAD_VALUE;
+    }
+
+    // Also returns BAD_VALUE if stream ID was not valid
+    res = mDevice->prepare(streamId);
+
+    if (res == BAD_VALUE) {
+        ALOGE("%s: Camera %d: Unexpected BAD_VALUE when preparing stream, but we"
+              " already checked and the stream ID (%d) should be valid.",
+              __FUNCTION__, mCameraId, streamId);
+    }
+
+    return res;
+}
+
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("CameraDeviceClient[%d] (%p) dump:\n",
@@ -727,6 +763,14 @@ void CameraDeviceClient::notifyShutter(const CaptureResultExtras& resultExtras,
     sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
     if (remoteCb != 0) {
         remoteCb->onCaptureStarted(resultExtras, timestamp);
+    }
+}
+
+void CameraDeviceClient::notifyPrepared(int streamId) {
+    // Thread safe. Don't bother locking.
+    sp<ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
+    if (remoteCb != 0) {
+        remoteCb->onPrepared(streamId);
     }
 }
 

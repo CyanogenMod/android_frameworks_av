@@ -87,7 +87,7 @@ status_t Camera3DummyStream::disconnectLocked() {
     return OK;
 }
 
-status_t Camera3DummyStream::getEndpointUsage(uint32_t *usage) {
+status_t Camera3DummyStream::getEndpointUsage(uint32_t *usage) const {
     *usage = DUMMY_USAGE;
     return OK;
 }

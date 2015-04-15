@@ -72,7 +72,7 @@ public:
     virtual void          notifyAutoExposure(uint8_t newState, int triggerId);
     virtual void          notifyAutoWhitebalance(uint8_t newState,
                                                  int triggerId);
-
+    virtual void          notifyPrepared(int streamId);
 
     int                   getCameraId() const;
     const sp<CameraDeviceBase>&

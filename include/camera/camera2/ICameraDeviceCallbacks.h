@@ -65,6 +65,9 @@ public:
     // One way
     virtual void            onResultReceived(const CameraMetadata& metadata,
                                              const CaptureResultExtras& resultExtras) = 0;
+
+    // One way
+    virtual void            onPrepared(int streamId) = 0;
 };
 
 // ----------------------------------------------------------------------------

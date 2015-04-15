@@ -133,6 +133,11 @@ public:
      */
     virtual status_t        flush(/*out*/
                                   int64_t* lastFrameNumber = NULL) = 0;
+
+    /**
+     * Preallocate buffers for a given output stream asynchronously.
+     */
+    virtual status_t        prepare(int streamId) = 0;
 };
 
 // ----------------------------------------------------------------------------

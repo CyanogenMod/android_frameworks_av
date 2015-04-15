@@ -37,6 +37,7 @@ enum {
     CAMERA_IDLE,
     CAPTURE_STARTED,
     RESULT_RECEIVED,
+    PREPARED
 };
 
 class BpCameraDeviceCallbacks: public BpInterface<ICameraDeviceCallbacks>
@@ -80,7 +81,6 @@ public:
         data.writeNoException();
     }
 
-
     void onResultReceived(const CameraMetadata& metadata,
             const CaptureResultExtras& resultExtras) {
         ALOGV("onResultReceived");
@@ -93,6 +93,17 @@ public:
         remote()->transact(RESULT_RECEIVED, data, &reply, IBinder::FLAG_ONEWAY);
         data.writeNoException();
     }
+
+    void onPrepared(int streamId)
+    {
+        ALOGV("onPrepared");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraDeviceCallbacks::getInterfaceDescriptor());
+        data.writeInt32(streamId);
+        remote()->transact(PREPARED, data, &reply, IBinder::FLAG_ONEWAY);
+        data.writeNoException();
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(CameraDeviceCallbacks,
@@ -157,6 +168,15 @@ status_t BnCameraDeviceCallbacks::onTransact(
                 ALOGW("No capture result extras object is present in result");
             }
             onResultReceived(metadata, resultExtras);
+            data.readExceptionCode();
+            return NO_ERROR;
+        } break;
+        case PREPARED: {
+            ALOGV("onPrepared");
+            CHECK_INTERFACE(ICameraDeviceCallbacks, data, reply);
+            CaptureResultExtras result;
+            int streamId = data.readInt32();
+            onPrepared(streamId);
             data.readExceptionCode();
             return NO_ERROR;
         } break;

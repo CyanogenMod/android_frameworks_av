@@ -67,13 +67,18 @@ bool Camera3IOStreamBase::hasOutstandingBuffersLocked() const {
 void Camera3IOStreamBase::dump(int fd, const Vector<String16> &args) const {
     (void) args;
     String8 lines;
+
+    uint32_t consumerUsage = 0;
+    status_t res = getEndpointUsage(&consumerUsage);
+    if (res != OK) consumerUsage = 0;
+
     lines.appendFormat("      State: %d\n", mState);
-    lines.appendFormat("      Dims: %d x %d, format 0x%x\n",
+    lines.appendFormat("      Dims: %d x %d, format 0x%x, dataspace 0x%x\n",
             camera3_stream::width, camera3_stream::height,
-            camera3_stream::format);
+            camera3_stream::format, camera3_stream::data_space);
     lines.appendFormat("      Max size: %zu\n", mMaxSize);
-    lines.appendFormat("      Usage: %d, max HAL buffers: %d\n",
-            camera3_stream::usage, camera3_stream::max_buffers);
+    lines.appendFormat("      Combined usage: %d, max HAL buffers: %d\n",
+            camera3_stream::usage | consumerUsage, camera3_stream::max_buffers);
     lines.appendFormat("      Frames produced: %d, last timestamp: %" PRId64 " ns\n",
             mFrameCount, mLastTimestamp);
     lines.appendFormat("      Total buffers: %zu, currently dequeued: %zu\n",
@@ -156,13 +161,11 @@ void Camera3IOStreamBase::handoutBufferLocked(camera3_stream_buffer &buffer,
 
     // Inform tracker about becoming busy
     if (mHandoutTotalBufferCount == 0 && mState != STATE_IN_CONFIG &&
-            mState != STATE_IN_RECONFIG) {
+            mState != STATE_IN_RECONFIG && mState != STATE_PREPARING) {
         /**
          * Avoid a spurious IDLE->ACTIVE->IDLE transition when using buffers
          * before/after register_stream_buffers during initial configuration
-         * or re-configuration.
-         *
-         * TODO: IN_CONFIG and IN_RECONFIG checks only make sense for <HAL3.2
+         * or re-configuration, or during prepare pre-allocation
          */
         sp<StatusTracker> statusTracker = mStatusTracker.promote();
         if (statusTracker != 0) {
@@ -177,9 +180,11 @@ void Camera3IOStreamBase::handoutBufferLocked(camera3_stream_buffer &buffer,
 }
 
 status_t Camera3IOStreamBase::getBufferPreconditionCheckLocked() const {
-    // Allow dequeue during IN_[RE]CONFIG for registration
+    // Allow dequeue during IN_[RE]CONFIG for registration, in
+    // PREPARING for pre-allocation
     if (mState != STATE_CONFIGURED &&
-            mState != STATE_IN_CONFIG && mState != STATE_IN_RECONFIG) {
+            mState != STATE_IN_CONFIG && mState != STATE_IN_RECONFIG &&
+            mState != STATE_PREPARING) {
         ALOGE("%s: Stream %d: Can't get buffers in unconfigured state %d",
                 __FUNCTION__, mId, mState);
         return INVALID_OPERATION;
@@ -240,13 +245,11 @@ status_t Camera3IOStreamBase::returnAnyBufferLocked(
 
     mHandoutTotalBufferCount--;
     if (mHandoutTotalBufferCount == 0 && mState != STATE_IN_CONFIG &&
-            mState != STATE_IN_RECONFIG) {
+            mState != STATE_IN_RECONFIG && mState != STATE_PREPARING) {
         /**
          * Avoid a spurious IDLE->ACTIVE->IDLE transition when using buffers
          * before/after register_stream_buffers during initial configuration
-         * or re-configuration.
-         *
-         * TODO: IN_CONFIG and IN_RECONFIG checks only make sense for <HAL3.2
+         * or re-configuration, or during prepare pre-allocation
          */
         ALOGV("%s: Stream %d: All buffers returned; now idle", __FUNCTION__,
                 mId);

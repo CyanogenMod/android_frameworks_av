@@ -199,6 +199,7 @@ class CameraDeviceBase : public virtual RefBase {
         virtual void notifyIdle() = 0;
         virtual void notifyShutter(const CaptureResultExtras &resultExtras,
                 nsecs_t timestamp) = 0;
+        virtual void notifyPrepared(int streamId) = 0;
 
         // Required only for API1
         virtual void notifyAutoFocus(uint8_t newState, int triggerId) = 0;
@@ -279,6 +280,12 @@ class CameraDeviceBase : public virtual RefBase {
      * Output lastFrameNumber is the last frame number of the previous streaming request.
      */
     virtual status_t flush(int64_t *lastFrameNumber = NULL) = 0;
+
+    /**
+     * Prepare stream by preallocating buffers for it asynchronously.
+     * Calls notifyPrepared() once allocation is complete.
+     */
+    virtual status_t prepare(int streamId) = 0;
 
     /**
      * Get the HAL device version.

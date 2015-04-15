@@ -209,6 +209,13 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
         }
     }
     mLock.lock();
+
+    // Once a valid buffer has been returned to the queue, can no longer
+    // dequeue all buffers for preallocation.
+    if (buffer.status != CAMERA3_BUFFER_STATUS_ERROR) {
+        mStreamUnpreparable = true;
+    }
+
     if (res != OK) {
         close(anwReleaseFence);
     }
@@ -390,7 +397,7 @@ status_t Camera3OutputStream::disconnectLocked() {
     return OK;
 }
 
-status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) {
+status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) const {
 
     status_t res;
     int32_t u = 0;
