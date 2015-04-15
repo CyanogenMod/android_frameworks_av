@@ -29,7 +29,8 @@ namespace android {
 
 enum {
     PORT_LIST_UPDATE = IBinder::FIRST_CALL_TRANSACTION,
-    PATCH_LIST_UPDATE
+    PATCH_LIST_UPDATE,
+    MIX_STATE_UPDATE
 };
 
 class BpAudioPolicyServiceClient : public BpInterface<IAudioPolicyServiceClient>
@@ -53,6 +54,15 @@ public:
         data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
         remote()->transact(PATCH_LIST_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
     }
+
+    void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
+        data.writeString8(regId);
+        data.writeInt32(state);
+        remote()->transact(MIX_STATE_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyServiceClient, "android.media.IAudioPolicyServiceClient");
@@ -73,6 +83,13 @@ status_t BnAudioPolicyServiceClient::onTransact(
             onAudioPatchListUpdate();
             return NO_ERROR;
         } break;
+    case MIX_STATE_UPDATE: {
+            CHECK_INTERFACE(IAudioPolicyServiceClient, data, reply);
+            String8 regId = data.readString8();
+            int32_t state = data.readInt32();
+            onDynamicPolicyMixStateUpdate(regId, state);
+            return NO_ERROR;
+    }
     default:
         return BBinder::onTransact(code, data, reply, flags);
     }

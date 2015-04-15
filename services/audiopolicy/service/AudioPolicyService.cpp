@@ -222,6 +222,21 @@ void AudioPolicyService::doOnAudioPatchListUpdate()
     }
 }
 
+void AudioPolicyService::onDynamicPolicyMixStateUpdate(String8 regId, int32_t state)
+{
+    ALOGV("AudioPolicyService::onDynamicPolicyMixStateUpdate(%s, %d)",
+            regId.string(), state);
+    mOutputCommandThread->dynamicPolicyMixStateUpdateCommand(regId, state);
+}
+
+void AudioPolicyService::doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t state)
+{
+    Mutex::Autolock _l(mNotificationClientsLock);
+    for (size_t i = 0; i < mNotificationClients.size(); i++) {
+        mNotificationClients.valueAt(i)->onDynamicPolicyMixStateUpdate(regId, state);
+    }
+}
+
 status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_config *config,
                                                       int delayMs)
 {
@@ -259,6 +274,14 @@ void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
 {
     if (mAudioPolicyServiceClient != 0) {
         mAudioPolicyServiceClient->onAudioPatchListUpdate();
+    }
+}
+
+void AudioPolicyService::NotificationClient::onDynamicPolicyMixStateUpdate(
+        String8 regId, int32_t state)
+{
+    if (mAudioPolicyServiceClient != 0) {
+            mAudioPolicyServiceClient->onDynamicPolicyMixStateUpdate(regId, state);
     }
 }
 
@@ -511,6 +534,20 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                         command->mStatus = af->setAudioPortConfig(&data->mConfig);
                     }
                     } break;
+                case DYN_POLICY_MIX_STATE_UPDATE: {
+                    DynPolicyMixStateUpdateData *data =
+                            (DynPolicyMixStateUpdateData *)command->mParam.get();
+                    //###ALOGV("AudioCommandThread() processing dyn policy mix state update");
+                    ALOGV("AudioCommandThread() processing dyn policy mix state update %s %d",
+                            data->mRegId.string(), data->mState);
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->doOnDynamicPolicyMixStateUpdate(data->mRegId, data->mState);
+                    mLock.lock();
+                    } break;
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
                 }
@@ -747,6 +784,20 @@ status_t AudioPolicyService::AudioCommandThread::setAudioPortConfigCommand(
     return sendCommand(command, delayMs);
 }
 
+void AudioPolicyService::AudioCommandThread::dynamicPolicyMixStateUpdateCommand(
+        String8 regId, int32_t state)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = DYN_POLICY_MIX_STATE_UPDATE;
+    DynPolicyMixStateUpdateData *data = new DynPolicyMixStateUpdateData();
+    data->mRegId = regId;
+    data->mState = state;
+    command->mParam = data;
+    ALOGV("AudioCommandThread() sending dynamic policy mix (id=%s) state update to %d",
+            regId.string(), state);
+    sendCommand(command);
+}
+
 status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)
 {
     {
@@ -886,6 +937,10 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
             // force delayMs to non 0 so that code below does not request to wait for
             // command status as the command is now delayed
             delayMs = 1;
+        } break;
+
+        case DYN_POLICY_MIX_STATE_UPDATE: {
+
         } break;
 
         case START_TONE:

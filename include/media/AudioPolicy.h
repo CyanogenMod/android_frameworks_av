@@ -38,8 +38,14 @@ namespace android {
 #define MIX_TYPE_PLAYERS 0
 #define MIX_TYPE_RECORDERS 1
 
+#define MIX_STATE_DISABLED -1
+#define MIX_STATE_IDLE 0
+#define MIX_STATE_MIXING 1
+
 #define ROUTE_FLAG_RENDER 0x1
 #define ROUTE_FLAG_LOOP_BACK (0x1 << 1)
+
+#define MIX_FLAG_NOTIFY_ACTIVITY 0x1
 
 #define MAX_MIXES_PER_POLICY 10
 #define MAX_CRITERIA_PER_MIX 20
@@ -63,9 +69,9 @@ class AudioMix {
 public:
     AudioMix() {}
     AudioMix(Vector<AttributeMatchCriterion> criteria, uint32_t mixType, audio_config_t format,
-             uint32_t routeFlags, String8 registrationId) :
+             uint32_t routeFlags, String8 registrationId, uint32_t flags) :
         mCriteria(criteria), mMixType(mixType), mFormat(format),
-        mRouteFlags(routeFlags), mRegistrationId(registrationId) {}
+        mRouteFlags(routeFlags), mRegistrationId(registrationId), mFlags(flags){}
 
     status_t readFromParcel(Parcel *parcel);
     status_t writeToParcel(Parcel *parcel) const;
@@ -75,6 +81,7 @@ public:
     audio_config_t  mFormat;
     uint32_t        mRouteFlags;
     String8         mRegistrationId;
+    uint32_t        mFlags;
 };
 
 }; // namespace android

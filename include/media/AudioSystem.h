@@ -384,6 +384,7 @@ private:
         // IAudioPolicyServiceClient
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();
+        virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
 
     private:
         Mutex                               mLock;
