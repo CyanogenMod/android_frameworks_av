@@ -78,6 +78,12 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         if (ret != 0) {
             return ret;
         }
+        int deviceVersion = cameraInfo.device_version;
+        if (deviceVersion < CAMERA_DEVICE_API_VERSION_2_0) {
+            // static_camera_characteristics is invalid
+            *info = rawInfo;
+            return ret;
+        }
         CameraMetadata m;
         m = rawInfo.static_camera_characteristics;
         deriveCameraCharacteristicsKeys(rawInfo.device_version, m);
