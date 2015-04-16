@@ -56,6 +56,24 @@ static int64_t getNowUs()
     return convertTimespecToUs(tv);
 }
 
+// FIXME: we don't use the pitch setting in the time stretcher (not working);
+// instead we emulate it using our sample rate converter.
+static const bool kFixPitch = true; // enable pitch fix
+static inline uint32_t adjustSampleRate(uint32_t sampleRate, float pitch)
+{
+    return kFixPitch ? (sampleRate * pitch + 0.5) : sampleRate;
+}
+
+static inline float adjustSpeed(float speed, float pitch)
+{
+    return kFixPitch ? (speed / pitch) : speed;
+}
+
+static inline float adjustPitch(float pitch)
+{
+    return kFixPitch ? AUDIO_TIMESTRETCH_PITCH_NORMAL : pitch;
+}
+
 // Must match similar computation in createTrack_l in Threads.cpp.
 // TODO: Move to a common library
 static size_t calculateMinFrameCount(
@@ -703,13 +721,15 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (AudioSystem::getSamplingRate(mOutput, &afSamplingRate) != NO_ERROR) {
         return NO_INIT;
     }
-    if (rate == 0 || rate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
+    // pitch is emulated by adjusting speed and sampleRate
+    const uint32_t effectiveSampleRate = adjustSampleRate(rate, mPitch);
+    if (rate == 0 || effectiveSampleRate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
         return BAD_VALUE;
     }
     // TODO: Should we also check if the buffer size is compatible?
 
     mSampleRate = rate;
-    mProxy->setSampleRate(rate);
+    mProxy->setSampleRate(effectiveSampleRate);
 
     return NO_ERROR;
 }
@@ -739,12 +759,6 @@ uint32_t AudioTrack::getSampleRate() const
 
 status_t AudioTrack::setPlaybackRate(float speed, float pitch)
 {
-    if (speed < AUDIO_TIMESTRETCH_SPEED_MIN
-            || speed > AUDIO_TIMESTRETCH_SPEED_MAX
-            || pitch < AUDIO_TIMESTRETCH_PITCH_MIN
-            || pitch > AUDIO_TIMESTRETCH_PITCH_MAX) {
-        return BAD_VALUE;
-    }
     AutoMutex lock(mLock);
     if (speed == mSpeed && pitch == mPitch) {
         return NO_ERROR;
@@ -755,14 +769,25 @@ status_t AudioTrack::setPlaybackRate(float speed, float pitch)
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         return INVALID_OPERATION;
     }
+    // pitch is emulated by adjusting speed and sampleRate
+    const uint32_t effectiveRate = adjustSampleRate(mSampleRate, pitch);
+    const float effectiveSpeed = adjustSpeed(speed, pitch);
+    const float effectivePitch = adjustPitch(pitch);
+    if (effectiveSpeed < AUDIO_TIMESTRETCH_SPEED_MIN
+            || effectiveSpeed > AUDIO_TIMESTRETCH_SPEED_MAX
+            || effectivePitch < AUDIO_TIMESTRETCH_PITCH_MIN
+            || effectivePitch > AUDIO_TIMESTRETCH_PITCH_MAX) {
+        return BAD_VALUE;
+    }
     // Check if the buffer size is compatible.
-    if (!isSampleRateSpeedAllowed_l(mSampleRate, speed)) {
+    if (!isSampleRateSpeedAllowed_l(effectiveRate, effectiveSpeed)) {
         ALOGV("setPlaybackRate(%f, %f) failed", speed, pitch);
         return BAD_VALUE;
     }
     mSpeed = speed;
     mPitch = pitch;
-    mProxy->setPlaybackRate(speed, pitch);
+    mProxy->setPlaybackRate(effectiveSpeed, effectivePitch);
+    mProxy->setSampleRate(effectiveRate); // FIXME: not quite "atomic" with setPlaybackRate
     return NO_ERROR;
 }
 
@@ -1317,8 +1342,11 @@ status_t AudioTrack::createTrack_l()
             gain_from_float(mVolume[AUDIO_INTERLEAVE_RIGHT])));
 
     mProxy->setSendLevel(mSendLevel);
-    mProxy->setSampleRate(mSampleRate);
-    mProxy->setPlaybackRate(mSpeed, mPitch);
+    const uint32_t effectiveSampleRate = adjustSampleRate(mSampleRate, mPitch);
+    const float effectiveSpeed = adjustSpeed(mSpeed, mPitch);
+    const float effectivePitch = adjustPitch(mPitch);
+    mProxy->setSampleRate(effectiveSampleRate);
+    mProxy->setPlaybackRate(effectiveSpeed, effectivePitch);
     mProxy->setMinimum(mNotificationFramesAct);
 
     mDeathNotifier = new DeathNotifier(this);
