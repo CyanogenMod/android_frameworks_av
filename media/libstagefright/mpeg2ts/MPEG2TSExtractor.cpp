@@ -204,6 +204,9 @@ status_t MPEG2TSExtractor::feedMore() {
     ssize_t n = mDataSource->readAt(mOffset, packet, kTSPacketSize);
 
     if (n < (ssize_t)kTSPacketSize) {
+        if (n >= 0) {
+            mParser->signalEOS(ERROR_END_OF_STREAM);
+        }
         return (n < 0) ? (status_t)n : ERROR_END_OF_STREAM;
     }
 
