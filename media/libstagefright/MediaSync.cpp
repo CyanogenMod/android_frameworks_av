@@ -115,6 +115,11 @@ status_t MediaSync::configureAudioTrack(
         return INVALID_OPERATION;
     }
 
+    if (audioTrack != NULL && nativeSampleRateInHz <= 0) {
+        ALOGE("configureAudioTrack: native sample rate should be positive.");
+        return BAD_VALUE;
+    }
+
     mAudioTrack = audioTrack;
     mNativeSampleRateInHz = nativeSampleRateInHz;
 
