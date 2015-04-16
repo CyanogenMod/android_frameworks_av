@@ -31,6 +31,7 @@ namespace android {
 
 class Parcel;
 class Surface;
+class IDataSource;
 class IStreamSource;
 class IGraphicBufferProducer;
 struct IMediaHTTPService;
@@ -49,6 +50,7 @@ public:
 
     virtual status_t        setDataSource(int fd, int64_t offset, int64_t length) = 0;
     virtual status_t        setDataSource(const sp<IStreamSource>& source) = 0;
+    virtual status_t        setDataSource(const sp<IDataSource>& source) = 0;
     virtual status_t        setVideoSurfaceTexture(
                                     const sp<IGraphicBufferProducer>& bufferProducer) = 0;
     virtual status_t        prepareAsync() = 0;

@@ -32,6 +32,7 @@ namespace android {
 
 struct AMessage;
 struct AString;
+struct IDataSource;
 struct IMediaHTTPService;
 class String8;
 struct HTTPBase;
@@ -53,11 +54,15 @@ public:
             HTTPBase *httpSource = NULL);
 
     static sp<DataSource> CreateMediaHTTP(const sp<IMediaHTTPService> &httpService);
+    static sp<DataSource> CreateFromIDataSource(const sp<IDataSource> &source);
 
     DataSource() {}
 
     virtual status_t initCheck() const = 0;
 
+    // Returns the number of bytes read, or -1 on failure. It's not an error if
+    // this returns zero; it just means the given offset is equal to, or
+    // beyond, the end of the source.
     virtual ssize_t readAt(off64_t offset, void *data, size_t size) = 0;
 
     // Convenience methods:

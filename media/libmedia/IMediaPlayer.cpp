@@ -21,6 +21,7 @@
 
 #include <binder/Parcel.h>
 
+#include <media/IDataSource.h>
 #include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayer.h>
 #include <media/IStreamSource.h>
@@ -35,6 +36,7 @@ enum {
     SET_DATA_SOURCE_URL,
     SET_DATA_SOURCE_FD,
     SET_DATA_SOURCE_STREAM,
+    SET_DATA_SOURCE_CALLBACK,
     PREPARE_ASYNC,
     START,
     STOP,
@@ -118,6 +120,14 @@ public:
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(source));
         remote()->transact(SET_DATA_SOURCE_STREAM, data, &reply);
+        return reply.readInt32();
+    }
+
+    status_t setDataSource(const sp<IDataSource> &source) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
+        data.writeStrongBinder(IInterface::asBinder(source));
+        remote()->transact(SET_DATA_SOURCE_CALLBACK, data, &reply);
         return reply.readInt32();
     }
 
@@ -403,6 +413,13 @@ status_t BnMediaPlayer::onTransact(
             CHECK_INTERFACE(IMediaPlayer, data, reply);
             sp<IStreamSource> source =
                 interface_cast<IStreamSource>(data.readStrongBinder());
+            reply->writeInt32(setDataSource(source));
+            return NO_ERROR;
+        }
+        case SET_DATA_SOURCE_CALLBACK: {
+            CHECK_INTERFACE(IMediaPlayer, data, reply);
+            sp<IDataSource> source =
+                interface_cast<IDataSource>(data.readStrongBinder());
             reply->writeInt32(setDataSource(source));
             return NO_ERROR;
         }

@@ -34,6 +34,7 @@
 #include <media/IMediaHTTPService.h>
 #include <media/MediaMetadataRetrieverInterface.h>
 #include <media/MediaPlayerInterface.h>
+#include <media/stagefright/DataSource.h>
 #include <private/media/VideoFrame.h>
 #include "MetadataRetrieverClient.h"
 #include "StagefrightMetadataRetriever.h"
@@ -171,6 +172,23 @@ status_t MetadataRetrieverClient::setDataSource(int fd, int64_t offset, int64_t 
     if (status == NO_ERROR) mRetriever = p;
     ::close(fd);
     return status;
+}
+
+status_t MetadataRetrieverClient::setDataSource(
+        const sp<IDataSource>& source)
+{
+    ALOGV("setDataSource(IDataSource)");
+    Mutex::Autolock lock(mLock);
+
+    sp<DataSource> dataSource = DataSource::CreateFromIDataSource(source);
+    player_type playerType =
+        MediaPlayerFactory::getPlayerType(NULL /* client */, dataSource);
+    ALOGV("player type = %d", playerType);
+    sp<MediaMetadataRetrieverBase> p = createRetriever(playerType);
+    if (p == NULL) return NO_INIT;
+    status_t ret = p->setDataSource(dataSource);
+    if (ret == NO_ERROR) mRetriever = p;
+    return ret;
 }
 
 sp<IMemory> MetadataRetrieverClient::getFrameAtTime(int64_t timeUs, int option)

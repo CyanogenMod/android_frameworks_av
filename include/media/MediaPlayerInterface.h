@@ -36,6 +36,7 @@ struct sockaddr_in;
 
 namespace android {
 
+class DataSource;
 class Parcel;
 class Surface;
 class IGraphicBufferProducer;
@@ -155,6 +156,10 @@ public:
     virtual status_t    setDataSource(int fd, int64_t offset, int64_t length) = 0;
 
     virtual status_t    setDataSource(const sp<IStreamSource> &source) {
+        return INVALID_OPERATION;
+    }
+
+    virtual status_t    setDataSource(const sp<DataSource> &source) {
         return INVALID_OPERATION;
     }
 

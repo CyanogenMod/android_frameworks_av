@@ -33,7 +33,7 @@ namespace android {
 
 struct AudioPlayer;
 struct ClockEstimator;
-struct DataSource;
+struct IDataSource;
 struct MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;

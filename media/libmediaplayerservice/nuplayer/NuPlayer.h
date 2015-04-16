@@ -26,6 +26,7 @@ namespace android {
 
 struct ABuffer;
 struct AMessage;
+struct IDataSource;
 class MetaData;
 struct NuPlayerDriver;
 
@@ -44,6 +45,8 @@ struct NuPlayer : public AHandler {
             const KeyedVector<String8, String8> *headers);
 
     void setDataSourceAsync(int fd, int64_t offset, int64_t length);
+
+    void setDataSourceAsync(const sp<DataSource> &source);
 
     void prepareAsync();
 

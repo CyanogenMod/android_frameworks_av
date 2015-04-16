@@ -131,6 +131,11 @@ player_type MediaPlayerFactory::getPlayerType(const sp<IMediaPlayer>& client,
     GET_PLAYER_TYPE_IMPL(client, source);
 }
 
+player_type MediaPlayerFactory::getPlayerType(const sp<IMediaPlayer>& client,
+                                              const sp<DataSource> &source) {
+    GET_PLAYER_TYPE_IMPL(client, source);
+}
+
 #undef GET_PLAYER_TYPE_IMPL
 
 sp<MediaPlayerBase> MediaPlayerFactory::createPlayer(
@@ -270,6 +275,13 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
     virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
                                const sp<IStreamSource>& /*source*/,
                                float /*curScore*/) {
+        return 1.0;
+    }
+
+    virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
+                               const sp<DataSource>& /*source*/,
+                               float /*curScore*/) {
+        // Only NuPlayer supports setting a DataSource source directly.
         return 1.0;
     }
 

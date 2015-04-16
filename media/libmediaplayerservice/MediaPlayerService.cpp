@@ -790,6 +790,19 @@ status_t MediaPlayerService::Client::setDataSource(
     return mStatus;
 }
 
+status_t MediaPlayerService::Client::setDataSource(
+        const sp<IDataSource> &source) {
+    sp<DataSource> dataSource = DataSource::CreateFromIDataSource(source);
+    player_type playerType = MediaPlayerFactory::getPlayerType(this, dataSource);
+    sp<MediaPlayerBase> p = setDataSource_pre(playerType);
+    if (p == NULL) {
+        return NO_INIT;
+    }
+    // now set data source
+    setDataSource_post(p, p->setDataSource(dataSource));
+    return mStatus;
+}
+
 void MediaPlayerService::Client::disconnectNativeWindow() {
     if (mConnectedWindow != NULL) {
         status_t err = native_window_api_disconnect(mConnectedWindow.get(),

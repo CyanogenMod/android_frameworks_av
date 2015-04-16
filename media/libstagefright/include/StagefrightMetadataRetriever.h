@@ -38,6 +38,7 @@ struct StagefrightMetadataRetriever : public MediaMetadataRetrieverInterface {
             const KeyedVector<String8, String8> *headers);
 
     virtual status_t setDataSource(int fd, int64_t offset, int64_t length);
+    virtual status_t setDataSource(const sp<DataSource>& source);
 
     virtual VideoFrame *getFrameAtTime(int64_t timeUs, int option);
     virtual MediaAlbumArt *extractAlbumArt();
@@ -53,6 +54,8 @@ private:
     MediaAlbumArt *mAlbumArt;
 
     void parseMetaData();
+    // Delete album art and clear metadata.
+    void clearMetadata();
 
     StagefrightMetadataRetriever(const StagefrightMetadataRetriever &);
 

@@ -49,6 +49,7 @@ public:
             const KeyedVector<String8, String8> *headers);
 
     virtual status_t                setDataSource(int fd, int64_t offset, int64_t length);
+    virtual status_t                setDataSource(const sp<IDataSource>& source);
     virtual sp<IMemory>             getFrameAtTime(int64_t timeUs, int option);
     virtual sp<IMemory>             extractAlbumArt();
     virtual const char*             extractMetadata(int keyCode);

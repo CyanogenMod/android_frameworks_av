@@ -129,6 +129,18 @@ status_t MediaMetadataRetriever::setDataSource(int fd, int64_t offset, int64_t l
     return mRetriever->setDataSource(fd, offset, length);
 }
 
+status_t MediaMetadataRetriever::setDataSource(
+    const sp<IDataSource>& dataSource)
+{
+    ALOGV("setDataSource(IDataSource)");
+    Mutex::Autolock _l(mLock);
+    if (mRetriever == 0) {
+        ALOGE("retriever is not initialized");
+        return INVALID_OPERATION;
+    }
+    return mRetriever->setDataSource(dataSource);
+}
+
 sp<IMemory> MediaMetadataRetriever::getFrameAtTime(int64_t timeUs, int option)
 {
     ALOGV("getFrameAtTime: time(%" PRId64 " us) option(%d)", timeUs, option);

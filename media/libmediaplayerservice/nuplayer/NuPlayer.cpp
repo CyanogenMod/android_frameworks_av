@@ -285,6 +285,22 @@ void NuPlayer::setDataSourceAsync(int fd, int64_t offset, int64_t length) {
     msg->post();
 }
 
+void NuPlayer::setDataSourceAsync(const sp<DataSource> &dataSource) {
+    sp<AMessage> msg = new AMessage(kWhatSetDataSource, this);
+    sp<AMessage> notify = new AMessage(kWhatSourceNotify, this);
+
+    sp<GenericSource> source = new GenericSource(notify, mUIDValid, mUID);
+    status_t err = source->setDataSource(dataSource);
+
+    if (err != OK) {
+        ALOGE("Failed to set data source!");
+        source = NULL;
+    }
+
+    msg->setObject("source", source);
+    msg->post();
+}
+
 void NuPlayer::prepareAsync() {
     (new AMessage(kWhatPrepare, this))->post();
 }

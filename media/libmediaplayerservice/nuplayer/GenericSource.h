@@ -32,6 +32,7 @@ class DrmManagerClient;
 struct AnotherPacketSource;
 struct ARTSPController;
 struct DataSource;
+struct IDataSource;
 struct IMediaHTTPService;
 struct MediaSource;
 class MediaBuffer;
@@ -47,6 +48,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
             const KeyedVector<String8, String8> *headers);
 
     status_t setDataSource(int fd, int64_t offset, int64_t length);
+
+    status_t setDataSource(const sp<DataSource>& dataSource);
 
     virtual void prepareAsync();
 

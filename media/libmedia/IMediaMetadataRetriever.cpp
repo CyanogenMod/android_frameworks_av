@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <binder/Parcel.h>
+#include <media/IDataSource.h>
 #include <media/IMediaHTTPService.h>
 #include <media/IMediaMetadataRetriever.h>
 #include <utils/String8.h>
@@ -65,6 +66,7 @@ enum {
     DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
     SET_DATA_SOURCE_URL,
     SET_DATA_SOURCE_FD,
+    SET_DATA_SOURCE_CALLBACK,
     GET_FRAME_AT_TIME,
     EXTRACT_ALBUM_ART,
     EXTRACT_METADATA,
@@ -122,6 +124,15 @@ public:
         data.writeInt64(offset);
         data.writeInt64(length);
         remote()->transact(SET_DATA_SOURCE_FD, data, &reply);
+        return reply.readInt32();
+    }
+
+    status_t setDataSource(const sp<IDataSource>& source)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaMetadataRetriever::getInterfaceDescriptor());
+        data.writeStrongBinder(IInterface::asBinder(source));
+        remote()->transact(SET_DATA_SOURCE_CALLBACK, data, &reply);
         return reply.readInt32();
     }
 
@@ -233,6 +244,13 @@ status_t BnMediaMetadataRetriever::onTransact(
             int64_t offset = data.readInt64();
             int64_t length = data.readInt64();
             reply->writeInt32(setDataSource(fd, offset, length));
+            return NO_ERROR;
+        } break;
+        case SET_DATA_SOURCE_CALLBACK: {
+            CHECK_INTERFACE(IMediaMetadataRetriever, data, reply);
+            sp<IDataSource> source =
+                interface_cast<IDataSource>(data.readStrongBinder());
+            reply->writeInt32(setDataSource(source));
             return NO_ERROR;
         } break;
         case GET_FRAME_AT_TIME: {
