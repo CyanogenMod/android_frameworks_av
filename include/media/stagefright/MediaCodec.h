@@ -304,6 +304,7 @@ private:
     sp<AMessage> mActivityNotify;
 
     bool mHaveInputSurface;
+    bool mHavePendingInputBuffers;
 
     MediaCodec(const sp<ALooper> &looper);
 

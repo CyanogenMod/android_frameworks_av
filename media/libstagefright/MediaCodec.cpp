@@ -320,7 +320,8 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
       mDequeueInputReplyID(0),
       mDequeueOutputTimeoutGeneration(0),
       mDequeueOutputReplyID(0),
-      mHaveInputSurface(false) {
+      mHaveInputSurface(false),
+      mHavePendingInputBuffers(false) {
 }
 
 MediaCodec::~MediaCodec() {
@@ -1380,7 +1381,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     if (mFlags & kFlagIsAsync) {
                         if (!mHaveInputSurface) {
-                            onInputBufferAvailable();
+                            if (mState == FLUSHED) {
+                                mHavePendingInputBuffers = true;
+                            } else {
+                                onInputBufferAvailable();
+                            }
                         }
                     } else if (mFlags & kFlagDequeueInputPending) {
                         CHECK(handleDequeueInputBuffer(mDequeueInputReplyID));
@@ -1648,6 +1653,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
             if (mState == FLUSHED) {
                 setState(STARTED);
+                if (mHavePendingInputBuffers) {
+                    onInputBufferAvailable();
+                    mHavePendingInputBuffers = false;
+                }
                 mCodec->signalResume();
                 PostReplyWithError(replyID, OK);
                 break;
