@@ -34,6 +34,10 @@ class CameraModule {
 public:
     CameraModule(camera_module_t *module);
 
+    // Must be called after construction
+    // Returns OK on success, NO_INIT on failure
+    int init();
+
     int getCameraInfo(int cameraId, struct camera_info *info);
     int getNumberOfCameras(void);
     int open(const char* id, struct hw_device_t** device);
@@ -63,4 +67,3 @@ private:
 } // namespace android
 
 #endif
-

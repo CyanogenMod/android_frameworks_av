@@ -140,76 +140,90 @@ void CameraService::onFirstRef()
     BnCameraService::onFirstRef();
 
     camera_module_t *rawModule;
-    if (hw_get_module(CAMERA_HARDWARE_MODULE_ID,
-                (const hw_module_t **)&rawModule) < 0) {
-        ALOGE("Could not load camera HAL module");
+    int err = hw_get_module(CAMERA_HARDWARE_MODULE_ID,
+            (const hw_module_t **)&rawModule);
+    if (err < 0) {
+        ALOGE("Could not load camera HAL module: %d (%s)", err, strerror(-err));
+        logServiceError("Could not load camera HAL module", err);
         mNumberOfCameras = 0;
+        return;
     }
-    else {
-        mModule = new CameraModule(rawModule);
-        ALOGI("Loaded \"%s\" camera module", mModule->getModuleName());
-        mNumberOfCameras = mModule->getNumberOfCameras();
 
-        mFlashlight = new CameraFlashlight(*mModule, *this);
-        status_t res = mFlashlight->findFlashUnits();
-        if (res) {
-            // impossible because we haven't open any camera devices.
-            ALOGE("Failed to find flash units.");
-        }
+    mModule = new CameraModule(rawModule);
+    ALOGI("Loaded \"%s\" camera module", mModule->getModuleName());
+    err = mModule->init();
+    if (err != OK) {
+        ALOGE("Could not initialize camera HAL module: %d (%s)", err,
+            strerror(-err));
+        logServiceError("Could not initialize camera HAL module", err);
 
-        for (int i = 0; i < mNumberOfCameras; i++) {
-            String8 cameraId = String8::format("%d", i);
-
-            // Defaults to use for cost and conflicting devices
-            int cost = 100;
-            char** conflicting_devices = nullptr;
-            size_t conflicting_devices_length = 0;
-
-            // If using post-2.4 module version, query the cost + conflicting devices from the HAL
-            if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
-                struct camera_info info;
-                status_t rc = mModule->getCameraInfo(i, &info);
-                if (rc == NO_ERROR) {
-                    cost = info.resource_cost;
-                    conflicting_devices = info.conflicting_devices;
-                    conflicting_devices_length = info.conflicting_devices_length;
-                } else {
-                    ALOGE("%s: Received error loading camera info for device %d, cost and"
-                            " conflicting devices fields set to defaults for this device.",
-                            __FUNCTION__, i);
-                }
-            }
-
-            std::set<String8> conflicting;
-            for (size_t i = 0; i < conflicting_devices_length; i++) {
-                conflicting.emplace(String8(conflicting_devices[i]));
-            }
-
-            // Initialize state for each camera device
-            {
-                Mutex::Autolock lock(mCameraStatesLock);
-                mCameraStates.emplace(cameraId, std::make_shared<CameraState>(cameraId, cost,
-                        conflicting));
-            }
-
-            if (mFlashlight->hasFlashUnit(cameraId)) {
-                mTorchStatusMap.add(cameraId,
-                        ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF);
-            }
-        }
-
-        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_1) {
-            mModule->setCallbacks(this);
-        }
-
-        VendorTagDescriptor::clearGlobalVendorTagDescriptor();
-
-        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_2) {
-            setUpVendorTags();
-        }
-
-        CameraDeviceFactory::registerService(this);
+        mNumberOfCameras = 0;
+        delete mModule;
+        mModule = nullptr;
+        return;
     }
+
+    mNumberOfCameras = mModule->getNumberOfCameras();
+
+    mFlashlight = new CameraFlashlight(*mModule, *this);
+    status_t res = mFlashlight->findFlashUnits();
+    if (res) {
+        // impossible because we haven't open any camera devices.
+        ALOGE("Failed to find flash units.");
+    }
+
+    for (int i = 0; i < mNumberOfCameras; i++) {
+        String8 cameraId = String8::format("%d", i);
+
+        // Defaults to use for cost and conflicting devices
+        int cost = 100;
+        char** conflicting_devices = nullptr;
+        size_t conflicting_devices_length = 0;
+
+        // If using post-2.4 module version, query the cost + conflicting devices from the HAL
+        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
+            struct camera_info info;
+            status_t rc = mModule->getCameraInfo(i, &info);
+            if (rc == NO_ERROR) {
+                cost = info.resource_cost;
+                conflicting_devices = info.conflicting_devices;
+                conflicting_devices_length = info.conflicting_devices_length;
+            } else {
+                ALOGE("%s: Received error loading camera info for device %d, cost and"
+                        " conflicting devices fields set to defaults for this device.",
+                        __FUNCTION__, i);
+            }
+        }
+
+        std::set<String8> conflicting;
+        for (size_t i = 0; i < conflicting_devices_length; i++) {
+            conflicting.emplace(String8(conflicting_devices[i]));
+        }
+
+        // Initialize state for each camera device
+        {
+            Mutex::Autolock lock(mCameraStatesLock);
+            mCameraStates.emplace(cameraId, std::make_shared<CameraState>(cameraId, cost,
+                    conflicting));
+        }
+
+        if (mFlashlight->hasFlashUnit(cameraId)) {
+            mTorchStatusMap.add(cameraId,
+                    ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF);
+        }
+    }
+
+    if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_1) {
+        mModule->setCallbacks(this);
+    }
+
+    VendorTagDescriptor::clearGlobalVendorTagDescriptor();
+
+    if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_2) {
+        setUpVendorTags();
+    }
+
+    CameraDeviceFactory::registerService(this);
 }
 
 CameraService::~CameraService() {
@@ -1553,6 +1567,11 @@ void CameraService::logClientDied(int clientPid, const char* reason) {
     logEvent(String8::format("DIED client(s) with PID %d, reason: (%s)", clientPid, reason));
 }
 
+void CameraService::logServiceError(const char* msg, int errorCode) {
+    String8 curTime = getFormattedCurrentTime();
+    logEvent(String8::format("SERVICE ERROR: %s : %d (%s)", msg, errorCode, strerror(errorCode)));
+}
+
 status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
         uint32_t flags) {
 
@@ -1995,6 +2014,10 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         if (!mModule) {
             result = String8::format("No camera module available!\n");
             write(fd, result.string(), result.size());
+
+            // Dump event log for error information
+            dumpEventLog(fd);
+
             if (locked) mServiceLock.unlock();
             return NO_ERROR;
         }
@@ -2020,20 +2043,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
             desc->dump(fd, /*verbosity*/2, /*indentation*/4);
         }
 
-        result = String8("Prior client events (most recent at top):\n");
-
-        {
-            Mutex::Autolock l(mLogLock);
-            for (const auto& msg : mEventLog) {
-                result.appendFormat("%s\n", msg.string());
-            }
-
-            if (mEventLog.size() == DEFAULT_EVENT_LOG_LENGTH) {
-                result.append("...\n");
-            }
-        }
-
-        write(fd, result.string(), result.size());
+        dumpEventLog(fd);
 
         bool stateLocked = tryLock(mCameraStatesLock);
         if (!stateLocked) {
@@ -2139,6 +2149,24 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         }
     }
     return NO_ERROR;
+}
+
+void CameraService::dumpEventLog(int fd) {
+    String8 result = String8("\nPrior client events (most recent at top):\n");
+
+    Mutex::Autolock l(mLogLock);
+    for (const auto& msg : mEventLog) {
+        result.appendFormat("  %s\n", msg.string());
+    }
+
+    if (mEventLog.size() == DEFAULT_EVENT_LOG_LENGTH) {
+        result.append("  ...\n");
+    } else if (mEventLog.size() == 0) {
+        result.append("  [no events yet]\n");
+    }
+    result.append("\n");
+
+    write(fd, result.string(), result.size());
 }
 
 void CameraService::handleTorchClientBinderDied(const wp<IBinder> &who) {
