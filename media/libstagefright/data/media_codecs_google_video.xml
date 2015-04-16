@@ -16,6 +16,15 @@
 
 <Included>
     <Decoders>
+        <MediaCodec name="OMX.google.mpeg2.decoder" type="video/mpeg2">
+            <!-- profiles and levels:  ProfileMain : LevelHL -->
+            <Limit name="size" min="16x16" max="1920x1088" />
+            <Limit name="alignment" value="2x2" />
+            <Limit name="block-size" value="16x16" />
+            <Limit name="blocks-per-second" range="1-244800" />
+            <Limit name="bitrate" range="1-20000000" />
+            <Feature name="adaptive-playback" />
+        </MediaCodec>
         <MediaCodec name="OMX.google.mpeg4.decoder" type="video/mp4v-es">
             <!-- profiles and levels:  ProfileSimple : Level3 -->
             <Limit name="size" min="2x2" max="352x288" />
@@ -34,12 +43,12 @@
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="OMX.google.h264.decoder" type="video/avc">
-            <!-- profiles and levels:  ProfileBaseline : Level51 -->
-            <Limit name="size" min="2x2" max="2048x2048" />
+            <!-- profiles and levels:  ProfileHigh : Level41 -->
+            <Limit name="size" min="16x16" max="1920x1088" />
             <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
-            <Limit name="blocks-per-second" range="1-983040" />
-            <Limit name="bitrate" range="1-40000000" />
+            <Limit name="blocks-per-second" range="1-244800" />
+            <Limit name="bitrate" range="1-12000000" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
         <MediaCodec name="OMX.google.hevc.decoder" type="video/hevc">
@@ -78,12 +87,12 @@
             <Limit name="bitrate" range="1-128000" />
         </MediaCodec>
         <MediaCodec name="OMX.google.h264.encoder" type="video/avc">
-            <!-- profiles and levels:  ProfileBaseline : Level2 -->
-            <Limit name="size" min="16x16" max="896x896" />
-            <Limit name="alignment" value="16x16" />
+            <!-- profiles and levels:  ProfileBaseline : Level41 -->
+            <Limit name="size" min="16x16" max="1920x1088" />
+            <Limit name="alignment" value="2x2" />
             <Limit name="block-size" value="16x16" />
-            <Limit name="blocks-per-second" range="1-11880" />
-            <Limit name="bitrate" range="1-2000000" />
+            <Limit name="blocks-per-second" range="1-244800" />
+            <Limit name="bitrate" range="1-12000000" />
         </MediaCodec>
         <MediaCodec name="OMX.google.mpeg4.encoder" type="video/mp4v-es">
             <!-- profiles and levels:  ProfileCore : Level2 -->
