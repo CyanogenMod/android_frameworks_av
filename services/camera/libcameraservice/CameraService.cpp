@@ -299,12 +299,11 @@ void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
     ICameraServiceListener::TorchStatus status;
     status_t res = getTorchStatusLocked(cameraId, &status);
     if (res) {
-        ALOGE("%s: cannot get torch status of camera %s", cameraId.string());
+        ALOGE("%s: cannot get torch status of camera %s: %s (%d)",
+                __FUNCTION__, cameraId.string(), strerror(-res), res);
         return;
     }
     if (status == newStatus) {
-        ALOGE("%s: Torch state transition to the same status 0x%x not allowed",
-              __FUNCTION__, (uint32_t)newStatus);
         return;
     }
 
@@ -1139,14 +1138,14 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
     // verify id is valid.
     auto state = getCameraState(id);
     if (state == nullptr) {
-        ALOGE("%s: camera id is invalid %s", id.string());
+        ALOGE("%s: camera id is invalid %s", __FUNCTION__, id.string());
         return -EINVAL;
     }
 
     ICameraServiceListener::Status cameraStatus = state->getStatus();
     if (cameraStatus != ICameraServiceListener::STATUS_PRESENT &&
             cameraStatus != ICameraServiceListener::STATUS_NOT_AVAILABLE) {
-        ALOGE("%s: camera id is invalid %s", id.string());
+        ALOGE("%s: camera id is invalid %s", __FUNCTION__, id.string());
         return -EINVAL;
     }
 
@@ -2204,16 +2203,20 @@ void CameraService::updateStatus(ICameraServiceListener::Status status, const St
     state->updateStatus(status, cameraId, rejectSourceStates, [this]
             (const String8& cameraId, ICameraServiceListener::Status status) {
 
-            // Update torch status
-            if (status == ICameraServiceListener::STATUS_NOT_PRESENT ||
-                status == ICameraServiceListener::STATUS_NOT_AVAILABLE) {
-                // Update torch status to not available when the camera device becomes not present
-                // or not available.
-                onTorchStatusChanged(cameraId, ICameraServiceListener::TORCH_STATUS_NOT_AVAILABLE);
-            } else if (status == ICameraServiceListener::STATUS_PRESENT) {
-                // Update torch status to available when the camera device becomes present or
-                // available
-                onTorchStatusChanged(cameraId, ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF);
+            if (status != ICameraServiceListener::STATUS_ENUMERATING) {
+                // Update torch status if it has a flash unit.
+                Mutex::Autolock al(mTorchStatusMutex);
+                ICameraServiceListener::TorchStatus torchStatus;
+                if (getTorchStatusLocked(cameraId, &torchStatus) !=
+                        NAME_NOT_FOUND) {
+                    ICameraServiceListener::TorchStatus newTorchStatus =
+                            status == ICameraServiceListener::STATUS_PRESENT ?
+                            ICameraServiceListener::TORCH_STATUS_AVAILABLE_OFF :
+                            ICameraServiceListener::TORCH_STATUS_NOT_AVAILABLE;
+                    if (torchStatus != newTorchStatus) {
+                        onTorchStatusChangedLocked(cameraId, newTorchStatus);
+                    }
+                }
             }
 
             Mutex::Autolock lock(mStatusListenerLock);
