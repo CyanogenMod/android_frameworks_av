@@ -278,7 +278,8 @@ public:
                                      uint32_t samplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
-                                     audio_input_flags_t flags)
+                                     audio_input_flags_t flags,
+                                     audio_port_handle_t selectedDeviceId)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
@@ -296,6 +297,7 @@ public:
         data.writeInt32(static_cast <uint32_t>(format));
         data.writeInt32(channelMask);
         data.writeInt32(flags);
+        data.writeInt32(selectedDeviceId);
         status_t status = remote()->transact(GET_INPUT_FOR_ATTR, data, &reply);
         if (status != NO_ERROR) {
             return status;
@@ -914,10 +916,11 @@ status_t BnAudioPolicyService::onTransact(
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
             audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
+            audio_port_handle_t selectedDeviceId = (audio_port_handle_t) data.readInt32();
             audio_io_handle_t input;
             status_t status = getInputForAttr(&attr, &input, session,
                                               samplingRate, format, channelMask,
-                                              flags);
+                                              flags, selectedDeviceId);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
                 reply->writeInt32(input);

@@ -689,7 +689,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
             break;
         }
     }
-    mOutputRoutes.addRoute(session, *stream, deviceDesc);
+    mOutputRoutes.addRoute(session, *stream, SessionRoute::SOURCE_TYPE_NA, deviceDesc);
     return NO_ERROR;
 }
 
@@ -1226,6 +1226,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
                                              audio_format_t format,
                                              audio_channel_mask_t channelMask,
                                              audio_input_flags_t flags,
+                                             audio_port_handle_t selectedDeviceId,
                                              input_type_t *inputType)
 {
     ALOGV("getInputForAttr() source %d, samplingRate %d, format %d, channelMask %x,"
@@ -1246,6 +1247,16 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         inputSource = AUDIO_SOURCE_MIC;
     }
     halInputSource = inputSource;
+
+    // Explicit routing?
+    sp<DeviceDescriptor> deviceDesc;
+    for (size_t i = 0; i < mAvailableInputDevices.size(); i++) {
+        if (mAvailableInputDevices[i]->getId() == selectedDeviceId) {
+            deviceDesc = mAvailableInputDevices[i];
+            break;
+        }
+    }
+    mInputRoutes.addRoute(session, SessionRoute::STREAM_TYPE_NA, inputSource, deviceDesc);
 
     if (inputSource == AUDIO_SOURCE_REMOTE_SUBMIX &&
             strncmp(attr->tags, "addr=", strlen("addr=")) == 0) {
@@ -1378,6 +1389,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
 
     addInput(*input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
+
     return NO_ERROR;
 }
 
@@ -1419,13 +1431,16 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
         }
     }
 
-    if (inputDesc->mRefCount == 0) {
+    if (inputDesc->mRefCount == 0 || mInputRoutes.hasRouteChanged(session)) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((inputDesc->mPolicyMix != NULL)
                 && ((inputDesc->mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
             mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
                     MIX_STATE_MIXING);
         }
+
+        // Routing?
+        mInputRoutes.incRouteActivity(session);
 
         if (mInputs.activeInputsCount() == 0) {
             SoundTrigger::setCaptureState(true);
@@ -1479,6 +1494,10 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
     }
 
     inputDesc->mRefCount--;
+
+    // Routing?
+    mInputRoutes.decRouteActivity(session);
+
     if (inputDesc->mRefCount == 0) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((inputDesc->mPolicyMix != NULL)
@@ -1521,6 +1540,10 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input,
         ALOGW("releaseInput() releasing unknown input %d", input);
         return;
     }
+
+    // Routing
+    mInputRoutes.removeRoute(session);
+
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
     ALOG_ASSERT(inputDesc != 0);
 
@@ -3771,7 +3794,6 @@ audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
 
     audio_devices_t device = getDeviceAndMixForInputSource(inputDesc->mInputSource);
 
-    ALOGV("getNewInputDevice() selected device %x", device);
     return device;
 }
 
@@ -4291,7 +4313,15 @@ audio_devices_t AudioPolicyManager::getDeviceAndMixForInputSource(audio_source_t
 
 audio_devices_t AudioPolicyManager::getDeviceForInputSource(audio_source_t inputSource)
 {
-    return mEngine->getDeviceForInputSource(inputSource);
+    for (size_t routeIndex = 0; routeIndex < mInputRoutes.size(); routeIndex++) {
+         sp<SessionRoute> route = mInputRoutes.valueAt(routeIndex);
+         if (inputSource == route->mSource && route->mDeviceDescriptor != 0
+                 /*&& route->mActivityCount != 0*/) {
+             return route->mDeviceDescriptor->type();
+         }
+     }
+
+     return mEngine->getDeviceForInputSource(inputSource);
 }
 
 float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
@@ -4514,8 +4544,8 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
 
 // --- SessionRoute class implementation
 void AudioPolicyManager::SessionRoute::log(const char* prefix) {
-    ALOGI("%s[SessionRoute strm:0x%X, sess:0x%X, dev:0x%X refs:%d act:%d",
-          prefix, mStreamType, mSession,
+    ALOGI("%s[SessionRoute strm:0x%X, src:%d, sess:0x%X, dev:0x%X refs:%d act:%d",
+          prefix, mStreamType, mSource, mSession,
           mDeviceDescriptor != 0 ? mDeviceDescriptor->type() : AUDIO_DEVICE_NONE,
           mRefCount, mActivityCount);
 }
@@ -4535,28 +4565,6 @@ bool AudioPolicyManager::SessionRouteMap::hasRouteChanged(audio_session_t sessio
         }
     }
     return false;
-}
-
-void AudioPolicyManager::SessionRouteMap::addRoute(audio_session_t session,
-                                                   audio_stream_type_t streamType,
-                                                   sp<DeviceDescriptor> deviceDescriptor)
-{
-    sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
-    if (route != NULL) {
-        if ((route->mDeviceDescriptor == 0 && deviceDescriptor != 0) ||
-                (!route->mDeviceDescriptor->equals(deviceDescriptor))) {
-            route->mChanged = true;
-        }
-        route->mRefCount++;
-        route->mDeviceDescriptor = deviceDescriptor;
-    } else {
-        route = new AudioPolicyManager::SessionRoute(session, streamType, deviceDescriptor);
-        route->mRefCount++;
-        add(session, route);
-        if (deviceDescriptor != 0) {
-            route->mChanged = true;
-        }
-    }
 }
 
 void AudioPolicyManager::SessionRouteMap::removeRoute(audio_session_t session)
@@ -4591,6 +4599,38 @@ void AudioPolicyManager::SessionRouteMap::log(const char* caption) {
     ALOGI("%s ----", caption);
     for(size_t index = 0; index < size(); index++) {
         valueAt(index)->log("  ");
+    }
+}
+
+void AudioPolicyManager::SessionRouteMap::addRoute(audio_session_t session,
+                                                   audio_stream_type_t streamType,
+                                                   audio_source_t source,
+                                                   sp<DeviceDescriptor> descriptor)
+{
+    if (mMapType == MAPTYPE_INPUT && streamType != SessionRoute::STREAM_TYPE_NA) {
+        ALOGE("Adding Output Route to InputRouteMap");
+        return;
+    } else if (mMapType == MAPTYPE_OUTPUT && source != SessionRoute::SOURCE_TYPE_NA) {
+        ALOGE("Adding Input Route to OutputRouteMap");
+        return;
+    }
+
+    sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
+
+    if (route != 0) {
+        if ((route->mDeviceDescriptor == 0 && descriptor != 0) ||
+                (!route->mDeviceDescriptor->equals(descriptor))) {
+            route->mChanged = true;
+        }
+        route->mRefCount++;
+        route->mDeviceDescriptor = descriptor;
+    } else {
+        route = new AudioPolicyManager::SessionRoute(session, streamType, source, descriptor);
+        route->mRefCount++;
+        add(session, route);
+        if (descriptor != 0) {
+            route->mChanged = true;
+        }
     }
 }
 
