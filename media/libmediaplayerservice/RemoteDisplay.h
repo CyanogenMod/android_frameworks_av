@@ -28,7 +28,7 @@ namespace android {
 
 struct ALooper;
 struct ANetworkSession;
-struct IRemoteDisplayClient;
+class IRemoteDisplayClient;
 struct WifiDisplaySource;
 
 struct RemoteDisplay : public BnRemoteDisplay {

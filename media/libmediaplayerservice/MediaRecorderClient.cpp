@@ -325,7 +325,7 @@ status_t MediaRecorderClient::setClientName(const String16& clientName) {
     return mRecorder->setClientName(clientName);
 }
 
-status_t MediaRecorderClient::dump(int fd, const Vector<String16>& args) const {
+status_t MediaRecorderClient::dump(int fd, const Vector<String16>& args) {
     if (mRecorder != NULL) {
         return mRecorder->dump(fd, args);
     }

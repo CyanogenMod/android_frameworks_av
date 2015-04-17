@@ -703,7 +703,7 @@ void NuPlayer::GenericSource::onPollBuffering() {
             stopBufferingIfNecessary();
         }
     } else if (cachedDataRemaining >= 0) {
-        ALOGV("onPollBuffering: cachedDataRemaining %d bytes",
+        ALOGV("onPollBuffering: cachedDataRemaining %zd bytes",
                 cachedDataRemaining);
 
         if (cachedDataRemaining < kLowWaterMarkBytes) {
@@ -790,7 +790,7 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           }
           readBuffer(trackType, timeUs, &actualTimeUs, formatChange);
           readBuffer(counterpartType, -1, NULL, formatChange);
-          ALOGV("timeUs %lld actualTimeUs %lld", timeUs, actualTimeUs);
+          ALOGV("timeUs %lld actualTimeUs %lld", (long long)timeUs, (long long)actualTimeUs);
 
           break;
       }

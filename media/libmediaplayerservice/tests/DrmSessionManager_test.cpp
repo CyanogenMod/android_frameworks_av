@@ -98,17 +98,17 @@ protected:
         mDrmSessionManager->addSession(kTestPid2, mTestDrm2, mSessionId2);
         mDrmSessionManager->addSession(kTestPid2, mTestDrm2, mSessionId3);
         const PidSessionInfosMap& map = sessionMap();
-        EXPECT_EQ(2, map.size());
+        EXPECT_EQ(2u, map.size());
         ssize_t index1 = map.indexOfKey(kTestPid1);
         ASSERT_GE(index1, 0);
         const SessionInfos& infos1 = map[index1];
-        EXPECT_EQ(1, infos1.size());
+        EXPECT_EQ(1u, infos1.size());
         ExpectEqSessionInfo(infos1[0], mTestDrm1, mSessionId1, 0);
 
         ssize_t index2 = map.indexOfKey(kTestPid2);
         ASSERT_GE(index2, 0);
         const SessionInfos& infos2 = map[index2];
-        EXPECT_EQ(2, infos2.size());
+        EXPECT_EQ(2u, infos2.size());
         ExpectEqSessionInfo(infos2[0], mTestDrm2, mSessionId2, 1);
         ExpectEqSessionInfo(infos2[1], mTestDrm2, mSessionId3, 2);
     }
@@ -185,11 +185,11 @@ TEST_F(DrmSessionManagerTest, removeSession) {
     mDrmSessionManager->removeSession(mSessionId2);
 
     const PidSessionInfosMap& map = sessionMap();
-    EXPECT_EQ(2, map.size());
+    EXPECT_EQ(2u, map.size());
     const SessionInfos& infos1 = map.valueFor(kTestPid1);
     const SessionInfos& infos2 = map.valueFor(kTestPid2);
-    EXPECT_EQ(1, infos1.size());
-    EXPECT_EQ(1, infos2.size());
+    EXPECT_EQ(1u, infos1.size());
+    EXPECT_EQ(1u, infos2.size());
     // mSessionId2 has been removed.
     ExpectEqSessionInfo(infos2[0], mTestDrm2, mSessionId3, 2);
 }
@@ -207,7 +207,7 @@ TEST_F(DrmSessionManagerTest, removeDrm) {
 
     const PidSessionInfosMap& map = sessionMap();
     const SessionInfos& infos2 = map.valueFor(kTestPid2);
-    EXPECT_EQ(1, infos2.size());
+    EXPECT_EQ(1u, infos2.size());
     // mTestDrm2 has been removed.
     ExpectEqSessionInfo(infos2[0], drm, sessionId, 3);
 }
@@ -220,7 +220,7 @@ TEST_F(DrmSessionManagerTest, reclaimSession) {
     EXPECT_FALSE(mDrmSessionManager->reclaimSession(50));
 
     EXPECT_TRUE(mDrmSessionManager->reclaimSession(10));
-    EXPECT_EQ(1, mTestDrm1->reclaimedSessions().size());
+    EXPECT_EQ(1u, mTestDrm1->reclaimedSessions().size());
     EXPECT_TRUE(isEqualSessionId(mSessionId1, mTestDrm1->reclaimedSessions()[0]));
 
     mDrmSessionManager->removeSession(mSessionId1);
@@ -233,7 +233,7 @@ TEST_F(DrmSessionManagerTest, reclaimSession) {
     mDrmSessionManager->addSession(15, drm, sessionId);
 
     EXPECT_TRUE(mDrmSessionManager->reclaimSession(18));
-    EXPECT_EQ(1, mTestDrm2->reclaimedSessions().size());
+    EXPECT_EQ(1u, mTestDrm2->reclaimedSessions().size());
     // mSessionId2 is reclaimed.
     EXPECT_TRUE(isEqualSessionId(mSessionId2, mTestDrm2->reclaimedSessions()[0]));
 }

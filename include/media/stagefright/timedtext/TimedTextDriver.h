@@ -24,7 +24,7 @@
 
 namespace android {
 
-class ALooper;
+struct ALooper;
 struct IMediaHTTPService;
 class MediaPlayerBase;
 class MediaSource;

@@ -24,7 +24,7 @@
 
 namespace android {
 
-struct ISurfaceComposer;
+class ISurfaceComposer;
 
 struct VideoFrameScheduler : public RefBase {
     VideoFrameScheduler();

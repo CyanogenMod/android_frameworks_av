@@ -413,7 +413,7 @@ status_t MediaPlayerService::AudioOutput::dump(int fd, const Vector<String16>& a
     return NO_ERROR;
 }
 
-status_t MediaPlayerService::Client::dump(int fd, const Vector<String16>& args) const
+status_t MediaPlayerService::Client::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -1461,8 +1461,6 @@ status_t MediaPlayerService::AudioOutput::open(
     }
     ALOGV("open(%u, %d, 0x%x, 0x%x, %d, %d 0x%x)", sampleRate, channelCount, channelMask,
                 format, bufferCount, mSessionId, flags);
-    uint32_t afSampleRate;
-    size_t afFrameCount;
     size_t frameCount;
 
     // offloading is only supported in callback mode for now.

@@ -971,7 +971,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findInt32("needNotify", &needNotify));
 
             ALOGV("kWhatSeek seekTimeUs=%lld us, needNotify=%d",
-                    seekTimeUs, needNotify);
+                    (long long)seekTimeUs, needNotify);
 
             mDeferredActions.push_back(
                     new FlushDecoderAction(FLUSH_CMD_FLUSH /* audio */,
@@ -1336,8 +1336,6 @@ void NuPlayer::updateVideoSize(
     }
 
     int32_t displayWidth, displayHeight;
-    int32_t cropLeft, cropTop, cropRight, cropBottom;
-
     if (outputFormat != NULL) {
         int32_t width, height;
         CHECK(outputFormat->findInt32("width", &width));
@@ -1570,7 +1568,7 @@ void NuPlayer::processDeferredActions() {
 
 void NuPlayer::performSeek(int64_t seekTimeUs, bool needNotify) {
     ALOGV("performSeek seekTimeUs=%lld us (%.2f secs), needNotify(%d)",
-          seekTimeUs,
+          (long long)seekTimeUs,
           seekTimeUs / 1E6,
           needNotify);
 

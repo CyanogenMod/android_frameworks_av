@@ -916,7 +916,6 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     }
 
     sp<AMessage> format = new AMessage;
-    const char *mime;
     switch (mAudioEncoder) {
         case AUDIO_ENCODER_AMR_NB:
         case AUDIO_ENCODER_DEFAULT:

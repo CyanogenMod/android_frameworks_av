@@ -54,7 +54,7 @@ public:
     virtual sp<IMemory>             extractAlbumArt();
     virtual const char*             extractMetadata(int keyCode);
 
-    virtual status_t                dump(int fd, const Vector<String16>& args) const;
+    virtual status_t                dump(int fd, const Vector<String16>& args);
 
 private:
     friend class MediaPlayerService;

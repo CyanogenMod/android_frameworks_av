@@ -304,7 +304,7 @@ private:
                                        int ext1, int ext2, const Parcel *obj);
 
                 pid_t           pid() const { return mPid; }
-        virtual status_t        dump(int fd, const Vector<String16>& args) const;
+        virtual status_t        dump(int fd, const Vector<String16>& args);
 
                 int             getAudioSessionId() { return mAudioSessionId; }
 

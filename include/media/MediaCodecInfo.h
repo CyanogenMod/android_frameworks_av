@@ -32,7 +32,7 @@
 namespace android {
 
 struct AMessage;
-struct Parcel;
+class Parcel;
 struct CodecCapabilities;
 
 typedef KeyedVector<AString, AString> CodecSettings;

@@ -18,6 +18,9 @@ LOCAL_C_INCLUDES := \
 	frameworks/av/include \
 	frameworks/av/media/libmediaplayerservice \
 
+LOCAL_CFLAGS += -Werror -Wall
+LOCAL_CLANG := true
+
 LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_NATIVE_TEST)
