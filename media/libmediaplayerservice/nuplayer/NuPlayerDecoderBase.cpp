@@ -103,16 +103,13 @@ void NuPlayer::DecoderBase::onRequestInputBuffers() {
         return;
     }
 
-    doRequestBuffers();
-}
+    // doRequestBuffers() return true if we should request more data
+    if (doRequestBuffers()) {
+        mRequestInputBuffersPending = true;
 
-void NuPlayer::DecoderBase::scheduleRequestBuffers() {
-    if (mRequestInputBuffersPending) {
-        return;
+        sp<AMessage> msg = new AMessage(kWhatRequestInputBuffers, this);
+        msg->post(10 * 1000ll);
     }
-    mRequestInputBuffersPending = true;
-    sp<AMessage> msg = new AMessage(kWhatRequestInputBuffers, this);
-    msg->post(10 * 1000ll);
 }
 
 void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {

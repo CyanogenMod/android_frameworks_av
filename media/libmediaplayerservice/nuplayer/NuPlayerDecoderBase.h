@@ -69,8 +69,7 @@ protected:
     virtual void onShutdown(bool notifyComplete) = 0;
 
     void onRequestInputBuffers();
-    void scheduleRequestBuffers();
-    virtual void doRequestBuffers() = 0;
+    virtual bool doRequestBuffers() = 0;
     virtual void handleError(int32_t err);
 
     sp<AMessage> mNotify;

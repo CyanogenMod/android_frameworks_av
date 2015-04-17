@@ -82,14 +82,16 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatCodecNotify:
         {
+            int32_t cbID;
+            CHECK(msg->findInt32("callbackID", &cbID));
+
+            ALOGV("[%s] kWhatCodecNotify: cbID = %d, paused = %d",
+                    mIsAudio ? "audio" : "video", cbID, mPaused);
+
             if (mPaused) {
                 break;
             }
 
-            int32_t cbID;
-            CHECK(msg->findInt32("callbackID", &cbID));
-
-            ALOGV("kWhatCodecNotify: cbID = %d", cbID);
             switch (cbID) {
                 case MediaCodec::CB_INPUT_AVAILABLE:
                 {
@@ -356,11 +358,14 @@ void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
     }
 }
 
-void NuPlayer::Decoder::doRequestBuffers() {
+/*
+ * returns true if we should request more data
+ */
+bool NuPlayer::Decoder::doRequestBuffers() {
     // mRenderer is only NULL if we have a legacy widevine source that
     // is not yet ready. In this case we must not fetch input.
     if (isDiscontinuityPending() || mRenderer == NULL) {
-        return;
+        return false;
     }
     status_t err = OK;
     while (err == OK && !mDequeuedInputBuffers.empty()) {
@@ -380,10 +385,8 @@ void NuPlayer::Decoder::doRequestBuffers() {
         }
     }
 
-    if (err == -EWOULDBLOCK
-            && mSource->feedMoreTSData() == OK) {
-        scheduleRequestBuffers();
-    }
+    return err == -EWOULDBLOCK
+            && mSource->feedMoreTSData() == OK;
 }
 
 void NuPlayer::Decoder::handleError(int32_t err)
@@ -846,9 +849,6 @@ void NuPlayer::Decoder::finishHandleDiscontinuity(bool flushOnTimeChange) {
             doFlush(false /* notifyComplete */);
             signalResume(false /* notifyComplete */);
         }
-
-        // restart fetching input
-        scheduleRequestBuffers();
     }
 
     // Notify NuPlayer to either shutdown decoder, or rescan sources
