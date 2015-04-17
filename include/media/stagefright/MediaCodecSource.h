@@ -23,7 +23,7 @@
 
 namespace android {
 
-class ALooper;
+struct ALooper;
 class AMessage;
 struct AReplyToken;
 class IGraphicBufferProducer;

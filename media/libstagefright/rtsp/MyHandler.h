@@ -651,7 +651,7 @@ struct MyHandler : public AHandler {
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
 
-                ALOGI("SETUP(%d) completed with result %d (%s)",
+                ALOGI("SETUP(%zu) completed with result %d (%s)",
                      index, result, strerror(-result));
 
                 if (result == OK) {
@@ -1012,7 +1012,7 @@ struct MyHandler : public AHandler {
 
                 int32_t eos;
                 if (msg->findInt32("eos", &eos)) {
-                    ALOGI("received BYE on track index %d", trackIndex);
+                    ALOGI("received BYE on track index %zu", trackIndex);
                     if (!mAllTracksHaveTime && dataReceivedOnAllChannels()) {
                         ALOGI("No time established => fake existing data");
 
@@ -1564,7 +1564,7 @@ private:
             new APacketSource(mSessionDesc, index);
 
         if (source->initCheck() != OK) {
-            ALOGW("Unsupported format. Ignoring track #%d.", index);
+            ALOGW("Unsupported format. Ignoring track #%zu.", index);
 
             sp<AMessage> reply = new AMessage('setu', this);
             reply->setSize("index", index);
@@ -1606,7 +1606,7 @@ private:
         info->mTimeScale = timescale;
         info->mEOSReceived = false;
 
-        ALOGV("track #%d URL=%s", mTracks.size(), trackURL.c_str());
+        ALOGV("track #%zu URL=%s", mTracks.size(), trackURL.c_str());
 
         AString request = "SETUP ";
         request.append(trackURL);
@@ -1731,8 +1731,8 @@ private:
     }
 
     void onTimeUpdate(int32_t trackIndex, uint32_t rtpTime, uint64_t ntpTime) {
-        ALOGV("onTimeUpdate track %d, rtpTime = 0x%08x, ntpTime = 0x%016llx",
-             trackIndex, rtpTime, ntpTime);
+        ALOGV("onTimeUpdate track %d, rtpTime = 0x%08x, ntpTime = %#016llx",
+             trackIndex, rtpTime, (long long)ntpTime);
 
         int64_t ntpTimeUs = (int64_t)(ntpTime * 1E6 / (1ll << 32));
 
@@ -1851,8 +1851,8 @@ private:
             return false;
         }
 
-        ALOGV("track %d rtpTime=%d mediaTimeUs = %lld us (%.2f secs)",
-             trackIndex, rtpTime, mediaTimeUs, mediaTimeUs / 1E6);
+        ALOGV("track %d rtpTime=%u mediaTimeUs = %lld us (%.2f secs)",
+             trackIndex, rtpTime, (long long)mediaTimeUs, mediaTimeUs / 1E6);
 
         accessUnit->meta()->setInt64("timeUs", mediaTimeUs);
 

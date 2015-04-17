@@ -26,8 +26,8 @@
 
 namespace android {
 
-struct DrmFactory;
-struct DrmPlugin;
+class DrmFactory;
+class DrmPlugin;
 struct DrmSessionClientInterface;
 
 struct Drm : public BnDrm,

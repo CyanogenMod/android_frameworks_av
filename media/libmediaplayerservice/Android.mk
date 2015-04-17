@@ -54,6 +54,9 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/native/include/media/openmax                  \
     $(TOP)/external/tremolo/Tremolo                                 \
 
+LOCAL_CFLAGS += -Werror -Wall
+LOCAL_CLANG := true
+
 LOCAL_MODULE:= libmediaplayerservice
 
 LOCAL_32_BIT_ONLY := true

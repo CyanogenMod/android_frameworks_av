@@ -25,6 +25,9 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libmediaplayerservice              \
 	$(TOP)/frameworks/native/include/media/openmax
 
+LOCAL_CFLAGS += -Werror -Wall
+LOCAL_CLANG := true
+
 LOCAL_MODULE:= libstagefright_nuplayer
 
 LOCAL_MODULE_TAGS := eng

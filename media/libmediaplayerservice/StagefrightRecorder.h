@@ -37,7 +37,7 @@ struct AudioSource;
 class MediaProfiles;
 class IGraphicBufferProducer;
 class SurfaceMediaSource;
-class ALooper;
+struct ALooper;
 
 struct StagefrightRecorder : public MediaRecorderBase {
     StagefrightRecorder();

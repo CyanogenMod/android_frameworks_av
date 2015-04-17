@@ -51,6 +51,7 @@ static bool isNullPad(CCData *cc) {
     return cc->mData1 < 0x10 && cc->mData2 < 0x10;
 }
 
+static void dumpBytePair(const sp<ABuffer> &ccBuf) __attribute__ ((unused));
 static void dumpBytePair(const sp<ABuffer> &ccBuf) {
     size_t offset = 0;
     AString out;

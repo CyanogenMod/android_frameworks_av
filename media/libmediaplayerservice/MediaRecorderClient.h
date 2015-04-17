@@ -54,7 +54,7 @@ public:
     virtual     status_t   init();
     virtual     status_t   close();
     virtual     status_t   release();
-    virtual     status_t   dump(int fd, const Vector<String16>& args) const;
+    virtual     status_t   dump(int fd, const Vector<String16>& args);
     virtual     sp<IGraphicBufferProducer> querySurfaceMediaSource();
 
 private:

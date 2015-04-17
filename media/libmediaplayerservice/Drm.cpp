@@ -209,7 +209,7 @@ void Drm::findFactoryForScheme(const uint8_t uuid[16]) {
 
     // first check cache
     Vector<uint8_t> uuidVector;
-    uuidVector.appendArray(uuid, sizeof(uuid));
+    uuidVector.appendArray(uuid, sizeof(uuid[0]) * 16);
     ssize_t index = mUUIDToLibraryPathMap.indexOfKey(uuidVector);
     if (index >= 0) {
         if (loadLibraryForScheme(mUUIDToLibraryPathMap[index], uuid)) {
@@ -776,7 +776,7 @@ status_t Drm::signRSA(Vector<uint8_t> const &sessionId,
     return mPlugin->signRSA(sessionId, algorithm, message, wrappedKey, signature);
 }
 
-void Drm::binderDied(const wp<IBinder> &the_late_who)
+void Drm::binderDied(const wp<IBinder> &the_late_who __unused)
 {
     mEventLock.lock();
     mListener.clear();

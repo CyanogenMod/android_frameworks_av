@@ -856,7 +856,7 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
 
         if (tooLate) {
             ALOGV("video late by %lld us (%.2f secs)",
-                 mVideoLateByUs, mVideoLateByUs / 1E6);
+                 (long long)mVideoLateByUs, mVideoLateByUs / 1E6);
         } else {
             int64_t mediaUs = 0;
             mMediaClock->getMediaTime(realTimeUs, &mediaUs);
@@ -1178,7 +1178,7 @@ void NuPlayer::Renderer::onPause() {
         ALOGW("Renderer::onPause() called while already paused!");
         return;
     }
-    int64_t currentPositionUs;
+
     {
         Mutex::Autolock autoLock(mLock);
         ++mAudioDrainGeneration;
@@ -1196,7 +1196,7 @@ void NuPlayer::Renderer::onPause() {
         startAudioOffloadPauseTimeout();
     }
 
-    ALOGV("now paused audio queue has %d entries, video has %d entries",
+    ALOGV("now paused audio queue has %zu entries, video has %zu entries",
           mAudioQueue.size(), mVideoQueue.size());
 }
 
@@ -1289,7 +1289,7 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
         CHECK_EQ(res, (status_t)OK);
         numFramesPlayedAt = nowUs;
         numFramesPlayedAt += 1000LL * mAudioSink->latency() / 2; /* XXX */
-        //ALOGD("getPosition: %d %lld", numFramesPlayed, numFramesPlayedAt);
+        //ALOGD("getPosition: %u %lld", numFramesPlayed, (long long)numFramesPlayedAt);
     }
 
     //CHECK_EQ(numFramesPlayed & (1 << 31), 0);  // can't be negative until 12.4 hrs, test

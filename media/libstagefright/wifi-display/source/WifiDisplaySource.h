@@ -29,7 +29,7 @@ namespace android {
 
 struct AReplyToken;
 struct IHDCP;
-struct IRemoteDisplayClient;
+class IRemoteDisplayClient;
 struct ParsedMessage;
 
 // Represents the RTSP server acting as a wifi display source.

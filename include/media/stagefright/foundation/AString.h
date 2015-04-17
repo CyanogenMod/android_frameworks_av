@@ -24,7 +24,7 @@
 namespace android {
 
 class String8;
-struct Parcel;
+class Parcel;
 
 struct AString {
     AString();
