@@ -36,7 +36,7 @@ namespace android {
 class AudioResamplerSpeex : public AudioResampler {
 public:
     AudioResamplerSpeex(int inChannelCount, int32_t sampleRate,
-                        int speexQuality = 2);
+                        int speexQuality = 5);
     virtual ~AudioResamplerSpeex();
 
     virtual void setSampleRate(int32_t inSampleRate);
