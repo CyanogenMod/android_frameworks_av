@@ -302,10 +302,10 @@ void exportResultsToXML(const char *fileName, const KeyedVector<AString, CodecSe
         char *buf = (char *)malloc(size);
         if (fread(buf, size, 1, f) == 1) {
             overrides.setTo(buf, size);
-#if LOG_NDEBUG == 0
-            ALOGV("Existing overrides:");
-            printLongString(buf, size);
-#endif
+            if (!LOG_NDEBUG) {
+                ALOGV("Existing overrides:");
+                printLongString(buf, size);
+            }
         } else {
             ALOGE("Failed to read %s", fileName);
         }
@@ -385,10 +385,10 @@ void exportResultsToXML(const char *fileName, const KeyedVector<AString, CodecSe
         }
     }
 
-#if LOG_NDEBUG == 0
-    ALOGV("New overrides:");
-    printLongString(overrides.c_str(), overrides.size());
-#endif
+    if (!LOG_NDEBUG) {
+        ALOGV("New overrides:");
+        printLongString(overrides.c_str(), overrides.size());
+    }
 
     f = fopen(fileName, "wb");
     if (f == NULL) {

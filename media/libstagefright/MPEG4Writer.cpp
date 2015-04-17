@@ -63,9 +63,11 @@ static const uint8_t kNalUnitTypeSeqParamSet = 0x07;
 static const uint8_t kNalUnitTypePicParamSet = 0x08;
 static const int64_t kInitialDelayTimeUs     = 700000LL;
 
-static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Version[]    = "com.android.version";
+#ifdef SHOW_MODEL_BUILD
+static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Build[]      = "com.android.build";
+#endif
 static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
 
 /* uncomment to include model and build in meta */

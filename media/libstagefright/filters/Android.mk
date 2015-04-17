@@ -20,7 +20,7 @@ LOCAL_C_INCLUDES := \
 intermediates := $(call intermediates-dir-for,STATIC_LIBRARIES,libRS,TARGET,)
 LOCAL_C_INCLUDES += $(intermediates)
 
-LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright_mediafilter

@@ -13,7 +13,7 @@ LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright_mpeg2ts

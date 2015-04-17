@@ -29,7 +29,7 @@ LOCAL_SHARED_LIBRARIES := \
         liblog            \
         libpowermanager
 
-LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright_foundation

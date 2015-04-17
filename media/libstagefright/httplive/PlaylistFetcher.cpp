@@ -750,8 +750,6 @@ void PlaylistFetcher::queueDiscontinuity(
 }
 
 void PlaylistFetcher::onMonitorQueue() {
-    bool downloadMore = false;
-
     // in the middle of an unfinished download, delay
     // playlist refresh as it'll change seq numbers
     if (!mDownloadState->hasSavedState()) {
