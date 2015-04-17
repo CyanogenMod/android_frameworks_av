@@ -22,7 +22,6 @@
 
 #include "AnotherPacketSource.h"
 #include "LiveDataSource.h"
-#include "LiveSession.h"
 
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -30,6 +29,7 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/MediaDefs.h>
 
 namespace android {
 
@@ -44,7 +44,10 @@ NuPlayer::HTTPLiveSource::HTTPLiveSource(
       mFlags(0),
       mFinalResult(OK),
       mOffset(0),
-      mFetchSubtitleDataGeneration(0) {
+      mFetchSubtitleDataGeneration(0),
+      mFetchMetaDataGeneration(0),
+      mHasMetadata(false),
+      mMetadataSelected(false) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -142,19 +145,49 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getTrackInfo(size_t trackIndex) const {
 ssize_t NuPlayer::HTTPLiveSource::getSelectedTrack(media_track_type type) const {
     if (mLiveSession == NULL) {
         return -1;
+    } else if (type == MEDIA_TRACK_TYPE_METADATA) {
+        // MEDIA_TRACK_TYPE_METADATA is always last track
+        // mMetadataSelected can only be true when mHasMetadata is true
+        return mMetadataSelected ? (mLiveSession->getTrackCount() - 1) : -1;
     } else {
         return mLiveSession->getSelectedTrack(type);
     }
 }
 
 status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select, int64_t /*timeUs*/) {
-    status_t err = mLiveSession->selectTrack(trackIndex, select);
+    if (mLiveSession == NULL) {
+        return INVALID_OPERATION;
+    }
+
+    status_t err = INVALID_OPERATION;
+    bool postFetchMsg = false, isSub = false;
+    if (trackIndex != mLiveSession->getTrackCount() - 1) {
+        err = mLiveSession->selectTrack(trackIndex, select);
+        postFetchMsg = select;
+        isSub = true;
+    } else {
+        // metadata track
+        if (mHasMetadata) {
+            if (mMetadataSelected && !select) {
+                err = OK;
+            } else if (!mMetadataSelected && select) {
+                postFetchMsg = true;
+                err = OK;
+            } else {
+                err = BAD_VALUE; // behave as LiveSession::selectTrack
+            }
+
+            mMetadataSelected = select;
+        }
+    }
 
     if (err == OK) {
-        mFetchSubtitleDataGeneration++;
-        if (select) {
-            sp<AMessage> msg = new AMessage(kWhatFetchSubtitleData, this);
-            msg->setInt32("generation", mFetchSubtitleDataGeneration);
+        int32_t &generation = isSub ? mFetchSubtitleDataGeneration : mFetchMetaDataGeneration;
+        generation++;
+        if (postFetchMsg) {
+            int32_t what = isSub ? kWhatFetchSubtitleData : kWhatFetchMetaData;
+            sp<AMessage> msg = new AMessage(what, this);
+            msg->setInt32("generation", generation);
             msg->post();
         }
     }
@@ -169,6 +202,49 @@ status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
     return mLiveSession->seekTo(seekTimeUs);
 }
 
+void NuPlayer::HTTPLiveSource::pollForRawData(
+        const sp<AMessage> &msg, int32_t currentGeneration,
+        LiveSession::StreamType fetchType, int32_t pushWhat) {
+
+    int32_t generation;
+    CHECK(msg->findInt32("generation", &generation));
+
+    if (generation != currentGeneration) {
+        return;
+    }
+
+    sp<ABuffer> buffer;
+    while (mLiveSession->dequeueAccessUnit(fetchType, &buffer) == OK) {
+
+        sp<AMessage> notify = dupNotify();
+        notify->setInt32("what", pushWhat);
+        notify->setBuffer("buffer", buffer);
+
+        int64_t timeUs, baseUs, delayUs;
+        CHECK(buffer->meta()->findInt64("baseUs", &baseUs));
+        CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
+        delayUs = baseUs + timeUs - ALooper::GetNowUs();
+
+        if (fetchType == LiveSession::STREAMTYPE_SUBTITLES) {
+            notify->post();
+            msg->post(delayUs > 0ll ? delayUs : 0ll);
+            return;
+        } else if (fetchType == LiveSession::STREAMTYPE_METADATA) {
+            if (delayUs < -1000000ll) { // 1 second
+                continue;
+            }
+            notify->post();
+            // push all currently available metadata buffers in each invocation of pollForRawData
+            // continue;
+        } else {
+            TRESPASS();
+        }
+    }
+
+    // try again in 1 second
+    msg->post(1000000ll);
+}
+
 void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
     switch (msg->what()) {
         case kWhatSessionNotify:
@@ -179,33 +255,24 @@ void NuPlayer::HTTPLiveSource::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatFetchSubtitleData:
         {
-            int32_t generation;
-            CHECK(msg->findInt32("generation", &generation));
+            pollForRawData(
+                    msg, mFetchSubtitleDataGeneration,
+                    /* fetch */ LiveSession::STREAMTYPE_SUBTITLES,
+                    /* push */ kWhatSubtitleData);
 
-            if (generation != mFetchSubtitleDataGeneration) {
-                // stale
+            break;
+        }
+
+        case kWhatFetchMetaData:
+        {
+            if (!mMetadataSelected) {
                 break;
             }
 
-            sp<ABuffer> buffer;
-            if (mLiveSession->dequeueAccessUnit(
-                    LiveSession::STREAMTYPE_SUBTITLES, &buffer) == OK) {
-                sp<AMessage> notify = dupNotify();
-                notify->setInt32("what", kWhatSubtitleData);
-                notify->setBuffer("buffer", buffer);
-                notify->post();
-
-                int64_t timeUs, baseUs, durationUs, delayUs;
-                CHECK(buffer->meta()->findInt64("baseUs", &baseUs));
-                CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
-                CHECK(buffer->meta()->findInt64("durationUs", &durationUs));
-                delayUs = baseUs + timeUs - ALooper::GetNowUs();
-
-                msg->post(delayUs > 0ll ? delayUs : 0ll);
-            } else {
-                // try again in 1 second
-                msg->post(1000000ll);
-            }
+            pollForRawData(
+                    msg, mFetchMetaDataGeneration,
+                    /* fetch */ LiveSession::STREAMTYPE_METADATA,
+                    /* push */ kWhatTimedMetaData);
 
             break;
         }
@@ -306,6 +373,19 @@ void NuPlayer::HTTPLiveSource::onSessionNotify(const sp<AMessage> &msg) {
             notify->setInt32("what", kWhatBufferingUpdate);
             notify->setInt32("percentage", percentage);
             notify->post();
+            break;
+        }
+
+        case LiveSession::kWhatMetadataDetected:
+        {
+            if (!mHasMetadata) {
+                mHasMetadata = true;
+
+                sp<AMessage> notify = dupNotify();
+                // notification without buffer triggers MEDIA_INFO_METADATA_UPDATE
+                notify->setInt32("what", kWhatTimedMetaData);
+                notify->post();
+            }
             break;
         }
 

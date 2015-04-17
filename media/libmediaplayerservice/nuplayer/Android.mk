@@ -16,6 +16,7 @@ LOCAL_SRC_FILES:=                       \
         StreamingSource.cpp             \
 
 LOCAL_C_INCLUDES := \
+	$(TOP)/frameworks/av/media/libstagefright                     \
 	$(TOP)/frameworks/av/media/libstagefright/httplive            \
 	$(TOP)/frameworks/av/media/libstagefright/include             \
 	$(TOP)/frameworks/av/media/libstagefright/mpeg2ts             \

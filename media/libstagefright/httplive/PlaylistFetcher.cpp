@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "PlaylistFetcher"
 #include <utils/Log.h>
+#include <utils/misc.h>
 
 #include "PlaylistFetcher.h"
 
@@ -174,7 +175,8 @@ PlaylistFetcher::PlaylistFetcher(
       mFirstTimeUs(-1ll),
       mVideoBuffer(new AnotherPacketSource(NULL)),
       mThresholdRatio(-1.0f),
-      mDownloadState(new DownloadState()) {
+      mDownloadState(new DownloadState()),
+      mHasMetadata(false) {
     memset(mPlaylistHash, 0, sizeof(mPlaylistHash));
     mHTTPDataSource = mSession->getHTTPDataSource();
 }
@@ -470,6 +472,7 @@ void PlaylistFetcher::startAsync(
         const sp<AnotherPacketSource> &audioSource,
         const sp<AnotherPacketSource> &videoSource,
         const sp<AnotherPacketSource> &subtitleSource,
+        const sp<AnotherPacketSource> &metadataSource,
         int64_t startTimeUs,
         int64_t segmentStartTimeUs,
         int32_t startDiscontinuitySeq,
@@ -491,6 +494,11 @@ void PlaylistFetcher::startAsync(
     if (subtitleSource != NULL) {
         msg->setPointer("subtitleSource", subtitleSource.get());
         streamTypeMask |= LiveSession::STREAMTYPE_SUBTITLES;
+    }
+
+    if (metadataSource != NULL) {
+        msg->setPointer("metadataSource", metadataSource.get());
+        // metadataSource does not affect streamTypeMask.
     }
 
     msg->setInt32("streamTypeMask", streamTypeMask);
@@ -634,6 +642,15 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
 
         mPacketSources.add(
                 LiveSession::STREAMTYPE_SUBTITLES,
+                static_cast<AnotherPacketSource *>(ptr));
+    }
+
+    void *ptr;
+    // metadataSource is not part of streamTypeMask
+    if ((streamTypeMask & (LiveSession::STREAMTYPE_AUDIO | LiveSession::STREAMTYPE_VIDEO))
+            && msg->findPointer("metadataSource", &ptr)) {
+        mPacketSources.add(
+                LiveSession::STREAMTYPE_METADATA,
                 static_cast<AnotherPacketSource *>(ptr));
     }
 
@@ -1315,11 +1332,11 @@ void PlaylistFetcher::onDownloadNext() {
     if (bufferStartsWithTsSyncByte(buffer)) {
         // If we don't see a stream in the program table after fetching a full ts segment
         // mark it as nonexistent.
-        const size_t kNumTypes = ATSParser::NUM_SOURCE_TYPES;
-        ATSParser::SourceType srcTypes[kNumTypes] =
+        ATSParser::SourceType srcTypes[] =
                 { ATSParser::VIDEO, ATSParser::AUDIO };
-        LiveSession::StreamType streamTypes[kNumTypes] =
+        LiveSession::StreamType streamTypes[] =
                 { LiveSession::STREAMTYPE_VIDEO, LiveSession::STREAMTYPE_AUDIO };
+        const size_t kNumTypes = NELEM(srcTypes);
 
         for (size_t i = 0; i < kNumTypes; i++) {
             ATSParser::SourceType srcType = srcTypes[i];
@@ -1502,6 +1519,27 @@ const sp<ABuffer> &PlaylistFetcher::setAccessUnitProperties(
     return accessUnit;
 }
 
+bool PlaylistFetcher::isStartTimeReached(int64_t timeUs) {
+    if (!mFirstPTSValid) {
+        mFirstTimeUs = timeUs;
+        mFirstPTSValid = true;
+    }
+    bool startTimeReached = true;
+    if (mStartTimeUsRelative) {
+        FLOGV("startTimeUsRelative, timeUs (%lld) - %lld = %lld",
+                (long long)timeUs,
+                (long long)mFirstTimeUs,
+                (long long)(timeUs - mFirstTimeUs));
+        timeUs -= mFirstTimeUs;
+        if (timeUs < 0) {
+            FLOGV("clamp negative timeUs to 0");
+            timeUs = 0;
+        }
+        startTimeReached = (timeUs >= mStartTimeUs);
+    }
+    return startTimeReached;
+}
+
 status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &buffer) {
     if (mTSParser == NULL) {
         // Use TS_TIMESTAMPS_ARE_ABSOLUTE so pts carry over between fetchers.
@@ -1548,10 +1586,9 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
             ALOGE("MPEG2 Transport streams do not contain subtitles.");
             return ERROR_MALFORMED;
         }
+
         const char *key = LiveSession::getKeyForStream(stream);
-        ATSParser::SourceType type =
-                (stream == LiveSession::STREAMTYPE_AUDIO) ?
-                        ATSParser::AUDIO : ATSParser::VIDEO;
+        ATSParser::SourceType type =LiveSession::getSourceTypeForStream(stream);
 
         sp<AnotherPacketSource> source =
             static_cast<AnotherPacketSource *>(
@@ -1637,23 +1674,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                 }
             }
             if (mStartup) {
-                if (!mFirstPTSValid) {
-                    mFirstTimeUs = timeUs;
-                    mFirstPTSValid = true;
-                }
-                bool startTimeReached = true;
-                if (mStartTimeUsRelative) {
-                    FLOGV("startTimeUsRelative, timeUs (%lld) - %lld = %lld",
-                            (long long)timeUs,
-                            (long long)mFirstTimeUs,
-                            (long long)(timeUs - mFirstTimeUs));
-                    timeUs -= mFirstTimeUs;
-                    if (timeUs < 0) {
-                        FLOGV("clamp negative timeUs to 0");
-                        timeUs = 0;
-                    }
-                    startTimeReached = (timeUs >= mStartTimeUs);
-                }
+                bool startTimeReached = isStartTimeReached(timeUs);
 
                 if (!startTimeReached || (isAvc && !mIDRFound)) {
                     // buffer up to the closest preceding IDR frame in the next segement,
@@ -1680,7 +1701,8 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
             if (mStartTimeUsNotify != NULL) {
                 uint32_t streamMask = 0;
                 mStartTimeUsNotify->findInt32("streamMask", (int32_t *) &streamMask);
-                if (!(streamMask & mPacketSources.keyAt(i))) {
+                if ((mStreamTypeMask & mPacketSources.keyAt(i))
+                        && !(streamMask & mPacketSources.keyAt(i))) {
                     streamMask |= mPacketSources.keyAt(i);
                     mStartTimeUsNotify->setInt32("streamMask", streamMask);
                     FSLOGV(stream, "found start point, timeUs=%lld, streamMask becomes %x",
@@ -1721,6 +1743,11 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                     FSLOGV(stream, "queueAccessUnit (saved), timeUs=%lld",
                             (long long)bufferTimeUs);
                 }
+            } else if (stream == LiveSession::STREAMTYPE_METADATA && !mHasMetadata) {
+                mHasMetadata = true;
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatMetadataDetected);
+                notify->post();
             }
 
             setAccessUnitProperties(accessUnit, source);

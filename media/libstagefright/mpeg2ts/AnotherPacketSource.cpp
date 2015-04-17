@@ -73,7 +73,7 @@ void AnotherPacketSource::setFormat(const sp<MetaData> &meta) {
     } else  if (!strncasecmp("video/", mime, 6)) {
         mIsVideo = true;
     } else {
-        CHECK(!strncasecmp("text/", mime, 5));
+        CHECK(!strncasecmp("text/", mime, 5) || !strncasecmp("application/", mime, 12));
     }
 }
 
@@ -144,6 +144,12 @@ status_t AnotherPacketSource::dequeueAccessUnit(sp<ABuffer> *buffer) {
     }
 
     return mEOSResult;
+}
+
+void AnotherPacketSource::requeueAccessUnit(const sp<ABuffer> &buffer) {
+    // TODO: update corresponding book keeping info.
+    Mutex::Autolock autoLock(mLock);
+    mBuffers.push_front(buffer);
 }
 
 status_t AnotherPacketSource::read(

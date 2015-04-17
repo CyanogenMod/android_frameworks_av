@@ -49,6 +49,7 @@ struct PlaylistFetcher : public AHandler {
         kWhatPreparationFailed,
         kWhatStartedAt,
         kWhatStopReached,
+        kWhatMetadataDetected,
     };
 
     PlaylistFetcher(
@@ -66,6 +67,7 @@ struct PlaylistFetcher : public AHandler {
             const sp<AnotherPacketSource> &audioSource,
             const sp<AnotherPacketSource> &videoSource,
             const sp<AnotherPacketSource> &subtitleSource,
+            const sp<AnotherPacketSource> &metadataSource,
             int64_t startTimeUs = -1ll,         // starting timestamps
             int64_t segmentStartTimeUs = -1ll, // starting position within playlist
             // startTimeUs!=segmentStartTimeUs only when playlist is live
@@ -177,6 +179,8 @@ private:
 
     sp<DownloadState> mDownloadState;
 
+    bool mHasMetadata;
+
     // Set first to true if decrypting the first segment of a playlist segment. When
     // first is true, reset the initialization vector based on the available
     // information in the manifest; otherwise, use the initialization vector as
@@ -222,6 +226,7 @@ private:
             const sp<ABuffer> &accessUnit,
             const sp<AnotherPacketSource> &source,
             bool discard = false);
+    bool isStartTimeReached(int64_t timeUs);
     status_t extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &buffer);
 
     status_t extractAndQueueAccessUnits(
