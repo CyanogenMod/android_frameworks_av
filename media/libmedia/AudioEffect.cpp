@@ -274,8 +274,9 @@ status_t AudioEffect::setParameter(effect_param_t *param)
     uint32_t size = sizeof(int);
     uint32_t psize = ((param->psize - 1) / sizeof(int) + 1) * sizeof(int) + param->vsize;
 
-    ALOGV("setParameter: param: %d, param2: %d", *(int *)param->data,
-            (param->psize == 8) ? *((int *)param->data + 1): -1);
+    // MW-FIXME: aliasing violation
+    /*ALOGV("setParameter: param: %d, param2: %d", *(int *)param->data,
+            (param->psize == 8) ? *((int *)param->data + 1): -1);*/
 
     return mIEffect->command(EFFECT_CMD_SET_PARAM, sizeof (effect_param_t) + psize, param, &size,
             &param->status);
@@ -331,8 +332,9 @@ status_t AudioEffect::getParameter(effect_param_t *param)
         return BAD_VALUE;
     }
 
-    ALOGV("getParameter: param: %d, param2: %d", *(int *)param->data,
-            (param->psize == 8) ? *((int *)param->data + 1): -1);
+    // MW-FIXME: aliasing violation
+    /*ALOGV("getParameter: param: %d, param2: %d", *(int *)param->data,
+            (param->psize == 8) ? *((int *)param->data + 1): -1);*/
 
     uint32_t psize = sizeof(effect_param_t) + ((param->psize - 1) / sizeof(int) + 1) * sizeof(int) +
             param->vsize;
