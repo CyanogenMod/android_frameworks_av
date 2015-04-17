@@ -252,8 +252,6 @@ status_t RTPSender::queueTSPackets(
     int64_t timeUs;
     CHECK(tsPackets->meta()->findInt64("timeUs", &timeUs));
 
-    const size_t numTSPackets = tsPackets->size() / 188;
-
     size_t srcOffset = 0;
     while (srcOffset < tsPackets->size()) {
         sp<ABuffer> udpPacket =

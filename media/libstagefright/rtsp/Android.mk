@@ -31,7 +31,7 @@ ifeq ($(TARGET_ARCH),arm)
     LOCAL_CFLAGS += -Wno-psabi
 endif
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
@@ -55,7 +55,7 @@ LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
-LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_MODULE_TAGS := optional

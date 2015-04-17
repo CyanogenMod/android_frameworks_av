@@ -26,7 +26,7 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright_foundation \
     libutils
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 
 include $(BUILD_NATIVE_TEST)

@@ -682,7 +682,6 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             size_t size;
             int64_t timeUs;
             int32_t flags;
-            native_handle_t* handle = NULL;
 
             CHECK(msg->findInt32("index", &index));
             CHECK(msg->findSize("offset", &offset));

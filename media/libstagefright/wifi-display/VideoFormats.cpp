@@ -382,7 +382,6 @@ bool VideoFormats::parseFormatSpec(const char *spec) {
     disableAll();
 
     unsigned native, dummy;
-    unsigned res[3];
     size_t size = strlen(spec);
     size_t offset = 0;
 

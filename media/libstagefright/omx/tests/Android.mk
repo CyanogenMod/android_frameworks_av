@@ -11,7 +11,7 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_MODULE := omx_tests
@@ -38,7 +38,7 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_C_INCLUDES := \
 	frameworks/av/media/libstagefright/omx \
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 
 include $(BUILD_NATIVE_TEST)

@@ -9,7 +9,7 @@ LOCAL_SRC_FILES:=                 \
         TimedTextSRTSource.cpp    \
         TimedTextPlayer.cpp
 
-LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
 
 LOCAL_C_INCLUDES:= \

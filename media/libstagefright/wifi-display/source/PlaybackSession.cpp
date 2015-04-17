@@ -821,21 +821,27 @@ void WifiDisplaySource::PlaybackSession::schedulePullExtractor() {
         return;
     }
 
+    int64_t delayUs = 1000000; // default delay is 1 sec
     int64_t sampleTimeUs;
     status_t err = mExtractor->getSampleTime(&sampleTimeUs);
 
-    int64_t nowUs = ALooper::GetNowUs();
+    if (err == OK) {
+        int64_t nowUs = ALooper::GetNowUs();
 
-    if (mFirstSampleTimeRealUs < 0ll) {
-        mFirstSampleTimeRealUs = nowUs;
-        mFirstSampleTimeUs = sampleTimeUs;
+        if (mFirstSampleTimeRealUs < 0ll) {
+            mFirstSampleTimeRealUs = nowUs;
+            mFirstSampleTimeUs = sampleTimeUs;
+        }
+
+        int64_t whenUs = sampleTimeUs - mFirstSampleTimeUs + mFirstSampleTimeRealUs;
+        delayUs = whenUs - nowUs;
+    } else {
+        ALOGW("could not get sample time (%d)", err);
     }
-
-    int64_t whenUs = sampleTimeUs - mFirstSampleTimeUs + mFirstSampleTimeRealUs;
 
     sp<AMessage> msg = new AMessage(kWhatPullExtractorSample, this);
     msg->setInt32("generation", mPullExtractorGeneration);
-    msg->post(whenUs - nowUs);
+    msg->post(delayUs);
 
     mPullExtractorPending = true;
 }

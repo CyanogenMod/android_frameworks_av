@@ -21,7 +21,7 @@ LOCAL_MODULE:= libstagefright_http_support
 
 LOCAL_CFLAGS += -Wno-multichar
 
-LOCAL_CFLAGS += -Werror
+LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
 
 include $(BUILD_SHARED_LIBRARY)
