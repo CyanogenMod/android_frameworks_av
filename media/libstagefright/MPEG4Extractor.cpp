@@ -503,7 +503,7 @@ status_t MPEG4Extractor::readMetaData() {
         } else if (offset <= orig_offset) {
             // only continue parsing if the offset was advanced,
             // otherwise we might end up in an infinite loop
-            ALOGE("did not advance: 0x%lld->0x%lld", orig_offset, offset);
+            ALOGE("did not advance: %lld->%lld", (long long)orig_offset, (long long)offset);
             err = ERROR_MALFORMED;
             break;
         } else if (err == UNKNOWN_ERROR) {
@@ -761,7 +761,7 @@ static void convertTimeToDate(int64_t time_1904, String8 *s) {
 }
 
 status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
-    ALOGV("entering parseChunk %lld/%d", *offset, depth);
+    ALOGV("entering parseChunk %lld/%d", (long long)*offset, depth);
     uint32_t hdr[2];
     if (mDataSource->readAt(*offset, hdr, 8) < 8) {
         return ERROR_IO;
@@ -805,7 +805,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
     char chunk[5];
     MakeFourCCString(chunk_type, chunk);
-    ALOGV("chunk: %s @ %lld, %d", chunk, *offset, depth);
+    ALOGV("chunk: %s @ %lld, %d", chunk, (long long)*offset, depth);
 
     if (kUseHexDump) {
         static const char kWhitespace[] = "                                        ";
@@ -1724,7 +1724,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             char buffer[23];
             if (chunk_data_size != 7 &&
                 chunk_data_size != 23) {
-                ALOGE("Incorrect D263 box size %lld", chunk_data_size);
+                ALOGE("Incorrect D263 box size %lld", (long long)chunk_data_size);
                 return ERROR_MALFORMED;
             }
 
@@ -2015,7 +2015,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             if (mFileMetaData != NULL) {
                 ALOGV("chunk_data_size = %lld and data_offset = %lld",
-                        chunk_data_size, data_offset);
+                        (long long)chunk_data_size, (long long)data_offset);
                 sp<ABuffer> buffer = new ABuffer(chunk_data_size + 1);
                 if (mDataSource->readAt(
                     data_offset, buffer->data(), chunk_data_size) != (ssize_t)chunk_data_size) {
@@ -2433,7 +2433,7 @@ status_t MPEG4Extractor::parseITunesMetaData(off64_t offset, size_t size) {
     uint32_t metadataKey = 0;
     char chunk[5];
     MakeFourCCString(mPath[4], chunk);
-    ALOGV("meta: %s @ %lld", chunk, offset);
+    ALOGV("meta: %s @ %lld", chunk, (long long)offset);
     switch ((int32_t)mPath[4]) {
         case FOURCC(0xa9, 'a', 'l', 'b'):
         {
@@ -2937,7 +2937,7 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
     }
 
     if (kUseHexDump) {
-        printf("ESD of size %d\n", csd_size);
+        printf("ESD of size %zu\n", csd_size);
         hexdump(csd, csd_size);
     }
 
@@ -3344,7 +3344,7 @@ status_t MPEG4Source::parseChunk(off64_t *offset) {
 
     char chunk[5];
     MakeFourCCString(chunk_type, chunk);
-    ALOGV("MPEG4Source chunk %s @ %llx", chunk, *offset);
+    ALOGV("MPEG4Source chunk %s @ %#llx", chunk, (long long)*offset);
 
     off64_t chunk_data_size = *offset + chunk_size - data_offset;
 
@@ -3801,7 +3801,7 @@ status_t MPEG4Source::parseTrackFragmentRun(off64_t offset, off64_t size) {
         sampleCtsOffset = 0;
     }
 
-    if (size < (off64_t)sampleCount * bytesPerSample) {
+    if (size < (off64_t)(sampleCount * bytesPerSample)) {
         return -EINVAL;
     }
 
@@ -4553,7 +4553,7 @@ static bool BetterSniffMPEG4(
 
         char chunkstring[5];
         MakeFourCCString(chunkType, chunkstring);
-        ALOGV("saw chunk type %s, size %" PRIu64 " @ %lld", chunkstring, chunkSize, offset);
+        ALOGV("saw chunk type %s, size %" PRIu64 " @ %lld", chunkstring, chunkSize, (long long)offset);
         switch (chunkType) {
             case FOURCC('f', 't', 'y', 'p'):
             {
@@ -4616,7 +4616,7 @@ static bool BetterSniffMPEG4(
         *meta = new AMessage;
         (*meta)->setInt64("meta-data-size", moovAtomEndOffset);
 
-        ALOGV("found metadata size: %lld", moovAtomEndOffset);
+        ALOGV("found metadata size: %lld", (long long)moovAtomEndOffset);
     }
 
     return true;

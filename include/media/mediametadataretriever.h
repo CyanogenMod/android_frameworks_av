@@ -26,7 +26,7 @@
 namespace android {
 
 class IDataSource;
-class IMediaHTTPService;
+struct IMediaHTTPService;
 class IMediaPlayerService;
 class IMediaMetadataRetriever;
 

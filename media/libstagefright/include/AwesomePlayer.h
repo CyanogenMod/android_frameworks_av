@@ -31,20 +31,20 @@
 
 namespace android {
 
-struct AudioPlayer;
+class AudioPlayer;
 struct ClockEstimator;
-struct IDataSource;
-struct MediaBuffer;
+class IDataSource;
+class MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
 struct NuCachedSource2;
-struct IGraphicBufferProducer;
+class IGraphicBufferProducer;
 
 class DrmManagerClinet;
 class DecryptHandle;
 
 class TimedTextDriver;
-struct WVMExtractor;
+class WVMExtractor;
 
 struct AwesomeRenderer : public RefBase {
     AwesomeRenderer() {}

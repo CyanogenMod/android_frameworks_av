@@ -30,7 +30,7 @@ struct AnotherPacketSource;
 struct ATSParser;
 class DataSource;
 struct MPEG2TSSource;
-struct String8;
+class String8;
 
 struct MPEG2TSExtractor : public MediaExtractor {
     MPEG2TSExtractor(const sp<DataSource> &source);

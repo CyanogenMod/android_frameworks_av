@@ -881,7 +881,7 @@ status_t WifiDisplaySource::onReceiveM3Response(
                     &framesPerSecond,
                     &interlaced));
 
-        ALOGI("Picked video resolution %u x %u %c%u",
+        ALOGI("Picked video resolution %zu x %zu %c%zu",
               width, height, interlaced ? 'i' : 'p', framesPerSecond);
 
         ALOGI("Picked AVC profile %d, level %d",

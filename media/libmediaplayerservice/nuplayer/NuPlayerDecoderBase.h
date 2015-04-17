@@ -26,7 +26,7 @@ namespace android {
 
 struct ABuffer;
 struct MediaCodec;
-struct MediaBuffer;
+class MediaBuffer;
 
 struct NuPlayer::DecoderBase : public AHandler {
     DecoderBase(const sp<AMessage> &notify);

@@ -248,8 +248,8 @@ void VideoFormats::getProfileLevel(
     }
 
     if (bestProfile == -1 || bestLevel == -1) {
-        ALOGE("Profile or level not set for resolution type %d, index %d",
-              type, index);
+        ALOGE("Profile or level not set for resolution type %d, index %zu",
+                type, index);
         bestProfile = PROFILE_CBP;
         bestLevel = LEVEL_31;
     }
@@ -507,7 +507,7 @@ bool VideoFormats::PickBestFormat(
                 continue;
             }
 
-            ALOGV("type %u, index %u, %u x %u %c%u supported",
+            ALOGV("type %zu, index %zu, %zu x %zu %c%zu supported",
                   i, j, width, height, interlaced ? 'i' : 'p', framesPerSecond);
 
             uint32_t score = width * height * framesPerSecond;

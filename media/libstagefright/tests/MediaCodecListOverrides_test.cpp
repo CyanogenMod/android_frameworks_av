@@ -278,7 +278,7 @@ TEST_F(MediaCodecListOverridesTest, exportResultsToExistingFile) {
     rewind(f);
 
     char *buf = (char *)malloc(size);
-    EXPECT_EQ(1, fread(buf, size, 1, f));
+    EXPECT_EQ((size_t)1, fread(buf, size, 1, f));
     overrides.setTo(buf, size);
     fclose(f);
     free(buf);
@@ -303,7 +303,7 @@ TEST_F(MediaCodecListOverridesTest, exportResultsToEmptyFile) {
     rewind(f);
 
     char *buf = (char *)malloc(size);
-    EXPECT_EQ(1, fread(buf, size, 1, f));
+    EXPECT_EQ((size_t)1, fread(buf, size, 1, f));
     overrides.setTo(buf, size);
     fclose(f);
     free(buf);

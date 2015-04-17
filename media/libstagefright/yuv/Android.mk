@@ -13,6 +13,6 @@ LOCAL_MODULE:= libstagefright_yuv
 
 
 LOCAL_CFLAGS += -Werror
-
+LOCAL_CLANG := true
 
 include $(BUILD_SHARED_LIBRARY)

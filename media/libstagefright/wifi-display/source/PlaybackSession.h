@@ -26,7 +26,7 @@ namespace android {
 
 struct ABuffer;
 struct IHDCP;
-struct IGraphicBufferProducer;
+class IGraphicBufferProducer;
 struct MediaPuller;
 struct MediaSource;
 struct MediaSender;

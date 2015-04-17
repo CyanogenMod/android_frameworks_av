@@ -508,7 +508,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             } else if (what == Converter::kWhatEOS) {
                 CHECK_EQ(what, Converter::kWhatEOS);
 
-                ALOGI("output EOS on track %d", trackIndex);
+                ALOGI("output EOS on track %zu", trackIndex);
 
                 ssize_t index = mTracks.indexOfKey(trackIndex);
                 CHECK_GE(index, 0);
@@ -581,7 +581,7 @@ void WifiDisplaySource::PlaybackSession::onMessageReceived(
             CHECK(msg->findSize("trackIndex", &trackIndex));
 
             if (what == Track::kWhatStopped) {
-                ALOGI("Track %d stopped", trackIndex);
+                ALOGI("Track %zu stopped", trackIndex);
 
                 sp<Track> track = mTracks.valueFor(trackIndex);
                 looper()->unregisterHandler(track->id());

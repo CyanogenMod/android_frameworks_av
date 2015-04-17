@@ -360,7 +360,7 @@ status_t AwesomePlayer::setDataSource(
     return setDataSource_l(dataSource);
 }
 
-status_t AwesomePlayer::setDataSource(const sp<IStreamSource> &source) {
+status_t AwesomePlayer::setDataSource(const sp<IStreamSource> &source __unused) {
     return INVALID_OPERATION;
 }
 
@@ -422,7 +422,7 @@ status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
 
     mBitrate = totalBitRate;
 
-    ALOGV("mBitrate = %lld bits/sec", mBitrate);
+    ALOGV("mBitrate = %lld bits/sec", (long long)mBitrate);
 
     {
         Mutex::Autolock autoLock(mStatsLock);
@@ -1722,7 +1722,7 @@ void AwesomePlayer::finishSeekIfNecessary(int64_t videoTimeUs) {
     // we are now resuming.  Signal new position to media time provider.
     // Cannot signal another SEEK_COMPLETE, as existing clients may not expect
     // multiple SEEK_COMPLETE responses to a single seek() request.
-    if (mSeekNotificationSent && abs(mSeekTimeUs - videoTimeUs) > 10000) {
+    if (mSeekNotificationSent && llabs((long long)(mSeekTimeUs - videoTimeUs)) > 10000) {
         // notify if we are resuming more than 10ms away from desired seek time
         notifyListener_l(MEDIA_SKIPPED);
     }
@@ -2358,7 +2358,7 @@ status_t AwesomePlayer::finishSetDataSource_l() {
                         }
 
                         CHECK_GE(metaDataSize, 0ll);
-                        ALOGV("metaDataSize = %lld bytes", metaDataSize);
+                        ALOGV("metaDataSize = %lld bytes", (long long)metaDataSize);
                     }
 
                     usleep(200000);

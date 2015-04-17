@@ -82,7 +82,7 @@ static bool Resync(
             *inout_pos += len;
 
             ALOGV("skipped ID3 tag, new starting offset is %lld (0x%016llx)",
-                 *inout_pos, *inout_pos);
+                    (long long)*inout_pos, (long long)*inout_pos);
         }
 
         if (post_id3_pos != NULL) {
@@ -103,9 +103,9 @@ static bool Resync(
     uint8_t *tmp = buf;
 
     do {
-        if (pos >= *inout_pos + kMaxBytesChecked) {
+        if (pos >= (off64_t)(*inout_pos + kMaxBytesChecked)) {
             // Don't scan forever.
-            ALOGV("giving up at offset %lld", pos);
+            ALOGV("giving up at offset %lld", (long long)pos);
             break;
         }
 
@@ -155,7 +155,7 @@ static bool Resync(
             continue;
         }
 
-        ALOGV("found possible 1st frame at %lld (header = 0x%08x)", pos, header);
+        ALOGV("found possible 1st frame at %lld (header = 0x%08x)", (long long)pos, header);
 
         // We found what looks like a valid frame,
         // now find its successors.
@@ -186,7 +186,7 @@ static bool Resync(
                 break;
             }
 
-            ALOGV("found subsequent frame #%d at %lld", j + 2, test_pos);
+            ALOGV("found subsequent frame #%d at %lld", j + 2, (long long)test_pos);
 
             test_pos += test_frame_size;
         }

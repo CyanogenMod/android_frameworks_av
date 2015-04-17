@@ -132,11 +132,11 @@ public:
         virtual void        pause() = 0;
         virtual void        close() = 0;
 
-        virtual status_t    setPlaybackRatePermille(int32_t rate) { return INVALID_OPERATION; }
+        virtual status_t    setPlaybackRatePermille(int32_t /* rate */) { return INVALID_OPERATION;}
         virtual bool        needsTrailingPadding() { return true; }
 
-        virtual status_t    setParameters(const String8& keyValuePairs) { return NO_ERROR; };
-        virtual String8     getParameters(const String8& keys) { return String8::empty(); };
+        virtual status_t    setParameters(const String8& /* keyValuePairs */) { return NO_ERROR; }
+        virtual String8     getParameters(const String8& /* keys */) { return String8::empty(); }
     };
 
                         MediaPlayerBase() : mCookie(0), mNotify(0) {}
@@ -144,7 +144,7 @@ public:
     virtual status_t    initCheck() = 0;
     virtual bool        hardwareOutput() = 0;
 
-    virtual status_t    setUID(uid_t uid) {
+    virtual status_t    setUID(uid_t /* uid */) {
         return INVALID_OPERATION;
     }
 
@@ -155,11 +155,11 @@ public:
 
     virtual status_t    setDataSource(int fd, int64_t offset, int64_t length) = 0;
 
-    virtual status_t    setDataSource(const sp<IStreamSource> &source) {
+    virtual status_t    setDataSource(const sp<IStreamSource>& /* source */) {
         return INVALID_OPERATION;
     }
 
-    virtual status_t    setDataSource(const sp<DataSource> &source) {
+    virtual status_t    setDataSource(const sp<DataSource>& /* source */) {
         return INVALID_OPERATION;
     }
 
@@ -173,7 +173,7 @@ public:
     virtual status_t    stop() = 0;
     virtual status_t    pause() = 0;
     virtual bool        isPlaying() = 0;
-    virtual status_t    setPlaybackRate(float rate) { return INVALID_OPERATION; }
+    virtual status_t    setPlaybackRate(float /* rate */) { return INVALID_OPERATION; }
     virtual status_t    seekTo(int msec) = 0;
     virtual status_t    getCurrentPosition(int *msec) = 0;
     virtual status_t    getDuration(int *msec) = 0;
@@ -184,13 +184,13 @@ public:
     virtual status_t    getParameter(int key, Parcel *reply) = 0;
 
     // default no-op implementation of optional extensions
-    virtual status_t setRetransmitEndpoint(const struct sockaddr_in* endpoint) {
+    virtual status_t setRetransmitEndpoint(const struct sockaddr_in* /* endpoint */) {
         return INVALID_OPERATION;
     }
-    virtual status_t getRetransmitEndpoint(struct sockaddr_in* endpoint) {
+    virtual status_t getRetransmitEndpoint(struct sockaddr_in* /* endpoint */) {
         return INVALID_OPERATION;
     }
-    virtual status_t setNextPlayer(const sp<MediaPlayerBase>& next) {
+    virtual status_t setNextPlayer(const sp<MediaPlayerBase>& /* next */) {
         return OK;
     }
 
@@ -210,8 +210,8 @@ public:
     //            the known metadata should be returned.
     // @param[inout] records Parcel where the player appends its metadata.
     // @return OK if the call was successful.
-    virtual status_t    getMetadata(const media::Metadata::Filter& ids,
-                                    Parcel *records) {
+    virtual status_t    getMetadata(const media::Metadata::Filter& /* ids */,
+                                    Parcel* /* records */) {
         return INVALID_OPERATION;
     };
 
@@ -234,7 +234,7 @@ public:
         if (notifyCB) notifyCB(cookie, msg, ext1, ext2, obj);
     }
 
-    virtual status_t dump(int fd, const Vector<String16> &args) const {
+    virtual status_t dump(int /* fd */, const Vector<String16>& /* args */) const {
         return INVALID_OPERATION;
     }
 

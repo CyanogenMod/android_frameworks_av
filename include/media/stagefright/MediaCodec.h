@@ -33,7 +33,7 @@ struct AString;
 struct CodecBase;
 struct IBatteryStats;
 struct ICrypto;
-struct IMemory;
+class IMemory;
 struct MemoryDealer;
 class IResourceManagerClient;
 class IResourceManagerService;

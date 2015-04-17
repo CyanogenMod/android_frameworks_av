@@ -28,7 +28,7 @@
 namespace android {
 
 struct ABuffer;
-struct MediaBuffer;
+class MediaBuffer;
 
 struct NuPlayer::Source : public AHandler {
     enum Flags {

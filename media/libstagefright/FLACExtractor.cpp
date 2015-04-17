@@ -651,10 +651,10 @@ MediaBuffer *FLACParser::readBuffer(bool doSeek, FLAC__uint64 sample)
     if (doSeek) {
         // We implement the seek callback, so this works without explicit flush
         if (!FLAC__stream_decoder_seek_absolute(mDecoder, sample)) {
-            ALOGE("FLACParser::readBuffer seek to sample %llu failed", sample);
+            ALOGE("FLACParser::readBuffer seek to sample %lld failed", (long long)sample);
             return NULL;
         }
-        ALOGV("FLACParser::readBuffer seek to sample %llu succeeded", sample);
+        ALOGV("FLACParser::readBuffer seek to sample %lld succeeded", (long long)sample);
     } else {
         if (!FLAC__stream_decoder_process_single(mDecoder)) {
             ALOGE("FLACParser::readBuffer process_single failed");

@@ -672,8 +672,8 @@ status_t RTPSender::onRTCPData(const sp<ABuffer> &buffer) {
 
             default:
             {
-                ALOGW("Unknown RTCP packet type %u of size %d",
-                     (unsigned)data[1], headerLength);
+                ALOGW("Unknown RTCP packet type %u of size %zu",
+                        (unsigned)data[1], headerLength);
                 break;
             }
         }
@@ -764,7 +764,7 @@ status_t RTPSender::parseTSFB(const uint8_t *data, size_t size) {
     return OK;
 }
 
-status_t RTPSender::parseAPP(const uint8_t *data, size_t size) {
+status_t RTPSender::parseAPP(const uint8_t *data, size_t size __unused) {
     if (!memcmp("late", &data[8], 4)) {
         int64_t avgLatencyUs = (int64_t)U64_AT(&data[12]);
         int64_t maxLatencyUs = (int64_t)U64_AT(&data[20]);

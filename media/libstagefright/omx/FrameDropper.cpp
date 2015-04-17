@@ -50,20 +50,23 @@ bool FrameDropper::shouldDrop(int64_t timeUs) {
 
     if (mDesiredMinTimeUs < 0) {
         mDesiredMinTimeUs = timeUs + mMinIntervalUs;
-        ALOGV("first frame %lld, next desired frame %lld", timeUs, mDesiredMinTimeUs);
+        ALOGV("first frame %lld, next desired frame %lld",
+                (long long)timeUs, (long long)mDesiredMinTimeUs);
         return false;
     }
 
     if (timeUs < (mDesiredMinTimeUs - kMaxJitterUs)) {
         ALOGV("drop frame %lld, desired frame %lld, diff %lld",
-                timeUs, mDesiredMinTimeUs, mDesiredMinTimeUs - timeUs);
+                (long long)timeUs, (long long)mDesiredMinTimeUs,
+                (long long)(mDesiredMinTimeUs - timeUs));
         return true;
     }
 
     int64_t n = (timeUs - mDesiredMinTimeUs + kMaxJitterUs) / mMinIntervalUs;
     mDesiredMinTimeUs += (n + 1) * mMinIntervalUs;
     ALOGV("keep frame %lld, next desired frame %lld, diff %lld",
-            timeUs, mDesiredMinTimeUs, mDesiredMinTimeUs - timeUs);
+            (long long)timeUs, (long long)mDesiredMinTimeUs,
+            (long long)(mDesiredMinTimeUs - timeUs));
     return false;
 }
 

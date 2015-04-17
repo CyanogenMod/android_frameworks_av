@@ -23,7 +23,7 @@
 namespace android {
 
 struct ABuffer;
-struct IGraphicBufferProducer;
+class IGraphicBufferProducer;
 struct MediaCodec;
 
 #define ENABLE_SILENCE_DETECTION        0

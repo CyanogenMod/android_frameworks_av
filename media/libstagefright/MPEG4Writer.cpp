@@ -372,8 +372,8 @@ MPEG4Writer::MPEG4Writer(int fd)
       mLatitudex10000(0),
       mLongitudex10000(0),
       mAreGeoTagsAvailable(false),
-      mMetaKeys(new AMessage()),
-      mStartTimeOffsetMs(-1) {
+      mStartTimeOffsetMs(-1),
+      mMetaKeys(new AMessage()) {
     addDeviceMeta();
 }
 

@@ -100,7 +100,8 @@ protected:
         for (size_t i = 0; i < size; ++i) {
             int jitter = GetJitter(i);
             int64_t testTimeUs = frames[i].timeUs + jitter;
-            printf("time %lld, testTime %lld, jitter %d\n", frames[i].timeUs, testTimeUs, jitter);
+            printf("time %lld, testTime %lld, jitter %d\n",
+                    (long long)frames[i].timeUs, (long long)testTimeUs, jitter);
             EXPECT_EQ(frames[i].shouldDrop, mFrameDropper->shouldDrop(testTimeUs));
         }
     }

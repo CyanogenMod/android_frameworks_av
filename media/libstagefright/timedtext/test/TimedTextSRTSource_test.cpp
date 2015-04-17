@@ -63,10 +63,10 @@ public:
     }
 
     virtual ssize_t readAt(off64_t offset, void *data, size_t size) {
-        if (offset >= mSize) return 0;
+        if ((size_t)offset >= mSize) return 0;
 
         ssize_t avail = mSize - offset;
-        if (avail > size) {
+        if ((size_t)avail > size) {
             avail = size;
         }
         memcpy(data, mData + offset, avail);

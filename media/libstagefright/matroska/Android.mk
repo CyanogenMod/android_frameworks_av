@@ -9,6 +9,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/openmax \
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright_matroska
 

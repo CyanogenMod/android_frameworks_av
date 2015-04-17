@@ -93,8 +93,8 @@ void convertYUV420spToRGB888(
 void convertRGBAToARGB(
         uint8_t *src, int32_t width, int32_t height, uint32_t stride,
         uint8_t *dest) {
-    for (size_t i = 0; i < height; ++i) {
-        for (size_t j = 0; j < width; ++j) {
+    for (int32_t i = 0; i < height; ++i) {
+        for (int32_t j = 0; j < width; ++j) {
             uint8_t r = *src++;
             uint8_t g = *src++;
             uint8_t b = *src++;

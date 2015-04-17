@@ -598,7 +598,7 @@ void SimpleSoftOMXComponent::checkTransitions() {
 
         if (port->mTransition == PortInfo::DISABLING) {
             if (port->mBuffers.empty()) {
-                ALOGV("Port %d now disabled.", i);
+                ALOGV("Port %zu now disabled.", i);
 
                 port->mTransition = PortInfo::NONE;
                 notify(OMX_EventCmdComplete, OMX_CommandPortDisable, i, NULL);
@@ -607,7 +607,7 @@ void SimpleSoftOMXComponent::checkTransitions() {
             }
         } else if (port->mTransition == PortInfo::ENABLING) {
             if (port->mDef.bPopulated == OMX_TRUE) {
-                ALOGV("Port %d now enabled.", i);
+                ALOGV("Port %zu now enabled.", i);
 
                 port->mTransition = PortInfo::NONE;
                 port->mDef.bEnabled = OMX_TRUE;
@@ -628,14 +628,14 @@ void SimpleSoftOMXComponent::addPort(const OMX_PARAM_PORTDEFINITIONTYPE &def) {
     info->mTransition = PortInfo::NONE;
 }
 
-void SimpleSoftOMXComponent::onQueueFilled(OMX_U32 portIndex) {
+void SimpleSoftOMXComponent::onQueueFilled(OMX_U32 portIndex __unused) {
 }
 
-void SimpleSoftOMXComponent::onPortFlushCompleted(OMX_U32 portIndex) {
+void SimpleSoftOMXComponent::onPortFlushCompleted(OMX_U32 portIndex __unused) {
 }
 
 void SimpleSoftOMXComponent::onPortEnableCompleted(
-        OMX_U32 portIndex, bool enabled) {
+        OMX_U32 portIndex __unused, bool enabled __unused) {
 }
 
 List<SimpleSoftOMXComponent::BufferInfo *> &

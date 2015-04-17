@@ -27,7 +27,7 @@ namespace android {
 
 class MediaSource;
 class AudioTrack;
-class AwesomePlayer;
+struct AwesomePlayer;
 
 class AudioPlayer : public TimeSource {
 public:

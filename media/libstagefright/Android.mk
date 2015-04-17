@@ -123,7 +123,8 @@ LOCAL_SHARED_LIBRARIES += \
         libdl \
         libRScpp \
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright
 

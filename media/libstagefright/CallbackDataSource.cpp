@@ -72,7 +72,7 @@ ssize_t CallbackDataSource::readAt(off64_t offset, void* data, size_t size) {
         }
         // Sanity check.
         CHECK((size_t)numRead <= numToRead && numRead >= 0 &&
-              numRead <= bufferSize);
+                (size_t)numRead <= bufferSize);
         memcpy(((uint8_t*)data) + totalNumRead, mMemory->pointer(), numRead);
         numLeft -= numRead;
         totalNumRead += numRead;

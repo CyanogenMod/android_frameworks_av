@@ -34,10 +34,10 @@ HTTPBase::HTTPBase()
     : mNumBandwidthHistoryItems(0),
       mTotalTransferTimeUs(0),
       mTotalTransferBytes(0),
+      mMaxBandwidthHistoryItems(100),
       mPrevBandwidthMeasureTimeUs(0),
       mPrevEstimatedBandWidthKbps(0),
-      mBandWidthCollectFreqMs(5000),
-      mMaxBandwidthHistoryItems(100) {
+      mBandWidthCollectFreqMs(5000) {
 }
 
 void HTTPBase::addBandwidthMeasurement(

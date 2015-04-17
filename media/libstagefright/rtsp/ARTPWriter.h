@@ -32,7 +32,7 @@
 namespace android {
 
 struct ABuffer;
-struct MediaBuffer;
+class MediaBuffer;
 
 struct ARTPWriter : public MediaWriter {
     ARTPWriter(int fd);

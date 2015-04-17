@@ -24,7 +24,7 @@
 namespace android {
 
 struct OMXMaster;
-class OMXNodeInstance;
+struct OMXNodeInstance;
 
 class OMX : public BnOMX,
             public IBinder::DeathRecipient {

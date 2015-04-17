@@ -46,7 +46,7 @@ struct TimedEventQueue {
         virtual void fire(TimedEventQueue *queue, int64_t now_us) = 0;
 
     private:
-        friend class TimedEventQueue;
+        friend struct TimedEventQueue;
 
         event_id mEventID;
 

@@ -681,7 +681,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
     /* Allocate array to hold memory records */
     mMemRecords = (iv_mem_rec_t *)malloc(mNumMemRecords * sizeof(iv_mem_rec_t));
     if (NULL == mMemRecords) {
-        ALOGE("Unable to allocate memory for hold memory records: Size %d",
+        ALOGE("Unable to allocate memory for hold memory records: Size %zu",
                 mNumMemRecords * sizeof(iv_mem_rec_t));
         mSignalledError = true;
         notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
@@ -744,7 +744,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
             ps_mem_rec->pv_base = ive_aligned_malloc(
                     ps_mem_rec->u4_mem_alignment, ps_mem_rec->u4_mem_size);
             if (ps_mem_rec->pv_base == NULL) {
-                ALOGE("Allocation failure for mem record id %d size %d\n", i,
+                ALOGE("Allocation failure for mem record id %zu size %u\n", i,
                         ps_mem_rec->u4_mem_size);
                 mSignalledError = true;
                 notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);

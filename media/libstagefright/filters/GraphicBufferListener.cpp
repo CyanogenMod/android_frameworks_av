@@ -40,7 +40,7 @@ status_t GraphicBufferListener::init(
 
     status_t err = mConsumer->setMaxAcquiredBufferCount(bufferCount);
     if (err != NO_ERROR) {
-        ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
+        ALOGE("Unable to set BQ max acquired buffer count to %zu: %d",
                 bufferCount, err);
         return err;
     }

@@ -27,7 +27,7 @@ namespace android {
 
 struct ABuffer;
 struct AnotherPacketSource;
-struct DataSource;
+class DataSource;
 struct HTTPBase;
 struct LiveDataSource;
 struct M3UParser;

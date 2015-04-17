@@ -217,7 +217,7 @@ status_t MidiEngine::releaseBuffers() {
 }
 
 status_t MidiEngine::seekTo(int64_t positionUs) {
-    ALOGV("seekTo %lld", positionUs);
+    ALOGV("seekTo %lld", (long long)positionUs);
     EAS_RESULT result = EAS_Locate(mEasData, mEasHandle, positionUs / 1000, false);
     return result == EAS_SUCCESS ? OK : UNKNOWN_ERROR;
 }

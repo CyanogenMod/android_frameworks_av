@@ -230,7 +230,7 @@ status_t SampleTable::setSampleToChunkParams(
         return ERROR_MALFORMED;
     }
 
-    if (SIZE_MAX / sizeof(SampleToChunkEntry) <= mNumSampleToChunkOffsets)
+    if (SIZE_MAX / sizeof(SampleToChunkEntry) <= (size_t)mNumSampleToChunkOffsets)
         return ERROR_OUT_OF_RANGE;
 
     mSampleToChunkEntries =

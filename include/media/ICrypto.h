@@ -25,7 +25,7 @@
 namespace android {
 
 struct AString;
-struct IMemory;
+class IMemory;
 
 struct ICrypto : public IInterface {
     DECLARE_META_INTERFACE(Crypto);

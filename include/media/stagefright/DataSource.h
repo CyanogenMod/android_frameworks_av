@@ -32,7 +32,7 @@ namespace android {
 
 struct AMessage;
 struct AString;
-struct IDataSource;
+class  IDataSource;
 struct IMediaHTTPService;
 class String8;
 struct HTTPBase;

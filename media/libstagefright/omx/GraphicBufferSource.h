@@ -30,7 +30,7 @@
 
 namespace android {
 
-class FrameDropper;
+struct FrameDropper;
 
 /*
  * This class is used to feed OMX codecs from a Surface via BufferQueue.
@@ -240,7 +240,7 @@ private:
     Vector<CodecBuffer> mCodecBuffers;
 
     ////
-    friend class AHandlerReflector<GraphicBufferSource>;
+    friend struct AHandlerReflector<GraphicBufferSource>;
 
     enum {
         kWhatRepeatLastFrame,

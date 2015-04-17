@@ -1057,7 +1057,7 @@ status_t OMXCodec::getVideoProfileLevel(
         const sp<MetaData>& meta,
         const CodecProfileLevel& defaultProfileLevel,
         CodecProfileLevel &profileLevel) {
-    CODEC_LOGV("Default profile: %ld, level %ld",
+    CODEC_LOGV("Default profile: %u, level #x%x",
             defaultProfileLevel.mProfile, defaultProfileLevel.mLevel);
 
     // Are the default profile and level overwriten?
@@ -1283,7 +1283,7 @@ status_t OMXCodec::setVideoOutputFormat(
     success = success && meta->findInt32(kKeyHeight, &height);
     CHECK(success);
 
-    CODEC_LOGV("setVideoOutputFormat width=%ld, height=%ld", width, height);
+    CODEC_LOGV("setVideoOutputFormat width=%d, height=%d", width, height);
 
     OMX_VIDEO_CODINGTYPE compressionFormat = OMX_VIDEO_CodingUnused;
     if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
@@ -1650,7 +1650,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         return err;
     }
 
-    CODEC_LOGV("allocating %lu buffers of size %lu on %s port",
+    CODEC_LOGV("allocating %u buffers of size %u on %s port",
             def.nBufferCountActual, def.nBufferSize,
             portIndex == kPortIndexInput ? "input" : "output");
 
@@ -1723,7 +1723,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
         mPortBuffers[portIndex].push(info);
 
-        CODEC_LOGV("allocated buffer %p on %s port", buffer,
+        CODEC_LOGV("allocated buffer %u on %s port", buffer,
              portIndex == kPortIndexInput ? "input" : "output");
     }
 
@@ -1745,7 +1745,7 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 if (mSkipCutBuffer != NULL) {
                     size_t prevbuffersize = mSkipCutBuffer->size();
                     if (prevbuffersize != 0) {
-                        ALOGW("Replacing SkipCutBuffer holding %d bytes", prevbuffersize);
+                        ALOGW("Replacing SkipCutBuffer holding %zu bytes", prevbuffersize);
                     }
                 }
                 mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize);
@@ -1825,14 +1825,23 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-    err = native_window_set_buffers_geometry(
+    err = native_window_set_buffers_dimensions(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
-            def.format.video.nFrameHeight,
+            def.format.video.nFrameHeight);
+
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_dimensions failed: %s (%d)",
+                strerror(-err), -err);
+        return err;
+    }
+
+    err = native_window_set_buffers_format(
+            mNativeWindow.get(),
             def.format.video.eColorFormat);
 
     if (err != 0) {
-        ALOGE("native_window_set_buffers_geometry failed: %s (%d)",
+        ALOGE("native_window_set_buffers_format failed: %s (%d)",
                 strerror(-err), -err);
         return err;
     }
@@ -1873,7 +1882,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         }
     }
 
-    ALOGV("native_window_set_usage usage=0x%lx", usage);
+    ALOGV("native_window_set_usage usage=0x%x", usage);
     err = native_window_set_usage(
             mNativeWindow.get(), usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
     if (err != 0) {
@@ -2069,10 +2078,16 @@ status_t OMXCodec::pushBlankBuffersToNativeWindow() {
         return err;
     }
 
-    err = native_window_set_buffers_geometry(mNativeWindow.get(), 1, 1,
-            HAL_PIXEL_FORMAT_RGBX_8888);
+    err = native_window_set_buffers_dimensions(mNativeWindow.get(), 1, 1);
     if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_buffers_geometry failed: %s (%d)",
+        ALOGE("error pushing blank frames: set_buffers_dimensions failed: %s (%d)",
+                strerror(-err), -err);
+        goto error;
+    }
+
+    err = native_window_set_buffers_format(mNativeWindow.get(), HAL_PIXEL_FORMAT_RGBX_8888);
+    if (err != NO_ERROR) {
+        ALOGE("error pushing blank frames: set_buffers_format failed: %s (%d)",
                 strerror(-err), -err);
         goto error;
     }
@@ -2708,7 +2723,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
 
         default:
         {
-            CODEC_LOGV("CMD_COMPLETE(%d, %ld)", cmd, data);
+            CODEC_LOGV("CMD_COMPLETE(%d, %u)", cmd, data);
             break;
         }
     }
@@ -2734,7 +2749,7 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                 if (countBuffersWeOwn(mPortBuffers[kPortIndexInput]) !=
                     mPortBuffers[kPortIndexInput].size()) {
                     ALOGE("Codec did not return all input buffers "
-                          "(received %d / %d)",
+                          "(received %zu / %zu)",
                             countBuffersWeOwn(mPortBuffers[kPortIndexInput]),
                             mPortBuffers[kPortIndexInput].size());
                     TRESPASS();
@@ -2743,7 +2758,7 @@ void OMXCodec::onStateChange(OMX_STATETYPE newState) {
                 if (countBuffersWeOwn(mPortBuffers[kPortIndexOutput]) !=
                     mPortBuffers[kPortIndexOutput].size()) {
                     ALOGE("Codec did not return all output buffers "
-                          "(received %d / %d)",
+                          "(received %zu / %zu)",
                             countBuffersWeOwn(mPortBuffers[kPortIndexOutput]),
                             mPortBuffers[kPortIndexOutput].size());
                     TRESPASS();
@@ -2847,7 +2862,7 @@ status_t OMXCodec::freeBuffersOnPort(
         CHECK(info->mStatus == OWNED_BY_US
                 || info->mStatus == OWNED_BY_NATIVE_WINDOW);
 
-        CODEC_LOGV("freeing buffer %p on port %ld", info->mBuffer, portIndex);
+        CODEC_LOGV("freeing buffer %u on port %u", info->mBuffer, portIndex);
 
         status_t err = freeBuffer(portIndex, i);
 
@@ -2894,7 +2909,7 @@ status_t OMXCodec::freeBuffer(OMX_U32 portIndex, size_t bufIndex) {
 }
 
 void OMXCodec::onPortSettingsChanged(OMX_U32 portIndex) {
-    CODEC_LOGV("PORT_SETTINGS_CHANGED(%ld)", portIndex);
+    CODEC_LOGV("PORT_SETTINGS_CHANGED(%u)", portIndex);
 
     CHECK(mState == EXECUTING || mState == EXECUTING_TO_IDLE);
     CHECK_EQ(portIndex, (OMX_U32)kPortIndexOutput);
@@ -2921,7 +2936,7 @@ bool OMXCodec::flushPortAsync(OMX_U32 portIndex) {
     CHECK(mState == EXECUTING || mState == RECONFIGURING
             || mState == EXECUTING_TO_IDLE);
 
-    CODEC_LOGV("flushPortAsync(%ld): we own %d out of %d buffers already.",
+    CODEC_LOGV("flushPortAsync(%u): we own %zu out of %zu buffers already.",
          portIndex, countBuffersWeOwn(mPortBuffers[portIndex]),
          mPortBuffers[portIndex].size());
 
@@ -2950,7 +2965,7 @@ void OMXCodec::disablePortAsync(OMX_U32 portIndex) {
     CHECK_EQ((int)mPortStatus[portIndex], (int)ENABLED);
     mPortStatus[portIndex] = DISABLING;
 
-    CODEC_LOGV("sending OMX_CommandPortDisable(%ld)", portIndex);
+    CODEC_LOGV("sending OMX_CommandPortDisable(%u)", portIndex);
     status_t err =
         mOMX->sendCommand(mNode, OMX_CommandPortDisable, portIndex);
     CHECK_EQ(err, (status_t)OK);
@@ -2964,7 +2979,7 @@ status_t OMXCodec::enablePortAsync(OMX_U32 portIndex) {
     CHECK_EQ((int)mPortStatus[portIndex], (int)DISABLED);
     mPortStatus[portIndex] = ENABLING;
 
-    CODEC_LOGV("sending OMX_CommandPortEnable(%ld)", portIndex);
+    CODEC_LOGV("sending OMX_CommandPortEnable(%u)", portIndex);
     return mOMX->sendCommand(mNode, OMX_CommandPortEnable, portIndex);
 }
 
@@ -3037,7 +3052,7 @@ OMXCodec::BufferInfo *OMXCodec::findInputBufferByDataPointer(void *ptr) {
 
         if (info->mData == ptr) {
             CODEC_LOGV(
-                    "input buffer data ptr = %p, buffer_id = %p",
+                    "input buffer data ptr = %p, buffer_id = %u",
                     ptr,
                     info->mBuffer);
 
@@ -3147,7 +3162,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
                 if (srcBuffer->meta_data()->findInt64(
                             kKeyTargetTime, &targetTimeUs)
                         && targetTimeUs >= 0) {
-                    CODEC_LOGV("targetTimeUs = %lld us", targetTimeUs);
+                    CODEC_LOGV("targetTimeUs = %lld us", (long long)targetTimeUs);
                     mTargetTimeUs = targetTimeUs;
                 } else {
                     mTargetTimeUs = -1;
@@ -3181,7 +3196,7 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
             if (offset == 0) {
                 CODEC_LOGE(
                      "Codec's input buffers are too small to accomodate "
-                     "buffer read from source (info->mSize = %d, srcLength = %d)",
+                     "buffer read from source (info->mSize = %zu, srcLength = %zu)",
                      info->mSize, srcBuffer->range_length());
 
                 srcBuffer->release();
@@ -3287,10 +3302,10 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
         info = findEmptyInputBuffer();
     }
 
-    CODEC_LOGV("Calling emptyBuffer on buffer %p (length %d), "
+    CODEC_LOGV("Calling emptyBuffer on buffer %u (length %zu), "
                "timestamp %lld us (%.2f secs)",
                info->mBuffer, offset,
-               timestampUs, timestampUs / 1E6);
+               (long long)timestampUs, timestampUs / 1E6);
 
     err = mOMX->emptyBuffer(
             mNode, info->mBuffer, 0, offset,
@@ -3315,7 +3330,7 @@ void OMXCodec::fillOutputBuffer(BufferInfo *info) {
         return;
     }
 
-    CODEC_LOGV("Calling fillBuffer on buffer %p", info->mBuffer);
+    CODEC_LOGV("Calling fillBuffer on buffer %u", info->mBuffer);
     status_t err = mOMX->fillBuffer(mNode, info->mBuffer);
 
     if (err != OK) {
@@ -3372,7 +3387,7 @@ status_t OMXCodec::waitForBufferFilled_l() {
     }
     status_t err = mBufferFilled.waitRelative(mLock, kBufferFilledEventTimeOutNs);
     if (err != OK) {
-        CODEC_LOGE("Timed out waiting for output buffers: %d/%d",
+        CODEC_LOGE("Timed out waiting for output buffers: %zu/%zu",
             countBuffersWeOwn(mPortBuffers[kPortIndexInput]),
             countBuffersWeOwn(mPortBuffers[kPortIndexOutput]));
     }
@@ -3627,7 +3642,7 @@ void OMXCodec::setG711Format(int32_t sampleRate, int32_t numChannels) {
 
 void OMXCodec::setImageOutputFormat(
         OMX_COLOR_FORMATTYPE format, OMX_U32 width, OMX_U32 height) {
-    CODEC_LOGV("setImageOutputFormat(%ld, %ld)", width, height);
+    CODEC_LOGV("setImageOutputFormat(%u, %u)", width, height);
 
 #if 0
     OMX_INDEXTYPE index;
@@ -4281,14 +4296,14 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                 if ((OMX_U32)numChannels != params.nChannels) {
                     ALOGV("Codec outputs a different number of channels than "
                          "the input stream contains (contains %d channels, "
-                         "codec outputs %ld channels).",
+                         "codec outputs %u channels).",
                          numChannels, params.nChannels);
                 }
 
                 if (sampleRate != (int32_t)params.nSamplingRate) {
                     ALOGV("Codec outputs at different sampling rate than "
                          "what the input stream contains (contains data at "
-                         "%d Hz, codec outputs %lu Hz)",
+                         "%d Hz, codec outputs %u Hz)",
                          sampleRate, params.nSamplingRate);
                 }
 
@@ -4390,8 +4405,7 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                             mNode, OMX_IndexConfigCommonOutputCrop,
                             &rect, sizeof(rect));
 
-                CODEC_LOGI(
-                        "video dimensions are %ld x %ld",
+                CODEC_LOGI("video dimensions are %u x %u",
                         video_def->nFrameWidth, video_def->nFrameHeight);
 
                 if (err == OK) {
@@ -4409,8 +4423,7 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
                             rect.nLeft + rect.nWidth - 1,
                             rect.nTop + rect.nHeight - 1);
 
-                    CODEC_LOGI(
-                            "Crop rect is %ld x %ld @ (%ld, %ld)",
+                    CODEC_LOGI("Crop rect is %u x %u @ (%d, %d)",
                             rect.nWidth, rect.nHeight, rect.nLeft, rect.nTop);
                 } else {
                     mOutputFormat->setRect(

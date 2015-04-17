@@ -188,7 +188,7 @@ protected:
     void releaseCamera();
 
 private:
-    friend class CameraSourceListener;
+    friend struct CameraSourceListener;
 
     Mutex mLock;
     Condition mFrameAvailableCondition;

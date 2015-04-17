@@ -26,7 +26,7 @@
 
 namespace android {
 
-class MediaCodecInfo;
+struct MediaCodecInfo;
 
 bool splitString(const AString &s, const AString &delimiter, AString *s1, AString *s2);
 

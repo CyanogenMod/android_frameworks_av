@@ -28,7 +28,7 @@ namespace android {
 struct ABuffer;
 struct AMessage;
 struct Track;
-struct String8;
+class String8;
 
 struct MPEG2PSExtractor : public MediaExtractor {
     MPEG2PSExtractor(const sp<DataSource> &source);

@@ -29,9 +29,9 @@ namespace android {
 struct ABuffer;
 struct AMessage;
 struct MediaAdapter;
-struct MediaBuffer;
+class MediaBuffer;
 struct MediaSource;
-struct MetaData;
+class MetaData;
 struct MediaWriter;
 
 // MediaMuxer is used to mux multiple tracks into a video. Currently, we only

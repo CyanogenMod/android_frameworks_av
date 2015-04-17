@@ -18,7 +18,7 @@
 
 namespace android {
 
-struct SampleTable;
+class SampleTable;
 
 struct SampleIterator {
     SampleIterator(SampleTable *table);

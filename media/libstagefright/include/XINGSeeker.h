@@ -22,7 +22,7 @@
 
 namespace android {
 
-struct DataSource;
+class DataSource;
 
 struct XINGSeeker : public MP3Seeker {
     static sp<XINGSeeker> CreateFromSource(

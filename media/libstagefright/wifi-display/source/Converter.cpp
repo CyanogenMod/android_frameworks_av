@@ -747,7 +747,7 @@ status_t Converter::doMoreWork() {
             buffer->meta()->setInt64("timeUs", timeUs);
 
             ALOGV("[%s] time %lld us (%.2f secs)",
-                  mIsVideo ? "video" : "audio", timeUs, timeUs / 1E6);
+                    mIsVideo ? "video" : "audio", (long long)timeUs, timeUs / 1E6);
 
             memcpy(buffer->data(), outbuf->base() + offset, size);
 

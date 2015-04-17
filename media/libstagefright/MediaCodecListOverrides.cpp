@@ -130,7 +130,7 @@ static size_t doProfileCodecs(
     while (err == OK && codecs.size() < kMaxInstances) {
         sp<ALooper> looper = new ALooper;
         looper->setName("MediaCodec_looper");
-        ALOGV("doProfileCodecs for codec #%u", codecs.size());
+        ALOGV("doProfileCodecs for codec #%zu", codecs.size());
         ALOGV("doProfileCodecs start looper");
         looper->start(
                 false /* runOnCallingThread */, false /* canCallJava */, ANDROID_PRIORITY_AUDIO);
@@ -234,7 +234,7 @@ void profileCodecs(
             if (max > 0) {
                 CodecSettings settings;
                 char maxStr[32];
-                sprintf(maxStr, "%u", max);
+                sprintf(maxStr, "%zu", max);
                 settings.add("max-supported-instances", maxStr);
 
                 AString key = name;

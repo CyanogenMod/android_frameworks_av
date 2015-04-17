@@ -122,7 +122,7 @@ sp<VBRISeeker> VBRISeeker::CreateFromSource(
 
         seeker->mSegments.push(numBytes);
 
-        ALOGV("entry #%zu: %u offset 0x%016llx", i, numBytes, offset);
+        ALOGV("entry #%zu: %u offset %#016llx", i, numBytes, (long long)offset);
         offset += numBytes;
     }
 
@@ -163,7 +163,7 @@ bool VBRISeeker::getOffsetForTime(int64_t *timeUs, off64_t *pos) {
         *pos += mSegments.itemAt(segmentIndex++);
     }
 
-    ALOGV("getOffsetForTime %" PRId64 " us => 0x%016llx", *timeUs, *pos);
+    ALOGV("getOffsetForTime %lld us => 0x%016llx", (long long)*timeUs, (long long)*pos);
 
     *timeUs = nowUs;
 

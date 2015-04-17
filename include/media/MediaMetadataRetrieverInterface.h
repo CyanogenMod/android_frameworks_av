@@ -26,7 +26,7 @@
 namespace android {
 
 class DataSource;
-class IMediaHTTPService;
+struct IMediaHTTPService;
 
 // Abstract base class
 class MediaMetadataRetrieverBase : public RefBase

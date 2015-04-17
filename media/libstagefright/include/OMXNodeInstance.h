@@ -27,7 +27,7 @@ namespace android {
 
 class IOMXObserver;
 struct OMXMaster;
-struct GraphicBufferSource;
+class GraphicBufferSource;
 
 struct OMXNodeInstance {
     OMXNodeInstance(

@@ -25,7 +25,7 @@
 
 namespace android {
 
-struct MediaBuffer;
+class MediaBuffer;
 
 #define CODEC_MAX_CORES          4
 #define LEN_STATUS_BUFFER        (10  * 1024)

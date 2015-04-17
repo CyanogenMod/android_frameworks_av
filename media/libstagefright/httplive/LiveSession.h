@@ -30,7 +30,7 @@ namespace android {
 struct ABuffer;
 struct AReplyToken;
 struct AnotherPacketSource;
-struct DataSource;
+class DataSource;
 struct HTTPBase;
 struct IMediaHTTPService;
 struct LiveDataSource;

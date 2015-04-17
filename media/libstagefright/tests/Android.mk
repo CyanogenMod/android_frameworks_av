@@ -31,6 +31,9 @@ LOCAL_C_INCLUDES := \
 	frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax \
 
+LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+
 LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_NATIVE_TEST)
@@ -60,6 +63,9 @@ LOCAL_C_INCLUDES := \
 	frameworks/av/media/libstagefright/include \
 	$(TOP)/frameworks/native/include/media/openmax \
 
+LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+
 include $(BUILD_NATIVE_TEST)
 
 include $(CLEAR_VARS)
@@ -86,6 +92,9 @@ LOCAL_C_INCLUDES := \
 	frameworks/native/include/media/openmax \
 
 LOCAL_32_BIT_ONLY := true
+
+LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
 
 include $(BUILD_NATIVE_TEST)
 

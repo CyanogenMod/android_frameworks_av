@@ -24,7 +24,7 @@
 
 namespace android {
 
-struct DataSource;
+class DataSource;
 
 struct VBRISeeker : public MP3Seeker {
     static sp<VBRISeeker> CreateFromSource(

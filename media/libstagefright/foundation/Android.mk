@@ -30,6 +30,7 @@ LOCAL_SHARED_LIBRARIES := \
         libpowermanager
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright_foundation
 

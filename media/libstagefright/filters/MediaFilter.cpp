@@ -804,7 +804,7 @@ void MediaFilter::onSignalEndOfInputStream() {
         eosBuf->mGeneration = mGeneration;
         eosBuf->mData->setRange(0, 0);
         postDrainThisBuffer(eosBuf);
-        ALOGV("Posted EOS on output buffer %zu", eosBuf->mBufferID);
+        ALOGV("Posted EOS on output buffer %u", eosBuf->mBufferID);
     }
 
     mPortEOS[kPortIndexOutput] = true;

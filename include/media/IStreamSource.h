@@ -23,7 +23,7 @@
 namespace android {
 
 struct AMessage;
-struct IMemory;
+class IMemory;
 struct IStreamListener;
 
 struct IStreamSource : public IInterface {

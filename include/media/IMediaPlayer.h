@@ -32,7 +32,7 @@ namespace android {
 class Parcel;
 class Surface;
 class IDataSource;
-class IStreamSource;
+struct IStreamSource;
 class IGraphicBufferProducer;
 struct IMediaHTTPService;
 

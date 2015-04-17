@@ -360,7 +360,7 @@ bool SniffAAC(
         pos += len;
 
         ALOGV("skipped ID3 tag, new starting offset is %lld (0x%016llx)",
-             pos, pos);
+                (long long)pos, (long long)pos);
     }
 
     uint8_t header[2];

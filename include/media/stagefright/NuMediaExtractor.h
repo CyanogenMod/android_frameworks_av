@@ -30,12 +30,12 @@ namespace android {
 
 struct ABuffer;
 struct AMessage;
-struct DataSource;
+class DataSource;
 struct IMediaHTTPService;
-struct MediaBuffer;
+class MediaBuffer;
 struct MediaExtractor;
 struct MediaSource;
-struct MetaData;
+class MetaData;
 
 struct NuMediaExtractor : public RefBase {
     enum SampleFlags {

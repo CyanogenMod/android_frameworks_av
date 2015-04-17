@@ -629,14 +629,23 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
-    err = native_window_set_buffers_geometry(
+    err = native_window_set_buffers_dimensions(
             mNativeWindow.get(),
             def.format.video.nFrameWidth,
-            def.format.video.nFrameHeight,
+            def.format.video.nFrameHeight);
+
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_dimensions failed: %s (%d)",
+                strerror(-err), -err);
+        return err;
+    }
+
+    err = native_window_set_buffers_format(
+            mNativeWindow.get(),
             def.format.video.eColorFormat);
 
     if (err != 0) {
-        ALOGE("native_window_set_buffers_geometry failed: %s (%d)",
+        ALOGE("native_window_set_buffers_format failed: %s (%d)",
                 strerror(-err), -err);
         return err;
     }
@@ -990,7 +999,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         CHECK_EQ(metaData->eType, kMetadataBufferTypeGrallocSource);
 
         ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
-                oldest - &mBuffers[kPortIndexOutput][0],
+                (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
                 mDequeueCounter - oldest->mDequeuedAt,
                 metaData->pHandle,
                 oldest->mGraphicBuffer->handle, oldest->mData->base());
@@ -1598,7 +1607,7 @@ status_t ACodec::configureCodec(
             err = setupG711Codec(encoder, sampleRate, numChannels);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
-        int32_t numChannels, sampleRate, compressionLevel = -1;
+        int32_t numChannels = 0, sampleRate = 0, compressionLevel = -1;
         if (encoder &&
                 (!msg->findInt32("channel-count", &numChannels)
                         || !msg->findInt32("sample-rate", &sampleRate))) {
@@ -3926,9 +3935,7 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
         if (mSkipCutBuffer != NULL) {
             size_t prevbufsize = mSkipCutBuffer->size();
             if (prevbufsize != 0) {
-                ALOGW("Replacing SkipCutBuffer holding %d "
-                      "bytes",
-                      prevbufsize);
+                ALOGW("Replacing SkipCutBuffer holding %zu bytes", prevbufsize);
             }
         }
         mSkipCutBuffer = new SkipCutBuffer(
@@ -3984,10 +3991,16 @@ status_t ACodec::pushBlankBuffersToNativeWindow() {
         return err;
     }
 
-    err = native_window_set_buffers_geometry(mNativeWindow.get(), 1, 1,
-            HAL_PIXEL_FORMAT_RGBX_8888);
+    err = native_window_set_buffers_dimensions(mNativeWindow.get(), 1, 1);
     if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_buffers_geometry failed: %s (%d)",
+        ALOGE("error pushing blank frames: set_buffers_dimensions failed: %s (%d)",
+                strerror(-err), -err);
+        goto error;
+    }
+
+    err = native_window_set_buffers_format(mNativeWindow.get(), HAL_PIXEL_FORMAT_RGBX_8888);
+    if (err != NO_ERROR) {
+        ALOGE("error pushing blank frames: set_buffers_format failed: %s (%d)",
                 strerror(-err), -err);
         goto error;
     }
@@ -4218,7 +4231,7 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
 
     // there is a possibility that this is an outstanding message for a
     // codec that we have already destroyed
-    if (mCodec->mNode == NULL) {
+    if (mCodec->mNode == 0) {
         ALOGI("ignoring message as already freed component: %s",
                 msg->debugString().c_str());
         return true;
@@ -4290,13 +4303,13 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
 bool ACodec::BaseState::onOMXEvent(
         OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
     if (event != OMX_EventError) {
-        ALOGV("[%s] EVENT(%d, 0x%08lx, 0x%08lx)",
+        ALOGV("[%s] EVENT(%d, 0x%08x, 0x%08x)",
              mCodec->mComponentName.c_str(), event, data1, data2);
 
         return false;
     }
 
-    ALOGE("[%s] ERROR(0x%08lx)", mCodec->mComponentName.c_str(), data1);
+    ALOGE("[%s] ERROR(0x%08x)", mCodec->mComponentName.c_str(), data1);
 
     // verify OMX component sends back an error we expect.
     OMX_ERRORTYPE omxError = (OMX_ERRORTYPE)data1;
@@ -4310,7 +4323,7 @@ bool ACodec::BaseState::onOMXEvent(
 }
 
 bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID) {
-    ALOGV("[%s] onOMXEmptyBufferDone %p",
+    ALOGV("[%s] onOMXEmptyBufferDone %u",
          mCodec->mComponentName.c_str(), bufferID);
 
     BufferInfo *info =
@@ -4436,7 +4449,7 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                 }
 
                 if (buffer != info->mData) {
-                    ALOGV("[%s] Needs to copy input data for buffer %p. (%p != %p)",
+                    ALOGV("[%s] Needs to copy input data for buffer %u. (%p != %p)",
                          mCodec->mComponentName.c_str(),
                          bufferID,
                          buffer.get(), info->mData.get());
@@ -4446,18 +4459,18 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                 }
 
                 if (flags & OMX_BUFFERFLAG_CODECCONFIG) {
-                    ALOGV("[%s] calling emptyBuffer %p w/ codec specific data",
+                    ALOGV("[%s] calling emptyBuffer %u w/ codec specific data",
                          mCodec->mComponentName.c_str(), bufferID);
                 } else if (flags & OMX_BUFFERFLAG_EOS) {
-                    ALOGV("[%s] calling emptyBuffer %p w/ EOS",
+                    ALOGV("[%s] calling emptyBuffer %u w/ EOS",
                          mCodec->mComponentName.c_str(), bufferID);
                 } else {
 #if TRACK_BUFFER_TIMING
-                    ALOGI("[%s] calling emptyBuffer %p w/ time %lld us",
-                         mCodec->mComponentName.c_str(), bufferID, timeUs);
+                    ALOGI("[%s] calling emptyBuffer %u w/ time %lld us",
+                         mCodec->mComponentName.c_str(), bufferID, (long long)timeUs);
 #else
-                    ALOGV("[%s] calling emptyBuffer %p w/ time %lld us",
-                         mCodec->mComponentName.c_str(), bufferID, timeUs);
+                    ALOGV("[%s] calling emptyBuffer %u w/ time %lld us",
+                         mCodec->mComponentName.c_str(), bufferID, (long long)timeUs);
 #endif
                 }
 
@@ -4511,7 +4524,7 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                          mCodec->mComponentName.c_str());
                 }
 
-                ALOGV("[%s] calling emptyBuffer %p signalling EOS",
+                ALOGV("[%s] calling emptyBuffer %u signalling EOS",
                      mCodec->mComponentName.c_str(), bufferID);
 
                 CHECK_EQ(mCodec->mOMX->emptyBuffer(
@@ -4812,7 +4825,7 @@ void ACodec::UninitializedState::stateEntered() {
     }
 
     mCodec->mNativeWindow.clear();
-    mCodec->mNode = NULL;
+    mCodec->mNode = 0;
     mCodec->mOMX.clear();
     mCodec->mQuirks = 0;
     mCodec->mFlags = 0;
@@ -4890,7 +4903,7 @@ void ACodec::UninitializedState::onSetup(
 bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     ALOGV("onAllocateComponent");
 
-    CHECK(mCodec->mNode == NULL);
+    CHECK(mCodec->mNode == 0);
 
     OMXClient client;
     CHECK_EQ(client.connect(), (status_t)OK);
@@ -4938,7 +4951,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     }
 
     sp<CodecObserver> observer = new CodecObserver;
-    IOMX::node_id node = NULL;
+    IOMX::node_id node = 0;
 
     status_t err = OMX_ErrorComponentNotFound;
     for (size_t matchIndex = 0; matchIndex < matchingCodecs.size();
@@ -4958,10 +4971,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
             ALOGW("Allocating component '%s' failed, try next one.", componentName.c_str());
         }
 
-        node = NULL;
+        node = 0;
     }
 
-    if (node == NULL) {
+    if (node == 0) {
         if (!mime.empty()) {
             ALOGE("Unable to instantiate a %scoder for type '%s' with err %#x.",
                     encoder ? "en" : "de", mime.c_str(), err);
@@ -5109,7 +5122,7 @@ bool ACodec::LoadedState::onConfigureComponent(
         const sp<AMessage> &msg) {
     ALOGV("onConfigureComponent");
 
-    CHECK(mCodec->mNode != NULL);
+    CHECK(mCodec->mNode != 0);
 
     AString mime;
     CHECK(msg->findString("mime", &mime));
@@ -5449,7 +5462,7 @@ void ACodec::ExecutingState::submitRegularOutputBuffers() {
             CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);
         }
 
-        ALOGV("[%s] calling fillBuffer %p",
+        ALOGV("[%s] calling fillBuffer %u",
              mCodec->mComponentName.c_str(), info->mBufferID);
 
         CHECK_EQ(mCodec->mOMX->fillBuffer(mCodec->mNode, info->mBufferID),
@@ -5523,7 +5536,7 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatFlush:
         {
             ALOGV("[%s] ExecutingState flushing now "
-                 "(codec owns %d/%d input, %d/%d output).",
+                 "(codec owns %zu/%zu input, %zu/%zu output).",
                     mCodec->mComponentName.c_str(),
                     mCodec->countBuffersOwnedByComponent(kPortIndexInput),
                     mCodec->mBuffers[kPortIndexInput].size(),
@@ -5705,7 +5718,7 @@ bool ACodec::ExecutingState::onOMXEvent(
             } else if (data2 == OMX_IndexConfigCommonOutputCrop) {
                 mCodec->mSentFormat = false;
             } else {
-                ALOGV("[%s] OMX_EventPortSettingsChanged 0x%08lx",
+                ALOGV("[%s] OMX_EventPortSettingsChanged 0x%08x",
                      mCodec->mComponentName.c_str(), data2);
             }
 
@@ -6035,8 +6048,8 @@ bool ACodec::FlushingState::onMessageReceived(const sp<AMessage> &msg) {
 
 bool ACodec::FlushingState::onOMXEvent(
         OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
-    ALOGV("[%s] FlushingState onOMXEvent(%d,%ld)",
-            mCodec->mComponentName.c_str(), event, data1);
+    ALOGV("[%s] FlushingState onOMXEvent(%u,%d)",
+            mCodec->mComponentName.c_str(), event, (OMX_S32)data1);
 
     switch (event) {
         case OMX_EventCmdComplete:

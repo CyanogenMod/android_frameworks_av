@@ -191,7 +191,7 @@ status_t SoftAVC::setParams(size_t stride) {
     s_ctl_ip.u4_size = sizeof(ivd_ctl_set_config_ip_t);
     s_ctl_op.u4_size = sizeof(ivd_ctl_set_config_op_t);
 
-    ALOGV("Set the run-time (dynamic) parameters stride = %u", stride);
+    ALOGV("Set the run-time (dynamic) parameters stride = %zu", stride);
     status = ivdec_api_function(mCodecCtx, (void *)&s_ctl_ip, (void *)&s_ctl_op);
 
     if (status != IV_SUCCESS) {
@@ -452,7 +452,7 @@ status_t SoftAVC::initDecoder() {
     uint32_t bufferSize = displaySizeY * 3 / 2;
     mFlushOutBuffer = (uint8_t *)ivd_aligned_malloc(128, bufferSize);
     if (NULL == mFlushOutBuffer) {
-        ALOGE("Could not allocate flushOutputBuffer of size %zu", bufferSize);
+        ALOGE("Could not allocate flushOutputBuffer of size %u", bufferSize);
         return NO_MEMORY;
     }
 

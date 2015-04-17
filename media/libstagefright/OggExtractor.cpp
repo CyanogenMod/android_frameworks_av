@@ -250,7 +250,7 @@ status_t MyVorbisExtractor::findNextPage(
         if (!memcmp(signature, "OggS", 4)) {
             if (*pageOffset > startOffset) {
                 ALOGV("skipped %lld bytes of junk to reach next frame",
-                     *pageOffset - startOffset);
+                     (long long)(*pageOffset - startOffset));
             }
 
             return OK;
@@ -277,7 +277,7 @@ status_t MyVorbisExtractor::findPrevGranulePosition(
             prevGuess = 0;
         }
 
-        ALOGV("backing up %lld bytes", pageOffset - prevGuess);
+        ALOGV("backing up %lld bytes", (long long)(pageOffset - prevGuess));
 
         status_t err = findNextPage(prevGuess, &prevPageOffset);
         if (err != OK) {
@@ -295,7 +295,7 @@ status_t MyVorbisExtractor::findPrevGranulePosition(
     }
 
     ALOGV("prevPageOffset at %lld, pageOffset at %lld",
-         prevPageOffset, pageOffset);
+            (long long)prevPageOffset, (long long)pageOffset);
 
     for (;;) {
         Page prevPage;
@@ -320,7 +320,7 @@ status_t MyVorbisExtractor::seekToTime(int64_t timeUs) {
 
         off64_t pos = timeUs * approxBitrate() / 8000000ll;
 
-        ALOGV("seeking to offset %lld", pos);
+        ALOGV("seeking to offset %lld", (long long)pos);
         return seekToOffset(pos);
     }
 
@@ -348,7 +348,7 @@ status_t MyVorbisExtractor::seekToTime(int64_t timeUs) {
     const TOCEntry &entry = mTableOfContents.itemAt(left);
 
     ALOGV("seeking to entry %zu / %zu at offset %lld",
-         left, mTableOfContents.size(), entry.mPageOffset);
+         left, mTableOfContents.size(), (long long)entry.mPageOffset);
 
     return seekToOffset(entry.mPageOffset);
 }
@@ -391,8 +391,8 @@ ssize_t MyVorbisExtractor::readPage(off64_t offset, Page *page) {
     ssize_t n;
     if ((n = mSource->readAt(offset, header, sizeof(header)))
             < (ssize_t)sizeof(header)) {
-        ALOGV("failed to read %zu bytes at offset 0x%016llx, got %zd bytes",
-             sizeof(header), offset, n);
+        ALOGV("failed to read %zu bytes at offset %#016llx, got %zd bytes",
+                sizeof(header), (long long)offset, n);
 
         if (n < 0) {
             return n;
@@ -505,8 +505,8 @@ status_t MyVorbisExtractor::readNextPacket(MediaBuffer **out, bool conf) {
                     packetSize);
 
             if (n < (ssize_t)packetSize) {
-                ALOGV("failed to read %zu bytes at 0x%016llx, got %zd bytes",
-                     packetSize, dataOffset, n);
+                ALOGV("failed to read %zu bytes at %#016llx, got %zd bytes",
+                        packetSize, (long long)dataOffset, n);
                 return ERROR_IO;
             }
 

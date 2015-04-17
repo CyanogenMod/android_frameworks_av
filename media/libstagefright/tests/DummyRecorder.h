@@ -24,7 +24,7 @@
 
 namespace android {
 
-class MediaSource;
+struct MediaSource;
 class MediaBuffer;
 
 class DummyRecorder {

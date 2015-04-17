@@ -25,7 +25,7 @@
 
 namespace android {
 
-struct DataSource;
+class DataSource;
 class MediaExtractor;
 
 struct StagefrightMetadataRetriever : public MediaMetadataRetrieverInterface {

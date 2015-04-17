@@ -503,7 +503,7 @@ void NuCachedSource2::restartPrefetcherIfNecessary_l(
 ssize_t NuCachedSource2::readAt(off64_t offset, void *data, size_t size) {
     Mutex::Autolock autoSerializer(mSerializer);
 
-    ALOGV("readAt offset %lld, size %zu", offset, size);
+    ALOGV("readAt offset %lld, size %zu", (long long)offset, size);
 
     Mutex::Autolock autoLock(mLock);
     if (mDisconnecting) {
@@ -579,7 +579,7 @@ size_t NuCachedSource2::approxDataRemaining_l(status_t *finalStatus) const {
 ssize_t NuCachedSource2::readInternal(off64_t offset, void *data, size_t size) {
     CHECK_LE(size, (size_t)mHighwaterThresholdBytes);
 
-    ALOGV("readInternal offset %lld size %zu", offset, size);
+    ALOGV("readInternal offset %lld size %zu", (long long)offset, size);
 
     Mutex::Autolock autoLock(mLock);
 
@@ -640,7 +640,7 @@ status_t NuCachedSource2::seekInternal_l(off64_t offset) {
         return OK;
     }
 
-    ALOGI("new range: offset= %lld", offset);
+    ALOGI("new range: offset= %lld", (long long)offset);
 
     mCacheOffset = offset;
 
@@ -719,10 +719,10 @@ void NuCachedSource2::updateCacheParamsFromString(const char *s) {
         mKeepAliveIntervalUs = kDefaultKeepAliveIntervalUs;
     }
 
-    ALOGV("lowwater = %zu bytes, highwater = %zu bytes, keepalive = %" PRId64 " us",
+    ALOGV("lowwater = %zu bytes, highwater = %zu bytes, keepalive = %lld us",
          mLowwaterThresholdBytes,
          mHighwaterThresholdBytes,
-         mKeepAliveIntervalUs);
+         (long long)mKeepAliveIntervalUs);
 }
 
 // static

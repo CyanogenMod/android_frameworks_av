@@ -31,13 +31,13 @@ class DecryptHandle;
 class DrmManagerClient;
 struct AnotherPacketSource;
 struct ARTSPController;
-struct DataSource;
-struct IDataSource;
+class DataSource;
+class IDataSource;
 struct IMediaHTTPService;
 struct MediaSource;
 class MediaBuffer;
 struct NuCachedSource2;
-struct WVMExtractor;
+class WVMExtractor;
 
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
