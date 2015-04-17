@@ -239,6 +239,10 @@ private:
     AString mInitName;
     bool mInitNameIsType;
     bool mInitIsEncoder;
+    bool mCSDWait;
+    unsigned int mCSDCount;
+    Mutex mLock;
+    Condition mCSDCompletion;
 
     // Used only to synchronize asynchronous getBufferAndFormat
     // across all the other (synchronous) buffer state change

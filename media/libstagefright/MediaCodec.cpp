@@ -42,6 +42,7 @@
 #include <private/android_filesystem_config.h>
 #include <utils/Log.h>
 #include <utils/Singleton.h>
+#define CSD_EBD_TIMEOUT 2000000000ll
 
 namespace android {
 
@@ -190,6 +191,9 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     // quickly, violating the OpenMAX specs, until that is remedied
     // we need to invest in an extra looper to free the main event
     // queue.
+    mCSDCount = 0;
+    mCSDWait = false;
+
     mCodec = new ACodec;
     bool needDedicatedLooper = false;
     if (nameIsType && !strncasecmp(name.c_str(), "video/", 6)) {
@@ -603,6 +607,12 @@ status_t MediaCodec::getBufferAndFormat(
 }
 
 status_t MediaCodec::flush() {
+    Mutex::Autolock autoLock(mLock);
+    if(mCSDCount > 0) {
+       mCSDWait = true;
+       ALOGV("Waiting for CSD data response before flushing");
+       mCSDCompletion.waitRelative(mLock, CSD_EBD_TIMEOUT);
+    }
     sp<AMessage> msg = new AMessage(kWhatFlush, id());
 
     sp<AMessage> response;
@@ -1040,13 +1050,14 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 case CodecBase::kWhatFillThisBuffer:
                 {
                     /* size_t index = */updateBuffers(kPortIndexInput, msg);
-
                     if (mState == FLUSHING
                             || mState == STOPPING
                             || mState == RELEASING) {
                         returnBuffersToCodecOnPort(kPortIndexInput);
                         break;
                     }
+                    if (mCSDCount > 0 && mCSD.size() <= 0)
+                        mCSDCount--;
 
                     if (!mCSD.empty()) {
                         ssize_t index = dequeuePortBuffer(kPortIndexInput);
@@ -1057,7 +1068,6 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         // if there's more csd left, we submit it here
                         // clients only get access to input buffers once
                         // this data has been exhausted.
-
                         status_t err = queueCSDInputBuffer(index);
 
                         if (err != OK) {
@@ -1070,6 +1080,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             cancelPendingDequeueOperations();
                         }
                         break;
+                    }
+                    if ((mCSDCount == 0) && (mCSDWait == true)) {
+                         mCSDWait = false;
+                         ALOGV("Signal to proceed flush after getting CSD data responce");
+                         mCSDCompletion.signal();
                     }
 
                     if (mFlags & kFlagIsAsync) {
@@ -1724,7 +1739,6 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
         mCSD.push_back(csd);
         ++i;
     }
-
     sp<ABuffer> extendedCSD = ExtendedCodec::getRawCodecSpecificData(format);
     if (extendedCSD != NULL) {
         ALOGV("pushing extended CSD of size %d", extendedCSD->size());
@@ -1737,12 +1751,12 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
         mCSD.push_back(aacCSD);
     }
 
+    mCSDCount = mCSD.size();
     ALOGV("Found %zu pieces of codec specific data.", mCSD.size());
 }
 
 status_t MediaCodec::queueCSDInputBuffer(size_t bufferIndex) {
     CHECK(!mCSD.empty());
-
     const BufferInfo *info =
         &mPortBuffers[kPortIndexInput].itemAt(bufferIndex);
 
