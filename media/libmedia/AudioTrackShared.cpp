@@ -619,8 +619,9 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
             // Rather than shutting down on a corrupt flush, just treat it as a full flush
             if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
                 ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, "
-                        "filled %d=%#x",
-                        mFlush, flush, front, rear, mask, newFront, filled, filled);
+                        "filled %zd=%#x",
+                        mFlush, flush, front, rear,
+                        (unsigned)mask, newFront, filled, (unsigned)filled);
                 newFront = rear;
             }
             mFlush = flush;

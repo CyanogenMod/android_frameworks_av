@@ -477,7 +477,6 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
         const void *param2) {
     ALOGV("ioConfigChanged() event %d", event);
     const OutputDescriptor *desc;
-    audio_stream_type_t stream;
 
     if (ioHandle == AUDIO_IO_HANDLE_NONE) return;
 

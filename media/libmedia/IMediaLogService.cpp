@@ -45,7 +45,7 @@ public:
         data.writeStrongBinder(IInterface::asBinder(shared));
         data.writeInt64((int64_t) size);
         data.writeCString(name);
-        status_t status = remote()->transact(REGISTER_WRITER, data, &reply);
+        status_t status __unused = remote()->transact(REGISTER_WRITER, data, &reply);
         // FIXME ignores status
     }
 
@@ -53,7 +53,7 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IMediaLogService::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(shared));
-        status_t status = remote()->transact(UNREGISTER_WRITER, data, &reply);
+        status_t status __unused = remote()->transact(UNREGISTER_WRITER, data, &reply);
         // FIXME ignores status
     }
 

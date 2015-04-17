@@ -532,7 +532,6 @@ void MediaProfiles::checkAndAddRequiredProfilesIfNecessary() {
         CHECK(refIndex != -1);
         RequiredProfileRefInfo *info;
         camcorder_quality refQuality;
-        VideoCodec *codec = NULL;
 
         // Check high and low from either camcorder profile, timelapse profile
         // or high speed profile, but not all of them. Default, check camcorder profile

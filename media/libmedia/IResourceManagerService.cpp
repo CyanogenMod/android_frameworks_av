@@ -38,11 +38,9 @@ enum {
 template <typename T>
 static void writeToParcel(Parcel *data, const Vector<T> &items) {
     size_t size = items.size();
-    size_t sizePosition = data->dataPosition();
     // truncates size, but should be okay for this usecase
     data->writeUint32(static_cast<uint32_t>(size));
     for (size_t i = 0; i < size; i++) {
-        size_t position = data->dataPosition();
         items[i].writeToParcel(data);
     }
 }
@@ -121,7 +119,6 @@ status_t BnResourceManagerService::onTransact(
     switch (code) {
         case CONFIG: {
             CHECK_INTERFACE(IResourceManagerService, data, reply);
-            int pid = data.readInt32();
             sp<IResourceManagerClient> client(
                     interface_cast<IResourceManagerClient>(data.readStrongBinder()));
             Vector<MediaResourcePolicy> policies;

@@ -89,7 +89,6 @@ void CharacterEncodingDetector::detectAndConvert() {
         // try combined detection of artist/album/title etc.
         char buf[1024];
         buf[0] = 0;
-        int idx;
         bool allprintable = true;
         for (int i = 0; i < size; i++) {
             const char *name = mNames.getEntry(i);
@@ -169,7 +168,6 @@ void CharacterEncodingDetector::detectAndConvert() {
             const char *name = mNames.getEntry(i);
             uint8_t* src = (uint8_t *)mValues.getEntry(i);
             int len = strlen((char *)src);
-            uint8_t* dest = src;
 
             ALOGV("@@@ checking %s", name);
             const char *s = mValues.getEntry(i);

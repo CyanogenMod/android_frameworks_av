@@ -173,7 +173,7 @@ void dumpMemoryAddresses(int fd)
 
 #else
 // Does nothing
-void dumpMemoryAddresses(int fd) {}
+void dumpMemoryAddresses(int fd __unused) {}
 
 #endif
 }  // namespace android

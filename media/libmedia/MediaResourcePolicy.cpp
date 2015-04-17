@@ -42,7 +42,7 @@ void MediaResourcePolicy::writeToParcel(Parcel *parcel) const {
 
 String8 MediaResourcePolicy::toString() const {
     String8 str;
-    str.appendFormat("%s:%llu", mType.string(), mValue);
+    str.appendFormat("%s:%llu", mType.string(), (unsigned long long)mValue);
     return str;
 }
 

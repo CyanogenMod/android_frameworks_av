@@ -50,7 +50,7 @@ void MediaResource::writeToParcel(Parcel *parcel) const {
 
 String8 MediaResource::toString() const {
     String8 str;
-    str.appendFormat("%s/%s:%llu", mType.string(), mSubType.string(), mValue);
+    str.appendFormat("%s/%s:%llu", mType.string(), mSubType.string(), (unsigned long long)mValue);
     return str;
 }
 

@@ -984,7 +984,6 @@ void ToneGenerator::stopTone() {
             if ((mStartTime.tv_sec != 0) && (clock_gettime(CLOCK_MONOTONIC, &stopTime) == 0)) {
                 time_t sec = stopTime.tv_sec - mStartTime.tv_sec;
                 long nsec = stopTime.tv_nsec - mStartTime.tv_nsec;
-                long durationMs;
                 if (nsec < 0) {
                     --sec;
                     nsec += 1000000000;

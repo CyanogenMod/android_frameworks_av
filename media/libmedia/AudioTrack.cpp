@@ -1663,7 +1663,8 @@ nsecs_t AudioTrack::processAudioBuffer()
         // AudioSystem cache. We should not exit here but after calling the callback so
         // that the upper layers can recreate the track
         if (!isOffloadedOrDirect_l() || (mSequence == mObservedSequence)) {
-            status_t status = restoreTrack_l("processAudioBuffer");
+            status_t status __unused = restoreTrack_l("processAudioBuffer");
+            // FIXME unused status
             // after restoration, continue below to make sure that the loop and buffer events
             // are notified because they have been cleared from mCblk->mFlags above.
         }
