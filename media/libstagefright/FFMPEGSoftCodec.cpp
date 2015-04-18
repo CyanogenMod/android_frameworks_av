@@ -411,12 +411,11 @@ status_t FFMPEGSoftCodec::setSupportedRole(
 status_t FFMPEGSoftCodec::setWMVFormat(
         const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
 {
-    int32_t version = 0;
+    int32_t version = kTypeWMVVer_7;
     OMX_VIDEO_PARAM_WMVTYPE paramWMV;
 
     if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMVVersion), &version)) {
         ALOGE("WMV version not detected");
-        return ERROR_UNSUPPORTED;
     }
 
     InitOMXParams(&paramWMV);
@@ -424,8 +423,9 @@ status_t FFMPEGSoftCodec::setWMVFormat(
 
     status_t err = OMXhandle->getParameter(
             nodeID, OMX_IndexParamVideoWmv, &paramWMV, sizeof(paramWMV));
-    if (err != OK)
+    if (err != OK) {
         return err;
+    }
 
     if (version == kTypeWMVVer_7) {
         paramWMV.eFormat = OMX_VIDEO_WMVFormat7;
@@ -443,10 +443,12 @@ status_t FFMPEGSoftCodec::setWMVFormat(
 status_t FFMPEGSoftCodec::setRVFormat(
         const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
 {
-    int32_t version = 0;
+    int32_t version = kTypeRVVer_G2;
     OMX_VIDEO_PARAM_RVTYPE paramRV;
 
-    CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyRVVersion), &version));
+    if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyRVVersion), &version)) {
+        ALOGE("RV version not detected");
+    }
 
     InitOMXParams(&paramRV);
     paramRV.nPortIndex = kPortIndexInput;
@@ -479,9 +481,15 @@ status_t FFMPEGSoftCodec::setFFmpegVideoFormat(
 
     ALOGD("setFFmpegVideoFormat");
 
-    CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyCodecId), &codec_id));
-    CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyWidth), &width));
-    CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyHeight), &height));
+    if (msg->findInt32(ExtendedCodec::getMsgKey(kKeyWidth), &width)) {
+        ALOGE("No video width specified");
+    }
+    if (msg->findInt32(ExtendedCodec::getMsgKey(kKeyHeight), &height)) {
+        ALOGE("No video height specified");
+    }
+    if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyCodecId), &codec_id)) {
+        ALOGE("No codec id sent for FFMPEG catch-all codec!");
+    }
 
     InitOMXParams(&param);
     param.nPortIndex = kPortIndexInput;
