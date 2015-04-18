@@ -45,7 +45,7 @@ protected:
     virtual void onResume(bool notifyComplete);
     virtual void onFlush();
     virtual void onShutdown(bool notifyComplete);
-    virtual void doRequestBuffers();
+    virtual bool doRequestBuffers();
 
 private:
     enum {

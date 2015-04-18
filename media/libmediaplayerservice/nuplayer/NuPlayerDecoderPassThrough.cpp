@@ -113,7 +113,10 @@ bool NuPlayer::DecoderPassThrough::isDoneFetching() const {
     return mCachedBytes >= kMaxCachedBytes || mReachedEOS || mPaused;
 }
 
-void NuPlayer::DecoderPassThrough::doRequestBuffers() {
+/*
+ * returns true if we should request more data
+ */
+bool NuPlayer::DecoderPassThrough::doRequestBuffers() {
     status_t err = OK;
     while (!isDoneFetching()) {
         sp<AMessage> msg = new AMessage();
@@ -126,10 +129,8 @@ void NuPlayer::DecoderPassThrough::doRequestBuffers() {
         onInputBufferFetched(msg);
     }
 
-    if (err == -EWOULDBLOCK
-            && mSource->feedMoreTSData() == OK) {
-        scheduleRequestBuffers();
-    }
+    return err == -EWOULDBLOCK
+            && mSource->feedMoreTSData() == OK;
 }
 
 status_t NuPlayer::DecoderPassThrough::dequeueAccessUnit(sp<ABuffer> *accessUnit) {
