@@ -138,6 +138,7 @@ private:
     KeyedVector<AString, sp<ABuffer> > mAESKeyForURI;
 
     int64_t mLastPlaylistFetchTimeUs;
+    int64_t mPlaylistTimeUs;
     sp<M3UParser> mPlaylist;
     int32_t mSeqNumber;
     int32_t mNumRetries;
@@ -238,8 +239,7 @@ private:
     void queueDiscontinuity(
             ATSParser::DiscontinuityType type, const sp<AMessage> &extra);
 
-    int32_t getSeqNumberWithAnchorTime(
-            int64_t anchorTimeUs, int64_t targetDurationUs) const;
+    bool adjustSeqNumberWithAnchorTime(int64_t anchorTimeUs);
     int32_t getSeqNumberForDiscontinuity(size_t discontinuitySeq) const;
     int32_t getSeqNumberForTime(int64_t timeUs) const;
 

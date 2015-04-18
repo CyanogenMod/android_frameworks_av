@@ -71,7 +71,7 @@ struct HLSTime {
     sp<AMessage> mMeta;
 
     HLSTime(const sp<AMessage> &meta = NULL);
-    int64_t getSegmentTimeUs(bool midpoint = false) const;
+    int64_t getSegmentTimeUs() const;
 };
 
 bool operator <(const HLSTime &t0, const HLSTime &t1);

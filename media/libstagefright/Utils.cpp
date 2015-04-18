@@ -852,14 +852,32 @@ HLSTime::HLSTime(const sp<AMessage>& meta) :
     }
 }
 
-int64_t HLSTime::getSegmentTimeUs(bool midpoint) const {
+int64_t HLSTime::getSegmentTimeUs() const {
     int64_t segmentStartTimeUs = -1ll;
     if (mMeta != NULL) {
         CHECK(mMeta->findInt64("segmentStartTimeUs", &segmentStartTimeUs));
-        if (midpoint) {
+
+        int64_t segmentFirstTimeUs;
+        if (mMeta->findInt64("segmentFirstTimeUs", &segmentFirstTimeUs)) {
+            segmentStartTimeUs += mTimeUs - segmentFirstTimeUs;
+        }
+
+        // adjust segment time by playlist age (for live streaming)
+        int64_t playlistTimeUs;
+        if (mMeta->findInt64("playlistTimeUs", &playlistTimeUs)) {
+            int64_t playlistAgeUs = ALooper::GetNowUs() - playlistTimeUs;
+
             int64_t durationUs;
             CHECK(mMeta->findInt64("segmentDurationUs", &durationUs));
-            segmentStartTimeUs += durationUs / 2;
+
+            // round to nearest whole segment
+            playlistAgeUs = (playlistAgeUs + durationUs / 2)
+                    / durationUs * durationUs;
+
+            segmentStartTimeUs -= playlistAgeUs;
+            if (segmentStartTimeUs < 0) {
+                segmentStartTimeUs = 0;
+            }
         }
     }
     return segmentStartTimeUs;
