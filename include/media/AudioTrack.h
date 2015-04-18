@@ -21,6 +21,7 @@
 #include <media/AudioSystem.h>
 #include <media/AudioTimestamp.h>
 #include <media/IAudioTrack.h>
+#include <media/AudioResamplerPublic.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -369,10 +370,10 @@ public:
      * Speed increases the playback rate of media, but does not alter pitch.
      * Pitch increases the "tonal frequency" of media, but does not affect the playback rate.
      */
-            status_t    setPlaybackRate(float speed, float pitch);
+            status_t    setPlaybackRate(const AudioPlaybackRate &playbackRate);
 
     /* Return current playback rate */
-            void        getPlaybackRate(float *speed, float *pitch) const;
+            const AudioPlaybackRate& getPlaybackRate() const;
 
     /* Enables looping and sets the start and end points of looping.
      * Only supported for static buffer mode.
@@ -748,8 +749,7 @@ protected:
     float                   mVolume[2];
     float                   mSendLevel;
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it
-    float                   mSpeed;                 // timestretch: 1.0f for normal speed.
-    float                   mPitch;                 // timestretch: 1.0f for normal pitch.
+    AudioPlaybackRate       mPlaybackRate;
     size_t                  mFrameCount;            // corresponds to current IAudioTrack, value is
                                                     // reported back by AudioFlinger to the client
     size_t                  mReqFrameCount;         // frame count to request the first or next time

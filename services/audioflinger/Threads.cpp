@@ -3599,11 +3599,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         // during last round
         size_t desiredFrames;
         const uint32_t sampleRate = track->mAudioTrackServerProxy->getSampleRate();
-        float speed, pitch;
-        track->mAudioTrackServerProxy->getPlaybackRate(&speed, &pitch);
+        AudioPlaybackRate playbackRate = track->mAudioTrackServerProxy->getPlaybackRate();
 
         desiredFrames = sourceFramesNeededWithTimestretch(
-                sampleRate, mNormalFrameCount, mSampleRate, speed);
+                sampleRate, mNormalFrameCount, mSampleRate, playbackRate.mSpeed);
         // TODO: ONLY USED FOR LEGACY RESAMPLERS, remove when they are removed.
         // add frames already consumed but not yet released by the resampler
         // because mAudioTrackServerProxy->framesReady() will include these frames
@@ -3772,15 +3771,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 AudioMixer::SAMPLE_RATE,
                 (void *)(uintptr_t)reqSampleRate);
 
-            // set the playback rate as an float array {speed, pitch}
-            float playbackRate[2];
-            track->mAudioTrackServerProxy->getPlaybackRate(
-                    &playbackRate[0] /*speed*/, &playbackRate[1] /*pitch*/);
+            AudioPlaybackRate playbackRate = track->mAudioTrackServerProxy->getPlaybackRate();
             mAudioMixer->setParameter(
                 name,
                 AudioMixer::TIMESTRETCH,
                 AudioMixer::PLAYBACK_RATE,
-                playbackRate);
+                &playbackRate);
 
             /*
              * Select the appropriate output buffer for the track.

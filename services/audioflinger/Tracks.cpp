@@ -906,11 +906,9 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
         // FIXME Not accurate under dynamic changes of sample rate and speed.
         // Do not use track's mSampleRate as it is not current for mixer tracks.
         uint32_t sampleRate = mAudioTrackServerProxy->getSampleRate();
-        float speed, pitch;
-        mAudioTrackServerProxy->getPlaybackRate(&speed, &pitch);
-        uint32_t unpresentedFrames =
-                ((double) playbackThread->mLatchQ.mUnpresentedFrames * sampleRate * speed)
-                / playbackThread->mSampleRate;
+        AudioPlaybackRate playbackRate = mAudioTrackServerProxy->getPlaybackRate();
+        uint32_t unpresentedFrames = ((double) playbackThread->mLatchQ.mUnpresentedFrames *
+                sampleRate * playbackRate.mSpeed)/ playbackThread->mSampleRate;
         // FIXME Since we're using a raw pointer as the key, it is theoretically possible
         //       for a brand new track to share the same address as a recently destroyed
         //       track, and thus for us to get the frames released of the wrong track.
