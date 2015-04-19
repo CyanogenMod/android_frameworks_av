@@ -2130,7 +2130,7 @@ void AudioMixer::track__Resample(track_t* t, TO* out, size_t outFrameCount, TO* 
  * TA: int32_t (Q4.27)
  */
 template <int MIXTYPE, typename TO, typename TI, typename TA>
-void AudioMixer::track__NoResample(track_t* t, TO* out, size_t frameCount,
+void __attribute__((optimize("no-tree-vectorize"))) AudioMixer::track__NoResample(track_t* t, TO* out, size_t frameCount,
         TO* temp __unused, TA* aux)
 {
     ALOGVV("track__NoResample\n");

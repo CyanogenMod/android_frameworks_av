@@ -78,7 +78,7 @@ void Deringing_Luma(
         for (v_blk = 0; v_blk < MBSIZE; v_blk += BLKSIZE)
         {
             v0 = ((v_blk - 1) >= 1) ? (v_blk - 1) : 1;
-            for (h_blk = MB_H; h_blk < MB_H + MBSIZE; h_blk += BLKSIZE)
+            for (h_blk = MB_H; (unsigned int)h_blk < (unsigned int)((unsigned int)MB_H + (unsigned int)MBSIZE); h_blk += BLKSIZE)
             {
                 h0 = ((h_blk - 1) >= 1) ? (h_blk - 1) : 1;
 
@@ -129,7 +129,7 @@ void Deringing_Luma(
         }
 
         blks = 0;
-        for (v_blk = MB_V; v_blk < MB_V + MBSIZE; v_blk += BLKSIZE)
+        for (v_blk = MB_V; (unsigned int)v_blk < (unsigned int)((unsigned int)MB_V + (unsigned int)MBSIZE); v_blk += BLKSIZE)
         {
             v0 = v_blk - 1;
             for (h_blk = 0; h_blk < MBSIZE; h_blk += BLKSIZE)

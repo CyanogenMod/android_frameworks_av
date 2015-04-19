@@ -42,7 +42,7 @@ void Isp_Az(
 		                                      /*     1   : adaptive scaling enabled  */
 	   )
 {
-	Word32 i, j;
+	Word16 i, j;
 	Word16 hi, lo;
 	Word32 f1[NC16k + 1], f2[NC16k];
 	Word16 nc;
@@ -58,18 +58,17 @@ void Isp_Az(
 		{
 			f1[i] = f1[i] << 2;
 		}
-	} else
-		Get_isp_pol(&isp[0], f1, nc);
-
-	if (nc > 8)
-	{
 		Get_isp_pol_16kHz(&isp[1], f2, (nc - 1));
 		for (i = 0; i <= nc - 1; i++)
 		{
 			f2[i] = f2[i] << 2;
 		}
-	} else
+	}
+	else
+	{
+		Get_isp_pol(&isp[0], f1, nc);
 		Get_isp_pol(&isp[1], f2, (nc - 1));
+	}
 
 	/*-----------------------------------------------------*
 	 *  Multiply F2(z) by (1 - z^-2)                       *
