@@ -461,7 +461,7 @@ bool NuPlayer::Decoder::handleAnOutputBuffer() {
             int64_t durationUs;
             bool hasVideo = (mSource->getFormat(false /* audio */) != NULL);
             if (!hasVideo &&
-                    mSource->getCachedDuration(&durationUs) == OK &&
+                    mSource->getDuration(&durationUs) == OK &&
                     durationUs
                         > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
                 flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;

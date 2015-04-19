@@ -120,10 +120,6 @@ struct NuPlayer::Source : public AHandler {
 
     virtual int64_t getServerTimeoutUs();
 
-    virtual status_t getCachedDuration(int64_t *durationUs) {
-        return getDuration(durationUs);
-    }
-
 protected:
     virtual ~Source() {}
 

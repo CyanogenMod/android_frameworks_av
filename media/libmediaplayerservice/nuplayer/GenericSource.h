@@ -72,8 +72,6 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
 
-    virtual status_t getCachedDuration(int64_t *durationUs, size_t *cachedDataRemaining = 0);
-
 protected:
     virtual ~GenericSource();
 
@@ -120,7 +118,6 @@ private:
     int32_t mFetchSubtitleDataGeneration;
     int32_t mFetchTimedTextDataGeneration;
     int64_t mDurationUs;
-    int64_t mCachedDurationUs;
     bool mAudioIsVorbis;
     bool mIsWidevine;
     bool mIsSecure;
@@ -143,7 +140,6 @@ private:
     sp<DecryptHandle> mDecryptHandle;
     bool mStarted;
     bool mStopRead;
-    int64_t mInitialSeekTime;
     String8 mContentType;
     AString mSniffedMIME;
     off64_t mMetaDataSize;
