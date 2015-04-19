@@ -5444,7 +5444,7 @@ bool ACodec::LoadedState::onConfigureComponent(
 
     status_t err = mCodec->configureCodec(mime.c_str(), msg);
 
-    if (err != OK &&  !strncmp(mime.c_str(), "video/", strlen("video/"))) {
+    if (err != OK) {
         ALOGE("[%s] configureCodec returning error %d",
               mCodec->mComponentName.c_str(), err);
 
