@@ -236,11 +236,7 @@ void MediaCodec::ResourceManagerServiceProxy::init() {
         ALOGE("Failed to get ResourceManagerService");
         return;
     }
-    if (IInterface::asBinder(mService)->linkToDeath(this) != OK) {
-        mService.clear();
-        ALOGE("Failed to linkToDeath to ResourceManagerService.");
-        return;
-    }
+    IInterface::asBinder(mService)->linkToDeath(this);
 }
 
 void MediaCodec::ResourceManagerServiceProxy::binderDied(const wp<IBinder>& /*who*/) {
