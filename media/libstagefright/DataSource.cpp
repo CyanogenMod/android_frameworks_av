@@ -283,7 +283,7 @@ sp<DataSource> DataSource::CreateMediaHTTP(const sp<IMediaHTTPService> &httpServ
 }
 
 sp<DataSource> DataSource::CreateFromIDataSource(const sp<IDataSource> &source) {
-    return new CallbackDataSource(source);
+    return new TinyCacheSource(new CallbackDataSource(source));
 }
 
 String8 DataSource::getMIMEType() const {
