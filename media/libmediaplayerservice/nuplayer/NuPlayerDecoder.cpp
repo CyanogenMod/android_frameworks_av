@@ -658,7 +658,7 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
 #if 0
     int64_t mediaTimeUs;
     CHECK(accessUnit->meta()->findInt64("timeUs", &mediaTimeUs));
-    ALOGV("[%s] feeding input buffer at media time %" PRId64,
+    ALOGV("[%s] feeding input buffer at media time %.3f",
          mIsAudio ? "audio" : "video",
          mediaTimeUs / 1E6);
 #endif

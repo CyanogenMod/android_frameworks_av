@@ -19,25 +19,18 @@
 #include <utils/Log.h>
 
 #include "LiveSession.h"
-
+#include "HTTPDownloader.h"
 #include "M3UParser.h"
 #include "PlaylistFetcher.h"
 
-#include "include/HTTPBase.h"
 #include "mpeg2ts/AnotherPacketSource.h"
 
 #include <cutils/properties.h>
-#include <media/IMediaHTTPConnection.h>
 #include <media/IMediaHTTPService.h>
-#include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/AUtils.h>
-#include <media/stagefright/DataSource.h>
-#include <media/stagefright/FileSource.h>
-#include <media/stagefright/MediaErrors.h>
-#include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
@@ -46,8 +39,6 @@
 
 #include <ctype.h>
 #include <inttypes.h>
-#include <openssl/aes.h>
-#include <openssl/md5.h>
 
 namespace android {
 
@@ -257,7 +248,6 @@ LiveSession::LiveSession(
       mInPreparationPhase(true),
       mPollBufferingGeneration(0),
       mPrevBufferPercentage(-1),
-      mHTTPDataSource(new MediaHTTP(mHTTPService->makeHTTPConnection())),
       mCurBandwidthIndex(-1),
       mOrigBandwidthIndex(-1),
       mLastBandwidthBps(-1ll),
@@ -317,7 +307,7 @@ status_t LiveSession::dequeueAccessUnit(
 
     ssize_t streamIdx = typeToIndex(stream);
     if (streamIdx < 0) {
-        return INVALID_VALUE;
+        return BAD_VALUE;
     }
     const char *streamStr = getNameForStream(stream);
     // Do not let client pull data if we don't have data packets yet.
@@ -465,8 +455,8 @@ status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
     return convertMetaDataToMessage(meta, format);
 }
 
-sp<HTTPBase> LiveSession::getHTTPDataSource() {
-    return new MediaHTTP(mHTTPService->makeHTTPConnection());
+sp<HTTPDownloader> LiveSession::getHTTPDownloader() {
+    return new HTTPDownloader(mHTTPService, mExtraHeaders);
 }
 
 void LiveSession::connectAsync(
@@ -838,6 +828,12 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
+                case PlaylistFetcher::kWhatPlaylistFetched:
+                {
+                    onMasterPlaylistFetched(msg);
+                    break;
+                }
+
                 case PlaylistFetcher::kWhatMetadataDetected:
                 {
                     if (!mHasMetadata) {
@@ -871,12 +867,6 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatChangeConfiguration3:
         {
             onChangeConfiguration3(msg);
-            break;
-        }
-
-        case kWhatFinishDisconnect2:
-        {
-            onFinishDisconnect2();
             break;
         }
 
@@ -931,8 +921,10 @@ ssize_t LiveSession::typeToIndex(int32_t type) {
 }
 
 void LiveSession::onConnect(const sp<AMessage> &msg) {
-    AString url;
-    CHECK(msg->findString("url", &url));
+    CHECK(msg->findString("url", &mMasterURL));
+
+    // TODO currently we don't know if we are coming here from incognito mode
+    ALOGI("onConnect %s", uriDebugString(mMasterURL).c_str());
 
     KeyedVector<String8, String8> *headers = NULL;
     if (!msg->findPointer("headers", (void **)&headers)) {
@@ -944,21 +936,6 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
         headers = NULL;
     }
 
-    // TODO currently we don't know if we are coming here from incognito mode
-    ALOGI("onConnect %s", uriDebugString(url).c_str());
-
-    mMasterURL = url;
-
-    bool dummy;
-    mPlaylist = fetchPlaylist(url.c_str(), NULL /* curPlaylistHash */, &dummy);
-
-    if (mPlaylist == NULL) {
-        ALOGE("unable to fetch master playlist %s.", uriDebugString(url).c_str());
-
-        postPrepared(ERROR_IO);
-        return;
-    }
-
     // create looper for fetchers
     if (mFetcherLooper == NULL) {
         mFetcherLooper = new ALooper();
@@ -967,6 +944,31 @@ void LiveSession::onConnect(const sp<AMessage> &msg) {
         mFetcherLooper->start(false, false);
     }
 
+    // create fetcher to fetch the master playlist
+    addFetcher(mMasterURL.c_str())->fetchPlaylistAsync();
+}
+
+void LiveSession::onMasterPlaylistFetched(const sp<AMessage> &msg) {
+    AString uri;
+    CHECK(msg->findString("uri", &uri));
+    ssize_t index = mFetcherInfos.indexOfKey(uri);
+    if (index < 0) {
+        ALOGW("fetcher for master playlist is gone.");
+        return;
+    }
+
+    // no longer useful, remove
+    mFetcherLooper->unregisterHandler(mFetcherInfos[index].mFetcher->id());
+    mFetcherInfos.removeItemsAt(index);
+
+    CHECK(msg->findObject("playlist", (sp<RefBase> *)&mPlaylist));
+    if (mPlaylist == NULL) {
+        ALOGE("unable to fetch master playlist %s.",
+                uriDebugString(mMasterURL).c_str());
+
+        postPrepared(ERROR_IO);
+        return;
+    }
     // We trust the content provider to make a reasonable choice of preferred
     // initial bandwidth by listing it first in the variant playlist.
     // At startup we really don't have a good estimate on the available
@@ -1050,22 +1052,26 @@ void LiveSession::finishDisconnect() {
     // cancel buffer polling
     cancelPollBuffering();
 
+    // TRICKY: don't wait for all fetcher to be stopped when disconnecting
+    //
+    // Some fetchers might be stuck in connect/getSize at this point. These
+    // operations will eventually timeout (as we have a timeout set in
+    // MediaHTTPConnection), but we don't want to block the main UI thread
+    // until then. Here we just need to make sure we clear all references
+    // to the fetchers, so that when they finally exit from the blocking
+    // operation, they can be destructed.
+    //
+    // There is one very tricky point though. For this scheme to work, the
+    // fecther must hold a reference to LiveSession, so that LiveSession is
+    // destroyed after fetcher. Otherwise LiveSession would get stuck in its
+    // own destructor when it waits for mFetcherLooper to stop, which still
+    // blocks main UI thread.
     for (size_t i = 0; i < mFetcherInfos.size(); ++i) {
         mFetcherInfos.valueAt(i).mFetcher->stopAsync();
+        mFetcherLooper->unregisterHandler(
+                mFetcherInfos.valueAt(i).mFetcher->id());
     }
-
-    sp<AMessage> msg = new AMessage(kWhatFinishDisconnect2, this);
-
-    mContinuationCounter = mFetcherInfos.size();
-    mContinuation = msg;
-
-    if (mContinuationCounter == 0) {
-        msg->post();
-    }
-}
-
-void LiveSession::onFinishDisconnect2() {
-    mContinuation.clear();
+    mFetcherInfos.clear();
 
     mPacketSources.valueFor(STREAMTYPE_AUDIO)->signalEOS(ERROR_END_OF_STREAM);
     mPacketSources.valueFor(STREAMTYPE_VIDEO)->signalEOS(ERROR_END_OF_STREAM);
@@ -1102,198 +1108,6 @@ sp<PlaylistFetcher> LiveSession::addFetcher(const char *uri) {
     mFetcherInfos.add(uri, info);
 
     return info.mFetcher;
-}
-
-/*
- * Illustration of parameters:
- *
- * 0      `range_offset`
- * +------------+-------------------------------------------------------+--+--+
- * |            |                                 | next block to fetch |  |  |
- * |            | `source` handle => `out` buffer |                     |  |  |
- * | `url` file |<--------- buffer size --------->|<--- `block_size` -->|  |  |
- * |            |<----------- `range_length` / buffer capacity ----------->|  |
- * |<------------------------------ file_size ------------------------------->|
- *
- * Special parameter values:
- * - range_length == -1 means entire file
- * - block_size == 0 means entire range
- *
- */
-ssize_t LiveSession::fetchFile(
-        const char *url, sp<ABuffer> *out,
-        int64_t range_offset, int64_t range_length,
-        uint32_t block_size, /* download block size */
-        sp<DataSource> *source, /* to return and reuse source */
-        String8 *actualUrl,
-        bool forceConnectHTTP /* force connect HTTP when resuing source */) {
-    off64_t size;
-    sp<DataSource> temp_source;
-    if (source == NULL) {
-        source = &temp_source;
-    }
-
-    if (*source == NULL || forceConnectHTTP) {
-        if (!strncasecmp(url, "file://", 7)) {
-            *source = new FileSource(url + 7);
-        } else if (strncasecmp(url, "http://", 7)
-                && strncasecmp(url, "https://", 8)) {
-            return ERROR_UNSUPPORTED;
-        } else {
-            KeyedVector<String8, String8> headers = mExtraHeaders;
-            if (range_offset > 0 || range_length >= 0) {
-                headers.add(
-                        String8("Range"),
-                        String8(
-                            AStringPrintf(
-                                "bytes=%lld-%s",
-                                range_offset,
-                                range_length < 0
-                                    ? "" : AStringPrintf("%lld",
-                                            range_offset + range_length - 1).c_str()).c_str()));
-            }
-
-            HTTPBase* httpDataSource =
-                    (*source == NULL) ? mHTTPDataSource.get() : (HTTPBase*)source->get();
-            status_t err = httpDataSource->connect(url, &headers);
-
-            if (err != OK) {
-                return err;
-            }
-
-            if (*source == NULL) {
-                *source = mHTTPDataSource;
-            }
-        }
-    }
-
-    status_t getSizeErr = (*source)->getSize(&size);
-    if (getSizeErr != OK) {
-        size = 65536;
-    }
-
-    sp<ABuffer> buffer = *out != NULL ? *out : new ABuffer(size);
-    if (*out == NULL) {
-        buffer->setRange(0, 0);
-    }
-
-    ssize_t bytesRead = 0;
-    // adjust range_length if only reading partial block
-    if (block_size > 0 && (range_length == -1 || (int64_t)(buffer->size() + block_size) < range_length)) {
-        range_length = buffer->size() + block_size;
-    }
-    for (;;) {
-        // Only resize when we don't know the size.
-        size_t bufferRemaining = buffer->capacity() - buffer->size();
-        if (bufferRemaining == 0 && getSizeErr != OK) {
-            size_t bufferIncrement = buffer->size() / 2;
-            if (bufferIncrement < 32768) {
-                bufferIncrement = 32768;
-            }
-            bufferRemaining = bufferIncrement;
-
-            ALOGV("increasing download buffer to %zu bytes",
-                 buffer->size() + bufferRemaining);
-
-            sp<ABuffer> copy = new ABuffer(buffer->size() + bufferRemaining);
-            memcpy(copy->data(), buffer->data(), buffer->size());
-            copy->setRange(0, buffer->size());
-
-            buffer = copy;
-        }
-
-        size_t maxBytesToRead = bufferRemaining;
-        if (range_length >= 0) {
-            int64_t bytesLeftInRange = range_length - buffer->size();
-            if (bytesLeftInRange < (int64_t)maxBytesToRead) {
-                maxBytesToRead = bytesLeftInRange;
-
-                if (bytesLeftInRange == 0) {
-                    break;
-                }
-            }
-        }
-
-        // The DataSource is responsible for informing us of error (n < 0) or eof (n == 0)
-        // to help us break out of the loop.
-        ssize_t n = (*source)->readAt(
-                buffer->size(), buffer->data() + buffer->size(),
-                maxBytesToRead);
-
-        if (n < 0) {
-            return n;
-        }
-
-        if (n == 0) {
-            break;
-        }
-
-        buffer->setRange(0, buffer->size() + (size_t)n);
-        bytesRead += n;
-    }
-
-    *out = buffer;
-    if (actualUrl != NULL) {
-        *actualUrl = (*source)->getUri();
-        if (actualUrl->isEmpty()) {
-            *actualUrl = url;
-        }
-    }
-
-    return bytesRead;
-}
-
-sp<M3UParser> LiveSession::fetchPlaylist(
-        const char *url, uint8_t *curPlaylistHash, bool *unchanged) {
-    ALOGV("fetchPlaylist '%s'", url);
-
-    *unchanged = false;
-
-    sp<ABuffer> buffer;
-    String8 actualUrl;
-    ssize_t  err = fetchFile(url, &buffer, 0, -1, 0, NULL, &actualUrl);
-
-    // close off the connection after use
-    mHTTPDataSource->disconnect();
-
-    if (err <= 0) {
-        return NULL;
-    }
-
-    // MD5 functionality is not available on the simulator, treat all
-    // playlists as changed.
-
-#if defined(HAVE_ANDROID_OS)
-    uint8_t hash[16];
-
-    MD5_CTX m;
-    MD5_Init(&m);
-    MD5_Update(&m, buffer->data(), buffer->size());
-
-    MD5_Final(hash, &m);
-
-    if (curPlaylistHash != NULL && !memcmp(hash, curPlaylistHash, 16)) {
-        // playlist unchanged
-        *unchanged = true;
-
-        return NULL;
-    }
-
-    if (curPlaylistHash != NULL) {
-        memcpy(curPlaylistHash, hash, sizeof(hash));
-    }
-#endif
-
-    sp<M3UParser> playlist =
-        new M3UParser(actualUrl.string(), buffer->data(), buffer->size());
-
-    if (playlist->initCheck() != OK) {
-        ALOGE("failed to parse .m3u8 playlist");
-
-        return NULL;
-    }
-
-    return playlist;
 }
 
 #if 0
@@ -1690,9 +1504,11 @@ void LiveSession::changeConfiguration(
             fetcher->stopAsync();
         } else {
             float threshold = -1.0f; // always finish fetching by default
+            bool disconnect = false;
             if (timeUs >= 0ll) {
                 // seeking, no need to finish fetching
                 threshold = 0.0f;
+                disconnect = true;
             } else if (delayRemoval) {
                 // adapting, abort if remaining of current segment is over threshold
                 threshold = getAbortThreshold(
@@ -1701,7 +1517,7 @@ void LiveSession::changeConfiguration(
 
             ALOGV("pausing fetcher-%d, threshold=%.2f",
                     fetcher->getFetcherID(), threshold);
-            fetcher->pauseAsync(threshold);
+            fetcher->pauseAsync(threshold, disconnect);
         }
     }
 
