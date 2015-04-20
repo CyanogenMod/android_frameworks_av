@@ -7039,6 +7039,12 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
     // interfere with the device used for phone strategy
     // if stateChange is true, we are called from setPhoneState() and we must mute or unmute as
     // many times as there are active tracks on the output
+
+    // no action needed for AUDIO_STREAM_PATCH stream type, it's for internal flinger tracks
+    if (stream == AUDIO_STREAM_PATCH) {
+        return;
+    }
+
     const routing_strategy stream_strategy = getStrategy(stream);
     if ((stream_strategy == STRATEGY_SONIFICATION) ||
             ((stream_strategy == STRATEGY_SONIFICATION_RESPECTFUL))) {
