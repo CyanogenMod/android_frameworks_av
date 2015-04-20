@@ -5328,7 +5328,7 @@ AudioFlinger::RecordThread::~RecordThread()
     }
     mAudioFlinger->unregisterWriter(mFastCaptureNBLogWriter);
     mAudioFlinger->unregisterWriter(mNBLogWriter);
-    delete[] mRsmpInBuffer;
+    free(mRsmpInBuffer);
 }
 
 void AudioFlinger::RecordThread::onFirstRef()
@@ -5561,7 +5561,7 @@ reacquire_wakelock:
         // If an NBAIO source is present, use it to read the normal capture's data
         if (mPipeSource != 0) {
             size_t framesToRead = mBufferSize / mFrameSize;
-            framesRead = mPipeSource->read(&mRsmpInBuffer[rear * mChannelCount],
+            framesRead = mPipeSource->read((uint8_t*)mRsmpInBuffer + rear * mFrameSize,
                     framesToRead, AudioBufferProvider::kInvalidPTS);
             if (framesRead == 0) {
                 // since pipe is non-blocking, simulate blocking input
@@ -5570,7 +5570,7 @@ reacquire_wakelock:
         // otherwise use the HAL / AudioStreamIn directly
         } else {
             ssize_t bytesRead = mInput->stream->read(mInput->stream,
-                    &mRsmpInBuffer[rear * mChannelCount], mBufferSize);
+                    (uint8_t*)mRsmpInBuffer + rear * mFrameSize, mBufferSize);
             if (bytesRead < 0) {
                 framesRead = bytesRead;
             } else {
@@ -5590,13 +5590,13 @@ reacquire_wakelock:
         ALOG_ASSERT(framesRead > 0);
 
         if (mTeeSink != 0) {
-            (void) mTeeSink->write(&mRsmpInBuffer[rear * mChannelCount], framesRead);
+            (void) mTeeSink->write((uint8_t*)mRsmpInBuffer + rear * mFrameSize, framesRead);
         }
         // If destination is non-contiguous, we now correct for reading past end of buffer.
         {
             size_t part1 = mRsmpInFramesP2 - rear;
             if ((size_t) framesRead > part1) {
-                memcpy(mRsmpInBuffer, &mRsmpInBuffer[mRsmpInFramesP2 * mChannelCount],
+                memcpy(mRsmpInBuffer, (uint8_t*)mRsmpInBuffer + mRsmpInFramesP2 * mFrameSize,
                         (framesRead - part1) * mFrameSize);
             }
         }
@@ -6214,7 +6214,7 @@ status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
         return NOT_ENOUGH_DATA;
     }
 
-    buffer->raw = recordThread->mRsmpInBuffer + front * recordThread->mChannelCount;
+    buffer->raw = (uint8_t*)recordThread->mRsmpInBuffer + front * recordThread->mFrameSize;
     buffer->frameCount = part1;
     mRsmpInUnrel = part1;
     return NO_ERROR;
@@ -6588,7 +6588,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // Note this is independent of the maximum downsampling ratio permitted for capture.
     mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
-    delete[] mRsmpInBuffer;
+    free(mRsmpInBuffer);
 
     // TODO optimize audio capture buffer sizes ...
     // Here we calculate the size of the sliding buffer used as a source
@@ -6598,7 +6598,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // The current value is higher than necessary.  However it should not add to latency.
 
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
-    mRsmpInBuffer = new int16_t[(mRsmpInFramesP2 + mFrameCount - 1) * mChannelCount];
+    (void)posix_memalign(&mRsmpInBuffer, 32, (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize);
 
     // AudioRecord mSampleRate and mChannelCount are constant due to AudioRecord API constraints.
     // But if thread's mSampleRate or mChannelCount changes, how will that affect active tracks?
