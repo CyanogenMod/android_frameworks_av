@@ -319,7 +319,7 @@ status_t AudioMixer::track_t::prepareForDownmix()
 
     // discard the previous downmixer if there was one
     unprepareForDownmix();
-    // Only remix (upmix or downmix) if the track and mixer/device channel masks
+    // MONO_HACK Only remix (upmix or downmix) if the track and mixer/device channel masks
     // are not the same and not handled internally, as mono -> stereo currently is.
     if (channelMask == mMixerChannelMask
             || (channelMask == AUDIO_CHANNEL_OUT_MONO
@@ -914,7 +914,8 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
             } else {
                 if ((n & NEEDS_CHANNEL_COUNT__MASK) == NEEDS_CHANNEL_1){
                     t.hook = getTrackHook(
-                            t.mMixerChannelCount == 2 // TODO: MONO_HACK.
+                            (t.mMixerChannelMask == AUDIO_CHANNEL_OUT_STEREO  // TODO: MONO_HACK
+                                    && t.channelMask == AUDIO_CHANNEL_OUT_MONO)
                                 ? TRACKTYPE_NORESAMPLEMONO : TRACKTYPE_NORESAMPLE,
                             t.mMixerChannelCount,
                             t.mMixerInFormat, t.mMixerFormat);
