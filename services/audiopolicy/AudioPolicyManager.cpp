@@ -2215,12 +2215,12 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
                 case AUDIO_SOURCE_VOICE_COMMUNICATION:
                     if(prop_voip_enabled) {
                        ALOGD("BLOCKING VoIP request during incall mode for inputSource: %d ",inputSource);
-                       return 0;
+                       return NO_INIT;
                     }
                 break;
                 default:
                     ALOGD("BLOCKING input during incall mode for inputSource: %d ",inputSource);
-                return 0;
+                return NO_INIT;
             }
         }
     }//check for VoIP flag
@@ -2234,7 +2234,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         {
             if(inputSource == AUDIO_SOURCE_VOICE_COMMUNICATION) {
                 ALOGD("BLOCKING VoIP request during incall mode for inputSource: %d ",inputSource);
-                return 0;
+                return NO_INIT;
             }
         }
     }
