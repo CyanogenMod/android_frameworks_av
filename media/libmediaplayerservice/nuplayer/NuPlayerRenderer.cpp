@@ -621,7 +621,8 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             return false;
         }
 
-        if (entry->mOffset == 0) {
+        // ignore 0-sized buffer which could be EOS marker with no data
+        if (entry->mOffset == 0 && entry->mBuffer->size() > 0) {
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
             ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
