@@ -336,16 +336,6 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
                                                          audio_policy_dev_state_t state,
                                                          const char *device_address)
 {
-    String8 address = (device_address == NULL) ? String8("") : String8(device_address);
-
-    AudioParameter param;
-
-    // handle legacy remote submix case where the address was not always specified
-    if (deviceDistinguishesOnAddress(device) && (address.length() == 0)) {
-        address = String8("0");
-    }
-
-
     ALOGV("setDeviceConnectionState() device: %x, state %d, address %s",
             device, state, device_address != NULL ? device_address : "");
 
@@ -366,7 +356,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
         switch (state)
         {
         // handle output device connection
-        case AUDIO_POLICY_DEVICE_STATE_AVAILABLE:
+        case AUDIO_POLICY_DEVICE_STATE_AVAILABLE: {
             if (index >= 0) {
 #ifdef AUDIO_EXTN_HDMI_SPK_ENABLED
                 if ((popcount(device) == 1) && (device & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
@@ -437,11 +427,11 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
 
 
             // Set connect to HALs
-            param = AudioParameter(address);
+            AudioParameter param = AudioParameter(devDesc->mAddress);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_CONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
-            break;
+        } break;
         // handle output device disconnection
         case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE: {
             if (index < 0) {
@@ -461,7 +451,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             ALOGV("setDeviceConnectionState() disconnecting output device %x", device);
 
             // Set Disconnect to HALs
-            param = AudioParameter(address);
+            AudioParameter param = AudioParameter(devDesc->mAddress);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
@@ -492,7 +482,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             }
 #endif
 
-            checkOutputsForDevice(devDesc, state, outputs, address);
+            checkOutputsForDevice(devDesc, state, outputs, devDesc->mAddress);
             } break;
 
         default:
@@ -609,7 +599,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             }
 
             // Set connect to HALs
-            param = AudioParameter(address);
+            AudioParameter param = AudioParameter(devDesc->mAddress);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_CONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
@@ -625,7 +615,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             ALOGV("setDeviceConnectionState() disconnecting input device %x", device);
 
             // Set Disconnect to HALs
-            param = AudioParameter(address);
+            AudioParameter param = AudioParameter(devDesc->mAddress);
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
@@ -4030,15 +4020,14 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mTotalEffectsCpuLoad(0), mTotalEffectsMemory(0),
     mA2dpSuspended(false),
     mSpeakerDrcEnabled(false), mNextUniqueId(1),
-    mHdmiAudioDisabled(false), mHdmiAudioEvent(false),
-    mPrevPhoneState(0),
-    mPrimarySuspended (0), mFastSuspended(0),
-    mMultiChannelSuspended(0),
     mAudioPortGeneration(1),
     mBeaconMuteRefCount(0),
     mBeaconPlayingRefCount(0),
-    mBeaconMuted(false)
-
+    mBeaconMuted(false),
+    mHdmiAudioDisabled(false), mHdmiAudioEvent(false),
+    mPrevPhoneState(0),
+    mPrimarySuspended (0), mFastSuspended(0),
+    mMultiChannelSuspended(0)
 {
     mUidCached = getuid();
     mpClientInterface = clientInterface;

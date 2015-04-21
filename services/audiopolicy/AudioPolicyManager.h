@@ -901,16 +901,19 @@ protected:
         void updateAndCloseOutputs();
         bool isHDMIPassthroughEnabled();
 #endif
-        uint32_t mPrimarySuspended;
-        uint32_t mFastSuspended;
-        uint32_t mMultiChannelSuspended;
-
         // returns true if given output is direct output
         bool isDirectOutput(audio_io_handle_t output);
         //parameter indicates of HDMI speakers disabled
         bool mHdmiAudioDisabled;
         //parameter indicates if HDMI plug in/out detected
         bool mHdmiAudioEvent;
+
+        int mPrevPhoneState;
+        uint32_t mPrimarySuspended;
+        uint32_t mFastSuspended;
+        uint32_t mMultiChannelSuspended;
+
+
 private:
         static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
                 int indexInUi);
@@ -945,7 +948,6 @@ private:
         // internal function to derive a stream type value from audio attributes
         audio_stream_type_t streamTypefromAttributesInt(const audio_attributes_t *attr);
         // Used for voip + voice concurrency usecase
-        int mPrevPhoneState;
         int mvoice_call_state;
 #ifdef RECORD_PLAY_CONCURRENCY
         // Used for record + playback concurrency
