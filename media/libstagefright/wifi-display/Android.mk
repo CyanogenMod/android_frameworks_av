@@ -30,6 +30,10 @@ LOCAL_SHARED_LIBRARIES:= \
         libui                           \
         libutils                        \
 
+ifeq ($(TARGET_BOARD_PLATFORM),omap4)
+LOCAL_CFLAGS += -DBOARD_NO_INTRA_MACROBLOCK_MODE_SUPPORT
+endif
+
 LOCAL_MODULE:= libstagefright_wfd
 
 LOCAL_MODULE_TAGS:= optional
