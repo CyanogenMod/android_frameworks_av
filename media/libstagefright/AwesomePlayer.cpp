@@ -344,6 +344,7 @@ status_t AwesomePlayer::setDataSource(
 
     reset_l();
 
+    fd = dup(fd);
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
     status_t err = dataSource->initCheck();

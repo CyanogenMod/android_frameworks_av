@@ -149,7 +149,6 @@ status_t MetadataRetrieverClient::setDataSource(int fd, int64_t offset, int64_t 
 
     if (offset >= sb.st_size) {
         ALOGE("offset (%" PRId64 ") bigger than file size (%" PRIu64 ")", offset, sb.st_size);
-        ::close(fd);
         return BAD_VALUE;
     }
     if (offset + length > sb.st_size) {
@@ -165,12 +164,10 @@ status_t MetadataRetrieverClient::setDataSource(int fd, int64_t offset, int64_t 
     ALOGV("player type = %d", playerType);
     sp<MediaMetadataRetrieverBase> p = createRetriever(playerType);
     if (p == NULL) {
-        ::close(fd);
         return NO_INIT;
     }
     status_t status = p->setDataSource(fd, offset, length);
     if (status == NO_ERROR) mRetriever = p;
-    ::close(fd);
     return status;
 }
 
