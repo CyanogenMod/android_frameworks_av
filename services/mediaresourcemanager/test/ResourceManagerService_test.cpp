@@ -180,17 +180,27 @@ protected:
         EXPECT_TRUE(mService->mSupportsSecureWithNonSecureCodec);
 
         Vector<MediaResourcePolicy> policies1;
-        policies1.push_back(MediaResourcePolicy(String8(kPolicySupportsMultipleSecureCodecs), 1));
         policies1.push_back(
-                MediaResourcePolicy(String8(kPolicySupportsSecureWithNonSecureCodec), 0));
+                MediaResourcePolicy(
+                        String8(kPolicySupportsMultipleSecureCodecs),
+                        String8("true")));
+        policies1.push_back(
+                MediaResourcePolicy(
+                        String8(kPolicySupportsSecureWithNonSecureCodec),
+                        String8("false")));
         mService->config(policies1);
         EXPECT_TRUE(mService->mSupportsMultipleSecureCodecs);
         EXPECT_FALSE(mService->mSupportsSecureWithNonSecureCodec);
 
         Vector<MediaResourcePolicy> policies2;
-        policies2.push_back(MediaResourcePolicy(String8(kPolicySupportsMultipleSecureCodecs), 0));
         policies2.push_back(
-                MediaResourcePolicy(String8(kPolicySupportsSecureWithNonSecureCodec), 1));
+                MediaResourcePolicy(
+                        String8(kPolicySupportsMultipleSecureCodecs),
+                        String8("false")));
+        policies2.push_back(
+                MediaResourcePolicy(
+                        String8(kPolicySupportsSecureWithNonSecureCodec),
+                        String8("true")));
         mService->config(policies2);
         EXPECT_FALSE(mService->mSupportsMultipleSecureCodecs);
         EXPECT_TRUE(mService->mSupportsSecureWithNonSecureCodec);

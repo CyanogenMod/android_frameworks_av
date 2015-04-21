@@ -121,9 +121,11 @@ TEST_F(MediaCodecListOverridesTest, DISABLED_profileCodecs) {
     for (size_t i = 0; i < list->countCodecs(); ++i) {
         infos.push_back(list->getCodecInfo(i));
     }
+    CodecSettings global_results;
     KeyedVector<AString, CodecSettings> encoder_results;
     KeyedVector<AString, CodecSettings> decoder_results;
-    profileCodecs(infos, &encoder_results, &decoder_results, true /* forceToMeasure */);
+    profileCodecs(
+            infos, &global_results, &encoder_results, &decoder_results, true /* forceToMeasure */);
     verifyProfileResults(encoder_results);
     verifyProfileResults(decoder_results);
 }

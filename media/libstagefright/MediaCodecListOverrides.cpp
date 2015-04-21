@@ -24,7 +24,7 @@
 #include <media/ICrypto.h>
 #include <media/IMediaCodecList.h>
 #include <media/MediaCodecInfo.h>
-
+#include <media/MediaResourcePolicy.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaCodec.h>
 
@@ -196,19 +196,21 @@ bool splitString(
 }
 
 void profileCodecs(const Vector<sp<MediaCodecInfo>> &infos) {
-    CodecSettings global_results;  // TODO: add global results.
+    CodecSettings global_results;
     KeyedVector<AString, CodecSettings> encoder_results;
     KeyedVector<AString, CodecSettings> decoder_results;
-    profileCodecs(infos, &encoder_results, &decoder_results);
+    profileCodecs(infos, &global_results, &encoder_results, &decoder_results);
     exportResultsToXML(kProfilingResults, global_results, encoder_results, decoder_results);
 }
 
 void profileCodecs(
         const Vector<sp<MediaCodecInfo>> &infos,
+        CodecSettings *global_results,
         KeyedVector<AString, CodecSettings> *encoder_results,
         KeyedVector<AString, CodecSettings> *decoder_results,
         bool forceToMeasure) {
     KeyedVector<AString, sp<MediaCodecInfo::Capabilities>> codecsNeedMeasure;
+    AString supportMultipleSecureCodecs = "true";
     for (size_t i = 0; i < infos.size(); ++i) {
         const sp<MediaCodecInfo> info = infos[i];
         AString name = info->getCodecName();
@@ -243,9 +245,16 @@ void profileCodecs(
                 } else {
                     decoder_results->add(key, settings);
                 }
+
+                if (name.endsWith(".secure")) {
+                    if (max <= 1) {
+                        supportMultipleSecureCodecs = "false";
+                    }
+                }
             }
         }
     }
+    global_results->add(kPolicySupportsMultipleSecureCodecs, supportMultipleSecureCodecs);
 }
 
 static AString globalResultsToXml(const CodecSettings& results) {
