@@ -30,6 +30,10 @@ LOCAL_SHARED_LIBRARIES:= \
         libui                           \
         libutils                        \
 
+ifdef BOARD_NO_INTRA_MACROBLOCK_MODE_SUPPORT
+LOCAL_CFLAGS := -DBOARD_NO_INTRA_MACROBLOCK_MODE_SUPPORT
+endif
+
 LOCAL_MODULE:= libstagefright_wfd
 
 LOCAL_MODULE_TAGS:= optional
