@@ -442,6 +442,8 @@ status_t AwesomePlayer::setDataSource(
     
     reset_l();
 
+    fd = dup(fd);
+
     ExtendedStats::AutoProfile autoProfile(
             STATS_PROFILE_SET_DATA_SOURCE, mPlayerExtendedStats);
     PLAYER_STATS(profileStart, STATS_PROFILE_START_LATENCY);
