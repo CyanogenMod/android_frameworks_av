@@ -195,12 +195,13 @@ status_t MediaSync::updateQueuedAudioData(
     int64_t numFrames = sizeInBytes / mAudioTrack->frameSize();
     int64_t maxMediaTimeUs = presentationTimeUs
             + getDurationIfPlayedAtNativeSampleRate_l(numFrames);
-    mNumFramesWritten += numFrames;
 
     int64_t nowUs = ALooper::GetNowUs();
-    int64_t nowMediaUs = maxMediaTimeUs
+    int64_t nowMediaUs = presentationTimeUs
             - getDurationIfPlayedAtNativeSampleRate_l(mNumFramesWritten)
             + getPlayedOutAudioDurationMedia_l(nowUs);
+
+    mNumFramesWritten += numFrames;
 
     int64_t oldRealTime = -1;
     if (mNextBufferItemMediaUs != -1) {
@@ -212,12 +213,13 @@ status_t MediaSync::updateQueuedAudioData(
 
     if (oldRealTime != -1) {
         int64_t newRealTime = getRealTime(mNextBufferItemMediaUs, nowUs);
-        if (newRealTime < oldRealTime) {
-            mNextBufferItemMediaUs = -1;
-            onDrainVideo_l();
+        if (newRealTime >= oldRealTime) {
+            return OK;
         }
     }
 
+    mNextBufferItemMediaUs = -1;
+    onDrainVideo_l();
     return OK;
 }
 
@@ -316,12 +318,12 @@ void MediaSync::onDrainVideo_l() {
         return;
     }
 
-    int64_t nowUs = ALooper::GetNowUs();
-
     while (!mBufferItems.empty()) {
+        int64_t nowUs = ALooper::GetNowUs();
         BufferItem *bufferItem = &*mBufferItems.begin();
         int64_t itemMediaUs = bufferItem->mTimestamp / 1000;
         int64_t itemRealUs = getRealTime(itemMediaUs, nowUs);
+
         if (itemRealUs <= nowUs) {
             if (mHasAudio) {
                 if (nowUs - itemRealUs <= kMaxAllowedVideoLateTimeUs) {
@@ -341,15 +343,13 @@ void MediaSync::onDrainVideo_l() {
             }
 
             mBufferItems.erase(mBufferItems.begin());
-
-            if (mBufferItems.empty()) {
-                mNextBufferItemMediaUs = -1;
-            }
+            mNextBufferItemMediaUs = -1;
         } else {
             if (mNextBufferItemMediaUs == -1
-                    || mNextBufferItemMediaUs != itemMediaUs) {
+                    || mNextBufferItemMediaUs > itemMediaUs) {
                 sp<AMessage> msg = new AMessage(kWhatDrainVideo, this);
                 msg->post(itemRealUs - nowUs);
+                mNextBufferItemMediaUs = itemMediaUs;
             }
             break;
         }
@@ -395,7 +395,9 @@ void MediaSync::onFrameAvailableFromInput() {
     }
 
     mBufferItems.push_back(bufferItem);
-    onDrainVideo_l();
+    if (mBufferItems.size() == 1) {
+        onDrainVideo_l();
+    }
 }
 
 void MediaSync::renderOneBufferItem_l( const BufferItem &bufferItem) {
@@ -499,6 +501,20 @@ void MediaSync::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatDrainVideo:
         {
             Mutex::Autolock lock(mMutex);
+            if (mNextBufferItemMediaUs != -1) {
+                int64_t nowUs = ALooper::GetNowUs();
+                int64_t itemRealUs = getRealTime(mNextBufferItemMediaUs, nowUs);
+
+                // The message could arrive earlier than expected due to
+                // various reasons, e.g., media clock has been changed because
+                // of new anchor time or playback rate. In such cases, the
+                // message needs to be re-posted.
+                if (itemRealUs > nowUs) {
+                    msg->post(itemRealUs - nowUs);
+                    break;
+                }
+            }
+
             onDrainVideo_l();
             break;
         }
