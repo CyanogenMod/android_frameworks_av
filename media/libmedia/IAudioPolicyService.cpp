@@ -73,6 +73,8 @@ enum {
     REGISTER_POLICY_MIXES,
 };
 
+#define MAX_ITEMS_PER_LIST 1024
+
 class BpAudioPolicyService : public BpInterface<IAudioPolicyService>
 {
 public:
@@ -1054,10 +1056,18 @@ status_t BnAudioPolicyService::onTransact(
             audio_port_role_t role = (audio_port_role_t)data.readInt32();
             audio_port_type_t type = (audio_port_type_t)data.readInt32();
             unsigned int numPortsReq = data.readInt32();
+            if (numPortsReq > MAX_ITEMS_PER_LIST) {
+                numPortsReq = MAX_ITEMS_PER_LIST;
+            }
             unsigned int numPorts = numPortsReq;
-            unsigned int generation;
             struct audio_port *ports =
                     (struct audio_port *)calloc(numPortsReq, sizeof(struct audio_port));
+            if (ports == NULL) {
+                reply->writeInt32(NO_MEMORY);
+                reply->writeInt32(0);
+                return NO_ERROR;
+            }
+            unsigned int generation;
             status_t status = listAudioPorts(role, type, &numPorts, ports, &generation);
             reply->writeInt32(status);
             reply->writeInt32(numPorts);
@@ -1111,11 +1121,19 @@ status_t BnAudioPolicyService::onTransact(
         case LIST_AUDIO_PATCHES: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             unsigned int numPatchesReq = data.readInt32();
+            if (numPatchesReq > MAX_ITEMS_PER_LIST) {
+                numPatchesReq = MAX_ITEMS_PER_LIST;
+            }
             unsigned int numPatches = numPatchesReq;
-            unsigned int generation;
             struct audio_patch *patches =
                     (struct audio_patch *)calloc(numPatchesReq,
                                                  sizeof(struct audio_patch));
+            if (patches == NULL) {
+                reply->writeInt32(NO_MEMORY);
+                reply->writeInt32(0);
+                return NO_ERROR;
+            }
+            unsigned int generation;
             status_t status = listAudioPatches(&numPatches, patches, &generation);
             reply->writeInt32(status);
             reply->writeInt32(numPatches);
