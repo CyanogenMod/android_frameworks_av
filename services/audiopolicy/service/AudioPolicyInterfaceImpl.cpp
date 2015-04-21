@@ -546,9 +546,6 @@ status_t AudioPolicyService::listAudioPorts(audio_port_role_t role,
                                             unsigned int *generation)
 {
     Mutex::Autolock _l(mLock);
-    if(!modifyAudioRoutingAllowed()) {
-        return PERMISSION_DENIED;
-    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -559,9 +556,6 @@ status_t AudioPolicyService::listAudioPorts(audio_port_role_t role,
 status_t AudioPolicyService::getAudioPort(struct audio_port *port)
 {
     Mutex::Autolock _l(mLock);
-    if(!modifyAudioRoutingAllowed()) {
-        return PERMISSION_DENIED;
-    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
@@ -602,9 +596,6 @@ status_t AudioPolicyService::listAudioPatches(unsigned int *num_patches,
         unsigned int *generation)
 {
     Mutex::Autolock _l(mLock);
-    if(!modifyAudioRoutingAllowed()) {
-        return PERMISSION_DENIED;
-    }
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
