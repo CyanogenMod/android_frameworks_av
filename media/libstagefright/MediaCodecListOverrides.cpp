@@ -30,6 +30,8 @@
 
 namespace android {
 
+const char *kProfilingResults = "/data/misc/media/media_codecs_profiling_results.xml";
+
 // a limit to avoid allocating unreasonable number of codec instances in the measurement.
 // this should be in sync with the MAX_SUPPORTED_INSTANCES defined in MediaCodecInfo.java.
 static const int kMaxInstances = 32;
@@ -171,20 +173,6 @@ static size_t doProfileCodecs(
     return codecs.size();
 }
 
-static void printLongString(const char *buf, size_t size) {
-    AString print;
-    const char *start = buf;
-    size_t len;
-    size_t totalLen = size;
-    while (totalLen > 0) {
-        len = (totalLen > 500) ? 500 : totalLen;
-        print.setTo(start, len);
-        ALOGV("%s", print.c_str());
-        totalLen -= len;
-        start += len;
-    }
-}
-
 bool splitString(const AString &s, const AString &delimiter, AString *s1, AString *s2) {
     ssize_t pos = s.find(delimiter.c_str());
     if (pos < 0) {
@@ -207,9 +195,18 @@ bool splitString(
     return true;
 }
 
+void profileCodecs(const Vector<sp<MediaCodecInfo>> &infos) {
+    CodecSettings global_results;  // TODO: add global results.
+    KeyedVector<AString, CodecSettings> encoder_results;
+    KeyedVector<AString, CodecSettings> decoder_results;
+    profileCodecs(infos, &encoder_results, &decoder_results);
+    exportResultsToXML(kProfilingResults, global_results, encoder_results, decoder_results);
+}
+
 void profileCodecs(
         const Vector<sp<MediaCodecInfo>> &infos,
-        KeyedVector<AString, CodecSettings> *results,
+        KeyedVector<AString, CodecSettings> *encoder_results,
+        KeyedVector<AString, CodecSettings> *decoder_results,
         bool forceToMeasure) {
     KeyedVector<AString, sp<MediaCodecInfo::Capabilities>> codecsNeedMeasure;
     for (size_t i = 0; i < infos.size(); ++i) {
@@ -240,157 +237,86 @@ void profileCodecs(
                 AString key = name;
                 key.append(" ");
                 key.append(mimes[i]);
-                key.append(" ");
-                key.append(info->isEncoder() ? "encoder" : "decoder");
-                results->add(key, settings);
+
+                if (info->isEncoder()) {
+                    encoder_results->add(key, settings);
+                } else {
+                    decoder_results->add(key, settings);
+                }
             }
         }
     }
 }
 
-void applyCodecSettings(
-        const AString& codecInfo,
-        const CodecSettings &settings,
-        Vector<sp<MediaCodecInfo>> *infos) {
-    AString name;
-    AString mime;
-    AString type;
-    if (!splitString(codecInfo, " ", &name, &mime, &type)) {
-        return;
-    }
-
-    for (size_t i = 0; i < infos->size(); ++i) {
-        const sp<MediaCodecInfo> &info = infos->itemAt(i);
-        if (name != info->getCodecName()) {
-            continue;
-        }
-
-        Vector<AString> mimes;
-        info->getSupportedMimes(&mimes);
-        for (size_t j = 0; j < mimes.size(); ++j) {
-            if (mimes[j] != mime) {
-                continue;
-            }
-            const sp<MediaCodecInfo::Capabilities> &caps = info->getCapabilitiesFor(mime.c_str());
-            for (size_t k = 0; k < settings.size(); ++k) {
-                caps->getDetails()->setString(
-                        settings.keyAt(k).c_str(), settings.valueAt(k).c_str());
-            }
-        }
-    }
-}
-
-void exportResultsToXML(const char *fileName, const KeyedVector<AString, CodecSettings>& results) {
-#if LOG_NDEBUG == 0
-    ALOGE("measurement results");
+static AString globalResultsToXml(const CodecSettings& results) {
+    AString ret;
     for (size_t i = 0; i < results.size(); ++i) {
-        ALOGE("key %s", results.keyAt(i).c_str());
-        const CodecSettings &settings = results.valueAt(i);
-        for (size_t j = 0; j < settings.size(); ++j) {
-            ALOGE("name %s value %s", settings.keyAt(j).c_str(), settings.valueAt(j).c_str());
-        }
+        AString setting = AStringPrintf(
+                "        <Setting name=\"%s\" value=\"%s\" />\n",
+                results.keyAt(i).c_str(),
+                results.valueAt(i).c_str());
+        ret.append(setting);
     }
-#endif
+    return ret;
+}
 
-    AString overrides;
-    FILE *f = fopen(fileName, "rb");
-    if (f != NULL) {
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f);
-        rewind(f);
-
-        char *buf = (char *)malloc(size);
-        if (fread(buf, size, 1, f) == 1) {
-            overrides.setTo(buf, size);
-            if (!LOG_NDEBUG) {
-                ALOGV("Existing overrides:");
-                printLongString(buf, size);
-            }
-        } else {
-            ALOGE("Failed to read %s", fileName);
-        }
-        fclose(f);
-        free(buf);
-    }
-
+static AString codecResultsToXml(const KeyedVector<AString, CodecSettings>& results) {
+    AString ret;
     for (size_t i = 0; i < results.size(); ++i) {
         AString name;
         AString mime;
-        AString type;
-        if (!splitString(results.keyAt(i), " ", &name, &mime, &type)) {
+        if (!splitString(results.keyAt(i), " ", &name, &mime)) {
             continue;
         }
-        name = AStringPrintf("\"%s\"", name.c_str());
-        mime = AStringPrintf("\"%s\"", mime.c_str());
-        ALOGV("name(%s) mime(%s) type(%s)", name.c_str(), mime.c_str(), type.c_str());
-        ssize_t posCodec = overrides.find(name.c_str());
-        size_t posInsert = 0;
-        if (posCodec < 0) {
-            AString encodersDecoders = (type == "encoder") ? "<Encoders>" : "<Decoders>";
-            AString encodersDecodersEnd = (type == "encoder") ? "</Encoders>" : "</Decoders>";
-            ssize_t posEncodersDecoders = overrides.find(encodersDecoders.c_str());
-            if (posEncodersDecoders < 0) {
-                AString mediaCodecs = "<MediaCodecs>";
-                ssize_t posMediaCodec = overrides.find(mediaCodecs.c_str());
-                if (posMediaCodec < 0) {
-                    posMediaCodec = overrides.size();
-                    overrides.insert("\n<MediaCodecs>\n</MediaCodecs>\n", posMediaCodec);
-                    posMediaCodec = overrides.find(mediaCodecs.c_str(), posMediaCodec);
-                }
-                posEncodersDecoders = posMediaCodec + mediaCodecs.size();
-                AString codecs = AStringPrintf(
-                        "\n    %s\n    %s", encodersDecoders.c_str(), encodersDecodersEnd.c_str());
-                overrides.insert(codecs.c_str(), posEncodersDecoders);
-                posEncodersDecoders = overrides.find(encodersDecoders.c_str(), posEncodersDecoders);
-            }
-            posCodec = posEncodersDecoders + encodersDecoders.size();
-            AString codec = AStringPrintf(
-                        "\n        <MediaCodec name=%s type=%s update=\"true\" >\n        </MediaCodec>",
-                        name.c_str(),
-                        mime.c_str());
-            overrides.insert(codec.c_str(), posCodec);
-            posCodec = overrides.find(name.c_str());
-        }
-
-        // insert to existing entry
-        ssize_t posMime = overrides.find(mime.c_str(), posCodec);
-        ssize_t posEnd = overrides.find(">", posCodec);
-        if (posEnd < 0) {
-            ALOGE("Format error in overrides file.");
-            return;
-        }
-        if (posMime < 0 || posMime > posEnd) {
-            // new mime for an existing component
-            AString codecEnd = "</MediaCodec>";
-            posInsert = overrides.find(codecEnd.c_str(), posCodec) + codecEnd.size();
-            AString codec = AStringPrintf(
-                    "\n        <MediaCodec name=%s type=%s update=\"true\" >\n        </MediaCodec>",
-                    name.c_str(),
-                    mime.c_str());
-            overrides.insert(codec.c_str(), posInsert);
-            posInsert = overrides.find(">", posInsert) + 1;
-        } else {
-            posInsert = posEnd + 1;
-        }
-
+        AString codec =
+                AStringPrintf("        <MediaCodec name=\"%s\" type=\"%s\" update=\"true\" >\n",
+                              name.c_str(),
+                              mime.c_str());
+        ret.append(codec);
         CodecSettings settings = results.valueAt(i);
         for (size_t i = 0; i < settings.size(); ++i) {
             // WARNING: we assume all the settings are "Limit". Currently we have only one type
             // of setting in this case, which is "max-supported-instances".
-            AString strInsert = AStringPrintf(
-                    "\n            <Limit name=\"%s\" value=\"%s\" />",
+            AString setting = AStringPrintf(
+                    "            <Limit name=\"%s\" value=\"%s\" />\n",
                     settings.keyAt(i).c_str(),
                     settings.valueAt(i).c_str());
-            overrides.insert(strInsert, posInsert);
+            ret.append(setting);
         }
+        ret.append("        </MediaCodec>\n");
+    }
+    return ret;
+}
+
+void exportResultsToXML(
+        const char *fileName,
+        const CodecSettings& global_results,
+        const KeyedVector<AString, CodecSettings>& encoder_results,
+        const KeyedVector<AString, CodecSettings>& decoder_results) {
+    if (global_results.size() == 0 && encoder_results.size() == 0 && decoder_results.size() == 0) {
+        return;
     }
 
-    if (!LOG_NDEBUG) {
-        ALOGV("New overrides:");
-        printLongString(overrides.c_str(), overrides.size());
+    AString overrides;
+    overrides.append("<MediaCodecs>\n");
+    if (global_results.size() > 0) {
+        overrides.append("    <Settings>\n");
+        overrides.append(globalResultsToXml(global_results));
+        overrides.append("    </Settings>\n");
     }
+    if (encoder_results.size() > 0) {
+        overrides.append("    <Encoders>\n");
+        overrides.append(codecResultsToXml(encoder_results));
+        overrides.append("    </Encoders>\n");
+    }
+    if (decoder_results.size() > 0) {
+        overrides.append("    <Decoders>\n");
+        overrides.append(codecResultsToXml(decoder_results));
+        overrides.append("    </Decoders>\n");
+    }
+    overrides.append("</MediaCodecs>\n");
 
-    f = fopen(fileName, "wb");
+    FILE *f = fopen(fileName, "wb");
     if (f == NULL) {
         ALOGE("Failed to open %s for writing.", fileName);
         return;

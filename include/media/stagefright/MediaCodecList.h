@@ -54,7 +54,7 @@ struct MediaCodecList : public BnMediaCodecList {
     static sp<IMediaCodecList> getLocalInstance();
 
     // only to be used in getLocalInstance
-    void updateDetailsForMultipleCodecs(const KeyedVector<AString, CodecSettings>& updates);
+    void parseTopLevelXMLFile(const char *path, bool ignore_errors = false);
 
 private:
     class BinderDeathObserver : public IBinder::DeathRecipient {
@@ -97,7 +97,6 @@ private:
 
     status_t initCheck() const;
     void parseXMLFile(const char *path);
-    void parseTopLevelXMLFile(const char *path, bool ignore_errors = false);
 
     static void StartElementHandlerWrapper(
             void *me, const char *name, const char **attrs);

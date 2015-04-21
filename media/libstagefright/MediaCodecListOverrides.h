@@ -26,24 +26,27 @@
 
 namespace android {
 
+extern const char *kProfilingResults;
+
 struct MediaCodecInfo;
 
 bool splitString(const AString &s, const AString &delimiter, AString *s1, AString *s2);
 
-bool splitString(
-        const AString &s, const AString &delimiter, AString *s1, AString *s2, AString *s3);
+// profile codecs and save the result to xml file named kProfilingResults.
+void profileCodecs(const Vector<sp<MediaCodecInfo>> &infos);
 
+// profile codecs and save the result to encoder_results and decoder_results.
 void profileCodecs(
         const Vector<sp<MediaCodecInfo>> &infos,
-        KeyedVector<AString, CodecSettings> *results,
-        bool forceToMeasure = false);  // forceToMeasure is mainly for testing
+        KeyedVector<AString, CodecSettings> *encoder_results,
+        KeyedVector<AString, CodecSettings> *decoder_results,
+        bool forceToMeasure = false);
 
-void applyCodecSettings(
-        const AString& codecInfo,
-        const CodecSettings &settings,
-        Vector<sp<MediaCodecInfo>> *infos);
-
-void exportResultsToXML(const char *fileName, const KeyedVector<AString, CodecSettings>& results);
+void exportResultsToXML(
+        const char *fileName,
+        const CodecSettings& global_results,
+        const KeyedVector<AString, CodecSettings>& encoder_results,
+        const KeyedVector<AString, CodecSettings>& decoder_results);
 
 }  // namespace android
 
