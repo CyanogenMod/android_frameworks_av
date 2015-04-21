@@ -166,10 +166,14 @@ private:
             : StreamItem("") {}
         StreamItem(const char *type)
             : mType(type),
-              mSeekMode(kSeekModeExactPosition),
-              mCurDiscontinuitySeq(0),
-              mLastDequeuedTimeUs(0),
-              mLastSampleDurationUs(0) {}
+              mSeekMode(kSeekModeExactPosition) {
+                  reset();
+              }
+        void reset() {
+            mCurDiscontinuitySeq = 0;
+            mLastDequeuedTimeUs = -1ll;
+            mLastSampleDurationUs = 0ll;
+        }
         AString uriKey() {
             AString key(mType);
             key.append("URI");

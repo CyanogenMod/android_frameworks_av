@@ -71,8 +71,9 @@ struct LiveSession::BandwidthEstimator : public RefBase {
 
 private:
     // Bandwidth estimation parameters
-    static const int32_t kMaxBandwidthHistoryItems = 20;
-    static const int64_t kMaxBandwidthHistoryWindowUs = 5000000ll; // 5 sec
+    static const int32_t kMinBandwidthHistoryItems = 20;
+    static const int64_t kMinBandwidthHistoryWindowUs = 5000000ll; // 5 sec
+    static const int64_t kMaxBandwidthHistoryWindowUs = 30000000ll; // 30 sec
 
     struct BandwidthEntry {
         int64_t mDelayUs;
@@ -109,11 +110,21 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
     mBandwidthHistory.push_back(entry);
     mHasNewSample = true;
 
+    // Remove no more than 10% of total transfer time at a time
+    // to avoid sudden jump on bandwidth estimation. There might
+    // be long blocking reads that takes up signification time,
+    // we have to keep a longer window in that case.
+    int64_t bandwidthHistoryWindowUs = mTotalTransferTimeUs * 9 / 10;
+    if (bandwidthHistoryWindowUs < kMinBandwidthHistoryWindowUs) {
+        bandwidthHistoryWindowUs = kMinBandwidthHistoryWindowUs;
+    } else if (bandwidthHistoryWindowUs > kMaxBandwidthHistoryWindowUs) {
+        bandwidthHistoryWindowUs = kMaxBandwidthHistoryWindowUs;
+    }
     // trim old samples, keeping at least kMaxBandwidthHistoryItems samples,
     // and total transfer time at least kMaxBandwidthHistoryWindowUs.
-    while (mBandwidthHistory.size() > kMaxBandwidthHistoryItems) {
+    while (mBandwidthHistory.size() > kMinBandwidthHistoryItems) {
         List<BandwidthEntry>::iterator it = mBandwidthHistory.begin();
-        if (mTotalTransferTimeUs - it->mDelayUs < kMaxBandwidthHistoryWindowUs) {
+        if (mTotalTransferTimeUs - it->mDelayUs < bandwidthHistoryWindowUs) {
             break;
         }
         mTotalTransferTimeUs -= it->mDelayUs;
@@ -122,7 +133,8 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
     }
 }
 
-bool LiveSession::BandwidthEstimator::estimateBandwidth(int32_t *bandwidthBps, bool *isStable) {
+bool LiveSession::BandwidthEstimator::estimateBandwidth(
+        int32_t *bandwidthBps, bool *isStable) {
     AutoMutex autoLock(mLock);
 
     if (mBandwidthHistory.size() < 2) {
@@ -159,6 +171,29 @@ bool LiveSession::BandwidthEstimator::estimateBandwidth(int32_t *bandwidthBps, b
     if (isStable) {
        *isStable = mIsStable;
     }
+#if 0
+    {
+        char dumpStr[1024] = {0};
+        size_t itemIdx = 0;
+        size_t histSize = mBandwidthHistory.size();
+        sprintf(dumpStr, "estimate bps=%d stable=%d history (n=%d): {",
+            *bandwidthBps, mIsStable, histSize);
+        List<BandwidthEntry>::iterator it = mBandwidthHistory.begin();
+        for (; it != mBandwidthHistory.end(); ++it) {
+            if (itemIdx > 50) {
+                sprintf(dumpStr + strlen(dumpStr),
+                        "...(%zd more items)... }", histSize - itemIdx);
+                break;
+            }
+            sprintf(dumpStr + strlen(dumpStr), "%dk/%.3fs%s",
+                it->mNumBytes / 1024,
+                (double)it->mDelayUs * 1.0e-6,
+                (it == (--mBandwidthHistory.end())) ? "}" : ", ");
+            itemIdx++;
+        }
+        ALOGE(dumpStr);
+    }
+#endif
     return true;
 }
 
@@ -338,7 +373,8 @@ status_t LiveSession::dequeueAccessUnit(
                     offsetTimeUs = 0;
                 }
 
-                if (mDiscontinuityAbsStartTimesUs.indexOfKey(strm.mCurDiscontinuitySeq) >= 0) {
+                if (mDiscontinuityAbsStartTimesUs.indexOfKey(strm.mCurDiscontinuitySeq) >= 0
+                        && strm.mLastDequeuedTimeUs >= 0) {
                     int64_t firstTimeUs;
                     firstTimeUs = mDiscontinuityAbsStartTimesUs.valueFor(strm.mCurDiscontinuitySeq);
                     offsetTimeUs += strm.mLastDequeuedTimeUs - firstTimeUs;
@@ -1731,7 +1767,7 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
         }
 
         for (size_t i = 0; i < kMaxStreams; ++i) {
-            mStreams[i].mCurDiscontinuitySeq = 0;
+            mStreams[i].reset();
         }
 
         mDiscontinuityOffsetTimesUs.clear();
