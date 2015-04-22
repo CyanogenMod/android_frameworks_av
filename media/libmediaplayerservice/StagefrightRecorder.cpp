@@ -953,6 +953,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     if (mAudioTimeScale > 0) {
         format->setInt32("time-scale", mAudioTimeScale);
     }
+    format->setInt32("priority", 0 /* realtime */);
 
     sp<MediaSource> audioEncoder =
             MediaCodecSource::Create(mLooper, format, audioSource);
@@ -1541,6 +1542,11 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
     if (mVideoEncoderLevel != -1) {
         format->setInt32("level", mVideoEncoderLevel);
+    }
+
+    format->setInt32("priority", 0 /* realtime */);
+    if (mCaptureTimeLapse) {
+        format->setFloat("operating-rate", mCaptureFps);
     }
 
     uint32_t flags = 0;
