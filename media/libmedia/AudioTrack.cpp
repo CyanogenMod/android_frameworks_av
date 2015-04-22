@@ -393,8 +393,7 @@ status_t AudioTrack::set(
         return BAD_VALUE;
     }
     mSampleRate = sampleRate;
-    mSpeed = AUDIO_TIMESTRETCH_SPEED_NORMAL;
-    mPitch = AUDIO_TIMESTRETCH_PITCH_NORMAL;
+    mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
 
     // Make copy of input parameter offloadInfo so that in the future:
     //  (a) createTrack_l doesn't need it as an input parameter
@@ -722,7 +721,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
         return NO_INIT;
     }
     // pitch is emulated by adjusting speed and sampleRate
-    const uint32_t effectiveSampleRate = adjustSampleRate(rate, mPitch);
+    const uint32_t effectiveSampleRate = adjustSampleRate(rate, mPlaybackRate.mPitch);
     if (rate == 0 || effectiveSampleRate > afSamplingRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
         return BAD_VALUE;
     }
@@ -757,10 +756,10 @@ uint32_t AudioTrack::getSampleRate() const
     return mSampleRate;
 }
 
-status_t AudioTrack::setPlaybackRate(float speed, float pitch)
+status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
 {
     AutoMutex lock(mLock);
-    if (speed == mSpeed && pitch == mPitch) {
+    if (isAudioPlaybackRateEqual(playbackRate, mPlaybackRate)) {
         return NO_ERROR;
     }
     if (mIsTimed || isOffloadedOrDirect_l()) {
@@ -770,32 +769,37 @@ status_t AudioTrack::setPlaybackRate(float speed, float pitch)
         return INVALID_OPERATION;
     }
     // pitch is emulated by adjusting speed and sampleRate
-    const uint32_t effectiveRate = adjustSampleRate(mSampleRate, pitch);
-    const float effectiveSpeed = adjustSpeed(speed, pitch);
-    const float effectivePitch = adjustPitch(pitch);
+    const uint32_t effectiveRate = adjustSampleRate(mSampleRate, playbackRate.mPitch);
+    const float effectiveSpeed = adjustSpeed(playbackRate.mSpeed, playbackRate.mPitch);
+    const float effectivePitch = adjustPitch(playbackRate.mPitch);
     if (effectiveSpeed < AUDIO_TIMESTRETCH_SPEED_MIN
             || effectiveSpeed > AUDIO_TIMESTRETCH_SPEED_MAX
             || effectivePitch < AUDIO_TIMESTRETCH_PITCH_MIN
             || effectivePitch > AUDIO_TIMESTRETCH_PITCH_MAX) {
         return BAD_VALUE;
+        //TODO: add function in AudioResamplerPublic.h to check for validity.
     }
     // Check if the buffer size is compatible.
     if (!isSampleRateSpeedAllowed_l(effectiveRate, effectiveSpeed)) {
-        ALOGV("setPlaybackRate(%f, %f) failed", speed, pitch);
+        ALOGV("setPlaybackRate(%f, %f) failed", playbackRate.mSpeed, playbackRate.mPitch);
         return BAD_VALUE;
     }
-    mSpeed = speed;
-    mPitch = pitch;
-    mProxy->setPlaybackRate(effectiveSpeed, effectivePitch);
+    mPlaybackRate = playbackRate;
+    mProxy->setPlaybackRate(playbackRate);
+
+    //modify this
+    AudioPlaybackRate playbackRateTemp = playbackRate;
+    playbackRateTemp.mSpeed = effectiveSpeed;
+    playbackRateTemp.mPitch = effectivePitch;
+    mProxy->setPlaybackRate(playbackRateTemp);
     mProxy->setSampleRate(effectiveRate); // FIXME: not quite "atomic" with setPlaybackRate
     return NO_ERROR;
 }
 
-void AudioTrack::getPlaybackRate(float *speed, float *pitch) const
+const AudioPlaybackRate& AudioTrack::getPlaybackRate() const
 {
     AutoMutex lock(mLock);
-    *speed = mSpeed;
-    *pitch = mPitch;
+    return mPlaybackRate;
 }
 
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)
@@ -1169,7 +1173,8 @@ status_t AudioTrack::createTrack_l()
         if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
             // for normal tracks precompute the frame count based on speed.
             const size_t minFrameCount = calculateMinFrameCount(
-                    afLatency, afFrameCount, afSampleRate, mSampleRate, mSpeed);
+                    afLatency, afFrameCount, afSampleRate, mSampleRate,
+                    mPlaybackRate.mSpeed);
             if (frameCount < minFrameCount) {
                 frameCount = minFrameCount;
             }
@@ -1341,11 +1346,15 @@ status_t AudioTrack::createTrack_l()
             gain_from_float(mVolume[AUDIO_INTERLEAVE_RIGHT])));
 
     mProxy->setSendLevel(mSendLevel);
-    const uint32_t effectiveSampleRate = adjustSampleRate(mSampleRate, mPitch);
-    const float effectiveSpeed = adjustSpeed(mSpeed, mPitch);
-    const float effectivePitch = adjustPitch(mPitch);
+    const uint32_t effectiveSampleRate = adjustSampleRate(mSampleRate, mPlaybackRate.mPitch);
+    const float effectiveSpeed = adjustSpeed(mPlaybackRate.mSpeed, mPlaybackRate.mPitch);
+    const float effectivePitch = adjustPitch(mPlaybackRate.mPitch);
     mProxy->setSampleRate(effectiveSampleRate);
-    mProxy->setPlaybackRate(effectiveSpeed, effectivePitch);
+
+    AudioPlaybackRate playbackRateTemp = mPlaybackRate;
+    playbackRateTemp.mSpeed = effectiveSpeed;
+    playbackRateTemp.mPitch = effectivePitch;
+    mProxy->setPlaybackRate(playbackRateTemp);
     mProxy->setMinimum(mNotificationFramesAct);
 
     mDeathNotifier = new DeathNotifier(this);
@@ -1715,7 +1724,7 @@ nsecs_t AudioTrack::processAudioBuffer()
 
     // Cache other fields that will be needed soon
     uint32_t sampleRate = mSampleRate;
-    float speed = mSpeed;
+    float speed = mPlaybackRate.mSpeed;
     uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
         mRefreshRemaining = false;
@@ -2137,7 +2146,7 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
                 }
                 const int64_t deltaTimeUs = timestampTimeUs - mStartUs;
                 const int64_t deltaPositionByUs = (double)timestamp.mPosition * 1000000
-                        / ((double)mSampleRate * mSpeed);
+                        / ((double)mSampleRate * mPlaybackRate.mSpeed);
 
                 if (deltaPositionByUs > deltaTimeUs + kTimeJitterUs) {
                     // Verify that the counter can't count faster than the sample rate
@@ -2225,7 +2234,7 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
             mChannelCount, mFrameCount);
     result.append(buffer);
     snprintf(buffer, 255, "  sample rate(%u), speed(%f), status(%d)\n",
-            mSampleRate, mSpeed, mStatus);
+            mSampleRate, mPlaybackRate.mSpeed, mStatus);
     result.append(buffer);
     snprintf(buffer, 255, "  state(%d), latency (%d)\n", mState, mLatency);
     result.append(buffer);

@@ -18,6 +18,9 @@
 #define ANDROID_AUDIO_RESAMPLER_PUBLIC_H
 
 #include <stdint.h>
+#include <math.h>
+
+namespace android {
 
 // AUDIO_RESAMPLER_DOWN_RATIO_MAX is the maximum ratio between the original
 // audio sample rate and the target rate when downsampling,
@@ -34,13 +37,76 @@
 // an int32_t of the phase increments, making the resulting sample rate inexact.
 #define AUDIO_RESAMPLER_UP_RATIO_MAX 65536
 
-#define AUDIO_TIMESTRETCH_SPEED_MIN    0.5f
-#define AUDIO_TIMESTRETCH_SPEED_MAX    2.0f
+// AUDIO_TIMESTRETCH_SPEED_MIN and AUDIO_TIMESTRETCH_SPEED_MAX define the min and max time stretch
+// speeds supported by the system. These are enforced by the system and values outside this range
+// will result in a runtime error.
+// Depending on the AudioPlaybackRate::mStretchMode, the effective limits might be narrower than
+// the ones specified here
+// AUDIO_TIMESTRETCH_SPEED_MIN_DELTA is the minimum absolute speed difference that might trigger a
+// parameter update
+#define AUDIO_TIMESTRETCH_SPEED_MIN    0.01f
+#define AUDIO_TIMESTRETCH_SPEED_MAX    20.0f
 #define AUDIO_TIMESTRETCH_SPEED_NORMAL 1.0f
+#define AUDIO_TIMESTRETCH_SPEED_MIN_DELTA 0.0001f
 
-#define AUDIO_TIMESTRETCH_PITCH_MIN    0.5f
-#define AUDIO_TIMESTRETCH_PITCH_MAX    2.0f
+// AUDIO_TIMESTRETCH_PITCH_MIN and AUDIO_TIMESTRETCH_PITCH_MAX define the min and max time stretch
+// pitch shifting supported by the system. These are not enforced by the system and values
+// outside this range might result in a pitch different than the one requested.
+// Depending on the AudioPlaybackRate::mStretchMode, the effective limits might be narrower than
+// the ones specified here.
+// AUDIO_TIMESTRETCH_PITCH_MIN_DELTA is the minimum absolute pitch difference that might trigger a
+// parameter update
+#define AUDIO_TIMESTRETCH_PITCH_MIN    0.25f
+#define AUDIO_TIMESTRETCH_PITCH_MAX    4.0f
 #define AUDIO_TIMESTRETCH_PITCH_NORMAL 1.0f
+#define AUDIO_TIMESTRETCH_PITCH_MIN_DELTA 0.0001f
+
+
+//Determines the current algorithm used for stretching
+enum AudioTimestretchStretchMode : int32_t {
+    AUDIO_TIMESTRETCH_STRETCH_DEFAULT            = 0,
+    AUDIO_TIMESTRETCH_STRETCH_SPEECH             = 1,
+    //TODO: add more stretch modes/algorithms
+};
+
+//Limits for AUDIO_TIMESTRETCH_STRETCH_SPEECH mode
+#define TIMESTRETCH_SONIC_SPEED_MIN 0.1f
+#define TIMESTRETCH_SONIC_SPEED_MAX 6.0f
+
+//Determines behavior of Timestretch if current algorithm can't perform
+//with current parameters.
+// FALLBACK_CUT_REPEAT: (internal only) for speed <1.0 will truncate frames
+//    for speed > 1.0 will repeat frames
+// FALLBACK_MUTE: will set all processed frames to zero
+// FALLBACK_FAIL:  will stop program execution and log a fatal error
+enum AudioTimestretchFallbackMode : int32_t {
+    AUDIO_TIMESTRETCH_FALLBACK_CUT_REPEAT     = -1,
+    AUDIO_TIMESTRETCH_FALLBACK_DEFAULT        = 0,
+    AUDIO_TIMESTRETCH_FALLBACK_MUTE           = 1,
+    AUDIO_TIMESTRETCH_FALLBACK_FAIL           = 2,
+};
+
+struct AudioPlaybackRate {
+    float mSpeed;
+    float mPitch;
+    enum AudioTimestretchStretchMode  mStretchMode;
+    enum AudioTimestretchFallbackMode mFallbackMode;
+};
+
+static const AudioPlaybackRate AUDIO_PLAYBACK_RATE_DEFAULT = {
+        AUDIO_TIMESTRETCH_SPEED_NORMAL,
+        AUDIO_TIMESTRETCH_PITCH_NORMAL,
+        AUDIO_TIMESTRETCH_STRETCH_DEFAULT,
+        AUDIO_TIMESTRETCH_FALLBACK_DEFAULT
+};
+
+static inline bool isAudioPlaybackRateEqual(const AudioPlaybackRate &pr1,
+        const AudioPlaybackRate &pr2) {
+    return fabs(pr1.mSpeed - pr2.mSpeed) < AUDIO_TIMESTRETCH_SPEED_MIN_DELTA &&
+           fabs(pr1.mPitch - pr2.mPitch) < AUDIO_TIMESTRETCH_PITCH_MIN_DELTA &&
+           pr2.mStretchMode == pr2.mStretchMode &&
+           pr2.mFallbackMode == pr2.mFallbackMode;
+}
 
 // TODO: Consider putting these inlines into a class scope
 
@@ -76,5 +142,9 @@ static inline size_t sourceFramesNeededWithTimestretch(
     // to deliver this, the time stretcher requires:
     return required * (double)speed + 1 + 1; // accounting for rounding dependencies
 }
+
+} // namespace android
+
+// ---------------------------------------------------------------------------
 
 #endif // ANDROID_AUDIO_RESAMPLER_PUBLIC_H

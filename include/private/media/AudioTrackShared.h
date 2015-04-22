@@ -114,13 +114,7 @@ struct AudioTrackSharedStatic {
                     mPosLoopQueue;
 };
 
-
-struct AudioTrackPlaybackRate {
-    float mSpeed;
-    float mPitch;
-};
-
-typedef SingleStateQueue<AudioTrackPlaybackRate> AudioTrackPlaybackRateQueue;
+typedef SingleStateQueue<AudioPlaybackRate> PlaybackRateQueue;
 
 // ----------------------------------------------------------------------------
 
@@ -168,7 +162,7 @@ private:
                 uint32_t    mSampleRate;    // AudioTrack only: client's requested sample rate in Hz
                                             // or 0 == default. Write-only client, read-only server.
 
-                AudioTrackPlaybackRateQueue::Shared mPlaybackRateQueue;
+                PlaybackRateQueue::Shared mPlaybackRateQueue;
 
                 // client write-only, server read-only
                 uint16_t    mSendLevel;      // Fixed point U4.12 so 0x1000 means 1.0
@@ -345,10 +339,7 @@ public:
         mCblk->mSampleRate = sampleRate;
     }
 
-    void        setPlaybackRate(float speed, float pitch) {
-        AudioTrackPlaybackRate playbackRate;
-        playbackRate.mSpeed = speed;
-        playbackRate.mPitch = pitch;
+    void        setPlaybackRate(const AudioPlaybackRate& playbackRate) {
         mPlaybackRateMutator.push(playbackRate);
     }
 
@@ -365,7 +356,7 @@ public:
     status_t    waitStreamEndDone(const struct timespec *requested);
 
 private:
-    AudioTrackPlaybackRateQueue::Mutator   mPlaybackRateMutator;
+    PlaybackRateQueue::Mutator   mPlaybackRateMutator;
 };
 
 class StaticAudioTrackClientProxy : public AudioTrackClientProxy {
@@ -483,8 +474,7 @@ public:
         : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer),
           mPlaybackRateObserver(&cblk->mPlaybackRateQueue) {
         mCblk->mSampleRate = sampleRate;
-        mPlaybackRate.mSpeed = AUDIO_TIMESTRETCH_SPEED_NORMAL;
-        mPlaybackRate.mPitch = AUDIO_TIMESTRETCH_PITCH_NORMAL;
+        mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
     }
 protected:
     virtual ~AudioTrackServerProxy() { }
@@ -520,11 +510,11 @@ public:
     virtual size_t      framesReleased() const { return mCblk->mServer; }
 
     // Return the playback speed and pitch read atomically. Not multi-thread safe on server side.
-    void                getPlaybackRate(float *speed, float *pitch);
+    AudioPlaybackRate getPlaybackRate();
 
 private:
-    AudioTrackPlaybackRate                  mPlaybackRate;  // last observed playback rate
-    AudioTrackPlaybackRateQueue::Observer   mPlaybackRateObserver;
+    AudioPlaybackRate             mPlaybackRate;  // last observed playback rate
+    PlaybackRateQueue::Observer   mPlaybackRateObserver;
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {

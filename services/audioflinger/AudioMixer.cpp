@@ -38,7 +38,6 @@
 #include <audio_utils/format.h>
 #include <common_time/local_clock.h>
 #include <common_time/cc_helper.h>
-#include <media/AudioResamplerPublic.h>
 
 #include "AudioMixerOps.h"
 #include "AudioMixer.h"
@@ -223,8 +222,7 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
         t->mMixerChannelMask = audio_channel_mask_from_representation_and_bits(
                 AUDIO_CHANNEL_REPRESENTATION_POSITION, AUDIO_CHANNEL_OUT_STEREO);
         t->mMixerChannelCount = audio_channel_count_from_out_mask(t->mMixerChannelMask);
-        t->mSpeed = AUDIO_TIMESTRETCH_SPEED_NORMAL;
-        t->mPitch = AUDIO_TIMESTRETCH_PITCH_NORMAL;
+        t->mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
         // Check the downmixing (or upmixing) requirements.
         status_t status = t->prepareForDownmix();
         if (status != OK) {
@@ -668,19 +666,25 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         case TIMESTRETCH:
             switch (param) {
             case PLAYBACK_RATE: {
-                const float speed = reinterpret_cast<float*>(value)[0];
-                const float pitch = reinterpret_cast<float*>(value)[1];
-                ALOG_ASSERT(AUDIO_TIMESTRETCH_SPEED_MIN <= speed
-                        && speed <= AUDIO_TIMESTRETCH_SPEED_MAX,
-                        "bad speed %f", speed);
-                ALOG_ASSERT(AUDIO_TIMESTRETCH_PITCH_MIN <= pitch
-                        && pitch <= AUDIO_TIMESTRETCH_PITCH_MAX,
-                        "bad pitch %f", pitch);
-                if (track.setPlaybackRate(speed, pitch)) {
-                    ALOGV("setParameter(TIMESTRETCH, PLAYBACK_RATE, %f %f", speed, pitch);
+                const AudioPlaybackRate *playbackRate =
+                        reinterpret_cast<AudioPlaybackRate*>(value);
+                ALOG_ASSERT(AUDIO_TIMESTRETCH_SPEED_MIN <= playbackRate->mSpeed
+                        && playbackRate->mSpeed <= AUDIO_TIMESTRETCH_SPEED_MAX,
+                        "bad speed %f", playbackRate->mSpeed);
+                ALOG_ASSERT(AUDIO_TIMESTRETCH_PITCH_MIN <= playbackRate->mPitch
+                        && playbackRate->mPitch <= AUDIO_TIMESTRETCH_PITCH_MAX,
+                        "bad pitch %f", playbackRate->mPitch);
+                //TODO: use function from AudioResamplerPublic.h to test validity.
+                if (track.setPlaybackRate(*playbackRate)) {
+                    ALOGV("setParameter(TIMESTRETCH, PLAYBACK_RATE, STRETCH_MODE, FALLBACK_MODE "
+                            "%f %f %d %d",
+                            playbackRate->mSpeed,
+                            playbackRate->mPitch,
+                            playbackRate->mStretchMode,
+                            playbackRate->mFallbackMode);
                     // invalidateState(1 << name);
                 }
-                } break;
+            } break;
             default:
                 LOG_ALWAYS_FATAL("setParameter timestretch: bad param %d", param);
             }
@@ -730,24 +734,26 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
     return false;
 }
 
-bool AudioMixer::track_t::setPlaybackRate(float speed, float pitch)
+bool AudioMixer::track_t::setPlaybackRate(const AudioPlaybackRate &playbackRate)
 {
-    if (speed == mSpeed && pitch == mPitch) {
+    if ((mTimestretchBufferProvider == NULL &&
+            fabs(playbackRate.mSpeed - mPlaybackRate.mSpeed) < AUDIO_TIMESTRETCH_SPEED_MIN_DELTA &&
+            fabs(playbackRate.mPitch - mPlaybackRate.mPitch) < AUDIO_TIMESTRETCH_PITCH_MIN_DELTA) ||
+            isAudioPlaybackRateEqual(playbackRate, mPlaybackRate)) {
         return false;
     }
-    mSpeed = speed;
-    mPitch = pitch;
+    mPlaybackRate = playbackRate;
     if (mTimestretchBufferProvider == NULL) {
         // TODO: Remove MONO_HACK. Resampler sees #channels after the downmixer
         // but if none exists, it is the channel count (1 for mono).
         const int timestretchChannelCount = downmixerBufferProvider != NULL
                 ? mMixerChannelCount : channelCount;
         mTimestretchBufferProvider = new TimestretchBufferProvider(timestretchChannelCount,
-                mMixerInFormat, sampleRate, speed, pitch);
+                mMixerInFormat, sampleRate, playbackRate);
         reconfigureBufferProviders();
     } else {
         reinterpret_cast<TimestretchBufferProvider*>(mTimestretchBufferProvider)
-                ->setPlaybackRate(speed, pitch);
+                ->setPlaybackRate(playbackRate);
     }
     return true;
 }

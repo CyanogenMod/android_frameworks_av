@@ -151,7 +151,8 @@ protected:
 class TimestretchBufferProvider : public PassthruBufferProvider {
 public:
     TimestretchBufferProvider(int32_t channelCount,
-            audio_format_t format, uint32_t sampleRate, float speed, float pitch);
+            audio_format_t format, uint32_t sampleRate,
+            const AudioPlaybackRate &playbackRate);
     virtual ~TimestretchBufferProvider();
 
     // Overrides AudioBufferProvider methods
@@ -161,7 +162,7 @@ public:
     // Overrides PassthruBufferProvider
     virtual void reset();
 
-    virtual status_t setPlaybackRate(float speed, float pitch);
+    virtual status_t setPlaybackRate(const AudioPlaybackRate &playbackRate);
 
     // processes frames
     // dstBuffer is where to place the data
@@ -176,15 +177,17 @@ protected:
     const audio_format_t mFormat;
     const uint32_t       mSampleRate; // const for now (TODO change this)
     const size_t         mFrameSize;
-    float                mSpeed;
-    float                mPitch;
+    AudioPlaybackRate    mPlaybackRate;
 
 private:
-    AudioBufferProvider::Buffer mBuffer;
-    size_t               mLocalBufferFrameCount;
-    void                *mLocalBufferData;
-    size_t               mRemaining;
-    sonicStream          mSonicStream;
+    AudioBufferProvider::Buffer mBuffer;          // for upstream request
+    size_t               mLocalBufferFrameCount;  // size of local buffer
+    void                *mLocalBufferData;        // internally allocated buffer for data returned
+                                                  // to caller
+    size_t               mRemaining;              // remaining data in local buffer
+    sonicStream          mSonicStream;            // handle to sonic timestretch object
+    //FIXME: this dependency should be abstracted out
+    bool                 mFallbackFailErrorShown; // log fallback error only once
 };
 
 // ----------------------------------------------------------------------------

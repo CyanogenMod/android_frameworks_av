@@ -23,6 +23,7 @@
 
 #include <hardware/audio_effect.h>
 #include <media/AudioBufferProvider.h>
+#include <media/AudioResamplerPublic.h>
 #include <media/nbaio/NBLog.h>
 #include <system/audio.h>
 #include <utils/Compat.h>
@@ -259,8 +260,7 @@ private:
         audio_channel_mask_t mMixerChannelMask;
         uint32_t             mMixerChannelCount;
 
-        float          mSpeed;
-        float          mPitch;
+        AudioPlaybackRate    mPlaybackRate;
 
         bool        needsRamp() { return (volumeInc[0] | volumeInc[1] | auxInc) != 0; }
         bool        setResampler(uint32_t trackSampleRate, uint32_t devSampleRate);
@@ -274,7 +274,7 @@ private:
         void        unprepareForDownmix();
         status_t    prepareForReformat();
         void        unprepareForReformat();
-        bool        setPlaybackRate(float speed, float pitch);
+        bool        setPlaybackRate(const AudioPlaybackRate &playbackRate);
         void        reconfigureBufferProviders();
     };
 

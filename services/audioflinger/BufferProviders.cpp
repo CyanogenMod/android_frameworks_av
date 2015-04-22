@@ -361,25 +361,25 @@ void ReformatBufferProvider::copyFrames(void *dst, const void *src, size_t frame
 }
 
 TimestretchBufferProvider::TimestretchBufferProvider(int32_t channelCount,
-        audio_format_t format, uint32_t sampleRate, float speed, float pitch) :
+        audio_format_t format, uint32_t sampleRate, const AudioPlaybackRate &playbackRate) :
         mChannelCount(channelCount),
         mFormat(format),
         mSampleRate(sampleRate),
         mFrameSize(channelCount * audio_bytes_per_sample(format)),
-        mSpeed(speed),
-        mPitch(pitch),
         mLocalBufferFrameCount(0),
         mLocalBufferData(NULL),
         mRemaining(0),
-        mSonicStream(sonicCreateStream(sampleRate, mChannelCount))
+        mSonicStream(sonicCreateStream(sampleRate, mChannelCount)),
+        mFallbackFailErrorShown(false)
 {
-    ALOGV("TimestretchBufferProvider(%p)(%u, %#x, %u %f %f)",
-            this, channelCount, format, sampleRate, speed, pitch);
-    mBuffer.frameCount = 0;
-
     LOG_ALWAYS_FATAL_IF(mSonicStream == NULL,
             "TimestretchBufferProvider can't allocate Sonic stream");
-    sonicSetSpeed(mSonicStream, speed);
+
+    setPlaybackRate(playbackRate);
+    ALOGV("TimestretchBufferProvider(%p)(%u, %#x, %u %f %f %d %d)",
+            this, channelCount, format, sampleRate, playbackRate.mSpeed,
+            playbackRate.mPitch, playbackRate.mStretchMode, playbackRate.mFallbackMode);
+    mBuffer.frameCount = 0;
 }
 
 TimestretchBufferProvider::~TimestretchBufferProvider()
@@ -423,8 +423,8 @@ status_t TimestretchBufferProvider::getNextBuffer(
 
     // need to fetch more data
     const size_t outputDesired = pBuffer->frameCount - mRemaining;
-    mBuffer.frameCount = mSpeed == AUDIO_TIMESTRETCH_SPEED_NORMAL
-            ? outputDesired : outputDesired * mSpeed + 1;
+    mBuffer.frameCount = mPlaybackRate.mSpeed == AUDIO_TIMESTRETCH_SPEED_NORMAL
+            ? outputDesired : outputDesired * mPlaybackRate.mSpeed + 1;
 
     status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
 
@@ -491,13 +491,13 @@ void TimestretchBufferProvider::reset()
     mRemaining = 0;
 }
 
-status_t TimestretchBufferProvider::setPlaybackRate(float speed, float pitch)
+status_t TimestretchBufferProvider::setPlaybackRate(const AudioPlaybackRate &playbackRate)
 {
-    mSpeed = speed;
-    mPitch = pitch;
-
-    sonicSetSpeed(mSonicStream, speed);
+    mPlaybackRate = playbackRate;
+    mFallbackFailErrorShown = false;
+    sonicSetSpeed(mSonicStream, mPlaybackRate.mSpeed);
     //TODO: pitch is ignored for now
+    //TODO: optimize: if parameters are the same, don't do any extra computation.
     return OK;
 }
 
@@ -508,33 +508,68 @@ void TimestretchBufferProvider::processFrames(void *dstBuffer, size_t *dstFrames
     // Note dstFrames is the required number of frames.
 
     // Ensure consumption from src is as expected.
-    const size_t targetSrc = *dstFrames * mSpeed;
+    //TODO: add logic to track "very accurate" consumption related to speed, original sampling
+    //rate, actual frames processed.
+    const size_t targetSrc = *dstFrames * mPlaybackRate.mSpeed;
     if (*srcFrames < targetSrc) { // limit dst frames to that possible
-        *dstFrames = *srcFrames / mSpeed;
+        *dstFrames = *srcFrames / mPlaybackRate.mSpeed;
     } else if (*srcFrames > targetSrc + 1) {
         *srcFrames = targetSrc + 1;
     }
 
-    switch (mFormat) {
-    case AUDIO_FORMAT_PCM_FLOAT:
-        if (sonicWriteFloatToStream(mSonicStream, (float*)srcBuffer, *srcFrames) != 1) {
-            ALOGE("sonicWriteFloatToStream cannot realloc");
-            *srcFrames = 0; // cannot consume all of srcBuffer
+    if (mPlaybackRate.mSpeed< TIMESTRETCH_SONIC_SPEED_MIN  ||
+            mPlaybackRate.mSpeed >  TIMESTRETCH_SONIC_SPEED_MAX ) {
+        //fallback mode
+        if (*dstFrames > 0) {
+            switch(mPlaybackRate.mFallbackMode) {
+            case AUDIO_TIMESTRETCH_FALLBACK_CUT_REPEAT:
+                if (*dstFrames <= *srcFrames) {
+                      size_t copySize = mFrameSize * *dstFrames;
+                      memcpy(dstBuffer, srcBuffer, copySize);
+                  } else {
+                      // cyclically repeat the source.
+                      for (size_t count = 0; count < *dstFrames; count += *srcFrames) {
+                          size_t remaining = min(*srcFrames, *dstFrames - count);
+                          memcpy((uint8_t*)dstBuffer + mFrameSize * count,
+                                  srcBuffer, mFrameSize * remaining);
+                      }
+                  }
+                break;
+            case AUDIO_TIMESTRETCH_FALLBACK_DEFAULT:
+            case AUDIO_TIMESTRETCH_FALLBACK_MUTE:
+                memset(dstBuffer,0, mFrameSize * *dstFrames);
+                break;
+            case AUDIO_TIMESTRETCH_FALLBACK_FAIL:
+            default:
+                if(!mFallbackFailErrorShown) {
+                    ALOGE("invalid parameters in TimestretchBufferProvider fallbackMode:%d",
+                            mPlaybackRate.mFallbackMode);
+                    mFallbackFailErrorShown = true;
+                }
+                break;
+            }
         }
-        *dstFrames = sonicReadFloatFromStream(mSonicStream, (float*)dstBuffer, *dstFrames);
-        break;
-    case AUDIO_FORMAT_PCM_16_BIT:
-        if (sonicWriteShortToStream(mSonicStream, (short*)srcBuffer, *srcFrames) != 1) {
-            ALOGE("sonicWriteShortToStream cannot realloc");
-            *srcFrames = 0; // cannot consume all of srcBuffer
+    } else {
+        switch (mFormat) {
+        case AUDIO_FORMAT_PCM_FLOAT:
+            if (sonicWriteFloatToStream(mSonicStream, (float*)srcBuffer, *srcFrames) != 1) {
+                ALOGE("sonicWriteFloatToStream cannot realloc");
+                *srcFrames = 0; // cannot consume all of srcBuffer
+            }
+            *dstFrames = sonicReadFloatFromStream(mSonicStream, (float*)dstBuffer, *dstFrames);
+            break;
+        case AUDIO_FORMAT_PCM_16_BIT:
+            if (sonicWriteShortToStream(mSonicStream, (short*)srcBuffer, *srcFrames) != 1) {
+                ALOGE("sonicWriteShortToStream cannot realloc");
+                *srcFrames = 0; // cannot consume all of srcBuffer
+            }
+            *dstFrames = sonicReadShortFromStream(mSonicStream, (short*)dstBuffer, *dstFrames);
+            break;
+        default:
+            // could also be caught on construction
+            LOG_ALWAYS_FATAL("invalid format %#x for TimestretchBufferProvider", mFormat);
         }
-        *dstFrames = sonicReadShortFromStream(mSonicStream, (short*)dstBuffer, *dstFrames);
-        break;
-    default:
-        // could also be caught on construction
-        LOG_ALWAYS_FATAL("invalid format %#x for TimestretchBufferProvider", mFormat);
     }
 }
-
 // ----------------------------------------------------------------------------
 } // namespace android
