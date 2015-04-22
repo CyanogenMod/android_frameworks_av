@@ -133,7 +133,7 @@ private:
         unsigned continuity_counter,
         unsigned payload_unit_start_indicator);
 
-    void parseAdaptationField(ABitReader *br, unsigned PID);
+    status_t parseAdaptationField(ABitReader *br, unsigned PID);
     status_t parseTS(ABitReader *br);
 
     void updatePCR(unsigned PID, uint64_t PCR, size_t byteOffsetFromStart);
