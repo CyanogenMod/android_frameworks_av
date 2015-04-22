@@ -478,6 +478,7 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     audio_io_handle_t input;
     status_t status = AudioSystem::getInputForAttr(&mAttributes, &input,
                                         (audio_session_t)mSessionId,
+                                        IPCThreadState::self()->getCallingUid(),
                                         mSampleRate, mFormat, mChannelMask,
                                         mFlags, mSelectedDeviceId);
 
