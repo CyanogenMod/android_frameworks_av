@@ -395,7 +395,7 @@ status_t CallbackProcessor::processNewCallback(sp<Camera2Client> &client) {
 
         heapIdx = mCallbackHeapHead;
 
-        mCallbackHeapHead = (mCallbackHeapHead + 1) & kCallbackHeapCount;
+        mCallbackHeapHead = (mCallbackHeapHead + 1) % kCallbackHeapCount;
         mCallbackHeapFree--;
 
         // TODO: Get rid of this copy by passing the gralloc queue all the way
