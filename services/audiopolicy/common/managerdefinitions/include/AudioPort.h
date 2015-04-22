@@ -75,10 +75,8 @@ public:
     audio_format_t pickFormat() const;
 
     static const audio_format_t sPcmFormatCompareTable[];
-    static int compareFormatsGoodToBad(
-            const audio_format_t *format1, const audio_format_t *format2) {
-        // compareFormats sorts from bad to good, we reverse it here
-        return compareFormats(*format2, *format1);
+    static int compareFormats(const audio_format_t *format1, const audio_format_t *format2) {
+        return compareFormats(*format1, *format2);
     }
     static int compareFormats(audio_format_t format1, audio_format_t format2);
 

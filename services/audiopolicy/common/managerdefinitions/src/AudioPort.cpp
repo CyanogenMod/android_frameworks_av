@@ -146,7 +146,7 @@ void AudioPort::importAudioPort(const sp<AudioPort> port) {
                     break;
                 }
             }
-            if (!hasFormat) { // never import a channel mask twice
+            if (!hasFormat) { // never import a format twice
                 mFormats.add(format);
             }
         }
@@ -216,7 +216,12 @@ void AudioPort::loadFormats(char *name)
         }
         str = strtok(NULL, "|");
     }
-    mFormats.sort(compareFormatsGoodToBad);
+    // we sort from worst to best, so that AUDIO_FORMAT_DEFAULT is always the first entry.
+    // TODO: compareFormats could be a lambda to convert between pointer-to-format to format:
+    // [](const audio_format_t *format1, const audio_format_t *format2) {
+    //     return compareFormats(*format1, *format2);
+    // }
+    mFormats.sort(compareFormats);
 }
 
 void AudioPort::loadInChannels(char *name)
@@ -558,11 +563,13 @@ status_t AudioPort::checkCompatibleFormat(audio_format_t format, audio_format_t 
             mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK
             && audio_is_linear_pcm(format);
 
-    for (size_t i = 0; i < mFormats.size(); ++i) {
+    // iterate from best format to worst format (reverse order)
+    for (ssize_t i = mFormats.size() - 1; i >= 0 ; --i) {
         if (mFormats[i] == format ||
-                (checkInexact && audio_is_linear_pcm(mFormats[i]))) {
-            // for inexact checks we take the first linear pcm format since
-            // mFormats is sorted from best PCM format to worst PCM format.
+                (checkInexact
+                        && mFormats[i] != AUDIO_FORMAT_DEFAULT
+                        && audio_is_linear_pcm(mFormats[i]))) {
+            // for inexact checks we take the first linear pcm format due to sorting.
             if (updatedFormat != NULL) {
                 *updatedFormat = mFormats[i];
             }
@@ -789,10 +796,15 @@ void AudioPort::dump(int fd, int spaces) const
             const char *formatStr = ConfigParsingUtils::enumToString(sFormatNameToEnumTable,
                                                  ARRAY_SIZE(sFormatNameToEnumTable),
                                                  mFormats[i]);
-            if (i == 0 && strcmp(formatStr, "") == 0) {
+            const bool isEmptyStr = formatStr[0] == 0;
+            if (i == 0 && isEmptyStr) {
                 snprintf(buffer, SIZE, "Dynamic");
             } else {
-                snprintf(buffer, SIZE, "%s", formatStr);
+                if (isEmptyStr) {
+                    snprintf(buffer, SIZE, "%#x", mFormats[i]);
+                } else {
+                    snprintf(buffer, SIZE, "%s", formatStr);
+                }
             }
             result.append(buffer);
             result.append(i == (mFormats.size() - 1) ? "" : ", ");
