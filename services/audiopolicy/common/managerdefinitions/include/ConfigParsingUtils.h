@@ -38,7 +38,8 @@ struct StringToEnum {
     uint32_t value;
 };
 
-#define STRING_TO_ENUM(string) { #string, string }
+// TODO: move to a separate file. Should be in sync with audio.h.
+#define STRING_TO_ENUM(string) { #string, (uint32_t)string } // uint32_t cast removes warning
 #define NAME_TO_ENUM(name, value) { name, value }
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -202,6 +203,17 @@ const StringToEnum sInChannelsNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_CHANNEL_IN_MONO),
     STRING_TO_ENUM(AUDIO_CHANNEL_IN_STEREO),
     STRING_TO_ENUM(AUDIO_CHANNEL_IN_FRONT_BACK),
+};
+
+const StringToEnum sIndexChannelsNameToEnumTable[] = {
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_1),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_2),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_3),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_4),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_5),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_6),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_7),
+    STRING_TO_ENUM(AUDIO_CHANNEL_INDEX_MASK_8),
 };
 
 const StringToEnum sGainModeNameToEnumTable[] = {

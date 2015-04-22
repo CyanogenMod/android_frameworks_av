@@ -235,8 +235,14 @@ void AudioPort::loadInChannels(char *name)
                 (audio_channel_mask_t)ConfigParsingUtils::stringToEnum(sInChannelsNameToEnumTable,
                                                    ARRAY_SIZE(sInChannelsNameToEnumTable),
                                                    str);
+        if (channelMask == 0) { // if not found, check the channel index table
+            channelMask = (audio_channel_mask_t)
+                      ConfigParsingUtils::stringToEnum(sIndexChannelsNameToEnumTable,
+                              ARRAY_SIZE(sIndexChannelsNameToEnumTable),
+                              str);
+        }
         if (channelMask != 0) {
-            ALOGV("loadInChannels() adding channelMask %04x", channelMask);
+            ALOGV("loadInChannels() adding channelMask %#x", channelMask);
             mChannelMasks.add(channelMask);
         }
         str = strtok(NULL, "|");
@@ -441,30 +447,87 @@ status_t AudioPort::checkCompatibleChannelMask(audio_channel_mask_t channelMask,
     }
 
     const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
+    const bool isIndex = audio_channel_mask_get_representation(channelMask)
+            == AUDIO_CHANNEL_REPRESENTATION_INDEX;
+    int bestMatch = 0;
     for (size_t i = 0; i < mChannelMasks.size(); i ++) {
-        // FIXME Does not handle multi-channel automatic conversions yet
         audio_channel_mask_t supported = mChannelMasks[i];
         if (supported == channelMask) {
+            // Exact matches always taken.
             if (updatedChannelMask != NULL) {
                 *updatedChannelMask = channelMask;
             }
             return NO_ERROR;
         }
-        if (isRecordThread) {
-            // This uses hard-coded knowledge that AudioFlinger can silently down-mix and up-mix.
-            // FIXME Abstract this out to a table.
-            if (((supported == AUDIO_CHANNEL_IN_FRONT_BACK || supported == AUDIO_CHANNEL_IN_STEREO)
-                    && channelMask == AUDIO_CHANNEL_IN_MONO) ||
-                (supported == AUDIO_CHANNEL_IN_MONO && (channelMask == AUDIO_CHANNEL_IN_FRONT_BACK
-                    || channelMask == AUDIO_CHANNEL_IN_STEREO))) {
+
+        // AUDIO_CHANNEL_NONE (value: 0) is used for dynamic channel support
+        if (isRecordThread && supported != AUDIO_CHANNEL_NONE) {
+            // Approximate (best) match:
+            // The match score measures how well the supported channel mask matches the
+            // desired mask, where increasing-is-better.
+            //
+            // TODO: Some tweaks may be needed.
+            // Should be a static function of the data processing library.
+            //
+            // In priority:
+            // match score = 1000 if legacy channel conversion equivalent (always prefer this)
+            // OR
+            // match score += 100 if the channel mask representations match
+            // match score += number of channels matched.
+            //
+            // If there are no matched channels, the mask may still be accepted
+            // but the playback or record will be silent.
+            const bool isSupportedIndex = (audio_channel_mask_get_representation(supported)
+                    == AUDIO_CHANNEL_REPRESENTATION_INDEX);
+            int match;
+            if (isIndex && isSupportedIndex) {
+                // index equivalence
+                match = 100 + __builtin_popcount(
+                        audio_channel_mask_get_bits(channelMask)
+                            & audio_channel_mask_get_bits(supported));
+            } else if (isIndex && !isSupportedIndex) {
+                const uint32_t equivalentBits =
+                        (1 << audio_channel_count_from_in_mask(supported)) - 1 ;
+                match = __builtin_popcount(
+                        audio_channel_mask_get_bits(channelMask) & equivalentBits);
+            } else if (!isIndex && isSupportedIndex) {
+                const uint32_t equivalentBits =
+                        (1 << audio_channel_count_from_in_mask(channelMask)) - 1;
+                match = __builtin_popcount(
+                        equivalentBits & audio_channel_mask_get_bits(supported));
+            } else {
+                // positional equivalence
+                match = 100 + __builtin_popcount(
+                        audio_channel_mask_get_bits(channelMask)
+                            & audio_channel_mask_get_bits(supported));
+                switch (supported) {
+                case AUDIO_CHANNEL_IN_FRONT_BACK:
+                case AUDIO_CHANNEL_IN_STEREO:
+                    if (channelMask == AUDIO_CHANNEL_IN_MONO) {
+                        match = 1000;
+                    }
+                    break;
+                case AUDIO_CHANNEL_IN_MONO:
+                    if (channelMask == AUDIO_CHANNEL_IN_FRONT_BACK
+                            || channelMask == AUDIO_CHANNEL_IN_STEREO) {
+                        match = 1000;
+                    }
+                    break;
+                default:
+                    break;
+                }
+            }
+            if (match > bestMatch) {
+                bestMatch = match;
                 if (updatedChannelMask != NULL) {
                     *updatedChannelMask = supported;
+                } else {
+                    return NO_ERROR; // any match will do in this case.
                 }
-                return NO_ERROR;
             }
         }
     }
-    return BAD_VALUE;
+    return bestMatch > 0 ? NO_ERROR : BAD_VALUE;
 }
 
 status_t AudioPort::checkExactFormat(audio_format_t format) const
