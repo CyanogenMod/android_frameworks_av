@@ -73,18 +73,18 @@ class AudioMixer;
 class AudioBuffer;
 class AudioResampler;
 class FastMixer;
+class PassthruBufferProvider;
 class ServerProxy;
 
 // ----------------------------------------------------------------------------
 
-// AudioFlinger has a hard-coded upper limit of 2 channels for capture and playback.
-// There is support for > 2 channel tracks down-mixed to 2 channel output via a down-mix effect.
-// Adding full support for > 2 channel capture or playback would require more than simply changing
-// this #define.  There is an independent hard-coded upper limit in AudioMixer;
-// removing that AudioMixer limit would be necessary but insufficient to support > 2 channels.
-// The macro FCC_2 highlights some (but not all) places where there is are 2-channel assumptions.
+// The macro FCC_2 highlights some (but not all) places where there are are 2-channel assumptions.
+// This is typically due to legacy implementation of stereo input or output.
 // Search also for "2", "left", "right", "[0]", "[1]", ">> 16", "<< 16", etc.
 #define FCC_2 2     // FCC_2 = Fixed Channel Count 2
+// The macro FCC_8 highlights places where there are 8-channel assumptions.
+// This is typically due to audio mixer and resampler limitations.
+#define FCC_8 8     // FCC_8 = Fixed Channel Count 8
 
 static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 

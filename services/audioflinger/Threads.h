@@ -1130,8 +1130,11 @@ public:
         }
 
     private:
-        // internal convert function for format and channel mask.
-        void convert(void *dst, /*const*/ void *src, size_t frames);
+        // format conversion when not using resampler
+        void convertNoResampler(void *dst, const void *src, size_t frames);
+
+        // format conversion when using resampler; modifies src in-place
+        void convertResampler(void *dst, /*not-a-const*/ void *src, size_t frames);
 
         // user provided information
         audio_channel_mask_t mSrcChannelMask;
@@ -1153,10 +1156,12 @@ public:
 
         // resampler info
         AudioResampler      *mResampler;
-        // interleaved stereo pairs of fixed-point Q4.27 or float depending on resampler
-        void                *mRsmpOutBuffer;
-        // current allocated frame count for the above, which may be larger than needed
-        size_t               mRsmpOutFrameCount;
+
+        bool                 mIsLegacyDownmix;  // legacy stereo to mono conversion needed
+        bool                 mIsLegacyUpmix;    // legacy mono to stereo conversion needed
+        bool                 mRequiresFloat;    // data processing requires float (e.g. resampler)
+        PassthruBufferProvider *mInputConverterProvider;    // converts input to float
+        int8_t               mIdxAry[sizeof(uint32_t) * 8]; // used for channel mask conversion
     };
 
 #include "RecordTracks.h"
