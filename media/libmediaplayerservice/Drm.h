@@ -143,7 +143,7 @@ struct Drm : public BnDrm,
     virtual void binderDied(const wp<IBinder> &the_late_who);
 
 private:
-    mutable Mutex mLock;
+    static Mutex mLock;
 
     status_t mInitCheck;
 
