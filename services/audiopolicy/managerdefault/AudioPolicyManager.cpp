@@ -969,6 +969,8 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
     audio_devices_t newDevice;
     if (outputDesc->mPolicyMix != NULL) {
         newDevice = AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
+    } else if (mOutputRoutes.hasRouteChanged(session)) {
+        newDevice = getNewOutputDevice(outputDesc, false /*fromCache*/);
     } else {
         newDevice = AUDIO_DEVICE_NONE;
     }
@@ -1026,7 +1028,7 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
     // necessary for a correct control of hardware output routing by startOutput() and stopOutput()
     outputDesc->changeRefCount(stream, 1);
 
-    if (outputDesc->mRefCount[stream] == 1) {
+    if (outputDesc->mRefCount[stream] == 1 || device != AUDIO_DEVICE_NONE) {
         // starting an output being rerouted?
         if (device == AUDIO_DEVICE_NONE) {
             device = getNewOutputDevice(outputDesc, false /*fromCache*/);
@@ -2462,14 +2464,14 @@ status_t AudioPolicyManager::acquireSoundTriggerSession(audio_session_t *session
     return mSoundTriggerSessions.acquireSession(*session, *ioHandle);
 }
 
-status_t AudioPolicyManager::startAudioSource(const struct audio_port_config *source,
-                                       const audio_attributes_t *attributes,
-                                       audio_io_handle_t *handle)
+status_t AudioPolicyManager::startAudioSource(const struct audio_port_config *source __unused,
+                                       const audio_attributes_t *attributes __unused,
+                                       audio_io_handle_t *handle __unused)
 {
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyManager::stopAudioSource(audio_io_handle_t handle)
+status_t AudioPolicyManager::stopAudioSource(audio_io_handle_t handle __unused)
 {
     return INVALID_OPERATION;
 }
@@ -4511,18 +4513,36 @@ bool AudioPolicyManager::SessionRouteMap::hasRoute(audio_session_t session)
     return indexOfKey(session) >= 0 && valueFor(session)->mDeviceDescriptor != 0;
 }
 
+bool AudioPolicyManager::SessionRouteMap::hasRouteChanged(audio_session_t session)
+{
+    if (indexOfKey(session) >= 0) {
+        if (valueFor(session)->mChanged) {
+            valueFor(session)->mChanged = false;
+            return true;
+        }
+    }
+    return false;
+}
+
 void AudioPolicyManager::SessionRouteMap::addRoute(audio_session_t session,
                                                    audio_stream_type_t streamType,
                                                    sp<DeviceDescriptor> deviceDescriptor)
 {
     sp<SessionRoute> route = indexOfKey(session) >= 0 ? valueFor(session) : 0;
     if (route != NULL) {
+        if ((route->mDeviceDescriptor == 0 && deviceDescriptor != 0) ||
+                (!route->mDeviceDescriptor->equals(deviceDescriptor))) {
+            route->mChanged = true;
+        }
         route->mRefCount++;
         route->mDeviceDescriptor = deviceDescriptor;
     } else {
         route = new AudioPolicyManager::SessionRoute(session, streamType, deviceDescriptor);
         route->mRefCount++;
         add(session, route);
+        if (deviceDescriptor != 0) {
+            route->mChanged = true;
+        }
     }
 }
 

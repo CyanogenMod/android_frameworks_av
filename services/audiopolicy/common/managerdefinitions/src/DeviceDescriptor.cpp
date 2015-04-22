@@ -52,6 +52,9 @@ bool DeviceDescriptor::equals(const sp<DeviceDescriptor>& other) const
     // - are of the same type (a device type cannot be AUDIO_DEVICE_NONE)
     // - have the same address or one device does not specify the address
     // - have the same channel mask or one device does not specify the channel mask
+    if (other == 0) {
+        return false;
+    }
     return (mDeviceType == other->mDeviceType) &&
            (mAddress == "" || other->mAddress == "" || mAddress == other->mAddress) &&
            (mChannelMask == 0 || other->mChannelMask == 0 ||

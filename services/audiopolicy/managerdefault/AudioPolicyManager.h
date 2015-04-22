@@ -244,7 +244,10 @@ protected:
                   mStreamType(streamType),
                   mDeviceDescriptor(deviceDescriptor),
                   mRefCount(0),
-                  mActivityCount(0) {}
+                  mActivityCount(0),
+                  mChanged(false) {}
+
+            void log(const char* prefix);
 
             audio_session_t         mSession;
             audio_stream_type_t     mStreamType;
@@ -252,10 +255,9 @@ protected:
             sp<DeviceDescriptor>    mDeviceDescriptor;
 
             // "reference" counting
-            int mRefCount;       // +/- on references
-            int mActivityCount;  // +/- on start/stop
-
-            void log(const char* prefix);
+            int                     mRefCount;      // +/- on references
+            int                     mActivityCount; // +/- on start/stop
+            bool                    mChanged;
         };
 
         class SessionRouteMap: public KeyedVector<audio_session_t, sp<SessionRoute>>
@@ -268,7 +270,7 @@ protected:
 
             int incRouteActivity(audio_session_t session);
             int decRouteActivity(audio_session_t session);
-
+            bool hasRouteChanged(audio_session_t session); // also clears the changed flag
             void log(const char* caption);
         };
 
@@ -510,6 +512,8 @@ protected:
 
         void updateCallRouting(audio_devices_t rxDevice, int delayMs = 0);
 
+        // if argument "device" is different from AUDIO_DEVICE_NONE,  startSource() will force
+        // the re-evaluation of the output device.
         status_t startSource(sp<AudioOutputDescriptor> outputDesc,
                              audio_stream_type_t stream,
                              audio_devices_t device,

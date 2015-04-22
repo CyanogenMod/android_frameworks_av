@@ -1014,10 +1014,9 @@ status_t AudioTrack::setOutputDevice(audio_port_handle_t deviceId) {
     AutoMutex lock(mLock);
     if (mSelectedDeviceId != deviceId) {
         mSelectedDeviceId = deviceId;
-        return restoreTrack_l("setOutputDevice() restart");
-    } else {
-        return NO_ERROR;
+        android_atomic_or(CBLK_INVALID, &mCblk->mFlags);
     }
+    return NO_ERROR;
 }
 
 audio_port_handle_t AudioTrack::getOutputDevice() {
