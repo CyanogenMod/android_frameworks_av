@@ -68,7 +68,7 @@ MediaCodec::BatteryNotifier::BatteryNotifier() :
     const sp<IServiceManager> sm(defaultServiceManager());
     if (sm != NULL) {
         const String16 name("batterystats");
-        mBatteryStatService = interface_cast<IBatteryStats>(sm->getService(name));
+        mBatteryStatService = interface_cast<IBatteryStats>(sm->checkService(name));
         if (mBatteryStatService == NULL) {
             ALOGE("batterystats service unavailable!");
         }
