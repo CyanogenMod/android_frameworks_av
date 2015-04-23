@@ -179,6 +179,42 @@ sp<const MediaClock> MediaSync::getMediaClock() {
     return mMediaClock;
 }
 
+status_t MediaSync::getPlayTimeForPendingAudioFrames(int64_t *outTimeUs) {
+    Mutex::Autolock lock(mMutex);
+    // User should check the playback rate if it doesn't want to receive a
+    // huge number for play time.
+    if (mPlaybackRate == 0.0f) {
+        *outTimeUs = INT64_MAX;
+        return OK;
+    }
+
+    uint32_t numFramesPlayed = 0;
+    if (mAudioTrack != NULL) {
+        status_t res = mAudioTrack->getPosition(&numFramesPlayed);
+        if (res != OK) {
+            return res;
+        }
+    }
+
+    int64_t numPendingFrames = mNumFramesWritten - numFramesPlayed;
+    if (numPendingFrames < 0) {
+        numPendingFrames = 0;
+        ALOGW("getPlayTimeForPendingAudioFrames: pending frame count is negative.");
+    }
+    double timeUs = numPendingFrames * 1000000.0
+            / (mNativeSampleRateInHz * (double)mPlaybackRate);
+    if (timeUs > (double)INT64_MAX) {
+        // Overflow.
+        *outTimeUs = INT64_MAX;
+        ALOGW("getPlayTimeForPendingAudioFrames: play time for pending audio frames "
+              "is too high, possibly due to super low playback rate(%f)", mPlaybackRate);
+    } else {
+        *outTimeUs = (int64_t)timeUs;
+    }
+
+    return OK;
+}
+
 status_t MediaSync::updateQueuedAudioData(
         size_t sizeInBytes, int64_t presentationTimeUs) {
     if (sizeInBytes == 0) {
