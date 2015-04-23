@@ -79,6 +79,21 @@ struct ResourceManagerClient : public BnResourceManagerClient {
         return (err == OK);
     }
 
+    virtual String8 getName() {
+        String8 ret;
+        sp<MediaCodec> codec = mMediaCodec.promote();
+        if (codec == NULL) {
+            // codec is already gone.
+            return ret;
+        }
+
+        AString name;
+        if (codec->getName(&name) == OK) {
+            ret.setTo(name.c_str());
+        }
+        return ret;
+    }
+
 protected:
     virtual ~ResourceManagerClient() {}
 

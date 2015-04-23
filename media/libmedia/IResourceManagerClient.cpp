@@ -25,6 +25,7 @@ namespace android {
 
 enum {
     RECLAIM_RESOURCE = IBinder::FIRST_CALL_TRANSACTION,
+    GET_NAME,
 };
 
 class BpResourceManagerClient: public BpInterface<IResourceManagerClient>
@@ -46,6 +47,19 @@ public:
         }
         return ret;
     }
+
+    virtual String8 getName() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IResourceManagerClient::getInterfaceDescriptor());
+
+        String8 ret;
+        status_t status = remote()->transact(GET_NAME, data, &reply);
+        if (status == NO_ERROR) {
+            ret = reply.readString8();
+        }
+        return ret;
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(ResourceManagerClient, "android.media.IResourceManagerClient");
@@ -60,6 +74,12 @@ status_t BnResourceManagerClient::onTransact(
             CHECK_INTERFACE(IResourceManagerClient, data, reply);
             bool ret = reclaimResource();
             reply->writeInt32(ret);
+            return NO_ERROR;
+        } break;
+        case GET_NAME: {
+            CHECK_INTERFACE(IResourceManagerClient, data, reply);
+            String8 ret = getName();
+            reply->writeString8(ret);
             return NO_ERROR;
         } break;
         default:

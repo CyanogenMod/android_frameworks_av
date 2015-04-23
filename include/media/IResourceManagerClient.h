@@ -18,6 +18,7 @@
 #define ANDROID_IRESOURCEMANAGERCLIENT_H
 
 #include <utils/RefBase.h>
+#include <utils/String8.h>
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 
@@ -29,6 +30,7 @@ public:
     DECLARE_META_INTERFACE(ResourceManagerClient);
 
     virtual bool reclaimResource() = 0;
+    virtual String8 getName() = 0;
 };
 
 // ----------------------------------------------------------------------------
