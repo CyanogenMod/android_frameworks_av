@@ -2822,7 +2822,7 @@ void OMXCodec::on_message(const omx_message &msg) {
             } else if (mPortStatus[kPortIndexOutput] == ENABLED
                        && (flags & OMX_BUFFERFLAG_DATACORRUPT)) {
                 CODEC_LOGV("Filled buffer data is corrupted, drop buffer");
-                mBufferFilled.signal();
+                fillOutputBuffer(info);
 #if 0
             } else if (mPortStatus[kPortIndexOutput] == ENABLED
                        && (flags & OMX_BUFFERFLAG_EOS)) {
