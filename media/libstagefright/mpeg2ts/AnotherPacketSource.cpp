@@ -211,6 +211,11 @@ status_t AnotherPacketSource::read(
             mediaBuffer->meta_data()->setInt32(kKeyIsSyncFrame, isSync);
         }
 
+        sp<ABuffer> sei;
+        if (buffer->meta()->findBuffer("sei", &sei) && sei != NULL) {
+            mediaBuffer->meta_data()->setData(kKeySEI, 0, sei->data(), sei->size());
+        }
+
         *out = mediaBuffer;
         return OK;
     }

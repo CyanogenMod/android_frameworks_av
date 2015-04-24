@@ -1400,6 +1400,14 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
         meta->setInt32("trackIndex", mSubtitleTrack.mIndex);
     }
 
+    uint32_t dataType; // unused
+    const void *seiData;
+    size_t seiLength;
+    if (mb->meta_data()->findData(kKeySEI, &dataType, &seiData, &seiLength)) {
+        sp<ABuffer> sei = ABuffer::CreateAsCopy(seiData, seiLength);;
+        meta->setBuffer("sei", sei);
+    }
+
     if (actualTimeUs) {
         *actualTimeUs = timeUs;
     }
