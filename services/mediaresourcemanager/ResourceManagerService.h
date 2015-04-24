@@ -48,6 +48,8 @@ class ResourceManagerService
 public:
     static char const *getServiceName() { return "media.resource_manager"; }
 
+    virtual status_t dump(int fd, const Vector<String16>& args);
+
     ResourceManagerService();
     ResourceManagerService(sp<ProcessInfoInterface> processInfo);
 

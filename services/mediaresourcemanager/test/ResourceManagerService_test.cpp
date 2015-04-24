@@ -55,6 +55,10 @@ struct TestClient : public BnResourceManagerClient {
         return true;
     }
 
+    virtual String8 getName() {
+        return String8("test_client");
+    }
+
     bool reclaimed() const {
         return mReclaimed;
     }

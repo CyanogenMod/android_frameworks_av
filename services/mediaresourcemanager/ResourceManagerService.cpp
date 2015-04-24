@@ -88,6 +88,51 @@ static ResourceInfo& getResourceInfoForEdit(
     return infos.editItemAt(infos.size() - 1);
 }
 
+status_t ResourceManagerService::dump(int fd, const Vector<String16>& args) {
+    Mutex::Autolock lock(mLock);
+
+    String8 result;
+    const size_t SIZE = 256;
+    char buffer[SIZE];
+
+    snprintf(buffer, SIZE, "ResourceManagerService: %p\n", this);
+    result.append(buffer);
+    result.append("  Policies:\n");
+    snprintf(buffer, SIZE, "    SupportsMultipleSecureCodecs: %d\n", mSupportsMultipleSecureCodecs);
+    result.append(buffer);
+    snprintf(buffer, SIZE, "    SupportsSecureWithNonSecureCodec: %d\n", mSupportsSecureWithNonSecureCodec);
+    result.append(buffer);
+
+    snprintf(buffer, SIZE, "  Processes:\n");
+    result.append(buffer);
+    for (size_t i = 0; i < mMap.size(); ++i) {
+        snprintf(buffer, SIZE, "    Pid: %d\n", mMap.keyAt(i));
+        result.append(buffer);
+
+        const ResourceInfos &infos = mMap.valueAt(i);
+        for (size_t j = 0; j < infos.size(); ++j) {
+            snprintf(buffer, SIZE, "      Client:\n");
+            result.append(buffer);
+            snprintf(buffer, SIZE, "        Id: %lld\n", (long long)infos[j].clientId);
+            result.append(buffer);
+
+            snprintf(buffer, SIZE, "        Name: %s\n", infos[j].client->getName().string());
+            result.append(buffer);
+
+            Vector<MediaResource> resources = infos[j].resources;
+            snprintf(buffer, SIZE, "        Resources:\n");
+            result.append(buffer);
+            for (size_t k = 0; k < resources.size(); ++k) {
+                snprintf(buffer, SIZE, "          %s\n", resources[k].toString().string());
+                result.append(buffer);
+            }
+        }
+    }
+
+    write(fd, result.string(), result.size());
+    return OK;
+}
+
 ResourceManagerService::ResourceManagerService()
     : mProcessInfo(new ProcessInfo()),
       mSupportsMultipleSecureCodecs(true),
