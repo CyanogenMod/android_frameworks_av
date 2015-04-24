@@ -20,23 +20,16 @@
 #include <utils/misc.h>
 
 #include "PlaylistFetcher.h"
-
-#include "LiveDataSource.h"
+#include "HTTPDownloader.h"
 #include "LiveSession.h"
 #include "M3UParser.h"
-
 #include "include/avc_utils.h"
-#include "include/HTTPBase.h"
 #include "include/ID3.h"
 #include "mpeg2ts/AnotherPacketSource.h"
 
-#include <media/IStreamSource.h>
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/foundation/AUtils.h>
-#include <media/stagefright/foundation/hexdump.h>
-#include <media/stagefright/FileSource.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
@@ -44,7 +37,6 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <openssl/aes.h>
-#include <openssl/md5.h>
 
 #define FLOGV(fmt, ...) ALOGV("[fetcher-%d] " fmt, mFetcherID, ##__VA_ARGS__)
 #define FSLOGV(stream, fmt, ...) ALOGV("[fetcher-%d] [%s] " fmt, mFetcherID, \
@@ -179,7 +171,7 @@ PlaylistFetcher::PlaylistFetcher(
       mDownloadState(new DownloadState()),
       mHasMetadata(false) {
     memset(mPlaylistHash, 0, sizeof(mPlaylistHash));
-    mHTTPDataSource = mSession->getHTTPDataSource();
+    mHTTPDownloader = mSession->getHTTPDownloader();
 }
 
 PlaylistFetcher::~PlaylistFetcher() {
@@ -338,9 +330,11 @@ status_t PlaylistFetcher::decryptBuffer(
     if (index >= 0) {
         key = mAESKeyForURI.valueAt(index);
     } else {
-        ssize_t err = mSession->fetchFile(keyURI.c_str(), &key);
+        ssize_t err = mHTTPDownloader->fetchFile(keyURI.c_str(), &key);
 
-        if (err < 0) {
+        if (err == ERROR_NOT_CONNECTED) {
+            return ERROR_NOT_CONNECTED;
+        } else if (err < 0) {
             ALOGE("failed to fetch cipher key from '%s'.", keyURI.c_str());
             return ERROR_IO;
         } else if (key->size() != 16) {
@@ -448,12 +442,32 @@ void PlaylistFetcher::cancelMonitorQueue() {
     ++mMonitorQueueGeneration;
 }
 
-void PlaylistFetcher::setStoppingThreshold(float thresholdRatio) {
-    AutoMutex _l(mThresholdLock);
-    if (mStreamTypeMask == LiveSession::STREAMTYPE_SUBTITLES) {
-        return;
+void PlaylistFetcher::setStoppingThreshold(float thresholdRatio, bool disconnect) {
+    {
+        AutoMutex _l(mThresholdLock);
+        mThresholdRatio = thresholdRatio;
     }
-    mThresholdRatio = thresholdRatio;
+    if (disconnect) {
+        mHTTPDownloader->disconnect();
+    }
+}
+
+void PlaylistFetcher::resetStoppingThreshold(bool disconnect) {
+    {
+        AutoMutex _l(mThresholdLock);
+        mThresholdRatio = -1.0f;
+    }
+    if (disconnect) {
+        mHTTPDownloader->disconnect();
+    } else {
+        // allow reconnect
+        mHTTPDownloader->reconnect();
+    }
+}
+
+float PlaylistFetcher::getStoppingThreshold() {
+    AutoMutex _l(mThresholdLock);
+    return mThresholdRatio;
 }
 
 void PlaylistFetcher::startAsync(
@@ -497,15 +511,15 @@ void PlaylistFetcher::startAsync(
     msg->post();
 }
 
-void PlaylistFetcher::pauseAsync(float thresholdRatio) {
-    if (thresholdRatio >= 0.0f) {
-        setStoppingThreshold(thresholdRatio);
-    }
+void PlaylistFetcher::pauseAsync(
+        float thresholdRatio, bool disconnect) {
+    setStoppingThreshold(thresholdRatio, disconnect);
+
     (new AMessage(kWhatPause, this))->post();
 }
 
 void PlaylistFetcher::stopAsync(bool clear) {
-    setStoppingThreshold(0.0f);
+    setStoppingThreshold(0.0f, true /* disconncect */);
 
     sp<AMessage> msg = new AMessage(kWhatStop, this);
     msg->setInt32("clear", clear);
@@ -518,6 +532,10 @@ void PlaylistFetcher::resumeUntilAsync(const sp<AMessage> &params) {
     AMessage* msg = new AMessage(kWhatResumeUntil, this);
     msg->setMessage("params", params);
     msg->post();
+}
+
+void PlaylistFetcher::fetchPlaylistAsync() {
+    (new AMessage(kWhatFetchPlaylist, this))->post();
 }
 
 void PlaylistFetcher::onMessageReceived(const sp<AMessage> &msg) {
@@ -553,6 +571,19 @@ void PlaylistFetcher::onMessageReceived(const sp<AMessage> &msg) {
 
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("what", kWhatStopped);
+            notify->post();
+            break;
+        }
+
+        case kWhatFetchPlaylist:
+        {
+            bool unchanged;
+            sp<M3UParser> playlist = mHTTPDownloader->fetchPlaylist(
+                    mURI.c_str(), NULL /* curPlaylistHash */, &unchanged);
+
+            sp<AMessage> notify = mNotify->dup();
+            notify->setInt32("what", kWhatPlaylistFetched);
+            notify->setObject("playlist", playlist);
             notify->post();
             break;
         }
@@ -676,7 +707,7 @@ void PlaylistFetcher::onPause() {
     cancelMonitorQueue();
     mLastDiscontinuitySeq = mDiscontinuitySeq;
 
-    setStoppingThreshold(-1.0f);
+    resetStoppingThreshold(false /* disconnect */);
 }
 
 void PlaylistFetcher::onStop(const sp<AMessage> &msg) {
@@ -691,14 +722,11 @@ void PlaylistFetcher::onStop(const sp<AMessage> &msg) {
         }
     }
 
-    // close off the connection after use
-    mHTTPDataSource->disconnect();
-
     mDownloadState->resetState();
     mPacketSources.clear();
     mStreamTypeMask = 0;
 
-    setStoppingThreshold(-1.0f);
+    resetStoppingThreshold(true /* disconnect */);
 }
 
 // Resume until we have reached the boundary timestamps listed in `msg`; when
@@ -815,7 +843,7 @@ void PlaylistFetcher::onMonitorQueue() {
 status_t PlaylistFetcher::refreshPlaylist() {
     if (delayUsToRefreshPlaylist() <= 0) {
         bool unchanged;
-        sp<M3UParser> playlist = mSession->fetchPlaylist(
+        sp<M3UParser> playlist = mHTTPDownloader->fetchPlaylist(
                 mURI.c_str(), mPlaylistHash, &unchanged);
 
         if (playlist == NULL) {
@@ -864,18 +892,12 @@ bool PlaylistFetcher::shouldPauseDownload() {
     }
 
     // Calculate threshold to abort current download
-    int64_t targetDurationUs = mPlaylist->getTargetDuration();
-    int64_t thresholdUs = -1;
-    {
-        AutoMutex _l(mThresholdLock);
-        thresholdUs = (mThresholdRatio < 0.0f) ?
-                -1ll : mThresholdRatio * targetDurationUs;
-    }
+    float thresholdRatio = getStoppingThreshold();
 
-    if (thresholdUs < 0) {
+    if (thresholdRatio < 0.0f) {
         // never abort
         return false;
-    } else if (thresholdUs == 0) {
+    } else if (thresholdRatio == 0.0f) {
         // immediately abort
         return true;
     }
@@ -904,6 +926,9 @@ bool PlaylistFetcher::shouldPauseDownload() {
         }
     }
     lastEnqueueUs -= mSegmentFirstPTS;
+
+    int64_t targetDurationUs = mPlaylist->getTargetDuration();
+    int64_t thresholdUs = thresholdRatio * targetDurationUs;
 
     FLOGV("%spausing now, thresholdUs %lld, remaining %lld",
             targetDurationUs - lastEnqueueUs > thresholdUs ? "" : "not ",
@@ -1101,7 +1126,9 @@ bool PlaylistFetcher::initDownloadState(
         junk->setRange(0, 16);
         status_t err = decryptBuffer(mSeqNumber - firstSeqNumberInPlaylist, junk,
                 true /* first */);
-        if (err != OK) {
+        if (err == ERROR_NOT_CONNECTED) {
+            return false;
+        } else if (err != OK) {
             notifyError(err);
             return false;
         }
@@ -1202,12 +1229,21 @@ void PlaylistFetcher::onDownloadNext() {
     bool shouldPause = false;
     ssize_t bytesRead;
     do {
-        sp<DataSource> source = mHTTPDataSource;
-
         int64_t startUs = ALooper::GetNowUs();
-        bytesRead = mSession->fetchFile(
+        bytesRead = mHTTPDownloader->fetchBlock(
                 uri.c_str(), &buffer, range_offset, range_length, kDownloadBlockSize,
-                &source, NULL, connectHTTP);
+                NULL /* actualURL */, connectHTTP);
+        int64_t delayUs = ALooper::GetNowUs() - startUs;
+
+        if (bytesRead == ERROR_NOT_CONNECTED) {
+            return;
+        }
+        if (bytesRead < 0) {
+            status_t err = bytesRead;
+            ALOGE("failed to fetch .ts segment at url '%s'", uri.c_str());
+            notifyError(err);
+            return;
+        }
 
         // add sample for bandwidth estimation, excluding samples from subtitles (as
         // its too small), or during startup/resumeUntil (when we could have more than
@@ -1216,9 +1252,7 @@ void PlaylistFetcher::onDownloadNext() {
                 && (mStreamTypeMask
                         & (LiveSession::STREAMTYPE_AUDIO
                         | LiveSession::STREAMTYPE_VIDEO))) {
-            int64_t delayUs = ALooper::GetNowUs() - startUs;
             mSession->addBandwidthMeasurement(bytesRead, delayUs);
-
             if (delayUs > 2000000ll) {
                 FLOGV("bytesRead %zd took %.2f seconds - abnormal bandwidth dip",
                         bytesRead, (double)delayUs / 1.0e6);
@@ -1226,13 +1260,6 @@ void PlaylistFetcher::onDownloadNext() {
         }
 
         connectHTTP = false;
-
-        if (bytesRead < 0) {
-            status_t err = bytesRead;
-            ALOGE("failed to fetch .ts segment at url '%s'", uri.c_str());
-            notifyError(err);
-            return;
-        }
 
         CHECK(buffer != NULL);
 

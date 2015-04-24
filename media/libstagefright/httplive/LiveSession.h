@@ -37,6 +37,7 @@ struct LiveDataSource;
 struct M3UParser;
 struct PlaylistFetcher;
 struct HLSTime;
+struct HTTPDownloader;
 
 struct LiveSession : public AHandler {
     enum Flags {
@@ -76,7 +77,7 @@ struct LiveSession : public AHandler {
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
 
-    sp<HTTPBase> getHTTPDataSource();
+    sp<HTTPDownloader> getHTTPDownloader();
 
     void connectAsync(
             const char *url,
@@ -127,7 +128,6 @@ private:
         kWhatChangeConfiguration        = 'chC0',
         kWhatChangeConfiguration2       = 'chC2',
         kWhatChangeConfiguration3       = 'chC3',
-        kWhatFinishDisconnect2          = 'fin2',
         kWhatPollBuffering              = 'poll',
     };
 
@@ -191,7 +191,6 @@ private:
     int32_t mPollBufferingGeneration;
     int32_t mPrevBufferPercentage;
 
-    sp<HTTPBase> mHTTPDataSource;
     KeyedVector<String8, String8> mExtraHeaders;
 
     AString mMasterURL;
@@ -253,34 +252,8 @@ private:
     sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
+    void onMasterPlaylistFetched(const sp<AMessage> &msg);
     void onSeek(const sp<AMessage> &msg);
-    void onFinishDisconnect2();
-
-    // If given a non-zero block_size (default 0), it is used to cap the number of
-    // bytes read in from the DataSource. If given a non-NULL buffer, new content
-    // is read into the end.
-    //
-    // The DataSource we read from is responsible for signaling error or EOF to help us
-    // break out of the read loop. The DataSource can be returned to the caller, so
-    // that the caller can reuse it for subsequent fetches (within the initially
-    // requested range).
-    //
-    // For reused HTTP sources, the caller must download a file sequentially without
-    // any overlaps or gaps to prevent reconnection.
-    ssize_t fetchFile(
-            const char *url, sp<ABuffer> *out,
-            /* request/open a file starting at range_offset for range_length bytes */
-            int64_t range_offset = 0, int64_t range_length = -1,
-            /* download block size */
-            uint32_t block_size = 0,
-            /* reuse DataSource if doing partial fetch */
-            sp<DataSource> *source = NULL,
-            String8 *actualUrl = NULL,
-            /* force connect http even when resuing DataSource */
-            bool forceConnectHTTP = false);
-
-    sp<M3UParser> fetchPlaylist(
-            const char *url, uint8_t *curPlaylistHash, bool *unchanged);
 
     bool UriIsSameAsIndex( const AString &uri, int32_t index, bool newUri);
     sp<AnotherPacketSource> getPacketSourceForStreamIndex(size_t trackIndex, bool newUri);

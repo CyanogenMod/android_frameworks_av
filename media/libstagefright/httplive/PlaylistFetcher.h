@@ -49,6 +49,7 @@ struct PlaylistFetcher : public AHandler {
         kWhatPreparationFailed,
         kWhatStartedAt,
         kWhatStopReached,
+        kWhatPlaylistFetched,
         kWhatMetadataDetected,
     };
 
@@ -61,8 +62,6 @@ struct PlaylistFetcher : public AHandler {
 
     int32_t getFetcherID() const;
 
-    sp<DataSource> getDataSource();
-
     void startAsync(
             const sp<AnotherPacketSource> &audioSource,
             const sp<AnotherPacketSource> &videoSource,
@@ -74,11 +73,13 @@ struct PlaylistFetcher : public AHandler {
             int32_t startDiscontinuitySeq = -1,
             LiveSession::SeekMode seekMode = LiveSession::kSeekModeExactPosition);
 
-    void pauseAsync(float thresholdRatio);
+    void pauseAsync(float thresholdRatio, bool disconnect);
 
     void stopAsync(bool clear = true);
 
     void resumeUntilAsync(const sp<AMessage> &params);
+
+    void fetchPlaylistAsync();
 
     uint32_t getStreamTypeMask() const {
         return mStreamTypeMask;
@@ -100,6 +101,7 @@ private:
         kWhatMonitorQueue   = 'moni',
         kWhatResumeUntil    = 'rsme',
         kWhatDownloadNext   = 'dlnx',
+        kWhatFetchPlaylist  = 'flst'
     };
 
     struct DownloadState;
@@ -114,7 +116,7 @@ private:
     sp<AMessage> mNotify;
     sp<AMessage> mStartTimeUsNotify;
 
-    sp<HTTPBase> mHTTPDataSource;
+    sp<HTTPDownloader> mHTTPDownloader;
     sp<LiveSession> mSession;
     AString mURI;
 
@@ -197,7 +199,9 @@ private:
 
     void postMonitorQueue(int64_t delayUs = 0, int64_t minDelayUs = 0);
     void cancelMonitorQueue();
-    void setStoppingThreshold(float thresholdRatio);
+    void setStoppingThreshold(float thresholdRatio, bool disconnect);
+    void resetStoppingThreshold(bool disconnect);
+    float getStoppingThreshold();
     bool shouldPauseDownload();
 
     int64_t delayUsToRefreshPlaylist() const;
