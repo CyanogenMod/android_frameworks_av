@@ -139,12 +139,7 @@ sp<IBatteryStats> MediaCodec::BatteryNotifier::getBatteryService_l() {
             return NULL;
         }
         mDeathNotifier = new DeathNotifier();
-        if (IInterface::asBinder(mBatteryStatService)->
-                linkToDeath(mDeathNotifier) != OK) {
-            mBatteryStatService.clear();
-            mDeathNotifier.clear();
-            return NULL;
-        }
+        IInterface::asBinder(mBatteryStatService)->linkToDeath(mDeathNotifier);
         // notify start now if media already started
         if (mVideoRefCount > 0) {
             mBatteryStatService->noteStartVideo(AID_MEDIA);
@@ -179,8 +174,9 @@ void MediaCodec::BatteryNotifier::noteStopVideo() {
         return;
     }
 
-    mVideoRefCount--;
     sp<IBatteryStats> batteryService = getBatteryService_l();
+
+    mVideoRefCount--;
     if (mVideoRefCount == 0 && batteryService != NULL) {
         batteryService->noteStopVideo(AID_MEDIA);
     }
@@ -202,8 +198,9 @@ void MediaCodec::BatteryNotifier::noteStopAudio() {
         return;
     }
 
-    mAudioRefCount--;
     sp<IBatteryStats> batteryService = getBatteryService_l();
+
+    mAudioRefCount--;
     if (mAudioRefCount == 0 && batteryService != NULL) {
         batteryService->noteStopAudio(AID_MEDIA);
     }
