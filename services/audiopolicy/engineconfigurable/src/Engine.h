@@ -97,11 +97,11 @@ private:
 
         virtual void initializeVolumeCurves(bool /*isSpeakerDrcEnabled*/) {}
 
-        virtual float volIndexToAmpl(Volume::device_category deviceCategory,
+        virtual float volIndexToDb(Volume::device_category deviceCategory,
                                      audio_stream_type_t stream,
                                      int indexInUi)
         {
-            return mPolicyEngine->volIndexToAmpl(deviceCategory, stream, indexInUi);
+            return mPolicyEngine->volIndexToDb(deviceCategory, stream, indexInUi);
         }
 
     private:
@@ -183,9 +183,9 @@ private:
     status_t setDeviceConnectionState(audio_devices_t devices, audio_policy_dev_state_t state,
                                       const char *deviceAddress);
 
-    float volIndexToAmpl(Volume::device_category category,
-                         audio_stream_type_t stream,
-                         int indexInUi);
+    float volIndexToDb(Volume::device_category category,
+                       audio_stream_type_t stream,
+                       int indexInUi);
     status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
 
     StrategyCollection mStrategyCollection; /**< Strategies indexed by their enum id. */
