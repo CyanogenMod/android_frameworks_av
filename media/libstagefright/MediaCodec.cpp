@@ -422,7 +422,8 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     status_t err;
     Vector<MediaResource> resources;
     const char *type = secureCodec ? kResourceSecureCodec : kResourceNonSecureCodec;
-    resources.push_back(MediaResource(String8(type), 1));
+    const char *subtype = mIsVideo ? kResourceVideoCodec : kResourceAudioCodec;
+    resources.push_back(MediaResource(String8(type), String8(subtype), 1));
     for (int i = 0; i <= kMaxRetry; ++i) {
         if (i > 0) {
             // Don't try to reclaim resource for the first time.
@@ -480,7 +481,8 @@ status_t MediaCodec::configure(
     Vector<MediaResource> resources;
     const char *type = (mFlags & kFlagIsSecure) ?
             kResourceSecureCodec : kResourceNonSecureCodec;
-    resources.push_back(MediaResource(String8(type), 1));
+    const char *subtype = mIsVideo ? kResourceVideoCodec : kResourceAudioCodec;
+    resources.push_back(MediaResource(String8(type), String8(subtype), 1));
     // Don't know the buffer size at this point, but it's fine to use 1 because
     // the reclaimResource call doesn't consider the requester's buffer size for now.
     resources.push_back(MediaResource(String8(kResourceGraphicMemory), 1));
@@ -545,9 +547,9 @@ uint64_t MediaCodec::getGraphicBufferSize() {
     return size;
 }
 
-void MediaCodec::addResource(const char *type, uint64_t value) {
+void MediaCodec::addResource(const String8 &type, const String8 &subtype, uint64_t value) {
     Vector<MediaResource> resources;
-    resources.push_back(MediaResource(String8(type), value));
+    resources.push_back(MediaResource(type, subtype, value));
     mResourceManagerService->addResource(
             getCallingPid(), getId(mResourceManagerClient), mResourceManagerClient, resources);
 }
@@ -559,7 +561,8 @@ status_t MediaCodec::start() {
     Vector<MediaResource> resources;
     const char *type = (mFlags & kFlagIsSecure) ?
             kResourceSecureCodec : kResourceNonSecureCodec;
-    resources.push_back(MediaResource(String8(type), 1));
+    const char *subtype = mIsVideo ? kResourceVideoCodec : kResourceAudioCodec;
+    resources.push_back(MediaResource(String8(type), String8(subtype), 1));
     // Don't know the buffer size at this point, but it's fine to use 1 because
     // the reclaimResource call doesn't consider the requester's buffer size for now.
     resources.push_back(MediaResource(String8(kResourceGraphicMemory), 1));
@@ -1171,7 +1174,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         mFlags &= ~kFlagIsSecure;
                         resourceType = String8(kResourceNonSecureCodec);
                     }
-                    addResource(resourceType, 1);
+
+                    const char *subtype = mIsVideo ? kResourceVideoCodec : kResourceAudioCodec;
+                    addResource(resourceType, String8(subtype), 1);
 
                     (new AMessage)->postReply(mReplyID);
                     break;
@@ -1285,7 +1290,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                             // allocating input buffers, so this is a good
                             // indication that now all buffers are allocated.
                             if (mIsVideo) {
-                                addResource(kResourceGraphicMemory, getGraphicBufferSize());
+                                String8 subtype;
+                                addResource(
+                                        String8(kResourceGraphicMemory),
+                                        subtype,
+                                        getGraphicBufferSize());
                             }
                             setState(STARTED);
                             (new AMessage)->postReply(mReplyID);
