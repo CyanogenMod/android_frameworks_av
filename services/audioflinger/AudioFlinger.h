@@ -588,6 +588,7 @@ private:
                 // Return true if the effect was found in mOrphanEffectChains, false otherwise.
                 bool            updateOrphanEffectChains(const sp<EffectModule>& effect);
 
+                void broacastParametersToRecordThreads_l(const String8& keyValuePairs);
 
     // AudioStreamIn is immutable, so their fields are const.
     // For emphasis, we could also make all pointers to them be "const *",

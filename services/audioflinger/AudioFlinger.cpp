@@ -1013,6 +1013,14 @@ bool AudioFlinger::streamMute(audio_stream_type_t stream) const
     return streamMute_l(stream);
 }
 
+
+void AudioFlinger::broacastParametersToRecordThreads_l(const String8& keyValuePairs)
+{
+    for (size_t i = 0; i < mRecordThreads.size(); i++) {
+        mRecordThreads.valueAt(i)->setParameters(keyValuePairs);
+    }
+}
+
 status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs)
 {
     ALOGV("setParameters(): io %d, keyvalue %s, calling pid %d",
@@ -1087,9 +1095,7 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             int value;
             if ((param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) &&
                     (value != 0)) {
-                for (size_t i = 0; i < mRecordThreads.size(); i++) {
-                    mRecordThreads.valueAt(i)->setParameters(keyValuePairs);
-                }
+                broacastParametersToRecordThreads_l(keyValuePairs);
             }
         }
     }
