@@ -1420,6 +1420,13 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
     }
 
     if (inputDesc->mRefCount == 0) {
+        // if input maps to a dynamic policy with an activity listener, notify of state change
+        if ((inputDesc->mPolicyMix != NULL)
+                && ((inputDesc->mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
+            mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
+                    MIX_STATE_MIXING);
+        }
+
         if (mInputs.activeInputsCount() == 0) {
             SoundTrigger::setCaptureState(true);
         }
@@ -1473,6 +1480,12 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
 
     inputDesc->mRefCount--;
     if (inputDesc->mRefCount == 0) {
+        // if input maps to a dynamic policy with an activity listener, notify of state change
+        if ((inputDesc->mPolicyMix != NULL)
+                && ((inputDesc->mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
+            mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
+                    MIX_STATE_IDLE);
+        }
 
         // automatically disable the remote submix output when input is stopped if not
         // used by a policy mix of type MIX_TYPE_RECORDERS
