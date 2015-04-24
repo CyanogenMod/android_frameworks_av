@@ -113,6 +113,9 @@ public:
     // MediaClock::getMediaTime() and MediaClock::getRealTimeFor().
     sp<const MediaClock> getMediaClock();
 
+    // Get the play time for pending audio frames in audio sink.
+    status_t getPlayTimeForPendingAudioFrames(int64_t *outTimeUs);
+
 protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
