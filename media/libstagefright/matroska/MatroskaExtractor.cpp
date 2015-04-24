@@ -941,7 +941,10 @@ void MatroskaExtractor::addTracks() {
                 const mkvparser::VideoTrack *vtrack =
                     static_cast<const mkvparser::VideoTrack *>(track);
 
-                if (!strcmp("V_MPEG4/ISO/AVC", codecID)) {
+                if (codecID == NULL) {
+                    ALOGW("unknown codecID is not supported.");
+                    continue;
+                } else if (!strcmp("V_MPEG4/ISO/AVC", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
                     meta->setData(kKeyAVCC, 0, codecPrivate, codecPrivateSize);
                 } else if (!strcmp("V_MPEG4/ISO/ASP", codecID)) {
