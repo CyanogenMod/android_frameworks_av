@@ -1220,6 +1220,13 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
     buffer->setRange(buffer->offset() + offset, buffer->size() - offset);
 
     status_t err = OK;
+    // During SEEK video always starts from closest preceding IDR frame
+    // Adjust mStartTimeUs( seek time ) to lastIDRTimeUs so that audio
+    // also starts from same time.
+    // Since the for loop below starts from higher index VIDEO stream
+    // will be parsed first, this will ensure that lastIDRTimeUs will be
+    // set for AUDIO. Assumption here is enum VIDEO > AUDIO
+    int64_t lastIDRTimeUs = -1;
     for (size_t i = mPacketSources.size(); i-- > 0;) {
         sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
 
@@ -1246,6 +1253,12 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 
             default:
                 TRESPASS();
+        }
+
+        if (lastIDRTimeUs >= 0) {
+            ALOGI("Adjusting seek time to IDR %" PRId64 "us from %" PRId64 "us",
+                   lastIDRTimeUs, mStartTimeUs);
+            mStartTimeUs = lastIDRTimeUs;
         }
 
         sp<AnotherPacketSource> source =
@@ -1294,6 +1307,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
                     if ((isAvc && IsIDR(accessUnit)) || (isHevc &&
                             ExtendedUtils::IsHevcIDR(accessUnit))) {
                         mVideoBuffer->clear();
+                        lastIDRTimeUs = timeUs;
                     }
                     if (isAvc || isHevc) {
                         mVideoBuffer->queueAccessUnit(accessUnit);
@@ -1387,12 +1401,11 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 
             // Note that we do NOT dequeue any discontinuities except for format change.
             if (stream == LiveSession::STREAMTYPE_VIDEO) {
-                const bool discard = true;
                 status_t status;
                 while (mVideoBuffer->hasBufferAvailable(&status)) {
                     sp<ABuffer> videoBuffer;
                     mVideoBuffer->dequeueAccessUnit(&videoBuffer);
-                    setAccessUnitProperties(videoBuffer, source, discard);
+                    setAccessUnitProperties(videoBuffer, source);
                     packetSource->queueAccessUnit(videoBuffer);
                 }
             }
