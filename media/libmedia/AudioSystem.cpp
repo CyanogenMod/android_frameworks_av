@@ -37,6 +37,7 @@ Mutex AudioSystem::gLockAPS;
 sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
+dynamic_policy_callback AudioSystem::gDynPolicyCallback = NULL;
 
 // Cached values for output handles
 DefaultKeyedVector<audio_io_handle_t, AudioSystem::OutputDescriptor *> AudioSystem::gOutputs(NULL);
@@ -536,10 +537,16 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(int event, audio_io_handle
     }
 }
 
-void AudioSystem::setErrorCallback(audio_error_callback cb)
+/*static*/ void AudioSystem::setErrorCallback(audio_error_callback cb)
 {
     Mutex::Autolock _l(gLock);
     gAudioErrorCallback = cb;
+}
+
+/*static*/ void AudioSystem::setDynPolicyCallback(dynamic_policy_callback cb)
+{
+    Mutex::Autolock _l(gLock);
+    gDynPolicyCallback = cb;
 }
 
 // client singleton for AudioPolicyService binder interface
@@ -941,6 +948,7 @@ status_t AudioSystem::addAudioPortCallback(const sp<AudioPortCallback>& callBack
     return gAudioPolicyServiceClient->addAudioPortCallback(callBack);
 }
 
+/*static*/
 status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callBack)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
@@ -952,7 +960,6 @@ status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callB
     }
     return gAudioPolicyServiceClient->removeAudioPortCallback(callBack);
 }
-
 
 status_t AudioSystem::acquireSoundTriggerSession(audio_session_t *session,
                                        audio_io_handle_t *ioHandle,
@@ -1051,7 +1058,16 @@ void AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate()
 void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
         String8 regId, int32_t state)
 {
-    ALOGV("TODO propagate onDynamicPolicyMixStateUpdate(%s, %d)", regId.string(), state);
+    ALOGV("AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(%s, %d)", regId.string(), state);
+    dynamic_policy_callback cb = NULL;
+    {
+        Mutex::Autolock _l(AudioSystem::gLock);
+        cb = gDynPolicyCallback;
+    }
+
+    if (cb != NULL) {
+        cb(DYNAMIC_POLICY_EVENT_MIX_STATE_UPDATE, regId, state);
+    }
 }
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
