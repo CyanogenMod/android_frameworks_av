@@ -146,7 +146,7 @@ status_t RadioService::attach(radio_handle_t handle,
     radio = module->addClient(client, config, withAudio);
 
     if (radio == 0) {
-        NO_INIT;
+        return NO_INIT;
     }
     return NO_ERROR;
 }
@@ -500,12 +500,11 @@ sp<RadioService::ModuleClient> RadioService::Module::addClient(const sp<IRadioCl
         if (audio) {
             notifyDeviceConnection(true, "");
         }
+        ALOGV("addClient() DONE moduleClient %p", moduleClient.get());
     } else {
+        ALOGW("%s open_tuner failed with error %d", __FUNCTION__, ret);
         moduleClient.clear();
     }
-
-
-    ALOGV("addClient() DONE moduleClient %p", moduleClient.get());
 
     return moduleClient;
 }
