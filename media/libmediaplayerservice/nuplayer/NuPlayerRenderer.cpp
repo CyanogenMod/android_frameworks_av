@@ -66,7 +66,7 @@ NuPlayer::Renderer::Renderer(
       mVideoQueueGeneration(0),
       mAudioDrainGeneration(0),
       mVideoDrainGeneration(0),
-      mPlaybackRate(1.0),
+      mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
       mAudioFirstAnchorTimeMediaUs(-1),
       mAnchorTimeMediaUs(-1),
       mAnchorNumFramesWritten(-1),
@@ -89,6 +89,8 @@ NuPlayer::Renderer::Renderer(
       mLastAudioBufferDrained(0),
       mWakeLock(new AWakeLock()) {
     mMediaClock = new MediaClock;
+    mPlaybackRate = mPlaybackSettings.mSpeed;
+    mMediaClock->setPlaybackRate(mPlaybackRate);
 }
 
 NuPlayer::Renderer::~Renderer() {
@@ -121,10 +123,111 @@ void NuPlayer::Renderer::queueEOS(bool audio, status_t finalResult) {
     msg->post();
 }
 
-void NuPlayer::Renderer::setPlaybackRate(float rate) {
-    sp<AMessage> msg = new AMessage(kWhatSetRate, this);
-    msg->setFloat("rate", rate);
-    msg->post();
+status_t NuPlayer::Renderer::setPlaybackSettings(const AudioPlaybackRate &rate) {
+    sp<AMessage> msg = new AMessage(kWhatConfigPlayback, this);
+    writeToAMessage(msg, rate);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+    return err;
+}
+
+status_t NuPlayer::Renderer::onConfigPlayback(const AudioPlaybackRate &rate /* sanitized */) {
+    if (rate.mSpeed == 0.f) {
+        onPause();
+        // don't call audiosink's setPlaybackRate if pausing, as pitch does not
+        // have to correspond to the any non-0 speed (e.g old speed). Keep
+        // settings nonetheless, using the old speed, in case audiosink changes.
+        AudioPlaybackRate newRate = rate;
+        newRate.mSpeed = mPlaybackSettings.mSpeed;
+        mPlaybackSettings = newRate;
+        return OK;
+    }
+
+    if (mAudioSink != NULL) {
+        status_t err = mAudioSink->setPlaybackRate(rate);
+        if (err != OK) {
+            return err;
+        }
+    }
+    mPlaybackSettings = rate;
+    mPlaybackRate = rate.mSpeed;
+    mMediaClock->setPlaybackRate(mPlaybackRate);
+    return OK;
+}
+
+status_t NuPlayer::Renderer::getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */) {
+    sp<AMessage> msg = new AMessage(kWhatGetPlaybackSettings, this);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+        if (err == OK) {
+            readFromAMessage(response, rate);
+        }
+    }
+    return err;
+}
+
+status_t NuPlayer::Renderer::onGetPlaybackSettings(AudioPlaybackRate *rate /* nonnull */) {
+    if (mAudioSink != NULL) {
+        status_t err = mAudioSink->getPlaybackRate(rate);
+        if (err == OK) {
+            if (!isAudioPlaybackRateEqual(*rate, mPlaybackSettings)) {
+                ALOGW("correcting mismatch in internal/external playback rate");
+            }
+            // get playback settings used by audiosink, as it may be
+            // slightly off due to audiosink not taking small changes.
+            mPlaybackSettings = *rate;
+            if (mPaused) {
+                rate->mSpeed = 0.f;
+            }
+        }
+        return err;
+    }
+    *rate = mPlaybackSettings;
+    return OK;
+}
+
+status_t NuPlayer::Renderer::setSyncSettings(const AVSyncSettings &sync, float videoFpsHint) {
+    sp<AMessage> msg = new AMessage(kWhatConfigSync, this);
+    writeToAMessage(msg, sync, videoFpsHint);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+    return err;
+}
+
+status_t NuPlayer::Renderer::onConfigSync(const AVSyncSettings &sync, float videoFpsHint __unused) {
+    if (sync.mSource != AVSYNC_SOURCE_DEFAULT) {
+        return BAD_VALUE;
+    }
+    // TODO: support sync sources
+    return INVALID_OPERATION;
+}
+
+status_t NuPlayer::Renderer::getSyncSettings(AVSyncSettings *sync, float *videoFps) {
+    sp<AMessage> msg = new AMessage(kWhatGetSyncSettings, this);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+        if (err == OK) {
+            readFromAMessage(response, sync, videoFps);
+        }
+    }
+    return err;
+}
+
+status_t NuPlayer::Renderer::onGetSyncSettings(
+        AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */) {
+    *sync = mSyncSettings;
+    *videoFps = -1.f;
+    return OK;
 }
 
 void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
@@ -365,13 +468,63 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        case kWhatSetRate:
+        case kWhatConfigPlayback:
         {
-            CHECK(msg->findFloat("rate", &mPlaybackRate));
-            int32_t ratePermille = (int32_t)(0.5f + 1000 * mPlaybackRate);
-            mPlaybackRate = ratePermille / 1000.0f;
-            mMediaClock->setPlaybackRate(mPlaybackRate);
-            mAudioSink->setPlaybackRatePermille(ratePermille);
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            AudioPlaybackRate rate;
+            readFromAMessage(msg, &rate);
+            status_t err = onConfigPlayback(rate);
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatGetPlaybackSettings:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            AudioPlaybackRate rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+            status_t err = onGetPlaybackSettings(&rate);
+            sp<AMessage> response = new AMessage;
+            if (err == OK) {
+                writeToAMessage(response, rate);
+            }
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatConfigSync:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            AVSyncSettings sync;
+            float videoFpsHint;
+            readFromAMessage(msg, &sync, &videoFpsHint);
+            status_t err = onConfigSync(sync, videoFpsHint);
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatGetSyncSettings:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            ALOGV("kWhatGetSyncSettings");
+            AVSyncSettings sync;
+            float videoFps = -1.f;
+            status_t err = onGetSyncSettings(&sync, &videoFps);
+            sp<AMessage> response = new AMessage;
+            if (err == OK) {
+                writeToAMessage(response, sync, videoFps);
+            }
+            response->setInt32("err", err);
+            response->postReply(replyID);
             break;
         }
 
@@ -1176,7 +1329,6 @@ void NuPlayer::Renderer::onEnableOffloadAudio() {
 
 void NuPlayer::Renderer::onPause() {
     if (mPaused) {
-        ALOGW("Renderer::onPause() called while already paused!");
         return;
     }
 
@@ -1214,6 +1366,12 @@ void NuPlayer::Renderer::onResume() {
     {
         Mutex::Autolock autoLock(mLock);
         mPaused = false;
+
+        // configure audiosink as we did not do it when pausing
+        if (mAudioSink != NULL) {
+            mAudioSink->setPlaybackRate(mPlaybackSettings);
+        }
+
         mMediaClock->setPlaybackRate(mPlaybackRate);
 
         if (!mAudioQueue.empty()) {
@@ -1433,10 +1591,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     &offloadInfo);
 
             if (err == OK) {
-                if (mPlaybackRate != 1.0) {
-                    mAudioSink->setPlaybackRatePermille(
-                            (int32_t)(mPlaybackRate * 1000 + 0.5f));
-                }
+                err = mAudioSink->setPlaybackRate(mPlaybackSettings);
+            }
+
+            if (err == OK) {
                 // If the playback is offloaded to h/w, we pass
                 // the HAL some metadata information.
                 // We don't want to do this for PCM because it
@@ -1486,16 +1644,15 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     NULL,
                     NULL,
                     (audio_output_flags_t)pcmFlags);
+        if (err == OK) {
+            err = mAudioSink->setPlaybackRate(mPlaybackSettings);
+        }
         if (err != OK) {
             ALOGW("openAudioSink: non offloaded open failed status: %d", err);
             mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
             return err;
         }
         mCurrentPcmInfo = info;
-        if (mPlaybackRate != 1.0) {
-            mAudioSink->setPlaybackRatePermille(
-                    (int32_t)(mPlaybackRate * 1000 + 0.5f));
-        }
         mAudioSink->start();
     }
     if (audioSinkChanged) {

@@ -37,6 +37,9 @@
 
 #include <cutils/properties.h>
 
+#include <media/AudioResamplerPublic.h>
+#include <media/AVSyncSettings.h>
+
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -180,7 +183,8 @@ NuPlayer::NuPlayer()
       mFlushingVideo(NONE),
       mResumePending(false),
       mVideoScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW),
-      mPlaybackRate(1.0),
+      mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
+      mVideoFpsHint(-1.f),
       mStarted(false),
       mPaused(false),
       mPausedByClient(false) {
@@ -331,10 +335,61 @@ void NuPlayer::start() {
     (new AMessage(kWhatStart, this))->post();
 }
 
-void NuPlayer::setPlaybackRate(float rate) {
-    sp<AMessage> msg = new AMessage(kWhatSetRate, this);
-    msg->setFloat("rate", rate);
-    msg->post();
+status_t NuPlayer::setPlaybackSettings(const AudioPlaybackRate &rate) {
+    // do some cursory validation of the settings here. audio modes are
+    // only validated when set on the audiosink.
+     if ((rate.mSpeed != 0.f && rate.mSpeed < AUDIO_TIMESTRETCH_SPEED_MIN)
+            || rate.mSpeed > AUDIO_TIMESTRETCH_SPEED_MAX
+            || rate.mPitch < AUDIO_TIMESTRETCH_SPEED_MIN
+            || rate.mPitch > AUDIO_TIMESTRETCH_SPEED_MAX) {
+        return BAD_VALUE;
+    }
+    sp<AMessage> msg = new AMessage(kWhatConfigPlayback, this);
+    writeToAMessage(msg, rate);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+    return err;
+}
+
+status_t NuPlayer::getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */) {
+    sp<AMessage> msg = new AMessage(kWhatGetPlaybackSettings, this);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+        if (err == OK) {
+            readFromAMessage(response, rate);
+        }
+    }
+    return err;
+}
+
+status_t NuPlayer::setSyncSettings(const AVSyncSettings &sync, float videoFpsHint) {
+    sp<AMessage> msg = new AMessage(kWhatConfigSync, this);
+    writeToAMessage(msg, sync, videoFpsHint);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+    return err;
+}
+
+status_t NuPlayer::getSyncSettings(
+        AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */) {
+    sp<AMessage> msg = new AMessage(kWhatGetSyncSettings, this);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+        if (err == OK) {
+            readFromAMessage(response, sync, videoFps);
+        }
+    }
+    return err;
 }
 
 void NuPlayer::pause() {
@@ -627,12 +682,28 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        case kWhatSetRate:
+        case kWhatConfigPlayback:
         {
-            ALOGV("kWhatSetRate");
-            CHECK(msg->findFloat("rate", &mPlaybackRate));
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            AudioPlaybackRate rate /* sanitized */;
+            readFromAMessage(msg, &rate);
+            status_t err = OK;
             if (mRenderer != NULL) {
-                mRenderer->setPlaybackRate(mPlaybackRate);
+                err = mRenderer->setPlaybackSettings(rate);
+            }
+            if (err == OK) {
+                if (rate.mSpeed == 0.f) {
+                    onPause();
+                    // save all other settings (using non-paused speed)
+                    // so we can restore them on start
+                    AudioPlaybackRate newRate = rate;
+                    newRate.mSpeed = mPlaybackSettings.mSpeed;
+                    mPlaybackSettings = newRate;
+                } else { /* rate.mSpeed != 0.f */
+                    onResume();
+                    mPlaybackSettings = rate;
+                }
             }
 
             if (mVideoDecoder != NULL) {
@@ -640,11 +711,86 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t rate;
                 if (meta != NULL && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
                     sp<AMessage> params = new AMessage();
-                    params->setFloat("operating-rate", rate * mPlaybackRate);
+                    params->setFloat("operating-rate", rate * mPlaybackSettings.mSpeed);
                     mVideoDecoder->setParameters(params);
                 }
             }
 
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatGetPlaybackSettings:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            AudioPlaybackRate rate = mPlaybackSettings;
+            status_t err = OK;
+            if (mRenderer != NULL) {
+                err = mRenderer->getPlaybackSettings(&rate);
+            }
+            if (err == OK) {
+                // get playback settings used by renderer, as it may be
+                // slightly off due to audiosink not taking small changes.
+                mPlaybackSettings = rate;
+                if (mPaused) {
+                    rate.mSpeed = 0.f;
+                }
+            }
+            sp<AMessage> response = new AMessage;
+            if (err == OK) {
+                writeToAMessage(response, rate);
+            }
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatConfigSync:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            ALOGV("kWhatConfigSync");
+            AVSyncSettings sync;
+            float videoFpsHint;
+            readFromAMessage(msg, &sync, &videoFpsHint);
+            status_t err = OK;
+            if (mRenderer != NULL) {
+                err = mRenderer->setSyncSettings(sync, videoFpsHint);
+            }
+            if (err == OK) {
+                mSyncSettings = sync;
+                mVideoFpsHint = videoFpsHint;
+            }
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
+        }
+
+        case kWhatGetSyncSettings:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            AVSyncSettings sync = mSyncSettings;
+            float videoFps = mVideoFpsHint;
+            status_t err = OK;
+            if (mRenderer != NULL) {
+                err = mRenderer->getSyncSettings(&sync, &videoFps);
+                if (err == OK) {
+                    mSyncSettings = sync;
+                    mVideoFpsHint = videoFps;
+                }
+            }
+            sp<AMessage> response = new AMessage;
+            if (err == OK) {
+                writeToAMessage(response, sync, videoFps);
+            }
+            response->setInt32("err", err);
+            response->postReply(replyID);
             break;
         }
 
@@ -1114,8 +1260,12 @@ void NuPlayer::onStart() {
     mRendererLooper->setName("NuPlayerRenderer");
     mRendererLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
     mRendererLooper->registerHandler(mRenderer);
-    if (mPlaybackRate != 1.0) {
-        mRenderer->setPlaybackRate(mPlaybackRate);
+
+    status_t err = mRenderer->setPlaybackSettings(mPlaybackSettings);
+    if (err != OK) {
+        mSource->stop();
+        notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+        return;
     }
 
     sp<MetaData> meta = getFileMeta();
@@ -1282,7 +1432,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         sp<MetaData> meta = getFileMeta();
         int32_t rate;
         if (meta != NULL && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
-            format->setFloat("operating-rate", rate * mPlaybackRate);
+            format->setFloat("operating-rate", rate * mPlaybackSettings.mSpeed);
         }
     }
 

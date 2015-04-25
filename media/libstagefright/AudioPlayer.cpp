@@ -408,11 +408,22 @@ void AudioPlayer::notifyAudioEOS() {
     }
 }
 
-status_t AudioPlayer::setPlaybackRatePermille(int32_t ratePermille) {
+status_t AudioPlayer::setPlaybackRate(const AudioPlaybackRate &rate) {
     if (mAudioSink.get() != NULL) {
-        return mAudioSink->setPlaybackRatePermille(ratePermille);
+        return mAudioSink->setPlaybackRate(rate);
     } else if (mAudioTrack != 0){
-        return mAudioTrack->setSampleRate(ratePermille * mSampleRate / 1000);
+        return mAudioTrack->setPlaybackRate(rate);
+    } else {
+        return NO_INIT;
+    }
+}
+
+status_t AudioPlayer::getPlaybackRate(AudioPlaybackRate *rate /* nonnull */) {
+    if (mAudioSink.get() != NULL) {
+        return mAudioSink->getPlaybackRate(rate);
+    } else if (mAudioTrack != 0) {
+        *rate = mAudioTrack->getPlaybackRate();
+        return OK;
     } else {
         return NO_INIT;
     }

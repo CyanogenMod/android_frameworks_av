@@ -21,6 +21,9 @@
 
 #include <binder/Parcel.h>
 
+#include <media/AudioResamplerPublic.h>
+#include <media/AVSyncSettings.h>
+
 #include <media/IDataSource.h>
 #include <media/IMediaHTTPService.h>
 #include <media/IMediaPlayer.h>
@@ -41,7 +44,10 @@ enum {
     START,
     STOP,
     IS_PLAYING,
-    SET_PLAYBACK_RATE,
+    SET_PLAYBACK_SETTINGS,
+    GET_PLAYBACK_SETTINGS,
+    SET_SYNC_SETTINGS,
+    GET_SYNC_SETTINGS,
     PAUSE,
     SEEK_TO,
     GET_CURRENT_POSITION,
@@ -175,13 +181,61 @@ public:
         return reply.readInt32();
     }
 
-    status_t setPlaybackRate(float rate)
+    status_t setPlaybackSettings(const AudioPlaybackRate& rate)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
-        data.writeFloat(rate);
-        remote()->transact(SET_PLAYBACK_RATE, data, &reply);
+        data.writeFloat(rate.mSpeed);
+        data.writeFloat(rate.mPitch);
+        data.writeInt32((int32_t)rate.mFallbackMode);
+        data.writeInt32((int32_t)rate.mStretchMode);
+        remote()->transact(SET_PLAYBACK_SETTINGS, data, &reply);
         return reply.readInt32();
+    }
+
+    status_t getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
+        remote()->transact(GET_PLAYBACK_SETTINGS, data, &reply);
+        status_t err = reply.readInt32();
+        if (err == OK) {
+            *rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+            rate->mSpeed = reply.readFloat();
+            rate->mPitch = reply.readFloat();
+            rate->mFallbackMode = (AudioTimestretchFallbackMode)reply.readInt32();
+            rate->mStretchMode = (AudioTimestretchStretchMode)reply.readInt32();
+        }
+        return err;
+    }
+
+    status_t setSyncSettings(const AVSyncSettings& sync, float videoFpsHint)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
+        data.writeInt32((int32_t)sync.mSource);
+        data.writeInt32((int32_t)sync.mAudioAdjustMode);
+        data.writeFloat(sync.mTolerance);
+        data.writeFloat(videoFpsHint);
+        remote()->transact(SET_SYNC_SETTINGS, data, &reply);
+        return reply.readInt32();
+    }
+
+    status_t getSyncSettings(AVSyncSettings* sync /* nonnull */, float* videoFps /* nonnull */)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayer::getInterfaceDescriptor());
+        remote()->transact(GET_SYNC_SETTINGS, data, &reply);
+        status_t err = reply.readInt32();
+        if (err == OK) {
+            AVSyncSettings settings;
+            settings.mSource = (AVSyncSource)reply.readInt32();
+            settings.mAudioAdjustMode = (AVSyncAudioAdjustMode)reply.readInt32();
+            settings.mTolerance = reply.readFloat();
+            *sync = settings;
+            *videoFps = reply.readFloat();
+        }
+        return err;
     }
 
     status_t pause()
@@ -453,9 +507,51 @@ status_t BnMediaPlayer::onTransact(
             reply->writeInt32(ret);
             return NO_ERROR;
         } break;
-        case SET_PLAYBACK_RATE: {
+        case SET_PLAYBACK_SETTINGS: {
             CHECK_INTERFACE(IMediaPlayer, data, reply);
-            reply->writeInt32(setPlaybackRate(data.readFloat()));
+            AudioPlaybackRate rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+            rate.mSpeed = data.readFloat();
+            rate.mPitch = data.readFloat();
+            rate.mFallbackMode = (AudioTimestretchFallbackMode)data.readInt32();
+            rate.mStretchMode = (AudioTimestretchStretchMode)data.readInt32();
+            reply->writeInt32(setPlaybackSettings(rate));
+            return NO_ERROR;
+        } break;
+        case GET_PLAYBACK_SETTINGS: {
+            CHECK_INTERFACE(IMediaPlayer, data, reply);
+            AudioPlaybackRate rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+            status_t err = getPlaybackSettings(&rate);
+            reply->writeInt32(err);
+            if (err == OK) {
+                reply->writeFloat(rate.mSpeed);
+                reply->writeFloat(rate.mPitch);
+                reply->writeInt32((int32_t)rate.mFallbackMode);
+                reply->writeInt32((int32_t)rate.mStretchMode);
+            }
+            return NO_ERROR;
+        } break;
+        case SET_SYNC_SETTINGS: {
+            CHECK_INTERFACE(IMediaPlayer, data, reply);
+            AVSyncSettings sync;
+            sync.mSource = (AVSyncSource)data.readInt32();
+            sync.mAudioAdjustMode = (AVSyncAudioAdjustMode)data.readInt32();
+            sync.mTolerance = data.readFloat();
+            float videoFpsHint = data.readFloat();
+            reply->writeInt32(setSyncSettings(sync, videoFpsHint));
+            return NO_ERROR;
+        } break;
+        case GET_SYNC_SETTINGS: {
+            CHECK_INTERFACE(IMediaPlayer, data, reply);
+            AVSyncSettings sync;
+            float videoFps;
+            status_t err = getSyncSettings(&sync, &videoFps);
+            reply->writeInt32(err);
+            if (err == OK) {
+                reply->writeInt32((int32_t)sync.mSource);
+                reply->writeInt32((int32_t)sync.mAudioAdjustMode);
+                reply->writeFloat(sync.mTolerance);
+                reply->writeFloat(videoFps);
+            }
             return NO_ERROR;
         } break;
         case PAUSE: {

@@ -241,6 +241,8 @@ AwesomePlayer::AwesomePlayer()
 
     mClockEstimator = new WindowedLinearFitEstimator();
 
+    mPlaybackSettings = AUDIO_PLAYBACK_RATE_DEFAULT;
+
     reset();
 }
 
@@ -1009,6 +1011,10 @@ status_t AwesomePlayer::play_l() {
                 return err;
             }
         }
+
+        if (mAudioPlayer != NULL) {
+            mAudioPlayer->setPlaybackRate(mPlaybackSettings);
+        }
     }
 
     if (mTimeSource == NULL && mAudioPlayer == NULL) {
@@ -1128,6 +1134,10 @@ status_t AwesomePlayer::startAudioPlayer_l(bool sendErrorNotification) {
         }
     } else {
         err = mAudioPlayer->resume();
+    }
+
+    if (err == OK) {
+        err = mAudioPlayer->setPlaybackRate(mPlaybackSettings);
     }
 
     if (err == OK) {
@@ -2553,14 +2563,6 @@ status_t AwesomePlayer::setParameter(int key, const Parcel &request) {
         {
             return setCacheStatCollectFreq(request);
         }
-        case KEY_PARAMETER_PLAYBACK_RATE_PERMILLE:
-        {
-            if (mAudioPlayer != NULL) {
-                return mAudioPlayer->setPlaybackRatePermille(request.readInt32());
-            } else {
-                return NO_INIT;
-            }
-        }
         default:
         {
             return ERROR_UNSUPPORTED;
@@ -2595,6 +2597,58 @@ status_t AwesomePlayer::getParameter(int key, Parcel *reply) {
             return ERROR_UNSUPPORTED;
         }
     }
+}
+
+status_t AwesomePlayer::setPlaybackSettings(const AudioPlaybackRate &rate) {
+    Mutex::Autolock autoLock(mLock);
+    // cursory sanity check for non-audio and paused cases
+    if ((rate.mSpeed != 0.f && rate.mSpeed < AUDIO_TIMESTRETCH_SPEED_MIN)
+        || rate.mSpeed > AUDIO_TIMESTRETCH_SPEED_MAX
+        || rate.mPitch < AUDIO_TIMESTRETCH_SPEED_MIN
+        || rate.mPitch > AUDIO_TIMESTRETCH_SPEED_MAX) {
+        return BAD_VALUE;
+    }
+
+    status_t err = OK;
+    if (rate.mSpeed == 0.f) {
+        if (mFlags & PLAYING) {
+            modifyFlags(CACHE_UNDERRUN, CLEAR); // same as pause
+            err = pause_l();
+        }
+        if (err == OK) {
+            // save settings (using old speed) in case player is resumed
+            AudioPlaybackRate newRate = rate;
+            newRate.mSpeed = mPlaybackSettings.mSpeed;
+            mPlaybackSettings = newRate;
+        }
+        return err;
+    }
+    if (mAudioPlayer != NULL) {
+        err = mAudioPlayer->setPlaybackRate(rate);
+    }
+    if (err == OK) {
+        mPlaybackSettings = rate;
+        if (!(mFlags & PLAYING)) {
+            play_l();
+        }
+    }
+    return err;
+}
+
+status_t AwesomePlayer::getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */) {
+    if (mAudioPlayer != NULL) {
+        status_t err = mAudioPlayer->getPlaybackRate(rate);
+        if (err == OK) {
+            mPlaybackSettings = *rate;
+            Mutex::Autolock autoLock(mLock);
+            if (!(mFlags & PLAYING)) {
+                rate->mSpeed = 0.f;
+            }
+        }
+        return err;
+    }
+    *rate = mPlaybackSettings;
+    return OK;
 }
 
 status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
