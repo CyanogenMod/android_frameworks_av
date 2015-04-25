@@ -6918,7 +6918,7 @@ status_t AudioPolicyManager::checkAndSetVolume(audio_stream_type_t stream,
         // enabled
         if (stream == AUDIO_STREAM_BLUETOOTH_SCO) {
             mpClientInterface->setStreamVolume(AUDIO_STREAM_VOICE_CALL, volume, output, delayMs);
-#ifdef AUDIO_EXTN_FM_ENABLED
+#if defined(AUDIO_EXTN_FM_ENABLED) || defined(MTK_HARDWARE)
         } else if (stream == AUDIO_STREAM_MUSIC &&
                    output == mPrimaryOutput) {
             if (volume >= 0) {
