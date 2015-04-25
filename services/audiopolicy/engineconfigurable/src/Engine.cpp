@@ -146,7 +146,7 @@ status_t Engine::add(const std::string &name, const Key &key)
 template <>
 routing_strategy Engine::getPropertyForKey<routing_strategy, audio_usage_t>(audio_usage_t usage) const
 {
-    const AudioOutputCollection &outputs = mApmObserver->getOutputs();
+    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
 
     if (usage == AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY &&
             (outputs.isStreamActive(AUDIO_STREAM_RING) ||
@@ -170,7 +170,7 @@ Property Engine::getPropertyForKey(Key key) const
 template <>
 audio_devices_t Engine::getPropertyForKey<audio_devices_t, routing_strategy>(routing_strategy strategy) const
 {
-    const AudioOutputCollection &outputs = mApmObserver->getOutputs();
+    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
 
     /** This is the only case handled programmatically because the PFW is unable to know the
      * activity of streams.
@@ -213,7 +213,7 @@ bool Engine::setPropertyForKey(const Property &property, const Key &key)
     return element->template set<Property>(property) == NO_ERROR;
 }
 
-float Engine::volIndexToAmpl(Volume::device_category category,
+float Engine::volIndexToDb(Volume::device_category category,
                              audio_stream_type_t streamType,
                              int indexInUi)
 {
@@ -222,7 +222,7 @@ float Engine::volIndexToAmpl(Volume::device_category category,
         ALOGE("%s: Element indexed by key=%d not found", __FUNCTION__, streamType);
         return 1.0f;
     }
-    return stream->volIndexToAmpl(category, indexInUi);
+    return stream->volIndexToDb(category, indexInUi);
 }
 
 status_t Engine::initStreamVolume(audio_stream_type_t streamType,

@@ -91,7 +91,7 @@ status_t Element<audio_stream_type_t>::initVolume(int indexMin, int indexMax)
     return NO_ERROR;
 }
 
-float Element<audio_stream_type_t>::volIndexToAmpl(Volume::device_category deviceCategory,
+float Element<audio_stream_type_t>::volIndexToDb(Volume::device_category deviceCategory,
                                                    int indexInUi)
 {
     VolumeProfileConstIterator it = mVolumeProfiles.find(deviceCategory);
@@ -140,17 +140,14 @@ float Element<audio_stream_type_t>::volIndexToAmpl(Volume::device_category devic
                     ((float)(curve[segment+1].mIndex -
                             curve[segment].mIndex)) );
 
-    float amplification = exp(decibels * 0.115129f); /** exp( dB * ln(10) / 20 ) */
-
     ALOGV("VOLUME vol index=[%d %d %d], dB=[%.1f %.1f %.1f] ampl=%.5f",
             curve[segment].mIndex, volIdx,
             curve[segment+1].mIndex,
             curve[segment].mDBAttenuation,
             decibels,
-            curve[segment+1].mDBAttenuation,
-            amplification);
+            curve[segment+1].mDBAttenuation);
 
-    return amplification;
+    return decibels;
 }
 
 } // namespace audio_policy
