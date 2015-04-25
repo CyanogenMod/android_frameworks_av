@@ -64,22 +64,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libsoundtrigger
 
-ifeq ($(USE_CONFIGURABLE_AUDIO_POLICY), 1)
-
-LOCAL_REQUIRED_MODULES := \
-    parameter-framework.policy \
-    audio_policy_criteria.conf \
-
-LOCAL_C_INCLUDES += \
-    $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/include \
-
-LOCAL_SHARED_LIBRARIES += libaudiopolicyengineconfigurable
-
-else
-
 LOCAL_SHARED_LIBRARIES += libaudiopolicyenginedefault
-
-endif
 
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
