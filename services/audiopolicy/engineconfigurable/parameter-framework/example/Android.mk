@@ -10,11 +10,6 @@
 
 LOCAL_PATH := $(call my-dir)
 
-PFW_CORE := external/parameter-framework
-BUILD_PFW_SETTINGS := $(PFW_CORE)/support/android/build_pfw_settings.mk
-PFW_DEFAULT_SCHEMAS_DIR := $(PFW_CORE)/Schemas
-PFW_SCHEMAS_DIR := $(PFW_DEFAULT_SCHEMAS_DIR)
-
 ##################################################################
 # CONFIGURATION FILES
 ##################################################################
@@ -70,19 +65,26 @@ include $(BUILD_PREBUILT)
 
 ######### Policy PFW Settings #########
 
+######## Generate routing domains file ########
 include $(CLEAR_VARS)
 LOCAL_MODULE := parameter-framework.policy
 LOCAL_MODULE_STEM := PolicyConfigurableDomains.xml
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_RELATIVE_PATH := parameter-framework/Settings/Policy
-LOCAL_ADDITIONAL_DEPENDENCIES := \
+LOCAL_MODULE_TAGS := optional
+LOCAL_REQUIRED_MODULES := \
         PolicyClass.xml \
         PolicySubsystem.xml \
         ParameterFrameworkConfigurationPolicy.xml
 
-PFW_TOPLEVEL_FILE := $(TARGET_OUT_ETC)/parameter-framework/ParameterFrameworkConfigurationPolicy.xml
-PFW_CRITERIA_FILE := $(LOCAL_PATH)/policy_criteria.txt
-PFW_EDD_FILES := \
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/parameter-framework/Settings/Policy
+include $(BUILD_SYSTEM)/base_rules.mk
+
+$(LOCAL_BUILT_MODULE): MY_TOOL := $(HOST_OUT_EXECUTABLES)/hostDomainGenerator.sh
+$(LOCAL_BUILT_MODULE): $(HOST_OUT_EXECUTABLES)/hostDomainGenerator.sh
+$(LOCAL_BUILT_MODULE): MY_SRC_FILES := \
+        $(TARGET_OUT_ETC)/parameter-framework/ParameterFrameworkConfigurationPolicy.xml \
+        $(LOCAL_PATH)/policy_criteria.txt \
+        /dev/null \
         $(LOCAL_PATH)/Settings/device_for_strategy_media.pfw \
         $(LOCAL_PATH)/Settings/device_for_strategy_phone.pfw \
         $(LOCAL_PATH)/Settings/device_for_strategy_sonification.pfw \
@@ -95,6 +97,8 @@ PFW_EDD_FILES := \
         $(LOCAL_PATH)/Settings/strategy_for_stream.pfw \
         $(LOCAL_PATH)/Settings/strategy_for_usage.pfw \
         $(LOCAL_PATH)/Settings/device_for_input_source.pfw \
-        $(LOCAL_PATH)/Settings/volumes.pfw
+        $(LOCAL_PATH)/Settings/volumes.pfw \
 
-include $(BUILD_PFW_SETTINGS)
+$(LOCAL_BUILT_MODULE): $(LOCAL_REQUIRED_MODULES)
+	$(hide) mkdir -p $(dir $@)
+	bash --debug $(MY_TOOL) --nonverbose --validate $(MY_SRC_FILES) > $@

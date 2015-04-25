@@ -81,7 +81,7 @@ public:
 
     status_t setVolumeProfile(Volume::device_category category, const VolumeCurvePoints &points);
 
-    float volIndexToDb(Volume::device_category deviceCategory, int indexInUi);
+    float volIndexToAmpl(Volume::device_category deviceCategory, int indexInUi);
 
     status_t initVolume(int indexMin, int indexMax);
 

@@ -1,4 +1,3 @@
-ifeq ($(USE_CONFIGURABLE_AUDIO_POLICY), 1)
 
 LOCAL_PATH := $(call my-dir)
 
@@ -58,5 +57,3 @@ include $(BUILD_SHARED_LIBRARY)
 # Recursive call sub-folder Android.mk
 #
 include $(call all-makefiles-under,$(LOCAL_PATH))
-
-endif
