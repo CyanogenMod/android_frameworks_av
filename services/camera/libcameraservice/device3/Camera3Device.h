@@ -521,7 +521,9 @@ class Camera3Device :
 
     struct InFlightRequest {
         // Set by notify() SHUTTER call.
-        nsecs_t captureTimestamp;
+        nsecs_t shutterTimestamp;
+        // Set by process_capture_result().
+        nsecs_t sensorTimestamp;
         int     requestStatus;
         // Set by process_capture_result call with valid metadata
         bool    haveResultMetadata;
@@ -531,6 +533,21 @@ class Camera3Device :
         CaptureResultExtras resultExtras;
         // If this request has any input buffer
         bool hasInputBuffer;
+
+
+        // The last metadata that framework receives from HAL and
+        // not yet send out because the shutter event hasn't arrived.
+        // It's added by process_capture_result and sent when framework
+        // receives the shutter event.
+        CameraMetadata pendingMetadata;
+
+        // Buffers are added by process_capture_result when output buffers
+        // return from HAL but framework has not yet received the shutter
+        // event. They will be returned to the streams when framework receives
+        // the shutter event.
+        Vector<camera3_stream_buffer_t> pendingOutputBuffers;
+
+
 
         // Fields used by the partial result only
         struct PartialResultInFlight {
@@ -546,7 +563,8 @@ class Camera3Device :
 
         // Default constructor needed by KeyedVector
         InFlightRequest() :
-                captureTimestamp(0),
+                shutterTimestamp(0),
+                sensorTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(0),
@@ -554,7 +572,8 @@ class Camera3Device :
         }
 
         InFlightRequest(int numBuffers) :
-                captureTimestamp(0),
+                shutterTimestamp(0),
+                sensorTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers),
@@ -562,7 +581,8 @@ class Camera3Device :
         }
 
         InFlightRequest(int numBuffers, CaptureResultExtras extras) :
-                captureTimestamp(0),
+                shutterTimestamp(0),
+                sensorTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers),
@@ -571,7 +591,8 @@ class Camera3Device :
         }
 
         InFlightRequest(int numBuffers, CaptureResultExtras extras, bool hasInput) :
-                captureTimestamp(0),
+                shutterTimestamp(0),
+                sensorTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers),
@@ -638,6 +659,24 @@ class Camera3Device :
             NotificationListener *listener);
     void notifyShutter(const camera3_shutter_msg_t &msg,
             NotificationListener *listener);
+
+    // helper function to return the output buffers to the streams.
+    void returnOutputBuffers(const camera3_stream_buffer_t *outputBuffers,
+            size_t numBuffers, nsecs_t timestamp);
+
+    // Insert the capture result given the pending metadata, result extras,
+    // partial results, and the frame number to the result queue.
+    void sendCaptureResult(CameraMetadata &pendingMetadata,
+            CaptureResultExtras &resultExtras,
+            CameraMetadata &collectedPartialResult, uint32_t frameNumber);
+
+    /**** Scope for mInFlightLock ****/
+
+    // Remove the in-flight request of the given index from mInFlightMap
+    // if it's no longer needed. It must only be called with mInFlightLock held.
+    void removeInFlightRequestIfReadyLocked(int idx);
+
+    /**** End scope for mInFlightLock ****/
 
     /**
      * Static callback forwarding methods from HAL to instance

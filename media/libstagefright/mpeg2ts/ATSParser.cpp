@@ -12,6 +12,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2011-2012 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 //#define LOG_NDEBUG 0
@@ -23,6 +42,7 @@
 #include "AnotherPacketSource.h"
 #include "ESQueue.h"
 #include "include/avc_utils.h"
+#include "include/ExtendedUtils.h"
 
 #include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -63,6 +83,7 @@ struct ATSParser::Program : public RefBase {
     void signalEOS(status_t finalResult);
 
     sp<MediaSource> getSource(SourceType type);
+    bool hasSource(SourceType type) const;
 
     int64_t convertPTSToTimestamp(uint64_t PTS);
 
@@ -119,6 +140,9 @@ struct ATSParser::Stream : public RefBase {
 
     sp<MediaSource> getSource(SourceType type);
 
+    bool isAudio() const;
+    bool isVideo() const;
+
 protected:
     virtual ~Stream();
 
@@ -145,9 +169,6 @@ private:
             const uint8_t *data, size_t size);
 
     void extractAACFrames(const sp<ABuffer> &buffer);
-
-    bool isAudio() const;
-    bool isVideo() const;
 
     DISALLOW_EVIL_CONSTRUCTORS(Stream);
 };
@@ -244,11 +265,16 @@ struct StreamInfo {
 status_t ATSParser::Program::parseProgramMap(ABitReader *br) {
     unsigned table_id = br->getBits(8);
     ALOGV("  table_id = %u", table_id);
-    CHECK_EQ(table_id, 0x02u);
-
+    if (table_id != 0x02u) {
+        ALOGE("PMT data error!");
+        return ERROR_MALFORMED;
+    }
     unsigned section_syntax_indicator = br->getBits(1);
     ALOGV("  section_syntax_indicator = %u", section_syntax_indicator);
-    CHECK_EQ(section_syntax_indicator, 1u);
+    if (section_syntax_indicator != 1u) {
+        ALOGE("PMT data error!");
+        return ERROR_MALFORMED;
+    }
 
     CHECK_EQ(br->getBits(1), 0u);
     MY_LOGV("  reserved = %u", br->getBits(2));
@@ -435,6 +461,19 @@ sp<MediaSource> ATSParser::Program::getSource(SourceType type) {
     return NULL;
 }
 
+bool ATSParser::Program::hasSource(SourceType type) const {
+    for (size_t i = 0; i < mStreams.size(); ++i) {
+        const sp<Stream> &stream = mStreams.valueAt(i);
+        if (type == AUDIO && stream->isAudio()) {
+            return true;
+        } else if (type == VIDEO && stream->isVideo()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 int64_t ATSParser::Program::convertPTSToTimestamp(uint64_t PTS) {
     if (!(mParser->mFlags & TS_TIMESTAMPS_ARE_ABSOLUTE)) {
         if (!mFirstPTSValid) {
@@ -483,6 +522,13 @@ ATSParser::Stream::Stream(
                     (mProgram->parserFlags() & ALIGNED_VIDEO_DATA)
                         ? ElementaryStreamQueue::kFlag_AlignedData : 0);
             break;
+        case STREAMTYPE_H265:
+            ALOGV("create ESQ for H265");
+            mQueue = new ElementaryStreamQueue(
+                    ElementaryStreamQueue::H265,
+                    (mProgram->parserFlags() & ALIGNED_VIDEO_DATA)
+                        ? ElementaryStreamQueue::kFlag_AlignedData : 0);
+            break;
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
             mQueue = new ElementaryStreamQueue(ElementaryStreamQueue::AAC);
             break;
@@ -509,6 +555,12 @@ ATSParser::Stream::Stream(
                     ElementaryStreamQueue::AC3);
             break;
 
+#if defined(DOLBY_UDC) && defined(DOLBY_UDC_STREAMING_HLS)
+        case STREAMTYPE_DDP_EC3_AUDIO:
+            mQueue = new ElementaryStreamQueue(
+                    ElementaryStreamQueue::DDP_EC3_AUDIO);
+            break;
+#endif // DOLBY_END
         default:
             break;
     }
@@ -587,6 +639,7 @@ status_t ATSParser::Stream::parse(
 bool ATSParser::Stream::isVideo() const {
     switch (mStreamType) {
         case STREAMTYPE_H264:
+        case STREAMTYPE_H265:
         case STREAMTYPE_MPEG1_VIDEO:
         case STREAMTYPE_MPEG2_VIDEO:
         case STREAMTYPE_MPEG4_VIDEO:
@@ -604,6 +657,9 @@ bool ATSParser::Stream::isAudio() const {
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
         case STREAMTYPE_LPCM_AC3:
         case STREAMTYPE_AC3:
+#if defined(DOLBY_UDC) && defined(DOLBY_UDC_STREAMING_HLS)
+        case STREAMTYPE_DDP_EC3_AUDIO:
+#endif // DOLBY_END
             return true;
 
         default:
@@ -644,7 +700,7 @@ void ATSParser::Stream::signalDiscontinuity(
             int64_t resumeAtMediaTimeUs =
                 mProgram->convertPTSToTimestamp(resumeAtPTS);
 
-            extra->setInt64("resume-at-mediatimeUs", resumeAtMediaTimeUs);
+            extra->setInt64("resume-at-mediaTimeUs", resumeAtMediaTimeUs);
         }
     }
 
@@ -723,8 +779,10 @@ status_t ATSParser::Stream::parsePES(ABitReader *br) {
         if (PTS_DTS_flags == 2 || PTS_DTS_flags == 3) {
             CHECK_GE(optional_bytes_remaining, 5u);
 
-            CHECK_EQ(br->getBits(4), PTS_DTS_flags);
-
+            if (br->getBits(4) != PTS_DTS_flags) {
+                ALOGE("PES data Error!");
+                return ERROR_MALFORMED;
+            }
             PTS = ((uint64_t)br->getBits(3)) << 30;
             CHECK_EQ(br->getBits(1), 1u);
             PTS |= ((uint64_t)br->getBits(15)) << 15;
@@ -879,9 +937,12 @@ void ATSParser::Stream::onPayloadData(
                      mElementaryPID, mStreamType);
 
                 const char *mime;
+                bool isAvcIDR = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                        && !IsIDR(accessUnit);
+                bool isHevcIDR = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)
+                        && !ExtendedUtils::IsHevcIDR(accessUnit);
                 if (meta->findCString(kKeyMIMEType, &mime)
-                        && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
-                        && !IsIDR(accessUnit)) {
+                        && (isAvcIDR || isHevcIDR)) {
                     continue;
                 }
                 mSource = new AnotherPacketSource(meta);
@@ -987,8 +1048,10 @@ void ATSParser::signalEOS(status_t finalResult) {
 void ATSParser::parseProgramAssociationTable(ABitReader *br) {
     unsigned table_id = br->getBits(8);
     ALOGV("  table_id = %u", table_id);
-    CHECK_EQ(table_id, 0x00u);
-
+    if (table_id != 0x00u) {
+        ALOGE("PAT data error!");
+        return ;
+    }
     unsigned section_syntax_indictor = br->getBits(1);
     ALOGV("  section_syntax_indictor = %u", section_syntax_indictor);
     CHECK_EQ(section_syntax_indictor, 1u);
@@ -1058,7 +1121,9 @@ status_t ATSParser::parsePID(
         sp<PSISection> section = mPSISections.valueAt(sectionIndex);
 
         if (payload_unit_start_indicator) {
-            CHECK(section->isEmpty());
+            if (!section->isEmpty()) {
+                return ERROR_UNSUPPORTED;
+            }
 
             unsigned skip = br->getBits(8);
             br->skipBits(skip * 8);
@@ -1187,7 +1252,10 @@ status_t ATSParser::parseTS(ABitReader *br) {
     ALOGV("---");
 
     unsigned sync_byte = br->getBits(8);
-    CHECK_EQ(sync_byte, 0x47u);
+    if (sync_byte != 0x47u) {
+        ALOGE("[error] parseTS: return error as sync_byte=0x%x", sync_byte);
+        return BAD_VALUE;
+    }
 
     if (br->getBits(1)) {  // transport_error_indicator
         // silently ignore.
@@ -1246,6 +1314,17 @@ sp<MediaSource> ATSParser::getSource(SourceType type) {
     }
 
     return NULL;
+}
+
+bool ATSParser::hasSource(SourceType type) const {
+    for (size_t i = 0; i < mPrograms.size(); ++i) {
+        const sp<Program> &program = mPrograms.itemAt(i);
+        if (program->hasSource(type)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool ATSParser::PTSTimeDeltaEstablished() {

@@ -37,13 +37,26 @@ NuPlayer::StreamingSource::StreamingSource(
         const sp<IStreamSource> &source)
     : Source(notify),
       mSource(source),
-      mFinalResult(OK) {
+      mFinalResult(OK),
+      mBuffering(false) {
 }
 
 NuPlayer::StreamingSource::~StreamingSource() {
+    if (mLooper != NULL) {
+        mLooper->unregisterHandler(id());
+        mLooper->stop();
+    }
 }
 
 void NuPlayer::StreamingSource::prepareAsync() {
+    if (mLooper == NULL) {
+        mLooper = new ALooper;
+        mLooper->setName("streaming");
+        mLooper->start();
+
+        mLooper->registerHandler(this);
+    }
+
     notifyVideoSizeChanged();
     notifyFlagsChanged(0);
     notifyPrepared();
@@ -62,13 +75,15 @@ void NuPlayer::StreamingSource::start() {
     mTSParser = new ATSParser(parserFlags);
 
     mStreamListener->start();
+
+    postReadBuffer();
 }
 
 status_t NuPlayer::StreamingSource::feedMoreTSData() {
-    if (mFinalResult != OK) {
-        return mFinalResult;
-    }
+    return postReadBuffer();
+}
 
+void NuPlayer::StreamingSource::onReadBuffer() {
     for (int32_t i = 0; i < 50; ++i) {
         char buffer[188];
         sp<AMessage> extra;
@@ -77,10 +92,10 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
         if (n == 0) {
             ALOGI("input data EOS reached.");
             mTSParser->signalEOS(ERROR_END_OF_STREAM);
-            mFinalResult = ERROR_END_OF_STREAM;
+            setError(ERROR_END_OF_STREAM);
             break;
         } else if (n == INFO_DISCONTINUITY) {
-            int32_t type = ATSParser::DISCONTINUITY_SEEK;
+            int32_t type = ATSParser::DISCONTINUITY_TIME;
 
             int32_t mask;
             if (extra != NULL
@@ -88,7 +103,8 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
                         IStreamListener::kKeyDiscontinuityMask, &mask)) {
                 if (mask == 0) {
                     ALOGE("Client specified an illegal discontinuity type.");
-                    return ERROR_UNSUPPORTED;
+                    setError(ERROR_UNSUPPORTED);
+                    break;
                 }
 
                 type = mask;
@@ -97,7 +113,6 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
             mTSParser->signalDiscontinuity(
                     (ATSParser::DiscontinuityType)type, extra);
         } else if (n < 0) {
-            CHECK_EQ(n, -EWOULDBLOCK);
             break;
         } else {
             if (buffer[0] == 0x00) {
@@ -118,7 +133,7 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
 
                 mTSParser->signalDiscontinuity(
                         ((type & 1) == 0)
-                            ? ATSParser::DISCONTINUITY_SEEK
+                            ? ATSParser::DISCONTINUITY_TIME
                             : ATSParser::DISCONTINUITY_FORMATCHANGE,
                         extra);
             } else {
@@ -128,22 +143,80 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
                     ALOGE("TS Parser returned error %d", err);
 
                     mTSParser->signalEOS(err);
-                    mFinalResult = err;
+                    setError(err);
                     break;
                 }
             }
         }
     }
+}
 
+status_t NuPlayer::StreamingSource::postReadBuffer() {
+    {
+        Mutex::Autolock _l(mBufferingLock);
+        if (mFinalResult != OK) {
+            return mFinalResult;
+        }
+        if (mBuffering) {
+            return OK;
+        }
+        mBuffering = true;
+    }
+
+    (new AMessage(kWhatReadBuffer, id()))->post();
     return OK;
 }
 
-sp<MetaData> NuPlayer::StreamingSource::getFormatMeta(bool audio) {
-    ATSParser::SourceType type =
-        audio ? ATSParser::AUDIO : ATSParser::VIDEO;
+bool NuPlayer::StreamingSource::haveSufficientDataOnAllTracks() {
+    // We're going to buffer at least 2 secs worth data on all tracks before
+    // starting playback (both at startup and after a seek).
 
-    sp<AnotherPacketSource> source =
-        static_cast<AnotherPacketSource *>(mTSParser->getSource(type).get());
+    static const int64_t kMinDurationUs = 2000000ll;
+
+    sp<AnotherPacketSource> audioTrack = getSource(true /*audio*/);
+    sp<AnotherPacketSource> videoTrack = getSource(false /*audio*/);
+
+    status_t err;
+    int64_t durationUs;
+    if (audioTrack != NULL
+            && (durationUs = audioTrack->getBufferedDurationUs(&err))
+                    < kMinDurationUs
+            && err == OK) {
+        ALOGV("audio track doesn't have enough data yet. (%.2f secs buffered)",
+              durationUs / 1E6);
+        return false;
+    }
+
+    if (videoTrack != NULL
+            && (durationUs = videoTrack->getBufferedDurationUs(&err))
+                    < kMinDurationUs
+            && err == OK) {
+        ALOGV("video track doesn't have enough data yet. (%.2f secs buffered)",
+              durationUs / 1E6);
+        return false;
+    }
+
+    return true;
+}
+
+void NuPlayer::StreamingSource::setError(status_t err) {
+    Mutex::Autolock _l(mBufferingLock);
+    mFinalResult = err;
+}
+
+sp<AnotherPacketSource> NuPlayer::StreamingSource::getSource(bool audio) {
+    if (mTSParser == NULL) {
+        return NULL;
+    }
+
+    sp<MediaSource> source = mTSParser->getSource(
+            audio ? ATSParser::AUDIO : ATSParser::VIDEO);
+
+    return static_cast<AnotherPacketSource *>(source.get());
+}
+
+sp<MetaData> NuPlayer::StreamingSource::getFormatMeta(bool audio) {
+    sp<AnotherPacketSource> source = getSource(audio);
 
     if (source == NULL) {
         return NULL;
@@ -154,14 +227,14 @@ sp<MetaData> NuPlayer::StreamingSource::getFormatMeta(bool audio) {
 
 status_t NuPlayer::StreamingSource::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
-    ATSParser::SourceType type =
-        audio ? ATSParser::AUDIO : ATSParser::VIDEO;
-
-    sp<AnotherPacketSource> source =
-        static_cast<AnotherPacketSource *>(mTSParser->getSource(type).get());
+    sp<AnotherPacketSource> source = getSource(audio);
 
     if (source == NULL) {
         return -EWOULDBLOCK;
+    }
+
+    if (!haveSufficientDataOnAllTracks()) {
+        postReadBuffer();
     }
 
     status_t finalResult;
@@ -185,6 +258,27 @@ status_t NuPlayer::StreamingSource::dequeueAccessUnit(
 bool NuPlayer::StreamingSource::isRealTime() const {
     return mSource->flags() & IStreamSource::kFlagIsRealTimeData;
 }
+
+void NuPlayer::StreamingSource::onMessageReceived(
+        const sp<AMessage> &msg) {
+    switch (msg->what()) {
+        case kWhatReadBuffer:
+        {
+            onReadBuffer();
+
+            {
+                Mutex::Autolock _l(mBufferingLock);
+                mBuffering = false;
+            }
+            break;
+        }
+        default:
+        {
+            TRESPASS();
+        }
+    }
+}
+
 
 }  // namespace android
 

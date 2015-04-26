@@ -25,6 +25,15 @@
 #include <system/audio.h>
 #include <binder/AppOpsManager.h>
 
+#include <media/stagefright/ExtendedStats.h>
+
+#define RECORDER_STATS(func, ...) \
+    do { \
+        if(mRecorderExtendedStats != NULL) { \
+            mRecorderExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
+
 namespace android {
 
 class Camera;
@@ -134,6 +143,8 @@ private:
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
     sp<ALooper> mLooper;
 
+    sp<RecorderExtendedStats> mRecorderExtendedStats;
+
     status_t prepareInternal();
     status_t setupMPEG4orWEBMRecording();
     void setupMPEG4orWEBMMetaData(sp<MetaData> *meta);
@@ -194,9 +205,9 @@ private:
     /* extension */
 #ifdef ENABLE_AV_ENHANCEMENTS
     status_t setupFMA2DPWriter();
-    status_t setupWAVERecording();
     status_t setupExtendedRecording();
 #endif
+    status_t setupWAVERecording();
 };
 
 }  // namespace android

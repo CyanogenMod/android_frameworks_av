@@ -74,7 +74,11 @@ struct ExtendedCodec {
             bool isEncoder);
 
     static status_t setVideoFormat(
-            const char *mime,
+            const sp<MetaData> &meta, const char *mime,
+            OMX_VIDEO_CODINGTYPE *compressionFormat);
+
+    static status_t setVideoFormat(
+            const sp<AMessage> &msg, const char *mime,
             OMX_VIDEO_CODINGTYPE *compressionFormat);
 
     static status_t getSupportedAudioFormatInfo(
@@ -152,10 +156,13 @@ struct ExtendedCodec {
             const sp<IOMX> &omx, IOMX::node_id nodeID, bool* isEnabled,
             const char* componentName);
 
+    static bool useHWAACDecoder(const char *mime);
+
     static bool isSourcePauseRequired(const char *componentName);
 
-private:
     static const char* getMsgKey(int key );
+
+private:
 
     static status_t setWMAFormat(
             const sp<MetaData> &meta, sp<IOMX> OMXhandle,
@@ -175,9 +182,11 @@ private:
             sp<IOMX> OMXhandle, IOMX::node_id nodeID,
             bool isEncoder );
 
+#ifdef QCOM_ADDITIONAL_CODECS
     static void setAC3Format(
             int32_t numChannels, int32_t sampleRate,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID);
+#endif
 
     static status_t setDIVXFormat(
             const sp<AMessage> &msg, const char* mime,

@@ -151,7 +151,7 @@ private:
     static const char * const kInputSourceNames[AUDIO_SOURCE_CNT -1];
     static audio_source_t inputSourceNameToEnum(const char *name);
 
-    static const char *kStreamNames[AUDIO_STREAM_CNT+1]; //+1 required as streams start from -1
+    static const char *kStreamNames[AUDIO_STREAM_PUBLIC_CNT+1]; //+1 required as streams start from -1
     audio_stream_type_t streamNameToEnum(const char *name);
 
     // Parse audio_effects.conf

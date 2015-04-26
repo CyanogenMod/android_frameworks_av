@@ -71,16 +71,19 @@
 
 // Set kUseNewMixer to true to use the new mixer engine. Otherwise the
 // original code will be used.  This is false for now.
-static const bool kUseNewMixer = false;
+static const bool kUseNewMixer = true;
 
 // Set kUseFloat to true to allow floating input into the mixer engine.
 // If kUseNewMixer is false, this is ignored or may be overridden internally
 // because of downmix/upmix support.
-static const bool kUseFloat = true;
+static const bool kUseFloat = false;
 
 // Set to default copy buffer size in frames for input processing.
 static const size_t kCopyBufferFrameCount = 256;
 
+#ifdef QTI_RESAMPLER
+#define QTI_RESAMPLER_MAX_SAMPLERATE 192000
+#endif
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -505,6 +508,9 @@ int AudioMixer::getTrackName(audio_channel_mask_t channelMask,
             ALOGE("AudioMixer::getTrackName invalid channelMask (%#x)", channelMask);
             return -1;
         }
+#ifdef HW_ACC_EFFECTS
+        t->hwAcc = new EffectsHwAcc(mSampleRate);
+#endif
         // initTrackDownmix() may change the input format requirement.
         // If you desire floating point input to the mixer, it may change
         // to integer because the downmixer requires integer to process.
@@ -851,6 +857,38 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
                 invalidateState(1 << name);
             }
             } break;
+#ifdef HW_ACC_EFFECTS
+        case ENABLE_HW_ACC_EFFECTS: {
+            ALOGV("ENABLE_HW_ACC");
+            if (track.mFormat == AUDIO_FORMAT_PCM_16_BIT) {
+                track.hwAcc->prepareEffects(&track.bufferProvider, track.sessionId,
+                                            track.channelMask, mState.frameCount);
+                *valueBuf = 0;
+                if (track.hwAcc->mEnabled) {
+                    track.tmpHook = track.hook;
+                    track.hook = track__16BitsStereo;
+                    *valueBuf = track.hwAcc->mFd;
+                    ALOGV("hwAcc.mFd: %d", *valueBuf);
+                }
+            } else
+                ALOGD("hw acc effects are supported for 16 bit PCM only");
+            break;
+        }
+        case DISABLE_HW_ACC_EFFECTS: {
+            ALOGV("DISABLE_HW_ACC");
+            if (track.mFormat == AUDIO_FORMAT_PCM_16_BIT) {
+                track.hwAcc->unprepareEffects(&track.bufferProvider);
+                track.hook = track.tmpHook;
+            }
+            break;
+        }
+#ifdef HW_ACC_HPX
+        case HW_ACC_HPX_STATE: {
+            track.hwAcc->updateHPXState(*valueBuf);
+            break;
+        }
+#endif
+#endif
         default:
             LOG_ALWAYS_FATAL("setParameter track: bad param %d", param);
         }
@@ -860,6 +898,9 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
         switch (param) {
         case SAMPLE_RATE:
             ALOG_ASSERT(valueInt > 0, "bad sample rate %d", valueInt);
+#ifdef HW_ACC_EFFECTS
+            track.hwAcc->setSampleRate(uint32_t(valueInt), mSampleRate);
+#endif
             if (track.setResampler(uint32_t(valueInt), mSampleRate)) {
                 ALOGV("setParameter(RESAMPLE, SAMPLE_RATE, %u)",
                         uint32_t(valueInt));
@@ -932,7 +973,9 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
                 // quality level based on the initial ratio, but that could change later.
                 // Should have a way to distinguish tracks with static ratios vs. dynamic ratios.
 #ifdef QTI_RESAMPLER
-                if ((trackSampleRate > devSampleRate * 2) && (devSampleRate == 48000)) {
+                if ((trackSampleRate <= QTI_RESAMPLER_MAX_SAMPLERATE) &&
+                       (trackSampleRate > devSampleRate * 2) &&
+                       (devSampleRate == 48000)) {
                     quality = AudioResampler::QTI_QUALITY;
                 } else
 #endif
@@ -1031,6 +1074,13 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
     name -= TRACK0;
     ALOG_ASSERT(uint32_t(name) < MAX_NUM_TRACKS, "bad track name %d", name);
 
+#ifdef HW_ACC_EFFECTS
+    if (mState.tracks[name].hwAcc->mEnabled) {
+        mState.tracks[name].hwAcc->setBufferProvider(&bufferProvider,
+                                                     &mState.tracks[name].bufferProvider);
+        return;
+    }
+#endif
     if (mState.tracks[name].mInputBufferProvider == bufferProvider) {
         return; // don't reset any buffer providers if identical.
     }
@@ -1133,6 +1183,12 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
                 }
             }
         }
+#ifdef HW_ACC_EFFECTS
+        if (t.hwAcc->mEnabled) {
+            t.tmpHook = t.hook;
+            t.hook = track__16BitsStereo;
+        }
+#endif
     }
 
     // select the processing hooks
@@ -1697,7 +1753,11 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
             // this is a little goofy, on the resampling case we don't
             // acquire/release the buffers because it's done by
             // the resampler.
-            if (t.needs & NEEDS_RESAMPLE) {
+            if ((t.needs & NEEDS_RESAMPLE)
+#ifdef HW_ACC_EFFECTS
+                && !t.hwAcc->mEnabled
+#endif
+                ) {
                 t.resampler->setPTS(pts);
                 t.hook(&t, outTemp, numFrames, state->resampleTemp, aux);
             } else {

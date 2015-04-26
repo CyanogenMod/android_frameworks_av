@@ -35,6 +35,7 @@ struct M3UParser::MediaGroup : public RefBase {
         TYPE_AUDIO,
         TYPE_VIDEO,
         TYPE_SUBS,
+        TYPE_CC,
     };
 
     enum FlagBits {
@@ -66,6 +67,9 @@ protected:
     virtual ~MediaGroup();
 
 private:
+
+    friend struct M3UParser;
+
     struct Media {
         AString mName;
         AString mURI;
@@ -354,6 +358,38 @@ sp<AMessage> M3UParser::getTrackInfo(size_t index) const {
 
 ssize_t M3UParser::getSelectedIndex() const {
     return mSelectedIndex;
+}
+
+ssize_t M3UParser::getSelectedTrack(media_track_type type) const {
+    MediaGroup::Type groupType;
+    switch (type) {
+        case MEDIA_TRACK_TYPE_VIDEO:
+            groupType = MediaGroup::TYPE_VIDEO;
+            break;
+
+        case MEDIA_TRACK_TYPE_AUDIO:
+            groupType = MediaGroup::TYPE_AUDIO;
+            break;
+
+        case MEDIA_TRACK_TYPE_SUBTITLE:
+            groupType = MediaGroup::TYPE_SUBS;
+            break;
+
+        default:
+            return -1;
+    }
+
+    for (size_t i = 0, ii = 0; i < mMediaGroups.size(); ++i) {
+        sp<MediaGroup> group = mMediaGroups.valueAt(i);
+        size_t tracks = group->countTracks();
+        if (groupType != group->mType) {
+            ii += tracks;
+        } else if (group->mSelectedIndex >= 0) {
+            return ii + group->mSelectedIndex;
+        }
+    }
+
+    return -1;
 }
 
 bool M3UParser::getTypeURI(size_t index, const char *key, AString *uri) const {
@@ -956,6 +992,8 @@ status_t M3UParser::parseMedia(const AString &line) {
                 groupType = MediaGroup::TYPE_AUDIO;
             } else if (!strcasecmp("video", val.c_str())) {
                 groupType = MediaGroup::TYPE_VIDEO;
+            } else if (!strcasecmp("closed-captions", val.c_str())){
+                groupType = MediaGroup::TYPE_CC;
             } else {
                 ALOGE("Invalid media group type '%s'", val.c_str());
                 return ERROR_MALFORMED;
@@ -1066,6 +1104,13 @@ status_t M3UParser::parseMedia(const AString &line) {
     if (!haveGroupType || !haveGroupID || !haveGroupName) {
         ALOGE("Incomplete EXT-X-MEDIA element.");
         return ERROR_MALFORMED;
+    }
+
+    if (groupType == MediaGroup::TYPE_CC) {
+        // TODO: ignore this for now.
+        // CC track will be detected by CCDecoder. But we still need to
+        // pass the CC track flags (lang, auto) to the app in the future.
+        return OK;
     }
 
     uint32_t flags = 0;

@@ -95,6 +95,7 @@ static const MtpEventCode kSupportedEventCodes[] = {
     MTP_EVENT_STORE_ADDED,
     MTP_EVENT_STORE_REMOVED,
     MTP_EVENT_DEVICE_PROP_CHANGED,
+    MTP_EVENT_OBJECT_PROP_CHANGED,
 };
 
 MtpServer::MtpServer(int fd, MtpDatabase* database, bool ptp,
@@ -251,6 +252,11 @@ void MtpServer::sendObjectAdded(MtpObjectHandle handle) {
 void MtpServer::sendObjectRemoved(MtpObjectHandle handle) {
     ALOGV("sendObjectRemoved %d\n", handle);
     sendEvent(MTP_EVENT_OBJECT_REMOVED, handle);
+}
+
+void MtpServer::sendObjectUpdated(MtpObjectHandle handle) {
+    ALOGV("sendObjectUpdated %d\n", handle);
+    sendEvent(MTP_EVENT_OBJECT_PROP_CHANGED, handle);
 }
 
 void MtpServer::sendStoreAdded(MtpStorageID id) {
@@ -495,6 +501,9 @@ MtpResponseCode MtpServer::doOpenSession() {
         mResponse.setParameter(1, mSessionID);
         return MTP_RESPONSE_SESSION_ALREADY_OPEN;
     }
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
+
     mSessionID = mRequest.getParameter(1);
     mSessionOpen = true;
 
@@ -529,6 +538,9 @@ MtpResponseCode MtpServer::doGetStorageInfo() {
 
     if (!mSessionOpen)
         return MTP_RESPONSE_SESSION_NOT_OPEN;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
+
     MtpStorageID id = mRequest.getParameter(1);
     MtpStorage* storage = getStorage(id);
     if (!storage)
@@ -550,6 +562,8 @@ MtpResponseCode MtpServer::doGetStorageInfo() {
 MtpResponseCode MtpServer::doGetObjectPropsSupported() {
     if (!mSessionOpen)
         return MTP_RESPONSE_SESSION_NOT_OPEN;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectFormat format = mRequest.getParameter(1);
     MtpObjectPropertyList* properties = mDatabase->getSupportedObjectProperties(format);
     mData.putAUInt16(properties);
@@ -560,6 +574,8 @@ MtpResponseCode MtpServer::doGetObjectPropsSupported() {
 MtpResponseCode MtpServer::doGetObjectHandles() {
     if (!mSessionOpen)
         return MTP_RESPONSE_SESSION_NOT_OPEN;
+    if (mRequest.getParameterCount() < 3)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpStorageID storageID = mRequest.getParameter(1);      // 0xFFFFFFFF for all storage
     MtpObjectFormat format = mRequest.getParameter(2);      // 0 for all formats
     MtpObjectHandle parent = mRequest.getParameter(3);      // 0xFFFFFFFF for objects with no parent
@@ -577,6 +593,8 @@ MtpResponseCode MtpServer::doGetObjectHandles() {
 MtpResponseCode MtpServer::doGetNumObjects() {
     if (!mSessionOpen)
         return MTP_RESPONSE_SESSION_NOT_OPEN;
+    if (mRequest.getParameterCount() < 3)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpStorageID storageID = mRequest.getParameter(1);      // 0xFFFFFFFF for all storage
     MtpObjectFormat format = mRequest.getParameter(2);      // 0 for all formats
     MtpObjectHandle parent = mRequest.getParameter(3);      // 0xFFFFFFFF for objects with no parent
@@ -599,6 +617,8 @@ MtpResponseCode MtpServer::doGetObjectReferences() {
         return MTP_RESPONSE_SESSION_NOT_OPEN;
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
 
     // FIXME - check for invalid object handle
@@ -617,9 +637,13 @@ MtpResponseCode MtpServer::doSetObjectReferences() {
         return MTP_RESPONSE_SESSION_NOT_OPEN;
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpStorageID handle = mRequest.getParameter(1);
 
     MtpObjectHandleList* references = mData.getAUInt32();
+    if (!references)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpResponseCode result = mDatabase->setObjectReferences(handle, references);
     delete references;
     return result;
@@ -628,6 +652,8 @@ MtpResponseCode MtpServer::doSetObjectReferences() {
 MtpResponseCode MtpServer::doGetObjectPropValue() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 2)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     MtpObjectProperty property = mRequest.getParameter(2);
     ALOGV("GetObjectPropValue %d %s\n", handle,
@@ -639,6 +665,8 @@ MtpResponseCode MtpServer::doGetObjectPropValue() {
 MtpResponseCode MtpServer::doSetObjectPropValue() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 2)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     MtpObjectProperty property = mRequest.getParameter(2);
     ALOGV("SetObjectPropValue %d %s\n", handle,
@@ -648,6 +676,8 @@ MtpResponseCode MtpServer::doSetObjectPropValue() {
 }
 
 MtpResponseCode MtpServer::doGetDevicePropValue() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpDeviceProperty property = mRequest.getParameter(1);
     ALOGV("GetDevicePropValue %s\n",
             MtpDebug::getDevicePropCodeName(property));
@@ -656,6 +686,8 @@ MtpResponseCode MtpServer::doGetDevicePropValue() {
 }
 
 MtpResponseCode MtpServer::doSetDevicePropValue() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpDeviceProperty property = mRequest.getParameter(1);
     ALOGV("SetDevicePropValue %s\n",
             MtpDebug::getDevicePropCodeName(property));
@@ -664,6 +696,8 @@ MtpResponseCode MtpServer::doSetDevicePropValue() {
 }
 
 MtpResponseCode MtpServer::doResetDevicePropValue() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpDeviceProperty property = mRequest.getParameter(1);
     ALOGV("ResetDevicePropValue %s\n",
             MtpDebug::getDevicePropCodeName(property));
@@ -674,6 +708,8 @@ MtpResponseCode MtpServer::doResetDevicePropValue() {
 MtpResponseCode MtpServer::doGetObjectPropList() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 5)
+        return MTP_RESPONSE_INVALID_PARAMETER;
 
     MtpObjectHandle handle = mRequest.getParameter(1);
     // use uint32_t so we can support 0xFFFFFFFF
@@ -691,6 +727,8 @@ MtpResponseCode MtpServer::doGetObjectPropList() {
 MtpResponseCode MtpServer::doGetObjectInfo() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     MtpObjectInfo info(handle);
     MtpResponseCode result = mDatabase->getObjectInfo(handle, info);
@@ -732,6 +770,8 @@ MtpResponseCode MtpServer::doGetObjectInfo() {
 MtpResponseCode MtpServer::doGetObject() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     MtpString pathBuf;
     int64_t fileLength;
@@ -765,6 +805,8 @@ MtpResponseCode MtpServer::doGetObject() {
 }
 
 MtpResponseCode MtpServer::doGetThumb() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     size_t thumbSize;
     void* thumb = mDatabase->getThumbnail(handle, thumbSize);
@@ -788,11 +830,19 @@ MtpResponseCode MtpServer::doGetPartialObject(MtpOperationCode operation) {
     uint32_t length;
     offset = mRequest.getParameter(2);
     if (operation == MTP_OPERATION_GET_PARTIAL_OBJECT_64) {
+        // MTP_OPERATION_GET_PARTIAL_OBJECT_64 takes 4 arguments
+        if (mRequest.getParameterCount() < 4)
+            return MTP_RESPONSE_INVALID_PARAMETER;
+
         // android extension with 64 bit offset
         uint64_t offset2 = mRequest.getParameter(3);
         offset = offset | (offset2 << 32);
         length = mRequest.getParameter(4);
     } else {
+        // MTP_OPERATION_GET_PARTIAL_OBJECT takes 3 arguments
+        if (mRequest.getParameterCount() < 3)
+            return MTP_RESPONSE_INVALID_PARAMETER;
+
         // standard GetPartialObject
         length = mRequest.getParameter(3);
     }
@@ -832,6 +882,11 @@ MtpResponseCode MtpServer::doGetPartialObject(MtpOperationCode operation) {
 
 MtpResponseCode MtpServer::doSendObjectInfo() {
     MtpString path;
+    uint16_t temp16;
+    uint32_t temp32;
+
+    if (mRequest.getParameterCount() < 2)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpStorageID storageID = mRequest.getParameter(1);
     MtpStorage* storage = getStorage(storageID);
     MtpObjectHandle parent = mRequest.getParameter(2);
@@ -853,25 +908,29 @@ MtpResponseCode MtpServer::doSendObjectInfo() {
     }
 
     // read only the fields we need
-    mData.getUInt32();  // storage ID
-    MtpObjectFormat format = mData.getUInt16();
-    mData.getUInt16();  // protection status
-    mSendObjectFileSize = mData.getUInt32();
-    mData.getUInt16();  // thumb format
-    mData.getUInt32();  // thumb compressed size
-    mData.getUInt32();  // thumb pix width
-    mData.getUInt32();  // thumb pix height
-    mData.getUInt32();  // image pix width
-    mData.getUInt32();  // image pix height
-    mData.getUInt32();  // image bit depth
-    mData.getUInt32();  // parent
-    uint16_t associationType = mData.getUInt16();
-    uint32_t associationDesc = mData.getUInt32();   // association desc
-    mData.getUInt32();  // sequence number
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // storage ID
+    if (!mData.getUInt16(temp16)) return MTP_RESPONSE_INVALID_PARAMETER;
+    MtpObjectFormat format = temp16;
+    if (!mData.getUInt16(temp16)) return MTP_RESPONSE_INVALID_PARAMETER;  // protection status
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;
+    mSendObjectFileSize = temp32;
+    if (!mData.getUInt16(temp16)) return MTP_RESPONSE_INVALID_PARAMETER;  // thumb format
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // thumb compressed size
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // thumb pix width
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // thumb pix height
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // image pix width
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // image pix height
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // image bit depth
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // parent
+    if (!mData.getUInt16(temp16)) return MTP_RESPONSE_INVALID_PARAMETER;
+    uint16_t associationType = temp16;
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;
+    uint32_t associationDesc = temp32;        // association desc
+    if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // sequence number
     MtpStringBuffer name, created, modified;
-    mData.getString(name);    // file name
-    mData.getString(created);      // date created
-    mData.getString(modified);     // date modified
+    if (!mData.getString(name)) return MTP_RESPONSE_INVALID_PARAMETER;    // file name
+    if (!mData.getString(created)) return MTP_RESPONSE_INVALID_PARAMETER;      // date created
+    if (!mData.getString(modified)) return MTP_RESPONSE_INVALID_PARAMETER;     // date modified
     // keywords follow
 
     ALOGV("name: %s format: %04X\n", (const char *)name, format);
@@ -1066,8 +1125,10 @@ static void deletePath(const char* path) {
 MtpResponseCode MtpServer::doDeleteObject() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
-    MtpObjectFormat format = mRequest.getParameter(2);
+    MtpObjectFormat format;
     // FIXME - support deleting all objects if handle is 0xFFFFFFFF
     // FIXME - implement deleting objects by format
 
@@ -1087,6 +1148,8 @@ MtpResponseCode MtpServer::doDeleteObject() {
 }
 
 MtpResponseCode MtpServer::doGetObjectPropDesc() {
+    if (mRequest.getParameterCount() < 2)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectProperty propCode = mRequest.getParameter(1);
     MtpObjectFormat format = mRequest.getParameter(2);
     ALOGV("GetObjectPropDesc %s %s\n", MtpDebug::getObjectPropCodeName(propCode),
@@ -1100,6 +1163,8 @@ MtpResponseCode MtpServer::doGetObjectPropDesc() {
 }
 
 MtpResponseCode MtpServer::doGetDevicePropDesc() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpDeviceProperty propCode = mRequest.getParameter(1);
     ALOGV("GetDevicePropDesc %s\n", MtpDebug::getDevicePropCodeName(propCode));
     MtpProperty* property = mDatabase->getDevicePropertyDesc(propCode);
@@ -1113,6 +1178,8 @@ MtpResponseCode MtpServer::doGetDevicePropDesc() {
 MtpResponseCode MtpServer::doSendPartialObject() {
     if (!hasStorage())
         return MTP_RESPONSE_INVALID_OBJECT_HANDLE;
+    if (mRequest.getParameterCount() < 4)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     uint64_t offset = mRequest.getParameter(2);
     uint64_t offset2 = mRequest.getParameter(3);
@@ -1180,6 +1247,8 @@ MtpResponseCode MtpServer::doSendPartialObject() {
 }
 
 MtpResponseCode MtpServer::doTruncateObject() {
+    if (mRequest.getParameterCount() < 3)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     ObjectEdit* edit = getEditObject(handle);
     if (!edit) {
@@ -1199,6 +1268,8 @@ MtpResponseCode MtpServer::doTruncateObject() {
 }
 
 MtpResponseCode MtpServer::doBeginEditObject() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     if (getEditObject(handle)) {
         ALOGE("object already open for edit in doBeginEditObject");
@@ -1223,6 +1294,8 @@ MtpResponseCode MtpServer::doBeginEditObject() {
 }
 
 MtpResponseCode MtpServer::doEndEditObject() {
+    if (mRequest.getParameterCount() < 1)
+        return MTP_RESPONSE_INVALID_PARAMETER;
     MtpObjectHandle handle = mRequest.getParameter(1);
     ObjectEdit* edit = getEditObject(handle);
     if (!edit) {

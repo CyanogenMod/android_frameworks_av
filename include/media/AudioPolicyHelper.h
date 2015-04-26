@@ -18,7 +18,7 @@
 
 #include <system/audio.h>
 
-audio_stream_type_t audio_attributes_to_stream_type(const audio_attributes_t *attr)
+static audio_stream_type_t audio_attributes_to_stream_type(const audio_attributes_t *attr)
 {
     // flags to stream type mapping
     if ((attr->flags & AUDIO_FLAG_AUDIBILITY_ENFORCED) == AUDIO_FLAG_AUDIBILITY_ENFORCED) {
@@ -58,6 +58,57 @@ audio_stream_type_t audio_attributes_to_stream_type(const audio_attributes_t *at
     case AUDIO_USAGE_UNKNOWN:
     default:
         return AUDIO_STREAM_MUSIC;
+    }
+}
+
+static void stream_type_to_audio_attributes(audio_stream_type_t streamType,
+                                     audio_attributes_t *attr) {
+    memset(attr, 0, sizeof(audio_attributes_t));
+
+    switch (streamType) {
+    case AUDIO_STREAM_DEFAULT:
+    case AUDIO_STREAM_MUSIC:
+        attr->content_type = AUDIO_CONTENT_TYPE_MUSIC;
+        attr->usage = AUDIO_USAGE_MEDIA;
+        break;
+    case AUDIO_STREAM_VOICE_CALL:
+        attr->content_type = AUDIO_CONTENT_TYPE_SPEECH;
+        attr->usage = AUDIO_USAGE_VOICE_COMMUNICATION;
+        break;
+    case AUDIO_STREAM_ENFORCED_AUDIBLE:
+        attr->flags  |= AUDIO_FLAG_AUDIBILITY_ENFORCED;
+        // intended fall through, attributes in common with STREAM_SYSTEM
+    case AUDIO_STREAM_SYSTEM:
+        attr->content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        attr->usage = AUDIO_USAGE_ASSISTANCE_SONIFICATION;
+        break;
+    case AUDIO_STREAM_RING:
+        attr->content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        attr->usage = AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE;
+        break;
+    case AUDIO_STREAM_ALARM:
+        attr->content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        attr->usage = AUDIO_USAGE_ALARM;
+        break;
+    case AUDIO_STREAM_NOTIFICATION:
+        attr->content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        attr->usage = AUDIO_USAGE_NOTIFICATION;
+        break;
+    case AUDIO_STREAM_BLUETOOTH_SCO:
+        attr->content_type = AUDIO_CONTENT_TYPE_SPEECH;
+        attr->usage = AUDIO_USAGE_VOICE_COMMUNICATION;
+        attr->flags |= AUDIO_FLAG_SCO;
+        break;
+    case AUDIO_STREAM_DTMF:
+        attr->content_type = AUDIO_CONTENT_TYPE_SONIFICATION;
+        attr->usage = AUDIO_USAGE_VOICE_COMMUNICATION_SIGNALLING;
+        break;
+    case AUDIO_STREAM_TTS:
+        attr->content_type = AUDIO_CONTENT_TYPE_SPEECH;
+        attr->usage = AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY;
+        break;
+    default:
+        ALOGE("invalid stream type %d when converting to attributes", streamType);
     }
 }
 

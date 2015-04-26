@@ -21,7 +21,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <camera/CameraParameters.h>
-#include <camera/CameraParametersExtra.h>
+#include "camera/CameraParametersExtra.h"
 #include <system/graphics.h>
 
 namespace android {
@@ -244,6 +244,9 @@ void CameraParameters::unflatten(const String8 &params)
 
 void CameraParameters::set(const char *key, const char *value)
 {
+    if (key == NULL || value == NULL)
+        return;
+
     // XXX i think i can do this with strspn()
     if (strchr(key, '=') || strchr(key, ';')) {
         //XXX ALOGE("Key \"%s\"contains invalid character (= or ;)", key);
@@ -254,6 +257,14 @@ void CameraParameters::set(const char *key, const char *value)
         //XXX ALOGE("Value \"%s\"contains invalid character (= or ;)", value);
         return;
     }
+#ifdef QCOM_HARDWARE
+    // qcom cameras default to delivering an extra zero-exposure frame on HDR.
+    // The android SDK only wants one frame, so disable this unless the app
+    // explicitly asks for it
+    if (!get("hdr-need-1x")) {
+        mMap.replaceValueFor(String8("hdr-need-1x"), String8("false"));
+    }
+#endif
 
     mMap.replaceValueFor(String8(key), String8(value));
 }
@@ -494,6 +505,11 @@ status_t CameraParameters::dump(int fd, const Vector<String16>& /*args*/) const
 void CameraParameters::getSupportedPreviewFormats(Vector<int>& formats) const {
     const char* supportedPreviewFormats =
           get(CameraParameters::KEY_SUPPORTED_PREVIEW_FORMATS);
+
+    if (supportedPreviewFormats == NULL) {
+        ALOGW("%s: No supported preview formats.", __FUNCTION__);
+        return;
+    }
 
     String8 fmtStr(supportedPreviewFormats);
     char* prevFmts = fmtStr.lockBuffer(fmtStr.size());

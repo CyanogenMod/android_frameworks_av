@@ -25,6 +25,7 @@ namespace android {
 
 struct ABuffer;
 struct ATSParser;
+struct AnotherPacketSource;
 
 struct NuPlayer::StreamingSource : public NuPlayer::Source {
     StreamingSource(
@@ -43,13 +44,28 @@ struct NuPlayer::StreamingSource : public NuPlayer::Source {
 protected:
     virtual ~StreamingSource();
 
+    virtual void onMessageReceived(const sp<AMessage> &msg);
+
     virtual sp<MetaData> getFormatMeta(bool audio);
 
 private:
+    enum {
+        kWhatReadBuffer,
+    };
     sp<IStreamSource> mSource;
     status_t mFinalResult;
     sp<NuPlayerStreamListener> mStreamListener;
     sp<ATSParser> mTSParser;
+
+    bool mBuffering;
+    Mutex mBufferingLock;
+    sp<ALooper> mLooper;
+
+    void setError(status_t err);
+    sp<AnotherPacketSource> getSource(bool audio);
+    bool haveSufficientDataOnAllTracks();
+    status_t postReadBuffer();
+    void onReadBuffer();
 
     DISALLOW_EVIL_CONSTRUCTORS(StreamingSource);
 };

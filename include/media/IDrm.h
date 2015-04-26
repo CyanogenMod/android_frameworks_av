@@ -73,8 +73,10 @@ struct IDrm : public IInterface {
     virtual status_t unprovisionDevice() = 0;
 
     virtual status_t getSecureStops(List<Vector<uint8_t> > &secureStops) = 0;
+    virtual status_t getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop) = 0;
 
     virtual status_t releaseSecureStops(Vector<uint8_t> const &ssRelease) = 0;
+    virtual status_t releaseAllSecureStops() = 0;
 
     virtual status_t getPropertyString(String8 const &name, String8 &value) const = 0;
     virtual status_t getPropertyByteArray(String8 const &name,
@@ -137,4 +139,3 @@ private:
 }  // namespace android
 
 #endif // ANDROID_IDRM_H_
-

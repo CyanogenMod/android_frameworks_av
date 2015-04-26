@@ -108,7 +108,7 @@ static status_t parseAudioObjectType(
 static status_t parseGASpecificConfig(
         ABitReader *bits,
         unsigned audioObjectType, unsigned channelConfiguration) {
-    unsigned frameLengthFlag = bits->getBits(1);
+    unsigned frameLengthFlag __unused = bits->getBits(1);
     unsigned dependsOnCoreCoder = bits->getBits(1);
     if (dependsOnCoreCoder) {
         /* unsigned coreCoderDelay = */bits->getBits(1);
@@ -418,6 +418,11 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
             CHECK((mOtherDataLenBits % 8) == 0);
             CHECK_LE(offset + (mOtherDataLenBits / 8), buffer->size());
             offset += mOtherDataLenBits / 8;
+        }
+
+        if (i < mNumSubFrames && offset >= buffer->size()) {
+            ALOGW("Skip subframes after %d, total %d", (int)i, (int)mNumSubFrames);
+            break;
         }
     }
 

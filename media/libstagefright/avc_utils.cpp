@@ -63,7 +63,7 @@ static void skipScalingList(ABitReader *br, size_t sizeOfScalingList) {
 void FindAVCDimensions(
         const sp<ABuffer> &seqParamSet,
         int32_t *width, int32_t *height,
-        int32_t *sarWidth, int32_t *sarHeight) {
+        int32_t *sarWidth, int32_t *sarHeight, int32_t *isInterlaced) {
     ABitReader br(seqParamSet->data() + 1, seqParamSet->size() - 1);
 
     unsigned profile_idc = br.getBits(8);
@@ -169,6 +169,10 @@ void FindAVCDimensions(
             (frame_crop_top_offset + frame_crop_bottom_offset) * cropUnitY;
     }
 
+    if (isInterlaced != NULL) {
+	*isInterlaced = !frame_mbs_only_flag;
+    }
+
     if (sarWidth != NULL) {
         *sarWidth = 0;
     }
@@ -222,28 +226,25 @@ status_t getNextNALUnit(
     *nalStart = NULL;
     *nalSize = 0;
 
-    if (size == 0) {
+    if (size < 3) {
         return -EAGAIN;
     }
-
-    // Skip any number of leading 0x00.
 
     size_t offset = 0;
-    while (offset < size && data[offset] == 0x00) {
-        ++offset;
-    }
-
-    if (offset == size) {
-        return -EAGAIN;
-    }
 
     // A valid startcode consists of at least two 0x00 bytes followed by 0x01.
-
-    if (offset < 2 || data[offset] != 0x01) {
-        return ERROR_MALFORMED;
+    for (; offset + 2 < size; ++offset) {
+        if (data[offset + 2] == 0x01 && data[offset] == 0x00
+                && data[offset + 1] == 0x00) {
+            break;
+        }
     }
-
-    ++offset;
+    if (offset + 2 >= size) {
+        *_data = &data[offset];
+        *_size = 2;
+        return -EAGAIN;
+    }
+    offset += 3;
 
     size_t startOffset = offset;
 
@@ -508,8 +509,8 @@ bool ExtractDimensionsFromVOLHeader(
     CHECK_NE(video_object_type_indication,
              0x21u /* Fine Granularity Scalable */);
 
-    unsigned video_object_layer_verid;
-    unsigned video_object_layer_priority;
+    unsigned video_object_layer_verid __unused;
+    unsigned video_object_layer_priority __unused;
     if (br.getBits(1)) {
         video_object_layer_verid = br.getBits(4);
         video_object_layer_priority = br.getBits(3);
@@ -571,7 +572,7 @@ bool ExtractDimensionsFromVOLHeader(
     unsigned video_object_layer_height = br.getBits(13);
     CHECK(br.getBits(1));  // marker_bit
 
-    unsigned interlaced = br.getBits(1);
+    unsigned interlaced __unused = br.getBits(1);
 
     *width = video_object_layer_width;
     *height = video_object_layer_height;
@@ -617,7 +618,7 @@ bool GetMPEGAudioFrameSize(
         return false;
     }
 
-    unsigned protection = (header >> 16) & 1;
+    unsigned protection __unused = (header >> 16) & 1;
 
     unsigned bitrate_index = (header >> 12) & 0x0f;
 

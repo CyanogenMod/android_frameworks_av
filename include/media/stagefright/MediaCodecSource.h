@@ -21,6 +21,14 @@
 #include <media/stagefright/foundation/AHandlerReflector.h>
 #include <media/stagefright/MediaSource.h>
 
+#include <media/stagefright/ExtendedStats.h>
+#define RECORDER_STATS(func, ...) \
+    do { \
+        if(mRecorderExtendedStats != NULL) { \
+            mRecorderExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
+
 namespace android {
 
 class ALooper;
@@ -85,14 +93,13 @@ private:
     status_t initEncoder();
     void releaseEncoder();
     status_t feedEncoderInputBuffers();
-    void scheduleDoMoreWork();
-    status_t doMoreWork(int32_t numInput, int32_t numOutput);
     void suspend();
     void resume(int64_t skipFramesBeforeUs = -1ll);
     void signalEOS(status_t err = ERROR_END_OF_STREAM);
     bool reachedEOS();
     status_t postSynchronouslyAndReturnError(const sp<AMessage> &msg);
 
+    sp<RecorderExtendedStats> mRecorderExtendedStats;
     sp<ALooper> mLooper;
     sp<ALooper> mCodecLooper;
     sp<AHandlerReflector<MediaCodecSource> > mReflector;
@@ -108,8 +115,6 @@ private:
     bool mDoMoreWorkPending;
     sp<AMessage> mEncoderActivityNotify;
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
-    Vector<sp<ABuffer> > mEncoderInputBuffers;
-    Vector<sp<ABuffer> > mEncoderOutputBuffers;
     List<MediaBuffer *> mInputBufferQueue;
     List<size_t> mAvailEncoderInputIndices;
     List<int64_t> mDecodingTimeQueue; // decoding time (us) for video

@@ -23,7 +23,7 @@
 #include <binder/BinderService.h>
 #include <binder/IAppOpsCallback.h>
 #include <camera/ICameraService.h>
-#include <hardware/camera.h>
+#include "hardware/camera.h"
 
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
@@ -38,7 +38,7 @@
 #include <camera/ICameraServiceListener.h>
 
 /* This needs to be increased if we can have more cameras */
-#define MAX_CAMERAS 4
+#define MAX_CAMERAS 2
 
 namespace android {
 

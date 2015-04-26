@@ -39,6 +39,7 @@ struct NuPlayer::Source : public AHandler {
         FLAG_CAN_SEEK           = 8,  // the "seek bar"
         FLAG_DYNAMIC_DURATION   = 16,
         FLAG_SECURE             = 32,
+        FLAG_PROTECTED          = 64,
     };
 
     enum {
@@ -48,10 +49,14 @@ struct NuPlayer::Source : public AHandler {
         kWhatBufferingUpdate,
         kWhatBufferingStart,
         kWhatBufferingEnd,
+        kWhatPauseOnBufferingStart,
+        kWhatResumeOnBufferingEnd,
+        kWhatCacheStats,
         kWhatSubtitleData,
         kWhatTimedTextData,
         kWhatQueueDecoderShutdown,
         kWhatDrmNoLicense,
+        kWhatInstantiateSecureDecoders,
     };
 
     // The provides message is used to notify the player about various
@@ -97,7 +102,7 @@ struct NuPlayer::Source : public AHandler {
         return INVALID_OPERATION;
     }
 
-    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */) {
+    virtual status_t selectTrack(size_t /* trackIndex */, bool /* select */, int64_t /* timeUs*/) {
         return INVALID_OPERATION;
     }
 
@@ -113,6 +118,8 @@ struct NuPlayer::Source : public AHandler {
         return false;
     }
 
+    virtual int64_t getServerTimeoutUs();
+
 protected:
     virtual ~Source() {}
 
@@ -122,6 +129,7 @@ protected:
 
     void notifyFlagsChanged(uint32_t flags);
     void notifyVideoSizeChanged(const sp<AMessage> &format = NULL);
+    void notifyInstantiateSecureDecoders(const sp<AMessage> &reply);
     void notifyPrepared(status_t err = OK);
 
 private:

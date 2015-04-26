@@ -5,6 +5,7 @@ LOCAL_SRC_FILES:=                 \
     AAtomizer.cpp                 \
     ABitReader.cpp                \
     ABuffer.cpp                   \
+    ADebug.cpp                    \
     AHandler.cpp                  \
     AHierarchicalStateMachine.cpp \
     ALooper.cpp                   \
@@ -12,6 +13,8 @@ LOCAL_SRC_FILES:=                 \
     AMessage.cpp                  \
     ANetworkSession.cpp           \
     AString.cpp                   \
+    AStringUtils.cpp              \
+    AWakeLock.cpp                 \
     ParsedMessage.cpp             \
     base64.cpp                    \
     hexdump.cpp
@@ -22,7 +25,9 @@ LOCAL_C_INCLUDES:= \
 LOCAL_SHARED_LIBRARIES := \
         libbinder         \
         libutils          \
-        liblog
+        libcutils         \
+        liblog            \
+        libpowermanager
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 

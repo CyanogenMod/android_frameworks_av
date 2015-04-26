@@ -79,6 +79,7 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"wvga", CAMCORDER_QUALITY_WVGA},
     {"fwvga", CAMCORDER_QUALITY_FWVGA},
     {"4kdci",CAMCORDER_QUALITY_4kDCI},
+    {"hvga",CAMCORDER_QUALITY_HVGA},
 
     {"timelapselow",  CAMCORDER_QUALITY_TIME_LAPSE_LOW},
     {"timelapsehigh", CAMCORDER_QUALITY_TIME_LAPSE_HIGH},

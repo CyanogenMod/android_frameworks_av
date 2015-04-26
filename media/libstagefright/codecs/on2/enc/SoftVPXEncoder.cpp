@@ -19,6 +19,7 @@
 #include "SoftVPXEncoder.h"
 
 #include <utils/Log.h>
+#include <utils/misc.h>
 
 #include <media/hardware/HardwareAPI.h>
 #include <media/hardware/MetadataBufferType.h>
@@ -50,23 +51,29 @@ static int GetCPUCoreCount() {
     return cpuCoreCount;
 }
 
+static const CodecProfileLevel kProfileLevels[] = {
+    { OMX_VIDEO_VP8ProfileMain, OMX_VIDEO_VP8Level_Version0 },
+    { OMX_VIDEO_VP8ProfileMain, OMX_VIDEO_VP8Level_Version1 },
+    { OMX_VIDEO_VP8ProfileMain, OMX_VIDEO_VP8Level_Version2 },
+    { OMX_VIDEO_VP8ProfileMain, OMX_VIDEO_VP8Level_Version3 },
+};
+
 SoftVPXEncoder::SoftVPXEncoder(const char *name,
                                const OMX_CALLBACKTYPE *callbacks,
                                OMX_PTR appData,
                                OMX_COMPONENTTYPE **component)
-    : SoftVideoEncoderOMXComponent(name, callbacks, appData, component),
+    : SoftVideoEncoderOMXComponent(
+            name, "video_encoder.vp8", OMX_VIDEO_CodingVP8,
+            kProfileLevels, NELEM(kProfileLevels),
+            176 /* width */, 144 /* height */,
+            callbacks, appData, component),
       mCodecContext(NULL),
       mCodecConfiguration(NULL),
       mCodecInterface(NULL),
-      mWidth(176),
-      mHeight(144),
-      mBitrate(192000),  // in bps
-      mFramerate(30 << 16), // in Q16 format
       mBitrateUpdated(false),
       mBitrateControlMode(VPX_VBR),  // variable bitrate
       mDCTPartitions(0),
       mErrorResilience(OMX_FALSE),
-      mColorFormat(OMX_COLOR_FormatYUV420Planar),
       mLevel(OMX_VIDEO_VP8Level_Version0),
       mKeyFrameInterval(0),
       mMinQuantizer(0),
@@ -77,82 +84,21 @@ SoftVPXEncoder::SoftVPXEncoder(const char *name,
       mTemporalPatternIdx(0),
       mLastTimestamp(0x7FFFFFFFFFFFFFFFLL),
       mConversionBuffer(NULL),
-      mInputDataIsMeta(false),
       mKeyFrameRequested(false) {
     memset(mTemporalLayerBitrateRatio, 0, sizeof(mTemporalLayerBitrateRatio));
     mTemporalLayerBitrateRatio[0] = 100;
-    initPorts();
+
+    const size_t kMinOutputBufferSize = 1024 * 1024; // arbitrary
+
+    initPorts(
+            kNumBuffers, kNumBuffers, kMinOutputBufferSize,
+            MEDIA_MIMETYPE_VIDEO_VP8, 2 /* minCompressionRatio */);
 }
 
 
 SoftVPXEncoder::~SoftVPXEncoder() {
     releaseEncoder();
 }
-
-
-void SoftVPXEncoder::initPorts() {
-    OMX_PARAM_PORTDEFINITIONTYPE inputPort;
-    OMX_PARAM_PORTDEFINITIONTYPE outputPort;
-
-    InitOMXParams(&inputPort);
-    InitOMXParams(&outputPort);
-
-    inputPort.nBufferCountMin = kNumBuffers;
-    inputPort.nBufferCountActual = inputPort.nBufferCountMin;
-    inputPort.bEnabled = OMX_TRUE;
-    inputPort.bPopulated = OMX_FALSE;
-    inputPort.eDomain = OMX_PortDomainVideo;
-    inputPort.bBuffersContiguous = OMX_FALSE;
-    inputPort.format.video.pNativeRender = NULL;
-    inputPort.format.video.nFrameWidth = mWidth;
-    inputPort.format.video.nFrameHeight = mHeight;
-    inputPort.format.video.nStride = inputPort.format.video.nFrameWidth;
-    inputPort.format.video.nSliceHeight = inputPort.format.video.nFrameHeight;
-    inputPort.format.video.nBitrate = 0;
-    // frameRate is in Q16 format.
-    inputPort.format.video.xFramerate = mFramerate;
-    inputPort.format.video.bFlagErrorConcealment = OMX_FALSE;
-    inputPort.nPortIndex = kInputPortIndex;
-    inputPort.eDir = OMX_DirInput;
-    inputPort.nBufferAlignment = kInputBufferAlignment;
-    inputPort.format.video.cMIMEType =
-        const_cast<char *>(MEDIA_MIMETYPE_VIDEO_RAW);
-    inputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingUnused;
-    inputPort.format.video.eColorFormat = mColorFormat;
-    inputPort.format.video.pNativeWindow = NULL;
-    inputPort.nBufferSize =
-        (inputPort.format.video.nStride *
-        inputPort.format.video.nSliceHeight * 3) / 2;
-
-    addPort(inputPort);
-
-    outputPort.nBufferCountMin = kNumBuffers;
-    outputPort.nBufferCountActual = outputPort.nBufferCountMin;
-    outputPort.bEnabled = OMX_TRUE;
-    outputPort.bPopulated = OMX_FALSE;
-    outputPort.eDomain = OMX_PortDomainVideo;
-    outputPort.bBuffersContiguous = OMX_FALSE;
-    outputPort.format.video.pNativeRender = NULL;
-    outputPort.format.video.nFrameWidth = mWidth;
-    outputPort.format.video.nFrameHeight = mHeight;
-    outputPort.format.video.nStride = outputPort.format.video.nFrameWidth;
-    outputPort.format.video.nSliceHeight = outputPort.format.video.nFrameHeight;
-    outputPort.format.video.nBitrate = mBitrate;
-    outputPort.format.video.xFramerate = 0;
-    outputPort.format.video.bFlagErrorConcealment = OMX_FALSE;
-    outputPort.nPortIndex = kOutputPortIndex;
-    outputPort.eDir = OMX_DirOutput;
-    outputPort.nBufferAlignment = kOutputBufferAlignment;
-    outputPort.format.video.cMIMEType =
-        const_cast<char *>(MEDIA_MIMETYPE_VIDEO_VP8);
-    outputPort.format.video.eCompressionFormat = OMX_VIDEO_CodingVP8;
-    outputPort.format.video.eColorFormat = OMX_COLOR_FormatUnused;
-    outputPort.format.video.pNativeWindow = NULL;
-    outputPort.nBufferSize = 1024 * 1024; // arbitrary
-
-    addPort(outputPort);
-}
-
 
 status_t SoftVPXEncoder::initEncoder() {
     vpx_codec_err_t codec_return;
@@ -409,38 +355,6 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
     const int32_t indexFull = index;
 
     switch (indexFull) {
-        case OMX_IndexParamVideoPortFormat: {
-            OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
-                (OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
-
-            if (formatParams->nPortIndex == kInputPortIndex) {
-                if (formatParams->nIndex >= kNumberOfSupportedColorFormats) {
-                    return OMX_ErrorNoMore;
-                }
-
-                // Color formats, in order of preference
-                if (formatParams->nIndex == 0) {
-                    formatParams->eColorFormat = OMX_COLOR_FormatYUV420Planar;
-                } else if (formatParams->nIndex == 1) {
-                    formatParams->eColorFormat =
-                        OMX_COLOR_FormatYUV420SemiPlanar;
-                } else {
-                    formatParams->eColorFormat = OMX_COLOR_FormatAndroidOpaque;
-                }
-
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingUnused;
-                formatParams->xFramerate = mFramerate;
-                return OMX_ErrorNone;
-            } else if (formatParams->nPortIndex == kOutputPortIndex) {
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingVP8;
-                formatParams->eColorFormat = OMX_COLOR_FormatUnused;
-                formatParams->xFramerate = 0;
-                return OMX_ErrorNone;
-            } else {
-                return OMX_ErrorBadPortIndex;
-            }
-        }
-
         case OMX_IndexParamVideoBitrate: {
             OMX_VIDEO_PARAM_BITRATETYPE *bitrate =
                 (OMX_VIDEO_PARAM_BITRATETYPE *)param;
@@ -495,54 +409,8 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
                 return OMX_ErrorNone;
         }
 
-        case OMX_IndexParamVideoProfileLevelQuerySupported: {
-            OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileAndLevel =
-                (OMX_VIDEO_PARAM_PROFILELEVELTYPE *)param;
-
-            if (profileAndLevel->nPortIndex != kOutputPortIndex) {
-                return OMX_ErrorUnsupportedIndex;
-            }
-
-            switch (profileAndLevel->nProfileIndex) {
-                case 0:
-                    profileAndLevel->eLevel = OMX_VIDEO_VP8Level_Version0;
-                    break;
-
-                case 1:
-                    profileAndLevel->eLevel = OMX_VIDEO_VP8Level_Version1;
-                    break;
-
-                case 2:
-                    profileAndLevel->eLevel = OMX_VIDEO_VP8Level_Version2;
-                    break;
-
-                case 3:
-                    profileAndLevel->eLevel = OMX_VIDEO_VP8Level_Version3;
-                    break;
-
-                default:
-                    return OMX_ErrorNoMore;
-            }
-
-            profileAndLevel->eProfile = OMX_VIDEO_VP8ProfileMain;
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamVideoProfileLevelCurrent: {
-            OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileAndLevel =
-                (OMX_VIDEO_PARAM_PROFILELEVELTYPE *)param;
-
-            if (profileAndLevel->nPortIndex != kOutputPortIndex) {
-                return OMX_ErrorUnsupportedIndex;
-            }
-
-            profileAndLevel->eLevel = mLevel;
-            profileAndLevel->eProfile = OMX_VIDEO_VP8ProfileMain;
-            return OMX_ErrorNone;
-        }
-
         default:
-            return SimpleSoftOMXComponent::internalGetParameter(index, param);
+            return SoftVideoEncoderOMXComponent::internalGetParameter(index, param);
     }
 }
 
@@ -553,29 +421,9 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetParameter(OMX_INDEXTYPE index,
     const int32_t indexFull = index;
 
     switch (indexFull) {
-        case OMX_IndexParamStandardComponentRole:
-            return internalSetRoleParams(
-                (const OMX_PARAM_COMPONENTROLETYPE *)param);
-
         case OMX_IndexParamVideoBitrate:
             return internalSetBitrateParams(
                 (const OMX_VIDEO_PARAM_BITRATETYPE *)param);
-
-        case OMX_IndexParamPortDefinition:
-        {
-            OMX_ERRORTYPE err = internalSetPortParams(
-                (const OMX_PARAM_PORTDEFINITIONTYPE *)param);
-
-            if (err != OMX_ErrorNone) {
-                return err;
-            }
-
-            return SimpleSoftOMXComponent::internalSetParameter(index, param);
-        }
-
-        case OMX_IndexParamVideoPortFormat:
-            return internalSetFormatParams(
-                (const OMX_VIDEO_PARAM_PORTFORMATTYPE *)param);
 
         case OMX_IndexParamVideoVp8:
             return internalSetVp8Params(
@@ -585,27 +433,8 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetParameter(OMX_INDEXTYPE index,
             return internalSetAndroidVp8Params(
                 (const OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE *)param);
 
-        case OMX_IndexParamVideoProfileLevelCurrent:
-            return internalSetProfileLevel(
-                (const OMX_VIDEO_PARAM_PROFILELEVELTYPE *)param);
-
-        case kStoreMetaDataExtensionIndex:
-        {
-            // storeMetaDataInBuffers
-            const StoreMetaDataInBuffersParams *storeParam =
-                (const StoreMetaDataInBuffersParams *)param;
-
-            if (storeParam->nPortIndex != kInputPortIndex) {
-                return OMX_ErrorBadPortIndex;
-            }
-
-            mInputDataIsMeta = (storeParam->bStoreMetaData == OMX_TRUE);
-
-            return OMX_ErrorNone;
-        }
-
         default:
-            return SimpleSoftOMXComponent::internalSetParameter(index, param);
+            return SoftVideoEncoderOMXComponent::internalSetParameter(index, param);
     }
 }
 
@@ -645,29 +474,6 @@ OMX_ERRORTYPE SoftVPXEncoder::setConfig(
             return SimpleSoftOMXComponent::setConfig(index, _params);
     }
 }
-
-OMX_ERRORTYPE SoftVPXEncoder::internalSetProfileLevel(
-        const OMX_VIDEO_PARAM_PROFILELEVELTYPE* profileAndLevel) {
-    if (profileAndLevel->nPortIndex != kOutputPortIndex) {
-        return OMX_ErrorUnsupportedIndex;
-    }
-
-    if (profileAndLevel->eProfile != OMX_VIDEO_VP8ProfileMain) {
-        return OMX_ErrorBadParameter;
-    }
-
-    if (profileAndLevel->eLevel == OMX_VIDEO_VP8Level_Version0 ||
-        profileAndLevel->eLevel == OMX_VIDEO_VP8Level_Version1 ||
-        profileAndLevel->eLevel == OMX_VIDEO_VP8Level_Version2 ||
-        profileAndLevel->eLevel == OMX_VIDEO_VP8Level_Version3) {
-        mLevel = (OMX_VIDEO_VP8LEVELTYPE)profileAndLevel->eLevel;
-    } else {
-        return OMX_ErrorBadParameter;
-    }
-
-    return OMX_ErrorNone;
-}
-
 
 OMX_ERRORTYPE SoftVPXEncoder::internalSetVp8Params(
         const OMX_VIDEO_PARAM_VP8TYPE* vp8Params) {
@@ -742,91 +548,6 @@ OMX_ERRORTYPE SoftVPXEncoder::internalSetAndroidVp8Params(
           mTemporalLayerBitrateRatio[1], mTemporalLayerBitrateRatio[2]);
     return OMX_ErrorNone;
 }
-
-OMX_ERRORTYPE SoftVPXEncoder::internalSetFormatParams(
-        const OMX_VIDEO_PARAM_PORTFORMATTYPE* format) {
-    if (format->nPortIndex == kInputPortIndex) {
-        if (format->eColorFormat == OMX_COLOR_FormatYUV420Planar ||
-            format->eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar ||
-            format->eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
-            mColorFormat = format->eColorFormat;
-
-            OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
-            def->format.video.eColorFormat = mColorFormat;
-
-            return OMX_ErrorNone;
-        } else {
-            ALOGE("Unsupported color format %i", format->eColorFormat);
-            return OMX_ErrorUnsupportedSetting;
-        }
-    } else if (format->nPortIndex == kOutputPortIndex) {
-        if (format->eCompressionFormat == OMX_VIDEO_CodingVP8) {
-            return OMX_ErrorNone;
-        } else {
-            return OMX_ErrorUnsupportedSetting;
-        }
-    } else {
-        return OMX_ErrorBadPortIndex;
-    }
-}
-
-
-OMX_ERRORTYPE SoftVPXEncoder::internalSetRoleParams(
-        const OMX_PARAM_COMPONENTROLETYPE* role) {
-    const char* roleText = (const char*)role->cRole;
-    const size_t roleTextMaxSize = OMX_MAX_STRINGNAME_SIZE - 1;
-
-    if (strncmp(roleText, "video_encoder.vp8", roleTextMaxSize)) {
-        ALOGE("Unsupported component role");
-        return OMX_ErrorBadParameter;
-    }
-
-    return OMX_ErrorNone;
-}
-
-
-OMX_ERRORTYPE SoftVPXEncoder::internalSetPortParams(
-        const OMX_PARAM_PORTDEFINITIONTYPE* port) {
-    if (port->nPortIndex == kInputPortIndex) {
-        mWidth = port->format.video.nFrameWidth;
-        mHeight = port->format.video.nFrameHeight;
-
-        // xFramerate comes in Q16 format, in frames per second unit
-        mFramerate = port->format.video.xFramerate;
-
-        if (port->format.video.eColorFormat == OMX_COLOR_FormatYUV420Planar ||
-            port->format.video.eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar ||
-            port->format.video.eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
-            mColorFormat = port->format.video.eColorFormat;
-        } else {
-            return OMX_ErrorUnsupportedSetting;
-        }
-
-        OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
-        def->format.video.nFrameWidth = mWidth;
-        def->format.video.nFrameHeight = mHeight;
-        def->format.video.xFramerate = mFramerate;
-        def->format.video.eColorFormat = mColorFormat;
-        def = &editPortInfo(kOutputPortIndex)->mDef;
-        def->format.video.nFrameWidth = mWidth;
-        def->format.video.nFrameHeight = mHeight;
-
-        return OMX_ErrorNone;
-    } else if (port->nPortIndex == kOutputPortIndex) {
-        mBitrate = port->format.video.nBitrate;
-        mWidth = port->format.video.nFrameWidth;
-        mHeight = port->format.video.nFrameHeight;
-
-        OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kOutputPortIndex)->mDef;
-        def->format.video.nFrameWidth = mWidth;
-        def->format.video.nFrameHeight = mHeight;
-        def->format.video.nBitrate = mBitrate;
-        return OMX_ErrorNone;
-    } else {
-        return OMX_ErrorBadPortIndex;
-    }
-}
-
 
 OMX_ERRORTYPE SoftVPXEncoder::internalSetBitrateParams(
         const OMX_VIDEO_PARAM_BITRATETYPE* bitrate) {
@@ -916,7 +637,7 @@ vpx_enc_frame_flags_t SoftVPXEncoder::getEncodeFlags() {
     return flags;
 }
 
-void SoftVPXEncoder::onQueueFilled(OMX_U32 portIndex) {
+void SoftVPXEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
     // Initialize encoder if not already
     if (mCodecContext == NULL) {
         if (OK != initEncoder()) {

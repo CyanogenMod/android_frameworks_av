@@ -61,7 +61,8 @@ AACWriter::AACWriter(int fd)
       mPaused(false),
       mResumed(false),
       mChannelCount(-1),
-      mSampleRate(-1) {
+      mSampleRate(-1),
+      mAACProfile(OMX_AUDIO_AACObjectLC) {
 }
 
 AACWriter::~AACWriter() {
@@ -77,10 +78,6 @@ AACWriter::~AACWriter() {
 
 status_t AACWriter::initCheck() const {
     return mInitCheck;
-}
-
-static int writeInt8(int fd, uint8_t x) {
-    return ::write(fd, &x, 1);
 }
 
 

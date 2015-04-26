@@ -108,7 +108,12 @@ static int32_t getColorFormat(const char* colorFormat) {
     }
 
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420SP)) {
+#ifdef USE_SAMSUNG_COLORFORMAT
+        static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
+        return OMX_SEC_COLOR_FormatNV12LPhysicalAddress;
+#else
         return OMX_COLOR_FormatYUV420SemiPlanar;
+#endif
     }
 
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV422I)) {
@@ -131,6 +136,7 @@ static int32_t getColorFormat(const char* colorFormat) {
          "CameraSource::getColorFormat", colorFormat);
 
     CHECK(!"Unknown color format");
+    return -1;
 }
 
 CameraSource *CameraSource::Create(const String16 &clientName) {
@@ -647,6 +653,13 @@ status_t CameraSource::start(MetaData *meta) {
         return OK;
     }
 
+    if (mRecorderExtendedStats == NULL && meta != NULL) {
+        RecorderExtendedStats* rStats = NULL;
+        meta->findPointer(ExtendedStats::MEDIA_STATS_FLAG, (void**) &rStats);
+        mRecorderExtendedStats = rStats;
+    }
+
+    RECORDER_STATS(profileStart, STATS_PROFILE_CAMERA_SOURCE_START_LATENCY);
     CHECK(!mStarted);
     if (mInitCheck != OK) {
         ALOGE("CameraSource is not initialized yet");
@@ -689,6 +702,9 @@ status_t CameraSource::start(MetaData *meta) {
 status_t CameraSource::pause() {
     mRecPause = true;
     mPauseStartTimeUs = mLastFrameTimestampUs;
+    RECORDER_STATS(notifyPause, mPauseStartTimeUs);
+    //record the end time too, or there is a risk the end time is 0
+    mPauseEndTimeUs = mLastFrameTimestampUs;
     ALOGV("pause : mPauseStart %lld us, #Queued Frames : %d",
         mPauseStartTimeUs, mFramesReceived.size());
     return OK;
@@ -770,11 +786,11 @@ status_t CameraSource::reset() {
                     mNumFramesReceived, mNumFramesEncoded, mNumFramesDropped,
                     mLastFrameTimestampUs - mFirstFrameTimeUs);
         }
+        RECORDER_STATS(logRecordingDuration, mLastFrameTimestampUs - mFirstFrameTimeUs);
 
         if (mNumGlitches > 0) {
             ALOGW("%d long delays between neighboring video frames", mNumGlitches);
         }
-
         CHECK_EQ(mNumFramesReceived, mNumFramesEncoded + mNumFramesDropped);
     }
 
@@ -802,6 +818,7 @@ void CameraSource::releaseQueuedFrames() {
         releaseRecordingFrame(*it);
         mFramesReceived.erase(it);
         ++mNumFramesDropped;
+        RECORDER_STATS(logFrameDropped);
     }
 }
 
@@ -822,6 +839,7 @@ void CameraSource::signalBufferReturned(MediaBuffer *buffer) {
             releaseOneRecordingFrame((*it));
             mFramesBeingEncoded.erase(it);
             ++mNumFramesEncoded;
+            RECORDER_STATS(logFrameEncoded);
             buffer->setObserver(0);
             buffer->release();
             mFrameCompleteCondition.signal();
@@ -888,6 +906,13 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         return;
     }
 
+    // May need to skip frame or modify timestamp. Currently implemented
+    // by the subclass CameraSourceTimeLapse.
+    if (skipCurrentFrame(timestampUs)) {
+        releaseOneRecordingFrame(data);
+        return;
+    }
+
     if (mRecPause == true) {
         if(!mFramesReceived.empty()) {
             ALOGV("releaseQueuedFrames - #Queued Frames : %d", mFramesReceived.size());
@@ -908,15 +933,10 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         }
     }
 
-    // May need to skip frame or modify timestamp. Currently implemented
-    // by the subclass CameraSourceTimeLapse.
-    if (skipCurrentFrame(timestampUs)) {
-        releaseOneRecordingFrame(data);
-        return;
-    }
-
     mLastFrameTimestampUs = timestampUs;
     if (mNumFramesReceived == 0) {
+        RECORDER_STATS(profileStop, STATS_PROFILE_CAMERA_SOURCE_START_LATENCY);
+        RECORDER_STATS(profileStop, STATS_PROFILE_START_LATENCY);
         mFirstFrameTimeUs = timestampUs;
         // Initial delay
         if (mStartTimeUs > 0) {

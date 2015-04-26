@@ -20,9 +20,12 @@
 
 #include <cutils/properties.h>
 #include <media/IMediaPlayer.h>
+#include <media/stagefright/DataSource.h>
+#include <media/stagefright/FileSource.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <utils/Errors.h>
 #include <utils/misc.h>
+#include <../libstagefright/include/WVMExtractor.h>
 
 #include "MediaPlayerFactory.h"
 
@@ -63,11 +66,6 @@ status_t MediaPlayerFactory::registerFactory_l(IFactory* factory,
 
 static player_type getDefaultPlayerType() {
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.use-awesome", value, NULL)
-            && (!strcmp("1", value) || !strcasecmp("true", value))) {
-        return STAGEFRIGHT_PLAYER;
-    }
-
     // TODO: remove this EXPERIMENTAL developer settings property
     if (property_get("persist.sys.media.use-awesome", value, NULL)
             && !strcasecmp("true", value)) {
@@ -180,10 +178,39 @@ class StagefrightPlayerFactory :
     virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
                                int fd,
                                int64_t offset,
-                               int64_t /*length*/,
+                               int64_t length,
                                float /*curScore*/) {
-        if (getDefaultPlayerType()
-                == STAGEFRIGHT_PLAYER) {
+
+#ifdef QTI_FLAC_DECODER
+        // Flac playback forced to Awesomeplayer
+        if (fd) {
+            char symName[40] = {0};
+            char fileName[256] = {0};
+            snprintf(symName, sizeof(symName), "/proc/%d/fd/%d", getpid(), fd);
+
+            if (readlink(symName, fileName, (sizeof(fileName) - 1)) != -1 ) {
+                static const char* extn = ".flac";
+                uint32_t lenExtn = strlen(extn);
+                uint32_t lenFileName = strlen(fileName);
+                uint32_t start = lenFileName - lenExtn;
+                if (start > 0) {
+                    if (!strncasecmp(fileName + start, extn, lenExtn)) {
+                        return 1.0;
+                    }
+                }
+            }
+        }
+#endif
+        if (legacyDrm()) {
+            sp<DataSource> source = new FileSource(dup(fd), offset, length);
+            String8 mimeType;
+            float confidence;
+            if (SniffWVM(source, &mimeType, &confidence, NULL /* format */)) {
+                return 1.0;
+            }
+        }
+
+        if (getDefaultPlayerType() == STAGEFRIGHT_PLAYER) {
             char buf[20];
             lseek(fd, offset, SEEK_SET);
             read(fd, buf, sizeof(buf));
@@ -199,9 +226,27 @@ class StagefrightPlayerFactory :
         return 0.0;
     }
 
+    virtual float scoreFactory(const sp<IMediaPlayer>& /*client*/,
+                               const char* url,
+                               float /*curScore*/) {
+        if (legacyDrm() && !strncasecmp("widevine://", url, 11)) {
+            return 1.0;
+        }
+        return 0.0;
+    }
+
     virtual sp<MediaPlayerBase> createPlayer() {
         ALOGV(" create StagefrightPlayer");
         return new StagefrightPlayer();
+    }
+  private:
+    bool legacyDrm() {
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("persist.sys.media.legacy-drm", value, NULL)
+                && (!strcmp("1", value) || !strcasecmp("true", value))) {
+            return true;
+        }
+        return false;
     }
 };
 
@@ -233,6 +278,11 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
         }
 
         if (!strncasecmp("rtsp://", url, 7)) {
+            return kOurScore;
+        }
+
+        if (!strncasecmp("http://", url, 7)
+                || !strncasecmp("https://", url, 8)) {
             return kOurScore;
         }
 

@@ -21,7 +21,6 @@
 #include "HTTPLiveSource.h"
 
 #include "AnotherPacketSource.h"
-#include "LiveDataSource.h"
 #include "LiveSession.h"
 
 #include <media/IMediaHTTPService.h>
@@ -30,6 +29,8 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
+
 
 namespace android {
 
@@ -98,6 +99,10 @@ void NuPlayer::HTTPLiveSource::start() {
 }
 
 sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
+    if (mLiveSession == NULL) {
+        return NULL;
+    }
+
     sp<AMessage> format;
     status_t err = mLiveSession->getStreamFormat(
             audio ? LiveSession::STREAMTYPE_AUDIO
@@ -110,6 +115,20 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
 
     return format;
 }
+
+sp<MetaData> NuPlayer::HTTPLiveSource::getFormatMeta(bool audio) {
+    sp<AMessage> format = getFormat(audio);
+
+    if (format == NULL) {
+        return NULL;
+    }
+
+    sp<MetaData> meta = new MetaData;
+    convertMessageToMetaData(format, meta);
+
+    return meta;
+}
+
 
 status_t NuPlayer::HTTPLiveSource::feedMoreTSData() {
     return OK;
@@ -135,7 +154,15 @@ sp<AMessage> NuPlayer::HTTPLiveSource::getTrackInfo(size_t trackIndex) const {
     return mLiveSession->getTrackInfo(trackIndex);
 }
 
-status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select) {
+ssize_t NuPlayer::HTTPLiveSource::getSelectedTrack(media_track_type type) const {
+    if (mLiveSession == NULL) {
+        return -1;
+    } else {
+        return mLiveSession->getSelectedTrack(type);
+    }
+}
+
+status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select, int64_t /*timeUs*/) {
     status_t err = mLiveSession->selectTrack(trackIndex, select);
 
     if (err == OK) {

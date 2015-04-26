@@ -41,6 +41,8 @@ struct ICrypto : public IInterface {
     virtual bool requiresSecureDecoderComponent(
             const char *mime) const = 0;
 
+    virtual void notifyResolution(uint32_t width, uint32_t height) = 0;
+
     virtual ssize_t decrypt(
             bool secure,
             const uint8_t key[16],
@@ -64,4 +66,3 @@ struct BnCrypto : public BnInterface<ICrypto> {
 }  // namespace android
 
 #endif // ANDROID_ICRYPTO_H_
-

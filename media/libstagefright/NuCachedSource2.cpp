@@ -355,7 +355,7 @@ void NuCachedSource2::fetchInternal() {
     Mutex::Autolock autoLock(mLock);
 
     if (n == 0 || mDisconnecting) {
-        ALOGI("ERROR_END_OF_STREAM");
+        ALOGI("caching reached eos.");
 
         mNumRetriesLeft = 0;
         mFinalStatus = ERROR_END_OF_STREAM;

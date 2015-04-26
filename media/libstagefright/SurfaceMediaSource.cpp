@@ -34,7 +34,7 @@
 #include <utils/String8.h>
 
 #include <private/gui/ComposerService.h>
-#if QCOM_BSP
+#ifdef QCOM_BSP
 #include <gralloc_priv.h>
 #endif
 
@@ -455,7 +455,7 @@ void SurfaceMediaSource::signalBufferReturned(MediaBuffer *buffer) {
 }
 
 // Part of the BufferQueue::ConsumerListener
-void SurfaceMediaSource::onFrameAvailable() {
+void SurfaceMediaSource::onFrameAvailable(const BufferItem& /* item */) {
     ALOGV("onFrameAvailable");
 
     sp<FrameAvailableListener> listener;

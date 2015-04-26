@@ -134,8 +134,11 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     audio_output_flags_t flags,
                                     const audio_offload_info_t *offloadInfo)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return AUDIO_IO_HANDLE_NONE;
+    }
     if (mpAudioPolicy == NULL) {
-        return 0;
+        return AUDIO_IO_HANDLE_NONE;
     }
     ALOGV("getOutput()");
     Mutex::Autolock _l(mLock);
@@ -145,8 +148,11 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
                                          audio_stream_type_t stream,
-                                         int session)
+                                         audio_session_t session)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
@@ -165,13 +171,17 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
     }
 
     Mutex::Autolock _l(mLock);
+    setPowerHint(true);
     return mpAudioPolicy->start_output(mpAudioPolicy, output, stream, session);
 }
 
 status_t AudioPolicyService::stopOutput(audio_io_handle_t output,
                                         audio_stream_type_t stream,
-                                        int session)
+                                        audio_session_t session)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
@@ -182,7 +192,7 @@ status_t AudioPolicyService::stopOutput(audio_io_handle_t output,
 
 status_t  AudioPolicyService::doStopOutput(audio_io_handle_t output,
                                       audio_stream_type_t stream,
-                                      int session)
+                                      audio_session_t session)
 {
     ALOGV("doStopOutput from tid %d", gettid());
     // release audio processors from the stream
@@ -198,65 +208,85 @@ status_t  AudioPolicyService::doStopOutput(audio_io_handle_t output,
         }
     }
     Mutex::Autolock _l(mLock);
-    return mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
+    status_t ret = mpAudioPolicy->stop_output(mpAudioPolicy, output, stream, session);
+    setPowerHint(false);
+    return ret;
 }
 
-void AudioPolicyService::releaseOutput(audio_io_handle_t output)
+void AudioPolicyService::releaseOutput(audio_io_handle_t output,
+                                       audio_stream_type_t stream,
+                                       audio_session_t session)
 {
     if (mpAudioPolicy == NULL) {
         return;
     }
     ALOGV("releaseOutput()");
-    mOutputCommandThread->releaseOutputCommand(output);
+    mOutputCommandThread->releaseOutputCommand(output, stream, session);
 }
 
-void AudioPolicyService::doReleaseOutput(audio_io_handle_t output)
+void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
+                                         audio_stream_type_t stream __unused,
+                                         audio_session_t session __unused)
 {
     ALOGV("doReleaseOutput from tid %d", gettid());
     Mutex::Autolock _l(mLock);
     mpAudioPolicy->release_output(mpAudioPolicy, output);
 }
 
-audio_io_handle_t AudioPolicyService::getInput(audio_source_t inputSource,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    int audioSession,
-                                    audio_input_flags_t flags __unused)
+status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
+                                             audio_io_handle_t *input,
+                                             audio_session_t session,
+                                             uint32_t samplingRate,
+                                             audio_format_t format,
+                                             audio_channel_mask_t channelMask,
+                                             audio_input_flags_t flags __unused)
 {
     if (mpAudioPolicy == NULL) {
-        return 0;
+        return NO_INIT;
     }
+
+    audio_source_t inputSource = attr->source;
+
     // already checked by client, but double-check in case the client wrapper is bypassed
-    if (inputSource >= AUDIO_SOURCE_CNT && inputSource != AUDIO_SOURCE_HOTWORD) {
-        return 0;
+    if (inputSource >= AUDIO_SOURCE_CNT && inputSource != AUDIO_SOURCE_HOTWORD &&
+        inputSource != AUDIO_SOURCE_FM_TUNER) {
+        return BAD_VALUE;
     }
 
-    if ((inputSource == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) {
-        return 0;
+    if (inputSource == AUDIO_SOURCE_DEFAULT) {
+        inputSource = AUDIO_SOURCE_MIC;
     }
 
-    audio_io_handle_t input;
+    if (((inputSource == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) ||
+        ((inputSource == AUDIO_SOURCE_FM_TUNER) && !captureFmTunerAllowed())) {
+        return BAD_VALUE;
+    }
+
+#ifdef HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
+    if (inputSource == AUDIO_SOURCE_HOTWORD)
+      inputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
+#endif
+
     sp<AudioPolicyEffects>audioPolicyEffects;
     {
         Mutex::Autolock _l(mLock);
         // the audio_in_acoustics_t parameter is ignored by get_input()
-        input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
+        *input = mpAudioPolicy->get_input(mpAudioPolicy, inputSource, samplingRate,
                                              format, channelMask, (audio_in_acoustics_t) 0);
         audioPolicyEffects = mAudioPolicyEffects;
     }
-    if (input == 0) {
-        return input;
+    if (*input == AUDIO_IO_HANDLE_NONE) {
+        return INVALID_OPERATION;
     }
 
     if (audioPolicyEffects != 0) {
         // create audio pre processors according to input source
-        status_t status = audioPolicyEffects->addInputEffects(input, inputSource, audioSession);
+        status_t status = audioPolicyEffects->addInputEffects(*input, inputSource, session);
         if (status != NO_ERROR && status != ALREADY_EXISTS) {
             ALOGW("Failed to add effects on input %d", input);
         }
     }
-    return input;
+    return NO_ERROR;
 }
 
 status_t AudioPolicyService::startInput(audio_io_handle_t input,
@@ -267,6 +297,7 @@ status_t AudioPolicyService::startInput(audio_io_handle_t input,
     }
     Mutex::Autolock _l(mLock);
 
+    setPowerHint(true);
     return mpAudioPolicy->start_input(mpAudioPolicy, input);
 }
 
@@ -278,7 +309,9 @@ status_t AudioPolicyService::stopInput(audio_io_handle_t input,
     }
     Mutex::Autolock _l(mLock);
 
-    return mpAudioPolicy->stop_input(mpAudioPolicy, input);
+    status_t ret = mpAudioPolicy->stop_input(mpAudioPolicy, input);
+    setPowerHint(false);
+    return ret;
 }
 
 void AudioPolicyService::releaseInput(audio_io_handle_t input,
@@ -313,7 +346,7 @@ status_t AudioPolicyService::initStreamVolume(audio_stream_type_t stream,
     if (!settingsAllowed()) {
         return PERMISSION_DENIED;
     }
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
@@ -331,7 +364,7 @@ status_t AudioPolicyService::setStreamVolumeIndex(audio_stream_type_t stream,
     if (!settingsAllowed()) {
         return PERMISSION_DENIED;
     }
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
@@ -352,7 +385,7 @@ status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
@@ -368,6 +401,9 @@ status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
 
 uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return 0;
+    }
     if (mpAudioPolicy == NULL) {
         return 0;
     }
@@ -378,8 +414,11 @@ uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 
 audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stream)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return AUDIO_DEVICE_NONE;
+    }
     if (mpAudioPolicy == NULL) {
-        return (audio_devices_t)0;
+        return AUDIO_DEVICE_NONE;
     }
     return mpAudioPolicy->get_devices_for_stream(mpAudioPolicy, stream);
 }
@@ -424,8 +463,11 @@ status_t AudioPolicyService::setEffectEnabled(int id, bool enabled)
 
 bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return false;
+    }
     if (mpAudioPolicy == NULL) {
-        return 0;
+        return false;
     }
     Mutex::Autolock _l(mLock);
     return mpAudioPolicy->is_stream_active(mpAudioPolicy, stream, inPastMs);
@@ -433,8 +475,11 @@ bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inP
 
 bool AudioPolicyService::isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs) const
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_PUBLIC_CNT) {
+        return false;
+    }
     if (mpAudioPolicy == NULL) {
-        return 0;
+        return false;
     }
     Mutex::Autolock _l(mLock);
     return mpAudioPolicy->is_stream_active_remotely(mpAudioPolicy, stream, inPastMs);
@@ -474,6 +519,9 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
 
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
 {
+#if HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
+    return false;
+#endif
     if (mpAudioPolicy == NULL) {
         ALOGV("mpAudioPolicy == NULL");
         return false;
@@ -526,26 +574,45 @@ status_t AudioPolicyService::setAudioPortConfig(const struct audio_port_config *
     return INVALID_OPERATION;
 }
 
-audio_io_handle_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
-                                    uint32_t samplingRate,
-                                    audio_format_t format,
-                                    audio_channel_mask_t channelMask,
-                                    audio_output_flags_t flags,
-                                    const audio_offload_info_t *offloadInfo)
+status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
+                                              audio_io_handle_t *output,
+                                              audio_session_t session __unused,
+                                              audio_stream_type_t *stream,
+                                              uint32_t samplingRate,
+                                              audio_format_t format,
+                                              audio_channel_mask_t channelMask,
+                                              audio_output_flags_t flags,
+                                              const audio_offload_info_t *offloadInfo)
 {
-    audio_stream_type_t stream = audio_attributes_to_stream_type(attr);
-
-    return getOutput(stream, samplingRate, format, channelMask, flags, offloadInfo);
+    if (attr != NULL) {
+        *stream = audio_attributes_to_stream_type(attr);
+    } else {
+        if (*stream == AUDIO_STREAM_DEFAULT) {
+            return BAD_VALUE;
+        }
+    }
+    *output = getOutput(*stream, samplingRate, format, channelMask,
+                                          flags, offloadInfo);
+    if (*output == AUDIO_IO_HANDLE_NONE) {
+        return INVALID_OPERATION;
+    }
+    return NO_ERROR;
 }
 
-status_t AudioPolicyService::acquireSoundTriggerSession(audio_session_t *session,
-                                       audio_io_handle_t *ioHandle,
-                                       audio_devices_t *device)
+status_t AudioPolicyService::acquireSoundTriggerSession(audio_session_t *session __unused,
+                                       audio_io_handle_t *ioHandle __unused,
+                                       audio_devices_t *device __unused)
 {
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyService::releaseSoundTriggerSession(audio_session_t session)
+status_t AudioPolicyService::releaseSoundTriggerSession(audio_session_t session __unused)
+{
+    return INVALID_OPERATION;
+}
+
+status_t AudioPolicyService::registerPolicyMixes(Vector<AudioMix> mixes __unused,
+                                                 bool registration __unused)
 {
     return INVALID_OPERATION;
 }

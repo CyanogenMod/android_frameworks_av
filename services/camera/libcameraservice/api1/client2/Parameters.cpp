@@ -596,6 +596,10 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
                     supportedSceneModes +=
                         CameraParameters::SCENE_MODE_BARCODE;
                     break;
+                case ANDROID_CONTROL_SCENE_MODE_HDR:
+                    supportedSceneModes +=
+                        CameraParameters::SCENE_MODE_HDR;
+                    break;
                 default:
                     ALOGW("%s: Camera %d: Unknown scene mode value: %d",
                         __FUNCTION__, cameraId,
@@ -2203,6 +2207,10 @@ status_t Parameters::recoverOverriddenJpegSize() {
     return OK;
 }
 
+bool Parameters::isJpegSizeOverridden() {
+    return pictureSizeOverriden;
+}
+
 const char* Parameters::getStateName(State state) {
 #define CASE_ENUM_TO_CHAR(x) case x: return(#x); break;
     switch(state) {
@@ -2382,6 +2390,8 @@ int Parameters::sceneModeStringToEnum(const char *sceneMode) {
             ANDROID_CONTROL_SCENE_MODE_CANDLELIGHT :
         !strcmp(sceneMode, CameraParameters::SCENE_MODE_BARCODE) ?
             ANDROID_CONTROL_SCENE_MODE_BARCODE:
+        !strcmp(sceneMode, CameraParameters::SCENE_MODE_HDR) ?
+            ANDROID_CONTROL_SCENE_MODE_HDR:
         -1;
 }
 
@@ -2619,58 +2629,6 @@ int Parameters::normalizedYToCrop(int y) const {
     return (y + 1000) * (previewCrop.height - 1) / 2000;
 }
 
-int Parameters::arrayXToCrop(int x) const {
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
-    return x - previewCrop.left;
-}
-
-int Parameters::arrayYToCrop(int y) const {
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
-    return y - previewCrop.top;
-}
-
-int Parameters::cropXToNormalized(int x) const {
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
-    return x * 2000 / (previewCrop.width - 1) - 1000;
-}
-
-int Parameters::cropYToNormalized(int y) const {
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
-    return y * 2000 / (previewCrop.height - 1) - 1000;
-}
-
-int Parameters::arrayXToNormalized(int width) const {
-    int ret = cropXToNormalized(arrayXToCrop(width));
-
-    ALOG_ASSERT(ret >= -1000, "Calculated normalized value out of "
-        "lower bounds %d", ret);
-    ALOG_ASSERT(ret <= 1000, "Calculated normalized value out of "
-        "upper bounds %d", ret);
-
-    // Work-around for HAL pre-scaling the coordinates themselves
-    if (quirks.meteringCropRegion) {
-        return width * 2000 / (fastInfo.arrayWidth - 1) - 1000;
-    }
-
-    return ret;
-}
-
-int Parameters::arrayYToNormalized(int height) const {
-    int ret = cropYToNormalized(arrayYToCrop(height));
-
-    ALOG_ASSERT(ret >= -1000, "Calculated normalized value out of lower bounds"
-        " %d", ret);
-    ALOG_ASSERT(ret <= 1000, "Calculated normalized value out of upper bounds"
-        " %d", ret);
-
-    // Work-around for HAL pre-scaling the coordinates themselves
-    if (quirks.meteringCropRegion) {
-        return height * 2000 / (fastInfo.arrayHeight - 1) - 1000;
-    }
-
-    return ret;
-}
-
 int Parameters::normalizedXToArray(int x) const {
 
     // Work-around for HAL pre-scaling the coordinates themselves
@@ -2688,6 +2646,54 @@ int Parameters::normalizedYToArray(int y) const {
     }
 
     return cropYToArray(normalizedYToCrop(y));
+}
+
+
+Parameters::CropRegion Parameters::calculatePreviewCrop(
+        const CropRegion &scalerCrop) const {
+    float left, top, width, height;
+    float previewAspect = static_cast<float>(previewWidth) / previewHeight;
+    float cropAspect = scalerCrop.width / scalerCrop.height;
+
+    if (previewAspect > cropAspect) {
+        width = scalerCrop.width;
+        height = cropAspect * scalerCrop.height / previewAspect;
+
+        left = scalerCrop.left;
+        top = scalerCrop.top + (scalerCrop.height - height) / 2;
+    } else {
+        width = previewAspect * scalerCrop.width / cropAspect;
+        height = scalerCrop.height;
+
+        left = scalerCrop.left + (scalerCrop.width - width) / 2;
+        top = scalerCrop.top;
+    }
+
+    CropRegion previewCrop = {left, top, width, height};
+
+    return previewCrop;
+}
+
+int Parameters::arrayXToNormalizedWithCrop(int x,
+        const CropRegion &scalerCrop) const {
+    // Work-around for HAL pre-scaling the coordinates themselves
+    if (quirks.meteringCropRegion) {
+        return x * 2000 / (fastInfo.arrayWidth - 1) - 1000;
+    } else {
+        CropRegion previewCrop = calculatePreviewCrop(scalerCrop);
+        return (x - previewCrop.left) * 2000 / (previewCrop.width - 1) - 1000;
+    }
+}
+
+int Parameters::arrayYToNormalizedWithCrop(int y,
+        const CropRegion &scalerCrop) const {
+    // Work-around for HAL pre-scaling the coordinates themselves
+    if (quirks.meteringCropRegion) {
+        return y * 2000 / (fastInfo.arrayHeight - 1) - 1000;
+    } else {
+        CropRegion previewCrop = calculatePreviewCrop(scalerCrop);
+        return (y - previewCrop.top) * 2000 / (previewCrop.height - 1) - 1000;
+    }
 }
 
 status_t Parameters::getFilteredSizes(Size limit, Vector<Size> *sizes) {
@@ -2954,6 +2960,10 @@ status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
             staticInfo(ANDROID_SENSOR_INFO_PHYSICAL_SIZE, 2, 2);
     if (!sensorSize.count) return NO_INIT;
 
+    camera_metadata_ro_entry_t pixelArraySize =
+            staticInfo(ANDROID_SENSOR_INFO_PIXEL_ARRAY_SIZE, 2, 2);
+    if (!pixelArraySize.count) return NO_INIT;
+
     float arrayAspect = static_cast<float>(fastInfo.arrayWidth) /
             fastInfo.arrayHeight;
     float stillAspect = static_cast<float>(pictureWidth) / pictureHeight;
@@ -3003,6 +3013,16 @@ status_t Parameters::calculatePictureFovs(float *horizFov, float *vertFov)
         vertCropFactor = (arrayAspect < stillAspect) ?
                 (arrayAspect / stillAspect) : 1.f;
     }
+
+    /**
+     * Convert the crop factors w.r.t the active array size to the crop factors
+     * w.r.t the pixel array size.
+     */
+    horizCropFactor *= (static_cast<float>(fastInfo.arrayWidth) /
+                            pixelArraySize.data.i32[0]);
+    vertCropFactor *= (static_cast<float>(fastInfo.arrayHeight) /
+                            pixelArraySize.data.i32[1]);
+
     ALOGV("Horiz crop factor: %f, vert crop fact: %f",
             horizCropFactor, vertCropFactor);
     /**

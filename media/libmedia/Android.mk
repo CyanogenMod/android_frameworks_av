@@ -9,6 +9,7 @@ LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_STATIC_LIBRARY)
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= AudioParameter.cpp
@@ -17,6 +18,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SHARED_LIBRARIES := libutils libcutils
 
 include $(BUILD_SHARED_LIBRARY)
+endif
 
 include $(CLEAR_VARS)
 
@@ -68,10 +70,20 @@ LOCAL_SRC_FILES:= \
     MemoryLeakTrackUtil.cpp \
     SoundPool.cpp \
     SoundPoolThread.cpp \
-    StringArray.cpp
+    StringArray.cpp \
+    AudioPolicy.cpp
 
 LOCAL_SRC_FILES += ../libnbaio/roundup.c
 
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+ifneq ($(filter msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),)
+ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
+LOCAL_SRC_FILES += \
+    IDirectTrack.cpp \
+    IDirectTrackClient.cpp
+endif
+endif
+endif
 
 #QTI Resampler
 ifeq ($(call is-vendor-board-platform,QCOM),true)
@@ -81,10 +93,21 @@ endif
 endif
 #QTI Resampler
 
+ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
+    LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
+    LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include/media
+    LOCAL_C_INCLUDES += $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
+endif
+
 LOCAL_SHARED_LIBRARIES := \
 	libui liblog libcutils libutils libbinder libsonivox libicuuc libicui18n libexpat \
         libcamera_client libstagefright_foundation \
-        libgui libdl libaudioutils libnbaio libaudioparameter
+        libgui libdl libaudioutils libnbaio
+
+ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+LOCAL_SHARED_LIBRARIES += \
+        libaudioparameter
+endif
 
 LOCAL_STATIC_LIBRARIES += libinstantssq
 

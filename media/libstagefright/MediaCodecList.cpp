@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaCodecList"
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include <binder/IServiceManager.h>
 
@@ -62,6 +63,14 @@ static Mutex sRemoteInitMutex;
 
 sp<IMediaCodecList> MediaCodecList::sRemoteList;
 
+sp<MediaCodecList::BinderDeathObserver> MediaCodecList::sBinderDeathObserver;
+
+void MediaCodecList::BinderDeathObserver::binderDied(const wp<IBinder> &who __unused) {
+    Mutex::Autolock _l(sRemoteInitMutex);
+    sRemoteList.clear();
+    sBinderDeathObserver.clear();
+}
+
 // static
 sp<IMediaCodecList> MediaCodecList::getInstance() {
     Mutex::Autolock _l(sRemoteInitMutex);
@@ -72,8 +81,11 @@ sp<IMediaCodecList> MediaCodecList::getInstance() {
             interface_cast<IMediaPlayerService>(binder);
         if (service.get() != NULL) {
             sRemoteList = service->getCodecList();
+            if (sRemoteList != NULL) {
+                sBinderDeathObserver = new BinderDeathObserver();
+                binder->linkToDeath(sBinderDeathObserver.get());
+            }
         }
-
         if (sRemoteList == NULL) {
             // if failed to get remote list, create local list
             sRemoteList = getLocalInstance();
@@ -479,6 +491,18 @@ status_t MediaCodecList::addMediaCodecFromAttributes(
 
     if (name == NULL) {
         return -EINVAL;
+    }
+
+    if (!encoder && !strncmp(name, "OMX.qcom.video.decoder.hevc", strlen("OMX.qcom.video.decoder.hevc"))) {
+        char value[PROPERTY_VALUE_MAX] = {0};
+        int sw_codectype = 0;
+        int enableSwHevc = 0;
+
+        sw_codectype = property_get("media.swhevccodectype", value, NULL);
+        enableSwHevc = atoi(value);
+        if (sw_codectype && enableSwHevc) {
+           name = "OMX.qcom.video.decoder.hevcswvdec";
+        }
     }
 
     mCurrentInfo = new MediaCodecInfo(name, encoder, type);

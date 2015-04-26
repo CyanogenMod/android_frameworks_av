@@ -166,7 +166,9 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
             if (*handle == mPatches[index]->mHandle) {
                 ALOGV("createAudioPatch() removing patch handle %d", *handle);
                 halHandle = mPatches[index]->mHalHandle;
+                Patch *removedPatch = mPatches[index];
                 mPatches.removeAt(index);
+                delete removedPatch;
                 break;
             }
         }
@@ -356,9 +358,30 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
             sp<ThreadBase> thread =
                             audioflinger->checkPlaybackThread_l(patch->sources[0].ext.mix.handle);
             if (thread == 0) {
+#ifdef QCOM_DIRECTTRACK
+                AudioSessionDescriptor *desc = NULL;
+               if (! audioflinger->mDirectAudioTracks.isEmpty()) {
+                    desc = audioflinger->mDirectAudioTracks.valueFor((patch->sources[0].ext.mix.handle));
+                    if (desc != NULL) {
+                        ALOGV("setParameters for mAudioTracks size %d desc %p",
+                                  audioflinger->mDirectAudioTracks.size(),desc);
+                        audio_devices_t type = AUDIO_DEVICE_NONE;
+                        for (unsigned int i = 0; i < patch->num_sinks; i++) {
+                             type |= patch->sinks[i].ext.device.type;
+                        }
+                    AudioParameter param;
+                    param.addInt(String8(AUDIO_PARAMETER_STREAM_ROUTING), (int)type);
+                    status = desc->stream->common.set_parameters(&desc->stream->common, param.toString());
+                   }
+             } else {
+#endif
+
                 ALOGW("createAudioPatch() bad playback I/O handle %d",
                           patch->sources[0].ext.mix.handle);
                 status = BAD_VALUE;
+#ifdef QCOM_DIRECTTRACK
+               }
+#endif
                 goto exit;
             }
             if (audioHwDevice->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
@@ -523,22 +546,31 @@ void AudioFlinger::PatchPanel::clearPatchConnections(Patch *patch)
     if (patch->mRecordThread != 0) {
         if (patch->mPatchRecord != 0) {
             patch->mRecordThread->deletePatchRecord(patch->mPatchRecord);
-            patch->mPatchRecord.clear();
         }
         audioflinger->closeInputInternal_l(patch->mRecordThread);
-        patch->mRecordThread.clear();
     }
     if (patch->mPlaybackThread != 0) {
         if (patch->mPatchTrack != 0) {
             patch->mPlaybackThread->deletePatchTrack(patch->mPatchTrack);
-            patch->mPatchTrack.clear();
         }
         // if num sources == 2 we are reusing an existing playback thread so we do not close it
         if (patch->mAudioPatch.num_sources != 2) {
             audioflinger->closeOutputInternal_l(patch->mPlaybackThread);
         }
+    }
+    if (patch->mRecordThread != 0) {
+        if (patch->mPatchRecord != 0) {
+            patch->mPatchRecord.clear();
+        }
+        patch->mRecordThread.clear();
+    }
+    if (patch->mPlaybackThread != 0) {
+        if (patch->mPatchTrack != 0) {
+            patch->mPatchTrack.clear();
+        }
         patch->mPlaybackThread.clear();
     }
+
 }
 
 /* Disconnect a patch */

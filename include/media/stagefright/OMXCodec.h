@@ -12,6 +12,25 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * This file was modified by Dolby Laboratories, Inc. The portions of the
+ * code that are surrounded by "DOLBY..." are copyrighted and
+ * licensed separately, as follows:
+ *
+ *  (C) 2014 Dolby Laboratories, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 
 #ifndef OMX_CODEC_H_
@@ -25,6 +44,15 @@
 #include <utils/threads.h>
 
 #include <OMX_Audio.h>
+
+#include <media/stagefright/ExtendedStats.h>
+
+#define PLAYER_STATS(func, ...) \
+    do { \
+        if(mPlayerExtendedStats != NULL) { \
+            mPlayerExtendedStats->func(__VA_ARGS__);} \
+    } \
+    while(0)
 
 namespace android {
 
@@ -132,6 +160,8 @@ protected:
 
 private:
 
+    sp<PlayerExtendedStats> mPlayerExtendedStats;
+
     // Make sure mLock is accessible to OMXCodecObserver
     friend class OMXCodecObserver;
 
@@ -228,6 +258,11 @@ private:
     Condition mAsyncCompletion;
 
     bool mPaused;
+#ifdef DOLBY_UDC
+    // Indicate if processed audio is being provided by Dolby decoder
+    bool mDolbyProcessedAudio;
+    bool mDolbyProcessedAudioStateChanged;
+#endif // DOLBY_END
 
     sp<ANativeWindow> mNativeWindow;
 
@@ -298,8 +333,27 @@ private:
     void setRawAudioFormat(
             OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels);
 
+    //video
+    status_t setWMVFormat(const sp<MetaData> &inputFormat);
+    status_t setRVFormat(const sp<MetaData> &inputFormat);
+    status_t setFFmpegVideoFormat(const sp<MetaData> &inputFormat);
+    //audio
+    status_t setMP3Format(const sp<MetaData> &inputFormat);
+    status_t setWMAFormat(const sp<MetaData> &inputFormat);
+    status_t setVORBISFormat(const sp<MetaData> &inputFormat);
+    status_t setRAFormat(const sp<MetaData> &inputFormat);
+    status_t setFLACFormat(const sp<MetaData> &inputFormat);
+    status_t setMP2Format(const sp<MetaData> &inputFormat);
+    status_t setAC3Format(const sp<MetaData> &inputFormat);
+    status_t setAPEFormat(const sp<MetaData> &inputFormat);
+    status_t setDTSFormat(const sp<MetaData> &inputFormat);
+    status_t setFFmpegAudioFormat(const sp<MetaData> &inputFormat);
+
     status_t allocateBuffers();
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
+#ifdef USE_SAMSUNG_COLORFORMAT
+    void setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat);
+#endif
     status_t allocateOutputBuffersFromNativeWindow();
 
     status_t queueBufferToNativeWindow(BufferInfo *info);

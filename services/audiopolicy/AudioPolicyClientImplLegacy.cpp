@@ -125,8 +125,13 @@ audio_io_handle_t aps_open_output_on_module(void *service __unused,
                                                    audio_output_flags_t flags,
                                                    const audio_offload_info_t *offloadInfo)
 {
+#ifdef HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
+    return open_output(module, pDevices, pSamplingRate, pFormat, pChannelMask,
+                          pLatencyMs, flags, NULL);
+#else
     return open_output(module, pDevices, pSamplingRate, pFormat, pChannelMask,
                           pLatencyMs, flags, offloadInfo);
+#endif
 }
 
 audio_io_handle_t aps_open_dup_output(void *service __unused,
@@ -188,6 +193,13 @@ static audio_io_handle_t open_input(audio_module_handle_t module,
     if (pSamplingRate == NULL || pFormat == NULL || pChannelMask == NULL || pDevices == NULL) {
         return AUDIO_IO_HANDLE_NONE;
     }
+
+    if (((*pDevices & AUDIO_DEVICE_IN_REMOTE_SUBMIX) == AUDIO_DEVICE_IN_REMOTE_SUBMIX)
+            && !captureAudioOutputAllowed()) {
+        ALOGE("open_input() permission denied: capture not allowed");
+        return AUDIO_IO_HANDLE_NONE;
+    }
+
     audio_config_t config = AUDIO_CONFIG_INITIALIZER;;
     config.sample_rate = *pSamplingRate;
     config.format = *pFormat;

@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SoftAVCEncoder"
 #include <utils/Log.h>
+#include <utils/misc.h>
 
 #include "avcenc_api.h"
 #include "avcenc_int.h"
@@ -25,6 +26,7 @@
 #include <HardwareAPI.h>
 #include <MetadataBufferType.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
@@ -51,31 +53,36 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
+static const CodecProfileLevel kProfileLevels[] = {
+    { OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel2  },
+};
+
 typedef struct LevelConversion {
     OMX_U32 omxLevel;
     AVCLevel avcLevel;
+    uint32_t maxMacroBlocks;
 } LevelConcersion;
 
 static LevelConversion ConversionTable[] = {
-    { OMX_VIDEO_AVCLevel1,  AVC_LEVEL1_B },
-    { OMX_VIDEO_AVCLevel1b, AVC_LEVEL1   },
-    { OMX_VIDEO_AVCLevel11, AVC_LEVEL1_1 },
-    { OMX_VIDEO_AVCLevel12, AVC_LEVEL1_2 },
-    { OMX_VIDEO_AVCLevel13, AVC_LEVEL1_3 },
-    { OMX_VIDEO_AVCLevel2,  AVC_LEVEL2 },
+    { OMX_VIDEO_AVCLevel1,  AVC_LEVEL1_B, 99 },
+    { OMX_VIDEO_AVCLevel1b, AVC_LEVEL1,   99 },
+    { OMX_VIDEO_AVCLevel11, AVC_LEVEL1_1, 396 },
+    { OMX_VIDEO_AVCLevel12, AVC_LEVEL1_2, 396 },
+    { OMX_VIDEO_AVCLevel13, AVC_LEVEL1_3, 396 },
+    { OMX_VIDEO_AVCLevel2,  AVC_LEVEL2,   396 },
 #if 0
-    // encoding speed is very poor if video
-    // resolution is higher than CIF
-    { OMX_VIDEO_AVCLevel21, AVC_LEVEL2_1 },
-    { OMX_VIDEO_AVCLevel22, AVC_LEVEL2_2 },
-    { OMX_VIDEO_AVCLevel3,  AVC_LEVEL3   },
-    { OMX_VIDEO_AVCLevel31, AVC_LEVEL3_1 },
-    { OMX_VIDEO_AVCLevel32, AVC_LEVEL3_2 },
-    { OMX_VIDEO_AVCLevel4,  AVC_LEVEL4   },
-    { OMX_VIDEO_AVCLevel41, AVC_LEVEL4_1 },
-    { OMX_VIDEO_AVCLevel42, AVC_LEVEL4_2 },
-    { OMX_VIDEO_AVCLevel5,  AVC_LEVEL5   },
-    { OMX_VIDEO_AVCLevel51, AVC_LEVEL5_1 },
+    // encoding speed is very poor if video resolution
+    // is higher than CIF or if level is higher than 2
+    { OMX_VIDEO_AVCLevel21, AVC_LEVEL2_1, 792 },
+    { OMX_VIDEO_AVCLevel22, AVC_LEVEL2_2, 1620 },
+    { OMX_VIDEO_AVCLevel3,  AVC_LEVEL3,   1620 },
+    { OMX_VIDEO_AVCLevel31, AVC_LEVEL3_1, 3600 },
+    { OMX_VIDEO_AVCLevel32, AVC_LEVEL3_2, 5120 },
+    { OMX_VIDEO_AVCLevel4,  AVC_LEVEL4,   8192 },
+    { OMX_VIDEO_AVCLevel41, AVC_LEVEL4_1, 8192 },
+    { OMX_VIDEO_AVCLevel42, AVC_LEVEL4_2, 8704 },
+    { OMX_VIDEO_AVCLevel5,  AVC_LEVEL5,   22080 },
+    { OMX_VIDEO_AVCLevel51, AVC_LEVEL5_1, 36864 },
 #endif
 };
 
@@ -148,13 +155,11 @@ SoftAVCEncoder::SoftAVCEncoder(
             const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData,
             OMX_COMPONENTTYPE **component)
-    : SoftVideoEncoderOMXComponent(name, callbacks, appData, component),
-      mVideoWidth(176),
-      mVideoHeight(144),
-      mVideoFrameRate(30),
-      mVideoBitRate(192000),
-      mVideoColorFormat(OMX_COLOR_FormatYUV420Planar),
-      mStoreMetaDataInBuffers(false),
+    : SoftVideoEncoderOMXComponent(
+            name, "video_encoder.avc", OMX_VIDEO_CodingAVC,
+            kProfileLevels, NELEM(kProfileLevels),
+            176 /* width */, 144 /* height */,
+            callbacks, appData, component),
       mIDRFrameRefreshIntervalInSec(1),
       mAVCEncProfile(AVC_BASELINE),
       mAVCEncLevel(AVC_LEVEL2),
@@ -168,7 +173,13 @@ SoftAVCEncoder::SoftAVCEncoder(
       mInputFrameData(NULL),
       mSliceGroup(NULL) {
 
-    initPorts();
+    const size_t kOutputBufferSize =
+        320 * ConversionTable[NELEM(ConversionTable) - 1].maxMacroBlocks;
+
+    initPorts(
+            kNumBuffers, kNumBuffers, kOutputBufferSize,
+            MEDIA_MIMETYPE_VIDEO_AVC, 2 /* minCompressionRatio */);
+
     ALOGI("Construct SoftAVCEncoder");
 }
 
@@ -230,30 +241,28 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
 
     mEncParams->use_overrun_buffer = AVC_OFF;
 
-    if (mVideoColorFormat != OMX_COLOR_FormatYUV420Planar
-            || mStoreMetaDataInBuffers) {
+    if (mColorFormat != OMX_COLOR_FormatYUV420Planar || mInputDataIsMeta) {
         // Color conversion is needed.
         free(mInputFrameData);
         mInputFrameData =
-            (uint8_t *) malloc((mVideoWidth * mVideoHeight * 3 ) >> 1);
+            (uint8_t *) malloc((mWidth * mHeight * 3 ) >> 1);
         CHECK(mInputFrameData != NULL);
     }
 
     // PV's AVC encoder requires the video dimension of multiple
-    if (mVideoWidth % 16 != 0 || mVideoHeight % 16 != 0) {
+    if (mWidth % 16 != 0 || mHeight % 16 != 0) {
         ALOGE("Video frame size %dx%d must be a multiple of 16",
-            mVideoWidth, mVideoHeight);
+            mWidth, mHeight);
         return OMX_ErrorBadParameter;
     }
 
-    mEncParams->width = mVideoWidth;
-    mEncParams->height = mVideoHeight;
-    mEncParams->bitrate = mVideoBitRate;
-    mEncParams->frame_rate = 1000 * mVideoFrameRate;  // In frames/ms!
-    mEncParams->CPB_size = (uint32_t) (mVideoBitRate >> 1);
+    mEncParams->width = mWidth;
+    mEncParams->height = mHeight;
+    mEncParams->bitrate = mBitrate;
+    mEncParams->frame_rate = (1000 * mFramerate) >> 16;  // In frames/ms!, mFramerate is in Q16
+    mEncParams->CPB_size = (uint32_t) (mBitrate >> 1);
 
-    int32_t nMacroBlocks = ((((mVideoWidth + 15) >> 4) << 4) *
-            (((mVideoHeight + 15) >> 4) << 4)) >> 8;
+    int32_t nMacroBlocks = divUp(mWidth, 16) * divUp(mHeight, 16);
     CHECK(mSliceGroup == NULL);
     mSliceGroup = (uint32_t *) malloc(sizeof(uint32_t) * nMacroBlocks);
     CHECK(mSliceGroup != NULL);
@@ -272,7 +281,7 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
         mEncParams->idr_period = 1;  // All I frames
     } else {
         mEncParams->idr_period =
-            (mIDRFrameRefreshIntervalInSec * mVideoFrameRate);
+            (mIDRFrameRefreshIntervalInSec * mFramerate) >> 16; // mFramerate is in Q16
     }
 
     // Set profile and level
@@ -345,71 +354,9 @@ void SoftAVCEncoder::releaseOutputBuffers() {
     mOutputBuffers.clear();
 }
 
-void SoftAVCEncoder::initPorts() {
-    OMX_PARAM_PORTDEFINITIONTYPE def;
-    InitOMXParams(&def);
-
-    const size_t kInputBufferSize = (mVideoWidth * mVideoHeight * 3) >> 1;
-
-    // 31584 is PV's magic number.  Not sure why.
-    const size_t kOutputBufferSize =
-            (kInputBufferSize > 31584) ? kInputBufferSize: 31584;
-
-    def.nPortIndex = 0;
-    def.eDir = OMX_DirInput;
-    def.nBufferCountMin = kNumBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kInputBufferSize;
-    def.bEnabled = OMX_TRUE;
-    def.bPopulated = OMX_FALSE;
-    def.eDomain = OMX_PortDomainVideo;
-    def.bBuffersContiguous = OMX_FALSE;
-    def.nBufferAlignment = 1;
-
-    def.format.video.cMIMEType = const_cast<char *>("video/raw");
-    def.format.video.eCompressionFormat = OMX_VIDEO_CodingUnused;
-    def.format.video.eColorFormat = OMX_COLOR_FormatYUV420Planar;
-    def.format.video.xFramerate = (mVideoFrameRate << 16);  // Q16 format
-    def.format.video.nBitrate = mVideoBitRate;
-    def.format.video.nFrameWidth = mVideoWidth;
-    def.format.video.nFrameHeight = mVideoHeight;
-    def.format.video.nStride = mVideoWidth;
-    def.format.video.nSliceHeight = mVideoHeight;
-
-    addPort(def);
-
-    def.nPortIndex = 1;
-    def.eDir = OMX_DirOutput;
-    def.nBufferCountMin = kNumBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kOutputBufferSize;
-    def.bEnabled = OMX_TRUE;
-    def.bPopulated = OMX_FALSE;
-    def.eDomain = OMX_PortDomainVideo;
-    def.bBuffersContiguous = OMX_FALSE;
-    def.nBufferAlignment = 2;
-
-    def.format.video.cMIMEType = const_cast<char *>("video/avc");
-    def.format.video.eCompressionFormat = OMX_VIDEO_CodingAVC;
-    def.format.video.eColorFormat = OMX_COLOR_FormatUnused;
-    def.format.video.xFramerate = (0 << 16);  // Q16 format
-    def.format.video.nBitrate = mVideoBitRate;
-    def.format.video.nFrameWidth = mVideoWidth;
-    def.format.video.nFrameHeight = mVideoHeight;
-    def.format.video.nStride = mVideoWidth;
-    def.format.video.nSliceHeight = mVideoHeight;
-
-    addPort(def);
-}
-
 OMX_ERRORTYPE SoftAVCEncoder::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR params) {
     switch (index) {
-        case OMX_IndexParamVideoErrorCorrection:
-        {
-            return OMX_ErrorNotImplemented;
-        }
-
         case OMX_IndexParamVideoBitrate:
         {
             OMX_VIDEO_PARAM_BITRATETYPE *bitRate =
@@ -420,37 +367,7 @@ OMX_ERRORTYPE SoftAVCEncoder::internalGetParameter(
             }
 
             bitRate->eControlRate = OMX_Video_ControlRateVariable;
-            bitRate->nTargetBitrate = mVideoBitRate;
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamVideoPortFormat:
-        {
-            OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
-                (OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
-
-            if (formatParams->nPortIndex > 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (formatParams->nIndex > 2) {
-                return OMX_ErrorNoMore;
-            }
-
-            if (formatParams->nPortIndex == 0) {
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingUnused;
-                if (formatParams->nIndex == 0) {
-                    formatParams->eColorFormat = OMX_COLOR_FormatYUV420Planar;
-                } else if (formatParams->nIndex == 1) {
-                    formatParams->eColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
-                } else {
-                    formatParams->eColorFormat = OMX_COLOR_FormatAndroidOpaque;
-                }
-            } else {
-                formatParams->eCompressionFormat = OMX_VIDEO_CodingAVC;
-                formatParams->eColorFormat = OMX_COLOR_FormatUnused;
-            }
-
+            bitRate->nTargetBitrate = mBitrate;
             return OMX_ErrorNone;
         }
 
@@ -487,30 +404,8 @@ OMX_ERRORTYPE SoftAVCEncoder::internalGetParameter(
             return OMX_ErrorNone;
         }
 
-        case OMX_IndexParamVideoProfileLevelQuerySupported:
-        {
-            OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
-                (OMX_VIDEO_PARAM_PROFILELEVELTYPE *)params;
-
-            if (profileLevel->nPortIndex != 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            const size_t size =
-                    sizeof(ConversionTable) / sizeof(ConversionTable[0]);
-
-            if (profileLevel->nProfileIndex >= size) {
-                return OMX_ErrorNoMore;
-            }
-
-            profileLevel->eProfile = OMX_VIDEO_AVCProfileBaseline;
-            profileLevel->eLevel = ConversionTable[profileLevel->nProfileIndex].omxLevel;
-
-            return OMX_ErrorNone;
-        }
-
         default:
-            return SimpleSoftOMXComponent::internalGetParameter(index, params);
+            return SoftVideoEncoderOMXComponent::internalGetParameter(index, params);
     }
 }
 
@@ -519,11 +414,6 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
     int32_t indexFull = index;
 
     switch (indexFull) {
-        case OMX_IndexParamVideoErrorCorrection:
-        {
-            return OMX_ErrorNotImplemented;
-        }
-
         case OMX_IndexParamVideoBitrate:
         {
             OMX_VIDEO_PARAM_BITRATETYPE *bitRate =
@@ -534,105 +424,7 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
                 return OMX_ErrorUndefined;
             }
 
-            mVideoBitRate = bitRate->nTargetBitrate;
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamPortDefinition:
-        {
-            OMX_PARAM_PORTDEFINITIONTYPE *def =
-                (OMX_PARAM_PORTDEFINITIONTYPE *)params;
-            if (def->nPortIndex > 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (def->nPortIndex == 0) {
-                if (def->format.video.eCompressionFormat != OMX_VIDEO_CodingUnused ||
-                    (def->format.video.eColorFormat != OMX_COLOR_FormatYUV420Planar &&
-                     def->format.video.eColorFormat != OMX_COLOR_FormatYUV420SemiPlanar &&
-                     def->format.video.eColorFormat != OMX_COLOR_FormatAndroidOpaque)) {
-                    return OMX_ErrorUndefined;
-                }
-            } else {
-                if (def->format.video.eCompressionFormat != OMX_VIDEO_CodingAVC ||
-                    (def->format.video.eColorFormat != OMX_COLOR_FormatUnused)) {
-                    return OMX_ErrorUndefined;
-                }
-            }
-
-            OMX_ERRORTYPE err = SimpleSoftOMXComponent::internalSetParameter(index, params);
-            if (OMX_ErrorNone != err) {
-                return err;
-            }
-
-            if (def->nPortIndex == 0) {
-                mVideoWidth = def->format.video.nFrameWidth;
-                mVideoHeight = def->format.video.nFrameHeight;
-                mVideoFrameRate = def->format.video.xFramerate >> 16;
-                mVideoColorFormat = def->format.video.eColorFormat;
-
-                OMX_PARAM_PORTDEFINITIONTYPE *portDef =
-                    &editPortInfo(0)->mDef;
-                portDef->format.video.nFrameWidth = mVideoWidth;
-                portDef->format.video.nFrameHeight = mVideoHeight;
-                portDef->format.video.xFramerate = def->format.video.xFramerate;
-                portDef->format.video.eColorFormat =
-                    (OMX_COLOR_FORMATTYPE) mVideoColorFormat;
-                portDef = &editPortInfo(1)->mDef;
-                portDef->format.video.nFrameWidth = mVideoWidth;
-                portDef->format.video.nFrameHeight = mVideoHeight;
-            } else {
-                mVideoBitRate = def->format.video.nBitrate;
-            }
-
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamStandardComponentRole:
-        {
-            const OMX_PARAM_COMPONENTROLETYPE *roleParams =
-                (const OMX_PARAM_COMPONENTROLETYPE *)params;
-
-            if (strncmp((const char *)roleParams->cRole,
-                        "video_encoder.avc",
-                        OMX_MAX_STRINGNAME_SIZE - 1)) {
-                return OMX_ErrorUndefined;
-            }
-
-            return OMX_ErrorNone;
-        }
-
-        case OMX_IndexParamVideoPortFormat:
-        {
-            const OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
-                (const OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
-
-            if (formatParams->nPortIndex > 1) {
-                return OMX_ErrorUndefined;
-            }
-
-            if (formatParams->nIndex > 2) {
-                return OMX_ErrorNoMore;
-            }
-
-            if (formatParams->nPortIndex == 0) {
-                if (formatParams->eCompressionFormat != OMX_VIDEO_CodingUnused ||
-                    ((formatParams->nIndex == 0 &&
-                      formatParams->eColorFormat != OMX_COLOR_FormatYUV420Planar) ||
-                    (formatParams->nIndex == 1 &&
-                     formatParams->eColorFormat != OMX_COLOR_FormatYUV420SemiPlanar) ||
-                    (formatParams->nIndex == 2 &&
-                     formatParams->eColorFormat != OMX_COLOR_FormatAndroidOpaque) )) {
-                    return OMX_ErrorUndefined;
-                }
-                mVideoColorFormat = formatParams->eColorFormat;
-            } else {
-                if (formatParams->eCompressionFormat != OMX_VIDEO_CodingAVC ||
-                    formatParams->eColorFormat != OMX_COLOR_FormatUnused) {
-                    return OMX_ErrorUndefined;
-                }
-            }
-
+            mBitrate = bitRate->nTargetBitrate;
             return OMX_ErrorNone;
         }
 
@@ -669,29 +461,8 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
             return OMX_ErrorNone;
         }
 
-        case kStoreMetaDataExtensionIndex:
-        {
-            StoreMetaDataInBuffersParams *storeParams =
-                    (StoreMetaDataInBuffersParams*)params;
-            if (storeParams->nPortIndex != 0) {
-                ALOGE("%s: StoreMetadataInBuffersParams.nPortIndex not zero!",
-                        __FUNCTION__);
-                return OMX_ErrorUndefined;
-            }
-
-            mStoreMetaDataInBuffers = storeParams->bStoreMetaData;
-            ALOGV("StoreMetaDataInBuffers set to: %s",
-                    mStoreMetaDataInBuffers ? " true" : "false");
-
-            if (mStoreMetaDataInBuffers) {
-                mVideoColorFormat = OMX_COLOR_FormatAndroidOpaque;
-            }
-
-            return OMX_ErrorNone;
-        }
-
         default:
-            return SimpleSoftOMXComponent::internalSetParameter(index, params);
+            return SoftVideoEncoderOMXComponent::internalSetParameter(index, params);
     }
 }
 
@@ -785,11 +556,11 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
             if (inHeader->nFilledLen > 0) {
                 AVCFrameIO videoInput;
                 memset(&videoInput, 0, sizeof(videoInput));
-                videoInput.height = ((mVideoHeight  + 15) >> 4) << 4;
-                videoInput.pitch = ((mVideoWidth + 15) >> 4) << 4;
+                videoInput.height = align(mHeight, 16);
+                videoInput.pitch = align(mWidth, 16);
                 videoInput.coding_timestamp = (inHeader->nTimeStamp + 500) / 1000;  // in ms
                 const uint8_t *inputData = NULL;
-                if (mStoreMetaDataInBuffers) {
+                if (mInputDataIsMeta) {
                     if (inHeader->nFilledLen != 8) {
                         ALOGE("MetaData buffer is wrong size! "
                                 "(got %u bytes, expected 8)", inHeader->nFilledLen);
@@ -799,9 +570,9 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
                     }
                     inputData =
                         extractGraphicBuffer(
-                                mInputFrameData, (mVideoWidth * mVideoHeight * 3) >> 1,
+                                mInputFrameData, (mWidth * mHeight * 3) >> 1,
                                 inHeader->pBuffer + inHeader->nOffset, inHeader->nFilledLen,
-                                mVideoWidth, mVideoHeight);
+                                mWidth, mHeight);
                     if (inputData == NULL) {
                         ALOGE("Unable to extract gralloc buffer in metadata mode");
                         mSignalledError = true;
@@ -811,9 +582,9 @@ void SoftAVCEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
                     // TODO: Verify/convert pixel format enum
                 } else {
                     inputData = (const uint8_t *)inHeader->pBuffer + inHeader->nOffset;
-                    if (mVideoColorFormat != OMX_COLOR_FormatYUV420Planar) {
+                    if (mColorFormat != OMX_COLOR_FormatYUV420Planar) {
                         ConvertYUV420SemiPlanarToYUV420Planar(
-                            inputData, mInputFrameData, mVideoWidth, mVideoHeight);
+                            inputData, mInputFrameData, mWidth, mHeight);
                         inputData = mInputFrameData;
                     }
                 }

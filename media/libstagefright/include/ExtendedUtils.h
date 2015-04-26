@@ -167,6 +167,10 @@ struct ExtendedUtils {
 
         //helper function to parse rtp port range form system property
         static void getRtpPortRange(unsigned *start, unsigned *end);
+
+        static bool isVideoRenderingDisabled();
+
+        static bool isCustomHLSEnabled();
     };
 
     struct RTSPStream {
@@ -214,7 +218,14 @@ struct ExtendedUtils {
     static bool UseQCHWAACEncoder(audio_encoder Encoder = AUDIO_ENCODER_DEFAULT, int32_t Channel = 0,
             int32_t BitRate = 0, int32_t SampleRate = 0);
 
-    static bool UseQCHWAACDecoder(const char *mime);
+    static bool is24bitPCMOffloadEnabled();
+    static bool is16bitPCMOffloadEnabled();
+    static bool isRAWFormat(const sp<MetaData> &meta);
+    static bool isRAWFormat(const sp<AMessage> &format);
+    static int32_t getPcmSampleBits(const sp<MetaData> &meta);
+    static int32_t getPcmSampleBits(const sp<AMessage> &format);
+    static int32_t getPCMFormat(const sp<MetaData> &meta);
+    static void setKeyPCMFormat(const sp<MetaData> &meta, int32_t pcmFormat);
 
     static sp<MediaExtractor> MediaExtractor_CreateIfNeeded(
             sp<MediaExtractor> defaultExt, const sp<DataSource> &source,
@@ -227,10 +238,16 @@ struct ExtendedUtils {
             OMX_U32 width, OMX_U32 height, OMX_COLOR_FORMATTYPE colorFormat);
 
     static bool checkIsThumbNailMode(const uint32_t flags, char* componentName);
+    
+    static void setArbitraryModeIfInterlaced(const uint8_t *ptr, const sp<MetaData> &meta);
+
+    static int32_t checkIsInterlace(sp<MetaData> &meta);
 
     static bool isVideoMuxFormatSupported(const char *mime);
 
     static void printFileName(int fd);
+    static sp<MetaData> updatePCMFormatAndBitwidth(sp<MediaSource> &audioSource,
+                                            bool offloadAudio);
     static void applyPreRotation(
             const CameraParameters& params, sp<MetaData> &meta);
 
@@ -239,6 +256,22 @@ struct ExtendedUtils {
     static void updateVideoTrackInfoFromESDS_MPEG4Video(sp<MetaData> meta);
     static bool checkDPFromVOLHeader(const uint8_t *ptr, size_t size);
     static bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
+
+    static bool isPcmOffloadEnabled();
+
+    static bool pcmOffloadException(const char* const mime);
+
+    static sp<MetaData> createPCMMetaFromSource(
+            const sp<MetaData> &sMeta);
+
+    static void overWriteAudioFormat(
+                sp<AMessage> &dst, const sp<AMessage> &src);
+
+    static sp<MetaData> MakeHEVCCodecSpecificData(const sp<ABuffer> &accessUnit);
+    static bool IsHevcIDR(const sp<ABuffer> &accessUnit);
+	
+    static bool is24bitPCMOffloaded(
+                const sp<MetaData> &sMeta);
 };
 
 }

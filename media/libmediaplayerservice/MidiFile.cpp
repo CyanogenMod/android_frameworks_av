@@ -259,6 +259,7 @@ status_t MidiFile::stop()
             ALOGE("EAS_Pause returned error %ld", result);
             return ERROR_EAS_FAILURE;
         }
+        updateState();
     }
     mPaused = false;
     sendEvent(MEDIA_STOPPED);
@@ -307,7 +308,7 @@ bool MidiFile::isPlaying()
 {
     ALOGV("MidiFile::isPlaying, mState=%d", int(mState));
     if (!mEasHandle || mPaused) return false;
-    return (mState == EAS_STATE_PLAY);
+    return (mState == EAS_STATE_PLAY || (mState == EAS_STATE_READY && mRender));
 }
 
 status_t MidiFile::getCurrentPosition(int* position)

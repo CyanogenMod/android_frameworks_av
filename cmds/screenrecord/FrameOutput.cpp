@@ -206,7 +206,7 @@ void FrameOutput::reduceRgbaToRgb(uint8_t* buf, unsigned int pixelCount) {
 }
 
 // Callback; executes on arbitrary thread.
-void FrameOutput::onFrameAvailable() {
+void FrameOutput::onFrameAvailable(const BufferItem& /* item */) {
     Mutex::Autolock _l(mMutex);
     mFrameAvailable = true;
     mEventCond.signal();

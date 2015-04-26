@@ -24,6 +24,7 @@
 #include "ASessionDescription.h"
 
 #include "include/avc_utils.h"
+#include "include/ExtendedUtils.h"
 
 #include <ctype.h>
 
@@ -197,7 +198,7 @@ static sp<ABuffer> MakeAVCCodecSpecificData(
         out += nal->size();
 
         if (i == 0) {
-            FindAVCDimensions(nal, width, height);
+            FindAVCDimensions(nal, width, height, NULL);
             ALOGI("dimensions %dx%d", *width, *height);
         }
     }
@@ -278,8 +279,6 @@ sp<ABuffer> MakeAACCodecSpecificData2(const char *params) {
     // Make sure size fits into a single byte and doesn't have to
     // be encoded.
     CHECK_LT(20 + config->size(), 128u);
-
-    const uint8_t *data = config->data();
 
     static const uint8_t kStaticESDS[] = {
         0x03, 22,
@@ -536,6 +535,8 @@ APacketSource::APacketSource(
             mInitCheck = ERROR_UNSUPPORTED;
             return;
         }
+
+        ExtendedUtils::updateVideoTrackInfoFromESDS_MPEG4Video(mFormat);
 
         mFormat->setInt32(kKeyWidth, width);
         mFormat->setInt32(kKeyHeight, height);
