@@ -88,6 +88,10 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     }
 }
 
+void NuPlayer::DecoderPassThrough::onSetParameters(const sp<AMessage> &/*params*/) {
+    ALOGW("onSetParameters() called unexpectedly");
+}
+
 void NuPlayer::DecoderPassThrough::onSetRenderer(
         const sp<Renderer> &renderer) {
     // renderer can't be changed during offloading

@@ -192,6 +192,7 @@ private:
     List<sp<AMessage> > mDeferredQueue;
 
     bool mSentFormat;
+    bool mIsVideo;
     bool mIsEncoder;
     bool mUseMetadataOnEncoderOutput;
     bool mShutdownInProgress;

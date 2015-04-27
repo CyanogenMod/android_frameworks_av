@@ -252,6 +252,14 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     mResumePending = false;
 }
 
+void NuPlayer::Decoder::onSetParameters(const sp<AMessage> &params) {
+    if (mCodec == NULL) {
+        ALOGW("onSetParameters called before codec is created.");
+        return;
+    }
+    mCodec->setParameters(params);
+}
+
 void NuPlayer::Decoder::onSetRenderer(const sp<Renderer> &renderer) {
     bool hadNoRenderer = (mRenderer == NULL);
     mRenderer = renderer;

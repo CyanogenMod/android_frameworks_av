@@ -634,6 +634,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             if (mRenderer != NULL) {
                 mRenderer->setPlaybackRate(mPlaybackRate);
             }
+
+            if (mVideoDecoder != NULL) {
+                sp<MetaData> meta = getFileMeta();
+                int32_t rate;
+                if (meta != NULL && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
+                    sp<AMessage> params = new AMessage();
+                    params->setFloat("operating-rate", rate * mPlaybackRate);
+                    mVideoDecoder->setParameters(params);
+                }
+            }
+
             break;
         }
 
@@ -1249,6 +1260,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         return -EWOULDBLOCK;
     }
 
+    format->setInt32("priority", 0 /* realtime */);
+
     if (!audio) {
         AString mime;
         CHECK(format->findString("mime", &mime));
@@ -1264,6 +1277,12 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
 
         if (mSourceFlags & Source::FLAG_PROTECTED) {
             format->setInt32("protected", true);
+        }
+
+        sp<MetaData> meta = getFileMeta();
+        int32_t rate;
+        if (meta != NULL && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
+            format->setFloat("operating-rate", rate * mPlaybackRate);
         }
     }
 
