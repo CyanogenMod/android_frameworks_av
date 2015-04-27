@@ -70,6 +70,12 @@ void NuPlayer::DecoderBase::init() {
     mDecoderLooper->registerHandler(this);
 }
 
+void NuPlayer::DecoderBase::setParameters(const sp<AMessage> &params) {
+    sp<AMessage> msg = new AMessage(kWhatSetParameters, this);
+    msg->setMessage("params", params);
+    msg->post();
+}
+
 void NuPlayer::DecoderBase::setRenderer(const sp<Renderer> &renderer) {
     sp<AMessage> msg = new AMessage(kWhatSetRenderer, this);
     msg->setObject("renderer", renderer);
@@ -120,6 +126,14 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> format;
             CHECK(msg->findMessage("format", &format));
             onConfigure(format);
+            break;
+        }
+
+        case kWhatSetParameters:
+        {
+            sp<AMessage> params;
+            CHECK(msg->findMessage("params", &params));
+            onSetParameters(params);
             break;
         }
 

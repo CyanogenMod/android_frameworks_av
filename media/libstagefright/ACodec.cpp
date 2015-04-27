@@ -405,6 +405,7 @@ ACodec::ACodec()
     : mQuirks(0),
       mNode(0),
       mSentFormat(false),
+      mIsVideo(false),
       mIsEncoder(false),
       mUseMetadataOnEncoderOutput(false),
       mShutdownInProgress(false),
@@ -1186,6 +1187,7 @@ status_t ACodec::configureCodec(
 
     mIsEncoder = encoder;
 
+
     status_t err = setComponentRole(encoder /* isEncoder */, mime);
 
     if (err != OK) {
@@ -1244,6 +1246,7 @@ status_t ACodec::configureCodec(
     // sps/pps to idr frames, since in metadata mode the bitstream is in an
     // opaque handle, to which we don't have access.
     int32_t video = !strncasecmp(mime, "video/", 6);
+    mIsVideo = video;
     if (encoder && video) {
         OMX_BOOL enable = (OMX_BOOL) (prependSPSPPS
             && msg->findInt32("store-metadata-in-buffers-output", &storeMeta)
@@ -5680,6 +5683,15 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
 
         if (err != OK) {
             ALOGE("Requesting a sync frame failed w/ err %d", err);
+            return err;
+        }
+    }
+
+    float rate;
+    if (params->findFloat("operating-rate", &rate) && rate > 0) {
+        status_t err = setOperatingRate(rate, mIsVideo);
+        if (err != OK) {
+            ALOGE("Failed to set parameter 'operating-rate' (err %d)", err);
             return err;
         }
     }
