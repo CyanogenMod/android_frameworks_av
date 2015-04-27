@@ -25,6 +25,8 @@ namespace android {
 
 extern const char kResourceSecureCodec[];
 extern const char kResourceNonSecureCodec[];
+extern const char kResourceAudioCodec[];
+extern const char kResourceVideoCodec[];
 extern const char kResourceGraphicMemory[];
 
 class MediaResource {

@@ -351,7 +351,7 @@ private:
     bool isExecuting() const;
 
     uint64_t getGraphicBufferSize();
-    void addResource(const char *type, uint64_t value);
+    void addResource(const String8 &type, const String8 &subtype, uint64_t value);
 
     /* called to get the last codec error when the sticky flag is set.
      * if no such codec error is found, returns UNKNOWN_ERROR.

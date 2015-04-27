@@ -23,6 +23,8 @@ namespace android {
 
 const char kResourceSecureCodec[] = "secure-codec";
 const char kResourceNonSecureCodec[] = "non-secure-codec";
+const char kResourceAudioCodec[] = "audio-codec";
+const char kResourceVideoCodec[] = "video-codec";
 const char kResourceGraphicMemory[] = "graphic-memory";
 
 MediaResource::MediaResource() : mValue(0) {}
