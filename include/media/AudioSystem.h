@@ -19,6 +19,7 @@
 
 #include <hardware/audio_effect.h>
 #include <media/AudioPolicy.h>
+#include <media/AudioIoDescriptor.h>
 #include <media/IAudioFlingerClient.h>
 #include <media/IAudioPolicyServiceClient.h>
 #include <system/audio.h>
@@ -154,33 +155,6 @@ public:
     // Return a valid source or AUDIO_HW_SYNC_INVALID if an error occurs
     // or no HW sync source is used.
     static audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId);
-
-    // types of io configuration change events received with ioConfigChanged()
-    enum io_config_event {
-        OUTPUT_OPENED,
-        OUTPUT_CLOSED,
-        OUTPUT_CONFIG_CHANGED,
-        INPUT_OPENED,
-        INPUT_CLOSED,
-        INPUT_CONFIG_CHANGED,
-        STREAM_CONFIG_CHANGED,
-        NUM_CONFIG_EVENTS
-    };
-
-    // audio output descriptor used to cache output configurations in client process to avoid
-    // frequent calls through IAudioFlinger
-    class OutputDescriptor {
-    public:
-        OutputDescriptor()
-        : samplingRate(0), format(AUDIO_FORMAT_DEFAULT), channelMask(0), frameCount(0), latency(0)
-            {}
-
-        uint32_t samplingRate;
-        audio_format_t format;
-        audio_channel_mask_t channelMask;
-        size_t frameCount;
-        uint32_t latency;
-    };
 
     // Events used to synchronize actions between audio sessions.
     // For instance SYNC_EVENT_PRESENTATION_COMPLETE can be used to delay recording start until
@@ -362,8 +336,15 @@ private:
     class AudioFlingerClient: public IBinder::DeathRecipient, public BnAudioFlingerClient
     {
     public:
-        AudioFlingerClient() {
+        AudioFlingerClient() :
+            mInBuffSize(0), mInSamplingRate(0),
+            mInFormat(AUDIO_FORMAT_DEFAULT), mInChannelMask(AUDIO_CHANNEL_NONE) {
         }
+
+        void clearIoCache();
+        status_t getInputBufferSize(uint32_t sampleRate, audio_format_t format,
+                                    audio_channel_mask_t channelMask, size_t* buffSize);
+        sp<AudioIoDescriptor> getIoDescriptor(audio_io_handle_t ioHandle);
 
         // DeathRecipient
         virtual void binderDied(const wp<IBinder>& who);
@@ -372,7 +353,17 @@ private:
 
         // indicate a change in the configuration of an output or input: keeps the cached
         // values for output/input parameters up-to-date in client process
-        virtual void ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
+        virtual void ioConfigChanged(audio_io_config_event event,
+                                     const sp<AudioIoDescriptor>& ioDesc);
+    private:
+        Mutex                               mLock;
+        DefaultKeyedVector<audio_io_handle_t, sp<AudioIoDescriptor> > mIoDescriptors;
+
+        // cached values for recording getInputBufferSize() queries
+        size_t                              mInBuffSize;    // zero indicates cache is invalid
+        uint32_t                            mInSamplingRate;
+        audio_format_t                      mInFormat;
+        audio_channel_mask_t                mInChannelMask;
     };
 
     class AudioPolicyServiceClient: public IBinder::DeathRecipient,
@@ -404,8 +395,6 @@ private:
     friend class AudioPolicyServiceClient;
 
     static Mutex gLock;      // protects gAudioFlinger and gAudioErrorCallback,
-    static Mutex gLockCache; // protects gOutputs, gPrevInSamplingRate, gPrevInFormat,
-                             // gPrevInChannelMask and gInBuffSize
     static Mutex gLockAPS;   // protects gAudioPolicyService and gAudioPolicyServiceClient
     static sp<IAudioFlinger> gAudioFlinger;
     static audio_error_callback gAudioErrorCallback;
@@ -417,10 +406,6 @@ private:
     static audio_channel_mask_t gPrevInChannelMask;
 
     static sp<IAudioPolicyService> gAudioPolicyService;
-
-    // list of output descriptors containing cached parameters
-    // (sampling rate, framecount, channel count...)
-    static DefaultKeyedVector<audio_io_handle_t, OutputDescriptor *> gOutputs;
 };
 
 };  // namespace android
