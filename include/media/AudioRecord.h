@@ -374,6 +374,16 @@ public:
             status_t    obtainBuffer(Buffer* audioBuffer, int32_t waitCount,
                                 size_t *nonContig = NULL);
 
+            // Explicit Routing
+    /**
+     * TODO Document this method.
+     */
+            status_t setInputDevice(audio_port_handle_t deviceId);
+
+    /**
+     * TODO Document this method.
+     */
+            audio_port_handle_t getInputDevice();
 private:
     /* If nonContig is non-NULL, it is an output parameter that will be set to the number of
      * additional non-contiguous frames that are predicted to be available immediately,
@@ -560,6 +570,10 @@ private:
     sp<DeathNotifier>       mDeathNotifier;
     uint32_t                mSequence;              // incremented for each new IAudioRecord attempt
     audio_attributes_t      mAttributes;
+
+    // For Device Selection API
+    //  a value of AUDIO_PORT_HANDLE_NONE indicated default (AudioPolicyManager) routing.
+    audio_port_handle_t    mSelectedDeviceId;
 };
 
 }; // namespace android

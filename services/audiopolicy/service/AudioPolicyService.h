@@ -84,7 +84,7 @@ public:
                                       audio_format_t format = AUDIO_FORMAT_DEFAULT,
                                       audio_channel_mask_t channelMask = 0,
                                       audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
-                                      int selectedDeviceId = AUDIO_PORT_HANDLE_NONE,
+                                      audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE,
                                       const audio_offload_info_t *offloadInfo = NULL);
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
@@ -101,7 +101,8 @@ public:
                                      uint32_t samplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
-                                     audio_input_flags_t flags);
+                                     audio_input_flags_t flags,
+                                     audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE);
     virtual status_t startInput(audio_io_handle_t input,
                                 audio_session_t session);
     virtual status_t stopInput(audio_io_handle_t input,

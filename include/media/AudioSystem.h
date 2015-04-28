@@ -248,7 +248,8 @@ public:
                                     uint32_t samplingRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
-                                    audio_input_flags_t flags);
+                                    audio_input_flags_t flags,
+                                    audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE);
 
     static status_t startInput(audio_io_handle_t input,
                                audio_session_t session);

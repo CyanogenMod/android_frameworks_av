@@ -150,7 +150,7 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_format_t format,
                                               audio_channel_mask_t channelMask,
                                               audio_output_flags_t flags,
-                                              int mSelectedDeviceId,
+                                              audio_port_handle_t selectedDeviceId,
                                               const audio_offload_info_t *offloadInfo)
 {
     if (mAudioPolicyManager == NULL) {
@@ -159,7 +159,7 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
     ALOGV("getOutput()");
     Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, samplingRate,
-                                    format, channelMask, flags, mSelectedDeviceId, offloadInfo);
+                                    format, channelMask, flags, selectedDeviceId, offloadInfo);
 }
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
@@ -251,7 +251,8 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
                                              uint32_t samplingRate,
                                              audio_format_t format,
                                              audio_channel_mask_t channelMask,
-                                             audio_input_flags_t flags)
+                                             audio_input_flags_t flags,
+                                             audio_port_handle_t selectedDeviceId)
 {
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
@@ -273,7 +274,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
         // the audio_in_acoustics_t parameter is ignored by get_input()
         status = mAudioPolicyManager->getInputForAttr(attr, input, session,
                                                      samplingRate, format, channelMask,
-                                                     flags, &inputType);
+                                                     flags, selectedDeviceId, &inputType);
         audioPolicyEffects = mAudioPolicyEffects;
 
         if (status == NO_ERROR) {

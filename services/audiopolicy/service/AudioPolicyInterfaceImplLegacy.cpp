@@ -237,7 +237,8 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
                                              uint32_t samplingRate,
                                              audio_format_t format,
                                              audio_channel_mask_t channelMask,
-                                             audio_input_flags_t flags __unused)
+                                             audio_input_flags_t flags __unused,
+                                             audio_port_handle_t selectedDeviceId __unused)
 {
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
@@ -568,7 +569,7 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_format_t format,
                                               audio_channel_mask_t channelMask,
                                               audio_output_flags_t flags,
-                                              int selectedDeviceId __unused,
+                                              audio_port_handle_t selectedDeviceId __unused,
                                               const audio_offload_info_t *offloadInfo)
 {
     if (attr != NULL) {

@@ -133,6 +133,7 @@ public:
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
                                      audio_input_flags_t flags,
+                                     audio_port_handle_t selectedDeviceId,
                                      input_type_t *inputType) = 0;
     // indicates to the audio policy manager that the input starts being used.
     virtual status_t startInput(audio_io_handle_t input,
