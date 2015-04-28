@@ -49,6 +49,7 @@
 #include <OMX_VideoExt.h>
 #include <OMX_Component.h>
 #include <OMX_IndexExt.h>
+#include <OMX_AsString.h>
 
 #include "include/avc_utils.h"
 
@@ -154,7 +155,7 @@ struct CodecObserver : public BnOMXObserver {
             }
 
             default:
-                TRESPASS();
+                ALOGE("Unrecognized message type: %d", omx_msg.type);
                 break;
         }
 
@@ -697,7 +698,9 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
             for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
                 sp<IMemory> mem = mDealer[portIndex]->allocate(def.nBufferSize);
-                CHECK(mem.get() != NULL);
+                if (mem.get() == NULL) {
+                    return NO_MEMORY;
+                }
 
                 BufferInfo info;
                 info.mStatus = BufferInfo::OWNED_BY_US;
@@ -987,7 +990,9 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
 
         sp<IMemory> mem = mDealer[kPortIndexOutput]->allocate(
                 sizeof(struct VideoDecoderOutputMetaData));
-        CHECK(mem.get() != NULL);
+        if (mem.get() == NULL) {
+            return NO_MEMORY;
+        }
         info.mData = new ABuffer(mem->pointer(), mem->size());
 
         // we use useBuffer for metadata regardless of quirks
@@ -1056,11 +1061,12 @@ status_t ACodec::submitOutputMetaDataBuffer() {
           mComponentName.c_str(), info->mBufferID, info->mGraphicBuffer.get());
 
     --mMetaDataBuffersToSubmit;
-    CHECK_EQ(mOMX->fillBuffer(mNode, info->mBufferID),
-             (status_t)OK);
+    status_t err = mOMX->fillBuffer(mNode, info->mBufferID);
+    if (err == OK) {
+        info->mStatus = BufferInfo::OWNED_BY_COMPONENT;
+    }
 
-    info->mStatus = BufferInfo::OWNED_BY_COMPONENT;
-    return OK;
+    return err;
 }
 
 status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
@@ -1181,16 +1187,21 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
 }
 
 status_t ACodec::freeBuffersOnPort(OMX_U32 portIndex) {
+    status_t err = OK;
     for (size_t i = mBuffers[portIndex].size(); i-- > 0;) {
-        CHECK_EQ((status_t)OK, freeBuffer(portIndex, i));
+        status_t err2 = freeBuffer(portIndex, i);
+        if (err == OK) {
+            err = err2;
+        }
     }
 
     mDealer[portIndex].clear();
 
-    return OK;
+    return err;
 }
 
 status_t ACodec::freeOutputBuffersNotOwnedByComponent() {
+    status_t err = OK;
     for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
         BufferInfo *info =
             &mBuffers[kPortIndexOutput].editItemAt(i);
@@ -1199,11 +1210,14 @@ status_t ACodec::freeOutputBuffersNotOwnedByComponent() {
         // or being drained.
         if (info->mStatus != BufferInfo::OWNED_BY_COMPONENT &&
             info->mStatus != BufferInfo::OWNED_BY_DOWNSTREAM) {
-            CHECK_EQ((status_t)OK, freeBuffer(kPortIndexOutput, i));
+            status_t err2 = freeBuffer(kPortIndexOutput, i);
+            if (err == OK) {
+                err = err2;
+            }
         }
     }
 
-    return OK;
+    return err;
 }
 
 status_t ACodec::freeBuffer(OMX_U32 portIndex, size_t i) {
@@ -1217,13 +1231,11 @@ status_t ACodec::freeBuffer(OMX_U32 portIndex, size_t i) {
         cancelBufferToNativeWindow(info);
     }
 
-    CHECK_EQ(mOMX->freeBuffer(
-                mNode, portIndex, info->mBufferID),
-             (status_t)OK);
-
+    status_t err = mOMX->freeBuffer(mNode, portIndex, info->mBufferID);
+    // remove buffer even if mOMX->freeBuffer fails
     mBuffers[portIndex].removeAt(i);
 
-    return OK;
+    return err;
 }
 
 ACodec::BufferInfo *ACodec::findBufferByID(
@@ -1240,8 +1252,7 @@ ACodec::BufferInfo *ACodec::findBufferByID(
         }
     }
 
-    TRESPASS();
-
+    ALOGE("Could not find buffer with ID %u", bufferID);
     return NULL;
 }
 
@@ -1638,22 +1649,30 @@ status_t ACodec::configureCodec(
 
         if (haveNativeWindow) {
             mNativeWindow = static_cast<Surface *>(obj.get());
-            CHECK(mNativeWindow != NULL);
         }
 
         // initialize native window now to get actual output format
         // TODO: this is needed for some encoders even though they don't use native window
-        CHECK_EQ((status_t)OK, initNativeWindow());
+        err = initNativeWindow();
+        if (err != OK) {
+            return err;
+        }
 
         // fallback for devices that do not handle flex-YUV for native buffers
         if (haveNativeWindow) {
             int32_t requestedColorFormat = OMX_COLOR_FormatUnused;
             if (msg->findInt32("color-format", &requestedColorFormat) &&
                     requestedColorFormat == OMX_COLOR_FormatYUV420Flexible) {
-                CHECK_EQ(getPortFormat(kPortIndexOutput, outputFormat), (status_t)OK);
+                status_t err = getPortFormat(kPortIndexOutput, outputFormat);
+                if (err != OK) {
+                    return err;
+                }
                 int32_t colorFormat = OMX_COLOR_FormatUnused;
                 OMX_U32 flexibleEquivalent = OMX_COLOR_FormatUnused;
-                CHECK(outputFormat->findInt32("color-format", &colorFormat));
+                if (!outputFormat->findInt32("color-format", &colorFormat)) {
+                    ALOGE("ouptut port did not have a color format (wrong domain?)");
+                    return BAD_VALUE;
+                }
                 ALOGD("[%s] Requested output format %#x and got %#x.",
                         mComponentName.c_str(), requestedColorFormat, colorFormat);
                 if (!isFlexibleColorFormat(
@@ -1874,11 +1893,14 @@ status_t ACodec::configureCodec(
 
     mBaseOutputFormat = outputFormat;
 
-    CHECK_EQ(getPortFormat(kPortIndexInput, inputFormat), (status_t)OK);
-    CHECK_EQ(getPortFormat(kPortIndexOutput, outputFormat), (status_t)OK);
-    mInputFormat = inputFormat;
-    mOutputFormat = outputFormat;
-
+    err = getPortFormat(kPortIndexInput, inputFormat);
+    if (err == OK) {
+        err = getPortFormat(kPortIndexOutput, outputFormat);
+        if (err == OK) {
+            mInputFormat = inputFormat;
+            mOutputFormat = outputFormat;
+        }
+    }
     return err;
 }
 
@@ -1958,7 +1980,10 @@ status_t ACodec::setMinBufferSize(OMX_U32 portIndex, size_t size) {
         return err;
     }
 
-    CHECK(def.nBufferSize >= size);
+    if (def.nBufferSize < size) {
+        ALOGE("failed to set min buffer size to %zu (is still %u)", size, def.nBufferSize);
+        return FAILED_TRANSACTION;
+    }
 
     return OK;
 }
@@ -2286,7 +2311,9 @@ status_t ACodec::setupAMRCodec(bool encoder, bool isWAMR, int32_t bitrate) {
 }
 
 status_t ACodec::setupG711Codec(bool encoder, int32_t sampleRate, int32_t numChannels) {
-    CHECK(!encoder);  // XXX TODO
+    if (encoder) {
+        return INVALID_OPERATION;
+    }
 
     return setupRawAudioFormat(
             kPortIndexInput, sampleRate, numChannels);
@@ -3395,8 +3422,9 @@ status_t ACodec::setVideoFormatOnPort(
 
     status_t err = mOMX->getParameter(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
-
-    CHECK_EQ(err, (status_t)OK);
+    if (err != OK) {
+        return err;
+    }
 
     if (portIndex == kPortIndexInput) {
         // XXX Need a (much) better heuristic to compute input buffer sizes.
@@ -3406,7 +3434,10 @@ status_t ACodec::setVideoFormatOnPort(
         }
     }
 
-    CHECK_EQ((int)def.eDomain, (int)OMX_PortDomainVideo);
+    if (def.eDomain != OMX_PortDomainVideo) {
+        ALOGE("expected video port, got %s(%d)", asString(def.eDomain), def.eDomain);
+        return FAILED_TRANSACTION;
+    }
 
     video_def->nFrameWidth = width;
     video_def->nFrameHeight = height;
@@ -3683,17 +3714,20 @@ bool ACodec::isFlexibleColorFormat(
 }
 
 status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
-    // TODO: catch errors an return them instead of using CHECK
+    const char *niceIndex = portIndex == kPortIndexInput ? "input" : "output";
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = portIndex;
 
-    CHECK_EQ(mOMX->getParameter(
-                mNode, OMX_IndexParamPortDefinition, &def, sizeof(def)),
-             (status_t)OK);
+    status_t err = mOMX->getParameter(mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+    if (err != OK) {
+        return err;
+    }
 
-    CHECK_EQ((int)def.eDir,
-            (int)(portIndex == kPortIndexOutput ? OMX_DirOutput : OMX_DirInput));
+    if (def.eDir != (portIndex == kPortIndexOutput ? OMX_DirOutput : OMX_DirInput)) {
+        ALOGE("unexpected dir: %s(%d) on %s port", asString(def.eDir), def.eDir, niceIndex);
+        return BAD_VALUE;
+    }
 
     switch (def.eDomain) {
         case OMX_PortDomainVideo:
@@ -3756,12 +3790,16 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         rect.nHeight = videoDef->nFrameHeight;
                     }
 
-                    CHECK_GE(rect.nLeft, 0);
-                    CHECK_GE(rect.nTop, 0);
-                    CHECK_GE(rect.nWidth, 0u);
-                    CHECK_GE(rect.nHeight, 0u);
-                    CHECK_LE(rect.nLeft + rect.nWidth - 1, videoDef->nFrameWidth);
-                    CHECK_LE(rect.nTop + rect.nHeight - 1, videoDef->nFrameHeight);
+                    if (rect.nLeft < 0 ||
+                        rect.nTop < 0 ||
+                        rect.nLeft + rect.nWidth > videoDef->nFrameWidth ||
+                        rect.nTop + rect.nHeight > videoDef->nFrameHeight) {
+                        ALOGE("Wrong cropped rect (%d, %d) - (%u, %u) vs. frame (%u, %u)",
+                                rect.nLeft, rect.nTop,
+                                rect.nLeft + rect.nWidth, rect.nTop + rect.nHeight,
+                                videoDef->nFrameWidth, videoDef->nFrameHeight);
+                        return BAD_VALUE;
+                    }
 
                     notify->setRect(
                             "crop",
@@ -3818,7 +3856,13 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 
                 default:
                 {
-                    CHECK(mIsEncoder ^ (portIndex == kPortIndexInput));
+                    if (mIsEncoder ^ (portIndex == kPortIndexOutput)) {
+                        // should be CodingUnused
+                        ALOGE("Raw port video compression format is %s(%d)",
+                                asString(videoDef->eCompressionFormat),
+                                videoDef->eCompressionFormat);
+                        return BAD_VALUE;
+                    }
                     AString mime;
                     if (GetMimeTypeForVideoCoding(
                         videoDef->eCompressionFormat, &mime) != OK) {
@@ -3849,20 +3893,25 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioPcm,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                            mNode, OMX_IndexParamAudioPcm, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
-                    CHECK_GT(params.nChannels, 0);
-                    CHECK(params.nChannels == 1 || params.bInterleaved);
-                    CHECK_EQ(params.nBitPerSample, 16u);
-
-                    CHECK_EQ((int)params.eNumData,
-                             (int)OMX_NumericalDataSigned);
-
-                    CHECK_EQ((int)params.ePCMMode,
-                             (int)OMX_AUDIO_PCMModeLinear);
+                    if (params.nChannels <= 0
+                            || (params.nChannels != 1 && !params.bInterleaved)
+                            || params.nBitPerSample != 16u
+                            || params.eNumData != OMX_NumericalDataSigned
+                            || params.ePCMMode != OMX_AUDIO_PCMModeLinear) {
+                        ALOGE("unsupported PCM port: %u channels%s, %u-bit, %s(%d), %s(%d) mode ",
+                                params.nChannels,
+                                params.bInterleaved ? " interleaved" : "",
+                                params.nBitPerSample,
+                                asString(params.eNumData), params.eNumData,
+                                asString(params.ePCMMode), params.ePCMMode);
+                        return FAILED_TRANSACTION;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
                     notify->setInt32("channel-count", params.nChannels);
@@ -3880,10 +3929,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioAac,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                            mNode, OMX_IndexParamAudioAac, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
                     notify->setInt32("channel-count", params.nChannels);
@@ -3897,10 +3947,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioAmr,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                            mNode, OMX_IndexParamAudioAmr, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setInt32("channel-count", 1);
                     if (params.eAMRBandMode >= OMX_AUDIO_AMRBandModeWB0) {
@@ -3923,10 +3974,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioFlac,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                            mNode, OMX_IndexParamAudioFlac, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
                     notify->setInt32("channel-count", params.nChannels);
@@ -3940,10 +3992,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioMp3,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                            mNode, OMX_IndexParamAudioMp3, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_MPEG);
                     notify->setInt32("channel-count", params.nChannels);
@@ -3957,10 +4010,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioVorbis,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                            mNode, OMX_IndexParamAudioVorbis, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_VORBIS);
                     notify->setInt32("channel-count", params.nChannels);
@@ -3974,11 +4028,12 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ((status_t)OK, mOMX->getParameter(
-                            mNode,
-                            (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3,
-                            &params,
-                            sizeof(params)));
+                    err = mOMX->getParameter(
+                            mNode, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3,
+                            &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_AC3);
                     notify->setInt32("channel-count", params.nChannels);
@@ -3992,11 +4047,12 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ((status_t)OK, mOMX->getParameter(
-                            mNode,
-                            (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidEac3,
-                            &params,
-                            sizeof(params)));
+                    err = mOMX->getParameter(
+                            mNode, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidEac3,
+                            &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_EAC3);
                     notify->setInt32("channel-count", params.nChannels);
@@ -4010,11 +4066,12 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ((status_t)OK, mOMX->getParameter(
-                            mNode,
-                            (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidOpus,
-                            &params,
-                            sizeof(params)));
+                    err = mOMX->getParameter(
+                            mNode, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidOpus,
+                            &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_OPUS);
                     notify->setInt32("channel-count", params.nChannels);
@@ -4028,11 +4085,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ((status_t)OK, mOMX->getParameter(
-                            mNode,
-                            (OMX_INDEXTYPE)OMX_IndexParamAudioPcm,
-                            &params,
-                            sizeof(params)));
+                    err = mOMX->getParameter(
+                            mNode, (OMX_INDEXTYPE)OMX_IndexParamAudioPcm, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     const char *mime = NULL;
                     if (params.ePCMMode == OMX_AUDIO_PCMModeMULaw) {
@@ -4054,10 +4111,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
 
-                    CHECK_EQ(mOMX->getParameter(
-                                mNode, OMX_IndexParamAudioPcm,
-                                &params, sizeof(params)),
-                             (status_t)OK);
+                    err = mOMX->getParameter(
+                                mNode, OMX_IndexParamAudioPcm, &params, sizeof(params));
+                    if (err != OK) {
+                        return err;
+                    }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_MSGSM);
                     notify->setInt32("channel-count", params.nChannels);
@@ -4066,14 +4124,16 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                 }
 
                 default:
-                    ALOGE("UNKNOWN AUDIO CODING: %d\n", audioDef->eEncoding);
-                    TRESPASS();
+                    ALOGE("Unsupported audio coding: %s(%d)\n",
+                            asString(audioDef->eEncoding), audioDef->eEncoding);
+                    return BAD_TYPE;
             }
             break;
         }
 
         default:
-            TRESPASS();
+            ALOGE("Unsupported domain: %s(%d)", asString(def.eDomain), def.eDomain);
+            return BAD_TYPE;
     }
 
     return OK;
@@ -4083,7 +4143,10 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
     sp<AMessage> notify = mBaseOutputFormat->dup();
     notify->setInt32("what", kWhatOutputFormatChanged);
 
-    CHECK_EQ(getPortFormat(kPortIndexOutput, notify), (status_t)OK);
+    if (getPortFormat(kPortIndexOutput, notify) != OK) {
+        ALOGE("[%s] Failed to get port format to send format change", mComponentName.c_str());
+        return;
+    }
 
     AString mime;
     CHECK(notify->findString("mime", &mime));
@@ -4276,7 +4339,10 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
 
     IOMX::node_id nodeID;
     CHECK(msg->findInt32("node", (int32_t*)&nodeID));
-    CHECK_EQ(nodeID, mCodec->mNode);
+    if (nodeID != mCodec->mNode) {
+        ALOGE("Unexpected message for nodeID: %u, should have been %u", nodeID, mCodec->mNode);
+        return false;
+    }
 
     switch (type) {
         case omx_message::EVENT:
@@ -4332,8 +4398,8 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
         }
 
         default:
-            TRESPASS();
-            break;
+            ALOGE("Unexpected message type: %d", type);
+            return false;
     }
 }
 
@@ -4386,12 +4452,10 @@ bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID) {
             postFillThisBuffer(info);
             break;
 
+        case FREE_BUFFERS:
         default:
-        {
-            CHECK_EQ((int)mode, (int)FREE_BUFFERS);
-            TRESPASS();  // Not currently used
-            break;
-        }
+            ALOGE("SHOULD NOT REACH HERE: cannot free empty output buffers");
+            return false;
     }
 
     return true;
@@ -4581,8 +4645,11 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
             break;
         }
 
+        case FREE_BUFFERS:
+            break;
+
         default:
-            CHECK_EQ((int)mode, (int)FREE_BUFFERS);
+            ALOGE("invalid port mode: %d", mode);
             break;
     }
 }
@@ -4726,14 +4793,14 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             break;
         }
 
-        default:
-        {
-            CHECK_EQ((int)mode, (int)FREE_BUFFERS);
-
+        case FREE_BUFFERS:
             CHECK_EQ((status_t)OK,
                      mCodec->freeBuffer(kPortIndexOutput, index));
             break;
-        }
+
+        default:
+            ALOGE("Invalid port mode: %d", mode);
+            return false;
     }
 
     return true;
@@ -4748,10 +4815,9 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_DOWNSTREAM);
 
     android_native_rect_t crop;
-    if (msg->findRect("crop",
-            &crop.left, &crop.top, &crop.right, &crop.bottom)) {
-        CHECK_EQ(0, native_window_set_crop(
-                mCodec->mNativeWindow.get(), &crop));
+    if (msg->findRect("crop", &crop.left, &crop.top, &crop.right, &crop.bottom)) {
+        status_t err = native_window_set_crop(mCodec->mNativeWindow.get(), &crop);
+        ALOGW_IF(err != NO_ERROR, "failed to set crop: %d", err);
     }
 
     int32_t render;
@@ -4836,14 +4902,16 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
             break;
         }
 
-        default:
+        case FREE_BUFFERS:
         {
-            CHECK_EQ((int)mode, (int)FREE_BUFFERS);
-
             CHECK_EQ((status_t)OK,
                      mCodec->freeBuffer(kPortIndexOutput, index));
             break;
         }
+
+        default:
+            ALOGE("Invalid port mode: %d", mode);
+            return;
     }
 }
 
@@ -5579,7 +5647,10 @@ void ACodec::ExecutingState::resume() {
     submitOutputBuffers();
 
     // Post all available input buffers
-    CHECK_GT(mCodec->mBuffers[kPortIndexInput].size(), 0u);
+    if (mCodec->mBuffers[kPortIndexInput].size() == 0u) {
+        ALOGW("[%s] we don't have any input buffers to resume", mCodec->mComponentName.c_str());
+    }
+
     for (size_t i = 0; i < mCodec->mBuffers[kPortIndexInput].size(); i++) {
         BufferInfo *info = &mCodec->mBuffers[kPortIndexInput].editItemAt(i);
         if (info->mStatus == BufferInfo::OWNED_BY_US) {
@@ -5922,7 +5993,10 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
 
                 return true;
             } else if (data1 == (OMX_U32)OMX_CommandPortEnable) {
-                CHECK_EQ(data2, (OMX_U32)kPortIndexOutput);
+                if (data2 != (OMX_U32)kPortIndexOutput) {
+                    ALOGW("ignoring EventCmdComplete OMX_CommandPortEnable for port %u", data2);
+                    return false;
+                }
 
                 mCodec->mSentFormat = false;
 
@@ -5961,7 +6035,7 @@ bool ACodec::ExecutingToIdleState::onMessageReceived(const sp<AMessage> &msg) {
         {
             // Don't send me a flush request if you previously wanted me
             // to shutdown.
-            TRESPASS();
+            ALOGE("Got flush request in IdleToLoadedState");
             break;
         }
 
@@ -6073,7 +6147,7 @@ bool ACodec::IdleToLoadedState::onMessageReceived(const sp<AMessage> &msg) {
         {
             // Don't send me a flush request if you previously wanted me
             // to shutdown.
-            TRESPASS();
+            ALOGW("Ignoring flush request in ExecutingToIdleState");
             break;
         }
 
@@ -6155,19 +6229,28 @@ bool ACodec::FlushingState::onOMXEvent(
             CHECK_EQ(data1, (OMX_U32)OMX_CommandFlush);
 
             if (data2 == kPortIndexInput || data2 == kPortIndexOutput) {
-                CHECK(!mFlushComplete[data2]);
+                if (mFlushComplete[data2]) {
+                    ALOGW("Flush already completed for %s port",
+                            data2 == kPortIndexInput ? "input" : "output");
+                    return true;
+                }
                 mFlushComplete[data2] = true;
 
                 if (mFlushComplete[kPortIndexInput]
                         && mFlushComplete[kPortIndexOutput]) {
                     changeStateIfWeOwnAllBuffers();
                 }
-            } else {
-                CHECK_EQ(data2, OMX_ALL);
-                CHECK(mFlushComplete[kPortIndexInput]);
-                CHECK(mFlushComplete[kPortIndexOutput]);
+            } else if (data2 == OMX_ALL) {
+                if (!mFlushComplete[kPortIndexInput] || !mFlushComplete[kPortIndexOutput]) {
+                    ALOGW("received flush complete event for OMX_ALL before ports have been"
+                            "flushed (%d/%d)",
+                            mFlushComplete[kPortIndexInput], mFlushComplete[kPortIndexOutput]);
+                    return false;
+                }
 
                 changeStateIfWeOwnAllBuffers();
+            } else {
+                ALOGW("data2 not OMX_ALL but %u in EventCmdComplete CommandFlush", data2);
             }
 
             return true;
