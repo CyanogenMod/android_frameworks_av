@@ -625,7 +625,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
         return errType;
     }
 
-    mStride = ALIGN16(mWidth);
+    mStride = mWidth;
 
     if (mInputDataIsMeta) {
         if (mConversionBuffer) {
