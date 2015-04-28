@@ -700,11 +700,13 @@ status_t AudioSystem::getInputForAttr(const audio_attributes_t *attr,
                                 uint32_t samplingRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
-                                audio_input_flags_t flags)
+                                audio_input_flags_t flags,
+                                audio_port_handle_t selectedDeviceId)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return NO_INIT;
-    return aps->getInputForAttr(attr, input, session, samplingRate, format, channelMask, flags);
+    return aps->getInputForAttr(
+            attr, input, session, samplingRate, format, channelMask, flags, selectedDeviceId);
 }
 
 status_t AudioSystem::startInput(audio_io_handle_t input,

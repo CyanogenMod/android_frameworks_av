@@ -67,7 +67,8 @@ status_t AudioRecord::getMinFrameCount(
 
 AudioRecord::AudioRecord()
     : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT)
+      mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT),
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
 {
 }
 
@@ -87,7 +88,8 @@ AudioRecord::AudioRecord(
     : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
-      mProxy(NULL)
+      mProxy(NULL),
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
 {
     mStatus = set(inputSource, sampleRate, format, channelMask, frameCount, cbf, user,
             notificationFrames, false /*threadCanCallJava*/, sessionId, transferType, flags,
@@ -415,6 +417,21 @@ uint32_t AudioRecord::getInputFramesLost() const
     return AudioSystem::getInputFramesLost(getInputPrivate());
 }
 
+// ---- Explicit Routing ---------------------------------------------------
+status_t AudioRecord::setInputDevice(audio_port_handle_t deviceId) {
+    AutoMutex lock(mLock);
+    if (mSelectedDeviceId != deviceId) {
+        mSelectedDeviceId = deviceId;
+        android_atomic_or(CBLK_INVALID, &mCblk->mFlags);
+    }
+    return NO_ERROR;
+}
+
+audio_port_handle_t AudioRecord::getInputDevice() {
+    AutoMutex lock(mLock);
+    return mSelectedDeviceId;
+}
+
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
@@ -461,7 +478,8 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     audio_io_handle_t input;
     status_t status = AudioSystem::getInputForAttr(&mAttributes, &input,
                                         (audio_session_t)mSessionId,
-                                        mSampleRate, mFormat, mChannelMask, mFlags);
+                                        mSampleRate, mFormat, mChannelMask,
+                                        mFlags, mSelectedDeviceId);
 
     if (status != NO_ERROR) {
         ALOGE("Could not get audio input for record source %d, sample rate %u, format %#x, "
