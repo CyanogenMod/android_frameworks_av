@@ -229,7 +229,7 @@ status_t BnMediaMetadataRetriever::onTransact(
         } break;
         case SET_DATA_SOURCE_FD: {
             CHECK_INTERFACE(IMediaMetadataRetriever, data, reply);
-            int fd = dup(data.readFileDescriptor());
+            int fd = data.readFileDescriptor();
             int64_t offset = data.readInt64();
             int64_t length = data.readInt64();
             reply->writeInt32(setDataSource(fd, offset, length));
