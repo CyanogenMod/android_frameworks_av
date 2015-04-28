@@ -25,6 +25,8 @@
 
 #include <netinet/in.h>
 
+#include <utils/String16.h>
+
 namespace android {
 
 struct AReplyToken;
@@ -38,6 +40,7 @@ struct WifiDisplaySource : public AHandler {
     static const unsigned kWifiDisplayDefaultPort = 7236;
 
     WifiDisplaySource(
+            const String16 &opPackageName,
             const sp<ANetworkSession> &netSession,
             const sp<IRemoteDisplayClient> &client,
             const char *path = NULL);
@@ -113,6 +116,8 @@ private:
         kPlaybackSessionTimeoutSecs * 1000000ll;
 
     static const AString sUserAgent;
+
+    String16 mOpPackageName;
 
     State mState;
     VideoFormats mSupportedSourceVideoFormats;

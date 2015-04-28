@@ -40,7 +40,7 @@ class SurfaceMediaSource;
 struct ALooper;
 
 struct StagefrightRecorder : public MediaRecorderBase {
-    StagefrightRecorder();
+    StagefrightRecorder(const String16 &opPackageName);
     virtual ~StagefrightRecorder();
 
     virtual status_t init();

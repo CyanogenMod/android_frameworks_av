@@ -29,7 +29,8 @@ class Surface;
 class IGraphicBufferProducer;
 
 struct MediaRecorderBase {
-    MediaRecorderBase() {}
+    MediaRecorderBase(const String16 &opPackageName)
+        : mOpPackageName(opPackageName) {}
     virtual ~MediaRecorderBase() {}
 
     virtual status_t init() = 0;
@@ -56,6 +57,10 @@ struct MediaRecorderBase {
     virtual status_t getMaxAmplitude(int *max) = 0;
     virtual status_t dump(int fd, const Vector<String16>& args) const = 0;
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const = 0;
+
+
+protected:
+    String16 mOpPackageName;
 
 private:
     MediaRecorderBase(const MediaRecorderBase &);

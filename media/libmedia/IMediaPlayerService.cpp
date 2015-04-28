@@ -78,10 +78,11 @@ public:
         return interface_cast<IMediaPlayer>(reply.readStrongBinder());
     }
 
-    virtual sp<IMediaRecorder> createMediaRecorder()
+    virtual sp<IMediaRecorder> createMediaRecorder(const String16 &opPackageName)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        data.writeString16(opPackageName);
         remote()->transact(CREATE_MEDIA_RECORDER, data, &reply);
         return interface_cast<IMediaRecorder>(reply.readStrongBinder());
     }
@@ -128,11 +129,12 @@ public:
         return remote()->transact(PULL_BATTERY_DATA, data, reply);
     }
 
-    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
-            const String8& iface)
+    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const String16 &opPackageName,
+            const sp<IRemoteDisplayClient>& client, const String8& iface)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        data.writeString16(opPackageName);
         data.writeStrongBinder(IInterface::asBinder(client));
         data.writeString8(iface);
         remote()->transact(LISTEN_FOR_REMOTE_DISPLAY, data, &reply);
@@ -166,7 +168,8 @@ status_t BnMediaPlayerService::onTransact(
         } break;
         case CREATE_MEDIA_RECORDER: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            sp<IMediaRecorder> recorder = createMediaRecorder();
+            const String16 opPackageName = data.readString16();
+            sp<IMediaRecorder> recorder = createMediaRecorder(opPackageName);
             reply->writeStrongBinder(IInterface::asBinder(recorder));
             return NO_ERROR;
         } break;
@@ -214,10 +217,11 @@ status_t BnMediaPlayerService::onTransact(
         } break;
         case LISTEN_FOR_REMOTE_DISPLAY: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            const String16 opPackageName = data.readString16();
             sp<IRemoteDisplayClient> client(
                     interface_cast<IRemoteDisplayClient>(data.readStrongBinder()));
             String8 iface(data.readString8());
-            sp<IRemoteDisplay> display(listenForRemoteDisplay(client, iface));
+            sp<IRemoteDisplay> display(listenForRemoteDisplay(opPackageName, client, iface));
             reply->writeStrongBinder(IInterface::asBinder(display));
             return NO_ERROR;
         } break;

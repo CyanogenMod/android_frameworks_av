@@ -201,8 +201,12 @@ public:
      */
 
     /* Simple Constructor.
+     *
+     * Parameters:
+     *
+     * opPackageName:      The package name used for app op checks.
      */
-    AudioEffect();
+    AudioEffect(const String16& opPackageName);
 
 
     /* Constructor.
@@ -211,6 +215,7 @@ public:
      *
      * type:  type of effect created: can be null if uuid is specified. This corresponds to
      *        the OpenSL ES interface implemented by this effect.
+     * opPackageName:  The package name used for app op checks.
      * uuid:  Uuid of effect created: can be null if type is specified. This uuid corresponds to
      *        a particular implementation of an effect type.
      * priority:    requested priority for effect control: the priority level corresponds to the
@@ -227,6 +232,7 @@ public:
      */
 
     AudioEffect(const effect_uuid_t *type,
+                const String16& opPackageName,
                 const effect_uuid_t *uuid = NULL,
                   int32_t priority = 0,
                   effect_callback_t cbf = NULL,
@@ -239,6 +245,7 @@ public:
      *      Same as above but with type and uuid specified by character strings
      */
     AudioEffect(const char *typeStr,
+                    const String16& opPackageName,
                     const char *uuidStr = NULL,
                     int32_t priority = 0,
                     effect_callback_t cbf = NULL,
@@ -406,7 +413,9 @@ protected:
      void*                   mUserData;          // client context for callback function
      effect_descriptor_t     mDescriptor;        // effect descriptor
      int32_t                 mId;                // system wide unique effect engine instance ID
-     Mutex                   mLock;               // Mutex for mEnabled access
+     Mutex                   mLock;              // Mutex for mEnabled access
+
+     String16                mOpPackageName;     // The package name used for app op checks.
 
      // IEffectClient
      virtual void controlStatusChanged(bool controlGranted);
