@@ -925,6 +925,11 @@ void MatroskaExtractor::addTracks() {
         ALOGV("codec id = %s", codecID);
         ALOGV("codec name = %s", track->GetCodecNameAsUTF8());
 
+        if (codecID == NULL) {
+            ALOGW("unknown codecID is not supported.");
+            continue;
+        }
+
         size_t codecPrivateSize;
         const unsigned char *codecPrivate =
             track->GetCodecPrivate(codecPrivateSize);
@@ -941,10 +946,7 @@ void MatroskaExtractor::addTracks() {
                 const mkvparser::VideoTrack *vtrack =
                     static_cast<const mkvparser::VideoTrack *>(track);
 
-                if (codecID == NULL) {
-                    ALOGW("unknown codecID is not supported.");
-                    continue;
-                } else if (!strcmp("V_MPEG4/ISO/AVC", codecID)) {
+                if (!strcmp("V_MPEG4/ISO/AVC", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
                     meta->setData(kKeyAVCC, 0, codecPrivate, codecPrivateSize);
                 } else if (!strcmp("V_MPEG4/ISO/ASP", codecID)) {
