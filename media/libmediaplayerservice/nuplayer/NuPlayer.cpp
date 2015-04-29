@@ -1059,7 +1059,7 @@ void NuPlayer::onResume() {
     } else {
         ALOGW("resume called when source is gone or not set");
     }
-    if (mOffloadAudioTornDown && mOffloadAudio) {
+    if (mOffloadAudioTornDown && mOffloadAudio && !mOffloadDecodedPCM) {
           // Resuming after a pause timed out event, check if can continue with offload
           sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
           sp<AMessage> format = mSource->getFormat(true /*audio*/);
