@@ -704,9 +704,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             if (mVideoDecoder != NULL) {
-                sp<MetaData> meta = getFileMeta();
-                int32_t rate;
-                if (meta != NULL && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
+                float rate = getFrameRate();
+                if (rate > 0) {
                     sp<AMessage> params = new AMessage();
                     params->setFloat("operating-rate", rate * mPlaybackSettings.mSpeed);
                     mVideoDecoder->setParameters(params);
@@ -1265,10 +1264,8 @@ void NuPlayer::onStart() {
         return;
     }
 
-    sp<MetaData> meta = getFileMeta();
-    int32_t rate;
-    if (meta != NULL
-            && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
+    float rate = getFrameRate();
+    if (rate > 0) {
         mRenderer->setVideoFrameRate(rate);
     }
 
@@ -1426,9 +1423,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
             format->setInt32("protected", true);
         }
 
-        sp<MetaData> meta = getFileMeta();
-        int32_t rate;
-        if (meta != NULL && meta->findInt32(kKeyFrameRate, &rate) && rate > 0) {
+        float rate = getFrameRate();
+        if (rate > 0) {
             format->setFloat("operating-rate", rate * mPlaybackSettings.mSpeed);
         }
     }
@@ -1700,6 +1696,28 @@ void NuPlayer::getStats(int64_t *numFramesTotal, int64_t *numFramesDropped) {
 
 sp<MetaData> NuPlayer::getFileMeta() {
     return mSource->getFileFormatMeta();
+}
+
+float NuPlayer::getFrameRate() {
+    sp<MetaData> meta = mSource->getFormatMeta(false /* audio */);
+    if (meta == NULL) {
+        return 0;
+    }
+    int32_t rate;
+    if (!meta->findInt32(kKeyFrameRate, &rate)) {
+        // fall back to try file meta
+        sp<MetaData> fileMeta = getFileMeta();
+        if (fileMeta == NULL) {
+            ALOGW("source has video meta but not file meta");
+            return -1;
+        }
+        int32_t fileMetaRate;
+        if (!fileMeta->findInt32(kKeyFrameRate, &fileMetaRate)) {
+            return -1;
+        }
+        return fileMetaRate;
+    }
+    return rate;
 }
 
 void NuPlayer::schedulePollDuration() {

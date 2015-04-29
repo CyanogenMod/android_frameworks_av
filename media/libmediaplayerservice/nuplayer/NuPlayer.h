@@ -80,6 +80,7 @@ struct NuPlayer : public AHandler {
     void getStats(int64_t *mNumFramesTotal, int64_t *mNumFramesDropped);
 
     sp<MetaData> getFileMeta();
+    float getFrameRate();
 
 protected:
     virtual ~NuPlayer();
