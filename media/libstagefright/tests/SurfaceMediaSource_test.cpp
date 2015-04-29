@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <utils/String8.h>
+#include <utils/String16.h>
 #include <utils/Errors.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -466,7 +467,7 @@ void SurfaceMediaSourceGLTest::oneBufferPassGL(int num) {
 // Set up the MediaRecorder which runs in the same process as mediaserver
 sp<MediaRecorder> SurfaceMediaSourceGLTest::setUpMediaRecorder(int fd, int videoSource,
         int outputFormat, int videoEncoder, int width, int height, int fps) {
-    sp<MediaRecorder> mr = new MediaRecorder();
+    sp<MediaRecorder> mr = new MediaRecorder(String16());
     mr->setVideoSource(videoSource);
     mr->setOutputFormat(outputFormat);
     mr->setVideoEncoder(videoEncoder);

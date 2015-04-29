@@ -34,11 +34,12 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-Visualizer::Visualizer (int32_t priority,
+Visualizer::Visualizer (const String16& opPackageName,
+         int32_t priority,
          effect_callback_t cbf,
          void* user,
          int sessionId)
-    :   AudioEffect(SL_IID_VISUALIZATION, NULL, priority, cbf, user, sessionId),
+    :   AudioEffect(SL_IID_VISUALIZATION, opPackageName, NULL, priority, cbf, user, sessionId),
         mCaptureRate(CAPTURE_RATE_DEF),
         mCaptureSize(CAPTURE_SIZE_DEF),
         mSampleRate(44100000),

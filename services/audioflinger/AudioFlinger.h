@@ -120,6 +120,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
+                                const String16& opPackageName,
                                 size_t *pFrameCount,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
@@ -216,6 +217,7 @@ public:
                         int32_t priority,
                         audio_io_handle_t io,
                         int sessionId,
+                        const String16& opPackageName,
                         status_t *status /*non-NULL*/,
                         int *id,
                         int *enabled);

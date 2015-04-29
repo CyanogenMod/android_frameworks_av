@@ -35,13 +35,14 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-AudioEffect::AudioEffect()
-    : mStatus(NO_INIT)
+AudioEffect::AudioEffect(const String16& opPackageName)
+    : mStatus(NO_INIT), mOpPackageName(opPackageName)
 {
 }
 
 
 AudioEffect::AudioEffect(const effect_uuid_t *type,
+                const String16& opPackageName,
                 const effect_uuid_t *uuid,
                 int32_t priority,
                 effect_callback_t cbf,
@@ -49,12 +50,13 @@ AudioEffect::AudioEffect(const effect_uuid_t *type,
                 int sessionId,
                 audio_io_handle_t io
                 )
-    : mStatus(NO_INIT)
+    : mStatus(NO_INIT), mOpPackageName(opPackageName)
 {
     mStatus = set(type, uuid, priority, cbf, user, sessionId, io);
 }
 
 AudioEffect::AudioEffect(const char *typeStr,
+                const String16& opPackageName,
                 const char *uuidStr,
                 int32_t priority,
                 effect_callback_t cbf,
@@ -62,7 +64,7 @@ AudioEffect::AudioEffect(const char *typeStr,
                 int sessionId,
                 audio_io_handle_t io
                 )
-    : mStatus(NO_INIT)
+    : mStatus(NO_INIT), mOpPackageName(opPackageName)
 {
     effect_uuid_t type;
     effect_uuid_t *pType = NULL;
@@ -128,7 +130,7 @@ status_t AudioEffect::set(const effect_uuid_t *type,
     mIEffectClient = new EffectClient(this);
 
     iEffect = audioFlinger->createEffect((effect_descriptor_t *)&mDescriptor,
-            mIEffectClient, priority, io, mSessionId, &mStatus, &mId, &enabled);
+            mIEffectClient, priority, io, mSessionId, mOpPackageName, &mStatus, &mId, &enabled);
 
     if (iEffect == 0 || (mStatus != NO_ERROR && mStatus != ALREADY_EXISTS)) {
         ALOGE("set(): AudioFlinger could not create effect, status: %d", mStatus);

@@ -129,8 +129,12 @@ public:
 
     /* Constructs an uninitialized AudioRecord. No connection with
      * AudioFlinger takes place.  Use set() after this.
+     *
+     * Parameters:
+     *
+     * opPackageName:      The package name used for app ops.
      */
-                        AudioRecord();
+                        AudioRecord(const String16& opPackageName);
 
     /* Creates an AudioRecord object and registers it with AudioFlinger.
      * Once created, the track needs to be started before it can be used.
@@ -143,6 +147,7 @@ public:
      * format:             Audio format (e.g AUDIO_FORMAT_PCM_16_BIT for signed
      *                     16 bits per sample).
      * channelMask:        Channel mask, such that audio_is_input_channel(channelMask) is true.
+     * opPackageName:      The package name used for app ops.
      * frameCount:         Minimum size of track PCM buffer in frames. This defines the
      *                     application's contribution to the
      *                     latency of the track.  The actual size selected by the AudioRecord could
@@ -165,6 +170,7 @@ public:
                                     uint32_t sampleRate,
                                     audio_format_t format,
                                     audio_channel_mask_t channelMask,
+                                    const String16& opPackageName,
                                     size_t frameCount = 0,
                                     callback_t cbf = NULL,
                                     void* user = NULL,
@@ -483,7 +489,7 @@ private:
 
             // caller must hold lock on mLock for all _l methods
 
-            status_t openRecord_l(size_t epoch);
+            status_t openRecord_l(size_t epoch, const String16& opPackageName);
 
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreRecord_l(const char *from);
@@ -519,6 +525,8 @@ private:
     uint32_t                mUpdatePeriod;          // in frames, zero means no EVENT_NEW_POS
 
     status_t                mStatus;
+
+    String16                mOpPackageName;         // The package name used for app ops.
 
     size_t                  mFrameCount;            // corresponds to current IAudioRecord, value is
                                                     // reported back by AudioFlinger to the client

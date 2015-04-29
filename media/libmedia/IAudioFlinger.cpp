@@ -174,6 +174,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
+                                const String16& opPackageName,
                                 size_t *pFrameCount,
                                 track_flags_t *flags,
                                 pid_t tid,
@@ -190,6 +191,7 @@ public:
         data.writeInt32(sampleRate);
         data.writeInt32(format);
         data.writeInt32(channelMask);
+        data.writeString16(opPackageName)
         size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
         data.writeInt64(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
@@ -702,6 +704,7 @@ public:
                                     int32_t priority,
                                     audio_io_handle_t output,
                                     int sessionId,
+                                    const String16& opPackageName,
                                     status_t *status,
                                     int *id,
                                     int *enabled)
@@ -722,6 +725,7 @@ public:
         data.writeInt32(priority);
         data.writeInt32((int32_t) output);
         data.writeInt32(sessionId);
+        data.writeString16(opPackageName);
 
         status_t lStatus = remote()->transact(CREATE_EFFECT, data, &reply);
         if (lStatus != NO_ERROR) {
@@ -950,6 +954,7 @@ status_t BnAudioFlinger::onTransact(
             uint32_t sampleRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
+            const String16& opPackageName = data.readString16();
             size_t frameCount = data.readInt64();
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
@@ -959,9 +964,8 @@ status_t BnAudioFlinger::onTransact(
             sp<IMemory> buffers;
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
-                    sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId,
-                    &notificationFrames,
-                    cblk, buffers, &status);
+                    sampleRate, format, channelMask, opPackageName, &frameCount, &flags, tid,
+                    &sessionId, &notificationFrames, cblk, buffers, &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
             reply->writeInt64(frameCount);
             reply->writeInt32(flags);
@@ -1247,12 +1251,13 @@ status_t BnAudioFlinger::onTransact(
             int32_t priority = data.readInt32();
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
             int sessionId = data.readInt32();
+            const String16 opPackageName = data.readString16();
             status_t status;
             int id;
             int enabled;
 
             sp<IEffect> effect = createEffect(&desc, client, priority, output, sessionId,
-                    &status, &id, &enabled);
+                    opPackageName, &status, &id, &enabled);
             reply->writeInt32(status);
             reply->writeInt32(id);
             reply->writeInt32(enabled);

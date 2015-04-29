@@ -65,8 +65,8 @@ status_t AudioRecord::getMinFrameCount(
 
 // ---------------------------------------------------------------------------
 
-AudioRecord::AudioRecord()
-    : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
+AudioRecord::AudioRecord(const String16 &opPackageName)
+    : mStatus(NO_INIT), mOpPackageName(opPackageName), mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL), mPreviousSchedulingGroup(SP_DEFAULT),
       mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
 {
@@ -77,6 +77,7 @@ AudioRecord::AudioRecord(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
+        const String16& opPackageName,
         size_t frameCount,
         callback_t cbf,
         void* user,
@@ -85,7 +86,9 @@ AudioRecord::AudioRecord(
         transfer_type transferType,
         audio_input_flags_t flags,
         const audio_attributes_t* pAttributes)
-    : mStatus(NO_INIT), mSessionId(AUDIO_SESSION_ALLOCATE),
+    : mStatus(NO_INIT),
+      mOpPackageName(opPackageName),
+      mSessionId(AUDIO_SESSION_ALLOCATE),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mProxy(NULL),
@@ -136,9 +139,9 @@ status_t AudioRecord::set(
         const audio_attributes_t* pAttributes)
 {
     ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
-          "notificationFrames %u, sessionId %d, transferType %d, flags %#x",
+          "notificationFrames %u, sessionId %d, transferType %d, flags %#x, opPackageName %s",
           inputSource, sampleRate, format, channelMask, frameCount, notificationFrames,
-          sessionId, transferType, flags);
+          sessionId, transferType, flags, String8(mOpPackageName).string());
 
     switch (transferType) {
     case TRANSFER_DEFAULT:
@@ -235,7 +238,7 @@ status_t AudioRecord::set(
     }
 
     // create the IAudioRecord
-    status_t status = openRecord_l(0 /*epoch*/);
+    status_t status = openRecord_l(0 /*epoch*/, mOpPackageName);
 
     if (status != NO_ERROR) {
         if (mAudioRecordThread != 0) {
@@ -435,7 +438,7 @@ audio_port_handle_t AudioRecord::getInputDevice() {
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
-status_t AudioRecord::openRecord_l(size_t epoch)
+status_t AudioRecord::openRecord_l(size_t epoch, const String16& opPackageName)
 {
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
     if (audioFlinger == 0) {
@@ -502,8 +505,10 @@ status_t AudioRecord::openRecord_l(size_t epoch)
     sp<IMemory> iMem;           // for cblk
     sp<IMemory> bufferMem;
     sp<IAudioRecord> record = audioFlinger->openRecord(input,
-                                                       mSampleRate, mFormat,
+                                                       mSampleRate,
+                                                       mFormat,
                                                        mChannelMask,
+                                                       opPackageName,
                                                        &temp,
                                                        &trackFlags,
                                                        tid,
@@ -1032,7 +1037,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     // It will also delete the strong references on previous IAudioRecord and IMemory
     size_t position = mProxy->getPosition();
     mNewPosition = position + mUpdatePeriod;
-    status_t result = openRecord_l(position);
+    status_t result = openRecord_l(position, mOpPackageName);
     if (result == NO_ERROR) {
         if (mActive) {
             // callback thread or sync event hasn't changed

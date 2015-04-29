@@ -85,6 +85,7 @@ public:
                                 uint32_t sampleRate,
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
+                                const String16& callingPackage,
                                 size_t *pFrameCount,
                                 track_flags_t *flags,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
@@ -198,6 +199,7 @@ public:
                                     // AudioFlinger doesn't take over handle reference from client
                                     audio_io_handle_t output,
                                     int sessionId,
+                                    const String16& callingPackage,
                                     status_t *status,
                                     int *id,
                                     int *enabled) = 0;

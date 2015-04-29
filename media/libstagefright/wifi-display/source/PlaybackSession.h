@@ -22,6 +22,8 @@
 #include "VideoFormats.h"
 #include "WifiDisplaySource.h"
 
+#include <utils/String16.h>
+
 namespace android {
 
 struct ABuffer;
@@ -36,6 +38,7 @@ struct NuMediaExtractor;
 // display.
 struct WifiDisplaySource::PlaybackSession : public AHandler {
     PlaybackSession(
+            const String16 &opPackageName,
             const sp<ANetworkSession> &netSession,
             const sp<AMessage> &notify,
             const struct in_addr &interfaceAddr,
@@ -95,6 +98,8 @@ private:
         kWhatMediaSenderNotify,
         kWhatPullExtractorSample,
     };
+
+    String16 mOpPackageName;
 
     sp<ANetworkSession> mNetSession;
     sp<AMessage> mNotify;
