@@ -61,20 +61,30 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
     // do we need to reallocate?
     if (buffer->frameCount > mSize) {
         free(mAllocated);
-        mAllocated = malloc(buffer->frameCount * mFrameSize);
+        // Android convention is to _not_ check the return value of malloc and friends.
+        // But in this case the calloc() can also fail due to integer overflow,
+        // so we check and recover.
+        mAllocated = calloc(buffer->frameCount, mFrameSize);
+        if (mAllocated == NULL) {
+            mSize = 0;
+            goto fail;
+        }
         mSize = buffer->frameCount;
     }
-    // read from source
-    ssize_t actual = mSource->read(mAllocated, buffer->frameCount, pts);
-    if (actual > 0) {
-        ALOG_ASSERT((size_t) actual <= buffer->frameCount);
-        mOffset = 0;
-        mRemaining = actual;
-        buffer->raw = mAllocated;
-        buffer->frameCount = actual;
-        mGetCount = actual;
-        return OK;
+    {
+        // read from source
+        ssize_t actual = mSource->read(mAllocated, buffer->frameCount, pts);
+        if (actual > 0) {
+            ALOG_ASSERT((size_t) actual <= buffer->frameCount);
+            mOffset = 0;
+            mRemaining = actual;
+            buffer->raw = mAllocated;
+            buffer->frameCount = actual;
+            mGetCount = actual;
+            return OK;
+        }
     }
+fail:
     buffer->raw = NULL;
     buffer->frameCount = 0;
     mGetCount = 0;
