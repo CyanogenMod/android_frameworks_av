@@ -131,7 +131,10 @@ sp<MediaSource> MPEG2TSExtractor::getTrack(size_t index) {
 
     bool seekable = true;
     if (mSourceImpls.size() > 1) {
-        CHECK_EQ(mSourceImpls.size(), 2u);
+        if (mSourceImpls.size() != 2u) {
+            ALOGE("Wrong size");
+            return NULL;
+        }
 
         sp<MetaData> meta = mSourceImpls.editItemAt(index)->getFormat();
         const char *mime;
