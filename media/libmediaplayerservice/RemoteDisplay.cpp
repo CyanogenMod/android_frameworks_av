@@ -26,13 +26,14 @@
 namespace android {
 
 RemoteDisplay::RemoteDisplay(
+        const String16 &opPackageName,
         const sp<IRemoteDisplayClient> &client,
         const char *iface)
     : mLooper(new ALooper),
       mNetSession(new ANetworkSession) {
     mLooper->setName("wfd_looper");
 
-    mSource = new WifiDisplaySource(mNetSession, client);
+    mSource = new WifiDisplaySource(opPackageName, mNetSession, client);
     mLooper->registerHandler(mSource);
 
     mNetSession->start();

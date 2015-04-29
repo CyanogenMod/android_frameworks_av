@@ -47,7 +47,7 @@ class IMediaPlayerService: public IInterface
 public:
     DECLARE_META_INTERFACE(MediaPlayerService);
 
-    virtual sp<IMediaRecorder> createMediaRecorder() = 0;
+    virtual sp<IMediaRecorder> createMediaRecorder(const String16 &opPackageName) = 0;
     virtual sp<IMediaMetadataRetriever> createMetadataRetriever() = 0;
     virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0)
             = 0;
@@ -65,8 +65,8 @@ public:
     // display client when display connection, disconnection or errors occur.
     // The assumption is that at most one remote display will be connected to the
     // provided interface at a time.
-    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
-            const String8& iface) = 0;
+    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const String16 &opPackageName,
+            const sp<IRemoteDisplayClient>& client, const String8& iface) = 0;
 
     // codecs and audio devices usage tracking for the battery app
     enum BatteryDataBits {

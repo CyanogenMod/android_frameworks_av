@@ -307,10 +307,10 @@ MediaPlayerService::~MediaPlayerService()
     ALOGV("MediaPlayerService destroyed");
 }
 
-sp<IMediaRecorder> MediaPlayerService::createMediaRecorder()
+sp<IMediaRecorder> MediaPlayerService::createMediaRecorder(const String16 &opPackageName)
 {
     pid_t pid = IPCThreadState::self()->getCallingPid();
-    sp<MediaRecorderClient> recorder = new MediaRecorderClient(this, pid);
+    sp<MediaRecorderClient> recorder = new MediaRecorderClient(this, pid, opPackageName);
     wp<MediaRecorderClient> w = recorder;
     Mutex::Autolock lock(mLock);
     mMediaRecorderClients.add(w);
@@ -381,12 +381,13 @@ sp<IHDCP> MediaPlayerService::makeHDCP(bool createEncryptionModule) {
 }
 
 sp<IRemoteDisplay> MediaPlayerService::listenForRemoteDisplay(
+        const String16 &opPackageName,
         const sp<IRemoteDisplayClient>& client, const String8& iface) {
     if (!checkPermission("android.permission.CONTROL_WIFI_DISPLAY")) {
         return NULL;
     }
 
-    return new RemoteDisplay(client, iface.string());
+    return new RemoteDisplay(opPackageName, client, iface.string());
 }
 
 status_t MediaPlayerService::AudioOutput::dump(int fd, const Vector<String16>& args) const

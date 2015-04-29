@@ -209,7 +209,7 @@ class MediaRecorder : public BnMediaRecorderClient,
                       public virtual IMediaDeathNotifier
 {
 public:
-    MediaRecorder();
+    MediaRecorder(const String16& opPackageName);
     ~MediaRecorder();
 
     void        died();

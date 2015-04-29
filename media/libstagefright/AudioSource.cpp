@@ -50,7 +50,8 @@ static void AudioRecordCallbackFunction(int event, void *user, void *info) {
 }
 
 AudioSource::AudioSource(
-        audio_source_t inputSource, uint32_t sampleRate, uint32_t channelCount)
+        audio_source_t inputSource, const String16 &opPackageName, uint32_t sampleRate,
+        uint32_t channelCount)
     : mStarted(false),
       mSampleRate(sampleRate),
       mPrevSampleTimeUs(0),
@@ -78,6 +79,7 @@ AudioSource::AudioSource(
         mRecord = new AudioRecord(
                     inputSource, sampleRate, AUDIO_FORMAT_PCM_16_BIT,
                     audio_channel_in_mask_from_count(channelCount),
+                    opPackageName,
                     (size_t) (bufCount * frameCount),
                     AudioRecordCallbackFunction,
                     this,

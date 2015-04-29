@@ -345,12 +345,14 @@ bool WifiDisplaySource::PlaybackSession::Track::isSuspended() const {
 ////////////////////////////////////////////////////////////////////////////////
 
 WifiDisplaySource::PlaybackSession::PlaybackSession(
+        const String16 &opPackageName,
         const sp<ANetworkSession> &netSession,
         const sp<AMessage> &notify,
         const in_addr &interfaceAddr,
         const sp<IHDCP> &hdcp,
         const char *path)
-    : mNetSession(netSession),
+    : mOpPackageName(opPackageName),
+      mNetSession(netSession),
       mNotify(notify),
       mInterfaceAddr(interfaceAddr),
       mHDCP(hdcp),
@@ -1069,6 +1071,7 @@ status_t WifiDisplaySource::PlaybackSession::addVideoSource(
 status_t WifiDisplaySource::PlaybackSession::addAudioSource(bool usePCMAudio) {
     sp<AudioSource> audioSource = new AudioSource(
             AUDIO_SOURCE_REMOTE_SUBMIX,
+            mOpPackageName,
             48000 /* sampleRate */,
             2 /* channelCount */);
 

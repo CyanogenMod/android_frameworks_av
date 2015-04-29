@@ -50,10 +50,12 @@ const int64_t WifiDisplaySource::kPlaybackSessionTimeoutUs;
 const AString WifiDisplaySource::sUserAgent = MakeUserAgent();
 
 WifiDisplaySource::WifiDisplaySource(
+        const String16 &opPackageName,
         const sp<ANetworkSession> &netSession,
         const sp<IRemoteDisplayClient> &client,
         const char *path)
-    : mState(INITIALIZED),
+    : mOpPackageName(opPackageName),
+      mState(INITIALIZED),
       mNetSession(netSession),
       mClient(client),
       mSessionID(0),
@@ -1245,7 +1247,7 @@ status_t WifiDisplaySource::onSetupRequest(
 
     sp<PlaybackSession> playbackSession =
         new PlaybackSession(
-                mNetSession, notify, mInterfaceAddr, mHDCP, mMediaPath.c_str());
+                mOpPackageName, mNetSession, notify, mInterfaceAddr, mHDCP, mMediaPath.c_str());
 
     looper()->registerHandler(playbackSession);
 
