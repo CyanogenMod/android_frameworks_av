@@ -181,6 +181,11 @@ status_t convertMetaDataToMessage(
         msg->setInt32("rotation-degrees", rotationDegrees);
     }
 
+    int32_t fps;
+    if (meta->findInt32(kKeyFrameRate, &fps)) {
+        msg->setInt32("frame-rate", fps);
+    }
+
     uint32_t type;
     const void *data;
     size_t size;
@@ -586,6 +591,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     int32_t maxHeight;
     if (msg->findInt32("max-height", &maxHeight)) {
         meta->setInt32(kKeyMaxHeight, maxHeight);
+    }
+
+    int32_t fps;
+    if (msg->findInt32("frame-rate", &fps)) {
+        meta->setInt32(kKeyFrameRate, fps);
     }
 
     // reassemble the csd data into its original form
