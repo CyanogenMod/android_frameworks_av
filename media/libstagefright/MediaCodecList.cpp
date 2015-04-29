@@ -882,14 +882,16 @@ status_t MediaCodecList::addLimit(const char **attrs) {
         return -EINVAL;
     }
 
-    // size, blocks, bitrate, frame-rate, blocks-per-second, aspect-ratio: range
+    // size, blocks, bitrate, frame-rate, blocks-per-second, aspect-ratio,
+    // measured-frame-rate, measured-blocks-per-second: range
     // quality: range + default + [scale]
     // complexity: range + default
     bool found;
 
     if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
             || name == "blocks-per-second" || name == "complexity"
-            || name == "frame-rate" || name == "quality" || name == "size") {
+            || name == "frame-rate" || name == "quality" || name == "size"
+            || name == "measured-blocks-per-second" || name == "measured-frame-rate") {
         AString min, max;
         if (msg->findString("min", &min) && msg->findString("max", &max)) {
             min.append("-");
