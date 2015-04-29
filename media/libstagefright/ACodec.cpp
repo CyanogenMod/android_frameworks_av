@@ -4909,7 +4909,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     CHECK(mCodec->mNode == 0);
 
     OMXClient client;
-    CHECK_EQ(client.connect(), (status_t)OK);
+    if (client.connect() != OK) {
+        mCodec->signalError(OMX_ErrorUndefined, NO_INIT);
+        return false;
+    }
 
     sp<IOMX> omx = client.interface();
 

@@ -80,6 +80,10 @@ sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
                         infos.push_back(gCodecList->getCodecInfo(i));
                     }
                 }
+            } else {
+                // failure to initialize may be temporary. retry on next call.
+                delete gCodecList;
+                gCodecList = NULL;
             }
         }
     }
@@ -168,7 +172,7 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_er
     OMXClient client;
     mInitCheck = client.connect();
     if (mInitCheck != OK) {
-        return;
+        return;  // this may fail if IMediaPlayerService is not available.
     }
     mOMX = client.interface();
     parseXMLFile(codecs_xml);
