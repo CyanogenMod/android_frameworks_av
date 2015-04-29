@@ -191,7 +191,7 @@ public:
         data.writeInt32(sampleRate);
         data.writeInt32(format);
         data.writeInt32(channelMask);
-        data.writeString16(opPackageName)
+        data.writeString16(opPackageName);
         size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
         data.writeInt64(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
