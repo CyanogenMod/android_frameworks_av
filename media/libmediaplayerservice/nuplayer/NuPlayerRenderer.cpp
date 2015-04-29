@@ -1520,7 +1520,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     mime.c_str(), audioFormat);
 
             int avgBitRate = -1;
-            format->findInt32("bit-rate", &avgBitRate);
+            format->findInt32("bitrate", &avgBitRate);
 
             int32_t aacProfile = -1;
             if (audioFormat == AUDIO_FORMAT_AAC
