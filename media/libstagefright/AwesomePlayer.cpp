@@ -2424,7 +2424,11 @@ void AwesomePlayer::onVideoEvent() {
 
     if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING | SEEK_PREVIEW))) {
         status_t err = startAudioPlayer_l(false /* sendErrorNotification */);
+#ifndef QCOM_DIRECTTRACK
         if ((err != OK) && mOffloadAudio) {
+#else
+        if ((err != OK) && (mOffloadAudio || mIsTunnelAudio)) {
+#endif
             err = fallbackToSWDecoder();
         }
 
