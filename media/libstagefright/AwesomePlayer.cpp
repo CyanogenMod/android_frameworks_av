@@ -1127,10 +1127,10 @@ status_t AwesomePlayer::play_l() {
             status_t err = startAudioPlayer_l(
                     false /* sendErrorNotification */);
 
-#ifndef QCOM_DIRECTTRACK
-            if ((err != OK) && mOffloadAudio) {
-#else
+#ifdef QCOM_DIRECTTRACK
             if ((err != OK) && (mOffloadAudio || mIsTunnelAudio)) {
+#else
+            if ((err != OK) && mOffloadAudio) {
 #endif
                  err = fallbackToSWDecoder();
             }
@@ -2424,7 +2424,11 @@ void AwesomePlayer::onVideoEvent() {
 
     if (mAudioPlayer != NULL && !(mFlags & (AUDIO_RUNNING | SEEK_PREVIEW))) {
         status_t err = startAudioPlayer_l(false /* sendErrorNotification */);
+#ifdef QCOM_DIRECTTRACK
+        if ((err != OK) && (mOffloadAudio || mIsTunnelAudio)) {
+#else
         if ((err != OK) && mOffloadAudio) {
+#endif
             err = fallbackToSWDecoder();
         }
 
