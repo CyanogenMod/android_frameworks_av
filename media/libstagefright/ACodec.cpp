@@ -806,6 +806,11 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
 
+    if (!mStoreMetaDataInOutputBuffers) {
+        static_cast<Surface*>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(true);
+    }
+
     ALOGV("[%s] Allocating %u buffers from a native window of size %u on "
          "output port",
          mComponentName.c_str(), bufferCount, bufferSize);
@@ -862,6 +867,11 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         if (err == 0) {
             err = error;
         }
+    }
+
+    if (!mStoreMetaDataInOutputBuffers) {
+        static_cast<Surface*>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(false);
     }
 
     return err;
