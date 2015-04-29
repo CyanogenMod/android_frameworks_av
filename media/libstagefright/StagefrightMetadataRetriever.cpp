@@ -157,6 +157,7 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
 
     sp<MetaData> format = source->getFormat();
 
+#ifndef MTK_HARDWARE
     // XXX:
     // Once all vendors support OMX_COLOR_FormatYUV420Planar, we can
     // remove this check and always set the decoder output color format
@@ -166,6 +167,7 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
             format->setInt32(kKeyColorFormat, OMX_COLOR_FormatYUV420Planar);
         }
     }
+#endif
 
     sp<MediaSource> decoder =
         OMXCodec::Create(
@@ -297,6 +299,19 @@ static VideoFrame *extractVideoFrameWithCodecFlags(
 
     int32_t srcFormat;
     CHECK(meta->findInt32(kKeyColorFormat, &srcFormat));
+
+#ifdef MTK_HARDWARE
+    {
+        int32_t Stridewidth,SliceHeight;
+        CHECK(meta->findInt32(kKeyStride, &Stridewidth));
+        CHECK(meta->findInt32(kKeySliceHeight, &SliceHeight));
+        ALOGD("kKeyWidth=%d,kKeyHeight=%d",width,height);
+        ALOGD("Stridewidth=%d,SliceHeight=%d",Stridewidth,SliceHeight);
+
+        width=Stridewidth;
+        height=SliceHeight;
+    }
+#endif
 
     ColorConverter converter(
             (OMX_COLOR_FORMATTYPE)srcFormat, OMX_COLOR_Format16bitRGB565);
