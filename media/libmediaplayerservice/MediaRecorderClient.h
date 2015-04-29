@@ -62,7 +62,8 @@ private:
 
                            MediaRecorderClient(
                                    const sp<MediaPlayerService>& service,
-                                                               pid_t pid);
+                                                               pid_t pid,
+                                                               const String16& opPackageName);
     virtual                ~MediaRecorderClient();
 
     pid_t                  mPid;

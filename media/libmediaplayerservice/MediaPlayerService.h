@@ -188,7 +188,7 @@ public:
     static  void                instantiate();
 
     // IMediaPlayerService interface
-    virtual sp<IMediaRecorder>  createMediaRecorder();
+    virtual sp<IMediaRecorder>  createMediaRecorder(const String16 &opPackageName);
     void    removeMediaRecorderClient(wp<MediaRecorderClient> client);
     virtual sp<IMediaMetadataRetriever> createMetadataRetriever();
 
@@ -200,8 +200,8 @@ public:
     virtual sp<IDrm>            makeDrm();
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule);
 
-    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const sp<IRemoteDisplayClient>& client,
-            const String8& iface);
+    virtual sp<IRemoteDisplay> listenForRemoteDisplay(const String16 &opPackageName,
+            const sp<IRemoteDisplayClient>& client, const String8& iface);
     virtual status_t            dump(int fd, const Vector<String16>& args);
 
             void                removeClient(wp<Client> client);

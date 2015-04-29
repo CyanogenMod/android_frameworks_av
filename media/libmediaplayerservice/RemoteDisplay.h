@@ -33,6 +33,7 @@ struct WifiDisplaySource;
 
 struct RemoteDisplay : public BnRemoteDisplay {
     RemoteDisplay(
+            const String16 &opPackageName,
             const sp<IRemoteDisplayClient> &client,
             const char *iface);
 

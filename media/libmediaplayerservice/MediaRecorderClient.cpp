@@ -290,11 +290,12 @@ status_t MediaRecorderClient::release()
     return NO_ERROR;
 }
 
-MediaRecorderClient::MediaRecorderClient(const sp<MediaPlayerService>& service, pid_t pid)
+MediaRecorderClient::MediaRecorderClient(const sp<MediaPlayerService>& service, pid_t pid,
+        const String16& opPackageName)
 {
     ALOGV("Client constructor");
     mPid = pid;
-    mRecorder = new StagefrightRecorder;
+    mRecorder = new StagefrightRecorder(opPackageName);
     mMediaPlayerService = service;
 }
 

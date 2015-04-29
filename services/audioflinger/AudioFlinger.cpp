@@ -1416,6 +1416,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         uint32_t sampleRate,
         audio_format_t format,
         audio_channel_mask_t channelMask,
+        const String16& opPackageName,
         size_t *frameCount,
         IAudioFlinger::track_flags_t *flags,
         pid_t tid,
@@ -1435,7 +1436,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     buffers.clear();
 
     // check calling permissions
-    if (!recordingAllowed()) {
+    if (!recordingAllowed(opPackageName)) {
         ALOGE("openRecord() permission denied: recording not allowed");
         lStatus = PERMISSION_DENIED;
         goto Exit;
@@ -2447,6 +2448,7 @@ sp<IEffect> AudioFlinger::createEffect(
         int32_t priority,
         audio_io_handle_t io,
         int sessionId,
+        const String16& opPackageName,
         status_t *status,
         int *id,
         int *enabled)
@@ -2543,7 +2545,7 @@ sp<IEffect> AudioFlinger::createEffect(
 
         // check recording permission for visualizer
         if ((memcmp(&desc.type, SL_IID_VISUALIZATION, sizeof(effect_uuid_t)) == 0) &&
-            !recordingAllowed()) {
+            !recordingAllowed(opPackageName)) {
             lStatus = PERMISSION_DENIED;
             goto Exit;
         }

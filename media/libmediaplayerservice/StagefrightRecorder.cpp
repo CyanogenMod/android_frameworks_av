@@ -69,8 +69,9 @@ static void addBatteryData(uint32_t params) {
 }
 
 
-StagefrightRecorder::StagefrightRecorder()
-    : mWriter(NULL),
+StagefrightRecorder::StagefrightRecorder(const String16 &opPackageName)
+    : MediaRecorderBase(opPackageName),
+      mWriter(NULL),
       mOutputFd(-1),
       mAudioSource(AUDIO_SOURCE_CNT),
       mVideoSource(VIDEO_SOURCE_LIST_END),
@@ -905,6 +906,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     sp<AudioSource> audioSource =
         new AudioSource(
                 mAudioSource,
+                mOpPackageName,
                 mSampleRate,
                 mAudioChannels);
 
