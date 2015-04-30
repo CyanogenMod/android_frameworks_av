@@ -421,8 +421,8 @@ status_t ElementaryStreamQueue::appendData(
             }
 
             default:
-                TRESPASS();
-                break;
+                ALOGE("Unknown mode: %d", mMode);
+                return ERROR_MALFORMED;
         }
     }
 
@@ -503,7 +503,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnit() {
         case METADATA:
             return dequeueAccessUnitMetadata();
         default:
-            CHECK_EQ((unsigned)mMode, (unsigned)MPEG_AUDIO);
+            if (mMode != MPEG_AUDIO) {
+                ALOGE("Unknown mode");
+                return NULL;
+            }
             return dequeueAccessUnitMPEGAudio();
     }
 }
@@ -540,7 +543,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAC3() {
     memcpy(accessUnit->data(), mBuffer->data(), syncStartPos + payloadSize);
 
     int64_t timeUs = fetchTimestamp(syncStartPos + payloadSize);
-    CHECK_GE(timeUs, 0ll);
+    if (timeUs < 0ll) {
+        ALOGE("negative timeUs");
+        return NULL;
+    }
     accessUnit->meta()->setInt64("timeUs", timeUs);
     accessUnit->meta()->setInt32("isSync", 1);
 
@@ -560,15 +566,24 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
     }
 
     ABitReader bits(mBuffer->data(), 4);
-    CHECK_EQ(bits.getBits(8), 0xa0);
+    if (bits.getBits(8) != 0xa0) {
+        ALOGE("Unexpected bit values");
+        return NULL;
+    }
     unsigned numAUs = bits.getBits(8);
     bits.skipBits(8);
     unsigned quantization_word_length __unused = bits.getBits(2);
     unsigned audio_sampling_frequency = bits.getBits(3);
     unsigned num_channels = bits.getBits(3);
 
-    CHECK_EQ(audio_sampling_frequency, 2);  // 48kHz
-    CHECK_EQ(num_channels, 1u);  // stereo!
+    if (audio_sampling_frequency != 2) {
+        ALOGE("Wrong sampling freq");
+        return NULL;
+    }
+    if (num_channels != 1u) {
+        ALOGE("Wrong channel #");
+        return NULL;
+    }
 
     if (mFormat == NULL) {
         mFormat = new MetaData;
@@ -590,7 +605,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
     memcpy(accessUnit->data(), mBuffer->data() + 4, payloadSize);
 
     int64_t timeUs = fetchTimestamp(payloadSize + 4);
-    CHECK_GE(timeUs, 0ll);
+    if (timeUs < 0ll) {
+        ALOGE("Negative timeUs");
+        return NULL;
+    }
     accessUnit->meta()->setInt64("timeUs", timeUs);
     accessUnit->meta()->setInt32("isSync", 1);
 
@@ -614,14 +632,19 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
         return NULL;
     }
 
-    CHECK(!mRangeInfos.empty());
+    if (mRangeInfos.empty()) {
+        return NULL;
+    }
 
     const RangeInfo &info = *mRangeInfos.begin();
     if (mBuffer->size() < info.mLength) {
         return NULL;
     }
 
-    CHECK_GE(info.mTimestampUs, 0ll);
+    if (info.mTimestampUs < 0ll) {
+        ALOGE("Negative info.mTimestampUs");
+        return NULL;
+    }
 
     // The idea here is consume all AAC frames starting at offsets before
     // info.mLength so we can assign a meaningful timestamp without
@@ -638,17 +661,26 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
 
         // adts_fixed_header
 
-        CHECK_EQ(bits.getBits(12), 0xfffu);
+        if (bits.getBits(12) != 0xfffu) {
+            ALOGE("Wrong atds_fixed_header");
+            return NULL;
+        }
         bits.skipBits(3);  // ID, layer
         bool protection_absent __unused = bits.getBits(1) != 0;
 
         if (mFormat == NULL) {
             unsigned profile = bits.getBits(2);
-            CHECK_NE(profile, 3u);
+            if (profile == 3u) {
+                ALOGE("profile should not be 3");
+                return NULL;
+            }
             unsigned sampling_freq_index = bits.getBits(4);
             bits.getBits(1);  // private_bit
             unsigned channel_configuration = bits.getBits(3);
-            CHECK_NE(channel_configuration, 0u);
+            if (channel_configuration == 0u) {
+                ALOGE("channel_config should not be 0");
+                return NULL;
+            }
             bits.skipBits(2);  // original_copy, home
 
             mFormat = MakeAACCodecSpecificData(
@@ -658,8 +690,14 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
 
             int32_t sampleRate;
             int32_t numChannels;
-            CHECK(mFormat->findInt32(kKeySampleRate, &sampleRate));
-            CHECK(mFormat->findInt32(kKeyChannelCount, &numChannels));
+            if (!mFormat->findInt32(kKeySampleRate, &sampleRate)) {
+                ALOGE("SampleRate not found");
+                return NULL;
+            }
+            if (!mFormat->findInt32(kKeyChannelCount, &numChannels)) {
+                ALOGE("ChannelCount not found");
+                return NULL;
+            }
 
             ALOGI("found AAC codec config (%d Hz, %d channels)",
                  sampleRate, numChannels);
@@ -682,7 +720,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitAAC() {
 
         if (number_of_raw_data_blocks_in_frame != 0) {
             // To be implemented.
-            TRESPASS();
+            ALOGE("Should not reach here.");
+            return NULL;
         }
 
         if (offset + aac_frame_length > mBuffer->size()) {
@@ -714,7 +753,9 @@ int64_t ElementaryStreamQueue::fetchTimestamp(size_t size) {
     bool first = true;
 
     while (size > 0) {
-        CHECK(!mRangeInfos.empty());
+        if (mRangeInfos.empty()) {
+            return timeUs;
+        }
 
         RangeInfo *info = &*mRangeInfos.begin();
 
@@ -813,7 +854,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
                 unsigned nalType = mBuffer->data()[pos.nalOffset] & 0x1f;
 
                 if (nalType == 6 && pos.nalSize > 0) {
-                    CHECK_LT(seiIndex, sei->size() / sizeof(NALPosition));
+                    if (seiIndex >= sei->size() / sizeof(NALPosition)) {
+                        ALOGE("Wrong seiIndex");
+                        return NULL;
+                    }
                     NALPosition &seiPos = ((NALPosition *)sei->data())[seiIndex++];
                     seiPos.nalOffset = dstOffset + 4;
                     seiPos.nalSize = pos.nalSize;
@@ -851,7 +895,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
             mBuffer->setRange(0, mBuffer->size() - nextScan);
 
             int64_t timeUs = fetchTimestamp(nextScan);
-            CHECK_GE(timeUs, 0ll);
+            if (timeUs < 0ll) {
+                ALOGE("Negative timeUs");
+                return NULL;
+            }
 
             accessUnit->meta()->setInt64("timeUs", timeUs);
             if (foundIDR) {
@@ -873,7 +920,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitH264() {
 
         totalSize += nalSize;
     }
-    CHECK_EQ(err, (status_t)-EAGAIN);
+    if (err != (status_t)-EAGAIN) {
+        ALOGE("Unexpeted err");
+        return NULL;
+    }
 
     return NULL;
 }
@@ -890,9 +940,12 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGAudio() {
 
     size_t frameSize;
     int samplingRate, numChannels, bitrate, numSamples;
-    CHECK(GetMPEGAudioFrameSize(
+    if (!GetMPEGAudioFrameSize(
                 header, &frameSize, &samplingRate, &numChannels,
-                &bitrate, &numSamples));
+                &bitrate, &numSamples)) {
+        ALOGE("Failed to get audio frame size");
+        return NULL;
+    }
 
     if (size < frameSize) {
         return NULL;
@@ -910,7 +963,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGAudio() {
     mBuffer->setRange(0, mBuffer->size() - frameSize);
 
     int64_t timeUs = fetchTimestamp(frameSize);
-    CHECK_GE(timeUs, 0ll);
+    if (timeUs < 0ll) {
+        ALOGE("Negative timeUs");
+        return NULL;
+    }
 
     accessUnit->meta()->setInt64("timeUs", timeUs);
     accessUnit->meta()->setInt32("isSync", 1);
@@ -932,7 +988,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGAudio() {
                         kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_MPEG);
                 break;
             default:
-                TRESPASS();
+                return NULL;
         }
 
         mFormat->setInt32(kKeySampleRate, samplingRate);
@@ -943,7 +999,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGAudio() {
 }
 
 static void EncodeSize14(uint8_t **_ptr, size_t size) {
-    CHECK_LE(size, 0x3fff);
+    if (size > 0x3fff) {
+        ALOGE("Wrong size");
+        return;
+    }
 
     uint8_t *ptr = *_ptr;
 
@@ -1018,7 +1077,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
             // seqHeader without/with extension
 
             if (mFormat == NULL) {
-                CHECK_GE(size, 7u);
+                if (size < 7u) {
+                    ALOGE("Size too small");
+                    return NULL;
+                }
 
                 unsigned width =
                     (data[4] << 4) | data[5] >> 4;
@@ -1078,7 +1140,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
                 mBuffer->setRange(0, mBuffer->size() - offset);
 
                 int64_t timeUs = fetchTimestamp(offset);
-                CHECK_GE(timeUs, 0ll);
+                if (timeUs < 0ll) {
+                    ALOGE("Negative timeUs");
+                    return NULL;
+                }
 
                 offset = 0;
 
@@ -1111,7 +1176,7 @@ static ssize_t getNextChunkSize(
     }
 
     if (memcmp(kStartCode, data, 3)) {
-        TRESPASS();
+        return -EAGAIN;
     }
 
     size_t offset = 3;
@@ -1171,25 +1236,37 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEG4Video() {
 
             case EXPECT_VISUAL_OBJECT_START:
             {
-                CHECK_EQ(chunkType, 0xb5);
+                if (chunkType != 0xb5) {
+                    ALOGE("Unexpected chunkType");
+                    return NULL;
+                }
                 state = EXPECT_VO_START;
                 break;
             }
 
             case EXPECT_VO_START:
             {
-                CHECK_LE(chunkType, 0x1f);
+                if (chunkType > 0x1f) {
+                    ALOGE("Unexpected chunkType");
+                    return NULL;
+                }
                 state = EXPECT_VOL_START;
                 break;
             }
 
             case EXPECT_VOL_START:
             {
-                CHECK((chunkType & 0xf0) == 0x20);
+                if ((chunkType & 0xf0) != 0x20) {
+                    ALOGE("Wrong chunkType");
+                    return NULL;
+                }
 
-                CHECK(ExtractDimensionsFromVOLHeader(
+                if (!ExtractDimensionsFromVOLHeader(
                             &data[offset], chunkSize,
-                            &width, &height));
+                            &width, &height)) {
+                    ALOGE("Failed to get dimension");
+                    return NULL;
+                }
 
                 state = WAIT_FOR_VOP_START;
                 break;
@@ -1242,7 +1319,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEG4Video() {
                     mBuffer->setRange(0, size);
 
                     int64_t timeUs = fetchTimestamp(offset);
-                    CHECK_GE(timeUs, 0ll);
+                    if (timeUs < 0ll) {
+                        ALOGE("Negative timeus");
+                        return NULL;
+                    }
 
                     offset = 0;
 
@@ -1266,7 +1346,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEG4Video() {
             }
 
             default:
-                TRESPASS();
+                ALOGE("Unknown state: %d", state);
+                return NULL;
         }
 
         if (discard) {
