@@ -29,6 +29,7 @@
 namespace android {
 
 typedef void (*audio_error_callback)(status_t err);
+typedef void (*dynamic_policy_callback)(int event, String8 regId, int val);
 
 class IAudioFlinger;
 class IAudioPolicyService;
@@ -89,6 +90,7 @@ public:
     static String8  getParameters(const String8& keys);
 
     static void setErrorCallback(audio_error_callback cb);
+    static void setDynPolicyCallback(dynamic_policy_callback cb);
 
     // helper function to obtain AudioFlinger service handle
     static const sp<IAudioFlinger> get_audio_flinger();
@@ -409,6 +411,7 @@ private:
     static Mutex gLockAPS;   // protects gAudioPolicyService and gAudioPolicyServiceClient
     static sp<IAudioFlinger> gAudioFlinger;
     static audio_error_callback gAudioErrorCallback;
+    static dynamic_policy_callback gDynPolicyCallback;
 
     static size_t gInBuffSize;
     // previous parameters for recording buffer size queries
