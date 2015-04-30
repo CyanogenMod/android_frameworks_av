@@ -430,7 +430,16 @@ void MediaSync::onFrameAvailableFromInput() {
         return;
     }
 
+    if (mBuffersFromInput.indexOfKey(bufferItem.mGraphicBuffer->getId()) >= 0) {
+        // Something is wrong since this buffer should be at our hands, bail.
+        mInput->consumerDisconnect();
+        onAbandoned_l(true /* isInput */);
+        return;
+    }
+    mBuffersFromInput.add(bufferItem.mGraphicBuffer->getId(), bufferItem.mGraphicBuffer);
+
     mBufferItems.push_back(bufferItem);
+
     if (mBufferItems.size() == 1) {
         onDrainVideo_l();
     }
@@ -497,9 +506,19 @@ void MediaSync::onBufferReleasedByOutput() {
 
 void MediaSync::returnBufferToInput_l(
         const sp<GraphicBuffer> &buffer, const sp<Fence> &fence) {
+    ssize_t ix = mBuffersFromInput.indexOfKey(buffer->getId());
+    if (ix < 0) {
+        // The buffer is unknown, something is wrong, bail.
+        mOutput->disconnect(NATIVE_WINDOW_API_MEDIA);
+        onAbandoned_l(false /* isInput */);
+        return;
+    }
+    sp<GraphicBuffer> oldBuffer = mBuffersFromInput.valueAt(ix);
+    mBuffersFromInput.removeItemsAt(ix);
+
     // Attach and release the buffer back to the input.
     int consumerSlot;
-    status_t status = mInput->attachBuffer(&consumerSlot, buffer);
+    status_t status = mInput->attachBuffer(&consumerSlot, oldBuffer);
     ALOGE_IF(status != NO_ERROR, "attaching buffer to input failed (%d)", status);
     if (status == NO_ERROR) {
         status = mInput->releaseBuffer(consumerSlot, 0 /* frameNumber */,
@@ -512,7 +531,7 @@ void MediaSync::returnBufferToInput_l(
         return;
     }
 
-    ALOGV("released buffer %#llx to input", (long long)buffer->getId());
+    ALOGV("released buffer %#llx to input", (long long)oldBuffer->getId());
 
     // Notify any waiting onFrameAvailable calls.
     --mNumOutstandingBuffers;
