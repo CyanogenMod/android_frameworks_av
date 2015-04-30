@@ -470,6 +470,7 @@ status_t AudioTrack::set(
     mSequence = 1;
     mObservedSequence = mSequence;
     mInUnderrun = false;
+    mPreviousTimestampValid = false;
 
     return NO_ERROR;
 }
@@ -496,6 +497,8 @@ status_t AudioTrack::start()
     if (previousState == STATE_STOPPED || previousState == STATE_FLUSHED) {
         // reset current position as seen by client to 0
         mPosition = 0;
+        mPreviousTimestampValid = false;
+
         // For offloaded tracks, we don't know if the hardware counters are really zero here,
         // since the flush is asynchronous and stop may not fully drain.
         // We save the time when the track is started to later verify whether
@@ -995,6 +998,7 @@ status_t AudioTrack::reload()
     mNewPosition = mUpdatePeriod;
     (void) updateAndGetPosition_l();
     mPosition = 0;
+    mPreviousTimestampValid = false;
 #if 0
     // The documentation is not clear on the behavior of reload() and the restoration
     // of loop count. Historically we have not restored loop count, start, end,
@@ -2089,6 +2093,11 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
 status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 {
     AutoMutex lock(mLock);
+
+    bool previousTimestampValid = mPreviousTimestampValid;
+    // Set false here to cover all the error return cases.
+    mPreviousTimestampValid = false;
+
     // FIXME not implemented for fast tracks; should use proxy and SSQ
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         return INVALID_OPERATION;
@@ -2187,6 +2196,41 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         // IAudioTrack.  And timestamp.mPosition is initially in server's
         // point of view, so we need to apply the same fudge factor to it.
     }
+
+    // Prevent retrograde motion in timestamp.
+    // This is sometimes caused by erratic reports of the available space in the ALSA drivers.
+    if (status == NO_ERROR) {
+        if (previousTimestampValid) {
+#define TIME_TO_NANOS(time) ((uint64_t)time.tv_sec * 1000000000 + time.tv_nsec)
+            const uint64_t previousTimeNanos = TIME_TO_NANOS(mPreviousTimestamp.mTime);
+            const uint64_t currentTimeNanos = TIME_TO_NANOS(timestamp.mTime);
+#undef TIME_TO_NANOS
+            if (currentTimeNanos < previousTimeNanos) {
+                ALOGW("retrograde timestamp time");
+                // FIXME Consider blocking this from propagating upwards.
+            }
+
+            // Looking at signed delta will work even when the timestamps
+            // are wrapping around.
+            int32_t deltaPosition = static_cast<int32_t>(timestamp.mPosition
+                    - mPreviousTimestamp.mPosition);
+            // position can bobble slightly as an artifact; this hides the bobble
+            static const int32_t MINIMUM_POSITION_DELTA = 8;
+            ALOGW_IF(deltaPosition < 0,
+                    "retrograde timestamp position corrected, %d = %u - %u, (at %llu, %llu nanos)",
+                    deltaPosition,
+                    timestamp.mPosition,
+                    mPreviousTimestamp.mPosition,
+                    currentTimeNanos,
+                    previousTimeNanos);
+            if (deltaPosition < MINIMUM_POSITION_DELTA) {
+                timestamp = mPreviousTimestamp;  // Use last valid timestamp.
+            }
+        }
+        mPreviousTimestamp = timestamp;
+        mPreviousTimestampValid = true;
+    }
+
     return status;
 }
 

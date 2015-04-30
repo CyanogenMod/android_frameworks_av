@@ -156,11 +156,6 @@ private:
     bool                mResumeToStopping; // track was paused in stopping state.
     bool                mFlushHwPending; // track requests for thread flush
 
-    // for last call to getTimestamp
-    bool                mPreviousTimestampValid;
-    // This is either the first timestamp or one that has passed
-    // the check to prevent retrograde motion.
-    AudioTimestamp      mPreviousTimestamp;
 };  // end of Track
 
 class TimedTrack : public Track {
