@@ -505,6 +505,10 @@ ssize_t MPEG2PSExtractor::dequeuePES() {
             optional_bytes_remaining -= 3;
         }
 
+        if (br.numBitsLeft() < optional_bytes_remaining * 8) {
+            return ERROR_MALFORMED;
+        }
+
         br.skipBits(optional_bytes_remaining * 8);
 
         // ES data follows.
