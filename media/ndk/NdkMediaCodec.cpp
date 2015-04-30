@@ -154,6 +154,10 @@ static AMediaCodec * createAMediaCodec(const char *name, bool name_is_type, bool
     } else {
         mData->mCodec = android::MediaCodec::CreateByComponentName(mData->mLooper, name);
     }
+    if (mData->mCodec == NULL) {  // failed to create codec
+        AMediaCodec_delete(mData);
+        return NULL;
+    }
     mData->mHandler = new CodecHandler(mData);
     mData->mLooper->registerHandler(mData->mHandler);
     mData->mGeneration = 1;
@@ -180,17 +184,21 @@ AMediaCodec* AMediaCodec_createEncoderByType(const char *name) {
 
 EXPORT
 media_status_t AMediaCodec_delete(AMediaCodec *mData) {
-    if (mData->mCodec != NULL) {
-        mData->mCodec->release();
-        mData->mCodec.clear();
-    }
+    if (mData != NULL) {
+        if (mData->mCodec != NULL) {
+            mData->mCodec->release();
+            mData->mCodec.clear();
+        }
 
-    if (mData->mLooper != NULL) {
-        mData->mLooper->unregisterHandler(mData->mHandler->id());
-        mData->mLooper->stop();
-        mData->mLooper.clear();
+        if (mData->mLooper != NULL) {
+            if (mData->mHandler != NULL) {
+                mData->mLooper->unregisterHandler(mData->mHandler->id());
+            }
+            mData->mLooper->stop();
+            mData->mLooper.clear();
+        }
+        delete mData;
     }
-    delete mData;
     return AMEDIA_OK;
 }
 
