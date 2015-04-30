@@ -392,6 +392,10 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
             tmp.erase(tmp.size() - 7, 7);
         }
         const sp<IMediaCodecList> mcl = MediaCodecList::getInstance();
+        if (mcl == NULL) {
+            mCodec = NULL;  // remove the codec.
+            return NO_INIT; // if called from Java should raise IOException
+        }
         ssize_t codecIdx = mcl->findCodecByName(tmp.c_str());
         if (codecIdx >= 0) {
             const sp<MediaCodecInfo> info = mcl->getCodecInfo(codecIdx);
