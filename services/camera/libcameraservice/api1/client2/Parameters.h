@@ -271,21 +271,16 @@ struct Parameters {
     // if video snapshot size is currently overridden
     bool isJpegSizeOverridden();
 
-    // Calculate the crop region rectangle based on current stream sizes
+    // Calculate the crop region rectangle, either tightly about the preview
+    // resolution, or a region just based on the active array; both take
+    // into account the current zoom level.
     struct CropRegion {
         float left;
         float top;
         float width;
         float height;
-
-        enum Outputs {
-            OUTPUT_PREVIEW         = 0x01,
-            OUTPUT_VIDEO           = 0x02,
-            OUTPUT_JPEG_THUMBNAIL  = 0x04,
-            OUTPUT_PICTURE         = 0x08,
-        };
     };
-    CropRegion calculateCropRegion(CropRegion::Outputs outputs) const;
+    CropRegion calculateCropRegion(bool previewOnly) const;
 
     // Calculate the field of view of the high-resolution JPEG capture
     status_t calculatePictureFovs(float *horizFov, float *vertFov) const;
