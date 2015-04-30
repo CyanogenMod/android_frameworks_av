@@ -890,9 +890,12 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
             if (current != nullptr) {
                 auto clientSp = current->getValue();
                 if (clientSp.get() != nullptr) { // should never be needed
-                    if (clientSp->getRemote() == remoteCallback) {
+                    if (!clientSp->canCastToApiClient(effectiveApiLevel)) {
+                        ALOGW("CameraService connect called from same client, but with a different"
+                                " API level, evicting prior client...");
+                    } else if (clientSp->getRemote() == remoteCallback) {
                         ALOGI("CameraService::connect X (PID %d) (second call from same"
-                                "app binder, returning the same client)", clientPid);
+                                " app binder, returning the same client)", clientPid);
                         *client = clientSp;
                         return NO_ERROR;
                     }
@@ -1754,6 +1757,11 @@ int CameraService::BasicClient::getClientPid() const {
     return mClientPid;
 }
 
+bool CameraService::BasicClient::canCastToApiClient(apiLevel level) const {
+    // Defaults to API2.
+    return level == API_2;
+}
+
 status_t CameraService::BasicClient::startCameraOps() {
     int32_t res;
     // Notify app ops that the camera is not available
@@ -1864,6 +1872,10 @@ void CameraService::Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode 
 void CameraService::Client::disconnect() {
     ALOGV("Client::disconnect");
     BasicClient::disconnect();
+}
+
+bool CameraService::Client::canCastToApiClient(apiLevel level) const {
+    return level == API_1;
 }
 
 CameraService::Client::OpsCallback::OpsCallback(wp<BasicClient> client):
