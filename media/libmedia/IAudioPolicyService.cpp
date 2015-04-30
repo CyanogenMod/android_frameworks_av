@@ -171,6 +171,7 @@ public:
                                         audio_io_handle_t *output,
                                         audio_session_t session,
                                         audio_stream_type_t *stream,
+                                        uid_t uid,
                                         uint32_t samplingRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
@@ -207,6 +208,7 @@ public:
                 data.writeInt32(1);
                 data.writeInt32(*stream);
             }
+            data.writeInt32(uid);
             data.writeInt32(samplingRate);
             data.writeInt32(static_cast <uint32_t>(format));
             data.writeInt32(channelMask);
@@ -275,6 +277,7 @@ public:
     virtual status_t getInputForAttr(const audio_attributes_t *attr,
                                      audio_io_handle_t *input,
                                      audio_session_t session,
+                                     uid_t uid,
                                      uint32_t samplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
@@ -293,6 +296,7 @@ public:
         }
         data.write(attr, sizeof(audio_attributes_t));
         data.writeInt32(session);
+        data.writeInt32(uid);
         data.writeInt32(samplingRate);
         data.writeInt32(static_cast <uint32_t>(format));
         data.writeInt32(channelMask);
@@ -852,6 +856,7 @@ status_t BnAudioPolicyService::onTransact(
             if (hasStream) {
                 stream = (audio_stream_type_t)data.readInt32();
             }
+            uid_t uid = (uid_t)data.readInt32();
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
@@ -865,7 +870,7 @@ status_t BnAudioPolicyService::onTransact(
             }
             audio_io_handle_t output;
             status_t status = getOutputForAttr(hasAttributes ? &attr : NULL,
-                    &output, session, &stream,
+                    &output, session, &stream, uid,
                     samplingRate, format, channelMask,
                     flags, selectedDeviceId, hasOffloadInfo ? &offloadInfo : NULL);
             reply->writeInt32(status);
@@ -912,13 +917,14 @@ status_t BnAudioPolicyService::onTransact(
             audio_attributes_t attr;
             data.read(&attr, sizeof(audio_attributes_t));
             audio_session_t session = (audio_session_t)data.readInt32();
+            uid_t uid = (uid_t)data.readInt32();
             uint32_t samplingRate = data.readInt32();
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
             audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
             audio_port_handle_t selectedDeviceId = (audio_port_handle_t) data.readInt32();
             audio_io_handle_t input;
-            status_t status = getInputForAttr(&attr, &input, session,
+            status_t status = getInputForAttr(&attr, &input, session, uid,
                                               samplingRate, format, channelMask,
                                               flags, selectedDeviceId);
             reply->writeInt32(status);

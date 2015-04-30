@@ -177,7 +177,7 @@ void AudioPolicyService::removeNotificationClient(uid_t uid)
     {
         Mutex::Autolock _l(mLock);
         if (mAudioPolicyManager) {
-            mAudioPolicyManager->clearAudioPatches(uid);
+            mAudioPolicyManager->releaseResourcesForUid(uid);
         }
     }
 #endif
