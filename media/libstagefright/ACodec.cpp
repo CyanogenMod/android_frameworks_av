@@ -476,6 +476,19 @@ void ACodec::initiateConfigureComponent(const sp<AMessage> &msg) {
     msg->post();
 }
 
+status_t ACodec::setSurface(const sp<Surface> &surface) {
+    sp<AMessage> msg = new AMessage(kWhatSetSurface, this);
+    msg->setObject("surface", surface);
+
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+
+    if (err == OK) {
+        (void)response->findInt32("err", &err);
+    }
+    return err;
+}
+
 void ACodec::initiateCreateInputSurface() {
     (new AMessage(kWhatCreateInputSurface, this))->post();
 }
@@ -521,6 +534,114 @@ void ACodec::signalSubmitOutputMetaDataBufferIfEOS_workaround() {
             mMetaDataBuffersToSubmit > 0) {
         (new AMessage(kWhatSubmitOutputMetaDataBufferIfEOS, this))->post();
     }
+}
+
+status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
+    // allow keeping unset surface
+    if (surface == NULL) {
+        if (mNativeWindow != NULL) {
+            ALOGW("cannot unset a surface");
+            return INVALID_OPERATION;
+        }
+        return OK;
+    }
+
+    // allow keeping unset surface
+    if (mNativeWindow == NULL) {
+        ALOGW("component was not configured with a surface");
+        return INVALID_OPERATION;
+    }
+
+    ANativeWindow *nativeWindow = surface.get();
+    // if we have not yet started the codec, we can simply set the native window
+    if (mBuffers[kPortIndexInput].size() == 0) {
+        mNativeWindow = surface;
+        return OK;
+    }
+
+    // we do not support changing a tunneled surface after start
+    if (mTunneled) {
+        ALOGW("cannot change tunneled surface");
+        return INVALID_OPERATION;
+    }
+
+    status_t err = setupNativeWindowSizeFormatAndUsage(nativeWindow);
+    if (err != OK) {
+        return err;
+    }
+
+    // get min undequeued count. We cannot switch to a surface that has a higher
+    // undequeued count than we allocated.
+    int minUndequeuedBuffers = 0;
+    err = nativeWindow->query(
+            nativeWindow, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
+            &minUndequeuedBuffers);
+    if (err != 0) {
+        ALOGE("NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d)",
+                strerror(-err), -err);
+        return err;
+    }
+    if (minUndequeuedBuffers > (int)mNumUndequeuedBuffers) {
+        ALOGE("new surface holds onto more buffers (%d) than planned for (%zu)",
+                minUndequeuedBuffers, mNumUndequeuedBuffers);
+        return BAD_VALUE;
+    }
+
+    // we cannot change the number of output buffers while OMX is running
+    // set up surface to the same count
+    Vector<BufferInfo> &buffers = mBuffers[kPortIndexOutput];
+    ALOGV("setting up surface for %zu buffers", buffers.size());
+
+    err = native_window_set_buffer_count(nativeWindow, buffers.size());
+    if (err != 0) {
+        ALOGE("native_window_set_buffer_count failed: %s (%d)", strerror(-err),
+                -err);
+        return err;
+    }
+
+    // for meta data mode, we move dequeud buffers to the new surface.
+    // for non-meta mode, we must move all registered buffers
+    for (size_t i = 0; i < buffers.size(); ++i) {
+        const BufferInfo &info = buffers[i];
+        // skip undequeued buffers for meta data mode
+        if (mStoreMetaDataInOutputBuffers
+                && info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
+            ALOGV("skipping buffer %p", info.mGraphicBuffer->getNativeBuffer());
+            continue;
+        }
+        ALOGV("attaching buffer %p", info.mGraphicBuffer->getNativeBuffer());
+
+        err = surface->attachBuffer(info.mGraphicBuffer->getNativeBuffer());
+        if (err != OK) {
+            ALOGE("failed to attach buffer %p to the new surface: %s (%d)",
+                    info.mGraphicBuffer->getNativeBuffer(),
+                    strerror(-err), -err);
+            return err;
+        }
+    }
+
+    // cancel undequeued buffers to new surface
+    if (!mStoreMetaDataInOutputBuffers) {
+        for (size_t i = 0; i < buffers.size(); ++i) {
+            const BufferInfo &info = buffers[i];
+            if (info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
+                ALOGV("canceling buffer %p", info.mGraphicBuffer->getNativeBuffer());
+                err = nativeWindow->cancelBuffer(
+                        nativeWindow, info.mGraphicBuffer->getNativeBuffer(), -1);
+                if (err != OK) {
+                    ALOGE("failed to cancel buffer %p to the new surface: %s (%d)",
+                            info.mGraphicBuffer->getNativeBuffer(),
+                            strerror(-err), -err);
+                    return err;
+                }
+            }
+        }
+        // disallow further allocation
+        (void)surface->getIGraphicBufferProducer()->allowAllocation(false);
+    }
+
+    mNativeWindow = nativeWindow;
+    return OK;
 }
 
 status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
@@ -617,9 +738,83 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     return OK;
 }
 
-status_t ACodec::configureOutputBuffersFromNativeWindow(
-        OMX_U32 *bufferCount, OMX_U32 *bufferSize,
-        OMX_U32 *minUndequeuedBuffers) {
+status_t ACodec::setNativeWindowSizeFormatAndUsage(
+        ANativeWindow *nativeWindow /* nonnull */,
+        int width, int height, int format, int rotation, int usage) {
+    status_t err = native_window_set_buffers_dimensions(nativeWindow, width, height);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_dimensions failed: %s (%d)", strerror(-err), -err);
+        return err;
+    }
+
+    err = native_window_set_buffers_format(nativeWindow, format);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_format failed: %s (%d)", strerror(-err), -err);
+        return err;
+    }
+
+    int transform = 0;
+    if ((rotation % 90) == 0) {
+        switch ((rotation / 90) & 3) {
+            case 1:  transform = HAL_TRANSFORM_ROT_90;  break;
+            case 2:  transform = HAL_TRANSFORM_ROT_180; break;
+            case 3:  transform = HAL_TRANSFORM_ROT_270; break;
+            default: transform = 0;                     break;
+        }
+    }
+
+    err = native_window_set_buffers_transform(nativeWindow, transform);
+    if (err != 0) {
+        ALOGE("native_window_set_buffers_transform failed: %s (%d)", strerror(-err), -err);
+        return err;
+    }
+
+    // Make sure to check whether either Stagefright or the video decoder
+    // requested protected buffers.
+    if (usage & GRALLOC_USAGE_PROTECTED) {
+        // Verify that the ANativeWindow sends images directly to
+        // SurfaceFlinger.
+        int queuesToNativeWindow = 0;
+        err = nativeWindow->query(
+                nativeWindow, NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER, &queuesToNativeWindow);
+        if (err != 0) {
+            ALOGE("error authenticating native window: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+        if (queuesToNativeWindow != 1) {
+            ALOGE("native window could not be authenticated");
+            return PERMISSION_DENIED;
+        }
+    }
+
+    int consumerUsage = 0;
+    err = nativeWindow->query(nativeWindow, NATIVE_WINDOW_CONSUMER_USAGE_BITS, &consumerUsage);
+    if (err != 0) {
+        ALOGW("failed to get consumer usage bits. ignoring");
+        err = 0;
+    }
+
+    int finalUsage = usage | consumerUsage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP;
+    ALOGV("gralloc usage: %#x(ACodec) + %#x(Consumer) = %#x", usage, consumerUsage, finalUsage);
+    err = native_window_set_usage(nativeWindow, finalUsage);
+    if (err != 0) {
+        ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), -err);
+        return err;
+    }
+
+    err = native_window_set_scaling_mode(
+            nativeWindow, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+    if (err != 0) {
+        ALOGE("native_window_set_scaling_mode failed: %s (%d)", strerror(-err), -err);
+        return err;
+    }
+
+    ALOGD("set up nativeWindow %p for %dx%d, color %#x, rotation %d, usage %#x",
+            nativeWindow, width, height, format, rotation, finalUsage);
+    return OK;
+}
+
+status_t ACodec::setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow /* nonnull */) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = kPortIndexOutput;
@@ -631,49 +826,6 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
-    err = native_window_set_buffers_dimensions(
-            mNativeWindow.get(),
-            def.format.video.nFrameWidth,
-            def.format.video.nFrameHeight);
-
-    if (err != 0) {
-        ALOGE("native_window_set_buffers_dimensions failed: %s (%d)",
-                strerror(-err), -err);
-        return err;
-    }
-
-    err = native_window_set_buffers_format(
-            mNativeWindow.get(),
-            def.format.video.eColorFormat);
-
-    if (err != 0) {
-        ALOGE("native_window_set_buffers_format failed: %s (%d)",
-                strerror(-err), -err);
-        return err;
-    }
-
-    if (mRotationDegrees != 0) {
-        uint32_t transform = 0;
-        switch (mRotationDegrees) {
-            case 0: transform = 0; break;
-            case 90: transform = HAL_TRANSFORM_ROT_90; break;
-            case 180: transform = HAL_TRANSFORM_ROT_180; break;
-            case 270: transform = HAL_TRANSFORM_ROT_270; break;
-            default: transform = 0; break;
-        }
-
-        if (transform > 0) {
-            err = native_window_set_buffers_transform(
-                    mNativeWindow.get(), transform);
-            if (err != 0) {
-                ALOGE("native_window_set_buffers_transform failed: %s (%d)",
-                        strerror(-err), -err);
-                return err;
-            }
-        }
-    }
-
-    // Set up the native window.
     OMX_U32 usage = 0;
     err = mOMX->getGraphicBufferUsage(mNode, kPortIndexOutput, &usage);
     if (err != 0) {
@@ -687,43 +839,30 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         usage |= GRALLOC_USAGE_PROTECTED;
     }
 
-    // Make sure to check whether either Stagefright or the video decoder
-    // requested protected buffers.
-    if (usage & GRALLOC_USAGE_PROTECTED) {
-        // Verify that the ANativeWindow sends images directly to
-        // SurfaceFlinger.
-        int queuesToNativeWindow = 0;
-        err = mNativeWindow->query(
-                mNativeWindow.get(), NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER,
-                &queuesToNativeWindow);
-        if (err != 0) {
-            ALOGE("error authenticating native window: %d", err);
-            return err;
-        }
-        if (queuesToNativeWindow != 1) {
-            ALOGE("native window could not be authenticated");
-            return PERMISSION_DENIED;
-        }
+    ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
+    return setNativeWindowSizeFormatAndUsage(
+            nativeWindow,
+            def.format.video.nFrameWidth,
+            def.format.video.nFrameHeight,
+            def.format.video.eColorFormat,
+            mRotationDegrees,
+            usage);
+}
+
+status_t ACodec::configureOutputBuffersFromNativeWindow(
+        OMX_U32 *bufferCount, OMX_U32 *bufferSize,
+        OMX_U32 *minUndequeuedBuffers) {
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+    InitOMXParams(&def);
+    def.nPortIndex = kPortIndexOutput;
+
+    status_t err = mOMX->getParameter(
+            mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+
+    if (err == OK) {
+        err = setupNativeWindowSizeFormatAndUsage(mNativeWindow.get());
     }
-
-    int consumerUsage = 0;
-    err = mNativeWindow->query(
-            mNativeWindow.get(), NATIVE_WINDOW_CONSUMER_USAGE_BITS,
-            &consumerUsage);
-    if (err != 0) {
-        ALOGW("failed to get consumer usage bits. ignoring");
-        err = 0;
-    }
-
-    ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec) + %#x(Consumer) = %#x",
-            omxUsage, usage, consumerUsage, usage | consumerUsage);
-    usage |= consumerUsage;
-    err = native_window_set_usage(
-            mNativeWindow.get(),
-            usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
-
-    if (err != 0) {
-        ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), -err);
+    if (err != OK) {
         return err;
     }
 
@@ -1479,9 +1618,6 @@ status_t ACodec::configureCodec(
         if (haveNativeWindow) {
             mNativeWindow = static_cast<Surface *>(obj.get());
             CHECK(mNativeWindow != NULL);
-
-            native_window_set_scaling_mode(
-                    mNativeWindow.get(), NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
         }
 
         // initialize native window now to get actual output format
@@ -4002,32 +4138,10 @@ status_t ACodec::pushBlankBuffersToNativeWindow() {
         return err;
     }
 
-    err = native_window_set_buffers_dimensions(mNativeWindow.get(), 1, 1);
+    err = setNativeWindowSizeFormatAndUsage(
+            mNativeWindow.get(), 1, 1, HAL_PIXEL_FORMAT_RGBX_8888, 0, GRALLOC_USAGE_SW_WRITE_OFTEN);
     if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_buffers_dimensions failed: %s (%d)",
-                strerror(-err), -err);
-        goto error;
-    }
-
-    err = native_window_set_buffers_format(mNativeWindow.get(), HAL_PIXEL_FORMAT_RGBX_8888);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_buffers_format failed: %s (%d)",
-                strerror(-err), -err);
-        goto error;
-    }
-
-    err = native_window_set_scaling_mode(mNativeWindow.get(),
-                NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank_frames: set_scaling_mode failed: %s (%d)",
-              strerror(-err), -err);
-        goto error;
-    }
-
-    err = native_window_set_usage(mNativeWindow.get(),
-            GRALLOC_USAGE_SW_WRITE_OFTEN);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_usage failed: %s (%d)",
+        ALOGE("error pushing blank frames: set format failed: %s (%d)",
                 strerror(-err), -err);
         goto error;
     }
@@ -4197,6 +4311,22 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
         case ACodec::kWhatOMXMessage:
         {
             return onOMXMessage(msg);
+        }
+
+        case ACodec::kWhatSetSurface:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            sp<RefBase> obj;
+            CHECK(msg->findObject("surface", &obj));
+
+            status_t err = mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
+            break;
         }
 
         case ACodec::kWhatCreateInputSurface:
