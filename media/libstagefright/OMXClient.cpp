@@ -400,10 +400,16 @@ status_t OMXClient::connect() {
     sp<IBinder> binder = sm->getService(String16("media.player"));
     sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
 
-    CHECK(service.get() != NULL);
+    if (service.get() == NULL) {
+        ALOGE("Cannot obtain IMediaPlayerService");
+        return NO_INIT;
+    }
 
     mOMX = service->getOMX();
-    CHECK(mOMX.get() != NULL);
+    if (mOMX.get() == NULL) {
+        ALOGE("Cannot obtain IOMX");
+        return NO_INIT;
+    }
 
     if (!mOMX->livesLocally(0 /* node */, getpid())) {
         ALOGI("Using client-side OMX mux.");
