@@ -109,6 +109,7 @@ public:
                                           audio_io_handle_t *output,
                                           audio_session_t session,
                                           audio_stream_type_t *stream,
+                                          uid_t uid,
                                           uint32_t samplingRate,
                                           audio_format_t format,
                                           audio_channel_mask_t channelMask,
@@ -127,6 +128,7 @@ public:
         virtual status_t getInputForAttr(const audio_attributes_t *attr,
                                          audio_io_handle_t *input,
                                          audio_session_t session,
+                                         uid_t uid,
                                          uint32_t samplingRate,
                                          audio_format_t format,
                                          audio_channel_mask_t channelMask,
@@ -207,7 +209,6 @@ public:
                                           struct audio_patch *patches,
                                           unsigned int *generation);
         virtual status_t setAudioPortConfig(const struct audio_port_config *config);
-        virtual void clearAudioPatches(uid_t uid);
 
         virtual status_t acquireSoundTriggerSession(audio_session_t *session,
                                                audio_io_handle_t *ioHandle,
@@ -225,6 +226,8 @@ public:
                                           const audio_attributes_t *attributes,
                                           audio_io_handle_t *handle);
         virtual status_t stopAudioSource(audio_io_handle_t handle);
+
+        virtual void     releaseResourcesForUid(uid_t uid);
 
         // Audio policy configuration file parsing (audio_policy.conf)
         // TODO candidates to be moved to ConfigParsingUtils
@@ -248,31 +251,36 @@ protected:
             SessionRoute(audio_session_t session,
                          audio_stream_type_t streamType,
                          audio_source_t source,
-                         sp<DeviceDescriptor> deviceDescriptor)
-               : mSession(session),
+                         sp<DeviceDescriptor> deviceDescriptor,
+                         uid_t uid)
+               : mUid(uid),
+                 mSession(session),
                  mDeviceDescriptor(deviceDescriptor),
                  mRefCount(0),
                  mActivityCount(0),
                  mChanged(false),
                  mStreamType(streamType),
-                 mSource(source) {}
-
-            audio_session_t         mSession;
-
-            sp<DeviceDescriptor>    mDeviceDescriptor;
+                 mSource(source)
+                  {}
 
             void log(const char* prefix);
 
+            bool isActive() {
+                return (mDeviceDescriptor != 0) && (mChanged || (mActivityCount > 0));
+            }
+
+            uid_t                       mUid;
+            audio_session_t             mSession;
+            sp<DeviceDescriptor>        mDeviceDescriptor;
+
             // "reference" counting
-            int                     mRefCount;      // +/- on references
-            int                     mActivityCount; // +/- on start/stop
-            bool                    mChanged;
-
+            int                         mRefCount;      // +/- on references
+            int                         mActivityCount; // +/- on start/stop
+            bool                        mChanged;
             // for outputs
-            const audio_stream_type_t     mStreamType;
-
+            const audio_stream_type_t   mStreamType;
             // for inputs
-            const audio_source_t          mSource;
+            const audio_source_t        mSource;
         };
 
         class SessionRouteMap: public KeyedVector<audio_session_t, sp<SessionRoute>> {
@@ -292,6 +300,7 @@ protected:
             }
 
             bool hasRoute(audio_session_t session);
+
             void removeRoute(audio_session_t session);
 
             int incRouteActivity(audio_session_t session);
@@ -306,7 +315,8 @@ protected:
             void addRoute(audio_session_t session,
                           audio_stream_type_t streamType,
                           audio_source_t source,
-                          sp<DeviceDescriptor> deviceDescriptor);
+                          sp<DeviceDescriptor> deviceDescriptor,
+                          uid_t uid);
 
         private:
             // Used to mark a SessionRoute as for either inputs (mMapType == kSessionRouteMap_Input)
@@ -559,7 +569,12 @@ protected:
                              audio_devices_t device,
                              uint32_t *delayMs);
         status_t stopSource(sp<AudioOutputDescriptor> outputDesc,
-                            audio_stream_type_t stream);
+                            audio_stream_type_t stream,
+                            bool forceDeviceUpdate);
+
+        void clearAudioPatches(uid_t uid);
+        void clearSessionRoutes(uid_t uid);
+        void checkStrategyRoute(routing_strategy strategy, audio_io_handle_t ouptutToSkip);
 
         uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface

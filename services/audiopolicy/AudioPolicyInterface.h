@@ -106,6 +106,7 @@ public:
                                         audio_io_handle_t *output,
                                         audio_session_t session,
                                         audio_stream_type_t *stream,
+                                        uid_t uid,
                                         uint32_t samplingRate,
                                         audio_format_t format,
                                         audio_channel_mask_t channelMask,
@@ -129,6 +130,7 @@ public:
     virtual status_t getInputForAttr(const audio_attributes_t *attr,
                                      audio_io_handle_t *input,
                                      audio_session_t session,
+                                     uid_t uid,
                                      uint32_t samplingRate,
                                      audio_format_t format,
                                      audio_channel_mask_t channelMask,
@@ -209,7 +211,7 @@ public:
                                       struct audio_patch *patches,
                                       unsigned int *generation) = 0;
     virtual status_t setAudioPortConfig(const struct audio_port_config *config) = 0;
-    virtual void clearAudioPatches(uid_t uid) = 0;
+    virtual void releaseResourcesForUid(uid_t uid) = 0;
 
     virtual status_t acquireSoundTriggerSession(audio_session_t *session,
                                            audio_io_handle_t *ioHandle,
