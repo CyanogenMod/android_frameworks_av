@@ -1434,7 +1434,7 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
     if (inputDesc->mRefCount == 0 || mInputRoutes.hasRouteChanged(session)) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((inputDesc->mPolicyMix != NULL)
-                && ((inputDesc->mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
+                && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
             mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
                     MIX_STATE_MIXING);
         }
@@ -1501,7 +1501,7 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
     if (inputDesc->mRefCount == 0) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((inputDesc->mPolicyMix != NULL)
-                && ((inputDesc->mPolicyMix->mFlags & MIX_FLAG_NOTIFY_ACTIVITY) != 0)) {
+                && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
             mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
                     MIX_STATE_IDLE);
         }
