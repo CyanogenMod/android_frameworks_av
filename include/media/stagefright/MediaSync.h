@@ -23,6 +23,7 @@
 #include <media/stagefright/foundation/AHandler.h>
 
 #include <utils/Condition.h>
+#include <utils/KeyedVector.h>
 #include <utils/Mutex.h>
 
 namespace android {
@@ -190,6 +191,13 @@ private:
 
     int64_t mNextBufferItemMediaUs;
     List<BufferItem> mBufferItems;
+
+    // Keep track of buffers received from |mInput|. This is needed because
+    // it's possible the consumer of |mOutput| could return a different
+    // GraphicBuffer::handle (e.g., due to passing buffers through IPC),
+    // and that could cause problem if the producer of |mInput| only
+    // supports pre-registered buffers.
+    KeyedVector<uint64_t, sp<GraphicBuffer> > mBuffersFromInput;
     sp<ALooper> mLooper;
     float mPlaybackRate;
 
