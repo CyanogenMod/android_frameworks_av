@@ -839,6 +839,7 @@ protected:
                                                     // only used for offloaded and direct tracks.
 
     bool                    mPreviousTimestampValid;// true if mPreviousTimestamp is valid
+    bool                    mRetrogradeMotionReported; // reduce log spam
     AudioTimestamp          mPreviousTimestamp;     // used to detect retrograde motion
 
     audio_output_flags_t    mFlags;
