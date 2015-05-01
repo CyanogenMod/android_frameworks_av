@@ -39,25 +39,17 @@ public:
     {
     }
 
-    void ioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2)
+    void ioConfigChanged(audio_io_config_event event, const sp<AudioIoDescriptor>& ioDesc)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlingerClient::getInterfaceDescriptor());
         data.writeInt32(event);
-        data.writeInt32((int32_t) ioHandle);
-        if (event == AudioSystem::STREAM_CONFIG_CHANGED) {
-            uint32_t stream = *(const uint32_t *)param2;
-            ALOGV("ioConfigChanged stream %d", stream);
-            data.writeInt32(stream);
-        } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED) {
-            const AudioSystem::OutputDescriptor *desc =
-                    (const AudioSystem::OutputDescriptor *)param2;
-            data.writeInt32(desc->samplingRate);
-            data.writeInt32(desc->format);
-            data.writeInt32(desc->channelMask);
-            data.writeInt64(desc->frameCount);
-            data.writeInt32(desc->latency);
-        }
+        data.writeInt32((int32_t)ioDesc->mIoHandle);
+        data.writeInt32(ioDesc->mSamplingRate);
+        data.writeInt32(ioDesc->mFormat);
+        data.writeInt32(ioDesc->mChannelMask);
+        data.writeInt64(ioDesc->mFrameCount);
+        data.writeInt32(ioDesc->mLatency);
         remote()->transact(IO_CONFIG_CHANGED, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
@@ -72,24 +64,15 @@ status_t BnAudioFlingerClient::onTransact(
     switch (code) {
     case IO_CONFIG_CHANGED: {
             CHECK_INTERFACE(IAudioFlingerClient, data, reply);
-            int event = data.readInt32();
-            audio_io_handle_t ioHandle = (audio_io_handle_t) data.readInt32();
-            const void *param2 = NULL;
-            AudioSystem::OutputDescriptor desc;
-            uint32_t stream;
-            if (event == AudioSystem::STREAM_CONFIG_CHANGED) {
-                stream = data.readInt32();
-                param2 = &stream;
-                ALOGV("STREAM_CONFIG_CHANGED stream %d", stream);
-            } else if (event != AudioSystem::OUTPUT_CLOSED && event != AudioSystem::INPUT_CLOSED) {
-                desc.samplingRate = data.readInt32();
-                desc.format = (audio_format_t) data.readInt32();
-                desc.channelMask = (audio_channel_mask_t) data.readInt32();
-                desc.frameCount = data.readInt64();
-                desc.latency = data.readInt32();
-                param2 = &desc;
-            }
-            ioConfigChanged(event, ioHandle, param2);
+            audio_io_config_event event = (audio_io_config_event)data.readInt32();
+            sp<AudioIoDescriptor> ioDesc = new AudioIoDescriptor();
+            ioDesc->mIoHandle = (audio_io_handle_t) data.readInt32();
+            ioDesc->mSamplingRate = data.readInt32();
+            ioDesc->mFormat = (audio_format_t) data.readInt32();
+            ioDesc->mChannelMask = (audio_channel_mask_t) data.readInt32();
+            ioDesc->mFrameCount = data.readInt64();
+            ioDesc->mLatency = data.readInt32();
+            ioConfigChanged(event, ioDesc);
             return NO_ERROR;
         } break;
         default:

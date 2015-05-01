@@ -584,16 +584,16 @@ status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
     return status;
 }
 
-void AudioFlinger::ThreadBase::sendIoConfigEvent(int event, int param)
+void AudioFlinger::ThreadBase::sendIoConfigEvent(audio_io_config_event event)
 {
     Mutex::Autolock _l(mLock);
-    sendIoConfigEvent_l(event, param);
+    sendIoConfigEvent_l(event);
 }
 
 // sendIoConfigEvent_l() must be called with ThreadBase::mLock held
-void AudioFlinger::ThreadBase::sendIoConfigEvent_l(int event, int param)
+void AudioFlinger::ThreadBase::sendIoConfigEvent_l(audio_io_config_event event)
 {
-    sp<ConfigEvent> configEvent = (ConfigEvent *)new IoConfigEvent(event, param);
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new IoConfigEvent(event);
     sendConfigEvent_l(configEvent);
 }
 
@@ -657,7 +657,7 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
         } break;
         case CFG_EVENT_IO: {
             IoConfigEventData *data = (IoConfigEventData *)event->mData.get();
-            audioConfigChanged(data->mEvent, data->mParam);
+            ioConfigChanged(data->mEvent);
         } break;
         case CFG_EVENT_SET_PARAMETER: {
             SetParameterConfigEventData *data = (SetParameterConfigEventData *)event->mData.get();
@@ -1921,32 +1921,28 @@ String8 AudioFlinger::PlaybackThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-void AudioFlinger::PlaybackThread::audioConfigChanged(int event, int param) {
-    AudioSystem::OutputDescriptor desc;
-    void *param2 = NULL;
+void AudioFlinger::PlaybackThread::ioConfigChanged(audio_io_config_event event) {
+    sp<AudioIoDescriptor> desc = new AudioIoDescriptor();
+    ALOGV("PlaybackThread::ioConfigChanged, thread %p, event %d", this, event);
 
-    ALOGV("PlaybackThread::audioConfigChanged, thread %p, event %d, param %d", this, event,
-            param);
+    desc->mIoHandle = mId;
 
     switch (event) {
-    case AudioSystem::OUTPUT_OPENED:
-    case AudioSystem::OUTPUT_CONFIG_CHANGED:
-        desc.channelMask = mChannelMask;
-        desc.samplingRate = mSampleRate;
-        desc.format = mFormat;
-        desc.frameCount = mNormalFrameCount; // FIXME see
+    case AUDIO_OUTPUT_OPENED:
+    case AUDIO_OUTPUT_CONFIG_CHANGED:
+        desc->mChannelMask = mChannelMask;
+        desc->mSamplingRate = mSampleRate;
+        desc->mFormat = mFormat;
+        desc->mFrameCount = mNormalFrameCount; // FIXME see
                                              // AudioFlinger::frameCount(audio_io_handle_t)
-        desc.latency = latency_l();
-        param2 = &desc;
+        desc->mLatency = latency_l();
         break;
 
-    case AudioSystem::STREAM_CONFIG_CHANGED:
-        param2 = &param;
-    case AudioSystem::OUTPUT_CLOSED:
+    case AUDIO_OUTPUT_CLOSED:
     default:
         break;
     }
-    mAudioFlinger->audioConfigChanged(event, mId, param2);
+    mAudioFlinger->ioConfigChanged(event, desc);
 }
 
 void AudioFlinger::PlaybackThread::writeCallback()
@@ -4203,7 +4199,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
                 }
                 mTracks[i]->mName = name;
             }
-            sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
+            sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
         }
     }
 
@@ -4655,7 +4651,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
         }
         if (status == NO_ERROR && reconfig) {
             readOutputParameters_l();
-            sendIoConfigEvent_l(AudioSystem::OUTPUT_CONFIG_CHANGED);
+            sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
         }
     }
 
@@ -6701,7 +6697,7 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
             }
             if (status == NO_ERROR) {
                 readInputParameters_l();
-                sendIoConfigEvent_l(AudioSystem::INPUT_CONFIG_CHANGED);
+                sendIoConfigEvent_l(AUDIO_INPUT_CONFIG_CHANGED);
             }
         }
     }
@@ -6722,26 +6718,26 @@ String8 AudioFlinger::RecordThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-void AudioFlinger::RecordThread::audioConfigChanged(int event, int param __unused) {
-    AudioSystem::OutputDescriptor desc;
-    const void *param2 = NULL;
+void AudioFlinger::RecordThread::ioConfigChanged(audio_io_config_event event) {
+    sp<AudioIoDescriptor> desc = new AudioIoDescriptor();
+
+    desc->mIoHandle = mId;
 
     switch (event) {
-    case AudioSystem::INPUT_OPENED:
-    case AudioSystem::INPUT_CONFIG_CHANGED:
-        desc.channelMask = mChannelMask;
-        desc.samplingRate = mSampleRate;
-        desc.format = mFormat;
-        desc.frameCount = mFrameCount;
-        desc.latency = 0;
-        param2 = &desc;
+    case AUDIO_INPUT_OPENED:
+    case AUDIO_INPUT_CONFIG_CHANGED:
+        desc->mChannelMask = mChannelMask;
+        desc->mSamplingRate = mSampleRate;
+        desc->mFormat = mFormat;
+        desc->mFrameCount = mFrameCount;
+        desc->mLatency = 0;
         break;
 
-    case AudioSystem::INPUT_CLOSED:
+    case AUDIO_INPUT_CLOSED:
     default:
         break;
     }
-    mAudioFlinger->audioConfigChanged(event, mId, param2);
+    mAudioFlinger->ioConfigChanged(event, desc);
 }
 
 void AudioFlinger::RecordThread::readInputParameters_l()

@@ -545,7 +545,8 @@ private:
               // no range check, doesn't check per-thread stream volume, AudioFlinger::mLock held
               float streamVolume_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].volume; }
-              void audioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2);
+              void ioConfigChanged(audio_io_config_event event,
+                                   const sp<AudioIoDescriptor>& ioDesc);
 
               // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
               // They all share the same ID space, but the namespaces are actually independent
