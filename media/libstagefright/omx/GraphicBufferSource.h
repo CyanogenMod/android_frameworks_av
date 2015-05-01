@@ -50,9 +50,15 @@ struct FrameDropper;
  */
 class GraphicBufferSource : public BufferQueue::ConsumerListener {
 public:
-    GraphicBufferSource(OMXNodeInstance* nodeInstance,
-            uint32_t bufferWidth, uint32_t bufferHeight, uint32_t bufferCount,
-            bool useGraphicBufferInMeta = false);
+    GraphicBufferSource(
+            OMXNodeInstance* nodeInstance,
+            uint32_t bufferWidth,
+            uint32_t bufferHeight,
+            uint32_t bufferCount,
+            bool useGraphicBufferInMeta = false,
+            const sp<IGraphicBufferConsumer> &consumer = NULL
+    );
+
     virtual ~GraphicBufferSource();
 
     // We can't throw an exception if the constructor fails, so we just set
@@ -219,6 +225,7 @@ private:
     // Our BufferQueue interfaces. mProducer is passed to the producer through
     // getIGraphicBufferProducer, and mConsumer is used internally to retrieve
     // the buffers queued by the producer.
+    bool mIsPersistent;
     sp<IGraphicBufferProducer> mProducer;
     sp<IGraphicBufferConsumer> mConsumer;
 

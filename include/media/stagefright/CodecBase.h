@@ -26,6 +26,7 @@
 namespace android {
 
 struct ABuffer;
+struct PersistentSurface;
 
 struct CodecBase : public AHandler {
     enum {
@@ -39,6 +40,7 @@ struct CodecBase : public AHandler {
         kWhatComponentAllocated  = 'cAll',
         kWhatComponentConfigured = 'cCon',
         kWhatInputSurfaceCreated = 'isfc',
+        kWhatInputSurfaceAccepted = 'isfa',
         kWhatSignaledInputEOS    = 'seos',
         kWhatBuffersAllocated    = 'allc',
     };
@@ -48,6 +50,8 @@ struct CodecBase : public AHandler {
     virtual void initiateAllocateComponent(const sp<AMessage> &msg) = 0;
     virtual void initiateConfigureComponent(const sp<AMessage> &msg) = 0;
     virtual void initiateCreateInputSurface() = 0;
+    virtual void initiateUsePersistentInputSurface(
+            const sp<PersistentSurface> &surface) = 0;
     virtual void initiateStart() = 0;
     virtual void initiateShutdown(bool keepComponentAllocated = false) = 0;
 
