@@ -832,6 +832,9 @@ protected:
     int64_t                 mStartUs;               // the start time after flush or stop.
                                                     // only used for offloaded and direct tracks.
 
+    bool                    mPreviousTimestampValid;// true if mPreviousTimestamp is valid
+    AudioTimestamp          mPreviousTimestamp;     // used to detect retrograde motion
+
     audio_output_flags_t    mFlags;
         // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
         // mLock must be held to read or write those bits reliably.
