@@ -1268,11 +1268,11 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
         // the config change is always sent from playback or record threads to avoid deadlock
         // with AudioSystem::gLock
         for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-            mPlaybackThreads.valueAt(i)->sendIoConfigEvent(AudioSystem::OUTPUT_OPENED);
+            mPlaybackThreads.valueAt(i)->sendIoConfigEvent(AUDIO_OUTPUT_OPENED);
         }
 
         for (size_t i = 0; i < mRecordThreads.size(); i++) {
-            mRecordThreads.valueAt(i)->sendIoConfigEvent(AudioSystem::INPUT_OPENED);
+            mRecordThreads.valueAt(i)->sendIoConfigEvent(AUDIO_INPUT_OPENED);
         }
     }
 }
@@ -1306,14 +1306,13 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
     }
 }
 
-void AudioFlinger::audioConfigChanged(int event, audio_io_handle_t ioHandle, const void *param2)
+void AudioFlinger::ioConfigChanged(audio_io_config_event event,
+                                   const sp<AudioIoDescriptor>& ioDesc)
 {
     Mutex::Autolock _l(mClientLock);
     size_t size = mNotificationClients.size();
     for (size_t i = 0; i < size; i++) {
-        mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event,
-                                                                              ioHandle,
-                                                                              param2);
+        mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event, ioDesc);
     }
 }
 
@@ -1832,7 +1831,7 @@ status_t AudioFlinger::openOutput(audio_module_handle_t module,
         *latencyMs = thread->latency();
 
         // notify client processes of the new output creation
-        thread->audioConfigChanged(AudioSystem::OUTPUT_OPENED);
+        thread->ioConfigChanged(AUDIO_OUTPUT_OPENED);
 
         // the first primary output opened designates the primary hw device
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
@@ -1870,7 +1869,7 @@ audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
     thread->addOutputTrack(thread2);
     mPlaybackThreads.add(id, thread);
     // notify client processes of the new output creation
-    thread->audioConfigChanged(AudioSystem::OUTPUT_OPENED);
+    thread->ioConfigChanged(AUDIO_OUTPUT_OPENED);
     return id;
 }
 
@@ -1920,7 +1919,9 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
                 }
             }
         }
-        audioConfigChanged(AudioSystem::OUTPUT_CLOSED, output, NULL);
+        const sp<AudioIoDescriptor> ioDesc = new AudioIoDescriptor();
+        ioDesc->mIoHandle = output;
+        ioConfigChanged(AUDIO_OUTPUT_CLOSED, ioDesc);
     }
     thread->exit();
     // The thread entity (active unit of execution) is no longer running here,
@@ -1998,7 +1999,7 @@ status_t AudioFlinger::openInput(audio_module_handle_t module,
 
     if (thread != 0) {
         // notify client processes of the new input creation
-        thread->audioConfigChanged(AudioSystem::INPUT_OPENED);
+        thread->ioConfigChanged(AUDIO_INPUT_OPENED);
         return NO_ERROR;
     }
     return NO_INIT;
@@ -2181,7 +2182,9 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
                 putOrphanEffectChain_l(chain);
             }
         }
-        audioConfigChanged(AudioSystem::INPUT_CLOSED, input, NULL);
+        const sp<AudioIoDescriptor> ioDesc = new AudioIoDescriptor();
+        ioDesc->mIoHandle = input;
+        ioConfigChanged(AUDIO_INPUT_CLOSED, ioDesc);
         mRecordThreads.removeItem(input);
     }
     // FIXME: calling thread->exit() without mLock held should not be needed anymore now that
