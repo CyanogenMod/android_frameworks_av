@@ -1065,6 +1065,7 @@ sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
+    format->setString("mime", mime);
 
     int32_t trackType;
     if (!strncasecmp(mime, "video/", 6)) {
@@ -1085,8 +1086,6 @@ sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
     format->setString("language", lang);
 
     if (trackType == MEDIA_TRACK_TYPE_SUBTITLE) {
-        format->setString("mime", mime);
-
         int32_t isAutoselect = 1, isDefault = 0, isForced = 0;
         meta->findInt32(kKeyTrackIsAutoselect, &isAutoselect);
         meta->findInt32(kKeyTrackIsDefault, &isDefault);
