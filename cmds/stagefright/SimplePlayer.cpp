@@ -21,6 +21,7 @@
 #include "SimplePlayer.h"
 
 #include <gui/Surface.h>
+
 #include <media/AudioTrack.h>
 #include <media/ICrypto.h>
 #include <media/IMediaHTTPService.h>
@@ -428,12 +429,12 @@ status_t SimplePlayer::onDoMoreStuff() {
             err = state->mCodec->dequeueInputBuffer(&index);
 
             if (err == OK) {
-                ALOGV("dequeued input buffer on track %d",
+                ALOGV("dequeued input buffer on track %zu",
                       mStateByTrackIndex.keyAt(i));
 
                 state->mAvailInputBufferIndices.push_back(index);
             } else {
-                ALOGV("dequeueInputBuffer on track %d returned %d",
+                ALOGV("dequeueInputBuffer on track %zu returned %d",
                       mStateByTrackIndex.keyAt(i), err);
             }
         } while (err == OK);
@@ -448,7 +449,7 @@ status_t SimplePlayer::onDoMoreStuff() {
                     &info.mFlags);
 
             if (err == OK) {
-                ALOGV("dequeued output buffer on track %d",
+                ALOGV("dequeued output buffer on track %zu",
                       mStateByTrackIndex.keyAt(i));
 
                 state->mAvailOutputBufferInfos.push_back(info);
@@ -459,7 +460,7 @@ status_t SimplePlayer::onDoMoreStuff() {
                 err = state->mCodec->getOutputBuffers(&state->mBuffers[1]);
                 CHECK_EQ(err, (status_t)OK);
             } else {
-                ALOGV("dequeueOutputBuffer on track %d returned %d",
+                ALOGV("dequeueOutputBuffer on track %zu returned %d",
                       mStateByTrackIndex.keyAt(i), err);
             }
         } while (err == OK
@@ -502,7 +503,7 @@ status_t SimplePlayer::onDoMoreStuff() {
                     0);
             CHECK_EQ(err, (status_t)OK);
 
-            ALOGV("enqueued input data on track %d", trackIndex);
+            ALOGV("enqueued input data on track %zu", trackIndex);
 
             err = mExtractor->advance();
             CHECK_EQ(err, (status_t)OK);
@@ -528,8 +529,8 @@ status_t SimplePlayer::onDoMoreStuff() {
                 bool release = true;
 
                 if (lateByUs > 30000ll) {
-                    ALOGI("track %d buffer late by %lld us, dropping.",
-                          mStateByTrackIndex.keyAt(i), lateByUs);
+                    ALOGI("track %zu buffer late by %lld us, dropping.",
+                          mStateByTrackIndex.keyAt(i), (long long)lateByUs);
                     state->mCodec->releaseOutputBuffer(info->mIndex);
                 } else {
                     if (state->mAudioTrack != NULL) {
@@ -558,8 +559,8 @@ status_t SimplePlayer::onDoMoreStuff() {
                     break;
                 }
             } else {
-                ALOGV("track %d buffer early by %lld us.",
-                      mStateByTrackIndex.keyAt(i), -lateByUs);
+                ALOGV("track %zu buffer early by %lld us.",
+                      mStateByTrackIndex.keyAt(i), (long long)-lateByUs);
                 break;
             }
         }
@@ -569,7 +570,7 @@ status_t SimplePlayer::onDoMoreStuff() {
 }
 
 status_t SimplePlayer::onOutputFormatChanged(
-        size_t trackIndex, CodecState *state) {
+        size_t trackIndex __unused, CodecState *state) {
     sp<AMessage> format;
     status_t err = state->mCodec->getOutputFormat(&format);
 
@@ -640,7 +641,7 @@ void SimplePlayer::renderAudio(
     if (delayUs > 2000ll) {
         ALOGW("AudioTrack::write took %lld us, numFramesAvailableToWrite=%u, "
               "numFramesWritten=%u",
-              delayUs, numFramesAvailableToWrite, numFramesWritten);
+              (long long)delayUs, numFramesAvailableToWrite, numFramesWritten);
     }
 
     info->mOffset += nbytes;

@@ -965,7 +965,7 @@ int main(int argc, char **argv) {
     OMXClient client;
     status_t err = client.connect();
 
-    for (int k = 0; k < argc; ++k) {
+    for (int k = 0; k < argc && err == OK; ++k) {
         bool syncInfoPresent = true;
 
         const char *filename = argv[k];
