@@ -33,6 +33,8 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 
+#include <gui/Surface.h>
+
 #include "avc_utils.h"
 #include "ATSParser.h"
 
@@ -42,10 +44,10 @@ NuPlayer::Decoder::Decoder(
         const sp<AMessage> &notify,
         const sp<Source> &source,
         const sp<Renderer> &renderer,
-        const sp<NativeWindowWrapper> &nativeWindow,
+        const sp<Surface> &surface,
         const sp<CCDecoder> &ccDecoder)
     : DecoderBase(notify),
-      mNativeWindow(nativeWindow),
+      mSurface(surface),
       mSource(source),
       mRenderer(renderer),
       mCCDecoder(ccDecoder),
@@ -178,14 +180,9 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     mIsAudio = !strncasecmp("audio/", mime.c_str(), 6);
     mIsVideoAVC = !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime.c_str());
 
-    sp<Surface> surface = NULL;
-    if (mNativeWindow != NULL) {
-        surface = mNativeWindow->getSurfaceTextureClient();
-    }
-
     mComponentName = mime;
     mComponentName.append(" decoder");
-    ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), surface.get());
+    ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), mSurface.get());
 
     mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
     int32_t secure = 0;
@@ -210,17 +207,17 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     mCodec->getName(&mComponentName);
 
     status_t err;
-    if (mNativeWindow != NULL) {
+    if (mSurface != NULL) {
         // disconnect from surface as MediaCodec will reconnect
         err = native_window_api_disconnect(
-                surface.get(), NATIVE_WINDOW_API_MEDIA);
+                mSurface.get(), NATIVE_WINDOW_API_MEDIA);
         // We treat this as a warning, as this is a preparatory step.
         // Codec will try to connect to the surface, which is where
         // any error signaling will occur.
         ALOGW_IF(err != OK, "failed to disconnect from surface: %d", err);
     }
     err = mCodec->configure(
-            format, surface, NULL /* crypto */, 0 /* flags */);
+            format, mSurface, NULL /* crypto */, 0 /* flags */);
     if (err != OK) {
         ALOGE("Failed to configure %s decoder (err=%d)", mComponentName.c_str(), err);
         mCodec->release();
@@ -337,12 +334,10 @@ void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
         mCodec = NULL;
         ++mBufferGeneration;
 
-        if (mNativeWindow != NULL) {
+        if (mSurface != NULL) {
             // reconnect to surface as MediaCodec disconnected from it
             status_t error =
-                    native_window_api_connect(
-                            mNativeWindow->getNativeWindow().get(),
-                            NATIVE_WINDOW_API_MEDIA);
+                    native_window_api_connect(mSurface.get(), NATIVE_WINDOW_API_MEDIA);
             ALOGW_IF(error != NO_ERROR,
                     "[%s] failed to connect to native window, error=%d",
                     mComponentName.c_str(), error);
