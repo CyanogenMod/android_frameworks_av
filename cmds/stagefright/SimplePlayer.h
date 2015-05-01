@@ -25,8 +25,8 @@ struct ALooper;
 struct AudioTrack;
 class IGraphicBufferProducer;
 struct MediaCodec;
-struct NativeWindowWrapper;
 struct NuMediaExtractor;
+class Surface;
 
 struct SimplePlayer : public AHandler {
     SimplePlayer();
@@ -84,7 +84,7 @@ private:
 
     State mState;
     AString mPath;
-    sp<NativeWindowWrapper> mNativeWindow;
+    sp<Surface> mSurface;
 
     sp<NuMediaExtractor> mExtractor;
     sp<ALooper> mCodecLooper;
