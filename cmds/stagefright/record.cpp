@@ -32,13 +32,13 @@
 
 using namespace android;
 
+static const int32_t kAudioBitRate = 12200;
+#if 0
 static const int32_t kFramerate = 24;  // fps
 static const int32_t kIFramesIntervalSec = 1;
 static const int32_t kVideoBitRate = 512 * 1024;
-static const int32_t kAudioBitRate = 12200;
 static const int64_t kDurationUs = 10000000LL;  // 10 seconds
 
-#if 0
 class DummySource : public MediaSource {
 
 public:

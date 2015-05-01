@@ -81,7 +81,7 @@ struct SaturationRSFilter : RenderScriptWrapper::RSFilterCallback {
         return OK;
     }
 
-    status_t handleSetParameters(const sp<AMessage> &msg) {
+    status_t handleSetParameters(const sp<AMessage> &msg __unused) {
         return OK;
     }
 
@@ -101,7 +101,7 @@ struct NightVisionRSFilter : RenderScriptWrapper::RSFilterCallback {
         return OK;
     }
 
-    status_t handleSetParameters(const sp<AMessage> &msg) {
+    status_t handleSetParameters(const sp<AMessage> &msg __unused) {
         return OK;
     }
 
@@ -121,7 +121,7 @@ struct ARGBToRGBARSFilter : RenderScriptWrapper::RSFilterCallback {
         return OK;
     }
 
-    status_t handleSetParameters(const sp<AMessage> &msg) {
+    status_t handleSetParameters(const sp<AMessage> &msg __unused) {
         return OK;
     }
 
@@ -597,7 +597,7 @@ static int decode(
 
             if (err == OK) {
                 ALOGV("draining decoded buffer %zu, time = %lld us",
-                        frame.index, frame.presentationTimeUs);
+                        frame.index, (long long)frame.presentationTimeUs);
 
                 ++(state->mNumBuffersDecoded);
 
