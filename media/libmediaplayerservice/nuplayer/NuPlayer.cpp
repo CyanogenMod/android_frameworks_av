@@ -423,23 +423,23 @@ void NuPlayer::writeTrackInfo(
     int32_t trackType;
     CHECK(format->findInt32("type", &trackType));
 
+    AString mime;
+    CHECK(format->findString("mime", &mime));
+
     AString lang;
     CHECK(format->findString("language", &lang));
 
     reply->writeInt32(2); // write something non-zero
     reply->writeInt32(trackType);
+    reply->writeString16(String16(mime.c_str()));
     reply->writeString16(String16(lang.c_str()));
 
     if (trackType == MEDIA_TRACK_TYPE_SUBTITLE) {
-        AString mime;
-        CHECK(format->findString("mime", &mime));
-
         int32_t isAuto, isDefault, isForced;
         CHECK(format->findInt32("auto", &isAuto));
         CHECK(format->findInt32("default", &isDefault));
         CHECK(format->findInt32("forced", &isForced));
 
-        reply->writeString16(String16(mime.c_str()));
         reply->writeInt32(isAuto);
         reply->writeInt32(isDefault);
         reply->writeInt32(isForced);
