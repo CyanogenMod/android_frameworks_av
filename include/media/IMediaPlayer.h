@@ -35,6 +35,8 @@ class IDataSource;
 struct IStreamSource;
 class IGraphicBufferProducer;
 struct IMediaHTTPService;
+struct AudioPlaybackRate;
+struct AVSyncSettings;
 
 class IMediaPlayer: public IInterface
 {
@@ -58,7 +60,11 @@ public:
     virtual status_t        stop() = 0;
     virtual status_t        pause() = 0;
     virtual status_t        isPlaying(bool* state) = 0;
-    virtual status_t        setPlaybackRate(float rate) = 0;
+    virtual status_t        setPlaybackSettings(const AudioPlaybackRate& rate) = 0;
+    virtual status_t        getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */) = 0;
+    virtual status_t        setSyncSettings(const AVSyncSettings& sync, float videoFpsHint) = 0;
+    virtual status_t        getSyncSettings(AVSyncSettings* sync /* nonnull */,
+                                            float* videoFps /* nonnull */) = 0;
     virtual status_t        seekTo(int msec) = 0;
     virtual status_t        getCurrentPosition(int* msec) = 0;
     virtual status_t        getDuration(int* msec) = 0;

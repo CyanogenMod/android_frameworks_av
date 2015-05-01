@@ -56,6 +56,10 @@ MediaSync::MediaSync()
         mPlaybackRate(0.0) {
     mMediaClock = new MediaClock;
 
+    // initialize settings
+    mPlaybackSettings = AUDIO_PLAYBACK_RATE_DEFAULT;
+    mPlaybackSettings.mSpeed = mPlaybackRate;
+
     mLooper = new ALooper;
     mLooper->setName("MediaSync");
     mLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
@@ -84,6 +88,11 @@ status_t MediaSync::configureSurface(const sp<IGraphicBufferProducer> &output) {
         return INVALID_OPERATION;
     }
 
+    if (output == NULL && mSyncSettings.mSource == AVSYNC_SOURCE_VSYNC) {
+        ALOGE("configureSurface: output surface is used as sync source and cannot be removed.");
+        return INVALID_OPERATION;
+    }
+
     if (output != NULL) {
         IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
         sp<OutputListener> listener(new OutputListener(this));
@@ -105,8 +114,7 @@ status_t MediaSync::configureSurface(const sp<IGraphicBufferProducer> &output) {
 }
 
 // |audioTrack| is used only for querying information.
-status_t MediaSync::configureAudioTrack(
-        const sp<AudioTrack> &audioTrack, uint32_t nativeSampleRateInHz) {
+status_t MediaSync::configureAudioTrack(const sp<AudioTrack> &audioTrack) {
     Mutex::Autolock lock(mMutex);
 
     // TODO: support audio track change.
@@ -115,15 +123,35 @@ status_t MediaSync::configureAudioTrack(
         return INVALID_OPERATION;
     }
 
-    if (audioTrack != NULL && nativeSampleRateInHz <= 0) {
-        ALOGE("configureAudioTrack: native sample rate should be positive.");
-        return BAD_VALUE;
+    if (audioTrack == NULL && mSyncSettings.mSource == AVSYNC_SOURCE_AUDIO) {
+        ALOGE("configureAudioTrack: audioTrack is used as sync source and cannot be removed.");
+        return INVALID_OPERATION;
     }
 
-    mAudioTrack = audioTrack;
-    mNativeSampleRateInHz = nativeSampleRateInHz;
+    if (audioTrack != NULL) {
+        // check if audio track supports the playback settings
+        if (mPlaybackSettings.mSpeed != 0.f
+                && audioTrack->setPlaybackRate(mPlaybackSettings) != OK) {
+            ALOGE("playback settings are not supported by the audio track");
+            return INVALID_OPERATION;
+        }
+        uint32_t nativeSampleRateInHz = audioTrack->getOriginalSampleRate();
+        if (nativeSampleRateInHz <= 0) {
+            ALOGE("configureAudioTrack: native sample rate should be positive.");
+            return BAD_VALUE;
+        }
+        mAudioTrack = audioTrack;
+        mNativeSampleRateInHz = nativeSampleRateInHz;
+        (void)setPlaybackSettings_l(mPlaybackSettings);
+    }
+    else {
+        mAudioTrack = NULL;
+        mNativeSampleRateInHz = 0;
+    }
 
-    return NO_ERROR;
+    // potentially resync to new source
+    resync_l();
+    return OK;
 }
 
 status_t MediaSync::createInputSurface(
@@ -158,21 +186,27 @@ status_t MediaSync::createInputSurface(
     return status;
 }
 
-status_t MediaSync::setPlaybackRate(float rate) {
-    if (rate < 0.0) {
-        return BAD_VALUE;
+void MediaSync::resync_l() {
+    AVSyncSource src = mSyncSettings.mSource;
+    if (src == AVSYNC_SOURCE_DEFAULT) {
+        if (mAudioTrack != NULL) {
+            src = AVSYNC_SOURCE_AUDIO;
+        } else {
+            src = AVSYNC_SOURCE_SYSTEM_CLOCK;
+        }
     }
 
-    Mutex::Autolock lock(mMutex);
+    // TODO: resync ourselves to the current clock (e.g. on sync source change)
+    updatePlaybackRate_l(mPlaybackRate);
+}
 
+void MediaSync::updatePlaybackRate_l(float rate) {
     if (rate > mPlaybackRate) {
         mNextBufferItemMediaUs = -1;
     }
     mPlaybackRate = rate;
     mMediaClock->setPlaybackRate(rate);
     onDrainVideo_l();
-
-    return OK;
 }
 
 sp<const MediaClock> MediaSync::getMediaClock() {
@@ -262,6 +296,95 @@ status_t MediaSync::updateQueuedAudioData(
 void MediaSync::setName(const AString &name) {
     Mutex::Autolock lock(mMutex);
     mInput->setConsumerName(String8(name.c_str()));
+}
+
+status_t MediaSync::setVideoFrameRateHint(float rate) {
+    // ignored until we add the FrameScheduler
+    return rate >= 0.f ? OK : BAD_VALUE;
+}
+
+float MediaSync::getVideoFrameRate() {
+    // we don't know the frame rate
+    return -1.f;
+}
+
+status_t MediaSync::setSyncSettings(const AVSyncSettings &syncSettings) {
+    // validate settings
+    if (syncSettings.mSource >= AVSYNC_SOURCE_MAX
+            || syncSettings.mAudioAdjustMode >= AVSYNC_AUDIO_ADJUST_MODE_MAX
+            || syncSettings.mTolerance < 0.f
+            || syncSettings.mTolerance >= AVSYNC_TOLERANCE_MAX) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock lock(mMutex);
+
+    // verify that we have the sync source
+    switch (syncSettings.mSource) {
+        case AVSYNC_SOURCE_AUDIO:
+            if (mAudioTrack == NULL) {
+                ALOGE("setSyncSettings: audio sync source requires an audio track");
+                return BAD_VALUE;
+            }
+            break;
+        case AVSYNC_SOURCE_VSYNC:
+            if (mOutput == NULL) {
+                ALOGE("setSyncSettings: vsync sync source requires an output surface");
+                return BAD_VALUE;
+            }
+            break;
+        default:
+            break;
+    }
+
+    mSyncSettings = syncSettings;
+    resync_l();
+    return OK;
+}
+
+void MediaSync::getSyncSettings(AVSyncSettings *syncSettings) {
+    Mutex::Autolock lock(mMutex);
+    *syncSettings = mSyncSettings;
+}
+
+status_t MediaSync::setPlaybackSettings(const AudioPlaybackRate &rate) {
+    Mutex::Autolock lock(mMutex);
+
+    status_t err = setPlaybackSettings_l(rate);
+    if (err == OK) {
+        // TODO: adjust rate if using VSYNC as source
+        updatePlaybackRate_l(rate.mSpeed);
+    }
+    return err;
+}
+
+status_t MediaSync::setPlaybackSettings_l(const AudioPlaybackRate &rate) {
+    if (rate.mSpeed < 0.f || rate.mPitch < 0.f) {
+        // We don't validate other audio settings.
+        // They will be validated when/if audiotrack is set.
+        return BAD_VALUE;
+    }
+
+    if (mAudioTrack != NULL) {
+        if (rate.mSpeed == 0.f) {
+            mAudioTrack->pause();
+        } else {
+            status_t err = mAudioTrack->setPlaybackRate(rate);
+            if (err != OK) {
+                return BAD_VALUE;
+            }
+
+            // ignore errors
+            (void)mAudioTrack->start();
+        }
+    }
+    mPlaybackSettings = rate;
+    return OK;
+}
+
+void MediaSync::getPlaybackSettings(AudioPlaybackRate *rate) {
+    Mutex::Autolock lock(mMutex);
+    *rate = mPlaybackSettings;
 }
 
 int64_t MediaSync::getRealTime(int64_t mediaTimeUs, int64_t nowUs) {

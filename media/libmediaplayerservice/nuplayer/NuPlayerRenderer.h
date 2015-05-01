@@ -18,6 +18,9 @@
 
 #define NUPLAYER_RENDERER_H_
 
+#include <media/AudioResamplerPublic.h>
+#include <media/AVSyncSettings.h>
+
 #include "NuPlayer.h"
 
 namespace android {
@@ -48,7 +51,10 @@ struct NuPlayer::Renderer : public AHandler {
 
     void queueEOS(bool audio, status_t finalResult);
 
-    void setPlaybackRate(float rate);
+    status_t setPlaybackSettings(const AudioPlaybackRate &rate /* sanitized */);
+    status_t getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */);
+    status_t setSyncSettings(const AVSyncSettings &sync, float videoFpsHint);
+    status_t getSyncSettings(AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */);
 
     void flush(bool audio, bool notifyComplete);
 
@@ -102,7 +108,10 @@ private:
         kWhatPostDrainVideoQueue = 'pDVQ',
         kWhatQueueBuffer         = 'queB',
         kWhatQueueEOS            = 'qEOS',
-        kWhatSetRate             = 'setR',
+        kWhatConfigPlayback      = 'cfPB',
+        kWhatConfigSync          = 'cfSy',
+        kWhatGetPlaybackSettings = 'gPbS',
+        kWhatGetSyncSettings     = 'gSyS',
         kWhatFlush               = 'flus',
         kWhatPause               = 'paus',
         kWhatResume              = 'resm',
@@ -141,7 +150,12 @@ private:
     int32_t mVideoDrainGeneration;
 
     sp<MediaClock> mMediaClock;
-    float mPlaybackRate;
+    float mPlaybackRate; // audio track rate
+
+    AudioPlaybackRate mPlaybackSettings;
+    AVSyncSettings mSyncSettings;
+    float mVideoFpsHint;
+
     int64_t mAudioFirstAnchorTimeMediaUs;
     int64_t mAnchorTimeMediaUs;
     int64_t mAnchorNumFramesWritten;
@@ -217,6 +231,11 @@ private:
     void onAudioSinkChanged();
     void onDisableOffloadAudio();
     void onEnableOffloadAudio();
+    status_t onConfigPlayback(const AudioPlaybackRate &rate /* sanitized */);
+    status_t onGetPlaybackSettings(AudioPlaybackRate *rate /* nonnull */);
+    status_t onConfigSync(const AVSyncSettings &sync, float videoFpsHint);
+    status_t onGetSyncSettings(AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */);
+
     void onPause();
     void onResume();
     void onSetVideoFrameRate(float fps);
@@ -252,6 +271,6 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(Renderer);
 };
 
-}  // namespace android
+} // namespace android
 
 #endif  // NUPLAYER_RENDERER_H_

@@ -360,9 +360,32 @@ bool NuPlayerDriver::isPlaying() {
     return mState == STATE_RUNNING && !mAtEOS;
 }
 
-status_t NuPlayerDriver::setPlaybackRate(float rate) {
-    mPlayer->setPlaybackRate(rate);
-    return OK;
+status_t NuPlayerDriver::setPlaybackSettings(const AudioPlaybackRate &rate) {
+    Mutex::Autolock autoLock(mLock);
+    status_t err = mPlayer->setPlaybackSettings(rate);
+    if (err == OK) {
+        if (rate.mSpeed == 0.f && mState == STATE_RUNNING) {
+            mState = STATE_PAUSED;
+            // try to update position
+            (void)mPlayer->getCurrentPosition(&mPositionUs);
+            notifyListener_l(MEDIA_PAUSED);
+        } else if (rate.mSpeed != 0.f && mState == STATE_PAUSED) {
+            mState = STATE_RUNNING;
+        }
+    }
+    return err;
+}
+
+status_t NuPlayerDriver::getPlaybackSettings(AudioPlaybackRate *rate) {
+    return mPlayer->getPlaybackSettings(rate);
+}
+
+status_t NuPlayerDriver::setSyncSettings(const AVSyncSettings &sync, float videoFpsHint) {
+    return mPlayer->setSyncSettings(sync, videoFpsHint);
+}
+
+status_t NuPlayerDriver::getSyncSettings(AVSyncSettings *sync, float *videoFps) {
+    return mPlayer->getSyncSettings(sync, videoFps);
 }
 
 status_t NuPlayerDriver::seekTo(int msec) {

@@ -980,12 +980,52 @@ status_t MediaPlayerService::Client::isPlaying(bool* state)
     return NO_ERROR;
 }
 
-status_t MediaPlayerService::Client::setPlaybackRate(float rate)
+status_t MediaPlayerService::Client::setPlaybackSettings(const AudioPlaybackRate& rate)
 {
-    ALOGV("[%d] setPlaybackRate(%f)", mConnId, rate);
+    ALOGV("[%d] setPlaybackSettings(%f, %f, %d, %d)",
+            mConnId, rate.mSpeed, rate.mPitch, rate.mFallbackMode, rate.mStretchMode);
     sp<MediaPlayerBase> p = getPlayer();
     if (p == 0) return UNKNOWN_ERROR;
-    return p->setPlaybackRate(rate);
+    return p->setPlaybackSettings(rate);
+}
+
+status_t MediaPlayerService::Client::getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */)
+{
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == 0) return UNKNOWN_ERROR;
+    status_t ret = p->getPlaybackSettings(rate);
+    if (ret == NO_ERROR) {
+        ALOGV("[%d] getPlaybackSettings(%f, %f, %d, %d)",
+                mConnId, rate->mSpeed, rate->mPitch, rate->mFallbackMode, rate->mStretchMode);
+    } else {
+        ALOGV("[%d] getPlaybackSettings returned %d", mConnId, ret);
+    }
+    return ret;
+}
+
+status_t MediaPlayerService::Client::setSyncSettings(
+        const AVSyncSettings& sync, float videoFpsHint)
+{
+    ALOGV("[%d] setSyncSettings(%u, %u, %f, %f)",
+            mConnId, sync.mSource, sync.mAudioAdjustMode, sync.mTolerance, videoFpsHint);
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == 0) return UNKNOWN_ERROR;
+    return p->setSyncSettings(sync, videoFpsHint);
+}
+
+status_t MediaPlayerService::Client::getSyncSettings(
+        AVSyncSettings* sync /* nonnull */, float* videoFps /* nonnull */)
+{
+    sp<MediaPlayerBase> p = getPlayer();
+    if (p == 0) return UNKNOWN_ERROR;
+    status_t ret = p->getSyncSettings(sync, videoFps);
+    if (ret == NO_ERROR) {
+        ALOGV("[%d] getSyncSettings(%u, %u, %f, %f)",
+                mConnId, sync->mSource, sync->mAudioAdjustMode, sync->mTolerance, *videoFps);
+    } else {
+        ALOGV("[%d] getSyncSettings returned %d", mConnId, ret);
+    }
+    return ret;
 }
 
 status_t MediaPlayerService::Client::getCurrentPosition(int *msec)
@@ -1310,7 +1350,7 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
     mStreamType = AUDIO_STREAM_MUSIC;
     mLeftVolume = 1.0;
     mRightVolume = 1.0;
-    mPlaybackRatePermille = 1000;
+    mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
     mSampleRateHz = 0;
     mMsecsPerFrame = 0;
     mAuxEffectId = 0;
@@ -1633,7 +1673,7 @@ status_t MediaPlayerService::AudioOutput::open(
 
     mSampleRateHz = sampleRate;
     mFlags = flags;
-    mMsecsPerFrame = mPlaybackRatePermille / (float) sampleRate;
+    mMsecsPerFrame = 1E3f / (mPlaybackRate.mSpeed * sampleRate);
     uint32_t pos;
     if (t->getPosition(&pos) == OK) {
         mBytesWritten = uint64_t(pos) * t->frameSize();
@@ -1642,7 +1682,7 @@ status_t MediaPlayerService::AudioOutput::open(
 
     status_t res = NO_ERROR;
     if ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) {
-        res = t->setSampleRate(mPlaybackRatePermille * mSampleRateHz / 1000);
+        res = t->setPlaybackRate(mPlaybackRate);
         if (res == NO_ERROR) {
             t->setAuxEffectSendLevel(mSendLevel);
             res = t->attachAuxEffect(mAuxEffectId);
@@ -1738,20 +1778,36 @@ void MediaPlayerService::AudioOutput::setVolume(float left, float right)
     }
 }
 
-status_t MediaPlayerService::AudioOutput::setPlaybackRatePermille(int32_t ratePermille)
+status_t MediaPlayerService::AudioOutput::setPlaybackRate(const AudioPlaybackRate &rate)
 {
-    ALOGV("setPlaybackRatePermille(%d)", ratePermille);
-    status_t res = NO_ERROR;
-    if (mTrack != 0) {
-        res = mTrack->setSampleRate(ratePermille * mSampleRateHz / 1000);
-    } else {
-        res = NO_INIT;
+    ALOGV("setPlaybackRate(%f %f %d %d)",
+                rate.mSpeed, rate.mPitch, rate.mFallbackMode, rate.mStretchMode);
+    if (mTrack == 0) {
+        // remember rate so that we can set it when the track is opened
+        mPlaybackRate = rate;
+        return OK;
     }
-    mPlaybackRatePermille = ratePermille;
+    status_t res = mTrack->setPlaybackRate(rate);
+    if (res != NO_ERROR) {
+        return res;
+    }
+    // rate.mSpeed is always greater than 0 if setPlaybackRate succeeded
+    CHECK_GT(rate.mSpeed, 0.f);
+    mPlaybackRate = rate;
     if (mSampleRateHz != 0) {
-        mMsecsPerFrame = mPlaybackRatePermille / (float) mSampleRateHz;
+        mMsecsPerFrame = 1E3f / (rate.mSpeed * mSampleRateHz);
     }
     return res;
+}
+
+status_t MediaPlayerService::AudioOutput::getPlaybackRate(AudioPlaybackRate *rate)
+{
+    ALOGV("setPlaybackRate");
+    if (mTrack == 0) {
+        return NO_INIT;
+    }
+    *rate = mTrack->getPlaybackRate();
+    return NO_ERROR;
 }
 
 status_t MediaPlayerService::AudioOutput::setAuxEffectSendLevel(float level)

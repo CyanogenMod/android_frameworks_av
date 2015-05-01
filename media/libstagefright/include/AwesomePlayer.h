@@ -21,6 +21,7 @@
 #include "HTTPBase.h"
 #include "TimedEventQueue.h"
 
+#include <media/AudioResamplerPublic.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/OMXClient.h>
@@ -93,6 +94,8 @@ struct AwesomePlayer {
 
     status_t setParameter(int key, const Parcel &request);
     status_t getParameter(int key, Parcel *reply);
+    status_t setPlaybackSettings(const AudioPlaybackRate &rate);
+    status_t getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */);
     status_t invoke(const Parcel &request, Parcel *reply);
     status_t setCacheStatCollectFreq(const Parcel &request);
 
@@ -180,6 +183,7 @@ private:
     sp<MediaSource> mOmxSource;
     sp<MediaSource> mAudioSource;
     AudioPlayer *mAudioPlayer;
+    AudioPlaybackRate mPlaybackSettings;
     int64_t mDurationUs;
 
     int32_t mDisplayWidth;

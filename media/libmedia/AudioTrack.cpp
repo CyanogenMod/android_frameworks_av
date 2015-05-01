@@ -393,6 +393,7 @@ status_t AudioTrack::set(
         return BAD_VALUE;
     }
     mSampleRate = sampleRate;
+    mOriginalSampleRate = sampleRate;
     mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
 
     // Make copy of input parameter offloadInfo so that in the future:
@@ -759,6 +760,15 @@ uint32_t AudioTrack::getSampleRate() const
     return mSampleRate;
 }
 
+uint32_t AudioTrack::getOriginalSampleRate() const
+{
+    if (mIsTimed) {
+        return 0;
+    }
+
+    return mOriginalSampleRate;
+}
+
 status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
 {
     AutoMutex lock(mLock);
@@ -1106,6 +1116,7 @@ status_t AudioTrack::createTrack_l()
     }
     if (mSampleRate == 0) {
         mSampleRate = afSampleRate;
+        mOriginalSampleRate = afSampleRate;
     }
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.

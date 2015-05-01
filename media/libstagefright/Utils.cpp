@@ -901,5 +901,39 @@ bool operator <(const HLSTime &t0, const HLSTime &t1) {
             || (t0.mSeq == t1.mSeq && t0.mTimeUs < t1.mTimeUs);
 }
 
+void writeToAMessage(sp<AMessage> msg, const AudioPlaybackRate &rate) {
+    msg->setFloat("speed", rate.mSpeed);
+    msg->setFloat("pitch", rate.mPitch);
+    msg->setInt32("audio-fallback-mode", rate.mFallbackMode);
+    msg->setInt32("audio-stretch-mode", rate.mStretchMode);
+}
+
+void readFromAMessage(const sp<AMessage> &msg, AudioPlaybackRate *rate /* nonnull */) {
+    *rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+    CHECK(msg->findFloat("speed", &rate->mSpeed));
+    CHECK(msg->findFloat("pitch", &rate->mPitch));
+    CHECK(msg->findInt32("audio-fallback-mode", (int32_t *)&rate->mFallbackMode));
+    CHECK(msg->findInt32("audio-stretch-mode", (int32_t *)&rate->mStretchMode));
+}
+
+void writeToAMessage(sp<AMessage> msg, const AVSyncSettings &sync, float videoFpsHint) {
+    msg->setInt32("sync-source", sync.mSource);
+    msg->setInt32("audio-adjust-mode", sync.mAudioAdjustMode);
+    msg->setFloat("tolerance", sync.mTolerance);
+    msg->setFloat("video-fps", videoFpsHint);
+}
+
+void readFromAMessage(
+        const sp<AMessage> &msg,
+        AVSyncSettings *sync /* nonnull */,
+        float *videoFps /* nonnull */) {
+    AVSyncSettings settings;
+    CHECK(msg->findInt32("sync-source", (int32_t *)&settings.mSource));
+    CHECK(msg->findInt32("audio-adjust-mode", (int32_t *)&settings.mAudioAdjustMode));
+    CHECK(msg->findFloat("tolerance", &settings.mTolerance));
+    CHECK(msg->findFloat("video-fps", videoFps));
+    *sync = settings;
+}
+
 }  // namespace android
 

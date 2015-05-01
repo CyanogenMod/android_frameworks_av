@@ -26,8 +26,10 @@
 #include <utils/RefBase.h>
 
 #include <media/mediaplayer.h>
+#include <media/AudioResamplerPublic.h>
 #include <media/AudioSystem.h>
 #include <media/AudioTimestamp.h>
+#include <media/AVSyncSettings.h>
 #include <media/Metadata.h>
 
 // Fwd decl to make sure everyone agrees that the scope of struct sockaddr_in is
@@ -132,7 +134,8 @@ public:
         virtual void        pause() = 0;
         virtual void        close() = 0;
 
-        virtual status_t    setPlaybackRatePermille(int32_t /* rate */) { return INVALID_OPERATION;}
+        virtual status_t    setPlaybackRate(const AudioPlaybackRate& rate) = 0;
+        virtual status_t    getPlaybackRate(AudioPlaybackRate* rate /* nonnull */) = 0;
         virtual bool        needsTrailingPadding() { return true; }
 
         virtual status_t    setParameters(const String8& /* keyValuePairs */) { return NO_ERROR; }
@@ -173,7 +176,31 @@ public:
     virtual status_t    stop() = 0;
     virtual status_t    pause() = 0;
     virtual bool        isPlaying() = 0;
-    virtual status_t    setPlaybackRate(float /* rate */) { return INVALID_OPERATION; }
+    virtual status_t    setPlaybackSettings(const AudioPlaybackRate& rate) {
+        // by default, players only support setting rate to the default
+        if (!isAudioPlaybackRateEqual(rate, AUDIO_PLAYBACK_RATE_DEFAULT)) {
+            return BAD_VALUE;
+        }
+        return OK;
+    }
+    virtual status_t    getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */) {
+        *rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+        return OK;
+    }
+    virtual status_t    setSyncSettings(const AVSyncSettings& sync, float /* videoFps */) {
+        // By default, players only support setting sync source to default; all other sync
+        // settings are ignored. There is no requirement for getters to return set values.
+        if (sync.mSource != AVSYNC_SOURCE_DEFAULT) {
+            return BAD_VALUE;
+        }
+        return OK;
+    }
+    virtual status_t    getSyncSettings(
+                                AVSyncSettings* sync /* nonnull */, float* videoFps /* nonnull */) {
+        *sync = AVSyncSettings();
+        *videoFps = -1.f;
+        return OK;
+    }
     virtual status_t    seekTo(int msec) = 0;
     virtual status_t    getCurrentPosition(int *msec) = 0;
     virtual status_t    getDuration(int *msec) = 0;

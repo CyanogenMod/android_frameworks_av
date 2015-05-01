@@ -20,6 +20,8 @@
 #include <arpa/inet.h>
 
 #include <binder/IMemory.h>
+
+#include <media/AudioResamplerPublic.h>
 #include <media/IMediaPlayerClient.h>
 #include <media/IMediaPlayer.h>
 #include <media/IMediaDeathNotifier.h>
@@ -32,8 +34,9 @@ class ANativeWindow;
 
 namespace android {
 
-class Surface;
+struct AVSyncSettings;
 class IGraphicBufferProducer;
+class Surface;
 
 enum media_event_type {
     MEDIA_NOP               = 0, // interface test message
@@ -223,7 +226,12 @@ public:
             status_t        stop();
             status_t        pause();
             bool            isPlaying();
-            status_t        setPlaybackRate(float rate);
+            status_t        setPlaybackSettings(const AudioPlaybackRate& rate);
+            status_t        getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */);
+            status_t        setSyncSettings(const AVSyncSettings& sync, float videoFpsHint);
+            status_t        getSyncSettings(
+                                    AVSyncSettings* sync /* nonnull */,
+                                    float* videoFps /* nonnull */);
             status_t        getVideoWidth(int *w);
             status_t        getVideoHeight(int *h);
             status_t        seekTo(int msec);
@@ -278,7 +286,6 @@ private:
     int                         mVideoWidth;
     int                         mVideoHeight;
     int                         mAudioSessionId;
-    float                       mPlaybackRate;
     float                       mSendLevel;
     struct sockaddr_in          mRetransmitEndpoint;
     bool                        mRetransmitEndpointValid;
