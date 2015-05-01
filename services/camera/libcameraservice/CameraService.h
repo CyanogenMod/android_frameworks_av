@@ -65,6 +65,7 @@ public:
     class Client;
     class BasicClient;
 
+    // The effective API level.  The Camera2 API running in LEGACY mode counts as API_1.
     enum apiLevel {
         API_1 = 1,
         API_2 = 2
@@ -215,6 +216,10 @@ public:
 
         // Get the PID of the application client using this
         virtual int getClientPid() const;
+
+        // Check what API level is used for this client. This is used to determine which
+        // superclass this can be cast to.
+        virtual bool canCastToApiClient(apiLevel level) const;
     protected:
         BasicClient(const sp<CameraService>& cameraService,
                 const sp<IBinder>& remoteCallback,
@@ -323,6 +328,10 @@ public:
 
         virtual void         notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
                                          const CaptureResultExtras& resultExtras);
+
+        // Check what API level is used for this client. This is used to determine which
+        // superclass this can be cast to.
+        virtual bool canCastToApiClient(apiLevel level) const;
     protected:
         // Convert client from cookie.
         static sp<CameraService::Client> getClientFromCookie(void* user);
