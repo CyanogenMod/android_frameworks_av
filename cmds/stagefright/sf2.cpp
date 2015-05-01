@@ -38,10 +38,10 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
-#include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/Utils.h>
 
 #include <gui/SurfaceComposerClient.h>
+#include <gui/Surface.h>
 
 #include "include/ESDS.h"
 
@@ -154,8 +154,7 @@ protected:
                 sp<AMessage> format = makeFormat(mSource->getFormat());
 
                 if (mSurface != NULL) {
-                    format->setObject(
-                            "native-window", new NativeWindowWrapper(mSurface));
+                    format->setObject("surface", mSurface);
                 }
 
                 mCodec->initiateSetup(format);

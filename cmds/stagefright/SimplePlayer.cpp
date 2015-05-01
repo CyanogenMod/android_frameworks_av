@@ -30,7 +30,6 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaErrors.h>
-#include <media/stagefright/NativeWindowWrapper.h>
 #include <media/stagefright/NuMediaExtractor.h>
 
 namespace android {
@@ -74,8 +73,7 @@ status_t SimplePlayer::setSurface(const sp<IGraphicBufferProducer> &bufferProduc
         surface = new Surface(bufferProducer);
     }
 
-    msg->setObject(
-            "native-window", new NativeWindowWrapper(surface));
+    msg->setObject("surface", surface);
 
     sp<AMessage> response;
     return PostAndAwaitResponse(msg, &response);
@@ -133,10 +131,8 @@ void SimplePlayer::onMessageReceived(const sp<AMessage> &msg) {
                 err = INVALID_OPERATION;
             } else {
                 sp<RefBase> obj;
-                CHECK(msg->findObject("native-window", &obj));
-
-                mNativeWindow = static_cast<NativeWindowWrapper *>(obj.get());
-
+                CHECK(msg->findObject("surface", &obj));
+                mSurface = static_cast<Surface *>(obj.get());
                 err = OK;
             }
 
@@ -325,7 +321,7 @@ status_t SimplePlayer::onPrepare() {
 
         err = state->mCodec->configure(
                 format,
-                isVideo ? mNativeWindow->getSurfaceTextureClient() : NULL,
+                isVideo ? mSurface : NULL,
                 NULL /* crypto */,
                 0 /* flags */);
 
@@ -412,7 +408,7 @@ status_t SimplePlayer::onReset() {
     mStateByTrackIndex.clear();
     mCodecLooper.clear();
     mExtractor.clear();
-    mNativeWindow.clear();
+    mSurface.clear();
     mPath.clear();
 
     return OK;
