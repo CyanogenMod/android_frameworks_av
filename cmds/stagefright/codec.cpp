@@ -108,7 +108,7 @@ static int decode(
             continue;
         }
 
-        ALOGV("selecting track %d", i);
+        ALOGV("selecting track %zu", i);
 
         err = extractor->selectTrack(i);
         CHECK_EQ(err, (status_t)OK);
@@ -151,7 +151,7 @@ static int decode(
         CHECK_EQ((status_t)OK, codec->getInputBuffers(&state->mInBuffers));
         CHECK_EQ((status_t)OK, codec->getOutputBuffers(&state->mOutBuffers));
 
-        ALOGV("got %d input and %d output buffers",
+        ALOGV("got %zu input and %zu output buffers",
               state->mInBuffers.size(), state->mOutBuffers.size());
     }
 
@@ -172,7 +172,7 @@ static int decode(
                 err = state->mCodec->dequeueInputBuffer(&index, kTimeout);
 
                 if (err == OK) {
-                    ALOGV("filling input buffer %d", index);
+                    ALOGV("filling input buffer %zu", index);
 
                     const sp<ABuffer> &buffer = state->mInBuffers.itemAt(index);
 
@@ -209,7 +209,7 @@ static int decode(
                         state->mCodec->dequeueInputBuffer(&index, kTimeout);
 
                     if (err == OK) {
-                        ALOGV("signalling input EOS on track %d", i);
+                        ALOGV("signalling input EOS on track %zu", i);
 
                         err = state->mCodec->queueInputBuffer(
                                 index,
@@ -258,8 +258,8 @@ static int decode(
                     kTimeout);
 
             if (err == OK) {
-                ALOGV("draining output buffer %d, time = %lld us",
-                      index, presentationTimeUs);
+                ALOGV("draining output buffer %zu, time = %lld us",
+                      index, (long long)presentationTimeUs);
 
                 ++state->mNumBuffersDecoded;
                 state->mNumBytesDecoded += size;
@@ -293,7 +293,7 @@ static int decode(
                 CHECK_EQ((status_t)OK,
                          state->mCodec->getOutputBuffers(&state->mOutBuffers));
 
-                ALOGV("got %d output buffers", state->mOutBuffers.size());
+                ALOGV("got %zu output buffers", state->mOutBuffers.size());
             } else if (err == INFO_FORMAT_CHANGED) {
                 sp<AMessage> format;
                 CHECK_EQ((status_t)OK, state->mCodec->getOutputFormat(&format));
@@ -313,17 +313,17 @@ static int decode(
         CHECK_EQ((status_t)OK, state->mCodec->release());
 
         if (state->mIsAudio) {
-            printf("track %zu: %" PRId64 " bytes received. %.2f KB/sec\n",
+            printf("track %zu: %lld bytes received. %.2f KB/sec\n",
                    i,
-                   state->mNumBytesDecoded,
+                   (long long)state->mNumBytesDecoded,
                    state->mNumBytesDecoded * 1E6 / 1024 / elapsedTimeUs);
         } else {
-            printf("track %zu: %" PRId64 " frames decoded, %.2f fps. %" PRId64
+            printf("track %zu: %lld frames decoded, %.2f fps. %lld"
                     " bytes received. %.2f KB/sec\n",
                    i,
-                   state->mNumBuffersDecoded,
+                   (long long)state->mNumBuffersDecoded,
                    state->mNumBuffersDecoded * 1E6 / elapsedTimeUs,
-                   state->mNumBytesDecoded,
+                   (long long)state->mNumBytesDecoded,
                    state->mNumBytesDecoded * 1E6 / 1024 / elapsedTimeUs);
         }
     }
@@ -418,7 +418,7 @@ int main(int argc, char **argv) {
         ssize_t displayWidth = info.w;
         ssize_t displayHeight = info.h;
 
-        ALOGV("display is %ld x %ld\n", displayWidth, displayHeight);
+        ALOGV("display is %zd x %zd\n", displayWidth, displayHeight);
 
         control = composerClient->createSurface(
                 String8("A Surface"),

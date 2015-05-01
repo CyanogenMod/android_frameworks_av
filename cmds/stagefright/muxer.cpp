@@ -53,7 +53,6 @@ static void usage(const char *me) {
 using namespace android;
 
 static int muxing(
-        const android::sp<android::ALooper> &looper,
         const char *path,
         bool useAudio,
         bool useVideo,
@@ -137,7 +136,7 @@ static int muxing(
             }
         }
 
-        ALOGV("selecting track %d", i);
+        ALOGV("selecting track %zu", i);
 
         err = extractor->selectTrack(i);
         CHECK_EQ(err, (status_t)OK);
@@ -308,7 +307,7 @@ int main(int argc, char **argv) {
     sp<ALooper> looper = new ALooper;
     looper->start();
 
-    int result = muxing(looper, argv[0], useAudio, useVideo, outputFileName,
+    int result = muxing(argv[0], useAudio, useVideo, outputFileName,
                         enableTrim, trimStartTimeMs, trimEndTimeMs, rotationDegrees);
 
     looper->stop();

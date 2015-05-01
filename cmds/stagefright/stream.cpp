@@ -269,7 +269,7 @@ struct MyClient : public BnMediaPlayerClient {
         : mEOS(false) {
     }
 
-    virtual void notify(int msg, int ext1, int ext2, const Parcel *obj) {
+    virtual void notify(int msg, int ext1 __unused, int ext2 __unused, const Parcel *obj __unused) {
         Mutex::Autolock autoLock(mLock);
 
         if (msg == MEDIA_ERROR || msg == MEDIA_PLAYBACK_COMPLETE) {
@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
     ssize_t displayWidth = info.w;
     ssize_t displayHeight = info.h;
 
-    ALOGV("display is %d x %d\n", displayWidth, displayHeight);
+    ALOGV("display is %zd x %zd\n", displayWidth, displayHeight);
 
     sp<SurfaceControl> control =
         composerClient->createSurface(
