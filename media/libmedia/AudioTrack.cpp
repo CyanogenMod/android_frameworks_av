@@ -234,6 +234,10 @@ AudioTrack::~AudioTrack()
             mAudioTrackThread->requestExitAndWait();
             mAudioTrackThread.clear();
         }
+        // No lock here: worst case we remove a NULL callback which will be a nop
+        if (mDeviceCallback != 0 && mOutput != AUDIO_IO_HANDLE_NONE) {
+            AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mOutput);
+        }
         IInterface::asBinder(mAudioTrack)->unlinkToDeath(mDeathNotifier, this);
         mAudioTrack.clear();
         mCblkMemory.clear();
@@ -1042,6 +1046,14 @@ audio_port_handle_t AudioTrack::getOutputDevice() {
     return mSelectedDeviceId;
 }
 
+audio_port_handle_t AudioTrack::getRoutedDeviceId() {
+    AutoMutex lock(mLock);
+    if (mOutput == AUDIO_IO_HANDLE_NONE) {
+        return AUDIO_PORT_HANDLE_NONE;
+    }
+    return AudioSystem::getDeviceIdForIo(mOutput);
+}
+
 status_t AudioTrack::attachAuxEffect(int effectId)
 {
     AutoMutex lock(mLock);
@@ -1071,6 +1083,9 @@ status_t AudioTrack::createTrack_l()
         return NO_INIT;
     }
 
+    if (mDeviceCallback != 0 && mOutput != AUDIO_IO_HANDLE_NONE) {
+        AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mOutput);
+    }
     audio_io_handle_t output;
     audio_stream_type_t streamType = mStreamType;
     audio_attributes_t *attr = (mStreamType == AUDIO_STREAM_DEFAULT) ? &mAttributes : NULL;
@@ -1374,6 +1389,10 @@ status_t AudioTrack::createTrack_l()
 
     mDeathNotifier = new DeathNotifier(this);
     IInterface::asBinder(mAudioTrack)->linkToDeath(mDeathNotifier, this);
+
+    if (mDeviceCallback != 0) {
+        AudioSystem::addAudioDeviceCallback(mDeviceCallback, mOutput);
+    }
 
     return NO_ERROR;
     }
@@ -2306,6 +2325,48 @@ uint32_t AudioTrack::getUnderrunFrames() const
 {
     AutoMutex lock(mLock);
     return mProxy->getUnderrunFrames();
+}
+
+status_t AudioTrack::addAudioDeviceCallback(const sp<AudioSystem::AudioDeviceCallback>& callback)
+{
+    if (callback == 0) {
+        ALOGW("%s adding NULL callback!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (mDeviceCallback == callback) {
+        ALOGW("%s adding same callback!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    status_t status = NO_ERROR;
+    if (mOutput != AUDIO_IO_HANDLE_NONE) {
+        if (mDeviceCallback != 0) {
+            ALOGW("%s callback already present!", __FUNCTION__);
+            AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mOutput);
+        }
+        status = AudioSystem::addAudioDeviceCallback(callback, mOutput);
+    }
+    mDeviceCallback = callback;
+    return status;
+}
+
+status_t AudioTrack::removeAudioDeviceCallback(
+        const sp<AudioSystem::AudioDeviceCallback>& callback)
+{
+    if (callback == 0) {
+        ALOGW("%s removing NULL callback!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (mDeviceCallback != callback) {
+        ALOGW("%s removing different callback!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    if (mOutput != AUDIO_IO_HANDLE_NONE) {
+        AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mOutput);
+    }
+    mDeviceCallback = 0;
+    return NO_ERROR;
 }
 
 // =========================================================================

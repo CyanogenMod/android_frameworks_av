@@ -390,6 +390,39 @@ public:
      * TODO Document this method.
      */
             audio_port_handle_t getInputDevice();
+
+     /* Returns the ID of the audio device actually used by the input to which this AudioRecord
+      * is attached.
+      * A value of AUDIO_PORT_HANDLE_NONE indicates the AudioRecord is not attached to any input.
+      *
+      * Parameters:
+      *  none.
+      */
+     audio_port_handle_t getRoutedDeviceId();
+
+    /* Add an AudioDeviceCallback. The caller will be notified when the audio device
+     * to which this AudioRecord is routed is updated.
+     * Replaces any previously installed callback.
+     * Parameters:
+     *  callback:  The callback interface
+     * Returns NO_ERROR if successful.
+     *         INVALID_OPERATION if the same callback is already installed.
+     *         NO_INIT or PREMISSION_DENIED if AudioFlinger service is not reachable
+     *         BAD_VALUE if the callback is NULL
+     */
+            status_t addAudioDeviceCallback(
+                    const sp<AudioSystem::AudioDeviceCallback>& callback);
+
+    /* remove an AudioDeviceCallback.
+     * Parameters:
+     *  callback:  The callback interface
+     * Returns NO_ERROR if successful.
+     *         INVALID_OPERATION if the callback is not installed
+     *         BAD_VALUE if the callback is NULL
+     */
+            status_t removeAudioDeviceCallback(
+                    const sp<AudioSystem::AudioDeviceCallback>& callback);
+
 private:
     /* If nonContig is non-NULL, it is an output parameter that will be set to the number of
      * additional non-contiguous frames that are predicted to be available immediately,
@@ -582,6 +615,7 @@ private:
     // For Device Selection API
     //  a value of AUDIO_PORT_HANDLE_NONE indicated default (AudioPolicyManager) routing.
     audio_port_handle_t    mSelectedDeviceId;
+    sp<AudioSystem::AudioDeviceCallback> mDeviceCallback;
 };
 
 }; // namespace android
