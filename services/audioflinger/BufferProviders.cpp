@@ -332,7 +332,8 @@ TimestretchBufferProvider::TimestretchBufferProvider(int32_t channelCount,
         mLocalBufferData(NULL),
         mRemaining(0),
         mSonicStream(sonicCreateStream(sampleRate, mChannelCount)),
-        mFallbackFailErrorShown(false)
+        mFallbackFailErrorShown(false),
+        mAudioPlaybackRateValid(false)
 {
     LOG_ALWAYS_FATAL_IF(mSonicStream == NULL,
             "TimestretchBufferProvider can't allocate Sonic stream");
@@ -460,6 +461,8 @@ status_t TimestretchBufferProvider::setPlaybackRate(const AudioPlaybackRate &pla
     sonicSetSpeed(mSonicStream, mPlaybackRate.mSpeed);
     //TODO: pitch is ignored for now
     //TODO: optimize: if parameters are the same, don't do any extra computation.
+
+    mAudioPlaybackRateValid = isAudioPlaybackRateValid(mPlaybackRate);
     return OK;
 }
 
@@ -479,8 +482,7 @@ void TimestretchBufferProvider::processFrames(void *dstBuffer, size_t *dstFrames
         *srcFrames = targetSrc + 1;
     }
 
-    if (mPlaybackRate.mSpeed< TIMESTRETCH_SONIC_SPEED_MIN  ||
-            mPlaybackRate.mSpeed >  TIMESTRETCH_SONIC_SPEED_MAX ) {
+    if (!mAudioPlaybackRateValid) {
         //fallback mode
         if (*dstFrames > 0) {
             switch(mPlaybackRate.mFallbackMode) {
