@@ -1087,6 +1087,16 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             mAudioSink->pause();
             mAudioSink->flush();
             mAudioSink->start();
+        } else {
+            mAudioSink->pause();
+            mAudioSink->flush();
+            // Call stop() to signal to the AudioSink to completely fill the
+            // internal buffer before resuming playback.
+            mAudioSink->stop();
+            if (!mPaused) {
+                mAudioSink->start();
+            }
+            mNumFramesWritten = 0;
         }
     } else {
         flushQueue(&mVideoQueue);
