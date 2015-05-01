@@ -466,7 +466,7 @@ status_t MediaCodec::setCallback(const sp<AMessage> &callback) {
 
 status_t MediaCodec::configure(
         const sp<AMessage> &format,
-        const sp<Surface> &nativeWindow,
+        const sp<Surface> &surface,
         const sp<ICrypto> &crypto,
         uint32_t flags) {
     sp<AMessage> msg = new AMessage(kWhatConfigure, this);
@@ -478,10 +478,7 @@ status_t MediaCodec::configure(
 
     msg->setMessage("format", format);
     msg->setInt32("flags", flags);
-
-    if (nativeWindow != NULL) {
-        msg->setObject("native-window", nativeWindow);
-    }
+    msg->setObject("surface", surface);
 
     if (crypto != NULL) {
         msg->setPointer("crypto", crypto.get());
@@ -1324,13 +1321,13 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     ALOGV("codec output format changed");
 
                     if (mSoftRenderer == NULL &&
-                            mNativeWindow != NULL &&
+                            mSurface != NULL &&
                             (mFlags & kFlagUsesSoftwareRenderer)) {
                         AString mime;
                         CHECK(msg->findString("mime", &mime));
 
                         if (mime.startsWithIgnoreCase("video/")) {
-                            mSoftRenderer = new SoftwareRenderer(mNativeWindow);
+                            mSoftRenderer = new SoftwareRenderer(mSurface);
                         }
                     }
 
@@ -1602,22 +1599,20 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             sp<RefBase> obj;
-            if (!msg->findObject("native-window", &obj)) {
-                obj.clear();
-            }
+            CHECK(msg->findObject("surface", &obj));
 
             sp<AMessage> format;
             CHECK(msg->findMessage("format", &format));
 
             if (obj != NULL) {
                 format->setObject("native-window", obj);
-                status_t err = setNativeWindow(static_cast<Surface *>(obj.get()));
+                status_t err = handleSetSurface(static_cast<Surface *>(obj.get()));
                 if (err != OK) {
                     PostReplyWithError(replyID, err);
                     break;
                 }
             } else {
-                setNativeWindow(NULL);
+                handleSetSurface(NULL);
             }
 
             mReplyID = replyID;
@@ -2100,7 +2095,7 @@ void MediaCodec::setState(State newState) {
         mSoftRenderer = NULL;
 
         mCrypto.clear();
-        setNativeWindow(NULL);
+        handleSetSurface(NULL);
 
         mInputFormat.clear();
         mOutputFormat.clear();
@@ -2406,25 +2401,24 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
     return index;
 }
 
-status_t MediaCodec::setNativeWindow(
-        const sp<Surface> &surfaceTextureClient) {
+status_t MediaCodec::handleSetSurface(const sp<Surface> &surface) {
     status_t err;
 
-    if (mNativeWindow != NULL) {
+    if (mSurface != NULL) {
         err = native_window_api_disconnect(
-                mNativeWindow.get(), NATIVE_WINDOW_API_MEDIA);
+                mSurface.get(), NATIVE_WINDOW_API_MEDIA);
 
         if (err != OK) {
             ALOGW("native_window_api_disconnect returned an error: %s (%d)",
                     strerror(-err), err);
         }
 
-        mNativeWindow.clear();
+        mSurface.clear();
     }
 
-    if (surfaceTextureClient != NULL) {
+    if (surface != NULL) {
         err = native_window_api_connect(
-                surfaceTextureClient.get(), NATIVE_WINDOW_API_MEDIA);
+                surface.get(), NATIVE_WINDOW_API_MEDIA);
 
         if (err != OK) {
             ALOGE("native_window_api_connect returned an error: %s (%d)",
@@ -2433,7 +2427,7 @@ status_t MediaCodec::setNativeWindow(
             return err;
         }
 
-        mNativeWindow = surfaceTextureClient;
+        mSurface = surface;
     }
 
     return OK;

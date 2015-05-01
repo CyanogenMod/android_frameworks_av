@@ -259,7 +259,7 @@ private:
     sp<AReplyToken> mReplyID;
     uint32_t mFlags;
     status_t mStickyError;
-    sp<Surface> mNativeWindow;
+    sp<Surface> mSurface;
     SoftwareRenderer *mSoftRenderer;
     sp<AMessage> mOutputFormat;
     sp<AMessage> mInputFormat;
@@ -334,7 +334,7 @@ private:
     void extractCSD(const sp<AMessage> &format);
     status_t queueCSDInputBuffer(size_t bufferIndex);
 
-    status_t setNativeWindow(
+    status_t handleSetSurface(
             const sp<Surface> &surface);
 
     void postActivityNotificationIfPossible();
