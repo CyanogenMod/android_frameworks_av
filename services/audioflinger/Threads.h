@@ -865,6 +865,10 @@ protected:
     virtual     void        threadLoop_removeTracks(const Vector< sp<Track> >& tracksToRemove);
     virtual     uint32_t    correctLatency_l(uint32_t latency) const;
 
+    virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
+                                   audio_patch_handle_t *handle);
+    virtual     status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
+
                 AudioMixer* mAudioMixer;    // normal mixer
 private:
                 // one-time initialization, no locks required
