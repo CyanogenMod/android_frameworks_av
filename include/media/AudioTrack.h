@@ -360,6 +360,11 @@ public:
     /* Return current source sample rate in Hz */
             uint32_t    getSampleRate() const;
 
+    /* Return the original source sample rate in Hz. This corresponds to the sample rate
+     * if playback rate had normal speed and pitch.
+     */
+            uint32_t    getOriginalSampleRate() const;
+
     /* Set source playback rate for timestretch
      * 1.0 is normal speed: < 1.0 is slower, > 1.0 is faster
      * 1.0 is normal pitch: < 1.0 is lower pitch, > 1.0 is higher pitch
@@ -749,6 +754,7 @@ protected:
     float                   mVolume[2];
     float                   mSendLevel;
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it
+    uint32_t                mOriginalSampleRate;
     AudioPlaybackRate       mPlaybackRate;
     size_t                  mFrameCount;            // corresponds to current IAudioTrack, value is
                                                     // reported back by AudioFlinger to the client

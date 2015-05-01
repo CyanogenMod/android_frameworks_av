@@ -34,7 +34,9 @@
 
 namespace android {
 
+struct AudioPlaybackRate;
 class AudioTrack;
+struct AVSyncSettings;
 class IDataSource;
 class IMediaRecorder;
 class IMediaMetadataRetriever;
@@ -109,7 +111,9 @@ class MediaPlayerService : public BnMediaPlayerService
                 void            setAudioAttributes(const audio_attributes_t * attributes);
 
                 void            setVolume(float left, float right);
-        virtual status_t        setPlaybackRatePermille(int32_t ratePermille);
+        virtual status_t        setPlaybackRate(const AudioPlaybackRate& rate);
+        virtual status_t        getPlaybackRate(AudioPlaybackRate* rate /* nonnull */);
+
                 status_t        setAuxEffectSendLevel(float level);
                 status_t        attachAuxEffect(int effectId);
         virtual status_t        dump(int fd, const Vector<String16>& args) const;
@@ -139,7 +143,7 @@ class MediaPlayerService : public BnMediaPlayerService
         const audio_attributes_t *mAttributes;
         float                   mLeftVolume;
         float                   mRightVolume;
-        int32_t                 mPlaybackRatePermille;
+        AudioPlaybackRate       mPlaybackRate;
         uint32_t                mSampleRateHz; // sample rate of the content, as set in open()
         float                   mMsecsPerFrame;
         int                     mSessionId;
@@ -262,7 +266,11 @@ private:
         virtual status_t        stop();
         virtual status_t        pause();
         virtual status_t        isPlaying(bool* state);
-        virtual status_t        setPlaybackRate(float rate);
+        virtual status_t        setPlaybackSettings(const AudioPlaybackRate& rate);
+        virtual status_t        getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */);
+        virtual status_t        setSyncSettings(const AVSyncSettings& rate, float videoFpsHint);
+        virtual status_t        getSyncSettings(AVSyncSettings* rate /* nonnull */,
+                                                float* videoFps /* nonnull */);
         virtual status_t        seekTo(int msec);
         virtual status_t        getCurrentPosition(int* msec);
         virtual status_t        getDuration(int* msec);

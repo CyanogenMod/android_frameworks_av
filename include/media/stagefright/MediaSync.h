@@ -20,6 +20,8 @@
 #include <gui/IConsumerListener.h>
 #include <gui/IProducerListener.h>
 
+#include <media/AudioResamplerPublic.h>
+#include <media/AVSyncSettings.h>
 #include <media/stagefright/foundation/AHandler.h>
 
 #include <utils/Condition.h>
@@ -77,10 +79,7 @@ public:
 
     // Called when audio track is used as media clock source. It should be
     // called before updateQueuedAudioData().
-    // |nativeSampleRateInHz| is the sample rate of audio data fed into audio
-    // track. It's the same number used to create AudioTrack.
-    status_t configureAudioTrack(
-            const sp<AudioTrack> &audioTrack, uint32_t nativeSampleRateInHz);
+    status_t configureAudioTrack(const sp<AudioTrack> &audioTrack);
 
     // Create a surface for client to render video frames. This is the surface
     // on which the client should render video frames. Those video frames will
@@ -99,20 +98,30 @@ public:
     // Set the consumer name of the input queue.
     void setName(const AString &name);
 
-    // Set the playback in a desired speed.
-    // This method can be called any time.
-    // |rate| is the ratio between desired speed and the normal one, and should
-    // be non-negative. The meaning of rate values:
-    // 1.0 -- normal playback
-    // 0.0 -- stop or pause
-    // larger than 1.0 -- faster than normal speed
-    // between 0.0 and 1.0 -- slower than normal speed
-    status_t setPlaybackRate(float rate);
-
     // Get the media clock used by the MediaSync so that the client can obtain
     // corresponding media time or real time via
     // MediaClock::getMediaTime() and MediaClock::getRealTimeFor().
     sp<const MediaClock> getMediaClock();
+
+    // Set the video frame rate hint - this is used by the video FrameScheduler
+    status_t setVideoFrameRateHint(float rate);
+
+    // Get the video frame rate measurement from the FrameScheduler
+    // returns -1 if there is no measurement
+    float getVideoFrameRate();
+
+    // Set the sync settings parameters.
+    status_t setSyncSettings(const AVSyncSettings &syncSettings);
+
+    // Gets the sync settings parameters.
+    void getSyncSettings(AVSyncSettings *syncSettings /* nonnull */);
+
+    // Sets the playback rate using playback settings.
+    // This method can be called any time.
+    status_t setPlaybackSettings(const AudioPlaybackRate &rate);
+
+    // Gets the playback rate (playback settings parameters).
+    void getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */);
 
     // Get the play time for pending audio frames in audio sink.
     status_t getPlayTimeForPendingAudioFrames(int64_t *outTimeUs);
@@ -201,6 +210,9 @@ private:
     sp<ALooper> mLooper;
     float mPlaybackRate;
 
+    AudioPlaybackRate mPlaybackSettings;
+    AVSyncSettings mSyncSettings;
+
     sp<MediaClock> mMediaClock;
 
     MediaSync();
@@ -238,6 +250,22 @@ private:
     // input or output, and signals any waiting onFrameAvailable calls to wake
     // up. This must be called with mMutex locked.
     void onAbandoned_l(bool isInput);
+
+    // Set the playback in a desired speed.
+    // This method can be called any time.
+    // |rate| is the ratio between desired speed and the normal one, and should
+    // be non-negative. The meaning of rate values:
+    // 1.0 -- normal playback
+    // 0.0 -- stop or pause
+    // larger than 1.0 -- faster than normal speed
+    // between 0.0 and 1.0 -- slower than normal speed
+    void updatePlaybackRate_l(float rate);
+
+    // apply new sync settings
+    void resync_l();
+
+    // apply playback settings only - without resyncing or updating playback rate
+    status_t setPlaybackSettings_l(const AudioPlaybackRate &rate);
 
     // helper.
     bool isPlaying() { return mPlaybackRate != 0.0; }

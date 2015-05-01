@@ -76,6 +76,15 @@ struct HLSTime {
 
 bool operator <(const HLSTime &t0, const HLSTime &t1);
 
+// read and write various object to/from AMessage
+
+void writeToAMessage(sp<AMessage> msg, const AudioPlaybackRate &rate);
+void readFromAMessage(const sp<AMessage> &msg, AudioPlaybackRate *rate /* nonnull */);
+
+void writeToAMessage(sp<AMessage> msg, const AVSyncSettings &sync, float videoFpsHint);
+void readFromAMessage(
+        const sp<AMessage> &msg, AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */);
+
 }  // namespace android
 
 #endif  // UTILS_H_

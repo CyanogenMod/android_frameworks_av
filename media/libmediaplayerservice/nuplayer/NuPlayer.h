@@ -18,6 +18,7 @@
 
 #define NU_PLAYER_H_
 
+#include <media/AudioResamplerPublic.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/NativeWindowWrapper.h>
@@ -26,6 +27,8 @@ namespace android {
 
 struct ABuffer;
 struct AMessage;
+struct AudioPlaybackRate;
+struct AVSyncSettings;
 class IDataSource;
 class MetaData;
 struct NuPlayerDriver;
@@ -54,7 +57,11 @@ struct NuPlayer : public AHandler {
             const sp<IGraphicBufferProducer> &bufferProducer);
 
     void setAudioSink(const sp<MediaPlayerBase::AudioSink> &sink);
-    void setPlaybackRate(float rate);
+    status_t setPlaybackSettings(const AudioPlaybackRate &rate);
+    status_t getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */);
+    status_t setSyncSettings(const AVSyncSettings &sync, float videoFpsHint);
+    status_t getSyncSettings(AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */);
+
     void start();
 
     void pause();
@@ -108,7 +115,10 @@ private:
         kWhatSetVideoNativeWindow       = '=NaW',
         kWhatSetAudioSink               = '=AuS',
         kWhatMoreDataQueued             = 'more',
-        kWhatSetRate                    = 'setR',
+        kWhatConfigPlayback             = 'cfPB',
+        kWhatConfigSync                 = 'cfSy',
+        kWhatGetPlaybackSettings        = 'gPbS',
+        kWhatGetSyncSettings            = 'gSyS',
         kWhatStart                      = 'strt',
         kWhatScanSources                = 'scan',
         kWhatVideoNotify                = 'vidN',
@@ -180,7 +190,9 @@ private:
 
     int32_t mVideoScalingMode;
 
-    float mPlaybackRate;
+    AudioPlaybackRate mPlaybackSettings;
+    AVSyncSettings mSyncSettings;
+    float mVideoFpsHint;
     bool mStarted;
 
     // Actual pause state, either as requested by client or due to buffering.

@@ -32,7 +32,9 @@
 #include <gui/Surface.h>
 
 #include <media/mediaplayer.h>
+#include <media/AudioResamplerPublic.h>
 #include <media/AudioSystem.h>
+#include <media/AVSyncSettings.h>
 #include <media/IDataSource.h>
 
 #include <binder/MemoryBase.h>
@@ -60,7 +62,6 @@ MediaPlayer::MediaPlayer()
     mLoop = false;
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
-    mPlaybackRate = 1.0;
     mLockThreadId = 0;
     mAudioSessionId = AudioSystem::newAudioUniqueId();
     AudioSystem::acquireAudioSessionId(mAudioSessionId, -1);
@@ -389,6 +390,9 @@ bool MediaPlayer::isPlaying()
         if ((mCurrentState & MEDIA_PLAYER_STARTED) && ! temp) {
             ALOGE("internal/external state mismatch corrected");
             mCurrentState = MEDIA_PLAYER_PAUSED;
+        } else if ((mCurrentState & MEDIA_PLAYER_PAUSED) && temp) {
+            ALOGE("internal/external state mismatch corrected");
+            mCurrentState = MEDIA_PLAYER_STARTED;
         }
         return temp;
     }
@@ -396,22 +400,50 @@ bool MediaPlayer::isPlaying()
     return false;
 }
 
-status_t MediaPlayer::setPlaybackRate(float rate)
+status_t MediaPlayer::setPlaybackSettings(const AudioPlaybackRate& rate)
 {
-    ALOGV("setPlaybackRate: %f", rate);
-    if (rate <= 0.0) {
+    ALOGV("setPlaybackSettings: %f %f %d %d",
+            rate.mSpeed, rate.mPitch, rate.mFallbackMode, rate.mStretchMode);
+    // Negative speed and pitch does not make sense. Further validation will
+    // be done by the respective mediaplayers.
+    if (rate.mSpeed < 0.f || rate.mPitch < 0.f) {
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mLock);
-    if (mPlayer != 0) {
-        if (mPlaybackRate == rate) {
-            return NO_ERROR;
+    if (mPlayer == 0) return INVALID_OPERATION;
+    status_t err = mPlayer->setPlaybackSettings(rate);
+    if (err == OK) {
+        if (rate.mSpeed == 0.f && mCurrentState == MEDIA_PLAYER_STARTED) {
+            mCurrentState = MEDIA_PLAYER_PAUSED;
+        } else if (rate.mSpeed != 0.f && mCurrentState == MEDIA_PLAYER_PAUSED) {
+            mCurrentState = MEDIA_PLAYER_STARTED;
         }
-        mPlaybackRate = rate;
-        return mPlayer->setPlaybackRate(rate);
     }
-    ALOGV("setPlaybackRate: no active player");
-    return INVALID_OPERATION;
+    return err;
+}
+
+status_t MediaPlayer::getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */)
+{
+    Mutex::Autolock _l(mLock);
+    if (mPlayer == 0) return INVALID_OPERATION;
+    return mPlayer->getPlaybackSettings(rate);
+}
+
+status_t MediaPlayer::setSyncSettings(const AVSyncSettings& sync, float videoFpsHint)
+{
+    ALOGV("setSyncSettings: %u %u %f %f",
+            sync.mSource, sync.mAudioAdjustMode, sync.mTolerance, videoFpsHint);
+    Mutex::Autolock _l(mLock);
+    if (mPlayer == 0) return INVALID_OPERATION;
+    return mPlayer->setSyncSettings(sync, videoFpsHint);
+}
+
+status_t MediaPlayer::getSyncSettings(
+        AVSyncSettings* sync /* nonnull */, float* videoFps /* nonnull */)
+{
+    Mutex::Autolock _l(mLock);
+    if (mPlayer == 0) return INVALID_OPERATION;
+    return mPlayer->getSyncSettings(sync, videoFps);
 }
 
 status_t MediaPlayer::getVideoWidth(int *w)

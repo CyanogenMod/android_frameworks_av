@@ -188,6 +188,14 @@ status_t StagefrightPlayer::getParameter(int key, Parcel *reply) {
     return mPlayer->getParameter(key, reply);
 }
 
+status_t StagefrightPlayer::setPlaybackSettings(const AudioPlaybackRate &rate) {
+    return mPlayer->setPlaybackSettings(rate);
+}
+
+status_t StagefrightPlayer::getPlaybackSettings(AudioPlaybackRate *rate /* nonnull */) {
+    return mPlayer->getPlaybackSettings(rate);
+}
+
 status_t StagefrightPlayer::getMetadata(
         const media::Metadata::Filter& /* ids */, Parcel *records) {
     using media::Metadata;
