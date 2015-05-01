@@ -2227,11 +2227,18 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
                     - mPreviousTimestamp.mPosition);
             // position can bobble slightly as an artifact; this hides the bobble
             static const int32_t MINIMUM_POSITION_DELTA = 8;
-            ALOGW_IF(deltaPosition < 0,
-                    "retrograde timestamp position corrected, %d = %u - %u",
-                    deltaPosition,
-                    timestamp.mPosition,
-                    mPreviousTimestamp.mPosition);
+            if (deltaPosition < 0) {
+                // Only report once per position instead of spamming the log.
+                if (!mRetrogradeMotionReported) {
+                    ALOGW("retrograde timestamp position corrected, %d = %u - %u",
+                            deltaPosition,
+                            timestamp.mPosition,
+                            mPreviousTimestamp.mPosition);
+                    mRetrogradeMotionReported = true;
+                }
+            } else {
+                mRetrogradeMotionReported = false;
+            }
             if (deltaPosition < MINIMUM_POSITION_DELTA) {
                 timestamp = mPreviousTimestamp;  // Use last valid timestamp.
             }
