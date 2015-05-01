@@ -122,8 +122,8 @@ static void torch_mode_status_change(
 // should be ok for now.
 static CameraService *gCameraService;
 
-CameraService::CameraService() : mEventLog(DEFAULT_EVENT_LOG_LENGTH),
-        mLastUserId(DEFAULT_LAST_USER_ID), mSoundRef(0), mModule(0), mFlashlight(0) {
+CameraService::CameraService() : mEventLog(DEFAULT_EVENT_LOG_LENGTH), mAllowedUsers(),
+        mSoundRef(0), mModule(0), mFlashlight(0) {
     ALOGI("CameraService started (pid=%d)", getpid());
     gCameraService = this;
 
@@ -676,6 +676,20 @@ status_t CameraService::makeClient(const sp<CameraService>& cameraService,
     return NO_ERROR;
 }
 
+String8 CameraService::toString(std::set<userid_t> intSet) {
+    String8 s("");
+    bool first = true;
+    for (userid_t i : intSet) {
+        if (first) {
+            s.appendFormat("%d", i);
+            first = false;
+        } else {
+            s.appendFormat(", %d", i);
+        }
+    }
+    return s;
+}
+
 status_t CameraService::initializeShimMetadata(int cameraId) {
     int uid = getCallingUid();
 
@@ -783,7 +797,7 @@ status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/
     // Check device policy for this camera
     char value[PROPERTY_VALUE_MAX];
     char key[PROPERTY_KEY_MAX];
-    int clientUserId = multiuser_get_user_id(clientUid);
+    userid_t clientUserId = multiuser_get_user_id(clientUid);
     snprintf(key, PROPERTY_KEY_MAX, "sys.secpolicy.camera.off_%d", clientUserId);
     property_get(key, value, "0");
     if (strcmp(value, "1") == 0) {
@@ -795,10 +809,10 @@ status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/
 
     // Only allow clients who are being used by the current foreground device user, unless calling
     // from our own process.
-    if (callingPid != getpid() &&
-            (mLastUserId != clientUserId && mLastUserId != DEFAULT_LAST_USER_ID)) {
-        ALOGE("CameraService::connect X (PID %d) rejected (cannot connect from previous "
-                "device user %d, current device user %d)", callingPid, clientUserId, mLastUserId);
+    if (callingPid != getpid() && (mAllowedUsers.find(clientUserId) == mAllowedUsers.end())) {
+        ALOGE("CameraService::connect X (PID %d) rejected (cannot connect from "
+                "device user %d, currently allowed device users: %s)", callingPid, clientUserId,
+                toString(mAllowedUsers).string());
         return PERMISSION_DENIED;
     }
 
@@ -1197,10 +1211,10 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
     return OK;
 }
 
-void CameraService::notifySystemEvent(int eventId, int arg0) {
+void CameraService::notifySystemEvent(int32_t eventId, const int32_t* args, size_t length) {
     switch(eventId) {
         case ICameraService::USER_SWITCHED: {
-            doUserSwitch(/*newUserId*/arg0);
+            doUserSwitch(/*newUserIds*/args, /*length*/length);
             break;
         }
         case ICameraService::NO_EVENT:
@@ -1443,20 +1457,30 @@ sp<CameraService::BasicClient> CameraService::removeClientLocked(const String8& 
     return clientDescriptorPtr->getValue();
 }
 
-void CameraService::doUserSwitch(int newUserId) {
+void CameraService::doUserSwitch(const int32_t* newUserId, size_t length) {
     // Acquire mServiceLock and prevent other clients from connecting
     std::unique_ptr<AutoConditionLock> lock =
             AutoConditionLock::waitAndAcquire(mServiceLockWrapper);
 
-    if (newUserId <= 0) {
-        ALOGW("%s: Bad user ID %d given during user switch, resetting to default.", __FUNCTION__,
-                newUserId);
-        newUserId = DEFAULT_LAST_USER_ID;
+    std::set<userid_t> newAllowedUsers;
+    for (size_t i = 0; i < length; i++) {
+        if (newUserId[i] < 0) {
+            ALOGE("%s: Bad user ID %d given during user switch, ignoring.",
+                    __FUNCTION__, newUserId[i]);
+            return;
+        }
+        newAllowedUsers.insert(static_cast<userid_t>(newUserId[i]));
     }
 
-    logUserSwitch(mLastUserId, newUserId);
 
-    mLastUserId = newUserId;
+    if (newAllowedUsers == mAllowedUsers) {
+        ALOGW("%s: Received notification of user switch with no updated user IDs.", __FUNCTION__);
+        return;
+    }
+
+    logUserSwitch(mAllowedUsers, newAllowedUsers);
+
+    mAllowedUsers = std::move(newAllowedUsers);
 
     // Current user has switched, evict all current clients.
     std::vector<sp<BasicClient>> evicted;
@@ -1465,6 +1489,13 @@ void CameraService::doUserSwitch(int newUserId) {
 
         if (clientSp.get() == nullptr) {
             ALOGE("%s: Dead client still in mActiveClientManager.", __FUNCTION__);
+            continue;
+        }
+
+        // Don't evict clients that are still allowed.
+        uid_t clientUid = clientSp->getClientUid();
+        userid_t clientUserId = multiuser_get_user_id(clientUid);
+        if (mAllowedUsers.find(clientUserId) != mAllowedUsers.end()) {
             continue;
         }
 
@@ -1527,10 +1558,13 @@ void CameraService::logRejected(const char* cameraId, int clientPid,
             cameraId, clientPackage, clientPid, reason));
 }
 
-void CameraService::logUserSwitch(int oldUserId, int newUserId) {
+void CameraService::logUserSwitch(const std::set<userid_t>& oldUserIds,
+        const std::set<userid_t>& newUserIds) {
+    String8 newUsers = toString(newUserIds);
+    String8 oldUsers = toString(oldUserIds);
     // Log the new and old users
-    logEvent(String8::format("USER_SWITCH from old user: %d , to new user: %d", oldUserId,
-            newUserId));
+    logEvent(String8::format("USER_SWITCH previous allowed users: %s , current allowed users: %s",
+            oldUsers.string(), newUsers.string()));
 }
 
 void CameraService::logDeviceRemoved(const char* cameraId, const char* reason) {
@@ -1735,6 +1769,10 @@ int CameraService::BasicClient::getClientPid() const {
     return mClientPid;
 }
 
+uid_t CameraService::BasicClient::getClientUid() const {
+    return mClientUid;
+}
+
 bool CameraService::BasicClient::canCastToApiClient(apiLevel level) const {
     // Defaults to API2.
     return level == API_2;
@@ -1937,12 +1975,18 @@ String8 CameraService::CameraClientManager::toString() const {
         auto conflicting = i->getConflicting();
         auto clientSp = i->getValue();
         String8 packageName;
+        userid_t clientUserId;
         if (clientSp.get() != nullptr) {
             packageName = String8{clientSp->getPackageName()};
+            uid_t clientUid = clientSp->getClientUid();
+            clientUserId = multiuser_get_user_id(clientUid);
         }
         ret.appendFormat("\n(Camera ID: %s, Cost: %" PRId32 ", PID: %" PRId32 ", Priority: %"
                 PRId32 ", ", key.string(), cost, pid, priority);
 
+        if (clientSp.get() != nullptr) {
+            ret.appendFormat("User Id: %d, ", clientUserId);
+        }
         if (packageName.size() != 0) {
             ret.appendFormat("Client Package Name: %s", packageName.string());
         }
@@ -2025,6 +2069,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         result.appendFormat("Number of camera devices: %d\n", mNumberOfCameras);
         String8 activeClientString = mActiveClientManager.toString();
         result.appendFormat("Active Camera Clients:\n%s", activeClientString.string());
+        result.appendFormat("Allowed users:\n%s\n", toString(mAllowedUsers).string());
 
         sp<VendorTagDescriptor> desc = VendorTagDescriptor::getGlobalVendorTagDescriptor();
         if (desc == NULL) {

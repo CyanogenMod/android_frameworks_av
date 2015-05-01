@@ -164,7 +164,7 @@ public:
     /**
      * Notify the camera service of a system event.  Should only be called from system_server.
      */
-    virtual void notifySystemEvent(int eventId, int arg0) = 0;
+    virtual void notifySystemEvent(int32_t eventId, const int32_t* args, size_t length) = 0;
 };
 
 // ----------------------------------------------------------------------------
