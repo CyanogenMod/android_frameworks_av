@@ -55,6 +55,16 @@ static bool checkPermission(const char* permissionString) {
     return ok;
 }
 
+status_t MediaRecorderClient::usePersistentSurface(const sp<IGraphicBufferConsumer>& surface)
+{
+    ALOGV("usePersistentSurface");
+    Mutex::Autolock lock(mLock);
+    if (mRecorder == NULL) {
+        ALOGE("recorder is not initialized");
+        return NO_INIT;
+    }
+    return mRecorder->usePersistentSurface(surface);
+}
 
 sp<IGraphicBufferProducer> MediaRecorderClient::querySurfaceMediaSource()
 {
