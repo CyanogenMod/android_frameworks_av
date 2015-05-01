@@ -1063,7 +1063,7 @@ status_t AudioTrack::createTrack_l()
 
     status_t status;
     status = AudioSystem::getOutputForAttr(attr, &output,
-                                           (audio_session_t)mSessionId, &streamType,
+                                           (audio_session_t)mSessionId, &streamType, mClientUid,
                                            mSampleRate, mFormat, mChannelMask,
                                            mFlags, mSelectedDeviceId, mOffloadInfo);
 

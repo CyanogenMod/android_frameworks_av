@@ -176,14 +176,14 @@ status_t AudioPolicyMixCollection::getInputMixForAttr(audio_attributes_t attr, A
 
     ssize_t index = indexOfKey(address);
     if (index < 0) {
-        ALOGW("getInputForAttr() no policy for address %s", address.string());
+        ALOGW("getInputMixForAttr() no policy for address %s", address.string());
         return BAD_VALUE;
     }
     sp<AudioPolicyMix> audioPolicyMix = valueAt(index);
     AudioMix *mix = audioPolicyMix->getMix();
 
     if (mix->mMixType != MIX_TYPE_PLAYERS) {
-        ALOGW("getInputForAttr() bad policy mix type for address %s", address.string());
+        ALOGW("getInputMixForAttr() bad policy mix type for address %s", address.string());
         return BAD_VALUE;
     }
     *policyMix = mix;
