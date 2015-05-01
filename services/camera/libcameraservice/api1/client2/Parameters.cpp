@@ -2100,12 +2100,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
 
     delete[] reqMeteringAreas;
 
-    /* don't include jpeg thumbnail size - it's valid for
-       it to be set to (0,0), meaning 'no thumbnail' */
-    CropRegion crop = calculateCropRegion( (CropRegion::Outputs)(
-            CropRegion::OUTPUT_PREVIEW     |
-            CropRegion::OUTPUT_VIDEO       |
-            CropRegion::OUTPUT_PICTURE    ));
+    CropRegion crop = calculateCropRegion(/*previewOnly*/ false);
     int32_t reqCropRegion[4] = {
         static_cast<int32_t>(crop.left),
         static_cast<int32_t>(crop.top),
@@ -2603,7 +2598,7 @@ int Parameters::cropXToArray(int x) const {
     ALOG_ASSERT(x >= 0, "Crop-relative X coordinate = '%d' is out of bounds"
                          "(lower = 0)", x);
 
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    CropRegion previewCrop = calculateCropRegion(/*previewOnly*/ true);
     ALOG_ASSERT(x < previewCrop.width, "Crop-relative X coordinate = '%d' "
                     "is out of bounds (upper = %f)", x, previewCrop.width);
 
@@ -2619,7 +2614,7 @@ int Parameters::cropYToArray(int y) const {
     ALOG_ASSERT(y >= 0, "Crop-relative Y coordinate = '%d' is out of bounds "
         "(lower = 0)", y);
 
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    CropRegion previewCrop = calculateCropRegion(/*previewOnly*/ true);
     ALOG_ASSERT(y < previewCrop.height, "Crop-relative Y coordinate = '%d' is "
                 "out of bounds (upper = %f)", y, previewCrop.height);
 
@@ -2634,12 +2629,12 @@ int Parameters::cropYToArray(int y) const {
 }
 
 int Parameters::normalizedXToCrop(int x) const {
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    CropRegion previewCrop = calculateCropRegion(/*previewOnly*/ true);
     return (x + 1000) * (previewCrop.width - 1) / 2000;
 }
 
 int Parameters::normalizedYToCrop(int y) const {
-    CropRegion previewCrop = calculateCropRegion(CropRegion::OUTPUT_PREVIEW);
+    CropRegion previewCrop = calculateCropRegion(/*previewOnly*/ true);
     return (y + 1000) * (previewCrop.height - 1) / 2000;
 }
 
@@ -2855,8 +2850,7 @@ Vector<Parameters::Size> Parameters::getAvailableJpegSizes() {
     return jpegSizes;
 }
 
-Parameters::CropRegion Parameters::calculateCropRegion(
-                            Parameters::CropRegion::Outputs outputs) const {
+Parameters::CropRegion Parameters::calculateCropRegion(bool previewOnly) const {
 
     float zoomLeft, zoomTop, zoomWidth, zoomHeight;
 
@@ -2880,89 +2874,44 @@ Parameters::CropRegion Parameters::calculateCropRegion(
           maxDigitalZoom.data.f[0], zoomIncrement, zoomRatio, previewWidth,
           previewHeight, fastInfo.arrayWidth, fastInfo.arrayHeight);
 
-    /*
-     * Assumption: On the HAL side each stream buffer calculates its crop
-     * rectangle as follows:
-     *   cropRect = (zoomLeft, zoomRight,
-     *               zoomWidth, zoomHeight * zoomWidth / outputWidth);
-     *
-     * Note that if zoomWidth > bufferWidth, the new cropHeight > zoomHeight
-     *      (we can then get into trouble if the cropHeight > arrayHeight).
-     * By selecting the zoomRatio based on the smallest outputRatio, we
-     * guarantee this will never happen.
-     */
+    if (previewOnly) {
+        // Calculate a tight crop region for the preview stream only
+        float previewRatio = static_cast<float>(previewWidth) / previewHeight;
 
-    // Enumerate all possible output sizes, select the one with the smallest
-    // aspect ratio
-    float minOutputWidth, minOutputHeight, minOutputRatio;
-    {
-        float outputSizes[][2] = {
-            { static_cast<float>(previewWidth),
-              static_cast<float>(previewHeight) },
-            { static_cast<float>(videoWidth),
-              static_cast<float>(videoHeight) },
-            { static_cast<float>(jpegThumbSize[0]),
-              static_cast<float>(jpegThumbSize[1]) },
-            { static_cast<float>(pictureWidth),
-              static_cast<float>(pictureHeight) },
-        };
+        /* Ensure that the width/height never go out of bounds
+         * by scaling across a diffent dimension if an out-of-bounds
+         * possibility exists.
+         *
+         * e.g. if the previewratio < arrayratio and e.g. zoomratio = 1.0, then by
+         * calculating the zoomWidth from zoomHeight we'll actually get a
+         * zoomheight > arrayheight
+         */
+        float arrayRatio = 1.f * fastInfo.arrayWidth / fastInfo.arrayHeight;
+        if (previewRatio >= arrayRatio) {
+            // Adjust the height based on the width
+            zoomWidth =  fastInfo.arrayWidth / zoomRatio;
+            zoomHeight = zoomWidth *
+                    previewHeight / previewWidth;
 
-        minOutputWidth = outputSizes[0][0];
-        minOutputHeight = outputSizes[0][1];
-        minOutputRatio = minOutputWidth / minOutputHeight;
-        for (unsigned int i = 0;
-             i < sizeof(outputSizes) / sizeof(outputSizes[0]);
-             ++i) {
-
-            // skip over outputs we don't want to consider for the crop region
-            if ( !((1 << i) & outputs) ) {
-                continue;
-            }
-
-            float outputWidth = outputSizes[i][0];
-            float outputHeight = outputSizes[i][1];
-            float outputRatio = outputWidth / outputHeight;
-
-            if (minOutputRatio > outputRatio) {
-                minOutputRatio = outputRatio;
-                minOutputWidth = outputWidth;
-                minOutputHeight = outputHeight;
-            }
-
-            // and then use this output ratio instead of preview output ratio
-            ALOGV("Enumerating output ratio %f = %f / %f, min is %f",
-                  outputRatio, outputWidth, outputHeight, minOutputRatio);
+        } else {
+            // Adjust the width based on the height
+            zoomHeight = fastInfo.arrayHeight / zoomRatio;
+            zoomWidth = zoomHeight *
+                    previewWidth / previewHeight;
         }
-    }
-
-    /* Ensure that the width/height never go out of bounds
-     * by scaling across a diffent dimension if an out-of-bounds
-     * possibility exists.
-     *
-     * e.g. if the previewratio < arrayratio and e.g. zoomratio = 1.0, then by
-     * calculating the zoomWidth from zoomHeight we'll actually get a
-     * zoomheight > arrayheight
-     */
-    float arrayRatio = 1.f * fastInfo.arrayWidth / fastInfo.arrayHeight;
-    if (minOutputRatio >= arrayRatio) {
-        // Adjust the height based on the width
-        zoomWidth =  fastInfo.arrayWidth / zoomRatio;
-        zoomHeight = zoomWidth *
-                minOutputHeight / minOutputWidth;
-
     } else {
-        // Adjust the width based on the height
+        // Calculate the global crop region with a shape matching the active
+        // array.
+        zoomWidth = fastInfo.arrayWidth / zoomRatio;
         zoomHeight = fastInfo.arrayHeight / zoomRatio;
-        zoomWidth = zoomHeight *
-                minOutputWidth / minOutputHeight;
     }
-    // centering the zoom area within the active area
+
+    // center the zoom area within the active area
     zoomLeft = (fastInfo.arrayWidth - zoomWidth) / 2;
     zoomTop = (fastInfo.arrayHeight - zoomHeight) / 2;
 
     ALOGV("Crop region calculated (x=%d,y=%d,w=%f,h=%f) for zoom=%d",
         (int32_t)zoomLeft, (int32_t)zoomTop, zoomWidth, zoomHeight, this->zoom);
-
 
     CropRegion crop = { zoomLeft, zoomTop, zoomWidth, zoomHeight };
     return crop;
