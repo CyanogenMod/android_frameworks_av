@@ -83,11 +83,6 @@ public:
     // Default number of messages to store in eviction log
     static const size_t DEFAULT_EVENT_LOG_LENGTH = 100;
 
-    enum {
-        // Default last user id
-        DEFAULT_LAST_USER_ID = 0,
-    };
-
     // Implementation of BinderService<T>
     static char const* getServiceName() { return "media.camera"; }
 
@@ -141,7 +136,7 @@ public:
     virtual status_t    setTorchMode(const String16& cameraId, bool enabled,
             const sp<IBinder>& clientBinder);
 
-    virtual void notifySystemEvent(int eventId, int arg0);
+    virtual void notifySystemEvent(int32_t eventId, const int32_t* args, size_t length);
 
     // OK = supports api of that version, -EOPNOTSUPP = does not support
     virtual status_t    supportsCameraApi(
@@ -199,6 +194,9 @@ public:
         // Notify client about a fatal error
         virtual void notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
                 const CaptureResultExtras& resultExtras) = 0;
+
+        // Get the UID of the application client using this
+        virtual uid_t getClientUid() const;
 
         // Get the PID of the application client using this
         virtual int getClientPid() const;
@@ -469,7 +467,6 @@ private:
             const String16& clientPackageName, int clientUid, apiLevel effectiveApiLevel,
             bool legacyMode, bool shimUpdateOnly, /*out*/sp<CLIENT>& device);
 
-
     // Lock guarding camera service state
     Mutex               mServiceLock;
 
@@ -492,8 +489,8 @@ private:
     RingBuffer<String8> mEventLog;
     Mutex mLogLock;
 
-    // UID of last user.
-    int mLastUserId;
+    // Currently allowed user IDs
+    std::set<userid_t> mAllowedUsers;
 
     /**
      * Get the camera state for a given camera id.
@@ -542,7 +539,7 @@ private:
     /**
      * Handle a notification that the current device user has changed.
      */
-    void doUserSwitch(int newUserId);
+    void doUserSwitch(const int32_t* newUserId, size_t length);
 
     /**
      * Add an event log message.
@@ -568,7 +565,8 @@ private:
     /**
      * Add an event log message that the current device user has been switched.
      */
-    void logUserSwitch(int oldUserId, int newUserId);
+    void logUserSwitch(const std::set<userid_t>& oldUserIds,
+        const std::set<userid_t>& newUserIds);
 
     /**
      * Add an event log message that a device has been removed by the HAL
@@ -699,6 +697,11 @@ private:
             int facing, int clientPid, uid_t clientUid, int servicePid, bool legacyMode,
             int halVersion, int deviceVersion, apiLevel effectiveApiLevel,
             /*out*/sp<BasicClient>* client);
+
+    status_t checkCameraAccess(const String16& opPackageName);
+
+    static String8 toString(std::set<userid_t> intSet);
+
 };
 
 template<class Func>
@@ -774,15 +777,6 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
         // Enforce client permissions and do basic sanity checks
         if((ret = validateConnectLocked(cameraId, /*inout*/clientUid)) != NO_ERROR) {
             return ret;
-        }
-        int userId = multiuser_get_user_id(clientUid);
-
-        if (userId != mLastUserId && clientPid != getpid() ) {
-            // If no previous user ID had been set, set to the user of the caller.
-            logUserSwitch(mLastUserId, userId);
-            LOG_ALWAYS_FATAL_IF(mLastUserId != DEFAULT_LAST_USER_ID,
-                    "Invalid state: Should never update user ID here unless was default");
-            mLastUserId = userId;
         }
 
         // Check the shim parameters after acquiring lock, if they have already been updated and
