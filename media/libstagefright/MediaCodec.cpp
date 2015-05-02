@@ -28,6 +28,7 @@
 #include <binder/MemoryDealer.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
+#include <media/IOMX.h>
 #include <media/IResourceManagerService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -42,6 +43,9 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaFilter.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/OMXClient.h>
+#include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/PersistentSurface.h>
 #include <private/android_filesystem_config.h>
 #include <utils/Log.h>
 #include <utils/Singleton.h>
@@ -309,6 +313,26 @@ sp<MediaCodec> MediaCodec::CreateByComponentName(
     return ret == OK ? codec : NULL; // NULL deallocates codec.
 }
 
+// static
+sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
+    OMXClient client;
+    CHECK_EQ(client.connect(), (status_t)OK);
+    sp<IOMX> omx = client.interface();
+
+    sp<IGraphicBufferProducer> bufferProducer;
+    sp<IGraphicBufferConsumer> bufferConsumer;
+
+    status_t err = omx->createPersistentInputSurface(
+            &bufferProducer, &bufferConsumer);
+
+    if (err != OK) {
+        ALOGE("Failed to create persistent input surface.");
+        return NULL;
+    }
+
+    return new PersistentSurface(bufferProducer, bufferConsumer);
+}
+
 MediaCodec::MediaCodec(const sp<ALooper> &looper)
     : mState(UNINITIALIZED),
       mLooper(looper),
@@ -521,6 +545,15 @@ status_t MediaCodec::configure(
         }
     }
     return err;
+}
+
+status_t MediaCodec::usePersistentInputSurface(
+        const sp<PersistentSurface> &surface) {
+    sp<AMessage> msg = new AMessage(kWhatUsePersistentInputSurface, this);
+    msg->setObject("input-surface", surface.get());
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
 }
 
 status_t MediaCodec::createInputSurface(
@@ -1230,6 +1263,20 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
+                case CodecBase::kWhatInputSurfaceAccepted:
+                {
+                    // response to initiateUsePersistentInputSurface()
+                    status_t err = NO_ERROR;
+                    sp<AMessage> response = new AMessage();
+                    if (!msg->findInt32("err", &err)) {
+                        mHaveInputSurface = true;
+                    } else {
+                        response->setInt32("err", err);
+                    }
+                    response->postReply(mReplyID);
+                    break;
+                }
+
                 case CodecBase::kWhatSignaledInputEOS:
                 {
                     // response to signalEndOfInputStream()
@@ -1640,6 +1687,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
         }
 
         case kWhatCreateInputSurface:
+        case kWhatUsePersistentInputSurface:
         {
             sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
@@ -1651,10 +1699,17 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             mReplyID = replyID;
-            mCodec->initiateCreateInputSurface();
+            if (msg->what() == kWhatCreateInputSurface) {
+                mCodec->initiateCreateInputSurface();
+            } else {
+                sp<RefBase> obj;
+                CHECK(msg->findObject("input-surface", &obj));
+
+                mCodec->initiateUsePersistentInputSurface(
+                        static_cast<PersistentSurface *>(obj.get()));
+            }
             break;
         }
-
         case kWhatStart:
         {
             sp<AReplyToken> replyID;

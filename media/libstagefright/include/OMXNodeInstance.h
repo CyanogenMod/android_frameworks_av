@@ -81,6 +81,13 @@ struct OMXNodeInstance {
     status_t createInputSurface(
             OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer);
 
+    static status_t createPersistentInputSurface(
+            sp<IGraphicBufferProducer> *bufferProducer,
+            sp<IGraphicBufferConsumer> *bufferConsumer);
+
+    status_t usePersistentInputSurface(
+            OMX_U32 portIndex, const sp<IGraphicBufferConsumer> &bufferConsumer);
+
     status_t signalEndOfInputStream();
 
     status_t allocateBuffer(
@@ -202,6 +209,8 @@ private:
             OMX_BUFFERHEADERTYPE *header,
             OMX_U32 flags, OMX_TICKS timestamp, intptr_t debugAddr);
 
+    status_t createGraphicBufferSource(
+            OMX_U32 portIndex, sp<IGraphicBufferConsumer> consumer = NULL);
     sp<GraphicBufferSource> getGraphicBufferSource();
     void setGraphicBufferSource(const sp<GraphicBufferSource>& bufferSource);
 

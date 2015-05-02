@@ -95,6 +95,14 @@ public:
             node_id node, OMX_U32 port_index,
             sp<IGraphicBufferProducer> *bufferProducer);
 
+    virtual status_t createPersistentInputSurface(
+            sp<IGraphicBufferProducer> *bufferProducer,
+            sp<IGraphicBufferConsumer> *bufferConsumer);
+
+    virtual status_t usePersistentInputSurface(
+            node_id node, OMX_U32 port_index,
+            const sp<IGraphicBufferConsumer> &bufferConsumer);
+
     virtual status_t signalEndOfInputStream(node_id node);
 
     virtual status_t allocateBuffer(

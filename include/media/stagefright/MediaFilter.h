@@ -34,6 +34,9 @@ struct MediaFilter : public CodecBase {
     virtual void initiateAllocateComponent(const sp<AMessage> &msg);
     virtual void initiateConfigureComponent(const sp<AMessage> &msg);
     virtual void initiateCreateInputSurface();
+    virtual void initiateUsePersistentInputSurface(
+            const sp<PersistentSurface> &surface);
+
     virtual void initiateStart();
     virtual void initiateShutdown(bool keepComponentAllocated = false);
 

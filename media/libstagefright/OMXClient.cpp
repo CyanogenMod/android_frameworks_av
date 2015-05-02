@@ -104,6 +104,14 @@ struct MuxOMX : public IOMX {
             node_id node, OMX_U32 port_index,
             sp<IGraphicBufferProducer> *bufferProducer);
 
+    virtual status_t createPersistentInputSurface(
+            sp<IGraphicBufferProducer> *bufferProducer,
+            sp<IGraphicBufferConsumer> *bufferConsumer);
+
+    virtual status_t usePersistentInputSurface(
+            node_id node, OMX_U32 port_index,
+            const sp<IGraphicBufferConsumer> &bufferConsumer);
+
     virtual status_t signalEndOfInputStream(node_id node);
 
     virtual status_t allocateBuffer(
@@ -338,6 +346,21 @@ status_t MuxOMX::createInputSurface(
     status_t err = getOMX(node)->createInputSurface(
             node, port_index, bufferProducer);
     return err;
+}
+
+status_t MuxOMX::createPersistentInputSurface(
+        sp<IGraphicBufferProducer> *bufferProducer,
+        sp<IGraphicBufferConsumer> *bufferConsumer) {
+    // TODO: local or remote? Always use remote for now
+    return mRemoteOMX->createPersistentInputSurface(
+            bufferProducer, bufferConsumer);
+}
+
+status_t MuxOMX::usePersistentInputSurface(
+        node_id node, OMX_U32 port_index,
+        const sp<IGraphicBufferConsumer> &bufferConsumer) {
+    return getOMX(node)->usePersistentInputSurface(
+            node, port_index, bufferConsumer);
 }
 
 status_t MuxOMX::signalEndOfInputStream(node_id node) {

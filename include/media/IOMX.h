@@ -20,6 +20,7 @@
 
 #include <binder/IInterface.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/IGraphicBufferConsumer.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/List.h>
 #include <utils/String8.h>
@@ -112,6 +113,14 @@ public:
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
             sp<IGraphicBufferProducer> *bufferProducer) = 0;
+
+    virtual status_t createPersistentInputSurface(
+            sp<IGraphicBufferProducer> *bufferProducer,
+            sp<IGraphicBufferConsumer> *bufferConsumer) = 0;
+
+    virtual status_t usePersistentInputSurface(
+            node_id node, OMX_U32 port_index,
+            const sp<IGraphicBufferConsumer> &bufferConsumer) = 0;
 
     virtual status_t signalEndOfInputStream(node_id node) = 0;
 

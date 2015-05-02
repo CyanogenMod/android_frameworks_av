@@ -38,13 +38,19 @@ namespace android {
 static const bool EXTRA_CHECK = true;
 
 
-GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
-        uint32_t bufferWidth, uint32_t bufferHeight, uint32_t bufferCount,
-        bool useGraphicBufferInMeta) :
+GraphicBufferSource::GraphicBufferSource(
+        OMXNodeInstance* nodeInstance,
+        uint32_t bufferWidth,
+        uint32_t bufferHeight,
+        uint32_t bufferCount,
+        bool useGraphicBufferInMeta,
+        const sp<IGraphicBufferConsumer> &consumer) :
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
     mExecuting(false),
     mSuspended(false),
+    mIsPersistent(false),
+    mConsumer(consumer),
     mNumFramesAvailable(0),
     mEndOfStream(false),
     mEndOfStreamSent(false),
@@ -74,20 +80,22 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
         return;
     }
 
-    String8 name("GraphicBufferSource");
+    if (mConsumer == NULL) {
+        String8 name("GraphicBufferSource");
 
-    BufferQueue::createBufferQueue(&mProducer, &mConsumer);
-    mConsumer->setConsumerName(name);
-    mConsumer->setDefaultBufferSize(bufferWidth, bufferHeight);
-    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER);
-
-    mInitCheck = mConsumer->setMaxAcquiredBufferCount(bufferCount);
-    if (mInitCheck != NO_ERROR) {
-        ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
-                bufferCount, mInitCheck);
-        return;
+        BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+        mConsumer->setConsumerName(name);
+        mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER);
+        mInitCheck = mConsumer->setMaxAcquiredBufferCount(bufferCount);
+        if (mInitCheck != NO_ERROR) {
+            ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
+                    bufferCount, mInitCheck);
+            return;
+        }
+    } else {
+        mIsPersistent = true;
     }
-
+    mConsumer->setDefaultBufferSize(bufferWidth, bufferHeight);
     // Note that we can't create an sp<...>(this) in a ctor that will not keep a
     // reference once the ctor ends, as that would cause the refcount of 'this'
     // dropping to 0 at the end of the ctor.  Since all we need is a wp<...>
@@ -107,7 +115,7 @@ GraphicBufferSource::GraphicBufferSource(OMXNodeInstance* nodeInstance,
 
 GraphicBufferSource::~GraphicBufferSource() {
     ALOGV("~GraphicBufferSource");
-    if (mConsumer != NULL) {
+    if (mConsumer != NULL && !mIsPersistent) {
         status_t err = mConsumer->consumerDisconnect();
         if (err != NO_ERROR) {
             ALOGW("consumerDisconnect failed: %d", err);
@@ -292,8 +300,16 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         if (id == mLatestBufferId) {
             CHECK_GT(mLatestBufferUseCount--, 0);
         } else {
-            mConsumer->releaseBuffer(id, codecBuffer.mFrameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            if (mIsPersistent) {
+                mConsumer->detachBuffer(id);
+                int outSlot;
+                mConsumer->attachBuffer(&outSlot, mBufferSlot[id]);
+                mConsumer->releaseBuffer(outSlot, 0,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            } else {
+                mConsumer->releaseBuffer(id, codecBuffer.mFrameNumber,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            }
         }
     } else {
         ALOGV("codecBufferEmptied: no match for emptied buffer in cbi %d",
@@ -375,8 +391,15 @@ void GraphicBufferSource::suspend(bool suspend) {
 
             --mNumFramesAvailable;
 
-            mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
+            if (mIsPersistent) {
+                mConsumer->detachBuffer(item.mBuf);
+                mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
+                mConsumer->releaseBuffer(item.mBuf, 0,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            } else {
+                mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
+            }
         }
         return;
     }
@@ -463,8 +486,15 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
 
     if (err != OK) {
         ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
-        mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+        if (mIsPersistent) {
+            mConsumer->detachBuffer(item.mBuf);
+            mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
+            mConsumer->releaseBuffer(item.mBuf, 0,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+        } else {
+            mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+        }
     } else {
         ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
         setLatestBuffer_l(item, dropped);
@@ -540,12 +570,19 @@ void GraphicBufferSource::setLatestBuffer_l(
 
     if (mLatestBufferId >= 0) {
         if (mLatestBufferUseCount == 0) {
-            mConsumer->releaseBuffer(
-                    mLatestBufferId,
-                    mLatestBufferFrameNum,
-                    EGL_NO_DISPLAY,
-                    EGL_NO_SYNC_KHR,
-                    Fence::NO_FENCE);
+            if (mIsPersistent) {
+                mConsumer->detachBuffer(mLatestBufferId);
+
+                int outSlot;
+                mConsumer->attachBuffer(&outSlot, mBufferSlot[mLatestBufferId]);
+
+                mConsumer->releaseBuffer(outSlot, 0,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            } else {
+                mConsumer->releaseBuffer(
+                        mLatestBufferId, mLatestBufferFrameNum,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            }
         }
     }
 
@@ -787,8 +824,16 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
                 ALOGV("onFrameAvailable: setting mBufferSlot %d", item.mBuf);
                 mBufferSlot[item.mBuf] = item.mGraphicBuffer;
             }
-            mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
+
+            if (mIsPersistent) {
+                mConsumer->detachBuffer(item.mBuf);
+                mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
+                mConsumer->releaseBuffer(item.mBuf, 0,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+            } else {
+                mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
+            }
         }
         return;
     }
