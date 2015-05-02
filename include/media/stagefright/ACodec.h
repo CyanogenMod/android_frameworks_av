@@ -49,6 +49,8 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
     virtual void initiateStart();
     virtual void initiateShutdown(bool keepComponentAllocated = false);
 
+    virtual status_t setSurface(const sp<Surface> &surface);
+
     virtual void signalFlush();
     virtual void signalResume();
 
@@ -115,6 +117,7 @@ private:
         kWhatDrainDeferredMessages   = 'drai',
         kWhatAllocateComponent       = 'allo',
         kWhatConfigureComponent      = 'conf',
+        kWhatSetSurface              = 'setS',
         kWhatCreateInputSurface      = 'cisf',
         kWhatUsePersistentInputSurface = 'pisf',
         kWhatSignalEndOfInputStream  = 'eois',
@@ -231,6 +234,12 @@ private:
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffer(OMX_U32 portIndex, size_t i);
+
+    status_t handleSetSurface(const sp<Surface> &surface);
+    status_t setNativeWindowSizeFormatAndUsage(
+            ANativeWindow *nativeWindow /* nonnull */,
+            int width, int height, int format, int rotation, int usage);
+    status_t setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow /* nonnull */);
 
     status_t configureOutputBuffersFromNativeWindow(
             OMX_U32 *nBufferCount, OMX_U32 *nBufferSize,

@@ -146,6 +146,8 @@ struct MediaCodec : public AHandler {
     status_t getOutputFormat(size_t index, sp<AMessage> *format);
     status_t getInputBuffer(size_t index, sp<ABuffer> *buffer);
 
+    status_t setSurface(const sp<Surface> &nativeWindow);
+
     status_t requestIDRFrame();
 
     // Notification will be posted once there "is something to do", i.e.
@@ -184,6 +186,7 @@ private:
     enum {
         kWhatInit                           = 'init',
         kWhatConfigure                      = 'conf',
+        kWhatSetSurface                     = 'sSur',
         kWhatCreateInputSurface             = 'cisf',
         kWhatUsePersistentInputSurface      = 'pisf',
         kWhatStart                          = 'strt',
@@ -340,8 +343,9 @@ private:
     void extractCSD(const sp<AMessage> &format);
     status_t queueCSDInputBuffer(size_t bufferIndex);
 
-    status_t handleSetSurface(
-            const sp<Surface> &surface);
+    status_t handleSetSurface(const sp<Surface> &surface);
+    status_t connectToSurface(const sp<Surface> &surface);
+    status_t disconnectFromSurface();
 
     void postActivityNotificationIfPossible();
 
