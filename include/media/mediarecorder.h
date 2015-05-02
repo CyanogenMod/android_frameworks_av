@@ -32,6 +32,7 @@ class IMediaRecorder;
 class ICamera;
 class ICameraRecordingProxy;
 class IGraphicBufferProducer;
+struct PersistentSurface;
 class Surface;
 
 typedef void (*media_completion_f)(status_t status, void *cookie);
@@ -236,6 +237,7 @@ public:
     status_t    close();
     status_t    release();
     void        notify(int msg, int ext1, int ext2);
+    status_t    usePersistentSurface(const sp<PersistentSurface>& surface);
     sp<IGraphicBufferProducer>     querySurfaceMediaSourceFromMediaServer();
 
 private:

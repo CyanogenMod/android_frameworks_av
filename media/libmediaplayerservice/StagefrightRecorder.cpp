@@ -243,6 +243,13 @@ status_t StagefrightRecorder::setPreviewSurface(const sp<IGraphicBufferProducer>
     return OK;
 }
 
+status_t StagefrightRecorder::usePersistentSurface(
+        const sp<IGraphicBufferConsumer>& surface) {
+    mPersistentSurface = surface;
+
+    return OK;
+}
+
 status_t StagefrightRecorder::setOutputFile(int fd, int64_t offset, int64_t length) {
     ALOGV("setOutputFile: %d, %lld, %lld", fd, offset, length);
     // These don't make any sense, do they?
@@ -1560,8 +1567,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
         flags |= MediaCodecSource::FLAG_USE_SURFACE_INPUT;
     }
 
-    sp<MediaCodecSource> encoder =
-            MediaCodecSource::Create(mLooper, format, cameraSource, flags);
+    sp<MediaCodecSource> encoder = MediaCodecSource::Create(
+            mLooper, format, cameraSource, mPersistentSurface, flags);
     if (encoder == NULL) {
         ALOGE("Failed to create video encoder");
         // When the encoder fails to be created, we need
