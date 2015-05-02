@@ -91,7 +91,7 @@ const sp<ICameraService>& CameraBase<TCam, TCamTraits>::getCameraService()
 
 template <typename TCam, typename TCamTraits>
 sp<TCam> CameraBase<TCam, TCamTraits>::connect(int cameraId,
-                                               const String16& clientPackageName,
+                                               const String16& opPackageName,
                                                int clientUid)
 {
     ALOGV("%s: connect", __FUNCTION__);
@@ -102,7 +102,7 @@ sp<TCam> CameraBase<TCam, TCamTraits>::connect(int cameraId,
 
     if (cs != 0) {
         TCamConnectService fnConnectService = TCamTraits::fnConnectService;
-        status = (cs.get()->*fnConnectService)(cl, cameraId, clientPackageName, clientUid,
+        status = (cs.get()->*fnConnectService)(cl, cameraId, opPackageName, clientUid,
                                              /*out*/ c->mCamera);
     }
     if (status == OK && c->mCamera != 0) {
