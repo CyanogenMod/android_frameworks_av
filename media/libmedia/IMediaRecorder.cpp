@@ -35,6 +35,7 @@ enum {
     RELEASE = IBinder::FIRST_CALL_TRANSACTION,
     INIT,
     CLOSE,
+    USE_PERSISTENT_SURFACE,
     QUERY_SURFACE_MEDIASOURCE,
     RESET,
     STOP,
@@ -72,6 +73,16 @@ public:
         data.writeStrongBinder(IInterface::asBinder(camera));
         data.writeStrongBinder(IInterface::asBinder(proxy));
         remote()->transact(SET_CAMERA, data, &reply);
+        return reply.readInt32();
+    }
+
+    status_t usePersistentSurface(const sp<IGraphicBufferConsumer>& surface)
+    {
+        ALOGV("usePersistentSurface(%p)", surface.get());
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
+        data.writeStrongBinder(IInterface::asBinder(surface));
+        remote()->transact(USE_PERSISTENT_SURFACE, data, &reply);
         return reply.readInt32();
     }
 
@@ -440,6 +451,14 @@ status_t BnMediaRecorder::onTransact(
             sp<ICameraRecordingProxy> proxy =
                 interface_cast<ICameraRecordingProxy>(data.readStrongBinder());
             reply->writeInt32(setCamera(camera, proxy));
+            return NO_ERROR;
+        } break;
+        case USE_PERSISTENT_SURFACE: {
+            ALOGV("USE_PERSISTENT_SURFACE");
+            CHECK_INTERFACE(IMediaRecorder, data, reply);
+            sp<IGraphicBufferConsumer> surface = interface_cast<IGraphicBufferConsumer>(
+                    data.readStrongBinder());
+            reply->writeInt32(usePersistentSurface(surface));
             return NO_ERROR;
         } break;
         case QUERY_SURFACE_MEDIASOURCE: {

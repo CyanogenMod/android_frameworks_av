@@ -27,6 +27,7 @@
 #include <media/IMediaPlayerService.h>
 #include <media/IMediaRecorder.h>
 #include <media/mediaplayer.h>  // for MEDIA_ERROR_SERVER_DIED
+#include <media/stagefright/PersistentSurface.h>
 #include <gui/IGraphicBufferProducer.h>
 
 namespace android {
@@ -343,6 +344,24 @@ sp<IGraphicBufferProducer> MediaRecorder::
 }
 
 
+
+status_t MediaRecorder::usePersistentSurface(const sp<PersistentSurface>& surface)
+{
+    ALOGV("usePersistentSurface");
+    if (mMediaRecorder == NULL) {
+        ALOGE("media recorder is not initialized yet");
+        return INVALID_OPERATION;
+    }
+    bool isInvalidState = (mCurrentState &
+                           (MEDIA_RECORDER_PREPARED |
+                            MEDIA_RECORDER_RECORDING));
+    if (isInvalidState) {
+        ALOGE("usePersistentSurface is called in an invalid state: %d", mCurrentState);
+        return INVALID_OPERATION;
+    }
+
+    return mMediaRecorder->usePersistentSurface(surface->getBufferConsumer());
+}
 
 status_t MediaRecorder::setVideoFrameRate(int frames_per_second)
 {
