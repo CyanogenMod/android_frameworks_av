@@ -556,6 +556,14 @@ status_t MediaCodec::usePersistentInputSurface(
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::setSurface(const sp<Surface> &surface) {
+    sp<AMessage> msg = new AMessage(kWhatSetSurface, this);
+    msg->setObject("surface", surface);
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
 status_t MediaCodec::createInputSurface(
         sp<IGraphicBufferProducer>* bufferProducer) {
     sp<AMessage> msg = new AMessage(kWhatCreateInputSurface, this);
@@ -1249,7 +1257,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     // response to initiateCreateInputSurface()
                     status_t err = NO_ERROR;
-                    sp<AMessage> response = new AMessage();
+                    sp<AMessage> response = new AMessage;
                     if (!msg->findInt32("err", &err)) {
                         sp<RefBase> obj;
                         msg->findObject("input-surface", &obj);
@@ -1280,7 +1288,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 case CodecBase::kWhatSignaledInputEOS:
                 {
                     // response to signalEndOfInputStream()
-                    sp<AMessage> response = new AMessage();
+                    sp<AMessage> response = new AMessage;
                     status_t err;
                     if (msg->findInt32("err", &err)) {
                         response->setInt32("err", err);
@@ -1683,6 +1691,61 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             extractCSD(format);
 
             mCodec->initiateConfigureComponent(format);
+            break;
+        }
+
+        case kWhatSetSurface:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            status_t err = OK;
+            sp<Surface> surface;
+
+            switch (mState) {
+                case CONFIGURED:
+                case STARTED:
+                case FLUSHED:
+                {
+                    sp<RefBase> obj;
+                    (void)msg->findObject("surface", &obj);
+                    sp<Surface> surface = static_cast<Surface *>(obj.get());
+                    if (mSurface == NULL) {
+                        // do not support setting surface if it was not set
+                        err = INVALID_OPERATION;
+                    } else if (obj == NULL) {
+                        // do not support unsetting surface
+                        err = BAD_VALUE;
+                    } else {
+                        err = connectToSurface(surface);
+                        if (err == BAD_VALUE) {
+                            // assuming reconnecting to same surface
+                            // TODO: check if it is the same surface
+                            err = OK;
+                        } else {
+                            if (err == OK) {
+                                if (mFlags & kFlagUsesSoftwareRenderer) {
+                                    mSoftRenderer = new SoftwareRenderer(surface);
+                                    // TODO: check if this was successful
+                                } else {
+                                    err = mCodec->setSurface(surface);
+                                }
+                            }
+                            if (err == OK) {
+                                (void)disconnectFromSurface();
+                                mSurface = surface;
+                            }
+                        }
+                    }
+                    break;
+                }
+
+                default:
+                    err = INVALID_OPERATION;
+                    break;
+            }
+
+            PostReplyWithError(replyID, err);
             break;
         }
 
@@ -2456,36 +2519,44 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
     return index;
 }
 
-status_t MediaCodec::handleSetSurface(const sp<Surface> &surface) {
-    status_t err;
-
-    if (mSurface != NULL) {
-        err = native_window_api_disconnect(
-                mSurface.get(), NATIVE_WINDOW_API_MEDIA);
-
-        if (err != OK) {
-            ALOGW("native_window_api_disconnect returned an error: %s (%d)",
-                    strerror(-err), err);
+status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
+    status_t err = OK;
+    if (surface != NULL) {
+        err = native_window_api_connect(surface.get(), NATIVE_WINDOW_API_MEDIA);
+        if (err == BAD_VALUE) {
+            ALOGI("native window already connected. Assuming no change of surface");
+        } else if (err != OK) {
+            ALOGE("native_window_api_connect returned an error: %s (%d)", strerror(-err), err);
         }
+    }
+    return err;
+}
 
+status_t MediaCodec::disconnectFromSurface() {
+    status_t err = OK;
+    if (mSurface != NULL) {
+        err = native_window_api_disconnect(mSurface.get(), NATIVE_WINDOW_API_MEDIA);
+        if (err != OK) {
+            ALOGW("native_window_api_disconnect returned an error: %s (%d)", strerror(-err), err);
+        }
+        // assume disconnected even on error
         mSurface.clear();
     }
+    return err;
+}
 
-    if (surface != NULL) {
-        err = native_window_api_connect(
-                surface.get(), NATIVE_WINDOW_API_MEDIA);
-
-        if (err != OK) {
-            ALOGE("native_window_api_connect returned an error: %s (%d)",
-                    strerror(-err), err);
-
-            return err;
-        }
-
-        mSurface = surface;
+status_t MediaCodec::handleSetSurface(const sp<Surface> &surface) {
+    status_t err = OK;
+    if (mSurface != NULL) {
+        (void)disconnectFromSurface();
     }
-
-    return OK;
+    if (surface != NULL) {
+        err = connectToSurface(surface);
+        if (err == OK) {
+            mSurface = surface;
+        }
+    }
+    return err;
 }
 
 void MediaCodec::onInputBufferAvailable() {
