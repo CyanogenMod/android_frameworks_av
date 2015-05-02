@@ -180,6 +180,10 @@ status_t MediaSync::createInputSurface(
         bufferConsumer->consumerConnect(listener, false /* controlledByApp */);
     if (status == NO_ERROR) {
         bufferConsumer->setConsumerName(String8("MediaSync"));
+        // propagate usage bits from output surface
+        int usage = 0;
+        mOutput->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS, &usage);
+        bufferConsumer->setConsumerUsageBits(usage);
         *outBufferProducer = bufferProducer;
         mInput = bufferConsumer;
     }
