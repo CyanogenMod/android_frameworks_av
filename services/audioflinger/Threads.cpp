@@ -2051,6 +2051,9 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
             ALOGW("direct output implements resume but not pause");
         }
     }
+    if (!mHwSupportsPause && mOutput->flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) {
+        LOG_ALWAYS_FATAL("HW_AV_SYNC requested but HAL does not implement pause and resume");
+    }
 
     if (mType == DUPLICATING && mMixerBufferEnabled && mEffectBufferEnabled) {
         // For best precision, we use float instead of the associated output
@@ -4371,9 +4374,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         sp<Track> l = mLatestActiveTrack.promote();
         bool last = l.get() == track;
 
-        if (mHwSupportsPause && track->isPausing()) {
+        if (track->isPausing()) {
             track->setPaused();
-            if (last && !mHwPaused) {
+            if (mHwSupportsPause && last && !mHwPaused) {
                 doHwPause = true;
                 mHwPaused = true;
             }
@@ -4383,13 +4386,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             if (last) {
                 flushPending = true;
             }
-        } else if (mHwSupportsPause && track->isResumePending()){
+        } else if (track->isResumePending()) {
             track->resumeAck();
-            if (last) {
-                if (mHwPaused) {
-                    doHwResume = true;
-                    mHwPaused = false;
-                }
+            if (last && mHwPaused) {
+                doHwResume = true;
+                mHwPaused = false;
             }
         }
 
