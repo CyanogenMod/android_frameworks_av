@@ -377,6 +377,21 @@ status_t OMX::createInputSurface(
             port_index, bufferProducer);
 }
 
+status_t OMX::createPersistentInputSurface(
+        sp<IGraphicBufferProducer> *bufferProducer,
+        sp<IGraphicBufferConsumer> *bufferConsumer) {
+    return OMXNodeInstance::createPersistentInputSurface(
+            bufferProducer, bufferConsumer);
+}
+
+status_t OMX::usePersistentInputSurface(
+        node_id node, OMX_U32 port_index,
+        const sp<IGraphicBufferConsumer> &bufferConsumer) {
+    return findInstance(node)->usePersistentInputSurface(
+            port_index, bufferConsumer);
+}
+
+
 status_t OMX::signalEndOfInputStream(node_id node) {
     return findInstance(node)->signalEndOfInputStream();
 }

@@ -787,9 +787,8 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta(
     return OK;
 }
 
-status_t OMXNodeInstance::createInputSurface(
-        OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer) {
-    Mutex::Autolock autolock(mLock);
+status_t OMXNodeInstance::createGraphicBufferSource(
+        OMX_U32 portIndex, sp<IGraphicBufferConsumer> bufferConsumer) {
     status_t err;
 
     const sp<GraphicBufferSource>& surfaceCheck = getGraphicBufferSource();
@@ -827,17 +826,73 @@ status_t OMXNodeInstance::createInputSurface(
         return INVALID_OPERATION;
     }
 
-    GraphicBufferSource* bufferSource = new GraphicBufferSource(
-            this, def.format.video.nFrameWidth, def.format.video.nFrameHeight,
-            def.nBufferCountActual, usingGraphicBuffer);
+    sp<GraphicBufferSource> bufferSource = new GraphicBufferSource(this,
+            def.format.video.nFrameWidth,
+            def.format.video.nFrameHeight,
+            def.nBufferCountActual,
+            usingGraphicBuffer,
+            bufferConsumer);
+
     if ((err = bufferSource->initCheck()) != OK) {
-        delete bufferSource;
         return err;
     }
     setGraphicBufferSource(bufferSource);
 
-    *bufferProducer = bufferSource->getIGraphicBufferProducer();
     return OK;
+}
+
+status_t OMXNodeInstance::createInputSurface(
+        OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer) {
+    Mutex::Autolock autolock(mLock);
+    status_t err = createGraphicBufferSource(portIndex);
+
+    if (err != OK) {
+        return err;
+    }
+
+    *bufferProducer = mGraphicBufferSource->getIGraphicBufferProducer();
+    return OK;
+}
+
+//static
+status_t OMXNodeInstance::createPersistentInputSurface(
+        sp<IGraphicBufferProducer> *bufferProducer,
+        sp<IGraphicBufferConsumer> *bufferConsumer) {
+    String8 name("GraphicBufferSource");
+
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->setConsumerName(name);
+    consumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER);
+
+    status_t err = consumer->setMaxAcquiredBufferCount(
+            BufferQueue::MAX_MAX_ACQUIRED_BUFFERS);
+    if (err != NO_ERROR) {
+        ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
+                BufferQueue::MAX_MAX_ACQUIRED_BUFFERS, err);
+        return err;
+    }
+
+    sp<BufferQueue::ProxyConsumerListener> proxy =
+        new BufferQueue::ProxyConsumerListener(NULL);
+    err = consumer->consumerConnect(proxy, false);
+    if (err != NO_ERROR) {
+        ALOGE("Error connecting to BufferQueue: %s (%d)",
+                strerror(-err), err);
+        return err;
+    }
+
+    *bufferProducer = producer;
+    *bufferConsumer = consumer;
+
+    return OK;
+}
+
+status_t OMXNodeInstance::usePersistentInputSurface(
+        OMX_U32 portIndex, const sp<IGraphicBufferConsumer> &bufferConsumer) {
+    Mutex::Autolock autolock(mLock);
+    return createGraphicBufferSource(portIndex, bufferConsumer);
 }
 
 status_t OMXNodeInstance::signalEndOfInputStream() {

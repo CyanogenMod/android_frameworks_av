@@ -41,6 +41,8 @@ enum {
     USE_BUFFER,
     USE_GRAPHIC_BUFFER,
     CREATE_INPUT_SURFACE,
+    CREATE_PERSISTENT_INPUT_SURFACE,
+    USE_PERSISTENT_INPUT_SURFACE,
     SIGNAL_END_OF_INPUT_STREAM,
     STORE_META_DATA_IN_BUFFERS,
     PREPARE_FOR_ADAPTIVE_PLAYBACK,
@@ -325,6 +327,51 @@ public:
 
         return err;
     }
+
+    virtual status_t createPersistentInputSurface(
+            sp<IGraphicBufferProducer> *bufferProducer,
+            sp<IGraphicBufferConsumer> *bufferConsumer) {
+        Parcel data, reply;
+        status_t err;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        err = remote()->transact(CREATE_PERSISTENT_INPUT_SURFACE, data, &reply);
+        if (err != OK) {
+            ALOGW("binder transaction failed: %d", err);
+            return err;
+        }
+
+        err = reply.readInt32();
+        if (err != OK) {
+            return err;
+        }
+
+        *bufferProducer = IGraphicBufferProducer::asInterface(
+                reply.readStrongBinder());
+        *bufferConsumer = IGraphicBufferConsumer::asInterface(
+                reply.readStrongBinder());
+
+        return err;
+    }
+
+    virtual status_t usePersistentInputSurface(
+            node_id node, OMX_U32 port_index,
+            const sp<IGraphicBufferConsumer> &bufferConsumer) {
+        Parcel data, reply;
+        data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
+        status_t err;
+        data.writeInt32((int32_t)node);
+        data.writeInt32(port_index);
+        data.writeStrongBinder(IInterface::asBinder(bufferConsumer));
+
+        err = remote()->transact(USE_PERSISTENT_INPUT_SURFACE, data, &reply);
+
+        if (err != OK) {
+            ALOGW("binder transaction failed: %d", err);
+            return err;
+        }
+        return reply.readInt32();
+    }
+
 
     virtual status_t signalEndOfInputStream(node_id node) {
         Parcel data, reply;
@@ -778,6 +825,42 @@ status_t BnOMX::onTransact(
                 reply->writeStrongBinder(IInterface::asBinder(bufferProducer));
             }
 
+            return NO_ERROR;
+        }
+
+        case CREATE_PERSISTENT_INPUT_SURFACE:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            sp<IGraphicBufferProducer> bufferProducer;
+            sp<IGraphicBufferConsumer> bufferConsumer;
+            status_t err = createPersistentInputSurface(
+                    &bufferProducer, &bufferConsumer);
+
+            reply->writeInt32(err);
+
+            if (err == OK) {
+                reply->writeStrongBinder(IInterface::asBinder(bufferProducer));
+                reply->writeStrongBinder(IInterface::asBinder(bufferConsumer));
+            }
+
+            return NO_ERROR;
+        }
+
+        case USE_PERSISTENT_INPUT_SURFACE:
+        {
+            CHECK_OMX_INTERFACE(IOMX, data, reply);
+
+            node_id node = (node_id)data.readInt32();
+            OMX_U32 port_index = data.readInt32();
+
+            sp<IGraphicBufferConsumer> bufferConsumer =
+                    interface_cast<IGraphicBufferConsumer>(data.readStrongBinder());
+
+            status_t err = usePersistentInputSurface(
+                    node, port_index, bufferConsumer);
+
+            reply->writeInt32(err);
             return NO_ERROR;
         }
 
