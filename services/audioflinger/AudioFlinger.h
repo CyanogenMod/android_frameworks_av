@@ -124,6 +124,7 @@ public:
                                 size_t *pFrameCount,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
+                                int clientUid,
                                 int *sessionId,
                                 size_t *notificationFrames,
                                 sp<IMemory>& cblk,
